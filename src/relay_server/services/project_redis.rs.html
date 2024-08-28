@@ -150,8 +150,6 @@
 <a href="#150" id="150">150</a>
 <a href="#151" id="151">151</a>
 <a href="#152" id="152">152</a>
-<a href="#153" id="153">153</a>
-<a href="#154" id="154">154</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
@@ -159,6 +157,7 @@
 <span class="kw">use </span>relay_redis::{RedisError, RedisPool};
 <span class="kw">use </span>relay_statsd::metric;
 
+<span class="kw">use </span><span class="kw">crate</span>::services::project::state::UpstreamProjectState;
 <span class="kw">use </span><span class="kw">crate</span>::services::project::{ParsedProjectState, ProjectState};
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 
@@ -208,16 +207,13 @@
 
     <span class="doccomment">/// Fetches a project config from Redis.
     ///
-    /// Returns `None` if the the project config stored in Redis has the same `revision`.
-    /// Always returns a project state if the passed `revision` is `None`.
-    ///
     /// The returned project state is [`ProjectState::Pending`] if the requested project config is not
     /// stored in Redis.
     </span><span class="kw">pub fn </span>get_config_if_changed(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         key: ProjectKey,
         revision: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;ProjectState&gt;, RedisProjectError&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;UpstreamProjectState, RedisProjectError&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>client = <span class="self">self</span>.redis.client()<span class="question-mark">?</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>connection = client.connection()<span class="question-mark">?</span>;
 
@@ -236,7 +232,7 @@
                     counter(RelayCounters::ProjectStateRedis) += <span class="number">1</span>,
                     hit = <span class="string">"revision"</span>,
                 );
-                <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>);
+                <span class="kw">return </span><span class="prelude-val">Ok</span>(UpstreamProjectState::NotModified);
             }
         }
 
@@ -250,7 +246,7 @@
                 counter(RelayCounters::ProjectStateRedis) += <span class="number">1</span>,
                 hit = <span class="string">"false"
             </span>);
-            <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(ProjectState::Pending));
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(UpstreamProjectState::New(ProjectState::Pending));
         };
 
         <span class="kw">let </span>response = ProjectState::from(parse_redis_response(response.as_slice())<span class="question-mark">?</span>);
@@ -267,13 +263,13 @@
                 counter(RelayCounters::ProjectStateRedis) += <span class="number">1</span>,
                 hit = <span class="string">"project_config_revision"
             </span>);
-            <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>)
+            <span class="prelude-val">Ok</span>(UpstreamProjectState::NotModified)
         } <span class="kw">else </span>{
             <span class="macro">metric!</span>(
                 counter(RelayCounters::ProjectStateRedis) += <span class="number">1</span>,
                 hit = <span class="string">"project_config"
             </span>);
-            <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(response))
+            <span class="prelude-val">Ok</span>(UpstreamProjectState::New(response))
         }
     }
 

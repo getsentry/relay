@@ -556,9 +556,64 @@
 <a href="#556" id="556">556</a>
 <a href="#557" id="557">557</a>
 <a href="#558" id="558">558</a>
+<a href="#559" id="559">559</a>
+<a href="#560" id="560">560</a>
+<a href="#561" id="561">561</a>
+<a href="#562" id="562">562</a>
+<a href="#563" id="563">563</a>
+<a href="#564" id="564">564</a>
+<a href="#565" id="565">565</a>
+<a href="#566" id="566">566</a>
+<a href="#567" id="567">567</a>
+<a href="#568" id="568">568</a>
+<a href="#569" id="569">569</a>
+<a href="#570" id="570">570</a>
+<a href="#571" id="571">571</a>
+<a href="#572" id="572">572</a>
+<a href="#573" id="573">573</a>
+<a href="#574" id="574">574</a>
+<a href="#575" id="575">575</a>
+<a href="#576" id="576">576</a>
+<a href="#577" id="577">577</a>
+<a href="#578" id="578">578</a>
+<a href="#579" id="579">579</a>
+<a href="#580" id="580">580</a>
+<a href="#581" id="581">581</a>
+<a href="#582" id="582">582</a>
+<a href="#583" id="583">583</a>
+<a href="#584" id="584">584</a>
+<a href="#585" id="585">585</a>
+<a href="#586" id="586">586</a>
+<a href="#587" id="587">587</a>
+<a href="#588" id="588">588</a>
+<a href="#589" id="589">589</a>
+<a href="#590" id="590">590</a>
+<a href="#591" id="591">591</a>
+<a href="#592" id="592">592</a>
+<a href="#593" id="593">593</a>
+<a href="#594" id="594">594</a>
+<a href="#595" id="595">595</a>
+<a href="#596" id="596">596</a>
+<a href="#597" id="597">597</a>
+<a href="#598" id="598">598</a>
+<a href="#599" id="599">599</a>
+<a href="#600" id="600">600</a>
+<a href="#601" id="601">601</a>
+<a href="#602" id="602">602</a>
+<a href="#603" id="603">603</a>
+<a href="#604" id="604">604</a>
+<a href="#605" id="605">605</a>
+<a href="#606" id="606">606</a>
+<a href="#607" id="607">607</a>
+<a href="#608" id="608">608</a>
+<a href="#609" id="609">609</a>
+<a href="#610" id="610">610</a>
+<a href="#611" id="611">611</a>
+<a href="#612" id="612">612</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::hash_map::Entry;
 <span class="kw">use </span>std::collections::HashMap;
+<span class="kw">use </span>std::collections::HashSet;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
@@ -575,7 +630,9 @@
 <span class="kw">use </span>tokio::sync::mpsc;
 <span class="kw">use </span>tokio::time::Instant;
 
-<span class="kw">use </span><span class="kw">crate</span>::services::project::{ParsedProjectState, ProjectFetchState};
+<span class="kw">use </span><span class="kw">crate</span>::services::project::state::UpstreamProjectState;
+<span class="kw">use </span><span class="kw">crate</span>::services::project::ParsedProjectState;
+<span class="kw">use </span><span class="kw">crate</span>::services::project::ProjectState;
 <span class="kw">use </span><span class="kw">crate</span>::services::project_cache::FetchProjectState;
 <span class="kw">use </span><span class="kw">crate</span>::services::upstream::{
     Method, RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError,
@@ -590,9 +647,19 @@
 </span><span class="attr">#[derive(Debug, Serialize)]
 #[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>GetProjectStates {
-    public_keys: Vec&lt;ProjectKey&gt;,
-    full_config: bool,
-    no_cache: bool,
+    <span class="doccomment">/// List of requested project keys.
+    </span>public_keys: Vec&lt;ProjectKey&gt;,
+    <span class="doccomment">/// List of revisions for each project key.
+    ///
+    /// The revisions are mapped by index to the project key,
+    /// this is a separate field to keep the API compatible.
+    </span>revisions: Vec&lt;<span class="prelude-ty">Option</span>&lt;String&gt;&gt;,
+    <span class="doccomment">/// If `true` the upstream should return a full configuration.
+    ///
+    /// Upstreams will ignore this for non-internal Relays.
+    </span>full_config: bool,
+    <span class="doccomment">/// If `true` the upstream should not serve from cache.
+    </span>no_cache: bool,
 }
 
 <span class="doccomment">/// The response of the projects states requests.
@@ -607,7 +674,13 @@
     </span>configs: HashMap&lt;ProjectKey, ErrorBoundary&lt;<span class="prelude-ty">Option</span>&lt;ParsedProjectState&gt;&gt;&gt;,
     <span class="doccomment">/// The [`ProjectKey`]'s that couldn't be immediately retrieved from the upstream.
     </span><span class="attr">#[serde(default)]
-    </span>pending: Vec&lt;ProjectKey&gt;,
+    </span>pending: HashSet&lt;ProjectKey&gt;,
+    <span class="doccomment">/// The [`ProjectKey`]'s that the upstream has no updates for.
+    ///
+    /// List is only populated when the request contains revision information
+    /// for all requested configurations.
+    </span><span class="attr">#[serde(default)]
+    </span>unchanged: HashSet&lt;ProjectKey&gt;,
 }
 
 <span class="kw">impl </span>UpstreamQuery <span class="kw">for </span>GetProjectStates {
@@ -637,7 +710,8 @@
 <span class="doccomment">/// The wrapper struct for the incoming external requests which also keeps addition information.
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">struct </span>ProjectStateChannel {
-    channel: BroadcastChannel&lt;ProjectFetchState&gt;,
+    channel: BroadcastChannel&lt;UpstreamProjectState&gt;,
+    revision: <span class="prelude-ty">Option</span>&lt;String&gt;,
     deadline: Instant,
     no_cache: bool,
     attempts: u64,
@@ -649,7 +723,8 @@
 
 <span class="kw">impl </span>ProjectStateChannel {
     <span class="kw">pub fn </span>new(
-        sender: BroadcastSender&lt;ProjectFetchState&gt;,
+        sender: BroadcastSender&lt;UpstreamProjectState&gt;,
+        revision: <span class="prelude-ty">Option</span>&lt;String&gt;,
         timeout: Duration,
         no_cache: bool,
     ) -&gt; <span class="self">Self </span>{
@@ -657,6 +732,7 @@
         <span class="self">Self </span>{
             no_cache,
             channel: sender.into_channel(),
+            revision,
             deadline: now + timeout,
             attempts: <span class="number">0</span>,
             errors: <span class="number">0</span>,
@@ -668,11 +744,24 @@
         <span class="self">self</span>.no_cache = <span class="bool-val">true</span>;
     }
 
-    <span class="kw">pub fn </span>attach(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sender: BroadcastSender&lt;ProjectFetchState&gt;) {
-        <span class="self">self</span>.channel.attach(sender)
+    <span class="doccomment">/// Attaches a new sender to the same channel.
+    ///
+    /// Also makes sure the new sender's revision matches the already requested revision.
+    /// If the new revision is different from the contained revision this clears the revision.
+    /// To not have multiple fetches per revision per batch, we need to find a common denominator
+    /// for requests with different revisions, which is always to fetch the full project config.
+    </span><span class="kw">pub fn </span>attach(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        sender: BroadcastSender&lt;UpstreamProjectState&gt;,
+        revision: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    ) {
+        <span class="self">self</span>.channel.attach(sender);
+        <span class="kw">if </span><span class="self">self</span>.revision != revision {
+            <span class="self">self</span>.revision = <span class="prelude-val">None</span>;
+        }
     }
 
-    <span class="kw">pub fn </span>send(<span class="self">self</span>, state: ProjectFetchState) {
+    <span class="kw">pub fn </span>send(<span class="self">self</span>, state: UpstreamProjectState) {
         <span class="self">self</span>.channel.send(state)
     }
 
@@ -690,16 +779,16 @@
 /// Internally it maintains the buffer queue of the incoming requests, which got scheduled to fetch the
 /// state and takes care of the backoff in case there is a problem with the requests.
 </span><span class="attr">#[derive(Debug)]
-</span><span class="kw">pub struct </span>UpstreamProjectSource(FetchProjectState, BroadcastSender&lt;ProjectFetchState&gt;);
+</span><span class="kw">pub struct </span>UpstreamProjectSource(FetchProjectState, BroadcastSender&lt;UpstreamProjectState&gt;);
 
 <span class="kw">impl </span>Interface <span class="kw">for </span>UpstreamProjectSource {}
 
 <span class="kw">impl </span>FromMessage&lt;FetchProjectState&gt; <span class="kw">for </span>UpstreamProjectSource {
-    <span class="kw">type </span>Response = BroadcastResponse&lt;ProjectFetchState&gt;;
+    <span class="kw">type </span>Response = BroadcastResponse&lt;UpstreamProjectState&gt;;
 
     <span class="kw">fn </span>from_message(
         message: FetchProjectState,
-        sender: BroadcastSender&lt;ProjectFetchState&gt;,
+        sender: BroadcastSender&lt;UpstreamProjectState&gt;,
     ) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>(message, sender)
     }
@@ -859,6 +948,10 @@
 
             <span class="kw">let </span>query = GetProjectStates {
                 public_keys: channels_batch.keys().copied().collect(),
+                revisions: channels_batch
+                    .values()
+                    .map(|c| c.revision.clone())
+                    .collect(),
                 full_config: config.processing_enabled() || config.request_full_project_config(),
                 no_cache: channels_batch.values().any(|c| c.no_cache),
             };
@@ -929,25 +1022,34 @@
                             response.configs.len() <span class="kw">as </span>u64
                     );
                     <span class="kw">for </span>(key, <span class="kw-2">mut </span>channel) <span class="kw">in </span>channels_batch {
-                        <span class="kw">let </span><span class="kw-2">mut </span>result = <span class="string">"ok"</span>;
                         <span class="kw">if </span>response.pending.contains(<span class="kw-2">&amp;</span>key) {
                             channel.pending += <span class="number">1</span>;
                             <span class="self">self</span>.state_channels.insert(key, channel);
                             <span class="kw">continue</span>;
                         }
-                        <span class="kw">let </span>state = response
-                            .configs
-                            .remove(<span class="kw-2">&amp;</span>key)
-                            .unwrap_or(ErrorBoundary::Ok(<span class="prelude-val">None</span>));
-                        <span class="kw">let </span>state = <span class="kw">match </span>state {
-                            ErrorBoundary::Err(error) =&gt; {
-                                result = <span class="string">"invalid"</span>;
-                                <span class="kw">let </span>error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error;
-                                <span class="macro">relay_log::error!</span>(error, <span class="string">"error fetching project state {key}"</span>);
-                                ProjectFetchState::pending()
-                            }
-                            ErrorBoundary::Ok(<span class="prelude-val">None</span>) =&gt; ProjectFetchState::disabled(),
-                            ErrorBoundary::Ok(<span class="prelude-val">Some</span>(state)) =&gt; ProjectFetchState::new(state.into()),
+
+                        <span class="kw">let </span><span class="kw-2">mut </span>result = <span class="string">"ok"</span>;
+                        <span class="kw">let </span>state = <span class="kw">if </span>response.unchanged.contains(<span class="kw-2">&amp;</span>key) {
+                            result = <span class="string">"ok_unchanged"</span>;
+                            UpstreamProjectState::NotModified
+                        } <span class="kw">else </span>{
+                            <span class="kw">let </span>state = response
+                                .configs
+                                .remove(<span class="kw-2">&amp;</span>key)
+                                .unwrap_or(ErrorBoundary::Ok(<span class="prelude-val">None</span>));
+
+                            <span class="kw">let </span>state = <span class="kw">match </span>state {
+                                ErrorBoundary::Err(error) =&gt; {
+                                    result = <span class="string">"invalid"</span>;
+                                    <span class="kw">let </span>error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error;
+                                    <span class="macro">relay_log::error!</span>(error, <span class="string">"error fetching project state {key}"</span>);
+                                    ProjectState::Pending
+                                }
+                                ErrorBoundary::Ok(<span class="prelude-val">None</span>) =&gt; ProjectState::Disabled,
+                                ErrorBoundary::Ok(<span class="prelude-val">Some</span>(state)) =&gt; state.into(),
+                            };
+
+                            UpstreamProjectState::New(state)
                         };
 
                         <span class="macro">metric!</span>(
@@ -959,7 +1061,7 @@
                             result = result,
                         );
 
-                        channel.send(state.sanitized());
+                        channel.send(state);
                     }
                 }
                 <span class="prelude-val">Err</span>(err) =&gt; {
@@ -1061,6 +1163,7 @@
         <span class="kw">let </span>UpstreamProjectSource(
             FetchProjectState {
                 project_key,
+                current_revision,
                 no_cache,
             },
             sender,
@@ -1072,11 +1175,16 @@
         // otherwise create a new one.
         </span><span class="kw">match </span><span class="self">self</span>.state_channels.entry(project_key) {
             Entry::Vacant(entry) =&gt; {
-                entry.insert(ProjectStateChannel::new(sender, query_timeout, no_cache));
+                entry.insert(ProjectStateChannel::new(
+                    sender,
+                    current_revision,
+                    query_timeout,
+                    no_cache,
+                ));
             }
             Entry::Occupied(<span class="kw-2">mut </span>entry) =&gt; {
                 <span class="kw">let </span>channel = entry.get_mut();
-                channel.attach(sender);
+                channel.attach(sender, current_revision);
                 <span class="comment">// Ensure upstream skips caches if one of the recipients requests an uncached response. This
                 // operation is additive across requests.
                 </span><span class="kw">if </span>no_cache {
