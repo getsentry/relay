@@ -376,7 +376,7 @@ mod tests {
     fn test_validate_segment_id() {
         let replay_id =
             Annotated::new(EventId("52df9022835246eeb317dbd739ccd059".parse().unwrap()));
-        let segment_id: Annotated<u64> = Annotated::new(721);
+        let segment_id: Annotated<u64> = Annotated::new(1441);
         let mut replay = Annotated::new(Replay {
             replay_id,
             segment_id,
@@ -386,7 +386,7 @@ mod tests {
 
         let replay_id =
             Annotated::new(EventId("52df9022835246eeb317dbd739ccd059".parse().unwrap()));
-        let segment_id: Annotated<u64> = Annotated::new(720);
+        let segment_id: Annotated<u64> = Annotated::new(1440);
         let mut replay = Annotated::new(Replay {
             replay_id,
             segment_id,
