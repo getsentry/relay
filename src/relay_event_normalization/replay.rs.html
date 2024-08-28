@@ -563,9 +563,9 @@
         .value()
         .ok_or_else(|| ReplayError::InvalidPayload(<span class="string">"missing segment_id"</span>.to_string()))<span class="question-mark">?</span>;
 
-    <span class="comment">// Each segment is expected to be 5 seconds in length. We take the number of seconds in
-    // an hour and divide by five to get the max segment-id.
-    </span><span class="kw">const </span>MAX_SEGMENT_ID: u64 = <span class="number">60 </span>* <span class="number">60 </span>/ <span class="number">5</span>;
+    <span class="comment">// Each segment is expected to be 5 seconds in length. A cap of 1080 segments means we
+    // allow a replay to be up to 1.5 hours in length.
+    </span><span class="kw">const </span>MAX_SEGMENT_ID: u64 = <span class="number">1080</span>;
 
     <span class="kw">if </span>segment_id &gt; MAX_SEGMENT_ID {
         <span class="kw">return </span><span class="prelude-val">Err</span>(ReplayError::TooLong);
@@ -882,7 +882,7 @@
     </span><span class="kw">fn </span>test_validate_segment_id() {
         <span class="kw">let </span>replay_id =
             Annotated::new(EventId(<span class="string">"52df9022835246eeb317dbd739ccd059"</span>.parse().unwrap()));
-        <span class="kw">let </span>segment_id: Annotated&lt;u64&gt; = Annotated::new(<span class="number">721</span>);
+        <span class="kw">let </span>segment_id: Annotated&lt;u64&gt; = Annotated::new(<span class="number">1081</span>);
         <span class="kw">let </span><span class="kw-2">mut </span>replay = Annotated::new(Replay {
             replay_id,
             segment_id,
@@ -892,7 +892,7 @@
 
         <span class="kw">let </span>replay_id =
             Annotated::new(EventId(<span class="string">"52df9022835246eeb317dbd739ccd059"</span>.parse().unwrap()));
-        <span class="kw">let </span>segment_id: Annotated&lt;u64&gt; = Annotated::new(<span class="number">720</span>);
+        <span class="kw">let </span>segment_id: Annotated&lt;u64&gt; = Annotated::new(<span class="number">1080</span>);
         <span class="kw">let </span><span class="kw-2">mut </span>replay = Annotated::new(Replay {
             replay_id,
             segment_id,
