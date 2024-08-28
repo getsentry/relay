@@ -6,6 +6,8 @@ use relay_system::{Addr, FromMessage, Interface, NoResponse, Receiver, Service};
 
 use crate::envelope::Envelope;
 use crate::services::buffer::envelope_buffer::Peek;
+use crate::services::project_cache::DequeuedEnvelope;
+use crate::services::project_cache::GetProjectState;
 use crate::services::project_cache::ProjectCache;
 
 pub use envelope_buffer::EnvelopeBufferError;
@@ -29,9 +31,9 @@ pub enum EnvelopeBuffer {
     ///
     /// This happens when an envelope was sent to the project cache, but one of the necessary project
     /// state has expired. The envelope is pushed back into the envelope buffer.
-    MarkNotReady(ProjectKey, Box<Envelope>),
+    NotReady(ProjectKey, Box<Envelope>),
     /// Informs the service that a project has a valid project state and can be marked as ready.
-    MarkReady(ProjectKey),
+    Ready(ProjectKey),
 }
 
 impl Interface for EnvelopeBuffer {}
@@ -79,18 +81,25 @@ impl EnvelopeBufferService {
                 // There's nothing in the buffer.
             }
             Peek::Ready(_) => {
+                // FIXME(jjbayer): Requires https://github.com/getsentry/relay/pull/3960
+                // in order to work.
                 let envelope = self
                     .buffer
                     .pop()
                     .await?
                     .expect("Element disappeared despite exclusive excess");
-                self.project_cache.send(ProcessEnvelope2(envelope));
+                self.project_cache.send(DequeuedEnvelope(envelope));
             }
             Peek::NotReady(envelope) => {
-                self.project_cache.send(Prefetch(
-                    envelope.meta().public_key(),
-                    envelope.sampling_key(),
-                ));
+                let project_key = envelope.meta().public_key();
+                self.project_cache.send(GetProjectState::new(project_key));
+                match envelope.sampling_key() {
+                    None => {}
+                    Some(sampling_key) if sampling_key == project_key => {} // already sent.
+                    Some(sampling_key) => {
+                        self.project_cache.send(GetProjectState::new(sampling_key));
+                    }
+                }
             }
         }
         Ok(())
@@ -107,12 +116,13 @@ impl EnvelopeBufferService {
                 self.push(envelope);
                 changed = true;
             }
-            EnvelopeBuffer::MarkNotReady(project_key, envelope) => {
+            EnvelopeBuffer::NotReady(project_key, envelope) => {
                 self.buffer.mark_ready(&project_key, false);
+                // TODO: metric
                 self.push(envelope);
                 changed = true;
             }
-            EnvelopeBuffer::MarkReady(project_key) => {
+            EnvelopeBuffer::Ready(project_key) => {
                 changed = self.buffer.mark_ready(&project_key, true);
             }
         };

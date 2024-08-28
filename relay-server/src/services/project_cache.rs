@@ -4,10 +4,11 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::extractors::RequestMeta;
-use crate::services::buffer::{EnvelopeBufferError, EnvelopeBufferGuard};
+use crate::services::buffer::{EnvelopeBuffer, EnvelopeBufferError};
 use crate::services::processor::{
     EncodeMetrics, EnvelopeProcessor, MetricData, ProcessEnvelope, ProcessingGroup, ProjectMetrics,
 };
+use crate::Envelope;
 use chrono::{DateTime, Utc};
 use hashbrown::HashSet;
 use relay_base_schema::project::ProjectKey;
@@ -250,6 +251,9 @@ pub struct SpoolHealth;
 #[derive(Debug)]
 pub struct RefreshIndexCache(pub HashSet<QueueKey>);
 
+/// Handle an envelope that was popped from the envelope buffer.
+pub struct DequeuedEnvelope(pub Box<Envelope>);
+
 /// A cache for [`ProjectState`]s.
 ///
 /// The project maintains information about organizations, projects, and project keys along with
@@ -281,6 +285,7 @@ pub enum ProjectCache {
     UpdateSpoolIndex(UpdateSpoolIndex),
     SpoolHealth(Sender<bool>),
     RefreshIndexCache(RefreshIndexCache),
+    HandleDequeuedEnvelope(Box<Envelope>),
 }
 
 impl ProjectCache {
@@ -298,6 +303,7 @@ impl ProjectCache {
             Self::UpdateSpoolIndex(_) => "UpdateSpoolIndex",
             Self::SpoolHealth(_) => "SpoolHealth",
             Self::RefreshIndexCache(_) => "RefreshIndexCache",
+            Self::HandleDequeuedEnvelope(_) => "HandleDequeuedEnvelope",
         }
     }
 }
@@ -400,6 +406,15 @@ impl FromMessage<SpoolHealth> for ProjectCache {
 
     fn from_message(_message: SpoolHealth, sender: Sender<bool>) -> Self {
         Self::SpoolHealth(sender)
+    }
+}
+
+impl FromMessage<DequeuedEnvelope> for ProjectCache {
+    type Response = relay_system::NoResponse;
+
+    fn from_message(message: DequeuedEnvelope, _: ()) -> Self {
+        let DequeuedEnvelope(envelope) = message;
+        Self::HandleDequeuedEnvelope(envelope)
     }
 }
 
@@ -535,6 +550,7 @@ struct UpdateProjectState {
 /// Holds the addresses of all services required for [`ProjectCache`].
 #[derive(Debug, Clone)]
 pub struct Services {
+    pub envelope_buffer: Addr<EnvelopeBuffer>,
     pub aggregator: Addr<Aggregator>,
     pub envelope_processor: Addr<EnvelopeProcessor>,
     pub outcome_aggregator: Addr<TrackOutcome>,
@@ -542,30 +558,6 @@ pub struct Services {
     pub test_store: Addr<TestStore>,
     pub upstream_relay: Addr<UpstreamRelay>,
     pub global_config: Addr<GlobalConfigManager>,
-}
-
-impl Services {
-    /// Creates new [`Services`] context.
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        aggregator: Addr<Aggregator>,
-        envelope_processor: Addr<EnvelopeProcessor>,
-        outcome_aggregator: Addr<TrackOutcome>,
-        project_cache: Addr<ProjectCache>,
-        test_store: Addr<TestStore>,
-        upstream_relay: Addr<UpstreamRelay>,
-        global_config: Addr<GlobalConfigManager>,
-    ) -> Self {
-        Self {
-            aggregator,
-            envelope_processor,
-            outcome_aggregator,
-            project_cache,
-            test_store,
-            upstream_relay,
-            global_config,
-        }
-    }
 }
 
 /// Main broker of the [`ProjectCacheService`].
@@ -732,10 +724,9 @@ impl ProjectCacheBroker {
         // Try to schedule unspool if it's not scheduled yet.
         self.schedule_unspool();
 
-        // TODO: write test that shows envelope can overtake when project becomes ready.
-        if let Some(buffer) = self.envelope_buffer.clone() {
-            tokio::spawn(async move { buffer.mark_ready(&project_key, true).await });
-        }
+        self.services
+            .envelope_buffer
+            .send(EnvelopeBuffer::Ready(project_key));
     }
 
     fn handle_request_update(&mut self, message: RequestUpdate) {
@@ -1069,15 +1060,13 @@ impl ProjectCacheBroker {
         }
     }
 
-    async fn peek_at_envelope(
+    fn handle_dequeued_envelope(
         &mut self,
-        mut peek: EnvelopeBufferGuard<'_>,
+        envelope: Box<Envelope>,
     ) -> Result<(), EnvelopeBufferError> {
-        let envelope = peek.get().await?;
         if envelope.meta().start_time().elapsed() > self.config.spool_envelopes_max_age() {
-            let popped_envelope = peek.remove().await?;
             let mut managed_envelope = ManagedEnvelope::new(
-                popped_envelope,
+                envelope,
                 self.services.outcome_aggregator.clone(),
                 self.services.test_store.clone(),
                 ProcessingGroup::Ungrouped,
@@ -1095,14 +1084,10 @@ impl ProjectCacheBroker {
 
         // Check if project config is enabled.
         let project_info = match project_state {
-            ProjectState::Enabled(info) => {
-                peek.mark_ready(&own_key, true);
-                info
-            }
+            ProjectState::Enabled(info) => info,
             ProjectState::Disabled => {
-                let popped_envelope = peek.remove().await?;
                 let mut managed_envelope = ManagedEnvelope::new(
-                    popped_envelope,
+                    envelope,
                     self.services.outcome_aggregator.clone(),
                     self.services.test_store.clone(),
                     ProcessingGroup::Ungrouped,
@@ -1111,7 +1096,9 @@ impl ProjectCacheBroker {
                 return Ok(());
             }
             ProjectState::Pending => {
-                peek.mark_ready(&own_key, false);
+                self.services
+                    .envelope_buffer
+                    .send(EnvelopeBuffer::NotReady(own_key, envelope));
                 return Ok(());
             }
         };
@@ -1125,7 +1112,6 @@ impl ProjectCacheBroker {
             )
         }) {
             Some((sampling_key, ProjectState::Enabled(info))) => {
-                peek.mark_ready(&sampling_key, true);
                 // Only set if it matches the organization ID. Otherwise treat as if there is
                 // no sampling project.
                 (info.organization_id == project_info.organization_id).then_some(info)
@@ -1135,7 +1121,9 @@ impl ProjectCacheBroker {
                 None
             }
             Some((sampling_key, ProjectState::Pending)) => {
-                peek.mark_ready(&sampling_key, false);
+                self.services
+                    .envelope_buffer
+                    .send(EnvelopeBuffer::NotReady(sampling_key, envelope));
                 return Ok(());
             }
             None => None,
@@ -1144,8 +1132,7 @@ impl ProjectCacheBroker {
         let project = self.get_or_create_project(own_key);
 
         // Reassign processing groups and proceed to processing.
-        let popped_envelope = peek.remove().await?;
-        for (group, envelope) in ProcessingGroup::split_envelope(*popped_envelope) {
+        for (group, envelope) in ProcessingGroup::split_envelope(*envelope) {
             let managed_envelope = ManagedEnvelope::new(
                 envelope,
                 services.outcome_aggregator.clone(),
@@ -1288,6 +1275,14 @@ impl ProjectCacheBroker {
                     ProjectCache::SpoolHealth(sender) => self.handle_spool_health(sender),
                     ProjectCache::RefreshIndexCache(message) => {
                         self.handle_refresh_index_cache(message)
+                    }
+                    ProjectCache::HandleDequeuedEnvelope(message) => {
+                        if let Err(e) = self.handle_dequeued_envelope(message) {
+                            relay_log::error!(
+                                error = &e as &dyn std::error::Error,
+                                "Failed to handle popped envelope"
+                            );
+                        }
                     }
                 }
             }
@@ -1468,18 +1463,6 @@ impl Service for ProjectCacheService {
                             broker.handle_message(message)
                         })
                     }
-                    peek = peek_buffer(&envelope_buffer) => {
-                        metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "peek_at_envelope", {
-                            if let Err(e) = broker.peek_at_envelope(peek).await {
-                                relay_log::error!(error = &e as &dyn std::error::Error, "Failed to peek envelope");
-                            }
-                        })
-                    }
-                    _ = report_ticker.tick() => {
-                        if let Some(envelope_buffer) = &envelope_buffer {
-                            metric!(gauge(RelayGauges::BufferPushInFlight) = envelope_buffer.inflight_push_count());
-                        }
-                    }
                     else => break,
                 }
             }
@@ -1550,6 +1533,7 @@ mod tests {
     use tokio::select;
     use uuid::Uuid;
 
+    use crate::services::buffer::EnvelopeBufferService;
     use crate::services::processor::ProcessingGroup;
     use crate::testutils::empty_envelope_with_dsn;
     use crate::utils::MemoryStat;
@@ -1595,7 +1579,7 @@ mod tests {
         .unwrap()
         .into();
         let memory_checker = MemoryChecker::new(MemoryStat::default(), config.clone());
-        let envelope_buffer = GuardedEnvelopeBuffer::from_config(&config).map(Arc::new);
+        // let envelope_buffer = EnvelopeBufferService::new(&config).map(Arc::new);
         let buffer_services = spooler::Services {
             outcome_aggregator: services.outcome_aggregator.clone(),
             project_cache: services.project_cache.clone(),
@@ -1618,7 +1602,6 @@ mod tests {
             ProjectCacheBroker {
                 config: config.clone(),
                 memory_checker,
-                envelope_buffer,
                 projects: hashbrown::HashMap::new(),
                 garbage_disposal: GarbageDisposal::new(),
                 source: ProjectSource::start(config, services.upstream_relay.clone(), None),
