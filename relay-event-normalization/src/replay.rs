@@ -57,8 +57,8 @@ pub fn validate(replay: &Replay) -> Result<(), ReplayError> {
         .value()
         .ok_or_else(|| ReplayError::InvalidPayload("missing segment_id".to_string()))?;
 
-    // Each segment is expected to be 5 seconds in length. A cap of 1440 segments means we
-    // allow a replay to be up to 2 hours in length.
+    // Each segment is expected to be 5 seconds in length. A cap of 1080 segments means we
+    // allow a replay to be up to 1.5 hours in length.
     const MAX_SEGMENT_ID: u64 = 1440;
 
     if segment_id > MAX_SEGMENT_ID {
@@ -376,7 +376,7 @@ mod tests {
     fn test_validate_segment_id() {
         let replay_id =
             Annotated::new(EventId("52df9022835246eeb317dbd739ccd059".parse().unwrap()));
-        let segment_id: Annotated<u64> = Annotated::new(1441);
+        let segment_id: Annotated<u64> = Annotated::new(1081);
         let mut replay = Annotated::new(Replay {
             replay_id,
             segment_id,
@@ -386,7 +386,7 @@ mod tests {
 
         let replay_id =
             Annotated::new(EventId("52df9022835246eeb317dbd739ccd059".parse().unwrap()));
-        let segment_id: Annotated<u64> = Annotated::new(1440);
+        let segment_id: Annotated<u64> = Annotated::new(1080);
         let mut replay = Annotated::new(Replay {
             replay_id,
             segment_id,
