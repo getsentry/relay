@@ -1781,6 +1781,7 @@
 <a href="#1781" id="1781">1781</a>
 <a href="#1782" id="1782">1782</a>
 <a href="#1783" id="1783">1783</a>
+<a href="#1784" id="1784">1784</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
@@ -3401,7 +3402,8 @@
         .unwrap()
         .into();
         <span class="kw">let </span>memory_checker = MemoryChecker::new(MemoryStat::default(), config.clone());
-        <span class="kw">let </span>envelope_buffer = GuardedEnvelopeBuffer::from_config(<span class="kw-2">&amp;</span>config).map(Arc::new);
+        <span class="kw">let </span>envelope_buffer =
+            GuardedEnvelopeBuffer::from_config(<span class="kw-2">&amp;</span>config, memory_checker.clone()).map(Arc::new);
         <span class="kw">let </span>buffer_services = spooler::Services {
             outcome_aggregator: services.outcome_aggregator.clone(),
             project_cache: services.project_cache.clone(),

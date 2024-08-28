@@ -316,9 +316,47 @@
 <a href="#316" id="316">316</a>
 <a href="#317" id="317">317</a>
 <a href="#318" id="318">318</a>
+<a href="#319" id="319">319</a>
+<a href="#320" id="320">320</a>
+<a href="#321" id="321">321</a>
+<a href="#322" id="322">322</a>
+<a href="#323" id="323">323</a>
+<a href="#324" id="324">324</a>
+<a href="#325" id="325">325</a>
+<a href="#326" id="326">326</a>
+<a href="#327" id="327">327</a>
+<a href="#328" id="328">328</a>
+<a href="#329" id="329">329</a>
+<a href="#330" id="330">330</a>
+<a href="#331" id="331">331</a>
+<a href="#332" id="332">332</a>
+<a href="#333" id="333">333</a>
+<a href="#334" id="334">334</a>
+<a href="#335" id="335">335</a>
+<a href="#336" id="336">336</a>
+<a href="#337" id="337">337</a>
+<a href="#338" id="338">338</a>
+<a href="#339" id="339">339</a>
+<a href="#340" id="340">340</a>
+<a href="#341" id="341">341</a>
+<a href="#342" id="342">342</a>
+<a href="#343" id="343">343</a>
+<a href="#344" id="344">344</a>
+<a href="#345" id="345">345</a>
+<a href="#346" id="346">346</a>
+<a href="#347" id="347">347</a>
+<a href="#348" id="348">348</a>
+<a href="#349" id="349">349</a>
+<a href="#350" id="350">350</a>
+<a href="#351" id="351">351</a>
+<a href="#352" id="352">352</a>
+<a href="#353" id="353">353</a>
+<a href="#354" id="354">354</a>
+<a href="#355" id="355">355</a>
+<a href="#356" id="356">356</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Types for buffering envelopes.
 
-</span><span class="kw">use </span>std::sync::atomic::{AtomicU64, Ordering};
+</span><span class="kw">use </span>std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 <span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
@@ -326,17 +364,18 @@
 <span class="kw">use </span>tokio::sync::MutexGuard;
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::Envelope;
-<span class="kw">use </span><span class="kw">crate</span>::utils::ManagedEnvelope;
+<span class="kw">use </span><span class="kw">crate</span>::utils::{ManagedEnvelope, MemoryChecker};
 
+<span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
 <span class="kw">pub use </span>envelope_buffer::EnvelopeBufferError;
 <span class="kw">pub use </span>envelope_buffer::PolymorphicEnvelopeBuffer;
 <span class="kw">pub use </span>envelope_stack::sqlite::SqliteEnvelopeStack; <span class="comment">// pub for benchmarks
 </span><span class="kw">pub use </span>envelope_stack::EnvelopeStack; <span class="comment">// pub for benchmarks
-</span><span class="kw">pub use </span>sqlite_envelope_store::SqliteEnvelopeStore; <span class="comment">// pub for benchmarks // pub for benchmarks
+</span><span class="kw">pub use </span>envelope_store::sqlite::SqliteEnvelopeStore; <span class="comment">// pub for benchmarks
 
 </span><span class="kw">mod </span>envelope_buffer;
 <span class="kw">mod </span>envelope_stack;
-<span class="kw">mod </span>sqlite_envelope_store;
+<span class="kw">mod </span>envelope_store;
 <span class="kw">mod </span>stack_provider;
 <span class="kw">mod </span>testutils;
 
@@ -371,6 +410,8 @@
     </span>notify: tokio::sync::Notify,
     <span class="doccomment">/// Metric that counts how many push operations are waiting.
     </span>inflight_push_count: AtomicU64,
+    <span class="doccomment">/// Last known capacity check result.
+    </span>cached_capacity: AtomicBool,
 }
 
 <span class="kw">impl </span>GuardedEnvelopeBuffer {
@@ -378,15 +419,16 @@
     ///
     /// NOTE: until the V1 spooler implementation is removed, this function returns `None`
     /// if V2 spooling is not configured.
-    </span><span class="kw">pub fn </span>from_config(config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
+    </span><span class="kw">pub fn </span>from_config(config: <span class="kw-2">&amp;</span>Config, memory_checker: MemoryChecker) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
         <span class="kw">if </span>config.spool_v2() {
             <span class="prelude-val">Some</span>(<span class="self">Self </span>{
                 inner: tokio::sync::Mutex::new(Inner {
-                    backend: PolymorphicEnvelopeBuffer::from_config(config),
+                    backend: PolymorphicEnvelopeBuffer::from_config(config, memory_checker),
                     should_peek: <span class="bool-val">true</span>,
                 }),
                 notify: tokio::sync::Notify::new(),
                 inflight_push_count: AtomicU64::new(<span class="number">0</span>),
+                cached_capacity: AtomicBool::new(<span class="bool-val">true</span>),
             })
         } <span class="kw">else </span>{
             <span class="prelude-val">None
@@ -452,6 +494,34 @@
         <span class="kw">let </span>changed = guard.backend.mark_ready(project_key, ready);
         <span class="kw">if </span>changed {
             <span class="self">self</span>.notify(<span class="kw-2">&amp;mut </span>guard);
+        }
+    }
+
+    <span class="doccomment">/// Returns `true` if the buffer has capacity to accept more [`Envelope`]s.
+    ///
+    /// This method tries to acquire the lock and read the latest capacity, but doesn't
+    /// guarantee that the returned value will be up to date, since lock contention could lead to
+    /// this method never acquiring the lock, thus returning the last known capacity value.
+    </span><span class="kw">pub fn </span>has_capacity(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="kw">match </span><span class="self">self</span>.inner.try_lock() {
+            <span class="prelude-val">Ok</span>(guard) =&gt; {
+                <span class="macro">relay_statsd::metric!</span>(
+                    counter(RelayCounters::BufferCapacityCheck) += <span class="number">1</span>,
+                    lock_acquired = <span class="string">"true"
+                </span>);
+
+                <span class="kw">let </span>has_capacity = guard.backend.has_capacity();
+                <span class="self">self</span>.cached_capacity.store(has_capacity, Ordering::Relaxed);
+                has_capacity
+            }
+            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
+                <span class="macro">relay_statsd::metric!</span>(
+                    counter(RelayCounters::BufferCapacityCheck) += <span class="number">1</span>,
+                    lock_acquired = <span class="string">"false"
+                </span>);
+
+                <span class="self">self</span>.cached_capacity.load(Ordering::Relaxed)
+            }
         }
     }
 
@@ -536,22 +606,28 @@
     <span class="kw">use </span>relay_common::Dsn;
 
     <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
+    <span class="kw">use </span><span class="kw">crate</span>::utils::MemoryStat;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
     <span class="kw">fn </span>new_buffer() -&gt; Arc&lt;GuardedEnvelopeBuffer&gt; {
-        GuardedEnvelopeBuffer::from_config(
-            <span class="kw-2">&amp;</span>Config::from_json_value(<span class="macro">serde_json::json!</span>({
+        <span class="kw">let </span>config = Arc::new(
+            Config::from_json_value(<span class="macro">serde_json::json!</span>({
                 <span class="string">"spool"</span>: {
                     <span class="string">"envelopes"</span>: {
-                        <span class="string">"version"</span>: <span class="string">"experimental"
+                        <span class="string">"version"</span>: <span class="string">"experimental"</span>,
+                        <span class="string">"max_memory_percent"</span>: <span class="number">1.0
                     </span>}
                 }
             }))
             .unwrap(),
-        )
-        .unwrap()
-        .into()
+        );
+
+        <span class="kw">let </span>memory_checker = MemoryChecker::new(MemoryStat::default(), config.clone());
+
+        GuardedEnvelopeBuffer::from_config(<span class="kw-2">&amp;</span>config, memory_checker)
+            .unwrap()
+            .into()
     }
 
     <span class="kw">fn </span>new_envelope() -&gt; Box&lt;Envelope&gt; {

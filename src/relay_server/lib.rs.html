@@ -311,6 +311,7 @@
 <a href="#311" id="311">311</a>
 <a href="#312" id="312">312</a>
 <a href="#313" id="313">313</a>
+<a href="#314" id="314">314</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! The Sentry relay server application.
 //!
 //! This module contains the [`run`] function which starts the relay server. It responds on
@@ -584,8 +585,9 @@
     EnvelopeStack, PolymorphicEnvelopeBuffer, SqliteEnvelopeStack, SqliteEnvelopeStore,
 }; <span class="comment">// pub for benchmarks
 </span><span class="kw">pub use </span><span class="self">self</span>::services::spooler::spool_utils;
+<span class="kw">pub use </span><span class="self">self</span>::utils::{MemoryChecker, MemoryStat}; <span class="comment">// pub for benchmarks
 
-<span class="attr">#[cfg(test)]
+</span><span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>testutils;
 
 <span class="kw">use </span>std::sync::Arc;

@@ -432,6 +432,10 @@
 <a href="#432" id="432">432</a>
 <a href="#433" id="433">433</a>
 <a href="#434" id="434">434</a>
+<a href="#435" id="435">435</a>
+<a href="#436" id="436">436</a>
+<a href="#437" id="437">437</a>
+<a href="#438" id="438">438</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
@@ -688,7 +692,11 @@
             upstream_relay.clone(),
             global_config.clone(),
         );
-        <span class="kw">let </span>envelope_buffer = GuardedEnvelopeBuffer::from_config(<span class="kw-2">&amp;</span>config).map(Arc::new);
+        <span class="kw">let </span>envelope_buffer = GuardedEnvelopeBuffer::from_config(
+            <span class="kw-2">&amp;</span>config,
+            MemoryChecker::new(memory_stat.clone(), config.clone()),
+        )
+        .map(Arc::new);
         ProjectCacheService::new(
             config.clone(),
             MemoryChecker::new(memory_stat.clone(), config.clone()),

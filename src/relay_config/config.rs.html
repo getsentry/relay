@@ -2658,6 +2658,21 @@
 <a href="#2658" id="2658">2658</a>
 <a href="#2659" id="2659">2659</a>
 <a href="#2660" id="2660">2660</a>
+<a href="#2661" id="2661">2661</a>
+<a href="#2662" id="2662">2662</a>
+<a href="#2663" id="2663">2663</a>
+<a href="#2664" id="2664">2664</a>
+<a href="#2665" id="2665">2665</a>
+<a href="#2666" id="2666">2666</a>
+<a href="#2667" id="2667">2667</a>
+<a href="#2668" id="2668">2668</a>
+<a href="#2669" id="2669">2669</a>
+<a href="#2670" id="2670">2670</a>
+<a href="#2671" id="2671">2671</a>
+<a href="#2672" id="2672">2672</a>
+<a href="#2673" id="2673">2673</a>
+<a href="#2674" id="2674">2674</a>
+<a href="#2675" id="2675">2675</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
@@ -3567,6 +3582,11 @@
     <span class="number">24 </span>* <span class="number">60 </span>* <span class="number">60
 </span>}
 
+<span class="doccomment">/// Default refresh frequency in ms for the disk usage monitoring.
+</span><span class="kw">fn </span>spool_disk_usage_refresh_frequency_ms() -&gt; u64 {
+    <span class="number">100
+</span>}
+
 <span class="doccomment">/// Persistent buffering configuration for incoming envelopes.
 </span><span class="attr">#[derive(Debug, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>EnvelopeSpool {
@@ -3582,7 +3602,7 @@
     </span>min_connections: u32,
     <span class="doccomment">/// The maximum size of the buffer to keep, in bytes.
     ///
-    /// If not set the befault is 524288000 bytes (500MB).
+    /// If not set the default is 524288000 bytes (500MB).
     </span><span class="attr">#[serde(default = <span class="string">"spool_envelopes_max_disk_size"</span>)]
     </span>max_disk_size: ByteSize,
     <span class="doccomment">/// The maximum bytes to keep in the memory buffer before spooling envelopes to disk, in bytes.
@@ -3606,6 +3626,10 @@
     /// they are dropped. Defaults to 24h.
     </span><span class="attr">#[serde(default = <span class="string">"spool_envelopes_max_envelope_delay_secs"</span>)]
     </span>max_envelope_delay_secs: u64,
+    <span class="doccomment">/// The refresh frequency in ms of how frequently disk usage is updated by querying SQLite
+    /// internal page stats.
+    </span><span class="attr">#[serde(default = <span class="string">"spool_disk_usage_refresh_frequency_ms"</span>)]
+    </span>disk_usage_refresh_frequency_ms: u64,
     <span class="doccomment">/// Version of the spooler.
     </span><span class="attr">#[serde(default)]
     </span>version: EnvelopeSpoolVersion,
@@ -3641,6 +3665,7 @@
             </span>disk_batch_size: spool_envelopes_stack_disk_batch_size(),
             max_batches: spool_envelopes_stack_max_batches(),
             max_envelope_delay_secs: spool_envelopes_max_envelope_delay_secs(),
+            disk_usage_refresh_frequency_ms: spool_disk_usage_refresh_frequency_ms(),
             version: EnvelopeSpoolVersion::default(),
         }
     }
@@ -4874,6 +4899,11 @@
     <span class="doccomment">/// Returns the time after which we drop envelopes as a [`Duration`] object.
     </span><span class="kw">pub fn </span>spool_envelopes_max_age(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
         Duration::from_secs(<span class="self">self</span>.values.spool.envelopes.max_envelope_delay_secs)
+    }
+
+    <span class="doccomment">/// Returns the refresh frequency for disk usage monitoring as a [`Duration`] object.
+    </span><span class="kw">pub fn </span>spool_disk_usage_refresh_frequency_ms(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
+        Duration::from_millis(<span class="self">self</span>.values.spool.envelopes.disk_usage_refresh_frequency_ms)
     }
 
     <span class="doccomment">/// Returns the maximum size of an event payload in bytes.
