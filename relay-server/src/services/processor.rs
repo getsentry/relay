@@ -1747,8 +1747,6 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<TransactionGroup>,
     ) -> Result<(), ProcessingError> {
-        let global_config = self.inner.global_config.current();
-
         event::extract(state, &self.inner.config)?;
 
         let profile_id = profile::filter(state);

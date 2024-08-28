@@ -237,6 +237,7 @@ mod tests {
     use bytes::Bytes;
     use relay_base_schema::events::EventType;
     use relay_base_schema::project::{ProjectId, ProjectKey};
+    use relay_dynamic_config::GlobalConfig;
     use relay_dynamic_config::{MetricExtractionConfig, TransactionMetricsConfig};
     use relay_event_schema::protocol::{EventId, LenientString};
     use relay_protocol::RuleCondition;
