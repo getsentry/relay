@@ -10,12 +10,14 @@ use tokio::sync::MutexGuard;
 use crate::envelope::Envelope;
 use crate::utils::{ManagedEnvelope, MemoryChecker};
 
+use crate::services::buffer::envelope_buffer::{PeekedEnvelope, StackKey};
 use crate::statsd::RelayCounters;
 pub use envelope_buffer::EnvelopeBufferError;
 pub use envelope_buffer::PolymorphicEnvelopeBuffer;
 pub use envelope_stack::sqlite::SqliteEnvelopeStack; // pub for benchmarks
 pub use envelope_stack::EnvelopeStack; // pub for benchmarks
-pub use envelope_store::sqlite::SqliteEnvelopeStore; // pub for benchmarks
+pub use envelope_store::sqlite::SqliteEnvelopeStore;
+// pub for benchmarks
 
 mod envelope_buffer;
 mod envelope_stack;
@@ -105,8 +107,8 @@ impl GuardedEnvelopeBuffer {
             let mut guard = self.inner.lock().await;
             if guard.should_peek {
                 match guard.backend.peek().await {
-                    Ok(envelope) => {
-                        if envelope.is_some() {
+                    Ok(peeked_envelope) => {
+                        if peeked_envelope.is_some() {
                             guard.should_peek = false;
                             return EnvelopeBufferGuard {
                                 guard,
@@ -199,7 +201,7 @@ pub struct EnvelopeBufferGuard<'a> {
 
 impl EnvelopeBufferGuard<'_> {
     /// Returns a reference to the next envelope.
-    pub async fn get(&mut self) -> Result<&Envelope, EnvelopeBufferError> {
+    pub async fn get(&mut self) -> Result<PeekedEnvelope, EnvelopeBufferError> {
         Ok(self
             .guard
             .backend
@@ -209,9 +211,7 @@ impl EnvelopeBufferGuard<'_> {
     }
 
     /// Pops the next envelope from the buffer.
-    ///
-    /// This functions consumes the [`EnvelopeBufferGuard`].
-    pub async fn remove(mut self) -> Result<Box<Envelope>, EnvelopeBufferError> {
+    pub async fn remove(&mut self) -> Result<Box<Envelope>, EnvelopeBufferError> {
         self.notify();
         Ok(self
             .guard
@@ -227,6 +227,14 @@ impl EnvelopeBufferGuard<'_> {
     /// without awaiting the lock.
     pub fn mark_ready(&mut self, project_key: &ProjectKey, ready: bool) {
         let changed = self.guard.backend.mark_ready(project_key, ready);
+        if changed {
+            self.notify();
+        }
+    }
+
+    /// Notifies the buffer that the entry with a given stack key was peeked.
+    pub fn notify_peek(&mut self, stack_key: StackKey) {
+        let changed = self.guard.backend.notify_peek(stack_key);
         if changed {
             self.notify();
         }
@@ -248,6 +256,8 @@ mod tests {
     use std::time::Duration;
 
     use relay_common::Dsn;
+    use relay_event_schema::protocol::EventId;
+    use uuid::Uuid;
 
     use crate::extractors::RequestMeta;
     use crate::utils::MemoryStat;
@@ -274,12 +284,10 @@ mod tests {
             .into()
     }
 
-    fn new_envelope() -> Box<Envelope> {
+    fn new_envelope(project_key: &str) -> Box<Envelope> {
         Envelope::from_request(
-            None,
-            RequestMeta::new(
-                Dsn::from_str("http://a94ae32be2584e0bbd7a4cbb95971fed@localhost/1").unwrap(),
-            ),
+            Some(EventId(Uuid::new_v4())),
+            RequestMeta::new(Dsn::from_str(&format!("http://{project_key}@localhost/1")).unwrap()),
         )
     }
 
@@ -305,14 +313,20 @@ mod tests {
         assert_eq!(call_count.load(Ordering::Relaxed), 0);
 
         // State after push: one call
-        buffer.push(new_envelope()).await.unwrap();
+        buffer
+            .push(new_envelope("a94ae32be2584e0bbd7a4cbb95971fed"))
+            .await
+            .unwrap();
         tokio::time::advance(Duration::from_nanos(1)).await;
         assert_eq!(call_count.load(Ordering::Relaxed), 1);
         tokio::time::advance(Duration::from_nanos(1)).await;
         assert_eq!(call_count.load(Ordering::Relaxed), 1);
 
         // State after second push: two calls
-        buffer.push(new_envelope()).await.unwrap();
+        buffer
+            .push(new_envelope("a94ae32be2584e0bbd7a4cbb95971fed"))
+            .await
+            .unwrap();
         tokio::time::advance(Duration::from_nanos(1)).await;
         assert_eq!(call_count.load(Ordering::Relaxed), 2);
         tokio::time::advance(Duration::from_nanos(1)).await;
@@ -335,7 +349,10 @@ mod tests {
             }
         });
 
-        buffer.push(new_envelope()).await.unwrap();
+        buffer
+            .push(new_envelope("a94ae32be2584e0bbd7a4cbb95971fed"))
+            .await
+            .unwrap();
 
         // Initial state: no calls
         assert_eq!(call_count.load(Ordering::Relaxed), 0);
@@ -349,8 +366,32 @@ mod tests {
         assert_eq!(call_count.load(Ordering::Relaxed), 1);
 
         // State after second push: two calls
-        buffer.push(new_envelope()).await.unwrap();
+        buffer
+            .push(new_envelope("a94ae32be2584e0bbd7a4cbb95971fed"))
+            .await
+            .unwrap();
         tokio::time::advance(Duration::from_nanos(1)).await;
         assert_eq!(call_count.load(Ordering::Relaxed), 2);
+    }
+
+    #[tokio::test]
+    async fn peek_remove_gets_same_element() {
+        let buffer = new_buffer();
+
+        let envelope1 = new_envelope("a94ae32be2584e0bbd7a4cbb95971fed");
+        let mut envelope2 = new_envelope("b94ae32be2584e0bbd7a4cbb95971fed");
+        envelope2.set_start_time(envelope1.meta().start_time());
+
+        assert!(envelope1.event_id().is_some());
+        assert!(envelope2.event_id().is_some());
+        assert_ne!(envelope1.event_id(), envelope2.event_id());
+
+        buffer.push(envelope1).await.unwrap();
+        buffer.push(envelope2).await.unwrap();
+
+        let mut guard = buffer.peek().await;
+        let expected_event_id = guard.get().await.unwrap().envelope().event_id();
+        let popped_event_id = guard.remove().await.unwrap().event_id();
+        assert_eq!(popped_event_id, expected_event_id);
     }
 }

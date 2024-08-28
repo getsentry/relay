@@ -1084,7 +1084,10 @@ impl ProjectCacheBroker {
         &mut self,
         mut peek: EnvelopeBufferGuard<'_>,
     ) -> Result<(), EnvelopeBufferError> {
-        let envelope = peek.get().await?;
+        let peeked_envelope = peek.get().await?;
+        let envelope = peeked_envelope.envelope();
+        let key = peeked_envelope.key();
+
         if envelope.meta().start_time().elapsed() > self.config.spool_envelopes_max_age() {
             let popped_envelope = peek.remove().await?;
             let mut managed_envelope = ManagedEnvelope::new(
@@ -1180,6 +1183,10 @@ impl ProjectCacheBroker {
                 reservoir_counters,
             });
         }
+
+        // We notify that this envelope has been peeked, so that the buffer can internally
+        // re-prioritize stacks to avoid ahead of line blocking.
+        peek.notify_peek(key);
 
         Ok(())
     }
