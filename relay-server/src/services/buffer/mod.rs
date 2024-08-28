@@ -1,5 +1,9 @@
 //! Types for buffering envelopes.
 
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
+
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Receiver, Service};
@@ -9,9 +13,8 @@ use crate::services::buffer::envelope_buffer::Peek;
 use crate::services::project_cache::DequeuedEnvelope;
 use crate::services::project_cache::GetProjectState;
 use crate::services::project_cache::ProjectCache;
-use crate::utils::{ManagedEnvelope, MemoryChecker};
+use crate::utils::MemoryChecker;
 
-use crate::statsd::RelayCounters;
 pub use envelope_buffer::EnvelopeBufferError;
 pub use envelope_buffer::PolymorphicEnvelopeBuffer;
 pub use envelope_stack::sqlite::SqliteEnvelopeStack; // pub for benchmarks
@@ -48,11 +51,32 @@ impl FromMessage<Self> for EnvelopeBuffer {
     }
 }
 
-/// TODO: docs
+/// Contains the services `Addr` and a watch channel to observe its state.
+// NOTE: This pattern of combining an Addr with some observable state could be generalized into
+// `Service` itself.
+#[derive(Debug, Clone)]
+pub struct ObservableEnvelopeBuffer {
+    addr: Addr<EnvelopeBuffer>,
+    has_capacity: Arc<AtomicBool>,
+}
+
+impl ObservableEnvelopeBuffer {
+    pub fn addr(&self) -> Addr<EnvelopeBuffer> {
+        self.addr.clone()
+    }
+
+    pub fn has_capacity(&self) -> bool {
+        self.has_capacity.load(Ordering::Relaxed)
+    }
+}
+
+/// Spool V2 service which buffers envelopes and forwards them to the project cache when a project
+/// becomes ready.
 pub struct EnvelopeBufferService {
     buffer: PolymorphicEnvelopeBuffer,
     changes: tokio::sync::Notify,
     project_cache: Addr<ProjectCache>,
+    has_capacity: Arc<AtomicBool>,
 }
 
 impl EnvelopeBufferService {
@@ -60,12 +84,25 @@ impl EnvelopeBufferService {
     ///
     /// NOTE: until the V1 spooler implementation is removed, this function returns `None`
     /// if V2 spooling is not configured.
-    pub fn new(config: &Config, project_cache: Addr<ProjectCache>) -> Option<Self> {
+    pub fn new(
+        config: &Config,
+        memory_checker: MemoryChecker,
+        project_cache: Addr<ProjectCache>,
+    ) -> Option<Self> {
         config.spool_v2().then(|| Self {
-            buffer: PolymorphicEnvelopeBuffer::from_config(config),
+            buffer: PolymorphicEnvelopeBuffer::from_config(config, memory_checker),
             changes: tokio::sync::Notify::new(),
             project_cache,
+            has_capacity: Arc::new(AtomicBool::new(true)),
         })
+    }
+
+    pub fn start_observable(self) -> ObservableEnvelopeBuffer {
+        let has_capacity = self.has_capacity.clone();
+        ObservableEnvelopeBuffer {
+            addr: self.start(),
+            has_capacity,
+        }
     }
 
     async fn try_pop(&mut self) {
@@ -141,6 +178,11 @@ impl EnvelopeBufferService {
             );
         }
     }
+
+    fn update_observable_state(&self) {
+        self.has_capacity
+            .store(self.buffer.has_capacity(), Ordering::Relaxed);
+    }
 }
 
 impl Service for EnvelopeBufferService {
@@ -155,6 +197,7 @@ impl Service for EnvelopeBufferService {
                     // by starving the dequeue.
                     () = self.changes.notified() => {
                         self.try_pop().await;
+
                     }
                     Some(message) = rx.recv() => {
                         self.handle_message(message).await;
@@ -162,6 +205,7 @@ impl Service for EnvelopeBufferService {
 
                     else => break,
                 }
+                self.update_observable_state();
             }
         });
     }

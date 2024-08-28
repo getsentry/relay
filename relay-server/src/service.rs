@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::metrics::{MetricOutcomes, MetricStats};
-use crate::services::buffer::{EnvelopeBuffer, EnvelopeBufferService};
+use crate::services::buffer::{EnvelopeBufferService, ObservableEnvelopeBuffer};
 use crate::services::stats::RelayStats;
 use anyhow::{Context, Result};
 use axum::extract::FromRequestParts;
@@ -60,7 +60,7 @@ pub struct Registry {
     pub global_config: Addr<GlobalConfigManager>,
     pub project_cache: Addr<ProjectCache>,
     pub upstream_relay: Addr<UpstreamRelay>,
-    pub envelope_buffer: Option<Addr<EnvelopeBuffer>>,
+    pub envelope_buffer: Option<ObservableEnvelopeBuffer>,
 }
 
 impl fmt::Debug for Registry {
@@ -240,12 +240,16 @@ impl ServiceState {
         )
         .spawn_handler(processor_rx);
 
-        let envelope_buffer =
-            EnvelopeBufferService::new(&config, project_cache.clone()).map(Service::start);
+        let envelope_buffer = EnvelopeBufferService::new(
+            &config,
+            MemoryChecker::new(memory_stat.clone(), config.clone()),
+            project_cache.clone(),
+        )
+        .map(|b| b.start_observable());
 
         // Keep all the services in one context.
         let project_cache_services = Services {
-            envelope_buffer: envelope_buffer.clone(),
+            envelope_buffer: envelope_buffer.as_ref().map(ObservableEnvelopeBuffer::addr),
             aggregator: aggregator.clone(),
             envelope_processor: processor.clone(),
             outcome_aggregator: outcome_aggregator.clone(),
@@ -322,7 +326,7 @@ impl ServiceState {
     }
 
     /// Returns the V2 envelope buffer, if present.
-    pub fn envelope_buffer(&self) -> Option<&Addr<EnvelopeBuffer>> {
+    pub fn envelope_buffer(&self) -> Option<&ObservableEnvelopeBuffer> {
         self.inner.registry.envelope_buffer.as_ref()
     }
 

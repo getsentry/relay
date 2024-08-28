@@ -598,12 +598,6 @@ pub enum RelayCounters {
     ///  - `state_out`: The new state. `memory`, `memory_file_standby`, or `disk`.
     ///  - `reason`: Why a transition was made (or not made).
     BufferStateTransition,
-    /// Number of times the capacity is of the buffer is checked.
-    ///
-    /// This metric is tagged with:
-    /// - `lock_acquired`: Whether the capacity check was done by acquiring the lock or using the
-    ///     old value.
-    BufferCapacityCheck,
     ///
     /// Number of outcomes and reasons for rejected Envelopes.
     ///
@@ -818,7 +812,6 @@ impl CounterMetric for RelayCounters {
             RelayCounters::BufferEnvelopesWritten => "buffer.envelopes_written",
             RelayCounters::BufferEnvelopesRead => "buffer.envelopes_read",
             RelayCounters::BufferStateTransition => "buffer.state.transition",
-            RelayCounters::BufferCapacityCheck => "buffer.capacity_check",
             RelayCounters::Outcomes => "events.outcomes",
             RelayCounters::ProjectStateGet => "project_state.get",
             RelayCounters::ProjectStateRequest => "project_state.request",

@@ -316,7 +316,9 @@ fn queue_envelope(
                 // envelope's projects. See `handle_check_envelope`.
                 relay_log::trace!("Pushing envelope to V2 buffer");
 
-                buffer.send(EnvelopeBuffer::Push(envelope.into_envelope()));
+                buffer
+                    .addr()
+                    .send(EnvelopeBuffer::Push(envelope.into_envelope()));
             }
             None => {
                 relay_log::trace!("Sending envelope to project cache for V1 buffer");
