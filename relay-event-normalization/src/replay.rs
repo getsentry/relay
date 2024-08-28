@@ -59,7 +59,7 @@ pub fn validate(replay: &Replay) -> Result<(), ReplayError> {
 
     // Each segment is expected to be 5 seconds in length. A cap of 1080 segments means we
     // allow a replay to be up to 1.5 hours in length.
-    const MAX_SEGMENT_ID: u64 = 1440;
+    const MAX_SEGMENT_ID: u64 = 1080;
 
     if segment_id > MAX_SEGMENT_ID {
         return Err(ReplayError::TooLong);
