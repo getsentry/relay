@@ -9,6 +9,7 @@ use relay_system::{Addr, NoResponse, Recipient, Service};
 use crate::services::metrics::{
     Aggregator, AggregatorHandle, AggregatorService, FlushBuckets, MergeBuckets,
 };
+use crate::statsd::RelayTimers;
 use crate::utils;
 
 /// Service that routes metrics & metric buckets to the appropriate aggregator.
@@ -104,11 +105,10 @@ impl StartedRouter {
     }
 
     fn handle_message(&mut self, message: Aggregator) {
-        // let ty = message.variant();
-        // relay_statsd::metric!(
-        //     timer(RelayTimers::MetricRouterServiceDuration),
-        //     message = ty,
-        {
+        let ty = message.variant();
+        relay_statsd::metric!(
+            timer(RelayTimers::MetricRouterServiceDuration),
+            message = ty,
             {
                 match message {
                     Aggregator::MergeBuckets(msg) => self.handle_merge_buckets(msg),
@@ -116,8 +116,7 @@ impl StartedRouter {
                     Aggregator::BucketCountInquiry(_, _sender) => (), // not supported
                 }
             }
-        }
-        // )
+        )
     }
 
     fn handle_merge_buckets(&mut self, message: MergeBuckets) {

@@ -2904,11 +2904,10 @@ impl EnvelopeProcessorService {
     }
 
     fn handle_message(&self, message: EnvelopeProcessor) {
-        // let ty = message.variant();
+        let ty = message.variant();
         let feature_weights = self.feature_weights(&message);
 
-        // metric!(timer(RelayTimers::ProcessMessageDuration), message = ty, {
-        {
+        metric!(timer(RelayTimers::ProcessMessageDuration), message = ty, {
             let mut cogs = self.inner.cogs.timed(ResourceId::Relay, feature_weights);
 
             match message {
@@ -2925,8 +2924,7 @@ impl EnvelopeProcessorService {
                 EnvelopeProcessor::SubmitEnvelope(m) => self.handle_submit_envelope(*m),
                 EnvelopeProcessor::SubmitClientReports(m) => self.handle_submit_client_reports(*m),
             }
-        }
-        // });
+        });
     }
 
     fn feature_weights(&self, message: &EnvelopeProcessor) -> FeatureWeights {
