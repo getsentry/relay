@@ -254,7 +254,8 @@ impl ServiceState {
             upstream_relay.clone(),
             global_config.clone(),
         );
-        let envelope_buffer = EnvelopeBufferService::from_config(&config).map(Service::start);
+        let envelope_buffer =
+            EnvelopeBufferService::new(&config, project_cache.clone()).map(Service::start);
         ProjectCacheService::new(
             config.clone(),
             MemoryChecker::new(memory_stat.clone(), config.clone()),

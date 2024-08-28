@@ -10,6 +10,7 @@ use serde::Deserialize;
 
 use crate::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, Items};
 use crate::service::ServiceState;
+use crate::services::buffer::EnvelopeBuffer;
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{MetricData, ProcessMetricMeta, ProcessingGroup};
 use crate::services::project_cache::{CheckEnvelope, ProcessMetrics, ValidateEnvelope};
@@ -313,7 +314,7 @@ fn queue_envelope(
 
                 // TODO: Sync-check whether the buffer has capacity.
                 // Otherwise return `QueueFailed`.
-                buffer.send(envelope.into_envelope());
+                buffer.send(EnvelopeBuffer::Push(envelope.into_envelope()));
             }
             None => {
                 relay_log::trace!("Sending envelope to project cache for V1 buffer");

@@ -52,7 +52,7 @@ impl PolymorphicEnvelopeBuffer {
     }
 
     /// Returns a reference to the next-in-line envelope.
-    pub async fn peek(&mut self) -> Result<Option<&Envelope>, EnvelopeBufferError> {
+    pub async fn peek(&mut self) -> Result<Peek, EnvelopeBufferError> {
         match self {
             Self::Sqlite(buffer) => buffer.peek().await,
             Self::InMemory(buffer) => buffer.peek().await,
@@ -162,18 +162,19 @@ where
     }
 
     /// Returns a reference to the next-in-line envelope, if one exists.
-    pub async fn peek(&mut self) -> Result<Option<&Envelope>, EnvelopeBufferError> {
+    pub async fn peek(&mut self) -> Result<Peek, EnvelopeBufferError> {
         let Some((
             QueueItem {
                 key: stack_key,
                 value: _,
             },
-            _,
+            Priority { readiness, .. },
         )) = self.priority_queue.peek()
         else {
-            return Ok(None);
+            return Ok(Peek::Empty);
         };
 
+        let ready = readiness.ready();
         let stack_key = *stack_key;
 
         self.priority_queue.change_priority_by(&stack_key, |prio| {
@@ -188,10 +189,14 @@ where
             _,
         )) = self.priority_queue.get_mut(&stack_key)
         else {
-            return Ok(None);
+            return Ok(Peek::Empty);
         };
 
-        Ok(stack.peek().await?)
+        Ok(match (stack.peek().await?, ready) {
+            (None, _) => Peek::Empty,
+            (Some(envelope), true) => Peek::Ready(envelope),
+            (Some(envelope), false) => Peek::NotReady(envelope),
+        })
     }
 
     /// Returns the next-in-line envelope, if one exists.
@@ -288,6 +293,13 @@ where
             gauge(RelayGauges::BufferStackCount) = self.priority_queue.len() as u64
         );
     }
+}
+
+/// TODO: docs
+pub enum Peek<'a> {
+    Empty,
+    Ready(&'a Envelope),
+    NotReady(&'a Envelope),
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
