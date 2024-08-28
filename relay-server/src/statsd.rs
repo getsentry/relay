@@ -467,13 +467,11 @@ pub enum RelayTimers {
     /// This metric is tagged with:
     ///
     ///  - `message`: The type of message that was processed.
-    #[allow(dead_code)] // TODO: Temporarily disabled for a performance measurement.
     ProcessMessageDuration,
     /// Timing in milliseconds for handling a project cache message.
     ///
     /// This metric is tagged with:
     ///  - `message`: The type of message that was processed.
-    #[allow(dead_code)] // TODO: Temporarily disabled for a performance measurement.
     ProjectCacheMessageDuration,
     /// Timing in milliseconds for processing a message in the buffer service.
     ///
@@ -507,13 +505,11 @@ pub enum RelayTimers {
     ///
     /// This metric is tagged with:
     ///  - `message`: The type of message that was processed.
-    #[allow(dead_code)] // TODO: Temporarily disabled for a performance measurement.
     AggregatorServiceDuration,
     /// Timing in milliseconds for processing a message in the metric router service.
     ///
     /// This metric is tagged with:
     ///  - `message`: The type of message that was processed.
-    #[allow(dead_code)] // TODO: Temporarily disabled for a performance measurement.
     MetricRouterServiceDuration,
     /// Timing in milliseconds for processing a message in the metric store service.
     ///
@@ -558,9 +554,7 @@ impl TimerMetric for RelayTimers {
             RelayTimers::HealthCheckDuration => "health.message.duration",
             #[cfg(feature = "processing")]
             RelayTimers::RateLimitBucketsDuration => "processor.rate_limit_buckets",
-            #[allow(dead_code)] // TODO: Temporarily disabled for a performance measurement.
             RelayTimers::AggregatorServiceDuration => "metrics.aggregator.message.duration",
-            #[allow(dead_code)] // TODO: Temporarily disabled for a performance measurement.
             RelayTimers::MetricRouterServiceDuration => "metrics.router.message.duration",
             #[cfg(feature = "processing")]
             RelayTimers::StoreServiceDuration => "store.message.duration",

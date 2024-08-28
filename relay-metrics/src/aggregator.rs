@@ -468,11 +468,11 @@ fn get_flush_time(
     let initial_flush = bucket_key.timestamp + config.bucket_interval() + config.initial_delay();
     let backdated = initial_flush <= now;
 
-    // let delay = now.as_secs() as i64 - bucket_key.timestamp.as_secs() as i64;
-    // relay_statsd::metric!(
-    //     histogram(MetricHistograms::BucketsDelay) = delay as f64,
-    //     backdated = if backdated { "true" } else { "false" },
-    // );
+    let delay = now.as_secs() as i64 - bucket_key.timestamp.as_secs() as i64;
+    relay_statsd::metric!(
+        histogram(MetricHistograms::BucketsDelay) = delay as f64,
+        backdated = if backdated { "true" } else { "false" },
+    );
 
     let flush_timestamp = if backdated {
         // If the initial flush time has passed or can't be represented, we want to treat the
