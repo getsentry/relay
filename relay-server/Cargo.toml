@@ -44,7 +44,7 @@ axum = { workspace = true, features = [
     "multipart",
     "tracing",
 ] }
-axum-extra = { workspace = true, features = ["protobuf", "typed-header"] }
+axum-extra = { workspace = true, features = ["typed-header"] }
 axum-server = { workspace = true }
 arc-swap = { workspace = true }
 backoff = { workspace = true }
@@ -65,6 +65,7 @@ multer = { workspace = true }
 once_cell = { workspace = true }
 pin-project-lite = { workspace = true }
 priority-queue = { workspace = true }
+prost = { workspace = true }
 rand = { workspace = true }
 rayon = { workspace = true }
 regex = { workspace = true }
