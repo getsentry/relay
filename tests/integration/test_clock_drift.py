@@ -74,7 +74,7 @@ def test_clock_drift_not_applied_when_sent_at_is_not_supplied(mini_sentry, relay
     relay = relay(mini_sentry)
     project_id = 42
     project_config = mini_sentry.add_basic_project_config(project_id)
-    project_config["config"]["eventRetention"] = 90
+    project_config["config"]["eventRetention"] = 30
 
     now = datetime.now(tz=timezone.utc)
     one_month_ago = now - timedelta(days=30)
