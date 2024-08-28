@@ -26,10 +26,6 @@ pub enum RelayGauges {
     /// This metric is tagged with:
     /// - `reason`: Why keys are / are not unspooled.
     BufferPeriodicUnspool,
-    /// Number of envelopes currently waiting to be buffered.
-    ///
-    /// This corresponds to the number of corresponding tokio tasks currently scheduled or running.
-    BufferPushInFlight,
     /// The number of individual stacks in the priority queue.
     ///
     /// Per combination of `(own_key, sampling_key)`, a new stack is created.
@@ -58,7 +54,6 @@ impl GaugeMetric for RelayGauges {
             RelayGauges::BufferEnvelopesMemoryCount => "buffer.envelopes_mem_count",
             RelayGauges::BufferEnvelopesDiskCount => "buffer.envelopes_disk_count",
             RelayGauges::BufferPeriodicUnspool => "buffer.unspool.periodic",
-            RelayGauges::BufferPushInFlight => "buffer.push_inflight",
             RelayGauges::BufferStackCount => "buffer.stack_count",
             RelayGauges::SystemMemoryUsed => "health.system_memory.used",
             RelayGauges::SystemMemoryTotal => "health.system_memory.total",

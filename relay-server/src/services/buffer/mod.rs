@@ -113,13 +113,13 @@ impl EnvelopeBufferService {
                 // projects was already triggered (see XXX).
                 // For better separation of concerns, this prefetch should be triggered from here
                 // once buffer V1 has been removed.
-                self.push(envelope);
+                self.push(envelope).await;
                 changed = true;
             }
             EnvelopeBuffer::NotReady(project_key, envelope) => {
                 self.buffer.mark_ready(&project_key, false);
                 // TODO: metric
-                self.push(envelope);
+                self.push(envelope).await;
                 changed = true;
             }
             EnvelopeBuffer::Ready(project_key) => {

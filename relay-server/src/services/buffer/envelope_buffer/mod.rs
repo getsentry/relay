@@ -446,6 +446,19 @@ mod tests {
 
     use super::*;
 
+    impl Peek<'_> {
+        fn is_empty(&self) -> bool {
+            matches!(self, Peek::Empty)
+        }
+
+        fn envelope(&self) -> Option<&Envelope> {
+            match self {
+                Peek::Empty => None,
+                Peek::Ready(envelope) | Peek::NotReady(envelope) => Some(envelope),
+            }
+        }
+    }
+
     fn new_envelope(
         project_key: ProjectKey,
         sampling_key: Option<ProjectKey>,
@@ -485,14 +498,21 @@ mod tests {
         let project_key3 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fef").unwrap();
 
         assert!(buffer.pop().await.unwrap().is_none());
-        assert!(buffer.peek().await.unwrap().is_none());
+        assert!(buffer.peek().await.unwrap().is_empty());
 
         buffer
             .push(new_envelope(project_key1, None, None))
             .await
             .unwrap();
         assert_eq!(
-            buffer.peek().await.unwrap().unwrap().meta().public_key(),
+            buffer
+                .peek()
+                .await
+                .unwrap()
+                .envelope()
+                .unwrap()
+                .meta()
+                .public_key(),
             project_key1
         );
 
@@ -502,7 +522,14 @@ mod tests {
             .unwrap();
         // Both projects are not ready, so project 1 is on top (has the oldest envelopes):
         assert_eq!(
-            buffer.peek().await.unwrap().unwrap().meta().public_key(),
+            buffer
+                .peek()
+                .await
+                .unwrap()
+                .envelope()
+                .unwrap()
+                .meta()
+                .public_key(),
             project_key1
         );
 
@@ -512,14 +539,28 @@ mod tests {
             .unwrap();
         // All projects are not ready, so project 1 is on top (has the oldest envelopes):
         assert_eq!(
-            buffer.peek().await.unwrap().unwrap().meta().public_key(),
+            buffer
+                .peek()
+                .await
+                .unwrap()
+                .envelope()
+                .unwrap()
+                .meta()
+                .public_key(),
             project_key1
         );
 
         // After marking a project ready, it goes to the top:
         buffer.mark_ready(&project_key3, true);
         assert_eq!(
-            buffer.peek().await.unwrap().unwrap().meta().public_key(),
+            buffer
+                .peek()
+                .await
+                .unwrap()
+                .envelope()
+                .unwrap()
+                .meta()
+                .public_key(),
             project_key3
         );
         assert_eq!(
@@ -529,21 +570,42 @@ mod tests {
 
         // After popping, project 1 is on top again:
         assert_eq!(
-            buffer.peek().await.unwrap().unwrap().meta().public_key(),
+            buffer
+                .peek()
+                .await
+                .unwrap()
+                .envelope()
+                .unwrap()
+                .meta()
+                .public_key(),
             project_key1
         );
 
         // Mark project 1 as ready (still on top):
         buffer.mark_ready(&project_key1, true);
         assert_eq!(
-            buffer.peek().await.unwrap().unwrap().meta().public_key(),
+            buffer
+                .peek()
+                .await
+                .unwrap()
+                .envelope()
+                .unwrap()
+                .meta()
+                .public_key(),
             project_key1
         );
 
         // Mark project 2 as ready as well (now on top because most recent):
         buffer.mark_ready(&project_key2, true);
         assert_eq!(
-            buffer.peek().await.unwrap().unwrap().meta().public_key(),
+            buffer
+                .peek()
+                .await
+                .unwrap()
+                .envelope()
+                .unwrap()
+                .meta()
+                .public_key(),
             project_key2
         );
         assert_eq!(
@@ -557,7 +619,7 @@ mod tests {
             project_key1
         );
         assert!(buffer.pop().await.unwrap().is_none());
-        assert!(buffer.peek().await.unwrap().is_none());
+        assert!(buffer.peek().await.unwrap().is_empty());
     }
 
     #[tokio::test]
@@ -608,28 +670,56 @@ mod tests {
 
         // Nothing is ready, instant1 is on top:
         assert_eq!(
-            buffer.peek().await.unwrap().unwrap().meta().start_time(),
+            buffer
+                .peek()
+                .await
+                .unwrap()
+                .envelope()
+                .unwrap()
+                .meta()
+                .start_time(),
             instant1
         );
 
         // Mark project 2 ready, gets on top:
         buffer.mark_ready(&project_key2, true);
         assert_eq!(
-            buffer.peek().await.unwrap().unwrap().meta().start_time(),
+            buffer
+                .peek()
+                .await
+                .unwrap()
+                .envelope()
+                .unwrap()
+                .meta()
+                .start_time(),
             instant2
         );
 
         // Revert
         buffer.mark_ready(&project_key2, false);
         assert_eq!(
-            buffer.peek().await.unwrap().unwrap().meta().start_time(),
+            buffer
+                .peek()
+                .await
+                .unwrap()
+                .envelope()
+                .unwrap()
+                .meta()
+                .start_time(),
             instant1
         );
 
         // Project 1 ready:
         buffer.mark_ready(&project_key1, true);
         assert_eq!(
-            buffer.peek().await.unwrap().unwrap().meta().start_time(),
+            buffer
+                .peek()
+                .await
+                .unwrap()
+                .envelope()
+                .unwrap()
+                .meta()
+                .start_time(),
             instant1
         );
 
@@ -640,7 +730,14 @@ mod tests {
             instant3
         );
         assert_eq!(
-            buffer.peek().await.unwrap().unwrap().meta().start_time(),
+            buffer
+                .peek()
+                .await
+                .unwrap()
+                .envelope()
+                .unwrap()
+                .meta()
+                .start_time(),
             instant2
         );
 
@@ -696,15 +793,36 @@ mod tests {
         buffer.push(envelope2).await.unwrap();
 
         assert_eq!(
-            buffer.peek().await.unwrap().unwrap().event_id().unwrap(),
+            buffer
+                .peek()
+                .await
+                .unwrap()
+                .envelope()
+                .unwrap()
+                .event_id()
+                .unwrap(),
             event_id_1
         );
         assert_eq!(
-            buffer.peek().await.unwrap().unwrap().event_id().unwrap(),
+            buffer
+                .peek()
+                .await
+                .unwrap()
+                .envelope()
+                .unwrap()
+                .event_id()
+                .unwrap(),
             event_id_2
         );
         assert_eq!(
-            buffer.peek().await.unwrap().unwrap().event_id().unwrap(),
+            buffer
+                .peek()
+                .await
+                .unwrap()
+                .envelope()
+                .unwrap()
+                .event_id()
+                .unwrap(),
             event_id_1
         );
     }

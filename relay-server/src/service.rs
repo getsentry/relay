@@ -244,22 +244,24 @@ impl ServiceState {
         )
         .spawn_handler(processor_rx);
 
-        // Keep all the services in one context.
-        let project_cache_services = Services::new(
-            aggregator.clone(),
-            processor.clone(),
-            outcome_aggregator.clone(),
-            project_cache.clone(),
-            test_store.clone(),
-            upstream_relay.clone(),
-            global_config.clone(),
-        );
         let envelope_buffer =
             EnvelopeBufferService::new(&config, project_cache.clone()).map(Service::start);
+
+        // Keep all the services in one context.
+        let project_cache_services = Services {
+            envelope_buffer: envelope_buffer.clone(),
+            aggregator: aggregator.clone(),
+            envelope_processor: processor.clone(),
+            outcome_aggregator: outcome_aggregator.clone(),
+            project_cache: project_cache.clone(),
+            test_store: test_store.clone(),
+            upstream_relay: upstream_relay.clone(),
+            global_config: global_config.clone(),
+        };
+
         ProjectCacheService::new(
             config.clone(),
             MemoryChecker::new(memory_stat.clone(), config.clone()),
-            // envelope_buffer.clone(),
             project_cache_services,
             redis_pools
                 .as_ref()

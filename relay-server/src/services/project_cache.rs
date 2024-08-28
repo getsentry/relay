@@ -550,7 +550,7 @@ struct UpdateProjectState {
 /// Holds the addresses of all services required for [`ProjectCache`].
 #[derive(Debug, Clone)]
 pub struct Services {
-    pub envelope_buffer: Addr<EnvelopeBuffer>,
+    pub envelope_buffer: Option<Addr<EnvelopeBuffer>>,
     pub aggregator: Addr<Aggregator>,
     pub envelope_processor: Addr<EnvelopeProcessor>,
     pub outcome_aggregator: Addr<TrackOutcome>,
@@ -724,9 +724,9 @@ impl ProjectCacheBroker {
         // Try to schedule unspool if it's not scheduled yet.
         self.schedule_unspool();
 
-        self.services
-            .envelope_buffer
-            .send(EnvelopeBuffer::Ready(project_key));
+        if let Some(envelope_buffer) = self.services.envelope_buffer.as_ref() {
+            envelope_buffer.send(EnvelopeBuffer::Ready(project_key))
+        };
     }
 
     fn handle_request_update(&mut self, message: RequestUpdate) {
@@ -1063,6 +1063,7 @@ impl ProjectCacheBroker {
     fn handle_dequeued_envelope(
         &mut self,
         envelope: Box<Envelope>,
+        envelope_buffer: Addr<EnvelopeBuffer>,
     ) -> Result<(), EnvelopeBufferError> {
         if envelope.meta().start_time().elapsed() > self.config.spool_envelopes_max_age() {
             let mut managed_envelope = ManagedEnvelope::new(
@@ -1096,9 +1097,7 @@ impl ProjectCacheBroker {
                 return Ok(());
             }
             ProjectState::Pending => {
-                self.services
-                    .envelope_buffer
-                    .send(EnvelopeBuffer::NotReady(own_key, envelope));
+                envelope_buffer.send(EnvelopeBuffer::NotReady(own_key, envelope));
                 return Ok(());
             }
         };
@@ -1111,7 +1110,7 @@ impl ProjectCacheBroker {
                     .get_cached_state(services.project_cache, false),
             )
         }) {
-            Some((sampling_key, ProjectState::Enabled(info))) => {
+            Some((_, ProjectState::Enabled(info))) => {
                 // Only set if it matches the organization ID. Otherwise treat as if there is
                 // no sampling project.
                 (info.organization_id == project_info.organization_id).then_some(info)
@@ -1121,9 +1120,7 @@ impl ProjectCacheBroker {
                 None
             }
             Some((sampling_key, ProjectState::Pending)) => {
-                self.services
-                    .envelope_buffer
-                    .send(EnvelopeBuffer::NotReady(sampling_key, envelope));
+                envelope_buffer.send(EnvelopeBuffer::NotReady(sampling_key, envelope));
                 return Ok(());
             }
             None => None,
@@ -1277,7 +1274,13 @@ impl ProjectCacheBroker {
                         self.handle_refresh_index_cache(message)
                     }
                     ProjectCache::HandleDequeuedEnvelope(message) => {
-                        if let Err(e) = self.handle_dequeued_envelope(message) {
+                        let envelope_buffer = self
+                            .services
+                            .envelope_buffer
+                            .clone()
+                            .expect("Called HandleDequeuedEnvelope without an envelope buffer");
+
+                        if let Err(e) = self.handle_dequeued_envelope(message, envelope_buffer) {
                             relay_log::error!(
                                 error = &e as &dyn std::error::Error,
                                 "Failed to handle popped envelope"
@@ -1305,14 +1308,12 @@ impl ProjectCacheService {
     pub fn new(
         config: Arc<Config>,
         memory_checker: MemoryChecker,
-        // envelope_buffer: Option<Arc<GuardedEnvelopeBuffer>>,
         services: Services,
         redis: Option<RedisPool>,
     ) -> Self {
         Self {
             config,
             memory_checker,
-            // envelope_buffer,
             services,
             redis,
         }
@@ -1336,7 +1337,6 @@ impl Service for ProjectCacheService {
 
         tokio::spawn(async move {
             let mut ticker = tokio::time::interval(config.cache_eviction_interval());
-            let mut report_ticker = tokio::time::interval(Duration::from_secs(1));
             relay_log::info!("project cache started");
 
             // Channel for async project state responses back into the project cache.
@@ -1533,7 +1533,6 @@ mod tests {
     use tokio::select;
     use uuid::Uuid;
 
-    use crate::services::buffer::EnvelopeBufferService;
     use crate::services::processor::ProcessingGroup;
     use crate::testutils::empty_envelope_with_dsn;
     use crate::utils::MemoryStat;
@@ -1550,6 +1549,7 @@ mod tests {
         let (global_config, _) = mock_service("global_config", (), |&mut (), _| {});
 
         Services {
+            envelope_buffer: None,
             aggregator,
             envelope_processor,
             project_cache,
