@@ -29,6 +29,12 @@ pub enum ReplayError {
     #[error("invalid payload {0}")]
     InvalidPayload(String),
 
+    /// The Replay has consumed its segment limit.
+    ///
+    /// This is returned from [`validate`].
+    #[error("invalid replay length")]
+    TooLong,
+
     /// An error occurred during PII scrubbing of the Replay.
     ///
     /// This erorr is usually returned when the PII configuration fails to parse.
@@ -56,9 +62,7 @@ pub fn validate(replay: &Replay) -> Result<(), ReplayError> {
     const MAX_SEGMENT_ID: u64 = 60 * 60 / 5;
 
     if segment_id > MAX_SEGMENT_ID {
-        return Err(ReplayError::InvalidPayload(
-            "segment_id limit exceeded".to_string(),
-        ));
+        return Err(ReplayError::TooLong);
     }
 
     if replay
