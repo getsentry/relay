@@ -5,6 +5,7 @@ use relay_config::Config;
 use relay_redis::{RedisError, RedisPool};
 use relay_statsd::metric;
 
+use crate::services::project::state::UpstreamProjectState;
 use crate::services::project::{ParsedProjectState, ProjectState};
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 
@@ -54,16 +55,13 @@ impl RedisProjectSource {
 
     /// Fetches a project config from Redis.
     ///
-    /// Returns `None` if the the project config stored in Redis has the same `revision`.
-    /// Always returns a project state if the passed `revision` is `None`.
-    ///
     /// The returned project state is [`ProjectState::Pending`] if the requested project config is not
     /// stored in Redis.
     pub fn get_config_if_changed(
         &self,
         key: ProjectKey,
         revision: Option<&str>,
-    ) -> Result<Option<ProjectState>, RedisProjectError> {
+    ) -> Result<UpstreamProjectState, RedisProjectError> {
         let mut client = self.redis.client()?;
         let mut connection = client.connection()?;
 
@@ -82,7 +80,7 @@ impl RedisProjectSource {
                     counter(RelayCounters::ProjectStateRedis) += 1,
                     hit = "revision",
                 );
-                return Ok(None);
+                return Ok(UpstreamProjectState::NotModified);
             }
         }
 
@@ -96,7 +94,7 @@ impl RedisProjectSource {
                 counter(RelayCounters::ProjectStateRedis) += 1,
                 hit = "false"
             );
-            return Ok(Some(ProjectState::Pending));
+            return Ok(UpstreamProjectState::New(ProjectState::Pending));
         };
 
         let response = ProjectState::from(parse_redis_response(response.as_slice())?);
@@ -113,13 +111,13 @@ impl RedisProjectSource {
                 counter(RelayCounters::ProjectStateRedis) += 1,
                 hit = "project_config_revision"
             );
-            Ok(None)
+            Ok(UpstreamProjectState::NotModified)
         } else {
             metric!(
                 counter(RelayCounters::ProjectStateRedis) += 1,
                 hit = "project_config"
             );
-            Ok(Some(response))
+            Ok(UpstreamProjectState::New(response))
         }
     }
 

@@ -4,13 +4,15 @@ use relay_config::Config;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
 use sqlx::{Pool, Sqlite};
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tempfile::TempDir;
 use tokio::runtime::Runtime;
 
 use relay_base_schema::project::ProjectKey;
 use relay_server::{
-    Envelope, EnvelopeStack, PolymorphicEnvelopeBuffer, SqliteEnvelopeStack, SqliteEnvelopeStore,
+    Envelope, EnvelopeStack, MemoryChecker, MemoryStat, PolymorphicEnvelopeBuffer,
+    SqliteEnvelopeStack, SqliteEnvelopeStore,
 };
 
 fn setup_db(path: &PathBuf) -> Pool<Sqlite> {
@@ -72,7 +74,7 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
     let temp_dir = TempDir::new().unwrap();
     let db_path = temp_dir.path().join("test.db");
     let db = setup_db(&db_path);
-    let envelope_store = SqliteEnvelopeStore::new(db.clone());
+    let envelope_store = SqliteEnvelopeStore::new(db.clone(), Duration::from_millis(100));
 
     let runtime = Runtime::new().unwrap();
 
@@ -221,6 +223,17 @@ fn benchmark_envelope_buffer(c: &mut Criterion) {
     let num_projects = 100000;
     let envelopes_per_project = 10;
 
+    let config: Arc<Config> = Config::from_json_value(serde_json::json!({
+        "spool": {
+            "health": {
+                "max_memory_percent": 1.0
+            }
+        }
+    }))
+    .unwrap()
+    .into();
+    let memory_checker = MemoryChecker::new(MemoryStat::default(), config.clone());
+
     group.throughput(Throughput::Elements(
         num_projects * envelopes_per_project as u64,
     ));
@@ -245,7 +258,8 @@ fn benchmark_envelope_buffer(c: &mut Criterion) {
             },
             |envelopes| {
                 runtime.block_on(async {
-                    let mut buffer = PolymorphicEnvelopeBuffer::from_config(&Config::default());
+                    let mut buffer =
+                        PolymorphicEnvelopeBuffer::from_config(&config, memory_checker.clone());
                     for envelope in envelopes.into_iter() {
                         buffer.push(envelope).await.unwrap();
                     }
@@ -274,7 +288,8 @@ fn benchmark_envelope_buffer(c: &mut Criterion) {
             },
             |envelopes| {
                 runtime.block_on(async {
-                    let mut buffer = PolymorphicEnvelopeBuffer::from_config(&Config::default());
+                    let mut buffer =
+                        PolymorphicEnvelopeBuffer::from_config(&config, memory_checker.clone());
                     let n = envelopes.len();
                     for envelope in envelopes.into_iter() {
                         let public_key = envelope.meta().public_key();

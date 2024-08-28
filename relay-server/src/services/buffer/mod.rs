@@ -9,16 +9,18 @@ use crate::services::buffer::envelope_buffer::Peek;
 use crate::services::project_cache::DequeuedEnvelope;
 use crate::services::project_cache::GetProjectState;
 use crate::services::project_cache::ProjectCache;
+use crate::utils::{ManagedEnvelope, MemoryChecker};
 
+use crate::statsd::RelayCounters;
 pub use envelope_buffer::EnvelopeBufferError;
 pub use envelope_buffer::PolymorphicEnvelopeBuffer;
 pub use envelope_stack::sqlite::SqliteEnvelopeStack; // pub for benchmarks
 pub use envelope_stack::EnvelopeStack; // pub for benchmarks
-pub use sqlite_envelope_store::SqliteEnvelopeStore; // pub for benchmarks // pub for benchmarks
+pub use envelope_store::sqlite::SqliteEnvelopeStore; // pub for benchmarks
 
 mod envelope_buffer;
 mod envelope_stack;
-mod sqlite_envelope_store;
+mod envelope_store;
 mod stack_provider;
 mod testutils;
 
