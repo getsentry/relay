@@ -39,12 +39,12 @@ workspace = true
 anyhow = { workspace = true }
 serde_path_to_error = { workspace = true }
 axum = { workspace = true, features = [
-    "headers",
     "macros",
     "matched-path",
     "multipart",
     "tracing",
 ] }
+axum-extra = { workspace = true, features = ["protobuf", "typed-header"] }
 axum-server = { workspace = true }
 arc-swap = { workspace = true }
 backoff = { workspace = true }
@@ -94,8 +94,8 @@ relay-statsd = { workspace = true }
 relay-system = { workspace = true }
 reqwest = { workspace = true, features = [
     "gzip",
+    "hickory-dns",
     "stream",
-    "trust-dns",
     "native-tls-vendored",
 ] }
 rmp-serde = { workspace = true }
@@ -133,7 +133,6 @@ tower-http = { workspace = true, default-features = false, features = [
 url = { workspace = true, features = ["serde"] }
 uuid = { workspace = true, features = ["v5"] }
 zstd = { workspace = true, optional = true }
-axum-extra = { workspace = true, features = ["protobuf"] }
 semver = { workspace = true }
 
 [dev-dependencies]

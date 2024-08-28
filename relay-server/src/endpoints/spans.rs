@@ -1,11 +1,9 @@
-use axum::extract::{DefaultBodyLimit, Json};
-use axum::http::{Request, StatusCode};
+use axum::extract::{DefaultBodyLimit, Json, Request};
+use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::{post, MethodRouter};
 use axum::RequestExt;
 use axum_extra::protobuf::Protobuf;
-use bytes::Bytes;
-
 use relay_config::Config;
 use relay_dynamic_config::Feature;
 use relay_spans::otel_trace::TracesData;
@@ -15,17 +13,12 @@ use crate::envelope::{ContentType, Envelope, Item, ItemType};
 use crate::extractors::{RawContentType, RequestMeta};
 use crate::service::ServiceState;
 
-async fn handle<B>(
+async fn handle(
     state: ServiceState,
     content_type: RawContentType,
     meta: RequestMeta,
-    request: Request<B>,
-) -> axum::response::Result<impl IntoResponse>
-where
-    B: axum::body::HttpBody + Send + 'static,
-    B::Data: Send + Into<Bytes>,
-    B::Error: Into<axum::BoxError>,
-{
+    request: Request,
+) -> axum::response::Result<impl IntoResponse> {
     let trace: TracesData = if content_type.as_ref().starts_with("application/json") {
         let Json(trace) = request.extract().await?;
         trace
@@ -55,11 +48,6 @@ where
     Ok(StatusCode::ACCEPTED)
 }
 
-pub fn route<B>(config: &Config) -> MethodRouter<ServiceState, B>
-where
-    B: axum::body::HttpBody + Send + 'static,
-    B::Data: Send + Into<Bytes>,
-    B::Error: Into<axum::BoxError>,
-{
+pub fn route(config: &Config) -> MethodRouter<ServiceState> {
     post(handle).route_layer(DefaultBodyLimit::max(config.max_span_size()))
 }
