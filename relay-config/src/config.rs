@@ -1505,16 +1505,6 @@ pub struct Cogs {
     ///
     /// Defaults to `false`.
     enabled: bool,
-    /// Granularity of the COGS measurements.
-    ///
-    /// Measurements are aggregated based on the granularity in seconds.
-    ///
-    /// Aggregated measurements are always flushed at the end of their
-    /// aggregation window, which means the granularity also controls the flush
-    /// interval.
-    ///
-    /// Defaults to `60` (1 minute).
-    granularity_secs: u64,
     /// Maximium amount of COGS measurements allowed to backlog.
     ///
     /// Any additional COGS measurements recorded will be dropped.
@@ -1533,7 +1523,6 @@ impl Default for Cogs {
     fn default() -> Self {
         Self {
             enabled: false,
-            granularity_secs: 60,
             max_queue_size: 10_000,
             relay_resource_id: "relay_service".to_owned(),
         }
@@ -2509,11 +2498,6 @@ impl Config {
     /// Whether COGS measurements are enabled.
     pub fn cogs_enabled(&self) -> bool {
         self.values.cogs.enabled
-    }
-
-    /// Granularity for COGS measurements.
-    pub fn cogs_granularity(&self) -> Duration {
-        Duration::from_secs(self.values.cogs.granularity_secs)
     }
 
     /// Maximum amount of COGS measurements buffered in memory.

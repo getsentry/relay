@@ -17,6 +17,10 @@
 - Record too long discard reason for session replays. ([#3950](https://github.com/getsentry/relay/pull/3950))
 - Add `EnvelopeStore` trait and implement `DiskUsage` for tracking disk usage. ([#3925](https://github.com/getsentry/relay/pull/3925))
 
+**Internal**:
+
+- No longer send COGS data to dedicated Kafka topic. ([#3953](https://github.com/getsentry/relay/pull/3953))
+
 ## 24.8.0
 
 **Bug Fixes**:
