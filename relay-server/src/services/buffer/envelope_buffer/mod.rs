@@ -314,7 +314,7 @@ where
     }
 }
 
-/// TODO: docs
+/// Contains a reference to the first element in the buffer, together with its stack's ready state.
 pub enum Peek<'a> {
     Empty,
     Ready(&'a Envelope),

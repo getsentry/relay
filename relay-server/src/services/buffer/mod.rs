@@ -52,7 +52,10 @@ impl FromMessage<Self> for EnvelopeBuffer {
     }
 }
 
-/// Contains the services `Addr` and a watch channel to observe its state.
+/// Contains the services [`Addr`] and a watch channel to observe its state.
+///
+/// This allows outside observers to check the capacity without having to send a message.
+///
 // NOTE: This pattern of combining an Addr with some observable state could be generalized into
 // `Service` itself.
 #[derive(Debug, Clone)]
@@ -62,10 +65,12 @@ pub struct ObservableEnvelopeBuffer {
 }
 
 impl ObservableEnvelopeBuffer {
+    /// Returns the address of the buffer service.
     pub fn addr(&self) -> Addr<EnvelopeBuffer> {
         self.addr.clone()
     }
 
+    /// Returns `true` if the buffer has the capacity to accept more elements.
     pub fn has_capacity(&self) -> bool {
         self.has_capacity.load(Ordering::Relaxed)
     }
@@ -96,6 +101,7 @@ impl EnvelopeBufferService {
         })
     }
 
+    /// Returns both the [`Addr`] to this service, and a reference to the capacity flag.
     pub fn start_observable(self) -> ObservableEnvelopeBuffer {
         let has_capacity = self.has_capacity.clone();
         ObservableEnvelopeBuffer {
@@ -206,6 +212,8 @@ impl Service for EnvelopeBufferService {
                     biased;
                     // Prefer dequeing over enqueing so we do not exceed the buffer capacity
                     // by starving the dequeue.
+                    // NOTE: This approach has the disadvantage that old messages are prioritized
+                    // over new messages, which violates the LIFO design.
                     () = self.try_pop() => {}
                     Some(message) = rx.recv() => {
                         self.handle_message(message).await;
@@ -220,112 +228,44 @@ impl Service for EnvelopeBufferService {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use std::str::FromStr;
-//     use std::sync::atomic::AtomicUsize;
-//     use std::sync::atomic::Ordering;
-//     use std::sync::Arc;
-//     use std::time::Duration;
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
 
-//     use relay_common::Dsn;
+    use crate::MemoryStat;
 
-//     use crate::extractors::RequestMeta;
+    use super::*;
 
-//     use super::*;
+    #[tokio::test]
+    async fn capacity_is_updated() {
+        tokio::time::pause();
+        let config = Arc::new(
+            Config::from_json_value(serde_json::json!({
+                "spool": {
+                    "envelopes": {
+                        "version": "experimental"
+                    }
+                }
+            }))
+            .unwrap(),
+        );
+        let memory_checker = MemoryChecker::new(MemoryStat::default(), config.clone());
+        let service = EnvelopeBufferService::new(&config, memory_checker, Addr::dummy()).unwrap();
 
-//     fn new_buffer() -> Arc<GuardedEnvelopeBuffer> {
-//         GuardedEnvelopeBuffer::from_config(
-//             &Config::from_json_value(serde_json::json!({
-//                 "spool": {
-//                     "envelopes": {
-//                         "version": "experimental"
-//                     }
-//                 }
-//             }))
-//             .unwrap(),
-//         )
-//         .unwrap()
-//         .into()
-//     }
+        // Set capacity to false:
+        service.has_capacity.store(false, Ordering::Relaxed);
 
-//     fn new_envelope() -> Box<Envelope> {
-//         Envelope::from_request(
-//             None,
-//             RequestMeta::new(
-//                 Dsn::from_str("http://a94ae32be2584e0bbd7a4cbb95971fed@localhost/1").unwrap(),
-//             ),
-//         )
-//     }
+        // Observable has correct value:
+        let ObservableEnvelopeBuffer { addr, has_capacity } = service.start_observable();
+        assert!(!has_capacity.load(Ordering::Relaxed));
 
-//     #[tokio::test]
-//     async fn no_busy_loop_when_empty() {
-//         let buffer = new_buffer();
-//         let call_count = Arc::new(AtomicUsize::new(0));
+        // Send a message to trigger update of `has_capacity` flag:
+        let some_project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+        addr.send(EnvelopeBuffer::Ready(some_project_key));
 
-//         tokio::time::pause();
+        tokio::time::advance(Duration::from_millis(100)).await;
 
-//         let cloned_buffer = buffer.clone();
-//         let cloned_call_count = call_count.clone();
-//         tokio::spawn(async move {
-//             loop {
-//                 cloned_buffer.peek().await.remove().await.unwrap();
-//                 cloned_call_count.fetch_add(1, Ordering::Relaxed);
-//             }
-//         });
-
-//         // Initial state: no calls
-//         assert_eq!(call_count.load(Ordering::Relaxed), 0);
-//         tokio::time::advance(Duration::from_nanos(1)).await;
-//         assert_eq!(call_count.load(Ordering::Relaxed), 0);
-
-//         // State after push: one call
-//         buffer.push(new_envelope()).await.unwrap();
-//         tokio::time::advance(Duration::from_nanos(1)).await;
-//         assert_eq!(call_count.load(Ordering::Relaxed), 1);
-//         tokio::time::advance(Duration::from_nanos(1)).await;
-//         assert_eq!(call_count.load(Ordering::Relaxed), 1);
-
-//         // State after second push: two calls
-//         buffer.push(new_envelope()).await.unwrap();
-//         tokio::time::advance(Duration::from_nanos(1)).await;
-//         assert_eq!(call_count.load(Ordering::Relaxed), 2);
-//         tokio::time::advance(Duration::from_nanos(1)).await;
-//         assert_eq!(call_count.load(Ordering::Relaxed), 2);
-//     }
-
-//     #[tokio::test]
-//     async fn no_busy_loop_when_unchanged() {
-//         let buffer = new_buffer();
-//         let call_count = Arc::new(AtomicUsize::new(0));
-
-//         tokio::time::pause();
-
-//         let cloned_buffer = buffer.clone();
-//         let cloned_call_count = call_count.clone();
-//         tokio::spawn(async move {
-//             loop {
-//                 cloned_buffer.peek().await;
-//                 cloned_call_count.fetch_add(1, Ordering::Relaxed);
-//             }
-//         });
-
-//         buffer.push(new_envelope()).await.unwrap();
-
-//         // Initial state: no calls
-//         assert_eq!(call_count.load(Ordering::Relaxed), 0);
-
-//         // After first advance: got one call
-//         tokio::time::advance(Duration::from_nanos(1)).await;
-//         assert_eq!(call_count.load(Ordering::Relaxed), 1);
-
-//         // After second advance: still only one call (no change)
-//         tokio::time::advance(Duration::from_nanos(1)).await;
-//         assert_eq!(call_count.load(Ordering::Relaxed), 1);
-
-//         // State after second push: two calls
-//         buffer.push(new_envelope()).await.unwrap();
-//         tokio::time::advance(Duration::from_nanos(1)).await;
-//         assert_eq!(call_count.load(Ordering::Relaxed), 2);
-//     }
-// }
+        // Observable has correct value:
+        assert!(has_capacity.load(Ordering::Relaxed));
+    }
+}
