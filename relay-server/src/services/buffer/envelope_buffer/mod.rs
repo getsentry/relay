@@ -167,7 +167,6 @@ where
     /// [`StackProvider`].
     pub async fn initialize(&mut self) {
         let initialization_state = self.stack_provider.initialize().await;
-        println!("INITIALIZATION STATE {:?}", initialization_state);
         self.load_stacks(initialization_state.envelopes_projects_keys)
             .await;
     }
