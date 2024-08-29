@@ -185,8 +185,6 @@ fn serve(listener: TcpListener, app: App, config: Arc<Config>) {
         .http2()
         .keep_alive_timeout(config.keepalive_timeout());
 
-    // Bundle middlewares that need to run _before_ routing, which need to wrap the router.
-    // ConnectInfo is special as it needs to last.
     let service = ServiceExt::<Request>::into_make_service_with_connect_info::<SocketAddr>(app);
     tokio::spawn(server.serve(service));
 
