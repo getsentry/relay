@@ -115,13 +115,16 @@ impl EnvelopeBufferService {
     }
 
     async fn try_pop_inner(&mut self) -> Result<(), EnvelopeBufferError> {
+        relay_log::trace!("EnvelopeBufferService peek");
         match self.buffer.peek().await? {
             Peek::Empty => {
-                // There's nothing in the buffer.
+                relay_log::trace!("EnvelopeBufferService empty");
+                self.changes.notified().await;
             }
             Peek::Ready(_) => {
                 // FIXME(jjbayer): Requires https://github.com/getsentry/relay/pull/3960
                 // in order to work.
+                relay_log::trace!("EnvelopeBufferService pop");
                 let envelope = self
                     .buffer
                     .pop()
@@ -130,6 +133,7 @@ impl EnvelopeBufferService {
                 self.project_cache.send(DequeuedEnvelope(envelope));
             }
             Peek::NotReady(envelope) => {
+                relay_log::trace!("EnvelopeBufferService request update");
                 let project_key = envelope.meta().public_key();
                 self.project_cache.send(GetProjectState::new(project_key));
                 match envelope.sampling_key() {
@@ -139,6 +143,7 @@ impl EnvelopeBufferService {
                         self.project_cache.send(GetProjectState::new(sampling_key));
                     }
                 }
+                self.changes.notified().await;
             }
         }
         Ok(())
@@ -152,16 +157,19 @@ impl EnvelopeBufferService {
                 // projects was already triggered (see XXX).
                 // For better separation of concerns, this prefetch should be triggered from here
                 // once buffer V1 has been removed.
+                relay_log::trace!("EnvelopeBufferService push");
                 self.push(envelope).await;
                 changed = true;
             }
             EnvelopeBuffer::NotReady(project_key, envelope) => {
+                relay_log::trace!("EnvelopeBufferService project not ready");
                 self.buffer.mark_ready(&project_key, false);
                 // TODO: metric
                 self.push(envelope).await;
                 changed = true;
             }
             EnvelopeBuffer::Ready(project_key) => {
+                relay_log::trace!("EnvelopeBufferService project ready");
                 changed = self.buffer.mark_ready(&project_key, true);
             }
         };
@@ -190,15 +198,14 @@ impl Service for EnvelopeBufferService {
 
     fn spawn_handler(mut self, mut rx: Receiver<Self::Interface>) {
         tokio::spawn(async move {
+            relay_log::info!("EnvelopeBufferService start");
             loop {
+                relay_log::trace!("EnvelopeBufferService loop");
                 tokio::select! {
                     biased;
                     // Prefer dequeing over enqueing so we do not exceed the buffer capacity
                     // by starving the dequeue.
-                    () = self.changes.notified() => {
-                        self.try_pop().await;
-
-                    }
+                    () = self.try_pop() => {}
                     Some(message) = rx.recv() => {
                         self.handle_message(message).await;
                     }
@@ -207,6 +214,7 @@ impl Service for EnvelopeBufferService {
                 }
                 self.update_observable_state();
             }
+            relay_log::info!("EnvelopeBufferService stop");
         });
     }
 }
