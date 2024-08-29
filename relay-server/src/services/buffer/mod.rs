@@ -80,7 +80,8 @@ impl ObservableEnvelopeBuffer {
 /// Spool V2 service which buffers envelopes and forwards them to the project cache when a project
 /// becomes ready.
 pub struct EnvelopeBufferService {
-    buffer: PolymorphicEnvelopeBuffer,
+    config: Arc<Config>,
+    memory_checker: MemoryChecker,
     project_cache: Addr<ProjectCache>,
     has_capacity: Arc<AtomicBool>,
     changes: bool,
@@ -92,12 +93,13 @@ impl EnvelopeBufferService {
     /// NOTE: until the V1 spooler implementation is removed, this function returns `None`
     /// if V2 spooling is not configured.
     pub fn new(
-        config: &Config,
+        config: Arc<Config>,
         memory_checker: MemoryChecker,
         project_cache: Addr<ProjectCache>,
     ) -> Option<Self> {
         config.spool_v2().then(|| Self {
-            buffer: PolymorphicEnvelopeBuffer::from_config(config, memory_checker),
+            config,
+            memory_checker,
             project_cache,
             has_capacity: Arc::new(AtomicBool::new(true)),
             changes: true,
@@ -124,17 +126,19 @@ impl EnvelopeBufferService {
     }
 
     /// Tries to pop an envelope for a ready project.
-    async fn try_pop(&mut self) -> Result<(), EnvelopeBufferError> {
+    async fn try_pop(
+        &mut self,
+        buffer: &mut PolymorphicEnvelopeBuffer,
+    ) -> Result<(), EnvelopeBufferError> {
         relay_log::trace!("EnvelopeBufferService peek");
-        match self.buffer.peek().await? {
+        match buffer.peek().await? {
             Peek::Empty => {
                 relay_log::trace!("EnvelopeBufferService empty");
                 self.changes = false;
             }
             Peek::Ready(_) => {
                 relay_log::trace!("EnvelopeBufferService pop");
-                let envelope = self
-                    .buffer
+                let envelope = buffer
                     .pop()
                     .await?
                     .expect("Element disappeared despite exclusive excess");
@@ -158,7 +162,11 @@ impl EnvelopeBufferService {
         Ok(())
     }
 
-    async fn handle_message(&mut self, message: EnvelopeBuffer) {
+    async fn handle_message(
+        &mut self,
+        buffer: &mut PolymorphicEnvelopeBuffer,
+        message: EnvelopeBuffer,
+    ) {
         match message {
             EnvelopeBuffer::Push(envelope) => {
                 // NOTE: This function assumes that a project state update for the relevant
@@ -166,24 +174,24 @@ impl EnvelopeBufferService {
                 // For better separation of concerns, this prefetch should be triggered from here
                 // once buffer V1 has been removed.
                 relay_log::trace!("EnvelopeBufferService push");
-                self.push(envelope).await;
+                self.push(buffer, envelope).await;
             }
             EnvelopeBuffer::NotReady(project_key, envelope) => {
                 relay_log::trace!("EnvelopeBufferService project not ready");
-                self.buffer.mark_ready(&project_key, false);
+                buffer.mark_ready(&project_key, false);
                 relay_statsd::metric!(counter(RelayCounters::BufferEnvelopesReturned) += 1);
-                self.push(envelope).await;
+                self.push(buffer, envelope).await;
             }
             EnvelopeBuffer::Ready(project_key) => {
                 relay_log::trace!("EnvelopeBufferService project ready {}", &project_key);
-                self.buffer.mark_ready(&project_key, true);
+                buffer.mark_ready(&project_key, true);
             }
         };
         self.changes = true;
     }
 
-    async fn push(&mut self, envelope: Box<Envelope>) {
-        if let Err(e) = self.buffer.push(envelope).await {
+    async fn push(&mut self, buffer: &mut PolymorphicEnvelopeBuffer, envelope: Box<Envelope>) {
+        if let Err(e) = buffer.push(envelope).await {
             relay_log::error!(
                 error = &e as &dyn std::error::Error,
                 "failed to push envelope"
@@ -191,9 +199,9 @@ impl EnvelopeBufferService {
         }
     }
 
-    fn update_observable_state(&self) {
+    fn update_observable_state(&self, buffer: &mut PolymorphicEnvelopeBuffer) {
         self.has_capacity
-            .store(self.buffer.has_capacity(), Ordering::Relaxed);
+            .store(buffer.has_capacity(), Ordering::Relaxed);
     }
 }
 
@@ -201,7 +209,11 @@ impl Service for EnvelopeBufferService {
     type Interface = EnvelopeBuffer;
 
     fn spawn_handler(mut self, mut rx: Receiver<Self::Interface>) {
+        let config = self.config.clone();
+        let memory_checker = self.memory_checker.clone();
         tokio::spawn(async move {
+            let mut buffer = PolymorphicEnvelopeBuffer::from_config(&config, memory_checker).await;
+
             relay_log::info!("EnvelopeBufferService start");
             loop {
                 relay_log::trace!("EnvelopeBufferService loop");
@@ -211,7 +223,7 @@ impl Service for EnvelopeBufferService {
                     // so we do not exceed the buffer capacity by starving the dequeue.
                     // on the other hand, prioritizing old messages violates the LIFO design.
                     () = self.wait_for_changes() => {
-                        if let Err(e) = self.try_pop().await {
+                        if let Err(e) = self.try_pop(&mut buffer).await {
                             relay_log::error!(
                                 error = &e as &dyn std::error::Error,
                                 "failed to pop envelope"
@@ -219,12 +231,12 @@ impl Service for EnvelopeBufferService {
                         }
                     }
                     Some(message) = rx.recv() => {
-                        self.handle_message(message).await;
+                        self.handle_message(&mut buffer, message).await;
                     }
 
                     else => break,
                 }
-                self.update_observable_state();
+                self.update_observable_state(&mut buffer);
             }
             relay_log::info!("EnvelopeBufferService stop");
         });
@@ -253,7 +265,7 @@ mod tests {
             .unwrap(),
         );
         let memory_checker = MemoryChecker::new(MemoryStat::default(), config.clone());
-        let service = EnvelopeBufferService::new(&config, memory_checker, Addr::dummy()).unwrap();
+        let service = EnvelopeBufferService::new(config, memory_checker, Addr::dummy()).unwrap();
 
         // Set capacity to false:
         service.has_capacity.store(false, Ordering::Relaxed);
