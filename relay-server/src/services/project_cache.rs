@@ -579,8 +579,6 @@ pub struct Services {
 struct ProjectCacheBroker {
     config: Arc<Config>,
     memory_checker: MemoryChecker,
-    // TODO: Make non-optional when spool_v1 is removed.
-    // envelope_buffer: Option<Arc<GuardedEnvelopeBuffer>>,
     services: Services,
     // Need hashbrown because extract_if is not stable in std yet.
     projects: hashbrown::HashMap<ProjectKey, Project>,
@@ -1309,7 +1307,6 @@ impl ProjectCacheBroker {
 pub struct ProjectCacheService {
     config: Arc<Config>,
     memory_checker: MemoryChecker,
-    // envelope_buffer: Option<Arc<GuardedEnvelopeBuffer>>,
     services: Services,
     redis: Option<RedisPool>,
 }
@@ -1338,7 +1335,6 @@ impl Service for ProjectCacheService {
         let Self {
             config,
             memory_checker,
-            // envelope_buffer,
             services,
             redis,
         } = self;
@@ -1418,7 +1414,6 @@ impl Service for ProjectCacheService {
             let mut broker = ProjectCacheBroker {
                 config: config.clone(),
                 memory_checker,
-                // envelope_buffer: envelope_buffer.clone(),
                 projects: hashbrown::HashMap::new(),
                 garbage_disposal: GarbageDisposal::new(),
                 source: ProjectSource::start(
@@ -1482,14 +1477,6 @@ impl Service for ProjectCacheService {
         });
     }
 }
-
-/// Temporary helper function while V1 spool exists.
-// async fn peek_buffer(buffer: &Option<Arc<GuardedEnvelopeBuffer>>) -> EnvelopeBufferGuard {
-//     match buffer {
-//         Some(buffer) => buffer.peek().await,
-//         None => std::future::pending().await,
-//     }
-// }
 
 #[derive(Clone, Debug)]
 pub struct FetchProjectState {
@@ -1600,7 +1587,6 @@ mod tests {
         .unwrap()
         .into();
         let memory_checker = MemoryChecker::new(MemoryStat::default(), config.clone());
-        // let envelope_buffer = EnvelopeBufferService::new(&config).map(Arc::new);
         let buffer_services = spooler::Services {
             outcome_aggregator: services.outcome_aggregator.clone(),
             project_cache: services.project_cache.clone(),

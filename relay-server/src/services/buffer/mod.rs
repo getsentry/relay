@@ -214,7 +214,7 @@ impl Service for EnvelopeBufferService {
                     // by starving the dequeue.
                     // NOTE: This approach has the disadvantage that old messages are prioritized
                     // over new messages, which violates the LIFO design.
-                    () = self.try_pop() => {}
+                    () = self.try_pop() => {} // TODO: verify cancellation safety
                     Some(message) = rx.recv() => {
                         self.handle_message(message).await;
                     }
