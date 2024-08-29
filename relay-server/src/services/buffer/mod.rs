@@ -14,6 +14,7 @@ use crate::services::buffer::envelope_buffer::Peek;
 use crate::services::project_cache::DequeuedEnvelope;
 use crate::services::project_cache::GetProjectState;
 use crate::services::project_cache::ProjectCache;
+use crate::statsd::RelayCounters;
 use crate::utils::MemoryChecker;
 
 pub use envelope_buffer::EnvelopeBufferError;
@@ -175,7 +176,7 @@ impl EnvelopeBufferService {
             EnvelopeBuffer::NotReady(project_key, envelope) => {
                 relay_log::trace!("EnvelopeBufferService project not ready");
                 self.buffer.mark_ready(&project_key, false);
-                // TODO: metric
+                relay_statsd::metric!(counter(RelayCounters::BufferEnvelopesReturned) += 1);
                 self.push(envelope).await;
             }
             EnvelopeBuffer::Ready(project_key) => {

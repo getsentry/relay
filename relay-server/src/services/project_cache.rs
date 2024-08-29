@@ -1082,7 +1082,6 @@ impl ProjectCacheBroker {
                 ProcessingGroup::Ungrouped,
             );
             managed_envelope.reject(Outcome::Invalid(DiscardReason::Timestamp));
-            // TODO: metrics in all branches.
             return Ok(());
         }
         let sampling_key = envelope.sampling_key();

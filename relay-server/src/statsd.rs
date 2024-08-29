@@ -598,6 +598,11 @@ pub enum RelayCounters {
     ///  - `state_out`: The new state. `memory`, `memory_file_standby`, or `disk`.
     ///  - `reason`: Why a transition was made (or not made).
     BufferStateTransition,
+    /// Number of envelopes that were returned to the envelope buffer by the project cache.
+    ///
+    /// This happens when the envelope buffer falsely assumes that the envelope's projects are loaded
+    /// in the cache and sends the envelope onward, even though the project cache cannot handle it.
+    BufferEnvelopesReturned,
     ///
     /// Number of outcomes and reasons for rejected Envelopes.
     ///
@@ -811,6 +816,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::BufferReadsDisk => "buffer.reads",
             RelayCounters::BufferEnvelopesWritten => "buffer.envelopes_written",
             RelayCounters::BufferEnvelopesRead => "buffer.envelopes_read",
+            RelayCounters::BufferEnvelopesReturned => "buffer.envelopes_returned",
             RelayCounters::BufferStateTransition => "buffer.state.transition",
             RelayCounters::Outcomes => "events.outcomes",
             RelayCounters::ProjectStateGet => "project_state.get",
