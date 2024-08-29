@@ -83,6 +83,7 @@ pub struct EnvelopeBufferService {
     buffer: PolymorphicEnvelopeBuffer,
     project_cache: Addr<ProjectCache>,
     has_capacity: Arc<AtomicBool>,
+    changes: bool,
 }
 
 impl EnvelopeBufferService {
@@ -99,6 +100,7 @@ impl EnvelopeBufferService {
             buffer: PolymorphicEnvelopeBuffer::from_config(config, memory_checker),
             project_cache,
             has_capacity: Arc::new(AtomicBool::new(true)),
+            changes: true,
         })
     }
 
@@ -111,10 +113,17 @@ impl EnvelopeBufferService {
         }
     }
 
-    /// Tries to pop an envelope for a ready project.
+    /// Return immediately if changes were flagged, otherwise sleep forever.
     ///
-    /// NOTE: This function sleeps indefinitely if no suitable envelope was found.
+    /// NOTE: This function sleeps indefinitely if no changes were flagged.
     /// Only use in combination with [`tokio::select!`].
+    async fn wait_for_changes(&mut self) {
+        if !self.changes {
+            let _: () = future::pending().await; // wait until cancelled
+        }
+    }
+
+    /// Tries to pop an envelope for a ready project and logs any errors.
     async fn try_pop(&mut self) {
         if let Err(e) = self.try_pop_inner().await {
             relay_log::error!(
@@ -125,15 +134,12 @@ impl EnvelopeBufferService {
     }
 
     /// Tries to pop an envelope for a ready project.
-    ///
-    /// NOTE: This function sleeps indefinitely if no suitable envelope was found.
-    /// Only use in combination with [`tokio::select!`].
     async fn try_pop_inner(&mut self) -> Result<(), EnvelopeBufferError> {
         relay_log::trace!("EnvelopeBufferService peek");
         match self.buffer.peek().await? {
             Peek::Empty => {
                 relay_log::trace!("EnvelopeBufferService empty");
-                let _: () = future::pending().await; // sleep until future gets cancelled.
+                self.changes = false;
             }
             Peek::Ready(_) => {
                 // FIXME(jjbayer): Requires https://github.com/getsentry/relay/pull/3960
@@ -145,6 +151,7 @@ impl EnvelopeBufferService {
                     .await?
                     .expect("Element disappeared despite exclusive excess");
                 self.project_cache.send(DequeuedEnvelope(envelope));
+                self.changes = true;
             }
             Peek::NotReady(envelope) => {
                 relay_log::trace!("EnvelopeBufferService request update");
@@ -157,7 +164,7 @@ impl EnvelopeBufferService {
                         self.project_cache.send(GetProjectState::new(sampling_key));
                     }
                 }
-                let _: () = future::pending().await; // sleep until future gets cancelled.
+                self.changes = false;
             }
         }
         Ok(())
@@ -184,6 +191,7 @@ impl EnvelopeBufferService {
                 self.buffer.mark_ready(&project_key, true);
             }
         };
+        self.changes = true;
     }
 
     async fn push(&mut self, envelope: Box<Envelope>) {
@@ -210,12 +218,13 @@ impl Service for EnvelopeBufferService {
             loop {
                 relay_log::trace!("EnvelopeBufferService loop");
                 tokio::select! {
-                    biased;
-                    // Prefer dequeing over enqueing so we do not exceed the buffer capacity
-                    // by starving the dequeue.
-                    // NOTE: This approach has the disadvantage that old messages are prioritized
-                    // over new messages, which violates the LIFO design.
-                    () = self.try_pop() => {} // TODO: verify cancellation safety
+                    // NOTE: we do not select a bias here.
+                    // On the one hand, we might want to prioritize dequeing over enqueing
+                    // so we do not exceed the buffer capacity by starving the dequeue.
+                    // on the other hand, prioritizing old messages violates the LIFO design.
+                    () = self.wait_for_changes() => {
+                        self.try_pop().await;
+                    }
                     Some(message) = rx.recv() => {
                         self.handle_message(message).await;
                     }
