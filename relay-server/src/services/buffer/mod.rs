@@ -12,8 +12,8 @@ use relay_system::{Addr, FromMessage, Interface, NoResponse, Receiver, Service};
 use crate::envelope::Envelope;
 use crate::services::buffer::envelope_buffer::Peek;
 use crate::services::project_cache::DequeuedEnvelope;
-use crate::services::project_cache::GetProjectState;
 use crate::services::project_cache::ProjectCache;
+use crate::services::project_cache::UpdateProject;
 use crate::statsd::RelayCounters;
 use crate::utils::MemoryChecker;
 
@@ -144,12 +144,12 @@ impl EnvelopeBufferService {
             Peek::NotReady(envelope) => {
                 relay_log::trace!("EnvelopeBufferService request update");
                 let project_key = envelope.meta().public_key();
-                self.project_cache.send(GetProjectState::new(project_key));
+                self.project_cache.send(UpdateProject(project_key));
                 match envelope.sampling_key() {
                     None => {}
                     Some(sampling_key) if sampling_key == project_key => {} // already sent.
                     Some(sampling_key) => {
-                        self.project_cache.send(GetProjectState::new(sampling_key));
+                        self.project_cache.send(UpdateProject(sampling_key));
                     }
                 }
                 self.changes = false;
