@@ -774,12 +774,22 @@ impl ProjectCacheBroker {
     }
 
     fn handle_get(&mut self, message: GetProjectState, sender: ProjectSender) {
+        let GetProjectState {
+            project_key,
+            no_cache,
+        } = message;
         let project_cache = self.services.project_cache.clone();
-        self.get_or_create_project(message.project_key).get_state(
-            project_cache,
-            sender,
-            message.no_cache,
-        );
+        let envelope_buffer = self.services.envelope_buffer.clone();
+        let project = self.get_or_create_project(project_key);
+
+        // If the project is already loaded, inform the envelope buffer.
+        if !project.current_state().is_pending() {
+            if let Some(envelope_buffer) = envelope_buffer {
+                envelope_buffer.send(EnvelopeBuffer::Ready(project_key));
+            }
+        }
+
+        project.get_state(project_cache, sender, no_cache);
     }
 
     fn handle_get_cached(&mut self, message: GetCachedProjectState) -> ProjectState {

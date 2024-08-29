@@ -123,18 +123,8 @@ impl EnvelopeBufferService {
         }
     }
 
-    /// Tries to pop an envelope for a ready project and logs any errors.
-    async fn try_pop(&mut self) {
-        if let Err(e) = self.try_pop_inner().await {
-            relay_log::error!(
-                error = &e as &dyn std::error::Error,
-                "failed to pop envelope"
-            );
-        }
-    }
-
     /// Tries to pop an envelope for a ready project.
-    async fn try_pop_inner(&mut self) -> Result<(), EnvelopeBufferError> {
+    async fn try_pop(&mut self) -> Result<(), EnvelopeBufferError> {
         relay_log::trace!("EnvelopeBufferService peek");
         match self.buffer.peek().await? {
             Peek::Empty => {
@@ -187,7 +177,7 @@ impl EnvelopeBufferService {
                 self.push(envelope).await;
             }
             EnvelopeBuffer::Ready(project_key) => {
-                relay_log::trace!("EnvelopeBufferService project ready");
+                relay_log::trace!("EnvelopeBufferService project ready {}", &project_key);
                 self.buffer.mark_ready(&project_key, true);
             }
         };
@@ -223,7 +213,12 @@ impl Service for EnvelopeBufferService {
                     // so we do not exceed the buffer capacity by starving the dequeue.
                     // on the other hand, prioritizing old messages violates the LIFO design.
                     () = self.wait_for_changes() => {
-                        self.try_pop().await;
+                        if let Err(e) = self.try_pop().await {
+                            relay_log::error!(
+                                error = &e as &dyn std::error::Error,
+                                "failed to pop envelope"
+                            );
+                        }
                     }
                     Some(message) = rx.recv() => {
                         self.handle_message(message).await;
