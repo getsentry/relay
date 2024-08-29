@@ -11,11 +11,13 @@
 - Add configuration option to specify the instance type of Relay. ([#3938](https://github.com/getsentry/relay/pull/3938))
 - Update definitions for user agent parsing. ([#3951](https://github.com/getsentry/relay/pull/3951))
 - Extend project config API to be revision aware. ([#3947](https://github.com/getsentry/relay/pull/3947))
+- Removes `processing.max_secs_in_past` from the main config in favor of event retention from the project config. ([#3958](https://github.com/getsentry/relay/pull/3958))
 
 **Internal**:
 
 - Record too long discard reason for session replays. ([#3950](https://github.com/getsentry/relay/pull/3950))
 - Add `EnvelopeStore` trait and implement `DiskUsage` for tracking disk usage. ([#3925](https://github.com/getsentry/relay/pull/3925))
+- Increase replay recording limit to two hours. ([#3961](https://github.com/getsentry/relay/pull/3961))
 
 **Internal**:
 
