@@ -1,5 +1,6 @@
 //! Types for buffering envelopes.
 
+use std::future;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
@@ -74,7 +75,6 @@ impl ObservableEnvelopeBuffer {
 /// becomes ready.
 pub struct EnvelopeBufferService {
     buffer: PolymorphicEnvelopeBuffer,
-    changes: tokio::sync::Notify,
     project_cache: Addr<ProjectCache>,
     has_capacity: Arc<AtomicBool>,
 }
@@ -91,7 +91,6 @@ impl EnvelopeBufferService {
     ) -> Option<Self> {
         config.spool_v2().then(|| Self {
             buffer: PolymorphicEnvelopeBuffer::from_config(config, memory_checker),
-            changes: tokio::sync::Notify::new(),
             project_cache,
             has_capacity: Arc::new(AtomicBool::new(true)),
         })
@@ -105,6 +104,10 @@ impl EnvelopeBufferService {
         }
     }
 
+    /// Tries to pop an envelope for a ready project.
+    ///
+    /// NOTE: This function sleeps indefinitely if no suitable envelope was found.
+    /// Only use in combination with [`tokio::select!`].
     async fn try_pop(&mut self) {
         if let Err(e) = self.try_pop_inner().await {
             relay_log::error!(
@@ -114,12 +117,16 @@ impl EnvelopeBufferService {
         }
     }
 
+    /// Tries to pop an envelope for a ready project.
+    ///
+    /// NOTE: This function sleeps indefinitely if no suitable envelope was found.
+    /// Only use in combination with [`tokio::select!`].
     async fn try_pop_inner(&mut self) -> Result<(), EnvelopeBufferError> {
         relay_log::trace!("EnvelopeBufferService peek");
         match self.buffer.peek().await? {
             Peek::Empty => {
                 relay_log::trace!("EnvelopeBufferService empty");
-                self.changes.notified().await;
+                let _: () = future::pending().await; // sleep until future gets cancelled.
             }
             Peek::Ready(_) => {
                 // FIXME(jjbayer): Requires https://github.com/getsentry/relay/pull/3960
@@ -143,14 +150,13 @@ impl EnvelopeBufferService {
                         self.project_cache.send(GetProjectState::new(sampling_key));
                     }
                 }
-                self.changes.notified().await;
+                let _: () = future::pending().await; // sleep until future gets cancelled.
             }
         }
         Ok(())
     }
 
     async fn handle_message(&mut self, message: EnvelopeBuffer) {
-        let changed;
         match message {
             EnvelopeBuffer::Push(envelope) => {
                 // NOTE: This function assumes that a project state update for the relevant
@@ -159,23 +165,18 @@ impl EnvelopeBufferService {
                 // once buffer V1 has been removed.
                 relay_log::trace!("EnvelopeBufferService push");
                 self.push(envelope).await;
-                changed = true;
             }
             EnvelopeBuffer::NotReady(project_key, envelope) => {
                 relay_log::trace!("EnvelopeBufferService project not ready");
                 self.buffer.mark_ready(&project_key, false);
                 // TODO: metric
                 self.push(envelope).await;
-                changed = true;
             }
             EnvelopeBuffer::Ready(project_key) => {
                 relay_log::trace!("EnvelopeBufferService project ready");
-                changed = self.buffer.mark_ready(&project_key, true);
+                self.buffer.mark_ready(&project_key, true);
             }
         };
-        if changed {
-            self.changes.notify_waiters();
-        }
     }
 
     async fn push(&mut self, envelope: Box<Envelope>) {
