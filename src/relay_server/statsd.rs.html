@@ -916,12 +916,6 @@
 <a href="#916" id="916">916</a>
 <a href="#917" id="917">917</a>
 <a href="#918" id="918">918</a>
-<a href="#919" id="919">919</a>
-<a href="#920" id="920">920</a>
-<a href="#921" id="921">921</a>
-<a href="#922" id="922">922</a>
-<a href="#923" id="923">923</a>
-<a href="#924" id="924">924</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 <span class="attr">#[cfg(doc)]
 </span><span class="kw">use </span>tokio::runtime::RuntimeMetrics;
@@ -950,10 +944,6 @@
     /// This metric is tagged with:
     /// - `reason`: Why keys are / are not unspooled.
     </span>BufferPeriodicUnspool,
-    <span class="doccomment">/// Number of envelopes currently waiting to be buffered.
-    ///
-    /// This corresponds to the number of corresponding tokio tasks currently scheduled or running.
-    </span>BufferPushInFlight,
     <span class="doccomment">/// The number of individual stacks in the priority queue.
     ///
     /// Per combination of `(own_key, sampling_key)`, a new stack is created.
@@ -984,7 +974,6 @@
             RelayGauges::BufferEnvelopesMemoryCount =&gt; <span class="string">"buffer.envelopes_mem_count"</span>,
             RelayGauges::BufferEnvelopesDiskCount =&gt; <span class="string">"buffer.envelopes_disk_count"</span>,
             RelayGauges::BufferPeriodicUnspool =&gt; <span class="string">"buffer.unspool.periodic"</span>,
-            RelayGauges::BufferPushInFlight =&gt; <span class="string">"buffer.push_inflight"</span>,
             RelayGauges::BufferStackCount =&gt; <span class="string">"buffer.stack_count"</span>,
             RelayGauges::BufferDiskUsed =&gt; <span class="string">"buffer.disk_used"</span>,
             RelayGauges::SystemMemoryUsed =&gt; <span class="string">"health.system_memory.used"</span>,
@@ -1527,12 +1516,11 @@
     ///  - `state_out`: The new state. `memory`, `memory_file_standby`, or `disk`.
     ///  - `reason`: Why a transition was made (or not made).
     </span>BufferStateTransition,
-    <span class="doccomment">/// Number of times the capacity is of the buffer is checked.
+    <span class="doccomment">/// Number of envelopes that were returned to the envelope buffer by the project cache.
     ///
-    /// This metric is tagged with:
-    /// - `lock_acquired`: Whether the capacity check was done by acquiring the lock or using the
-    ///     old value.
-    </span>BufferCapacityCheck,
+    /// This happens when the envelope buffer falsely assumes that the envelope's projects are loaded
+    /// in the cache and sends the envelope onward, even though the project cache cannot handle it.
+    </span>BufferEnvelopesReturned,
     <span class="doccomment">///
     /// Number of outcomes and reasons for rejected Envelopes.
     ///
@@ -1746,8 +1734,8 @@
             RelayCounters::BufferReadsDisk =&gt; <span class="string">"buffer.reads"</span>,
             RelayCounters::BufferEnvelopesWritten =&gt; <span class="string">"buffer.envelopes_written"</span>,
             RelayCounters::BufferEnvelopesRead =&gt; <span class="string">"buffer.envelopes_read"</span>,
+            RelayCounters::BufferEnvelopesReturned =&gt; <span class="string">"buffer.envelopes_returned"</span>,
             RelayCounters::BufferStateTransition =&gt; <span class="string">"buffer.state.transition"</span>,
-            RelayCounters::BufferCapacityCheck =&gt; <span class="string">"buffer.capacity_check"</span>,
             RelayCounters::Outcomes =&gt; <span class="string">"events.outcomes"</span>,
             RelayCounters::ProjectStateGet =&gt; <span class="string">"project_state.get"</span>,
             RelayCounters::ProjectStateRequest =&gt; <span class="string">"project_state.request"</span>,

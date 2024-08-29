@@ -432,13 +432,14 @@
 <a href="#432" id="432">432</a>
 <a href="#433" id="433">433</a>
 <a href="#434" id="434">434</a>
+<a href="#435" id="435">435</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span><span class="kw">crate</span>::metrics::{MetricOutcomes, MetricStats};
-<span class="kw">use </span><span class="kw">crate</span>::services::buffer::GuardedEnvelopeBuffer;
+<span class="kw">use </span><span class="kw">crate</span>::services::buffer::{EnvelopeBufferService, ObservableEnvelopeBuffer};
 <span class="kw">use </span><span class="kw">crate</span>::services::stats::RelayStats;
 <span class="kw">use </span>anyhow::{Context, <span class="prelude-ty">Result</span>};
 <span class="kw">use </span>axum::extract::FromRequestParts;
@@ -494,6 +495,7 @@
     <span class="kw">pub </span>global_config: Addr&lt;GlobalConfigManager&gt;,
     <span class="kw">pub </span>project_cache: Addr&lt;ProjectCache&gt;,
     <span class="kw">pub </span>upstream_relay: Addr&lt;UpstreamRelay&gt;,
+    <span class="kw">pub </span>envelope_buffer: <span class="prelude-ty">Option</span>&lt;ObservableEnvelopeBuffer&gt;,
 }
 
 <span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Registry {
@@ -573,7 +575,6 @@
 </span><span class="kw">struct </span>StateInner {
     config: Arc&lt;Config&gt;,
     memory_checker: MemoryChecker,
-    envelope_buffer: <span class="prelude-ty">Option</span>&lt;Arc&lt;GuardedEnvelopeBuffer&gt;&gt;,
     registry: Registry,
 }
 
@@ -674,25 +675,28 @@
         )
         .spawn_handler(processor_rx);
 
-        <span class="comment">// Keep all the services in one context.
-        </span><span class="kw">let </span>project_cache_services = Services::new(
-            aggregator.clone(),
-            processor.clone(),
-            outcome_aggregator.clone(),
-            project_cache.clone(),
-            test_store.clone(),
-            upstream_relay.clone(),
-            global_config.clone(),
-        );
-        <span class="kw">let </span>envelope_buffer = GuardedEnvelopeBuffer::from_config(
+        <span class="kw">let </span>envelope_buffer = EnvelopeBufferService::new(
             <span class="kw-2">&amp;</span>config,
             MemoryChecker::new(memory_stat.clone(), config.clone()),
+            project_cache.clone(),
         )
-        .map(Arc::new);
+        .map(|b| b.start_observable());
+
+        <span class="comment">// Keep all the services in one context.
+        </span><span class="kw">let </span>project_cache_services = Services {
+            envelope_buffer: envelope_buffer.as_ref().map(ObservableEnvelopeBuffer::addr),
+            aggregator: aggregator.clone(),
+            envelope_processor: processor.clone(),
+            outcome_aggregator: outcome_aggregator.clone(),
+            project_cache: project_cache.clone(),
+            test_store: test_store.clone(),
+            upstream_relay: upstream_relay.clone(),
+            global_config: global_config.clone(),
+        };
+
         ProjectCacheService::new(
             config.clone(),
             MemoryChecker::new(memory_stat.clone(), config.clone()),
-            envelope_buffer.clone(),
             project_cache_services,
             redis_pools
                 .as_ref()
@@ -730,12 +734,12 @@
             global_config,
             project_cache,
             upstream_relay,
+            envelope_buffer,
         };
 
         <span class="kw">let </span>state = StateInner {
             config: config.clone(),
             memory_checker: MemoryChecker::new(memory_stat, config.clone()),
-            envelope_buffer,
             registry,
         };
 
@@ -757,10 +761,8 @@
     }
 
     <span class="doccomment">/// Returns the V2 envelope buffer, if present.
-    ///
-    /// Clones the inner Arc.
-    </span><span class="kw">pub fn </span>envelope_buffer(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Arc&lt;GuardedEnvelopeBuffer&gt;&gt; {
-        <span class="self">self</span>.inner.envelope_buffer.clone()
+    </span><span class="kw">pub fn </span>envelope_buffer(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>ObservableEnvelopeBuffer&gt; {
+        <span class="self">self</span>.inner.registry.envelope_buffer.as_ref()
     }
 
     <span class="doccomment">/// Returns the address of the [`ProjectCache`] service.

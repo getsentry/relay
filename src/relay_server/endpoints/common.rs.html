@@ -480,6 +480,9 @@
 <a href="#480" id="480">480</a>
 <a href="#481" id="481">481</a>
 <a href="#482" id="482">482</a>
+<a href="#483" id="483">483</a>
+<a href="#484" id="484">484</a>
+<a href="#485" id="485">485</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Common facilities for ingesting events through store-like endpoints.
 
 </span><span class="kw">use </span>axum::http::{header, StatusCode};
@@ -492,6 +495,7 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, Items};
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
+<span class="kw">use </span><span class="kw">crate</span>::services::buffer::EnvelopeBuffer;
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome};
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{MetricData, ProcessMetricMeta, ProcessingGroup};
 <span class="kw">use </span><span class="kw">crate</span>::services::project_cache::{CheckEnvelope, ProcessMetrics, ValidateEnvelope};
@@ -797,7 +801,9 @@
                 // envelope's projects. See `handle_check_envelope`.
                 </span><span class="macro">relay_log::trace!</span>(<span class="string">"Pushing envelope to V2 buffer"</span>);
 
-                buffer.defer_push(envelope);
+                buffer
+                    .addr()
+                    .send(EnvelopeBuffer::Push(envelope.into_envelope()));
             }
             <span class="prelude-val">None </span>=&gt; {
                 <span class="macro">relay_log::trace!</span>(<span class="string">"Sending envelope to project cache for V1 buffer"</span>);

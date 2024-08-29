@@ -1757,40 +1757,18 @@
 <a href="#1757" id="1757">1757</a>
 <a href="#1758" id="1758">1758</a>
 <a href="#1759" id="1759">1759</a>
-<a href="#1760" id="1760">1760</a>
-<a href="#1761" id="1761">1761</a>
-<a href="#1762" id="1762">1762</a>
-<a href="#1763" id="1763">1763</a>
-<a href="#1764" id="1764">1764</a>
-<a href="#1765" id="1765">1765</a>
-<a href="#1766" id="1766">1766</a>
-<a href="#1767" id="1767">1767</a>
-<a href="#1768" id="1768">1768</a>
-<a href="#1769" id="1769">1769</a>
-<a href="#1770" id="1770">1770</a>
-<a href="#1771" id="1771">1771</a>
-<a href="#1772" id="1772">1772</a>
-<a href="#1773" id="1773">1773</a>
-<a href="#1774" id="1774">1774</a>
-<a href="#1775" id="1775">1775</a>
-<a href="#1776" id="1776">1776</a>
-<a href="#1777" id="1777">1777</a>
-<a href="#1778" id="1778">1778</a>
-<a href="#1779" id="1779">1779</a>
-<a href="#1780" id="1780">1780</a>
-<a href="#1781" id="1781">1781</a>
-<a href="#1782" id="1782">1782</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
-<span class="kw">use </span><span class="kw">crate</span>::services::buffer::{EnvelopeBufferError, EnvelopeBufferGuard, GuardedEnvelopeBuffer};
+<span class="kw">use </span><span class="kw">crate</span>::services::buffer::{EnvelopeBuffer, EnvelopeBufferError};
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{
     EncodeMetrics, EnvelopeProcessor, MetricData, ProcessEnvelope, ProcessingGroup, ProjectMetrics,
 };
 <span class="kw">use </span><span class="kw">crate</span>::services::project::state::UpstreamProjectState;
+<span class="kw">use </span><span class="kw">crate</span>::Envelope;
 <span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>hashbrown::HashSet;
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
@@ -2033,6 +2011,9 @@
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>RefreshIndexCache(<span class="kw">pub </span>HashSet&lt;QueueKey&gt;);
 
+<span class="doccomment">/// Handle an envelope that was popped from the envelope buffer.
+</span><span class="kw">pub struct </span>DequeuedEnvelope(<span class="kw">pub </span>Box&lt;Envelope&gt;);
+
 <span class="doccomment">/// A cache for [`ProjectState`]s.
 ///
 /// The project maintains information about organizations, projects, and project keys along with
@@ -2064,6 +2045,7 @@
     UpdateSpoolIndex(UpdateSpoolIndex),
     SpoolHealth(Sender&lt;bool&gt;),
     RefreshIndexCache(RefreshIndexCache),
+    HandleDequeuedEnvelope(Box&lt;Envelope&gt;),
 }
 
 <span class="kw">impl </span>ProjectCache {
@@ -2081,6 +2063,7 @@
             <span class="self">Self</span>::UpdateSpoolIndex(<span class="kw">_</span>) =&gt; <span class="string">"UpdateSpoolIndex"</span>,
             <span class="self">Self</span>::SpoolHealth(<span class="kw">_</span>) =&gt; <span class="string">"SpoolHealth"</span>,
             <span class="self">Self</span>::RefreshIndexCache(<span class="kw">_</span>) =&gt; <span class="string">"RefreshIndexCache"</span>,
+            <span class="self">Self</span>::HandleDequeuedEnvelope(<span class="kw">_</span>) =&gt; <span class="string">"HandleDequeuedEnvelope"</span>,
         }
     }
 }
@@ -2183,6 +2166,15 @@
 
     <span class="kw">fn </span>from_message(_message: SpoolHealth, sender: Sender&lt;bool&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::SpoolHealth(sender)
+    }
+}
+
+<span class="kw">impl </span>FromMessage&lt;DequeuedEnvelope&gt; <span class="kw">for </span>ProjectCache {
+    <span class="kw">type </span>Response = relay_system::NoResponse;
+
+    <span class="kw">fn </span>from_message(message: DequeuedEnvelope, <span class="kw">_</span>: ()) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>DequeuedEnvelope(envelope) = message;
+        <span class="self">Self</span>::HandleDequeuedEnvelope(envelope)
     }
 }
 
@@ -2328,6 +2320,7 @@
 <span class="doccomment">/// Holds the addresses of all services required for [`ProjectCache`].
 </span><span class="attr">#[derive(Debug, Clone)]
 </span><span class="kw">pub struct </span>Services {
+    <span class="kw">pub </span>envelope_buffer: <span class="prelude-ty">Option</span>&lt;Addr&lt;EnvelopeBuffer&gt;&gt;,
     <span class="kw">pub </span>aggregator: Addr&lt;Aggregator&gt;,
     <span class="kw">pub </span>envelope_processor: Addr&lt;EnvelopeProcessor&gt;,
     <span class="kw">pub </span>outcome_aggregator: Addr&lt;TrackOutcome&gt;,
@@ -2335,30 +2328,6 @@
     <span class="kw">pub </span>test_store: Addr&lt;TestStore&gt;,
     <span class="kw">pub </span>upstream_relay: Addr&lt;UpstreamRelay&gt;,
     <span class="kw">pub </span>global_config: Addr&lt;GlobalConfigManager&gt;,
-}
-
-<span class="kw">impl </span>Services {
-    <span class="doccomment">/// Creates new [`Services`] context.
-    </span><span class="attr">#[allow(clippy::too_many_arguments)]
-    </span><span class="kw">pub fn </span>new(
-        aggregator: Addr&lt;Aggregator&gt;,
-        envelope_processor: Addr&lt;EnvelopeProcessor&gt;,
-        outcome_aggregator: Addr&lt;TrackOutcome&gt;,
-        project_cache: Addr&lt;ProjectCache&gt;,
-        test_store: Addr&lt;TestStore&gt;,
-        upstream_relay: Addr&lt;UpstreamRelay&gt;,
-        global_config: Addr&lt;GlobalConfigManager&gt;,
-    ) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{
-            aggregator,
-            envelope_processor,
-            outcome_aggregator,
-            project_cache,
-            test_store,
-            upstream_relay,
-            global_config,
-        }
-    }
 }
 
 <span class="doccomment">/// Main broker of the [`ProjectCacheService`].
@@ -2369,8 +2338,6 @@
 </span><span class="kw">struct </span>ProjectCacheBroker {
     config: Arc&lt;Config&gt;,
     memory_checker: MemoryChecker,
-    <span class="comment">// TODO: Make non-optional when spool_v1 is removed.
-    </span>envelope_buffer: <span class="prelude-ty">Option</span>&lt;Arc&lt;GuardedEnvelopeBuffer&gt;&gt;,
     services: Services,
     <span class="comment">// Need hashbrown because extract_if is not stable in std yet.
     </span>projects: hashbrown::HashMap&lt;ProjectKey, Project&gt;,
@@ -2525,10 +2492,9 @@
         <span class="comment">// Try to schedule unspool if it's not scheduled yet.
         </span><span class="self">self</span>.schedule_unspool();
 
-        <span class="comment">// TODO: write test that shows envelope can overtake when project becomes ready.
-        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(buffer) = <span class="self">self</span>.envelope_buffer.clone() {
-            tokio::spawn(<span class="kw">async move </span>{ buffer.mark_ready(<span class="kw-2">&amp;</span>project_key, <span class="bool-val">true</span>).<span class="kw">await </span>});
-        }
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(envelope_buffer) = <span class="self">self</span>.services.envelope_buffer.as_ref() {
+            envelope_buffer.send(EnvelopeBuffer::Ready(project_key))
+        };
     }
 
     <span class="kw">fn </span>handle_request_update(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: RequestUpdate) {
@@ -2567,12 +2533,22 @@
     }
 
     <span class="kw">fn </span>handle_get(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: GetProjectState, sender: ProjectSender) {
+        <span class="kw">let </span>GetProjectState {
+            project_key,
+            no_cache,
+        } = message;
         <span class="kw">let </span>project_cache = <span class="self">self</span>.services.project_cache.clone();
-        <span class="self">self</span>.get_or_create_project(message.project_key).get_state(
-            project_cache,
-            sender,
-            message.no_cache,
-        );
+        <span class="kw">let </span>envelope_buffer = <span class="self">self</span>.services.envelope_buffer.clone();
+        <span class="kw">let </span>project = <span class="self">self</span>.get_or_create_project(project_key);
+
+        <span class="comment">// If the project is already loaded, inform the envelope buffer.
+        </span><span class="kw">if </span>!project.current_state().is_pending() {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(envelope_buffer) = envelope_buffer {
+                envelope_buffer.send(EnvelopeBuffer::Ready(project_key));
+            }
+        }
+
+        project.get_state(project_cache, sender, no_cache);
     }
 
     <span class="kw">fn </span>handle_get_cached(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: GetCachedProjectState) -&gt; ProjectState {
@@ -2862,22 +2838,20 @@
         }
     }
 
-    <span class="kw">async fn </span>peek_at_envelope(
+    <span class="kw">fn </span>handle_dequeued_envelope(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        <span class="kw-2">mut </span>peek: EnvelopeBufferGuard&lt;<span class="lifetime">'_</span>&gt;,
+        envelope: Box&lt;Envelope&gt;,
+        envelope_buffer: Addr&lt;EnvelopeBuffer&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), EnvelopeBufferError&gt; {
-        <span class="kw">let </span>envelope = peek.get().<span class="kw">await</span><span class="question-mark">?</span>;
         <span class="kw">if </span>envelope.meta().start_time().elapsed() &gt; <span class="self">self</span>.config.spool_envelopes_max_age() {
-            <span class="kw">let </span>popped_envelope = peek.remove().<span class="kw">await</span><span class="question-mark">?</span>;
             <span class="kw">let </span><span class="kw-2">mut </span>managed_envelope = ManagedEnvelope::new(
-                popped_envelope,
+                envelope,
                 <span class="self">self</span>.services.outcome_aggregator.clone(),
                 <span class="self">self</span>.services.test_store.clone(),
                 ProcessingGroup::Ungrouped,
             );
             managed_envelope.reject(Outcome::Invalid(DiscardReason::Timestamp));
-            <span class="comment">// TODO: metrics in all branches.
-            </span><span class="kw">return </span><span class="prelude-val">Ok</span>(());
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(());
         }
         <span class="kw">let </span>sampling_key = envelope.sampling_key();
         <span class="kw">let </span>services = <span class="self">self</span>.services.clone();
@@ -2888,14 +2862,10 @@
 
         <span class="comment">// Check if project config is enabled.
         </span><span class="kw">let </span>project_info = <span class="kw">match </span>project_state {
-            ProjectState::Enabled(info) =&gt; {
-                peek.mark_ready(<span class="kw-2">&amp;</span>own_key, <span class="bool-val">true</span>);
-                info
-            }
+            ProjectState::Enabled(info) =&gt; info,
             ProjectState::Disabled =&gt; {
-                <span class="kw">let </span>popped_envelope = peek.remove().<span class="kw">await</span><span class="question-mark">?</span>;
                 <span class="kw">let </span><span class="kw-2">mut </span>managed_envelope = ManagedEnvelope::new(
-                    popped_envelope,
+                    envelope,
                     <span class="self">self</span>.services.outcome_aggregator.clone(),
                     <span class="self">self</span>.services.test_store.clone(),
                     ProcessingGroup::Ungrouped,
@@ -2904,7 +2874,7 @@
                 <span class="kw">return </span><span class="prelude-val">Ok</span>(());
             }
             ProjectState::Pending =&gt; {
-                peek.mark_ready(<span class="kw-2">&amp;</span>own_key, <span class="bool-val">false</span>);
+                envelope_buffer.send(EnvelopeBuffer::NotReady(own_key, envelope));
                 <span class="kw">return </span><span class="prelude-val">Ok</span>(());
             }
         };
@@ -2917,8 +2887,7 @@
                     .get_cached_state(services.project_cache, <span class="bool-val">false</span>),
             )
         }) {
-            <span class="prelude-val">Some</span>((sampling_key, ProjectState::Enabled(info))) =&gt; {
-                peek.mark_ready(<span class="kw-2">&amp;</span>sampling_key, <span class="bool-val">true</span>);
+            <span class="prelude-val">Some</span>((<span class="kw">_</span>, ProjectState::Enabled(info))) =&gt; {
                 <span class="comment">// Only set if it matches the organization ID. Otherwise treat as if there is
                 // no sampling project.
                 </span>(info.organization_id == project_info.organization_id).then_some(info)
@@ -2928,7 +2897,7 @@
                 </span><span class="prelude-val">None
             </span>}
             <span class="prelude-val">Some</span>((sampling_key, ProjectState::Pending)) =&gt; {
-                peek.mark_ready(<span class="kw-2">&amp;</span>sampling_key, <span class="bool-val">false</span>);
+                envelope_buffer.send(EnvelopeBuffer::NotReady(sampling_key, envelope));
                 <span class="kw">return </span><span class="prelude-val">Ok</span>(());
             }
             <span class="prelude-val">None </span>=&gt; <span class="prelude-val">None</span>,
@@ -2937,8 +2906,7 @@
         <span class="kw">let </span>project = <span class="self">self</span>.get_or_create_project(own_key);
 
         <span class="comment">// Reassign processing groups and proceed to processing.
-        </span><span class="kw">let </span>popped_envelope = peek.remove().<span class="kw">await</span><span class="question-mark">?</span>;
-        <span class="kw">for </span>(group, envelope) <span class="kw">in </span>ProcessingGroup::split_envelope(<span class="kw-2">*</span>popped_envelope) {
+        </span><span class="kw">for </span>(group, envelope) <span class="kw">in </span>ProcessingGroup::split_envelope(<span class="kw-2">*</span>envelope) {
             <span class="kw">let </span>managed_envelope = ManagedEnvelope::new(
                 envelope,
                 services.outcome_aggregator.clone(),
@@ -3082,6 +3050,20 @@
                     ProjectCache::RefreshIndexCache(message) =&gt; {
                         <span class="self">self</span>.handle_refresh_index_cache(message)
                     }
+                    ProjectCache::HandleDequeuedEnvelope(message) =&gt; {
+                        <span class="kw">let </span>envelope_buffer = <span class="self">self
+                            </span>.services
+                            .envelope_buffer
+                            .clone()
+                            .expect(<span class="string">"Called HandleDequeuedEnvelope without an envelope buffer"</span>);
+
+                        <span class="kw">if let </span><span class="prelude-val">Err</span>(e) = <span class="self">self</span>.handle_dequeued_envelope(message, envelope_buffer) {
+                            <span class="macro">relay_log::error!</span>(
+                                error = <span class="kw-2">&amp;</span>e <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
+                                <span class="string">"Failed to handle popped envelope"
+                            </span>);
+                        }
+                    }
                 }
             }
         )
@@ -3093,7 +3075,6 @@
 </span><span class="kw">pub struct </span>ProjectCacheService {
     config: Arc&lt;Config&gt;,
     memory_checker: MemoryChecker,
-    envelope_buffer: <span class="prelude-ty">Option</span>&lt;Arc&lt;GuardedEnvelopeBuffer&gt;&gt;,
     services: Services,
     redis: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;,
 }
@@ -3103,14 +3084,12 @@
     </span><span class="kw">pub fn </span>new(
         config: Arc&lt;Config&gt;,
         memory_checker: MemoryChecker,
-        envelope_buffer: <span class="prelude-ty">Option</span>&lt;Arc&lt;GuardedEnvelopeBuffer&gt;&gt;,
         services: Services,
         redis: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;,
     ) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             config,
             memory_checker,
-            envelope_buffer,
             services,
             redis,
         }
@@ -3124,7 +3103,6 @@
         <span class="kw">let </span><span class="self">Self </span>{
             config,
             memory_checker,
-            envelope_buffer,
             services,
             redis,
         } = <span class="self">self</span>;
@@ -3134,7 +3112,6 @@
 
         tokio::spawn(<span class="kw">async move </span>{
             <span class="kw">let </span><span class="kw-2">mut </span>ticker = tokio::time::interval(config.cache_eviction_interval());
-            <span class="kw">let </span><span class="kw-2">mut </span>report_ticker = tokio::time::interval(Duration::from_secs(<span class="number">1</span>));
             <span class="macro">relay_log::info!</span>(<span class="string">"project cache started"</span>);
 
             <span class="comment">// Channel for async project state responses back into the project cache.
@@ -3205,7 +3182,6 @@
             </span><span class="kw">let </span><span class="kw-2">mut </span>broker = ProjectCacheBroker {
                 config: config.clone(),
                 memory_checker,
-                envelope_buffer: envelope_buffer.clone(),
                 projects: hashbrown::HashMap::new(),
                 garbage_disposal: GarbageDisposal::new(),
                 source: ProjectSource::start(
@@ -3261,32 +3237,12 @@
                             broker.handle_message(message)
                         })
                     }
-                    peek = peek_buffer(<span class="kw-2">&amp;</span>envelope_buffer) =&gt; {
-                        <span class="macro">metric!</span>(timer(RelayTimers::ProjectCacheTaskDuration), task = <span class="string">"peek_at_envelope"</span>, {
-                            <span class="kw">if let </span><span class="prelude-val">Err</span>(e) = broker.peek_at_envelope(peek).<span class="kw">await </span>{
-                                <span class="macro">relay_log::error!</span>(error = <span class="kw-2">&amp;</span>e <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error, <span class="string">"Failed to peek envelope"</span>);
-                            }
-                        })
-                    }
-                    <span class="kw">_ </span>= report_ticker.tick() =&gt; {
-                        <span class="kw">if let </span><span class="prelude-val">Some</span>(envelope_buffer) = <span class="kw-2">&amp;</span>envelope_buffer {
-                            <span class="macro">metric!</span>(gauge(RelayGauges::BufferPushInFlight) = envelope_buffer.inflight_push_count());
-                        }
-                    }
                     <span class="kw">else </span>=&gt; <span class="kw">break</span>,
                 }
             }
 
             <span class="macro">relay_log::info!</span>(<span class="string">"project cache stopped"</span>);
         });
-    }
-}
-
-<span class="doccomment">/// Temporary helper function while V1 spool exists.
-</span><span class="kw">async fn </span>peek_buffer(buffer: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;Arc&lt;GuardedEnvelopeBuffer&gt;&gt;) -&gt; EnvelopeBufferGuard {
-    <span class="kw">match </span>buffer {
-        <span class="prelude-val">Some</span>(buffer) =&gt; buffer.peek().<span class="kw">await</span>,
-        <span class="prelude-val">None </span>=&gt; std::future::pending().<span class="kw">await</span>,
     }
 }
 
@@ -3369,6 +3325,7 @@
         <span class="kw">let </span>(global_config, <span class="kw">_</span>) = mock_service(<span class="string">"global_config"</span>, (), |<span class="kw-2">&amp;mut </span>(), <span class="kw">_</span>| {});
 
         Services {
+            envelope_buffer: <span class="prelude-val">None</span>,
             aggregator,
             envelope_processor,
             project_cache,
@@ -3398,8 +3355,6 @@
         .unwrap()
         .into();
         <span class="kw">let </span>memory_checker = MemoryChecker::new(MemoryStat::default(), config.clone());
-        <span class="kw">let </span>envelope_buffer =
-            GuardedEnvelopeBuffer::from_config(<span class="kw-2">&amp;</span>config, memory_checker.clone()).map(Arc::new);
         <span class="kw">let </span>buffer_services = spooler::Services {
             outcome_aggregator: services.outcome_aggregator.clone(),
             project_cache: services.project_cache.clone(),
@@ -3422,7 +3377,6 @@
             ProjectCacheBroker {
                 config: config.clone(),
                 memory_checker,
-                envelope_buffer,
                 projects: hashbrown::HashMap::new(),
                 garbage_disposal: GarbageDisposal::new(),
                 source: ProjectSource::start(config, services.upstream_relay.clone(), <span class="prelude-val">None</span>),
