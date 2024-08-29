@@ -288,21 +288,9 @@
 <a href="#288" id="288">288</a>
 <a href="#289" id="289">289</a>
 <a href="#290" id="290">290</a>
-<a href="#291" id="291">291</a>
-<a href="#292" id="292">292</a>
-<a href="#293" id="293">293</a>
-<a href="#294" id="294">294</a>
-<a href="#295" id="295">295</a>
-<a href="#296" id="296">296</a>
-<a href="#297" id="297">297</a>
-<a href="#298" id="298">298</a>
-<a href="#299" id="299">299</a>
-<a href="#300" id="300">300</a>
-<a href="#301" id="301">301</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 
-<span class="kw">use </span>axum::extract::{DefaultBodyLimit, Multipart};
-<span class="kw">use </span>axum::http::Request;
+<span class="kw">use </span>axum::extract::{DefaultBodyLimit, Multipart, Request};
 <span class="kw">use </span>axum::response::IntoResponse;
 <span class="kw">use </span>axum::routing::{post, MethodRouter};
 <span class="kw">use </span>axum::RequestExt;
@@ -427,17 +415,12 @@
     <span class="prelude-val">Ok</span>(envelope)
 }
 
-<span class="kw">async fn </span>handle&lt;B&gt;(
+<span class="kw">async fn </span>handle(
     state: ServiceState,
     meta: RequestMeta,
     content_type: RawContentType,
-    request: Request&lt;B&gt;,
-) -&gt; axum::response::Result&lt;<span class="kw">impl </span>IntoResponse&gt;
-<span class="kw">where
-    </span>B: axum::body::HttpBody + Send + <span class="lifetime">'static</span>,
-    B::Data: Send + Into&lt;Bytes&gt;,
-    B::Error: Into&lt;axum::BoxError&gt;,
-{
+    request: Request,
+) -&gt; axum::response::Result&lt;<span class="kw">impl </span>IntoResponse&gt; {
     <span class="comment">// The minidump can either be transmitted as the request body, or as
     // `upload_file_minidump` in a multipart form-data/ request.
     // Minidump request payloads do not have the same structure as usual events from other SDKs. The
@@ -462,18 +445,13 @@
     </span><span class="prelude-val">Ok</span>(TextResponse(id))
 }
 
-<span class="kw">pub fn </span>route&lt;B&gt;(config: <span class="kw-2">&amp;</span>Config) -&gt; MethodRouter&lt;ServiceState, B&gt;
-<span class="kw">where
-    </span>B: axum::body::HttpBody + Send + <span class="lifetime">'static</span>,
-    B::Data: Send + Into&lt;Bytes&gt;,
-    B::Error: Into&lt;axum::BoxError&gt;,
-{
+<span class="kw">pub fn </span>route(config: <span class="kw-2">&amp;</span>Config) -&gt; MethodRouter&lt;ServiceState&gt; {
     post(handle).route_layer(DefaultBodyLimit::max(config.max_attachments_size()))
 }
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-    <span class="kw">use </span>axum::body::Full;
+    <span class="kw">use </span>axum::body::Body;
     <span class="kw">use </span>axum::extract::FromRequest;
 
     <span class="kw">use </span>relay_config::ByteSize;
@@ -523,7 +501,7 @@
                 <span class="string">"content-type"</span>,
                 <span class="string">"multipart/form-data; boundary=---MultipartBoundary-sQ95dYmFvVzJ2UcOSdGPBkqrW0syf0Uw---"</span>,
             )
-            .body(Full::new(multipart_body))
+            .body(Body::from(multipart_body))
             .unwrap();
 
         <span class="kw">let </span>multipart = Multipart::from_request(request, <span class="kw-2">&amp;</span>()).<span class="kw">await</span><span class="question-mark">?</span>;

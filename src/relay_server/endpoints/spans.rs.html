@@ -60,17 +60,13 @@
 <a href="#60" id="60">60</a>
 <a href="#61" id="61">61</a>
 <a href="#62" id="62">62</a>
-<a href="#63" id="63">63</a>
-<a href="#64" id="64">64</a>
-<a href="#65" id="65">65</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>axum::extract::{DefaultBodyLimit, Json};
-<span class="kw">use </span>axum::http::{Request, StatusCode};
+</pre></div><pre class="rust"><code><span class="kw">use </span>axum::extract::{DefaultBodyLimit, Json, Request};
+<span class="kw">use </span>axum::http::StatusCode;
 <span class="kw">use </span>axum::response::IntoResponse;
 <span class="kw">use </span>axum::routing::{post, MethodRouter};
 <span class="kw">use </span>axum::RequestExt;
-<span class="kw">use </span>axum_extra::protobuf::Protobuf;
 <span class="kw">use </span>bytes::Bytes;
-
+<span class="kw">use </span>prost::Message;
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_dynamic_config::Feature;
 <span class="kw">use </span>relay_spans::otel_trace::TracesData;
@@ -79,25 +75,28 @@
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Envelope, Item, ItemType};
 <span class="kw">use </span><span class="kw">crate</span>::extractors::{RawContentType, RequestMeta};
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
+<span class="kw">use </span><span class="kw">crate</span>::utils::ApiErrorResponse;
 
-<span class="kw">async fn </span>handle&lt;B&gt;(
+<span class="kw">async fn </span>handle(
     state: ServiceState,
     content_type: RawContentType,
     meta: RequestMeta,
-    request: Request&lt;B&gt;,
-) -&gt; axum::response::Result&lt;<span class="kw">impl </span>IntoResponse&gt;
-<span class="kw">where
-    </span>B: axum::body::HttpBody + Send + <span class="lifetime">'static</span>,
-    B::Data: Send + Into&lt;Bytes&gt;,
-    B::Error: Into&lt;axum::BoxError&gt;,
-{
+    request: Request,
+) -&gt; axum::response::Result&lt;<span class="kw">impl </span>IntoResponse&gt; {
     <span class="kw">let </span>trace: TracesData = <span class="kw">if </span>content_type.as_ref().starts_with(<span class="string">"application/json"</span>) {
         <span class="kw">let </span>Json(trace) = request.extract().<span class="kw">await</span><span class="question-mark">?</span>;
         trace
     } <span class="kw">else if </span>content_type.as_ref().starts_with(<span class="string">"application/x-protobuf"</span>) {
-        <span class="kw">let </span>Protobuf(trace) = request.extract().<span class="kw">await</span><span class="question-mark">?</span>;
-        trace
-    } <span class="kw">else </span>{
+        <span class="comment">// let mut bytes: Bytes = Bytes::from_request(req, state).await?;
+        // let Protobuf(trace) = request.extract().await?;
+        </span><span class="kw">let </span><span class="kw-2">mut </span>bytes: Bytes = request.extract().<span class="kw">await</span><span class="question-mark">?</span>;
+        Message::decode(<span class="kw-2">&amp;mut </span>bytes).map_err(|e| {
+            (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                ApiErrorResponse::from_error(<span class="kw-2">&amp;</span>e),
+            )
+        })<span class="question-mark">?
+    </span>} <span class="kw">else </span>{
         <span class="kw">return </span><span class="prelude-val">Ok</span>(StatusCode::UNSUPPORTED_MEDIA_TYPE);
     };
 
@@ -120,12 +119,7 @@
     <span class="prelude-val">Ok</span>(StatusCode::ACCEPTED)
 }
 
-<span class="kw">pub fn </span>route&lt;B&gt;(config: <span class="kw-2">&amp;</span>Config) -&gt; MethodRouter&lt;ServiceState, B&gt;
-<span class="kw">where
-    </span>B: axum::body::HttpBody + Send + <span class="lifetime">'static</span>,
-    B::Data: Send + Into&lt;Bytes&gt;,
-    B::Error: Into&lt;axum::BoxError&gt;,
-{
+<span class="kw">pub fn </span>route(config: <span class="kw-2">&amp;</span>Config) -&gt; MethodRouter&lt;ServiceState&gt; {
     post(handle).route_layer(DefaultBodyLimit::max(config.max_span_size()))
 }
 </code></pre></div></section></main></body></html>

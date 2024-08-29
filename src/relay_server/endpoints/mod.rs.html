@@ -104,12 +104,6 @@
 <a href="#104" id="104">104</a>
 <a href="#105" id="105">105</a>
 <a href="#106" id="106">106</a>
-<a href="#107" id="107">107</a>
-<a href="#108" id="108">108</a>
-<a href="#109" id="109">109</a>
-<a href="#110" id="110">110</a>
-<a href="#111" id="111">111</a>
-<a href="#112" id="112">112</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Web server endpoints.
 //!
 //! This module contains implementations for all supported relay endpoints, as well as a generic
@@ -142,7 +136,6 @@
 
 <span class="kw">use </span>axum::extract::DefaultBodyLimit;
 <span class="kw">use </span>axum::routing::{any, get, post, Router};
-<span class="kw">use </span>bytes::Bytes;
 <span class="kw">use </span>relay_config::Config;
 
 <span class="kw">use </span><span class="kw">crate</span>::middlewares;
@@ -152,12 +145,7 @@
 </span><span class="kw">const </span>BATCH_JSON_BODY_LIMIT: usize = <span class="number">50_000_000</span>; <span class="comment">// 50 MB
 
 </span><span class="attr">#[rustfmt::skip]
-</span><span class="kw">pub fn </span>routes&lt;B&gt;(config: <span class="kw-2">&amp;</span>Config) -&gt; Router&lt;ServiceState, B&gt;
-<span class="kw">where
-    </span>B: axum::body::HttpBody + Send + <span class="lifetime">'static</span>,
-    B::Data: Send + Into&lt;Bytes&gt;,
-    B::Error: Into&lt;axum::BoxError&gt;,
-{
+</span><span class="kw">pub fn </span>routes(config: <span class="kw-2">&amp;</span>Config) -&gt; Router&lt;ServiceState&gt;{
     <span class="attr">#[cfg(feature = <span class="string">"dashboard"</span>)]
     </span><span class="kw">let </span>dashboard = Router::new().route(<span class="string">"/dashboard/"</span>,get(dashboard::index_handle))
         .route(<span class="string">"/dashboard/*file"</span>, get(dashboard::handle));

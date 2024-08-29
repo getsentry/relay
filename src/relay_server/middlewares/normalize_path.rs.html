@@ -98,51 +98,13 @@
 <a href="#98" id="98">98</a>
 <a href="#99" id="99">99</a>
 <a href="#100" id="100">100</a>
-<a href="#101" id="101">101</a>
-<a href="#102" id="102">102</a>
-<a href="#103" id="103">103</a>
-<a href="#104" id="104">104</a>
-<a href="#105" id="105">105</a>
-<a href="#106" id="106">106</a>
-<a href="#107" id="107">107</a>
-<a href="#108" id="108">108</a>
-<a href="#109" id="109">109</a>
-<a href="#110" id="110">110</a>
-<a href="#111" id="111">111</a>
-<a href="#112" id="112">112</a>
-<a href="#113" id="113">113</a>
-<a href="#114" id="114">114</a>
-<a href="#115" id="115">115</a>
-<a href="#116" id="116">116</a>
-<a href="#117" id="117">117</a>
-<a href="#118" id="118">118</a>
-<a href="#119" id="119">119</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::task::{Context, Poll};
 
-<span class="kw">use </span>axum::http::{Request, Uri};
-<span class="kw">use </span>axum::response::Response;
+<span class="kw">use </span>axum::http::{Request, Response, Uri};
 <span class="kw">use </span>once_cell::sync::Lazy;
 <span class="kw">use </span>regex::Regex;
-<span class="kw">use </span>tower::{Layer, Service};
-
-<span class="doccomment">/// Layer that applies [`NormalizePath`], which normalizes paths.
-</span><span class="attr">#[derive(Clone, Copy, Debug)]
-</span><span class="kw">pub struct </span>NormalizePathLayer;
-
-<span class="kw">impl </span>NormalizePathLayer {
-    <span class="kw">pub fn </span>new() -&gt; <span class="self">Self </span>{
-        <span class="self">Self
-    </span>}
-}
-
-<span class="kw">impl</span>&lt;S&gt; Layer&lt;S&gt; <span class="kw">for </span>NormalizePathLayer {
-    <span class="kw">type </span>Service = NormalizePath&lt;S&gt;;
-
-    <span class="kw">fn </span>layer(<span class="kw-2">&amp;</span><span class="self">self</span>, inner: S) -&gt; <span class="self">Self</span>::Service {
-        NormalizePath::new(inner)
-    }
-}
+<span class="kw">use </span>tower::Service;
 
 <span class="doccomment">/// Normalizes URLs with redundant slashes.
 ///

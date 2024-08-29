@@ -192,7 +192,7 @@
     <span class="kw">async fn </span>tokio_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>) {
         <span class="kw">let </span>m = tokio::runtime::Handle::current().metrics();
 
-        <span class="macro">metric!</span>(gauge(TokioGauges::ActiveTasksCount) = m.active_tasks_count() <span class="kw">as </span>u64);
+        <span class="macro">metric!</span>(gauge(TokioGauges::ActiveTasksCount) = m.num_alive_tasks() <span class="kw">as </span>u64);
         <span class="macro">metric!</span>(gauge(TokioGauges::BlockingQueueDepth) = m.blocking_queue_depth() <span class="kw">as </span>u64);
         <span class="macro">metric!</span>(gauge(TokioGauges::BudgetForcedYieldCount) = m.budget_forced_yield_count());
         <span class="macro">metric!</span>(gauge(TokioGauges::NumBlockingThreads) = m.num_blocking_threads() <span class="kw">as </span>u64);
