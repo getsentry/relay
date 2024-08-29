@@ -1068,10 +1068,6 @@ fn default_max_secs_in_future() -> u32 {
     60 // 1 minute
 }
 
-fn default_max_secs_in_past() -> u32 {
-    30 * 24 * 3600 // 30 days
-}
-
 fn default_max_session_secs_in_past() -> u32 {
     5 * 24 * 3600 // 5 days
 }
@@ -1100,9 +1096,6 @@ pub struct Processing {
     /// Maximum future timestamp of ingested events.
     #[serde(default = "default_max_secs_in_future")]
     pub max_secs_in_future: u32,
-    /// Maximum age of ingested events. Older events will be adjusted to `now()`.
-    #[serde(default = "default_max_secs_in_past")]
-    pub max_secs_in_past: u32,
     /// Maximum age of ingested sessions. Older sessions will be dropped.
     #[serde(default = "default_max_session_secs_in_past")]
     pub max_session_secs_in_past: u32,
@@ -1156,7 +1149,6 @@ impl Default for Processing {
             enabled: false,
             geoip_path: None,
             max_secs_in_future: default_max_secs_in_future(),
-            max_secs_in_past: default_max_secs_in_past(),
             max_session_secs_in_past: default_max_session_secs_in_past(),
             kafka_config: Vec::new(),
             secondary_kafka_configs: BTreeMap::new(),
@@ -2397,11 +2389,6 @@ impl Config {
     /// Events past this timestamp will be adjusted to `now()`. Sessions will be dropped.
     pub fn max_secs_in_future(&self) -> i64 {
         self.values.processing.max_secs_in_future.into()
-    }
-
-    /// Maximum age of ingested events. Older events will be adjusted to `now()`.
-    pub fn max_secs_in_past(&self) -> i64 {
-        self.values.processing.max_secs_in_past.into()
     }
 
     /// Maximum age of ingested sessions. Older sessions will be dropped.
