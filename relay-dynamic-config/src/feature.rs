@@ -112,6 +112,10 @@ pub enum Feature {
     #[doc(hidden)]
     #[serde(rename = "projects:span-metrics-extraction-all-modules")]
     Deprecated6,
+    /// Deprecated, still forwarded for older downstream Relays.
+    #[doc(hidden)]
+    #[serde(rename = "projects:profiling-ingest-unsampled-profiles")]
+    Deprecated7,
     /// Forward compatibility.
     #[doc(hidden)]
     #[serde(other)]
