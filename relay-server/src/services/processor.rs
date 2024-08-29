@@ -1747,6 +1747,8 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<TransactionGroup>,
     ) -> Result<(), ProcessingError> {
+        let global_config = self.inner.global_config.current();
+
         event::extract(state, &self.inner.config)?;
 
         let profile_id = profile::filter(state);
@@ -1774,14 +1776,17 @@ impl EnvelopeProcessorService {
         };
 
         if let Some(outcome) = sampling_result.into_dropped_outcome() {
+            let keep_profiles = global_config.options.unsampled_profiles_enabled;
             // Process profiles before dropping the transaction, if necessary.
             // Before metric extraction to make sure the profile count is reflected correctly.
-            let profile_id = profile::process(state);
-
+            let profile_id = match keep_profiles {
+                true => profile::process(state),
+                false => profile_id,
+            };
             // Extract metrics here, we're about to drop the event/transaction.
             self.extract_transaction_metrics(state, SamplingDecision::Drop, profile_id)?;
 
-            dynamic_sampling::drop_unsampled_items(state, outcome, true);
+            dynamic_sampling::drop_unsampled_items(state, outcome, keep_profiles);
 
             // At this point we have:
             //  - An empty envelope.
@@ -1801,7 +1806,6 @@ impl EnvelopeProcessorService {
         attachment::scrub(state);
 
         if_processing!(self.inner.config, {
-            let global_config = self.inner.global_config.current();
             // Process profiles before extracting metrics, to make sure they are removed if they are invalid.
             let profile_id = profile::process(state);
             profile::transfer_id(state, profile_id);

@@ -107,6 +107,13 @@ fn is_err_or_empty(filters_config: &ErrorBoundary<GenericFiltersConfig>) -> bool
 #[derive(Default, Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct Options {
+    /// Kill switch for shutting down unsampled_profile metrics
+    #[serde(
+        rename = "profiling.profile_metrics.unsampled_profiles.enabled",
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "is_default"
+    )]
+    pub unsampled_profiles_enabled: bool,
     /// Kill switch for shutting down profile function metrics
     /// ingestion in the generic-metrics platform
     #[serde(

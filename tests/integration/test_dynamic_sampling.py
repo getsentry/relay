@@ -665,6 +665,10 @@ def test_relay_chain(
 def test_relay_chain_keep_unsampled_profile(
     mini_sentry, relay, relay_with_processing, profiles_consumer, mode
 ):
+    mini_sentry.global_config["options"] = {
+        "profiling.profile_metrics.unsampled_profiles.enabled": True,
+    }
+
     profiles_consumer = profiles_consumer()
 
     # Create an envelope with a profile:
