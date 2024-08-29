@@ -475,7 +475,6 @@ mod tests {
     use relay_sampling::DynamicSamplingContext;
     use std::str::FromStr;
     use std::sync::Arc;
-    use std::time::Duration;
     use uuid::Uuid;
 
     use crate::envelope::{Item, ItemType};
