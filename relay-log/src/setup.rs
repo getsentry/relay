@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::env;
 use std::fmt::{self, Display};
 use std::path::PathBuf;
@@ -176,8 +176,8 @@ pub struct SentryConfig {
     /// Sets the environment for this service.
     pub environment: Option<Cow<'static, str>>,
 
-    /// Add custom tags to the events produced by Relay
-    pub tags: Option<HashMap<String, String>>,
+    /// Add defaults tags to the tags' events produced by Relay
+    pub default_tags: Option<BTreeMap<String, String>>,
 
     /// Internal. Enables crash handling and sets the absolute path to where minidumps should be
     /// cached on disk. The path is created if it doesn't exist. Path must be UTF-8.
@@ -199,7 +199,7 @@ impl Default for SentryConfig {
                 .ok(),
             enabled: false,
             environment: None,
-            tags: None,
+            default_tags: None,
             _crash_db: None,
         }
     }
@@ -305,16 +305,14 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
             ..Default::default()
         };
 
-        // If `tags` is set in Sentry configuration install the before_send hook
+        // If `default_tags` is set in Sentry configuration install the `before_send` hook
         // in order to inject said tags into each event
-        if let Some(tags) = sentry.tags.as_ref() {
-            // We need an object that will outlive `sentry` lifetime
-            let tags = tags.clone();
+        if let Some(default_tags) = sentry.default_tags.clone() {
             // Install hook
             options.before_send = Some(Arc::new(move |mut event| {
-                event
-                    .tags
-                    .extend(tags.iter().map(|(k, v)| (k.to_owned(), v.to_owned())));
+                // Don't override `event.tags` with `default_tags`
+                let previous_event_tags = std::mem::replace(&mut event.tags, default_tags.clone());
+                event.tags.extend(previous_event_tags.into_iter());
                 Some(event)
             }));
         }
