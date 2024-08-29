@@ -645,6 +645,12 @@
 <a href="#645" id="645">645</a>
 <a href="#646" id="646">646</a>
 <a href="#647" id="647">647</a>
+<a href="#648" id="648">648</a>
+<a href="#649" id="649">649</a>
+<a href="#650" id="650">650</a>
+<a href="#651" id="651">651</a>
+<a href="#652" id="652">652</a>
+<a href="#653" id="653">653</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains code related to validation and normalization of the user and client reports.
 
 </span><span class="kw">use </span>std::collections::BTreeMap;
@@ -659,6 +665,7 @@
 <span class="kw">use </span>relay_sampling::evaluation::MatchedRuleIds;
 <span class="kw">use </span>relay_system::Addr;
 
+<span class="kw">use </span><span class="kw">crate</span>::constants::DEFAULT_EVENT_RETENTION;
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, ItemType};
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{Outcome, RuleCategories, TrackOutcome};
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{ClientReportGroup, ProcessEnvelopeState, MINIMUM_CLOCK_DRIFT};
@@ -777,7 +784,12 @@
         clock_drift_processor.process_timestamp(timestamp);
     }
 
-    <span class="kw">let </span>max_age = SignedDuration::seconds(config.max_secs_in_past());
+    <span class="kw">let </span>retention_days = state
+        .project_state
+        .config()
+        .event_retention
+        .unwrap_or(DEFAULT_EVENT_RETENTION);
+    <span class="kw">let </span>max_age = SignedDuration::days(retention_days.into());
     <span class="comment">// also if we unable to parse the timestamp, we assume it's way too old here.
     </span><span class="kw">let </span>in_past = timestamp
         .as_datetime()

@@ -4126,6 +4126,14 @@
 <a href="#4126" id="4126">4126</a>
 <a href="#4127" id="4127">4127</a>
 <a href="#4128" id="4128">4128</a>
+<a href="#4129" id="4129">4129</a>
+<a href="#4130" id="4130">4130</a>
+<a href="#4131" id="4131">4131</a>
+<a href="#4132" id="4132">4132</a>
+<a href="#4133" id="4133">4133</a>
+<a href="#4134" id="4134">4134</a>
+<a href="#4135" id="4135">4135</a>
+<a href="#4136" id="4136">4136</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -4191,6 +4199,7 @@
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
+<span class="kw">use </span><span class="kw">crate</span>::constants::DEFAULT_EVENT_RETENTION;
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{<span class="self">self</span>, ContentType, Envelope, EnvelopeError, Item, ItemType};
 <span class="kw">use </span><span class="kw">crate</span>::extractors::{PartialDsn, RequestMeta};
 <span class="kw">use </span><span class="kw">crate</span>::http;
@@ -5719,10 +5728,17 @@
         <span class="kw">let </span>ai_model_costs = global_config.ai_model_costs.clone().ok();
         <span class="kw">let </span>http_span_allowed_hosts = global_config.options.http_span_allowed_hosts.as_slice();
 
+        <span class="kw">let </span>retention_days: i64 = state
+            .project_state
+            .config
+            .event_retention
+            .unwrap_or(DEFAULT_EVENT_RETENTION)
+            .into();
+
         utils::log_transaction_name_metrics(<span class="kw-2">&amp;mut </span>state.event, |event| {
             <span class="kw">let </span>event_validation_config = EventValidationConfig {
                 received_at: <span class="prelude-val">Some</span>(state.managed_envelope.received_at()),
-                max_secs_in_past: <span class="prelude-val">Some</span>(<span class="self">self</span>.inner.config.max_secs_in_past()),
+                max_secs_in_past: <span class="prelude-val">Some</span>(retention_days * <span class="number">24 </span>* <span class="number">3600</span>),
                 max_secs_in_future: <span class="prelude-val">Some</span>(<span class="self">self</span>.inner.config.max_secs_in_future()),
                 transaction_timestamp_range: <span class="prelude-val">Some</span>(
                     transaction_aggregator_config.aggregator.timestamp_range(),
