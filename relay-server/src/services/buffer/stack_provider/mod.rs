@@ -6,17 +6,23 @@ use std::future::Future;
 pub mod memory;
 pub mod sqlite;
 
+/// State of the initialization of the [`StackProvider`].
+///
+/// This state is necessary for initializing resources whenever a [`StackProvider`] is used.
+#[derive(Debug)]
 pub struct InitializationState {
     pub envelopes_projects_keys: HashSet<EnvelopeProjectKeys>,
 }
 
 impl InitializationState {
+    /// Create a new [`InitializationState`].
     pub fn new(envelopes_projects_keys: HashSet<EnvelopeProjectKeys>) -> Self {
         Self {
             envelopes_projects_keys,
         }
     }
 
+    /// Creates a new empty [`InitializationState`].
     pub fn empty() -> Self {
         Self {
             envelopes_projects_keys: HashSet::new(),

@@ -502,62 +502,15 @@ pub fn build_get_project_key_pairs<'a>() -> Query<'a, Sqlite, SqliteArguments<'a
 
 #[cfg(test)]
 mod tests {
-
     use hashbrown::HashSet;
-    use std::collections::BTreeMap;
-    use std::time::{Duration, Instant};
+    use std::time::Duration;
     use tokio::time::sleep;
-    use uuid::Uuid;
 
     use relay_base_schema::project::ProjectKey;
     use relay_event_schema::protocol::EventId;
-    use relay_sampling::DynamicSamplingContext;
 
     use super::*;
-    use crate::envelope::{Envelope, Item, ItemType};
-    use crate::extractors::RequestMeta;
-    use crate::services::buffer::testutils::utils::setup_db;
-
-    fn request_meta() -> RequestMeta {
-        let dsn = "https://a94ae32be2584e0bbd7a4cbb95971fee:@sentry.io/42"
-            .parse()
-            .unwrap();
-
-        RequestMeta::new(dsn)
-    }
-
-    fn mock_envelope(instant: Instant) -> Box<Envelope> {
-        let event_id = EventId::new();
-        let mut envelope = Envelope::from_request(Some(event_id), request_meta());
-
-        let dsc = DynamicSamplingContext {
-            trace_id: Uuid::new_v4(),
-            public_key: ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
-            release: Some("1.1.1".to_string()),
-            user: Default::default(),
-            replay_id: None,
-            environment: None,
-            transaction: Some("transaction1".into()),
-            sample_rate: None,
-            sampled: Some(true),
-            other: BTreeMap::new(),
-        };
-
-        envelope.set_dsc(dsc);
-        envelope.set_start_time(instant);
-
-        envelope.add_item(Item::new(ItemType::Transaction));
-
-        envelope
-    }
-
-    #[allow(clippy::vec_box)]
-    fn mock_envelopes(count: usize) -> Vec<Box<Envelope>> {
-        let instant = Instant::now();
-        (0..count)
-            .map(|i| mock_envelope(instant - Duration::from_secs((count - i) as u64)))
-            .collect()
-    }
+    use crate::services::buffer::testutils::utils::{mock_envelopes, setup_db};
 
     #[tokio::test]
     async fn test_insert_and_delete_envelopes() {

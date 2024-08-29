@@ -1,10 +1,11 @@
-use hashbrown::HashSet;
-use relay_base_schema::project::ProjectKey;
-use relay_config::Config;
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::convert::Infallible;
 use std::time::Instant;
+
+use hashbrown::HashSet;
+use relay_base_schema::project::ProjectKey;
+use relay_config::Config;
 
 use crate::envelope::Envelope;
 use crate::services::buffer::envelope_stack::sqlite::SqliteEnvelopeStackError;
@@ -166,6 +167,7 @@ where
     /// [`StackProvider`].
     pub async fn initialize(&mut self) {
         let initialization_state = self.stack_provider.initialize().await;
+        println!("INITIALIZATION STATE {:?}", initialization_state);
         self.load_stacks(initialization_state.envelopes_projects_keys)
             .await;
     }
@@ -283,6 +285,7 @@ where
         changed
     }
 
+    /// Pushes a new [`EnvelopeStack`] with the given [`Envelope`] inserted.
     async fn push_stack(&mut self, envelope: Box<Envelope>) -> Result<(), EnvelopeBufferError> {
         let received_at = envelope.meta().start_time();
 
@@ -316,6 +319,7 @@ where
         self.stack_provider.has_store_capacity()
     }
 
+    /// Pops an [`EnvelopeStack`] with the supplied [`EnvelopeBufferError`].
     fn pop_stack(&mut self, envelope_project_keys: EnvelopeProjectKeys) {
         for project_key in envelope_project_keys.iter() {
             self.stacks_by_project
@@ -330,6 +334,7 @@ where
         );
     }
 
+    /// Creates all the [`EnvelopeStack`]s with no data given a set of [`EnvelopeProjectKeys`].
     async fn load_stacks(&mut self, envelopes_project_keys: HashSet<EnvelopeProjectKeys>) {
         let received_at = Instant::now();
 
@@ -465,18 +470,20 @@ impl Readiness {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-    use std::sync::Arc;
-
     use relay_common::Dsn;
     use relay_event_schema::protocol::EventId;
     use relay_sampling::DynamicSamplingContext;
+    use std::str::FromStr;
+    use std::sync::Arc;
+    use std::time::Duration;
     use uuid::Uuid;
 
     use crate::envelope::{Item, ItemType};
     use crate::extractors::RequestMeta;
     use crate::services::buffer::envelope_store::EnvelopeProjectKeys;
+    use crate::services::buffer::testutils::utils::mock_envelopes;
     use crate::utils::MemoryStat;
+    use crate::SqliteEnvelopeStore;
 
     use super::*;
 
@@ -523,18 +530,20 @@ mod tests {
         envelope
     }
 
-    fn mock_memory_checker() -> MemoryChecker {
-        let config: Arc<_> = Config::from_json_value(serde_json::json!({
+    fn mock_config(path: &str) -> Arc<Config> {
+        Config::from_json_value(serde_json::json!({
             "spool": {
-                "health": {
-                    "max_memory_percent": 1.0
+                "envelopes": {
+                    "path": path
                 }
             }
         }))
         .unwrap()
-        .into();
+        .into()
+    }
 
-        MemoryChecker::new(MemoryStat::default(), config.clone())
+    fn mock_memory_checker() -> MemoryChecker {
+        MemoryChecker::new(MemoryStat::default(), mock_config("my/db/path").clone())
     }
 
     #[tokio::test]
@@ -874,5 +883,40 @@ mod tests {
                 .unwrap(),
             event_id_1
         );
+    }
+
+    #[tokio::test]
+    async fn test_initialize_buffer() {
+        let path = std::env::temp_dir()
+            .join(Uuid::new_v4().to_string())
+            .into_os_string()
+            .into_string()
+            .unwrap();
+        let config = mock_config(&path);
+        let mut store = SqliteEnvelopeStore::prepare(&config).await.unwrap();
+        let mut buffer = EnvelopeBuffer::<SqliteStackProvider>::new(&config)
+            .await
+            .unwrap();
+
+        // We write 5 envelopes to disk so that we can check if they are loaded. These envelopes
+        // belong to the same project keys, so they belong to the same envelope stack.
+        let envelopes = mock_envelopes(10);
+        assert!(store
+            .insert_many(envelopes.iter().map(|e| e.as_ref().try_into().unwrap()))
+            .await
+            .is_ok());
+
+        // We assume that the buffer is empty.
+        assert!(buffer.priority_queue.is_empty());
+        assert!(buffer.stacks_by_project.is_empty());
+
+        buffer.initialize().await;
+
+        // We assume that we loaded only 1 envelope stack, because of the project keys combinations
+        // of the envelopes we inserted above.
+        assert_eq!(buffer.priority_queue.len(), 1);
+        // We expect to have an entry per project key, since we have 1 pair, the total entries
+        // should be 2.
+        assert_eq!(buffer.stacks_by_project.len(), 2);
     }
 }

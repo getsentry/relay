@@ -1,4 +1,5 @@
 use relay_config::Config;
+use std::error::Error;
 
 use crate::services::buffer::envelope_store::sqlite::{
     SqliteEnvelopeStore, SqliteEnvelopeStoreError,
@@ -33,11 +34,16 @@ impl StackProvider for SqliteStackProvider {
     type Stack = SqliteEnvelopeStack;
 
     async fn initialize(&self) -> InitializationState {
-        let Ok(envelopes_project_keys) = self.envelope_store.project_key_pairs().await else {
-            return InitializationState::empty();
-        };
-
-        InitializationState::new(envelopes_project_keys)
+        match self.envelope_store.project_key_pairs().await {
+            Ok(envelopes_project_keys) => InitializationState::new(envelopes_project_keys),
+            Err(error) => {
+                relay_log::error!(
+                    error = &error as &dyn Error,
+                    "failed to initialize the sqlite stack provider"
+                );
+                InitializationState::empty()
+            }
+        }
     }
 
     fn create_stack(&self, envelope_project_keys: EnvelopeProjectKeys) -> Self::Stack {

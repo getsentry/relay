@@ -19,9 +19,12 @@ use crate::utils::MemoryChecker;
 
 pub use envelope_buffer::EnvelopeBufferError;
 pub use envelope_buffer::PolymorphicEnvelopeBuffer;
-pub use envelope_stack::sqlite::SqliteEnvelopeStack; // pub for benchmarks
-pub use envelope_stack::EnvelopeStack; // pub for benchmarks
-pub use envelope_store::sqlite::SqliteEnvelopeStore; // pub for benchmarks
+pub use envelope_stack::sqlite::SqliteEnvelopeStack;
+// pub for benchmarks
+pub use envelope_stack::EnvelopeStack;
+// pub for benchmarks
+pub use envelope_store::sqlite::SqliteEnvelopeStore;
+// pub for benchmarks
 
 mod envelope_buffer;
 mod envelope_stack;
@@ -32,7 +35,7 @@ mod testutils;
 /// Message interface for [`EnvelopeBufferService`].
 #[derive(Debug)]
 pub enum EnvelopeBuffer {
-    /// An fresh envelope that gets pushed into the buffer by the request handler.
+    /// A fresh envelope that gets pushed into the buffer by the request handler.
     Push(Box<Envelope>),
     /// Informs the service that a project has no valid project state and must be marked as not ready.
     ///
