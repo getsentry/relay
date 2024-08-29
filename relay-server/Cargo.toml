@@ -56,6 +56,7 @@ flate2 = { workspace = true }
 fnv = { workspace = true }
 futures = { workspace = true }
 hashbrown = { workspace = true }
+hyper-util = { workspace = true }
 itertools = { workspace = true }
 json-forensics = { workspace = true }
 mime = { workspace = true }

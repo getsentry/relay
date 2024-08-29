@@ -8,6 +8,7 @@ use axum::http::{header, HeaderName, HeaderValue};
 use axum::ServiceExt;
 use axum_server::accept::Accept;
 use axum_server::Handle;
+use hyper_util::rt::TokioTimer;
 use relay_config::Config;
 use relay_system::{Controller, Service, Shutdown};
 use socket2::TcpKeepalive;
@@ -176,6 +177,7 @@ fn serve(listener: TcpListener, app: App, config: Arc<Config>) {
     server
         .http_builder()
         .http1()
+        .timer(TokioTimer::new())
         .half_close(true)
         .header_read_timeout(CLIENT_HEADER_TIMEOUT)
         .writev(true);
@@ -183,6 +185,7 @@ fn serve(listener: TcpListener, app: App, config: Arc<Config>) {
     server
         .http_builder()
         .http2()
+        .timer(TokioTimer::new())
         .keep_alive_timeout(config.keepalive_timeout());
 
     let service = ServiceExt::<Request>::into_make_service_with_connect_info::<SocketAddr>(app);

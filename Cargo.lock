@@ -4367,6 +4367,7 @@ dependencies = [
  "fnv",
  "futures",
  "hashbrown 0.14.3",
+ "hyper-util",
  "insta",
  "itertools",
  "json-forensics",
