@@ -179,7 +179,7 @@ where
     pub async fn peek(&mut self) -> Result<Peek, EnvelopeBufferError> {
         let Some((
             QueueItem {
-                key: stack_key,
+                key: _,
                 value: stack,
             },
             Priority { readiness, .. },
@@ -793,6 +793,7 @@ mod tests {
         assert_eq!(buffer.priority_queue.len(), 2);
     }
 
+    #[ignore = "last_peek disabled for now"]
     #[tokio::test]
     async fn test_last_peek_internal_order() {
         let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(mock_memory_checker());
