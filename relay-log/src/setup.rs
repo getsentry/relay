@@ -176,7 +176,7 @@ pub struct SentryConfig {
     /// Sets the environment for this service.
     pub environment: Option<Cow<'static, str>>,
 
-    /// Add defaults tags to the tags' events produced by Relay
+    /// Add defaults tags to the events emitted by Relay
     pub default_tags: Option<BTreeMap<String, String>>,
 
     /// Internal. Enables crash handling and sets the absolute path to where minidumps should be
@@ -310,7 +310,7 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
         if let Some(default_tags) = sentry.default_tags.clone() {
             // Install hook
             options.before_send = Some(Arc::new(move |mut event| {
-                // Don't override `event.tags` with `default_tags`
+                // Extend `event.tags` with `default_tags` without replacing tags already present
                 let previous_event_tags = std::mem::replace(&mut event.tags, default_tags.clone());
                 event.tags.extend(previous_event_tags.into_iter());
                 Some(event)
