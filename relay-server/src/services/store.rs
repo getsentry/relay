@@ -90,15 +90,11 @@ pub struct StoreMetrics {
     pub retention: u16,
 }
 
-#[derive(Debug)]
-pub struct StoreCogs(pub Vec<u8>);
-
 /// Service interface for the [`StoreEnvelope`] message.
 #[derive(Debug)]
 pub enum Store {
     Envelope(StoreEnvelope),
     Metrics(StoreMetrics),
-    Cogs(StoreCogs),
 }
 
 impl Store {
@@ -107,7 +103,6 @@ impl Store {
         match self {
             Store::Envelope(_) => "envelope",
             Store::Metrics(_) => "metrics",
-            Store::Cogs(_) => "cogs",
         }
     }
 }
@@ -127,14 +122,6 @@ impl FromMessage<StoreMetrics> for Store {
 
     fn from_message(message: StoreMetrics, _: ()) -> Self {
         Self::Metrics(message)
-    }
-}
-
-impl FromMessage<StoreCogs> for Store {
-    type Response = NoResponse;
-
-    fn from_message(message: StoreCogs, _: ()) -> Self {
-        Self::Cogs(message)
     }
 }
 
@@ -173,7 +160,6 @@ impl StoreService {
             match message {
                 Store::Envelope(message) => self.handle_store_envelope(message),
                 Store::Metrics(message) => self.handle_store_metrics(message),
-                Store::Cogs(message) => self.handle_store_cogs(message),
             }
         })
     }
@@ -440,16 +426,6 @@ impl StoreService {
             relay_log::error!(
                 error = &error as &dyn std::error::Error,
                 "failed to produce metric buckets: {error}"
-            );
-        }
-    }
-
-    fn handle_store_cogs(&self, StoreCogs(payload): StoreCogs) {
-        let message = KafkaMessage::Cogs(CogsKafkaMessage(payload));
-        if let Err(error) = self.produce(KafkaTopic::Cogs, message) {
-            relay_log::error!(
-                error = &error as &dyn std::error::Error,
-                "failed to store cogs measurement"
             );
         }
     }
@@ -1449,10 +1425,6 @@ struct ProfileChunkKafkaMessage {
     payload: Bytes,
 }
 
-#[derive(Debug, Serialize)]
-#[serde(transparent)]
-struct CogsKafkaMessage(Vec<u8>);
-
 /// An enum over all possible ingest messages.
 #[derive(Debug, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -1479,7 +1451,6 @@ enum KafkaMessage<'a> {
         message: SpanKafkaMessage<'a>,
     },
     MetricsSummary(MetricsSummaryKafkaMessage<'a>),
-    Cogs(CogsKafkaMessage),
     ProfileChunk(ProfileChunkKafkaMessage),
 }
 
@@ -1505,7 +1476,6 @@ impl Message for KafkaMessage<'_> {
             KafkaMessage::CheckIn(_) => "check_in",
             KafkaMessage::Span { .. } => "span",
             KafkaMessage::MetricsSummary(_) => "metrics_summary",
-            KafkaMessage::Cogs(_) => "cogs",
             KafkaMessage::ProfileChunk(_) => "profile_chunk",
         }
     }
@@ -1530,7 +1500,6 @@ impl Message for KafkaMessage<'_> {
             | Self::Span { .. }
             | Self::ReplayRecordingNotChunked(_)
             | Self::MetricsSummary(_)
-            | Self::Cogs(_)
             | Self::ProfileChunk(_) => Uuid::nil(),
 
             // TODO(ja): Determine a partitioning key
@@ -1583,8 +1552,6 @@ impl Message for KafkaMessage<'_> {
             KafkaMessage::MetricsSummary(message) => serde_json::to_vec(message)
                 .map(Cow::Owned)
                 .map_err(ClientError::InvalidJson),
-
-            KafkaMessage::Cogs(CogsKafkaMessage(payload)) => Ok(payload.into()),
 
             _ => rmp_serde::to_vec_named(&self)
                 .map(Cow::Owned)

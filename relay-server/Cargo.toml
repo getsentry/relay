@@ -100,7 +100,6 @@ reqwest = { workspace = true, features = [
 ] }
 rmp-serde = { workspace = true }
 rust-embed = { workspace = true, optional = true }
-sentry_usage_accountant = { workspace = true, default-features = false }
 serde = { workspace = true }
 serde_bytes = { workspace = true }
 serde_json = { workspace = true }

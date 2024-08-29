@@ -47,6 +47,7 @@ class Sentry(SentryLike):
         self.fail_on_relay_error = True
         self.request_log = []
         self.project_config_simulate_pending = False
+        self.project_config_ignore_revision = False
 
     @property
     def internal_error_dsn(self):
@@ -327,6 +328,7 @@ def mini_sentry(request):  # noqa
         response = {}
         configs = {}
         pending = []
+        unchanged = []
         global_ = None
 
         version = flask_request.args.get("version")
@@ -341,7 +343,12 @@ def mini_sentry(request):  # noqa
                     configs[project_id] = project_config
 
         elif version in ["2", "3", "4"]:
-            for public_key in flask_request.json["publicKeys"]:
+            for i, public_key in enumerate(flask_request.json["publicKeys"]):
+                try:
+                    revision = flask_request.json.get("revisions")[i]
+                except IndexError:
+                    revision = None
+
                 # We store projects by id, but need to return by key
                 for project_config in sentry.project_configs.values():
                     for key in project_config["publicKeys"]:
@@ -354,6 +361,13 @@ def mini_sentry(request):  # noqa
                                 and sentry.project_config_simulate_pending
                             ):
                                 pending.append(public_key)
+                            elif (
+                                version == "3"
+                                and not sentry.project_config_ignore_revision
+                                and revision is not None
+                                and project_config["rev"] == revision
+                            ):
+                                unchanged.append(public_key)
                             else:
                                 # TODO 11 Nov 2020 (RaduW) horrible hack
                                 #  For some reason returning multiple public keys breaks Relay
@@ -367,6 +381,7 @@ def mini_sentry(request):  # noqa
 
         response["configs"] = configs
         response["pending"] = pending
+        response["unchanged"] = unchanged
         if global_ is not None:
             response["global"] = global_
 

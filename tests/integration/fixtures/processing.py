@@ -59,7 +59,6 @@ def processing_config(get_topic_name):
                 "spans": get_topic_name("spans"),
                 "profiles": get_topic_name("profiles"),
                 "metrics_summaries": get_topic_name("metrics_summaries"),
-                "cogs": get_topic_name("cogs"),
                 "feedback": get_topic_name("feedback"),
             }
 
@@ -362,11 +361,6 @@ def profiles_consumer(consumer_fixture):
 @pytest.fixture
 def metrics_summaries_consumer(consumer_fixture):
     yield from consumer_fixture(MetricsSummariesConsumer, "metrics_summaries")
-
-
-@pytest.fixture
-def cogs_consumer(consumer_fixture):
-    yield from consumer_fixture(CogsConsumer, "cogs")
 
 
 class MetricsConsumer(ConsumerBase):
