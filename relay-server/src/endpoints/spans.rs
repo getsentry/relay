@@ -1,11 +1,10 @@
-use axum::extract::{DefaultBodyLimit, Json};
-use axum::http::{Request, StatusCode};
+use axum::extract::{DefaultBodyLimit, Json, Request};
+use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::{post, MethodRouter};
 use axum::RequestExt;
-use axum_extra::protobuf::Protobuf;
 use bytes::Bytes;
-
+use prost::Message;
 use relay_config::Config;
 use relay_dynamic_config::Feature;
 use relay_spans::otel_trace::TracesData;
@@ -14,24 +13,27 @@ use crate::endpoints::common;
 use crate::envelope::{ContentType, Envelope, Item, ItemType};
 use crate::extractors::{RawContentType, RequestMeta};
 use crate::service::ServiceState;
+use crate::utils::ApiErrorResponse;
 
-async fn handle<B>(
+async fn handle(
     state: ServiceState,
     content_type: RawContentType,
     meta: RequestMeta,
-    request: Request<B>,
-) -> axum::response::Result<impl IntoResponse>
-where
-    B: axum::body::HttpBody + Send + 'static,
-    B::Data: Send + Into<Bytes>,
-    B::Error: Into<axum::BoxError>,
-{
+    request: Request,
+) -> axum::response::Result<impl IntoResponse> {
     let trace: TracesData = if content_type.as_ref().starts_with("application/json") {
         let Json(trace) = request.extract().await?;
         trace
     } else if content_type.as_ref().starts_with("application/x-protobuf") {
-        let Protobuf(trace) = request.extract().await?;
-        trace
+        // let mut bytes: Bytes = Bytes::from_request(req, state).await?;
+        // let Protobuf(trace) = request.extract().await?;
+        let mut bytes: Bytes = request.extract().await?;
+        Message::decode(&mut bytes).map_err(|e| {
+            (
+                StatusCode::UNPROCESSABLE_ENTITY,
+                ApiErrorResponse::from_error(&e),
+            )
+        })?
     } else {
         return Ok(StatusCode::UNSUPPORTED_MEDIA_TYPE);
     };
@@ -55,11 +57,6 @@ where
     Ok(StatusCode::ACCEPTED)
 }
 
-pub fn route<B>(config: &Config) -> MethodRouter<ServiceState, B>
-where
-    B: axum::body::HttpBody + Send + 'static,
-    B::Data: Send + Into<Bytes>,
-    B::Error: Into<axum::BoxError>,
-{
+pub fn route(config: &Config) -> MethodRouter<ServiceState> {
     post(handle).route_layer(DefaultBodyLimit::max(config.max_span_size()))
 }
