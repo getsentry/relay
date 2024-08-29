@@ -132,8 +132,6 @@ impl EnvelopeBufferService {
                 self.changes = false;
             }
             Peek::Ready(_) => {
-                // FIXME(jjbayer): Requires https://github.com/getsentry/relay/pull/3960
-                // in order to work.
                 relay_log::trace!("EnvelopeBufferService pop");
                 let envelope = self
                     .buffer

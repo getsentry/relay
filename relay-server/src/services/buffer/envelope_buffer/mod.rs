@@ -180,31 +180,15 @@ where
         let Some((
             QueueItem {
                 key: stack_key,
-                value: _,
+                value: stack,
             },
             Priority { readiness, .. },
-        )) = self.priority_queue.peek()
+        )) = self.priority_queue.peek_mut()
         else {
             return Ok(Peek::Empty);
         };
 
         let ready = readiness.ready();
-        let stack_key = *stack_key;
-
-        self.priority_queue.change_priority_by(&stack_key, |prio| {
-            prio.last_peek = Instant::now();
-        });
-
-        let Some((
-            QueueItem {
-                key: _,
-                value: stack,
-            },
-            _,
-        )) = self.priority_queue.get_mut(&stack_key)
-        else {
-            return Ok(Peek::Empty);
-        };
 
         Ok(match (stack.peek().await?, ready) {
             (None, _) => Peek::Empty,
@@ -380,6 +364,7 @@ impl<K: PartialEq, V> Eq for QueueItem<K, V> {}
 struct Priority {
     readiness: Readiness,
     received_at: Instant,
+    // FIXME(jjbayer): `last_peek` is currently never updated, see https://github.com/getsentry/relay/pull/3960.
     last_peek: Instant,
 }
 
@@ -415,19 +400,16 @@ impl Ord for Priority {
             // Assuming that two priorities differ only w.r.t. the `last_peek`, we want to prioritize
             // stacks that were the least recently peeked. The rationale behind this is that we want
             // to keep cycling through different stacks while peeking.
-            (true, true) => self
-                .received_at
-                .cmp(&other.received_at)
-                .then(self.last_peek.cmp(&other.last_peek).reverse()),
+            (true, true) => self.received_at.cmp(&other.received_at),
             (true, false) => Ordering::Greater,
             (false, true) => Ordering::Less,
             // For non-ready stacks, we invert the priority, such that projects that are not
             // ready and did not receive envelopes recently can be evicted.
             (false, false) => self
-                .received_at
-                .cmp(&other.received_at)
+                .last_peek
+                .cmp(&other.last_peek)
                 .reverse()
-                .then(self.last_peek.cmp(&other.last_peek).reverse()),
+                .then(self.received_at.cmp(&other.received_at).reverse()),
         }
     }
 }
