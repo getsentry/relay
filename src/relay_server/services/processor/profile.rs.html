@@ -579,7 +579,7 @@
 </span><span class="kw">pub fn </span>filter&lt;G&gt;(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;ProfileId&gt; {
     <span class="kw">let </span>profiling_disabled = state.should_filter(Feature::Profiling);
     <span class="kw">let </span>has_transaction = state.event_type() == <span class="prelude-val">Some</span>(EventType::Transaction);
-    <span class="kw">let </span>keep_unsampled_profiles = !state.should_filter(Feature::IngestUnsampledProfiles);
+    <span class="kw">let </span>keep_unsampled_profiles = <span class="bool-val">true</span>;
 
     <span class="kw">let </span><span class="kw-2">mut </span>profile_id = <span class="prelude-val">None</span>;
     state.managed_envelope.retain_items(|item| <span class="kw">match </span>item.ty() {

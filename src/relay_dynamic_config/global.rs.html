@@ -545,10 +545,6 @@
 <a href="#545" id="545">545</a>
 <a href="#546" id="546">546</a>
 <a href="#547" id="547">547</a>
-<a href="#548" id="548">548</a>
-<a href="#549" id="549">549</a>
-<a href="#550" id="550">550</a>
-<a href="#551" id="551">551</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::btree_map::Entry;
 <span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::fs::File;
@@ -658,23 +654,6 @@
 </span><span class="attr">#[derive(Default, Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 </span><span class="kw">pub struct </span>Options {
-    <span class="doccomment">/// List of platform names for which we allow using unsampled profiles for the purpose
-    /// of improving profile (function) metrics
-    </span><span class="attr">#[serde(
-        rename = <span class="string">"profiling.profile_metrics.unsampled_profiles.platforms"</span>,
-        deserialize_with = <span class="string">"default_on_error"</span>,
-        skip_serializing_if = <span class="string">"Vec::is_empty"
-    </span>)]
-    </span><span class="kw">pub </span>profile_metrics_allowed_platforms: Vec&lt;String&gt;,
-
-    <span class="doccomment">/// Sample rate for tuning the amount of unsampled profiles that we "let through"
-    </span><span class="attr">#[serde(
-        rename = <span class="string">"profiling.profile_metrics.unsampled_profiles.sample_rate"</span>,
-        deserialize_with = <span class="string">"default_on_error"</span>,
-        skip_serializing_if = <span class="string">"is_default"
-    </span>)]
-    </span><span class="kw">pub </span>profile_metrics_sample_rate: f32,
-
     <span class="doccomment">/// Kill switch for shutting down unsampled_profile metrics
     </span><span class="attr">#[serde(
         rename = <span class="string">"profiling.profile_metrics.unsampled_profiles.enabled"</span>,
@@ -682,7 +661,6 @@
         skip_serializing_if = <span class="string">"is_default"
     </span>)]
     </span><span class="kw">pub </span>unsampled_profiles_enabled: bool,
-
     <span class="doccomment">/// Kill switch for shutting down profile function metrics
     /// ingestion in the generic-metrics platform
     </span><span class="attr">#[serde(
@@ -775,6 +753,24 @@
         skip_serializing_if = <span class="string">"Vec::is_empty"
     </span>)]
     </span><span class="kw">pub </span>http_span_allowed_hosts: Vec&lt;Host&gt;,
+
+    <span class="doccomment">/// Deprecated, still forwarded for older downstream Relays.
+    </span><span class="attr">#[doc(hidden)]
+    #[serde(
+        rename = <span class="string">"profiling.profile_metrics.unsampled_profiles.platforms"</span>,
+        deserialize_with = <span class="string">"default_on_error"</span>,
+        skip_serializing_if = <span class="string">"Vec::is_empty"
+    </span>)]
+    </span><span class="kw">pub </span>deprecated1: Vec&lt;String&gt;,
+
+    <span class="doccomment">/// Deprecated, still forwarded for older downstream Relays.
+    </span><span class="attr">#[doc(hidden)]
+    #[serde(
+        rename = <span class="string">"profiling.profile_metrics.unsampled_profiles.sample_rate"</span>,
+        deserialize_with = <span class="string">"default_on_error"</span>,
+        skip_serializing_if = <span class="string">"is_default"
+    </span>)]
+    </span><span class="kw">pub </span>deprecated2: f32,
 
     <span class="doccomment">/// All other unknown options.
     </span><span class="attr">#[serde(flatten)]
@@ -994,9 +990,6 @@
         }
       }
     ]
-  },
-  "options": {
-    "profiling.profile_metrics.unsampled_profiles.enabled": true
   }
 }"#</span>;
 
@@ -1009,8 +1002,7 @@
     </span><span class="kw">fn </span>test_global_config_invalid_value_is_default() {
         <span class="kw">let </span>options: Options = serde_json::from_str(
             <span class="string">r#"{
-                "relay.cardinality-limiter.mode": "passive",
-                "profiling.profile_metrics.unsampled_profiles.sample_rate": "foo"
+                "relay.cardinality-limiter.mode": "passive"
             }"#</span>,
         )
         .unwrap();

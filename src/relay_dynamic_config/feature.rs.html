@@ -180,9 +180,6 @@
 <a href="#180" id="180">180</a>
 <a href="#181" id="181">181</a>
 <a href="#182" id="182">182</a>
-<a href="#183" id="183">183</a>
-<a href="#184" id="184">184</a>
-<a href="#185" id="185">185</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeSet;
 
 <span class="kw">use </span>serde::{Deserialize, Serialize};
@@ -246,13 +243,6 @@
     /// Serialized as `projects:relay-otel-endpoint`.
     </span><span class="attr">#[serde(rename = <span class="string">"projects:relay-otel-endpoint"</span>)]
     </span>OtelEndpoint,
-    <span class="doccomment">/// Enable processing and extracting data from profiles that would normally be dropped by dynamic sampling.
-    ///
-    /// This is required for [slowest function aggregation](https://github.com/getsentry/snuba/blob/b5311b404a6bd73a9e1997a46d38e7df88e5f391/snuba/snuba_migrations/functions/0001_functions.py#L209-L256). The profile payload will be dropped on the sentry side.
-    ///
-    /// Serialized as `projects:profiling-ingest-unsampled-profiles`.
-    </span><span class="attr">#[serde(rename = <span class="string">"projects:profiling-ingest-unsampled-profiles"</span>)]
-    </span>IngestUnsampledProfiles,
 
     <span class="doccomment">/// Discard transactions in a spans-only world.
     ///
@@ -304,6 +294,10 @@
     </span><span class="attr">#[doc(hidden)]
     #[serde(rename = <span class="string">"projects:span-metrics-extraction-all-modules"</span>)]
     </span>Deprecated6,
+    <span class="doccomment">/// Deprecated, still forwarded for older downstream Relays.
+    </span><span class="attr">#[doc(hidden)]
+    #[serde(rename = <span class="string">"projects:profiling-ingest-unsampled-profiles"</span>)]
+    </span>Deprecated7,
     <span class="doccomment">/// Forward compatibility.
     </span><span class="attr">#[doc(hidden)]
     #[serde(other)]
