@@ -1,9 +1,9 @@
 //! Types for buffering envelopes.
 
-use std::future;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use std::time::Duration;
 
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
@@ -83,8 +83,10 @@ pub struct EnvelopeBufferService {
     buffer: PolymorphicEnvelopeBuffer,
     project_cache: Addr<ProjectCache>,
     has_capacity: Arc<AtomicBool>,
-    changes: bool,
+    sleep: Duration,
 }
+
+const DEFAULT_SLEEP: Duration = Duration::from_millis(100);
 
 impl EnvelopeBufferService {
     /// Creates a memory or disk based [`EnvelopeBufferService`], depending on the given config.
@@ -100,7 +102,7 @@ impl EnvelopeBufferService {
             buffer: PolymorphicEnvelopeBuffer::from_config(config, memory_checker),
             project_cache,
             has_capacity: Arc::new(AtomicBool::new(true)),
-            changes: true,
+            sleep: Duration::ZERO,
         })
     }
 
@@ -113,23 +115,15 @@ impl EnvelopeBufferService {
         }
     }
 
-    /// Return immediately if changes were flagged, otherwise sleep forever.
-    ///
-    /// NOTE: This function sleeps indefinitely if no changes were flagged.
-    /// Only use in combination with [`tokio::select!`].
-    async fn wait_for_changes(&mut self) {
-        if !self.changes {
-            let _: () = future::pending().await; // wait until cancelled
-        }
-    }
-
     /// Tries to pop an envelope for a ready project.
+    ///
+    /// Returns the amount of time we should wait until next pop
     async fn try_pop(&mut self) -> Result<(), EnvelopeBufferError> {
         relay_log::trace!("EnvelopeBufferService peek");
         match self.buffer.peek().await? {
             Peek::Empty => {
                 relay_log::trace!("EnvelopeBufferService empty");
-                self.changes = false;
+                self.sleep = Duration::MAX; // wait for reset by `handle_message`.
             }
             Peek::Ready(_) => {
                 relay_log::trace!("EnvelopeBufferService pop");
@@ -139,9 +133,9 @@ impl EnvelopeBufferService {
                     .await?
                     .expect("Element disappeared despite exclusive excess");
                 self.project_cache.send(DequeuedEnvelope(envelope));
-                self.changes = true;
+                self.sleep = Duration::ZERO; // try next pop immediately
             }
-            Peek::NotReady(envelope) => {
+            Peek::NotReady(stack_key, envelope) => {
                 relay_log::trace!("EnvelopeBufferService request update");
                 let project_key = envelope.meta().public_key();
                 self.project_cache.send(UpdateProject(project_key));
@@ -152,7 +146,9 @@ impl EnvelopeBufferService {
                         self.project_cache.send(UpdateProject(sampling_key));
                     }
                 }
-                self.changes = false;
+                // deprioritize the stack to prevent head-of-line blocking
+                self.buffer.mark_seen(&stack_key);
+                self.sleep = DEFAULT_SLEEP;
             }
         }
         Ok(())
@@ -179,7 +175,7 @@ impl EnvelopeBufferService {
                 self.buffer.mark_ready(&project_key, true);
             }
         };
-        self.changes = true;
+        self.sleep = Duration::ZERO;
     }
 
     async fn push(&mut self, envelope: Box<Envelope>) {
@@ -210,7 +206,7 @@ impl Service for EnvelopeBufferService {
                     // On the one hand, we might want to prioritize dequeing over enqueing
                     // so we do not exceed the buffer capacity by starving the dequeue.
                     // on the other hand, prioritizing old messages violates the LIFO design.
-                    () = self.wait_for_changes() => {
+                    () = tokio::time::sleep(self.sleep) => {
                         if let Err(e) = self.try_pop().await {
                             relay_log::error!(
                                 error = &e as &dyn std::error::Error,
