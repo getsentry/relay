@@ -268,16 +268,12 @@
 <a href="#268" id="268">268</a>
 <a href="#269" id="269">269</a>
 <a href="#270" id="270">270</a>
-<a href="#271" id="271">271</a>
-<a href="#272" id="272">272</a>
-<a href="#273" id="273">273</a>
-<a href="#274" id="274">274</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Types for buffering envelopes.
 
-</span><span class="kw">use </span>std::future;
-<span class="kw">use </span>std::sync::atomic::AtomicBool;
+</span><span class="kw">use </span>std::sync::atomic::AtomicBool;
 <span class="kw">use </span>std::sync::atomic::Ordering;
 <span class="kw">use </span>std::sync::Arc;
+<span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
 <span class="kw">use </span>relay_config::Config;
@@ -357,8 +353,10 @@
     buffer: PolymorphicEnvelopeBuffer,
     project_cache: Addr&lt;ProjectCache&gt;,
     has_capacity: Arc&lt;AtomicBool&gt;,
-    changes: bool,
+    sleep: Duration,
 }
+
+<span class="kw">const </span>DEFAULT_SLEEP: Duration = Duration::from_millis(<span class="number">100</span>);
 
 <span class="kw">impl </span>EnvelopeBufferService {
     <span class="doccomment">/// Creates a memory or disk based [`EnvelopeBufferService`], depending on the given config.
@@ -374,7 +372,7 @@
             buffer: PolymorphicEnvelopeBuffer::from_config(config, memory_checker),
             project_cache,
             has_capacity: Arc::new(AtomicBool::new(<span class="bool-val">true</span>)),
-            changes: <span class="bool-val">true</span>,
+            sleep: Duration::ZERO,
         })
     }
 
@@ -387,24 +385,16 @@
         }
     }
 
-    <span class="doccomment">/// Return immediately if changes were flagged, otherwise sleep forever.
-    ///
-    /// NOTE: This function sleeps indefinitely if no changes were flagged.
-    /// Only use in combination with [`tokio::select!`].
-    </span><span class="kw">async fn </span>wait_for_changes(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="kw">if </span>!<span class="self">self</span>.changes {
-            <span class="kw">let _</span>: () = future::pending().<span class="kw">await</span>; <span class="comment">// wait until cancelled
-        </span>}
-    }
-
     <span class="doccomment">/// Tries to pop an envelope for a ready project.
+    ///
+    /// Returns the amount of time we should wait until next pop
     </span><span class="kw">async fn </span>try_pop(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), EnvelopeBufferError&gt; {
         <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService peek"</span>);
         <span class="kw">match </span><span class="self">self</span>.buffer.peek().<span class="kw">await</span><span class="question-mark">? </span>{
             Peek::Empty =&gt; {
                 <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService empty"</span>);
-                <span class="self">self</span>.changes = <span class="bool-val">false</span>;
-            }
+                <span class="self">self</span>.sleep = Duration::MAX; <span class="comment">// wait for reset by `handle_message`.
+            </span>}
             Peek::Ready(<span class="kw">_</span>) =&gt; {
                 <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService pop"</span>);
                 <span class="kw">let </span>envelope = <span class="self">self
@@ -413,9 +403,9 @@
                     .<span class="kw">await</span><span class="question-mark">?
                     </span>.expect(<span class="string">"Element disappeared despite exclusive excess"</span>);
                 <span class="self">self</span>.project_cache.send(DequeuedEnvelope(envelope));
-                <span class="self">self</span>.changes = <span class="bool-val">true</span>;
-            }
-            Peek::NotReady(envelope) =&gt; {
+                <span class="self">self</span>.sleep = Duration::ZERO; <span class="comment">// try next pop immediately
+            </span>}
+            Peek::NotReady(stack_key, envelope) =&gt; {
                 <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService request update"</span>);
                 <span class="kw">let </span>project_key = envelope.meta().public_key();
                 <span class="self">self</span>.project_cache.send(UpdateProject(project_key));
@@ -426,7 +416,9 @@
                         <span class="self">self</span>.project_cache.send(UpdateProject(sampling_key));
                     }
                 }
-                <span class="self">self</span>.changes = <span class="bool-val">false</span>;
+                <span class="comment">// deprioritize the stack to prevent head-of-line blocking
+                </span><span class="self">self</span>.buffer.mark_seen(<span class="kw-2">&amp;</span>stack_key);
+                <span class="self">self</span>.sleep = DEFAULT_SLEEP;
             }
         }
         <span class="prelude-val">Ok</span>(())
@@ -453,7 +445,7 @@
                 <span class="self">self</span>.buffer.mark_ready(<span class="kw-2">&amp;</span>project_key, <span class="bool-val">true</span>);
             }
         };
-        <span class="self">self</span>.changes = <span class="bool-val">true</span>;
+        <span class="self">self</span>.sleep = Duration::ZERO;
     }
 
     <span class="kw">async fn </span>push(<span class="kw-2">&amp;mut </span><span class="self">self</span>, envelope: Box&lt;Envelope&gt;) {
@@ -484,7 +476,7 @@
                     // On the one hand, we might want to prioritize dequeing over enqueing
                     // so we do not exceed the buffer capacity by starving the dequeue.
                     // on the other hand, prioritizing old messages violates the LIFO design.
-                    </span>() = <span class="self">self</span>.wait_for_changes() =&gt; {
+                    </span>() = tokio::time::sleep(<span class="self">self</span>.sleep) =&gt; {
                         <span class="kw">if let </span><span class="prelude-val">Err</span>(e) = <span class="self">self</span>.try_pop().<span class="kw">await </span>{
                             <span class="macro">relay_log::error!</span>(
                                 error = <span class="kw-2">&amp;</span>e <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,

@@ -845,6 +845,26 @@
 <a href="#845" id="845">845</a>
 <a href="#846" id="846">846</a>
 <a href="#847" id="847">847</a>
+<a href="#848" id="848">848</a>
+<a href="#849" id="849">849</a>
+<a href="#850" id="850">850</a>
+<a href="#851" id="851">851</a>
+<a href="#852" id="852">852</a>
+<a href="#853" id="853">853</a>
+<a href="#854" id="854">854</a>
+<a href="#855" id="855">855</a>
+<a href="#856" id="856">856</a>
+<a href="#857" id="857">857</a>
+<a href="#858" id="858">858</a>
+<a href="#859" id="859">859</a>
+<a href="#860" id="860">860</a>
+<a href="#861" id="861">861</a>
+<a href="#862" id="862">862</a>
+<a href="#863" id="863">863</a>
+<a href="#864" id="864">864</a>
+<a href="#865" id="865">865</a>
+<a href="#866" id="866">866</a>
+<a href="#867" id="867">867</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::cmp::Ordering;
 <span class="kw">use </span>std::collections::BTreeSet;
 <span class="kw">use </span>std::convert::Infallible;
@@ -927,6 +947,18 @@
         <span class="kw">match </span><span class="self">self </span>{
             <span class="self">Self</span>::Sqlite(buffer) =&gt; buffer.mark_ready(project, is_ready),
             <span class="self">Self</span>::InMemory(buffer) =&gt; buffer.mark_ready(project, is_ready),
+        }
+    }
+
+    <span class="doccomment">/// Marks a stack as seen.
+    ///
+    /// Non-ready stacks are deprioritized when they are marked as seen, such that
+    /// the next call to `.peek()` will look at a different stack. This prevents
+    /// head-of-line blocking.
+    </span><span class="kw">pub fn </span>mark_seen(<span class="kw-2">&amp;mut </span><span class="self">self</span>, stack_key: <span class="kw-2">&amp;</span>StackKey) {
+        <span class="kw">match </span><span class="self">self </span>{
+            <span class="self">Self</span>::Sqlite(buffer) =&gt; buffer.mark_seen(stack_key),
+            <span class="self">Self</span>::InMemory(buffer) =&gt; buffer.mark_seen(stack_key),
         }
     }
 
@@ -1026,7 +1058,7 @@
     </span><span class="kw">pub async fn </span>peek(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Peek, EnvelopeBufferError&gt; {
         <span class="kw">let </span><span class="prelude-val">Some</span>((
             QueueItem {
-                key: <span class="kw">_</span>,
+                key: stack_key,
                 value: stack,
             },
             Priority { readiness, .. },
@@ -1040,7 +1072,7 @@
         <span class="prelude-val">Ok</span>(<span class="kw">match </span>(stack.peek().<span class="kw">await</span><span class="question-mark">?</span>, ready) {
             (<span class="prelude-val">None</span>, <span class="kw">_</span>) =&gt; Peek::Empty,
             (<span class="prelude-val">Some</span>(envelope), <span class="bool-val">true</span>) =&gt; Peek::Ready(envelope),
-            (<span class="prelude-val">Some</span>(envelope), <span class="bool-val">false</span>) =&gt; Peek::NotReady(envelope),
+            (<span class="prelude-val">Some</span>(envelope), <span class="bool-val">false</span>) =&gt; Peek::NotReady(<span class="kw-2">*</span>stack_key, envelope),
         })
     }
 
@@ -1103,6 +1135,17 @@
         changed
     }
 
+    <span class="doccomment">/// Marks a stack as seen.
+    ///
+    /// Non-ready stacks are deprioritized when they are marked as seen, such that
+    /// the next call to `.peek()` will look at a different stack. This prevents
+    /// head-of-line blocking.
+    </span><span class="kw">pub fn </span>mark_seen(<span class="kw-2">&amp;mut </span><span class="self">self</span>, stack_key: <span class="kw-2">&amp;</span>StackKey) {
+        <span class="self">self</span>.priority_queue.change_priority_by(stack_key, |stack| {
+            stack.last_peek = Instant::now();
+        });
+    }
+
     <span class="kw">fn </span>push_stack(<span class="kw-2">&amp;mut </span><span class="self">self</span>, envelope: Box&lt;Envelope&gt;) {
         <span class="kw">let </span>received_at = envelope.meta().start_time();
         <span class="kw">let </span>stack_key = StackKey::from_envelope(<span class="kw-2">&amp;</span>envelope);
@@ -1149,7 +1192,7 @@
 </span><span class="kw">pub enum </span>Peek&lt;<span class="lifetime">'a</span>&gt; {
     Empty,
     Ready(<span class="kw-2">&amp;</span><span class="lifetime">'a </span>Envelope),
-    NotReady(<span class="kw-2">&amp;</span><span class="lifetime">'a </span>Envelope),
+    NotReady(StackKey, <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Envelope),
 }
 
 <span class="attr">#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -1304,7 +1347,7 @@
         <span class="kw">fn </span>envelope(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Envelope&gt; {
             <span class="kw">match </span><span class="self">self </span>{
                 Peek::Empty =&gt; <span class="prelude-val">None</span>,
-                Peek::Ready(envelope) | Peek::NotReady(envelope) =&gt; <span class="prelude-val">Some</span>(envelope),
+                Peek::Ready(envelope) | Peek::NotReady(<span class="kw">_</span>, envelope) =&gt; <span class="prelude-val">Some</span>(envelope),
             }
         }
     }
@@ -1640,8 +1683,7 @@
         <span class="macro">assert_eq!</span>(buffer.priority_queue.len(), <span class="number">2</span>);
     }
 
-    <span class="attr">#[ignore = <span class="string">"last_peek disabled for now"</span>]
-    #[tokio::test]
+    <span class="attr">#[tokio::test]
     </span><span class="kw">async fn </span>test_last_peek_internal_order() {
         <span class="kw">let </span><span class="kw-2">mut </span>buffer = EnvelopeBuffer::&lt;MemoryStackProvider&gt;::new(mock_memory_checker());
 
@@ -1651,45 +1693,43 @@
 
         <span class="kw">let </span>project_key_2 = ProjectKey::parse(<span class="string">"b56ae32be2584e0bbd7a4cbb95971fed"</span>).unwrap();
         <span class="kw">let </span>event_id_2 = EventId::new();
-        <span class="kw">let </span><span class="kw-2">mut </span>envelope2 = new_envelope(project_key_2, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(event_id_2));
-        envelope2.set_start_time(envelope1.meta().start_time());
+        <span class="kw">let </span>envelope2 = new_envelope(project_key_2, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(event_id_2));
 
         buffer.push(envelope1).<span class="kw">await</span>.unwrap();
         buffer.push(envelope2).<span class="kw">await</span>.unwrap();
 
-        <span class="macro">assert_eq!</span>(
-            buffer
-                .peek()
-                .<span class="kw">await
-                </span>.unwrap()
-                .envelope()
-                .unwrap()
-                .event_id()
-                .unwrap(),
-            event_id_1
-        );
-        <span class="macro">assert_eq!</span>(
-            buffer
-                .peek()
-                .<span class="kw">await
-                </span>.unwrap()
-                .envelope()
-                .unwrap()
-                .event_id()
-                .unwrap(),
-            event_id_2
-        );
-        <span class="macro">assert_eq!</span>(
-            buffer
-                .peek()
-                .<span class="kw">await
-                </span>.unwrap()
-                .envelope()
-                .unwrap()
-                .event_id()
-                .unwrap(),
-            event_id_1
-        );
+        <span class="comment">// event_id_1 is first element:
+        </span><span class="kw">let </span>Peek::NotReady(<span class="kw">_</span>, envelope) = buffer.peek().<span class="kw">await</span>.unwrap() <span class="kw">else </span>{
+            <span class="macro">panic!</span>();
+        };
+        <span class="macro">assert_eq!</span>(envelope.event_id(), <span class="prelude-val">Some</span>(event_id_1));
+
+        <span class="comment">// Second peek returns same element:
+        </span><span class="kw">let </span>Peek::NotReady(stack_key, envelope) = buffer.peek().<span class="kw">await</span>.unwrap() <span class="kw">else </span>{
+            <span class="macro">panic!</span>();
+        };
+        <span class="macro">assert_eq!</span>(envelope.event_id(), <span class="prelude-val">Some</span>(event_id_1));
+
+        buffer.mark_seen(<span class="kw-2">&amp;</span>stack_key);
+
+        <span class="comment">// After mark_seen, event 2 is on top:
+        </span><span class="kw">let </span>Peek::NotReady(<span class="kw">_</span>, envelope) = buffer.peek().<span class="kw">await</span>.unwrap() <span class="kw">else </span>{
+            <span class="macro">panic!</span>();
+        };
+        <span class="macro">assert_eq!</span>(envelope.event_id(), <span class="prelude-val">Some</span>(event_id_2));
+
+        <span class="kw">let </span>Peek::NotReady(stack_key, envelope) = buffer.peek().<span class="kw">await</span>.unwrap() <span class="kw">else </span>{
+            <span class="macro">panic!</span>();
+        };
+        <span class="macro">assert_eq!</span>(envelope.event_id(), <span class="prelude-val">Some</span>(event_id_2));
+
+        buffer.mark_seen(<span class="kw-2">&amp;</span>stack_key);
+
+        <span class="comment">// After another mark_seen, cycle back to event 1:
+        </span><span class="kw">let </span>Peek::NotReady(<span class="kw">_</span>, envelope) = buffer.peek().<span class="kw">await</span>.unwrap() <span class="kw">else </span>{
+            <span class="macro">panic!</span>();
+        };
+        <span class="macro">assert_eq!</span>(envelope.event_id(), <span class="prelude-val">Some</span>(event_id_1));
     }
 }
 </code></pre></div></section></main></body></html>
