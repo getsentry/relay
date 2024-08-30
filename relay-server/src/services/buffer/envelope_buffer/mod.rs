@@ -15,7 +15,7 @@ use crate::services::buffer::envelope_store::EnvelopeProjectKeys;
 use crate::services::buffer::stack_provider::memory::MemoryStackProvider;
 use crate::services::buffer::stack_provider::sqlite::SqliteStackProvider;
 use crate::services::buffer::stack_provider::StackProvider;
-use crate::statsd::{RelayCounters, RelayGauges};
+use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
 use crate::utils::MemoryChecker;
 
 /// Polymorphic envelope buffering interface.
@@ -38,12 +38,19 @@ pub enum PolymorphicEnvelopeBuffer {
 impl PolymorphicEnvelopeBuffer {
     /// Creates either a memory-based or a disk-based envelope buffer,
     /// depending on the given configuration.
-    pub async fn from_config(config: &Config, memory_checker: MemoryChecker) -> Self {
-        if config.spool_envelopes_path().is_some() {
-            panic!("Disk backend not yet supported for spool V2");
-        }
+    pub async fn from_config(
+        config: &Config,
+        memory_checker: MemoryChecker,
+    ) -> Result<Self, EnvelopeBufferError> {
+        let buffer = if config.spool_envelopes_path().is_some() {
+            let buffer = EnvelopeBuffer::<SqliteStackProvider>::new(config).await?;
+            Self::Sqlite(buffer)
+        } else {
+            let buffer = EnvelopeBuffer::<MemoryStackProvider>::new(memory_checker);
+            Self::InMemory(buffer)
+        };
 
-        Self::InMemory(EnvelopeBuffer::<MemoryStackProvider>::new(memory_checker))
+        Ok(buffer)
     }
 
     /// Initializes the envelope buffer.
@@ -150,7 +157,7 @@ impl EnvelopeBuffer<MemoryStackProvider> {
 #[allow(dead_code)]
 impl EnvelopeBuffer<SqliteStackProvider> {
     /// Creates an empty sqlite-based buffer.
-    pub async fn new(config: &Config) -> Result<Self, SqliteEnvelopeStoreError> {
+    pub async fn new(config: &Config) -> Result<Self, EnvelopeBufferError> {
         Ok(Self {
             stacks_by_project: Default::default(),
             priority_queue: Default::default(),
@@ -163,12 +170,14 @@ impl<P: StackProvider> EnvelopeBuffer<P>
 where
     EnvelopeBufferError: From<<P::Stack as EnvelopeStack>::Error>,
 {
-    /// Initializes the [`EnvelopeBuffer`] given the [`InitializationState`] from the
+    /// Initializes the [`EnvelopeBuffer`] given the initialization state from the
     /// [`StackProvider`].
     pub async fn initialize(&mut self) {
-        let initialization_state = self.stack_provider.initialize().await;
-        self.load_stacks(initialization_state.envelopes_projects_keys)
-            .await;
+        relay_statsd::metric!(timer(RelayTimers::SpoolInitialization), {
+            let initialization_state = self.stack_provider.initialize().await;
+            self.load_stacks(initialization_state.envelopes_projects_keys)
+                .await;
+        });
     }
 
     /// Pushes an envelope to the appropriate envelope stack and re-prioritizes the stack.
@@ -254,8 +263,8 @@ where
     /// Returns `true` if at least one priority was changed.
     pub fn mark_ready(&mut self, project: &ProjectKey, is_ready: bool) -> bool {
         let mut changed = false;
-        if let Some(envelope_project_keyss) = self.stacks_by_project.get(project) {
-            for envelope_project_keys in envelope_project_keyss {
+        if let Some(envelope_project_keys) = self.stacks_by_project.get(project) {
+            for envelope_project_keys in envelope_project_keys {
                 self.priority_queue
                     .change_priority_by(envelope_project_keys, |stack| {
                         let mut found = false;

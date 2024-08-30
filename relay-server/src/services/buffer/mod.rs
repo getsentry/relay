@@ -215,11 +215,15 @@ impl Service for EnvelopeBufferService {
         let config = self.config.clone();
         let memory_checker = self.memory_checker.clone();
         tokio::spawn(async move {
-            let mut buffer = PolymorphicEnvelopeBuffer::from_config(&config, memory_checker).await;
+            let mut buffer = PolymorphicEnvelopeBuffer::from_config(&config, memory_checker)
+                .await
+                .expect("Envelope buffer couldn't be initialized from the config");
+            buffer.initialize().await;
 
             relay_log::info!("EnvelopeBufferService start");
             loop {
                 relay_log::trace!("EnvelopeBufferService loop");
+
                 tokio::select! {
                     // NOTE: we do not select a bias here.
                     // On the one hand, we might want to prioritize dequeing over enqueing
@@ -239,8 +243,10 @@ impl Service for EnvelopeBufferService {
 
                     else => break,
                 }
+
                 self.update_observable_state(&mut buffer);
             }
+
             relay_log::info!("EnvelopeBufferService stop");
         });
     }
