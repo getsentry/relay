@@ -10,6 +10,7 @@ use serde::Deserialize;
 
 use crate::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, Items};
 use crate::service::ServiceState;
+use crate::services::buffer::EnvelopeBuffer;
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{MetricData, ProcessMetricMeta, ProcessingGroup};
 use crate::services::project_cache::{CheckEnvelope, ProcessMetrics, ValidateEnvelope};
@@ -315,7 +316,9 @@ fn queue_envelope(
                 // envelope's projects. See `handle_check_envelope`.
                 relay_log::trace!("Pushing envelope to V2 buffer");
 
-                buffer.defer_push(envelope);
+                buffer
+                    .addr()
+                    .send(EnvelopeBuffer::Push(envelope.into_envelope()));
             }
             None => {
                 relay_log::trace!("Sending envelope to project cache for V1 buffer");

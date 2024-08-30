@@ -19,6 +19,7 @@
 - Add `EnvelopeStore` trait and implement `DiskUsage` for tracking disk usage. ([#3925](https://github.com/getsentry/relay/pull/3925))
 - Increase replay recording limit to two hours. ([#3961](https://github.com/getsentry/relay/pull/3961))
 - Forward profiles of non-sampled transactions (with no options filtering). ([#3963](https://github.com/getsentry/relay/pull/3963))
+- Make EnvelopeBuffer a Service. ([#3965](https://github.com/getsentry/relay/pull/3965))
 
 **Internal**:
 
