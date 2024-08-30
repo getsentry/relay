@@ -255,6 +255,12 @@ pub struct RefreshIndexCache(pub HashSet<QueueKey>);
 /// Handle an envelope that was popped from the envelope buffer.
 pub struct DequeuedEnvelope(pub Box<Envelope>);
 
+/// A request to update a project, typically sent by the envelope buffer.
+///
+/// This message is similar to [`GetProjectState`], except it has no `no_cache` option
+/// and it does not send a response, but sends a signal back to the buffer instead.
+pub struct UpdateProject(pub ProjectKey);
+
 /// A cache for [`ProjectState`]s.
 ///
 /// The project maintains information about organizations, projects, and project keys along with
@@ -287,6 +293,7 @@ pub enum ProjectCache {
     SpoolHealth(Sender<bool>),
     RefreshIndexCache(RefreshIndexCache),
     HandleDequeuedEnvelope(Box<Envelope>),
+    UpdateProject(ProjectKey),
 }
 
 impl ProjectCache {
@@ -305,6 +312,7 @@ impl ProjectCache {
             Self::SpoolHealth(_) => "SpoolHealth",
             Self::RefreshIndexCache(_) => "RefreshIndexCache",
             Self::HandleDequeuedEnvelope(_) => "HandleDequeuedEnvelope",
+            Self::UpdateProject(_) => "UpdateProject",
         }
     }
 }
@@ -416,6 +424,15 @@ impl FromMessage<DequeuedEnvelope> for ProjectCache {
     fn from_message(message: DequeuedEnvelope, _: ()) -> Self {
         let DequeuedEnvelope(envelope) = message;
         Self::HandleDequeuedEnvelope(envelope)
+    }
+}
+
+impl FromMessage<UpdateProject> for ProjectCache {
+    type Response = relay_system::NoResponse;
+
+    fn from_message(message: UpdateProject, _: ()) -> Self {
+        let UpdateProject(project_key) = message;
+        Self::UpdateProject(project_key)
     }
 }
 
@@ -779,15 +796,7 @@ impl ProjectCacheBroker {
             no_cache,
         } = message;
         let project_cache = self.services.project_cache.clone();
-        let envelope_buffer = self.services.envelope_buffer.clone();
         let project = self.get_or_create_project(project_key);
-
-        // If the project is already loaded, inform the envelope buffer.
-        if !project.current_state().is_pending() {
-            if let Some(envelope_buffer) = envelope_buffer {
-                envelope_buffer.send(EnvelopeBuffer::Ready(project_key));
-            }
-        }
 
         project.get_state(project_cache, sender, no_cache);
     }
@@ -1175,6 +1184,22 @@ impl ProjectCacheBroker {
         Ok(())
     }
 
+    fn handle_update_project(&mut self, project_key: ProjectKey) {
+        let project_cache = self.services.project_cache.clone();
+        let envelope_buffer = self.services.envelope_buffer.clone();
+        let project = self.get_or_create_project(project_key);
+
+        // If the project is already loaded, inform the envelope buffer.
+        if !project.current_state().is_pending() {
+            if let Some(envelope_buffer) = envelope_buffer {
+                envelope_buffer.send(EnvelopeBuffer::Ready(project_key));
+            }
+        }
+
+        let no_cache = false;
+        project.prefetch(project_cache, no_cache);
+    }
+
     /// Returns backoff timeout for an unspool attempt.
     fn next_unspool_attempt(&mut self) -> Duration {
         let spool_v1 = self.spool_v1.as_mut().expect("no V1 spool configured");
@@ -1305,6 +1330,7 @@ impl ProjectCacheBroker {
                             );
                         }
                     }
+                    ProjectCache::UpdateProject(project) => self.handle_update_project(project),
                 }
             }
         )
