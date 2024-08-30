@@ -15,6 +15,7 @@ use relay_config::{Config, RedisConnection, RedisPoolConfigs};
 use relay_redis::{RedisConfigOptions, RedisError, RedisPool, RedisPools};
 use relay_system::{channel, Addr, Service};
 use tokio::runtime::Runtime;
+use tokio::sync::mpsc;
 
 use crate::services::cogs::{CogsService, CogsServiceRecorder};
 use crate::services::global_config::{GlobalConfigManager, GlobalConfigService};
@@ -240,9 +241,11 @@ impl ServiceState {
         )
         .spawn_handler(processor_rx);
 
+        let (envelope_tx, envelope_rx) = mpsc::channel(1);
         let envelope_buffer = EnvelopeBufferService::new(
             &config,
             MemoryChecker::new(memory_stat.clone(), config.clone()),
+            envelope_tx,
             project_cache.clone(),
         )
         .map(|b| b.start_observable());
@@ -263,6 +266,7 @@ impl ServiceState {
             config.clone(),
             MemoryChecker::new(memory_stat.clone(), config.clone()),
             project_cache_services,
+            envelope_rx,
             redis_pools
                 .as_ref()
                 .map(|pools| pools.project_configs.clone()),
