@@ -1,9 +1,9 @@
 //! Types for buffering envelopes.
 
-use std::future;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use std::time::Duration;
 
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
@@ -12,8 +12,8 @@ use relay_system::{Addr, FromMessage, Interface, NoResponse, Receiver, Service};
 use crate::envelope::Envelope;
 use crate::services::buffer::envelope_buffer::Peek;
 use crate::services::project_cache::DequeuedEnvelope;
-use crate::services::project_cache::GetProjectState;
 use crate::services::project_cache::ProjectCache;
+use crate::services::project_cache::UpdateProject;
 use crate::statsd::RelayCounters;
 use crate::utils::MemoryChecker;
 
@@ -88,8 +88,10 @@ pub struct EnvelopeBufferService {
     memory_checker: MemoryChecker,
     project_cache: Addr<ProjectCache>,
     has_capacity: Arc<AtomicBool>,
-    changes: bool,
+    sleep: Duration,
 }
+
+const DEFAULT_SLEEP: Duration = Duration::from_millis(100);
 
 impl EnvelopeBufferService {
     /// Creates a memory or disk based [`EnvelopeBufferService`], depending on the given config.
@@ -106,7 +108,7 @@ impl EnvelopeBufferService {
             memory_checker,
             project_cache,
             has_capacity: Arc::new(AtomicBool::new(true)),
-            changes: true,
+            sleep: Duration::ZERO,
         })
     }
 
@@ -119,16 +121,6 @@ impl EnvelopeBufferService {
         }
     }
 
-    /// Return immediately if changes were flagged, otherwise sleep forever.
-    ///
-    /// NOTE: This function sleeps indefinitely if no changes were flagged.
-    /// Only use in combination with [`tokio::select!`].
-    async fn wait_for_changes(&mut self) {
-        if !self.changes {
-            let _: () = future::pending().await; // wait until cancelled
-        }
-    }
-
     /// Tries to pop an envelope for a ready project.
     async fn try_pop(
         &mut self,
@@ -138,7 +130,7 @@ impl EnvelopeBufferService {
         match buffer.peek().await? {
             Peek::Empty => {
                 relay_log::trace!("EnvelopeBufferService empty");
-                self.changes = false;
+                self.sleep = Duration::MAX; // wait for reset by `handle_message`.
             }
             Peek::Ready(_) => {
                 relay_log::trace!("EnvelopeBufferService pop");
@@ -147,20 +139,22 @@ impl EnvelopeBufferService {
                     .await?
                     .expect("Element disappeared despite exclusive excess");
                 self.project_cache.send(DequeuedEnvelope(envelope));
-                self.changes = true;
+                self.sleep = Duration::ZERO; // try next pop immediately
             }
-            Peek::NotReady(envelope) => {
+            Peek::NotReady(stack_key, envelope) => {
                 relay_log::trace!("EnvelopeBufferService request update");
                 let project_key = envelope.meta().public_key();
-                self.project_cache.send(GetProjectState::new(project_key));
+                self.project_cache.send(UpdateProject(project_key));
                 match envelope.sampling_key() {
                     None => {}
                     Some(sampling_key) if sampling_key == project_key => {} // already sent.
                     Some(sampling_key) => {
-                        self.project_cache.send(GetProjectState::new(sampling_key));
+                        self.project_cache.send(UpdateProject(sampling_key));
                     }
                 }
-                self.changes = false;
+                // deprioritize the stack to prevent head-of-line blocking
+                buffer.mark_seen(&stack_key);
+                self.sleep = DEFAULT_SLEEP;
             }
         }
         Ok(())
@@ -191,7 +185,7 @@ impl EnvelopeBufferService {
                 buffer.mark_ready(&project_key, true);
             }
         };
-        self.changes = true;
+        self.sleep = Duration::ZERO;
     }
 
     async fn push(&mut self, buffer: &mut PolymorphicEnvelopeBuffer, envelope: Box<Envelope>) {
@@ -230,7 +224,7 @@ impl Service for EnvelopeBufferService {
                     // On the one hand, we might want to prioritize dequeing over enqueing
                     // so we do not exceed the buffer capacity by starving the dequeue.
                     // on the other hand, prioritizing old messages violates the LIFO design.
-                    () = self.wait_for_changes() => {
+                    () = tokio::time::sleep(self.sleep) => {
                         if let Err(e) = self.try_pop(&mut buffer).await {
                             relay_log::error!(
                                 error = &e as &dyn std::error::Error,
