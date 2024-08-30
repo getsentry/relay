@@ -1757,6 +1757,32 @@
 <a href="#1757" id="1757">1757</a>
 <a href="#1758" id="1758">1758</a>
 <a href="#1759" id="1759">1759</a>
+<a href="#1760" id="1760">1760</a>
+<a href="#1761" id="1761">1761</a>
+<a href="#1762" id="1762">1762</a>
+<a href="#1763" id="1763">1763</a>
+<a href="#1764" id="1764">1764</a>
+<a href="#1765" id="1765">1765</a>
+<a href="#1766" id="1766">1766</a>
+<a href="#1767" id="1767">1767</a>
+<a href="#1768" id="1768">1768</a>
+<a href="#1769" id="1769">1769</a>
+<a href="#1770" id="1770">1770</a>
+<a href="#1771" id="1771">1771</a>
+<a href="#1772" id="1772">1772</a>
+<a href="#1773" id="1773">1773</a>
+<a href="#1774" id="1774">1774</a>
+<a href="#1775" id="1775">1775</a>
+<a href="#1776" id="1776">1776</a>
+<a href="#1777" id="1777">1777</a>
+<a href="#1778" id="1778">1778</a>
+<a href="#1779" id="1779">1779</a>
+<a href="#1780" id="1780">1780</a>
+<a href="#1781" id="1781">1781</a>
+<a href="#1782" id="1782">1782</a>
+<a href="#1783" id="1783">1783</a>
+<a href="#1784" id="1784">1784</a>
+<a href="#1785" id="1785">1785</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
@@ -2014,6 +2040,12 @@
 <span class="doccomment">/// Handle an envelope that was popped from the envelope buffer.
 </span><span class="kw">pub struct </span>DequeuedEnvelope(<span class="kw">pub </span>Box&lt;Envelope&gt;);
 
+<span class="doccomment">/// A request to update a project, typically sent by the envelope buffer.
+///
+/// This message is similar to [`GetProjectState`], except it has no `no_cache` option
+/// and it does not send a response, but sends a signal back to the buffer instead.
+</span><span class="kw">pub struct </span>UpdateProject(<span class="kw">pub </span>ProjectKey);
+
 <span class="doccomment">/// A cache for [`ProjectState`]s.
 ///
 /// The project maintains information about organizations, projects, and project keys along with
@@ -2046,6 +2078,7 @@
     SpoolHealth(Sender&lt;bool&gt;),
     RefreshIndexCache(RefreshIndexCache),
     HandleDequeuedEnvelope(Box&lt;Envelope&gt;),
+    UpdateProject(ProjectKey),
 }
 
 <span class="kw">impl </span>ProjectCache {
@@ -2064,6 +2097,7 @@
             <span class="self">Self</span>::SpoolHealth(<span class="kw">_</span>) =&gt; <span class="string">"SpoolHealth"</span>,
             <span class="self">Self</span>::RefreshIndexCache(<span class="kw">_</span>) =&gt; <span class="string">"RefreshIndexCache"</span>,
             <span class="self">Self</span>::HandleDequeuedEnvelope(<span class="kw">_</span>) =&gt; <span class="string">"HandleDequeuedEnvelope"</span>,
+            <span class="self">Self</span>::UpdateProject(<span class="kw">_</span>) =&gt; <span class="string">"UpdateProject"</span>,
         }
     }
 }
@@ -2175,6 +2209,15 @@
     <span class="kw">fn </span>from_message(message: DequeuedEnvelope, <span class="kw">_</span>: ()) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>DequeuedEnvelope(envelope) = message;
         <span class="self">Self</span>::HandleDequeuedEnvelope(envelope)
+    }
+}
+
+<span class="kw">impl </span>FromMessage&lt;UpdateProject&gt; <span class="kw">for </span>ProjectCache {
+    <span class="kw">type </span>Response = relay_system::NoResponse;
+
+    <span class="kw">fn </span>from_message(message: UpdateProject, <span class="kw">_</span>: ()) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>UpdateProject(project_key) = message;
+        <span class="self">Self</span>::UpdateProject(project_key)
     }
 }
 
@@ -2538,15 +2581,7 @@
             no_cache,
         } = message;
         <span class="kw">let </span>project_cache = <span class="self">self</span>.services.project_cache.clone();
-        <span class="kw">let </span>envelope_buffer = <span class="self">self</span>.services.envelope_buffer.clone();
         <span class="kw">let </span>project = <span class="self">self</span>.get_or_create_project(project_key);
-
-        <span class="comment">// If the project is already loaded, inform the envelope buffer.
-        </span><span class="kw">if </span>!project.current_state().is_pending() {
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(envelope_buffer) = envelope_buffer {
-                envelope_buffer.send(EnvelopeBuffer::Ready(project_key));
-            }
-        }
 
         project.get_state(project_cache, sender, no_cache);
     }
@@ -2934,6 +2969,22 @@
         <span class="prelude-val">Ok</span>(())
     }
 
+    <span class="kw">fn </span>handle_update_project(<span class="kw-2">&amp;mut </span><span class="self">self</span>, project_key: ProjectKey) {
+        <span class="kw">let </span>project_cache = <span class="self">self</span>.services.project_cache.clone();
+        <span class="kw">let </span>envelope_buffer = <span class="self">self</span>.services.envelope_buffer.clone();
+        <span class="kw">let </span>project = <span class="self">self</span>.get_or_create_project(project_key);
+
+        <span class="comment">// If the project is already loaded, inform the envelope buffer.
+        </span><span class="kw">if </span>!project.current_state().is_pending() {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(envelope_buffer) = envelope_buffer {
+                envelope_buffer.send(EnvelopeBuffer::Ready(project_key));
+            }
+        }
+
+        <span class="kw">let </span>no_cache = <span class="bool-val">false</span>;
+        project.prefetch(project_cache, no_cache);
+    }
+
     <span class="doccomment">/// Returns backoff timeout for an unspool attempt.
     </span><span class="kw">fn </span>next_unspool_attempt(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Duration {
         <span class="kw">let </span>spool_v1 = <span class="self">self</span>.spool_v1.as_mut().expect(<span class="string">"no V1 spool configured"</span>);
@@ -3064,6 +3115,7 @@
                             </span>);
                         }
                     }
+                    ProjectCache::UpdateProject(project) =&gt; <span class="self">self</span>.handle_update_project(project),
                 }
             }
         )

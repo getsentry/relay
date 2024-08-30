@@ -286,8 +286,8 @@
 <span class="kw">use </span><span class="kw">crate</span>::envelope::Envelope;
 <span class="kw">use </span><span class="kw">crate</span>::services::buffer::envelope_buffer::Peek;
 <span class="kw">use </span><span class="kw">crate</span>::services::project_cache::DequeuedEnvelope;
-<span class="kw">use </span><span class="kw">crate</span>::services::project_cache::GetProjectState;
 <span class="kw">use </span><span class="kw">crate</span>::services::project_cache::ProjectCache;
+<span class="kw">use </span><span class="kw">crate</span>::services::project_cache::UpdateProject;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
 <span class="kw">use </span><span class="kw">crate</span>::utils::MemoryChecker;
 
@@ -418,12 +418,12 @@
             Peek::NotReady(envelope) =&gt; {
                 <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService request update"</span>);
                 <span class="kw">let </span>project_key = envelope.meta().public_key();
-                <span class="self">self</span>.project_cache.send(GetProjectState::new(project_key));
+                <span class="self">self</span>.project_cache.send(UpdateProject(project_key));
                 <span class="kw">match </span>envelope.sampling_key() {
                     <span class="prelude-val">None </span>=&gt; {}
                     <span class="prelude-val">Some</span>(sampling_key) <span class="kw">if </span>sampling_key == project_key =&gt; {} <span class="comment">// already sent.
                     </span><span class="prelude-val">Some</span>(sampling_key) =&gt; {
-                        <span class="self">self</span>.project_cache.send(GetProjectState::new(sampling_key));
+                        <span class="self">self</span>.project_cache.send(UpdateProject(sampling_key));
                     }
                 }
                 <span class="self">self</span>.changes = <span class="bool-val">false</span>;
