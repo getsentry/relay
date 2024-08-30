@@ -1,10 +1,10 @@
 use relay_config::Config;
 use std::error::Error;
 
+use crate::services::buffer::common::ProjectKeyPair;
 use crate::services::buffer::envelope_store::sqlite::{
     SqliteEnvelopeStore, SqliteEnvelopeStoreError,
 };
-use crate::services::buffer::envelope_store::EnvelopeProjectKeys;
 use crate::services::buffer::stack_provider::{InitializationState, StackProvider};
 use crate::SqliteEnvelopeStack;
 
@@ -35,7 +35,7 @@ impl StackProvider for SqliteStackProvider {
 
     async fn initialize(&self) -> InitializationState {
         match self.envelope_store.project_key_pairs().await {
-            Ok(envelopes_project_keys) => InitializationState::new(envelopes_project_keys),
+            Ok(project_key_pairs) => InitializationState::new(project_key_pairs),
             Err(error) => {
                 relay_log::error!(
                     error = &error as &dyn Error,
@@ -46,13 +46,13 @@ impl StackProvider for SqliteStackProvider {
         }
     }
 
-    fn create_stack(&self, envelope_project_keys: EnvelopeProjectKeys) -> Self::Stack {
+    fn create_stack(&self, project_key_pair: ProjectKeyPair) -> Self::Stack {
         SqliteEnvelopeStack::new(
             self.envelope_store.clone(),
             self.disk_batch_size,
             self.max_batches,
-            envelope_project_keys.own_key,
-            envelope_project_keys.sampling_key,
+            project_key_pair.own_key,
+            project_key_pair.sampling_key,
         )
     }
 

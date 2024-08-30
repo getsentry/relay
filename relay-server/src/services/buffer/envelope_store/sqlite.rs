@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use crate::envelope::EnvelopeError;
 use crate::extractors::StartTime;
-use crate::services::buffer::envelope_store::EnvelopeProjectKeys;
+use crate::services::buffer::common::ProjectKeyPair;
 use crate::statsd::RelayGauges;
 use crate::Envelope;
 use futures::stream::StreamExt;
@@ -382,19 +382,19 @@ impl SqliteEnvelopeStore {
     /// `own_key` and `project_key` that are found in the database.
     pub async fn project_key_pairs(
         &self,
-    ) -> Result<HashSet<EnvelopeProjectKeys>, SqliteEnvelopeStoreError> {
-        let envelopes_project_keys = build_get_project_key_pairs()
+    ) -> Result<HashSet<ProjectKeyPair>, SqliteEnvelopeStoreError> {
+        let project_key_pairs = build_get_project_key_pairs()
             .fetch_all(&self.db)
             .await
             .map_err(SqliteEnvelopeStoreError::FetchError)?;
 
-        let envelopes_project_keys = envelopes_project_keys
+        let project_key_pairs = project_key_pairs
             .into_iter()
             // Collect only keys we can extract.
             .filter_map(|project_key_pair| extract_project_key_pair(project_key_pair).ok())
             .collect();
 
-        Ok(envelopes_project_keys)
+        Ok(project_key_pairs)
     }
 
     /// Returns an approximate measure of the used size of the database.
@@ -423,9 +423,7 @@ fn extract_envelope(row: SqliteRow) -> Result<Box<Envelope>, SqliteEnvelopeStore
 }
 
 /// Deserializes a pair of [`ProjectKey`] from the database.
-fn extract_project_key_pair(
-    row: SqliteRow,
-) -> Result<EnvelopeProjectKeys, SqliteEnvelopeStoreError> {
+fn extract_project_key_pair(row: SqliteRow) -> Result<ProjectKeyPair, SqliteEnvelopeStoreError> {
     let own_key = row
         .try_get("own_key")
         .map_err(SqliteEnvelopeStoreError::FetchError)
@@ -440,7 +438,7 @@ fn extract_project_key_pair(
         });
 
     match (own_key, sampling_key) {
-        (Ok(own_key), Ok(sampling_key)) => Ok(EnvelopeProjectKeys::new(own_key, sampling_key)),
+        (Ok(own_key), Ok(sampling_key)) => Ok(ProjectKeyPair::new(own_key, sampling_key)),
         // Report the first found error.
         (Err(err), _) | (_, Err(err)) => {
             relay_log::error!("failed to extract a queue key from the spool record: {err}");
@@ -561,7 +559,7 @@ mod tests {
         assert_eq!(project_key_pairs.len(), 1);
         assert_eq!(
             project_key_pairs.into_iter().last().unwrap(),
-            EnvelopeProjectKeys::new(own_key, sampling_key)
+            ProjectKeyPair::new(own_key, sampling_key)
         );
     }
 

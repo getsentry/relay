@@ -1,4 +1,4 @@
-use crate::services::buffer::envelope_store::EnvelopeProjectKeys;
+use crate::services::buffer::common::ProjectKeyPair;
 use crate::EnvelopeStack;
 use hashbrown::HashSet;
 use std::future::Future;
@@ -11,21 +11,19 @@ pub mod sqlite;
 /// This state is necessary for initializing resources whenever a [`StackProvider`] is used.
 #[derive(Debug)]
 pub struct InitializationState {
-    pub envelopes_projects_keys: HashSet<EnvelopeProjectKeys>,
+    pub project_key_pairs: HashSet<ProjectKeyPair>,
 }
 
 impl InitializationState {
     /// Create a new [`InitializationState`].
-    pub fn new(envelopes_projects_keys: HashSet<EnvelopeProjectKeys>) -> Self {
-        Self {
-            envelopes_projects_keys,
-        }
+    pub fn new(project_key_pairs: HashSet<ProjectKeyPair>) -> Self {
+        Self { project_key_pairs }
     }
 
     /// Creates a new empty [`InitializationState`].
     pub fn empty() -> Self {
         Self {
-            envelopes_projects_keys: HashSet::new(),
+            project_key_pairs: HashSet::new(),
         }
     }
 }
@@ -39,7 +37,7 @@ pub trait StackProvider: std::fmt::Debug {
     fn initialize(&self) -> impl Future<Output = InitializationState>;
 
     /// Creates an [`EnvelopeStack`].
-    fn create_stack(&self, envelope_project_keys: EnvelopeProjectKeys) -> Self::Stack;
+    fn create_stack(&self, project_key_pair: ProjectKeyPair) -> Self::Stack;
 
     /// Returns `true` if the store used by this [`StackProvider`] has space to add new
     /// stacks or items to the stacks.

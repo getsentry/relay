@@ -26,6 +26,7 @@ pub use envelope_stack::EnvelopeStack;
 pub use envelope_store::sqlite::SqliteEnvelopeStore;
 // pub for benchmarks
 
+mod common;
 mod envelope_buffer;
 mod envelope_stack;
 mod envelope_store;

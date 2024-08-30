@@ -1,5 +1,5 @@
+use crate::services::buffer::common::ProjectKeyPair;
 use crate::services::buffer::envelope_stack::memory::MemoryEnvelopeStack;
-use crate::services::buffer::envelope_store::EnvelopeProjectKeys;
 use crate::services::buffer::stack_provider::{InitializationState, StackProvider};
 use crate::utils::MemoryChecker;
 
@@ -23,7 +23,7 @@ impl StackProvider for MemoryStackProvider {
         InitializationState::empty()
     }
 
-    fn create_stack(&self, _: EnvelopeProjectKeys) -> Self::Stack {
+    fn create_stack(&self, _: ProjectKeyPair) -> Self::Stack {
         MemoryEnvelopeStack::new()
     }
 
