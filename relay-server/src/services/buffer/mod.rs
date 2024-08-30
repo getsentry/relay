@@ -141,7 +141,7 @@ impl EnvelopeBufferService {
                 self.project_cache.send(DequeuedEnvelope(envelope));
                 self.changes = true;
             }
-            Peek::NotReady(envelope) => {
+            Peek::NotReady(stack_key, envelope) => {
                 relay_log::trace!("EnvelopeBufferService request update");
                 let project_key = envelope.meta().public_key();
                 self.project_cache.send(UpdateProject(project_key));
@@ -152,6 +152,8 @@ impl EnvelopeBufferService {
                         self.project_cache.send(UpdateProject(sampling_key));
                     }
                 }
+                // deprioritize the stack to prevent head-of-line blocking
+                self.buffer.mark_seen(&stack_key);
                 self.changes = false;
             }
         }
