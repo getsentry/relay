@@ -83,6 +83,7 @@ pub struct EnvelopeBufferService {
     buffer: PolymorphicEnvelopeBuffer,
     project_cache: Addr<ProjectCache>,
     has_capacity: Arc<AtomicBool>,
+    sleep: Duration,
 }
 
 const DEFAULT_SLEEP: Duration = Duration::from_millis(100);
@@ -101,6 +102,7 @@ impl EnvelopeBufferService {
             buffer: PolymorphicEnvelopeBuffer::from_config(config, memory_checker),
             project_cache,
             has_capacity: Arc::new(AtomicBool::new(true)),
+            sleep: Duration::ZERO,
         })
     }
 
@@ -116,13 +118,12 @@ impl EnvelopeBufferService {
     /// Tries to pop an envelope for a ready project.
     ///
     /// Returns the amount of time we should wait until next pop
-    async fn try_pop(&mut self) -> Result<Duration, EnvelopeBufferError> {
+    async fn try_pop(&mut self) -> Result<(), EnvelopeBufferError> {
         relay_log::trace!("EnvelopeBufferService peek");
-        let next_sleep;
         match self.buffer.peek().await? {
             Peek::Empty => {
                 relay_log::trace!("EnvelopeBufferService empty");
-                next_sleep = DEFAULT_SLEEP
+                self.sleep = Duration::MAX; // wait for reset by `handle_message`.
             }
             Peek::Ready(_) => {
                 relay_log::trace!("EnvelopeBufferService pop");
@@ -132,7 +133,7 @@ impl EnvelopeBufferService {
                     .await?
                     .expect("Element disappeared despite exclusive excess");
                 self.project_cache.send(DequeuedEnvelope(envelope));
-                next_sleep = Duration::ZERO; // try next pop immediately
+                self.sleep = Duration::ZERO; // try next pop immediately
             }
             Peek::NotReady(stack_key, envelope) => {
                 relay_log::trace!("EnvelopeBufferService request update");
@@ -147,10 +148,10 @@ impl EnvelopeBufferService {
                 }
                 // deprioritize the stack to prevent head-of-line blocking
                 self.buffer.mark_seen(&stack_key);
-                next_sleep = DEFAULT_SLEEP;
+                self.sleep = DEFAULT_SLEEP;
             }
         }
-        Ok(next_sleep)
+        Ok(())
     }
 
     async fn handle_message(&mut self, message: EnvelopeBuffer) {
@@ -174,6 +175,7 @@ impl EnvelopeBufferService {
                 self.buffer.mark_ready(&project_key, true);
             }
         };
+        self.sleep = Duration::ZERO;
     }
 
     async fn push(&mut self, envelope: Box<Envelope>) {
@@ -197,7 +199,6 @@ impl Service for EnvelopeBufferService {
     fn spawn_handler(mut self, mut rx: Receiver<Self::Interface>) {
         tokio::spawn(async move {
             relay_log::info!("EnvelopeBufferService start");
-            let mut sleep = Duration::ZERO;
             loop {
                 relay_log::trace!("EnvelopeBufferService loop");
                 tokio::select! {
@@ -205,13 +206,13 @@ impl Service for EnvelopeBufferService {
                     // On the one hand, we might want to prioritize dequeing over enqueing
                     // so we do not exceed the buffer capacity by starving the dequeue.
                     // on the other hand, prioritizing old messages violates the LIFO design.
-                    () = tokio::time::sleep(sleep) => {
-                        sleep = self.try_pop().await.map_err(|e| {
+                    () = tokio::time::sleep(self.sleep) => {
+                        if let Err(e) = self.try_pop().await {
                             relay_log::error!(
                                 error = &e as &dyn std::error::Error,
                                 "failed to pop envelope"
                             );
-                        }).unwrap_or(DEFAULT_SLEEP);
+                        }
                     }
                     Some(message) = rx.recv() => {
                         self.handle_message(message).await;
