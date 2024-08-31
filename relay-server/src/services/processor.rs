@@ -63,6 +63,7 @@ use {
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
+use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta};
 use crate::http;
@@ -1591,10 +1592,17 @@ impl EnvelopeProcessorService {
         let ai_model_costs = global_config.ai_model_costs.clone().ok();
         let http_span_allowed_hosts = global_config.options.http_span_allowed_hosts.as_slice();
 
+        let retention_days: i64 = state
+            .project_state
+            .config
+            .event_retention
+            .unwrap_or(DEFAULT_EVENT_RETENTION)
+            .into();
+
         utils::log_transaction_name_metrics(&mut state.event, |event| {
             let event_validation_config = EventValidationConfig {
                 received_at: Some(state.managed_envelope.received_at()),
-                max_secs_in_past: Some(self.inner.config.max_secs_in_past()),
+                max_secs_in_past: Some(retention_days * 24 * 3600),
                 max_secs_in_future: Some(self.inner.config.max_secs_in_future()),
                 transaction_timestamp_range: Some(
                     transaction_aggregator_config.aggregator.timestamp_range(),
@@ -1776,14 +1784,13 @@ impl EnvelopeProcessorService {
         };
 
         if let Some(outcome) = sampling_result.into_dropped_outcome() {
-            let keep_profiles = dynamic_sampling::forward_unsampled_profiles(state, &global_config);
+            let keep_profiles = global_config.options.unsampled_profiles_enabled;
             // Process profiles before dropping the transaction, if necessary.
             // Before metric extraction to make sure the profile count is reflected correctly.
             let profile_id = match keep_profiles {
                 true => profile::process(state),
                 false => profile_id,
             };
-
             // Extract metrics here, we're about to drop the event/transaction.
             self.extract_transaction_metrics(state, SamplingDecision::Drop, profile_id)?;
 

@@ -28,28 +28,33 @@ Event {
         id: ~,
         email: ~,
         ip_address: Meta {
-            remarks: [],
-            errors: [
-                Error {
-                    kind: InvalidData,
-                    data: {
-                        "reason": String(
-                            "expected an ip address",
+            remarks: [
+                Remark {
+                    ty: Substituted,
+                    rule_id: "@ip:replace",
+                    range: Some(
+                        (
+                            0,
+                            4,
                         ),
-                    },
+                    ),
+                },
+                Remark {
+                    ty: Removed,
+                    rule_id: "@anything:remove",
+                    range: None,
                 },
             ],
-            original_length: None,
-            original_value: Some(
-                String(
-                    "is this an ip address? [ip]",
-                ),
+            errors: [],
+            original_length: Some(
+                13,
             ),
+            original_value: None,
         },
-        username: Annotated(
-            LenientString(
-                "hey  man [ip]",
-            ),
+        username: ~,
+        name: ~,
+        sentry_user: Annotated(
+            "ip:[ip]",
             Meta {
                 remarks: [
                     Remark {
@@ -57,21 +62,19 @@ Event {
                         rule_id: "@ip:replace",
                         range: Some(
                             (
-                                9,
-                                13,
+                                3,
+                                7,
                             ),
                         ),
                     },
                 ],
                 errors: [],
                 original_length: Some(
-                    22,
+                    16,
                 ),
                 original_value: None,
             },
         ),
-        name: ~,
-        sentry_user: ~,
         geo: ~,
         segment: ~,
         data: ~,
@@ -95,25 +98,7 @@ Event {
     grouping_config: ~,
     checksum: ~,
     csp: ~,
-    hpkp: Meta {
-        remarks: [],
-        errors: [
-            Error {
-                kind: InvalidData,
-                data: {
-                    "reason": String(
-                        "expected hpkp",
-                    ),
-                },
-            },
-        ],
-        original_length: None,
-        original_value: Some(
-            String(
-                "invalid data my ip address is  [ip] and my credit card number is  [Filtered] ",
-            ),
-        ),
-    },
+    hpkp: ~,
     expectct: ~,
     expectstaple: ~,
     spans: ~,

@@ -5,10 +5,23 @@
 **Bug Fixes**:
 
 - Use custom `Vec<Host>` deserialize method for parsing dynamic config ([#3939](https://github.com/getsentry/relay/pull/3939))
+- Keep frames from both ends of the stacktrace when trimming frames. ([#3905](https://github.com/getsentry/relay/pull/3905))
+
+**Features**:
+
+- Add configuration option to specify the instance type of Relay. ([#3938](https://github.com/getsentry/relay/pull/3938))
+- Update definitions for user agent parsing. ([#3951](https://github.com/getsentry/relay/pull/3951))
+- Extend project config API to be revision aware. ([#3947](https://github.com/getsentry/relay/pull/3947))
+- Removes `processing.max_secs_in_past` from the main config in favor of event retention from the project config. ([#3958](https://github.com/getsentry/relay/pull/3958))
 
 **Internal**:
 
-- Bumped `sentry-native` submodule to v0.7.8. ([#3940](https://github.com/getsentry/relay/pull/3940))
+- Record too long discard reason for session replays. ([#3950](https://github.com/getsentry/relay/pull/3950))
+- Add `EnvelopeStore` trait and implement `DiskUsage` for tracking disk usage. ([#3925](https://github.com/getsentry/relay/pull/3925))
+- Increase replay recording limit to two hours. ([#3961](https://github.com/getsentry/relay/pull/3961))
+- Forward profiles of non-sampled transactions (with no options filtering). ([#3963](https://github.com/getsentry/relay/pull/3963))
+- Make EnvelopeBuffer a Service. ([#3965](https://github.com/getsentry/relay/pull/3965))
+- No longer send COGS data to dedicated Kafka topic. ([#3953](https://github.com/getsentry/relay/pull/3953))
 
 ## 24.8.0
 
@@ -36,6 +49,7 @@
 - Add `last_peek` field to the `Priority` struct. ([#3922](https://github.com/getsentry/relay/pull/3922))
 - Extract `user.geo.subregion` for mobile spans. ([#3927](https://github.com/getsentry/relay/pull/3927))
 - Rename `Peek` to `EnvelopeBufferGuard`. ([#3930](https://github.com/getsentry/relay/pull/3930))
+- Tag `user.geo.subregion` for resource metrics. ([#3934](https://github.com/getsentry/relay/pull/3934))
 
 ## 24.7.1
 

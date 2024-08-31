@@ -4,7 +4,7 @@ use std::ops::ControlFlow;
 
 use chrono::Utc;
 use relay_config::Config;
-use relay_dynamic_config::{ErrorBoundary, Feature, GlobalConfig};
+use relay_dynamic_config::ErrorBoundary;
 use relay_event_schema::protocol::{Contexts, Event, TraceContext};
 use relay_protocol::{Annotated, Empty};
 use relay_sampling::config::RuleType;
@@ -16,7 +16,7 @@ use crate::services::outcome::Outcome;
 use crate::services::processor::{
     EventProcessing, ProcessEnvelopeState, Sampling, TransactionGroup,
 };
-use crate::utils::{self, sample, SamplingResult};
+use crate::utils::{self, SamplingResult};
 
 /// Ensures there is a valid dynamic sampling context and corresponding project state.
 ///
@@ -229,33 +229,6 @@ pub fn tag_error_with_sampling_decision<G: EventProcessing>(
     }
 }
 
-/// Determines whether profiles that would otherwise be dropped by dynamic sampling should be kept.
-pub fn forward_unsampled_profiles(
-    state: &ProcessEnvelopeState<TransactionGroup>,
-    global_config: &GlobalConfig,
-) -> bool {
-    let global_options = &global_config.options;
-
-    if !global_options.unsampled_profiles_enabled {
-        return false;
-    }
-
-    let event_platform = state
-        .event
-        .value()
-        .and_then(|e| e.platform.as_str())
-        .unwrap_or("");
-
-    state
-        .project_state
-        .has_feature(Feature::IngestUnsampledProfiles)
-        && global_options
-            .profile_metrics_allowed_platforms
-            .iter()
-            .any(|s| s == event_platform)
-        && sample(global_options.profile_metrics_sample_rate)
-}
-
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
@@ -264,6 +237,7 @@ mod tests {
     use bytes::Bytes;
     use relay_base_schema::events::EventType;
     use relay_base_schema::project::{ProjectId, ProjectKey};
+    use relay_dynamic_config::GlobalConfig;
     use relay_dynamic_config::{MetricExtractionConfig, TransactionMetricsConfig};
     use relay_event_schema::protocol::{EventId, LenientString};
     use relay_protocol::RuleCondition;

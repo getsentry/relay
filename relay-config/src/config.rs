@@ -222,6 +222,8 @@ trait ConfigObject: DeserializeOwned + Serialize {
 pub struct OverridableConfig {
     /// The operation mode of this relay.
     pub mode: Option<String>,
+    /// The instance type of this relay.
+    pub instance: Option<String>,
     /// The log level of this relay.
     pub log_level: Option<String>,
     /// The upstream relay or sentry instance.
@@ -352,6 +354,44 @@ impl fmt::Display for RelayMode {
     }
 }
 
+/// The instance type of Relay.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum RelayInstance {
+    /// This Relay is run as a default instance.
+    Default,
+
+    /// This Relay is run as a canary instance where experiments can be run.
+    Canary,
+}
+
+impl RelayInstance {
+    /// Returns `true` if the [`RelayInstance`] is of type [`RelayInstance::Canary`].
+    pub fn is_canary(&self) -> bool {
+        matches!(self, RelayInstance::Canary)
+    }
+}
+
+impl fmt::Display for RelayInstance {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            RelayInstance::Default => write!(f, "default"),
+            RelayInstance::Canary => write!(f, "canary"),
+        }
+    }
+}
+
+impl FromStr for RelayInstance {
+    type Err = fmt::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "canary" => Ok(RelayInstance::Canary),
+            _ => Ok(RelayInstance::Default),
+        }
+    }
+}
+
 /// Error returned when parsing an invalid [`RelayMode`].
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ParseRelayModeError;
@@ -436,6 +476,8 @@ impl Default for ReadinessCondition {
 pub struct Relay {
     /// The operation mode of this relay.
     pub mode: RelayMode,
+    /// The instance type of this relay.
+    pub instance: RelayInstance,
     /// The upstream relay or sentry instance.
     pub upstream: UpstreamDescriptor<'static>,
     /// The host the relay should bind to (network interface).
@@ -463,6 +505,7 @@ impl Default for Relay {
     fn default() -> Self {
         Relay {
             mode: RelayMode::Managed,
+            instance: RelayInstance::Default,
             upstream: "https://sentry.io/".parse().unwrap(),
             host: default_host(),
             port: 3000,
@@ -864,6 +907,11 @@ fn spool_envelopes_max_envelope_delay_secs() -> u64 {
     24 * 60 * 60
 }
 
+/// Default refresh frequency in ms for the disk usage monitoring.
+fn spool_disk_usage_refresh_frequency_ms() -> u64 {
+    100
+}
+
 /// Persistent buffering configuration for incoming envelopes.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EnvelopeSpool {
@@ -879,7 +927,7 @@ pub struct EnvelopeSpool {
     min_connections: u32,
     /// The maximum size of the buffer to keep, in bytes.
     ///
-    /// If not set the befault is 524288000 bytes (500MB).
+    /// If not set the default is 524288000 bytes (500MB).
     #[serde(default = "spool_envelopes_max_disk_size")]
     max_disk_size: ByteSize,
     /// The maximum bytes to keep in the memory buffer before spooling envelopes to disk, in bytes.
@@ -903,6 +951,10 @@ pub struct EnvelopeSpool {
     /// they are dropped. Defaults to 24h.
     #[serde(default = "spool_envelopes_max_envelope_delay_secs")]
     max_envelope_delay_secs: u64,
+    /// The refresh frequency in ms of how frequently disk usage is updated by querying SQLite
+    /// internal page stats.
+    #[serde(default = "spool_disk_usage_refresh_frequency_ms")]
+    disk_usage_refresh_frequency_ms: u64,
     /// Version of the spooler.
     #[serde(default)]
     version: EnvelopeSpoolVersion,
@@ -938,6 +990,7 @@ impl Default for EnvelopeSpool {
             disk_batch_size: spool_envelopes_stack_disk_batch_size(),
             max_batches: spool_envelopes_stack_max_batches(),
             max_envelope_delay_secs: spool_envelopes_max_envelope_delay_secs(),
+            disk_usage_refresh_frequency_ms: spool_disk_usage_refresh_frequency_ms(),
             version: EnvelopeSpoolVersion::default(),
         }
     }
@@ -1015,10 +1068,6 @@ fn default_max_secs_in_future() -> u32 {
     60 // 1 minute
 }
 
-fn default_max_secs_in_past() -> u32 {
-    30 * 24 * 3600 // 30 days
-}
-
 fn default_max_session_secs_in_past() -> u32 {
     5 * 24 * 3600 // 5 days
 }
@@ -1047,9 +1096,6 @@ pub struct Processing {
     /// Maximum future timestamp of ingested events.
     #[serde(default = "default_max_secs_in_future")]
     pub max_secs_in_future: u32,
-    /// Maximum age of ingested events. Older events will be adjusted to `now()`.
-    #[serde(default = "default_max_secs_in_past")]
-    pub max_secs_in_past: u32,
     /// Maximum age of ingested sessions. Older sessions will be dropped.
     #[serde(default = "default_max_session_secs_in_past")]
     pub max_session_secs_in_past: u32,
@@ -1103,7 +1149,6 @@ impl Default for Processing {
             enabled: false,
             geoip_path: None,
             max_secs_in_future: default_max_secs_in_future(),
-            max_secs_in_past: default_max_secs_in_past(),
             max_session_secs_in_past: default_max_session_secs_in_past(),
             kafka_config: Vec::new(),
             secondary_kafka_configs: BTreeMap::new(),
@@ -1452,16 +1497,6 @@ pub struct Cogs {
     ///
     /// Defaults to `false`.
     enabled: bool,
-    /// Granularity of the COGS measurements.
-    ///
-    /// Measurements are aggregated based on the granularity in seconds.
-    ///
-    /// Aggregated measurements are always flushed at the end of their
-    /// aggregation window, which means the granularity also controls the flush
-    /// interval.
-    ///
-    /// Defaults to `60` (1 minute).
-    granularity_secs: u64,
     /// Maximium amount of COGS measurements allowed to backlog.
     ///
     /// Any additional COGS measurements recorded will be dropped.
@@ -1480,7 +1515,6 @@ impl Default for Cogs {
     fn default() -> Self {
         Self {
             enabled: false,
-            granularity_secs: 60,
             max_queue_size: 10_000,
             relay_resource_id: "relay_service".to_owned(),
         }
@@ -1605,6 +1639,12 @@ impl Config {
             relay.mode = mode
                 .parse::<RelayMode>()
                 .with_context(|| ConfigError::field("mode"))?;
+        }
+
+        if let Some(deployment) = overrides.instance {
+            relay.instance = deployment
+                .parse::<RelayInstance>()
+                .with_context(|| ConfigError::field("deployment"))?;
         }
 
         if let Some(log_level) = overrides.log_level {
@@ -1818,6 +1858,11 @@ impl Config {
     /// Returns the relay mode.
     pub fn relay_mode(&self) -> RelayMode {
         self.values.relay.mode
+    }
+
+    /// Returns the instance type of relay.
+    pub fn relay_instance(&self) -> RelayInstance {
+        self.values.relay.instance
     }
 
     /// Returns the upstream target as descriptor.
@@ -2162,6 +2207,11 @@ impl Config {
         Duration::from_secs(self.values.spool.envelopes.max_envelope_delay_secs)
     }
 
+    /// Returns the refresh frequency for disk usage monitoring as a [`Duration`] object.
+    pub fn spool_disk_usage_refresh_frequency_ms(&self) -> Duration {
+        Duration::from_millis(self.values.spool.envelopes.disk_usage_refresh_frequency_ms)
+    }
+
     /// Returns the maximum size of an event payload in bytes.
     pub fn max_event_size(&self) -> usize {
         self.values.limits.max_event_size.as_bytes()
@@ -2341,11 +2391,6 @@ impl Config {
         self.values.processing.max_secs_in_future.into()
     }
 
-    /// Maximum age of ingested events. Older events will be adjusted to `now()`.
-    pub fn max_secs_in_past(&self) -> i64 {
-        self.values.processing.max_secs_in_past.into()
-    }
-
     /// Maximum age of ingested sessions. Older sessions will be dropped.
     pub fn max_session_secs_in_past(&self) -> i64 {
         self.values.processing.max_session_secs_in_past.into()
@@ -2440,11 +2485,6 @@ impl Config {
     /// Whether COGS measurements are enabled.
     pub fn cogs_enabled(&self) -> bool {
         self.values.cogs.enabled
-    }
-
-    /// Granularity for COGS measurements.
-    pub fn cogs_granularity(&self) -> Duration {
-        Duration::from_secs(self.values.cogs.granularity_secs)
     }
 
     /// Maximum amount of COGS measurements buffered in memory.
