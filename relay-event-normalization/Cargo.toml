@@ -29,6 +29,7 @@ relay-log = { workspace = true }
 relay-protocol = { workspace = true }
 relay-statsd = { workspace = true }
 relay-ua = { workspace = true }
+relay-filter = { workspace = true }
 sentry-release-parser = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
