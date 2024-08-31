@@ -10,6 +10,7 @@ use serde::Deserialize;
 
 use crate::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, Items};
 use crate::service::ServiceState;
+use crate::services::buffer::EnvelopeBuffer;
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{MetricData, ProcessMetricMeta, ProcessingGroup};
 use crate::services::project_cache::{CheckEnvelope, ProcessMetrics, ValidateEnvelope};
@@ -307,13 +308,17 @@ fn queue_envelope(
 
         match state.envelope_buffer() {
             Some(buffer) => {
+                if !buffer.has_capacity() {
+                    return Err(BadStoreRequest::QueueFailed);
+                }
+
                 // NOTE: This assumes that a `prefetch` has already been scheduled for both the
                 // envelope's projects. See `handle_check_envelope`.
                 relay_log::trace!("Pushing envelope to V2 buffer");
 
-                // TODO: Sync-check whether the buffer has capacity.
-                // Otherwise return `QueueFailed`.
-                buffer.defer_push(envelope);
+                buffer
+                    .addr()
+                    .send(EnvelopeBuffer::Push(envelope.into_envelope()));
             }
             None => {
                 relay_log::trace!("Sending envelope to project cache for V1 buffer");
@@ -347,7 +352,7 @@ pub async fn handle_envelope(
         )
     }
 
-    // TODO(jjbayer): Move this check to spool impl
+    // TODO(jjbayer): Remove this check once spool v1 is removed.
     if state.memory_checker().check_memory().is_exceeded() {
         // NOTE: Long-term, we should not reject the envelope here, but spool it to disk instead.
         // This will be fixed with the new spool implementation.

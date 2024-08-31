@@ -742,10 +742,10 @@ impl SharedClient {
             // In the forward endpoint, this means that content negotiation is done twice, and the
             // response body is first decompressed by the client, then re-compressed by the server.
             .gzip(true)
-            // Enables async resolver through the `trust-dns-resolver` crate, which uses an LRU cache for the resolved entries.
-            // This helps to limit the amount of requests made to upstream DNS server (important
-            // for K8s infrastructure).
-            .trust_dns(true)
+            // Enables async resolver through the `hickory-dns` crate, which uses an LRU cache for
+            // the resolved entries. This helps to limit the amount of requests made to upstream DNS
+            // server (important for K8s infrastructure).
+            .hickory_dns(true)
             .build()
             .unwrap();
 

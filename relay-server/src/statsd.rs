@@ -26,14 +26,12 @@ pub enum RelayGauges {
     /// This metric is tagged with:
     /// - `reason`: Why keys are / are not unspooled.
     BufferPeriodicUnspool,
-    /// Number of envelopes currently waiting to be buffered.
-    ///
-    /// This corresponds to the number of corresponding tokio tasks currently scheduled or running.
-    BufferPushInFlight,
     /// The number of individual stacks in the priority queue.
     ///
     /// Per combination of `(own_key, sampling_key)`, a new stack is created.
     BufferStackCount,
+    /// The used disk for the buffer.
+    BufferDiskUsed,
     /// The currently used memory by the entire system.
     ///
     /// Relay uses the same value for its memory health check.
@@ -58,8 +56,8 @@ impl GaugeMetric for RelayGauges {
             RelayGauges::BufferEnvelopesMemoryCount => "buffer.envelopes_mem_count",
             RelayGauges::BufferEnvelopesDiskCount => "buffer.envelopes_disk_count",
             RelayGauges::BufferPeriodicUnspool => "buffer.unspool.periodic",
-            RelayGauges::BufferPushInFlight => "buffer.push_inflight",
             RelayGauges::BufferStackCount => "buffer.stack_count",
+            RelayGauges::BufferDiskUsed => "buffer.disk_used",
             RelayGauges::SystemMemoryUsed => "health.system_memory.used",
             RelayGauges::SystemMemoryTotal => "health.system_memory.total",
             #[cfg(feature = "processing")]
@@ -600,6 +598,11 @@ pub enum RelayCounters {
     ///  - `state_out`: The new state. `memory`, `memory_file_standby`, or `disk`.
     ///  - `reason`: Why a transition was made (or not made).
     BufferStateTransition,
+    /// Number of envelopes that were returned to the envelope buffer by the project cache.
+    ///
+    /// This happens when the envelope buffer falsely assumes that the envelope's projects are loaded
+    /// in the cache and sends the envelope onward, even though the project cache cannot handle it.
+    BufferEnvelopesReturned,
     ///
     /// Number of outcomes and reasons for rejected Envelopes.
     ///
@@ -813,6 +816,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::BufferReadsDisk => "buffer.reads",
             RelayCounters::BufferEnvelopesWritten => "buffer.envelopes_written",
             RelayCounters::BufferEnvelopesRead => "buffer.envelopes_read",
+            RelayCounters::BufferEnvelopesReturned => "buffer.envelopes_returned",
             RelayCounters::BufferStateTransition => "buffer.state.transition",
             RelayCounters::Outcomes => "events.outcomes",
             RelayCounters::ProjectStateGet => "project_state.get",

@@ -49,8 +49,6 @@ pub enum KafkaTopic {
     Spans,
     /// Summary for metrics collected during a span.
     MetricsSummaries,
-    /// COGS measurements topic.
-    Cogs,
     /// Feedback events topic.
     Feedback,
 }
@@ -60,7 +58,7 @@ impl KafkaTopic {
     /// It will have to be adjusted if the new variants are added.
     pub fn iter() -> std::slice::Iter<'static, Self> {
         use KafkaTopic::*;
-        static TOPICS: [KafkaTopic; 15] = [
+        static TOPICS: [KafkaTopic; 14] = [
             Events,
             Attachments,
             Transactions,
@@ -74,7 +72,6 @@ impl KafkaTopic {
             Monitors,
             Spans,
             MetricsSummaries,
-            Cogs,
             Feedback,
         ];
         TOPICS.iter()
@@ -137,7 +134,6 @@ define_topic_assignments! {
     monitors: (KafkaTopic::Monitors, "ingest-monitors", "Monitor check-ins."),
     spans: (KafkaTopic::Spans, "snuba-spans", "Standalone spans without a transaction."),
     metrics_summaries: (KafkaTopic::MetricsSummaries, "snuba-metrics-summaries", "Summary for metrics collected during a span."),
-    cogs: (KafkaTopic::Cogs, "shared-resources-usage", "COGS measurements."),
     feedback: (KafkaTopic::Feedback, "ingest-feedback-events", "Feedback events topic."),
 }
 
