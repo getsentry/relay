@@ -540,10 +540,10 @@ fn scrub_function(string: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
+    #[allow(clippy::explicit_auto_deref)]
+    use super::*;
     use relay_protocol::Annotated;
     use similar_asserts::assert_eq;
-
-    use super::*;
 
     macro_rules! span_description_test {
         // Tests the scrubbed span description for the given op.
