@@ -312,7 +312,7 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
             options.before_send = Some(Arc::new(move |mut event| {
                 // Extend `event.tags` with `default_tags` without replacing tags already present
                 let previous_event_tags = std::mem::replace(&mut event.tags, default_tags.clone());
-                event.tags.extend(previous_event_tags.into_iter());
+                event.tags.extend(previous_event_tags);
                 Some(event)
             }));
         }
