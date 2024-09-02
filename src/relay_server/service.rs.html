@@ -676,7 +676,7 @@
         .spawn_handler(processor_rx);
 
         <span class="kw">let </span>envelope_buffer = EnvelopeBufferService::new(
-            <span class="kw-2">&amp;</span>config,
+            config.clone(),
             MemoryChecker::new(memory_stat.clone(), config.clone()),
             project_cache.clone(),
         )

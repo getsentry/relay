@@ -39,8 +39,8 @@
 </span><span class="kw">pub struct </span>MemoryEnvelopeStack(<span class="attr">#[allow(clippy::vec_box)] </span>Vec&lt;Box&lt;Envelope&gt;&gt;);
 
 <span class="kw">impl </span>MemoryEnvelopeStack {
-    <span class="kw">pub fn </span>new(envelope: Box&lt;Envelope&gt;) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>(<span class="macro">vec!</span>[envelope])
+    <span class="kw">pub fn </span>new() -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>(<span class="macro">vec!</span>[])
     }
 }
 

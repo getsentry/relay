@@ -590,54 +590,6 @@
 <a href="#590" id="590">590</a>
 <a href="#591" id="591">591</a>
 <a href="#592" id="592">592</a>
-<a href="#593" id="593">593</a>
-<a href="#594" id="594">594</a>
-<a href="#595" id="595">595</a>
-<a href="#596" id="596">596</a>
-<a href="#597" id="597">597</a>
-<a href="#598" id="598">598</a>
-<a href="#599" id="599">599</a>
-<a href="#600" id="600">600</a>
-<a href="#601" id="601">601</a>
-<a href="#602" id="602">602</a>
-<a href="#603" id="603">603</a>
-<a href="#604" id="604">604</a>
-<a href="#605" id="605">605</a>
-<a href="#606" id="606">606</a>
-<a href="#607" id="607">607</a>
-<a href="#608" id="608">608</a>
-<a href="#609" id="609">609</a>
-<a href="#610" id="610">610</a>
-<a href="#611" id="611">611</a>
-<a href="#612" id="612">612</a>
-<a href="#613" id="613">613</a>
-<a href="#614" id="614">614</a>
-<a href="#615" id="615">615</a>
-<a href="#616" id="616">616</a>
-<a href="#617" id="617">617</a>
-<a href="#618" id="618">618</a>
-<a href="#619" id="619">619</a>
-<a href="#620" id="620">620</a>
-<a href="#621" id="621">621</a>
-<a href="#622" id="622">622</a>
-<a href="#623" id="623">623</a>
-<a href="#624" id="624">624</a>
-<a href="#625" id="625">625</a>
-<a href="#626" id="626">626</a>
-<a href="#627" id="627">627</a>
-<a href="#628" id="628">628</a>
-<a href="#629" id="629">629</a>
-<a href="#630" id="630">630</a>
-<a href="#631" id="631">631</a>
-<a href="#632" id="632">632</a>
-<a href="#633" id="633">633</a>
-<a href="#634" id="634">634</a>
-<a href="#635" id="635">635</a>
-<a href="#636" id="636">636</a>
-<a href="#637" id="637">637</a>
-<a href="#638" id="638">638</a>
-<a href="#639" id="639">639</a>
-<a href="#640" id="640">640</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::path::Path;
 <span class="kw">use </span>std::pin::pin;
@@ -647,6 +599,7 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::EnvelopeError;
 <span class="kw">use </span><span class="kw">crate</span>::extractors::StartTime;
+<span class="kw">use </span><span class="kw">crate</span>::services::buffer::common::ProjectKeyPair;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayGauges;
 <span class="kw">use </span><span class="kw">crate</span>::Envelope;
 <span class="kw">use </span>futures::stream::StreamExt;
@@ -1021,7 +974,7 @@
     /// `own_key` and `project_key` that are found in the database.
     </span><span class="kw">pub async fn </span>project_key_pairs(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;HashSet&lt;(ProjectKey, ProjectKey)&gt;, SqliteEnvelopeStoreError&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;HashSet&lt;ProjectKeyPair&gt;, SqliteEnvelopeStoreError&gt; {
         <span class="kw">let </span>project_key_pairs = build_get_project_key_pairs()
             .fetch_all(<span class="kw-2">&amp;</span><span class="self">self</span>.db)
             .<span class="kw">await
@@ -1062,9 +1015,7 @@
 }
 
 <span class="doccomment">/// Deserializes a pair of [`ProjectKey`] from the database.
-</span><span class="kw">fn </span>extract_project_key_pair(
-    row: SqliteRow,
-) -&gt; <span class="prelude-ty">Result</span>&lt;(ProjectKey, ProjectKey), SqliteEnvelopeStoreError&gt; {
+</span><span class="kw">fn </span>extract_project_key_pair(row: SqliteRow) -&gt; <span class="prelude-ty">Result</span>&lt;ProjectKeyPair, SqliteEnvelopeStoreError&gt; {
     <span class="kw">let </span>own_key = row
         .try_get(<span class="string">"own_key"</span>)
         .map_err(SqliteEnvelopeStoreError::FetchError)
@@ -1079,7 +1030,7 @@
         });
 
     <span class="kw">match </span>(own_key, sampling_key) {
-        (<span class="prelude-val">Ok</span>(own_key), <span class="prelude-val">Ok</span>(sampling_key)) =&gt; <span class="prelude-val">Ok</span>((own_key, sampling_key)),
+        (<span class="prelude-val">Ok</span>(own_key), <span class="prelude-val">Ok</span>(sampling_key)) =&gt; <span class="prelude-val">Ok</span>(ProjectKeyPair::new(own_key, sampling_key)),
         <span class="comment">// Report the first found error.
         </span>(<span class="prelude-val">Err</span>(err), <span class="kw">_</span>) | (<span class="kw">_</span>, <span class="prelude-val">Err</span>(err)) =&gt; {
             <span class="macro">relay_log::error!</span>(<span class="string">"failed to extract a queue key from the spool record: {err}"</span>);
@@ -1141,62 +1092,15 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-
     <span class="kw">use </span>hashbrown::HashSet;
-    <span class="kw">use </span>std::collections::BTreeMap;
-    <span class="kw">use </span>std::time::{Duration, Instant};
+    <span class="kw">use </span>std::time::Duration;
     <span class="kw">use </span>tokio::time::sleep;
-    <span class="kw">use </span>uuid::Uuid;
 
     <span class="kw">use </span>relay_base_schema::project::ProjectKey;
     <span class="kw">use </span>relay_event_schema::protocol::EventId;
-    <span class="kw">use </span>relay_sampling::DynamicSamplingContext;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
-    <span class="kw">use </span><span class="kw">crate</span>::envelope::{Envelope, Item, ItemType};
-    <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
-    <span class="kw">use </span><span class="kw">crate</span>::services::buffer::testutils::utils::setup_db;
-
-    <span class="kw">fn </span>request_meta() -&gt; RequestMeta {
-        <span class="kw">let </span>dsn = <span class="string">"https://a94ae32be2584e0bbd7a4cbb95971fee:@sentry.io/42"
-            </span>.parse()
-            .unwrap();
-
-        RequestMeta::new(dsn)
-    }
-
-    <span class="kw">fn </span>mock_envelope(instant: Instant) -&gt; Box&lt;Envelope&gt; {
-        <span class="kw">let </span>event_id = EventId::new();
-        <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(event_id), request_meta());
-
-        <span class="kw">let </span>dsc = DynamicSamplingContext {
-            trace_id: Uuid::new_v4(),
-            public_key: ProjectKey::parse(<span class="string">"b81ae32be2584e0bbd7a4cbb95971fe1"</span>).unwrap(),
-            release: <span class="prelude-val">Some</span>(<span class="string">"1.1.1"</span>.to_string()),
-            user: Default::default(),
-            replay_id: <span class="prelude-val">None</span>,
-            environment: <span class="prelude-val">None</span>,
-            transaction: <span class="prelude-val">Some</span>(<span class="string">"transaction1"</span>.into()),
-            sample_rate: <span class="prelude-val">None</span>,
-            sampled: <span class="prelude-val">Some</span>(<span class="bool-val">true</span>),
-            other: BTreeMap::new(),
-        };
-
-        envelope.set_dsc(dsc);
-        envelope.set_start_time(instant);
-
-        envelope.add_item(Item::new(ItemType::Transaction));
-
-        envelope
-    }
-
-    <span class="attr">#[allow(clippy::vec_box)]
-    </span><span class="kw">fn </span>mock_envelopes(count: usize) -&gt; Vec&lt;Box&lt;Envelope&gt;&gt; {
-        <span class="kw">let </span>instant = Instant::now();
-        (<span class="number">0</span>..count)
-            .map(|i| mock_envelope(instant - Duration::from_secs((count - i) <span class="kw">as </span>u64)))
-            .collect()
-    }
+    <span class="kw">use </span><span class="kw">crate</span>::services::buffer::testutils::utils::{mock_envelopes, setup_db};
 
     <span class="attr">#[tokio::test]
     </span><span class="kw">async fn </span>test_insert_and_delete_envelopes() {
@@ -1247,7 +1151,7 @@
         <span class="macro">assert_eq!</span>(project_key_pairs.len(), <span class="number">1</span>);
         <span class="macro">assert_eq!</span>(
             project_key_pairs.into_iter().last().unwrap(),
-            (own_key, sampling_key)
+            ProjectKeyPair::new(own_key, sampling_key)
         );
     }
 

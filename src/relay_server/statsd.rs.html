@@ -916,6 +916,9 @@
 <a href="#916" id="916">916</a>
 <a href="#917" id="917">917</a>
 <a href="#918" id="918">918</a>
+<a href="#919" id="919">919</a>
+<a href="#920" id="920">920</a>
+<a href="#921" id="921">921</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 <span class="attr">#[cfg(doc)]
 </span><span class="kw">use </span>tokio::runtime::RuntimeMetrics;
@@ -1430,6 +1433,8 @@
     ///  - `message`: The type of message that was processed.
     </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>StoreServiceDuration,
+    <span class="doccomment">/// Timing in milliseconds for the time it takes for initialize the spooler.
+    </span>SpoolInitialization,
 }
 
 <span class="kw">impl </span>TimerMetric <span class="kw">for </span>RelayTimers {
@@ -1471,6 +1476,7 @@
             RelayTimers::MetricRouterServiceDuration =&gt; <span class="string">"metrics.router.message.duration"</span>,
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>RelayTimers::StoreServiceDuration =&gt; <span class="string">"store.message.duration"</span>,
+            RelayTimers::SpoolInitialization =&gt; <span class="string">"spool.initialization"</span>,
         }
     }
 }

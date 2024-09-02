@@ -268,6 +268,36 @@
 <a href="#268" id="268">268</a>
 <a href="#269" id="269">269</a>
 <a href="#270" id="270">270</a>
+<a href="#271" id="271">271</a>
+<a href="#272" id="272">272</a>
+<a href="#273" id="273">273</a>
+<a href="#274" id="274">274</a>
+<a href="#275" id="275">275</a>
+<a href="#276" id="276">276</a>
+<a href="#277" id="277">277</a>
+<a href="#278" id="278">278</a>
+<a href="#279" id="279">279</a>
+<a href="#280" id="280">280</a>
+<a href="#281" id="281">281</a>
+<a href="#282" id="282">282</a>
+<a href="#283" id="283">283</a>
+<a href="#284" id="284">284</a>
+<a href="#285" id="285">285</a>
+<a href="#286" id="286">286</a>
+<a href="#287" id="287">287</a>
+<a href="#288" id="288">288</a>
+<a href="#289" id="289">289</a>
+<a href="#290" id="290">290</a>
+<a href="#291" id="291">291</a>
+<a href="#292" id="292">292</a>
+<a href="#293" id="293">293</a>
+<a href="#294" id="294">294</a>
+<a href="#295" id="295">295</a>
+<a href="#296" id="296">296</a>
+<a href="#297" id="297">297</a>
+<a href="#298" id="298">298</a>
+<a href="#299" id="299">299</a>
+<a href="#300" id="300">300</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Types for buffering envelopes.
 
 </span><span class="kw">use </span>std::sync::atomic::AtomicBool;
@@ -288,12 +318,17 @@
 <span class="kw">use </span><span class="kw">crate</span>::utils::MemoryChecker;
 
 <span class="kw">pub use </span>envelope_buffer::EnvelopeBufferError;
-<span class="kw">pub use </span>envelope_buffer::PolymorphicEnvelopeBuffer;
-<span class="kw">pub use </span>envelope_stack::sqlite::SqliteEnvelopeStack; <span class="comment">// pub for benchmarks
-</span><span class="kw">pub use </span>envelope_stack::EnvelopeStack; <span class="comment">// pub for benchmarks
-</span><span class="kw">pub use </span>envelope_store::sqlite::SqliteEnvelopeStore; <span class="comment">// pub for benchmarks
+<span class="comment">// pub for benchmarks
+</span><span class="kw">pub use </span>envelope_buffer::PolymorphicEnvelopeBuffer;
+<span class="comment">// pub for benchmarks
+</span><span class="kw">pub use </span>envelope_stack::sqlite::SqliteEnvelopeStack;
+<span class="comment">// pub for benchmarks
+</span><span class="kw">pub use </span>envelope_stack::EnvelopeStack;
+<span class="comment">// pub for benchmarks
+</span><span class="kw">pub use </span>envelope_store::sqlite::SqliteEnvelopeStore;
 
-</span><span class="kw">mod </span>envelope_buffer;
+<span class="kw">mod </span>common;
+<span class="kw">mod </span>envelope_buffer;
 <span class="kw">mod </span>envelope_stack;
 <span class="kw">mod </span>envelope_store;
 <span class="kw">mod </span>stack_provider;
@@ -302,7 +337,7 @@
 <span class="doccomment">/// Message interface for [`EnvelopeBufferService`].
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub enum </span>EnvelopeBuffer {
-    <span class="doccomment">/// An fresh envelope that gets pushed into the buffer by the request handler.
+    <span class="doccomment">/// A fresh envelope that gets pushed into the buffer by the request handler.
     </span>Push(Box&lt;Envelope&gt;),
     <span class="doccomment">/// Informs the service that a project has no valid project state and must be marked as not ready.
     ///
@@ -350,7 +385,8 @@
 <span class="doccomment">/// Spool V2 service which buffers envelopes and forwards them to the project cache when a project
 /// becomes ready.
 </span><span class="kw">pub struct </span>EnvelopeBufferService {
-    buffer: PolymorphicEnvelopeBuffer,
+    config: Arc&lt;Config&gt;,
+    memory_checker: MemoryChecker,
     project_cache: Addr&lt;ProjectCache&gt;,
     has_capacity: Arc&lt;AtomicBool&gt;,
     sleep: Duration,
@@ -364,12 +400,13 @@
     /// NOTE: until the V1 spooler implementation is removed, this function returns `None`
     /// if V2 spooling is not configured.
     </span><span class="kw">pub fn </span>new(
-        config: <span class="kw-2">&amp;</span>Config,
+        config: Arc&lt;Config&gt;,
         memory_checker: MemoryChecker,
         project_cache: Addr&lt;ProjectCache&gt;,
     ) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
         config.spool_v2().then(|| <span class="self">Self </span>{
-            buffer: PolymorphicEnvelopeBuffer::from_config(config, memory_checker),
+            config,
+            memory_checker,
             project_cache,
             has_capacity: Arc::new(AtomicBool::new(<span class="bool-val">true</span>)),
             sleep: Duration::ZERO,
@@ -386,19 +423,19 @@
     }
 
     <span class="doccomment">/// Tries to pop an envelope for a ready project.
-    ///
-    /// Returns the amount of time we should wait until next pop
-    </span><span class="kw">async fn </span>try_pop(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), EnvelopeBufferError&gt; {
+    </span><span class="kw">async fn </span>try_pop(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        buffer: <span class="kw-2">&amp;mut </span>PolymorphicEnvelopeBuffer,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), EnvelopeBufferError&gt; {
         <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService peek"</span>);
-        <span class="kw">match </span><span class="self">self</span>.buffer.peek().<span class="kw">await</span><span class="question-mark">? </span>{
+        <span class="kw">match </span>buffer.peek().<span class="kw">await</span><span class="question-mark">? </span>{
             Peek::Empty =&gt; {
                 <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService empty"</span>);
                 <span class="self">self</span>.sleep = Duration::MAX; <span class="comment">// wait for reset by `handle_message`.
             </span>}
             Peek::Ready(<span class="kw">_</span>) =&gt; {
                 <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService pop"</span>);
-                <span class="kw">let </span>envelope = <span class="self">self
-                    </span>.buffer
+                <span class="kw">let </span>envelope = buffer
                     .pop()
                     .<span class="kw">await</span><span class="question-mark">?
                     </span>.expect(<span class="string">"Element disappeared despite exclusive excess"</span>);
@@ -417,14 +454,18 @@
                     }
                 }
                 <span class="comment">// deprioritize the stack to prevent head-of-line blocking
-                </span><span class="self">self</span>.buffer.mark_seen(<span class="kw-2">&amp;</span>stack_key);
+                </span>buffer.mark_seen(<span class="kw-2">&amp;</span>stack_key);
                 <span class="self">self</span>.sleep = DEFAULT_SLEEP;
             }
         }
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">async fn </span>handle_message(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: EnvelopeBuffer) {
+    <span class="kw">async fn </span>handle_message(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        buffer: <span class="kw-2">&amp;mut </span>PolymorphicEnvelopeBuffer,
+        message: EnvelopeBuffer,
+    ) {
         <span class="kw">match </span>message {
             EnvelopeBuffer::Push(envelope) =&gt; {
                 <span class="comment">// NOTE: This function assumes that a project state update for the relevant
@@ -432,24 +473,24 @@
                 // For better separation of concerns, this prefetch should be triggered from here
                 // once buffer V1 has been removed.
                 </span><span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService push"</span>);
-                <span class="self">self</span>.push(envelope).<span class="kw">await</span>;
+                <span class="self">self</span>.push(buffer, envelope).<span class="kw">await</span>;
             }
             EnvelopeBuffer::NotReady(project_key, envelope) =&gt; {
                 <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService project not ready"</span>);
-                <span class="self">self</span>.buffer.mark_ready(<span class="kw-2">&amp;</span>project_key, <span class="bool-val">false</span>);
+                buffer.mark_ready(<span class="kw-2">&amp;</span>project_key, <span class="bool-val">false</span>);
                 <span class="macro">relay_statsd::metric!</span>(counter(RelayCounters::BufferEnvelopesReturned) += <span class="number">1</span>);
-                <span class="self">self</span>.push(envelope).<span class="kw">await</span>;
+                <span class="self">self</span>.push(buffer, envelope).<span class="kw">await</span>;
             }
             EnvelopeBuffer::Ready(project_key) =&gt; {
                 <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService project ready {}"</span>, <span class="kw-2">&amp;</span>project_key);
-                <span class="self">self</span>.buffer.mark_ready(<span class="kw-2">&amp;</span>project_key, <span class="bool-val">true</span>);
+                buffer.mark_ready(<span class="kw-2">&amp;</span>project_key, <span class="bool-val">true</span>);
             }
         };
         <span class="self">self</span>.sleep = Duration::ZERO;
     }
 
-    <span class="kw">async fn </span>push(<span class="kw-2">&amp;mut </span><span class="self">self</span>, envelope: Box&lt;Envelope&gt;) {
-        <span class="kw">if let </span><span class="prelude-val">Err</span>(e) = <span class="self">self</span>.buffer.push(envelope).<span class="kw">await </span>{
+    <span class="kw">async fn </span>push(<span class="kw-2">&amp;mut </span><span class="self">self</span>, buffer: <span class="kw-2">&amp;mut </span>PolymorphicEnvelopeBuffer, envelope: Box&lt;Envelope&gt;) {
+        <span class="kw">if let </span><span class="prelude-val">Err</span>(e) = buffer.push(envelope).<span class="kw">await </span>{
             <span class="macro">relay_log::error!</span>(
                 error = <span class="kw-2">&amp;</span>e <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
                 <span class="string">"failed to push envelope"
@@ -457,9 +498,9 @@
         }
     }
 
-    <span class="kw">fn </span>update_observable_state(<span class="kw-2">&amp;</span><span class="self">self</span>) {
+    <span class="kw">fn </span>update_observable_state(<span class="kw-2">&amp;</span><span class="self">self</span>, buffer: <span class="kw-2">&amp;mut </span>PolymorphicEnvelopeBuffer) {
         <span class="self">self</span>.has_capacity
-            .store(<span class="self">self</span>.buffer.has_capacity(), Ordering::Relaxed);
+            .store(buffer.has_capacity(), Ordering::Relaxed);
     }
 }
 
@@ -467,17 +508,34 @@
     <span class="kw">type </span>Interface = EnvelopeBuffer;
 
     <span class="kw">fn </span>spawn_handler(<span class="kw-2">mut </span><span class="self">self</span>, <span class="kw-2">mut </span>rx: Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
+        <span class="kw">let </span>config = <span class="self">self</span>.config.clone();
+        <span class="kw">let </span>memory_checker = <span class="self">self</span>.memory_checker.clone();
         tokio::spawn(<span class="kw">async move </span>{
+            <span class="kw">let </span>buffer = PolymorphicEnvelopeBuffer::from_config(<span class="kw-2">&amp;</span>config, memory_checker).<span class="kw">await</span>;
+
+            <span class="kw">let </span><span class="kw-2">mut </span>buffer = <span class="kw">match </span>buffer {
+                <span class="prelude-val">Ok</span>(buffer) =&gt; buffer,
+                <span class="prelude-val">Err</span>(error) =&gt; {
+                    <span class="macro">relay_log::error!</span>(
+                        error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
+                        <span class="string">"failed to start the envelope buffer service"</span>,
+                    );
+                    std::process::exit(<span class="number">1</span>);
+                }
+            };
+            buffer.initialize().<span class="kw">await</span>;
+
             <span class="macro">relay_log::info!</span>(<span class="string">"EnvelopeBufferService start"</span>);
             <span class="kw">loop </span>{
                 <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService loop"</span>);
+
                 <span class="macro">tokio::select!</span> {
                     <span class="comment">// NOTE: we do not select a bias here.
                     // On the one hand, we might want to prioritize dequeing over enqueing
                     // so we do not exceed the buffer capacity by starving the dequeue.
                     // on the other hand, prioritizing old messages violates the LIFO design.
                     </span>() = tokio::time::sleep(<span class="self">self</span>.sleep) =&gt; {
-                        <span class="kw">if let </span><span class="prelude-val">Err</span>(e) = <span class="self">self</span>.try_pop().<span class="kw">await </span>{
+                        <span class="kw">if let </span><span class="prelude-val">Err</span>(e) = <span class="self">self</span>.try_pop(<span class="kw-2">&amp;mut </span>buffer).<span class="kw">await </span>{
                             <span class="macro">relay_log::error!</span>(
                                 error = <span class="kw-2">&amp;</span>e <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
                                 <span class="string">"failed to pop envelope"
@@ -485,13 +543,15 @@
                         }
                     }
                     <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; {
-                        <span class="self">self</span>.handle_message(message).<span class="kw">await</span>;
+                        <span class="self">self</span>.handle_message(<span class="kw-2">&amp;mut </span>buffer, message).<span class="kw">await</span>;
                     }
 
                     <span class="kw">else </span>=&gt; <span class="kw">break</span>,
                 }
-                <span class="self">self</span>.update_observable_state();
+
+                <span class="self">self</span>.update_observable_state(<span class="kw-2">&amp;mut </span>buffer);
             }
+
             <span class="macro">relay_log::info!</span>(<span class="string">"EnvelopeBufferService stop"</span>);
         });
     }
@@ -519,7 +579,7 @@
             .unwrap(),
         );
         <span class="kw">let </span>memory_checker = MemoryChecker::new(MemoryStat::default(), config.clone());
-        <span class="kw">let </span>service = EnvelopeBufferService::new(<span class="kw-2">&amp;</span>config, memory_checker, Addr::dummy()).unwrap();
+        <span class="kw">let </span>service = EnvelopeBufferService::new(config, memory_checker, Addr::dummy()).unwrap();
 
         <span class="comment">// Set capacity to false:
         </span>service.has_capacity.store(<span class="bool-val">false</span>, Ordering::Relaxed);
