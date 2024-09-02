@@ -12,7 +12,6 @@
 - Update definitions for user agent parsing. ([#3951](https://github.com/getsentry/relay/pull/3951))
 - Extend project config API to be revision aware. ([#3947](https://github.com/getsentry/relay/pull/3947))
 - Removes `processing.max_secs_in_past` from the main config in favor of event retention from the project config. ([#3958](https://github.com/getsentry/relay/pull/3958))
-- Remove support for extrapolation of metrics. ([#3969](https://github.com/getsentry/relay/pull/3969))
 
 **Internal**:
 
@@ -22,6 +21,8 @@
 - Forward profiles of non-sampled transactions (with no options filtering). ([#3963](https://github.com/getsentry/relay/pull/3963))
 - Make EnvelopeBuffer a Service. ([#3965](https://github.com/getsentry/relay/pull/3965))
 - No longer send COGS data to dedicated Kafka topic. ([#3953](https://github.com/getsentry/relay/pull/3953))
+- Remove support for extrapolation of metrics. ([#3969](https://github.com/getsentry/relay/pull/3969))
+- Remove the internal dashboard that shows logs and metrics. ([#3970](https://github.com/getsentry/relay/pull/3970))
 
 ## 24.8.0
 
