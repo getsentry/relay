@@ -1,6 +1,5 @@
 //! Types for buffering envelopes.
 
-use std::error::Error;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
