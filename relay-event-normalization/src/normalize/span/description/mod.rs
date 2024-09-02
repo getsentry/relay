@@ -540,7 +540,6 @@ fn scrub_function(string: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::explicit_auto_deref)]
     use super::*;
     use relay_protocol::Annotated;
     use similar_asserts::assert_eq;
@@ -1276,7 +1275,7 @@ mod tests {
             let mut span = Annotated::<Span>::from_json(&json).unwrap();
 
             let scrubbed =
-                scrub_span_description(span.value_mut().as_mut().unwrap(), *allowed_hosts);
+                scrub_span_description(span.value_mut().as_mut().unwrap(), &allowed_hosts);
 
             assert_eq!(
                 scrubbed.0.as_deref(),
