@@ -1,8 +1,6 @@
 use std::fmt;
 use std::str::FromStr;
 
-#[cfg(feature = "jsonschema")]
-use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{Annotated, Empty, ErrorKind, FromValue, IntoValue, SkipSerialization, Value};
 use serde::{Deserialize, Serialize};
 
@@ -12,8 +10,6 @@ use crate::protocol::Timestamp;
 /// Describes how the name of the transaction was determined.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-#[cfg_attr(feature = "jsonschema", derive(schemars::JsonSchema))]
-#[cfg_attr(feature = "jsonschema", schemars(rename_all = "kebab-case"))]
 pub enum TransactionSource {
     /// User-defined name set through `set_transaction_name`.
     Custom,
@@ -32,7 +28,6 @@ pub enum TransactionSource {
     /// This is the default value set by Relay for legacy SDKs.
     Unknown,
     /// Any other unknown source that is not explicitly defined above.
-    #[cfg_attr(feature = "jsonschema", schemars(skip))]
     Other(String),
 }
 
@@ -125,7 +120,6 @@ impl IntoValue for TransactionSource {
 impl ProcessValue for TransactionSource {}
 
 #[derive(Clone, Debug, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct TransactionNameChange {
     /// Describes how the previous transaction name was determined.
     pub source: Annotated<TransactionSource>,
@@ -141,7 +135,6 @@ pub struct TransactionNameChange {
 
 /// Additional information about the name of the transaction.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct TransactionInfo {
     /// Describes how the name of the transaction was determined.
     ///

@@ -3,8 +3,6 @@ use std::fmt;
 use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
 
-#[cfg(feature = "jsonschema")]
-use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{
     Annotated, Array, Empty, ErrorKind, FromValue, IntoValue, Object, SkipSerialization, Value,
 };
@@ -18,7 +16,6 @@ use crate::protocol::{Addr, LockReason, NativeImagePath, RegVal};
 /// Each object should contain **at least** a `filename`, `function` or `instruction_addr`
 /// attribute. All values are optional, but recommended.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_frame", value_type = "Frame")]
 pub struct Frame {
     /// Name of the frame's function. This might include the name of a class.
@@ -199,14 +196,12 @@ pub struct Frame {
 
 /// Frame local variables.
 #[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct FrameVars(#[metastructure(skip_serialization = "empty")] pub Object<Value>);
 
 /// Additional frame data information.
 ///
 /// This value is set by the server and should not be set by the SDK.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct FrameData {
     /// A reference to the sourcemap used.
     #[metastructure(max_chars = 256, max_chars_allowance = 40)]
@@ -330,7 +325,6 @@ impl FromValue for FrameVars {
 /// }
 /// ```
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_raw_stacktrace", value_type = "Stacktrace")]
 pub struct RawStacktrace {
     /// Required. A non-empty list of stack frames. The list is ordered from caller to callee, or
@@ -381,7 +375,6 @@ pub struct RawStacktrace {
 /// stack frames, `"none"` should be used here.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, ProcessValue)]
 #[serde(rename_all = "snake_case")]
-#[cfg_attr(feature = "jsonschema", derive(schemars::JsonSchema))]
 pub enum InstructionAddrAdjustment {
     /// The default. Applies a heuristic based on other event / exception attributes.
     Auto,
@@ -401,7 +394,6 @@ pub enum InstructionAddrAdjustment {
     /// Any other unknown adjustment strategy.
     ///
     /// This exists to ensure forward compatibility.
-    #[cfg_attr(feature = "jsonschema", schemars(skip))]
     Unknown(String),
 }
 
@@ -481,7 +473,6 @@ impl IntoValue for InstructionAddrAdjustment {
 // NOTE: This is not a doc comment because otherwise it will show up in public docs.
 // Newtype to distinguish `raw_stacktrace` attributes from the rest.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_stacktrace")]
 pub struct Stacktrace(pub RawStacktrace);
 

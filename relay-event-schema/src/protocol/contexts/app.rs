@@ -1,5 +1,3 @@
-#[cfg(feature = "jsonschema")]
-use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
 
 use crate::processor::ProcessValue;
@@ -10,7 +8,6 @@ use crate::protocol::LenientString;
 /// App context describes the application. As opposed to the runtime, this is the actual
 /// application that was running and carries metadata about the current session.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct AppContext {
     /// Start time of the app.
     ///

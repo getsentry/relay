@@ -1,11 +1,8 @@
-#[cfg(feature = "jsonschema")]
-use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{Annotated, Array, Empty, FromValue, IntoValue};
 
 use crate::processor::ProcessValue;
 
 #[derive(Clone, Debug, Default, Empty, PartialEq, FromValue, IntoValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct SampleRate {
     /// The unique identifier of the sampling rule or mechanism.
     ///
@@ -30,7 +27,6 @@ pub struct SampleRate {
 /// These values are collected in Relay and Sentry and finally persisted into the event payload. A
 /// value of `0` is equivalent to N/A and should not be considered in aggregations and analysis.
 #[derive(Clone, Debug, Default, Empty, PartialEq, FromValue, IntoValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Metrics {
     /// The size of the original event payload ingested into Sentry.
     ///
