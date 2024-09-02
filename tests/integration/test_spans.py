@@ -5,18 +5,9 @@ from collections import Counter
 from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
-from opentelemetry.proto.common.v1.common_pb2 import AnyValue, KeyValue
-from opentelemetry.proto.trace.v1.trace_pb2 import (
-    ResourceSpans,
-    ScopeSpans,
-    Span,
-    TracesData,
-)
 from requests import HTTPError
-from sentry_relay.consts import DataCategory
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
-from .asserts import time_after, time_within_delta
 from .consts import (
     METRICS_EXTRACTION_MIN_SUPPORTED_VERSION,
     TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
