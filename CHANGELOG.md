@@ -23,6 +23,7 @@
 - No longer send COGS data to dedicated Kafka topic. ([#3953](https://github.com/getsentry/relay/pull/3953))
 - Remove support for extrapolation of metrics. ([#3969](https://github.com/getsentry/relay/pull/3969))
 - Remove the internal dashboard that shows logs and metrics. ([#3970](https://github.com/getsentry/relay/pull/3970))
+- Remove the OTEL spans endpoint in favor of Envelopes. ([#3973](https://github.com/getsentry/relay/pull/3973))
 - Allow creation of `SqliteEnvelopeBuffer` from config, and load existing stacks from db on startup. ([#3967](https://github.com/getsentry/relay/pull/3967))
 
 ## 24.8.0
