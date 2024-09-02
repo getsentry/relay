@@ -8,7 +8,6 @@ use std::time::Duration;
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Receiver, Service};
-use tokio::sync::mpsc;
 
 use crate::envelope::Envelope;
 use crate::services::buffer::envelope_buffer::Peek;
@@ -85,7 +84,6 @@ pub struct EnvelopeBufferService {
     project_cache: Addr<ProjectCache>,
     has_capacity: Arc<AtomicBool>,
     sleep: Duration,
-    envelope_tx: mpsc::Sender<Box<Envelope>>,
 }
 
 const DEFAULT_SLEEP: Duration = Duration::from_millis(100);
@@ -120,10 +118,7 @@ impl EnvelopeBufferService {
     /// Tries to pop an envelope for a ready project.
     ///
     /// Returns the amount of time we should wait until next pop
-    async fn try_pop(
-        &mut self,
-        permit: mpsc::Permit<'_, Box<Envelope>>,
-    ) -> Result<(), EnvelopeBufferError> {
+    async fn try_pop(&mut self) -> Result<(), EnvelopeBufferError> {
         relay_log::trace!("EnvelopeBufferService peek");
         match self.buffer.peek().await? {
             Peek::Empty => {
@@ -137,7 +132,7 @@ impl EnvelopeBufferService {
                     .pop()
                     .await?
                     .expect("Element disappeared despite exclusive excess");
-                permit.send(envelope);
+                self.project_cache.send(DequeuedEnvelope(envelope));
                 self.sleep = Duration::ZERO; // try next pop immediately
             }
             Peek::NotReady(stack_key, envelope) => {
@@ -192,13 +187,6 @@ impl EnvelopeBufferService {
         }
     }
 
-    async fn next_pop_attempt(
-        &mut self,
-    ) -> Result<mpsc::Permit<Box<Envelope>>, mpsc::error::SendError<()>> {
-        tokio::time::sleep(self.sleep).await;
-        self.envelope_tx.reserve().await
-    }
-
     fn update_observable_state(&self) {
         self.has_capacity
             .store(self.buffer.has_capacity(), Ordering::Relaxed);
@@ -218,22 +206,12 @@ impl Service for EnvelopeBufferService {
                     // On the one hand, we might want to prioritize dequeing over enqueing
                     // so we do not exceed the buffer capacity by starving the dequeue.
                     // on the other hand, prioritizing old messages violates the LIFO design.
-                    permit = self.next_pop_attempt() => {
-                        match permit {
-                            Ok(permit) => {
-                                if let Err(e) = self.try_pop(permit).await {
-                                    relay_log::error!(
-                                        error = &e as &dyn std::error::Error,
-                                        "failed to pop envelope"
-                                    );
-                                }
-                            },
-                            Err(e) => {
-                                relay_log::error!(
-                                        error = &e as &dyn std::error::Error,
-                                        "failed to acquire permit"
-                                    );
-                            }
+                    () = tokio::time::sleep(self.sleep) => {
+                        if let Err(e) = self.try_pop().await {
+                            relay_log::error!(
+                                error = &e as &dyn std::error::Error,
+                                "failed to pop envelope"
+                            );
                         }
                     }
                     Some(message) = rx.recv() => {
