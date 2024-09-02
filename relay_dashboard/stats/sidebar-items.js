@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["parse_metric"],"mod":["js"],"struct":["Metric","Stats"]};

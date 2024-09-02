@@ -12,8 +12,8 @@ the folders where data will be stored.</p>
 ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.80.1/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/1.80.1/std/primitive.unit.html">()</a>, SqliteEnvelopeStoreError&gt;</h4></section></summary><div class="docblock"><p>Inserts one or more envelopes into the database.</p>
 </div></details><details class="toggle method-toggle" open><summary><section id="method.delete_many" class="method"><a class="src rightside" href="../src/relay_server/services/buffer/envelope_store/sqlite.rs.html#320-379">source</a><h4 class="code-header">pub async fn <a href="#method.delete_many" class="fn">delete_many</a>(
     &amp;mut self,
-    own_key: <a class="struct" href="../relay_base_schema/project/struct.ProjectKey.html" title="struct relay_base_schema::project::ProjectKey">ProjectKey</a>,
-    sampling_key: <a class="struct" href="../relay_base_schema/project/struct.ProjectKey.html" title="struct relay_base_schema::project::ProjectKey">ProjectKey</a>,
+    own_key: ProjectKey,
+    sampling_key: ProjectKey,
     limit: <a class="primitive" href="https://doc.rust-lang.org/1.80.1/std/primitive.i64.html">i64</a>,
 ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.80.1/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.80.1/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.80.1/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;Envelope&gt;&gt;, SqliteEnvelopeStoreError&gt;</h4></section></summary><div class="docblock"><p>Deletes and returns at most <code>limit</code> [<code>Envelope</code>]s from the database.</p>
 </div></details><details class="toggle method-toggle" open><summary><section id="method.project_key_pairs" class="method"><a class="src rightside" href="../src/relay_server/services/buffer/envelope_store/sqlite.rs.html#383-398">source</a><h4 class="code-header">pub async fn <a href="#method.project_key_pairs" class="fn">project_key_pairs</a>(
