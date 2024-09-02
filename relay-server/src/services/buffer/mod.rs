@@ -12,7 +12,6 @@ use tokio::sync::mpsc;
 
 use crate::envelope::Envelope;
 use crate::services::buffer::envelope_buffer::Peek;
-use crate::services::project_cache::DequeuedEnvelope;
 use crate::services::project_cache::ProjectCache;
 use crate::services::project_cache::UpdateProject;
 use crate::statsd::RelayCounters;
@@ -85,7 +84,7 @@ pub struct EnvelopeBufferService {
     project_cache: Addr<ProjectCache>,
     has_capacity: Arc<AtomicBool>,
     sleep: Duration,
-    envelope_tx: mpsc::Sender<Box<Envelope>>,
+    output_tx: mpsc::Sender<Box<Envelope>>,
 }
 
 const DEFAULT_SLEEP: Duration = Duration::from_millis(100);
@@ -99,12 +98,14 @@ impl EnvelopeBufferService {
         config: &Config,
         memory_checker: MemoryChecker,
         project_cache: Addr<ProjectCache>,
+        output_tx: mpsc::Sender<Box<Envelope>>,
     ) -> Option<Self> {
         config.spool_v2().then(|| Self {
             buffer: PolymorphicEnvelopeBuffer::from_config(config, memory_checker),
             project_cache,
             has_capacity: Arc::new(AtomicBool::new(true)),
             sleep: Duration::ZERO,
+            output_tx,
         })
     }
 
@@ -196,7 +197,7 @@ impl EnvelopeBufferService {
         &mut self,
     ) -> Result<mpsc::Permit<Box<Envelope>>, mpsc::error::SendError<()>> {
         tokio::time::sleep(self.sleep).await;
-        self.envelope_tx.reserve().await
+        self.output_tx.reserve().await
     }
 
     fn update_observable_state(&self) {

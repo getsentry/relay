@@ -252,9 +252,6 @@ pub struct SpoolHealth;
 #[derive(Debug)]
 pub struct RefreshIndexCache(pub HashSet<QueueKey>);
 
-/// Handle an envelope that was popped from the envelope buffer.
-pub struct DequeuedEnvelope(pub Box<Envelope>);
-
 /// A request to update a project, typically sent by the envelope buffer.
 ///
 /// This message is similar to [`GetProjectState`], except it has no `no_cache` option
@@ -1343,6 +1340,7 @@ pub struct ProjectCacheService {
     config: Arc<Config>,
     memory_checker: MemoryChecker,
     services: Services,
+    envelope_rx: mpsc::Receiver<Box<Envelope>>,
     redis: Option<RedisPool>,
 }
 
@@ -1352,12 +1350,14 @@ impl ProjectCacheService {
         config: Arc<Config>,
         memory_checker: MemoryChecker,
         services: Services,
+        envelope_rx: mpsc::Receiver<Box<Envelope>>,
         redis: Option<RedisPool>,
     ) -> Self {
         Self {
             config,
             memory_checker,
             services,
+            envelope_rx,
             redis,
         }
     }
@@ -1371,6 +1371,7 @@ impl Service for ProjectCacheService {
             config,
             memory_checker,
             services,
+            envelope_rx,
             redis,
         } = self;
         let project_cache = services.project_cache.clone();
