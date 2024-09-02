@@ -168,12 +168,7 @@
 <a href="#168" id="168">168</a>
 <a href="#169" id="169">169</a>
 <a href="#170" id="170">170</a>
-<a href="#171" id="171">171</a>
-<a href="#172" id="172">172</a>
-<a href="#173" id="173">173</a>
-</pre></div><pre class="rust"><code><span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
-</span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
-<span class="kw">use </span>relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
+</pre></div><pre class="rust"><code><span class="kw">use </span>relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
 
 <span class="kw">use </span><span class="kw">crate</span>::processor::ProcessValue;
 
@@ -181,7 +176,6 @@
 ///
 /// If an event has this context, it was generated from an OpenTelemetry signal (trace, metric, log).
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>OtelContext {
     <span class="doccomment">/// Attributes of the OpenTelemetry span that maps to a Sentry event.
     ///

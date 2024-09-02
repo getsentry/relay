@@ -815,15 +815,8 @@
 <a href="#815" id="815">815</a>
 <a href="#816" id="816">816</a>
 <a href="#817" id="817">817</a>
-<a href="#818" id="818">818</a>
-<a href="#819" id="819">819</a>
-<a href="#820" id="820">820</a>
-<a href="#821" id="821">821</a>
-<a href="#822" id="822">822</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>convert;
 
-<span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
-</span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
 <span class="kw">use </span>relay_protocol::{Annotated, Empty, Error, FromValue, Getter, IntoValue, Object, Val, Value};
 
 <span class="kw">use </span><span class="kw">crate</span>::processor::ProcessValue;
@@ -833,7 +826,6 @@
 };
 
 <span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 #[metastructure(process_func = <span class="string">"process_span"</span>, value_type = <span class="string">"Span"</span>)]
 </span><span class="kw">pub struct </span>Span {
     <span class="doccomment">/// Timestamp when the span was ended.
@@ -1014,7 +1006,6 @@
 /// Besides arbitrary user data, this type also contains SDK-provided fields used by the
 /// product (see &lt;https://develop.sentry.dev/sdk/performance/span-data-conventions/&gt;).
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>SpanData {
     <span class="doccomment">/// Mobile app start variant.
     ///
@@ -1300,7 +1291,6 @@
 
 <span class="doccomment">/// The route in the application, set by React Native SDK.
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>Route {
     <span class="doccomment">/// The name of the route.
     </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>, skip_serialization = <span class="string">"empty"</span>)]

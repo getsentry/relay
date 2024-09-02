@@ -1296,39 +1296,13 @@
 <a href="#1296" id="1296">1296</a>
 <a href="#1297" id="1297">1297</a>
 <a href="#1298" id="1298">1298</a>
-<a href="#1299" id="1299">1299</a>
-<a href="#1300" id="1300">1300</a>
-<a href="#1301" id="1301">1301</a>
-<a href="#1302" id="1302">1302</a>
-<a href="#1303" id="1303">1303</a>
-<a href="#1304" id="1304">1304</a>
-<a href="#1305" id="1305">1305</a>
-<a href="#1306" id="1306">1306</a>
-<a href="#1307" id="1307">1307</a>
-<a href="#1308" id="1308">1308</a>
-<a href="#1309" id="1309">1309</a>
-<a href="#1310" id="1310">1310</a>
-<a href="#1311" id="1311">1311</a>
-<a href="#1312" id="1312">1312</a>
-<a href="#1313" id="1313">1313</a>
-<a href="#1314" id="1314">1314</a>
-<a href="#1315" id="1315">1315</a>
-<a href="#1316" id="1316">1316</a>
-<a href="#1317" id="1317">1317</a>
-<a href="#1318" id="1318">1318</a>
-<a href="#1319" id="1319">1319</a>
-<a href="#1320" id="1320">1320</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
 <span class="kw">use </span>relay_common::time;
-<span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
-</span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
 <span class="kw">use </span>relay_protocol::{
     Annotated, Array, Empty, FromValue, Getter, GetterIter, IntoValue, Object, Val, Value,
 };
-<span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
-</span><span class="kw">use </span>schemars::{gen::SchemaGenerator, schema::Schema};
 <span class="kw">use </span>sentry_release_parser::Release <span class="kw">as </span>ParsedRelease;
 <span class="kw">use </span>uuid::Uuid;
 
@@ -1343,7 +1317,6 @@
 
 <span class="doccomment">/// Wrapper around a UUID with slightly different formatting.
 </span><span class="attr">#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>EventId(<span class="kw">pub </span>Uuid);
 
 <span class="kw">impl </span>EventId {
@@ -1400,21 +1373,6 @@
 <span class="attr">#[derive(Debug, FromValue, IntoValue, ProcessValue, Empty, Clone, PartialEq)]
 </span><span class="kw">pub struct </span>ExtraValue(<span class="attr">#[metastructure(max_depth = <span class="number">7</span>, max_bytes = <span class="number">16_384</span>)] </span><span class="kw">pub </span>Value);
 
-<span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
-</span><span class="kw">impl </span>schemars::JsonSchema <span class="kw">for </span>ExtraValue {
-    <span class="kw">fn </span>schema_name() -&gt; String {
-        Value::schema_name()
-    }
-
-    <span class="kw">fn </span>json_schema(gen: <span class="kw-2">&amp;mut </span>SchemaGenerator) -&gt; Schema {
-        Value::json_schema(gen)
-    }
-
-    <span class="kw">fn </span>is_referenceable() -&gt; bool {
-        <span class="bool-val">false
-    </span>}
-}
-
 <span class="kw">impl</span>&lt;T: Into&lt;Value&gt;&gt; From&lt;T&gt; <span class="kw">for </span>ExtraValue {
     <span class="kw">fn </span>from(value: T) -&gt; ExtraValue {
         ExtraValue(value.into())
@@ -1423,7 +1381,6 @@
 
 <span class="doccomment">/// An event processing error.
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>EventProcessingError {
     <span class="doccomment">/// The error kind.
     </span><span class="attr">#[metastructure(field = <span class="string">"type"</span>, required = <span class="string">"true"</span>)]
@@ -1455,7 +1412,6 @@
 
 <span class="doccomment">/// The sentry v7 event structure.
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 #[metastructure(process_func = <span class="string">"process_event"</span>, value_type = <span class="string">"Event"</span>)]
 </span><span class="kw">pub struct </span>Event {
     <span class="doccomment">/// Unique identifier of this event.

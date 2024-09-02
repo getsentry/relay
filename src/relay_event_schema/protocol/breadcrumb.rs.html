@@ -215,13 +215,8 @@
 <a href="#215" id="215">215</a>
 <a href="#216" id="216">216</a>
 <a href="#217" id="217">217</a>
-<a href="#218" id="218">218</a>
-<a href="#219" id="219">219</a>
-<a href="#220" id="220">220</a>
 </pre></div><pre class="rust"><code><span class="attr">#[cfg(test)]
 </span><span class="kw">use </span>chrono::{TimeZone, Utc};
-<span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
-</span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
 <span class="kw">use </span>relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
 
 <span class="kw">use </span><span class="kw">crate</span>::processor::ProcessValue;
@@ -267,7 +262,6 @@
 /// }
 /// ```
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 #[metastructure(process_func = <span class="string">"process_breadcrumb"</span>, value_type = <span class="string">"Breadcrumb"</span>)]
 </span><span class="kw">pub struct </span>Breadcrumb {
     <span class="doccomment">/// The timestamp of the breadcrumb. Recommended.

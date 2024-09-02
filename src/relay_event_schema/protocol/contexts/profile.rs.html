@@ -95,19 +95,13 @@
 <a href="#95" id="95">95</a>
 <a href="#96" id="96">96</a>
 <a href="#97" id="97">97</a>
-<a href="#98" id="98">98</a>
-<a href="#99" id="99">99</a>
-<a href="#100" id="100">100</a>
-</pre></div><pre class="rust"><code><span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
-</span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
-<span class="kw">use </span>relay_protocol::{Annotated, Empty, FromValue, IntoValue};
+</pre></div><pre class="rust"><code><span class="kw">use </span>relay_protocol::{Annotated, Empty, FromValue, IntoValue};
 
 <span class="kw">use </span><span class="kw">crate</span>::processor::ProcessValue;
 <span class="kw">use </span><span class="kw">crate</span>::protocol::EventId;
 
 <span class="doccomment">/// Profile context
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>ProfileContext {
     <span class="doccomment">/// The profile ID.
     </span><span class="kw">pub </span>profile_id: Annotated&lt;EventId&gt;,

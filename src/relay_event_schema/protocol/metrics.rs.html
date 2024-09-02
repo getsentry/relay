@@ -166,18 +166,11 @@
 <a href="#166" id="166">166</a>
 <a href="#167" id="167">167</a>
 <a href="#168" id="168">168</a>
-<a href="#169" id="169">169</a>
-<a href="#170" id="170">170</a>
-<a href="#171" id="171">171</a>
-<a href="#172" id="172">172</a>
-</pre></div><pre class="rust"><code><span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
-</span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
-<span class="kw">use </span>relay_protocol::{Annotated, Array, Empty, FromValue, IntoValue};
+</pre></div><pre class="rust"><code><span class="kw">use </span>relay_protocol::{Annotated, Array, Empty, FromValue, IntoValue};
 
 <span class="kw">use </span><span class="kw">crate</span>::processor::ProcessValue;
 
 <span class="attr">#[derive(Clone, Debug, Default, Empty, PartialEq, FromValue, IntoValue)]
-#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>SampleRate {
     <span class="doccomment">/// The unique identifier of the sampling rule or mechanism.
     ///
@@ -202,7 +195,6 @@
 /// These values are collected in Relay and Sentry and finally persisted into the event payload. A
 /// value of `0` is equivalent to N/A and should not be considered in aggregations and analysis.
 </span><span class="attr">#[derive(Clone, Debug, Default, Empty, PartialEq, FromValue, IntoValue)]
-#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>Metrics {
     <span class="doccomment">/// The size of the original event payload ingested into Sentry.
     ///

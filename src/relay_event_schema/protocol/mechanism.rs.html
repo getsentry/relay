@@ -514,17 +514,7 @@
 <a href="#514" id="514">514</a>
 <a href="#515" id="515">515</a>
 <a href="#516" id="516">516</a>
-<a href="#517" id="517">517</a>
-<a href="#518" id="518">518</a>
-<a href="#519" id="519">519</a>
-<a href="#520" id="520">520</a>
-<a href="#521" id="521">521</a>
-<a href="#522" id="522">522</a>
-<a href="#523" id="523">523</a>
-<a href="#524" id="524">524</a>
-</pre></div><pre class="rust"><code><span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
-</span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
-<span class="kw">use </span>relay_protocol::{Annotated, Empty, Error, FromValue, IntoValue, Object, Value};
+</pre></div><pre class="rust"><code><span class="kw">use </span>relay_protocol::{Annotated, Empty, Error, FromValue, IntoValue, Object, Value};
 
 <span class="kw">use </span><span class="kw">crate</span>::processor::ProcessValue;
 
@@ -534,7 +524,6 @@
 /// POSIX.1-2001, and POSIX.1-2008. See
 /// [`errno(3)`](https://man7.org/linux/man-pages/man3/errno.3.html) for more information.
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>CError {
     <span class="doccomment">/// The error code as specified by ISO C99, POSIX.1-2001 or POSIX.1-2008.
     </span><span class="kw">pub </span>number: Annotated&lt;i64&gt;,
@@ -545,7 +534,6 @@
 
 <span class="doccomment">/// Mach exception information.
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>MachException {
     <span class="doccomment">/// The mach exception type.
     </span><span class="attr">#[metastructure(field = <span class="string">"exception"</span>)]
@@ -563,7 +551,6 @@
 
 <span class="doccomment">/// NSError informaiton.
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>NsError {
     <span class="doccomment">/// The error code.
     </span><span class="kw">pub </span>code: Annotated&lt;i64&gt;,
@@ -577,7 +564,6 @@
 /// On Apple systems, signals also carry a code in addition to the signal number describing the
 /// signal in more detail. On Linux, this code does not exist.
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>PosixSignal {
     <span class="doccomment">/// The POSIX signal number.
     </span><span class="kw">pub </span>number: Annotated&lt;i64&gt;,
@@ -600,7 +586,6 @@
 /// proprietary or vendor-specific error codes, adding these values will give additional
 /// information to the user.
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>MechanismMeta {
     <span class="doccomment">/// Optional ISO C standard error code.
     </span><span class="kw">pub </span>errno: Annotated&lt;CError&gt;,
@@ -626,7 +611,6 @@
 /// This includes general exception values obtained from the operating system or runtime APIs, as
 /// well as mechanism-specific values.
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>Mechanism {
     <span class="doccomment">/// Mechanism type (required).
     ///

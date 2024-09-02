@@ -963,44 +963,8 @@
 <a href="#963" id="963">963</a>
 <a href="#964" id="964">964</a>
 <a href="#965" id="965">965</a>
-<a href="#966" id="966">966</a>
-<a href="#967" id="967">967</a>
-<a href="#968" id="968">968</a>
-<a href="#969" id="969">969</a>
-<a href="#970" id="970">970</a>
-<a href="#971" id="971">971</a>
-<a href="#972" id="972">972</a>
-<a href="#973" id="973">973</a>
-<a href="#974" id="974">974</a>
-<a href="#975" id="975">975</a>
-<a href="#976" id="976">976</a>
-<a href="#977" id="977">977</a>
-<a href="#978" id="978">978</a>
-<a href="#979" id="979">979</a>
-<a href="#980" id="980">980</a>
-<a href="#981" id="981">981</a>
-<a href="#982" id="982">982</a>
-<a href="#983" id="983">983</a>
-<a href="#984" id="984">984</a>
-<a href="#985" id="985">985</a>
-<a href="#986" id="986">986</a>
-<a href="#987" id="987">987</a>
-<a href="#988" id="988">988</a>
-<a href="#989" id="989">989</a>
-<a href="#990" id="990">990</a>
-<a href="#991" id="991">991</a>
-<a href="#992" id="992">992</a>
-<a href="#993" id="993">993</a>
-<a href="#994" id="994">994</a>
-<a href="#995" id="995">995</a>
-<a href="#996" id="996">996</a>
-<a href="#997" id="997">997</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>cookie::Cookie;
-<span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
-</span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
 <span class="kw">use </span>relay_protocol::{Annotated, Empty, Error, FromValue, IntoValue, Object, Value};
-<span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
-</span><span class="kw">use </span>schemars::{gen::SchemaGenerator, schema::Schema};
 <span class="kw">use </span>url::form_urlencoded;
 
 <span class="kw">use </span><span class="kw">crate</span>::processor::ProcessValue;
@@ -1010,7 +974,6 @@
 
 <span class="doccomment">/// A map holding cookies.
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>Cookies(<span class="kw">pub </span>PairList&lt;(Annotated&lt;String&gt;, Annotated&lt;String&gt;)&gt;);
 
 <span class="kw">impl </span>Cookies {
@@ -1085,7 +1048,6 @@
 
 <span class="doccomment">/// A "into-string" type that normalizes header names.
 </span><span class="attr">#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Empty, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 #[metastructure(process_func = <span class="string">"process_header_name"</span>)]
 </span><span class="kw">pub struct </span>HeaderName(String);
 
@@ -1158,7 +1120,6 @@
 
 <span class="doccomment">/// A "into-string" type that normalizes header values.
 </span><span class="attr">#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Empty, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>HeaderValue(String);
 
 <span class="kw">impl </span>HeaderValue {
@@ -1228,7 +1189,6 @@
 
 <span class="doccomment">/// A map holding headers.
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>Headers(<span class="kw">pub </span>PairList&lt;(Annotated&lt;HeaderName&gt;, Annotated&lt;HeaderValue&gt;)&gt;);
 
 <span class="kw">impl </span>Headers {
@@ -1345,29 +1305,6 @@
     }
 }
 
-<span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
-</span><span class="kw">impl </span>schemars::JsonSchema <span class="kw">for </span>Query {
-    <span class="kw">fn </span>schema_name() -&gt; String {
-        <span class="string">"Query"</span>.to_string()
-    }
-
-    <span class="kw">fn </span>json_schema(gen: <span class="kw-2">&amp;mut </span>SchemaGenerator) -&gt; Schema {
-        <span class="attr">#[derive(schemars::JsonSchema)]
-        #[schemars(untagged)]
-        #[allow(unused)]
-        </span><span class="kw">enum </span>Helper {
-            QueryString(String),
-            CanonicalQueryObject(PairList&lt;(Annotated&lt;String&gt;, Annotated&lt;String&gt;)&gt;),
-        }
-
-        Helper::json_schema(gen)
-    }
-
-    <span class="kw">fn </span>is_referenceable() -&gt; bool {
-        <span class="bool-val">false
-    </span>}
-}
-
 <span class="doccomment">/// Http request information.
 ///
 /// The Request interface contains information on a HTTP request related to the event. In client
@@ -1427,7 +1364,6 @@
 /// }
 /// ```
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 #[metastructure(process_func = <span class="string">"process_request"</span>, value_type = <span class="string">"Request"</span>)]
 </span><span class="kw">pub struct </span>Request {
     <span class="doccomment">/// The URL of the request if available.

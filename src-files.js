@@ -1,7 +1,6 @@
 var srcIndex = new Map(JSON.parse('[\
 ["document_metrics",["",[],["main.rs"]]],\
 ["document_pii",["",[],["item_collector.rs","main.rs","pii_finder.rs"]]],\
-["generate_schema",["",[],["main.rs"]]],\
 ["process_event",["",[],["main.rs"]]],\
 ["relay",["",[],["cli.rs","cliapp.rs","main.rs","setup.rs","utils.rs"]]],\
 ["relay_auth",["",[],["lib.rs"]]],\
@@ -15,11 +14,10 @@ var srcIndex = new Map(JSON.parse('[\
 ["relay_dynamic_config",["",[],["defaults.rs","error_boundary.rs","feature.rs","global.rs","lib.rs","metrics.rs","project.rs","utils.rs"]]],\
 ["relay_event_derive",["",[],["lib.rs"]]],\
 ["relay_event_normalization",["",[["normalize",[["span",[["description",[["sql",[],["mod.rs","parser.rs"]]],["mod.rs","resource.rs"]]],["ai.rs","country_subregion.rs","exclusive_time.rs","mod.rs","tag_extraction.rs"]]],["breakdowns.rs","contexts.rs","mod.rs","nel.rs","request.rs","user_agent.rs","utils.rs"]],["transactions",[],["mod.rs","processor.rs","rules.rs"]]],["clock_drift.rs","event.rs","event_error.rs","geo.rs","legacy.rs","lib.rs","logentry.rs","mechanism.rs","regexes.rs","remove_other.rs","replay.rs","schema.rs","stacktrace.rs","statsd.rs","timestamp.rs","trimming.rs","validation.rs"]]],\
-["relay_event_schema",["",[["processor",[],["attrs.rs","chunks.rs","funcs.rs","impls.rs","mod.rs","traits.rs"]],["protocol",[["contexts",[],["app.rs","browser.rs","cloud_resource.rs","device.rs","gpu.rs","mod.rs","monitor.rs","nel.rs","os.rs","otel.rs","performance_score.rs","profile.rs","replay.rs","reprocessing.rs","response.rs","runtime.rs","trace.rs","user_report_v2.rs"]],["span",[],["convert.rs"]]],["base.rs","breadcrumb.rs","breakdowns.rs","client_report.rs","clientsdk.rs","constants.rs","debugmeta.rs","device_class.rs","event.rs","exception.rs","fingerprint.rs","logentry.rs","measurements.rs","mechanism.rs","metrics.rs","metrics_summary.rs","mod.rs","nel.rs","relay_info.rs","replay.rs","request.rs","schema.rs","security_report.rs","session.rs","span.rs","stacktrace.rs","tags.rs","templateinfo.rs","thread.rs","transaction.rs","types.rs","user.rs","user_report.rs","utils.rs"]]],["lib.rs"]]],\
+["relay_event_schema",["",[["processor",[],["attrs.rs","chunks.rs","funcs.rs","impls.rs","mod.rs","traits.rs"]],["protocol",[["contexts",[],["app.rs","browser.rs","cloud_resource.rs","device.rs","gpu.rs","mod.rs","monitor.rs","nel.rs","os.rs","otel.rs","performance_score.rs","profile.rs","replay.rs","reprocessing.rs","response.rs","runtime.rs","trace.rs","user_report_v2.rs"]],["span",[],["convert.rs"]]],["base.rs","breadcrumb.rs","breakdowns.rs","client_report.rs","clientsdk.rs","constants.rs","debugmeta.rs","device_class.rs","event.rs","exception.rs","fingerprint.rs","logentry.rs","measurements.rs","mechanism.rs","metrics.rs","metrics_summary.rs","mod.rs","nel.rs","relay_info.rs","replay.rs","request.rs","security_report.rs","session.rs","span.rs","stacktrace.rs","tags.rs","templateinfo.rs","thread.rs","transaction.rs","types.rs","user.rs","user_report.rs","utils.rs"]]],["lib.rs"]]],\
 ["relay_ffi",["",[],["lib.rs"]]],\
 ["relay_ffi_macros",["",[],["lib.rs"]]],\
 ["relay_filter",["",[],["browser_extensions.rs","client_ips.rs","common.rs","config.rs","csp.rs","error_messages.rs","generic.rs","interface.rs","legacy_browsers.rs","lib.rs","localhost.rs","releases.rs","transaction_name.rs","web_crawlers.rs"]]],\
-["relay_jsonschema_derive",["",[],["lib.rs"]]],\
 ["relay_kafka",["",[["producer",[],["mod.rs","schemas.rs","utils.rs"]]],["config.rs","lib.rs","statsd.rs"]]],\
 ["relay_log",["",[],["lib.rs","setup.rs","test.rs","utils.rs"]]],\
 ["relay_metrics",["",[["meta",[],["aggregator.rs","mod.rs","protocol.rs","redis.rs"]]],["aggregator.rs","bucket.rs","cogs.rs","finite.rs","lib.rs","protocol.rs","statsd.rs","view.rs"]]],\

@@ -288,16 +288,9 @@
 <a href="#288" id="288">288</a>
 <a href="#289" id="289">289</a>
 <a href="#290" id="290">290</a>
-<a href="#291" id="291">291</a>
-<a href="#292" id="292">292</a>
-<a href="#293" id="293">293</a>
-<a href="#294" id="294">294</a>
-<a href="#295" id="295">295</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
-<span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
-</span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
 <span class="kw">use </span>relay_protocol::{Annotated, Empty, Error, FromValue, IntoValue, Object, Value};
 
 <span class="kw">use </span><span class="kw">crate</span>::processor::ProcessValue;
@@ -305,7 +298,6 @@
 
 <span class="doccomment">/// A 32-character hex string as described in the W3C trace context spec.
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>TraceId(<span class="kw">pub </span>String);
 
 <span class="kw">impl </span>FromValue <span class="kw">for </span>TraceId {
@@ -338,7 +330,6 @@
 
 <span class="doccomment">/// A 16-character hex string as described in the W3C trace context spec.
 </span><span class="attr">#[derive(Clone, Debug, Default, Eq, Hash, PartialEq, Empty, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>SpanId(<span class="kw">pub </span>String);
 
 <span class="macro">relay_common::impl_str_serde!</span>(SpanId, <span class="string">"a span identifier"</span>);
@@ -391,7 +382,6 @@
 
 <span class="doccomment">/// Trace context
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 #[metastructure(process_func = <span class="string">"process_trace_context"</span>)]
 </span><span class="kw">pub struct </span>TraceContext {
     <span class="doccomment">/// The trace ID.

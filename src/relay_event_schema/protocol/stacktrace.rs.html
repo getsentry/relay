@@ -784,22 +784,11 @@
 <a href="#784" id="784">784</a>
 <a href="#785" id="785">785</a>
 <a href="#786" id="786">786</a>
-<a href="#787" id="787">787</a>
-<a href="#788" id="788">788</a>
-<a href="#789" id="789">789</a>
-<a href="#790" id="790">790</a>
-<a href="#791" id="791">791</a>
-<a href="#792" id="792">792</a>
-<a href="#793" id="793">793</a>
-<a href="#794" id="794">794</a>
-<a href="#795" id="795">795</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::ops::{Deref, DerefMut};
 <span class="kw">use </span>std::str::FromStr;
 
-<span class="attr">#[cfg(feature = <span class="string">"jsonschema"</span>)]
-</span><span class="kw">use </span>relay_jsonschema_derive::JsonSchema;
 <span class="kw">use </span>relay_protocol::{
     Annotated, Array, Empty, ErrorKind, FromValue, IntoValue, Object, SkipSerialization, Value,
 };
@@ -813,7 +802,6 @@
 /// Each object should contain **at least** a `filename`, `function` or `instruction_addr`
 /// attribute. All values are optional, but recommended.
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 #[metastructure(process_func = <span class="string">"process_frame"</span>, value_type = <span class="string">"Frame"</span>)]
 </span><span class="kw">pub struct </span>Frame {
     <span class="doccomment">/// Name of the frame's function. This might include the name of a class.
@@ -994,14 +982,12 @@
 
 <span class="doccomment">/// Frame local variables.
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>FrameVars(<span class="attr">#[metastructure(skip_serialization = <span class="string">"empty"</span>)] </span><span class="kw">pub </span>Object&lt;Value&gt;);
 
 <span class="doccomment">/// Additional frame data information.
 ///
 /// This value is set by the server and should not be set by the SDK.
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 </span><span class="kw">pub struct </span>FrameData {
     <span class="doccomment">/// A reference to the sourcemap used.
     </span><span class="attr">#[metastructure(max_chars = <span class="number">256</span>, max_chars_allowance = <span class="number">40</span>)]
@@ -1125,7 +1111,6 @@
 /// }
 /// ```
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 #[metastructure(process_func = <span class="string">"process_raw_stacktrace"</span>, value_type = <span class="string">"Stacktrace"</span>)]
 </span><span class="kw">pub struct </span>RawStacktrace {
     <span class="doccomment">/// Required. A non-empty list of stack frames. The list is ordered from caller to callee, or
@@ -1176,7 +1161,6 @@
 /// stack frames, `"none"` should be used here.
 </span><span class="attr">#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize, ProcessValue)]
 #[serde(rename_all = <span class="string">"snake_case"</span>)]
-#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(schemars::JsonSchema))]
 </span><span class="kw">pub enum </span>InstructionAddrAdjustment {
     <span class="doccomment">/// The default. Applies a heuristic based on other event / exception attributes.
     </span>Auto,
@@ -1196,7 +1180,6 @@
     <span class="doccomment">/// Any other unknown adjustment strategy.
     ///
     /// This exists to ensure forward compatibility.
-    </span><span class="attr">#[cfg_attr(feature = <span class="string">"jsonschema"</span>, schemars(skip))]
     </span>Unknown(String),
 }
 
@@ -1276,7 +1259,6 @@
 <span class="comment">// NOTE: This is not a doc comment because otherwise it will show up in public docs.
 // Newtype to distinguish `raw_stacktrace` attributes from the rest.
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = <span class="string">"jsonschema"</span>, derive(JsonSchema))]
 #[metastructure(process_func = <span class="string">"process_stacktrace"</span>)]
 </span><span class="kw">pub struct </span>Stacktrace(<span class="kw">pub </span>RawStacktrace);
 
