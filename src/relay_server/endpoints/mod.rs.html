@@ -85,8 +85,6 @@
 <a href="#85" id="85">85</a>
 <a href="#86" id="86">86</a>
 <a href="#87" id="87">87</a>
-<a href="#88" id="88">88</a>
-<a href="#89" id="89">89</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Web server endpoints.
 //!
 //! This module contains implementations for all supported relay endpoints, as well as a generic
@@ -106,7 +104,6 @@
 <span class="kw">mod </span>project_configs;
 <span class="kw">mod </span>public_keys;
 <span class="kw">mod </span>security_report;
-<span class="kw">mod </span>spans;
 <span class="kw">mod </span>statics;
 <span class="kw">mod </span>store;
 <span class="kw">mod </span>unreal;
@@ -164,7 +161,6 @@
         .route(<span class="string">"/api/:project_id/minidump/"</span>, minidump::route(config))
         .route(<span class="string">"/api/:project_id/events/:event_id/attachments/"</span>, attachments::route(config))
         .route(<span class="string">"/api/:project_id/unreal/:sentry_key/"</span>, unreal::route(config))
-        .route(<span class="string">"/api/:project_id/spans/"</span>, spans::route(config))
         <span class="comment">// NOTE: If you add a new (non-experimental) route here, please also list it in
         // https://github.com/getsentry/sentry-docs/blob/master/docs/product/relay/operating-guidelines.mdx
         </span>.route_layer(middlewares::cors());

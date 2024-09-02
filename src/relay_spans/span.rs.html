@@ -717,6 +717,7 @@
 <span class="kw">use </span>chrono::{TimeZone, Utc};
 <span class="kw">use </span>opentelemetry_proto::tonic::common::v1::any_value::Value <span class="kw">as </span>OtelValue;
 <span class="kw">use </span>opentelemetry_proto::tonic::common::v1::{AnyValue, KeyValue};
+<span class="kw">use </span>relay_protocol::{Annotated, FromValue, Object};
 
 <span class="kw">use </span><span class="kw">crate</span>::otel_trace::{status::StatusCode <span class="kw">as </span>OtelStatusCode, Span <span class="kw">as </span>OtelSpan};
 <span class="kw">use </span><span class="kw">crate</span>::status_codes;
@@ -724,7 +725,6 @@
     EventId, MetricSummary, MetricsSummary, Span <span class="kw">as </span>EventSpan, SpanData, SpanId, SpanStatus,
     Timestamp, TraceId,
 };
-<span class="kw">use </span>relay_protocol::{Annotated, FromValue, Object};
 
 <span class="doccomment">/// convert_from_otel_to_sentry_status returns a status as defined by Sentry based on the OTel status.
 </span><span class="kw">fn </span>convert_from_otel_to_sentry_status(
