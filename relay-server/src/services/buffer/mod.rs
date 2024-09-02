@@ -18,13 +18,14 @@ use crate::statsd::RelayCounters;
 use crate::utils::MemoryChecker;
 
 pub use envelope_buffer::EnvelopeBufferError;
+// pub for benchmarks
 pub use envelope_buffer::PolymorphicEnvelopeBuffer;
+// pub for benchmarks
 pub use envelope_stack::sqlite::SqliteEnvelopeStack;
 // pub for benchmarks
 pub use envelope_stack::EnvelopeStack;
 // pub for benchmarks
 pub use envelope_store::sqlite::SqliteEnvelopeStore;
-// pub for benchmarks
 
 mod common;
 mod envelope_buffer;
