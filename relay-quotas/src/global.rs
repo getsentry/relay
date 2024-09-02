@@ -1,10 +1,11 @@
 use std::sync::{Mutex, OnceLock, PoisonError};
 
-use crate::RedisQuota;
 use itertools::Itertools;
 use relay_base_schema::metrics::MetricNamespace;
 use relay_redis::redis::Script;
 use relay_redis::{PooledClient, RedisError};
+
+use crate::RedisQuota;
 
 /// Default percentage of the quota limit to reserve from Redis as a local cache.
 const DEFAULT_BUDGET_RATIO: f32 = 0.001;
@@ -37,7 +38,7 @@ impl GlobalRateLimits {
         let mut ratelimited = vec![];
         let mut not_ratelimited = vec![];
 
-        for (key, quotas) in &quotas.iter().group_by(|quota| KeyRef::new(quota)) {
+        for (key, quotas) in &quotas.iter().chunk_by(|quota| KeyRef::new(quota)) {
             let Some(quota) = quotas.min_by_key(|quota| quota.limit()) else {
                 continue;
             };
