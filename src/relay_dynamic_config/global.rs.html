@@ -532,19 +532,6 @@
 <a href="#532" id="532">532</a>
 <a href="#533" id="533">533</a>
 <a href="#534" id="534">534</a>
-<a href="#535" id="535">535</a>
-<a href="#536" id="536">536</a>
-<a href="#537" id="537">537</a>
-<a href="#538" id="538">538</a>
-<a href="#539" id="539">539</a>
-<a href="#540" id="540">540</a>
-<a href="#541" id="541">541</a>
-<a href="#542" id="542">542</a>
-<a href="#543" id="543">543</a>
-<a href="#544" id="544">544</a>
-<a href="#545" id="545">545</a>
-<a href="#546" id="546">546</a>
-<a href="#547" id="547">547</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::btree_map::Entry;
 <span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::fs::File;
@@ -730,19 +717,6 @@
         skip_serializing_if = <span class="string">"is_default"
     </span>)]
     </span><span class="kw">pub </span>span_extraction_sample_rate: <span class="prelude-ty">Option</span>&lt;f32&gt;,
-
-    <span class="doccomment">/// The maximum duplication factor used to extrapolate distribution metrics from sampled data.
-    ///
-    /// This applies as long as Relay duplicates distribution values to extrapolate. The default is
-    /// `0`, which disables extrapolation of distributions completely. This option does not apply to
-    /// any other metric types.
-    </span><span class="attr">#[serde(
-        default,
-        rename = <span class="string">"sentry-metrics.extrapolation.duplication-limit"</span>,
-        deserialize_with = <span class="string">"default_on_error"</span>,
-        skip_serializing_if = <span class="string">"is_default"
-    </span>)]
-    </span><span class="kw">pub </span>extrapolation_duplication_limit: usize,
 
     <span class="doccomment">/// List of values on span description that are allowed to be sent to Sentry without being scrubbed.
     ///
