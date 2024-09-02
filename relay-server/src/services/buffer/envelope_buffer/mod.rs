@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::convert::Infallible;
 use std::error::Error;
-use std::sync::atomic::AtomicIsize;
+use std::sync::atomic::AtomicI64;
 use std::sync::atomic::Ordering as AtomicOrdering;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -163,7 +163,7 @@ struct EnvelopeBuffer<P: StackProvider> {
     /// count might not succeed if it takes more than a set timeout. For example, if we load the
     /// count of all envelopes from disk, and it takes more than the time we set, we will mark the
     /// initial count as 0 and just count incoming and outgoing envelopes from the buffer.
-    total_count: Arc<AtomicIsize>,
+    total_count: Arc<AtomicI64>,
     /// Whether the count initialization succeeded or not.
     ///
     /// This boolean is just used for tagging the metric that tracks the total count of envelopes
@@ -178,7 +178,7 @@ impl EnvelopeBuffer<MemoryStackProvider> {
             stacks_by_project: Default::default(),
             priority_queue: Default::default(),
             stack_provider: MemoryStackProvider::new(memory_checker),
-            total_count: Arc::new(AtomicIsize::new(0)),
+            total_count: Arc::new(AtomicI64::new(0)),
             total_count_initialized: false,
         }
     }
@@ -192,7 +192,7 @@ impl EnvelopeBuffer<SqliteStackProvider> {
             stacks_by_project: Default::default(),
             priority_queue: Default::default(),
             stack_provider: SqliteStackProvider::new(config).await?,
-            total_count: Arc::new(AtomicIsize::new(0)),
+            total_count: Arc::new(AtomicI64::new(0)),
             total_count_initialized: false,
         })
     }
@@ -429,7 +429,7 @@ where
         match total_count {
             Ok(total_count) => {
                 self.total_count
-                    .store(total_count as isize, AtomicOrdering::Relaxed);
+                    .store(total_count as i64, AtomicOrdering::Relaxed);
                 self.total_count_initialized = true;
             }
             Err(error) => {
