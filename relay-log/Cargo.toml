@@ -15,7 +15,6 @@ workspace = true
 
 [dependencies]
 console = { workspace = true, optional = true }
-once_cell = { workspace = true, optional = true }
 relay-common = { workspace = true }
 relay-crash = { workspace = true, optional = true }
 sentry = { workspace = true, features = [
@@ -23,9 +22,6 @@ sentry = { workspace = true, features = [
     "tracing",
 ], optional = true }
 sentry-core = { workspace = true }
-tokio = { workspace = true, default-features = false, features = [
-    "sync",
-], optional = true }
 serde = { workspace = true, optional = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true, features = [
@@ -36,13 +32,7 @@ tracing-subscriber = { workspace = true, features = [
 
 [features]
 default = []
-dashboard = ["dep:once_cell", "dep:tokio"]
 test = ["dep:tracing-subscriber"]
-init = [
-    "dep:console",
-    "dep:sentry",
-    "dep:serde",
-    "dep:tracing-subscriber",
-]
+init = ["dep:console", "dep:sentry", "dep:serde", "dep:tracing-subscriber"]
 crash-handler = ["init", "dep:relay-crash"]
 sentry = ["dep:sentry"]

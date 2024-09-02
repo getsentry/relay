@@ -22,6 +22,9 @@
 - Forward profiles of non-sampled transactions (with no options filtering). ([#3963](https://github.com/getsentry/relay/pull/3963))
 - Make EnvelopeBuffer a Service. ([#3965](https://github.com/getsentry/relay/pull/3965))
 - No longer send COGS data to dedicated Kafka topic. ([#3953](https://github.com/getsentry/relay/pull/3953))
+- Remove support for extrapolation of metrics. ([#3969](https://github.com/getsentry/relay/pull/3969))
+- Remove the internal dashboard that shows logs and metrics. ([#3970](https://github.com/getsentry/relay/pull/3970))
+- Allow creation of `SqliteEnvelopeBuffer` from config, and load existing stacks from db on startup. ([#3967](https://github.com/getsentry/relay/pull/3967))
 
 ## 24.8.0
 

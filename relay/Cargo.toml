@@ -10,7 +10,6 @@ license-file = "../LICENSE.md"
 publish = false
 
 [features]
-dashboard = ["relay-server/dashboard", "relay-log/dashboard"]
 default = []
 processing = ["relay-server/processing", "dep:relay-kafka"]
 crash-handler = ["relay-log/crash-handler"]
