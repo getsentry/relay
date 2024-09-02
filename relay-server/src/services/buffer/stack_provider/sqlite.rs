@@ -59,4 +59,22 @@ impl StackProvider for SqliteStackProvider {
     fn has_store_capacity(&self) -> bool {
         (self.envelope_store.usage() as usize) < self.max_disk_size
     }
+
+    async fn store_total_count(&self) -> u64 {
+        self.envelope_store
+            .total_count()
+            .await
+            .unwrap_or_else(|error| {
+                relay_log::error!(
+                    error = &error as &dyn Error,
+                    "failed to get the total count of envelopes for the sqlite envelope store",
+                );
+                // In case we have an error, we default to communicating a total count of 0.
+                0
+            })
+    }
+
+    fn stack_type<'a>(&self) -> &'a str {
+        "sqlite"
+    }
 }
