@@ -1002,7 +1002,6 @@
 <a href="#1002" id="1002">1002</a>
 <a href="#1003" id="1003">1003</a>
 <a href="#1004" id="1004">1004</a>
-<a href="#1005" id="1005">1005</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -1032,7 +1031,6 @@
 <span class="kw">use </span>relay_quotas::DataCategory;
 <span class="kw">use </span>relay_spans::otel_trace::Span <span class="kw">as </span>OtelSpan;
 <span class="kw">use </span>thiserror::Error;
-<span class="kw">use </span>url::Host;
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Item, ItemType};
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::metrics_summary;
@@ -1344,7 +1342,7 @@
     <span class="doccomment">/// Client hints parsed from the request.
     </span>client_hints: ClientHints&lt;String&gt;,
     <span class="doccomment">/// Hosts that are not replaced by "*" in HTTP span grouping.
-    </span>allowed_hosts: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[Host],
+    </span>allowed_hosts: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[String],
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; NormalizeSpanConfig&lt;<span class="lifetime">'a</span>&gt; {
