@@ -12,12 +12,6 @@ publish = false
 
 [features]
 default = []
-dashboard = [
-    "axum/ws",
-    "dep:rust-embed",
-    "dep:mime_guess",
-    "relay-log/dashboard",
-]
 processing = [
     "dep:minidump",
     "dep:symbolic-common",
@@ -60,13 +54,11 @@ hyper-util = { workspace = true }
 itertools = { workspace = true }
 json-forensics = { workspace = true }
 mime = { workspace = true }
-mime_guess = { workspace = true, optional = true }
 minidump = { workspace = true, optional = true }
 multer = { workspace = true }
 once_cell = { workspace = true }
 pin-project-lite = { workspace = true }
 priority-queue = { workspace = true }
-prost = { workspace = true }
 rand = { workspace = true }
 rayon = { workspace = true }
 regex = { workspace = true }
@@ -101,7 +93,6 @@ reqwest = { workspace = true, features = [
     "native-tls-vendored",
 ] }
 rmp-serde = { workspace = true }
-rust-embed = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_bytes = { workspace = true }
 serde_json = { workspace = true }
@@ -142,7 +133,6 @@ semver = { workspace = true }
 criterion = { workspace = true }
 tokio = { workspace = true, features = ['test-util'] }
 insta = { workspace = true }
-relay-event-schema = { workspace = true, features = ["jsonschema"] }
 relay-protocol = { workspace = true, features = ["test"] }
 relay-test = { workspace = true }
 similar-asserts = { workspace = true }

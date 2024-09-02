@@ -1,8 +1,6 @@
 use std::fmt;
 use std::str::FromStr;
 
-#[cfg(feature = "jsonschema")]
-use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{Annotated, Empty, Error, FromValue, IntoValue, Object, Value};
 
 use crate::processor::ProcessValue;
@@ -10,7 +8,6 @@ use crate::protocol::{OperationType, OriginType, SpanData, SpanStatus};
 
 /// A 32-character hex string as described in the W3C trace context spec.
 #[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct TraceId(pub String);
 
 impl FromValue for TraceId {
@@ -43,7 +40,6 @@ impl AsRef<str> for TraceId {
 
 /// A 16-character hex string as described in the W3C trace context spec.
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq, Empty, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct SpanId(pub String);
 
 relay_common::impl_str_serde!(SpanId, "a span identifier");
@@ -96,7 +92,6 @@ fn is_hex_string(string: &str, len: usize) -> bool {
 
 /// Trace context
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_trace_context")]
 pub struct TraceContext {
     /// The trace ID.

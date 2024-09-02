@@ -103,11 +103,3 @@ event_snapshot!(unity_windows);
 event_snapshot!(unity_ios);
 event_snapshot!(unity_linux);
 event_snapshot!(unity_android);
-
-#[test]
-fn test_event_schema_snapshot() {
-    insta::assert_json_snapshot!(
-        "event_schema",
-        relay_event_schema::protocol::event_json_schema()
-    );
-}

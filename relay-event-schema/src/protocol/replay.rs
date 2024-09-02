@@ -25,8 +25,6 @@
 //! }
 //! ```
 
-#[cfg(feature = "jsonschema")]
-use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{Annotated, Array, Empty, FromValue, Getter, IntoValue, Val};
 
 use crate::processor::ProcessValue;
@@ -38,7 +36,6 @@ use crate::protocol::{
 use uuid::Uuid;
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_replay", value_type = "Replay")]
 pub struct Replay {
     /// Unique identifier of this event.

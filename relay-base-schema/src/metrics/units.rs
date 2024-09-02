@@ -94,17 +94,6 @@ impl std::str::FromStr for MetricUnit {
 
 relay_common::impl_str_serde!(MetricUnit, "a metric unit string");
 
-#[cfg(feature = "jsonschema")]
-impl schemars::JsonSchema for MetricUnit {
-    fn schema_name() -> String {
-        std::any::type_name::<Self>().to_owned()
-    }
-
-    fn json_schema(gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
-        String::json_schema(gen)
-    }
-}
-
 impl Empty for MetricUnit {
     #[inline]
     fn is_empty(&self) -> bool {

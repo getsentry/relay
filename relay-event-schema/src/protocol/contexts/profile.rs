@@ -1,5 +1,3 @@
-#[cfg(feature = "jsonschema")]
-use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{Annotated, Empty, FromValue, IntoValue};
 
 use crate::processor::ProcessValue;
@@ -7,7 +5,6 @@ use crate::protocol::EventId;
 
 /// Profile context
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct ProfileContext {
     /// The profile ID.
     pub profile_id: Annotated<EventId>,

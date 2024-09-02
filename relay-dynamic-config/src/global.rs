@@ -184,19 +184,6 @@ pub struct Options {
     )]
     pub span_extraction_sample_rate: Option<f32>,
 
-    /// The maximum duplication factor used to extrapolate distribution metrics from sampled data.
-    ///
-    /// This applies as long as Relay duplicates distribution values to extrapolate. The default is
-    /// `0`, which disables extrapolation of distributions completely. This option does not apply to
-    /// any other metric types.
-    #[serde(
-        default,
-        rename = "sentry-metrics.extrapolation.duplication-limit",
-        deserialize_with = "default_on_error",
-        skip_serializing_if = "is_default"
-    )]
-    pub extrapolation_duplication_limit: usize,
-
     /// List of values on span description that are allowed to be sent to Sentry without being scrubbed.
     ///
     /// At this point, it doesn't accept IP addresses in CIDR format.. yet.
