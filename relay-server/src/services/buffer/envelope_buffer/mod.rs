@@ -2,8 +2,8 @@ use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::convert::Infallible;
 use std::error::Error;
+use std::sync::atomic::AtomicIsize;
 use std::sync::atomic::Ordering as AtomicOrdering;
-use std::sync::atomic::{AtomicIsize, AtomicU64};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -209,6 +209,7 @@ where
             let initialization_state = self.stack_provider.initialize().await;
             self.load_stacks(initialization_state.project_key_pairs)
                 .await;
+            self.load_store_total_count().await;
         });
     }
 
@@ -238,6 +239,7 @@ where
             });
 
         self.total_count.fetch_add(1, AtomicOrdering::Relaxed);
+        self.track_total_count();
 
         Ok(())
     }
@@ -296,6 +298,7 @@ where
         // than it was initially counted, meaning that we had a wrong total count from
         // initialization.
         self.total_count.fetch_sub(1, AtomicOrdering::Relaxed);
+        self.track_total_count();
 
         Ok(Some(envelope))
     }
@@ -436,12 +439,13 @@ where
                     "failed to load the total envelope count of the store",
                 );
             }
-        }
+        };
+        self.track_total_count();
     }
 
     /// Emits a metric to track the total count of envelopes that are in the envelope buffer.
     fn track_total_count(&self) {
-        let total_count = self.total_count.load(AtomicOrdering::Relaxed);
+        let total_count = self.total_count.load(AtomicOrdering::Relaxed) as f64;
         let initialized = match self.total_count_initialized {
             true => "true",
             false => "false",
