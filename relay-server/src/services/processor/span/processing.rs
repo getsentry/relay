@@ -704,11 +704,7 @@ mod tests {
             event: Annotated::from(event),
             metrics: Default::default(),
             sample_rates: None,
-            extracted_metrics: ProcessingExtractedMetrics::new(
-                project_state.clone(),
-                Arc::new(GlobalConfig::default()),
-                managed_envelope.envelope().dsc(),
-            ),
+            extracted_metrics: ProcessingExtractedMetrics::new(),
             config: Arc::new(Config::default()),
             project_state,
             sampling_project_state: None,
