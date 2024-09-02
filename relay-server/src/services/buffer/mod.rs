@@ -1,5 +1,6 @@
 //! Types for buffering envelopes.
 
+use std::error::Error;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
@@ -210,9 +211,18 @@ impl Service for EnvelopeBufferService {
         let config = self.config.clone();
         let memory_checker = self.memory_checker.clone();
         tokio::spawn(async move {
-            let mut buffer = PolymorphicEnvelopeBuffer::from_config(&config, memory_checker)
-                .await
-                .expect("Envelope buffer couldn't be initialized from the config");
+            let buffer = PolymorphicEnvelopeBuffer::from_config(&config, memory_checker).await;
+
+            let mut buffer = match buffer {
+                Ok(buffer) => buffer,
+                Err(error) => {
+                    relay_log::error!(
+                        error = &error as &dyn Error,
+                        "failed to start the envelope buffer service",
+                    );
+                    std::process::exit(1);
+                }
+            };
             buffer.initialize().await;
 
             relay_log::info!("EnvelopeBufferService start");
