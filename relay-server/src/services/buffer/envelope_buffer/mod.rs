@@ -3,17 +3,19 @@ use std::collections::BTreeSet;
 use std::convert::Infallible;
 use std::time::Instant;
 
+use hashbrown::HashSet;
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
 
 use crate::envelope::Envelope;
+use crate::services::buffer::common::ProjectKeyPair;
 use crate::services::buffer::envelope_stack::sqlite::SqliteEnvelopeStackError;
 use crate::services::buffer::envelope_stack::EnvelopeStack;
 use crate::services::buffer::envelope_store::sqlite::SqliteEnvelopeStoreError;
 use crate::services::buffer::stack_provider::memory::MemoryStackProvider;
 use crate::services::buffer::stack_provider::sqlite::SqliteStackProvider;
 use crate::services::buffer::stack_provider::StackProvider;
-use crate::statsd::{RelayCounters, RelayGauges};
+use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
 use crate::utils::MemoryChecker;
 
 /// Polymorphic envelope buffering interface.
@@ -36,12 +38,27 @@ pub enum PolymorphicEnvelopeBuffer {
 impl PolymorphicEnvelopeBuffer {
     /// Creates either a memory-based or a disk-based envelope buffer,
     /// depending on the given configuration.
-    pub fn from_config(config: &Config, memory_checker: MemoryChecker) -> Self {
-        if config.spool_envelopes_path().is_some() {
-            panic!("Disk backend not yet supported for spool V2");
-        }
+    pub async fn from_config(
+        config: &Config,
+        memory_checker: MemoryChecker,
+    ) -> Result<Self, EnvelopeBufferError> {
+        let buffer = if config.spool_envelopes_path().is_some() {
+            let buffer = EnvelopeBuffer::<SqliteStackProvider>::new(config).await?;
+            Self::Sqlite(buffer)
+        } else {
+            let buffer = EnvelopeBuffer::<MemoryStackProvider>::new(memory_checker);
+            Self::InMemory(buffer)
+        };
 
-        Self::InMemory(EnvelopeBuffer::<MemoryStackProvider>::new(memory_checker))
+        Ok(buffer)
+    }
+
+    /// Initializes the envelope buffer.
+    pub async fn initialize(&mut self) {
+        match self {
+            PolymorphicEnvelopeBuffer::InMemory(buffer) => buffer.initialize().await,
+            PolymorphicEnvelopeBuffer::Sqlite(buffer) => buffer.initialize().await,
+        }
     }
 
     /// Adds an envelope to the buffer.
@@ -74,7 +91,7 @@ impl PolymorphicEnvelopeBuffer {
 
     /// Marks a project as ready or not ready.
     ///
-    /// The buffer reprioritizes its envelopes based on this information.
+    /// The buffer re-prioritizes its envelopes based on this information.
     /// Returns `true` if at least one priority was changed.
     pub fn mark_ready(&mut self, project: &ProjectKey, is_ready: bool) -> bool {
         match self {
@@ -88,10 +105,10 @@ impl PolymorphicEnvelopeBuffer {
     /// Non-ready stacks are deprioritized when they are marked as seen, such that
     /// the next call to `.peek()` will look at a different stack. This prevents
     /// head-of-line blocking.
-    pub fn mark_seen(&mut self, stack_key: &StackKey) {
+    pub fn mark_seen(&mut self, project_key_pair: &ProjectKeyPair) {
         match self {
-            Self::Sqlite(buffer) => buffer.mark_seen(stack_key),
-            Self::InMemory(buffer) => buffer.mark_seen(stack_key),
+            Self::Sqlite(buffer) => buffer.mark_seen(project_key_pair),
+            Self::InMemory(buffer) => buffer.mark_seen(project_key_pair),
         }
     }
 
@@ -108,7 +125,10 @@ impl PolymorphicEnvelopeBuffer {
 #[derive(Debug, thiserror::Error)]
 pub enum EnvelopeBufferError {
     #[error("sqlite")]
-    Sqlite(#[from] SqliteEnvelopeStackError),
+    SqliteStore(#[from] SqliteEnvelopeStoreError),
+
+    #[error("sqlite")]
+    SqliteStack(#[from] SqliteEnvelopeStackError),
 
     #[error("failed to push envelope to the buffer")]
     PushFailed,
@@ -119,14 +139,14 @@ pub enum EnvelopeBufferError {
 
 /// An envelope buffer that holds an individual stack for each project/sampling project combination.
 ///
-/// Envelope stacks are organized in a priority queue, and are reprioritized every time an envelope
+/// Envelope stacks are organized in a priority queue, and are re-prioritized every time an envelope
 /// is pushed, popped, or when a project becomes ready.
 #[derive(Debug)]
 struct EnvelopeBuffer<P: StackProvider> {
     /// The central priority queue.
-    priority_queue: priority_queue::PriorityQueue<QueueItem<StackKey, P::Stack>, Priority>,
+    priority_queue: priority_queue::PriorityQueue<QueueItem<ProjectKeyPair, P::Stack>, Priority>,
     /// A lookup table to find all stacks involving a project.
-    stacks_by_project: hashbrown::HashMap<ProjectKey, BTreeSet<StackKey>>,
+    stacks_by_project: hashbrown::HashMap<ProjectKey, BTreeSet<ProjectKeyPair>>,
     /// A provider of stacks that provides utilities to create stacks, check their capacity...
     ///
     /// This indirection is needed because different stack implementations might need different
@@ -148,7 +168,7 @@ impl EnvelopeBuffer<MemoryStackProvider> {
 #[allow(dead_code)]
 impl EnvelopeBuffer<SqliteStackProvider> {
     /// Creates an empty sqlite-based buffer.
-    pub async fn new(config: &Config) -> Result<Self, SqliteEnvelopeStoreError> {
+    pub async fn new(config: &Config) -> Result<Self, EnvelopeBufferError> {
         Ok(Self {
             stacks_by_project: Default::default(),
             priority_queue: Default::default(),
@@ -161,28 +181,40 @@ impl<P: StackProvider> EnvelopeBuffer<P>
 where
     EnvelopeBufferError: From<<P::Stack as EnvelopeStack>::Error>,
 {
-    /// Pushes an envelope to the appropriate envelope stack and reprioritizes the stack.
+    /// Initializes the [`EnvelopeBuffer`] given the initialization state from the
+    /// [`StackProvider`].
+    pub async fn initialize(&mut self) {
+        relay_statsd::metric!(timer(RelayTimers::SpoolInitialization), {
+            let initialization_state = self.stack_provider.initialize().await;
+            self.load_stacks(initialization_state.project_key_pairs)
+                .await;
+        });
+    }
+
+    /// Pushes an envelope to the appropriate envelope stack and re-prioritizes the stack.
     ///
     /// If the envelope stack does not exist, a new stack is pushed to the priority queue.
     /// The priority of the stack is updated with the envelope's received_at time.
     pub async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), EnvelopeBufferError> {
         let received_at = envelope.meta().start_time();
-        let stack_key = StackKey::from_envelope(&envelope);
+        let project_key_pair = ProjectKeyPair::from_envelope(&envelope);
         if let Some((
             QueueItem {
                 key: _,
                 value: stack,
             },
             _,
-        )) = self.priority_queue.get_mut(&stack_key)
+        )) = self.priority_queue.get_mut(&project_key_pair)
         {
             stack.push(envelope).await?;
         } else {
-            self.push_stack(envelope);
+            self.push_stack(ProjectKeyPair::from_envelope(&envelope), Some(envelope))
+                .await?;
         }
-        self.priority_queue.change_priority_by(&stack_key, |prio| {
-            prio.received_at = received_at;
-        });
+        self.priority_queue
+            .change_priority_by(&project_key_pair, |prio| {
+                prio.received_at = received_at;
+            });
 
         Ok(())
     }
@@ -217,7 +249,7 @@ where
         let Some((QueueItem { key, value: stack }, _)) = self.priority_queue.peek_mut() else {
             return Ok(None);
         };
-        let stack_key = *key;
+        let project_key_pair = *key;
         let envelope = stack.pop().await.unwrap().expect("found an empty stack");
 
         let next_received_at = stack
@@ -226,43 +258,48 @@ where
             .map(|next_envelope| next_envelope.meta().start_time());
         match next_received_at {
             None => {
-                self.pop_stack(stack_key);
+                self.pop_stack(project_key_pair);
             }
             Some(next_received_at) => {
-                self.priority_queue.change_priority_by(&stack_key, |prio| {
-                    prio.received_at = next_received_at;
-                });
+                self.priority_queue
+                    .change_priority_by(&project_key_pair, |prio| {
+                        prio.received_at = next_received_at;
+                    });
             }
         }
         Ok(Some(envelope))
     }
 
-    /// Reprioritizes all stacks that involve the given project key by setting it to "ready".
+    /// Re-prioritizes all stacks that involve the given project key by setting it to "ready".
     ///
     /// Returns `true` if at least one priority was changed.
     pub fn mark_ready(&mut self, project: &ProjectKey, is_ready: bool) -> bool {
         let mut changed = false;
-        if let Some(stack_keys) = self.stacks_by_project.get(project) {
-            for stack_key in stack_keys {
-                self.priority_queue.change_priority_by(stack_key, |stack| {
-                    let mut found = false;
-                    for (subkey, readiness) in [
-                        (stack_key.own_key, &mut stack.readiness.own_project_ready),
-                        (
-                            stack_key.sampling_key,
-                            &mut stack.readiness.sampling_project_ready,
-                        ),
-                    ] {
-                        if subkey == *project {
-                            found = true;
-                            if *readiness != is_ready {
-                                changed = true;
-                                *readiness = is_ready;
+        if let Some(project_key_pair) = self.stacks_by_project.get(project) {
+            for project_key_pair in project_key_pair {
+                self.priority_queue
+                    .change_priority_by(project_key_pair, |stack| {
+                        let mut found = false;
+                        for (subkey, readiness) in [
+                            (
+                                project_key_pair.own_key,
+                                &mut stack.readiness.own_project_ready,
+                            ),
+                            (
+                                project_key_pair.sampling_key,
+                                &mut stack.readiness.sampling_project_ready,
+                            ),
+                        ] {
+                            if subkey == *project {
+                                found = true;
+                                if *readiness != is_ready {
+                                    changed = true;
+                                    *readiness = is_ready;
+                                }
                             }
                         }
-                    }
-                    debug_assert!(found);
-                });
+                        debug_assert!(found);
+                    });
             }
         }
         changed
@@ -273,32 +310,47 @@ where
     /// Non-ready stacks are deprioritized when they are marked as seen, such that
     /// the next call to `.peek()` will look at a different stack. This prevents
     /// head-of-line blocking.
-    pub fn mark_seen(&mut self, stack_key: &StackKey) {
-        self.priority_queue.change_priority_by(stack_key, |stack| {
-            stack.last_peek = Instant::now();
-        });
+    pub fn mark_seen(&mut self, project_key_pair: &ProjectKeyPair) {
+        self.priority_queue
+            .change_priority_by(project_key_pair, |stack| {
+                stack.last_peek = Instant::now();
+            });
     }
 
-    fn push_stack(&mut self, envelope: Box<Envelope>) {
-        let received_at = envelope.meta().start_time();
-        let stack_key = StackKey::from_envelope(&envelope);
+    /// Pushes a new [`EnvelopeStack`] with the given [`Envelope`] inserted.
+    async fn push_stack(
+        &mut self,
+        project_key_pair: ProjectKeyPair,
+        envelope: Option<Box<Envelope>>,
+    ) -> Result<(), EnvelopeBufferError> {
+        let received_at = envelope
+            .as_ref()
+            .map_or(Instant::now(), |e| e.meta().start_time());
+
+        let mut stack = self.stack_provider.create_stack(project_key_pair);
+        if let Some(envelope) = envelope {
+            stack.push(envelope).await?;
+        }
+
         let previous_entry = self.priority_queue.push(
             QueueItem {
-                key: stack_key,
-                value: self.stack_provider.create_stack(envelope),
+                key: project_key_pair,
+                value: stack,
             },
             Priority::new(received_at),
         );
         debug_assert!(previous_entry.is_none());
-        for project_key in stack_key.iter() {
+        for project_key in project_key_pair.iter() {
             self.stacks_by_project
                 .entry(project_key)
                 .or_default()
-                .insert(stack_key);
+                .insert(project_key_pair);
         }
         relay_statsd::metric!(
             gauge(RelayGauges::BufferStackCount) = self.priority_queue.len() as u64
         );
+
+        Ok(())
     }
 
     /// Returns `true` if the underlying storage has the capacity to store more envelopes.
@@ -306,18 +358,28 @@ where
         self.stack_provider.has_store_capacity()
     }
 
-    fn pop_stack(&mut self, stack_key: StackKey) {
-        for project_key in stack_key.iter() {
+    /// Pops an [`EnvelopeStack`] with the supplied [`EnvelopeBufferError`].
+    fn pop_stack(&mut self, project_key_pair: ProjectKeyPair) {
+        for project_key in project_key_pair.iter() {
             self.stacks_by_project
                 .get_mut(&project_key)
                 .expect("project_key is missing from lookup")
-                .remove(&stack_key);
+                .remove(&project_key_pair);
         }
-        self.priority_queue.remove(&stack_key);
+        self.priority_queue.remove(&project_key_pair);
 
         relay_statsd::metric!(
             gauge(RelayGauges::BufferStackCount) = self.priority_queue.len() as u64
         );
+    }
+
+    /// Creates all the [`EnvelopeStack`]s with no data given a set of [`ProjectKeyPair`].
+    async fn load_stacks(&mut self, project_key_pairs: HashSet<ProjectKeyPair>) {
+        for project_key_pair in project_key_pairs {
+            self.push_stack(project_key_pair, None)
+                .await
+                .expect("Pushing an empty stack raised an error");
+        }
     }
 }
 
@@ -325,36 +387,7 @@ where
 pub enum Peek<'a> {
     Empty,
     Ready(&'a Envelope),
-    NotReady(StackKey, &'a Envelope),
-}
-
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct StackKey {
-    own_key: ProjectKey,
-    sampling_key: ProjectKey,
-}
-
-impl StackKey {
-    pub fn from_envelope(envelope: &Envelope) -> Self {
-        let own_key = envelope.meta().public_key();
-        let sampling_key = envelope.sampling_key().unwrap_or(own_key);
-        Self::new(own_key, sampling_key)
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = ProjectKey> {
-        let Self {
-            own_key,
-            sampling_key,
-        } = self;
-        std::iter::once(*own_key).chain((own_key != sampling_key).then_some(*sampling_key))
-    }
-
-    fn new(own_key: ProjectKey, sampling_key: ProjectKey) -> Self {
-        Self {
-            own_key,
-            sampling_key,
-        }
-    }
+    NotReady(ProjectKeyPair, &'a Envelope),
 }
 
 #[derive(Debug)]
@@ -458,17 +491,19 @@ impl Readiness {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-    use std::sync::Arc;
-
     use relay_common::Dsn;
     use relay_event_schema::protocol::EventId;
     use relay_sampling::DynamicSamplingContext;
+    use std::str::FromStr;
+    use std::sync::Arc;
     use uuid::Uuid;
 
     use crate::envelope::{Item, ItemType};
     use crate::extractors::RequestMeta;
+    use crate::services::buffer::common::ProjectKeyPair;
+    use crate::services::buffer::testutils::utils::mock_envelopes;
     use crate::utils::MemoryStat;
+    use crate::SqliteEnvelopeStore;
 
     use super::*;
 
@@ -515,18 +550,20 @@ mod tests {
         envelope
     }
 
-    fn mock_memory_checker() -> MemoryChecker {
-        let config: Arc<_> = Config::from_json_value(serde_json::json!({
+    fn mock_config(path: &str) -> Arc<Config> {
+        Config::from_json_value(serde_json::json!({
             "spool": {
-                "health": {
-                    "max_memory_percent": 1.0
+                "envelopes": {
+                    "path": path
                 }
             }
         }))
         .unwrap()
-        .into();
+        .into()
+    }
 
-        MemoryChecker::new(MemoryStat::default(), config.clone())
+    fn mock_memory_checker() -> MemoryChecker {
+        MemoryChecker::new(MemoryStat::default(), mock_config("my/db/path").clone())
     }
 
     #[tokio::test]
@@ -799,10 +836,10 @@ mod tests {
         let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fef").unwrap();
 
-        let stack_key1 = StackKey::new(project_key1, project_key2);
-        let stack_key2 = StackKey::new(project_key2, project_key1);
+        let project_key_pair1 = ProjectKeyPair::new(project_key1, project_key2);
+        let project_key_pair2 = ProjectKeyPair::new(project_key2, project_key1);
 
-        assert_ne!(stack_key1, stack_key2);
+        assert_ne!(project_key_pair1, project_key_pair2);
 
         let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(mock_memory_checker());
         buffer
@@ -863,5 +900,40 @@ mod tests {
             panic!();
         };
         assert_eq!(envelope.event_id(), Some(event_id_1));
+    }
+
+    #[tokio::test]
+    async fn test_initialize_buffer() {
+        let path = std::env::temp_dir()
+            .join(Uuid::new_v4().to_string())
+            .into_os_string()
+            .into_string()
+            .unwrap();
+        let config = mock_config(&path);
+        let mut store = SqliteEnvelopeStore::prepare(&config).await.unwrap();
+        let mut buffer = EnvelopeBuffer::<SqliteStackProvider>::new(&config)
+            .await
+            .unwrap();
+
+        // We write 5 envelopes to disk so that we can check if they are loaded. These envelopes
+        // belong to the same project keys, so they belong to the same envelope stack.
+        let envelopes = mock_envelopes(10);
+        assert!(store
+            .insert_many(envelopes.iter().map(|e| e.as_ref().try_into().unwrap()))
+            .await
+            .is_ok());
+
+        // We assume that the buffer is empty.
+        assert!(buffer.priority_queue.is_empty());
+        assert!(buffer.stacks_by_project.is_empty());
+
+        buffer.initialize().await;
+
+        // We assume that we loaded only 1 envelope stack, because of the project keys combinations
+        // of the envelopes we inserted above.
+        assert_eq!(buffer.priority_queue.len(), 1);
+        // We expect to have an entry per project key, since we have 1 pair, the total entries
+        // should be 2.
+        assert_eq!(buffer.stacks_by_project.len(), 2);
     }
 }

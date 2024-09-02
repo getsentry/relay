@@ -259,7 +259,9 @@ fn benchmark_envelope_buffer(c: &mut Criterion) {
             |envelopes| {
                 runtime.block_on(async {
                     let mut buffer =
-                        PolymorphicEnvelopeBuffer::from_config(&config, memory_checker.clone());
+                        PolymorphicEnvelopeBuffer::from_config(&config, memory_checker.clone())
+                            .await
+                            .unwrap();
                     for envelope in envelopes.into_iter() {
                         buffer.push(envelope).await.unwrap();
                     }
@@ -289,7 +291,9 @@ fn benchmark_envelope_buffer(c: &mut Criterion) {
             |envelopes| {
                 runtime.block_on(async {
                     let mut buffer =
-                        PolymorphicEnvelopeBuffer::from_config(&config, memory_checker.clone());
+                        PolymorphicEnvelopeBuffer::from_config(&config, memory_checker.clone())
+                            .await
+                            .unwrap();
                     let n = envelopes.len();
                     for envelope in envelopes.into_iter() {
                         let public_key = envelope.meta().public_key();

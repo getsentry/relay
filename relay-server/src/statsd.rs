@@ -512,6 +512,8 @@ pub enum RelayTimers {
     ///  - `message`: The type of message that was processed.
     #[cfg(feature = "processing")]
     StoreServiceDuration,
+    /// Timing in milliseconds for the time it takes for initialize the spooler.
+    SpoolInitialization,
 }
 
 impl TimerMetric for RelayTimers {
@@ -553,6 +555,7 @@ impl TimerMetric for RelayTimers {
             RelayTimers::MetricRouterServiceDuration => "metrics.router.message.duration",
             #[cfg(feature = "processing")]
             RelayTimers::StoreServiceDuration => "store.message.duration",
+            RelayTimers::SpoolInitialization => "spool.initialization",
         }
     }
 }

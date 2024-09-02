@@ -1,7 +1,7 @@
+use crate::services::buffer::common::ProjectKeyPair;
 use crate::services::buffer::envelope_stack::memory::MemoryEnvelopeStack;
-use crate::services::buffer::stack_provider::StackProvider;
+use crate::services::buffer::stack_provider::{InitializationState, StackProvider};
 use crate::utils::MemoryChecker;
-use crate::Envelope;
 
 #[derive(Debug)]
 pub struct MemoryStackProvider {
@@ -19,8 +19,12 @@ impl MemoryStackProvider {
 impl StackProvider for MemoryStackProvider {
     type Stack = MemoryEnvelopeStack;
 
-    fn create_stack(&self, envelope: Box<Envelope>) -> Self::Stack {
-        MemoryEnvelopeStack::new(envelope)
+    async fn initialize(&self) -> InitializationState {
+        InitializationState::empty()
+    }
+
+    fn create_stack(&self, _: ProjectKeyPair) -> Self::Stack {
+        MemoryEnvelopeStack::new()
     }
 
     fn has_store_capacity(&self) -> bool {
