@@ -7,14 +7,10 @@ mod attachments;
 mod batch_metrics;
 mod batch_outcomes;
 mod common;
-#[cfg(feature = "dashboard")]
-mod dashboard;
 mod envelope;
 mod events;
 mod forward;
 mod health_check;
-#[cfg(feature = "dashboard")]
-mod logs;
 mod minidump;
 mod monitor;
 mod nel;
@@ -23,8 +19,6 @@ mod public_keys;
 mod security_report;
 mod spans;
 mod statics;
-#[cfg(feature = "dashboard")]
-mod stats;
 mod store;
 mod unreal;
 
@@ -40,17 +34,10 @@ const BATCH_JSON_BODY_LIMIT: usize = 50_000_000; // 50 MB
 
 #[rustfmt::skip]
 pub fn routes(config: &Config) -> Router<ServiceState>{
-    #[cfg(feature = "dashboard")]
-    let dashboard = Router::new().route("/dashboard/",get(dashboard::index_handle))
-        .route("/dashboard/*file", get(dashboard::handle));
     // Relay-internal routes pointing to /api/relay/
     let internal_routes = Router::new()
         .route("/api/relay/healthcheck/:kind/", get(health_check::handle))
         .route("/api/relay/events/:event_id/", get(events::handle));
-    #[cfg(feature = "dashboard")]
-    let internal_routes = internal_routes
-        .route("/api/relay/logs/", get(logs::handle))
-        .route("/api/relay/stats/", get(stats::handle));
     let internal_routes = internal_routes
         // Fallback route, but with a name, and just on `/api/relay/*`.
         .route("/api/relay/*not_found", any(statics::not_found));
@@ -93,11 +80,7 @@ pub fn routes(config: &Config) -> Router<ServiceState>{
         // https://github.com/getsentry/sentry-docs/blob/master/docs/product/relay/operating-guidelines.mdx
         .route_layer(middlewares::cors());
 
-    let router = Router::new();
-    #[cfg(feature = "dashboard")]
-    let router = router.merge(dashboard);
-
-    router.merge(internal_routes)
+    Router::new().merge(internal_routes)
         .merge(web_routes)
         .merge(batch_routes)
         .merge(store_routes)

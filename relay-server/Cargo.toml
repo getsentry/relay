@@ -12,12 +12,6 @@ publish = false
 
 [features]
 default = []
-dashboard = [
-    "axum/ws",
-    "dep:rust-embed",
-    "dep:mime_guess",
-    "relay-log/dashboard",
-]
 processing = [
     "dep:minidump",
     "dep:symbolic-common",
@@ -60,7 +54,6 @@ hyper-util = { workspace = true }
 itertools = { workspace = true }
 json-forensics = { workspace = true }
 mime = { workspace = true }
-mime_guess = { workspace = true, optional = true }
 minidump = { workspace = true, optional = true }
 multer = { workspace = true }
 once_cell = { workspace = true }
@@ -101,7 +94,6 @@ reqwest = { workspace = true, features = [
     "native-tls-vendored",
 ] }
 rmp-serde = { workspace = true }
-rust-embed = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_bytes = { workspace = true }
 serde_json = { workspace = true }
