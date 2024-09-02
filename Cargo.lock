@@ -1161,12 +1161,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1aaf95b3e5c8f23aa320147307562d361db0ae0d51242340f558153b4eb2439b"
 
 [[package]]
-name = "dyn-clone"
-version = "1.0.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c9b0705efd4599c15a38151f4721f7bc388306f61084d3bfd50bd07fbca5cb60"
-
-[[package]]
 name = "dynfmt"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1597,16 +1591,6 @@ dependencies = [
  "pin-project-lite",
  "pin-utils",
  "slab",
-]
-
-[[package]]
-name = "generate-schema"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "relay-event-schema",
- "serde_json",
 ]
 
 [[package]]
@@ -3482,7 +3466,6 @@ dependencies = [
  "regex",
  "relay-common",
  "relay-protocol",
- "schemars",
  "serde",
  "serde_json",
 ]
@@ -3660,9 +3643,7 @@ dependencies = [
  "relay-base-schema",
  "relay-common",
  "relay-event-derive",
- "relay-jsonschema-derive",
  "relay-protocol",
- "schemars",
  "sentry-release-parser",
  "serde",
  "serde_json",
@@ -3704,16 +3685,6 @@ dependencies = [
  "serde",
  "serde_json",
  "url",
-]
-
-[[package]]
-name = "relay-jsonschema-derive"
-version = "24.8.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 1.0.109",
- "synstructure",
 ]
 
 [[package]]
@@ -3853,7 +3824,6 @@ dependencies = [
  "num-traits",
  "relay-common",
  "relay-protocol-derive",
- "schemars",
  "serde",
  "serde_json",
  "similar-asserts",
@@ -4347,32 +4317,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "schemars"
-version = "0.8.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1847b767a3d62d95cbf3d8a9f0e421cf57a0d8aa4f411d4b16525afb0284d4ed"
-dependencies = [
- "chrono",
- "dyn-clone",
- "schemars_derive",
- "serde",
- "serde_json",
- "uuid",
-]
-
-[[package]]
-name = "schemars_derive"
-version = "0.8.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af4d7e1b012cb3d9129567661a63755ea4b8a7386d339dc945ae187e403c6743"
-dependencies = [
- "proc-macro2",
- "quote",
- "serde_derive_internals",
- "syn 1.0.109",
-]
-
-[[package]]
 name = "scopeguard"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4611,17 +4555,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.77",
-]
-
-[[package]]
-name = "serde_derive_internals"
-version = "0.26.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "85bf8229e7920a9f636479437026331ce11aa132b4dde37d121944a44d6e5f3c"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 1.0.109",
 ]
 
 [[package]]

@@ -16,7 +16,6 @@ workspace = true
 num-traits = { workspace = true }
 relay-common = { workspace = true }
 relay-protocol-derive = { workspace = true, optional = true }
-schemars = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 smallvec = { workspace = true }
@@ -30,5 +29,4 @@ similar-asserts = { workspace = true }
 [features]
 default = []
 derive = ["dep:relay-protocol-derive"]
-jsonschema = ["dep:schemars"]
 test = []

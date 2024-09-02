@@ -2,8 +2,6 @@ use std::collections::BTreeMap;
 use std::fmt::Debug;
 use std::{fmt, str};
 
-#[cfg(feature = "jsonschema")]
-use schemars::{gen::SchemaGenerator, schema::Schema, JsonSchema};
 use serde::de::{Deserialize, MapAccess, SeqAccess, Visitor};
 use serde::ser::{Serialize, SerializeMap, SerializeSeq, Serializer};
 use uuid::Uuid;
@@ -37,21 +35,6 @@ pub enum Value {
     Array(Array<Value>),
     /// A mapping of strings to annotated values.
     Object(Object<Value>),
-}
-
-#[cfg(feature = "jsonschema")]
-impl JsonSchema for Value {
-    fn schema_name() -> String {
-        "Value".to_owned()
-    }
-
-    fn json_schema(_gen: &mut SchemaGenerator) -> Schema {
-        Schema::Bool(true)
-    }
-
-    fn is_referenceable() -> bool {
-        false
-    }
 }
 
 /// Helper type that renders out a description of the value.

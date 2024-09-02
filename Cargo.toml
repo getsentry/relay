@@ -57,7 +57,6 @@ relay-ua = { path = "relay-ua" }
 relay-test = { path = "relay-test" }
 relay-protocol-derive = { path = "relay-protocol-derive" }
 relay-event-derive = { path = "relay-event-derive" }
-relay-jsonschema-derive = { path = "relay-jsonschema-derive" }
 
 android_trace_log = { version = "0.3.0", features = ["serde"] }
 anyhow = "1.0.66"
@@ -137,7 +136,6 @@ regex = "1.10.2"
 regex-lite = "0.1.6"
 reqwest = "0.12.7"
 rmp-serde = "1.1.1"
-schemars = { version = "=0.8.10", features = ["uuid1", "chrono"] }
 sentry = "0.34.0"
 sentry-core = "0.34.0"
 sentry-kafka-schemas = { version = "0.1.86", default-features = false }

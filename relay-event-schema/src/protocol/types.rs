@@ -7,14 +7,10 @@ use std::{fmt, net};
 
 use chrono::{DateTime, Datelike, Duration, LocalResult, NaiveDateTime, TimeZone, Utc};
 use enumset::EnumSet;
-#[cfg(feature = "jsonschema")]
-use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{
     Annotated, Array, Empty, Error, ErrorKind, FromValue, IntoValue, Meta, Object,
     SkipSerialization, Value,
 };
-#[cfg(feature = "jsonschema")]
-use schemars::{gen::SchemaGenerator, schema::Schema};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::processor::{
@@ -32,30 +28,6 @@ pub struct Values<T> {
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties)]
     pub other: Object<Value>,
-}
-
-#[cfg(feature = "jsonschema")]
-impl<T> schemars::JsonSchema for Values<T>
-where
-    T: schemars::JsonSchema,
-{
-    fn schema_name() -> String {
-        format!("Values_for_{}", T::schema_name())
-    }
-
-    fn json_schema(gen: &mut SchemaGenerator) -> Schema {
-        #[derive(schemars::JsonSchema)]
-        #[allow(unused)]
-        struct Helper<T: schemars::JsonSchema> {
-            values: T,
-        }
-
-        Helper::<Array<T>>::json_schema(gen)
-    }
-
-    fn is_referenceable() -> bool {
-        false
-    }
 }
 
 impl<T> Default for Values<T> {
@@ -323,33 +295,6 @@ impl<T: FromValue> FromValue for PairList<T> {
     }
 }
 
-#[cfg(feature = "jsonschema")]
-impl<T> schemars::JsonSchema for PairList<T>
-where
-    T: schemars::JsonSchema + AsPair,
-    <T as AsPair>::Value: schemars::JsonSchema,
-{
-    fn schema_name() -> String {
-        format!("PairList_of_{}", T::schema_name())
-    }
-
-    fn json_schema(gen: &mut SchemaGenerator) -> Schema {
-        #[derive(schemars::JsonSchema)]
-        #[cfg_attr(feature = "jsonschema", schemars(untagged))]
-        #[allow(unused)]
-        enum Helper<T: AsPair + schemars::JsonSchema, V: schemars::JsonSchema> {
-            Object(Object<V>),
-            Array(Array<T>),
-        }
-
-        Helper::<T, T::Value>::json_schema(gen)
-    }
-
-    fn is_referenceable() -> bool {
-        false
-    }
-}
-
 impl<T> ProcessValue for PairList<T>
 where
     T: ProcessValue + AsPair,
@@ -459,20 +404,6 @@ macro_rules! hex_metrastructure {
         }
 
         impl ProcessValue for $type {}
-        #[cfg(feature = "jsonschema")]
-        impl schemars::JsonSchema for $type {
-            fn schema_name() -> String {
-                stringify!($type).to_owned()
-            }
-
-            fn json_schema(gen: &mut SchemaGenerator) -> Schema {
-                String::json_schema(gen)
-            }
-
-            fn is_referenceable() -> bool {
-                true
-            }
-        }
     };
 }
 
@@ -506,21 +437,6 @@ relay_common::impl_str_serde!(Addr, "an address");
     Clone, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Empty, IntoValue, ProcessValue, Serialize,
 )]
 pub struct IpAddr(pub String);
-
-#[cfg(feature = "jsonschema")]
-impl schemars::JsonSchema for IpAddr {
-    fn schema_name() -> String {
-        String::schema_name()
-    }
-
-    fn json_schema(gen: &mut SchemaGenerator) -> Schema {
-        String::json_schema(gen)
-    }
-
-    fn is_referenceable() -> bool {
-        true
-    }
-}
 
 impl IpAddr {
     /// Returns the auto marker ip address.
@@ -641,8 +557,6 @@ impl std::error::Error for ParseLevelError {}
 
 /// Severity level of an event or breadcrumb.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-#[cfg_attr(feature = "jsonschema", derive(schemars::JsonSchema))]
-#[cfg_attr(feature = "jsonschema", schemars(rename_all = "lowercase"))]
 pub enum Level {
     /// Indicates very spammy debug information.
     Debug,
@@ -767,21 +681,6 @@ impl Empty for Level {
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Empty, IntoValue, ProcessValue)]
 pub struct LenientString(pub String);
 
-#[cfg(feature = "jsonschema")]
-impl schemars::JsonSchema for LenientString {
-    fn schema_name() -> String {
-        "LenientString".to_owned()
-    }
-
-    fn json_schema(gen: &mut SchemaGenerator) -> Schema {
-        String::json_schema(gen)
-    }
-
-    fn is_referenceable() -> bool {
-        false
-    }
-}
-
 impl LenientString {
     /// Returns the string value.
     pub fn as_str(&self) -> &str {
@@ -851,7 +750,6 @@ impl FromValue for LenientString {
 
 /// A "into-string" type of value. All non-string values are serialized as JSON.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Empty, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct JsonLenientString(pub String);
 
 impl JsonLenientString {
@@ -1100,29 +998,6 @@ impl IntoValue for Timestamp {
 impl Empty for Timestamp {
     fn is_empty(&self) -> bool {
         false
-    }
-}
-
-#[cfg(feature = "jsonschema")]
-impl schemars::JsonSchema for Timestamp {
-    fn schema_name() -> String {
-        "Timestamp".to_owned()
-    }
-
-    fn json_schema(gen: &mut SchemaGenerator) -> Schema {
-        /// Can be a ISO-8601 formatted string or a unix timestamp in seconds (floating point
-        /// values allowed).
-        ///
-        /// Must be UTC.
-        #[derive(schemars::JsonSchema)]
-        #[cfg_attr(feature = "jsonschema", schemars(untagged))]
-        #[allow(unused)]
-        enum Helper {
-            UnixTimestamp(f64),
-            IsoTimestamp(String),
-        }
-
-        Helper::json_schema(gen)
     }
 }
 
