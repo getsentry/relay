@@ -2,13 +2,9 @@ use std::fmt;
 use std::str::FromStr;
 
 use relay_common::time;
-#[cfg(feature = "jsonschema")]
-use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{
     Annotated, Array, Empty, FromValue, Getter, GetterIter, IntoValue, Object, Val, Value,
 };
-#[cfg(feature = "jsonschema")]
-use schemars::{gen::SchemaGenerator, schema::Schema};
 use sentry_release_parser::Release as ParsedRelease;
 use uuid::Uuid;
 
@@ -23,7 +19,6 @@ use crate::protocol::{
 
 /// Wrapper around a UUID with slightly different formatting.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct EventId(pub Uuid);
 
 impl EventId {
@@ -80,21 +75,6 @@ impl TryFrom<&SpanId> for EventId {
 #[derive(Debug, FromValue, IntoValue, ProcessValue, Empty, Clone, PartialEq)]
 pub struct ExtraValue(#[metastructure(max_depth = 7, max_bytes = 16_384)] pub Value);
 
-#[cfg(feature = "jsonschema")]
-impl schemars::JsonSchema for ExtraValue {
-    fn schema_name() -> String {
-        Value::schema_name()
-    }
-
-    fn json_schema(gen: &mut SchemaGenerator) -> Schema {
-        Value::json_schema(gen)
-    }
-
-    fn is_referenceable() -> bool {
-        false
-    }
-}
-
 impl<T: Into<Value>> From<T> for ExtraValue {
     fn from(value: T) -> ExtraValue {
         ExtraValue(value.into())
@@ -103,7 +83,6 @@ impl<T: Into<Value>> From<T> for ExtraValue {
 
 /// An event processing error.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct EventProcessingError {
     /// The error kind.
     #[metastructure(field = "type", required = "true")]
@@ -135,7 +114,6 @@ pub struct GroupingConfig {
 
 /// The sentry v7 event structure.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_event", value_type = "Event")]
 pub struct Event {
     /// Unique identifier of this event.

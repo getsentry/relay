@@ -1,5 +1,3 @@
-#[cfg(feature = "jsonschema")]
-use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
 
 use crate::processor::ProcessValue;
@@ -11,7 +9,6 @@ use crate::protocol::LenientString;
 /// `contexts` multiple times if multiple runtimes are involved (for instance, if you have a
 /// JavaScript application running on top of JVM).
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct RuntimeContext {
     /// Runtime name.
     pub name: Annotated<String>,

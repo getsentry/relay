@@ -17,7 +17,6 @@ mod nel;
 mod project_configs;
 mod public_keys;
 mod security_report;
-mod spans;
 mod statics;
 mod store;
 mod unreal;
@@ -75,7 +74,6 @@ pub fn routes(config: &Config) -> Router<ServiceState>{
         .route("/api/:project_id/minidump/", minidump::route(config))
         .route("/api/:project_id/events/:event_id/attachments/", attachments::route(config))
         .route("/api/:project_id/unreal/:sentry_key/", unreal::route(config))
-        .route("/api/:project_id/spans/", spans::route(config))
         // NOTE: If you add a new (non-experimental) route here, please also list it in
         // https://github.com/getsentry/sentry-docs/blob/master/docs/product/relay/operating-guidelines.mdx
         .route_layer(middlewares::cors());

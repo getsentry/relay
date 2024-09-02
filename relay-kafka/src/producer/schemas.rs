@@ -26,14 +26,12 @@ pub enum SchemaError {
     LogicalTopic,
 
     /// Failed to compile schema
-    // We stringify the inner error because `jsonschema::ValidationError` has weird lifetimes
-    #[error("failed to compile schema: {0}")]
-    SchemaCompiled(SentrySchemaError),
+    #[error("failed to compile schema")]
+    SchemaCompiled(#[source] SentrySchemaError),
 
     /// Failed to validate message JSON against schema
-    // We stringify the inner error because `jsonschema::ValidationError` has weird lifetimes
-    #[error("message violates schema: {0}")]
-    Validation(SentrySchemaError),
+    #[error("message violates schema")]
+    Validation(#[source] SentrySchemaError),
 }
 
 /// Validates payloads for their given topic's schema.

@@ -5,8 +5,6 @@
 use std::fmt;
 use std::str::FromStr;
 
-#[cfg(feature = "jsonschema")]
-use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -16,7 +14,6 @@ use crate::protocol::IpAddr;
 
 /// Describes which phase the error occurred in.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[serde(rename_all = "lowercase")]
 pub enum NetworkReportPhases {
     /// The error occurred during DNS resolution.
@@ -132,7 +129,6 @@ pub enum NetworkReportError {
 
 /// Generated network error report (NEL).
 #[derive(Debug, Default, Clone, PartialEq, FromValue, IntoValue, Empty)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct BodyRaw {
     /// The time between the start of the resource fetch and when it was completed or aborted.
     pub elapsed_time: Annotated<u64>,
@@ -162,7 +158,6 @@ pub struct BodyRaw {
 ///
 /// See <https://w3c.github.io/network-error-logging/>
 #[derive(Debug, Default, Clone, PartialEq, FromValue, IntoValue, Empty)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct NetworkReportRaw {
     /// The age of the report since it got collected and before it got sent.
     pub age: Annotated<i64>,

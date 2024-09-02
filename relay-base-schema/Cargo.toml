@@ -16,7 +16,6 @@ workspace = true
 regex = { workspace = true }
 relay-common = { workspace = true }
 relay-protocol = { workspace = true }
-schemars = { workspace = true, optional = true }
 serde = { workspace = true }
 
 [dev-dependencies]
@@ -24,4 +23,3 @@ serde_json = { workspace = true }
 
 [features]
 default = []
-jsonschema = ["dep:schemars", "relay-protocol/jsonschema"]
