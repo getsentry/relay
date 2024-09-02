@@ -3,6 +3,7 @@ use std::str::FromStr;
 use chrono::{TimeZone, Utc};
 use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
 use opentelemetry_proto::tonic::common::v1::{AnyValue, KeyValue};
+use relay_protocol::{Annotated, FromValue, Object};
 
 use crate::otel_trace::{status::StatusCode as OtelStatusCode, Span as OtelSpan};
 use crate::status_codes;
@@ -10,7 +11,6 @@ use relay_event_schema::protocol::{
     EventId, MetricSummary, MetricsSummary, Span as EventSpan, SpanData, SpanId, SpanStatus,
     Timestamp, TraceId,
 };
-use relay_protocol::{Annotated, FromValue, Object};
 
 /// convert_from_otel_to_sentry_status returns a status as defined by Sentry based on the OTel status.
 fn convert_from_otel_to_sentry_status(

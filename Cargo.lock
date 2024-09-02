@@ -3966,7 +3966,6 @@ dependencies = [
  "once_cell",
  "pin-project-lite",
  "priority-queue",
- "prost",
  "rand",
  "rayon",
  "regex",

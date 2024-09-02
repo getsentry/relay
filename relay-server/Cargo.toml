@@ -59,7 +59,6 @@ multer = { workspace = true }
 once_cell = { workspace = true }
 pin-project-lite = { workspace = true }
 priority-queue = { workspace = true }
-prost = { workspace = true }
 rand = { workspace = true }
 rayon = { workspace = true }
 regex = { workspace = true }
