@@ -237,7 +237,7 @@ impl Service for EnvelopeBufferService {
                     () = tokio::time::sleep(self.sleep) => {
                         if let Err(e) = self.try_pop(&mut buffer).await {
                             relay_log::error!(
-                                error = &e as &dyn std::error::Error,
+                                error = &e as &dyn Error,
                                 "failed to pop envelope"
                             );
                         }
