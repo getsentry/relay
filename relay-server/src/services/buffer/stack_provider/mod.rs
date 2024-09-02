@@ -1,15 +1,43 @@
-use crate::{Envelope, EnvelopeStack};
+use crate::services::buffer::common::ProjectKeyPair;
+use crate::EnvelopeStack;
+use hashbrown::HashSet;
+use std::future::Future;
 
 pub mod memory;
 pub mod sqlite;
+
+/// State of the initialization of the [`StackProvider`].
+///
+/// This state is necessary for initializing resources whenever a [`StackProvider`] is used.
+#[derive(Debug)]
+pub struct InitializationState {
+    pub project_key_pairs: HashSet<ProjectKeyPair>,
+}
+
+impl InitializationState {
+    /// Create a new [`InitializationState`].
+    pub fn new(project_key_pairs: HashSet<ProjectKeyPair>) -> Self {
+        Self { project_key_pairs }
+    }
+
+    /// Creates a new empty [`InitializationState`].
+    pub fn empty() -> Self {
+        Self {
+            project_key_pairs: HashSet::new(),
+        }
+    }
+}
 
 /// A provider of [`EnvelopeStack`] instances that is responsible for creating them.
 pub trait StackProvider: std::fmt::Debug {
     /// The implementation of [`EnvelopeStack`] that this manager creates.
     type Stack: EnvelopeStack;
 
+    /// Initializes the [`StackProvider`].
+    fn initialize(&self) -> impl Future<Output = InitializationState>;
+
     /// Creates an [`EnvelopeStack`].
-    fn create_stack(&self, envelope: Box<Envelope>) -> Self::Stack;
+    fn create_stack(&self, project_key_pair: ProjectKeyPair) -> Self::Stack;
 
     /// Returns `true` if the store used by this [`StackProvider`] has space to add new
     /// stacks or items to the stacks.

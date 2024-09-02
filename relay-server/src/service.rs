@@ -241,7 +241,7 @@ impl ServiceState {
         .spawn_handler(processor_rx);
 
         let envelope_buffer = EnvelopeBufferService::new(
-            &config,
+            config.clone(),
             MemoryChecker::new(memory_stat.clone(), config.clone()),
             project_cache.clone(),
         )
