@@ -245,8 +245,8 @@ impl ServiceState {
         let envelope_buffer = EnvelopeBufferService::new(
             &config,
             MemoryChecker::new(memory_stat.clone(), config.clone()),
-            project_cache.clone(),
             envelope_tx,
+            project_cache.clone(),
         )
         .map(|b| b.start_observable());
 
