@@ -4,7 +4,7 @@
 
 **Bug Fixes**:
 
-- Use custom `Vec<Host>` deserialize method for parsing dynamic config ([#3939](https://github.com/getsentry/relay/pull/3939))
+- Use `matches_any_origin` to scrub HTTP hosts in spans. ([#3939](https://github.com/getsentry/relay/pull/3939)).
 - Keep frames from both ends of the stacktrace when trimming frames. ([#3905](https://github.com/getsentry/relay/pull/3905))
 
 **Features**:

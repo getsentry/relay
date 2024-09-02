@@ -1241,20 +1241,20 @@ mod tests {
 
     #[test]
     fn scrub_allowed_host() {
-        let examples = &[
+        let examples = [
             (
                 "https://foo.bar.internal/api/v1/submit",
-                &["foo.bar.internal".to_string()],
+                ["foo.bar.internal".to_string()],
                 "https://foo.bar.internal",
             ),
             (
                 "http://192.168.1.1:3000",
-                &["192.168.1.1".to_string()],
+                ["192.168.1.1".to_string()],
                 "http://192.168.1.1:3000",
             ),
             (
                 "http://[1fff:0:a88:85a3::ac1f]:8001/foo",
-                &["[1fff:0:a88:85a3::ac1f]".to_string()],
+                ["[1fff:0:a88:85a3::ac1f]".to_string()],
                 "http://[1fff:0:a88:85a3::ac1f]:8001",
             ),
         ];
