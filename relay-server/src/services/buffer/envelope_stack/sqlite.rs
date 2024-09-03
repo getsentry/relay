@@ -248,6 +248,7 @@ mod tests {
             2,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("c25ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
+            true,
         );
 
         let envelope = mock_envelope(Instant::now());

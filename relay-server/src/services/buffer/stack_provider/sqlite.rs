@@ -60,8 +60,10 @@ impl StackProvider for SqliteStackProvider {
             project_key_pair.own_key,
             project_key_pair.sampling_key,
             // We want to check the disk by default if we are creating the stack for the first time,
-            // this is done because if we recreate the stack, it means that we popped it
-            // before and popping happens only when the stack is empty (both in memory and in disk).
+            // since we might have some data on disk.
+            // On the other hand, if we are recreating a stack, it means that we popped it because
+            // it was empty, or we never had data on disk for that stack, so we assume by default
+            // that there is no need to check disk until some data is spooled.
             matches!(stack_creation_type, StackCreationType::Create),
         )
     }
