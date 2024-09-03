@@ -30,13 +30,4 @@ impl StackProvider for MemoryStackProvider {
     fn has_store_capacity(&self) -> bool {
         self.memory_checker.check_memory().has_capacity()
     }
-
-    async fn store_total_count(&self) -> u64 {
-        // The memory implementation doesn't have a store, so the count is 0.
-        0
-    }
-
-    fn stack_type<'a>(&self) -> &'a str {
-        "memory"
-    }
 }

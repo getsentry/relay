@@ -42,10 +42,4 @@ pub trait StackProvider: std::fmt::Debug {
     /// Returns `true` if the store used by this [`StackProvider`] has space to add new
     /// stacks or items to the stacks.
     fn has_store_capacity(&self) -> bool;
-
-    /// Returns the total count of the store used by this [`StackProvider`].
-    fn store_total_count(&self) -> impl Future<Output = u64>;
-
-    /// Returns the string representation of the stack type offered by this [`StackProvider`].
-    fn stack_type<'a>(&self) -> &'a str;
 }

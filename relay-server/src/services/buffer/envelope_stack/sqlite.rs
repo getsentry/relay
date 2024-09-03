@@ -9,7 +9,7 @@ use crate::services::buffer::envelope_stack::EnvelopeStack;
 use crate::services::buffer::envelope_store::sqlite::{
     SqliteEnvelopeStore, SqliteEnvelopeStoreError,
 };
-use crate::statsd::RelayTimers;
+use crate::statsd::RelayCounters;
 
 /// An error returned when doing an operation on [`SqliteEnvelopeStack`].
 #[derive(Debug, thiserror::Error)]
@@ -98,12 +98,12 @@ impl SqliteEnvelopeStack {
         // the buffer are lost in case of failure. We are doing this on purposes, since if we were
         // to have a database corruption during runtime, and we were to put the values back into
         // the buffer we will end up with an infinite cycle.
-        relay_statsd::metric!(timer(RelayTimers::BufferSpool), {
-            self.envelope_store
-                .insert_many(envelopes)
-                .await
-                .map_err(SqliteEnvelopeStackError::EnvelopeStoreError)?;
-        });
+        self.envelope_store
+            .insert_many(envelopes)
+            .await
+            .map_err(SqliteEnvelopeStackError::EnvelopeStoreError)?;
+
+        relay_statsd::metric!(counter(RelayCounters::BufferWritesDisk) += 1);
 
         // If we successfully spooled to disk, we know that data should be there.
         self.check_disk = true;
@@ -119,16 +119,17 @@ impl SqliteEnvelopeStack {
     /// In case an envelope fails deserialization due to malformed data in the database, the affected
     /// envelope will not be unspooled and unspooling will continue with the remaining envelopes.
     async fn unspool_from_disk(&mut self) -> Result<(), SqliteEnvelopeStackError> {
-        let envelopes = relay_statsd::metric!(timer(RelayTimers::BufferUnspool), {
-            self.envelope_store
-                .delete_many(
-                    self.own_key,
-                    self.sampling_key,
-                    self.batch_size.get() as i64,
-                )
-                .await
-                .map_err(SqliteEnvelopeStackError::EnvelopeStoreError)?
-        });
+        let envelopes = self
+            .envelope_store
+            .delete_many(
+                self.own_key,
+                self.sampling_key,
+                self.batch_size.get() as i64,
+            )
+            .await
+            .map_err(SqliteEnvelopeStackError::EnvelopeStoreError)?;
+
+        relay_statsd::metric!(counter(RelayCounters::BufferReadsDisk) += 1);
 
         if envelopes.is_empty() {
             // In case no envelopes were unspooled, we will mark the disk as empty until another
