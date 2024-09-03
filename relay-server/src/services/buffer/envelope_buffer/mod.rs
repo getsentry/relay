@@ -238,7 +238,7 @@ where
                 prio.received_at = received_at;
             });
 
-        self.total_count.fetch_add(1, AtomicOrdering::Relaxed);
+        self.total_count.fetch_add(1, AtomicOrdering::SeqCst);
         self.track_total_count();
 
         Ok(())
@@ -298,7 +298,7 @@ where
         // We are fine with the count going negative, since it represents that more data was popped,
         // than it was initially counted, meaning that we had a wrong total count from
         // initialization.
-        self.total_count.fetch_sub(1, AtomicOrdering::Relaxed);
+        self.total_count.fetch_sub(1, AtomicOrdering::SeqCst);
         self.track_total_count();
 
         Ok(Some(envelope))
@@ -430,7 +430,7 @@ where
         match total_count {
             Ok(total_count) => {
                 self.total_count
-                    .store(total_count as i64, AtomicOrdering::Relaxed);
+                    .store(total_count as i64, AtomicOrdering::SeqCst);
                 self.total_count_initialized = true;
             }
             Err(error) => {
@@ -446,7 +446,7 @@ where
 
     /// Emits a metric to track the total count of envelopes that are in the envelope buffer.
     fn track_total_count(&self) {
-        let total_count = self.total_count.load(AtomicOrdering::Relaxed) as f64;
+        let total_count = self.total_count.load(AtomicOrdering::SeqCst) as f64;
         let initialized = match self.total_count_initialized {
             true => "true",
             false => "false",
