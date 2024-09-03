@@ -143,6 +143,18 @@ fn handle_replay_event_item(
                     global_config.filters(),
                 )
                 .map_err(ProcessingError::ReplayFiltered)?;
+
+                if let Some(segment_id) = replay_type.segment_id.value() {
+                    if segment_id > 720 {
+                        relay_log::warn!(
+                            ?event_id,
+                            project_id = project_id.map(|v| v.value()),
+                            organization_id = organization_id,
+                            segment_id = segment_id,
+                            "replay segment-exceeded-limit"
+                        );
+                    }
+                }
             }
 
             match replay.to_json() {
