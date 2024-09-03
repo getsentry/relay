@@ -337,7 +337,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
             event,
             config.max_tag_value_length,
             config.span_allowed_hosts,
-            config.scrub_mongo_description.clone(),
+            config.scrub_mongo_description,
         );
     }
 

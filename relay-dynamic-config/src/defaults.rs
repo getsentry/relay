@@ -116,6 +116,7 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
 
     let is_db = RuleCondition::eq("span.sentry_tags.category", "db")
         & !RuleCondition::glob("span.op", DISABLED_DATABASES)
+        // MongoDB queries are only allowed when `span.system` is set to `mongodb`.
         & (RuleCondition::eq("span.system", "mongodb")
             | !RuleCondition::glob("span.description", MONGODB_QUERIES));
     let is_resource = RuleCondition::glob("span.op", RESOURCE_SPAN_OPS);

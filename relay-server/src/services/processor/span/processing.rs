@@ -274,7 +274,7 @@ pub fn extract_from_event(
             .project_state
             .config
             .features
-            .has(Feature::ScrubMongoDBDescriptions)
+            .has(Feature::ScrubMongoDbDescriptions)
         {
             ScrubMongoDescription::Enabled
         } else {
@@ -392,7 +392,7 @@ impl<'a> NormalizeSpanConfig<'a> {
             allowed_hosts: global_config.options.http_span_allowed_hosts.as_slice(),
             scrub_mongo_description: if project_config
                 .features
-                .has(Feature::ScrubMongoDBDescriptions)
+                .has(Feature::ScrubMongoDbDescriptions)
             {
                 ScrubMongoDescription::Enabled
             } else {

@@ -22,6 +22,7 @@ use crate::span::country_subregion::Subregion;
 use crate::span::description::{
     concatenate_host_and_port, scrub_domain_name, scrub_span_description, ScrubMongoDescription,
 };
+use crate::span::TABLE_NAME_REGEX;
 use crate::utils::{
     extract_transaction_op, http_status_code_from_span, MAIN_THREAD_NAME, MOBILE_SDKS,
 };
@@ -238,7 +239,7 @@ pub fn extract_span_tags(
             is_mobile,
             start_type,
             span_allowed_hosts,
-            scrub_mongo_description.clone(),
+            scrub_mongo_description,
         );
 
         span.sentry_tags = Annotated::new(
@@ -642,8 +643,14 @@ pub fn extract_tags(
                 span.data
                     .value()
                     .and_then(|data| data.db_collection_name.value())
-                    .and_then(|db_op| db_op.as_str())
-                    .map(|db_op| db_op.to_owned())
+                    .and_then(|db_collection| db_collection.as_str())
+                    .map(|db_collection| {
+                        if let Cow::Owned(s) = TABLE_NAME_REGEX.replace_all(db_collection, "{%s}") {
+                            s
+                        } else {
+                            db_collection.to_owned()
+                        }
+                    })
             } else {
                 span.description
                     .value()
@@ -2569,6 +2576,43 @@ LIMIT 1
         assert_eq!(
             tags.get(&SpanTagKey::Domain),
             Some(&"documents".to_string())
+        );
+    }
+
+    #[test]
+    fn mongodb_collection_name_scrubbing() {
+        let json = r#"
+            {
+                "op": "db",
+                "span_id": "bd429c44b67a3eb1",
+                "start_timestamp": 1597976300.0000000,
+                "timestamp": 1597976302.0000000,
+                "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                "data": {
+                    "db.operation": "find",
+                    "db.collection.name": "documents_a1b2c3d4",
+                    "db.system": "mongodb"
+                }
+            }
+        "#;
+        let span: Span = Annotated::<Span>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+        let tags = extract_tags(
+            &span,
+            200,
+            None,
+            None,
+            false,
+            None,
+            &[],
+            ScrubMongoDescription::Disabled,
+        );
+
+        assert_eq!(
+            tags.get(&SpanTagKey::Domain),
+            Some(&"documents_{%s}".to_string())
         );
     }
 

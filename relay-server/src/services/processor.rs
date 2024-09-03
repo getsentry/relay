@@ -1604,7 +1604,7 @@ impl EnvelopeProcessorService {
                 span_allowed_hosts: http_span_allowed_hosts,
                 scrub_mongo_description: if state
                     .project_state
-                    .has_feature(Feature::ScrubMongoDBDescriptions)
+                    .has_feature(Feature::ScrubMongoDbDescriptions)
                 {
                     ScrubMongoDescription::Enabled
                 } else {
