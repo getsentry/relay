@@ -447,7 +447,6 @@
 <a href="#447" id="447">447</a>
 <a href="#448" id="448">448</a>
 <a href="#449" id="449">449</a>
-<a href="#450" id="450">450</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::VecDeque;
 <span class="kw">use </span>std::fmt::Debug;
 <span class="kw">use </span>std::num::NonZeroUsize;
@@ -459,7 +458,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::buffer::envelope_store::sqlite::{
     SqliteEnvelopeStore, SqliteEnvelopeStoreError,
 };
-<span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
+<span class="kw">use </span><span class="kw">crate</span>::statsd::RelayTimers;
 
 <span class="doccomment">/// An error returned when doing an operation on [`SqliteEnvelopeStack`].
 </span><span class="attr">#[derive(Debug, thiserror::Error)]
@@ -548,12 +547,12 @@
         // the buffer are lost in case of failure. We are doing this on purposes, since if we were
         // to have a database corruption during runtime, and we were to put the values back into
         // the buffer we will end up with an infinite cycle.
-        </span><span class="self">self</span>.envelope_store
-            .insert_many(envelopes)
-            .<span class="kw">await
-            </span>.map_err(SqliteEnvelopeStackError::EnvelopeStoreError)<span class="question-mark">?</span>;
-
-        <span class="macro">relay_statsd::metric!</span>(counter(RelayCounters::BufferWritesDisk) += <span class="number">1</span>);
+        </span><span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::BufferSpool), {
+            <span class="self">self</span>.envelope_store
+                .insert_many(envelopes)
+                .<span class="kw">await
+                </span>.map_err(SqliteEnvelopeStackError::EnvelopeStoreError)<span class="question-mark">?</span>;
+        });
 
         <span class="comment">// If we successfully spooled to disk, we know that data should be there.
         </span><span class="self">self</span>.check_disk = <span class="bool-val">true</span>;
@@ -569,17 +568,16 @@
     /// In case an envelope fails deserialization due to malformed data in the database, the affected
     /// envelope will not be unspooled and unspooling will continue with the remaining envelopes.
     </span><span class="kw">async fn </span>unspool_from_disk(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), SqliteEnvelopeStackError&gt; {
-        <span class="kw">let </span>envelopes = <span class="self">self
-            </span>.envelope_store
-            .delete_many(
-                <span class="self">self</span>.own_key,
-                <span class="self">self</span>.sampling_key,
-                <span class="self">self</span>.batch_size.get() <span class="kw">as </span>i64,
-            )
-            .<span class="kw">await
-            </span>.map_err(SqliteEnvelopeStackError::EnvelopeStoreError)<span class="question-mark">?</span>;
-
-        <span class="macro">relay_statsd::metric!</span>(counter(RelayCounters::BufferReadsDisk) += <span class="number">1</span>);
+        <span class="kw">let </span>envelopes = <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::BufferUnspool), {
+            <span class="self">self</span>.envelope_store
+                .delete_many(
+                    <span class="self">self</span>.own_key,
+                    <span class="self">self</span>.sampling_key,
+                    <span class="self">self</span>.batch_size.get() <span class="kw">as </span>i64,
+                )
+                .<span class="kw">await
+                </span>.map_err(SqliteEnvelopeStackError::EnvelopeStoreError)<span class="question-mark">?
+        </span>});
 
         <span class="kw">if </span>envelopes.is_empty() {
             <span class="comment">// In case no envelopes were unspooled, we will mark the disk as empty until another
