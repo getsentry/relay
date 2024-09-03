@@ -14,7 +14,6 @@ use futures::stream::StreamExt;
 use hashbrown::HashSet;
 use relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
 use relay_config::Config;
-use relay_statsd::metric;
 use sqlx::migrate::MigrateError;
 use sqlx::query::Query;
 use sqlx::sqlite::{
@@ -175,7 +174,7 @@ impl DiskUsage {
             .and_then(|r| r.try_get(0))
             .map_err(SqliteEnvelopeStoreError::FileSizeReadFailed)?;
 
-        metric!(gauge(RelayGauges::BufferDiskUsed) = usage as u64);
+        relay_statsd::metric!(gauge(RelayGauges::BufferDiskUsed) = usage as u64);
 
         Ok(usage as u64)
     }

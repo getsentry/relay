@@ -618,6 +618,9 @@ pub enum RelayCounters {
     /// This happens when the envelope buffer falsely assumes that the envelope's projects are loaded
     /// in the cache and sends the envelope onward, even though the project cache cannot handle it.
     BufferEnvelopesReturned,
+    /// Number of times an envelope stack is popped from the priority queue of stacks in the
+    /// envelope buffer.
+    BufferEnvelopeStacksPopped,
     ///
     /// Number of outcomes and reasons for rejected Envelopes.
     ///
@@ -833,6 +836,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::BufferEnvelopesRead => "buffer.envelopes_read",
             RelayCounters::BufferEnvelopesReturned => "buffer.envelopes_returned",
             RelayCounters::BufferStateTransition => "buffer.state.transition",
+            RelayCounters::BufferEnvelopeStacksPopped => "buffer.envelope_stacks_popped",
             RelayCounters::Outcomes => "events.outcomes",
             RelayCounters::ProjectStateGet => "project_state.get",
             RelayCounters::ProjectStateRequest => "project_state.request",

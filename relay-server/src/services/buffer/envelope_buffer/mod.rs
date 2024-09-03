@@ -284,6 +284,7 @@ where
 
         match next_received_at {
             None => {
+                relay_statsd::metric!(counter(RelayCounters::BufferEnvelopeStacksPopped) += 1);
                 self.pop_stack(project_key_pair);
             }
             Some(next_received_at) => {
