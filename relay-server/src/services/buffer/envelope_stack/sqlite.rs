@@ -227,7 +227,7 @@ impl EnvelopeStack for SqliteEnvelopeStack {
     }
 
     fn drain(self) -> Vec<Box<Envelope>> {
-        self.batches_buffer.into_iter().flat_map(|e| e).collect()
+        self.batches_buffer.into_iter().flatten().collect()
     }
 }
 
