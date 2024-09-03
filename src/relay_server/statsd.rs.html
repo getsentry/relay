@@ -919,22 +919,6 @@
 <a href="#919" id="919">919</a>
 <a href="#920" id="920">920</a>
 <a href="#921" id="921">921</a>
-<a href="#922" id="922">922</a>
-<a href="#923" id="923">923</a>
-<a href="#924" id="924">924</a>
-<a href="#925" id="925">925</a>
-<a href="#926" id="926">926</a>
-<a href="#927" id="927">927</a>
-<a href="#928" id="928">928</a>
-<a href="#929" id="929">929</a>
-<a href="#930" id="930">930</a>
-<a href="#931" id="931">931</a>
-<a href="#932" id="932">932</a>
-<a href="#933" id="933">933</a>
-<a href="#934" id="934">934</a>
-<a href="#935" id="935">935</a>
-<a href="#936" id="936">936</a>
-<a href="#937" id="937">937</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 <span class="attr">#[cfg(doc)]
 </span><span class="kw">use </span>tokio::runtime::RuntimeMetrics;
@@ -1110,11 +1094,6 @@
     </span>BufferDiskSize,
     <span class="doccomment">/// Number of attempts needed to dequeue spooled envelopes from disk.
     </span>BufferDequeueAttempts,
-    <span class="doccomment">/// Number of elements in the envelope buffer across all the stacks.
-    ///
-    /// This metric is tagged with:
-    /// - `storage_type`: The type of storage used in the envelope buffer.
-    </span>BufferEnvelopesCount,
     <span class="doccomment">/// The number of batches emitted per partition.
     </span>BatchesPerPartition,
     <span class="doccomment">/// The number of buckets in a batch emitted.
@@ -1239,7 +1218,6 @@
             RelayHistograms::BufferEnvelopesMemoryBytes =&gt; <span class="string">"buffer.envelopes_mem"</span>,
             RelayHistograms::BufferDiskSize =&gt; <span class="string">"buffer.disk_size"</span>,
             RelayHistograms::BufferDequeueAttempts =&gt; <span class="string">"buffer.dequeue_attempts"</span>,
-            RelayHistograms::BufferEnvelopesCount =&gt; <span class="string">"buffer.envelopes_count"</span>,
             RelayHistograms::ProjectStatePending =&gt; <span class="string">"project_state.pending"</span>,
             RelayHistograms::ProjectStateAttempts =&gt; <span class="string">"project_state.attempts"</span>,
             RelayHistograms::ProjectStateRequestBatchSize =&gt; <span class="string">"project_state.request.batch_size"</span>,
@@ -1455,12 +1433,8 @@
     ///  - `message`: The type of message that was processed.
     </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>StoreServiceDuration,
-    <span class="doccomment">/// Timing in milliseconds for the time it takes for initialize the buffer.
-    </span>BufferInitialization,
-    <span class="doccomment">/// Timing in milliseconds for the time it takes for the buffer to spool data to disk.
-    </span>BufferSpool,
-    <span class="doccomment">/// Timing in milliseconds for the time it takes for the buffer to unspool data from disk.
-    </span>BufferUnspool,
+    <span class="doccomment">/// Timing in milliseconds for the time it takes for initialize the spooler.
+    </span>SpoolInitialization,
 }
 
 <span class="kw">impl </span>TimerMetric <span class="kw">for </span>RelayTimers {
@@ -1502,9 +1476,7 @@
             RelayTimers::MetricRouterServiceDuration =&gt; <span class="string">"metrics.router.message.duration"</span>,
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>RelayTimers::StoreServiceDuration =&gt; <span class="string">"store.message.duration"</span>,
-            RelayTimers::BufferInitialization =&gt; <span class="string">"buffer.initialization.duration"</span>,
-            RelayTimers::BufferSpool =&gt; <span class="string">"buffer.spool.duration"</span>,
-            RelayTimers::BufferUnspool =&gt; <span class="string">"buffer.unspool.duration"</span>,
+            RelayTimers::SpoolInitialization =&gt; <span class="string">"spool.initialization"</span>,
         }
     }
 }
@@ -1555,9 +1527,6 @@
     /// This happens when the envelope buffer falsely assumes that the envelope's projects are loaded
     /// in the cache and sends the envelope onward, even though the project cache cannot handle it.
     </span>BufferEnvelopesReturned,
-    <span class="doccomment">/// Number of times an envelope stack is popped from the priority queue of stacks in the
-    /// envelope buffer.
-    </span>BufferEnvelopeStacksPopped,
     <span class="doccomment">///
     /// Number of outcomes and reasons for rejected Envelopes.
     ///
@@ -1773,7 +1742,6 @@
             RelayCounters::BufferEnvelopesRead =&gt; <span class="string">"buffer.envelopes_read"</span>,
             RelayCounters::BufferEnvelopesReturned =&gt; <span class="string">"buffer.envelopes_returned"</span>,
             RelayCounters::BufferStateTransition =&gt; <span class="string">"buffer.state.transition"</span>,
-            RelayCounters::BufferEnvelopeStacksPopped =&gt; <span class="string">"buffer.envelope_stacks_popped"</span>,
             RelayCounters::Outcomes =&gt; <span class="string">"events.outcomes"</span>,
             RelayCounters::ProjectStateGet =&gt; <span class="string">"project_state.get"</span>,
             RelayCounters::ProjectStateRequest =&gt; <span class="string">"project_state.request"</span>,

@@ -4,7 +4,7 @@
     (<span class="macro-nonterminal">$value</span>:path | $(<span class="macro-nonterminal">$rest</span>:path)|* $(|)<span class="kw-2">*</span>) =&gt; { ... };
 }</pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Creates a EnumSet literal, which can be used in const contexts.</p>
 <p>The syntax used is <code>enum_set!(Type::A | Type::B | Type::C)</code>. Each variant must be of the same
-type, or an error will occur at compile-time.</p>
+type, or a error will occur at compile-time.</p>
 <p>This macro accepts trailing <code>|</code>s to allow easier use in other macros.</p>
 <h2 id="examples"><a class="doc-anchor" href="#examples">§</a>Examples</h2>
 <div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">const </span>CONST_SET: EnumSet&lt;Enum&gt; = <span class="macro">enum_set!</span>(Enum::A | Enum::B);

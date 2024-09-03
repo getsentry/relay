@@ -937,95 +937,14 @@
 <a href="#937" id="937">937</a>
 <a href="#938" id="938">938</a>
 <a href="#939" id="939">939</a>
-<a href="#940" id="940">940</a>
-<a href="#941" id="941">941</a>
-<a href="#942" id="942">942</a>
-<a href="#943" id="943">943</a>
-<a href="#944" id="944">944</a>
-<a href="#945" id="945">945</a>
-<a href="#946" id="946">946</a>
-<a href="#947" id="947">947</a>
-<a href="#948" id="948">948</a>
-<a href="#949" id="949">949</a>
-<a href="#950" id="950">950</a>
-<a href="#951" id="951">951</a>
-<a href="#952" id="952">952</a>
-<a href="#953" id="953">953</a>
-<a href="#954" id="954">954</a>
-<a href="#955" id="955">955</a>
-<a href="#956" id="956">956</a>
-<a href="#957" id="957">957</a>
-<a href="#958" id="958">958</a>
-<a href="#959" id="959">959</a>
-<a href="#960" id="960">960</a>
-<a href="#961" id="961">961</a>
-<a href="#962" id="962">962</a>
-<a href="#963" id="963">963</a>
-<a href="#964" id="964">964</a>
-<a href="#965" id="965">965</a>
-<a href="#966" id="966">966</a>
-<a href="#967" id="967">967</a>
-<a href="#968" id="968">968</a>
-<a href="#969" id="969">969</a>
-<a href="#970" id="970">970</a>
-<a href="#971" id="971">971</a>
-<a href="#972" id="972">972</a>
-<a href="#973" id="973">973</a>
-<a href="#974" id="974">974</a>
-<a href="#975" id="975">975</a>
-<a href="#976" id="976">976</a>
-<a href="#977" id="977">977</a>
-<a href="#978" id="978">978</a>
-<a href="#979" id="979">979</a>
-<a href="#980" id="980">980</a>
-<a href="#981" id="981">981</a>
-<a href="#982" id="982">982</a>
-<a href="#983" id="983">983</a>
-<a href="#984" id="984">984</a>
-<a href="#985" id="985">985</a>
-<a href="#986" id="986">986</a>
-<a href="#987" id="987">987</a>
-<a href="#988" id="988">988</a>
-<a href="#989" id="989">989</a>
-<a href="#990" id="990">990</a>
-<a href="#991" id="991">991</a>
-<a href="#992" id="992">992</a>
-<a href="#993" id="993">993</a>
-<a href="#994" id="994">994</a>
-<a href="#995" id="995">995</a>
-<a href="#996" id="996">996</a>
-<a href="#997" id="997">997</a>
-<a href="#998" id="998">998</a>
-<a href="#999" id="999">999</a>
-<a href="#1000" id="1000">1000</a>
-<a href="#1001" id="1001">1001</a>
-<a href="#1002" id="1002">1002</a>
-<a href="#1003" id="1003">1003</a>
-<a href="#1004" id="1004">1004</a>
-<a href="#1005" id="1005">1005</a>
-<a href="#1006" id="1006">1006</a>
-<a href="#1007" id="1007">1007</a>
-<a href="#1008" id="1008">1008</a>
-<a href="#1009" id="1009">1009</a>
-<a href="#1010" id="1010">1010</a>
-<a href="#1011" id="1011">1011</a>
-<a href="#1012" id="1012">1012</a>
-<a href="#1013" id="1013">1013</a>
-<a href="#1014" id="1014">1014</a>
-<a href="#1015" id="1015">1015</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::cmp::Ordering;
 <span class="kw">use </span>std::collections::BTreeSet;
 <span class="kw">use </span>std::convert::Infallible;
-<span class="kw">use </span>std::error::Error;
-<span class="kw">use </span>std::sync::atomic::AtomicI64;
-<span class="kw">use </span>std::sync::atomic::Ordering <span class="kw">as </span>AtomicOrdering;
-<span class="kw">use </span>std::sync::Arc;
-<span class="kw">use </span>std::time::{Duration, Instant};
+<span class="kw">use </span>std::time::Instant;
 
 <span class="kw">use </span>hashbrown::HashSet;
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
 <span class="kw">use </span>relay_config::Config;
-<span class="kw">use </span>tokio::time::timeout;
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::Envelope;
 <span class="kw">use </span><span class="kw">crate</span>::services::buffer::common::ProjectKeyPair;
@@ -1035,7 +954,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::buffer::stack_provider::memory::MemoryStackProvider;
 <span class="kw">use </span><span class="kw">crate</span>::services::buffer::stack_provider::sqlite::SqliteStackProvider;
 <span class="kw">use </span><span class="kw">crate</span>::services::buffer::stack_provider::StackProvider;
-<span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
+<span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayGauges, RelayTimers};
 <span class="kw">use </span><span class="kw">crate</span>::utils::MemoryChecker;
 
 <span class="doccomment">/// Polymorphic envelope buffering interface.
@@ -1172,18 +1091,6 @@
     /// This indirection is needed because different stack implementations might need different
     /// initialization (e.g. a database connection).
     </span>stack_provider: P,
-    <span class="doccomment">/// The total count of envelopes that the buffer is working with.
-    ///
-    /// Note that this count is not meant to be perfectly accurate since the initialization of the
-    /// count might not succeed if it takes more than a set timeout. For example, if we load the
-    /// count of all envelopes from disk, and it takes more than the time we set, we will mark the
-    /// initial count as 0 and just count incoming and outgoing envelopes from the buffer.
-    </span>total_count: Arc&lt;AtomicI64&gt;,
-    <span class="doccomment">/// Whether the count initialization succeeded or not.
-    ///
-    /// This boolean is just used for tagging the metric that tracks the total count of envelopes
-    /// in the buffer.
-    </span>total_count_initialized: bool,
 }
 
 <span class="kw">impl </span>EnvelopeBuffer&lt;MemoryStackProvider&gt; {
@@ -1193,8 +1100,6 @@
             stacks_by_project: Default::default(),
             priority_queue: Default::default(),
             stack_provider: MemoryStackProvider::new(memory_checker),
-            total_count: Arc::new(AtomicI64::new(<span class="number">0</span>)),
-            total_count_initialized: <span class="bool-val">false</span>,
         }
     }
 }
@@ -1207,8 +1112,6 @@
             stacks_by_project: Default::default(),
             priority_queue: Default::default(),
             stack_provider: SqliteStackProvider::new(config).<span class="kw">await</span><span class="question-mark">?</span>,
-            total_count: Arc::new(AtomicI64::new(<span class="number">0</span>)),
-            total_count_initialized: <span class="bool-val">false</span>,
         })
     }
 }
@@ -1220,11 +1123,10 @@
     <span class="doccomment">/// Initializes the [`EnvelopeBuffer`] given the initialization state from the
     /// [`StackProvider`].
     </span><span class="kw">pub async fn </span>initialize(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::BufferInitialization), {
+        <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::SpoolInitialization), {
             <span class="kw">let </span>initialization_state = <span class="self">self</span>.stack_provider.initialize().<span class="kw">await</span>;
             <span class="self">self</span>.load_stacks(initialization_state.project_key_pairs)
                 .<span class="kw">await</span>;
-            <span class="self">self</span>.load_store_total_count().<span class="kw">await</span>;
         });
     }
 
@@ -1252,9 +1154,6 @@
             .change_priority_by(<span class="kw-2">&amp;</span>project_key_pair, |prio| {
                 prio.received_at = received_at;
             });
-
-        <span class="self">self</span>.total_count.fetch_add(<span class="number">1</span>, AtomicOrdering::SeqCst);
-        <span class="self">self</span>.track_total_count();
 
         <span class="prelude-val">Ok</span>(())
     }
@@ -1296,10 +1195,8 @@
             .peek()
             .<span class="kw">await</span><span class="question-mark">?
             </span>.map(|next_envelope| next_envelope.meta().start_time());
-
         <span class="kw">match </span>next_received_at {
             <span class="prelude-val">None </span>=&gt; {
-                <span class="macro">relay_statsd::metric!</span>(counter(RelayCounters::BufferEnvelopeStacksPopped) += <span class="number">1</span>);
                 <span class="self">self</span>.pop_stack(project_key_pair);
             }
             <span class="prelude-val">Some</span>(next_received_at) =&gt; {
@@ -1309,13 +1206,6 @@
                     });
             }
         }
-
-        <span class="comment">// We are fine with the count going negative, since it represents that more data was popped,
-        // than it was initially counted, meaning that we had a wrong total count from
-        // initialization.
-        </span><span class="self">self</span>.total_count.fetch_sub(<span class="number">1</span>, AtomicOrdering::SeqCst);
-        <span class="self">self</span>.track_total_count();
-
         <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(envelope))
     }
 
@@ -1351,7 +1241,6 @@
                     });
             }
         }
-
         changed
     }
 
@@ -1430,47 +1319,6 @@
                 .<span class="kw">await
                 </span>.expect(<span class="string">"Pushing an empty stack raised an error"</span>);
         }
-    }
-
-    <span class="doccomment">/// Loads the total count from the store if it takes less than a specified duration.
-    ///
-    /// The total count returned by the store is related to the count of elements that the buffer
-    /// will process, besides the count of elements that will be added and removed during its
-    /// lifecycle
-    </span><span class="kw">async fn </span>load_store_total_count(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="kw">let </span>total_count = timeout(Duration::from_secs(<span class="number">1</span>), <span class="kw">async </span>{
-            <span class="self">self</span>.stack_provider.store_total_count().<span class="kw">await
-        </span>})
-        .<span class="kw">await</span>;
-        <span class="kw">match </span>total_count {
-            <span class="prelude-val">Ok</span>(total_count) =&gt; {
-                <span class="self">self</span>.total_count
-                    .store(total_count <span class="kw">as </span>i64, AtomicOrdering::SeqCst);
-                <span class="self">self</span>.total_count_initialized = <span class="bool-val">true</span>;
-            }
-            <span class="prelude-val">Err</span>(error) =&gt; {
-                <span class="self">self</span>.total_count_initialized = <span class="bool-val">false</span>;
-                <span class="macro">relay_log::error!</span>(
-                    error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-                    <span class="string">"failed to load the total envelope count of the store"</span>,
-                );
-            }
-        };
-        <span class="self">self</span>.track_total_count();
-    }
-
-    <span class="doccomment">/// Emits a metric to track the total count of envelopes that are in the envelope buffer.
-    </span><span class="kw">fn </span>track_total_count(<span class="kw-2">&amp;</span><span class="self">self</span>) {
-        <span class="kw">let </span>total_count = <span class="self">self</span>.total_count.load(AtomicOrdering::SeqCst) <span class="kw">as </span>f64;
-        <span class="kw">let </span>initialized = <span class="kw">match </span><span class="self">self</span>.total_count_initialized {
-            <span class="bool-val">true </span>=&gt; <span class="string">"true"</span>,
-            <span class="bool-val">false </span>=&gt; <span class="string">"false"</span>,
-        };
-        <span class="macro">relay_statsd::metric!</span>(
-            histogram(RelayHistograms::BufferEnvelopesCount) = total_count,
-            initialized = initialized,
-            stack_type = <span class="self">self</span>.stack_provider.stack_type()
-        );
     }
 }
 

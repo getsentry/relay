@@ -531,6 +531,7 @@
 <a href="#531" id="531">531</a>
 <a href="#532" id="532">532</a>
 <a href="#533" id="533">533</a>
+<a href="#534" id="534">534</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::btree_map::Entry;
 <span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::fs::File;
@@ -543,6 +544,7 @@
 <span class="kw">use </span>relay_quotas::Quota;
 <span class="kw">use </span>serde::{de, Deserialize, Serialize};
 <span class="kw">use </span>serde_json::Value;
+<span class="kw">use </span>url::Host;
 
 <span class="kw">use crate</span>::{defaults, ErrorBoundary, MetricExtractionGroup, MetricExtractionGroups};
 
@@ -724,7 +726,7 @@
         deserialize_with = <span class="string">"default_on_error"</span>,
         skip_serializing_if = <span class="string">"Vec::is_empty"
     </span>)]
-    </span><span class="kw">pub </span>http_span_allowed_hosts: Vec&lt;String&gt;,
+    </span><span class="kw">pub </span>http_span_allowed_hosts: Vec&lt;Host&gt;,
 
     <span class="doccomment">/// Deprecated, still forwarded for older downstream Relays.
     </span><span class="attr">#[doc(hidden)]
