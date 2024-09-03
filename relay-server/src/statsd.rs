@@ -173,6 +173,11 @@ pub enum RelayHistograms {
     BufferDiskSize,
     /// Number of attempts needed to dequeue spooled envelopes from disk.
     BufferDequeueAttempts,
+    /// Number of elements in the envelope buffer across all the stacks.
+    ///
+    /// This metric is tagged with:
+    /// - `storage_type`: The type of storage used in the envelope buffer.
+    BufferEnvelopesCount,
     /// The number of batches emitted per partition.
     BatchesPerPartition,
     /// The number of buckets in a batch emitted.
@@ -297,6 +302,7 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::BufferEnvelopesMemoryBytes => "buffer.envelopes_mem",
             RelayHistograms::BufferDiskSize => "buffer.disk_size",
             RelayHistograms::BufferDequeueAttempts => "buffer.dequeue_attempts",
+            RelayHistograms::BufferEnvelopesCount => "buffer.envelopes_count",
             RelayHistograms::ProjectStatePending => "project_state.pending",
             RelayHistograms::ProjectStateAttempts => "project_state.attempts",
             RelayHistograms::ProjectStateRequestBatchSize => "project_state.request.batch_size",
@@ -512,8 +518,12 @@ pub enum RelayTimers {
     ///  - `message`: The type of message that was processed.
     #[cfg(feature = "processing")]
     StoreServiceDuration,
-    /// Timing in milliseconds for the time it takes for initialize the spooler.
-    SpoolInitialization,
+    /// Timing in milliseconds for the time it takes for initialize the buffer.
+    BufferInitialization,
+    /// Timing in milliseconds for the time it takes for the buffer to spool data to disk.
+    BufferSpool,
+    /// Timing in milliseconds for the time it takes for the buffer to unspool data from disk.
+    BufferUnspool,
 }
 
 impl TimerMetric for RelayTimers {
@@ -555,7 +565,9 @@ impl TimerMetric for RelayTimers {
             RelayTimers::MetricRouterServiceDuration => "metrics.router.message.duration",
             #[cfg(feature = "processing")]
             RelayTimers::StoreServiceDuration => "store.message.duration",
-            RelayTimers::SpoolInitialization => "spool.initialization",
+            RelayTimers::BufferInitialization => "buffer.initialization.duration",
+            RelayTimers::BufferSpool => "buffer.spool.duration",
+            RelayTimers::BufferUnspool => "buffer.unspool.duration",
         }
     }
 }
@@ -606,6 +618,9 @@ pub enum RelayCounters {
     /// This happens when the envelope buffer falsely assumes that the envelope's projects are loaded
     /// in the cache and sends the envelope onward, even though the project cache cannot handle it.
     BufferEnvelopesReturned,
+    /// Number of times an envelope stack is popped from the priority queue of stacks in the
+    /// envelope buffer.
+    BufferEnvelopeStacksPopped,
     ///
     /// Number of outcomes and reasons for rejected Envelopes.
     ///
@@ -821,6 +836,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::BufferEnvelopesRead => "buffer.envelopes_read",
             RelayCounters::BufferEnvelopesReturned => "buffer.envelopes_returned",
             RelayCounters::BufferStateTransition => "buffer.state.transition",
+            RelayCounters::BufferEnvelopeStacksPopped => "buffer.envelope_stacks_popped",
             RelayCounters::Outcomes => "events.outcomes",
             RelayCounters::ProjectStateGet => "project_state.get",
             RelayCounters::ProjectStateRequest => "project_state.request",
