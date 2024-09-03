@@ -81,7 +81,7 @@ impl From<&str> for SchemeDomainPort {
             (None, url) // no scheme, chop nothing form original string
         };
 
-        // extract domain:port from the rest of the url
+        //extract domain:port from the rest of the url
         let end_domain_idx = rest.find('/');
         let domain_port = if let Some(end_domain_idx) = end_domain_idx {
             &rest[..end_domain_idx] // remove the path from rest
@@ -89,17 +89,8 @@ impl From<&str> for SchemeDomainPort {
             rest // no path, use everything
         };
 
-        // split the domain and the port
-        let ipv6_end_bracket_idx = rest.rfind(']');
-        let port_separator_idx = if let Some(end_bracket_idx) = ipv6_end_bracket_idx {
-            // we have an ipv6 address, find the port separator after the closing bracket
-            domain_port[end_bracket_idx..]
-                .rfind(':')
-                .map(|x| x + end_bracket_idx)
-        } else {
-            // no ipv6 address, find the port separator in the whole string
-            domain_port.rfind(':')
-        };
+        //split the domain and the port
+        let port_separator_idx = domain_port.find(':');
         let (domain, port) = if let Some(port_separator_idx) = port_separator_idx {
             //we have a port separator, split the string into domain and port
             (
@@ -228,39 +219,6 @@ mod tests {
                 Some("4000"),
             ),
             ("http://", Some("http"), Some(""), None),
-        ];
-
-        for (url, scheme, domain, port) in examples {
-            let actual: SchemeDomainPort = (*url).into();
-            assert_eq!(
-                (actual.scheme, actual.domain, actual.port),
-                (
-                    scheme.map(|x| x.to_string()),
-                    domain.map(|x| x.to_string()),
-                    port.map(|x| x.to_string())
-                )
-            );
-        }
-    }
-
-    #[test]
-    fn test_scheme_domain_port_with_ip() {
-        let examples = &[
-            (
-                "http://192.168.1.1:3000",
-                Some("http"),
-                Some("192.168.1.1"),
-                Some("3000"),
-            ),
-            ("192.168.1.1", None, Some("192.168.1.1"), None),
-            ("[fd45:7aa3:7ae4::]", None, Some("[fd45:7aa3:7ae4::]"), None),
-            ("http://172.16.*.*", Some("http"), Some("172.16.*.*"), None),
-            (
-                "http://[1fff:0:a88:85a3::ac1f]:8001",
-                Some("http"),
-                Some("[1fff:0:a88:85a3::ac1f]"),
-                Some("8001"),
-            ),
         ];
 
         for (url, scheme, domain, port) in examples {
