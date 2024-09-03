@@ -935,6 +935,9 @@
 <a href="#935" id="935">935</a>
 <a href="#936" id="936">936</a>
 <a href="#937" id="937">937</a>
+<a href="#938" id="938">938</a>
+<a href="#939" id="939">939</a>
+<a href="#940" id="940">940</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 <span class="attr">#[cfg(doc)]
 </span><span class="kw">use </span>tokio::runtime::RuntimeMetrics;
@@ -1759,6 +1762,8 @@
     /// This metric is tagged with:
     ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
     </span>BucketsDropped,
+    <span class="doccomment">/// Incremented every time a segment exceeds the expected limit.
+    </span>ReplayExceededSegmentLimit,
 }
 
 <span class="kw">impl </span>CounterMetric <span class="kw">for </span>RelayCounters {
@@ -1803,6 +1808,7 @@
             RelayCounters::CogsUsage =&gt; <span class="string">"cogs.usage"</span>,
             RelayCounters::ProjectStateFlushMetricsNoProject =&gt; <span class="string">"project_state.metrics.no_project"</span>,
             RelayCounters::BucketsDropped =&gt; <span class="string">"metrics.buckets.dropped"</span>,
+            RelayCounters::ReplayExceededSegmentLimit =&gt; <span class="string">"replay.segment_limit_exceeded"</span>,
         }
     }
 }
