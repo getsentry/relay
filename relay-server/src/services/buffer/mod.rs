@@ -156,8 +156,8 @@ impl EnvelopeBufferService {
                     .await?
                     .expect("Element disappeared despite exclusive excess");
 
-                self.project_cache_ready =
-                    self.project_cache.send(DequeuedEnvelope(envelope)).into();
+                self.project_cache_ready
+                    .replace(self.project_cache.send(DequeuedEnvelope(envelope)));
                 self.sleep = Duration::ZERO; // try next pop immediately
             }
             Peek::NotReady(stack_key, envelope) => {
