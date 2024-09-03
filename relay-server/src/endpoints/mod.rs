@@ -70,9 +70,9 @@ pub fn routes(config: &Config) -> Router<ServiceState>{
         .route("/api/:project_id/csp-report/", security_report::route(config))
         .route("/api/:project_id/nel/", nel::route(config))
         // No mandatory trailing slash here because people already use it like this.
-        .route("/api/:project_id/minidump", minidump::route(config))
-        .route("/api/:project_id/minidump/", minidump::route(config))
-        .route("/api/:project_id/events/:event_id/attachments/", attachments::route(config))
+        .route("/api/:project_id/minidump", post(minidump::handle))
+        .route("/api/:project_id/minidump/", post(minidump::handle))
+        .route("/api/:project_id/events/:event_id/attachments/", post(attachments::handle))
         .route("/api/:project_id/unreal/:sentry_key/", unreal::route(config))
         // NOTE: If you add a new (non-experimental) route here, please also list it in
         // https://github.com/getsentry/sentry-docs/blob/master/docs/product/relay/operating-guidelines.mdx
