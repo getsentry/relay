@@ -29,12 +29,6 @@ pub enum ReplayError {
     #[error("invalid payload {0}")]
     InvalidPayload(String),
 
-    /// The Replay has consumed its segment limit.
-    ///
-    /// This is returned from [`validate`].
-    #[error("invalid replay length")]
-    TooLong,
-
     /// An error occurred during PII scrubbing of the Replay.
     ///
     /// This erorr is usually returned when the PII configuration fails to parse.

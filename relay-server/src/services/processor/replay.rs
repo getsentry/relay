@@ -194,9 +194,6 @@ fn handle_replay_event_item(
                 ReplayError::InvalidPayload(_) => {
                     ProcessingError::InvalidReplay(DiscardReason::InvalidReplayEvent)
                 }
-                ReplayError::TooLong => {
-                    ProcessingError::InvalidReplay(DiscardReason::ReplayExceededSegmentLimit)
-                }
             })
         }
     }
