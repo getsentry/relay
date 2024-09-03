@@ -91,3 +91,63 @@ impl StackProvider for SqliteStackProvider {
         };
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::services::buffer::common::ProjectKeyPair;
+    use crate::services::buffer::stack_provider::sqlite::SqliteStackProvider;
+    use crate::services::buffer::stack_provider::StackProvider;
+    use crate::services::buffer::testutils::utils::mock_envelopes;
+    use crate::EnvelopeStack;
+    use relay_base_schema::project::ProjectKey;
+    use relay_config::Config;
+    use std::sync::Arc;
+    use uuid::Uuid;
+
+    fn mock_config() -> Arc<Config> {
+        let path = std::env::temp_dir()
+            .join(Uuid::new_v4().to_string())
+            .into_os_string()
+            .into_string()
+            .unwrap();
+
+        Config::from_json_value(serde_json::json!({
+            "spool": {
+                "envelopes": {
+                    "path": path,
+                    "disk_batch_size": 100,
+                    "max_batches": 1,
+                }
+            }
+        }))
+        .unwrap()
+        .into()
+    }
+
+    #[tokio::test]
+    async fn test_drain() {
+        let config = mock_config();
+        let stack_provider = SqliteStackProvider::new(&config).await.unwrap();
+
+        let own_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+        let sampling_key = ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap();
+
+        let mut envelope_stack =
+            stack_provider.create_stack(ProjectKeyPair::new(own_key, sampling_key));
+
+        let envelopes = mock_envelopes(10);
+        for envelope in envelopes {
+            envelope_stack.push(envelope).await.unwrap();
+        }
+
+        let envelope_store = stack_provider.envelope_store.clone();
+
+        // We make sure that no data is on disk since we will spool when more than 100 elements are
+        // in the in-memory stack.
+        assert_eq!(envelope_store.total_count().await.unwrap(), 0);
+
+        // We drain the stack provider, and we expect all in-memory envelopes to be spooled to disk.
+        stack_provider.drain(vec![envelope_stack]).await;
+        assert_eq!(envelope_store.total_count().await.unwrap(), 10);
+    }
+}
