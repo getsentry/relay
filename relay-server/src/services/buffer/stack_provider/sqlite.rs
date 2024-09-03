@@ -5,7 +5,9 @@ use crate::services::buffer::common::ProjectKeyPair;
 use crate::services::buffer::envelope_store::sqlite::{
     SqliteEnvelopeStore, SqliteEnvelopeStoreError,
 };
-use crate::services::buffer::stack_provider::{InitializationState, StackProvider};
+use crate::services::buffer::stack_provider::{
+    InitializationState, StackCreationType, StackProvider,
+};
 use crate::SqliteEnvelopeStack;
 
 #[derive(Debug)]
@@ -46,13 +48,21 @@ impl StackProvider for SqliteStackProvider {
         }
     }
 
-    fn create_stack(&self, project_key_pair: ProjectKeyPair) -> Self::Stack {
+    fn create_stack(
+        &self,
+        stack_creation_type: StackCreationType,
+        project_key_pair: ProjectKeyPair,
+    ) -> Self::Stack {
         SqliteEnvelopeStack::new(
             self.envelope_store.clone(),
             self.disk_batch_size,
             self.max_batches,
             project_key_pair.own_key,
             project_key_pair.sampling_key,
+            // We want to check the disk by default if we are creating the stack for the first time,
+            // this is done because if we recreate the stack, it means that we popped it
+            // before and popping happens only when the stack is empty (both in memory and in disk).
+            matches!(stack_creation_type, StackCreationType::Create),
         )
     }
 

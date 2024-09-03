@@ -28,6 +28,15 @@ impl InitializationState {
     }
 }
 
+/// The creation type for the [`EnvelopeStack`].
+pub enum StackCreationType {
+    /// An [`EnvelopeStack`] that is created for the first time.
+    Create,
+    /// An [`EnvelopeStack`] that was recreated because it was dropped for any arbitrary reason
+    /// before.
+    Recreate,
+}
+
 /// A provider of [`EnvelopeStack`] instances that is responsible for creating them.
 pub trait StackProvider: std::fmt::Debug {
     /// The implementation of [`EnvelopeStack`] that this manager creates.
@@ -37,7 +46,11 @@ pub trait StackProvider: std::fmt::Debug {
     fn initialize(&self) -> impl Future<Output = InitializationState>;
 
     /// Creates an [`EnvelopeStack`].
-    fn create_stack(&self, project_key_pair: ProjectKeyPair) -> Self::Stack;
+    fn create_stack(
+        &self,
+        stack_creation_type: StackCreationType,
+        project_key_pair: ProjectKeyPair,
+    ) -> Self::Stack;
 
     /// Returns `true` if the store used by this [`StackProvider`] has space to add new
     /// stacks or items to the stacks.

@@ -19,7 +19,7 @@ use crate::services::buffer::envelope_stack::EnvelopeStack;
 use crate::services::buffer::envelope_store::sqlite::SqliteEnvelopeStoreError;
 use crate::services::buffer::stack_provider::memory::MemoryStackProvider;
 use crate::services::buffer::stack_provider::sqlite::SqliteStackProvider;
-use crate::services::buffer::stack_provider::StackProvider;
+use crate::services::buffer::stack_provider::{StackCreationType, StackProvider};
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::MemoryChecker;
 
@@ -230,8 +230,14 @@ where
         {
             stack.push(envelope).await?;
         } else {
-            self.push_stack(ProjectKeyPair::from_envelope(&envelope), Some(envelope))
-                .await?;
+            // Since we have initialization code that creates all the necessary stacks, we assume
+            // that any new stack that is added during the envelope buffer's lifecycle, is recreated.
+            self.push_stack(
+                StackCreationType::Recreate,
+                ProjectKeyPair::from_envelope(&envelope),
+                Some(envelope),
+            )
+            .await?;
         }
         self.priority_queue
             .change_priority_by(&project_key_pair, |prio| {
@@ -355,6 +361,7 @@ where
     /// Pushes a new [`EnvelopeStack`] with the given [`Envelope`] inserted.
     async fn push_stack(
         &mut self,
+        stack_creation_type: StackCreationType,
         project_key_pair: ProjectKeyPair,
         envelope: Option<Box<Envelope>>,
     ) -> Result<(), EnvelopeBufferError> {
@@ -362,7 +369,9 @@ where
             .as_ref()
             .map_or(Instant::now(), |e| e.meta().start_time());
 
-        let mut stack = self.stack_provider.create_stack(project_key_pair);
+        let mut stack = self
+            .stack_provider
+            .create_stack(stack_creation_type, project_key_pair);
         if let Some(envelope) = envelope {
             stack.push(envelope).await?;
         }
@@ -411,7 +420,7 @@ where
     /// Creates all the [`EnvelopeStack`]s with no data given a set of [`ProjectKeyPair`].
     async fn load_stacks(&mut self, project_key_pairs: HashSet<ProjectKeyPair>) {
         for project_key_pair in project_key_pairs {
-            self.push_stack(project_key_pair, None)
+            self.push_stack(StackCreationType::Create, project_key_pair, None)
                 .await
                 .expect("Pushing an empty stack raised an error");
         }
