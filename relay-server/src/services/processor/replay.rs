@@ -147,7 +147,7 @@ fn handle_replay_event_item(
                 // Log segments that exceed the hour limit so we can diagnose errant SDKs
                 // or exotic customer implementations.
                 if let Some(segment_id) = replay_type.segment_id.value() {
-                    if segment_id > 720 {
+                    if *segment_id > 720 {
                         metric!(counter(RelayCounters::ReplayExceededSegmentLimit) += 1);
 
                         relay_log::warn!(
