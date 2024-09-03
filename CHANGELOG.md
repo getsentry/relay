@@ -6,6 +6,27 @@
 
 - Keep frames from both ends of the stacktrace when trimming frames. ([#3905](https://github.com/getsentry/relay/pull/3905))
 
+**Features**:
+
+- Add configuration option to specify the instance type of Relay. ([#3938](https://github.com/getsentry/relay/pull/3938))
+- Update definitions for user agent parsing. ([#3951](https://github.com/getsentry/relay/pull/3951))
+- Extend project config API to be revision aware. ([#3947](https://github.com/getsentry/relay/pull/3947))
+- Removes `processing.max_secs_in_past` from the main config in favor of event retention from the project config. ([#3958](https://github.com/getsentry/relay/pull/3958))
+
+**Internal**:
+
+- Record too long discard reason for session replays. ([#3950](https://github.com/getsentry/relay/pull/3950))
+- Add `EnvelopeStore` trait and implement `DiskUsage` for tracking disk usage. ([#3925](https://github.com/getsentry/relay/pull/3925))
+- Increase replay recording limit to two hours. ([#3961](https://github.com/getsentry/relay/pull/3961))
+- Forward profiles of non-sampled transactions (with no options filtering). ([#3963](https://github.com/getsentry/relay/pull/3963))
+- Make EnvelopeBuffer a Service. ([#3965](https://github.com/getsentry/relay/pull/3965))
+- No longer send COGS data to dedicated Kafka topic. ([#3953](https://github.com/getsentry/relay/pull/3953))
+- Remove support for extrapolation of metrics. ([#3969](https://github.com/getsentry/relay/pull/3969))
+- Remove the internal dashboard that shows logs and metrics. ([#3970](https://github.com/getsentry/relay/pull/3970))
+- Remove the OTEL spans endpoint in favor of Envelopes. ([#3973](https://github.com/getsentry/relay/pull/3973))
+- Remove the `generate-schema` tool. Relay no longer exposes JSON schema for the event protocol. Consult the Rust type documentation of the `relay-event-schema` crate instead. ([#3974](https://github.com/getsentry/relay/pull/3974))
+- Allow creation of `SqliteEnvelopeBuffer` from config, and load existing stacks from db on startup. ([#3967](https://github.com/getsentry/relay/pull/3967))
+
 ## 24.8.0
 
 **Bug Fixes**:

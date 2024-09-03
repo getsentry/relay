@@ -1,7 +1,15 @@
 use std::error::Error;
 use std::path::Path;
 use std::pin::pin;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+use std::time::Duration;
 
+use crate::envelope::EnvelopeError;
+use crate::extractors::StartTime;
+use crate::services::buffer::common::ProjectKeyPair;
+use crate::statsd::RelayGauges;
+use crate::Envelope;
 use futures::stream::StreamExt;
 use hashbrown::HashSet;
 use relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
@@ -14,10 +22,7 @@ use sqlx::sqlite::{
 };
 use sqlx::{Pool, QueryBuilder, Row, Sqlite};
 use tokio::fs::DirBuilder;
-
-use crate::envelope::EnvelopeError;
-use crate::extractors::StartTime;
-use crate::Envelope;
+use tokio::time::sleep;
 
 /// Struct that contains all the fields of an [`Envelope`] that are mapped to the database columns.
 pub struct InsertEnvelope {
@@ -88,6 +93,93 @@ pub enum SqliteEnvelopeStoreError {
     FileSizeReadFailed(sqlx::Error),
 }
 
+#[derive(Debug, Clone)]
+struct DiskUsage {
+    db: Pool<Sqlite>,
+    last_known_usage: Arc<AtomicU64>,
+    refresh_frequency: Duration,
+}
+
+impl DiskUsage {
+    /// Creates a new empty [`DiskUsage`].
+    fn new(db: Pool<Sqlite>, refresh_frequency: Duration) -> Self {
+        Self {
+            db,
+            last_known_usage: Arc::new(AtomicU64::new(0)),
+            refresh_frequency,
+        }
+    }
+
+    /// Prepares a [`DiskUsage`] instance with an initial reading of the database usage and fails
+    /// if not reading can be made.
+    pub async fn prepare(
+        db: Pool<Sqlite>,
+        refresh_frequency: Duration,
+    ) -> Result<Self, SqliteEnvelopeStoreError> {
+        let usage = Self::estimate_usage(&db).await?;
+
+        let disk_usage = Self::new(db, refresh_frequency);
+        disk_usage.last_known_usage.store(usage, Ordering::Relaxed);
+        disk_usage.start_background_refresh();
+
+        Ok(disk_usage)
+    }
+
+    /// Returns the disk usage and asynchronously updates it in case a `refresh_frequency_ms`
+    /// elapsed.
+    fn usage(&self) -> u64 {
+        self.last_known_usage.load(Ordering::Relaxed)
+    }
+
+    /// Starts a background tokio task to update the database usage.
+    fn start_background_refresh(&self) {
+        let db = self.db.clone();
+        // We get a weak reference, to make sure that if `DiskUsage` is dropped, the reference can't
+        // be upgraded, causing the loop in the tokio task to exit.
+        let last_known_usage_weak = Arc::downgrade(&self.last_known_usage);
+        let refresh_frequency = self.refresh_frequency;
+
+        tokio::spawn(async move {
+            loop {
+                // When our `Weak` reference can't be upgraded to an `Arc`, it means that the value
+                // is not referenced anymore by self, meaning that `DiskUsage` was dropped.
+                let Some(last_known_usage) = last_known_usage_weak.upgrade() else {
+                    break;
+                };
+
+                let usage = Self::estimate_usage(&db).await;
+                let Ok(usage) = usage else {
+                    relay_log::error!("failed to update the disk usage asynchronously");
+                    return;
+                };
+
+                let current = last_known_usage.load(Ordering::Relaxed);
+                if last_known_usage
+                    .compare_exchange_weak(current, usage, Ordering::Relaxed, Ordering::Relaxed)
+                    .is_err()
+                {
+                    relay_log::error!("failed to update the disk usage asynchronously");
+                };
+
+                sleep(refresh_frequency).await;
+            }
+        });
+    }
+
+    /// Estimates the disk usage of the SQLite database.
+    async fn estimate_usage(db: &Pool<Sqlite>) -> Result<u64, SqliteEnvelopeStoreError> {
+        let usage: i64 = build_estimate_size()
+            .fetch_one(db)
+            .await
+            .and_then(|r| r.try_get(0))
+            .map_err(SqliteEnvelopeStoreError::FileSizeReadFailed)?;
+
+        relay_statsd::metric!(gauge(RelayGauges::BufferDiskUsed) = usage as u64);
+
+        Ok(usage as u64)
+    }
+}
+
 /// Struct that offers access to a SQLite-based store of [`Envelope`]s.
 ///
 /// The goal of this struct is to hide away all the complexity of dealing with the database for
@@ -95,12 +187,16 @@ pub enum SqliteEnvelopeStoreError {
 #[derive(Debug, Clone)]
 pub struct SqliteEnvelopeStore {
     db: Pool<Sqlite>,
+    disk_usage: DiskUsage,
 }
 
 impl SqliteEnvelopeStore {
     /// Initializes the [`SqliteEnvelopeStore`] with a supplied [`Pool`].
-    pub fn new(db: Pool<Sqlite>) -> Self {
-        Self { db }
+    pub fn new(db: Pool<Sqlite>, refresh_frequency: Duration) -> Self {
+        Self {
+            db: db.clone(),
+            disk_usage: DiskUsage::new(db, refresh_frequency),
+        }
     }
 
     /// Prepares the [`SqliteEnvelopeStore`] by running all the necessary migrations and preparing
@@ -132,7 +228,7 @@ impl SqliteEnvelopeStore {
             .synchronous(SqliteSynchronous::Normal)
             // The freelist pages are moved to the end of the database file and the database file is truncated to remove the freelist pages at every
             // transaction commit. Note, however, that auto-vacuum only truncates the freelist pages from the file.
-            // Auto-vacuum does not defragment the database nor repack individual database pages the way that the VACUUM command does.
+            // Auto-vacuum does not de-fragment the database nor repack individual database pages the way that the VACUUM command does.
             //
             // This will help us to keep the file size under some control.
             .auto_vacuum(SqliteAutoVacuum::Full)
@@ -148,7 +244,11 @@ impl SqliteEnvelopeStore {
             .await
             .map_err(SqliteEnvelopeStoreError::SqlxSetupFailed)?;
 
-        Ok(SqliteEnvelopeStore { db })
+        Ok(SqliteEnvelopeStore {
+            db: db.clone(),
+            disk_usage: DiskUsage::prepare(db, config.spool_disk_usage_refresh_frequency_ms())
+                .await?,
+        })
     }
 
     /// Set up the database and return the current number of envelopes.
@@ -196,7 +296,7 @@ impl SqliteEnvelopeStore {
 
     /// Inserts one or more envelopes into the database.
     pub async fn insert_many(
-        &self,
+        &mut self,
         envelopes: impl IntoIterator<Item = InsertEnvelope>,
     ) -> Result<(), SqliteEnvelopeStoreError> {
         if let Err(err) = build_insert_many_envelopes(envelopes.into_iter())
@@ -217,7 +317,7 @@ impl SqliteEnvelopeStore {
 
     /// Deletes and returns at most `limit` [`Envelope`]s from the database.
     pub async fn delete_many(
-        &self,
+        &mut self,
         own_key: ProjectKey,
         sampling_key: ProjectKey,
         limit: i64,
@@ -281,7 +381,7 @@ impl SqliteEnvelopeStore {
     /// `own_key` and `project_key` that are found in the database.
     pub async fn project_key_pairs(
         &self,
-    ) -> Result<HashSet<(ProjectKey, ProjectKey)>, SqliteEnvelopeStoreError> {
+    ) -> Result<HashSet<ProjectKeyPair>, SqliteEnvelopeStoreError> {
         let project_key_pairs = build_get_project_key_pairs()
             .fetch_all(&self.db)
             .await
@@ -296,13 +396,20 @@ impl SqliteEnvelopeStore {
         Ok(project_key_pairs)
     }
 
-    /// Returns an approximate measure of the size of the database.
-    pub async fn used_size(&self) -> Result<i64, SqliteEnvelopeStoreError> {
-        build_estimate_size()
+    /// Returns an approximate measure of the used size of the database.
+    pub fn usage(&self) -> u64 {
+        self.disk_usage.usage()
+    }
+
+    /// Returns the total count of envelopes stored in the database.
+    pub async fn total_count(&self) -> Result<u64, SqliteEnvelopeStoreError> {
+        let row = build_count_all()
             .fetch_one(&self.db)
             .await
-            .and_then(|r| r.try_get(0))
-            .map_err(SqliteEnvelopeStoreError::FileSizeReadFailed)
+            .map_err(SqliteEnvelopeStoreError::FetchError)?;
+
+        let total_count: i64 = row.get(0);
+        Ok(total_count as u64)
     }
 }
 
@@ -326,9 +433,7 @@ fn extract_envelope(row: SqliteRow) -> Result<Box<Envelope>, SqliteEnvelopeStore
 }
 
 /// Deserializes a pair of [`ProjectKey`] from the database.
-fn extract_project_key_pair(
-    row: SqliteRow,
-) -> Result<(ProjectKey, ProjectKey), SqliteEnvelopeStoreError> {
+fn extract_project_key_pair(row: SqliteRow) -> Result<ProjectKeyPair, SqliteEnvelopeStoreError> {
     let own_key = row
         .try_get("own_key")
         .map_err(SqliteEnvelopeStoreError::FetchError)
@@ -343,7 +448,7 @@ fn extract_project_key_pair(
         });
 
     match (own_key, sampling_key) {
-        (Ok(own_key), Ok(sampling_key)) => Ok((own_key, sampling_key)),
+        (Ok(own_key), Ok(sampling_key)) => Ok(ProjectKeyPair::new(own_key, sampling_key)),
         // Report the first found error.
         (Err(err), _) | (_, Err(err)) => {
             relay_log::error!("failed to extract a queue key from the spool record: {err}");
@@ -403,68 +508,30 @@ pub fn build_get_project_key_pairs<'a>() -> Query<'a, Sqlite, SqliteArguments<'a
     sqlx::query("SELECT DISTINCT own_key, sampling_key FROM envelopes;")
 }
 
+/// Returns the query to count the number of envelopes on disk.
+///
+/// Please note that this query is SLOW because SQLite doesn't use any metadata to satisfy it,
+/// meaning that it has to scan through all the rows and count them.
+pub fn build_count_all<'a>() -> Query<'a, Sqlite, SqliteArguments<'a>> {
+    sqlx::query("SELECT COUNT(1) FROM envelopes;")
+}
+
 #[cfg(test)]
 mod tests {
-
     use hashbrown::HashSet;
-    use std::collections::BTreeMap;
-    use std::time::{Duration, Instant};
-    use uuid::Uuid;
+    use std::time::Duration;
+    use tokio::time::sleep;
 
     use relay_base_schema::project::ProjectKey;
     use relay_event_schema::protocol::EventId;
-    use relay_sampling::DynamicSamplingContext;
 
     use super::*;
-    use crate::envelope::{Envelope, Item, ItemType};
-    use crate::extractors::RequestMeta;
-    use crate::services::buffer::testutils::utils::setup_db;
-
-    fn request_meta() -> RequestMeta {
-        let dsn = "https://a94ae32be2584e0bbd7a4cbb95971fee:@sentry.io/42"
-            .parse()
-            .unwrap();
-
-        RequestMeta::new(dsn)
-    }
-
-    fn mock_envelope(instant: Instant) -> Box<Envelope> {
-        let event_id = EventId::new();
-        let mut envelope = Envelope::from_request(Some(event_id), request_meta());
-
-        let dsc = DynamicSamplingContext {
-            trace_id: Uuid::new_v4(),
-            public_key: ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
-            release: Some("1.1.1".to_string()),
-            user: Default::default(),
-            replay_id: None,
-            environment: None,
-            transaction: Some("transaction1".into()),
-            sample_rate: None,
-            sampled: Some(true),
-            other: BTreeMap::new(),
-        };
-
-        envelope.set_dsc(dsc);
-        envelope.set_start_time(instant);
-
-        envelope.add_item(Item::new(ItemType::Transaction));
-
-        envelope
-    }
-
-    #[allow(clippy::vec_box)]
-    fn mock_envelopes(count: usize) -> Vec<Box<Envelope>> {
-        let instant = Instant::now();
-        (0..count)
-            .map(|i| mock_envelope(instant - Duration::from_secs((count - i) as u64)))
-            .collect()
-    }
+    use crate::services::buffer::testutils::utils::{mock_envelopes, setup_db};
 
     #[tokio::test]
     async fn test_insert_and_delete_envelopes() {
         let db = setup_db(true).await;
-        let envelope_store = SqliteEnvelopeStore::new(db);
+        let mut envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
 
         let own_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let sampling_key = ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap();
@@ -492,7 +559,7 @@ mod tests {
     #[tokio::test]
     async fn test_insert_and_get_project_keys_pairs() {
         let db = setup_db(true).await;
-        let envelope_store = SqliteEnvelopeStore::new(db);
+        let mut envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
 
         let own_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let sampling_key = ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap();
@@ -510,7 +577,48 @@ mod tests {
         assert_eq!(project_key_pairs.len(), 1);
         assert_eq!(
             project_key_pairs.into_iter().last().unwrap(),
-            (own_key, sampling_key)
+            ProjectKeyPair::new(own_key, sampling_key)
         );
+    }
+
+    #[tokio::test]
+    async fn test_estimate_disk_usage() {
+        let db = setup_db(true).await;
+        let mut store = SqliteEnvelopeStore::new(db.clone(), Duration::from_millis(1));
+        let disk_usage = DiskUsage::prepare(db, Duration::from_millis(1))
+            .await
+            .unwrap();
+
+        // We read the disk usage without envelopes stored.
+        let usage_1 = disk_usage.usage();
+        assert!(usage_1 > 0);
+
+        // We write 10 envelopes to increase the disk usage.
+        let envelopes = mock_envelopes(10);
+        store
+            .insert_many(envelopes.iter().map(|e| e.as_ref().try_into().unwrap()))
+            .await
+            .unwrap();
+
+        // We wait for the refresh timeout of the disk usage task.
+        sleep(Duration::from_millis(2)).await;
+
+        // We now expect to read more disk usage because of the 10 elements.
+        let usage_2 = disk_usage.usage();
+        assert!(usage_2 >= usage_1);
+    }
+
+    #[tokio::test]
+    async fn test_total_count() {
+        let db = setup_db(true).await;
+        let mut store = SqliteEnvelopeStore::new(db.clone(), Duration::from_millis(1));
+
+        let envelopes = mock_envelopes(10);
+        store
+            .insert_many(envelopes.iter().map(|e| e.as_ref().try_into().unwrap()))
+            .await
+            .unwrap();
+
+        assert_eq!(store.total_count().await.unwrap(), envelopes.len() as u64);
     }
 }

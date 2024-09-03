@@ -61,13 +61,6 @@ pub enum Feature {
     /// Serialized as `projects:relay-otel-endpoint`.
     #[serde(rename = "projects:relay-otel-endpoint")]
     OtelEndpoint,
-    /// Enable processing and extracting data from profiles that would normally be dropped by dynamic sampling.
-    ///
-    /// This is required for [slowest function aggregation](https://github.com/getsentry/snuba/blob/b5311b404a6bd73a9e1997a46d38e7df88e5f391/snuba/snuba_migrations/functions/0001_functions.py#L209-L256). The profile payload will be dropped on the sentry side.
-    ///
-    /// Serialized as `projects:profiling-ingest-unsampled-profiles`.
-    #[serde(rename = "projects:profiling-ingest-unsampled-profiles")]
-    IngestUnsampledProfiles,
 
     /// Discard transactions in a spans-only world.
     ///
@@ -126,6 +119,10 @@ pub enum Feature {
     #[doc(hidden)]
     #[serde(rename = "projects:span-metrics-extraction-all-modules")]
     Deprecated6,
+    /// Deprecated, still forwarded for older downstream Relays.
+    #[doc(hidden)]
+    #[serde(rename = "projects:profiling-ingest-unsampled-profiles")]
+    Deprecated7,
     /// Forward compatibility.
     #[doc(hidden)]
     #[serde(other)]

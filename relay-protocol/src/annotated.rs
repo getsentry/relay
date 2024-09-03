@@ -1,7 +1,5 @@
 use std::fmt;
 
-#[cfg(feature = "jsonschema")]
-use schemars::{gen::SchemaGenerator, schema::Schema, JsonSchema};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -387,26 +385,5 @@ impl<T> From<Option<T>> for Annotated<T> {
 impl<T> Default for Annotated<T> {
     fn default() -> Annotated<T> {
         Annotated::empty()
-    }
-}
-
-// This hack is needed to make our custom derive for JsonSchema simpler. However, Serialize should
-// not be implemented on Annotated as one should usually use ToValue directly, or
-// SerializableAnnotated explicitly if really needed (eg: tests)
-#[cfg(feature = "jsonschema")]
-impl<T> JsonSchema for Annotated<T>
-where
-    T: JsonSchema,
-{
-    fn schema_name() -> String {
-        format!("Annotated_{}", T::schema_name())
-    }
-
-    fn json_schema(gen: &mut SchemaGenerator) -> Schema {
-        Option::<T>::json_schema(gen)
-    }
-
-    fn is_referenceable() -> bool {
-        false
     }
 }

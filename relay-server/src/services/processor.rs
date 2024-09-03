@@ -18,7 +18,7 @@ use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId, Token};
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, HttpEncoding, NormalizationLevel, RelayMode};
-use relay_dynamic_config::{CombinedMetricExtractionConfig, ErrorBoundary, Feature, GlobalConfig};
+use relay_dynamic_config::{CombinedMetricExtractionConfig, ErrorBoundary, Feature};
 use relay_event_normalization::span::description::ScrubMongoDescription;
 use relay_event_normalization::{
     normalize_event, validate_event, ClockDriftProcessor, CombinedMeasurementsConfig,
@@ -30,17 +30,13 @@ use relay_event_schema::protocol::{
     ClientReport, Event, EventId, EventType, IpAddr, Metrics, NetworkReportError,
 };
 use relay_filter::FilterStatKey;
-use relay_metrics::{
-    Bucket, BucketMetadata, BucketValue, BucketView, BucketsView, FiniteF64, MetricMeta,
-    MetricNamespace,
-};
+use relay_metrics::{Bucket, BucketMetadata, BucketView, BucketsView, MetricMeta, MetricNamespace};
 use relay_pii::PiiConfigError;
 use relay_profiling::ProfileId;
 use relay_protocol::{Annotated, Value};
 use relay_quotas::{DataCategory, RateLimits, Scoping};
 use relay_sampling::config::RuleId;
 use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator, SamplingDecision};
-use relay_sampling::DynamicSamplingContext;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
 use reqwest::header;
@@ -55,7 +51,7 @@ use {
         CardinalityLimit, CardinalityLimiter, CardinalityLimitsSplit, RedisSetLimiter,
         RedisSetLimiterOptions,
     },
-    relay_dynamic_config::{CardinalityLimiterMode, MetricExtractionGroups},
+    relay_dynamic_config::{CardinalityLimiterMode, GlobalConfig, MetricExtractionGroups},
     relay_metrics::RedisMetricMetaStore,
     relay_quotas::{Quota, RateLimitingError, RedisRateLimiter},
     relay_redis::{RedisPool, RedisPools},
@@ -64,6 +60,7 @@ use {
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
+use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemType};
 use crate::extractors::{PartialDsn, RequestMeta};
 use crate::http;
@@ -591,29 +588,12 @@ type ExtractedEvent = (Annotated<Event>, usize);
 #[derive(Debug)]
 pub struct ProcessingExtractedMetrics {
     metrics: ExtractedMetrics,
-    project: Arc<ProjectInfo>,
-    global: Arc<GlobalConfig>,
-    extrapolation_factor: Option<FiniteF64>,
 }
 
 impl ProcessingExtractedMetrics {
-    pub fn new(
-        project: Arc<ProjectInfo>,
-        global: Arc<GlobalConfig>,
-        dsc: Option<&DynamicSamplingContext>,
-    ) -> Self {
-        let factor = match dsc.and_then(|dsc| dsc.sample_rate) {
-            // no need for extrapolation if sample rate is 1.0, and a sample rate of `0` or lower is
-            // invalid, in which case we also skip.
-            Some(rate) if rate > 0.0 && rate < 1.0 => FiniteF64::new(1.0 / rate),
-            _ => None,
-        };
-
+    pub fn new() -> Self {
         Self {
             metrics: ExtractedMetrics::default(),
-            project,
-            global,
-            extrapolation_factor: factor,
         }
     }
 
@@ -637,7 +617,6 @@ impl ProcessingExtractedMetrics {
             bucket.metadata.extracted_from_indexed =
                 sampling_decision == Some(SamplingDecision::Keep);
         }
-        self.extrapolate(&mut buckets);
         self.metrics.project_metrics.extend(buckets);
     }
 
@@ -651,7 +630,6 @@ impl ProcessingExtractedMetrics {
             bucket.metadata.extracted_from_indexed =
                 sampling_decision == Some(SamplingDecision::Keep);
         }
-        self.extrapolate(&mut buckets);
         self.metrics.sampling_metrics.extend(buckets);
     }
 
@@ -678,55 +656,6 @@ impl ProcessingExtractedMetrics {
     fn retain(&mut self, mut f: impl FnMut(&Bucket) -> bool) {
         self.metrics.project_metrics.retain(&mut f);
         self.metrics.sampling_metrics.retain(&mut f);
-    }
-
-    fn extrapolate(&self, buckets: &mut [Bucket]) {
-        let Some(factor) = self.extrapolation_factor else {
-            return;
-        };
-
-        let extrapolate = match self.project.config().metric_extraction {
-            ErrorBoundary::Ok(ref config) if !config.extrapolate.is_empty() => &config.extrapolate,
-            _ => return,
-        };
-
-        let duplication = (factor.to_f64().round() as usize)
-            .min(self.global.options.extrapolation_duplication_limit)
-            .max(1);
-
-        for bucket in buckets {
-            if !extrapolate.matches(&bucket.name) {
-                continue;
-            }
-
-            match bucket.value {
-                BucketValue::Counter(ref mut counter) => {
-                    *counter = counter.saturating_mul(factor);
-                }
-                BucketValue::Distribution(ref mut dist) => {
-                    // Duplicate values in the distribution to ensure that higher sample rates are
-                    // represented correctly in the final distribution sketch. This is inefficient
-                    // and there are two ways to optimize this:
-                    //  1. Store the sample rate or weight directly in the distribution structure.
-                    //     Then duplicate on the fly in the kafka producer.
-                    //  2. Change the schema to include sample rates or weights and then extrapolate
-                    //     in storage.
-                    *dist = std::mem::take(dist)
-                        .into_iter()
-                        .flat_map(|f| std::iter::repeat(f).take(duplication))
-                        .collect();
-                }
-                BucketValue::Set(_) => {
-                    // do nothing for sets
-                }
-                BucketValue::Gauge(ref mut gauge) => {
-                    gauge.sum = gauge.sum.saturating_mul(factor);
-                    gauge.count = FiniteF64::new(gauge.count as f64)
-                        .map(|f| f.saturating_mul(factor).to_f64() as u64)
-                        .unwrap_or(u64::MAX);
-                }
-            }
-        }
     }
 }
 
@@ -1325,7 +1254,6 @@ impl EnvelopeProcessorService {
     fn prepare_state<G>(
         &self,
         config: Arc<Config>,
-        global_config: Arc<GlobalConfig>,
         mut managed_envelope: TypedEnvelope<G>,
         project_id: ProjectId,
         project_state: Arc<ProjectInfo>,
@@ -1360,15 +1288,7 @@ impl EnvelopeProcessorService {
             reservoir.set_redis(org_id, quotas_pool);
         }
 
-        let extracted_metrics = ProcessingExtractedMetrics::new(
-            project_state.clone(),
-            global_config,
-            // The processor sometimes computes a DSC just-in-time for dynamic sampling if it is not
-            // provided by the SDK so that trace rules can still match. Metric extraction won't see
-            // this generated DSC. However, metric extraction just needs the client sample rate,
-            // which is never affected by this. Hence, this operation is safe.
-            managed_envelope.envelope().dsc(),
-        );
+        let extracted_metrics = ProcessingExtractedMetrics::new();
 
         ProcessEnvelopeState {
             event: Annotated::empty(),
@@ -1592,10 +1512,17 @@ impl EnvelopeProcessorService {
         let ai_model_costs = global_config.ai_model_costs.clone().ok();
         let http_span_allowed_hosts = global_config.options.http_span_allowed_hosts.as_slice();
 
+        let retention_days: i64 = state
+            .project_state
+            .config
+            .event_retention
+            .unwrap_or(DEFAULT_EVENT_RETENTION)
+            .into();
+
         utils::log_transaction_name_metrics(&mut state.event, |event| {
             let event_validation_config = EventValidationConfig {
                 received_at: Some(state.managed_envelope.received_at()),
-                max_secs_in_past: Some(self.inner.config.max_secs_in_past()),
+                max_secs_in_past: Some(retention_days * 24 * 3600),
                 max_secs_in_future: Some(self.inner.config.max_secs_in_future()),
                 transaction_timestamp_range: Some(
                     transaction_aggregator_config.aggregator.timestamp_range(),
@@ -1785,14 +1712,13 @@ impl EnvelopeProcessorService {
         };
 
         if let Some(outcome) = sampling_result.into_dropped_outcome() {
-            let keep_profiles = dynamic_sampling::forward_unsampled_profiles(state, &global_config);
+            let keep_profiles = global_config.options.unsampled_profiles_enabled;
             // Process profiles before dropping the transaction, if necessary.
             // Before metric extraction to make sure the profile count is reflected correctly.
             let profile_id = match keep_profiles {
                 true => profile::process(state),
                 false => profile_id,
             };
-
             // Extract metrics here, we're about to drop the event/transaction.
             self.extract_transaction_metrics(state, SamplingDecision::Drop, profile_id)?;
 
@@ -1973,7 +1899,6 @@ impl EnvelopeProcessorService {
                 let managed_envelope = managed_envelope.try_into()?;
                 let mut state = self.prepare_state(
                     self.inner.config.clone(),
-                    self.inner.global_config.current(),
                     managed_envelope,
                     project_id,
                     project_state,
@@ -3320,11 +3245,10 @@ mod tests {
     use insta::assert_debug_snapshot;
     use relay_base_schema::metrics::{DurationUnit, MetricUnit};
     use relay_common::glob2::LazyGlob;
-    use relay_dynamic_config::{ExtrapolationConfig, MetricExtractionConfig, ProjectConfig};
+    use relay_dynamic_config::ProjectConfig;
     use relay_event_normalization::{RedactionRule, TransactionNameRule};
     use relay_event_schema::protocol::TransactionSource;
     use relay_pii::DataScrubbingConfig;
-    use serde::Deserialize;
     use similar_asserts::assert_eq;
 
     use crate::metrics_extraction::transactions::types::{
@@ -3949,188 +3873,6 @@ mod tests {
                 ),
                 Internal,
             ),
-        ]
-        "###);
-    }
-
-    #[test]
-    fn test_extrapolate() {
-        let mut project_info = ProjectInfo::default();
-        project_info.config.metric_extraction = ErrorBoundary::Ok(MetricExtractionConfig {
-            extrapolate: ExtrapolationConfig {
-                include: vec![LazyGlob::new("*")],
-                exclude: vec![],
-            },
-            ..Default::default()
-        });
-
-        let dsc = DynamicSamplingContext::deserialize(serde_json::json!({
-            "trace_id": "00000000-0000-0000-0000-000000000000",
-            "public_key": "abd0f232775f45feab79864e580d160b",
-            "sample_rate": "0.2",
-        }))
-        .unwrap();
-
-        let mut global_config = GlobalConfig::default();
-        global_config.options.extrapolation_duplication_limit = 3;
-
-        let mut extracted_metrics = ProcessingExtractedMetrics::new(
-            Arc::new(project_info),
-            Arc::new(global_config),
-            Some(&dsc),
-        );
-
-        let buckets = serde_json::from_value(serde_json::json!([
-          {
-            "timestamp": 1615889440,
-            "width": 10,
-            "name": "endpoint.response_time",
-            "type": "d",
-            "value": [
-              36.0,
-              49.0,
-              57.0,
-              68.0
-            ],
-            "tags": {
-              "route": "user_index"
-            }
-          },
-          {
-            "timestamp": 1615889440,
-            "width": 10,
-            "name": "endpoint.hits",
-            "type": "c",
-            "value": 4.0,
-            "tags": {
-              "route": "user_index"
-            }
-          },
-          {
-            "timestamp": 1615889440,
-            "width": 10,
-            "name": "endpoint.parallel_requests",
-            "type": "g",
-            "value": {
-              "last": 25.0,
-              "min": 17.0,
-              "max": 42.0,
-              "sum": 2210.0,
-              "count": 85
-            }
-          },
-          {
-            "timestamp": 1615889440,
-            "width": 10,
-            "name": "endpoint.users",
-            "type": "s",
-            "value": [
-              3182887624u32,
-              4267882815u32
-            ],
-            "tags": {
-              "route": "user_index"
-            }
-          }
-        ]))
-        .unwrap();
-
-        extracted_metrics.extend_project_metrics(buckets, None);
-
-        insta::assert_debug_snapshot!(extracted_metrics.metrics.project_metrics, @r###"
-        [
-            Bucket {
-                timestamp: UnixTimestamp(1615889440),
-                width: 10,
-                name: MetricName(
-                    "endpoint.response_time",
-                ),
-                value: Distribution(
-                    [
-                        36.0,
-                        36.0,
-                        36.0,
-                        49.0,
-                        49.0,
-                        49.0,
-                        57.0,
-                        57.0,
-                        57.0,
-                        68.0,
-                        68.0,
-                        68.0,
-                    ],
-                ),
-                tags: {
-                    "route": "user_index",
-                },
-                metadata: BucketMetadata {
-                    merges: 1,
-                    received_at: None,
-                    extracted_from_indexed: false,
-                },
-            },
-            Bucket {
-                timestamp: UnixTimestamp(1615889440),
-                width: 10,
-                name: MetricName(
-                    "endpoint.hits",
-                ),
-                value: Counter(
-                    20.0,
-                ),
-                tags: {
-                    "route": "user_index",
-                },
-                metadata: BucketMetadata {
-                    merges: 1,
-                    received_at: None,
-                    extracted_from_indexed: false,
-                },
-            },
-            Bucket {
-                timestamp: UnixTimestamp(1615889440),
-                width: 10,
-                name: MetricName(
-                    "endpoint.parallel_requests",
-                ),
-                value: Gauge(
-                    GaugeValue {
-                        last: 25.0,
-                        min: 17.0,
-                        max: 42.0,
-                        sum: 11050.0,
-                        count: 425,
-                    },
-                ),
-                tags: {},
-                metadata: BucketMetadata {
-                    merges: 1,
-                    received_at: None,
-                    extracted_from_indexed: false,
-                },
-            },
-            Bucket {
-                timestamp: UnixTimestamp(1615889440),
-                width: 10,
-                name: MetricName(
-                    "endpoint.users",
-                ),
-                value: Set(
-                    {
-                        3182887624,
-                        4267882815,
-                    },
-                ),
-                tags: {
-                    "route": "user_index",
-                },
-                metadata: BucketMetadata {
-                    merges: 1,
-                    received_at: None,
-                    extracted_from_indexed: false,
-                },
-            },
         ]
         "###);
     }

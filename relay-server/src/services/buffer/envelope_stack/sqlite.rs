@@ -6,10 +6,10 @@ use relay_base_schema::project::ProjectKey;
 
 use crate::envelope::Envelope;
 use crate::services::buffer::envelope_stack::EnvelopeStack;
-use crate::services::buffer::sqlite_envelope_store::{
+use crate::services::buffer::envelope_store::sqlite::{
     SqliteEnvelopeStore, SqliteEnvelopeStoreError,
 };
-use crate::statsd::RelayCounters;
+use crate::statsd::RelayTimers;
 
 /// An error returned when doing an operation on [`SqliteEnvelopeStack`].
 #[derive(Debug, thiserror::Error)]
@@ -98,12 +98,12 @@ impl SqliteEnvelopeStack {
         // the buffer are lost in case of failure. We are doing this on purposes, since if we were
         // to have a database corruption during runtime, and we were to put the values back into
         // the buffer we will end up with an infinite cycle.
-        self.envelope_store
-            .insert_many(envelopes)
-            .await
-            .map_err(SqliteEnvelopeStackError::EnvelopeStoreError)?;
-
-        relay_statsd::metric!(counter(RelayCounters::BufferWritesDisk) += 1);
+        relay_statsd::metric!(timer(RelayTimers::BufferSpool), {
+            self.envelope_store
+                .insert_many(envelopes)
+                .await
+                .map_err(SqliteEnvelopeStackError::EnvelopeStoreError)?;
+        });
 
         // If we successfully spooled to disk, we know that data should be there.
         self.check_disk = true;
@@ -119,17 +119,16 @@ impl SqliteEnvelopeStack {
     /// In case an envelope fails deserialization due to malformed data in the database, the affected
     /// envelope will not be unspooled and unspooling will continue with the remaining envelopes.
     async fn unspool_from_disk(&mut self) -> Result<(), SqliteEnvelopeStackError> {
-        let envelopes = self
-            .envelope_store
-            .delete_many(
-                self.own_key,
-                self.sampling_key,
-                self.batch_size.get() as i64,
-            )
-            .await
-            .map_err(SqliteEnvelopeStackError::EnvelopeStoreError)?;
-
-        relay_statsd::metric!(counter(RelayCounters::BufferReadsDisk) += 1);
+        let envelopes = relay_statsd::metric!(timer(RelayTimers::BufferUnspool), {
+            self.envelope_store
+                .delete_many(
+                    self.own_key,
+                    self.sampling_key,
+                    self.batch_size.get() as i64,
+                )
+                .await
+                .map_err(SqliteEnvelopeStackError::EnvelopeStoreError)?
+        });
 
         if envelopes.is_empty() {
             // In case no envelopes were unspooled, we will mark the disk as empty until another
@@ -230,66 +229,18 @@ impl EnvelopeStack for SqliteEnvelopeStack {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
     use std::time::{Duration, Instant};
 
-    use uuid::Uuid;
-
     use relay_base_schema::project::ProjectKey;
-    use relay_event_schema::protocol::EventId;
-    use relay_sampling::DynamicSamplingContext;
 
     use super::*;
-    use crate::envelope::{Envelope, Item, ItemType};
-    use crate::extractors::RequestMeta;
-    use crate::services::buffer::testutils::utils::setup_db;
-
-    fn request_meta() -> RequestMeta {
-        let dsn = "https://a94ae32be2584e0bbd7a4cbb95971fee:@sentry.io/42"
-            .parse()
-            .unwrap();
-
-        RequestMeta::new(dsn)
-    }
-
-    fn mock_envelope(instant: Instant) -> Box<Envelope> {
-        let event_id = EventId::new();
-        let mut envelope = Envelope::from_request(Some(event_id), request_meta());
-
-        let dsc = DynamicSamplingContext {
-            trace_id: Uuid::new_v4(),
-            public_key: ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
-            release: Some("1.1.1".to_string()),
-            user: Default::default(),
-            replay_id: None,
-            environment: None,
-            transaction: Some("transaction1".into()),
-            sample_rate: None,
-            sampled: Some(true),
-            other: BTreeMap::new(),
-        };
-
-        envelope.set_dsc(dsc);
-        envelope.set_start_time(instant);
-
-        envelope.add_item(Item::new(ItemType::Transaction));
-
-        envelope
-    }
-
-    #[allow(clippy::vec_box)]
-    fn mock_envelopes(count: usize) -> Vec<Box<Envelope>> {
-        let instant = Instant::now();
-        (0..count)
-            .map(|i| mock_envelope(instant - Duration::from_secs((count - i) as u64)))
-            .collect()
-    }
+    use crate::services::buffer::testutils::utils::{mock_envelope, mock_envelopes, setup_db};
 
     #[tokio::test]
     #[should_panic]
     async fn test_push_with_mismatching_project_keys() {
         let db = setup_db(false).await;
-        let envelope_store = SqliteEnvelopeStore::new(db);
+        let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store,
             2,
@@ -305,7 +256,7 @@ mod tests {
     #[tokio::test]
     async fn test_push_when_db_is_not_valid() {
         let db = setup_db(false).await;
-        let envelope_store = SqliteEnvelopeStore::new(db);
+        let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store,
             2,
@@ -357,7 +308,7 @@ mod tests {
     #[tokio::test]
     async fn test_pop_when_db_is_not_valid() {
         let db = setup_db(false).await;
-        let envelope_store = SqliteEnvelopeStore::new(db);
+        let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store,
             2,
@@ -376,7 +327,7 @@ mod tests {
     #[tokio::test]
     async fn test_pop_when_stack_is_empty() {
         let db = setup_db(true).await;
-        let envelope_store = SqliteEnvelopeStore::new(db);
+        let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store,
             2,
@@ -393,7 +344,7 @@ mod tests {
     #[tokio::test]
     async fn test_push_below_threshold_and_pop() {
         let db = setup_db(true).await;
-        let envelope_store = SqliteEnvelopeStore::new(db);
+        let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store,
             5,
@@ -430,7 +381,7 @@ mod tests {
     #[tokio::test]
     async fn test_push_above_threshold_and_pop() {
         let db = setup_db(true).await;
-        let envelope_store = SqliteEnvelopeStore::new(db);
+        let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store,
             5,

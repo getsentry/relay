@@ -12,12 +12,6 @@ publish = false
 
 [features]
 default = []
-dashboard = [
-    "axum/ws",
-    "dep:rust-embed",
-    "dep:mime_guess",
-    "relay-log/dashboard",
-]
 processing = [
     "dep:minidump",
     "dep:symbolic-common",
@@ -39,12 +33,12 @@ workspace = true
 anyhow = { workspace = true }
 serde_path_to_error = { workspace = true }
 axum = { workspace = true, features = [
-    "headers",
     "macros",
     "matched-path",
     "multipart",
     "tracing",
 ] }
+axum-extra = { workspace = true }
 axum-server = { workspace = true }
 arc-swap = { workspace = true }
 backoff = { workspace = true }
@@ -56,10 +50,10 @@ flate2 = { workspace = true }
 fnv = { workspace = true }
 futures = { workspace = true }
 hashbrown = { workspace = true }
+hyper-util = { workspace = true }
 itertools = { workspace = true }
 json-forensics = { workspace = true }
 mime = { workspace = true }
-mime_guess = { workspace = true, optional = true }
 minidump = { workspace = true, optional = true }
 multer = { workspace = true }
 once_cell = { workspace = true }
@@ -94,17 +88,16 @@ relay-statsd = { workspace = true }
 relay-system = { workspace = true }
 reqwest = { workspace = true, features = [
     "gzip",
+    "hickory-dns",
     "stream",
-    "trust-dns",
     "native-tls-vendored",
 ] }
 rmp-serde = { workspace = true }
-rust-embed = { workspace = true, optional = true }
-sentry_usage_accountant = { workspace = true, default-features = false }
 serde = { workspace = true }
 serde_bytes = { workspace = true }
 serde_json = { workspace = true }
 smallvec = { workspace = true, features = ["drain_filter"] }
+socket2 = { workspace = true }
 sqlx = { workspace = true, features = [
     "macros",
     "migrate",
@@ -134,14 +127,12 @@ tower-http = { workspace = true, default-features = false, features = [
 url = { workspace = true, features = ["serde"] }
 uuid = { workspace = true, features = ["v5"] }
 zstd = { workspace = true, optional = true }
-axum-extra = { workspace = true, features = ["protobuf"] }
 semver = { workspace = true }
 
 [dev-dependencies]
 criterion = { workspace = true }
 tokio = { workspace = true, features = ['test-util'] }
 insta = { workspace = true }
-relay-event-schema = { workspace = true, features = ["jsonschema"] }
 relay-protocol = { workspace = true, features = ["test"] }
 relay-test = { workspace = true }
 similar-asserts = { workspace = true }

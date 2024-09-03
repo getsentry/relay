@@ -1,5 +1,3 @@
-#[cfg(feature = "jsonschema")]
-use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
 
 use crate::processor::ProcessValue;
@@ -10,7 +8,6 @@ use crate::processor::ProcessValue;
 // context that is necessary for basic operation, or worse, mangle it such that the Snuba consumer
 // crashes: https://github.com/getsentry/snuba/pull/1896/
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct ReprocessingContext {
     /// The issue ID that this event originally belonged to.
     #[metastructure(pii = "false")]

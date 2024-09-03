@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::metrics::{MetricOutcomes, MetricStats};
-use crate::services::buffer::GuardedEnvelopeBuffer;
+use crate::services::buffer::{EnvelopeBufferService, ObservableEnvelopeBuffer};
 use crate::services::stats::RelayStats;
 use anyhow::{Context, Result};
 use axum::extract::FromRequestParts;
@@ -60,6 +60,7 @@ pub struct Registry {
     pub global_config: Addr<GlobalConfigManager>,
     pub project_cache: Addr<ProjectCache>,
     pub upstream_relay: Addr<UpstreamRelay>,
+    pub envelope_buffer: Option<ObservableEnvelopeBuffer>,
 }
 
 impl fmt::Debug for Registry {
@@ -139,7 +140,6 @@ fn create_store_pool(config: &Config) -> Result<ThreadPool> {
 struct StateInner {
     config: Arc<Config>,
     memory_checker: MemoryChecker,
-    envelope_buffer: Option<Arc<GuardedEnvelopeBuffer>>,
     registry: Registry,
 }
 
@@ -217,11 +217,7 @@ impl ServiceState {
             })
             .transpose()?;
 
-        let cogs = CogsService::new(
-            &config,
-            #[cfg(feature = "processing")]
-            store.clone(),
-        );
+        let cogs = CogsService::new(&config);
         let cogs = Cogs::new(CogsServiceRecorder::new(&config, cogs.start()));
 
         EnvelopeProcessorService::new(
@@ -244,21 +240,28 @@ impl ServiceState {
         )
         .spawn_handler(processor_rx);
 
-        // Keep all the services in one context.
-        let project_cache_services = Services::new(
-            aggregator.clone(),
-            processor.clone(),
-            outcome_aggregator.clone(),
+        let envelope_buffer = EnvelopeBufferService::new(
+            config.clone(),
+            MemoryChecker::new(memory_stat.clone(), config.clone()),
             project_cache.clone(),
-            test_store.clone(),
-            upstream_relay.clone(),
-            global_config.clone(),
-        );
-        let envelope_buffer = GuardedEnvelopeBuffer::from_config(&config).map(Arc::new);
+        )
+        .map(|b| b.start_observable());
+
+        // Keep all the services in one context.
+        let project_cache_services = Services {
+            envelope_buffer: envelope_buffer.as_ref().map(ObservableEnvelopeBuffer::addr),
+            aggregator: aggregator.clone(),
+            envelope_processor: processor.clone(),
+            outcome_aggregator: outcome_aggregator.clone(),
+            project_cache: project_cache.clone(),
+            test_store: test_store.clone(),
+            upstream_relay: upstream_relay.clone(),
+            global_config: global_config.clone(),
+        };
+
         ProjectCacheService::new(
             config.clone(),
             MemoryChecker::new(memory_stat.clone(), config.clone()),
-            envelope_buffer.clone(),
             project_cache_services,
             redis_pools
                 .as_ref()
@@ -296,12 +299,12 @@ impl ServiceState {
             global_config,
             project_cache,
             upstream_relay,
+            envelope_buffer,
         };
 
         let state = StateInner {
             config: config.clone(),
             memory_checker: MemoryChecker::new(memory_stat, config.clone()),
-            envelope_buffer,
             registry,
         };
 
@@ -323,10 +326,8 @@ impl ServiceState {
     }
 
     /// Returns the V2 envelope buffer, if present.
-    ///
-    /// Clones the inner Arc.
-    pub fn envelope_buffer(&self) -> Option<Arc<GuardedEnvelopeBuffer>> {
-        self.inner.envelope_buffer.clone()
+    pub fn envelope_buffer(&self) -> Option<&ObservableEnvelopeBuffer> {
+        self.inner.registry.envelope_buffer.as_ref()
     }
 
     /// Returns the address of the [`ProjectCache`] service.

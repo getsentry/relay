@@ -8,6 +8,7 @@ use relay_config::Config;
 use relay_dynamic_config::{
     CombinedMetricExtractionConfig, ErrorBoundary, Feature, GlobalConfig, ProjectConfig,
 };
+use relay_event_normalization::span::ai::extract_ai_measurements;
 use relay_event_normalization::span::description::ScrubMongoDescription;
 use relay_event_normalization::{
     normalize_measurements, normalize_performance_score, span::tag_extraction, validate_span,
@@ -25,7 +26,8 @@ use relay_metrics::{MetricNamespace, UnixTimestamp};
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Empty};
 use relay_quotas::DataCategory;
-use relay_spans::{otel_to_sentry_span, otel_trace::Span as OtelSpan};
+use relay_spans::otel_trace::Span as OtelSpan;
+use thiserror::Error;
 use url::Host;
 
 use crate::envelope::{ContentType, Item, ItemType};
@@ -36,8 +38,6 @@ use crate::services::processor::{
     dynamic_sampling, ProcessEnvelopeState, ProcessingError, SpanGroup, TransactionGroup,
 };
 use crate::utils::{sample, ItemAction, ManagedEnvelope};
-use relay_event_normalization::span::ai::extract_ai_measurements;
-use thiserror::Error;
 
 #[derive(Error, Debug)]
 #[error(transparent)]
@@ -68,7 +68,7 @@ pub fn process(state: &mut ProcessEnvelopeState<SpanGroup>, global_config: &Glob
     state.managed_envelope.retain_items(|item| {
         let mut annotated_span = match item.ty() {
             ItemType::OtelSpan => match serde_json::from_slice::<OtelSpan>(&item.payload()) {
-                Ok(otel_span) => Annotated::new(otel_to_sentry_span(otel_span)),
+                Ok(otel_span) => Annotated::new(relay_spans::otel_to_sentry_span(otel_span)),
                 Err(err) => {
                     relay_log::debug!("failed to parse OTel span: {}", err);
                     return ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidJson));
@@ -727,11 +727,7 @@ mod tests {
             event: Annotated::from(event),
             metrics: Default::default(),
             sample_rates: None,
-            extracted_metrics: ProcessingExtractedMetrics::new(
-                project_state.clone(),
-                Arc::new(GlobalConfig::default()),
-                managed_envelope.envelope().dsc(),
-            ),
+            extracted_metrics: ProcessingExtractedMetrics::new(),
             config: Arc::new(Config::default()),
             project_state,
             sampling_project_state: None,

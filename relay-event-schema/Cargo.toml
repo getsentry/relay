@@ -21,9 +21,7 @@ enumset = { workspace = true }
 relay-common = { workspace = true }
 relay-base-schema = { workspace = true }
 relay-event-derive = { workspace = true }
-relay-jsonschema-derive = { workspace = true, optional = true }
 relay-protocol = { workspace = true, features = ["derive"] }
-schemars = { workspace = true, optional = true }
 sentry-release-parser = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
@@ -35,11 +33,3 @@ uuid = { workspace = true }
 insta = { workspace = true }
 relay-protocol = { workspace = true, features = ["test"] }
 similar-asserts = { workspace = true }
-
-[features]
-jsonschema = [
-    "relay-base-schema/jsonschema",
-    "relay-protocol/jsonschema",
-    "dep:relay-jsonschema-derive",
-    "dep:schemars",
-]

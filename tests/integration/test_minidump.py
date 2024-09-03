@@ -367,15 +367,11 @@ def test_minidump_with_processing(
     with open(dmp_path, "rb") as f:
         content = f.read()
 
-    relay = relay_with_processing(
-        {
-            # Prevent normalization from overwriting the minidump timestamp
-            "processing": {"max_secs_in_past": 2**32 - 1}
-        }
-    )
+    relay = relay_with_processing()
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["eventRetention"] = 50000
 
     # Disable scurbbing, the basic and full project configs from the mini_sentry fixture
     # will modify the minidump since it contains user paths in the module list.  This breaks
