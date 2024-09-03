@@ -94,15 +94,17 @@ impl StackProvider for SqliteStackProvider {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
+    use relay_base_schema::project::ProjectKey;
+    use relay_config::Config;
+    use uuid::Uuid;
+
     use crate::services::buffer::common::ProjectKeyPair;
     use crate::services::buffer::stack_provider::sqlite::SqliteStackProvider;
     use crate::services::buffer::stack_provider::StackProvider;
     use crate::services::buffer::testutils::utils::mock_envelopes;
     use crate::EnvelopeStack;
-    use relay_base_schema::project::ProjectKey;
-    use relay_config::Config;
-    use std::sync::Arc;
-    use uuid::Uuid;
 
     fn mock_config() -> Arc<Config> {
         let path = std::env::temp_dir()
