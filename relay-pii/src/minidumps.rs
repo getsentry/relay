@@ -12,7 +12,6 @@ use minidump::{
     Endian, Error as MinidumpError, Minidump, MinidumpMemoryList, MinidumpModuleList,
     MinidumpThreadList,
 };
-use num_traits::FromPrimitive;
 use relay_event_schema::processor::{FieldAttrs, Pii, ValueType};
 use utf16string::{Utf16Error, WStr};
 
@@ -204,14 +203,14 @@ impl<'a> MinidumpData<'a> {
                 .get(cv_start..)
                 .ok_or(ScrubMinidumpError::InvalidAddress)?;
             let signature = u32_from_bytes(signature_bytes, self.minidump.endian)?;
-            match CvSignature::from_u32(signature) {
-                Some(CvSignature::Pdb70) => {
+            match CvSignature::try_from(signature) {
+                Ok(CvSignature::Pdb70) => {
                     let offset: usize = 4 + (4 + 2 + 2 + 8) + 4; // cv_sig + sig GUID + age
                     items.push(MinidumpItem::DebugModuleName(
                         (cv_start + offset)..(cv_start + cv_len),
                     ));
                 }
-                Some(CvSignature::Pdb20) => {
+                Ok(CvSignature::Pdb20) => {
                     let offset: usize = 4 + 4 + 4 + 4; // cv_sig + cv_offset + sig + age
                     items.push(MinidumpItem::DebugModuleName(
                         (cv_start + offset)..(cv_start + cv_len),
