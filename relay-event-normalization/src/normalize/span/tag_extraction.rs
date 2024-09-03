@@ -16,7 +16,7 @@ use relay_event_schema::protocol::{
 use relay_protocol::{Annotated, Empty, Value};
 use sqlparser::ast::Visit;
 use sqlparser::ast::{ObjectName, Visitor};
-use url::Url;
+use url::{Host, Url};
 
 use crate::span::country_subregion::Subregion;
 use crate::span::description::{
@@ -184,7 +184,7 @@ impl std::fmt::Display for RenderBlockingStatus {
 pub(crate) fn extract_span_tags_from_event(
     event: &mut Event,
     max_tag_value_size: usize,
-    http_scrubbing_allow_list: &[String],
+    http_scrubbing_allow_list: &[Host],
 ) {
     // Temporarily take ownership to pass both an event reference and a mutable span reference to `extract_span_tags`.
     let mut spans = std::mem::take(&mut event.spans);
@@ -208,7 +208,7 @@ pub fn extract_span_tags(
     event: &Event,
     spans: &mut [Annotated<Span>],
     max_tag_value_size: usize,
-    span_allowed_hosts: &[String],
+    span_allowed_hosts: &[Host],
 ) {
     // TODO: To prevent differences between metrics and payloads, we should not extract tags here
     // when they have already been extracted by a downstream relay.
@@ -495,7 +495,7 @@ pub fn extract_tags(
     full_display: Option<Timestamp>,
     is_mobile: bool,
     start_type: Option<&str>,
-    span_allowed_hosts: &[String],
+    span_allowed_hosts: &[Host],
 ) -> BTreeMap<SpanTagKey, String> {
     let mut span_tags: BTreeMap<SpanTagKey, String> = BTreeMap::new();
 

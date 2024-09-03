@@ -1,16 +1,11 @@
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::convert::Infallible;
-use std::error::Error;
-use std::sync::atomic::AtomicI64;
-use std::sync::atomic::Ordering as AtomicOrdering;
-use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use hashbrown::HashSet;
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
-use tokio::time::timeout;
 
 use crate::envelope::Envelope;
 use crate::services::buffer::common::ProjectKeyPair;
@@ -20,7 +15,7 @@ use crate::services::buffer::envelope_store::sqlite::SqliteEnvelopeStoreError;
 use crate::services::buffer::stack_provider::memory::MemoryStackProvider;
 use crate::services::buffer::stack_provider::sqlite::SqliteStackProvider;
 use crate::services::buffer::stack_provider::StackProvider;
-use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
+use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
 use crate::utils::MemoryChecker;
 
 /// Polymorphic envelope buffering interface.
@@ -157,18 +152,6 @@ struct EnvelopeBuffer<P: StackProvider> {
     /// This indirection is needed because different stack implementations might need different
     /// initialization (e.g. a database connection).
     stack_provider: P,
-    /// The total count of envelopes that the buffer is working with.
-    ///
-    /// Note that this count is not meant to be perfectly accurate since the initialization of the
-    /// count might not succeed if it takes more than a set timeout. For example, if we load the
-    /// count of all envelopes from disk, and it takes more than the time we set, we will mark the
-    /// initial count as 0 and just count incoming and outgoing envelopes from the buffer.
-    total_count: Arc<AtomicI64>,
-    /// Whether the count initialization succeeded or not.
-    ///
-    /// This boolean is just used for tagging the metric that tracks the total count of envelopes
-    /// in the buffer.
-    total_count_initialized: bool,
 }
 
 impl EnvelopeBuffer<MemoryStackProvider> {
@@ -178,8 +161,6 @@ impl EnvelopeBuffer<MemoryStackProvider> {
             stacks_by_project: Default::default(),
             priority_queue: Default::default(),
             stack_provider: MemoryStackProvider::new(memory_checker),
-            total_count: Arc::new(AtomicI64::new(0)),
-            total_count_initialized: false,
         }
     }
 }
@@ -192,8 +173,6 @@ impl EnvelopeBuffer<SqliteStackProvider> {
             stacks_by_project: Default::default(),
             priority_queue: Default::default(),
             stack_provider: SqliteStackProvider::new(config).await?,
-            total_count: Arc::new(AtomicI64::new(0)),
-            total_count_initialized: false,
         })
     }
 }
@@ -205,11 +184,10 @@ where
     /// Initializes the [`EnvelopeBuffer`] given the initialization state from the
     /// [`StackProvider`].
     pub async fn initialize(&mut self) {
-        relay_statsd::metric!(timer(RelayTimers::BufferInitialization), {
+        relay_statsd::metric!(timer(RelayTimers::SpoolInitialization), {
             let initialization_state = self.stack_provider.initialize().await;
             self.load_stacks(initialization_state.project_key_pairs)
                 .await;
-            self.load_store_total_count().await;
         });
     }
 
@@ -237,9 +215,6 @@ where
             .change_priority_by(&project_key_pair, |prio| {
                 prio.received_at = received_at;
             });
-
-        self.total_count.fetch_add(1, AtomicOrdering::SeqCst);
-        self.track_total_count();
 
         Ok(())
     }
@@ -281,10 +256,8 @@ where
             .peek()
             .await?
             .map(|next_envelope| next_envelope.meta().start_time());
-
         match next_received_at {
             None => {
-                relay_statsd::metric!(counter(RelayCounters::BufferEnvelopeStacksPopped) += 1);
                 self.pop_stack(project_key_pair);
             }
             Some(next_received_at) => {
@@ -294,13 +267,6 @@ where
                     });
             }
         }
-
-        // We are fine with the count going negative, since it represents that more data was popped,
-        // than it was initially counted, meaning that we had a wrong total count from
-        // initialization.
-        self.total_count.fetch_sub(1, AtomicOrdering::SeqCst);
-        self.track_total_count();
-
         Ok(Some(envelope))
     }
 
@@ -336,7 +302,6 @@ where
                     });
             }
         }
-
         changed
     }
 
@@ -415,47 +380,6 @@ where
                 .await
                 .expect("Pushing an empty stack raised an error");
         }
-    }
-
-    /// Loads the total count from the store if it takes less than a specified duration.
-    ///
-    /// The total count returned by the store is related to the count of elements that the buffer
-    /// will process, besides the count of elements that will be added and removed during its
-    /// lifecycle
-    async fn load_store_total_count(&mut self) {
-        let total_count = timeout(Duration::from_secs(1), async {
-            self.stack_provider.store_total_count().await
-        })
-        .await;
-        match total_count {
-            Ok(total_count) => {
-                self.total_count
-                    .store(total_count as i64, AtomicOrdering::SeqCst);
-                self.total_count_initialized = true;
-            }
-            Err(error) => {
-                self.total_count_initialized = false;
-                relay_log::error!(
-                    error = &error as &dyn Error,
-                    "failed to load the total envelope count of the store",
-                );
-            }
-        };
-        self.track_total_count();
-    }
-
-    /// Emits a metric to track the total count of envelopes that are in the envelope buffer.
-    fn track_total_count(&self) {
-        let total_count = self.total_count.load(AtomicOrdering::SeqCst) as f64;
-        let initialized = match self.total_count_initialized {
-            true => "true",
-            false => "false",
-        };
-        relay_statsd::metric!(
-            histogram(RelayHistograms::BufferEnvelopesCount) = total_count,
-            initialized = initialized,
-            stack_type = self.stack_provider.stack_type()
-        );
     }
 }
 

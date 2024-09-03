@@ -14,6 +14,7 @@ use futures::stream::StreamExt;
 use hashbrown::HashSet;
 use relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
 use relay_config::Config;
+use relay_statsd::metric;
 use sqlx::migrate::MigrateError;
 use sqlx::query::Query;
 use sqlx::sqlite::{
@@ -174,7 +175,7 @@ impl DiskUsage {
             .and_then(|r| r.try_get(0))
             .map_err(SqliteEnvelopeStoreError::FileSizeReadFailed)?;
 
-        relay_statsd::metric!(gauge(RelayGauges::BufferDiskUsed) = usage as u64);
+        metric!(gauge(RelayGauges::BufferDiskUsed) = usage as u64);
 
         Ok(usage as u64)
     }
@@ -400,17 +401,6 @@ impl SqliteEnvelopeStore {
     pub fn usage(&self) -> u64 {
         self.disk_usage.usage()
     }
-
-    /// Returns the total count of envelopes stored in the database.
-    pub async fn total_count(&self) -> Result<u64, SqliteEnvelopeStoreError> {
-        let row = build_count_all()
-            .fetch_one(&self.db)
-            .await
-            .map_err(SqliteEnvelopeStoreError::FetchError)?;
-
-        let total_count: i64 = row.get(0);
-        Ok(total_count as u64)
-    }
 }
 
 /// Deserializes an [`Envelope`] from a database row.
@@ -508,14 +498,6 @@ pub fn build_get_project_key_pairs<'a>() -> Query<'a, Sqlite, SqliteArguments<'a
     sqlx::query("SELECT DISTINCT own_key, sampling_key FROM envelopes;")
 }
 
-/// Returns the query to count the number of envelopes on disk.
-///
-/// Please note that this query is SLOW because SQLite doesn't use any metadata to satisfy it,
-/// meaning that it has to scan through all the rows and count them.
-pub fn build_count_all<'a>() -> Query<'a, Sqlite, SqliteArguments<'a>> {
-    sqlx::query("SELECT COUNT(1) FROM envelopes;")
-}
-
 #[cfg(test)]
 mod tests {
     use hashbrown::HashSet;
@@ -606,19 +588,5 @@ mod tests {
         // We now expect to read more disk usage because of the 10 elements.
         let usage_2 = disk_usage.usage();
         assert!(usage_2 >= usage_1);
-    }
-
-    #[tokio::test]
-    async fn test_total_count() {
-        let db = setup_db(true).await;
-        let mut store = SqliteEnvelopeStore::new(db.clone(), Duration::from_millis(1));
-
-        let envelopes = mock_envelopes(10);
-        store
-            .insert_many(envelopes.iter().map(|e| e.as_ref().try_into().unwrap()))
-            .await
-            .unwrap();
-
-        assert_eq!(store.total_count().await.unwrap(), envelopes.len() as u64);
     }
 }

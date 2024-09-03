@@ -3,7 +3,6 @@ mod resource;
 mod sql;
 use once_cell::sync::Lazy;
 use psl;
-use relay_filter::matches_any_origin;
 #[cfg(test)]
 pub use sql::{scrub_queries, Mode};
 
@@ -39,7 +38,7 @@ const DOMAIN_ALLOW_LIST: &[&str] = &["localhost"];
 /// Returns `None` if no scrubbing can be performed.
 pub(crate) fn scrub_span_description(
     span: &Span,
-    span_allowed_hosts: &[String],
+    span_allowed_hosts: &[Host],
 ) -> (Option<String>, Option<Vec<sqlparser::ast::Statement>>) {
     let Some(description) = span.description.as_str() else {
         return (None, None);
@@ -168,7 +167,7 @@ fn scrub_supabase(string: &str) -> Option<String> {
     Some(DB_SUPABASE_REGEX.replace_all(string, "{%s}").into())
 }
 
-fn scrub_http(string: &str, allow_list: &[String]) -> Option<String> {
+fn scrub_http(string: &str, allow_list: &[Host]) -> Option<String> {
     let (method, url) = string.split_once(' ')?;
     if !HTTP_METHOD_EXTRACTOR_REGEX.is_match(method) {
         return None;
@@ -226,15 +225,10 @@ fn scrub_file(description: &str) -> Option<String> {
 ///
 /// assert_eq!(scrub_host(Host::Domain("foo.bar.baz"), &[]), "*.bar.baz");
 /// assert_eq!(scrub_host(Host::Ipv4(Ipv4Addr::LOCALHOST), &[]), "127.0.0.1");
-/// assert_eq!(scrub_host(Host::Ipv4(Ipv4Addr::new(8, 8, 8, 8)), &[String::from("8.8.8.8")]), "8.8.8.8");
+/// assert_eq!(scrub_host(Host::Ipv4(Ipv4Addr::new(8, 8, 8, 8)), &[Host::parse("8.8.8.8").unwrap()]), "8.8.8.8");
 /// ```
-pub fn scrub_host<'a>(host: Host<&'a str>, allow_list: &'a [String]) -> Cow<'a, str> {
-    let allow_list: Vec<_> = allow_list
-        .iter()
-        .map(|origin| origin.as_str().into())
-        .collect();
-
-    if matches_any_origin(Some(host.to_string().as_str()), &allow_list) {
+pub fn scrub_host<'a>(host: Host<&'a str>, allow_list: &'a [Host]) -> Cow<'a, str> {
+    if allow_list.iter().any(|allowed_host| &host == allowed_host) {
         return host.to_string().into();
     }
 
@@ -540,9 +534,10 @@ fn scrub_function(string: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use relay_protocol::Annotated;
     use similar_asserts::assert_eq;
+
+    use super::*;
 
     macro_rules! span_description_test {
         // Tests the scrubbed span description for the given op.
@@ -1236,52 +1231,5 @@ mod tests {
 
         // Can be scrubbed with db system.
         assert_eq!(scrubbed.0.as_deref(), Some("my-component-name"));
-    }
-
-    #[test]
-    fn scrub_allowed_host() {
-        let examples = [
-            (
-                "https://foo.bar.internal/api/v1/submit",
-                ["foo.bar.internal".to_string()],
-                "https://foo.bar.internal",
-            ),
-            (
-                "http://192.168.1.1:3000",
-                ["192.168.1.1".to_string()],
-                "http://192.168.1.1:3000",
-            ),
-            (
-                "http://[1fff:0:a88:85a3::ac1f]:8001/foo",
-                ["[1fff:0:a88:85a3::ac1f]".to_string()],
-                "http://[1fff:0:a88:85a3::ac1f]:8001",
-            ),
-        ];
-
-        for (url, allowed_hosts, expected) in examples {
-            let json = format!(
-                r#"{{
-                    "description": "POST {}",
-                    "span_id": "bd2eb23da2beb459",
-                    "start_timestamp": 1597976393.4619668,
-                    "timestamp": 1597976393.4718769,
-                    "trace_id": "ff62a8b040f340bda5d830223def1d81",
-                    "op": "http.client"
-        }}
-            "#,
-                url,
-            );
-
-            let mut span = Annotated::<Span>::from_json(&json).unwrap();
-
-            let scrubbed =
-                scrub_span_description(span.value_mut().as_mut().unwrap(), &allowed_hosts);
-
-            assert_eq!(
-                scrubbed.0.as_deref(),
-                Some(format!("POST {}", expected).as_str()),
-                "Could not match {url}"
-            );
-        }
     }
 }

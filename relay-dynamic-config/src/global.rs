@@ -10,6 +10,7 @@ use relay_filter::GenericFiltersConfig;
 use relay_quotas::Quota;
 use serde::{de, Deserialize, Serialize};
 use serde_json::Value;
+use url::Host;
 
 use crate::{defaults, ErrorBoundary, MetricExtractionGroup, MetricExtractionGroups};
 
@@ -191,7 +192,7 @@ pub struct Options {
         deserialize_with = "default_on_error",
         skip_serializing_if = "Vec::is_empty"
     )]
-    pub http_span_allowed_hosts: Vec<String>,
+    pub http_span_allowed_hosts: Vec<Host>,
 
     /// Deprecated, still forwarded for older downstream Relays.
     #[doc(hidden)]
