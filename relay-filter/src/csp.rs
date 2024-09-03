@@ -3,6 +3,7 @@
 //! Events originating from a CSP message can be filtered based on the source URL
 
 use relay_event_schema::protocol::Csp;
+use url::{Host, Url};
 
 use crate::{CspFilterConfig, FilterStatKey, Filterable};
 
@@ -61,59 +62,19 @@ pub struct SchemeDomainPort {
 
 impl From<&str> for SchemeDomainPort {
     /// parse a string into a SchemaDomainPort pattern
-    fn from(url: &str) -> SchemeDomainPort {
-        /// converts string into patterns for SchemeDomainPort
-        /// the convention is that a "*" matches everything which
-        /// we encode as a None (same as the absence of the pattern)
-        fn normalize(pattern: &str) -> Option<String> {
-            if pattern == "*" {
-                None
-            } else {
-                Some(pattern.to_lowercase())
-            }
-        }
-
-        //split the scheme from the url
-        let scheme_idx = url.find("://");
-        let (scheme, rest) = if let Some(idx) = scheme_idx {
-            (normalize(&url[..idx]), &url[idx + 3..]) // chop after the scheme + the "://" delimiter
-        } else {
-            (None, url) // no scheme, chop nothing form original string
+    fn from(url: &str) -> Self {
+        let Ok(url) = Url::parse(url) else {
+            return Self {
+                scheme: None,
+                domain: None,
+                port: None,
+            };
         };
 
-        // extract domain:port from the rest of the url
-        let end_domain_idx = rest.find('/');
-        let domain_port = if let Some(end_domain_idx) = end_domain_idx {
-            &rest[..end_domain_idx] // remove the path from rest
-        } else {
-            rest // no path, use everything
-        };
-
-        // split the domain and the port
-        let ipv6_end_bracket_idx = rest.rfind(']');
-        let port_separator_idx = if let Some(end_bracket_idx) = ipv6_end_bracket_idx {
-            // we have an ipv6 address, find the port separator after the closing bracket
-            domain_port[end_bracket_idx..]
-                .rfind(':')
-                .map(|x| x + end_bracket_idx)
-        } else {
-            // no ipv6 address, find the port separator in the whole string
-            domain_port.rfind(':')
-        };
-        let (domain, port) = if let Some(port_separator_idx) = port_separator_idx {
-            //we have a port separator, split the string into domain and port
-            (
-                normalize(&domain_port[..port_separator_idx]),
-                normalize(&domain_port[port_separator_idx + 1..]),
-            )
-        } else {
-            (normalize(domain_port), None) // no port, whole string represents the domain
-        };
-
-        SchemeDomainPort {
-            scheme,
-            domain,
-            port,
+        Self {
+            scheme: Some(url.scheme().to_owned()),
+            domain: url.host().map(|host| host.to_string()),
+            port: url.port().map(|p| format!("{}", p)),
         }
     }
 }
@@ -228,6 +189,12 @@ mod tests {
                 Some("4000"),
             ),
             ("http://", Some("http"), Some(""), None),
+            (
+                "www.domain.com:443/my-page[]/",
+                None,
+                Some("www.domain.com"),
+                Some("443"),
+            ),
         ];
 
         for (url, scheme, domain, port) in examples {
