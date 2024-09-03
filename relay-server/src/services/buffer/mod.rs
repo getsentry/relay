@@ -8,6 +8,7 @@ use std::time::Duration;
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
 use relay_system::Request;
+use relay_system::SendError;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Receiver, Service};
 
 use crate::envelope::Envelope;
@@ -126,16 +127,12 @@ impl EnvelopeBufferService {
     }
 
     /// Wait for the configured amount of time and make sure the project cache is ready to receive.
-    async fn ready_to_pop(&mut self) {
+    async fn ready_to_pop(&mut self) -> Result<(), SendError> {
         tokio::time::sleep(self.sleep).await;
         if let Some(project_cache_ready) = self.project_cache_ready.take() {
-            let _ = project_cache_ready.await.map_err(|e| {
-                relay_log::error!(
-                    error = &e as &dyn std::error::Error,
-                    "error waiting for project cache"
-                );
-            });
+            project_cache_ready.await?;
         }
+        Ok(())
     }
 
     /// Tries to pop an envelope for a ready project.
@@ -252,7 +249,7 @@ impl Service for EnvelopeBufferService {
                     // On the one hand, we might want to prioritize dequeing over enqueing
                     // so we do not exceed the buffer capacity by starving the dequeue.
                     // on the other hand, prioritizing old messages violates the LIFO design.
-                    () = self.ready_to_pop() => {
+                    Ok(()) = self.ready_to_pop() => {
                         if let Err(e) = self.try_pop(&mut buffer).await {
                             relay_log::error!(
                                 error = &e as &dyn std::error::Error,
@@ -279,6 +276,7 @@ impl Service for EnvelopeBufferService {
 mod tests {
     use std::time::Duration;
 
+    use crate::testutils::new_envelope;
     use crate::MemoryStat;
 
     use super::*;
@@ -314,5 +312,41 @@ mod tests {
 
         // Observable has correct value:
         assert!(has_capacity.load(Ordering::Relaxed));
+    }
+
+    #[tokio::test]
+    async fn output_is_throttled() {
+        tokio::time::pause();
+        let config = Arc::new(
+            Config::from_json_value(serde_json::json!({
+                "spool": {
+                    "envelopes": {
+                        "version": "experimental"
+                    }
+                }
+            }))
+            .unwrap(),
+        );
+        let memory_checker = MemoryChecker::new(MemoryStat::default(), config.clone());
+        let (project_cache_addr, mut project_cache_rx) = Addr::custom();
+        let service =
+            EnvelopeBufferService::new(config, memory_checker, project_cache_addr).unwrap();
+
+        let addr = service.start();
+
+        // Send five messages:
+        let envelope = new_envelope(false, "foo");
+        let project_key = envelope.meta().public_key();
+        for _ in 0..5 {
+            addr.send(EnvelopeBuffer::Push(envelope.clone()));
+        }
+        addr.send(EnvelopeBuffer::Ready(project_key));
+
+        tokio::time::sleep(Duration::from_millis(1000)).await;
+
+        // Project cache received only one envelope:
+        assert_eq!(project_cache_rx.len(), 1); // without throttling, this would be 5.
+        assert!(project_cache_rx.try_recv().is_ok());
+        assert_eq!(project_cache_rx.len(), 0);
     }
 }
