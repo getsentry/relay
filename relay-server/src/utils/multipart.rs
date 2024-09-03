@@ -1,6 +1,8 @@
 use std::io;
 
+use axum::extract::Request;
 use multer::Multipart;
+use relay_config::Config;
 use serde::{Deserialize, Serialize};
 
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType, Items};
@@ -189,6 +191,28 @@ where
     }
 
     Ok(items)
+}
+
+pub fn multipart_from_request(
+    request: Request,
+    config: &Config,
+) -> Result<Multipart<'static>, multer::Error> {
+    let content_type = request
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    let boundary = multer::parse_boundary(content_type)?;
+
+    let limits = multer::SizeLimit::new()
+        .whole_stream(config.max_attachments_size() as u64)
+        .per_field(config.max_attachment_size() as u64);
+
+    Ok(Multipart::with_constraints(
+        request.into_body().into_data_stream(),
+        boundary,
+        multer::Constraints::new().size_limit(limits),
+    ))
 }
 
 #[cfg(test)]

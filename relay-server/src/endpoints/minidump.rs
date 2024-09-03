@@ -155,7 +155,7 @@ pub async fn handle(
 #[cfg(test)]
 mod tests {
     use axum::body::Body;
-    use axum::extract::FromRequest;
+    use relay_config::Config;
 
     use crate::utils::{multipart_items, FormDataIter};
 
@@ -205,11 +205,9 @@ mod tests {
             .body(Body::from(multipart_body))
             .unwrap();
 
-        let state: ServiceState = todo!("service state, 100MB max size");
-        let Xt(multipart) = Xt::<Multipart<'static>>::from_request(request, &state)
-            .await
-            .map_err(Xt::into_inner)?;
+        let config = Config::default();
 
+        let multipart = utils::multipart_from_request(request, &config)?;
         let items = multipart_items(multipart, infer_attachment_type).await?;
 
         // we expect the multipart body to contain
