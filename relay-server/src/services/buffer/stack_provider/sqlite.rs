@@ -1,12 +1,11 @@
-use relay_config::Config;
-use std::error::Error;
-
 use crate::services::buffer::common::ProjectKeyPair;
 use crate::services::buffer::envelope_store::sqlite::{
     SqliteEnvelopeStore, SqliteEnvelopeStoreError,
 };
 use crate::services::buffer::stack_provider::{InitializationState, StackProvider};
-use crate::SqliteEnvelopeStack;
+use crate::{EnvelopeStack, SqliteEnvelopeStack};
+use relay_config::Config;
+use std::error::Error;
 
 #[derive(Debug)]
 pub struct SqliteStackProvider {
@@ -76,5 +75,19 @@ impl StackProvider for SqliteStackProvider {
 
     fn stack_type<'a>(&self) -> &'a str {
         "sqlite"
+    }
+
+    async fn drain(mut self, envelope_stacks: impl IntoIterator<Item = impl EnvelopeStack>) {
+        let envelopes = envelope_stacks
+            .into_iter()
+            .flat_map(|e| e.drain())
+            .filter_map(|e| e.as_ref().try_into().ok());
+
+        if let Err(error) = self.envelope_store.insert_many(envelopes).await {
+            relay_log::error!(
+                error = &error as &dyn Error,
+                "failed to drain the envelope stacks, some envelopes might be lost",
+            );
+        };
     }
 }

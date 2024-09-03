@@ -124,6 +124,14 @@ impl PolymorphicEnvelopeBuffer {
             Self::InMemory(buffer) => buffer.has_capacity(),
         }
     }
+
+    /// Consumes the [`PolymorphicEnvelopeBuffer`] and shuts it down.
+    pub async fn shutdown(self) {
+        match self {
+            Self::Sqlite(buffer) => buffer.shutdown().await,
+            Self::InMemory(buffer) => buffer.shutdown().await,
+        };
+    }
 }
 
 /// Error that occurs while interacting with the envelope buffer.
@@ -352,6 +360,18 @@ where
             });
     }
 
+    /// Returns `true` if the underlying storage has the capacity to store more envelopes.
+    pub fn has_capacity(&self) -> bool {
+        self.stack_provider.has_store_capacity()
+    }
+
+    /// Shuts down the envelope buffer.
+    pub async fn shutdown(self) {
+        self.stack_provider
+            .drain(self.priority_queue.into_iter().map(|(q, _)| q.value))
+            .await;
+    }
+
     /// Pushes a new [`EnvelopeStack`] with the given [`Envelope`] inserted.
     async fn push_stack(
         &mut self,
@@ -386,11 +406,6 @@ where
         );
 
         Ok(())
-    }
-
-    /// Returns `true` if the underlying storage has the capacity to store more envelopes.
-    pub fn has_capacity(&self) -> bool {
-        self.stack_provider.has_store_capacity()
     }
 
     /// Pops an [`EnvelopeStack`] with the supplied [`EnvelopeBufferError`].

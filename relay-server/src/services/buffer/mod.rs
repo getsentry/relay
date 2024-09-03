@@ -1,13 +1,16 @@
 //! Types for buffering envelopes.
 
+use relay_base_schema::project::ProjectKey;
+use relay_config::Config;
+use relay_system::{
+    Addr, Controller, FromMessage, Interface, NoResponse, Receiver, Service, Shutdown,
+};
+use std::error::Error;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
-
-use relay_base_schema::project::ProjectKey;
-use relay_config::Config;
-use relay_system::{Addr, FromMessage, Interface, NoResponse, Receiver, Service};
+use tokio::time::timeout;
 
 use crate::envelope::Envelope;
 use crate::services::buffer::envelope_buffer::Peek;
@@ -190,6 +193,24 @@ impl EnvelopeBufferService {
         self.sleep = Duration::ZERO;
     }
 
+    async fn handle_shutdown(&mut self, buffer: PolymorphicEnvelopeBuffer, message: Shutdown) {
+        match message.timeout {
+            Some(shutdown_timeout) => {
+                let shutdown_result = timeout(shutdown_timeout, async {
+                    buffer.shutdown().await;
+                })
+                .await;
+                if let Err(error) = shutdown_result {
+                    relay_log::error!(
+                                error = &error as &dyn Error,
+                                "the envelope buffer didn't shut down in time, some envelopes might be lost",
+                            );
+                }
+            }
+            None => buffer.shutdown().await,
+        }
+    }
+
     async fn push(&mut self, buffer: &mut PolymorphicEnvelopeBuffer, envelope: Box<Envelope>) {
         if let Err(e) = buffer.push(envelope).await {
             relay_log::error!(
@@ -226,6 +247,8 @@ impl Service for EnvelopeBufferService {
             };
             buffer.initialize().await;
 
+            let mut shutdown = Controller::shutdown_handle();
+
             relay_log::info!("EnvelopeBufferService start");
             loop {
                 relay_log::trace!("EnvelopeBufferService loop");
@@ -246,6 +269,10 @@ impl Service for EnvelopeBufferService {
                     Some(message) = rx.recv() => {
                         self.handle_message(&mut buffer, message).await;
                     }
+                    shutdown = shutdown.notified() => {
+                        self.handle_shutdown(buffer, shutdown).await;
+                        break;
+                    },
 
                     else => break,
                 }
