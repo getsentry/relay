@@ -1,7 +1,8 @@
 //! Extractors for types from other crates via [`Xt`].
 
 use axum::extract::{FromRequest, Request};
-use axum::response::IntoResponse;
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response};
 use multer::Multipart;
 
 use crate::service::ServiceState;
@@ -56,7 +57,17 @@ impl FromRequest<ServiceState> for Xt<Multipart<'static>> {
 }
 
 impl IntoResponse for Xt<multer::Error> {
-    fn into_response(self) -> axum::response::Response {
-        ApiErrorResponse::from_error(&self.0).into_response()
+    fn into_response(self) -> Response {
+        let Self(ref error) = self;
+
+        let status_code = match error {
+            multer::Error::FieldSizeExceeded { .. } => StatusCode::PAYLOAD_TOO_LARGE,
+            multer::Error::StreamSizeExceeded { .. } => StatusCode::PAYLOAD_TOO_LARGE,
+            multer::Error::NoMultipart => StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            multer::Error::NoBoundary => StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            _ => StatusCode::BAD_REQUEST,
+        };
+
+        (status_code, ApiErrorResponse::from_error(error)).into_response()
     }
 }
