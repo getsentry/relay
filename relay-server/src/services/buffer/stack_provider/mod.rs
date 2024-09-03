@@ -30,11 +30,10 @@ impl InitializationState {
 
 /// The creation type for the [`EnvelopeStack`].
 pub enum StackCreationType {
-    /// An [`EnvelopeStack`] that is created for the first time.
-    Create,
-    /// An [`EnvelopeStack`] that was recreated because it was dropped for any arbitrary reason
-    /// before.
-    Recreate,
+    /// An [`EnvelopeStack`] that is created during initialization.
+    Initialization,
+    /// An [`EnvelopeStack`] that is created when an envelope is received.
+    New,
 }
 
 /// A provider of [`EnvelopeStack`] instances that is responsible for creating them.

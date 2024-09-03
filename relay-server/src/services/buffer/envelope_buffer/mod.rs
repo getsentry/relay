@@ -233,7 +233,7 @@ where
             // Since we have initialization code that creates all the necessary stacks, we assume
             // that any new stack that is added during the envelope buffer's lifecycle, is recreated.
             self.push_stack(
-                StackCreationType::Recreate,
+                StackCreationType::New,
                 ProjectKeyPair::from_envelope(&envelope),
                 Some(envelope),
             )
@@ -420,7 +420,7 @@ where
     /// Creates all the [`EnvelopeStack`]s with no data given a set of [`ProjectKeyPair`].
     async fn load_stacks(&mut self, project_key_pairs: HashSet<ProjectKeyPair>) {
         for project_key_pair in project_key_pairs {
-            self.push_stack(StackCreationType::Create, project_key_pair, None)
+            self.push_stack(StackCreationType::Initialization, project_key_pair, None)
                 .await
                 .expect("Pushing an empty stack raised an error");
         }
