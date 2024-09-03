@@ -158,6 +158,7 @@ impl EnvelopeBufferService {
                 self.sleep = DEFAULT_SLEEP;
             }
         }
+
         Ok(())
     }
 
