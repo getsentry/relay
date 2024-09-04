@@ -2704,7 +2704,7 @@
 <span class="kw">use </span>relay_protocol::{Annotated, Empty, Value};
 <span class="kw">use </span>sqlparser::ast::Visit;
 <span class="kw">use </span>sqlparser::ast::{ObjectName, Visitor};
-<span class="kw">use </span>url::{Host, Url};
+<span class="kw">use </span>url::Url;
 
 <span class="kw">use </span><span class="kw">crate</span>::span::country_subregion::Subregion;
 <span class="kw">use </span><span class="kw">crate</span>::span::description::{
@@ -2872,7 +2872,7 @@
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>extract_span_tags_from_event(
     event: <span class="kw-2">&amp;mut </span>Event,
     max_tag_value_size: usize,
-    http_scrubbing_allow_list: <span class="kw-2">&amp;</span>[Host],
+    http_scrubbing_allow_list: <span class="kw-2">&amp;</span>[String],
 ) {
     <span class="comment">// Temporarily take ownership to pass both an event reference and a mutable span reference to `extract_span_tags`.
     </span><span class="kw">let </span><span class="kw-2">mut </span>spans = std::mem::take(<span class="kw-2">&amp;mut </span>event.spans);
@@ -2896,7 +2896,7 @@
     event: <span class="kw-2">&amp;</span>Event,
     spans: <span class="kw-2">&amp;mut </span>[Annotated&lt;Span&gt;],
     max_tag_value_size: usize,
-    span_allowed_hosts: <span class="kw-2">&amp;</span>[Host],
+    span_allowed_hosts: <span class="kw-2">&amp;</span>[String],
 ) {
     <span class="comment">// TODO: To prevent differences between metrics and payloads, we should not extract tags here
     // when they have already been extracted by a downstream relay.
@@ -3183,7 +3183,7 @@
     full_display: <span class="prelude-ty">Option</span>&lt;Timestamp&gt;,
     is_mobile: bool,
     start_type: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;,
-    span_allowed_hosts: <span class="kw-2">&amp;</span>[Host],
+    span_allowed_hosts: <span class="kw-2">&amp;</span>[String],
 ) -&gt; BTreeMap&lt;SpanTagKey, String&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>span_tags: BTreeMap&lt;SpanTagKey, String&gt; = BTreeMap::new();
 
