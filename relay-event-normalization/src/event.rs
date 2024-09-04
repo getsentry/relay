@@ -25,7 +25,6 @@ use relay_protocol::{
     RemarkType, Value,
 };
 use smallvec::SmallVec;
-use url::Host;
 use uuid::Uuid;
 
 use crate::normalize::request;
@@ -157,7 +156,7 @@ pub struct NormalizationConfig<'a> {
     pub replay_id: Option<Uuid>,
 
     /// Controls list of hosts to be excluded from scrubbing
-    pub span_allowed_hosts: &'a [Host],
+    pub span_allowed_hosts: &'a [String],
 }
 
 impl<'a> Default for NormalizationConfig<'a> {

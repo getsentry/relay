@@ -53,6 +53,7 @@ impl SqliteEnvelopeStack {
         max_batches: usize,
         own_key: ProjectKey,
         sampling_key: ProjectKey,
+        check_disk: bool,
     ) -> Self {
         Self {
             envelope_store,
@@ -64,7 +65,7 @@ impl SqliteEnvelopeStack {
             sampling_key,
             batches_buffer: VecDeque::with_capacity(max_batches),
             batches_buffer_size: 0,
-            check_disk: true,
+            check_disk,
         }
     }
 
@@ -251,6 +252,7 @@ mod tests {
             2,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("c25ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
+            true,
         );
 
         let envelope = mock_envelope(Instant::now());
@@ -267,6 +269,7 @@ mod tests {
             2,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
+            true,
         );
 
         let envelopes = mock_envelopes(4);
@@ -319,6 +322,7 @@ mod tests {
             2,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
+            true,
         );
 
         // We pop with an invalid db.
@@ -338,6 +342,7 @@ mod tests {
             2,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
+            true,
         );
 
         // We pop with no elements.
@@ -355,6 +360,7 @@ mod tests {
             2,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
+            true,
         );
 
         let envelopes = mock_envelopes(5);
@@ -392,6 +398,7 @@ mod tests {
             2,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
+            true,
         );
 
         let envelopes = mock_envelopes(15);

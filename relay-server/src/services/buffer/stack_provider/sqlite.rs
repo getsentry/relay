@@ -1,12 +1,16 @@
+use std::error::Error;
+
+use relay_config::Config;
+
 use crate::services::buffer::common::ProjectKeyPair;
 use crate::services::buffer::envelope_store::sqlite::{
     SqliteEnvelopeStore, SqliteEnvelopeStoreError,
 };
-use crate::services::buffer::stack_provider::{InitializationState, StackProvider};
+use crate::services::buffer::stack_provider::{
+    InitializationState, StackCreationType, StackProvider,
+};
 use crate::statsd::RelayTimers;
 use crate::{Envelope, EnvelopeStack, SqliteEnvelopeStack};
-use relay_config::Config;
-use std::error::Error;
 
 /// Maximum number of envelopes that are inserted into the database during draining.
 pub const DEFAULT_DRAIN_BATCH_SIZE: usize = 100;
@@ -55,6 +59,11 @@ impl SqliteStackProvider {
             );
         }
     }
+
+    /// Returns `true` when there might be data residing on disk, `false` otherwise.
+    fn assume_data_on_disk(stack_creation_type: StackCreationType) -> bool {
+        matches!(stack_creation_type, StackCreationType::Initialization)
+    }
 }
 
 impl StackProvider for SqliteStackProvider {
@@ -73,13 +82,23 @@ impl StackProvider for SqliteStackProvider {
         }
     }
 
-    fn create_stack(&self, project_key_pair: ProjectKeyPair) -> Self::Stack {
+    fn create_stack(
+        &self,
+        stack_creation_type: StackCreationType,
+        project_key_pair: ProjectKeyPair,
+    ) -> Self::Stack {
         SqliteEnvelopeStack::new(
             self.envelope_store.clone(),
             self.disk_batch_size,
             self.max_batches,
             project_key_pair.own_key,
             project_key_pair.sampling_key,
+            // We want to check the disk by default if we are creating the stack for the first time,
+            // since we might have some data on disk.
+            // On the other hand, if we are recreating a stack, it means that we popped it because
+            // it was empty, or we never had data on disk for that stack, so we assume by default
+            // that there is no need to check disk until some data is spooled.
+            Self::assume_data_on_disk(stack_creation_type),
         )
     }
 
@@ -136,7 +155,7 @@ mod tests {
 
     use crate::services::buffer::common::ProjectKeyPair;
     use crate::services::buffer::stack_provider::sqlite::SqliteStackProvider;
-    use crate::services::buffer::stack_provider::StackProvider;
+    use crate::services::buffer::stack_provider::{StackCreationType, StackProvider};
     use crate::services::buffer::testutils::utils::mock_envelopes;
     use crate::EnvelopeStack;
 
@@ -168,8 +187,10 @@ mod tests {
         let own_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let sampling_key = ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap();
 
-        let mut envelope_stack =
-            stack_provider.create_stack(ProjectKeyPair::new(own_key, sampling_key));
+        let mut envelope_stack = stack_provider.create_stack(
+            StackCreationType::New,
+            ProjectKeyPair::new(own_key, sampling_key),
+        );
 
         let envelopes = mock_envelopes(10);
         for envelope in envelopes {
