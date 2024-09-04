@@ -30,6 +30,11 @@ impl SqliteStackProvider {
             max_disk_size: config.spool_envelopes_max_disk_size(),
         })
     }
+
+    /// Returns `true` when there might be data residing on disk, `false` otherwise.
+    fn assume_data_on_disk(stack_creation_type: StackCreationType) -> bool {
+        matches!(stack_creation_type, StackCreationType::Initialization)
+    }
 }
 
 impl StackProvider for SqliteStackProvider {
@@ -64,7 +69,7 @@ impl StackProvider for SqliteStackProvider {
             // On the other hand, if we are recreating a stack, it means that we popped it because
             // it was empty, or we never had data on disk for that stack, so we assume by default
             // that there is no need to check disk until some data is spooled.
-            matches!(stack_creation_type, StackCreationType::Initialization),
+            Self::assume_data_on_disk(stack_creation_type),
         )
     }
 
