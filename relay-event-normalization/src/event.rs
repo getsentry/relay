@@ -29,6 +29,7 @@ use uuid::Uuid;
 
 use crate::normalize::request;
 use crate::span::ai::normalize_ai_measurements;
+use crate::span::description::ScrubMongoDescription;
 use crate::span::tag_extraction::extract_span_tags_from_event;
 use crate::utils::{self, get_event_user_tag, MAX_DURATION_MOBILE_MS};
 use crate::{
@@ -157,6 +158,9 @@ pub struct NormalizationConfig<'a> {
 
     /// Controls list of hosts to be excluded from scrubbing
     pub span_allowed_hosts: &'a [String],
+
+    /// Controls whether or not MongoDB span descriptions will be scrubbed.
+    pub scrub_mongo_description: ScrubMongoDescription,
 }
 
 impl<'a> Default for NormalizationConfig<'a> {
@@ -189,6 +193,7 @@ impl<'a> Default for NormalizationConfig<'a> {
             normalize_spans: true,
             replay_id: Default::default(),
             span_allowed_hosts: Default::default(),
+            scrub_mongo_description: ScrubMongoDescription::Disabled,
         }
     }
 }
@@ -331,6 +336,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
             event,
             config.max_tag_value_length,
             config.span_allowed_hosts,
+            config.scrub_mongo_description,
         );
     }
 

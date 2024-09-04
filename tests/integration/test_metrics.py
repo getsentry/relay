@@ -1477,6 +1477,178 @@ def test_span_metrics(
             assert metric["tags"]["span.group"] == expected_group, metric
 
 
+def test_mongodb_span_metrics_not_extracted_without_feature(
+    transactions_consumer,
+    metrics_consumer,
+    mini_sentry,
+    relay_with_processing,
+):
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    config = mini_sentry.project_configs[project_id]["config"]
+    config["transactionMetrics"] = {
+        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
+    }
+    config.setdefault("features", []).append("projects:span-metrics-extraction")
+
+    sent_description = '{"find": "documents", "foo": "bar"}'
+
+    transaction = {
+        "event_id": "d2132d31b39445f1938d7e21b6bf0ec4",
+        "type": "transaction",
+        "transaction": "/organizations/:orgId/performance/:eventSlug/",
+        "transaction_info": {"source": "route"},
+        "start_timestamp": 1597976392.6542819,
+        "timestamp": 1597976400.6189718,
+        "user": {"id": "user123", "geo": {"country_code": "ES"}},
+        "contexts": {
+            "trace": {
+                "trace_id": "4C79F60C11214EB38604F4AE0781BFB2",
+                "span_id": "FA90FDEAD5F74052",
+                "type": "trace",
+                "op": "my-transaction-op",
+            }
+        },
+        "spans": [
+            {
+                "description": sent_description,
+                "op": "db",
+                "parent_span_id": "8f5a2b8768cafb4e",
+                "span_id": "bd429c44b67a3eb4",
+                "start_timestamp": 1597976393.4619668,
+                "timestamp": 1597976393.4718769,
+                "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                "data": {
+                    "db.system": "mongodb",
+                    "db.collection.name": "documents",
+                    "db.operation": "find",
+                },
+            }
+        ],
+    }
+    # Default timestamp is so old that relay drops metrics, setting a more recent one avoids the drop.
+    timestamp = datetime.now(tz=timezone.utc)
+    transaction["timestamp"] = transaction["spans"][0]["timestamp"] = (
+        timestamp.isoformat()
+    )
+
+    metrics_consumer = metrics_consumer()
+    tx_consumer = transactions_consumer()
+    processing = relay_with_processing(options=TEST_CONFIG)
+    processing.send_transaction(project_id, transaction)
+
+    transaction, _ = tx_consumer.get_event()
+    assert transaction["spans"][0]["description"] == sent_description
+
+    metrics = metrics_consumer.get_metrics()
+    span_metrics = [
+        (metric, headers)
+        for metric, headers in metrics
+        if metric["name"].startswith("spans", 2)
+    ]
+    assert len(span_metrics) == 7
+
+    for metric, headers in span_metrics:
+        assert headers == [("namespace", b"spans")]
+        assert "span.description" not in metric["tags"]
+
+
+def test_mongodb_span_metrics_extracted_with_feature(
+    transactions_consumer,
+    metrics_consumer,
+    mini_sentry,
+    relay_with_processing,
+):
+    project_id = 42
+    mini_sentry.add_full_project_config(project_id)
+    config = mini_sentry.project_configs[project_id]["config"]
+    config["transactionMetrics"] = {
+        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
+    }
+    config.setdefault("features", []).extend(
+        [
+            "projects:span-metrics-extraction",
+            "organizations:performance-queries-mongodb-extraction",
+        ]
+    )
+
+    sent_description = '{"find": "documents", "foo": "bar"}'
+    expected_description = '{"find":"documents","foo":"?"}'
+
+    transaction = {
+        "event_id": "d2132d31b39445f1938d7e21b6bf0ec4",
+        "type": "transaction",
+        "transaction": "/organizations/:orgId/performance/:eventSlug/",
+        "transaction_info": {"source": "route"},
+        "start_timestamp": 1597976392.6542819,
+        "timestamp": 1597976400.6189718,
+        "user": {"id": "user123", "geo": {"country_code": "ES"}},
+        "contexts": {
+            "trace": {
+                "trace_id": "4C79F60C11214EB38604F4AE0781BFB2",
+                "span_id": "FA90FDEAD5F74052",
+                "type": "trace",
+                "op": "my-transaction-op",
+            }
+        },
+        "spans": [
+            {
+                "description": sent_description,
+                "op": "db",
+                "parent_span_id": "8f5a2b8768cafb4e",
+                "span_id": "bd429c44b67a3eb4",
+                "start_timestamp": 1597976393.4619668,
+                "timestamp": 1597976393.4718769,
+                "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                "data": {
+                    "db.system": "mongodb",
+                    "db.collection.name": "documents",
+                    "db.operation": "find",
+                },
+            }
+        ],
+    }
+    # Default timestamp is so old that relay drops metrics, setting a more recent one avoids the drop.
+    timestamp = datetime.now(tz=timezone.utc)
+    transaction["timestamp"] = transaction["spans"][0]["timestamp"] = (
+        timestamp.isoformat()
+    )
+
+    metrics_consumer = metrics_consumer()
+    tx_consumer = transactions_consumer()
+    processing = relay_with_processing(options=TEST_CONFIG)
+    processing.send_transaction(project_id, transaction)
+
+    transaction, _ = tx_consumer.get_event()
+    assert transaction["spans"][0]["description"] == sent_description
+
+    expected_group = hashlib.md5(expected_description.encode("utf-8")).hexdigest()[:16]
+
+    metrics = metrics_consumer.get_metrics()
+    span_metrics = [
+        (metric, headers)
+        for metric, headers in metrics
+        if metric["name"].startswith("spans", 2)
+    ]
+    assert len(span_metrics) == 7
+
+    for metric, headers in span_metrics:
+        assert headers == [("namespace", b"spans")]
+        if metric["name"] in (
+            "c:spans/usage@none",
+            "d:spans/duration@millisecond",
+            "d:spans/duration_light@millisecond",
+        ):
+            continue
+
+        # Ignore transaction spans
+        if metric["tags"]["span.op"] != "my-transaction-op":
+            assert metric["tags"]["span.action"] == "FIND", metric
+            assert metric["tags"]["span.description"] == expected_description, metric
+            assert metric["tags"]["span.domain"] == "documents", metric
+            assert metric["tags"]["span.group"] == expected_group, metric
+
+
 def test_generic_metric_extraction(mini_sentry, relay):
     PROJECT_ID = 42
     mini_sentry.add_full_project_config(PROJECT_ID)

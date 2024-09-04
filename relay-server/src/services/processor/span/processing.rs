@@ -9,6 +9,7 @@ use relay_dynamic_config::{
     CombinedMetricExtractionConfig, ErrorBoundary, Feature, GlobalConfig, ProjectConfig,
 };
 use relay_event_normalization::span::ai::extract_ai_measurements;
+use relay_event_normalization::span::description::ScrubMongoDescription;
 use relay_event_normalization::{
     normalize_measurements, normalize_performance_score, span::tag_extraction, validate_span,
     CombinedMeasurementsConfig, MeasurementsConfig, PerformanceScoreConfig, RawUserAgentInfo,
@@ -268,6 +269,16 @@ pub fn extract_from_event(
             .aggregator
             .max_tag_value_length,
         &[],
+        if state
+            .project_state
+            .config
+            .features
+            .has(Feature::ScrubMongoDbDescriptions)
+        {
+            ScrubMongoDescription::Enabled
+        } else {
+            ScrubMongoDescription::Disabled
+        },
     ) else {
         return;
     };
@@ -339,6 +350,8 @@ struct NormalizeSpanConfig<'a> {
     client_hints: ClientHints<String>,
     /// Hosts that are not replaced by "*" in HTTP span grouping.
     allowed_hosts: &'a [String],
+    /// Whether or not to scrub MongoDB span descriptions during normalization.
+    scrub_mongo_description: ScrubMongoDescription,
 }
 
 impl<'a> NormalizeSpanConfig<'a> {
@@ -376,6 +389,14 @@ impl<'a> NormalizeSpanConfig<'a> {
                 .map(String::from),
             client_hints: managed_envelope.meta().client_hints().clone(),
             allowed_hosts: global_config.options.http_span_allowed_hosts.as_slice(),
+            scrub_mongo_description: if project_config
+                .features
+                .has(Feature::ScrubMongoDbDescriptions)
+            {
+                ScrubMongoDescription::Enabled
+            } else {
+                ScrubMongoDescription::Disabled
+            },
         }
     }
 }
@@ -428,6 +449,7 @@ fn normalize(
         user_agent,
         client_hints,
         allowed_hosts,
+        scrub_mongo_description,
     } = config;
 
     set_segment_attributes(annotated_span);
@@ -495,6 +517,7 @@ fn normalize(
         is_mobile,
         None,
         allowed_hosts,
+        scrub_mongo_description,
     );
     span.sentry_tags = Annotated::new(
         tags.into_iter()
