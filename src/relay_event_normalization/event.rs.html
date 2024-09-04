@@ -4179,6 +4179,12 @@
 <a href="#4179" id="4179">4179</a>
 <a href="#4180" id="4180">4180</a>
 <a href="#4181" id="4181">4181</a>
+<a href="#4182" id="4182">4182</a>
+<a href="#4183" id="4183">4183</a>
+<a href="#4184" id="4184">4184</a>
+<a href="#4185" id="4185">4185</a>
+<a href="#4186" id="4186">4186</a>
+<a href="#4187" id="4187">4187</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Event normalization.
 //!
 //! This module provides a function to normalize events.
@@ -4210,6 +4216,7 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::normalize::request;
 <span class="kw">use </span><span class="kw">crate</span>::span::ai::normalize_ai_measurements;
+<span class="kw">use </span><span class="kw">crate</span>::span::description::ScrubMongoDescription;
 <span class="kw">use </span><span class="kw">crate</span>::span::tag_extraction::extract_span_tags_from_event;
 <span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, get_event_user_tag, MAX_DURATION_MOBILE_MS};
 <span class="kw">use crate</span>::{
@@ -4338,6 +4345,9 @@
 
     <span class="doccomment">/// Controls list of hosts to be excluded from scrubbing
     </span><span class="kw">pub </span>span_allowed_hosts: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[String],
+
+    <span class="doccomment">/// Controls whether or not MongoDB span descriptions will be scrubbed.
+    </span><span class="kw">pub </span>scrub_mongo_description: ScrubMongoDescription,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Default <span class="kw">for </span>NormalizationConfig&lt;<span class="lifetime">'a</span>&gt; {
@@ -4370,6 +4380,7 @@
             normalize_spans: <span class="bool-val">true</span>,
             replay_id: Default::default(),
             span_allowed_hosts: Default::default(),
+            scrub_mongo_description: ScrubMongoDescription::Disabled,
         }
     }
 }
@@ -4512,6 +4523,7 @@
             event,
             config.max_tag_value_length,
             config.span_allowed_hosts,
+            config.scrub_mongo_description,
         );
     }
 

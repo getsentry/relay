@@ -997,11 +997,6 @@
 <a href="#997" id="997">997</a>
 <a href="#998" id="998">998</a>
 <a href="#999" id="999">999</a>
-<a href="#1000" id="1000">1000</a>
-<a href="#1001" id="1001">1001</a>
-<a href="#1002" id="1002">1002</a>
-<a href="#1003" id="1003">1003</a>
-<a href="#1004" id="1004">1004</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_common::glob2::LazyGlob;
 <span class="kw">use </span>relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
@@ -1012,13 +1007,7 @@
 <span class="kw">use crate</span>::{Feature, GroupKey, MetricExtractionConfig, ProjectConfig, Tag, TagMapping};
 
 <span class="doccomment">/// A list of `span.op` patterns that indicate databases that should be skipped.
-</span><span class="kw">const </span>DISABLED_DATABASES: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str] = <span class="kw-2">&amp;</span>[
-    <span class="string">"*clickhouse*"</span>,
-    <span class="string">"*compile*"</span>,
-    <span class="string">"*mongodb*"</span>,
-    <span class="string">"*redis*"</span>,
-    <span class="string">"db.orm"</span>,
-];
+</span><span class="kw">const </span>DISABLED_DATABASES: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str] = <span class="kw-2">&amp;</span>[<span class="string">"*clickhouse*"</span>, <span class="string">"*compile*"</span>, <span class="string">"*redis*"</span>, <span class="string">"db.orm"</span>];
 
 <span class="doccomment">/// A list of `span.op` patterns we want to enable for mobile.
 </span><span class="kw">const </span>MOBILE_OPS: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str] = <span class="kw-2">&amp;</span>[
@@ -1125,9 +1114,10 @@
     <span class="kw">let </span>is_ai = RuleCondition::glob(<span class="string">"span.op"</span>, <span class="string">"ai.*"</span>);
 
     <span class="kw">let </span>is_db = RuleCondition::eq(<span class="string">"span.sentry_tags.category"</span>, <span class="string">"db"</span>)
-        &amp; !(RuleCondition::eq(<span class="string">"span.system"</span>, <span class="string">"mongodb"</span>)
-            | RuleCondition::glob(<span class="string">"span.op"</span>, DISABLED_DATABASES)
-            | RuleCondition::glob(<span class="string">"span.description"</span>, MONGODB_QUERIES));
+        &amp; !RuleCondition::glob(<span class="string">"span.op"</span>, DISABLED_DATABASES)
+        <span class="comment">// MongoDB queries are only allowed when `span.system` is set to `mongodb`.
+        </span>&amp; (RuleCondition::eq(<span class="string">"span.system"</span>, <span class="string">"mongodb"</span>)
+            | !RuleCondition::glob(<span class="string">"span.description"</span>, MONGODB_QUERIES));
     <span class="kw">let </span>is_resource = RuleCondition::glob(<span class="string">"span.op"</span>, RESOURCE_SPAN_OPS);
 
     <span class="kw">let </span>is_cache = RuleCondition::glob(<span class="string">"span.op"</span>, CACHE_SPAN_OPS);

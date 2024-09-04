@@ -1872,8 +1872,15 @@
 <a href="#1872" id="1872">1872</a>
 <a href="#1873" id="1873">1873</a>
 <a href="#1874" id="1874">1874</a>
+<a href="#1875" id="1875">1875</a>
+<a href="#1876" id="1876">1876</a>
+<a href="#1877" id="1877">1877</a>
+<a href="#1878" id="1878">1878</a>
+<a href="#1879" id="1879">1879</a>
+<a href="#1880" id="1880">1880</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_dynamic_config::CombinedMetricExtractionConfig;
+<span class="kw">use </span>relay_event_normalization::span::description::ScrubMongoDescription;
 <span class="kw">use </span>relay_event_schema::protocol::{Event, Span};
 <span class="kw">use </span>relay_metrics::Bucket;
 <span class="kw">use </span>relay_quotas::DataCategory;
@@ -1943,7 +1950,12 @@
     output: <span class="kw-2">&amp;mut </span>Vec&lt;Bucket&gt;,
 ) {
     <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction_span) = extract_transaction_span(event, max_tag_value_size, <span class="kw-2">&amp;</span>[]) {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction_span) = extract_transaction_span(
+            event,
+            max_tag_value_size,
+            <span class="kw-2">&amp;</span>[],
+            ScrubMongoDescription::Disabled,
+        ) {
             <span class="kw">let </span>(metrics, metrics_summary) =
                 metrics_summary::extract_and_summarize_metrics(<span class="kw-2">&amp;</span>transaction_span, config);
             metrics_summary.apply_on(<span class="kw-2">&amp;mut </span>event._metrics_summary);

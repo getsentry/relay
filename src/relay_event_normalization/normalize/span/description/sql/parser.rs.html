@@ -863,25 +863,11 @@
 <a href="#863" id="863">863</a>
 <a href="#864" id="864">864</a>
 <a href="#865" id="865">865</a>
-<a href="#866" id="866">866</a>
-<a href="#867" id="867">867</a>
-<a href="#868" id="868">868</a>
-<a href="#869" id="869">869</a>
-<a href="#870" id="870">870</a>
-<a href="#871" id="871">871</a>
-<a href="#872" id="872">872</a>
-<a href="#873" id="873">873</a>
-<a href="#874" id="874">874</a>
-<a href="#875" id="875">875</a>
-<a href="#876" id="876">876</a>
-<a href="#877" id="877">877</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for parsing SQL queries and manipulating the resulting Abstract Syntax Tree.
 </span><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::ops::ControlFlow;
 
 <span class="kw">use </span>itertools::Itertools;
-<span class="kw">use </span>once_cell::sync::Lazy;
-<span class="kw">use </span>regex::Regex;
 <span class="kw">use </span>sqlparser::ast::{
     AlterTableOperation, Assignment, BinaryOperator, CloseCursor, ColumnDef, CopySource, Declare,
     Expr, FunctionArg, Ident, LockTable, ObjectName, Query, Select, SelectItem, SetExpr,
@@ -890,24 +876,14 @@
 };
 <span class="kw">use </span>sqlparser::dialect::{Dialect, GenericDialect};
 
+<span class="kw">use </span><span class="kw">crate</span>::span::TABLE_NAME_REGEX;
+
 <span class="doccomment">/// Keeps track of the maximum depth of an SQL expression that the [`NormalizeVisitor`] encounters.
 ///
 /// This is used to prevent the serialization of the AST from crashing.
 /// Note that the expression depth does not fully cover the depth of complex SQL statements,
 /// because not everything in SQL is an expression.
 </span><span class="kw">const </span>MAX_EXPRESSION_DEPTH: usize = <span class="number">64</span>;
-
-<span class="doccomment">/// Regex used to scrub hex IDs and multi-digit numbers from table names and other identifiers.
-</span><span class="kw">static </span>TABLE_NAME_REGEX: Lazy&lt;Regex&gt; = Lazy::new(|| {
-    Regex::new(
-        <span class="string">r"(?ix)
-        [0-9a-f]{8}_[0-9a-f]{4}_[0-9a-f]{4}_[0-9a-f]{4}_[0-9a-f]{12} |
-        [0-9a-f]{8,} |
-        \d\d+
-        "</span>,
-    )
-    .unwrap()
-});
 
 <span class="doccomment">/// Derive the SQL dialect from `db_system` (the value obtained from `span.data.system`)
 /// and try to parse the query into an AST.

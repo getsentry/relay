@@ -249,6 +249,7 @@
 <a href="#249" id="249">249</a>
 <a href="#250" id="250">250</a>
 <a href="#251" id="251">251</a>
+<a href="#252" id="252">252</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module defines bidirectional field mappings between spans and transactions.
 
 </span><span class="kw">use </span><span class="kw">crate</span>::protocol::{BrowserContext, Event, ProfileContext, Span, SpanData, TraceContext};
@@ -419,6 +420,7 @@
                 code_namespace: ~,
                 db_operation: ~,
                 db_system: ~,
+                db_collection_name: ~,
                 environment: "prod",
                 release: LenientString(
                     "myapp@1.0.0",

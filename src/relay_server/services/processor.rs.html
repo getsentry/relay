@@ -3868,6 +3868,15 @@
 <a href="#3868" id="3868">3868</a>
 <a href="#3869" id="3869">3869</a>
 <a href="#3870" id="3870">3870</a>
+<a href="#3871" id="3871">3871</a>
+<a href="#3872" id="3872">3872</a>
+<a href="#3873" id="3873">3873</a>
+<a href="#3874" id="3874">3874</a>
+<a href="#3875" id="3875">3875</a>
+<a href="#3876" id="3876">3876</a>
+<a href="#3877" id="3877">3877</a>
+<a href="#3878" id="3878">3878</a>
+<a href="#3879" id="3879">3879</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -3889,6 +3898,7 @@
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_config::{Config, HttpEncoding, NormalizationLevel, RelayMode};
 <span class="kw">use </span>relay_dynamic_config::{CombinedMetricExtractionConfig, ErrorBoundary, Feature};
+<span class="kw">use </span>relay_event_normalization::span::description::ScrubMongoDescription;
 <span class="kw">use </span>relay_event_normalization::{
     normalize_event, validate_event, ClockDriftProcessor, CombinedMeasurementsConfig,
     EventValidationConfig, GeoIpLookup, MeasurementsConfig, NormalizationConfig, RawUserAgentInfo,
@@ -5471,6 +5481,14 @@
                     .dsc()
                     .and_then(|ctx| ctx.replay_id),
                 span_allowed_hosts: http_span_allowed_hosts,
+                scrub_mongo_description: <span class="kw">if </span>state
+                    .project_state
+                    .has_feature(Feature::ScrubMongoDbDescriptions)
+                {
+                    ScrubMongoDescription::Enabled
+                } <span class="kw">else </span>{
+                    ScrubMongoDescription::Disabled
+                },
             };
 
             <span class="macro">metric!</span>(timer(RelayTimers::EventProcessingNormalization), {

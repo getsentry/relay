@@ -180,6 +180,13 @@
 <a href="#180" id="180">180</a>
 <a href="#181" id="181">181</a>
 <a href="#182" id="182">182</a>
+<a href="#183" id="183">183</a>
+<a href="#184" id="184">184</a>
+<a href="#185" id="185">185</a>
+<a href="#186" id="186">186</a>
+<a href="#187" id="187">187</a>
+<a href="#188" id="188">188</a>
+<a href="#189" id="189">189</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeSet;
 
 <span class="kw">use </span>serde::{Deserialize, Serialize};
@@ -273,6 +280,13 @@
     /// Serialized as `organizations:indexed-spans-extraction`.
     </span><span class="attr">#[serde(rename = <span class="string">"organizations:indexed-spans-extraction"</span>)]
     </span>ExtractSpansFromEvent,
+
+    <span class="doccomment">/// Enables description scrubbing for MongoDB spans (and consequently, their presence in the
+    /// Queries module inside Sentry).
+    ///
+    /// Serialized as `organizations:performance-queries-mongodb-extraction`.
+    </span><span class="attr">#[serde(rename = <span class="string">"organizations:performance-queries-mongodb-extraction"</span>)]
+    </span>ScrubMongoDbDescriptions,
 
     <span class="doccomment">/// Deprecated, still forwarded for older downstream Relays.
     </span><span class="attr">#[doc(hidden)]
