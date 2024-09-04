@@ -28,7 +28,6 @@ use relay_protocol::{Annotated, Empty};
 use relay_quotas::DataCategory;
 use relay_spans::otel_trace::Span as OtelSpan;
 use thiserror::Error;
-use url::Host;
 
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::metrics_extraction::metrics_summary;
@@ -350,7 +349,7 @@ struct NormalizeSpanConfig<'a> {
     /// Client hints parsed from the request.
     client_hints: ClientHints<String>,
     /// Hosts that are not replaced by "*" in HTTP span grouping.
-    allowed_hosts: &'a [Host],
+    allowed_hosts: &'a [String],
     /// Whether or not to scrub MongoDB span descriptions during normalization.
     scrub_mongo_description: ScrubMongoDescription,
 }

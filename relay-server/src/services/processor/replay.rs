@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use crate::envelope::{ContentType, ItemType};
 use crate::services::outcome::DiscardReason;
 use crate::services::processor::{ProcessEnvelopeState, ProcessingError, ReplayGroup};
-use crate::statsd::RelayTimers;
+use crate::statsd::{RelayCounters, RelayTimers};
 
 /// Removes replays if the feature flag is not enabled.
 pub fn process(
@@ -143,6 +143,22 @@ fn handle_replay_event_item(
                     global_config.filters(),
                 )
                 .map_err(ProcessingError::ReplayFiltered)?;
+
+                // Log segments that exceed the hour limit so we can diagnose errant SDKs
+                // or exotic customer implementations.
+                if let Some(segment_id) = replay_type.segment_id.value() {
+                    if *segment_id > 720 {
+                        metric!(counter(RelayCounters::ReplayExceededSegmentLimit) += 1);
+
+                        relay_log::warn!(
+                            ?event_id,
+                            project_id = project_id.map(|v| v.value()),
+                            organization_id = organization_id,
+                            segment_id = segment_id,
+                            "replay segment-exceeded-limit"
+                        );
+                    }
+                }
             }
 
             match replay.to_json() {
@@ -177,9 +193,6 @@ fn handle_replay_event_item(
                 }
                 ReplayError::InvalidPayload(_) => {
                     ProcessingError::InvalidReplay(DiscardReason::InvalidReplayEvent)
-                }
-                ReplayError::TooLong => {
-                    ProcessingError::InvalidReplay(DiscardReason::ReplayExceededSegmentLimit)
                 }
             })
         }

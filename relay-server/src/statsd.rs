@@ -822,6 +822,8 @@ pub enum RelayCounters {
     /// This metric is tagged with:
     ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
     BucketsDropped,
+    /// Incremented every time a segment exceeds the expected limit.
+    ReplayExceededSegmentLimit,
 }
 
 impl CounterMetric for RelayCounters {
@@ -866,6 +868,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::CogsUsage => "cogs.usage",
             RelayCounters::ProjectStateFlushMetricsNoProject => "project_state.metrics.no_project",
             RelayCounters::BucketsDropped => "metrics.buckets.dropped",
+            RelayCounters::ReplayExceededSegmentLimit => "replay.segment_limit_exceeded",
         }
     }
 }
