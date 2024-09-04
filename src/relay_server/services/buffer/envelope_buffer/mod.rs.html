@@ -1013,6 +1013,15 @@
 <a href="#1013" id="1013">1013</a>
 <a href="#1014" id="1014">1014</a>
 <a href="#1015" id="1015">1015</a>
+<a href="#1016" id="1016">1016</a>
+<a href="#1017" id="1017">1017</a>
+<a href="#1018" id="1018">1018</a>
+<a href="#1019" id="1019">1019</a>
+<a href="#1020" id="1020">1020</a>
+<a href="#1021" id="1021">1021</a>
+<a href="#1022" id="1022">1022</a>
+<a href="#1023" id="1023">1023</a>
+<a href="#1024" id="1024">1024</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::cmp::Ordering;
 <span class="kw">use </span>std::collections::BTreeSet;
 <span class="kw">use </span>std::convert::Infallible;
@@ -1034,7 +1043,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::buffer::envelope_store::sqlite::SqliteEnvelopeStoreError;
 <span class="kw">use </span><span class="kw">crate</span>::services::buffer::stack_provider::memory::MemoryStackProvider;
 <span class="kw">use </span><span class="kw">crate</span>::services::buffer::stack_provider::sqlite::SqliteStackProvider;
-<span class="kw">use </span><span class="kw">crate</span>::services::buffer::stack_provider::StackProvider;
+<span class="kw">use </span><span class="kw">crate</span>::services::buffer::stack_provider::{StackCreationType, StackProvider};
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 <span class="kw">use </span><span class="kw">crate</span>::utils::MemoryChecker;
 
@@ -1245,8 +1254,14 @@
         {
             stack.push(envelope).<span class="kw">await</span><span class="question-mark">?</span>;
         } <span class="kw">else </span>{
-            <span class="self">self</span>.push_stack(ProjectKeyPair::from_envelope(<span class="kw-2">&amp;</span>envelope), <span class="prelude-val">Some</span>(envelope))
-                .<span class="kw">await</span><span class="question-mark">?</span>;
+            <span class="comment">// Since we have initialization code that creates all the necessary stacks, we assume
+            // that any new stack that is added during the envelope buffer's lifecycle, is recreated.
+            </span><span class="self">self</span>.push_stack(
+                StackCreationType::New,
+                ProjectKeyPair::from_envelope(<span class="kw-2">&amp;</span>envelope),
+                <span class="prelude-val">Some</span>(envelope),
+            )
+            .<span class="kw">await</span><span class="question-mark">?</span>;
         }
         <span class="self">self</span>.priority_queue
             .change_priority_by(<span class="kw-2">&amp;</span>project_key_pair, |prio| {
@@ -1370,6 +1385,7 @@
     <span class="doccomment">/// Pushes a new [`EnvelopeStack`] with the given [`Envelope`] inserted.
     </span><span class="kw">async fn </span>push_stack(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        stack_creation_type: StackCreationType,
         project_key_pair: ProjectKeyPair,
         envelope: <span class="prelude-ty">Option</span>&lt;Box&lt;Envelope&gt;&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), EnvelopeBufferError&gt; {
@@ -1377,7 +1393,9 @@
             .as_ref()
             .map_or(Instant::now(), |e| e.meta().start_time());
 
-        <span class="kw">let </span><span class="kw-2">mut </span>stack = <span class="self">self</span>.stack_provider.create_stack(project_key_pair);
+        <span class="kw">let </span><span class="kw-2">mut </span>stack = <span class="self">self
+            </span>.stack_provider
+            .create_stack(stack_creation_type, project_key_pair);
         <span class="kw">if let </span><span class="prelude-val">Some</span>(envelope) = envelope {
             stack.push(envelope).<span class="kw">await</span><span class="question-mark">?</span>;
         }
@@ -1426,7 +1444,7 @@
     <span class="doccomment">/// Creates all the [`EnvelopeStack`]s with no data given a set of [`ProjectKeyPair`].
     </span><span class="kw">async fn </span>load_stacks(<span class="kw-2">&amp;mut </span><span class="self">self</span>, project_key_pairs: HashSet&lt;ProjectKeyPair&gt;) {
         <span class="kw">for </span>project_key_pair <span class="kw">in </span>project_key_pairs {
-            <span class="self">self</span>.push_stack(project_key_pair, <span class="prelude-val">None</span>)
+            <span class="self">self</span>.push_stack(StackCreationType::Initialization, project_key_pair, <span class="prelude-val">None</span>)
                 .<span class="kw">await
                 </span>.expect(<span class="string">"Pushing an empty stack raised an error"</span>);
         }

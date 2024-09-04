@@ -78,6 +78,23 @@
 <a href="#78" id="78">78</a>
 <a href="#79" id="79">79</a>
 <a href="#80" id="80">80</a>
+<a href="#81" id="81">81</a>
+<a href="#82" id="82">82</a>
+<a href="#83" id="83">83</a>
+<a href="#84" id="84">84</a>
+<a href="#85" id="85">85</a>
+<a href="#86" id="86">86</a>
+<a href="#87" id="87">87</a>
+<a href="#88" id="88">88</a>
+<a href="#89" id="89">89</a>
+<a href="#90" id="90">90</a>
+<a href="#91" id="91">91</a>
+<a href="#92" id="92">92</a>
+<a href="#93" id="93">93</a>
+<a href="#94" id="94">94</a>
+<a href="#95" id="95">95</a>
+<a href="#96" id="96">96</a>
+<a href="#97" id="97">97</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>std::error::Error;
 
@@ -85,7 +102,9 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::buffer::envelope_store::sqlite::{
     SqliteEnvelopeStore, SqliteEnvelopeStoreError,
 };
-<span class="kw">use </span><span class="kw">crate</span>::services::buffer::stack_provider::{InitializationState, StackProvider};
+<span class="kw">use </span><span class="kw">crate</span>::services::buffer::stack_provider::{
+    InitializationState, StackCreationType, StackProvider,
+};
 <span class="kw">use </span><span class="kw">crate</span>::SqliteEnvelopeStack;
 
 <span class="attr">#[derive(Debug)]
@@ -108,6 +127,11 @@
             max_disk_size: config.spool_envelopes_max_disk_size(),
         })
     }
+
+    <span class="doccomment">/// Returns `true` when there might be data residing on disk, `false` otherwise.
+    </span><span class="kw">fn </span>assume_data_on_disk(stack_creation_type: StackCreationType) -&gt; bool {
+        <span class="macro">matches!</span>(stack_creation_type, StackCreationType::Initialization)
+    }
 }
 
 <span class="kw">impl </span>StackProvider <span class="kw">for </span>SqliteStackProvider {
@@ -126,13 +150,23 @@
         }
     }
 
-    <span class="kw">fn </span>create_stack(<span class="kw-2">&amp;</span><span class="self">self</span>, project_key_pair: ProjectKeyPair) -&gt; <span class="self">Self</span>::Stack {
+    <span class="kw">fn </span>create_stack(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        stack_creation_type: StackCreationType,
+        project_key_pair: ProjectKeyPair,
+    ) -&gt; <span class="self">Self</span>::Stack {
         SqliteEnvelopeStack::new(
             <span class="self">self</span>.envelope_store.clone(),
             <span class="self">self</span>.disk_batch_size,
             <span class="self">self</span>.max_batches,
             project_key_pair.own_key,
             project_key_pair.sampling_key,
+            <span class="comment">// We want to check the disk by default if we are creating the stack for the first time,
+            // since we might have some data on disk.
+            // On the other hand, if we are recreating a stack, it means that we popped it because
+            // it was empty, or we never had data on disk for that stack, so we assume by default
+            // that there is no need to check disk until some data is spooled.
+            </span><span class="self">Self</span>::assume_data_on_disk(stack_creation_type),
         )
     }
 
