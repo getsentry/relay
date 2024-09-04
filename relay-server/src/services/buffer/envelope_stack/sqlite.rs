@@ -474,7 +474,7 @@ mod tests {
 
         // We drain the stack and make sure nothing was spooled to disk.
         let drained_envelopes = stack.drain();
-        assert_eq!(drained_envelopes.len(), 5);
+        assert_eq!(drained_envelopes.into_iter().collect::<Vec<_>>().len(), 5);
         assert_eq!(envelope_store.total_count().await.unwrap(), 0);
     }
 }

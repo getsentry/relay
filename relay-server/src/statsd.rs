@@ -524,6 +524,8 @@ pub enum RelayTimers {
     BufferSpool,
     /// Timing in milliseconds for the time it takes for the buffer to unspool data from disk.
     BufferUnspool,
+    /// Timing in milliseconds for the time it takes for the buffer to drain its envelopes.
+    BufferDrain,
 }
 
 impl TimerMetric for RelayTimers {
@@ -568,6 +570,7 @@ impl TimerMetric for RelayTimers {
             RelayTimers::BufferInitialization => "buffer.initialization.duration",
             RelayTimers::BufferSpool => "buffer.spool.duration",
             RelayTimers::BufferUnspool => "buffer.unspool.duration",
+            RelayTimers::BufferDrain => "buffer.drain.duration",
         }
     }
 }

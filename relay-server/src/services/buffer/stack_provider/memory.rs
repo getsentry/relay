@@ -2,7 +2,6 @@ use crate::services::buffer::common::ProjectKeyPair;
 use crate::services::buffer::envelope_stack::memory::MemoryEnvelopeStack;
 use crate::services::buffer::stack_provider::{InitializationState, StackProvider};
 use crate::utils::MemoryChecker;
-use crate::EnvelopeStack;
 
 #[derive(Debug)]
 pub struct MemoryStackProvider {
@@ -41,5 +40,5 @@ impl StackProvider for MemoryStackProvider {
         "memory"
     }
 
-    async fn drain(self, _: impl IntoIterator<Item = impl EnvelopeStack>) {}
+    async fn drain(self, _: impl IntoIterator<Item = Self::Stack>) {}
 }

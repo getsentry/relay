@@ -52,6 +52,6 @@ pub trait StackProvider: std::fmt::Debug {
     /// Drains the supplied [`EnvelopeStack`]s and consumes the [`StackProvider`].
     fn drain(
         self,
-        envelope_stacks: impl IntoIterator<Item = impl EnvelopeStack>,
+        envelope_stacks: impl IntoIterator<Item = Self::Stack>,
     ) -> impl Future<Output = ()>;
 }

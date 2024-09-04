@@ -18,7 +18,9 @@ use crate::services::buffer::envelope_stack::sqlite::SqliteEnvelopeStackError;
 use crate::services::buffer::envelope_stack::EnvelopeStack;
 use crate::services::buffer::envelope_store::sqlite::SqliteEnvelopeStoreError;
 use crate::services::buffer::stack_provider::memory::MemoryStackProvider;
-use crate::services::buffer::stack_provider::sqlite::SqliteStackProvider;
+use crate::services::buffer::stack_provider::sqlite::{
+    SqliteStackProvider, DEFAULT_DRAIN_BATCH_SIZE,
+};
 use crate::services::buffer::stack_provider::StackProvider;
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::MemoryChecker;
@@ -199,7 +201,7 @@ impl EnvelopeBuffer<SqliteStackProvider> {
         Ok(Self {
             stacks_by_project: Default::default(),
             priority_queue: Default::default(),
-            stack_provider: SqliteStackProvider::new(config).await?,
+            stack_provider: SqliteStackProvider::new(config, DEFAULT_DRAIN_BATCH_SIZE).await?,
             total_count: Arc::new(AtomicI64::new(0)),
             total_count_initialized: false,
         })

@@ -194,20 +194,17 @@ impl EnvelopeBufferService {
     }
 
     async fn handle_shutdown(&mut self, buffer: PolymorphicEnvelopeBuffer, message: Shutdown) {
-        match message.timeout {
-            Some(shutdown_timeout) => {
-                let shutdown_result = timeout(shutdown_timeout, async {
-                    buffer.shutdown().await;
-                })
-                .await;
-                if let Err(error) = shutdown_result {
-                    relay_log::error!(
-                                error = &error as &dyn Error,
-                                "the envelope buffer didn't shut down in time, some envelopes might be lost",
-                            );
-                }
+        if let Some(shutdown_timeout) = message.timeout {
+            let shutdown_result = timeout(shutdown_timeout, async {
+                buffer.shutdown().await;
+            })
+            .await;
+            if let Err(error) = shutdown_result {
+                relay_log::error!(
+                    error = &error as &dyn Error,
+                    "the envelope buffer didn't shut down in time, some envelopes might be lost",
+                );
             }
-            None => buffer.shutdown().await,
         }
     }
 
