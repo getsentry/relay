@@ -78,7 +78,7 @@ clap = { version = "4.4.6" }
 clap_complete = "4.1.1"
 cmake = "0.1.46"
 console = "0.15.5"
-cookie = "0.17.0"
+cookie = "0.18.1"
 criterion = "0.5"
 crossbeam-channel = "0.5.6"
 data-encoding = "2.5.0"
