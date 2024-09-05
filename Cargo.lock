@@ -1082,13 +1082,14 @@ dependencies = [
 
 [[package]]
 name = "dialoguer"
-version = "0.10.3"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af3c796f3b0b408d9fd581611b47fa850821fcb84aa640b83a3c1a5be2d691f2"
+checksum = "658bce805d770f407bc62102fca7c2c64ceef2fbcb2b8bd19d2765ce093980de"
 dependencies = [
  "console",
  "shell-words",
  "tempfile",
+ "thiserror",
  "zeroize",
 ]
 
@@ -3325,7 +3326,7 @@ dependencies = [
  "clap",
  "clap_complete",
  "dialoguer",
- "hostname 0.3.1",
+ "hostname 0.4.0",
  "once_cell",
  "relay-config",
  "relay-kafka",
