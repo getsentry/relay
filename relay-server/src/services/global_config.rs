@@ -108,10 +108,7 @@ pub struct Get;
 ///
 /// For a one-off update, [`GlobalConfigService`] responds to
 /// [`GlobalConfigManager::Get`] messages with the latest instance of the
-/// [`GlobalConfig`]. For continued updates, you can subscribe with
-/// [`GlobalConfigManager::Subscribe`] to get a receiver back where up-to-date
-/// instances will be sent to, while [`GlobalConfigService`] manages the update
-/// frequency from upstream.
+/// [`GlobalConfig`].
 pub enum GlobalConfigManager {
     /// Returns the most recent global config.
     Get(relay_system::Sender<Status>),
@@ -183,10 +180,6 @@ impl fmt::Debug for GlobalConfigHandle {
 }
 
 /// Service implementing the [`GlobalConfigManager`] interface.
-///
-/// The service offers two alternatives to fetch the [`GlobalConfig`]:
-/// responding to a [`Get`] message with the config for one-off requests, or
-/// subscribing to updates with [`Subscribe`] to keep up-to-date.
 #[derive(Debug)]
 pub struct GlobalConfigService {
     config: Arc<Config>,
