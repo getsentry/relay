@@ -127,7 +127,7 @@ impl EnvelopeBufferService {
     }
 
     /// Wait for the configured amount of time and make sure the project cache is ready to receive.
-    async fn ready_to_pop(&mut self) -> Result<(), SendError> {
+    async fn sleep(&mut self) -> Result<(), SendError> {
         tokio::time::sleep(self.sleep).await;
         if let Some(project_cache_ready) = self.project_cache_ready.take() {
             project_cache_ready.await?;
@@ -135,12 +135,29 @@ impl EnvelopeBufferService {
         Ok(())
     }
 
+    /// Returns `true` when preconditions for unspooling are met.
+    ///
+    /// - We should not pop from disk into memory when relay's overall memory capacity
+    ///   has been reached.
+    /// - We need a valid global config to unspool.
+    pub fn should_pop(&self, buffer: &PolymorphicEnvelopeBuffer) -> bool {
+        // 1 - check memory. In case of the in-memory implementation, dequeuing is beneficial because
+        // it could reduce memory pressure, but for the on-disk implementation, we should not dequeue
+        // from disk unless there's RAM available.
+        if buffer.is_external() && self.memory_checker.check_memory().is_exceeded() {
+            return false;
+        }
+
+        // TODO: global config
+        true
+    }
+
     /// Tries to pop an envelope for a ready project.
     async fn try_pop(
         &mut self,
         buffer: &mut PolymorphicEnvelopeBuffer,
     ) -> Result<(), EnvelopeBufferError> {
-        if !buffer.should_flush() {
+        if !self.should_pop(buffer) {
             return Ok(());
         }
 
@@ -254,7 +271,7 @@ impl Service for EnvelopeBufferService {
                     // On the one hand, we might want to prioritize dequeing over enqueing
                     // so we do not exceed the buffer capacity by starving the dequeue.
                     // on the other hand, prioritizing old messages violates the LIFO design.
-                    Ok(()) = self.ready_to_pop() => {
+                    Ok(()) = self.sleep() => {
                         if let Err(e) = self.try_pop(&mut buffer).await {
                             relay_log::error!(
                                 error = &e as &dyn std::error::Error,
