@@ -168,7 +168,7 @@ synstructure = "0.12.3"
 sysinfo = { git = "https://github.com/getsentry/sysinfo.git", rev = "e2e5d530600f96bdd79652c856918da23e5dd938" }
 tempfile = "3.5.0"
 thiserror = "1.0.38"
-tikv-jemallocator = "0.5.0"
+tikv-jemallocator = "0.6.0"
 tokio = { version = "1.28.0", default-features = false }
 tower = { version = "0.4.13", default-features = false }
 tower-http = { version = "0.5.2", default-features = false }
