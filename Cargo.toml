@@ -103,7 +103,7 @@ insta = { version = "1.31.0", features = ["json", "redactions", "ron"] }
 ipnetwork = "0.20.0"
 itertools = "0.13.0"
 json-forensics = "0.1.1"
-lru = "0.9.0"
+lru = "0.12.4"
 maxminddb = "0.24.0"
 memchr = "2.7.4"
 md5 = "0.7.0"
