@@ -160,9 +160,9 @@ sqlx = { version = "0.8.1", default-features = false }
 statsdproxy = { version = "0.1.2", default-features = false }
 symbolic-common = { version = "12.1.2", default-features = false }
 symbolic-unreal = { version = "12.1.2", default-features = false }
-syn = "1.0.14"
+syn = "1.0.109"
 syn2 = { package = "syn", version = "2.0.11" }
-synstructure = "0.12.3"
+synstructure = "0.13.1"
 # This dependency was added through git since we are experimenting with a fork of sysinfo which adds additional
 # capabilities of reading cgroups memory stats. Such stats are used in Relay to correctly determine memory usage.
 sysinfo = { git = "https://github.com/getsentry/sysinfo.git", rev = "e2e5d530600f96bdd79652c856918da23e5dd938" }
