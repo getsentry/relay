@@ -147,9 +147,8 @@ impl EnvelopeBufferService {
     ///   has been reached.
     /// - We need a valid global config to unspool.
     pub fn should_pop(&self, buffer: &PolymorphicEnvelopeBuffer) -> bool {
-        // 1 - check memory. In case of the in-memory implementation, dequeuing is beneficial because
-        // it could reduce memory pressure, but for the on-disk implementation, we should not dequeue
-        // from disk unless there's RAM available.
+        // We should not unspool from external storage if memory capacity has been reached.
+        // But if buffer storage is in memory, unspooling can reduce memory usage.
         if buffer.is_external() && self.memory_checker.check_memory().is_exceeded() {
             return false;
         }
