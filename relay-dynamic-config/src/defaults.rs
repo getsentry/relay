@@ -960,39 +960,120 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
         ),
         (
             GroupKey::SpanMetricsTx,
-            vec![MetricSpec {
-                category: DataCategory::Span,
-                mri: "d:transactions/measurements.score.total@ratio".into(),
-                field: Some("span.measurements.score.total.value".into()),
-                condition: Some(
-                    // If transactions are extracted from spans, the transaction processing pipeline
-                    // will take care of this metric.
-                    is_allowed_browser.clone() & RuleCondition::eq("span.was_transaction", false),
-                ),
-                tags: vec![
-                    Tag::with_key("span.op")
-                        .from_field("span.sentry_tags.op")
-                        .always(),
-                    Tag::with_key("transaction.op")
-                        .from_field("span.sentry_tags.transaction.op")
-                        .always(),
-                    Tag::with_key("transaction")
-                        .from_field("span.sentry_tags.transaction")
-                        .always(),
-                    Tag::with_key("environment")
-                        .from_field("span.sentry_tags.environment")
-                        .always(),
-                    Tag::with_key("release")
-                        .from_field("span.sentry_tags.release")
-                        .always(),
-                    Tag::with_key("browser.name")
-                        .from_field("span.browser.name")
-                        .always(), // already guarded by condition on metric
-                    Tag::with_key("user.geo.subregion")
-                        .from_field("span.sentry_tags.user.geo.subregion")
-                        .always(), // already guarded by condition on metric
-                ],
-            }],
+            vec![
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: "d:transactions/measurements.score.total@ratio".into(),
+                    field: Some("span.measurements.score.total.value".into()),
+                    condition: Some(
+                        // If transactions are extracted from spans, the transaction processing pipeline
+                        // will take care of this metric.
+                        is_allowed_browser.clone()
+                            & RuleCondition::eq("span.was_transaction", false),
+                    ),
+                    tags: vec![
+                        Tag::with_key("span.op")
+                            .from_field("span.sentry_tags.op")
+                            .always(),
+                        Tag::with_key("transaction.op")
+                            .from_field("span.sentry_tags.transaction.op")
+                            .always(),
+                        Tag::with_key("transaction")
+                            .from_field("span.sentry_tags.transaction")
+                            .always(),
+                        Tag::with_key("environment")
+                            .from_field("span.sentry_tags.environment")
+                            .always(),
+                        Tag::with_key("release")
+                            .from_field("span.sentry_tags.release")
+                            .always(),
+                        Tag::with_key("browser.name")
+                            .from_field("span.browser.name")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("user.geo.subregion")
+                            .from_field("span.sentry_tags.user.geo.subregion")
+                            .always(), // already guarded by condition on metric
+                    ],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: "d:transactions/measurements.score.cls@ratio".into(),
+                    field: Some("span.measurements.score.cls.value".into()),
+                    condition: Some(is_allowed_browser.clone()),
+                    tags: vec![
+                        Tag::with_key("span.op")
+                            .from_field("span.sentry_tags.op")
+                            .always(),
+                        Tag::with_key("transaction")
+                            .from_field("span.sentry_tags.transaction")
+                            .always(),
+                        Tag::with_key("environment")
+                            .from_field("span.sentry_tags.environment")
+                            .always(),
+                        Tag::with_key("release")
+                            .from_field("span.sentry_tags.release")
+                            .always(),
+                        Tag::with_key("browser.name")
+                            .from_field("span.sentry_tags.browser.name")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("user.geo.subregion")
+                            .from_field("span.sentry_tags.user.geo.subregion")
+                            .always(), // already guarded by condition on metric
+                    ],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: "d:transactions/measurements.score.weight.cls@ratio".into(),
+                    field: Some("span.measurements.score.weight.cls.value".into()),
+                    condition: Some(is_allowed_browser.clone()),
+                    tags: vec![
+                        Tag::with_key("span.op")
+                            .from_field("span.sentry_tags.op")
+                            .always(),
+                        Tag::with_key("transaction")
+                            .from_field("span.sentry_tags.transaction")
+                            .always(),
+                        Tag::with_key("environment")
+                            .from_field("span.sentry_tags.environment")
+                            .always(),
+                        Tag::with_key("release")
+                            .from_field("span.sentry_tags.release")
+                            .always(),
+                        Tag::with_key("browser.name")
+                            .from_field("span.sentry_tags.browser.name")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("user.geo.subregion")
+                            .from_field("span.sentry_tags.user.geo.subregion")
+                            .always(), // already guarded by condition on metric
+                    ],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: "d:transactions/measurements.cls@ratio".into(),
+                    field: Some("span.measurements.cls.value".into()),
+                    condition: Some(is_allowed_browser.clone()),
+                    tags: vec![
+                        Tag::with_key("span.op")
+                            .from_field("span.sentry_tags.op")
+                            .always(),
+                        Tag::with_key("transaction")
+                            .from_field("span.sentry_tags.transaction")
+                            .always(),
+                        Tag::with_key("environment")
+                            .from_field("span.sentry_tags.environment")
+                            .always(),
+                        Tag::with_key("release")
+                            .from_field("span.sentry_tags.release")
+                            .always(),
+                        Tag::with_key("browser.name")
+                            .from_field("span.sentry_tags.browser.name")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("user.geo.subregion")
+                            .from_field("span.sentry_tags.user.geo.subregion")
+                            .always(), // already guarded by condition on metric
+                    ],
+                },
+            ],
             vec![],
         ),
     ]
