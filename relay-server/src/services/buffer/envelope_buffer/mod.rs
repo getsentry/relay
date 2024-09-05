@@ -38,7 +38,9 @@ pub enum PolymorphicEnvelopeBuffer {
     /// An enveloper buffer that uses sqlite envelopes stacks.
     #[allow(dead_code)]
     Sqlite {
+        /// The contained buffer.
         buffer: EnvelopeBuffer<SqliteStackProvider>,
+        /// A memory checker used to check whether envelopes may be unspooled from disk.
         memory_checker: MemoryChecker,
     },
 }
