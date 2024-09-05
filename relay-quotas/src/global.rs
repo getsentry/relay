@@ -1,10 +1,11 @@
 use std::sync::{Mutex, OnceLock, PoisonError};
 
-use crate::RedisQuota;
 use itertools::Itertools;
 use relay_base_schema::metrics::MetricNamespace;
 use relay_redis::redis::Script;
 use relay_redis::{PooledClient, RedisError};
+
+use crate::RedisQuota;
 
 /// Default percentage of the quota limit to reserve from Redis as a local cache.
 const DEFAULT_BUDGET_RATIO: f32 = 0.001;
@@ -37,11 +38,12 @@ impl GlobalRateLimits {
         let mut ratelimited = vec![];
         let mut not_ratelimited = vec![];
 
-        for (key, quotas) in &quotas.iter().group_by(|quota| KeyRef::new(quota)) {
-            let Some(quota) = quotas.min_by_key(|quota| quota.limit()) else {
-                continue;
-            };
+        let min_by_keyref = quotas
+            .iter()
+            .into_grouping_map_by(|q| KeyRef::new(q))
+            .min_by_key(|_, q| q.limit());
 
+        for (key, quota) in min_by_keyref {
             let val = guard.entry_ref(&key).or_default();
 
             if val.is_rate_limited(client, quota, key, quantity as u64)? {
@@ -243,6 +245,7 @@ impl Default for GlobalRateLimit {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
     use std::time::Duration;
 
     use super::*;
@@ -312,13 +315,12 @@ mod tests {
             .unwrap();
 
         // Only the quotas that are less than the quantity gets ratelimited.
-        assert_eq!(rate_limited_quotas.len(), 2);
         assert_eq!(
-            vec![100, 150],
+            BTreeSet::from([100, 150]),
             rate_limited_quotas
                 .iter()
                 .map(|quota| quota.limit())
-                .collect_vec(),
+                .collect()
         );
     }
 
