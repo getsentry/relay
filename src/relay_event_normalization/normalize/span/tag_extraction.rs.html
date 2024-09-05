@@ -2816,6 +2816,8 @@
 <a href="#2816" id="2816">2816</a>
 <a href="#2817" id="2817">2817</a>
 <a href="#2818" id="2818">2818</a>
+<a href="#2819" id="2819">2819</a>
+<a href="#2820" id="2820">2820</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for persisting items into `span.sentry_tags` and `span.measurements` fields.
 //! These are then used for metrics extraction.
 </span><span class="kw">use </span>std::borrow::Cow;
@@ -3595,7 +3597,9 @@
             }
         }
         <span class="kw">if let </span><span class="prelude-val">Some</span>(measurements) = span.measurements.value() {
-            <span class="kw">if </span>span_op.starts_with(<span class="string">"ui.interaction."</span>) &amp;&amp; measurements.contains_key(<span class="string">"inp"</span>) {
+            <span class="kw">if </span>(span_op.starts_with(<span class="string">"ui.interaction."</span>) &amp;&amp; measurements.contains_key(<span class="string">"inp"</span>))
+                || span_op.starts_with(<span class="string">"ui.webvital."</span>)
+            {
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction) = span
                     .data
                     .value()
