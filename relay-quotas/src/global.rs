@@ -245,6 +245,7 @@ impl Default for GlobalRateLimit {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
     use std::time::Duration;
 
     use super::*;
@@ -314,13 +315,12 @@ mod tests {
             .unwrap();
 
         // Only the quotas that are less than the quantity gets ratelimited.
-        assert_eq!(rate_limited_quotas.len(), 2);
         assert_eq!(
-            vec![100, 150],
+            BTreeSet::from([100, 150]),
             rate_limited_quotas
                 .iter()
                 .map(|quota| quota.limit())
-                .collect_vec(),
+                .collect()
         );
     }
 
