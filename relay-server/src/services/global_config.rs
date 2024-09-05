@@ -104,14 +104,6 @@ impl UpstreamQuery for GetGlobalConfig {
 /// The message for requesting the most recent global config from [`GlobalConfigService`].
 pub struct Get;
 
-/// The message for receiving a watch that subscribes to the [`GlobalConfigService`].
-///
-/// The global config service must be up and running, else the subscription
-/// fails. Subscribers should use the initial value when they get the watch
-/// rather than only waiting for the watch to update, in case a global config
-///  is only updated once, such as is the case with the static config file.
-pub struct Subscribe;
-
 /// An interface to get [`GlobalConfig`]s through [`GlobalConfigService`].
 ///
 /// For a one-off update, [`GlobalConfigService`] responds to
@@ -123,8 +115,6 @@ pub struct Subscribe;
 pub enum GlobalConfigManager {
     /// Returns the most recent global config.
     Get(relay_system::Sender<Status>),
-    /// Returns a [`watch::Receiver`] where global config updates will be sent to.
-    Subscribe(relay_system::Sender<watch::Receiver<Status>>),
 }
 
 impl Interface for GlobalConfigManager {}
@@ -134,14 +124,6 @@ impl FromMessage<Get> for GlobalConfigManager {
 
     fn from_message(_: Get, sender: relay_system::Sender<Status>) -> Self {
         Self::Get(sender)
-    }
-}
-
-impl FromMessage<Subscribe> for GlobalConfigManager {
-    type Response = AsyncResponse<watch::Receiver<Status>>;
-
-    fn from_message(_: Subscribe, sender: relay_system::Sender<watch::Receiver<Status>>) -> Self {
-        Self::Subscribe(sender)
     }
 }
 
@@ -228,21 +210,27 @@ pub struct GlobalConfigService {
 
 impl GlobalConfigService {
     /// Creates a new [`GlobalConfigService`].
-    pub fn new(config: Arc<Config>, upstream: Addr<UpstreamRelay>) -> Self {
+    pub fn new(
+        config: Arc<Config>,
+        upstream: Addr<UpstreamRelay>,
+    ) -> (Self, watch::Receiver<Status>) {
         let (internal_tx, internal_rx) = mpsc::channel(1);
-        let (global_config_watch, _) = watch::channel(Status::Pending);
+        let (global_config_watch, rx) = watch::channel(Status::Pending);
 
-        Self {
-            config,
-            global_config_watch,
-            internal_tx,
-            internal_rx,
-            upstream,
-            fetch_handle: SleepHandle::idle(),
-            last_fetched: Instant::now(),
-            upstream_failure_interval: Duration::from_secs(35),
-            shutdown: false,
-        }
+        (
+            Self {
+                config,
+                global_config_watch,
+                internal_tx,
+                internal_rx,
+                upstream,
+                fetch_handle: SleepHandle::idle(),
+                last_fetched: Instant::now(),
+                upstream_failure_interval: Duration::from_secs(35),
+                shutdown: false,
+            },
+            rx,
+        )
     }
 
     /// Creates a [`GlobalConfigHandle`] which can be used to retrieve the current state
@@ -258,9 +246,6 @@ impl GlobalConfigService {
         match message {
             GlobalConfigManager::Get(sender) => {
                 sender.send(self.global_config_watch.borrow().clone());
-            }
-            GlobalConfigManager::Subscribe(sender) => {
-                sender.send(self.global_config_watch.subscribe());
             }
         }
     }
@@ -440,7 +425,9 @@ mod tests {
         config.regenerate_credentials(false).unwrap();
         let fetch_interval = config.global_config_fetch_interval();
 
-        let service = GlobalConfigService::new(Arc::new(config), upstream).start();
+        let service = GlobalConfigService::new(Arc::new(config), upstream)
+            .0
+            .start();
 
         assert!(service.send(Get).await.is_ok());
 
@@ -469,7 +456,9 @@ mod tests {
         config.regenerate_credentials(false).unwrap();
 
         let fetch_interval = config.global_config_fetch_interval();
-        let service = GlobalConfigService::new(Arc::new(config), upstream).start();
+        let service = GlobalConfigService::new(Arc::new(config), upstream)
+            .0
+            .start();
         service.send(Get).await.unwrap();
 
         tokio::time::sleep(fetch_interval * 2).await;
@@ -494,7 +483,9 @@ mod tests {
 
         let fetch_interval = config.global_config_fetch_interval();
 
-        let service = GlobalConfigService::new(Arc::new(config), upstream).start();
+        let service = GlobalConfigService::new(Arc::new(config), upstream)
+            .0
+            .start();
         service.send(Get).await.unwrap();
 
         tokio::time::sleep(fetch_interval * 2).await;
