@@ -258,13 +258,13 @@ mod endpoints;
 mod envelope;
 mod extractors;
 mod http;
-mod metrics;
+pub mod metrics;
 mod metrics_extraction;
 mod middlewares;
-mod service;
-mod services;
+pub mod service;
+pub mod services;
 mod statsd;
-mod utils;
+pub mod utils;
 
 pub use self::envelope::Envelope; // pub for benchmarks
 pub use self::services::buffer::{

@@ -174,7 +174,6 @@ pub struct GlobalConfigHandle {
 
 impl GlobalConfigHandle {
     /// Creates a new global config handle with a fixed global config.
-    #[cfg(test)]
     pub fn fixed(config: GlobalConfig) -> Self {
         let (_, watch) = watch::channel(Status::Ready(Arc::new(config)));
         Self { watch }

@@ -2054,7 +2054,7 @@ impl EnvelopeProcessorService {
         )
     }
 
-    fn handle_process_envelope(&self, message: ProcessEnvelope) {
+    pub fn handle_process_envelope(&self, message: ProcessEnvelope) {
         let project_key = message.envelope.envelope().meta().public_key();
         let wait_time = message.envelope.start_time().elapsed();
         metric!(timer(RelayTimers::EnvelopeWaitTime) = wait_time);

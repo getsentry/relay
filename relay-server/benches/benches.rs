@@ -1,6 +1,10 @@
 use bytes::Bytes;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use relay_config::Config;
+use relay_dynamic_config::ProjectConfig;
+use relay_server::services::processor::{ProcessEnvelope, ProcessingGroup};
+use relay_server::services::project::ProjectInfo;
+use relay_server::utils::ManagedEnvelope;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
 use sqlx::{Pool, Sqlite};
 use std::path::PathBuf;
@@ -9,7 +13,7 @@ use std::time::{Duration, Instant};
 use tempfile::TempDir;
 use tokio::runtime::Runtime;
 
-use relay_base_schema::project::ProjectKey;
+use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_server::{
     Envelope, EnvelopeStack, MemoryChecker, MemoryStat, PolymorphicEnvelopeBuffer,
     SqliteEnvelopeStack, SqliteEnvelopeStore,
@@ -314,6 +318,179 @@ fn benchmark_envelope_buffer(c: &mut Criterion) {
     group.finish();
 }
 
+mod testutils {
+    use std::sync::Arc;
+
+    use rayon::ThreadPool;
+    use relay_cogs::Cogs;
+    use relay_config::Config;
+    use relay_dynamic_config::GlobalConfig;
+    use relay_server::metrics::{MetricOutcomes, MetricStats};
+    use relay_server::service::create_redis_pools;
+    use relay_server::services::global_config::GlobalConfigHandle;
+    use relay_server::services::metrics::Aggregator;
+    use relay_server::services::outcome::TrackOutcome;
+    use relay_server::services::processor::{self, EnvelopeProcessorService};
+    use relay_server::services::test_store::TestStore;
+    use relay_server::utils::ThreadPoolBuilder;
+    use relay_system::{channel, Addr, Interface};
+    use tokio::sync::mpsc::UnboundedReceiver;
+    use tokio::task::JoinHandle;
+
+    /// Spawns a mock service that handles messages through a closure.
+    ///
+    /// Note: Addr must be dropped before handle can be awaited.
+    pub fn mock_service<S, I, F>(
+        name: &'static str,
+        mut state: S,
+        mut f: F,
+    ) -> (Addr<I>, JoinHandle<S>)
+    where
+        S: Send + 'static,
+        I: Interface,
+        F: FnMut(&mut S, I) + Send + 'static,
+    {
+        let (addr, mut rx) = channel(name);
+
+        let handle = tokio::spawn(async move {
+            while let Some(msg) = rx.recv().await {
+                f(&mut state, msg);
+            }
+
+            state
+        });
+
+        (addr, handle)
+    }
+
+    pub fn create_processor_pool() -> ThreadPool {
+        ThreadPoolBuilder::new("processor")
+            .num_threads(1)
+            .runtime(tokio::runtime::Handle::current())
+            .build()
+            .unwrap()
+    }
+
+    fn create_metric_stats(rollout_rate: f32) -> (MetricStats, UnboundedReceiver<Aggregator>) {
+        let config = Config::from_json_value(serde_json::json!({
+            "processing": {
+                "enabled": true,
+                "kafka_config": [],
+            }
+        }))
+        .unwrap();
+
+        let mut global_config = GlobalConfig::default();
+        global_config.options.metric_stats_rollout_rate = rollout_rate;
+        let global_config = GlobalConfigHandle::fixed(global_config);
+
+        let (addr, receiver) = Addr::custom();
+        let ms = MetricStats::new(Arc::new(config), global_config, addr);
+
+        (ms, receiver)
+    }
+
+    pub fn create_test_processor(config: Config) -> EnvelopeProcessorService {
+        let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
+        let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
+        let (aggregator, _) = mock_service("aggregator", (), |&mut (), _| {});
+        let (upstream_relay, _) = mock_service("upstream_relay", (), |&mut (), _| {});
+        let (test_store, _) = mock_service("test_store", (), |&mut (), _| {});
+
+        #[cfg(feature = "processing")]
+        let redis_pools = config.redis().map(create_redis_pools).transpose().unwrap();
+
+        let metric_outcomes =
+            MetricOutcomes::new(create_metric_stats(1.0).0, outcome_aggregator.clone());
+
+        let config = Arc::new(config);
+        EnvelopeProcessorService::new(
+            create_processor_pool(),
+            Arc::clone(&config),
+            GlobalConfigHandle::fixed(Default::default()),
+            Cogs::noop(),
+            #[cfg(feature = "processing")]
+            redis_pools,
+            processor::Addrs {
+                outcome_aggregator,
+                project_cache,
+                upstream_relay,
+                test_store,
+                #[cfg(feature = "processing")]
+                store_forwarder: None,
+                aggregator,
+            },
+            metric_outcomes,
+        )
+    }
+
+    pub fn processor_services() -> (Addr<TrackOutcome>, Addr<TestStore>) {
+        let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
+        let (test_store, _) = mock_service("test_store", (), |&mut (), _| {});
+        (outcome_aggregator, test_store)
+    }
+}
+
+fn mock_envelope2() -> Box<Envelope> {
+    let payload = include_str!("tx.json");
+
+    let bytes = Bytes::from(format!(
+        "\
+         {{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}}\n\
+         {{\"type\":\"transaction\"}}\n\
+         {payload}\n\
+         ",
+    ));
+
+    let mut envelope = Envelope::parse_bytes(bytes).unwrap();
+    envelope.set_start_time(Instant::now());
+    envelope
+}
+
+fn bench_tx_processing(c: &mut Criterion) {
+    let runtime = Runtime::new().unwrap();
+    let _guard = runtime.enter();
+
+    let config = Config::from_json_value(serde_json::json!({
+        "processing": {
+            "enabled": true,
+            "kafka_config": [],
+        }
+    }))
+    .unwrap();
+    let processor = testutils::create_test_processor(config);
+
+    let project_key = ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b");
+    let envelope = mock_envelope2();
+
+    let pcjson = include_str!("config.json");
+    let project_info = Arc::new(serde_json::from_str::<ProjectInfo>(pcjson).unwrap());
+
+    let (outcome_aggregator, test_store) = testutils::processor_services();
+
+    c.bench_function("process_envelope", |b| {
+        b.iter_with_large_drop(|| {
+            let envelope = ManagedEnvelope::new(
+                envelope.clone(),
+                outcome_aggregator.clone(),
+                test_store.clone(),
+                ProcessingGroup::Transaction,
+            );
+
+            let msg = ProcessEnvelope {
+                envelope,
+                project_info: project_info.clone(),
+                sampling_project_info: Some(project_info.clone()),
+                reservoir_counters: Default::default(),
+            };
+
+            // runtime.block_on(async { processor.handle_process_envelope(criterion::black_box(msg)) })
+            processor.handle_process_envelope(criterion::black_box(msg))
+        })
+    });
+}
+
+criterion_group!(processor, bench_tx_processing);
 criterion_group!(sqlite, benchmark_sqlite_envelope_stack);
 criterion_group!(buffer, benchmark_envelope_buffer);
-criterion_main!(sqlite, buffer);
+criterion_main!(sqlite, buffer, processor);

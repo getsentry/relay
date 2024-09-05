@@ -100,7 +100,7 @@ pub fn create_runtime(name: &str, threads: usize) -> Runtime {
         .unwrap()
 }
 
-fn create_processor_pool(config: &Config) -> Result<ThreadPool> {
+pub fn create_processor_pool(config: &Config) -> Result<ThreadPool> {
     // Adjust thread count for small cpu counts to not have too many idle cores
     // and distribute workload better.
     let thread_count = match config.cpu_concurrency() {
