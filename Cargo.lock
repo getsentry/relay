@@ -2069,15 +2069,6 @@ checksum = "30e22bd8629359895450b59ea7a776c850561b96a3b1d31321c1949d9e6c9146"
 
 [[package]]
 name = "ipnetwork"
-version = "0.18.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4088d739b183546b239688ddbc79891831df421773df95e236daf7867866d355"
-dependencies = [
- "serde",
-]
-
-[[package]]
-name = "ipnetwork"
 version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bf466541e9d546596ee94f9f69590f89473455f88372423e0008fc1a7daf100e"
@@ -2313,14 +2304,14 @@ checksum = "b87248edafb776e59e6ee64a79086f65890d3510f2c656c000bf2a7e8a0aea40"
 
 [[package]]
 name = "maxminddb"
-version = "0.23.0"
+version = "0.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fe2ba61113f9f7a9f0e87c519682d39c43a6f3f79c2cc42c3ba3dda83b1fa334"
+checksum = "d6087e5d8ea14861bb7c7f573afbc7be3798d3ef0fae87ec4fd9a4de9a127c3c"
 dependencies = [
- "ipnetwork 0.18.0",
+ "ipnetwork",
  "log",
  "memchr",
- "memmap2 0.5.10",
+ "memmap2 0.9.4",
  "serde",
 ]
 
@@ -3629,7 +3620,7 @@ version = "24.8.0"
 dependencies = [
  "indexmap 2.2.5",
  "insta",
- "ipnetwork 0.20.0",
+ "ipnetwork",
  "once_cell",
  "regex",
  "relay-common",
