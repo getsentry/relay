@@ -799,6 +799,7 @@
 <a href="#799" id="799">799</a>
 <a href="#800" id="800">800</a>
 <a href="#801" id="801">801</a>
+<a href="#802" id="802">802</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Minidump scrubbing.
 
 </span><span class="kw">use </span>std::borrow::Cow;
@@ -813,6 +814,7 @@
     Endian, Error <span class="kw">as </span>MinidumpError, Minidump, MinidumpMemoryList, MinidumpModuleList,
     MinidumpThreadList,
 };
+<span class="kw">use </span>num_traits::FromPrimitive;
 <span class="kw">use </span>relay_event_schema::processor::{FieldAttrs, Pii, ValueType};
 <span class="kw">use </span>utf16string::{Utf16Error, WStr};
 
@@ -1004,14 +1006,14 @@
                 .get(cv_start..)
                 .ok_or(ScrubMinidumpError::InvalidAddress)<span class="question-mark">?</span>;
             <span class="kw">let </span>signature = u32_from_bytes(signature_bytes, <span class="self">self</span>.minidump.endian)<span class="question-mark">?</span>;
-            <span class="kw">match </span>CvSignature::try_from(signature) {
-                <span class="prelude-val">Ok</span>(CvSignature::Pdb70) =&gt; {
+            <span class="kw">match </span>CvSignature::from_u32(signature) {
+                <span class="prelude-val">Some</span>(CvSignature::Pdb70) =&gt; {
                     <span class="kw">let </span>offset: usize = <span class="number">4 </span>+ (<span class="number">4 </span>+ <span class="number">2 </span>+ <span class="number">2 </span>+ <span class="number">8</span>) + <span class="number">4</span>; <span class="comment">// cv_sig + sig GUID + age
                     </span>items.push(MinidumpItem::DebugModuleName(
                         (cv_start + offset)..(cv_start + cv_len),
                     ));
                 }
-                <span class="prelude-val">Ok</span>(CvSignature::Pdb20) =&gt; {
+                <span class="prelude-val">Some</span>(CvSignature::Pdb20) =&gt; {
                     <span class="kw">let </span>offset: usize = <span class="number">4 </span>+ <span class="number">4 </span>+ <span class="number">4 </span>+ <span class="number">4</span>; <span class="comment">// cv_sig + cv_offset + sig + age
                     </span>items.push(MinidumpItem::DebugModuleName(
                         (cv_start + offset)..(cv_start + cv_len),
