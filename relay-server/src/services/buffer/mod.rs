@@ -10,9 +10,11 @@ use relay_config::Config;
 use relay_system::Request;
 use relay_system::SendError;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Receiver, Service};
+use tokio::sync::watch;
 
 use crate::envelope::Envelope;
 use crate::services::buffer::envelope_buffer::Peek;
+use crate::services::global_config;
 use crate::services::project_cache::DequeuedEnvelope;
 use crate::services::project_cache::ProjectCache;
 use crate::services::project_cache::UpdateProject;
@@ -89,6 +91,7 @@ impl ObservableEnvelopeBuffer {
 pub struct EnvelopeBufferService {
     config: Arc<Config>,
     memory_checker: MemoryChecker,
+    global_config_rx: watch::Receiver<global_config::Status>,
     project_cache: Addr<ProjectCache>,
     has_capacity: Arc<AtomicBool>,
     sleep: Duration,
@@ -105,11 +108,14 @@ impl EnvelopeBufferService {
     pub fn new(
         config: Arc<Config>,
         memory_checker: MemoryChecker,
+        global_config_rx: watch::Receiver<global_config::Status>,
         project_cache: Addr<ProjectCache>,
     ) -> Option<Self> {
         config.spool_v2().then(|| Self {
             config,
             memory_checker,
+
+            global_config_rx,
             project_cache,
             has_capacity: Arc::new(AtomicBool::new(true)),
             sleep: Duration::ZERO,
@@ -148,8 +154,7 @@ impl EnvelopeBufferService {
             return false;
         }
 
-        // TODO: global config
-        true
+        self.global_config_rx.borrow().is_ready()
     }
 
     /// Tries to pop an envelope for a ready project.
@@ -298,14 +303,20 @@ impl Service for EnvelopeBufferService {
 mod tests {
     use std::time::Duration;
 
+    use relay_dynamic_config::GlobalConfig;
+    use tokio::sync::mpsc;
+    use uuid::Uuid;
+
     use crate::testutils::new_envelope;
     use crate::MemoryStat;
 
     use super::*;
 
-    #[tokio::test]
-    async fn capacity_is_updated() {
-        tokio::time::pause();
+    fn buffer_service() -> (
+        EnvelopeBufferService,
+        watch::Sender<global_config::Status>,
+        mpsc::UnboundedReceiver<ProjectCache>,
+    ) {
         let config = Arc::new(
             Config::from_json_value(serde_json::json!({
                 "spool": {
@@ -317,7 +328,20 @@ mod tests {
             .unwrap(),
         );
         let memory_checker = MemoryChecker::new(MemoryStat::default(), config.clone());
-        let service = EnvelopeBufferService::new(config, memory_checker, Addr::dummy()).unwrap();
+        let (global_tx, global_rx) = watch::channel(global_config::Status::Pending);
+        let (project_cache_addr, project_cache_rx) = Addr::custom();
+        (
+            EnvelopeBufferService::new(config, memory_checker, global_rx, project_cache_addr)
+                .unwrap(),
+            global_tx,
+            project_cache_rx,
+        )
+    }
+
+    #[tokio::test]
+    async fn capacity_is_updated() {
+        tokio::time::pause();
+        let (service, _, _) = buffer_service();
 
         // Set capacity to false:
         service.has_capacity.store(false, Ordering::Relaxed);
@@ -337,22 +361,81 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn output_is_throttled() {
+    async fn pop_requires_global_config() {
         tokio::time::pause();
+        let (service, global_tx, project_cache_rx) = buffer_service();
+
+        let addr = service.start();
+
+        // Send five messages:
+        let envelope = new_envelope(false, "foo");
+        let project_key = envelope.meta().public_key();
+        addr.send(EnvelopeBuffer::Push(envelope.clone()));
+        addr.send(EnvelopeBuffer::Ready(project_key));
+
+        tokio::time::sleep(Duration::from_millis(1000)).await;
+
+        // Nothing was dequeued, global config not ready:
+        assert_eq!(project_cache_rx.len(), 0);
+
+        global_tx.send_replace(global_config::Status::Ready(Arc::new(
+            GlobalConfig::default(),
+        )));
+
+        tokio::time::sleep(Duration::from_millis(1000)).await;
+
+        // Dequeued, global config ready:
+        assert_eq!(project_cache_rx.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn pop_requires_memory_capacity() {
+        tokio::time::pause();
+
         let config = Arc::new(
             Config::from_json_value(serde_json::json!({
                 "spool": {
                     "envelopes": {
-                        "version": "experimental"
+                        "version": "experimental",
+                        "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
                     }
+                },
+                "health": {
+                    "max_memory_bytes": 0,
                 }
             }))
             .unwrap(),
         );
         let memory_checker = MemoryChecker::new(MemoryStat::default(), config.clone());
-        let (project_cache_addr, mut project_cache_rx) = Addr::custom();
+        let (_, global_rx) = watch::channel(global_config::Status::Ready(Arc::new(
+            GlobalConfig::default(),
+        )));
+
+        let (project_cache_addr, project_cache_rx) = Addr::custom();
         let service =
-            EnvelopeBufferService::new(config, memory_checker, project_cache_addr).unwrap();
+            EnvelopeBufferService::new(config, memory_checker, global_rx, project_cache_addr)
+                .unwrap();
+        let addr = service.start();
+
+        // Send five messages:
+        let envelope = new_envelope(false, "foo");
+        let project_key = envelope.meta().public_key();
+        addr.send(EnvelopeBuffer::Push(envelope.clone()));
+        addr.send(EnvelopeBuffer::Ready(project_key));
+
+        tokio::time::sleep(Duration::from_millis(1000)).await;
+
+        // Nothing was dequeued, memory not ready:
+        assert_eq!(project_cache_rx.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn output_is_throttled() {
+        tokio::time::pause();
+        let (service, global_tx, mut project_cache_rx) = buffer_service();
+        global_tx.send_replace(global_config::Status::Ready(Arc::new(
+            GlobalConfig::default(),
+        )));
 
         let addr = service.start();
 
