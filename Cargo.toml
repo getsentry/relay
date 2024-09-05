@@ -101,7 +101,7 @@ hyper-util = { version = "0.1.7", features = ["tokio"] }
 indexmap = "2.2.5"
 insta = { version = "1.31.0", features = ["json", "redactions", "ron"] }
 ipnetwork = "0.20.0"
-itertools = "0.10.5"
+itertools = "0.13.0"
 json-forensics = "0.1.1"
 lru = "0.9.0"
 maxminddb = "0.23.0"

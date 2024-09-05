@@ -860,7 +860,7 @@ dependencies = [
  "clap",
  "criterion-plot",
  "is-terminal",
- "itertools",
+ "itertools 0.10.5",
  "num-traits",
  "once_cell",
  "oorandom",
@@ -881,7 +881,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6b50826342786a51a89e2da3a28f1c32b06e387201bc2d19791f622c673706b1"
 dependencies = [
  "cast",
- "itertools",
+ "itertools 0.10.5",
 ]
 
 [[package]]
@@ -2207,6 +2207,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "itertools"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
+dependencies = [
+ "either",
+]
+
+[[package]]
 name = "itoa"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3186,7 +3195,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e5d2d8d10f3c6ded6da8b05b5fb3b8a5082514344d56c9f871412d29b4e075b4"
 dependencies = [
  "anyhow",
- "itertools",
+ "itertools 0.10.5",
  "proc-macro2",
  "quote",
  "syn 1.0.109",
@@ -3605,7 +3614,7 @@ dependencies = [
  "chrono",
  "dynfmt",
  "insta",
- "itertools",
+ "itertools 0.13.0",
  "maxminddb",
  "md5",
  "once_cell",
@@ -3729,7 +3738,7 @@ dependencies = [
  "hash32",
  "hashbrown 0.14.5",
  "insta",
- "itertools",
+ "itertools 0.13.0",
  "priority-queue",
  "rand",
  "relay-base-schema",
@@ -3777,7 +3786,7 @@ version = "24.8.0"
 dependencies = [
  "hmac",
  "insta",
- "itertools",
+ "itertools 0.13.0",
  "minidump",
  "once_cell",
  "pest",
@@ -3805,7 +3814,7 @@ dependencies = [
  "chrono",
  "data-encoding",
  "insta",
- "itertools",
+ "itertools 0.13.0",
  "relay-base-schema",
  "relay-event-schema",
  "relay-log",
@@ -3849,7 +3858,7 @@ version = "24.8.0"
 dependencies = [
  "hashbrown 0.14.5",
  "insta",
- "itertools",
+ "itertools 0.13.0",
  "relay-base-schema",
  "relay-common",
  "relay-log",
@@ -3929,7 +3938,7 @@ dependencies = [
  "hashbrown 0.14.5",
  "hyper-util",
  "insta",
- "itertools",
+ "itertools 0.13.0",
  "json-forensics",
  "mime",
  "minidump",
@@ -4799,7 +4808,7 @@ version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0c12bc9199d1db8234678b7051747c07f517cdcf019262d1847b94ec8b1aee3e"
 dependencies = [
- "itertools",
+ "itertools 0.10.5",
  "nom",
  "unicode_categories",
 ]
