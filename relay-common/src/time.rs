@@ -3,7 +3,7 @@
 use std::fmt;
 use std::time::{Duration, Instant, SystemTime};
 
-use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
+use chrono::{DateTime, TimeZone, Utc};
 use serde::{Deserialize, Serialize};
 
 /// Converts an `Instant` into a `SystemTime`.
@@ -116,8 +116,7 @@ impl UnixTimestamp {
 
     /// Returns the timestamp as chrono datetime.
     pub fn as_datetime(self) -> Option<DateTime<Utc>> {
-        NaiveDateTime::from_timestamp_opt(self.0 as i64, 0)
-            .map(|n| DateTime::from_naive_utc_and_offset(n, Utc))
+        DateTime::from_timestamp(self.0 as i64, 0)
     }
 }
 
