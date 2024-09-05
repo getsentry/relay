@@ -353,9 +353,7 @@ pub async fn handle_envelope(
     }
 
     // TODO(jjbayer): Remove this check once spool v1 is removed.
-    if state.memory_checker().check_memory().is_exceeded() {
-        // NOTE: Long-term, we should not reject the envelope here, but spool it to disk instead.
-        // This will be fixed with the new spool implementation.
+    if state.envelope_buffer().is_none() && state.memory_checker().check_memory().is_exceeded() {
         return Err(BadStoreRequest::QueueFailed);
     };
 

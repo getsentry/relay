@@ -37,7 +37,10 @@ pub enum PolymorphicEnvelopeBuffer {
     InMemory(EnvelopeBuffer<MemoryStackProvider>),
     /// An enveloper buffer that uses sqlite envelopes stacks.
     #[allow(dead_code)]
-    Sqlite(EnvelopeBuffer<SqliteStackProvider>),
+    Sqlite {
+        buffer: EnvelopeBuffer<SqliteStackProvider>,
+        memory_checker: MemoryChecker,
+    },
 }
 
 impl PolymorphicEnvelopeBuffer {
@@ -49,7 +52,10 @@ impl PolymorphicEnvelopeBuffer {
     ) -> Result<Self, EnvelopeBufferError> {
         let buffer = if config.spool_envelopes_path().is_some() {
             let buffer = EnvelopeBuffer::<SqliteStackProvider>::new(config).await?;
-            Self::Sqlite(buffer)
+            Self::Sqlite {
+                buffer,
+                memory_checker,
+            }
         } else {
             let buffer = EnvelopeBuffer::<MemoryStackProvider>::new(memory_checker);
             Self::InMemory(buffer)
@@ -62,14 +68,14 @@ impl PolymorphicEnvelopeBuffer {
     pub async fn initialize(&mut self) {
         match self {
             PolymorphicEnvelopeBuffer::InMemory(buffer) => buffer.initialize().await,
-            PolymorphicEnvelopeBuffer::Sqlite(buffer) => buffer.initialize().await,
+            PolymorphicEnvelopeBuffer::Sqlite { buffer, .. } => buffer.initialize().await,
         }
     }
 
     /// Adds an envelope to the buffer.
     pub async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), EnvelopeBufferError> {
         match self {
-            Self::Sqlite(buffer) => buffer.push(envelope).await,
+            Self::Sqlite { buffer, .. } => buffer.push(envelope).await,
             Self::InMemory(buffer) => buffer.push(envelope).await,
         }?;
         relay_statsd::metric!(counter(RelayCounters::BufferEnvelopesWritten) += 1);
@@ -79,7 +85,7 @@ impl PolymorphicEnvelopeBuffer {
     /// Returns a reference to the next-in-line envelope.
     pub async fn peek(&mut self) -> Result<Peek, EnvelopeBufferError> {
         match self {
-            Self::Sqlite(buffer) => buffer.peek().await,
+            Self::Sqlite { buffer, .. } => buffer.peek().await,
             Self::InMemory(buffer) => buffer.peek().await,
         }
     }
@@ -87,7 +93,7 @@ impl PolymorphicEnvelopeBuffer {
     /// Pops the next-in-line envelope.
     pub async fn pop(&mut self) -> Result<Option<Box<Envelope>>, EnvelopeBufferError> {
         let envelope = match self {
-            Self::Sqlite(buffer) => buffer.pop().await,
+            Self::Sqlite { buffer, .. } => buffer.pop().await,
             Self::InMemory(buffer) => buffer.pop().await,
         }?;
         relay_statsd::metric!(counter(RelayCounters::BufferEnvelopesRead) += 1);
@@ -100,7 +106,7 @@ impl PolymorphicEnvelopeBuffer {
     /// Returns `true` if at least one priority was changed.
     pub fn mark_ready(&mut self, project: &ProjectKey, is_ready: bool) -> bool {
         match self {
-            Self::Sqlite(buffer) => buffer.mark_ready(project, is_ready),
+            Self::Sqlite { buffer, .. } => buffer.mark_ready(project, is_ready),
             Self::InMemory(buffer) => buffer.mark_ready(project, is_ready),
         }
     }
@@ -112,7 +118,7 @@ impl PolymorphicEnvelopeBuffer {
     /// head-of-line blocking.
     pub fn mark_seen(&mut self, project_key_pair: &ProjectKeyPair) {
         match self {
-            Self::Sqlite(buffer) => buffer.mark_seen(project_key_pair),
+            Self::Sqlite { buffer, .. } => buffer.mark_seen(project_key_pair),
             Self::InMemory(buffer) => buffer.mark_seen(project_key_pair),
         }
     }
@@ -120,8 +126,19 @@ impl PolymorphicEnvelopeBuffer {
     /// Returns `true` whether the buffer has capacity to accept new [`Envelope`]s.
     pub fn has_capacity(&self) -> bool {
         match self {
-            Self::Sqlite(buffer) => buffer.has_capacity(),
+            Self::Sqlite { buffer, .. } => buffer.has_capacity(),
             Self::InMemory(buffer) => buffer.has_capacity(),
+        }
+    }
+
+    /// Returns `true` when preconditions for unspooling are met.
+    ///
+    /// We should not pop from disk into memory when relay's overall memory capacity
+    /// has been reached.
+    pub fn should_flush(&self) -> bool {
+        match self {
+            Self::Sqlite { memory_checker, .. } => memory_checker.check_memory().has_capacity(),
+            Self::InMemory(_) => true,
         }
     }
 }

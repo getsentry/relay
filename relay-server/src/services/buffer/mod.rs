@@ -140,6 +140,10 @@ impl EnvelopeBufferService {
         &mut self,
         buffer: &mut PolymorphicEnvelopeBuffer,
     ) -> Result<(), EnvelopeBufferError> {
+        if !buffer.should_flush() {
+            return Ok(());
+        }
+
         relay_log::trace!("EnvelopeBufferService peek");
         match buffer.peek().await? {
             Peek::Empty => {
