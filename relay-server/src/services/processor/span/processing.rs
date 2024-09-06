@@ -404,9 +404,9 @@ impl<'a> NormalizeSpanConfig<'a> {
 fn set_segment_attributes(span: &mut Annotated<Span>) {
     let Some(span) = span.value_mut() else { return };
 
-    // Identify INP spans and make sure they are not wrapped in a segment.
+    // Identify INP spans or other WebVital spans and make sure they are not wrapped in a segment.
     if let Some(span_op) = span.op.value() {
-        if span_op.starts_with("ui.interaction.") {
+        if span_op.starts_with("ui.interaction.") || span_op.starts_with("ui.webvital.") {
             span.is_segment = None.into();
             span.parent_span_id = None.into();
             span.segment_id = None.into();

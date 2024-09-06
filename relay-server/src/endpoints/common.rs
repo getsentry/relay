@@ -15,7 +15,7 @@ use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{MetricData, ProcessMetricMeta, ProcessingGroup};
 use crate::services::project_cache::{CheckEnvelope, ProcessMetrics, ValidateEnvelope};
 use crate::statsd::{RelayCounters, RelayHistograms};
-use crate::utils::{self, ApiErrorResponse, FormDataIter, ManagedEnvelope, MultipartError};
+use crate::utils::{self, ApiErrorResponse, FormDataIter, ManagedEnvelope};
 
 #[derive(Clone, Copy, Debug, thiserror::Error)]
 #[error("the service is overloaded")]
@@ -60,9 +60,6 @@ pub enum BadStoreRequest {
 
     #[error("invalid multipart data")]
     InvalidMultipart(#[from] multer::Error),
-
-    #[error("invalid multipart data")]
-    InvalidMultipartAxum(#[from] MultipartError),
 
     #[error("invalid minidump")]
     InvalidMinidump,

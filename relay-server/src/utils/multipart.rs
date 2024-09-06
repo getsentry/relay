@@ -1,6 +1,8 @@
 use std::io;
 
-use axum::extract::multipart::{Field, Multipart};
+use axum::extract::Request;
+use multer::Multipart;
+use relay_config::Config;
 use serde::{Deserialize, Serialize};
 
 use crate::envelope::{AttachmentType, ContentType, Item, ItemType, Items};
@@ -147,58 +149,32 @@ pub fn get_multipart_boundary(data: &[u8]) -> Option<&str> {
         .and_then(|slice| std::str::from_utf8(&slice[2..]).ok())
 }
 
-#[derive(Debug, thiserror::Error)]
-pub enum MultipartError {
-    #[error("field exceeded the size limit")]
-    FieldSizeExceeded,
-    #[error(transparent)]
-    Raw(#[from] axum::extract::multipart::MultipartError),
-}
-
-async fn field_data<'a>(field: &mut Field<'a>, limit: usize) -> Result<Vec<u8>, MultipartError> {
-    let mut body = Vec::new();
-
-    while let Some(chunk) = field.chunk().await? {
-        if body.len() + chunk.len() > limit {
-            return Err(MultipartError::FieldSizeExceeded);
-        }
-        body.extend_from_slice(&chunk);
-    }
-
-    Ok(body)
-}
-
 pub async fn multipart_items<F>(
-    mut multipart: Multipart,
-    item_limit: usize,
+    mut multipart: Multipart<'_>,
     mut infer_type: F,
-) -> Result<Items, MultipartError>
+) -> Result<Items, multer::Error>
 where
     F: FnMut(Option<&str>) -> AttachmentType,
 {
     let mut items = Items::new();
     let mut form_data = FormDataWriter::new();
 
-    while let Some(mut field) = multipart.next_field().await? {
+    while let Some(field) = multipart.next_field().await? {
         if let Some(file_name) = field.file_name() {
             let mut item = Item::new(ItemType::Attachment);
             item.set_attachment_type(infer_type(field.name()));
             item.set_filename(file_name);
             // Extract the body after the immutable borrow on `file_name` is gone.
             if let Some(content_type) = field.content_type() {
-                item.set_payload(
-                    content_type.into(),
-                    field_data(&mut field, item_limit).await?,
-                );
+                item.set_payload(content_type.as_ref().into(), field.bytes().await?);
             } else {
-                item.set_payload_without_content_type(field_data(&mut field, item_limit).await?);
+                item.set_payload_without_content_type(field.bytes().await?);
             }
             items.push(item);
         } else if let Some(field_name) = field.name().map(str::to_owned) {
-            let data = field_data(&mut field, item_limit).await?;
-            // Ensure to decode this safely to match Django's POST data behavior. This allows us to
+            // Ensure to decode this SAFELY to match Django's POST data behavior. This allows us to
             // process sentry event payloads even if they contain invalid encoding.
-            let string = String::from_utf8_lossy(&data);
+            let string = field.text().await?;
             form_data.append(&field_name, &string);
         } else {
             relay_log::trace!("multipart content without name or file_name");
@@ -217,11 +193,31 @@ where
     Ok(items)
 }
 
+pub fn multipart_from_request(
+    request: Request,
+    config: &Config,
+) -> Result<Multipart<'static>, multer::Error> {
+    let content_type = request
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    let boundary = multer::parse_boundary(content_type)?;
+
+    let limits = multer::SizeLimit::new()
+        .whole_stream(config.max_attachments_size() as u64)
+        .per_field(config.max_attachment_size() as u64);
+
+    Ok(Multipart::with_constraints(
+        request.into_body().into_data_stream(),
+        boundary,
+        multer::Constraints::new().size_limit(limits),
+    ))
+}
+
 #[cfg(test)]
 mod tests {
-    use axum::body::Body;
-    use axum::extract::FromRequest;
-    use axum::http::Request;
+    use std::convert::Infallible;
 
     use super::*;
 
@@ -283,12 +279,9 @@ mod tests {
         let data = "--X-BOUNDARY\r\nContent-Disposition: form-data; \
         name=\"my_text_field\"\r\n\r\nabcd\r\n--X-BOUNDARY--"; // No trailing newline
 
-        let request = Request::builder()
-            .header("content-type", "multipart/form-data; boundary=X-BOUNDARY")
-            .body(Body::from(data))
-            .unwrap();
+        let stream = futures::stream::once(async { Ok::<_, Infallible>(data) });
+        let mut multipart = Multipart::new(stream, "X-BOUNDARY");
 
-        let mut multipart = Multipart::from_request(request, &()).await?;
         assert!(multipart.next_field().await?.is_some());
         assert!(multipart.next_field().await?.is_none());
 
