@@ -12,7 +12,7 @@ use relay_event_schema::protocol::EventId;
 use crate::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT};
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
-use crate::extractors::{RawContentType, RequestMeta, Xt};
+use crate::extractors::{RawContentType, Remote, RequestMeta};
 use crate::service::ServiceState;
 use crate::utils;
 
@@ -137,7 +137,7 @@ async fn handle(
     let envelope = if MINIDUMP_RAW_CONTENT_TYPES.contains(&content_type.as_ref()) {
         extract_raw_minidump(request.extract().await?, meta)?
     } else {
-        let Xt(multipart) = request.extract_with_state(&state).await?;
+        let Remote(multipart) = request.extract_with_state(&state).await?;
         extract_multipart(multipart, meta).await?
     };
 

@@ -1,4 +1,4 @@
-//! Extractors for types from other crates via [`Xt`].
+//! Extractors for types from other crates via [`Remote`].
 
 use axum::extract::{FromRequest, Request};
 use axum::http::StatusCode;
@@ -8,7 +8,7 @@ use multer::Multipart;
 use crate::service::ServiceState;
 use crate::utils::{self, ApiErrorResponse};
 
-/// A transparent wrapper around a type that implements [`FromRequest`] or [`IntoResponse`].
+/// A transparent wrapper around a remote type that implements [`FromRequest`] or [`IntoResponse`].
 ///
 /// # Example
 ///
@@ -18,45 +18,45 @@ use crate::utils::{self, ApiErrorResponse};
 /// use axum::extract::{FromRequest, Request};
 /// use axum::response::IntoResponse;
 ///
-/// use crate::extractors::Xt;
+/// use crate::extractors::Remote;
 ///
 /// // Derive `FromRequest` for `bool` for illustration purposes:
 /// #[axum::async_trait]
-/// impl<S> axum::extract::FromRequest<S> for Xt<bool> {
-///     type Rejection = Xt<Infallible>;
+/// impl<S> axum::extract::FromRequest<S> for Remote<bool> {
+///     type Rejection = Remote<Infallible>;
 ///
 ///     async fn from_request(request: Request) -> Result<Self, Self::Rejection> {
-///         Ok(Xt(true))
+///         Ok(Remote(true))
 ///     }
 /// }
 ///
-/// impl IntoResponse for Xt<Infallible> {
+/// impl IntoResponse for Remote<Infallible> {
 ///    fn into_response(self) -> axum::response::Response {
 ///        match self.0 {}
 ///    }
 /// }
 /// ```
 #[derive(Debug)]
-pub struct Xt<T>(pub T);
+pub struct Remote<T>(pub T);
 
-impl<T> From<T> for Xt<T> {
+impl<T> From<T> for Remote<T> {
     fn from(inner: T) -> Self {
         Self(inner)
     }
 }
 
 #[axum::async_trait]
-impl FromRequest<ServiceState> for Xt<Multipart<'static>> {
-    type Rejection = Xt<multer::Error>;
+impl FromRequest<ServiceState> for Remote<Multipart<'static>> {
+    type Rejection = Remote<multer::Error>;
 
     async fn from_request(request: Request, state: &ServiceState) -> Result<Self, Self::Rejection> {
         utils::multipart_from_request(request, state.config())
-            .map(Xt)
-            .map_err(Xt)
+            .map(Remote)
+            .map_err(Remote)
     }
 }
 
-impl IntoResponse for Xt<multer::Error> {
+impl IntoResponse for Remote<multer::Error> {
     fn into_response(self) -> Response {
         let Self(ref error) = self;
 

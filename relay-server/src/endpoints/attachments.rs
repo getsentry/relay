@@ -7,7 +7,7 @@ use serde::Deserialize;
 
 use crate::endpoints::common::{self, BadStoreRequest};
 use crate::envelope::{AttachmentType, Envelope};
-use crate::extractors::{RequestMeta, Xt};
+use crate::extractors::{Remote, RequestMeta};
 use crate::service::ServiceState;
 use crate::utils;
 
@@ -35,7 +35,7 @@ pub async fn handle(
     state: ServiceState,
     meta: RequestMeta,
     Path(path): Path<AttachmentPath>,
-    Xt(multipart): Xt<Multipart<'static>>,
+    Remote(multipart): Remote<Multipart<'static>>,
 ) -> Result<impl IntoResponse, BadStoreRequest> {
     let envelope = extract_envelope(meta, path, multipart).await?;
     common::handle_envelope(&state, envelope).await?;
