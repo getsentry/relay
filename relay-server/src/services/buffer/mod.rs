@@ -98,7 +98,11 @@ pub struct EnvelopeBufferService {
     project_cache_ready: Option<Request<()>>,
 }
 
-const DEFAULT_SLEEP: Duration = Duration::from_millis(100);
+/// The maximum amount of time between evaluations of dequeue conditions.
+///
+/// Some condition checks are sync (`has_capacity`), so cannot be awaited. The sleep in cancelled
+/// whenever a new message or a global config update comes in.
+const DEFAULT_SLEEP: Duration = Duration::from_secs(1);
 
 impl EnvelopeBufferService {
     /// Creates a memory or disk based [`EnvelopeBufferService`], depending on the given config.
@@ -150,10 +154,16 @@ impl EnvelopeBufferService {
         // We should not unspool from external storage if memory capacity has been reached.
         // But if buffer storage is in memory, unspooling can reduce memory usage.
         if buffer.is_external() && self.memory_checker.check_memory().is_exceeded() {
+            relay_log::trace!("Memory exceeded, cannot dequeue");
             return false;
         }
 
-        self.global_config_rx.borrow().is_ready()
+        if !self.global_config_rx.borrow().is_ready() {
+            relay_log::trace!("Global config not ready");
+            return false;
+        }
+
+        true
     }
 
     /// Tries to pop an envelope for a ready project.
@@ -162,6 +172,7 @@ impl EnvelopeBufferService {
         buffer: &mut PolymorphicEnvelopeBuffer,
     ) -> Result<(), EnvelopeBufferError> {
         if !self.should_pop(buffer) {
+            self.sleep = DEFAULT_SLEEP;
             return Ok(());
         }
 
@@ -251,6 +262,7 @@ impl Service for EnvelopeBufferService {
     fn spawn_handler(mut self, mut rx: Receiver<Self::Interface>) {
         let config = self.config.clone();
         let memory_checker = self.memory_checker.clone();
+        let mut global_config_rx = self.global_config_rx.clone();
         tokio::spawn(async move {
             let buffer = PolymorphicEnvelopeBuffer::from_config(&config, memory_checker).await;
 
@@ -267,8 +279,10 @@ impl Service for EnvelopeBufferService {
             buffer.initialize().await;
 
             relay_log::info!("EnvelopeBufferService start");
+            let mut iteration = 0;
             loop {
-                relay_log::trace!("EnvelopeBufferService loop");
+                iteration += 1;
+                relay_log::trace!("EnvelopeBufferService loop iteration {iteration}");
 
                 tokio::select! {
                     // NOTE: we do not select a bias here.
@@ -285,6 +299,10 @@ impl Service for EnvelopeBufferService {
                     }
                     Some(message) = rx.recv() => {
                         self.handle_message(&mut buffer, message).await;
+                    }
+                    _ = global_config_rx.changed() => {
+                        relay_log::trace!("EnvelopeBufferService received global config");
+                        self.sleep = Duration::ZERO; // Try to pop
                     }
 
                     else => break,
