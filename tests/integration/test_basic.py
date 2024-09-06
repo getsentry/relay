@@ -153,16 +153,15 @@ def test_store_allowed_origins_passes(mini_sentry, relay, allowed_origins):
 
 
 @pytest.mark.parametrize(
-    "route,status_code",
+    "route",
     [
-        ("/api/42/store/", 413),
-        ("/api/42/envelope/", 413),
-        ("/api/42/attachment/", 413),
-        # Minidumps attempt to read the first line (using dedicated limits) and parse it
-        ("/api/42/minidump/", 400),
+        "/api/42/store/",
+        "/api/42/envelope/",
+        "/api/42/attachment/",
+        "/api/42/minidump/",
     ],
 )
-def test_zipbomb_content_encoding(mini_sentry, relay, route, status_code):
+def test_zipbomb_content_encoding(mini_sentry, relay, route):
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
     relay = relay(
@@ -189,11 +188,15 @@ def test_zipbomb_content_encoding(mini_sentry, relay, route, status_code):
                 route,
                 mini_sentry.get_dsn_public_key(project_id),
             ),
-            headers={"content-encoding": "gzip", "content-length": str(size)},
+            headers={
+                "content-encoding": "gzip",
+                "content-length": str(size),
+                "content-type": "application/octet-stream",
+            },
             data=f,
         )
 
-    assert response.status_code == status_code
+    assert response.status_code == 413
 
 
 @pytest.mark.parametrize("content_encoding", ["gzip", "deflate", "identity", ""])

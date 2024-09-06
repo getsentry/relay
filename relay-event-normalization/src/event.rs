@@ -3387,6 +3387,107 @@ mod tests {
     }
 
     #[test]
+    fn test_computes_standalone_cls_performance_score() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "cls": {"value": 0.5}
+            }
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+            {
+                "name": "Default",
+                "scoreComponents": [
+                    {
+                        "measurement": "fcp",
+                        "weight": 0.15,
+                        "p10": 900.0,
+                        "p50": 1600.0,
+                        "optional": true,
+                    },
+                    {
+                        "measurement": "lcp",
+                        "weight": 0.30,
+                        "p10": 1200.0,
+                        "p50": 2400.0,
+                        "optional": true,
+                    },
+                    {
+                        "measurement": "cls",
+                        "weight": 0.15,
+                        "p10": 0.1,
+                        "p50": 0.25,
+                        "optional": true,
+                    },
+                    {
+                        "measurement": "ttfb",
+                        "weight": 0.10,
+                        "p10": 200.0,
+                        "p50": 400.0,
+                        "optional": true,
+                    },
+                ],
+                "condition": {
+                    "op": "and",
+                    "inner": [],
+                },
+            }
+            ]
+        }))
+        .unwrap();
+
+        normalize(
+            &mut event,
+            &mut Meta::default(),
+            &NormalizationConfig {
+                performance_score: Some(&performance_score),
+                ..Default::default()
+            },
+        );
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&event.measurements), {}, @r###"
+        {
+          "cls": {
+            "value": 0.5,
+            "unit": "none",
+          },
+          "score.cls": {
+            "value": 0.16615877613713903,
+            "unit": "ratio",
+          },
+          "score.total": {
+            "value": 0.16615877613713903,
+            "unit": "ratio",
+          },
+          "score.weight.cls": {
+            "value": 1.0,
+            "unit": "ratio",
+          },
+          "score.weight.fcp": {
+            "value": 0.0,
+            "unit": "ratio",
+          },
+          "score.weight.lcp": {
+            "value": 0.0,
+            "unit": "ratio",
+          },
+          "score.weight.ttfb": {
+            "value": 0.0,
+            "unit": "ratio",
+          },
+        }
+        "###);
+    }
+
+    #[test]
     fn test_computed_performance_score_uses_first_matching_profile() {
         let json = r#"
         {

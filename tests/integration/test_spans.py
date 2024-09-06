@@ -300,8 +300,8 @@ def envelope_with_spans(
                         "traceId": "89143b0763095bd9c9955e8175d1fb23",
                         "spanId": "a342abb1214ca181",
                         "name": "my 1st OTel span",
-                        "startTimeUnixNano": int(start.timestamp() * 1e9),
-                        "endTimeUnixNano": int(end.timestamp() * 1e9),
+                        "startTimeUnixNano": str(int(start.timestamp() * 1e9)),
+                        "endTimeUnixNano": str(int(end.timestamp() * 1e9)),
                         "attributes": [
                             {
                                 "key": "sentry.op",
@@ -312,8 +312,8 @@ def envelope_with_spans(
                             {
                                 "key": "sentry.exclusive_time_nano",
                                 "value": {
-                                    "intValue": int(
-                                        (end - start).total_seconds() * 1e9
+                                    "intValue": str(
+                                        int((end - start).total_seconds() * 1e9)
                                     ),
                                 },
                             },
@@ -440,14 +440,14 @@ def make_otel_span(start, end):
                                 "traceId": "89143b0763095bd9c9955e8175d1fb24",
                                 "spanId": "d342abb1214ca182",
                                 "name": "my 2nd OTel span",
-                                "startTimeUnixNano": int(start.timestamp() * 1e9),
-                                "endTimeUnixNano": int(end.timestamp() * 1e9),
+                                "startTimeUnixNano": str(int(start.timestamp() * 1e9)),
+                                "endTimeUnixNano": str(int(end.timestamp() * 1e9)),
                                 "attributes": [
                                     {
                                         "key": "sentry.exclusive_time_nano",
                                         "value": {
-                                            "intValue": int(
-                                                (end - start).total_seconds() * 1e9
+                                            "intValue": str(
+                                                int((end - start).total_seconds() * 1e9)
                                             ),
                                         },
                                     },
@@ -717,8 +717,10 @@ def test_span_reject_invalid_timestamps(
                         "traceId": "89143b0763095bd9c9955e8175d1fb23",
                         "spanId": "a342abb1214ca181",
                         "name": "span with invalid timestamps",
-                        "startTimeUnixNano": int(start_yesterday.timestamp() * 1e9),
-                        "endTimeUnixNano": int(end_yesterday.timestamp() * 1e9),
+                        "startTimeUnixNano": str(
+                            int(start_yesterday.timestamp() * 1e9)
+                        ),
+                        "endTimeUnixNano": str(int(end_yesterday.timestamp() * 1e9)),
                     },
                 ).encode()
             ),
@@ -733,8 +735,8 @@ def test_span_reject_invalid_timestamps(
                         "traceId": "89143b0763095bd9c9955e8175d1fb23",
                         "spanId": "a342abb1214ca181",
                         "name": "span with valid timestamps",
-                        "startTimeUnixNano": int(start_today.timestamp() * 1e9),
-                        "endTimeUnixNano": int(end_today.timestamp() * 1e9),
+                        "startTimeUnixNano": str(int(start_today.timestamp() * 1e9)),
+                        "endTimeUnixNano": str(int(end_today.timestamp() * 1e9)),
                     },
                 ).encode()
             ),
