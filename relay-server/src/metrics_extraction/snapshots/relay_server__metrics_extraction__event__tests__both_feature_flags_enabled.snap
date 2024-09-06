@@ -178,6 +178,7 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -205,6 +206,7 @@ expression: metrics
             "span.domain": "domain.tld",
             "span.group": "d9dc18637d441612",
             "span.op": "http.client",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -235,6 +237,7 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -262,6 +265,7 @@ expression: metrics
             "span.domain": "domain.tld",
             "span.group": "d9dc18637d441612",
             "span.op": "http.client",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -310,6 +314,7 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -337,6 +342,7 @@ expression: metrics
             "span.domain": "domain.tld",
             "span.group": "25faf23529f71d3e",
             "span.op": "http.client",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -367,6 +373,7 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -394,6 +401,7 @@ expression: metrics
             "span.domain": "domain.tld",
             "span.group": "25faf23529f71d3e",
             "span.op": "http.client",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -442,6 +450,7 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -469,6 +478,7 @@ expression: metrics
             "span.domain": "domain.tld",
             "span.group": "488f09b46e5978be",
             "span.op": "http.client",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -499,6 +509,7 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -526,6 +537,7 @@ expression: metrics
             "span.domain": "domain.tld",
             "span.group": "488f09b46e5978be",
             "span.op": "http.client",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -573,6 +585,7 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -599,6 +612,7 @@ expression: metrics
             "span.description": "GET *",
             "span.group": "37e3d9fab1ae9162",
             "span.op": "http.client",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -628,6 +642,7 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -654,6 +669,7 @@ expression: metrics
             "span.description": "GET *",
             "span.group": "37e3d9fab1ae9162",
             "span.op": "http.client",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -702,6 +718,7 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -729,6 +746,7 @@ expression: metrics
             "span.group": "37e3d9fab1ae9162",
             "span.op": "http.client",
             "span.status_code": "500",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -759,6 +777,7 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -786,6 +805,7 @@ expression: metrics
             "span.group": "37e3d9fab1ae9162",
             "span.op": "http.client",
             "span.status_code": "500",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -835,6 +855,7 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -863,6 +884,7 @@ expression: metrics
             "span.group": "464fe695f9cf639c",
             "span.op": "http.client",
             "span.status_code": "200",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -894,6 +916,7 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -922,6 +945,7 @@ expression: metrics
             "span.group": "464fe695f9cf639c",
             "span.op": "http.client",
             "span.status_code": "200",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -971,6 +995,7 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -999,6 +1024,7 @@ expression: metrics
             "span.group": "86818d1c74ecfc66",
             "span.op": "http.client",
             "span.status_code": "200",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -1030,6 +1056,7 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -1058,6 +1085,7 @@ expression: metrics
             "span.group": "86818d1c74ecfc66",
             "span.op": "http.client",
             "span.status_code": "200",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -1107,6 +1135,7 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -1135,6 +1164,7 @@ expression: metrics
             "span.group": "72ab88b506cb04b2",
             "span.op": "http.client",
             "span.status_code": "200",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -1166,6 +1196,7 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -1194,6 +1225,7 @@ expression: metrics
             "span.group": "72ab88b506cb04b2",
             "span.op": "http.client",
             "span.status_code": "200",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -1243,6 +1275,7 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -1271,6 +1304,7 @@ expression: metrics
             "span.group": "c8e531abe96ff360",
             "span.op": "http.client",
             "span.status_code": "200",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -1302,6 +1336,7 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -1330,6 +1365,7 @@ expression: metrics
             "span.group": "c8e531abe96ff360",
             "span.op": "http.client",
             "span.status_code": "200",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -1379,6 +1415,7 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -1407,6 +1444,7 @@ expression: metrics
             "span.group": "86818d1c74ecfc66",
             "span.op": "http.client",
             "span.status_code": "200",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -1438,6 +1476,7 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -1466,6 +1505,7 @@ expression: metrics
             "span.group": "86818d1c74ecfc66",
             "span.op": "http.client",
             "span.status_code": "200",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -1515,6 +1555,7 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -1543,6 +1584,7 @@ expression: metrics
             "span.group": "86818d1c74ecfc66",
             "span.op": "http.client",
             "span.status_code": "200",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -1574,6 +1616,7 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -1602,6 +1645,7 @@ expression: metrics
             "span.group": "86818d1c74ecfc66",
             "span.op": "http.client",
             "span.status_code": "200",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -4784,6 +4828,7 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -4811,6 +4856,7 @@ expression: metrics
             "span.domain": "domain.tld",
             "span.group": "d9dc18637d441612",
             "span.op": "http.client",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -4841,6 +4887,7 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -4868,6 +4915,7 @@ expression: metrics
             "span.domain": "domain.tld",
             "span.group": "d9dc18637d441612",
             "span.op": "http.client",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -4916,6 +4964,7 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -4943,6 +4992,7 @@ expression: metrics
             "span.domain": "domain.tld",
             "span.group": "25faf23529f71d3e",
             "span.op": "http.client",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -4973,6 +5023,7 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -5000,6 +5051,7 @@ expression: metrics
             "span.domain": "domain.tld",
             "span.group": "25faf23529f71d3e",
             "span.op": "http.client",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -5048,6 +5100,7 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -5075,6 +5128,7 @@ expression: metrics
             "span.domain": "domain.tld",
             "span.group": "488f09b46e5978be",
             "span.op": "http.client",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -5105,6 +5159,7 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -5132,6 +5187,7 @@ expression: metrics
             "span.domain": "domain.tld",
             "span.group": "488f09b46e5978be",
             "span.op": "http.client",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -5179,6 +5235,7 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -5205,6 +5262,7 @@ expression: metrics
             "span.description": "GET *",
             "span.group": "37e3d9fab1ae9162",
             "span.op": "http.client",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -5234,6 +5292,7 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -5260,6 +5319,7 @@ expression: metrics
             "span.description": "GET *",
             "span.group": "37e3d9fab1ae9162",
             "span.op": "http.client",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -5309,6 +5369,7 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -5337,6 +5398,7 @@ expression: metrics
             "span.group": "464fe695f9cf639c",
             "span.op": "http.client",
             "span.status_code": "200",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -5368,6 +5430,7 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -5396,6 +5459,7 @@ expression: metrics
             "span.group": "464fe695f9cf639c",
             "span.op": "http.client",
             "span.status_code": "200",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -5445,6 +5509,7 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -5473,6 +5538,7 @@ expression: metrics
             "span.group": "86818d1c74ecfc66",
             "span.op": "http.client",
             "span.status_code": "200",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -5504,6 +5570,7 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -5532,6 +5599,7 @@ expression: metrics
             "span.group": "86818d1c74ecfc66",
             "span.op": "http.client",
             "span.status_code": "200",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -5581,6 +5649,7 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -5609,6 +5678,7 @@ expression: metrics
             "span.group": "72ab88b506cb04b2",
             "span.op": "http.client",
             "span.status_code": "200",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -5640,6 +5710,7 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -5668,6 +5739,7 @@ expression: metrics
             "span.group": "72ab88b506cb04b2",
             "span.op": "http.client",
             "span.status_code": "200",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -5717,6 +5789,7 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -5745,6 +5818,7 @@ expression: metrics
             "span.group": "c8e531abe96ff360",
             "span.op": "http.client",
             "span.status_code": "200",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -5776,6 +5850,7 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -5804,6 +5879,7 @@ expression: metrics
             "span.group": "c8e531abe96ff360",
             "span.op": "http.client",
             "span.status_code": "200",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -5853,6 +5929,7 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -5881,6 +5958,7 @@ expression: metrics
             "span.group": "86818d1c74ecfc66",
             "span.op": "http.client",
             "span.status_code": "200",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -5912,6 +5990,7 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -5940,6 +6019,7 @@ expression: metrics
             "span.group": "86818d1c74ecfc66",
             "span.op": "http.client",
             "span.status_code": "200",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -5989,6 +6069,7 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -6017,6 +6098,7 @@ expression: metrics
             "span.group": "86818d1c74ecfc66",
             "span.op": "http.client",
             "span.status_code": "200",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -6048,6 +6130,7 @@ expression: metrics
             "transaction": "gEt /api/:version/users/",
             "transaction.method": "POST",
             "transaction.op": "myop",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -6076,6 +6159,7 @@ expression: metrics
             "span.group": "86818d1c74ecfc66",
             "span.op": "http.client",
             "span.status_code": "200",
+            "user.geo.subregion": "155",
         },
         metadata: BucketMetadata {
             merges: 1,
