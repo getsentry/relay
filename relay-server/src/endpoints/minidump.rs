@@ -1,18 +1,18 @@
 use std::convert::Infallible;
 
-use axum::extract::{DefaultBodyLimit, Multipart, Request};
+use axum::extract::{DefaultBodyLimit, Request};
 use axum::response::IntoResponse;
 use axum::routing::{post, MethodRouter};
 use axum::RequestExt;
 use bytes::Bytes;
-use futures::{future, FutureExt};
+use multer::Multipart;
 use relay_config::Config;
 use relay_event_schema::protocol::EventId;
 
 use crate::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT};
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
-use crate::extractors::{RawContentType, RequestMeta};
+use crate::extractors::{RawContentType, Remote, RequestMeta};
 use crate::service::ServiceState;
 use crate::utils;
 
@@ -69,8 +69,8 @@ async fn extract_embedded_minidump(payload: Bytes) -> Result<Option<Bytes>, BadS
         None => return Ok(None),
     };
 
-    let stream = future::ok::<_, Infallible>(payload.clone()).into_stream();
-    let mut multipart = multer::Multipart::new(stream, boundary);
+    let stream = futures::stream::once(async { Ok::<_, Infallible>(payload.clone()) });
+    let mut multipart = Multipart::new(stream, boundary);
 
     while let Some(field) = multipart.next_field().await? {
         if field.name() == Some(MINIDUMP_FIELD_NAME) {
@@ -82,12 +82,10 @@ async fn extract_embedded_minidump(payload: Bytes) -> Result<Option<Bytes>, BadS
 }
 
 async fn extract_multipart(
-    config: &Config,
-    multipart: Multipart,
+    multipart: Multipart<'static>,
     meta: RequestMeta,
 ) -> Result<Box<Envelope>, BadStoreRequest> {
-    let max_size = config.max_attachment_size();
-    let mut items = utils::multipart_items(multipart, max_size, infer_attachment_type).await?;
+    let mut items = utils::multipart_items(multipart, infer_attachment_type).await?;
 
     let minidump_item = items
         .iter_mut()
@@ -139,7 +137,8 @@ async fn handle(
     let envelope = if MINIDUMP_RAW_CONTENT_TYPES.contains(&content_type.as_ref()) {
         extract_raw_minidump(request.extract().await?, meta)?
     } else {
-        extract_multipart(state.config(), request.extract().await?, meta).await?
+        let Remote(multipart) = request.extract_with_state(&state).await?;
+        extract_multipart(multipart, meta).await?
     };
 
     let id = envelope.event_id();
@@ -156,15 +155,15 @@ async fn handle(
 }
 
 pub fn route(config: &Config) -> MethodRouter<ServiceState> {
-    post(handle).route_layer(DefaultBodyLimit::max(config.max_attachments_size()))
+    // Set the single-attachment limit that applies only for raw minidumps. Multipart bypasses the
+    // limited body and applies its own limits.
+    post(handle).route_layer(DefaultBodyLimit::max(config.max_attachment_size()))
 }
 
 #[cfg(test)]
 mod tests {
     use axum::body::Body;
-    use axum::extract::FromRequest;
-
-    use relay_config::ByteSize;
+    use relay_config::Config;
 
     use crate::utils::{multipart_items, FormDataIter};
 
@@ -214,14 +213,10 @@ mod tests {
             .body(Body::from(multipart_body))
             .unwrap();
 
-        let multipart = Multipart::from_request(request, &()).await?;
+        let config = Config::default();
 
-        let items = multipart_items(
-            multipart,
-            ByteSize::mebibytes(100).as_bytes(),
-            infer_attachment_type,
-        )
-        .await?;
+        let multipart = utils::multipart_from_request(request, &config)?;
+        let items = multipart_items(multipart, infer_attachment_type).await?;
 
         // we expect the multipart body to contain
         // * one arbitrary attachment from the user (a `config.json`)
