@@ -1202,11 +1202,13 @@ impl AuthMonitor {
                     }
                 }
                 Err(err) => {
-                    relay_log::error!(
-                        error = &err as &dyn std::error::Error,
-                        tags.attempt = backoff.attempt(),
-                        "authentication encountered error",
-                    );
+                    if backoff.attempt() > 1 {
+                        relay_log::error!(
+                            error = &err as &dyn std::error::Error,
+                            tags.attempts = backoff.attempt(),
+                            "authentication encountered error",
+                        );
+                    }
 
                     // ChannelClosed indicates that there are no more listeners, so we stop
                     // authenticating.
