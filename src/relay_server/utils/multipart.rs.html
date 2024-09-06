@@ -288,16 +288,11 @@
 <a href="#288" id="288">288</a>
 <a href="#289" id="289">289</a>
 <a href="#290" id="290">290</a>
-<a href="#291" id="291">291</a>
-<a href="#292" id="292">292</a>
-<a href="#293" id="293">293</a>
-<a href="#294" id="294">294</a>
-<a href="#295" id="295">295</a>
-<a href="#296" id="296">296</a>
-<a href="#297" id="297">297</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::io;
 
-<span class="kw">use </span>axum::extract::multipart::{Field, Multipart};
+<span class="kw">use </span>axum::extract::Request;
+<span class="kw">use </span>multer::Multipart;
+<span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, ContentType, Item, ItemType, Items};
@@ -444,58 +439,32 @@
         </span>.and_then(|slice| std::str::from_utf8(<span class="kw-2">&amp;</span>slice[<span class="number">2</span>..]).ok())
 }
 
-<span class="attr">#[derive(Debug, thiserror::Error)]
-</span><span class="kw">pub enum </span>MultipartError {
-    <span class="attr">#[error(<span class="string">"field exceeded the size limit"</span>)]
-    </span>FieldSizeExceeded,
-    <span class="attr">#[error(transparent)]
-    </span>Raw(<span class="attr">#[from] </span>axum::extract::multipart::MultipartError),
-}
-
-<span class="kw">async fn </span>field_data&lt;<span class="lifetime">'a</span>&gt;(field: <span class="kw-2">&amp;mut </span>Field&lt;<span class="lifetime">'a</span>&gt;, limit: usize) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, MultipartError&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>body = Vec::new();
-
-    <span class="kw">while let </span><span class="prelude-val">Some</span>(chunk) = field.chunk().<span class="kw">await</span><span class="question-mark">? </span>{
-        <span class="kw">if </span>body.len() + chunk.len() &gt; limit {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(MultipartError::FieldSizeExceeded);
-        }
-        body.extend_from_slice(<span class="kw-2">&amp;</span>chunk);
-    }
-
-    <span class="prelude-val">Ok</span>(body)
-}
-
 <span class="kw">pub async fn </span>multipart_items&lt;F&gt;(
-    <span class="kw-2">mut </span>multipart: Multipart,
-    item_limit: usize,
+    <span class="kw-2">mut </span>multipart: Multipart&lt;<span class="lifetime">'_</span>&gt;,
     <span class="kw-2">mut </span>infer_type: F,
-) -&gt; <span class="prelude-ty">Result</span>&lt;Items, MultipartError&gt;
+) -&gt; <span class="prelude-ty">Result</span>&lt;Items, multer::Error&gt;
 <span class="kw">where
     </span>F: FnMut(<span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; AttachmentType,
 {
     <span class="kw">let </span><span class="kw-2">mut </span>items = Items::new();
     <span class="kw">let </span><span class="kw-2">mut </span>form_data = FormDataWriter::new();
 
-    <span class="kw">while let </span><span class="prelude-val">Some</span>(<span class="kw-2">mut </span>field) = multipart.next_field().<span class="kw">await</span><span class="question-mark">? </span>{
+    <span class="kw">while let </span><span class="prelude-val">Some</span>(field) = multipart.next_field().<span class="kw">await</span><span class="question-mark">? </span>{
         <span class="kw">if let </span><span class="prelude-val">Some</span>(file_name) = field.file_name() {
             <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Attachment);
             item.set_attachment_type(infer_type(field.name()));
             item.set_filename(file_name);
             <span class="comment">// Extract the body after the immutable borrow on `file_name` is gone.
             </span><span class="kw">if let </span><span class="prelude-val">Some</span>(content_type) = field.content_type() {
-                item.set_payload(
-                    content_type.into(),
-                    field_data(<span class="kw-2">&amp;mut </span>field, item_limit).<span class="kw">await</span><span class="question-mark">?</span>,
-                );
+                item.set_payload(content_type.as_ref().into(), field.bytes().<span class="kw">await</span><span class="question-mark">?</span>);
             } <span class="kw">else </span>{
-                item.set_payload_without_content_type(field_data(<span class="kw-2">&amp;mut </span>field, item_limit).<span class="kw">await</span><span class="question-mark">?</span>);
+                item.set_payload_without_content_type(field.bytes().<span class="kw">await</span><span class="question-mark">?</span>);
             }
             items.push(item);
         } <span class="kw">else if let </span><span class="prelude-val">Some</span>(field_name) = field.name().map(str::to_owned) {
-            <span class="kw">let </span>data = field_data(<span class="kw-2">&amp;mut </span>field, item_limit).<span class="kw">await</span><span class="question-mark">?</span>;
-            <span class="comment">// Ensure to decode this safely to match Django's POST data behavior. This allows us to
+            <span class="comment">// Ensure to decode this SAFELY to match Django's POST data behavior. This allows us to
             // process sentry event payloads even if they contain invalid encoding.
-            </span><span class="kw">let </span>string = String::from_utf8_lossy(<span class="kw-2">&amp;</span>data);
+            </span><span class="kw">let </span>string = field.text().<span class="kw">await</span><span class="question-mark">?</span>;
             form_data.append(<span class="kw-2">&amp;</span>field_name, <span class="kw-2">&amp;</span>string);
         } <span class="kw">else </span>{
             <span class="macro">relay_log::trace!</span>(<span class="string">"multipart content without name or file_name"</span>);
@@ -514,11 +483,31 @@
     <span class="prelude-val">Ok</span>(items)
 }
 
+<span class="kw">pub fn </span>multipart_from_request(
+    request: Request,
+    config: <span class="kw-2">&amp;</span>Config,
+) -&gt; <span class="prelude-ty">Result</span>&lt;Multipart&lt;<span class="lifetime">'static</span>&gt;, multer::Error&gt; {
+    <span class="kw">let </span>content_type = request
+        .headers()
+        .get(<span class="string">"content-type"</span>)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or(<span class="string">""</span>);
+    <span class="kw">let </span>boundary = multer::parse_boundary(content_type)<span class="question-mark">?</span>;
+
+    <span class="kw">let </span>limits = multer::SizeLimit::new()
+        .whole_stream(config.max_attachments_size() <span class="kw">as </span>u64)
+        .per_field(config.max_attachment_size() <span class="kw">as </span>u64);
+
+    <span class="prelude-val">Ok</span>(Multipart::with_constraints(
+        request.into_body().into_data_stream(),
+        boundary,
+        multer::Constraints::new().size_limit(limits),
+    ))
+}
+
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-    <span class="kw">use </span>axum::body::Body;
-    <span class="kw">use </span>axum::extract::FromRequest;
-    <span class="kw">use </span>axum::http::Request;
+    <span class="kw">use </span>std::convert::Infallible;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
@@ -580,12 +569,9 @@
         <span class="kw">let </span>data = <span class="string">"--X-BOUNDARY\r\nContent-Disposition: form-data; \
         name=\"my_text_field\"\r\n\r\nabcd\r\n--X-BOUNDARY--"</span>; <span class="comment">// No trailing newline
 
-        </span><span class="kw">let </span>request = Request::builder()
-            .header(<span class="string">"content-type"</span>, <span class="string">"multipart/form-data; boundary=X-BOUNDARY"</span>)
-            .body(Body::from(data))
-            .unwrap();
+        </span><span class="kw">let </span>stream = futures::stream::once(<span class="kw">async </span>{ <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, Infallible&gt;(data) });
+        <span class="kw">let </span><span class="kw-2">mut </span>multipart = Multipart::new(stream, <span class="string">"X-BOUNDARY"</span>);
 
-        <span class="kw">let </span><span class="kw-2">mut </span>multipart = Multipart::from_request(request, <span class="kw-2">&amp;</span>()).<span class="kw">await</span><span class="question-mark">?</span>;
         <span class="macro">assert!</span>(multipart.next_field().<span class="kw">await</span><span class="question-mark">?</span>.is_some());
         <span class="macro">assert!</span>(multipart.next_field().<span class="kw">await</span><span class="question-mark">?</span>.is_none());
 

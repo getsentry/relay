@@ -283,26 +283,21 @@
 <a href="#283" id="283">283</a>
 <a href="#284" id="284">284</a>
 <a href="#285" id="285">285</a>
-<a href="#286" id="286">286</a>
-<a href="#287" id="287">287</a>
-<a href="#288" id="288">288</a>
-<a href="#289" id="289">289</a>
-<a href="#290" id="290">290</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 
-<span class="kw">use </span>axum::extract::{DefaultBodyLimit, Multipart, Request};
+<span class="kw">use </span>axum::extract::{DefaultBodyLimit, Request};
 <span class="kw">use </span>axum::response::IntoResponse;
 <span class="kw">use </span>axum::routing::{post, MethodRouter};
 <span class="kw">use </span>axum::RequestExt;
 <span class="kw">use </span>bytes::Bytes;
-<span class="kw">use </span>futures::{future, FutureExt};
+<span class="kw">use </span>multer::Multipart;
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_event_schema::protocol::EventId;
 
 <span class="kw">use </span><span class="kw">crate</span>::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT};
 <span class="kw">use </span><span class="kw">crate</span>::endpoints::common::{<span class="self">self</span>, BadStoreRequest, TextResponse};
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
-<span class="kw">use </span><span class="kw">crate</span>::extractors::{RawContentType, RequestMeta};
+<span class="kw">use </span><span class="kw">crate</span>::extractors::{RawContentType, Remote, RequestMeta};
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 <span class="kw">use </span><span class="kw">crate</span>::utils;
 
@@ -359,8 +354,8 @@
         <span class="prelude-val">None </span>=&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>),
     };
 
-    <span class="kw">let </span>stream = future::ok::&lt;<span class="kw">_</span>, Infallible&gt;(payload.clone()).into_stream();
-    <span class="kw">let </span><span class="kw-2">mut </span>multipart = multer::Multipart::new(stream, boundary);
+    <span class="kw">let </span>stream = futures::stream::once(<span class="kw">async </span>{ <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, Infallible&gt;(payload.clone()) });
+    <span class="kw">let </span><span class="kw-2">mut </span>multipart = Multipart::new(stream, boundary);
 
     <span class="kw">while let </span><span class="prelude-val">Some</span>(field) = multipart.next_field().<span class="kw">await</span><span class="question-mark">? </span>{
         <span class="kw">if </span>field.name() == <span class="prelude-val">Some</span>(MINIDUMP_FIELD_NAME) {
@@ -372,12 +367,10 @@
 }
 
 <span class="kw">async fn </span>extract_multipart(
-    config: <span class="kw-2">&amp;</span>Config,
-    multipart: Multipart,
+    multipart: Multipart&lt;<span class="lifetime">'static</span>&gt;,
     meta: RequestMeta,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;Box&lt;Envelope&gt;, BadStoreRequest&gt; {
-    <span class="kw">let </span>max_size = config.max_attachment_size();
-    <span class="kw">let </span><span class="kw-2">mut </span>items = utils::multipart_items(multipart, max_size, infer_attachment_type).<span class="kw">await</span><span class="question-mark">?</span>;
+    <span class="kw">let </span><span class="kw-2">mut </span>items = utils::multipart_items(multipart, infer_attachment_type).<span class="kw">await</span><span class="question-mark">?</span>;
 
     <span class="kw">let </span>minidump_item = items
         .iter_mut()
@@ -429,7 +422,8 @@
     </span><span class="kw">let </span>envelope = <span class="kw">if </span>MINIDUMP_RAW_CONTENT_TYPES.contains(<span class="kw-2">&amp;</span>content_type.as_ref()) {
         extract_raw_minidump(request.extract().<span class="kw">await</span><span class="question-mark">?</span>, meta)<span class="question-mark">?
     </span>} <span class="kw">else </span>{
-        extract_multipart(state.config(), request.extract().<span class="kw">await</span><span class="question-mark">?</span>, meta).<span class="kw">await</span><span class="question-mark">?
+        <span class="kw">let </span>Remote(multipart) = request.extract_with_state(<span class="kw-2">&amp;</span>state).<span class="kw">await</span><span class="question-mark">?</span>;
+        extract_multipart(multipart, meta).<span class="kw">await</span><span class="question-mark">?
     </span>};
 
     <span class="kw">let </span>id = envelope.event_id();
@@ -446,15 +440,15 @@
 }
 
 <span class="kw">pub fn </span>route(config: <span class="kw-2">&amp;</span>Config) -&gt; MethodRouter&lt;ServiceState&gt; {
-    post(handle).route_layer(DefaultBodyLimit::max(config.max_attachments_size()))
+    <span class="comment">// Set the single-attachment limit that applies only for raw minidumps. Multipart bypasses the
+    // limited body and applies its own limits.
+    </span>post(handle).route_layer(DefaultBodyLimit::max(config.max_attachment_size()))
 }
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>axum::body::Body;
-    <span class="kw">use </span>axum::extract::FromRequest;
-
-    <span class="kw">use </span>relay_config::ByteSize;
+    <span class="kw">use </span>relay_config::Config;
 
     <span class="kw">use </span><span class="kw">crate</span>::utils::{multipart_items, FormDataIter};
 
@@ -504,14 +498,10 @@
             .body(Body::from(multipart_body))
             .unwrap();
 
-        <span class="kw">let </span>multipart = Multipart::from_request(request, <span class="kw-2">&amp;</span>()).<span class="kw">await</span><span class="question-mark">?</span>;
+        <span class="kw">let </span>config = Config::default();
 
-        <span class="kw">let </span>items = multipart_items(
-            multipart,
-            ByteSize::mebibytes(<span class="number">100</span>).as_bytes(),
-            infer_attachment_type,
-        )
-        .<span class="kw">await</span><span class="question-mark">?</span>;
+        <span class="kw">let </span>multipart = utils::multipart_from_request(request, <span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>;
+        <span class="kw">let </span>items = multipart_items(multipart, infer_attachment_type).<span class="kw">await</span><span class="question-mark">?</span>;
 
         <span class="comment">// we expect the multipart body to contain
         // * one arbitrary attachment from the user (a `config.json`)

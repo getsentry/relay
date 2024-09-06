@@ -480,9 +480,6 @@
 <a href="#480" id="480">480</a>
 <a href="#481" id="481">481</a>
 <a href="#482" id="482">482</a>
-<a href="#483" id="483">483</a>
-<a href="#484" id="484">484</a>
-<a href="#485" id="485">485</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Common facilities for ingesting events through store-like endpoints.
 
 </span><span class="kw">use </span>axum::http::{header, StatusCode};
@@ -500,7 +497,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{MetricData, ProcessMetricMeta, ProcessingGroup};
 <span class="kw">use </span><span class="kw">crate</span>::services::project_cache::{CheckEnvelope, ProcessMetrics, ValidateEnvelope};
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms};
-<span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, ApiErrorResponse, FormDataIter, ManagedEnvelope, MultipartError};
+<span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, ApiErrorResponse, FormDataIter, ManagedEnvelope};
 
 <span class="attr">#[derive(Clone, Copy, Debug, thiserror::Error)]
 #[error(<span class="string">"the service is overloaded"</span>)]
@@ -545,9 +542,6 @@
 
     <span class="attr">#[error(<span class="string">"invalid multipart data"</span>)]
     </span>InvalidMultipart(<span class="attr">#[from] </span>multer::Error),
-
-    <span class="attr">#[error(<span class="string">"invalid multipart data"</span>)]
-    </span>InvalidMultipartAxum(<span class="attr">#[from] </span>MultipartError),
 
     <span class="attr">#[error(<span class="string">"invalid minidump"</span>)]
     </span>InvalidMinidump,
