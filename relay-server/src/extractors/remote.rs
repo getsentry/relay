@@ -63,8 +63,6 @@ impl IntoResponse for Xt<multer::Error> {
         let status_code = match error {
             multer::Error::FieldSizeExceeded { .. } => StatusCode::PAYLOAD_TOO_LARGE,
             multer::Error::StreamSizeExceeded { .. } => StatusCode::PAYLOAD_TOO_LARGE,
-            multer::Error::NoMultipart => StatusCode::UNSUPPORTED_MEDIA_TYPE,
-            multer::Error::NoBoundary => StatusCode::UNSUPPORTED_MEDIA_TYPE,
             _ => StatusCode::BAD_REQUEST,
         };
 
