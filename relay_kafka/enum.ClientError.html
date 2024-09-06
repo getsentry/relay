@@ -3,7 +3,7 @@
     InvalidTopicName,
     InvalidConfig(KafkaError),
     InvalidMsgPack(Error),
-    InvalidJson(<a class="struct" href="https://docs.rs/serde_json/1.0.93/serde_json/error/struct.Error.html" title="struct serde_json::error::Error">Error</a>),
+    InvalidJson(<a class="struct" href="https://docs.rs/serde_json/1.0.128/serde_json/error/struct.Error.html" title="struct serde_json::error::Error">Error</a>),
     SchemaValidationFailed(SchemaError),
     InvalidShard,
     MetadataFetchError(KafkaError),
@@ -13,7 +13,7 @@
 </div><section id="variant.InvalidTopicName" class="variant"><a href="#variant.InvalidTopicName" class="anchor">§</a><h3 class="code-header">InvalidTopicName</h3></section><div class="docblock"><p>Failed to find configured producer for the requested kafka topic.</p>
 </div><section id="variant.InvalidConfig" class="variant"><a href="#variant.InvalidConfig" class="anchor">§</a><h3 class="code-header">InvalidConfig(KafkaError)</h3></section><div class="docblock"><p>Failed to create a kafka producer because of the invalid configuration.</p>
 </div><section id="variant.InvalidMsgPack" class="variant"><a href="#variant.InvalidMsgPack" class="anchor">§</a><h3 class="code-header">InvalidMsgPack(Error)</h3></section><div class="docblock"><p>Failed to serialize the message.</p>
-</div><section id="variant.InvalidJson" class="variant"><a href="#variant.InvalidJson" class="anchor">§</a><h3 class="code-header">InvalidJson(<a class="struct" href="https://docs.rs/serde_json/1.0.93/serde_json/error/struct.Error.html" title="struct serde_json::error::Error">Error</a>)</h3></section><div class="docblock"><p>Failed to serialize the json message using serde.</p>
+</div><section id="variant.InvalidJson" class="variant"><a href="#variant.InvalidJson" class="anchor">§</a><h3 class="code-header">InvalidJson(<a class="struct" href="https://docs.rs/serde_json/1.0.128/serde_json/error/struct.Error.html" title="struct serde_json::error::Error">Error</a>)</h3></section><div class="docblock"><p>Failed to serialize the json message using serde.</p>
 </div><section id="variant.SchemaValidationFailed" class="variant"><a href="#variant.SchemaValidationFailed" class="anchor">§</a><h3 class="code-header">SchemaValidationFailed(SchemaError)</h3></section><div class="docblock"><p>Failed to run schema validation on message.</p>
 </div><section id="variant.InvalidShard" class="variant"><a href="#variant.InvalidShard" class="anchor">§</a><h3 class="code-header">InvalidShard</h3></section><div class="docblock"><p>Configuration is wrong and it cannot be used to identify the number of a shard.</p>
 </div><section id="variant.MetadataFetchError" class="variant"><a href="#variant.MetadataFetchError" class="anchor">§</a><h3 class="code-header">MetadataFetchError(KafkaError)</h3></section><div class="docblock"><p>Failed to fetch the metadata of Kafka.</p>
