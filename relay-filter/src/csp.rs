@@ -90,7 +90,7 @@ impl From<&str> for SchemeDomainPort {
         };
 
         // split the domain and the port
-        let ipv6_end_bracket_idx = rest.rfind(']');
+        let ipv6_end_bracket_idx = domain_port.rfind(']');
         let port_separator_idx = if let Some(end_bracket_idx) = ipv6_end_bracket_idx {
             // we have an ipv6 address, find the port separator after the closing bracket
             domain_port[end_bracket_idx..]
@@ -228,6 +228,10 @@ mod tests {
                 Some("4000"),
             ),
             ("http://", Some("http"), Some(""), None),
+            ("abc.com/[something]", None, Some("abc.com"), None),
+            ("abc.com/something]:", None, Some("abc.com"), None),
+            ("abc.co]m/[something:", None, Some("abc.co]m"), None),
+            ("]abc.com:9000", None, Some("]abc.com"), Some("9000")),
         ];
 
         for (url, scheme, domain, port) in examples {
@@ -245,7 +249,7 @@ mod tests {
 
     #[test]
     fn test_scheme_domain_port_with_ip() {
-        let examples = &[
+        let examples = [
             (
                 "http://192.168.1.1:3000",
                 Some("http"),
@@ -264,7 +268,7 @@ mod tests {
         ];
 
         for (url, scheme, domain, port) in examples {
-            let actual: SchemeDomainPort = (*url).into();
+            let actual = SchemeDomainPort::from(url);
             assert_eq!(
                 (actual.scheme, actual.domain, actual.port),
                 (

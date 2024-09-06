@@ -292,7 +292,7 @@ pub enum ProjectCache {
     UpdateSpoolIndex(UpdateSpoolIndex),
     SpoolHealth(Sender<bool>),
     RefreshIndexCache(RefreshIndexCache),
-    HandleDequeuedEnvelope(Box<Envelope>),
+    HandleDequeuedEnvelope(Box<Envelope>, Sender<()>),
     UpdateProject(ProjectKey),
 }
 
@@ -311,7 +311,7 @@ impl ProjectCache {
             Self::UpdateSpoolIndex(_) => "UpdateSpoolIndex",
             Self::SpoolHealth(_) => "SpoolHealth",
             Self::RefreshIndexCache(_) => "RefreshIndexCache",
-            Self::HandleDequeuedEnvelope(_) => "HandleDequeuedEnvelope",
+            Self::HandleDequeuedEnvelope(_, _) => "HandleDequeuedEnvelope",
             Self::UpdateProject(_) => "UpdateProject",
         }
     }
@@ -419,11 +419,11 @@ impl FromMessage<SpoolHealth> for ProjectCache {
 }
 
 impl FromMessage<DequeuedEnvelope> for ProjectCache {
-    type Response = relay_system::NoResponse;
+    type Response = relay_system::AsyncResponse<()>;
 
-    fn from_message(message: DequeuedEnvelope, _: ()) -> Self {
+    fn from_message(message: DequeuedEnvelope, sender: Sender<()>) -> Self {
         let DequeuedEnvelope(envelope) = message;
-        Self::HandleDequeuedEnvelope(envelope)
+        Self::HandleDequeuedEnvelope(envelope, sender)
     }
 }
 
@@ -1316,7 +1316,7 @@ impl ProjectCacheBroker {
                     ProjectCache::RefreshIndexCache(message) => {
                         self.handle_refresh_index_cache(message)
                     }
-                    ProjectCache::HandleDequeuedEnvelope(message) => {
+                    ProjectCache::HandleDequeuedEnvelope(message, sender) => {
                         let envelope_buffer = self
                             .services
                             .envelope_buffer
@@ -1329,6 +1329,8 @@ impl ProjectCacheBroker {
                                 "Failed to handle popped envelope"
                             );
                         }
+                        // Return response to signal readiness for next envelope:
+                        sender.send(())
                     }
                     ProjectCache::UpdateProject(project) => self.handle_update_project(project),
                 }
