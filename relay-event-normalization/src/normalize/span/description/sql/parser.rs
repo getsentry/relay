@@ -3,8 +3,6 @@ use std::borrow::Cow;
 use std::ops::ControlFlow;
 
 use itertools::Itertools;
-use once_cell::sync::Lazy;
-use regex::Regex;
 use sqlparser::ast::{
     AlterTableOperation, Assignment, BinaryOperator, CloseCursor, ColumnDef, CopySource, Declare,
     Expr, FunctionArg, Ident, LockTable, ObjectName, Query, Select, SelectItem, SetExpr,
@@ -13,24 +11,14 @@ use sqlparser::ast::{
 };
 use sqlparser::dialect::{Dialect, GenericDialect};
 
+use crate::span::TABLE_NAME_REGEX;
+
 /// Keeps track of the maximum depth of an SQL expression that the [`NormalizeVisitor`] encounters.
 ///
 /// This is used to prevent the serialization of the AST from crashing.
 /// Note that the expression depth does not fully cover the depth of complex SQL statements,
 /// because not everything in SQL is an expression.
 const MAX_EXPRESSION_DEPTH: usize = 64;
-
-/// Regex used to scrub hex IDs and multi-digit numbers from table names and other identifiers.
-static TABLE_NAME_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(
-        r"(?ix)
-        [0-9a-f]{8}_[0-9a-f]{4}_[0-9a-f]{4}_[0-9a-f]{4}_[0-9a-f]{12} |
-        [0-9a-f]{8,} |
-        \d\d+
-        ",
-    )
-    .unwrap()
-});
 
 /// Derive the SQL dialect from `db_system` (the value obtained from `span.data.system`)
 /// and try to parse the query into an AST.

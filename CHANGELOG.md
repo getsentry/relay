@@ -45,6 +45,7 @@
 - Collect SDK information in profile chunks. ([#3882](https://github.com/getsentry/relay/pull/3882))
 - Introduce `trim = "disabled"` type attribute to prevent trimming of spans. ([#3877](https://github.com/getsentry/relay/pull/3877))
 - Make the tcp listen backlog configurable and raise the default to 1024. ([#3899](https://github.com/getsentry/relay/pull/3899))
+- Add experimental support for MongoDB query normalization. ([#3912](https://github.com/getsentry/relay/pull/3912))
 - Extract `user.geo.country_code` into span indexed. ([#3911](https://github.com/getsentry/relay/pull/3911))
 - Add `span.system` tag to span metrics ([#3913](https://github.com/getsentry/relay/pull/3913))
 - Switch glob implementations from `regex` to `regex-lite`. ([#3926](https://github.com/getsentry/relay/pull/3926))

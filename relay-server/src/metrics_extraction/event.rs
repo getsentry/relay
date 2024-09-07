@@ -1,5 +1,6 @@
 use relay_common::time::UnixTimestamp;
 use relay_dynamic_config::CombinedMetricExtractionConfig;
+use relay_event_normalization::span::description::ScrubMongoDescription;
 use relay_event_schema::protocol::{Event, Span};
 use relay_metrics::Bucket;
 use relay_quotas::DataCategory;
@@ -69,7 +70,12 @@ fn extract_span_metrics_for_event(
     output: &mut Vec<Bucket>,
 ) {
     relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
-        if let Some(transaction_span) = extract_transaction_span(event, max_tag_value_size, &[]) {
+        if let Some(transaction_span) = extract_transaction_span(
+            event,
+            max_tag_value_size,
+            &[],
+            ScrubMongoDescription::Disabled,
+        ) {
             let (metrics, metrics_summary) =
                 metrics_summary::extract_and_summarize_metrics(&transaction_span, config);
             metrics_summary.apply_on(&mut event._metrics_summary);
@@ -1653,7 +1659,7 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_span_metrics_performance_score() {
+    fn test_extract_span_metrics_inp_performance_score() {
         let json = r#"
             {
                 "op": "ui.interaction.click",
@@ -1686,6 +1692,46 @@ mod tests {
             "d:spans/webvital.score.inp@ratio",
             "d:spans/webvital.score.total@ratio",
             "d:spans/webvital.score.weight.inp@ratio",
+        ] {
+            assert!(metrics.iter().any(|b| &*b.name == mri));
+            assert!(metrics.iter().any(|b| b.tags.contains_key("browser.name")));
+            assert!(metrics.iter().any(|b| b.tags.contains_key("span.op")));
+        }
+    }
+
+    #[test]
+    fn test_extract_span_metrics_cls_performance_score() {
+        let json = r#"
+            {
+                "op": "ui.webvital.cls",
+                "span_id": "bd429c44b67a3eb4",
+                "start_timestamp": 1597976302.0000000,
+                "timestamp": 1597976302.0000000,
+                "exclusive_time": 0,
+                "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                "sentry_tags": {
+                    "browser.name": "Chrome",
+                    "op": "ui.webvital.cls"
+                },
+                "measurements": {
+                    "score.total": {"value": 1.0},
+                    "score.cls": {"value": 1.0},
+                    "score.weight.cls": {"value": 1.0},
+                    "cls": {"value": 1.0}
+                }
+            }
+        "#;
+        let span = Annotated::<Span>::from_json(json).unwrap();
+        let metrics = generic::extract_metrics(
+            span.value().unwrap(),
+            combined_config([Feature::ExtractCommonSpanMetricsFromEvent], None).combined(),
+        );
+
+        for mri in [
+            "d:transactions/measurements.cls@ratio",
+            "d:transactions/measurements.score.cls@ratio",
+            "d:transactions/measurements.score.total@ratio",
+            "d:transactions/measurements.score.weight.cls@ratio",
         ] {
             assert!(metrics.iter().any(|b| &*b.name == mri));
             assert!(metrics.iter().any(|b| b.tags.contains_key("browser.name")));

@@ -65,11 +65,11 @@ axum-extra = "0.9.3"
 axum-server = "0.7.1"
 arc-swap = "1.7.1"
 backoff = "0.4.0"
-bindgen = "0.64.0"
-brotli = "3.3.4"
+bindgen = "0.70.1"
+brotli = "6.0.0"
 bytecount = "0.6.0"
 bytes = "1.4.0"
-cadence = "0.29.0"
+cadence = "1.4.0"
 chrono = { version = "0.4.31", default-features = false, features = [
     "std",
     "serde",
@@ -78,12 +78,12 @@ clap = { version = "4.4.6" }
 clap_complete = "4.1.1"
 cmake = "0.1.46"
 console = "0.15.5"
-cookie = "0.17.0"
+cookie = "0.18.1"
 criterion = "0.5"
 crossbeam-channel = "0.5.6"
 data-encoding = "2.5.0"
 debugid = "0.8.0"
-dialoguer = "0.10.0"
+dialoguer = "0.11.0"
 dynfmt = "0.1.4"
 ed25519-dalek = "2.0.0"
 enumset = "1.0.4"
@@ -95,31 +95,31 @@ hash32 = "0.3.1"
 hashbrown = "0.14.3"
 hex = "0.4.3"
 hmac = "0.12.1"
-hostname = "0.3.1"
+hostname = "0.4.0"
 human-size = "0.4.1"
 hyper-util = { version = "0.1.7", features = ["tokio"] }
 indexmap = "2.2.5"
 insta = { version = "1.31.0", features = ["json", "redactions", "ron"] }
 ipnetwork = "0.20.0"
-itertools = "0.10.5"
+itertools = "0.13.0"
 json-forensics = "0.1.1"
-lru = "0.9.0"
-maxminddb = "0.23.0"
+lru = "0.12.4"
+maxminddb = "0.24.0"
 memchr = "2.7.4"
 md5 = "0.7.0"
 mime = "0.3.16"
-minidump = "0.15.2"
-multer = "2.0.4"
+minidump = "0.22.0"
+multer = "3.1.0"
 num-traits = "0.2.18"
 num_cpus = "1.13.0"
 once_cell = "1.13.1"
-opentelemetry-proto = { git = "https://github.com/open-telemetry/opentelemetry-rust", rev = "dd4c13bd69ca4b24d5a8f21024a466fbb35cdd14" }
+opentelemetry-proto = "0.7.0"
 parking_lot = "0.12.1"
 path-slash = "0.2.1"
 pest = "2.1.3"
 pest_derive = "2.1.0"
 pin-project-lite = "0.2.12"
-pretty-hex = "0.3.0"
+pretty-hex = "0.4.1"
 priority-queue = "2.0.3"
 proc-macro2 = "1.0.8"
 psl = "2.1.33"
@@ -128,7 +128,7 @@ r2d2 = "0.8.10"
 rand = "0.8.5"
 rand_pcg = "0.3.1"
 rayon = "1.10"
-rdkafka = "0.29.0"
+rdkafka = "0.36.2"
 rdkafka-sys = "4.3.0"
 # Git revision until https://github.com/redis-rs/redis-rs/pull/1097 (merged) and https://github.com/redis-rs/redis-rs/pull/1253 are released.
 redis = { git = "https://github.com/getsentry/redis-rs.git", rev = "939e5df6f9cc976b0a53987f6eb3f76b2c398bd6", default-features = false }
@@ -138,7 +138,7 @@ reqwest = "0.12.7"
 rmp-serde = "1.1.1"
 sentry = "0.34.0"
 sentry-core = "0.34.0"
-sentry-kafka-schemas = { version = "0.1.86", default-features = false }
+sentry-kafka-schemas = { version = "0.1.107", default-features = false }
 sentry-release-parser = { version = "1.3.2", default-features = false }
 sentry-types = "0.34.0"
 semver = "1.0.23"
@@ -157,7 +157,7 @@ smallvec = { version = "1.11.2", features = ["serde"] }
 socket2 = "0.5.7"
 sqlparser = "0.44.0"
 sqlx = { version = "0.8.1", default-features = false }
-statsdproxy = { version = "0.1.2", default-features = false }
+statsdproxy = { version = "0.2.0", default-features = false }
 symbolic-common = { version = "12.1.2", default-features = false }
 symbolic-unreal = { version = "12.1.2", default-features = false }
 syn = "1.0.14"
@@ -168,7 +168,7 @@ synstructure = "0.12.3"
 sysinfo = { git = "https://github.com/getsentry/sysinfo.git", rev = "e2e5d530600f96bdd79652c856918da23e5dd938" }
 tempfile = "3.5.0"
 thiserror = "1.0.38"
-tikv-jemallocator = "0.5.0"
+tikv-jemallocator = "0.6.0"
 tokio = { version = "1.28.0", default-features = false }
 tower = { version = "0.4.13", default-features = false }
 tower-http = { version = "0.5.2", default-features = false }
@@ -181,4 +181,4 @@ url = "2.5.2"
 utf16string = "0.2.0"
 uuid = { version = "1.7.0", features = ["serde", "v4"] }
 walkdir = "2.3.2"
-zstd = "0.12.3"
+zstd = "0.13.2"
