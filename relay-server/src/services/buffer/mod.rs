@@ -356,7 +356,7 @@ mod tests {
     #[tokio::test]
     async fn capacity_is_updated() {
         tokio::time::pause();
-        let (service, _, _) = buffer_service();
+        let (service, _1, _2) = buffer_service();
 
         // Set capacity to false:
         service.has_capacity.store(false, Ordering::Relaxed);
