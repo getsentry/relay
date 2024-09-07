@@ -524,6 +524,10 @@ pub enum RelayTimers {
     BufferSpool,
     /// Timing in milliseconds for the time it takes for the buffer to unspool data from disk.
     BufferUnspool,
+    /// Timing in milliseconds for constructing the LRU list of stacks.
+    BufferEvictLRUConstruction,
+    /// Timing in milliseconds to evict all the stacks determined by the LRU algorithm.
+    BufferEvictStacksEviction,
 }
 
 impl TimerMetric for RelayTimers {
@@ -568,6 +572,8 @@ impl TimerMetric for RelayTimers {
             RelayTimers::BufferInitialization => "buffer.initialization.duration",
             RelayTimers::BufferSpool => "buffer.spool.duration",
             RelayTimers::BufferUnspool => "buffer.unspool.duration",
+            RelayTimers::BufferEvictLRUConstruction => "buffer.evict.lru_construction.duration",
+            RelayTimers::BufferEvictStacksEviction => "buffer.evict.stacks_eviction.duration",
         }
     }
 }

@@ -7,8 +7,9 @@ use relay_base_schema::project::ProjectKey;
 use crate::envelope::Envelope;
 use crate::services::buffer::envelope_stack::EnvelopeStack;
 use crate::services::buffer::envelope_store::sqlite::{
-    SqliteEnvelopeStore, SqliteEnvelopeStoreError,
+    EnvelopesOrder, SqliteEnvelopeStore, SqliteEnvelopeStoreError,
 };
+use crate::services::buffer::stack_provider::Evictable;
 use crate::statsd::RelayTimers;
 
 /// An error returned when doing an operation on [`SqliteEnvelopeStack`].
@@ -31,6 +32,8 @@ pub struct SqliteEnvelopeStack {
     spool_threshold: NonZeroUsize,
     /// Size of a batch of envelopes that is written to disk.
     batch_size: NonZeroUsize,
+    /// Maximum number of envelopes that can be evicted.
+    max_evictable_envelopes: NonZeroUsize,
     /// The project key of the project to which all the envelopes belong.
     own_key: ProjectKey,
     /// The project key of the root project of the trace to which all the envelopes belong.
@@ -51,6 +54,7 @@ impl SqliteEnvelopeStack {
         envelope_store: SqliteEnvelopeStore,
         disk_batch_size: usize,
         max_batches: usize,
+        max_evictable_envelopes: usize,
         own_key: ProjectKey,
         sampling_key: ProjectKey,
         check_disk: bool,
@@ -61,6 +65,8 @@ impl SqliteEnvelopeStack {
                 .expect("the spool threshold must be > 0"),
             batch_size: NonZeroUsize::new(disk_batch_size)
                 .expect("the disk batch size must be > 0"),
+            max_evictable_envelopes: NonZeroUsize::new(max_evictable_envelopes)
+                .expect("the max evictable envelopes must be > 0"),
             own_key,
             sampling_key,
             batches_buffer: VecDeque::with_capacity(max_batches),
@@ -126,6 +132,7 @@ impl SqliteEnvelopeStack {
                     self.own_key,
                     self.sampling_key,
                     self.batch_size.get() as i64,
+                    EnvelopesOrder::MostRecent,
                 )
                 .await
                 .map_err(SqliteEnvelopeStackError::EnvelopeStoreError)?
@@ -228,14 +235,37 @@ impl EnvelopeStack for SqliteEnvelopeStack {
     }
 }
 
+impl Evictable for SqliteEnvelopeStack {
+    async fn evict(&mut self) {
+        // We want to evict all elements in memory.
+        self.batches_buffer.clear();
+        self.batches_buffer_size = 0;
+
+        if self
+            .envelope_store
+            .delete_many(
+                self.own_key,
+                self.sampling_key,
+                self.max_evictable_envelopes.get() as i64,
+                EnvelopesOrder::Oldest,
+            )
+            .await
+            .is_err()
+        {
+            relay_log::error!("failed to evict envelopes from disk");
+        };
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::time::{Duration, Instant};
 
-    use relay_base_schema::project::ProjectKey;
-
     use super::*;
+    use crate::services::buffer::envelope_store::sqlite::EnvelopesOrder;
+    use crate::services::buffer::stack_provider::Evictable;
     use crate::services::buffer::testutils::utils::{mock_envelope, mock_envelopes, setup_db};
+    use relay_base_schema::project::ProjectKey;
 
     #[tokio::test]
     #[should_panic]
@@ -246,6 +276,7 @@ mod tests {
             envelope_store,
             2,
             2,
+            10,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("c25ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
@@ -263,6 +294,7 @@ mod tests {
             envelope_store,
             2,
             2,
+            10,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
@@ -316,6 +348,7 @@ mod tests {
             envelope_store,
             2,
             2,
+            10,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
@@ -336,6 +369,7 @@ mod tests {
             envelope_store,
             2,
             2,
+            10,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
@@ -354,6 +388,7 @@ mod tests {
             envelope_store,
             5,
             2,
+            10,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
@@ -392,6 +427,7 @@ mod tests {
             envelope_store,
             5,
             2,
+            10,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
@@ -452,5 +488,36 @@ mod tests {
             );
         }
         assert_eq!(stack.batches_buffer_size, 0);
+    }
+
+    #[tokio::test]
+    async fn test_evict() {
+        let db = setup_db(true).await;
+        let mut envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
+        let own_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+        let sampling_key = ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap();
+        let mut stack =
+            SqliteEnvelopeStack::new(envelope_store.clone(), 5, 1, 2, own_key, sampling_key, true);
+
+        let envelopes = mock_envelopes(15);
+
+        for envelope in envelopes.clone() {
+            assert!(stack.push(envelope).await.is_ok());
+        }
+
+        stack.evict().await;
+        // We expect 0 in-memory data since we flushed the 5 in-memory envelopes.
+        assert!(stack.batches_buffer.is_empty());
+        assert_eq!(stack.batches_buffer_size, 0);
+        // We expect 2 out of the 10 envelopes on disk to have been flushed, so if we load 15, we
+        // should get 8 back.
+        assert_eq!(
+            envelope_store
+                .delete_many(own_key, sampling_key, 15, EnvelopesOrder::MostRecent)
+                .await
+                .unwrap()
+                .len(),
+            8
+        );
     }
 }

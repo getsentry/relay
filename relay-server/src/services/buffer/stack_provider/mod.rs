@@ -39,7 +39,7 @@ pub enum StackCreationType {
 /// A provider of [`EnvelopeStack`] instances that is responsible for creating them.
 pub trait StackProvider: std::fmt::Debug {
     /// The implementation of [`EnvelopeStack`] that this manager creates.
-    type Stack: EnvelopeStack;
+    type Stack: EnvelopeStack + Evictable;
 
     /// Initializes the [`StackProvider`].
     fn initialize(&self) -> impl Future<Output = InitializationState>;
@@ -60,4 +60,10 @@ pub trait StackProvider: std::fmt::Debug {
 
     /// Returns the string representation of the stack type offered by this [`StackProvider`].
     fn stack_type<'a>(&self) -> &'a str;
+}
+
+/// An object that can support eviction.
+pub trait Evictable: Send + std::fmt::Debug {
+    /// Evicts data from an [`Evictable`].
+    fn evict(&mut self) -> impl Future<Output = ()>;
 }

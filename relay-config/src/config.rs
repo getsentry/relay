@@ -903,12 +903,23 @@ fn spool_envelopes_stack_max_batches() -> usize {
     2
 }
 
+/// Default maximum time between receiving the envelope and processing it.
 fn spool_envelopes_max_envelope_delay_secs() -> u64 {
     24 * 60 * 60
 }
 
 /// Default refresh frequency in ms for the disk usage monitoring.
 fn spool_disk_usage_refresh_frequency_ms() -> u64 {
+    100
+}
+
+/// Default percentage of envelope stacks that can be evicted in the buffer.
+fn spool_envelopes_evictable_stacks_percentage() -> f32 {
+    0.1
+}
+
+/// Default maximum number of envelopes that can be evicted for each stack.
+fn spool_envelopes_max_evictable_envelopes() -> usize {
     100
 }
 
@@ -955,6 +966,12 @@ pub struct EnvelopeSpool {
     /// internal page stats.
     #[serde(default = "spool_disk_usage_refresh_frequency_ms")]
     disk_usage_refresh_frequency_ms: u64,
+    /// Percentage of envelope stacks that can be evicted in the buffer.
+    #[serde(default = "spool_envelopes_evictable_stacks_percentage")]
+    evictable_stacks_percentage: f32,
+    /// Maximum number of envelopes that can be evicted for each stack.
+    #[serde(default = "spool_envelopes_max_evictable_envelopes")]
+    max_evictable_envelopes: usize,
     /// Version of the spooler.
     #[serde(default)]
     version: EnvelopeSpoolVersion,
@@ -991,6 +1008,8 @@ impl Default for EnvelopeSpool {
             max_batches: spool_envelopes_stack_max_batches(),
             max_envelope_delay_secs: spool_envelopes_max_envelope_delay_secs(),
             disk_usage_refresh_frequency_ms: spool_disk_usage_refresh_frequency_ms(),
+            evictable_stacks_percentage: spool_envelopes_evictable_stacks_percentage(),
+            max_evictable_envelopes: spool_envelopes_max_evictable_envelopes(),
             version: EnvelopeSpoolVersion::default(),
         }
     }
@@ -2192,6 +2211,16 @@ impl Config {
     /// flushing one batch to disk.
     pub fn spool_envelopes_stack_max_batches(&self) -> usize {
         self.values.spool.envelopes.max_batches
+    }
+
+    /// Maximum number of stacks that can be evicted.
+    pub fn spool_envelopes_evictable_stacks_percentage(&self) -> f32 {
+        self.values.spool.envelopes.evictable_stacks_percentage
+    }
+
+    /// Maximum number of envelopes that can be evicted per stack.
+    pub fn spool_envelopes_stack_max_evictable_envelopes(&self) -> usize {
+        self.values.spool.envelopes.max_evictable_envelopes
     }
 
     /// Returns `true` if version 2 of the spooling mechanism is used.

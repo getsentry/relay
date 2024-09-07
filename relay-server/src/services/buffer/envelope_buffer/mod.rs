@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, BinaryHeap};
 use std::convert::Infallible;
 use std::error::Error;
 use std::sync::atomic::AtomicI64;
@@ -19,7 +19,7 @@ use crate::services::buffer::envelope_stack::EnvelopeStack;
 use crate::services::buffer::envelope_store::sqlite::SqliteEnvelopeStoreError;
 use crate::services::buffer::stack_provider::memory::MemoryStackProvider;
 use crate::services::buffer::stack_provider::sqlite::SqliteStackProvider;
-use crate::services::buffer::stack_provider::{StackCreationType, StackProvider};
+use crate::services::buffer::stack_provider::{Evictable, StackCreationType, StackProvider};
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::MemoryChecker;
 
@@ -51,7 +51,7 @@ impl PolymorphicEnvelopeBuffer {
             let buffer = EnvelopeBuffer::<SqliteStackProvider>::new(config).await?;
             Self::Sqlite(buffer)
         } else {
-            let buffer = EnvelopeBuffer::<MemoryStackProvider>::new(memory_checker);
+            let buffer = EnvelopeBuffer::<MemoryStackProvider>::new(config, memory_checker);
             Self::InMemory(buffer)
         };
 
@@ -169,17 +169,20 @@ struct EnvelopeBuffer<P: StackProvider> {
     /// This boolean is just used for tagging the metric that tracks the total count of envelopes
     /// in the buffer.
     total_count_initialized: bool,
+    /// The % of envelope stacks that can be evicted.
+    evictable_stacks_percentage: f32,
 }
 
 impl EnvelopeBuffer<MemoryStackProvider> {
     /// Creates an empty memory-based buffer.
-    pub fn new(memory_checker: MemoryChecker) -> Self {
+    pub fn new(config: &Config, memory_checker: MemoryChecker) -> Self {
         Self {
             stacks_by_project: Default::default(),
             priority_queue: Default::default(),
             stack_provider: MemoryStackProvider::new(memory_checker),
             total_count: Arc::new(AtomicI64::new(0)),
             total_count_initialized: false,
+            evictable_stacks_percentage: config.spool_envelopes_evictable_stacks_percentage(),
         }
     }
 }
@@ -194,6 +197,7 @@ impl EnvelopeBuffer<SqliteStackProvider> {
             stack_provider: SqliteStackProvider::new(config).await?,
             total_count: Arc::new(AtomicI64::new(0)),
             total_count_initialized: false,
+            evictable_stacks_percentage: config.spool_envelopes_evictable_stacks_percentage(),
         })
     }
 }
@@ -224,10 +228,12 @@ where
             QueueItem {
                 key: _,
                 value: stack,
+                last_update,
             },
             _,
         )) = self.priority_queue.get_mut(&project_key_pair)
         {
+            *last_update = Instant::now();
             stack.push(envelope).await?;
         } else {
             // Since we have initialization code that creates all the necessary stacks, we assume
@@ -256,6 +262,7 @@ where
             QueueItem {
                 key: stack_key,
                 value: stack,
+                last_update: _,
             },
             Priority { readiness, .. },
         )) = self.priority_queue.peek_mut()
@@ -277,7 +284,15 @@ where
     /// The priority of the envelope's stack is updated with the next envelope's received_at
     /// time. If the stack is empty after popping, it is removed from the priority queue.
     pub async fn pop(&mut self) -> Result<Option<Box<Envelope>>, EnvelopeBufferError> {
-        let Some((QueueItem { key, value: stack }, _)) = self.priority_queue.peek_mut() else {
+        let Some((
+            QueueItem {
+                key,
+                value: stack,
+                last_update: _,
+            },
+            _,
+        )) = self.priority_queue.peek_mut()
+        else {
             return Ok(None);
         };
         let project_key_pair = *key;
@@ -317,6 +332,17 @@ where
         let mut changed = false;
         if let Some(project_key_pair) = self.stacks_by_project.get(project) {
             for project_key_pair in project_key_pair {
+                if let Some((
+                    QueueItem {
+                        key: _,
+                        value: _,
+                        last_update,
+                    },
+                    _,
+                )) = self.priority_queue.get_mut(project_key_pair)
+                {
+                    *last_update = Instant::now();
+                };
                 self.priority_queue
                     .change_priority_by(project_key_pair, |stack| {
                         let mut found = false;
@@ -358,6 +384,76 @@ where
             });
     }
 
+    /// Returns `true` if the underlying storage has the capacity to store more envelopes.
+    pub fn has_capacity(&self) -> bool {
+        self.stack_provider.has_store_capacity()
+    }
+
+    /// Evicts the least recently used stacks.
+    pub async fn evict(&mut self) {
+        #[derive(Debug, Copy, Clone)]
+        struct LRUItem(ProjectKeyPair, Readiness, Instant);
+
+        impl PartialEq for LRUItem {
+            fn eq(&self, other: &Self) -> bool {
+                self.0 == other.0
+            }
+        }
+
+        impl PartialOrd for LRUItem {
+            fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+                Some(self.cmp(other))
+            }
+        }
+
+        impl Eq for LRUItem {}
+
+        impl Ord for LRUItem {
+            fn cmp(&self, other: &Self) -> Ordering {
+                match (self.1.ready(), other.1.ready()) {
+                    (true, false) => Ordering::Greater,
+                    (false, true) => Ordering::Less,
+                    _ => self.2.cmp(&other.2),
+                }
+            }
+        }
+
+        // We calculate how many envelope stacks we want to keep track.
+        let max_lru_length =
+            ((self.priority_queue.len() as f32) * self.evictable_stacks_percentage) as usize;
+        let mut lru: BinaryHeap<LRUItem> = BinaryHeap::new();
+        relay_statsd::metric!(timer(RelayTimers::BufferEvictLRUConstruction), {
+            for (queue_item, priority) in self.priority_queue.iter() {
+                let lru_item = LRUItem(queue_item.key, priority.readiness, queue_item.last_update);
+
+                // If we exceed the size, we want to pop the greatest element only if we have a smaller
+                // element, so that we end up with the smallest elements which are the ones with the
+                // lowest priority.
+                if lru.len() >= max_lru_length {
+                    let Some(top_lru_item) = lru.peek() else {
+                        continue;
+                    };
+
+                    if lru_item < *top_lru_item {
+                        lru.pop();
+                    }
+                }
+
+                lru.push(lru_item);
+            }
+        });
+
+        // We go over each element and remove it from the stack. After removal, we will evict
+        // elements from each popped stack.
+        relay_statsd::metric!(timer(RelayTimers::BufferEvictStacksEviction), {
+            for lru_item in lru {
+                if let Some(mut stack) = self.pop_stack(lru_item.0) {
+                    stack.evict().await;
+                }
+            }
+        });
+    }
+
     /// Pushes a new [`EnvelopeStack`] with the given [`Envelope`] inserted.
     async fn push_stack(
         &mut self,
@@ -380,6 +476,7 @@ where
             QueueItem {
                 key: project_key_pair,
                 value: stack,
+                last_update: Instant::now(),
             },
             Priority::new(received_at),
         );
@@ -397,24 +494,30 @@ where
         Ok(())
     }
 
-    /// Returns `true` if the underlying storage has the capacity to store more envelopes.
-    pub fn has_capacity(&self) -> bool {
-        self.stack_provider.has_store_capacity()
-    }
-
-    /// Pops an [`EnvelopeStack`] with the supplied [`EnvelopeBufferError`].
-    fn pop_stack(&mut self, project_key_pair: ProjectKeyPair) {
+    /// Pops an [`EnvelopeStack`] with the supplied [`EnvelopeBufferError`] and returns the popped
+    /// [`EnvelopeStack`].
+    fn pop_stack(&mut self, project_key_pair: ProjectKeyPair) -> Option<P::Stack> {
         for project_key in project_key_pair.iter() {
-            self.stacks_by_project
+            let stack_keys = self
+                .stacks_by_project
                 .get_mut(&project_key)
-                .expect("project_key is missing from lookup")
-                .remove(&project_key_pair);
+                .expect("project_key is missing from lookup");
+
+            // If there is only one stack key, we can directly remove the entry to save some memory.
+            if stack_keys.len() == 1 {
+                self.stacks_by_project.remove(&project_key);
+            } else {
+                stack_keys.remove(&project_key_pair);
+            };
         }
-        self.priority_queue.remove(&project_key_pair);
+
+        let stack = self.priority_queue.remove(&project_key_pair);
 
         relay_statsd::metric!(
             gauge(RelayGauges::BufferStackCount) = self.priority_queue.len() as u64
         );
+
+        stack.map(|(q, _)| q.value)
     }
 
     /// Creates all the [`EnvelopeStack`]s with no data given a set of [`ProjectKeyPair`].
@@ -479,6 +582,7 @@ pub enum Peek<'a> {
 struct QueueItem<K, V> {
     key: K,
     value: V,
+    last_update: Instant,
 }
 
 impl<K, V> std::borrow::Borrow<K> for QueueItem<K, V> {
@@ -555,7 +659,7 @@ impl Ord for Priority {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
 struct Readiness {
     own_project_ready: bool,
     sampling_project_ready: bool,
@@ -653,7 +757,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_insert_pop() {
-        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(mock_memory_checker());
+        let config = mock_config("none");
+        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(&config, mock_memory_checker());
 
         let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
@@ -786,7 +891,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_project_internal_order() {
-        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(mock_memory_checker());
+        let config = mock_config("none");
+        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(&config, mock_memory_checker());
 
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
@@ -813,7 +919,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_sampling_projects() {
-        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(mock_memory_checker());
+        let config = mock_config("none");
+        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(&config, mock_memory_checker());
 
         let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fef").unwrap();
@@ -926,7 +1033,8 @@ mod tests {
 
         assert_ne!(project_key_pair1, project_key_pair2);
 
-        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(mock_memory_checker());
+        let config = mock_config("none");
+        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(&config, mock_memory_checker());
         buffer
             .push(new_envelope(project_key1, Some(project_key2), None))
             .await
@@ -940,7 +1048,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_last_peek_internal_order() {
-        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(mock_memory_checker());
+        let config = mock_config("none");
+        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(&config, mock_memory_checker());
 
         let project_key_1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let event_id_1 = EventId::new();
@@ -1020,5 +1129,42 @@ mod tests {
         // We expect to have an entry per project key, since we have 1 pair, the total entries
         // should be 2.
         assert_eq!(buffer.stacks_by_project.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_eviction() {
+        let config = mock_config("none");
+        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(&config, mock_memory_checker());
+
+        let project_key_1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
+        let project_key_2 = ProjectKey::parse("b56ae32be2584e0bbd7a4cbb95971fed").unwrap();
+        let project_key_3 = ProjectKey::parse("e23ae32be2584e0bbd7a4cbb95971fed").unwrap();
+
+        let envelopes = [
+            new_envelope(project_key_1, Some(project_key_2), Some(EventId::new())),
+            new_envelope(project_key_2, Some(project_key_1), Some(EventId::new())),
+            new_envelope(project_key_1, Some(project_key_3), Some(EventId::new())),
+            new_envelope(project_key_3, Some(project_key_1), Some(EventId::new())),
+        ];
+
+        for envelope in envelopes.clone() {
+            buffer.push(envelope).await.unwrap();
+            // We sleep to make sure that the `last_update` of `QueueItem` is different.
+            tokio::time::sleep(Duration::from_millis(1)).await;
+        }
+
+        buffer.mark_ready(&project_key_1, true);
+        buffer.mark_ready(&project_key_2, true);
+
+        buffer.evict().await;
+
+        assert_eq!(buffer.priority_queue.len(), 1);
+        let peek = buffer.peek().await.unwrap();
+        assert!(matches!(peek, Peek::Ready(_)));
+        if let Peek::Ready(envelope) = peek {
+            // We expect that only the 2nd envelope is kept, since the last 2 have non-ready projects
+            // and the first one is the oldest of the ones that are ready.
+            assert_eq!(envelope.event_id(), envelopes[1].event_id());
+        };
     }
 }
