@@ -237,10 +237,12 @@ impl EnvelopeStack for SqliteEnvelopeStack {
 
 impl Evictable for SqliteEnvelopeStack {
     async fn evict(&mut self) {
-        // We want to evict all elements in memory.
+        // We want to evict all elements in memory, even though the capacity check for the sqlite
+        // implementation is triggered only based on disk usage.
         self.batches_buffer.clear();
         self.batches_buffer_size = 0;
 
+        // We remove a fixed number of envelopes from disk to free up some space.
         if self
             .envelope_store
             .delete_many(
@@ -262,7 +264,6 @@ mod tests {
     use std::time::{Duration, Instant};
 
     use super::*;
-    use crate::services::buffer::envelope_store::sqlite::EnvelopesOrder;
     use crate::services::buffer::stack_provider::Evictable;
     use crate::services::buffer::testutils::utils::{mock_envelope, mock_envelopes, setup_db};
     use relay_base_schema::project::ProjectKey;
@@ -493,7 +494,7 @@ mod tests {
     #[tokio::test]
     async fn test_evict() {
         let db = setup_db(true).await;
-        let mut envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
+        let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
         let own_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let sampling_key = ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap();
         let mut stack =
@@ -509,15 +510,8 @@ mod tests {
         // We expect 0 in-memory data since we flushed the 5 in-memory envelopes.
         assert!(stack.batches_buffer.is_empty());
         assert_eq!(stack.batches_buffer_size, 0);
-        // We expect 2 out of the 10 envelopes on disk to have been flushed, so if we load 15, we
-        // should get 8 back.
-        assert_eq!(
-            envelope_store
-                .delete_many(own_key, sampling_key, 15, EnvelopesOrder::MostRecent)
-                .await
-                .unwrap()
-                .len(),
-            8
-        );
+        // We expect 2 out of the 10 envelopes on disk to have been flushed, so we should have 8
+        // on disk.
+        assert_eq!(envelope_store.total_count().await.unwrap(), 8);
     }
 }

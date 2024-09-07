@@ -205,12 +205,20 @@ impl EnvelopeBufferService {
         self.sleep = Duration::ZERO;
     }
 
+    /// Pushes an [`Envelope`] to the [`PolymorphicEnvelopeBuffer`].
     async fn push(&mut self, buffer: &mut PolymorphicEnvelopeBuffer, envelope: Box<Envelope>) {
         if let Err(e) = buffer.push(envelope).await {
             relay_log::error!(
                 error = &e as &dyn std::error::Error,
                 "failed to push envelope"
             );
+        }
+    }
+
+    /// Tries to evict elements from the [`PolymorphicEnvelopeBuffer`] if no capacity
+    async fn try_evict(&self, buffer: &mut PolymorphicEnvelopeBuffer) {
+        if !buffer.has_capacity() {
+            buffer.evict().await;
         }
     }
 
@@ -241,6 +249,8 @@ impl Service for EnvelopeBufferService {
             };
             buffer.initialize().await;
 
+            let mut ticker = tokio::time::interval(Duration::from_millis(100));
+
             relay_log::info!("EnvelopeBufferService start");
             loop {
                 relay_log::trace!("EnvelopeBufferService loop");
@@ -261,7 +271,9 @@ impl Service for EnvelopeBufferService {
                     Some(message) = rx.recv() => {
                         self.handle_message(&mut buffer, message).await;
                     }
-
+                    _ = ticker.tick() => {
+                        self.try_evict(&mut buffer).await;
+                    }
                     else => break,
                 }
 

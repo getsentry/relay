@@ -124,6 +124,14 @@ impl PolymorphicEnvelopeBuffer {
             Self::InMemory(buffer) => buffer.has_capacity(),
         }
     }
+
+    /// Evicts the least recently used envelope stacks from the buffer.
+    pub async fn evict(&mut self) {
+        match self {
+            Self::Sqlite(buffer) => buffer.evict().await,
+            Self::InMemory(buffer) => buffer.evict().await,
+        }
+    }
 }
 
 /// Error that occurs while interacting with the envelope buffer.
@@ -330,8 +338,8 @@ where
     /// Returns `true` if at least one priority was changed.
     pub fn mark_ready(&mut self, project: &ProjectKey, is_ready: bool) -> bool {
         let mut changed = false;
-        if let Some(project_key_pair) = self.stacks_by_project.get(project) {
-            for project_key_pair in project_key_pair {
+        if let Some(project_key_pairs) = self.stacks_by_project.get(project) {
+            for project_key_pair in project_key_pairs {
                 if let Some((
                     QueueItem {
                         key: _,
@@ -418,10 +426,15 @@ where
             }
         }
 
-        // We calculate how many envelope stacks we want to keep track.
+        // We calculate how many envelope stacks we want to evict.
         let max_lru_length =
-            ((self.priority_queue.len() as f32) * self.evictable_stacks_percentage) as usize;
-        let mut lru: BinaryHeap<LRUItem> = BinaryHeap::new();
+            ((self.priority_queue.len() as f32) * self.evictable_stacks_percentage).ceil() as usize;
+        relay_log::trace!(
+            "Evicting {} elements from the envelope buffer",
+            max_lru_length
+        );
+
+        let mut lru: BinaryHeap<LRUItem> = BinaryHeap::with_capacity(max_lru_length);
         relay_statsd::metric!(timer(RelayTimers::BufferEvictLRUConstruction), {
             for (queue_item, priority) in self.priority_queue.iter() {
                 let lru_item = LRUItem(queue_item.key, priority.readiness, queue_item.last_update);
@@ -743,7 +756,8 @@ mod tests {
         Config::from_json_value(serde_json::json!({
             "spool": {
                 "envelopes": {
-                    "path": path
+                    "path": path,
+                    "evictable_stacks_percentage": 0.7
                 }
             }
         }))
