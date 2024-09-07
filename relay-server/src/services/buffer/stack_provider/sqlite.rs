@@ -125,6 +125,8 @@ impl StackProvider for SqliteStackProvider {
     }
 
     async fn drain(mut self, envelope_stacks: impl IntoIterator<Item = Self::Stack>) {
+        relay_log::trace!("Draining sqlite envelope buffer");
+
         relay_statsd::metric!(timer(RelayTimers::BufferDrain), {
             let mut envelopes = Vec::with_capacity(self.drain_batch_size);
             for envelope_stack in envelope_stacks {

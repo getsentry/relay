@@ -2,12 +2,15 @@ import datetime
 import queue
 import os
 import gzip
+import sqlite3
+import tempfile
+
 import pytest
 import signal
 import zlib
 
 
-def test_graceful_shutdown(mini_sentry, relay):
+def test_graceful_shutdown_with_in_memory_buffer(mini_sentry, relay):
     from time import sleep
 
     get_project_config_original = mini_sentry.app.view_functions["get_project_config"]
@@ -17,14 +20,70 @@ def test_graceful_shutdown(mini_sentry, relay):
         sleep(1)  # Causes the process to wait for one second before shutting down
         return get_project_config_original()
 
-    relay = relay(mini_sentry, {"limits": {"shutdown_timeout": 2}})
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
+
+    relay = relay(
+        mini_sentry,
+        {
+            "limits": {"shutdown_timeout": 2},
+            "spool": {"envelopes": {"version": "experimental"}},
+        },
+    )
+
     relay.send_event(project_id)
 
     relay.shutdown(sig=signal.SIGTERM)
-    event = mini_sentry.captured_events.get(timeout=0).get_event()
-    assert event["logentry"] == {"formatted": "Hello, World!"}
+
+    # When using the memory envelope buffer, we do not flush envelopes, so we lose all of them.
+    assert mini_sentry.captured_events.empty()
+
+
+def test_graceful_shutdown_with_sqlite_buffer(mini_sentry, relay):
+    from time import sleep
+
+    # Create a temporary directory for the sqlite db.
+    db_file_path = os.path.join(tempfile.mkdtemp(), "database.db")
+
+    get_project_config_original = mini_sentry.app.view_functions["get_project_config"]
+
+    @mini_sentry.app.endpoint("get_project_config")
+    def get_project_config():
+        sleep(1)  # Causes the process to wait for one second before shutting down
+        return get_project_config_original()
+
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
+
+    relay = relay(
+        mini_sentry,
+        {
+            "limits": {"shutdown_timeout": 2},
+            "spool": {"envelopes": {"version": "experimental", "path": db_file_path}},
+        },
+    )
+
+    n = 10
+    for i in range(n):
+        relay.send_event(project_id)
+
+    relay.shutdown(sig=signal.SIGTERM)
+
+    # When using the disk envelope buffer, we don't forward envelopes, but we spool them to disk.
+    assert mini_sentry.captured_events.empty()
+
+    # Check if there's data in the SQLite table `envelopes`
+    conn = sqlite3.connect(db_file_path)
+    cursor = conn.cursor()
+
+    # Check if there's data in the `envelopes` table
+    cursor.execute("SELECT COUNT(*) FROM envelopes")
+    row_count = cursor.fetchone()[0]
+    assert (
+        row_count == n
+    ), f"The 'envelopes' table is empty. Expected {n} rows, but found {row_count}"
+
+    conn.close()
 
 
 @pytest.mark.skip("Flaky test")

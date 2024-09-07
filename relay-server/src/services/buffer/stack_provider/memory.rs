@@ -42,5 +42,7 @@ impl StackProvider for MemoryStackProvider {
         "memory"
     }
 
-    async fn drain(self, _: impl IntoIterator<Item = Self::Stack>) {}
+    async fn drain(self, _: impl IntoIterator<Item = Self::Stack>) {
+        relay_log::trace!("Draining memory envelope buffer");
+    }
 }

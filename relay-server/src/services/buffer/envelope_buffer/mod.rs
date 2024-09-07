@@ -50,9 +50,11 @@ impl PolymorphicEnvelopeBuffer {
         memory_checker: MemoryChecker,
     ) -> Result<Self, EnvelopeBufferError> {
         let buffer = if config.spool_envelopes_path().is_some() {
+            relay_log::trace!("Initializing sqlite envelope buffer");
             let buffer = EnvelopeBuffer::<SqliteStackProvider>::new(config).await?;
             Self::Sqlite(buffer)
         } else {
+            relay_log::trace!("Initializing memory envelope buffer");
             let buffer = EnvelopeBuffer::<MemoryStackProvider>::new(memory_checker);
             Self::InMemory(buffer)
         };

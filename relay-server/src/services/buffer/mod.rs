@@ -142,14 +142,14 @@ impl EnvelopeBufferService {
         &mut self,
         buffer: &mut PolymorphicEnvelopeBuffer,
     ) -> Result<(), EnvelopeBufferError> {
-        relay_log::trace!("EnvelopeBufferService peek");
+        relay_log::trace!("EnvelopeBufferService: peeking the buffer");
         match buffer.peek().await? {
             Peek::Empty => {
-                relay_log::trace!("EnvelopeBufferService empty");
+                relay_log::trace!("EnvelopeBufferService: peek returned empty");
                 self.sleep = Duration::MAX; // wait for reset by `handle_message`.
             }
             Peek::Ready(_) => {
-                relay_log::trace!("EnvelopeBufferService pop");
+                relay_log::trace!("EnvelopeBufferService: popping envelope");
                 let envelope = buffer
                     .pop()
                     .await?
@@ -160,7 +160,7 @@ impl EnvelopeBufferService {
                 self.sleep = Duration::ZERO; // try next pop immediately
             }
             Peek::NotReady(stack_key, envelope) => {
-                relay_log::trace!("EnvelopeBufferService request update");
+                relay_log::trace!("EnvelopeBufferService: project(s) of envelope not ready, requesting project update");
                 let project_key = envelope.meta().public_key();
                 self.project_cache.send(UpdateProject(project_key));
                 match envelope.sampling_key() {
@@ -190,17 +190,23 @@ impl EnvelopeBufferService {
                 // projects was already triggered (see XXX).
                 // For better separation of concerns, this prefetch should be triggered from here
                 // once buffer V1 has been removed.
-                relay_log::trace!("EnvelopeBufferService push");
+                relay_log::trace!("EnvelopeBufferService: received push message");
                 self.push(buffer, envelope).await;
             }
             EnvelopeBuffer::NotReady(project_key, envelope) => {
-                relay_log::trace!("EnvelopeBufferService project not ready");
+                relay_log::trace!(
+                    "EnvelopeBufferService: received project not ready message for project key {}",
+                    &project_key
+                );
                 buffer.mark_ready(&project_key, false);
                 relay_statsd::metric!(counter(RelayCounters::BufferEnvelopesReturned) += 1);
                 self.push(buffer, envelope).await;
             }
             EnvelopeBuffer::Ready(project_key) => {
-                relay_log::trace!("EnvelopeBufferService project ready {}", &project_key);
+                relay_log::trace!(
+                    "EnvelopeBufferService: received project ready message for project key {}",
+                    &project_key
+                );
                 buffer.mark_ready(&project_key, true);
             }
         };
@@ -210,6 +216,8 @@ impl EnvelopeBufferService {
     async fn handle_shutdown(&mut self, buffer: PolymorphicEnvelopeBuffer, message: Shutdown) {
         // We gracefully shut down only if the shutdown has a timeout.
         if let Some(shutdown_timeout) = message.timeout {
+            relay_log::trace!("EnvelopeBufferService: shutting down gracefully");
+
             let shutdown_result = timeout(shutdown_timeout, async {
                 buffer.shutdown().await;
             })
@@ -261,9 +269,9 @@ impl Service for EnvelopeBufferService {
 
             let mut shutdown = Controller::shutdown_handle();
 
-            relay_log::info!("EnvelopeBufferService start");
+            relay_log::info!("EnvelopeBufferService: starting");
             loop {
-                relay_log::trace!("EnvelopeBufferService loop");
+                relay_log::trace!("EnvelopeBufferService: looping");
 
                 tokio::select! {
                     // NOTE: we do not select a bias here.
@@ -292,7 +300,7 @@ impl Service for EnvelopeBufferService {
                 self.update_observable_state(&mut buffer);
             }
 
-            relay_log::info!("EnvelopeBufferService stop");
+            relay_log::info!("EnvelopeBufferService: stopping");
         });
     }
 }
