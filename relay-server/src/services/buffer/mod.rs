@@ -208,6 +208,7 @@ impl EnvelopeBufferService {
     }
 
     async fn handle_shutdown(&mut self, buffer: PolymorphicEnvelopeBuffer, message: Shutdown) {
+        // We gracefully shut down only if the shutdown has a timeout.
         if let Some(shutdown_timeout) = message.timeout {
             let shutdown_result = timeout(shutdown_timeout, async {
                 buffer.shutdown().await;
