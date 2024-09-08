@@ -27,6 +27,7 @@
 - Remove the OTEL spans endpoint in favor of Envelopes. ([#3973](https://github.com/getsentry/relay/pull/3973))
 - Remove the `generate-schema` tool. Relay no longer exposes JSON schema for the event protocol. Consult the Rust type documentation of the `relay-event-schema` crate instead. ([#3974](https://github.com/getsentry/relay/pull/3974))
 - Allow creation of `SqliteEnvelopeBuffer` from config, and load existing stacks from db on startup. ([#3967](https://github.com/getsentry/relay/pull/3967))
+- Add tests for `SchemeDomainPort`. ([#4015](https://github.com/getsentry/relay/pull/4015))
 
 ## 24.8.0
 
