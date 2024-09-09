@@ -177,7 +177,8 @@ impl ServiceState {
         .start();
         let outcome_aggregator = OutcomeAggregator::new(&config, outcome_producer.clone()).start();
 
-        let global_config = GlobalConfigService::new(config.clone(), upstream_relay.clone());
+        let (global_config, global_config_rx) =
+            GlobalConfigService::new(config.clone(), upstream_relay.clone());
         let global_config_handle = global_config.handle();
         // The global config service must start before dependant services are
         // started. Messages like subscription requests to the global config
@@ -256,13 +257,13 @@ impl ServiceState {
             project_cache: project_cache.clone(),
             test_store: test_store.clone(),
             upstream_relay: upstream_relay.clone(),
-            global_config: global_config.clone(),
         };
 
         ProjectCacheService::new(
             config.clone(),
             MemoryChecker::new(memory_stat.clone(), config.clone()),
             project_cache_services,
+            global_config_rx,
             redis_pools
                 .as_ref()
                 .map(|pools| pools.project_configs.clone()),

@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use crate::extractors::RequestMeta;
 use crate::services::buffer::{EnvelopeBuffer, EnvelopeBufferError};
+use crate::services::global_config;
 use crate::services::processor::{
     EncodeMetrics, EnvelopeProcessor, MetricData, ProcessEnvelope, ProcessingGroup, ProjectMetrics,
 };
@@ -19,12 +20,11 @@ use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, Sender, Service};
-use tokio::sync::mpsc;
 #[cfg(feature = "processing")]
 use tokio::sync::Semaphore;
+use tokio::sync::{mpsc, watch};
 use tokio::time::Instant;
 
-use crate::services::global_config::{self, GlobalConfigManager, Subscribe};
 use crate::services::metrics::{Aggregator, FlushBuckets};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::project::{Project, ProjectFetchState, ProjectSender, ProjectState};
@@ -585,7 +585,6 @@ pub struct Services {
     pub project_cache: Addr<ProjectCache>,
     pub test_store: Addr<TestStore>,
     pub upstream_relay: Addr<UpstreamRelay>,
-    pub global_config: Addr<GlobalConfigManager>,
 }
 
 /// Main broker of the [`ProjectCacheService`].
@@ -1345,6 +1344,7 @@ pub struct ProjectCacheService {
     config: Arc<Config>,
     memory_checker: MemoryChecker,
     services: Services,
+    global_config_rx: watch::Receiver<global_config::Status>,
     redis: Option<RedisPool>,
 }
 
@@ -1354,12 +1354,14 @@ impl ProjectCacheService {
         config: Arc<Config>,
         memory_checker: MemoryChecker,
         services: Services,
+        global_config_rx: watch::Receiver<global_config::Status>,
         redis: Option<RedisPool>,
     ) -> Self {
         Self {
             config,
             memory_checker,
             services,
+            global_config_rx,
             redis,
         }
     }
@@ -1373,6 +1375,7 @@ impl Service for ProjectCacheService {
             config,
             memory_checker,
             services,
+            mut global_config_rx,
             redis,
         } = self;
         let project_cache = services.project_cache.clone();
@@ -1386,15 +1389,7 @@ impl Service for ProjectCacheService {
             // Channel for async project state responses back into the project cache.
             let (state_tx, mut state_rx) = mpsc::unbounded_channel();
 
-            let Ok(mut subscription) = services.global_config.send(Subscribe).await else {
-                // TODO(iker): we accept this sub-optimal error handling. TBD
-                // the approach to deal with failures on the subscription
-                // mechanism.
-                relay_log::error!("failed to subscribe to GlobalConfigService");
-                return;
-            };
-
-            let global_config = match subscription.borrow().clone() {
+            let global_config = match global_config_rx.borrow().clone() {
                 global_config::Status::Ready(_) => {
                     relay_log::info!("global config received");
                     GlobalConfigStatus::Ready
@@ -1469,9 +1464,9 @@ impl Service for ProjectCacheService {
                 tokio::select! {
                     biased;
 
-                    Ok(()) = subscription.changed() => {
+                    Ok(()) = global_config_rx.changed() => {
                         metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "update_global_config", {
-                            match subscription.borrow().clone() {
+                            match global_config_rx.borrow().clone() {
                                 global_config::Status::Ready(_) => broker.set_global_config_ready(),
                                 // The watch should only be updated if it gets a new value.
                                 // This would imply a logical bug.
@@ -1591,7 +1586,6 @@ mod tests {
         let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
         let (test_store, _) = mock_service("test_store", (), |&mut (), _| {});
         let (upstream_relay, _) = mock_service("upstream_relay", (), |&mut (), _| {});
-        let (global_config, _) = mock_service("global_config", (), |&mut (), _| {});
 
         Services {
             envelope_buffer: None,
@@ -1601,7 +1595,6 @@ mod tests {
             outcome_aggregator,
             test_store,
             upstream_relay,
-            global_config,
         }
     }
 
