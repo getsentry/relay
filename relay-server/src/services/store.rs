@@ -6,7 +6,7 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::error::Error;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use bytes::Bytes;
 use relay_base_schema::data_category::DataCategory;
@@ -1064,7 +1064,12 @@ impl Service for StoreService {
                             .spawn(move || service.handle_message(message))
                             .await;
                     },
-                    Shutdown{ timeout: Some(timeout) } = shutdown.notified() => this.flush(),
+                    Shutdown{ timeout: Some(timeout) } = shutdown.notified() => {
+                        let service = Arc::clone(&this);
+                        this.workers.spawn(move || {
+                            service.flush(timeout);
+                        }).await;
+                    },
                     else => break,
                 }
             }
