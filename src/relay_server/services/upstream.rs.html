@@ -1540,6 +1540,9 @@
 <a href="#1540" id="1540">1540</a>
 <a href="#1541" id="1541">1541</a>
 <a href="#1542" id="1542">1542</a>
+<a href="#1543" id="1543">1543</a>
+<a href="#1544" id="1544">1544</a>
+<a href="#1545" id="1545">1545</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Service to communicate with the upstream.
 //!
 //! Most importantly, this module declares the [`UpstreamRelay`] service and its main implementation
@@ -2744,10 +2747,13 @@
                     }
                 }
                 <span class="prelude-val">Err</span>(err) =&gt; {
-                    <span class="macro">relay_log::error!</span>(
-                        error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
-                        <span class="string">"authentication encountered error"
-                    </span>);
+                    <span class="kw">if </span>backoff.attempt() &gt; <span class="number">1 </span>{
+                        <span class="macro">relay_log::error!</span>(
+                            error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
+                            tags.attempts = backoff.attempt(),
+                            <span class="string">"authentication encountered error"</span>,
+                        );
+                    }
 
                     <span class="comment">// ChannelClosed indicates that there are no more listeners, so we stop
                     // authenticating.
