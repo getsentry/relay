@@ -184,8 +184,8 @@ impl DiskUsage {
 /// database.
 #[derive(Debug, Copy, Clone)]
 pub enum EnvelopesOrder {
-    MostRecent,
-    Oldest,
+    NewestFirst,
+    OldestFirst,
 }
 
 /// Struct that offers access to a SQLite-based store of [`Envelope`]s.
@@ -332,10 +332,10 @@ impl SqliteEnvelopeStore {
         envelopes_order: EnvelopesOrder,
     ) -> Result<Vec<Box<Envelope>>, SqliteEnvelopeStoreError> {
         let query = match envelopes_order {
-            EnvelopesOrder::MostRecent => {
+            EnvelopesOrder::NewestFirst => {
                 build_delete_and_fetch_many_recent_envelopes(own_key, sampling_key, limit)
             }
-            EnvelopesOrder::Oldest => {
+            EnvelopesOrder::OldestFirst => {
                 build_delete_and_fetch_many_old_envelopes(own_key, sampling_key, limit)
             }
         };
@@ -581,7 +581,7 @@ mod tests {
 
         // We check that if we load more than the limit, we still get back at most 10.
         let extracted_envelopes = envelope_store
-            .delete_many(own_key, sampling_key, 15, EnvelopesOrder::MostRecent)
+            .delete_many(own_key, sampling_key, 15, EnvelopesOrder::NewestFirst)
             .await
             .unwrap();
         assert_eq!(envelopes.len(), 10);

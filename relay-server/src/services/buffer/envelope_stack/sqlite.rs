@@ -132,7 +132,7 @@ impl SqliteEnvelopeStack {
                     self.own_key,
                     self.sampling_key,
                     self.batch_size.get() as i64,
-                    EnvelopesOrder::MostRecent,
+                    EnvelopesOrder::NewestFirst,
                 )
                 .await
                 .map_err(SqliteEnvelopeStackError::EnvelopeStoreError)?
@@ -249,7 +249,7 @@ impl Evictable for SqliteEnvelopeStack {
                 self.own_key,
                 self.sampling_key,
                 self.max_evictable_envelopes.get() as i64,
-                EnvelopesOrder::Oldest,
+                EnvelopesOrder::OldestFirst,
             )
             .await
             .is_err()

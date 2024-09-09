@@ -204,11 +204,12 @@ impl EnvelopeBufferService {
                 buffer.mark_ready(&project_key, true);
             }
         };
+
         self.sleep = Duration::ZERO;
     }
 
     /// Pushes an [`Envelope`] to the [`PolymorphicEnvelopeBuffer`].
-    async fn push(&mut self, buffer: &mut PolymorphicEnvelopeBuffer, envelope: Box<Envelope>) {
+    async fn push(&self, buffer: &mut PolymorphicEnvelopeBuffer, envelope: Box<Envelope>) {
         if let Err(e) = buffer.push(envelope).await {
             relay_log::error!(
                 error = &e as &dyn std::error::Error,

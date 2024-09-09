@@ -234,9 +234,9 @@ where
         let project_key_pair = ProjectKeyPair::from_envelope(&envelope);
         if let Some((
             QueueItem {
-                key: _,
                 value: stack,
                 last_update,
+                ..
             },
             _,
         )) = self.priority_queue.get_mut(&project_key_pair)
@@ -270,7 +270,7 @@ where
             QueueItem {
                 key: stack_key,
                 value: stack,
-                last_update: _,
+                ..
             },
             Priority { readiness, .. },
         )) = self.priority_queue.peek_mut()
@@ -294,9 +294,7 @@ where
     pub async fn pop(&mut self) -> Result<Option<Box<Envelope>>, EnvelopeBufferError> {
         let Some((
             QueueItem {
-                key,
-                value: stack,
-                last_update: _,
+                key, value: stack, ..
             },
             _,
         )) = self.priority_queue.peek_mut()
@@ -340,14 +338,8 @@ where
         let mut changed = false;
         if let Some(project_key_pairs) = self.stacks_by_project.get(project) {
             for project_key_pair in project_key_pairs {
-                if let Some((
-                    QueueItem {
-                        key: _,
-                        value: _,
-                        last_update,
-                    },
-                    _,
-                )) = self.priority_queue.get_mut(project_key_pair)
+                if let Some((QueueItem { last_update, .. }, _)) =
+                    self.priority_queue.get_mut(project_key_pair)
                 {
                     *last_update = Instant::now();
                 };
