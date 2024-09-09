@@ -137,9 +137,12 @@ pub enum EnvelopeBufferError {
 
     #[error("failed to push envelope to the buffer")]
     PushFailed,
+}
 
-    #[error("impossible")]
-    Impossible(#[from] Infallible),
+impl From<Infallible> for EnvelopeBufferError {
+    fn from(value: Infallible) -> Self {
+        match value {}
+    }
 }
 
 /// An envelope buffer that holds an individual stack for each project/sampling project combination.
