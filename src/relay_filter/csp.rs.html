@@ -511,6 +511,46 @@
 <a href="#511" id="511">511</a>
 <a href="#512" id="512">512</a>
 <a href="#513" id="513">513</a>
+<a href="#514" id="514">514</a>
+<a href="#515" id="515">515</a>
+<a href="#516" id="516">516</a>
+<a href="#517" id="517">517</a>
+<a href="#518" id="518">518</a>
+<a href="#519" id="519">519</a>
+<a href="#520" id="520">520</a>
+<a href="#521" id="521">521</a>
+<a href="#522" id="522">522</a>
+<a href="#523" id="523">523</a>
+<a href="#524" id="524">524</a>
+<a href="#525" id="525">525</a>
+<a href="#526" id="526">526</a>
+<a href="#527" id="527">527</a>
+<a href="#528" id="528">528</a>
+<a href="#529" id="529">529</a>
+<a href="#530" id="530">530</a>
+<a href="#531" id="531">531</a>
+<a href="#532" id="532">532</a>
+<a href="#533" id="533">533</a>
+<a href="#534" id="534">534</a>
+<a href="#535" id="535">535</a>
+<a href="#536" id="536">536</a>
+<a href="#537" id="537">537</a>
+<a href="#538" id="538">538</a>
+<a href="#539" id="539">539</a>
+<a href="#540" id="540">540</a>
+<a href="#541" id="541">541</a>
+<a href="#542" id="542">542</a>
+<a href="#543" id="543">543</a>
+<a href="#544" id="544">544</a>
+<a href="#545" id="545">545</a>
+<a href="#546" id="546">546</a>
+<a href="#547" id="547">547</a>
+<a href="#548" id="548">548</a>
+<a href="#549" id="549">549</a>
+<a href="#550" id="550">550</a>
+<a href="#551" id="551">551</a>
+<a href="#552" id="552">552</a>
+<a href="#553" id="553">553</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Implements event filtering for events originating from CSP endpoints
 //!
 //! Events originating from a CSP message can be filtered based on the source URL
@@ -745,6 +785,12 @@
             (<span class="string">"abc.com/something]:"</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">"abc.com"</span>), <span class="prelude-val">None</span>),
             (<span class="string">"abc.co]m/[something:"</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">"abc.co]m"</span>), <span class="prelude-val">None</span>),
             (<span class="string">"]abc.com:9000"</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">"]abc.com"</span>), <span class="prelude-val">Some</span>(<span class="string">"9000"</span>)),
+            (
+                <span class="string">"https://api.example.com/foo/00000000-0000-0000-0000-000000000000?includes[]=user&amp;includes[]=image&amp;includes[]=author&amp;includes[]=tag"</span>,
+                <span class="prelude-val">Some</span>(<span class="string">"https"</span>),
+                <span class="prelude-val">Some</span>(<span class="string">"api.example.com"</span>),
+                <span class="prelude-val">None</span>,
+            )
         ];
 
         <span class="kw">for </span>(url, scheme, domain, port) <span class="kw">in </span>examples {
@@ -778,6 +824,40 @@
                 <span class="prelude-val">Some</span>(<span class="string">"[1fff:0:a88:85a3::ac1f]"</span>),
                 <span class="prelude-val">Some</span>(<span class="string">"8001"</span>),
             ),
+            <span class="comment">// invalid IPv6 for localhost since it's not inside brackets
+            </span>(<span class="string">"::1"</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">":"</span>), <span class="prelude-val">Some</span>(<span class="string">"1"</span>)),
+            (<span class="string">"[::1]"</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">"[::1]"</span>), <span class="prelude-val">None</span>),
+            (
+                <span class="string">"http://[fe80::862a:fdff:fe78:a2bf%13]"</span>,
+                <span class="prelude-val">Some</span>(<span class="string">"http"</span>),
+                <span class="prelude-val">Some</span>(<span class="string">"[fe80::862a:fdff:fe78:a2bf%13]"</span>),
+                <span class="prelude-val">None</span>,
+            ),
+            <span class="comment">// invalid addresses. although these results don't represent correct results,
+            // they are here to make sure the application won't crash.
+            </span>(<span class="string">"192.168.1.1.1"</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">"192.168.1.1.1"</span>), <span class="prelude-val">None</span>),
+            (<span class="string">"192.168.1.300"</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">"192.168.1.300"</span>), <span class="prelude-val">None</span>),
+            (
+                <span class="string">"[2001:0db8:85a3:::8a2e:0370:7334]"</span>,
+                <span class="prelude-val">None</span>,
+                <span class="prelude-val">Some</span>(<span class="string">"[2001:0db8:85a3:::8a2e:0370:7334]"</span>),
+                <span class="prelude-val">None</span>,
+            ),
+            (<span class="string">"[fe80::1::]"</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">"[fe80::1::]"</span>), <span class="prelude-val">None</span>),
+            (<span class="string">"fe80::1::"</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">"fe80::1:"</span>), <span class="prelude-val">Some</span>(<span class="string">""</span>)),
+            (
+                <span class="string">"[2001:0db8:85a3:xyz::8a2e:0370:7334]"</span>,
+                <span class="prelude-val">None</span>,
+                <span class="prelude-val">Some</span>(<span class="string">"[2001:0db8:85a3:xyz::8a2e:0370:7334]"</span>),
+                <span class="prelude-val">None</span>,
+            ),
+            (
+                <span class="string">"2001:0db8:85a3:xyz::8a2e:0370:7334"</span>,
+                <span class="prelude-val">None</span>,
+                <span class="prelude-val">Some</span>(<span class="string">"2001:0db8:85a3:xyz::8a2e:0370"</span>),
+                <span class="prelude-val">Some</span>(<span class="string">"7334"</span>),
+            ),
+            (<span class="string">"192.168.0.1/24"</span>, <span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="string">"192.168.0.1"</span>), <span class="prelude-val">None</span>),
         ];
 
         <span class="kw">for </span>(url, scheme, domain, port) <span class="kw">in </span>examples {
