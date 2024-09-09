@@ -1022,6 +1022,9 @@
 <a href="#1022" id="1022">1022</a>
 <a href="#1023" id="1023">1023</a>
 <a href="#1024" id="1024">1024</a>
+<a href="#1025" id="1025">1025</a>
+<a href="#1026" id="1026">1026</a>
+<a href="#1027" id="1027">1027</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::cmp::Ordering;
 <span class="kw">use </span>std::collections::BTreeSet;
 <span class="kw">use </span>std::convert::Infallible;
@@ -1161,9 +1164,12 @@
 
     <span class="attr">#[error(<span class="string">"failed to push envelope to the buffer"</span>)]
     </span>PushFailed,
+}
 
-    <span class="attr">#[error(<span class="string">"impossible"</span>)]
-    </span>Impossible(<span class="attr">#[from] </span>Infallible),
+<span class="kw">impl </span>From&lt;Infallible&gt; <span class="kw">for </span>EnvelopeBufferError {
+    <span class="kw">fn </span>from(value: Infallible) -&gt; <span class="self">Self </span>{
+        <span class="kw">match </span>value {}
+    }
 }
 
 <span class="doccomment">/// An envelope buffer that holds an individual stack for each project/sampling project combination.
