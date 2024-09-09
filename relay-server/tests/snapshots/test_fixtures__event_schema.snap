@@ -3501,6 +3501,10 @@ expression: "relay_event_schema::protocol::event_json_schema()"
               "description": " The \"namespace\" within which `code.function` is defined.\n\n Usually the qualified class or module name, such that\n `code.namespace + some separator + code.function`\n form a unique identifier for the code unit.",
               "default": null
             },
+            "db.collection.name": {
+              "description": " The name of a collection (table, container) within the database.\n\n See [OpenTelemetry's database span semantic conventions](https://opentelemetry.io/docs/specs/semconv/database/database-spans/#common-attributes).",
+              "default": null
+            },
             "db.operation": {
               "description": " The name of the operation being executed.\n\n E.g. the MongoDB command name such as findAndModify, or the SQL keyword.\n Based on [OpenTelemetry's call level db attributes](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions/database.md#call-level-attributes).",
               "default": null

@@ -10,7 +10,6 @@ flake8==7.0.0
 confluent-kafka==2.1.1
 flask==3.0.3
 msgpack==1.0.7
-opentelemetry-proto==1.22.0
 pytest-localserver==0.8.1
 pytest-sentry==0.3.0
 pytest-xdist==3.5.0

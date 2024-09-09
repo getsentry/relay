@@ -1,5 +1,3 @@
-#[cfg(feature = "jsonschema")]
-use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{Annotated, Array, Empty, FromValue, IntoValue, Object};
 
 use crate::processor::ProcessValue;
@@ -8,7 +6,6 @@ pub type MetricSummaryMapping = Object<Array<MetricSummary>>;
 
 /// A collection of [`MetricSummary`] items keyed by the metric.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct MetricsSummary(pub MetricSummaryMapping);
 
 impl MetricsSummary {
@@ -23,7 +20,6 @@ impl MetricsSummary {
 /// The summary contains specific aggregate values that the metric had during the span's lifetime. A single span can
 /// have the same metric emitted multiple times, which is the reason for aggregates being computed in each summary.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct MetricSummary {
     /// Minimum value of the metric.
     pub min: Annotated<f64>,

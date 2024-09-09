@@ -4,6 +4,7 @@
 
 **Bug Fixes**:
 
+- Use `matches_any_origin` to scrub HTTP hosts in spans. ([#3939](https://github.com/getsentry/relay/pull/3939)).
 - Keep frames from both ends of the stacktrace when trimming frames. ([#3905](https://github.com/getsentry/relay/pull/3905))
 
 **Features**:
@@ -18,10 +19,14 @@
 - Record too long discard reason for session replays. ([#3950](https://github.com/getsentry/relay/pull/3950))
 - Add `EnvelopeStore` trait and implement `DiskUsage` for tracking disk usage. ([#3925](https://github.com/getsentry/relay/pull/3925))
 - Increase replay recording limit to two hours. ([#3961](https://github.com/getsentry/relay/pull/3961))
-
-**Internal**:
-
+- Forward profiles of non-sampled transactions (with no options filtering). ([#3963](https://github.com/getsentry/relay/pull/3963))
+- Make EnvelopeBuffer a Service. ([#3965](https://github.com/getsentry/relay/pull/3965))
 - No longer send COGS data to dedicated Kafka topic. ([#3953](https://github.com/getsentry/relay/pull/3953))
+- Remove support for extrapolation of metrics. ([#3969](https://github.com/getsentry/relay/pull/3969))
+- Remove the internal dashboard that shows logs and metrics. ([#3970](https://github.com/getsentry/relay/pull/3970))
+- Remove the OTEL spans endpoint in favor of Envelopes. ([#3973](https://github.com/getsentry/relay/pull/3973))
+- Remove the `generate-schema` tool. Relay no longer exposes JSON schema for the event protocol. Consult the Rust type documentation of the `relay-event-schema` crate instead. ([#3974](https://github.com/getsentry/relay/pull/3974))
+- Allow creation of `SqliteEnvelopeBuffer` from config, and load existing stacks from db on startup. ([#3967](https://github.com/getsentry/relay/pull/3967))
 
 ## 24.8.0
 
@@ -40,6 +45,7 @@
 - Collect SDK information in profile chunks. ([#3882](https://github.com/getsentry/relay/pull/3882))
 - Introduce `trim = "disabled"` type attribute to prevent trimming of spans. ([#3877](https://github.com/getsentry/relay/pull/3877))
 - Make the tcp listen backlog configurable and raise the default to 1024. ([#3899](https://github.com/getsentry/relay/pull/3899))
+- Add experimental support for MongoDB query normalization. ([#3912](https://github.com/getsentry/relay/pull/3912))
 - Extract `user.geo.country_code` into span indexed. ([#3911](https://github.com/getsentry/relay/pull/3911))
 - Add `span.system` tag to span metrics ([#3913](https://github.com/getsentry/relay/pull/3913))
 - Switch glob implementations from `regex` to `regex-lite`. ([#3926](https://github.com/getsentry/relay/pull/3926))

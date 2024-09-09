@@ -1,5 +1,3 @@
-#[cfg(feature = "jsonschema")]
-use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
 
 use crate::processor::ProcessValue;
@@ -10,7 +8,6 @@ use crate::processor::ProcessValue;
 /// We don't PII scrub contact_email as that is provided by the user.
 /// TODO(jferg): rename to FeedbackContext once old UserReport logic is deprecated.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct UserReportV2Context {
     /// The feedback message which contains what the user has to say.
     pub message: Annotated<String>,

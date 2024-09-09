@@ -1,7 +1,5 @@
 mod convert;
 
-#[cfg(feature = "jsonschema")]
-use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{Annotated, Empty, Error, FromValue, Getter, IntoValue, Object, Val, Value};
 
 use crate::processor::ProcessValue;
@@ -11,7 +9,6 @@ use crate::protocol::{
 };
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_span", value_type = "Span")]
 pub struct Span {
     /// Timestamp when the span was ended.
@@ -192,7 +189,6 @@ impl Getter for Span {
 /// Besides arbitrary user data, this type also contains SDK-provided fields used by the
 /// product (see <https://develop.sentry.dev/sdk/performance/span-data-conventions/>).
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct SpanData {
     /// Mobile app start variant.
     ///
@@ -247,6 +243,18 @@ pub struct SpanData {
     /// See [OpenTelemetry docs for a list of well-known identifiers](https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/trace/semantic_conventions/database.md#notes-and-well-known-identifiers-for-dbsystem).
     #[metastructure(field = "db.system")]
     pub db_system: Annotated<Value>,
+
+    /// The name of a collection (table, container) within the database.
+    ///
+    /// See [OpenTelemetry's database span semantic conventions](https://opentelemetry.io/docs/specs/semconv/database/database-spans/#common-attributes).
+    #[metastructure(
+        field = "db.collection.name",
+        legacy_alias = "db.cassandra.table",
+        legacy_alias = "db.cosmosdb.container",
+        legacy_alias = "db.mongodb.collection",
+        legacy_alias = "db.sql.table"
+    )]
+    pub db_collection_name: Annotated<Value>,
 
     /// The sentry environment.
     #[metastructure(field = "sentry.environment", legacy_alias = "environment")]
@@ -478,7 +486,6 @@ impl Getter for SpanData {
 
 /// The route in the application, set by React Native SDK.
 #[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Route {
     /// The name of the route.
     #[metastructure(pii = "maybe", skip_serialization = "empty")]
@@ -747,6 +754,7 @@ mod tests {
             db_system: String(
                 "mysql",
             ),
+            db_collection_name: ~,
             environment: ~,
             release: ~,
             http_decoded_response_content_length: ~,

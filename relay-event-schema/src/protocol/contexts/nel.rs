@@ -1,5 +1,3 @@
-#[cfg(feature = "jsonschema")]
-use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
 
 use crate::processor::ProcessValue;
@@ -13,7 +11,6 @@ use crate::protocol::{IpAddr, NetworkReportPhases};
 /// - [W3C Editor's Draft](https://w3c.github.io/network-error-logging/)
 /// - [MDN](https://developer.mozilla.org/en-US/docs/Web/HTTP/Network_Error_Logging)
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct NelContext {
     /// If request failed, the type of its network error. If request succeeded, "ok".
     pub error_type: Annotated<String>,

@@ -25,11 +25,11 @@ use relay_protocol::{
     RemarkType, Value,
 };
 use smallvec::SmallVec;
-use url::Host;
 use uuid::Uuid;
 
 use crate::normalize::request;
 use crate::span::ai::normalize_ai_measurements;
+use crate::span::description::ScrubMongoDescription;
 use crate::span::tag_extraction::extract_span_tags_from_event;
 use crate::utils::{self, get_event_user_tag, MAX_DURATION_MOBILE_MS};
 use crate::{
@@ -157,7 +157,10 @@ pub struct NormalizationConfig<'a> {
     pub replay_id: Option<Uuid>,
 
     /// Controls list of hosts to be excluded from scrubbing
-    pub span_allowed_hosts: &'a [Host],
+    pub span_allowed_hosts: &'a [String],
+
+    /// Controls whether or not MongoDB span descriptions will be scrubbed.
+    pub scrub_mongo_description: ScrubMongoDescription,
 }
 
 impl<'a> Default for NormalizationConfig<'a> {
@@ -190,6 +193,7 @@ impl<'a> Default for NormalizationConfig<'a> {
             normalize_spans: true,
             replay_id: Default::default(),
             span_allowed_hosts: Default::default(),
+            scrub_mongo_description: ScrubMongoDescription::Disabled,
         }
     }
 }
@@ -332,6 +336,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
             event,
             config.max_tag_value_length,
             config.span_allowed_hosts,
+            config.scrub_mongo_description,
         );
     }
 
@@ -3375,6 +3380,107 @@ mod tests {
           },
           "score.weight.inp": {
             "value": 1.0,
+            "unit": "ratio",
+          },
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_computes_standalone_cls_performance_score() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "cls": {"value": 0.5}
+            }
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+            {
+                "name": "Default",
+                "scoreComponents": [
+                    {
+                        "measurement": "fcp",
+                        "weight": 0.15,
+                        "p10": 900.0,
+                        "p50": 1600.0,
+                        "optional": true,
+                    },
+                    {
+                        "measurement": "lcp",
+                        "weight": 0.30,
+                        "p10": 1200.0,
+                        "p50": 2400.0,
+                        "optional": true,
+                    },
+                    {
+                        "measurement": "cls",
+                        "weight": 0.15,
+                        "p10": 0.1,
+                        "p50": 0.25,
+                        "optional": true,
+                    },
+                    {
+                        "measurement": "ttfb",
+                        "weight": 0.10,
+                        "p10": 200.0,
+                        "p50": 400.0,
+                        "optional": true,
+                    },
+                ],
+                "condition": {
+                    "op": "and",
+                    "inner": [],
+                },
+            }
+            ]
+        }))
+        .unwrap();
+
+        normalize(
+            &mut event,
+            &mut Meta::default(),
+            &NormalizationConfig {
+                performance_score: Some(&performance_score),
+                ..Default::default()
+            },
+        );
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&event.measurements), {}, @r###"
+        {
+          "cls": {
+            "value": 0.5,
+            "unit": "none",
+          },
+          "score.cls": {
+            "value": 0.16615877613713903,
+            "unit": "ratio",
+          },
+          "score.total": {
+            "value": 0.16615877613713903,
+            "unit": "ratio",
+          },
+          "score.weight.cls": {
+            "value": 1.0,
+            "unit": "ratio",
+          },
+          "score.weight.fcp": {
+            "value": 0.0,
+            "unit": "ratio",
+          },
+          "score.weight.lcp": {
+            "value": 0.0,
+            "unit": "ratio",
+          },
+          "score.weight.ttfb": {
+            "value": 0.0,
             "unit": "ratio",
           },
         }

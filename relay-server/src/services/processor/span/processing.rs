@@ -8,6 +8,8 @@ use relay_config::Config;
 use relay_dynamic_config::{
     CombinedMetricExtractionConfig, ErrorBoundary, Feature, GlobalConfig, ProjectConfig,
 };
+use relay_event_normalization::span::ai::extract_ai_measurements;
+use relay_event_normalization::span::description::ScrubMongoDescription;
 use relay_event_normalization::{
     normalize_measurements, normalize_performance_score, span::tag_extraction, validate_span,
     CombinedMeasurementsConfig, MeasurementsConfig, PerformanceScoreConfig, RawUserAgentInfo,
@@ -24,8 +26,8 @@ use relay_metrics::{MetricNamespace, UnixTimestamp};
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Empty};
 use relay_quotas::DataCategory;
-use relay_spans::{otel_to_sentry_span, otel_trace::Span as OtelSpan};
-use url::Host;
+use relay_spans::otel_trace::Span as OtelSpan;
+use thiserror::Error;
 
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::metrics_extraction::metrics_summary;
@@ -35,8 +37,6 @@ use crate::services::processor::{
     dynamic_sampling, ProcessEnvelopeState, ProcessingError, SpanGroup, TransactionGroup,
 };
 use crate::utils::{sample, ItemAction, ManagedEnvelope};
-use relay_event_normalization::span::ai::extract_ai_measurements;
-use thiserror::Error;
 
 #[derive(Error, Debug)]
 #[error(transparent)]
@@ -67,7 +67,7 @@ pub fn process(state: &mut ProcessEnvelopeState<SpanGroup>, global_config: &Glob
     state.managed_envelope.retain_items(|item| {
         let mut annotated_span = match item.ty() {
             ItemType::OtelSpan => match serde_json::from_slice::<OtelSpan>(&item.payload()) {
-                Ok(otel_span) => Annotated::new(otel_to_sentry_span(otel_span)),
+                Ok(otel_span) => Annotated::new(relay_spans::otel_to_sentry_span(otel_span)),
                 Err(err) => {
                     relay_log::debug!("failed to parse OTel span: {}", err);
                     return ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidJson));
@@ -269,6 +269,16 @@ pub fn extract_from_event(
             .aggregator
             .max_tag_value_length,
         &[],
+        if state
+            .project_state
+            .config
+            .features
+            .has(Feature::ScrubMongoDbDescriptions)
+        {
+            ScrubMongoDescription::Enabled
+        } else {
+            ScrubMongoDescription::Disabled
+        },
     ) else {
         return;
     };
@@ -339,7 +349,9 @@ struct NormalizeSpanConfig<'a> {
     /// Client hints parsed from the request.
     client_hints: ClientHints<String>,
     /// Hosts that are not replaced by "*" in HTTP span grouping.
-    allowed_hosts: &'a [Host],
+    allowed_hosts: &'a [String],
+    /// Whether or not to scrub MongoDB span descriptions during normalization.
+    scrub_mongo_description: ScrubMongoDescription,
 }
 
 impl<'a> NormalizeSpanConfig<'a> {
@@ -377,6 +389,14 @@ impl<'a> NormalizeSpanConfig<'a> {
                 .map(String::from),
             client_hints: managed_envelope.meta().client_hints().clone(),
             allowed_hosts: global_config.options.http_span_allowed_hosts.as_slice(),
+            scrub_mongo_description: if project_config
+                .features
+                .has(Feature::ScrubMongoDbDescriptions)
+            {
+                ScrubMongoDescription::Enabled
+            } else {
+                ScrubMongoDescription::Disabled
+            },
         }
     }
 }
@@ -384,9 +404,9 @@ impl<'a> NormalizeSpanConfig<'a> {
 fn set_segment_attributes(span: &mut Annotated<Span>) {
     let Some(span) = span.value_mut() else { return };
 
-    // Identify INP spans and make sure they are not wrapped in a segment.
+    // Identify INP spans or other WebVital spans and make sure they are not wrapped in a segment.
     if let Some(span_op) = span.op.value() {
-        if span_op.starts_with("ui.interaction.") {
+        if span_op.starts_with("ui.interaction.") || span_op.starts_with("ui.webvital.") {
             span.is_segment = None.into();
             span.parent_span_id = None.into();
             span.segment_id = None.into();
@@ -429,6 +449,7 @@ fn normalize(
         user_agent,
         client_hints,
         allowed_hosts,
+        scrub_mongo_description,
     } = config;
 
     set_segment_attributes(annotated_span);
@@ -496,6 +517,7 @@ fn normalize(
         is_mobile,
         None,
         allowed_hosts,
+        scrub_mongo_description,
     );
     span.sentry_tags = Annotated::new(
         tags.into_iter()
@@ -704,11 +726,7 @@ mod tests {
             event: Annotated::from(event),
             metrics: Default::default(),
             sample_rates: None,
-            extracted_metrics: ProcessingExtractedMetrics::new(
-                project_state.clone(),
-                Arc::new(GlobalConfig::default()),
-                managed_envelope.envelope().dsc(),
-            ),
+            extracted_metrics: ProcessingExtractedMetrics::new(),
             config: Arc::new(Config::default()),
             project_state,
             sampling_project_state: None,

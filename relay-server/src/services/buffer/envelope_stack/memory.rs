@@ -8,8 +8,8 @@ use super::EnvelopeStack;
 pub struct MemoryEnvelopeStack(#[allow(clippy::vec_box)] Vec<Box<Envelope>>);
 
 impl MemoryEnvelopeStack {
-    pub fn new(envelope: Box<Envelope>) -> Self {
-        Self(vec![envelope])
+    pub fn new() -> Self {
+        Self(vec![])
     }
 }
 

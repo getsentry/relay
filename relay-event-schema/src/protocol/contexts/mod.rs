@@ -33,8 +33,6 @@ pub use runtime::*;
 pub use trace::*;
 pub use user_report_v2::*;
 
-#[cfg(feature = "jsonschema")]
-use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
 
 use crate::processor::ProcessValue;
@@ -51,7 +49,6 @@ pub type OriginType = String;
 
 /// A context describes environment info (e.g. device, os or browser).
 #[derive(Clone, Debug, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_context")]
 pub enum Context {
     /// Device information.
@@ -96,7 +93,6 @@ pub enum Context {
 }
 
 #[derive(Clone, Debug, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct ContextInner(#[metastructure(max_depth = 7, max_bytes = 8192)] pub Context);
 
 impl From<Context> for ContextInner {
@@ -119,7 +115,6 @@ impl From<Context> for ContextInner {
 /// For more details about sending additional data with your event, see the [full documentation on
 /// Additional Data](https://docs.sentry.io/enriching-error-data/additional-data/).
 #[derive(Clone, Debug, PartialEq, Empty, IntoValue, ProcessValue, Default)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_contexts")]
 pub struct Contexts(pub Object<ContextInner>);
 

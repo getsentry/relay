@@ -3,6 +3,7 @@ use std::str::FromStr;
 use chrono::{TimeZone, Utc};
 use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
 use opentelemetry_proto::tonic::common::v1::{AnyValue, KeyValue};
+use relay_protocol::{Annotated, FromValue, Object};
 
 use crate::otel_trace::{status::StatusCode as OtelStatusCode, Span as OtelSpan};
 use crate::status_codes;
@@ -10,7 +11,6 @@ use relay_event_schema::protocol::{
     EventId, MetricSummary, MetricsSummary, Span as EventSpan, SpanData, SpanId, SpanStatus,
     Timestamp, TraceId,
 };
-use relay_protocol::{Annotated, FromValue, Object};
 
 /// convert_from_otel_to_sentry_status returns a status as defined by Sentry based on the OTel status.
 fn convert_from_otel_to_sentry_status(
@@ -284,8 +284,8 @@ mod tests {
             "parentSpanId": "0c7a7dea069bf5a6",
             "name": "middleware - fastify -> @fastify/multipart",
             "kind": 1,
-            "startTimeUnixNano": 1697620454980000000,
-            "endTimeUnixNano": 1697620454980078800,
+            "startTimeUnixNano": "1697620454980000000",
+            "endTimeUnixNano": "1697620454980078800",
             "attributes": [
                 {
                     "key": "sentry.environment",
@@ -314,7 +314,7 @@ mod tests {
                 {
                     "key": "sentry.sample_rate",
                     "value": {
-                        "intValue": 1
+                        "intValue": "1"
                     }
                 },
                 {
@@ -326,7 +326,7 @@ mod tests {
                 {
                     "key": "sentry.exclusive_time_nano",
                     "value": {
-                        "intValue": 1000000000
+                        "intValue": "1000000000"
                     }
                 }
             ],
@@ -358,13 +358,13 @@ mod tests {
             "parentSpanId": "0c7a7dea069bf5a6",
             "name": "middleware - fastify -> @fastify/multipart",
             "kind": 1,
-            "startTimeUnixNano": 1697620454980000000,
-            "endTimeUnixNano": 1697620454980078800,
+            "startTimeUnixNano": "1697620454980000000",
+            "endTimeUnixNano": "1697620454980078800",
             "attributes": [
                 {
                     "key": "sentry.exclusive_time_nano",
                     "value": {
-                        "intValue": 3200000000
+                        "intValue": "3200000000"
                     }
                 }
             ]
@@ -382,8 +382,8 @@ mod tests {
             "parentSpanId": "0c7a7dea069bf5a6",
             "name": "middleware - fastify -> @fastify/multipart",
             "kind": 1,
-            "startTimeUnixNano": 1697620454980000000,
-            "endTimeUnixNano": 1697620454980078800
+            "startTimeUnixNano": "1697620454980000000",
+            "endTimeUnixNano": "1697620454980078800"
         }"#;
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let event_span: EventSpan = otel_to_sentry_span(otel_span);
@@ -398,8 +398,8 @@ mod tests {
             "parentSpanId": "0c7a7dea069bf5a6",
             "name": "database query",
             "kind": 3,
-            "startTimeUnixNano": 1697620454980000000,
-            "endTimeUnixNano": 1697620454980078800,
+            "startTimeUnixNano": "1697620454980000000",
+            "endTimeUnixNano": "1697620454980078800",
             "attributes": [
                 {
                     "key" : "db.name",
@@ -440,8 +440,8 @@ mod tests {
             "parentSpanId": "0c7a7dea069bf5a6",
             "name": "http client request",
             "kind": 3,
-            "startTimeUnixNano": 1697620454980000000,
-            "endTimeUnixNano": 1697620454980078800,
+            "startTimeUnixNano": "1697620454980000000",
+            "endTimeUnixNano": "1697620454980078800",
             "attributes": [
                 {
                     "key" : "http.request.method",
@@ -473,8 +473,8 @@ mod tests {
             "traceId": "4c79f60c11214eb38604f4ae0781bfb2",
             "spanId": "fa90fdead5f74052",
             "parentSpanId": "fa90fdead5f74051",
-            "startTimeUnixNano": 123000000000,
-            "endTimeUnixNano": 123500000000,
+            "startTimeUnixNano": "123000000000",
+            "endTimeUnixNano": "123500000000",
             "status": {"code": 0, "message": "foo"},
             "attributes": [
                 {
@@ -561,7 +561,7 @@ mod tests {
                                                 {
                                                     "key": "count",
                                                     "value": {
-                                                        "intValue": 2
+                                                        "intValue": "2"
                                                     }
                                                 },
                                                 {
@@ -635,6 +635,7 @@ mod tests {
                 code_namespace: ~,
                 db_operation: ~,
                 db_system: ~,
+                db_collection_name: ~,
                 environment: "prod",
                 release: LenientString(
                     "myapp@1.0.0",

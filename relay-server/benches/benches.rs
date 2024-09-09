@@ -103,6 +103,7 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
                                 2,
                                 ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
                                 ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
+                                true,
                             );
 
                             let mut envelopes = Vec::with_capacity(size);
@@ -139,6 +140,7 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
                                     2,
                                     ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
                                     ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
+                                    true,
                                 );
 
                                 // Pre-fill the stack
@@ -179,6 +181,7 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
                                 2,
                                 ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
                                 ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
+                                true,
                             );
 
                             // Pre-generate envelopes
@@ -259,7 +262,9 @@ fn benchmark_envelope_buffer(c: &mut Criterion) {
             |envelopes| {
                 runtime.block_on(async {
                     let mut buffer =
-                        PolymorphicEnvelopeBuffer::from_config(&config, memory_checker.clone());
+                        PolymorphicEnvelopeBuffer::from_config(&config, memory_checker.clone())
+                            .await
+                            .unwrap();
                     for envelope in envelopes.into_iter() {
                         buffer.push(envelope).await.unwrap();
                     }
@@ -289,7 +294,9 @@ fn benchmark_envelope_buffer(c: &mut Criterion) {
             |envelopes| {
                 runtime.block_on(async {
                     let mut buffer =
-                        PolymorphicEnvelopeBuffer::from_config(&config, memory_checker.clone());
+                        PolymorphicEnvelopeBuffer::from_config(&config, memory_checker.clone())
+                            .await
+                            .unwrap();
                     let n = envelopes.len();
                     for envelope in envelopes.into_iter() {
                         let public_key = envelope.meta().public_key();

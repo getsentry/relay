@@ -7,8 +7,6 @@ use std::fmt;
 use std::str::FromStr;
 
 use relay_protocol::{Annotated, Empty, ErrorKind, FromValue, IntoValue, SkipSerialization, Value};
-#[cfg(feature = "jsonschema")]
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// The type of an event.
@@ -26,7 +24,6 @@ use serde::{Deserialize, Serialize};
 #[derive(
     Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize, Default,
 )]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[serde(rename_all = "lowercase")]
 pub enum EventType {
     /// Events that carry an exception payload.

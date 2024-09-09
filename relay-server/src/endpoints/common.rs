@@ -10,11 +10,12 @@ use serde::Deserialize;
 
 use crate::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, Items};
 use crate::service::ServiceState;
+use crate::services::buffer::EnvelopeBuffer;
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{MetricData, ProcessMetricMeta, ProcessingGroup};
 use crate::services::project_cache::{CheckEnvelope, ProcessMetrics, ValidateEnvelope};
 use crate::statsd::{RelayCounters, RelayHistograms};
-use crate::utils::{self, ApiErrorResponse, FormDataIter, ManagedEnvelope, MultipartError};
+use crate::utils::{self, ApiErrorResponse, FormDataIter, ManagedEnvelope};
 
 #[derive(Clone, Copy, Debug, thiserror::Error)]
 #[error("the service is overloaded")]
@@ -59,9 +60,6 @@ pub enum BadStoreRequest {
 
     #[error("invalid multipart data")]
     InvalidMultipart(#[from] multer::Error),
-
-    #[error("invalid multipart data")]
-    InvalidMultipartAxum(#[from] MultipartError),
 
     #[error("invalid minidump")]
     InvalidMinidump,
@@ -315,7 +313,9 @@ fn queue_envelope(
                 // envelope's projects. See `handle_check_envelope`.
                 relay_log::trace!("Pushing envelope to V2 buffer");
 
-                buffer.defer_push(envelope);
+                buffer
+                    .addr()
+                    .send(EnvelopeBuffer::Push(envelope.into_envelope()));
             }
             None => {
                 relay_log::trace!("Sending envelope to project cache for V1 buffer");
