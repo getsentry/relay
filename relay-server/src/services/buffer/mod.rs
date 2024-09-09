@@ -129,9 +129,11 @@ impl EnvelopeBufferService {
     /// Wait for the configured amount of time and make sure the project cache is ready to receive.
     async fn ready_to_pop(&mut self) -> Result<(), SendError> {
         tokio::time::sleep(self.sleep).await;
-        if let Some(project_cache_ready) = self.project_cache_ready.take() {
+        if let Some(project_cache_ready) = self.project_cache_ready.as_mut() {
             project_cache_ready.await?;
+            self.project_cache_ready = None;
         }
+
         Ok(())
     }
 
