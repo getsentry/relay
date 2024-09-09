@@ -318,11 +318,18 @@ fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
         if let Some(user_email) = user.email.value() {
             tags.insert(SpanTagKey::UserEmail, user_email.clone());
         }
-        if let Some(country_code) = user.geo.value().and_then(|geo| geo.country_code.value()) {
-            tags.insert(SpanTagKey::UserCountryCode, country_code.to_owned());
-            if let Some(subregion) = Subregion::from_iso2(country_code.as_str()) {
-                let numerical_subregion = subregion as u8;
-                tags.insert(SpanTagKey::UserSubregion, numerical_subregion.to_string());
+
+        // We only want this on frontend or mobile modules.
+        let should_extract_geo =
+            event.context::<BrowserContext>().is_some() || MOBILE_SDKS.contains(&event.sdk_name());
+
+        if should_extract_geo {
+            if let Some(country_code) = user.geo.value().and_then(|geo| geo.country_code.value()) {
+                tags.insert(SpanTagKey::UserCountryCode, country_code.to_owned());
+                if let Some(subregion) = Subregion::from_iso2(country_code.as_str()) {
+                    let numerical_subregion = subregion as u8;
+                    tags.insert(SpanTagKey::UserSubregion, numerical_subregion.to_string());
+                }
             }
         }
     }
@@ -2676,6 +2683,9 @@ LIMIT 1
                     "trace": {
                         "trace_id": "ff62a8b040f340bda5d830223def1d81",
                         "span_id": "bd429c44b67a3eb4"
+                    },
+                    "browser": {
+                        "name": "Chrome"
                     }
                 },
                 "user": {
@@ -2720,6 +2730,60 @@ LIMIT 1
         );
         assert_eq!(get_value!(span.sentry_tags["user.geo.country_code"]!), "US");
         assert_eq!(get_value!(span.sentry_tags["user.geo.subregion"]!), "21");
+    }
+
+    #[test]
+    fn not_extract_geo_location_if_not_browser() {
+        let json = r#"
+            {
+                "type": "transaction",
+                "platform": "python",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "transaction": "foo",
+                "contexts": {
+                    "trace": {
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "span_id": "bd429c44b67a3eb4"
+                    }
+                },
+                "user": {
+                    "id": "1",
+                    "email": "admin@sentry.io",
+                    "username": "admin",
+                    "geo": {
+                        "country_code": "US"
+                    }
+                },
+                "spans": [
+                    {
+                        "op": "http.client",
+                        "span_id": "bd429c44b67a3eb1",
+                        "start_timestamp": 1597976300.0000000,
+                        "timestamp": 1597976302.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                enrich_spans: true,
+                ..Default::default()
+            },
+        );
+
+        let spans = get_value!(event.spans!);
+        let span = &spans[0];
+
+        let tags = span.value().unwrap().sentry_tags.value().unwrap();
+
+        assert_eq!(tags.get("user.geo.subregion"), None);
+        assert_eq!(tags.get("user.geo.country_code"), None);
     }
 
     #[test]
