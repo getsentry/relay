@@ -1078,6 +1078,7 @@
 <a href="#1078" id="1078">1078</a>
 <a href="#1079" id="1079">1079</a>
 <a href="#1080" id="1080">1080</a>
+<a href="#1081" id="1081">1081</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_common::glob2::LazyGlob;
 <span class="kw">use </span>relay_event_normalization::utils::MAX_DURATION_MOBILE_MS;
@@ -1260,7 +1261,8 @@
     <span class="kw">let </span>is_app_start = RuleCondition::glob(<span class="string">"span.op"</span>, <span class="string">"app.start.*"</span>)
         &amp; RuleCondition::eq(<span class="string">"span.description"</span>, APP_START_ROOT_SPAN_DESCRIPTIONS);
 
-    <span class="kw">let </span>should_extract_geo = is_allowed_browser.clone() | is_mobile.clone() | is_resource.clone();
+    <span class="kw">let </span>should_extract_geo =
+        (is_allowed_browser.clone() &amp; (is_resource.clone() | is_http.clone())) | is_mobile.clone();
 
     <span class="comment">// Metrics for addon modules are only extracted if the feature flag is enabled:
     </span><span class="kw">let </span>is_addon = is_ai.clone() | is_queue_op.clone() | is_cache.clone();
