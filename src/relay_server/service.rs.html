@@ -433,6 +433,7 @@
 <a href="#433" id="433">433</a>
 <a href="#434" id="434">434</a>
 <a href="#435" id="435">435</a>
+<a href="#436" id="436">436</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
@@ -612,7 +613,8 @@
         </span>.start();
         <span class="kw">let </span>outcome_aggregator = OutcomeAggregator::new(<span class="kw-2">&amp;</span>config, outcome_producer.clone()).start();
 
-        <span class="kw">let </span>global_config = GlobalConfigService::new(config.clone(), upstream_relay.clone());
+        <span class="kw">let </span>(global_config, global_config_rx) =
+            GlobalConfigService::new(config.clone(), upstream_relay.clone());
         <span class="kw">let </span>global_config_handle = global_config.handle();
         <span class="comment">// The global config service must start before dependant services are
         // started. Messages like subscription requests to the global config
@@ -691,13 +693,13 @@
             project_cache: project_cache.clone(),
             test_store: test_store.clone(),
             upstream_relay: upstream_relay.clone(),
-            global_config: global_config.clone(),
         };
 
         ProjectCacheService::new(
             config.clone(),
             MemoryChecker::new(memory_stat.clone(), config.clone()),
             project_cache_services,
+            global_config_rx,
             redis_pools
                 .as_ref()
                 .map(|pools| pools.project_configs.clone()),
