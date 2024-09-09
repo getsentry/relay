@@ -191,13 +191,13 @@ impl EnvelopeBufferService {
                 // For better separation of concerns, this prefetch should be triggered from here
                 // once buffer V1 has been removed.
                 relay_log::trace!("EnvelopeBufferService push");
-                self.push(buffer, envelope).await;
+                Self::push(buffer, envelope).await;
             }
             EnvelopeBuffer::NotReady(project_key, envelope) => {
                 relay_log::trace!("EnvelopeBufferService project not ready");
                 buffer.mark_ready(&project_key, false);
                 relay_statsd::metric!(counter(RelayCounters::BufferEnvelopesReturned) += 1);
-                self.push(buffer, envelope).await;
+                Self::push(buffer, envelope).await;
             }
             EnvelopeBuffer::Ready(project_key) => {
                 relay_log::trace!("EnvelopeBufferService project ready {}", &project_key);
@@ -209,7 +209,7 @@ impl EnvelopeBufferService {
     }
 
     /// Pushes an [`Envelope`] to the [`PolymorphicEnvelopeBuffer`].
-    async fn push(&self, buffer: &mut PolymorphicEnvelopeBuffer, envelope: Box<Envelope>) {
+    async fn push(buffer: &mut PolymorphicEnvelopeBuffer, envelope: Box<Envelope>) {
         if let Err(e) = buffer.push(envelope).await {
             relay_log::error!(
                 error = &e as &dyn std::error::Error,
@@ -219,7 +219,7 @@ impl EnvelopeBufferService {
     }
 
     /// Tries to evict elements from the [`PolymorphicEnvelopeBuffer`] if no capacity
-    async fn try_evict(&self, buffer: &mut PolymorphicEnvelopeBuffer) {
+    async fn try_evict(buffer: &mut PolymorphicEnvelopeBuffer) {
         if !buffer.has_capacity() {
             buffer.evict().await;
         }
@@ -275,7 +275,7 @@ impl Service for EnvelopeBufferService {
                         self.handle_message(&mut buffer, message).await;
                     }
                     _ = ticker.tick() => {
-                        self.try_evict(&mut buffer).await;
+                        Self::try_evict(&mut buffer).await;
                     }
                     else => break,
                 }
