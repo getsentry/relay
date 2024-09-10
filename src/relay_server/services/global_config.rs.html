@@ -484,6 +484,7 @@
 <a href="#484" id="484">484</a>
 <a href="#485" id="485">485</a>
 <a href="#486" id="486">486</a>
+<a href="#487" id="487">487</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements the Global Config service.
 //!
 //! The global config service is a Relay service to manage [`GlobalConfig`]s,
@@ -627,7 +628,8 @@
 }
 
 <span class="kw">impl </span>Status {
-    <span class="kw">fn </span>is_ready(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+    <span class="doccomment">/// Returns `true` if the global config is ready to be read.
+    </span><span class="kw">pub fn </span>is_ready(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="macro">matches!</span>(<span class="self">self</span>, <span class="self">Self</span>::Ready(<span class="kw">_</span>))
     }
 }
