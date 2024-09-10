@@ -28,6 +28,7 @@
 - Remove the `generate-schema` tool. Relay no longer exposes JSON schema for the event protocol. Consult the Rust type documentation of the `relay-event-schema` crate instead. ([#3974](https://github.com/getsentry/relay/pull/3974))
 - Allow creation of `SqliteEnvelopeBuffer` from config, and load existing stacks from db on startup. ([#3967](https://github.com/getsentry/relay/pull/3967))
 - Only tag `user.geo.subregion` on frontend and mobile projects. ([#4013](https://github.com/getsentry/relay/pull/4013))
+- Check if sdk platform is `javascript` for `user.geo.subregion` tag. ([#4023](https://github.com/getsentry/relay/pull/4023))
 
 ## 24.8.0
 
