@@ -36,11 +36,18 @@ pub enum PolymorphicEnvelopeBuffer {
     /// An enveloper buffer that uses in-memory envelopes stacks.
     InMemory(EnvelopeBuffer<MemoryStackProvider>),
     /// An enveloper buffer that uses sqlite envelopes stacks.
-    #[allow(dead_code)]
     Sqlite(EnvelopeBuffer<SqliteStackProvider>),
 }
 
 impl PolymorphicEnvelopeBuffer {
+    /// Returns true if the implementation stores envelopes on external storage (e.g. disk).
+    pub fn is_external(&self) -> bool {
+        match self {
+            PolymorphicEnvelopeBuffer::InMemory(_) => false,
+            PolymorphicEnvelopeBuffer::Sqlite(_) => true,
+        }
+    }
+
     /// Creates either a memory-based or a disk-based envelope buffer,
     /// depending on the given configuration.
     pub async fn from_config(

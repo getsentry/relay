@@ -141,7 +141,8 @@ pub enum Status {
 }
 
 impl Status {
-    fn is_ready(&self) -> bool {
+    /// Returns `true` if the global config is ready to be read.
+    pub fn is_ready(&self) -> bool {
         matches!(self, Self::Ready(_))
     }
 }
