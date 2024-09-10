@@ -511,7 +511,7 @@ impl<K: PartialEq, V> PartialEq for QueueItem<K, V> {
 
 impl<K: PartialEq, V> Eq for QueueItem<K, V> {}
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Priority {
     readiness: Readiness,
     received_at: Instant,
@@ -528,22 +528,6 @@ impl Priority {
         }
     }
 }
-
-impl PartialEq for Priority {
-    fn eq(&self, other: &Self) -> bool {
-        self.readiness.ready() == other.readiness.ready()
-            && self.received_at == other.received_at
-            && self.last_peek == other.last_peek
-    }
-}
-
-impl PartialOrd for Priority {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Eq for Priority {}
 
 impl Ord for Priority {
     fn cmp(&self, other: &Self) -> Ordering {
@@ -565,7 +549,21 @@ impl Ord for Priority {
     }
 }
 
-#[derive(Debug)]
+impl PartialOrd for Priority {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for Priority {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other).is_eq()
+    }
+}
+
+impl Eq for Priority {}
+
+#[derive(Debug, Clone, Copy)]
 struct Readiness {
     own_project_ready: bool,
     sampling_project_ready: bool,
@@ -946,6 +944,32 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(buffer.priority_queue.len(), 2);
+    }
+
+    #[test]
+    fn test_total_order() {
+        let readiness = Readiness {
+            own_project_ready: true,
+            sampling_project_ready: true,
+        };
+        let received_at = Instant::now();
+        let last_peek = Instant::now();
+        let p1 = Priority {
+            readiness,
+            received_at,
+            last_peek,
+        };
+        let p2 = Priority {
+            readiness,
+            received_at,
+            last_peek: last_peek + Duration::from_micros(1),
+        };
+
+        // Last peek does not matter because project is ready:
+        assert_eq!(p1.cmp(&p2), Ordering::Equal);
+        assert_eq!(p1, p2);
+
+        // TODO: reproduce panic
     }
 
     #[tokio::test]
