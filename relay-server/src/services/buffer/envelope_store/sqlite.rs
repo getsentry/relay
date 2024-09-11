@@ -1,3 +1,4 @@
+use std::cmp::Reverse;
 use std::error::Error;
 use std::path::Path;
 use std::pin::pin;
@@ -13,6 +14,7 @@ use crate::Envelope;
 use futures::stream::StreamExt;
 use hashbrown::HashSet;
 use relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
+use relay_common::time::UnixTimestamp;
 use relay_config::Config;
 use sqlx::migrate::MigrateError;
 use sqlx::query::Query;
@@ -370,9 +372,12 @@ impl SqliteEnvelopeStore {
         }
 
         // We sort envelopes by `received_at`.
+        //
         // Unfortunately we have to do this because SQLite `DELETE` with `RETURNING` doesn't
         // return deleted rows in a specific order.
-        extracted_envelopes.sort_by_key(|a| a.received_at());
+        extracted_envelopes.sort_by_key(|a| {
+            Reverse(UnixTimestamp::from_datetime(a.received_at()).unwrap_or(UnixTimestamp::now()))
+        });
 
         Ok(extracted_envelopes)
     }
@@ -518,12 +523,10 @@ pub fn build_count_all<'a>() -> Query<'a, Sqlite, SqliteArguments<'a>> {
 
 #[cfg(test)]
 mod tests {
-    use hashbrown::HashSet;
     use std::time::Duration;
     use tokio::time::sleep;
 
     use relay_base_schema::project::ProjectKey;
-    use relay_event_schema::protocol::EventId;
 
     use super::*;
     use crate::services::buffer::testutils::utils::{mock_envelopes, setup_db};
@@ -538,21 +541,36 @@ mod tests {
 
         // We insert 10 envelopes.
         let envelopes = mock_envelopes(10);
-        let envelope_ids: HashSet<EventId> =
-            envelopes.iter().filter_map(|e| e.event_id()).collect();
         assert!(envelope_store
             .insert_many(envelopes.iter().map(|e| e.as_ref().try_into().unwrap()))
             .await
             .is_ok());
 
-        // We check that if we load more than the limit, we still get back at most 10.
+        // We check that if we load 5, we get the newest 5.
         let extracted_envelopes = envelope_store
-            .delete_many(own_key, sampling_key, 15)
+            .delete_many(own_key, sampling_key, 5)
             .await
             .unwrap();
-        assert_eq!(envelopes.len(), 10);
-        for envelope in extracted_envelopes {
-            assert!(envelope_ids.contains(&envelope.event_id().unwrap()));
+        assert_eq!(extracted_envelopes.len(), 5);
+        for i in 0..5 {
+            assert_eq!(
+                extracted_envelopes[i].event_id(),
+                envelopes[5..][4 - i].event_id()
+            );
+        }
+
+        // We check that if we load more than the envelopes stored on disk, we still get back at
+        // most 5.
+        let extracted_envelopes = envelope_store
+            .delete_many(own_key, sampling_key, 10)
+            .await
+            .unwrap();
+        assert_eq!(extracted_envelopes.len(), 5);
+        for i in 0..5 {
+            assert_eq!(
+                extracted_envelopes[i].event_id(),
+                envelopes[0..5][4 - i].event_id()
+            );
         }
     }
 
