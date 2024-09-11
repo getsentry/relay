@@ -71,11 +71,12 @@ impl FromStr for NetworkReportPhases {
     type Err = ParseNetworkReportPhaseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(match s.to_lowercase().as_str() {
+        let s = s.to_lowercase();
+        Ok(match s.as_str() {
             "dns" => NetworkReportPhases::DNS,
             "connection" => NetworkReportPhases::Connections,
             "application" => NetworkReportPhases::Application,
-            unknown => NetworkReportPhases::Other(unknown.to_string()),
+            _ => NetworkReportPhases::Other(s),
         })
     }
 }
@@ -103,7 +104,10 @@ impl FromValue for NetworkReportPhases {
 
 impl IntoValue for NetworkReportPhases {
     fn into_value(self) -> Value {
-        Value::String(self.to_string())
+        Value::String(match self {
+            Self::Other(s) => s,
+            _ => self.as_str().to_owned(),
+        })
     }
 
     fn serialize_payload<S>(
@@ -115,7 +119,7 @@ impl IntoValue for NetworkReportPhases {
         Self: Sized,
         S: serde::Serializer,
     {
-        Serialize::serialize(&self.to_string(), s)
+        Serialize::serialize(self.as_str(), s)
     }
 }
 

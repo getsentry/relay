@@ -399,7 +399,7 @@ macro_rules! hex_metrastructure {
                 Self: Sized,
                 S: Serializer,
             {
-                Serialize::serialize(&self.to_string(), s)
+                Serializer::collect_str(s, self)
             }
         }
 
@@ -466,7 +466,7 @@ impl IpAddr {
 
     /// Checks whether the contained ip address is still valid (relevant for PII processing).
     pub fn is_valid(&self) -> bool {
-        Self::parse(&self.0).is_ok()
+        self.is_auto() || net::IpAddr::from_str(&self.0).is_ok()
     }
 
     /// Returns the string value of this ip address.
@@ -664,7 +664,7 @@ impl IntoValue for Level {
         Self: Sized,
         S: Serializer,
     {
-        Serialize::serialize(&self.to_string(), s)
+        Serialize::serialize(self.name(), s)
     }
 }
 
