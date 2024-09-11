@@ -277,7 +277,7 @@
     <span class="kw">where
         </span><span class="self">Self</span>: Sized,
     {
-        Value::String(<span class="macro">format!</span>(<span class="string">"{self}"</span>))
+        Value::String(<span class="self">self</span>.to_string())
     }
 
     <span class="kw">fn </span>serialize_payload&lt;S&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, s: S, _behavior: SkipSerialization) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
@@ -285,7 +285,7 @@
         </span><span class="self">Self</span>: Sized,
         S: serde::Serializer,
     {
-        Serialize::serialize(<span class="kw-2">&amp;</span><span class="self">self</span>.to_string(), s)
+        Serialize::serialize(<span class="self">self</span>.as_str(), s)
     }
 }
 </code></pre></div></section></main></body></html>

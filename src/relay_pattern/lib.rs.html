@@ -1375,7 +1375,7 @@
 //! * `{a,b}` matches any pattern within the alternation group.
 //! * `\` escapes any of the above special characters and treats it as a literal.
 
-</span><span class="kw">use </span>std::fmt;
+</span><span class="kw">use </span>std::fmt::{<span class="self">self</span>, Write};
 
 <span class="doccomment">/// Pattern parsing error.
 </span><span class="attr">#[derive(Debug)]
@@ -1604,7 +1604,7 @@
                     </span>i =&gt; {
                         re.push(<span class="string">'.'</span>);
                         re.push(<span class="string">'{'</span>);
-                        re.push_str(<span class="kw-2">&amp;</span>i.to_string());
+                        <span class="macro">write!</span>(re, <span class="string">"{i}"</span>).ok();
                         re.push(<span class="string">'}'</span>)
                     }
                 },

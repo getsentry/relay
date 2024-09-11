@@ -1610,7 +1610,7 @@
                 </span><span class="self">Self</span>: Sized,
                 S: Serializer,
             {
-                Serialize::serialize(<span class="kw-2">&amp;</span><span class="self">self</span>.to_string(), s)
+                Serializer::collect_str(s, <span class="self">self</span>)
             }
         }
 
@@ -1677,7 +1677,7 @@
 
     <span class="doccomment">/// Checks whether the contained ip address is still valid (relevant for PII processing).
     </span><span class="kw">pub fn </span>is_valid(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="self">Self</span>::parse(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>).is_ok()
+        <span class="self">self</span>.is_auto() || net::IpAddr::from_str(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>).is_ok()
     }
 
     <span class="doccomment">/// Returns the string value of this ip address.
@@ -1875,7 +1875,7 @@
         </span><span class="self">Self</span>: Sized,
         S: Serializer,
     {
-        Serialize::serialize(<span class="kw-2">&amp;</span><span class="self">self</span>.to_string(), s)
+        Serialize::serialize(<span class="self">self</span>.name(), s)
     }
 }
 

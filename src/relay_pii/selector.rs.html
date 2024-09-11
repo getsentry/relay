@@ -807,7 +807,7 @@
             (SelectorPathItem::Key(<span class="kw-2">ref </span>key), <span class="kw">_</span>) =&gt; state
                 .path()
                 .key()
-                .map(|k| k.to_lowercase() == key.to_lowercase())
+                .map(|k| k.eq_ignore_ascii_case(key))
                 .unwrap_or(<span class="bool-val">false</span>),
         }
     }

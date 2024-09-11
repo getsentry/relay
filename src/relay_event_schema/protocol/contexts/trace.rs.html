@@ -288,6 +288,8 @@
 <a href="#288" id="288">288</a>
 <a href="#289" id="289">289</a>
 <a href="#290" id="290">290</a>
+<a href="#291" id="291">291</a>
+<a href="#292" id="292">292</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
@@ -303,13 +305,14 @@
 <span class="kw">impl </span>FromValue <span class="kw">for </span>TraceId {
     <span class="kw">fn </span>from_value(value: Annotated&lt;Value&gt;) -&gt; Annotated&lt;<span class="self">Self</span>&gt; {
         <span class="kw">match </span>value {
-            Annotated(<span class="prelude-val">Some</span>(Value::String(value)), <span class="kw-2">mut </span>meta) =&gt; {
+            Annotated(<span class="prelude-val">Some</span>(Value::String(<span class="kw-2">mut </span>value)), <span class="kw-2">mut </span>meta) =&gt; {
                 <span class="kw">if </span>!is_hex_string(<span class="kw-2">&amp;</span>value, <span class="number">32</span>) || value.bytes().all(|x| x == <span class="string">b'0'</span>) {
                     meta.add_error(Error::invalid(<span class="string">"not a valid trace id"</span>));
                     meta.set_original_value(<span class="prelude-val">Some</span>(value));
                     Annotated(<span class="prelude-val">None</span>, meta)
                 } <span class="kw">else </span>{
-                    Annotated(<span class="prelude-val">Some</span>(TraceId(value.to_ascii_lowercase())), meta)
+                    value.make_ascii_lowercase();
+                    Annotated(<span class="prelude-val">Some</span>(TraceId(value)), meta)
                 }
             }
             Annotated(<span class="prelude-val">None</span>, meta) =&gt; Annotated(<span class="prelude-val">None</span>, meta),
@@ -351,13 +354,14 @@
 <span class="kw">impl </span>FromValue <span class="kw">for </span>SpanId {
     <span class="kw">fn </span>from_value(value: Annotated&lt;Value&gt;) -&gt; Annotated&lt;<span class="self">Self</span>&gt; {
         <span class="kw">match </span>value {
-            Annotated(<span class="prelude-val">Some</span>(Value::String(value)), <span class="kw-2">mut </span>meta) =&gt; {
+            Annotated(<span class="prelude-val">Some</span>(Value::String(<span class="kw-2">mut </span>value)), <span class="kw-2">mut </span>meta) =&gt; {
                 <span class="kw">if </span>!is_hex_string(<span class="kw-2">&amp;</span>value, <span class="number">16</span>) || value.bytes().all(|x| x == <span class="string">b'0'</span>) {
                     meta.add_error(Error::invalid(<span class="string">"not a valid span id"</span>));
                     meta.set_original_value(<span class="prelude-val">Some</span>(value));
                     Annotated(<span class="prelude-val">None</span>, meta)
                 } <span class="kw">else </span>{
-                    Annotated(<span class="prelude-val">Some</span>(SpanId(value.to_ascii_lowercase())), meta)
+                    value.make_ascii_lowercase();
+                    Annotated(<span class="prelude-val">Some</span>(SpanId(value)), meta)
                 }
             }
             Annotated(<span class="prelude-val">None</span>, meta) =&gt; Annotated(<span class="prelude-val">None</span>, meta),
