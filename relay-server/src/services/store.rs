@@ -1044,7 +1044,10 @@ impl StoreService {
 impl Service for StoreService {
     type Interface = Store;
 
-    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
+    fn spawn_handler(
+        self,
+        mut rx: relay_system::Receiver<Self::Interface>,
+    ) -> tokio::task::JoinHandle<()> {
         let this = Arc::new(self);
 
         tokio::spawn(async move {
@@ -1058,7 +1061,7 @@ impl Service for StoreService {
             }
 
             relay_log::info!("store forwarder stopped");
-        });
+        })
     }
 }
 

@@ -129,7 +129,7 @@ impl ShutdownHandle {
 /// impl Service for MyService {
 ///     type Interface = ();
 ///
-///     fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
+///     fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) -> tokio::task::JoinHandle<()> {
 ///         tokio::spawn(async move {
 ///             let mut shutdown = Controller::shutdown_handle();
 ///

@@ -278,6 +278,7 @@ mod testutils;
 
 use std::sync::Arc;
 
+use futures::StreamExt;
 use relay_config::Config;
 use relay_system::{Controller, Service};
 
@@ -303,6 +304,13 @@ pub fn run(config: Config) -> anyhow::Result<()> {
         Controller::start(config.shutdown_timeout());
         let service = ServiceState::start(config.clone())?;
         HttpServer::new(config, service.clone())?.start();
+
+        for x in service.join_handles() {}
+        // while let Some(res) = service.join_handles().next() {
+
+        // }
+
+        // TODO: await simultaneously
         Controller::shutdown_handle().finished().await;
         anyhow::Ok(())
     })?;

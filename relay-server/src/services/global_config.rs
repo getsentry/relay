@@ -22,6 +22,7 @@ use relay_system::{Addr, AsyncResponse, Controller, FromMessage, Interface, Serv
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, watch};
+use tokio::task::JoinHandle;
 use tokio::time::Instant;
 
 use crate::services::upstream::{
@@ -338,7 +339,7 @@ impl GlobalConfigService {
 impl Service for GlobalConfigService {
     type Interface = GlobalConfigManager;
 
-    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) -> JoinHandle<()> {
         tokio::spawn(async move {
             let mut shutdown_handle = Controller::shutdown_handle();
 
@@ -384,7 +385,7 @@ impl Service for GlobalConfigService {
                 }
             }
             relay_log::info!("global config service stopped");
-        });
+        })
     }
 }
 

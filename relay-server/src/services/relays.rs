@@ -10,6 +10,7 @@ use relay_system::{
 };
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 
 use crate::services::upstream::{Method, RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay};
 use crate::utils::{RetryBackoff, SleepHandle};
@@ -334,7 +335,7 @@ impl RelayCacheService {
 impl Service for RelayCacheService {
     type Interface = RelayCache;
 
-    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) -> JoinHandle<()> {
         tokio::spawn(async move {
             relay_log::info!("key cache started");
 
@@ -351,6 +352,6 @@ impl Service for RelayCacheService {
             }
 
             relay_log::info!("key cache stopped");
-        });
+        })
     }
 }

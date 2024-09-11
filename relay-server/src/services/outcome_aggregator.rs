@@ -10,6 +10,7 @@ use relay_config::{Config, EmitOutcomes};
 use relay_quotas::{DataCategory, Scoping};
 use relay_statsd::metric;
 use relay_system::{Addr, Controller, Service, Shutdown};
+use tokio::task::JoinHandle;
 
 use crate::services::outcome::{Outcome, OutcomeProducer, TrackOutcome};
 use crate::statsd::RelayTimers;
@@ -138,7 +139,7 @@ impl OutcomeAggregator {
 impl Service for OutcomeAggregator {
     type Interface = TrackOutcome;
 
-    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) -> JoinHandle<()> {
         tokio::spawn(async move {
             let mut shutdown = Controller::shutdown_handle();
             relay_log::info!("outcome aggregator started");
@@ -157,6 +158,6 @@ impl Service for OutcomeAggregator {
             }
 
             relay_log::info!("outcome aggregator stopped");
-        });
+        })
     }
 }

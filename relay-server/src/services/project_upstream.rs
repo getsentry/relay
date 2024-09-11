@@ -16,6 +16,7 @@ use relay_system::{
 };
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 use tokio::time::Instant;
 
 use crate::services::project::state::UpstreamProjectState;
@@ -592,7 +593,7 @@ impl UpstreamProjectSourceService {
 impl Service for UpstreamProjectSourceService {
     type Interface = UpstreamProjectSource;
 
-    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) -> JoinHandle<()> {
         tokio::spawn(async move {
             relay_log::info!("project upstream cache started");
             loop {
@@ -607,6 +608,6 @@ impl Service for UpstreamProjectSourceService {
                 }
             }
             relay_log::info!("project upstream cache stopped");
-        });
+        })
     }
 }

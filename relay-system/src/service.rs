@@ -9,8 +9,8 @@ use std::time::Duration;
 
 use futures::future::Shared;
 use futures::FutureExt;
-use tokio::runtime::Runtime;
 use tokio::sync::{mpsc, oneshot};
+use tokio::task::JoinHandle;
 use tokio::time::MissedTickBehavior;
 
 use crate::statsd::SystemGauges;
@@ -1001,19 +1001,20 @@ pub trait Service: Sized {
     ///
     /// Receives an inbound channel for all messages sent through the service's [`Addr`]. Note
     /// that this function is synchronous, so that this needs to spawn a task internally.
-    fn spawn_handler(self, rx: Receiver<Self::Interface>);
+    fn spawn_handler(self, rx: Receiver<Self::Interface>) -> JoinHandle<()>;
 
-    /// Starts the service in the current runtime and returns an address for it.
-    fn start(self) -> Addr<Self::Interface> {
+    /// Starts the service in the current runtime and returns the address and a join handle.
+    fn start_joinable(self) -> (Addr<Self::Interface>, JoinHandle<()>) {
         let (addr, rx) = channel(Self::name());
-        self.spawn_handler(rx);
-        addr
+        (addr, self.spawn_handler(rx))
     }
 
-    /// Starts the service in the given runtime and returns an address for it.
-    fn start_in(self, runtime: &Runtime) -> Addr<Self::Interface> {
-        let _guard = runtime.enter();
-        self.start()
+    /// Starts the service in the current runtime and returns an address for it.
+    ///
+    /// The main task of the service is detached.
+    fn start(self) -> Addr<Self::Interface> {
+        let (addr, _join_handle) = self.start_joinable();
+        addr
     }
 
     /// Returns a unique name for this service implementation.
@@ -1046,12 +1047,12 @@ mod tests {
     impl Service for MockService {
         type Interface = MockMessage;
 
-        fn spawn_handler(self, mut rx: Receiver<Self::Interface>) {
+        fn spawn_handler(self, mut rx: Receiver<Self::Interface>) -> JoinHandle<()> {
             tokio::spawn(async move {
                 while rx.recv().await.is_some() {
                     tokio::time::sleep(BACKLOG_INTERVAL * 2).await;
                 }
-            });
+            })
         }
 
         fn name() -> &'static str {

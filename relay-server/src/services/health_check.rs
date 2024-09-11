@@ -4,6 +4,7 @@ use relay_config::Config;
 use relay_system::{Addr, AsyncResponse, Controller, FromMessage, Interface, Sender, Service};
 use std::future::Future;
 use tokio::sync::watch;
+use tokio::task::JoinHandle;
 use tokio::time::{timeout, Instant};
 
 use crate::services::metrics::RouterHandle;
@@ -189,13 +190,13 @@ impl HealthCheckService {
 impl Service for HealthCheckService {
     type Interface = HealthCheck;
 
-    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) -> JoinHandle<()> {
         let (update_tx, update_rx) = watch::channel(StatusUpdate::new(Status::Unhealthy));
         let check_interval = self.config.health_refresh_interval();
         // Add 10% buffer to the internal timeouts to avoid race conditions.
         let status_timeout = (check_interval + self.config.health_probe_timeout()).mul_f64(1.1);
 
-        tokio::spawn(async move {
+        let j1 = tokio::spawn(async move {
             let shutdown = Controller::shutdown_handle();
 
             while shutdown.get().is_none() {
@@ -212,7 +213,7 @@ impl Service for HealthCheckService {
             update_tx.send(StatusUpdate::new(Status::Unhealthy)).ok();
         });
 
-        tokio::spawn(async move {
+        let _j2 = tokio::spawn(async move {
             while let Some(HealthCheck(message, sender)) = rx.recv().await {
                 let update = update_rx.borrow();
 
@@ -225,6 +226,8 @@ impl Service for HealthCheckService {
                 });
             }
         });
+
+        j1 // TODO: should return j1 + j2
     }
 }
 

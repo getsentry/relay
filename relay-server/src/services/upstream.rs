@@ -1498,7 +1498,10 @@ impl UpstreamRelayService {
 impl Service for UpstreamRelayService {
     type Interface = UpstreamRelay;
 
-    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
+    fn spawn_handler(
+        self,
+        mut rx: relay_system::Receiver<Self::Interface>,
+    ) -> tokio::task::JoinHandle<()> {
         let Self { config } = self;
 
         let client = SharedClient::build(config.clone());
@@ -1540,6 +1543,6 @@ impl Service for UpstreamRelayService {
                     else => break,
                 }
             }
-        });
+        }) // TODO: return both
     }
 }

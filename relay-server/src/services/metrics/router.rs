@@ -5,6 +5,7 @@ use relay_config::aggregator::Condition;
 use relay_config::{AggregatorServiceConfig, ScopedAggregatorConfig};
 use relay_metrics::MetricNamespace;
 use relay_system::{Addr, NoResponse, Recipient, Service};
+use tokio::task::JoinHandle;
 
 use crate::services::metrics::{
     Aggregator, AggregatorHandle, AggregatorService, FlushBuckets, MergeBuckets,
@@ -53,7 +54,7 @@ impl RouterService {
 impl Service for RouterService {
     type Interface = Aggregator;
 
-    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
+    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) -> JoinHandle<()> {
         tokio::spawn(async move {
             let mut router = StartedRouter::start(self);
             relay_log::info!("metrics router started");
@@ -72,7 +73,7 @@ impl Service for RouterService {
                 }
             }
             relay_log::info!("metrics router stopped");
-        });
+        })
     }
 }
 

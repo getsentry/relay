@@ -1272,7 +1272,10 @@ impl BufferService {
 impl Service for BufferService {
     type Interface = Buffer;
 
-    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+    fn spawn_handler(
+        mut self,
+        mut rx: relay_system::Receiver<Self::Interface>,
+    ) -> tokio::task::JoinHandle<()> {
         tokio::spawn(async move {
             let mut shutdown = Controller::shutdown_handle();
 
@@ -1299,7 +1302,7 @@ impl Service for BufferService {
                     else => break,
                 }
             }
-        });
+        })
     }
 }
 
@@ -1591,7 +1594,10 @@ mod tests {
     impl Service for TestHealthService {
         type Interface = TestHealth;
 
-        fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
+        fn spawn_handler(
+            self,
+            mut rx: relay_system::Receiver<Self::Interface>,
+        ) -> tokio::task::JoinHandle<()> {
             tokio::spawn(async move {
                 loop {
                     tokio::select! {
@@ -1599,7 +1605,7 @@ mod tests {
                         else => break,
                     }
                 }
-            });
+            })
         }
     }
 

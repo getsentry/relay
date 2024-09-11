@@ -7,6 +7,7 @@ use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_config::Config;
 use relay_system::{AsyncResponse, FromMessage, Interface, Receiver, Sender, Service};
 use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 use tokio::time::Instant;
 
 use crate::services::project::{ParsedProjectState, ProjectState};
@@ -164,7 +165,7 @@ async fn spawn_poll_local_states(
 impl Service for LocalProjectSourceService {
     type Interface = LocalProjectSource;
 
-    fn spawn_handler(mut self, mut rx: Receiver<Self::Interface>) {
+    fn spawn_handler(mut self, mut rx: Receiver<Self::Interface>) -> JoinHandle<()> {
         // Use a channel with size 1. If the channel is full because the consumer does not
         // collect the result, the producer will block, which is acceptable.
         let (state_tx, mut state_rx) = mpsc::channel(1);
@@ -185,7 +186,7 @@ impl Service for LocalProjectSourceService {
                 }
             }
             relay_log::info!("project local cache stopped");
-        });
+        })
     }
 }
 

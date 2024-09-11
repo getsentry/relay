@@ -2890,7 +2890,11 @@ impl EnvelopeProcessorService {
 impl Service for EnvelopeProcessorService {
     type Interface = EnvelopeProcessor;
 
-    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
+    #[must_use]
+    fn spawn_handler(
+        self,
+        mut rx: relay_system::Receiver<Self::Interface>,
+    ) -> tokio::task::JoinHandle<()> {
         tokio::spawn(async move {
             while let Some(message) = rx.recv().await {
                 let service = self.clone();
@@ -2899,7 +2903,7 @@ impl Service for EnvelopeProcessorService {
                     .spawn(move || service.handle_message(message))
                     .await;
             }
-        });
+        })
     }
 }
 

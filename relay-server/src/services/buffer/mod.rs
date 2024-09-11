@@ -11,6 +11,7 @@ use relay_system::Request;
 use relay_system::SendError;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Receiver, Service};
 use tokio::sync::watch;
+use tokio::task::JoinHandle;
 
 use crate::envelope::Envelope;
 use crate::services::buffer::envelope_buffer::Peek;
@@ -128,12 +129,10 @@ impl EnvelopeBufferService {
     }
 
     /// Returns both the [`Addr`] to this service, and a reference to the capacity flag.
-    pub fn start_observable(self) -> ObservableEnvelopeBuffer {
+    pub fn start_observable(self) -> (ObservableEnvelopeBuffer, JoinHandle<()>) {
         let has_capacity = self.has_capacity.clone();
-        ObservableEnvelopeBuffer {
-            addr: self.start(),
-            has_capacity,
-        }
+        let (addr, join_handle) = self.start_joinable();
+        (ObservableEnvelopeBuffer { addr, has_capacity }, join_handle)
     }
 
     /// Wait for the configured amount of time and make sure the project cache is ready to receive.
@@ -259,7 +258,7 @@ impl EnvelopeBufferService {
 impl Service for EnvelopeBufferService {
     type Interface = EnvelopeBuffer;
 
-    fn spawn_handler(mut self, mut rx: Receiver<Self::Interface>) {
+    fn spawn_handler(mut self, mut rx: Receiver<Self::Interface>) -> JoinHandle<()> {
         let config = self.config.clone();
         let memory_checker = self.memory_checker.clone();
         let mut global_config_rx = self.global_config_rx.clone();
@@ -312,7 +311,7 @@ impl Service for EnvelopeBufferService {
             }
 
             relay_log::info!("EnvelopeBufferService stop");
-        });
+        })
     }
 }
 
@@ -364,7 +363,7 @@ mod tests {
         service.has_capacity.store(false, Ordering::Relaxed);
 
         // Observable has correct value:
-        let ObservableEnvelopeBuffer { addr, has_capacity } = service.start_observable();
+        let (ObservableEnvelopeBuffer { addr, has_capacity }, _) = service.start_observable();
         assert!(!has_capacity.load(Ordering::Relaxed));
 
         // Send a message to trigger update of `has_capacity` flag:

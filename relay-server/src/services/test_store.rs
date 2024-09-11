@@ -134,11 +134,14 @@ impl TestStoreService {
 impl relay_system::Service for TestStoreService {
     type Interface = TestStore;
 
-    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+    fn spawn_handler(
+        mut self,
+        mut rx: relay_system::Receiver<Self::Interface>,
+    ) -> tokio::task::JoinHandle<()> {
         tokio::spawn(async move {
             while let Some(message) = rx.recv().await {
                 self.handle_message(message);
             }
-        });
+        })
     }
 }

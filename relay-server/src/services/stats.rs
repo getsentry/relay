@@ -136,9 +136,12 @@ impl RelayStats {
 impl Service for RelayStats {
     type Interface = ();
 
-    fn spawn_handler(self, _rx: relay_system::Receiver<Self::Interface>) {
+    fn spawn_handler(
+        self,
+        _rx: relay_system::Receiver<Self::Interface>,
+    ) -> tokio::task::JoinHandle<()> {
         let Some(mut ticker) = self.config.metrics_periodic_interval().map(interval) else {
-            return;
+            return tokio::spawn(async {});
         };
 
         tokio::spawn(async move {
@@ -150,6 +153,6 @@ impl Service for RelayStats {
                 );
                 ticker.tick().await;
             }
-        });
+        })
     }
 }

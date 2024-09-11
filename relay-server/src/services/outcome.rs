@@ -29,6 +29,7 @@ use relay_sampling::evaluation::MatchedRuleIds;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 use serde::{Deserialize, Serialize};
+use tokio::task::JoinHandle;
 
 #[cfg(feature = "processing")]
 use crate::service::ServiceError;
@@ -682,7 +683,7 @@ impl HttpOutcomeProducer {
 impl Service for HttpOutcomeProducer {
     type Interface = TrackRawOutcome;
 
-    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) -> JoinHandle<()> {
         tokio::spawn(async move {
             loop {
                 tokio::select! {
@@ -694,7 +695,7 @@ impl Service for HttpOutcomeProducer {
                     else => break,
                 }
             }
-        });
+        })
     }
 }
 
@@ -775,7 +776,7 @@ impl ClientReportOutcomeProducer {
 impl Service for ClientReportOutcomeProducer {
     type Interface = TrackOutcome;
 
-    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) -> JoinHandle<()> {
         tokio::spawn(async move {
             loop {
                 tokio::select! {
@@ -787,7 +788,7 @@ impl Service for ClientReportOutcomeProducer {
                     else => break,
                 }
             }
-        });
+        })
     }
 }
 
@@ -1034,7 +1035,7 @@ impl OutcomeProducerService {
 impl Service for OutcomeProducerService {
     type Interface = OutcomeProducer;
 
-    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
+    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) -> JoinHandle<()> {
         let Self { config, inner } = self;
 
         tokio::spawn(async move {
@@ -1045,7 +1046,7 @@ impl Service for OutcomeProducerService {
                 broker.handle_message(message, &config);
             }
             relay_log::info!("OutcomeProducer stopped.");
-        });
+        })
     }
 }
 

@@ -1370,7 +1370,10 @@ impl ProjectCacheService {
 impl Service for ProjectCacheService {
     type Interface = ProjectCache;
 
-    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
+    fn spawn_handler(
+        self,
+        mut rx: relay_system::Receiver<Self::Interface>,
+    ) -> tokio::task::JoinHandle<()> {
         let Self {
             config,
             memory_checker,
@@ -1506,7 +1509,7 @@ impl Service for ProjectCacheService {
             }
 
             relay_log::info!("project cache stopped");
-        });
+        })
     }
 }
 

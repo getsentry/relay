@@ -9,12 +9,14 @@ use crate::services::stats::RelayStats;
 use anyhow::{Context, Result};
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
+use futures::stream::FuturesUnordered;
 use rayon::ThreadPool;
 use relay_cogs::Cogs;
 use relay_config::{Config, RedisConnection, RedisPoolConfigs};
 use relay_redis::{RedisConfigOptions, RedisError, RedisPool, RedisPools};
 use relay_system::{channel, Addr, Service};
 use tokio::runtime::Runtime;
+use tokio::task::JoinHandle;
 
 use crate::services::cogs::{CogsService, CogsServiceRecorder};
 use crate::services::global_config::{GlobalConfigManager, GlobalConfigService};
@@ -141,6 +143,7 @@ struct StateInner {
     config: Arc<Config>,
     memory_checker: MemoryChecker,
     registry: Registry,
+    join_handles: Vec<JoinHandle<()>>,
 }
 
 /// Server state.
@@ -221,7 +224,7 @@ impl ServiceState {
         let cogs = CogsService::new(&config);
         let cogs = Cogs::new(CogsServiceRecorder::new(&config, cogs.start()));
 
-        EnvelopeProcessorService::new(
+        let processor_handle = EnvelopeProcessorService::new(
             create_processor_pool(&config)?,
             config.clone(),
             global_config_handle,
@@ -251,7 +254,7 @@ impl ServiceState {
 
         // Keep all the services in one context.
         let project_cache_services = Services {
-            envelope_buffer: envelope_buffer.as_ref().map(ObservableEnvelopeBuffer::addr),
+            envelope_buffer: envelope_buffer.as_ref().map(|(b, _)| b.addr()),
             aggregator: aggregator.clone(),
             envelope_processor: processor.clone(),
             outcome_aggregator: outcome_aggregator.clone(),
@@ -301,13 +304,20 @@ impl ServiceState {
             global_config,
             project_cache,
             upstream_relay,
-            envelope_buffer,
+            envelope_buffer: envelope_buffer.as_ref().map(|(b, _)| b.clone()),
         };
 
         let state = StateInner {
             config: config.clone(),
             memory_checker: MemoryChecker::new(memory_stat, config.clone()),
             registry,
+            join_handles: {
+                let mut j = Vec::from_iter([processor_handle]);
+                if let Some((_, handle)) = envelope_buffer {
+                    j.push(handle);
+                }
+                j
+            },
         };
 
         Ok(ServiceState {
@@ -375,6 +385,10 @@ impl ServiceState {
     /// Returns the address of the [`OutcomeProducer`] service.
     pub fn outcome_aggregator(&self) -> &Addr<TrackOutcome> {
         &self.inner.registry.outcome_aggregator
+    }
+
+    pub fn join_handles(&self) -> &[JoinHandle<()>] {
+        self.inner.join_handles.as_slice()
     }
 }
 

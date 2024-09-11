@@ -246,7 +246,10 @@ impl AggregatorService {
 impl Service for AggregatorService {
     type Interface = Aggregator;
 
-    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+    fn spawn_handler(
+        mut self,
+        mut rx: relay_system::Receiver<Self::Interface>,
+    ) -> tokio::task::JoinHandle<()> {
         tokio::spawn(async move {
             let mut ticker = tokio::time::interval(Duration::from_millis(self.flush_interval_ms));
             let mut shutdown = Controller::shutdown_handle();
@@ -264,7 +267,7 @@ impl Service for AggregatorService {
                     else => break,
                 }
             }
-        });
+        })
     }
 }
 
@@ -361,7 +364,10 @@ mod tests {
     impl Service for TestReceiver {
         type Interface = TestInterface;
 
-        fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
+        fn spawn_handler(
+            self,
+            mut rx: relay_system::Receiver<Self::Interface>,
+        ) -> tokio::task::JoinHandle<()> {
             tokio::spawn(async move {
                 while let Some(message) = rx.recv().await {
                     let buckets = message.0.buckets;
@@ -370,7 +376,7 @@ mod tests {
                         self.add_buckets(buckets);
                     }
                 }
-            });
+            })
         }
     }
 

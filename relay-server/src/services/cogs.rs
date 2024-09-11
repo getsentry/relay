@@ -1,8 +1,8 @@
-use std::sync::atomic::{AtomicBool, Ordering};
-
 use relay_cogs::{CogsMeasurement, CogsRecorder, ResourceId};
 use relay_config::Config;
 use relay_system::{Addr, FromMessage, Interface, Service};
+use std::sync::atomic::{AtomicBool, Ordering};
+use tokio::task::JoinHandle;
 
 use crate::statsd::RelayCounters;
 
@@ -54,12 +54,12 @@ impl CogsService {
 impl Service for CogsService {
     type Interface = CogsReport;
 
-    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) -> JoinHandle<()> {
         tokio::spawn(async move {
             while let Some(message) = rx.recv().await {
                 self.handle_report(message);
             }
-        });
+        })
     }
 }
 

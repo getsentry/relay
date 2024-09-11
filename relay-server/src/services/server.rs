@@ -167,7 +167,7 @@ impl<S> Accept<TcpStream, S> for KeepAliveAcceptor {
     }
 }
 
-fn serve(listener: TcpListener, app: App, config: Arc<Config>) {
+fn serve(listener: TcpListener, app: App, config: Arc<Config>) -> tokio::task::JoinHandle<()> {
     let handle = Handle::new();
 
     let mut server = axum_server::from_tcp(listener)
@@ -189,9 +189,9 @@ fn serve(listener: TcpListener, app: App, config: Arc<Config>) {
         .keep_alive_timeout(config.keepalive_timeout());
 
     let service = ServiceExt::<Request>::into_make_service_with_connect_info::<SocketAddr>(app);
-    tokio::spawn(server.serve(service));
+    let server_handle = tokio::spawn(server.serve(service));
 
-    tokio::spawn(async move {
+    let shutdown_handle = tokio::spawn(async move {
         let Shutdown { timeout } = Controller::shutdown_handle().notified().await;
         relay_log::info!("Shutting down HTTP server");
 
@@ -200,6 +200,8 @@ fn serve(listener: TcpListener, app: App, config: Arc<Config>) {
             None => handle.shutdown(),
         }
     });
+
+    server_handle // TODO: return both
 }
 
 /// HTTP server service.
@@ -227,7 +229,10 @@ impl HttpServer {
 impl Service for HttpServer {
     type Interface = ();
 
-    fn spawn_handler(self, _rx: relay_system::Receiver<Self::Interface>) {
+    fn spawn_handler(
+        self,
+        _rx: relay_system::Receiver<Self::Interface>,
+    ) -> tokio::task::JoinHandle<()> {
         let Self {
             config,
             service,
@@ -239,6 +244,6 @@ impl Service for HttpServer {
         relay_statsd::metric!(counter(RelayCounters::ServerStarting) += 1);
 
         let app = make_app(service);
-        serve(listener, app, config);
+        serve(listener, app, config)
     }
 }
