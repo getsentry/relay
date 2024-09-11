@@ -320,8 +320,9 @@ fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
         }
 
         // We only want this on frontend or mobile modules.
-        let should_extract_geo =
-            event.context::<BrowserContext>().is_some() || MOBILE_SDKS.contains(&event.sdk_name());
+        let should_extract_geo = (event.context::<BrowserContext>().is_some()
+            && event.platform.as_str() == Some("javascript"))
+            || MOBILE_SDKS.contains(&event.sdk_name());
 
         if should_extract_geo {
             if let Some(country_code) = user.geo.value().and_then(|geo| geo.country_code.value()) {
@@ -2745,6 +2746,9 @@ LIMIT 1
                     "trace": {
                         "trace_id": "ff62a8b040f340bda5d830223def1d81",
                         "span_id": "bd429c44b67a3eb4"
+                    },
+                    "browser": {
+                        "name": "Chrome"
                     }
                 },
                 "user": {
