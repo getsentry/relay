@@ -1,4 +1,3 @@
-use std::cmp::Reverse;
 use std::error::Error;
 use std::path::Path;
 use std::pin::pin;
@@ -371,12 +370,12 @@ impl SqliteEnvelopeStore {
             }
         }
 
-        // We sort envelopes by `received_at`.
+        // We sort envelopes by `received_at` in ascending order.
         //
         // Unfortunately we have to do this because SQLite `DELETE` with `RETURNING` doesn't
         // return deleted rows in a specific order.
         extracted_envelopes.sort_by_key(|a| {
-            Reverse(UnixTimestamp::from_datetime(a.received_at()).unwrap_or(UnixTimestamp::now()))
+            UnixTimestamp::from_datetime(a.received_at()).unwrap_or(UnixTimestamp::now())
         });
 
         Ok(extracted_envelopes)
@@ -553,10 +552,7 @@ mod tests {
             .unwrap();
         assert_eq!(extracted_envelopes.len(), 5);
         for (i, extracted_envelope) in extracted_envelopes.iter().enumerate().take(5) {
-            assert_eq!(
-                extracted_envelope.event_id(),
-                envelopes[5..][4 - i].event_id()
-            );
+            assert_eq!(extracted_envelope.event_id(), envelopes[5..][i].event_id());
         }
 
         // We check that if we load more than the envelopes stored on disk, we still get back at
@@ -567,10 +563,7 @@ mod tests {
             .unwrap();
         assert_eq!(extracted_envelopes.len(), 5);
         for (i, extracted_envelope) in extracted_envelopes.iter().enumerate().take(5) {
-            assert_eq!(
-                extracted_envelope.event_id(),
-                envelopes[0..5][4 - i].event_id()
-            );
+            assert_eq!(extracted_envelope.event_id(), envelopes[0..5][i].event_id());
         }
     }
 
