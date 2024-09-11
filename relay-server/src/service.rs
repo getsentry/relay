@@ -143,7 +143,6 @@ struct StateInner {
     config: Arc<Config>,
     memory_checker: MemoryChecker,
     registry: Registry,
-    join_handles: Vec<JoinHandle<()>>,
 }
 
 /// Server state.
@@ -154,7 +153,7 @@ pub struct ServiceState {
 
 impl ServiceState {
     /// Starts all services and returns addresses to all of them.
-    pub fn start(config: Arc<Config>) -> Result<Self> {
+    pub fn start(config: Arc<Config>) -> Result<(Self, FuturesUnordered<JoinHandle<()>>)> {
         let upstream_relay = UpstreamRelayService::new(config.clone()).start();
         let test_store = TestStoreService::new(config.clone()).start();
 
@@ -311,18 +310,19 @@ impl ServiceState {
             config: config.clone(),
             memory_checker: MemoryChecker::new(memory_stat, config.clone()),
             registry,
-            join_handles: {
-                let mut j = Vec::from_iter([processor_handle]);
-                if let Some((_, handle)) = envelope_buffer {
-                    j.push(handle);
-                }
-                j
-            },
         };
 
-        Ok(ServiceState {
-            inner: Arc::new(state),
-        })
+        let join_handles = FuturesUnordered::from_iter([processor_handle]);
+        if let Some((_, handle)) = envelope_buffer {
+            join_handles.push(handle);
+        };
+
+        Ok((
+            ServiceState {
+                inner: Arc::new(state),
+            },
+            join_handles,
+        ))
     }
 
     /// Returns a reference to the Relay configuration.
@@ -385,10 +385,6 @@ impl ServiceState {
     /// Returns the address of the [`OutcomeProducer`] service.
     pub fn outcome_aggregator(&self) -> &Addr<TrackOutcome> {
         &self.inner.registry.outcome_aggregator
-    }
-
-    pub fn join_handles(&self) -> &[JoinHandle<()>] {
-        self.inner.join_handles.as_slice()
     }
 }
 

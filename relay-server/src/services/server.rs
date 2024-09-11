@@ -189,9 +189,9 @@ fn serve(listener: TcpListener, app: App, config: Arc<Config>) -> tokio::task::J
         .keep_alive_timeout(config.keepalive_timeout());
 
     let service = ServiceExt::<Request>::into_make_service_with_connect_info::<SocketAddr>(app);
-    let server_handle = tokio::spawn(server.serve(service));
+    let _server_handle = tokio::spawn(server.serve(service));
 
-    let shutdown_handle = tokio::spawn(async move {
+    tokio::spawn(async move {
         let Shutdown { timeout } = Controller::shutdown_handle().notified().await;
         relay_log::info!("Shutting down HTTP server");
 
@@ -199,9 +199,7 @@ fn serve(listener: TcpListener, app: App, config: Arc<Config>) -> tokio::task::J
             Some(timeout) => handle.graceful_shutdown(Some(timeout)),
             None => handle.shutdown(),
         }
-    });
-
-    server_handle // TODO: return both
+    }) // TODO: return both
 }
 
 /// HTTP server service.

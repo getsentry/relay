@@ -281,6 +281,7 @@ use std::sync::Arc;
 use futures::StreamExt;
 use relay_config::Config;
 use relay_system::{Controller, Service};
+use tokio::select;
 
 use crate::service::ServiceState;
 use crate::services::server::HttpServer;
@@ -302,16 +303,30 @@ pub fn run(config: Config) -> anyhow::Result<()> {
     // information on all services.
     main_runtime.block_on(async {
         Controller::start(config.shutdown_timeout());
-        let service = ServiceState::start(config.clone())?;
+        let (service, mut join_handles) = ServiceState::start(config.clone())?;
         HttpServer::new(config, service.clone())?.start();
 
-        for x in service.join_handles() {}
-        // while let Some(res) = service.join_handles().next() {
+        loop {
+            select! {
+                Some(res) = join_handles.next() => {
+                    match res {
+                        Ok(()) => {
+                            relay_log::trace!("Service exited normally.");
+                        }
+                        Err(e) => {
+                            if e.is_panic() {
+                                std::panic::resume_unwind(e.into_panic());
+                            }
+                        }
+                    }
+                }
+                _ = Controller::shutdown_handle().finished() => {
+                    break
+                }
+                else => break
+            }
+        }
 
-        // }
-
-        // TODO: await simultaneously
-        Controller::shutdown_handle().finished().await;
         anyhow::Ok(())
     })?;
 
