@@ -515,7 +515,6 @@ impl<K: PartialEq, V> Eq for QueueItem<K, V> {}
 struct Priority {
     readiness: Readiness,
     received_at: Instant,
-    // FIXME(jjbayer): `last_peek` is currently never updated, see https://github.com/getsentry/relay/pull/3960.
     last_peek: Instant,
 }
 
@@ -948,28 +947,20 @@ mod tests {
 
     #[test]
     fn test_total_order() {
-        let readiness = Readiness {
-            own_project_ready: true,
-            sampling_project_ready: true,
-        };
-        let received_at = Instant::now();
-        let last_peek = Instant::now();
         let p1 = Priority {
-            readiness,
-            received_at,
-            last_peek,
+            readiness: Readiness {
+                own_project_ready: true,
+                sampling_project_ready: true,
+            },
+            received_at: Instant::now(),
+            last_peek: Instant::now(),
         };
-        let p2 = Priority {
-            readiness,
-            received_at,
-            last_peek: last_peek + Duration::from_micros(1),
-        };
+        let mut p2 = p1.clone();
+        p2.last_peek += Duration::from_millis(1);
 
         // Last peek does not matter because project is ready:
         assert_eq!(p1.cmp(&p2), Ordering::Equal);
         assert_eq!(p1, p2);
-
-        // TODO: reproduce panic
     }
 
     #[tokio::test]
