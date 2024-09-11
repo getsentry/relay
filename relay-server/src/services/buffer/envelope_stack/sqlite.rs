@@ -120,7 +120,7 @@ impl SqliteEnvelopeStack {
     /// In case an envelope fails deserialization due to malformed data in the database, the affected
     /// envelope will not be unspooled and unspooling will continue with the remaining envelopes.
     async fn unspool_from_disk(&mut self) -> Result<(), SqliteEnvelopeStackError> {
-        let envelopes = relay_statsd::metric!(timer(RelayTimers::BufferUnspool), {
+        let mut envelopes = relay_statsd::metric!(timer(RelayTimers::BufferUnspool), {
             self.envelope_store
                 .delete_many(
                     self.own_key,
@@ -138,6 +138,11 @@ impl SqliteEnvelopeStack {
 
             return Ok(());
         }
+
+        // Since the store returns the envelopes sorted in descending order, we want to put them
+        // in reverse into the vector in the buffer, because we want to pop the last element always,
+        // which has to be the newest (aka with the biggest timestamp).
+        envelopes.reverse();
 
         // We push in the back of the buffer, since we still want to give priority to
         // incoming envelopes that have a more recent timestamp.
