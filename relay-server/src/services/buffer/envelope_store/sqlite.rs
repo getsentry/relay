@@ -552,9 +552,9 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(extracted_envelopes.len(), 5);
-        for i in 0..5 {
+        for (i, extracted_envelope) in extracted_envelopes.iter().enumerate().take(5) {
             assert_eq!(
-                extracted_envelopes[i].event_id(),
+                extracted_envelope.event_id(),
                 envelopes[5..][4 - i].event_id()
             );
         }
@@ -566,9 +566,9 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(extracted_envelopes.len(), 5);
-        for i in 0..5 {
+        for (i, extracted_envelope) in extracted_envelopes.iter().enumerate().take(5) {
             assert_eq!(
-                extracted_envelopes[i].event_id(),
+                extracted_envelope.event_id(),
                 envelopes[0..5][4 - i].event_id()
             );
         }
