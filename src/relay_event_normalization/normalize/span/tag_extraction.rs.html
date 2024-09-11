@@ -2882,6 +2882,10 @@
 <a href="#2882" id="2882">2882</a>
 <a href="#2883" id="2883">2883</a>
 <a href="#2884" id="2884">2884</a>
+<a href="#2885" id="2885">2885</a>
+<a href="#2886" id="2886">2886</a>
+<a href="#2887" id="2887">2887</a>
+<a href="#2888" id="2888">2888</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for persisting items into `span.sentry_tags` and `span.measurements` fields.
 //! These are then used for metrics extraction.
 </span><span class="kw">use </span>std::borrow::Cow;
@@ -3204,8 +3208,9 @@
         }
 
         <span class="comment">// We only want this on frontend or mobile modules.
-        </span><span class="kw">let </span>should_extract_geo =
-            event.context::&lt;BrowserContext&gt;().is_some() || MOBILE_SDKS.contains(<span class="kw-2">&amp;</span>event.sdk_name());
+        </span><span class="kw">let </span>should_extract_geo = (event.context::&lt;BrowserContext&gt;().is_some()
+            &amp;&amp; event.platform.as_str() == <span class="prelude-val">Some</span>(<span class="string">"javascript"</span>))
+            || MOBILE_SDKS.contains(<span class="kw-2">&amp;</span>event.sdk_name());
 
         <span class="kw">if </span>should_extract_geo {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(country_code) = user.geo.value().and_then(|geo| geo.country_code.value()) {
@@ -5629,6 +5634,9 @@ LIMIT 1
                     "trace": {
                         "trace_id": "ff62a8b040f340bda5d830223def1d81",
                         "span_id": "bd429c44b67a3eb4"
+                    },
+                    "browser": {
+                        "name": "Chrome"
                     }
                 },
                 "user": {
