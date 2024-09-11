@@ -235,7 +235,7 @@ impl Replay {
         for item in headers.iter() {
             if let Some((ref o_k, ref v)) = item.value() {
                 if let Some(k) = o_k.as_str() {
-                    if k.to_lowercase() == "user-agent" {
+                    if k.eq_ignore_ascii_case("user-agent") {
                         return v.as_str();
                     }
                 }

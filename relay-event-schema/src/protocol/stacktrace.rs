@@ -397,6 +397,19 @@ pub enum InstructionAddrAdjustment {
     Unknown(String),
 }
 
+impl InstructionAddrAdjustment {
+    /// Returns the string representation of this adjustment.
+    pub fn as_str(&self) -> &str {
+        match self {
+            InstructionAddrAdjustment::Auto => "auto",
+            InstructionAddrAdjustment::AllButFirst => "all_but_first",
+            InstructionAddrAdjustment::All => "all",
+            InstructionAddrAdjustment::None => "none",
+            InstructionAddrAdjustment::Unknown(s) => s,
+        }
+    }
+}
+
 impl FromStr for InstructionAddrAdjustment {
     type Err = Infallible;
 
@@ -413,14 +426,7 @@ impl FromStr for InstructionAddrAdjustment {
 
 impl fmt::Display for InstructionAddrAdjustment {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = match self {
-            InstructionAddrAdjustment::Auto => "auto",
-            InstructionAddrAdjustment::AllButFirst => "all_but_first",
-            InstructionAddrAdjustment::All => "all",
-            InstructionAddrAdjustment::None => "none",
-            InstructionAddrAdjustment::Unknown(s) => s,
-        };
-        f.write_str(s)
+        f.write_str(self.as_str())
     }
 }
 
@@ -458,7 +464,10 @@ impl IntoValue for InstructionAddrAdjustment {
     where
         Self: Sized,
     {
-        Value::String(self.to_string())
+        Value::String(match self {
+            Self::Unknown(s) => s,
+            _ => self.as_str().to_owned(),
+        })
     }
 
     fn serialize_payload<S>(&self, s: S, _behavior: SkipSerialization) -> Result<S::Ok, S::Error>
@@ -466,7 +475,7 @@ impl IntoValue for InstructionAddrAdjustment {
         Self: Sized,
         S: serde::Serializer,
     {
-        serde::Serialize::serialize(&self.to_string(), s)
+        serde::Serialize::serialize(self.as_str(), s)
     }
 }
 

@@ -356,7 +356,7 @@ fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
 
     if let Some(trace_context) = event.context::<TraceContext>() {
         if let Some(op) = extract_transaction_op(trace_context) {
-            tags.insert(SpanTagKey::TransactionOp, op.to_lowercase().to_owned());
+            tags.insert(SpanTagKey::TransactionOp, op.to_lowercase());
         }
 
         if let Some(status) = trace_context.status.value() {
@@ -527,7 +527,7 @@ pub fn extract_tags(
     }
 
     if let Some(unsanitized_span_op) = span.op.value() {
-        let span_op = unsanitized_span_op.to_owned().to_lowercase();
+        let span_op = unsanitized_span_op.to_lowercase();
 
         span_tags.insert(SpanTagKey::SpanOp, span_op.to_owned());
 

@@ -123,7 +123,7 @@ impl IntoValue for MetricUnit {
     where
         Self: Sized,
     {
-        Value::String(format!("{self}"))
+        Value::String(self.to_string())
     }
 
     fn serialize_payload<S>(&self, s: S, _behavior: SkipSerialization) -> Result<S::Ok, S::Error>
@@ -131,7 +131,7 @@ impl IntoValue for MetricUnit {
         Self: Sized,
         S: serde::Serializer,
     {
-        serde::Serialize::serialize(&self.to_string(), s)
+        serde::Serialize::serialize(self.as_str(), s)
     }
 }
 
