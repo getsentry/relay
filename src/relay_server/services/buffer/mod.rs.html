@@ -472,6 +472,28 @@
 <a href="#472" id="472">472</a>
 <a href="#473" id="473">473</a>
 <a href="#474" id="474">474</a>
+<a href="#475" id="475">475</a>
+<a href="#476" id="476">476</a>
+<a href="#477" id="477">477</a>
+<a href="#478" id="478">478</a>
+<a href="#479" id="479">479</a>
+<a href="#480" id="480">480</a>
+<a href="#481" id="481">481</a>
+<a href="#482" id="482">482</a>
+<a href="#483" id="483">483</a>
+<a href="#484" id="484">484</a>
+<a href="#485" id="485">485</a>
+<a href="#486" id="486">486</a>
+<a href="#487" id="487">487</a>
+<a href="#488" id="488">488</a>
+<a href="#489" id="489">489</a>
+<a href="#490" id="490">490</a>
+<a href="#491" id="491">491</a>
+<a href="#492" id="492">492</a>
+<a href="#493" id="493">493</a>
+<a href="#494" id="494">494</a>
+<a href="#495" id="495">495</a>
+<a href="#496" id="496">496</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Types for buffering envelopes.
 
 </span><span class="kw">use </span>std::sync::atomic::AtomicBool;
@@ -615,12 +637,22 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         buffer: <span class="kw-2">&amp;mut </span>PolymorphicEnvelopeBuffer,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), SendError&gt; {
+        <span class="macro">relay_statsd::metric!</span>(
+            counter(RelayCounters::BufferReadyToPop) += <span class="number">1</span>,
+            status = <span class="string">"checking"
+        </span>);
+
         <span class="self">self</span>.system_ready(buffer).<span class="kw">await</span>;
         tokio::time::sleep(<span class="self">self</span>.sleep).<span class="kw">await</span>;
         <span class="kw">if let </span><span class="prelude-val">Some</span>(project_cache_ready) = <span class="self">self</span>.project_cache_ready.as_mut() {
             project_cache_ready.<span class="kw">await</span><span class="question-mark">?</span>;
             <span class="self">self</span>.project_cache_ready = <span class="prelude-val">None</span>;
         }
+
+        <span class="macro">relay_statsd::metric!</span>(
+            counter(RelayCounters::BufferReadyToPop) += <span class="number">1</span>,
+            status = <span class="string">"checked"
+        </span>);
 
         <span class="prelude-val">Ok</span>(())
     }
@@ -654,10 +686,18 @@
         <span class="kw">match </span>buffer.peek().<span class="kw">await</span><span class="question-mark">? </span>{
             Peek::Empty =&gt; {
                 <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService empty"</span>);
+                <span class="macro">relay_statsd::metric!</span>(
+                    counter(RelayCounters::BufferTryPop) += <span class="number">1</span>,
+                    peek_result = <span class="string">"empty"
+                </span>);
                 <span class="self">self</span>.sleep = Duration::MAX; <span class="comment">// wait for reset by `handle_message`.
             </span>}
             Peek::Ready(<span class="kw">_</span>) =&gt; {
                 <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService pop"</span>);
+                <span class="macro">relay_statsd::metric!</span>(
+                    counter(RelayCounters::BufferTryPop) += <span class="number">1</span>,
+                    peek_result = <span class="string">"ready"
+                </span>);
                 <span class="kw">let </span>envelope = buffer
                     .pop()
                     .<span class="kw">await</span><span class="question-mark">?
@@ -669,6 +709,10 @@
             </span>}
             Peek::NotReady(stack_key, envelope) =&gt; {
                 <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService request update"</span>);
+                <span class="macro">relay_statsd::metric!</span>(
+                    counter(RelayCounters::BufferTryPop) += <span class="number">1</span>,
+                    peek_result = <span class="string">"not_ready"
+                </span>);
                 <span class="kw">let </span>project_key = envelope.meta().public_key();
                 <span class="self">self</span>.project_cache.send(UpdateProject(project_key));
                 <span class="kw">match </span>envelope.sampling_key() {

@@ -1047,6 +1047,12 @@
 <a href="#1047" id="1047">1047</a>
 <a href="#1048" id="1048">1048</a>
 <a href="#1049" id="1049">1049</a>
+<a href="#1050" id="1050">1050</a>
+<a href="#1051" id="1051">1051</a>
+<a href="#1052" id="1052">1052</a>
+<a href="#1053" id="1053">1053</a>
+<a href="#1054" id="1054">1054</a>
+<a href="#1055" id="1055">1055</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::cmp::Ordering;
 <span class="kw">use </span>std::collections::BTreeSet;
 <span class="kw">use </span>std::convert::Infallible;
@@ -1124,28 +1130,34 @@
 
     <span class="doccomment">/// Adds an envelope to the buffer.
     </span><span class="kw">pub async fn </span>push(<span class="kw-2">&amp;mut </span><span class="self">self</span>, envelope: Box&lt;Envelope&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), EnvelopeBufferError&gt; {
-        <span class="kw">match </span><span class="self">self </span>{
-            <span class="self">Self</span>::Sqlite(buffer) =&gt; buffer.push(envelope).<span class="kw">await</span>,
-            <span class="self">Self</span>::InMemory(buffer) =&gt; buffer.push(envelope).<span class="kw">await</span>,
-        }<span class="question-mark">?</span>;
+        <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::BufferPush), {
+            <span class="kw">match </span><span class="self">self </span>{
+                <span class="self">Self</span>::Sqlite(buffer) =&gt; buffer.push(envelope).<span class="kw">await</span>,
+                <span class="self">Self</span>::InMemory(buffer) =&gt; buffer.push(envelope).<span class="kw">await</span>,
+            }<span class="question-mark">?</span>;
+        });
         <span class="macro">relay_statsd::metric!</span>(counter(RelayCounters::BufferEnvelopesWritten) += <span class="number">1</span>);
         <span class="prelude-val">Ok</span>(())
     }
 
     <span class="doccomment">/// Returns a reference to the next-in-line envelope.
     </span><span class="kw">pub async fn </span>peek(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Peek, EnvelopeBufferError&gt; {
-        <span class="kw">match </span><span class="self">self </span>{
-            <span class="self">Self</span>::Sqlite(buffer) =&gt; buffer.peek().<span class="kw">await</span>,
-            <span class="self">Self</span>::InMemory(buffer) =&gt; buffer.peek().<span class="kw">await</span>,
-        }
+        <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::BufferPeek), {
+            <span class="kw">match </span><span class="self">self </span>{
+                <span class="self">Self</span>::Sqlite(buffer) =&gt; buffer.peek().<span class="kw">await</span>,
+                <span class="self">Self</span>::InMemory(buffer) =&gt; buffer.peek().<span class="kw">await</span>,
+            }
+        })
     }
 
     <span class="doccomment">/// Pops the next-in-line envelope.
     </span><span class="kw">pub async fn </span>pop(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;Box&lt;Envelope&gt;&gt;, EnvelopeBufferError&gt; {
-        <span class="kw">let </span>envelope = <span class="kw">match </span><span class="self">self </span>{
-            <span class="self">Self</span>::Sqlite(buffer) =&gt; buffer.pop().<span class="kw">await</span>,
-            <span class="self">Self</span>::InMemory(buffer) =&gt; buffer.pop().<span class="kw">await</span>,
-        }<span class="question-mark">?</span>;
+        <span class="kw">let </span>envelope = <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::BufferPop), {
+            <span class="kw">match </span><span class="self">self </span>{
+                <span class="self">Self</span>::Sqlite(buffer) =&gt; buffer.pop().<span class="kw">await</span>,
+                <span class="self">Self</span>::InMemory(buffer) =&gt; buffer.pop().<span class="kw">await</span>,
+            }<span class="question-mark">?
+        </span>});
         <span class="macro">relay_statsd::metric!</span>(counter(RelayCounters::BufferEnvelopesRead) += <span class="number">1</span>);
         <span class="prelude-val">Ok</span>(envelope)
     }
