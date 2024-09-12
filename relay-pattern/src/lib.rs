@@ -26,7 +26,7 @@
 //! * `{a,b}` matches any pattern within the alternation group.
 //! * `\` escapes any of the above special characters and treats it as a literal.
 
-use std::fmt;
+use std::fmt::{self, Write};
 
 /// Pattern parsing error.
 #[derive(Debug)]
@@ -255,7 +255,7 @@ fn to_regex(tokens: &[Token], options: Options) -> Result<regex_lite::Regex, Err
                     i => {
                         re.push('.');
                         re.push('{');
-                        re.push_str(&i.to_string());
+                        write!(re, "{i}").ok();
                         re.push('}')
                     }
                 },
