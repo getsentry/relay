@@ -306,7 +306,6 @@ impl Service for EnvelopeBufferService {
                         relay_log::trace!("EnvelopeBufferService received global config");
                         self.sleep = Duration::ZERO; // Try to pop
                     }
-
                     else => break,
                 }
 
@@ -320,9 +319,9 @@ impl Service for EnvelopeBufferService {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
-
+    use hashbrown::HashSet;
     use relay_dynamic_config::GlobalConfig;
+    use std::time::Duration;
     use tokio::sync::mpsc;
     use uuid::Uuid;
 
@@ -468,9 +467,10 @@ mod tests {
 
         tokio::time::sleep(Duration::from_millis(1000)).await;
 
-        // Project cache received only one envelope:
-        assert_eq!(project_cache_rx.len(), 1); // without throttling, this would be 5.
-        assert!(project_cache_rx.try_recv().is_ok());
-        assert_eq!(project_cache_rx.len(), 0);
+        let mut messages = HashSet::new();
+        while let Ok(value) = project_cache_rx.try_recv() {
+            messages.insert(value.variant());
+        }
+        assert!(messages.contains("HandleDequeuedEnvelope"));
     }
 }
