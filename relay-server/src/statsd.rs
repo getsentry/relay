@@ -524,6 +524,12 @@ pub enum RelayTimers {
     BufferSpool,
     /// Timing in milliseconds for the time it takes for the buffer to unspool data from disk.
     BufferUnspool,
+    /// Timing in milliseconds for the time it takes for the buffer to push.
+    BufferPush,
+    /// Timing in milliseconds for the time it takes for the buffer to peek.
+    BufferPeek,
+    /// Timing in milliseconds for the time it takes for the buffer to pop.
+    BufferPop,
     /// Timing in milliseconds for the time it takes for the buffer to drain its envelopes.
     BufferDrain,
 }
@@ -570,6 +576,9 @@ impl TimerMetric for RelayTimers {
             RelayTimers::BufferInitialization => "buffer.initialization.duration",
             RelayTimers::BufferSpool => "buffer.spool.duration",
             RelayTimers::BufferUnspool => "buffer.unspool.duration",
+            RelayTimers::BufferPush => "buffer.push.duration",
+            RelayTimers::BufferPeek => "buffer.peek.duration",
+            RelayTimers::BufferPop => "buffer.pop.duration",
             RelayTimers::BufferDrain => "buffer.drain.duration",
         }
     }
@@ -624,6 +633,14 @@ pub enum RelayCounters {
     /// Number of times an envelope stack is popped from the priority queue of stacks in the
     /// envelope buffer.
     BufferEnvelopeStacksPopped,
+    /// Number of times an envelope from the buffer is trying to be popped.
+    BufferTryPop,
+    /// Number of times the readiness check of the buffer is polled.
+    BufferReadyToPop,
+    /// Number of envelopes spool to disk.
+    BufferSpooledEnvelopes,
+    /// Number of envelopes unspooled from disk.
+    BufferUnspooledEnvelopes,
     ///
     /// Number of outcomes and reasons for rejected Envelopes.
     ///
@@ -842,6 +859,10 @@ impl CounterMetric for RelayCounters {
             RelayCounters::BufferEnvelopesReturned => "buffer.envelopes_returned",
             RelayCounters::BufferStateTransition => "buffer.state.transition",
             RelayCounters::BufferEnvelopeStacksPopped => "buffer.envelope_stacks_popped",
+            RelayCounters::BufferTryPop => "buffer.try_pop",
+            RelayCounters::BufferReadyToPop => "buffer.ready_to_pop",
+            RelayCounters::BufferSpooledEnvelopes => "buffer.spooled_envelopes",
+            RelayCounters::BufferUnspooledEnvelopes => "buffer.unspooled_envelopes",
             RelayCounters::Outcomes => "events.outcomes",
             RelayCounters::ProjectStateGet => "project_state.get",
             RelayCounters::ProjectStateRequest => "project_state.request",

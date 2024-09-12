@@ -78,28 +78,34 @@ impl PolymorphicEnvelopeBuffer {
 
     /// Adds an envelope to the buffer.
     pub async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), EnvelopeBufferError> {
-        match self {
-            Self::Sqlite(buffer) => buffer.push(envelope).await,
-            Self::InMemory(buffer) => buffer.push(envelope).await,
-        }?;
+        relay_statsd::metric!(timer(RelayTimers::BufferPush), {
+            match self {
+                Self::Sqlite(buffer) => buffer.push(envelope).await,
+                Self::InMemory(buffer) => buffer.push(envelope).await,
+            }?;
+        });
         relay_statsd::metric!(counter(RelayCounters::BufferEnvelopesWritten) += 1);
         Ok(())
     }
 
     /// Returns a reference to the next-in-line envelope.
     pub async fn peek(&mut self) -> Result<Peek, EnvelopeBufferError> {
-        match self {
-            Self::Sqlite(buffer) => buffer.peek().await,
-            Self::InMemory(buffer) => buffer.peek().await,
-        }
+        relay_statsd::metric!(timer(RelayTimers::BufferPeek), {
+            match self {
+                Self::Sqlite(buffer) => buffer.peek().await,
+                Self::InMemory(buffer) => buffer.peek().await,
+            }
+        })
     }
 
     /// Pops the next-in-line envelope.
     pub async fn pop(&mut self) -> Result<Option<Box<Envelope>>, EnvelopeBufferError> {
-        let envelope = match self {
-            Self::Sqlite(buffer) => buffer.pop().await,
-            Self::InMemory(buffer) => buffer.pop().await,
-        }?;
+        let envelope = relay_statsd::metric!(timer(RelayTimers::BufferPop), {
+            match self {
+                Self::Sqlite(buffer) => buffer.pop().await,
+                Self::InMemory(buffer) => buffer.pop().await,
+            }?
+        });
         relay_statsd::metric!(counter(RelayCounters::BufferEnvelopesRead) += 1);
         Ok(envelope)
     }

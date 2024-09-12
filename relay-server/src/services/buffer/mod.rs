@@ -143,12 +143,22 @@ impl EnvelopeBufferService {
         &mut self,
         buffer: &mut PolymorphicEnvelopeBuffer,
     ) -> Result<(), SendError> {
+        relay_statsd::metric!(
+            counter(RelayCounters::BufferReadyToPop) += 1,
+            status = "checking"
+        );
+
         self.system_ready(buffer).await;
         tokio::time::sleep(self.sleep).await;
         if let Some(project_cache_ready) = self.project_cache_ready.as_mut() {
             project_cache_ready.await?;
             self.project_cache_ready = None;
         }
+
+        relay_statsd::metric!(
+            counter(RelayCounters::BufferReadyToPop) += 1,
+            status = "checked"
+        );
 
         Ok(())
     }
@@ -182,10 +192,18 @@ impl EnvelopeBufferService {
         match buffer.peek().await? {
             Peek::Empty => {
                 relay_log::trace!("EnvelopeBufferService: peek returned empty");
+                relay_statsd::metric!(
+                    counter(RelayCounters::BufferTryPop) += 1,
+                    peek_result = "empty"
+                );
                 self.sleep = Duration::MAX; // wait for reset by `handle_message`.
             }
             Peek::Ready(_) => {
                 relay_log::trace!("EnvelopeBufferService: popping envelope");
+                relay_statsd::metric!(
+                    counter(RelayCounters::BufferTryPop) += 1,
+                    peek_result = "ready"
+                );
                 let envelope = buffer
                     .pop()
                     .await?
@@ -197,6 +215,10 @@ impl EnvelopeBufferService {
             }
             Peek::NotReady(stack_key, envelope) => {
                 relay_log::trace!("EnvelopeBufferService: project(s) of envelope not ready, requesting project update");
+                relay_statsd::metric!(
+                    counter(RelayCounters::BufferTryPop) += 1,
+                    peek_result = "not_ready"
+                );
                 let project_key = envelope.meta().public_key();
                 self.project_cache.send(UpdateProject(project_key));
                 match envelope.sampling_key() {
