@@ -178,7 +178,7 @@ mod tests {
     #[tokio::test]
     async fn test_flush() {
         let config = mock_config();
-        let stack_provider = SqliteStackProvider::new(&config).await.unwrap();
+        let mut stack_provider = SqliteStackProvider::new(&config).await.unwrap();
 
         let own_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let sampling_key = ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap();
