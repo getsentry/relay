@@ -1032,6 +1032,21 @@
 <a href="#1032" id="1032">1032</a>
 <a href="#1033" id="1033">1033</a>
 <a href="#1034" id="1034">1034</a>
+<a href="#1035" id="1035">1035</a>
+<a href="#1036" id="1036">1036</a>
+<a href="#1037" id="1037">1037</a>
+<a href="#1038" id="1038">1038</a>
+<a href="#1039" id="1039">1039</a>
+<a href="#1040" id="1040">1040</a>
+<a href="#1041" id="1041">1041</a>
+<a href="#1042" id="1042">1042</a>
+<a href="#1043" id="1043">1043</a>
+<a href="#1044" id="1044">1044</a>
+<a href="#1045" id="1045">1045</a>
+<a href="#1046" id="1046">1046</a>
+<a href="#1047" id="1047">1047</a>
+<a href="#1048" id="1048">1048</a>
+<a href="#1049" id="1049">1049</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::cmp::Ordering;
 <span class="kw">use </span>std::collections::BTreeSet;
 <span class="kw">use </span>std::convert::Infallible;
@@ -1545,12 +1560,11 @@
 
 <span class="kw">impl</span>&lt;K: PartialEq, V&gt; Eq <span class="kw">for </span>QueueItem&lt;K, V&gt; {}
 
-<span class="attr">#[derive(Debug)]
+<span class="attr">#[derive(Debug, Clone)]
 </span><span class="kw">struct </span>Priority {
     readiness: Readiness,
     received_at: Instant,
-    <span class="comment">// FIXME(jjbayer): `last_peek` is currently never updated, see https://github.com/getsentry/relay/pull/3960.
-    </span>last_peek: Instant,
+    last_peek: Instant,
 }
 
 <span class="kw">impl </span>Priority {
@@ -1562,22 +1576,6 @@
         }
     }
 }
-
-<span class="kw">impl </span>PartialEq <span class="kw">for </span>Priority {
-    <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; bool {
-        <span class="self">self</span>.readiness.ready() == other.readiness.ready()
-            &amp;&amp; <span class="self">self</span>.received_at == other.received_at
-            &amp;&amp; <span class="self">self</span>.last_peek == other.last_peek
-    }
-}
-
-<span class="kw">impl </span>PartialOrd <span class="kw">for </span>Priority {
-    <span class="kw">fn </span>partial_cmp(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Ordering&gt; {
-        <span class="prelude-val">Some</span>(<span class="self">self</span>.cmp(other))
-    }
-}
-
-<span class="kw">impl </span>Eq <span class="kw">for </span>Priority {}
 
 <span class="kw">impl </span>Ord <span class="kw">for </span>Priority {
     <span class="kw">fn </span>cmp(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; Ordering {
@@ -1599,7 +1597,21 @@
     }
 }
 
-<span class="attr">#[derive(Debug)]
+<span class="kw">impl </span>PartialOrd <span class="kw">for </span>Priority {
+    <span class="kw">fn </span>partial_cmp(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Ordering&gt; {
+        <span class="prelude-val">Some</span>(<span class="self">self</span>.cmp(other))
+    }
+}
+
+<span class="kw">impl </span>PartialEq <span class="kw">for </span>Priority {
+    <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; bool {
+        <span class="self">self</span>.cmp(other).is_eq()
+    }
+}
+
+<span class="kw">impl </span>Eq <span class="kw">for </span>Priority {}
+
+<span class="attr">#[derive(Debug, Clone, Copy)]
 </span><span class="kw">struct </span>Readiness {
     own_project_ready: bool,
     sampling_project_ready: bool,
@@ -1980,6 +1992,24 @@
             .<span class="kw">await
             </span>.unwrap();
         <span class="macro">assert_eq!</span>(buffer.priority_queue.len(), <span class="number">2</span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_total_order() {
+        <span class="kw">let </span>p1 = Priority {
+            readiness: Readiness {
+                own_project_ready: <span class="bool-val">true</span>,
+                sampling_project_ready: <span class="bool-val">true</span>,
+            },
+            received_at: Instant::now(),
+            last_peek: Instant::now(),
+        };
+        <span class="kw">let </span><span class="kw-2">mut </span>p2 = p1.clone();
+        p2.last_peek += Duration::from_millis(<span class="number">1</span>);
+
+        <span class="comment">// Last peek does not matter because project is ready:
+        </span><span class="macro">assert_eq!</span>(p1.cmp(<span class="kw-2">&amp;</span>p2), Ordering::Equal);
+        <span class="macro">assert_eq!</span>(p1, p2);
     }
 
     <span class="attr">#[tokio::test]
