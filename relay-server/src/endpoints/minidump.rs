@@ -1,10 +1,13 @@
 use std::convert::Infallible;
+use std::io::Cursor;
+use std::io::Read;
 
 use axum::extract::{DefaultBodyLimit, Request};
 use axum::response::IntoResponse;
 use axum::routing::{post, MethodRouter};
 use axum::RequestExt;
 use bytes::Bytes;
+use flate2::read::GzDecoder;
 use multer::Multipart;
 use relay_config::Config;
 use relay_event_schema::protocol::EventId;
@@ -31,6 +34,8 @@ const MINIDUMP_FILE_NAME: &str = "Minidump";
 const MINIDUMP_MAGIC_HEADER_LE: &[u8] = b"MDMP";
 const MINIDUMP_MAGIC_HEADER_BE: &[u8] = b"PMDM";
 
+const GZIP_MAGIC_HEADER: &[u8] = &[0x1f, 0x8b];
+
 /// Content types by which standalone uploads can be recognized.
 const MINIDUMP_RAW_CONTENT_TYPES: &[&str] = &["application/octet-stream", "application/x-dmp"];
 
@@ -41,6 +46,24 @@ fn validate_minidump(data: &[u8]) -> Result<(), BadStoreRequest> {
     }
 
     Ok(())
+}
+
+fn validate_gzip_minidump(data: &[u8]) -> Result<(), BadStoreRequest> {
+    if !data.starts_with(GZIP_MAGIC_HEADER) {
+        relay_log::trace!("invalid minidump file");
+        return Err(BadStoreRequest::InvalidMinidump);
+    }
+
+    let mut decoder = GzDecoder::new(data);
+    let mut magic_bytes = [0u8; 4];
+
+    match decoder.read_exact(&mut magic_bytes) {
+        Ok(_) => validate_minidump(&magic_bytes),
+        Err(_) => {
+            relay_log::trace!("invalid minidump file");
+            Err(BadStoreRequest::InvalidMinidump)
+        }
+    }
 }
 
 fn infer_attachment_type(field_name: Option<&str>) -> AttachmentType {
@@ -97,7 +120,11 @@ async fn extract_multipart(
         minidump_item.set_payload(ContentType::Minidump, embedded);
     }
 
-    validate_minidump(&minidump_item.payload())?;
+    if validate_minidump(&minidump_item.payload()).is_err() {
+        validate_gzip_minidump(&minidump_item.payload())?;
+        let unzipped = extract_minidump_from_gzip(minidump_item.payload())?;
+        minidump_item.set_payload(ContentType::Minidump, unzipped);
+    }
 
     let event_id = common::event_id_from_items(&items)?.unwrap_or_else(EventId::new);
     let mut envelope = Envelope::from_request(Some(event_id), meta);
@@ -109,11 +136,31 @@ async fn extract_multipart(
     Ok(envelope)
 }
 
-fn extract_raw_minidump(data: Bytes, meta: RequestMeta) -> Result<Box<Envelope>, BadStoreRequest> {
-    validate_minidump(&data)?;
+fn extract_minidump_from_gzip(data: Bytes) -> Result<Bytes, BadStoreRequest> {
+    let cursor = Cursor::new(data);
+    let mut decoder = GzDecoder::new(cursor);
+    let mut buffer = Vec::new();
+    match decoder.read_to_end(&mut buffer) {
+        Ok(_) => Ok(Bytes::from(buffer)),
+        Err(_) => {
+            relay_log::trace!("invalid minidump file");
+            Err(BadStoreRequest::InvalidMinidump)
+        }
+    }
+}
 
+fn extract_raw_minidump(data: Bytes, meta: RequestMeta) -> Result<Box<Envelope>, BadStoreRequest> {
     let mut item = Item::new(ItemType::Attachment);
-    item.set_payload(ContentType::Minidump, data);
+
+    match validate_minidump(&data) {
+        Ok(_) => item.set_payload(ContentType::Minidump, data),
+        Err(_) => {
+            validate_gzip_minidump(&data)?;
+            let unzipped = extract_minidump_from_gzip(data)?;
+            item.set_payload(ContentType::Minidump, unzipped);
+        }
+    }
+
     item.set_filename(MINIDUMP_FILE_NAME);
     item.set_attachment_type(AttachmentType::Minidump);
 
@@ -163,7 +210,10 @@ pub fn route(config: &Config) -> MethodRouter<ServiceState> {
 #[cfg(test)]
 mod tests {
     use axum::body::Body;
+    use flate2::write::GzEncoder;
+    use flate2::Compression;
     use relay_config::Config;
+    use std::io::Write;
 
     use crate::utils::{multipart_items, FormDataIter};
 
@@ -179,6 +229,30 @@ mod tests {
 
         let garbage = b"xxxxxx";
         assert!(validate_minidump(garbage).is_err());
+    }
+
+    fn encode_gzip(be_minidump: &[u8]) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+        let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
+        encoder.write_all(be_minidump)?;
+        let compressed = encoder.finish()?;
+        Ok(compressed)
+    }
+
+    #[test]
+    fn test_validate_gzip_minidump() -> Result<(), Box<dyn std::error::Error>> {
+        let be_minidump = b"PMDMxxxxxx";
+        let compressed = encode_gzip(be_minidump).unwrap();
+        assert!(validate_gzip_minidump(&compressed).is_ok());
+
+        let le_minidump = b"MDMPxxxxxx";
+        let compressed = encode_gzip(le_minidump).unwrap();
+        assert!(validate_gzip_minidump(&compressed).is_ok());
+
+        let garbage = b"xxxxxx";
+        let compressed = encode_gzip(garbage).unwrap();
+        assert!(validate_gzip_minidump(&compressed).is_err());
+
+        Ok(())
     }
 
     #[tokio::test]

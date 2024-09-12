@@ -359,11 +359,25 @@ def test_minidump_invalid_nested_formdata(mini_sentry, relay):
         relay.send_minidump(project_id=project_id, files=attachments)
 
 
-@pytest.mark.parametrize("rate_limit", [None, "attachment", "transaction"])
+@pytest.mark.parametrize(
+    "rate_limit,minidump_filename",
+    [
+        (None, "minidump.dmp"),
+        ("attachment", "minidump.dmp"),
+        ("transaction", "minidump.dmp"),
+        (None, "minidump.dmp.gz"),
+    ],
+)
 def test_minidump_with_processing(
-    mini_sentry, relay_with_processing, attachments_consumer, rate_limit
+    mini_sentry,
+    relay_with_processing,
+    attachments_consumer,
+    rate_limit,
+    minidump_filename,
 ):
-    dmp_path = os.path.join(os.path.dirname(__file__), "fixtures/native/minidump.dmp")
+    dmp_path = os.path.join(
+        os.path.dirname(__file__), f"fixtures/native/{minidump_filename}"
+    )
     with open(dmp_path, "rb") as f:
         content = f.read()
 
@@ -392,7 +406,7 @@ def test_minidump_with_processing(
 
     attachments_consumer = attachments_consumer()
 
-    attachments = [(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", content)]
+    attachments = [(MINIDUMP_ATTACHMENT_NAME, minidump_filename, content)]
     response = relay.send_minidump(project_id=project_id, files=attachments)
 
     attachment = b""
@@ -419,7 +433,7 @@ def test_minidump_with_processing(
     assert list(message["attachments"]) == [
         {
             "id": attachment_id,
-            "name": "minidump.dmp",
+            "name": minidump_filename,
             "attachment_type": "event.minidump",
             "chunks": num_chunks,
             "size": len(content),
