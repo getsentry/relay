@@ -142,7 +142,7 @@ impl EnvelopeBufferService {
         buffer: &mut PolymorphicEnvelopeBuffer,
     ) -> Result<(), SendError> {
         relay_statsd::metric!(
-            counter(RelayCounters::BufferTryPop) += 1,
+            counter(RelayCounters::BufferReadyToPop) += 1,
             status = "checking"
         );
 
@@ -154,7 +154,7 @@ impl EnvelopeBufferService {
         }
 
         relay_statsd::metric!(
-            counter(RelayCounters::BufferTryPop) += 1,
+            counter(RelayCounters::BufferReadyToPop) += 1,
             status = "checked"
         );
 
