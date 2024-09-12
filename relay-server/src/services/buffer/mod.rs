@@ -472,6 +472,12 @@ mod tests {
         while let Ok(value) = project_cache_rx.try_recv() {
             messages.insert(value.variant());
         }
-        assert!(messages.contains("HandleDequeuedEnvelope"));
+        assert_eq!(
+            messages
+                .iter()
+                .filter(|&&x| x == "HandleDequeuedEnvelope")
+                .count(),
+            1
+        );
     }
 }
