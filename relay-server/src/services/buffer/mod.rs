@@ -141,12 +141,22 @@ impl EnvelopeBufferService {
         &mut self,
         buffer: &mut PolymorphicEnvelopeBuffer,
     ) -> Result<(), SendError> {
+        relay_statsd::metric!(
+            counter(RelayCounters::BufferTryPop) += 1,
+            status = "checking"
+        );
+
         self.system_ready(buffer).await;
         tokio::time::sleep(self.sleep).await;
         if let Some(project_cache_ready) = self.project_cache_ready.as_mut() {
             project_cache_ready.await?;
             self.project_cache_ready = None;
         }
+
+        relay_statsd::metric!(
+            counter(RelayCounters::BufferTryPop) += 1,
+            status = "checked"
+        );
 
         Ok(())
     }

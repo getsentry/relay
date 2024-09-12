@@ -632,6 +632,8 @@ pub enum RelayCounters {
     BufferEnvelopeStacksPopped,
     /// Number of times an envelope from the buffer is trying to be popped.
     BufferTryPop,
+    /// Number of times the readiness check of the buffer is polled.
+    BufferReadyToPop,
     /// Number of envelopes spool to disk.
     BufferSpooledEnvelopes,
     /// Number of envelopes unspooled from disk.
@@ -855,6 +857,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::BufferStateTransition => "buffer.state.transition",
             RelayCounters::BufferEnvelopeStacksPopped => "buffer.envelope_stacks_popped",
             RelayCounters::BufferTryPop => "buffer.try_pop",
+            RelayCounters::BufferReadyToPop => "buffer.ready_to_pop",
             RelayCounters::BufferSpooledEnvelopes => "buffer.spooled_envelopes",
             RelayCounters::BufferUnspooledEnvelopes => "buffer.unspooled_envelopes",
             RelayCounters::Outcomes => "events.outcomes",
