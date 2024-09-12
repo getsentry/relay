@@ -9,7 +9,7 @@ use crate::services::buffer::envelope_stack::EnvelopeStack;
 use crate::services::buffer::envelope_store::sqlite::{
     SqliteEnvelopeStore, SqliteEnvelopeStoreError,
 };
-use crate::statsd::RelayTimers;
+use crate::statsd::{RelayCounters, RelayTimers};
 
 /// An error returned when doing an operation on [`SqliteEnvelopeStack`].
 #[derive(Debug, thiserror::Error)]
@@ -95,6 +95,8 @@ impl SqliteEnvelopeStack {
         // envelope can't be serialized, we will not insert it.
         let envelopes = envelopes.iter().filter_map(|e| e.as_ref().try_into().ok());
 
+        relay_statsd::metric!(counter(RelayCounters::BufferSpooledEnvelopes) += envelopes.len());
+
         // When early return here, we are acknowledging that the elements that we popped from
         // the buffer are lost in case of failure. We are doing this on purposes, since if we were
         // to have a database corruption during runtime, and we were to put the values back into
@@ -138,6 +140,8 @@ impl SqliteEnvelopeStack {
 
             return Ok(());
         }
+
+        relay_statsd::metric!(counter(RelayCounters::BufferUnspooledEnvelopes) += envelopes.len());
 
         // We push in the back of the buffer, since we still want to give priority to
         // incoming envelopes that have a more recent timestamp.
