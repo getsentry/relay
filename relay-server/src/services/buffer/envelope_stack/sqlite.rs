@@ -91,11 +91,13 @@ impl SqliteEnvelopeStack {
         };
         self.batches_buffer_size -= envelopes.len();
 
+        relay_statsd::metric!(
+            counter(RelayCounters::BufferSpooledEnvelopes) += envelopes.len() as u64
+        );
+
         // We convert envelopes into a format which simplifies insertion in the store. If an
         // envelope can't be serialized, we will not insert it.
         let envelopes = envelopes.iter().filter_map(|e| e.as_ref().try_into().ok());
-
-        relay_statsd::metric!(counter(RelayCounters::BufferSpooledEnvelopes) += envelopes.len());
 
         // When early return here, we are acknowledging that the elements that we popped from
         // the buffer are lost in case of failure. We are doing this on purposes, since if we were
@@ -141,7 +143,9 @@ impl SqliteEnvelopeStack {
             return Ok(());
         }
 
-        relay_statsd::metric!(counter(RelayCounters::BufferUnspooledEnvelopes) += envelopes.len());
+        relay_statsd::metric!(
+            counter(RelayCounters::BufferUnspooledEnvelopes) += envelopes.len() as u64
+        );
 
         // We push in the back of the buffer, since we still want to give priority to
         // incoming envelopes that have a more recent timestamp.
