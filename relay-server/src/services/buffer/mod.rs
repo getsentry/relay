@@ -249,22 +249,31 @@ impl EnvelopeBufferService {
         self.sleep = Duration::ZERO;
     }
 
-    async fn handle_shutdown(&mut self, buffer: PolymorphicEnvelopeBuffer, message: Shutdown) {
+    async fn handle_shutdown(
+        &mut self,
+        buffer: &mut PolymorphicEnvelopeBuffer,
+        message: Shutdown,
+    ) -> bool {
         // We gracefully shut down only if the shutdown has a timeout.
         if let Some(shutdown_timeout) = message.timeout {
             relay_log::trace!("EnvelopeBufferService: shutting down gracefully");
 
-            let shutdown_result = timeout(shutdown_timeout, async {
-                buffer.shutdown().await;
-            })
-            .await;
-            if let Err(error) = shutdown_result {
-                relay_log::error!(
+            let shutdown_result =
+                timeout(shutdown_timeout, async { buffer.shutdown().await }).await;
+            match shutdown_result {
+                Ok(shutdown_result) => {
+                    return shutdown_result;
+                }
+                Err(error) => {
+                    relay_log::error!(
                     error = &error as &dyn Error,
                     "the envelope buffer didn't shut down in time, some envelopes might be lost",
                 );
+                }
             }
         }
+
+        false
     }
 
     async fn push(&mut self, buffer: &mut PolymorphicEnvelopeBuffer, envelope: Box<Envelope>) {
@@ -329,8 +338,11 @@ impl Service for EnvelopeBufferService {
                         self.handle_message(&mut buffer, message).await;
                     }
                     shutdown = shutdown.notified() => {
-                        self.handle_shutdown(buffer, shutdown).await;
-                        break;
+                        // In case the shutdown was handled, we break out of the loop signaling that
+                        // there is no need to process anymore envelopes.
+                        if self.handle_shutdown(&mut buffer, shutdown).await {
+                            break;
+                        }
                     }
                     _ = global_config_rx.changed() => {
                         relay_log::trace!("EnvelopeBufferService: received global config");

@@ -12,9 +12,6 @@ use crate::services::buffer::stack_provider::{
 use crate::statsd::RelayTimers;
 use crate::{Envelope, EnvelopeStack, SqliteEnvelopeStack};
 
-/// Maximum number of envelopes that are inserted into the database during draining.
-pub const DEFAULT_DRAIN_BATCH_SIZE: usize = 100;
-
 #[derive(Debug)]
 pub struct SqliteStackProvider {
     envelope_store: SqliteEnvelopeStore,
@@ -27,17 +24,14 @@ pub struct SqliteStackProvider {
 #[warn(dead_code)]
 impl SqliteStackProvider {
     /// Creates a new [`SqliteStackProvider`] from the provided [`Config`].
-    pub async fn new(
-        config: &Config,
-        drain_batch_size: usize,
-    ) -> Result<Self, SqliteEnvelopeStoreError> {
+    pub async fn new(config: &Config) -> Result<Self, SqliteEnvelopeStoreError> {
         let envelope_store = SqliteEnvelopeStore::prepare(config).await?;
         Ok(Self {
             envelope_store,
             disk_batch_size: config.spool_envelopes_stack_disk_batch_size(),
             max_batches: config.spool_envelopes_stack_max_batches(),
             max_disk_size: config.spool_envelopes_max_disk_size(),
-            drain_batch_size,
+            drain_batch_size: config.spool_envelopes_stack_disk_batch_size(),
         })
     }
 
@@ -124,13 +118,13 @@ impl StackProvider for SqliteStackProvider {
         "sqlite"
     }
 
-    async fn drain(mut self, envelope_stacks: impl IntoIterator<Item = Self::Stack>) {
-        relay_log::trace!("Draining sqlite envelope buffer");
+    async fn flush(&mut self, envelope_stacks: impl IntoIterator<Item = Self::Stack>) {
+        relay_log::trace!("Flushing sqlite envelope buffer");
 
         relay_statsd::metric!(timer(RelayTimers::BufferDrain), {
             let mut envelopes = Vec::with_capacity(self.drain_batch_size);
             for envelope_stack in envelope_stacks {
-                for envelope in envelope_stack.drain() {
+                for envelope in envelope_stack.flush() {
                     if envelopes.len() >= self.drain_batch_size {
                         self.drain_many(envelopes).await;
                         envelopes = Vec::with_capacity(self.drain_batch_size);
@@ -182,9 +176,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_drain() {
+    async fn test_flush() {
         let config = mock_config();
-        let stack_provider = SqliteStackProvider::new(&config, 3).await.unwrap();
+        let stack_provider = SqliteStackProvider::new(&config).await.unwrap();
 
         let own_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let sampling_key = ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap();
@@ -206,7 +200,7 @@ mod tests {
         assert_eq!(envelope_store.total_count().await.unwrap(), 0);
 
         // We drain the stack provider, and we expect all in-memory envelopes to be spooled to disk.
-        stack_provider.drain(vec![envelope_stack]).await;
+        stack_provider.flush(vec![envelope_stack]).await;
         assert_eq!(envelope_store.total_count().await.unwrap(), 10);
     }
 }

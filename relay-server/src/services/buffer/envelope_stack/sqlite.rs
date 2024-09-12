@@ -227,7 +227,7 @@ impl EnvelopeStack for SqliteEnvelopeStack {
         Ok(result)
     }
 
-    fn drain(self) -> Vec<Box<Envelope>> {
+    fn flush(self) -> Vec<Box<Envelope>> {
         self.batches_buffer.into_iter().flatten().collect()
     }
 }
@@ -481,7 +481,7 @@ mod tests {
         assert_eq!(envelope_store.total_count().await.unwrap(), 0);
 
         // We drain the stack and make sure nothing was spooled to disk.
-        let drained_envelopes = stack.drain();
+        let drained_envelopes = stack.flush();
         assert_eq!(drained_envelopes.into_iter().collect::<Vec<_>>().len(), 5);
         assert_eq!(envelope_store.total_count().await.unwrap(), 0);
     }

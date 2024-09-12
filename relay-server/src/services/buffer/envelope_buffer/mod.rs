@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::convert::Infallible;
 use std::error::Error;
+use std::mem;
 use std::sync::atomic::AtomicI64;
 use std::sync::atomic::Ordering as AtomicOrdering;
 use std::sync::Arc;
@@ -18,9 +19,7 @@ use crate::services::buffer::envelope_stack::sqlite::SqliteEnvelopeStackError;
 use crate::services::buffer::envelope_stack::EnvelopeStack;
 use crate::services::buffer::envelope_store::sqlite::SqliteEnvelopeStoreError;
 use crate::services::buffer::stack_provider::memory::MemoryStackProvider;
-use crate::services::buffer::stack_provider::sqlite::{
-    SqliteStackProvider, DEFAULT_DRAIN_BATCH_SIZE,
-};
+use crate::services::buffer::stack_provider::sqlite::SqliteStackProvider;
 use crate::services::buffer::stack_provider::{StackCreationType, StackProvider};
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::MemoryChecker;
@@ -57,11 +56,11 @@ impl PolymorphicEnvelopeBuffer {
         memory_checker: MemoryChecker,
     ) -> Result<Self, EnvelopeBufferError> {
         let buffer = if config.spool_envelopes_path().is_some() {
-            relay_log::trace!("Initializing sqlite envelope buffer");
+            relay_log::trace!("PolymorphicEnvelopeBuffer: initializing sqlite envelope buffer");
             let buffer = EnvelopeBuffer::<SqliteStackProvider>::new(config).await?;
             Self::Sqlite(buffer)
         } else {
-            relay_log::trace!("Initializing memory envelope buffer");
+            relay_log::trace!("PolymorphicEnvelopeBuffer: initializing memory envelope buffer");
             let buffer = EnvelopeBuffer::<MemoryStackProvider>::new(memory_checker);
             Self::InMemory(buffer)
         };
@@ -137,11 +136,14 @@ impl PolymorphicEnvelopeBuffer {
     }
 
     /// Consumes the [`PolymorphicEnvelopeBuffer`] and shuts it down.
-    pub async fn shutdown(self) {
-        match self {
-            Self::Sqlite(buffer) => buffer.shutdown().await,
-            Self::InMemory(buffer) => buffer.shutdown().await,
+    pub async fn shutdown(&mut self) -> bool {
+        let Self::Sqlite(buffer) = self else {
+            relay_log::trace!("PolymorphicEnvelopeBuffer: shutdown procedure not needed");
+            return false;
         };
+        buffer.flush().await;
+
+        true
     }
 }
 
@@ -213,7 +215,7 @@ impl EnvelopeBuffer<SqliteStackProvider> {
         Ok(Self {
             stacks_by_project: Default::default(),
             priority_queue: Default::default(),
-            stack_provider: SqliteStackProvider::new(config, DEFAULT_DRAIN_BATCH_SIZE).await?,
+            stack_provider: SqliteStackProvider::new(config).await?,
             total_count: Arc::new(AtomicI64::new(0)),
             total_count_initialized: false,
         })
@@ -385,10 +387,11 @@ where
         self.stack_provider.has_store_capacity()
     }
 
-    /// Shuts down the envelope buffer.
-    pub async fn shutdown(self) {
+    /// Flushes the envelope buffer.
+    pub async fn flush(&mut self) {
+        let priority_queue = mem::take(&mut self.priority_queue);
         self.stack_provider
-            .drain(self.priority_queue.into_iter().map(|(q, _)| q.value))
+            .flush(priority_queue.into_iter().map(|(q, _)| q.value))
             .await;
     }
 

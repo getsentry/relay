@@ -20,7 +20,7 @@ pub trait EnvelopeStack: Send + std::fmt::Debug {
     /// Pops the [`Envelope`] on top of the stack.
     fn pop(&mut self) -> impl Future<Output = Result<Option<Box<Envelope>>, Self::Error>>;
 
-    /// Drains this stack and returns all the [`Envelope`]s that need to be handled specifically
-    /// during draining of the envelope buffer.
-    fn drain(self) -> Vec<Box<Envelope>>;
+    /// Persists all envelopes in the [`EnvelopeStack`]s to external storage, if possible,
+    /// and consume the [`StackProvider`].
+    fn flush(self) -> Vec<Box<Envelope>>;
 }

@@ -61,9 +61,9 @@ pub trait StackProvider: std::fmt::Debug {
     /// Returns the string representation of the stack type offered by this [`StackProvider`].
     fn stack_type<'a>(&self) -> &'a str;
 
-    /// Drains the supplied [`EnvelopeStack`]s and consumes the [`StackProvider`].
-    fn drain(
-        self,
+    /// Flushes the supplied [`EnvelopeStack`]s and consumes the [`StackProvider`].
+    fn flush(
+        &mut self,
         envelope_stacks: impl IntoIterator<Item = Self::Stack>,
     ) -> impl Future<Output = ()>;
 }

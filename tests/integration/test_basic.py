@@ -35,8 +35,10 @@ def test_graceful_shutdown_with_in_memory_buffer(mini_sentry, relay):
 
     relay.shutdown(sig=signal.SIGTERM)
 
-    # When using the memory envelope buffer, we do not flush envelopes, so we lose all of them.
-    assert mini_sentry.captured_events.empty()
+    # When using the memory envelope buffer, we optimistically do not do anything on shutdown, which means that the
+    # buffer will try and pop as always as long as it can (within the shutdown timeout).
+    event = mini_sentry.captured_events.get(timeout=0).get_event()
+    assert event["logentry"] == {"formatted": "Hello, World!"}
 
 
 def test_graceful_shutdown_with_sqlite_buffer(mini_sentry, relay):

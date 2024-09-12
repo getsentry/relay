@@ -29,7 +29,7 @@ impl EnvelopeStack for MemoryEnvelopeStack {
         Ok(self.0.pop())
     }
 
-    fn drain(self) -> Vec<Box<Envelope>> {
+    fn flush(self) -> Vec<Box<Envelope>> {
         self.0
     }
 }
