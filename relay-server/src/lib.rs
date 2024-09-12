@@ -309,14 +309,10 @@ pub fn run(config: Config) -> anyhow::Result<()> {
         loop {
             select! {
                 Some(res) = join_handles.next() => {
-                    match res {
-                        Ok(()) => {
-                            relay_log::trace!("Service exited normally.");
-                        }
-                        Err(e) => {
-                            if e.is_panic() {
-                                std::panic::resume_unwind(e.into_panic());
-                            }
+                    if let Err(e) = res {
+                        if e.is_panic() {
+                            // Re-trigger panic to terminate the process:
+                            std::panic::resume_unwind(e.into_panic());
                         }
                     }
                 }
