@@ -50,6 +50,7 @@ use sqlx::sqlite::{
 use sqlx::{Pool, Row, Sqlite};
 use tokio::fs::DirBuilder;
 use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 
 use crate::envelope::{Envelope, EnvelopeError};
 use crate::extractors::StartTime;
@@ -1272,10 +1273,7 @@ impl BufferService {
 impl Service for BufferService {
     type Interface = Buffer;
 
-    fn spawn_handler(
-        mut self,
-        mut rx: relay_system::Receiver<Self::Interface>,
-    ) -> tokio::task::JoinHandle<()> {
+    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) -> JoinHandle<()> {
         tokio::spawn(async move {
             let mut shutdown = Controller::shutdown_handle();
 
@@ -1331,6 +1329,7 @@ mod tests {
     use std::str::FromStr;
     use std::sync::Mutex;
     use std::time::{Duration, Instant};
+    use tokio::task::JoinHandle;
     use uuid::Uuid;
 
     use crate::services::project_cache::SpoolHealth;
@@ -1594,10 +1593,7 @@ mod tests {
     impl Service for TestHealthService {
         type Interface = TestHealth;
 
-        fn spawn_handler(
-            self,
-            mut rx: relay_system::Receiver<Self::Interface>,
-        ) -> tokio::task::JoinHandle<()> {
+        fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) -> JoinHandle<()> {
             tokio::spawn(async move {
                 loop {
                     tokio::select! {

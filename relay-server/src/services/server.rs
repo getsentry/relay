@@ -13,6 +13,7 @@ use relay_config::Config;
 use relay_system::{Controller, Service, Shutdown};
 use socket2::TcpKeepalive;
 use tokio::net::{TcpSocket, TcpStream};
+use tokio::task::JoinHandle;
 use tower::ServiceBuilder;
 use tower_http::compression::predicate::SizeAbove;
 use tower_http::compression::{CompressionLayer, DefaultPredicate, Predicate};
@@ -167,7 +168,7 @@ impl<S> Accept<TcpStream, S> for KeepAliveAcceptor {
     }
 }
 
-fn serve(listener: TcpListener, app: App, config: Arc<Config>) -> tokio::task::JoinHandle<()> {
+fn serve(listener: TcpListener, app: App, config: Arc<Config>) -> JoinHandle<()> {
     let handle = Handle::new();
 
     let mut server = axum_server::from_tcp(listener)
@@ -227,10 +228,7 @@ impl HttpServer {
 impl Service for HttpServer {
     type Interface = ();
 
-    fn spawn_handler(
-        self,
-        _rx: relay_system::Receiver<Self::Interface>,
-    ) -> tokio::task::JoinHandle<()> {
+    fn spawn_handler(self, _rx: relay_system::Receiver<Self::Interface>) -> JoinHandle<()> {
         let Self {
             config,
             service,

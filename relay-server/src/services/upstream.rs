@@ -28,6 +28,7 @@ pub use reqwest::Method;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
 use tokio::time::Instant;
 
 use crate::http::{HttpError, Request, RequestBuilder, Response, StatusCode};
@@ -1255,7 +1256,7 @@ enum ConnectionState {
     /// The connection is interrupted and reconnection is in progress.
     ///
     /// If the task has finished, connection should be considered `Connected`.
-    Reconnecting(tokio::task::JoinHandle<()>),
+    Reconnecting(JoinHandle<()>),
 }
 
 /// Maintains outage state of the connection to the upstream.
@@ -1498,10 +1499,7 @@ impl UpstreamRelayService {
 impl Service for UpstreamRelayService {
     type Interface = UpstreamRelay;
 
-    fn spawn_handler(
-        self,
-        mut rx: relay_system::Receiver<Self::Interface>,
-    ) -> tokio::task::JoinHandle<()> {
+    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) -> JoinHandle<()> {
         let Self { config } = self;
 
         let client = SharedClient::build(config.clone());

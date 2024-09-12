@@ -23,6 +23,7 @@ use relay_system::{Addr, FromMessage, Interface, Sender, Service};
 #[cfg(feature = "processing")]
 use tokio::sync::Semaphore;
 use tokio::sync::{mpsc, watch};
+use tokio::task::JoinHandle;
 use tokio::time::Instant;
 
 use crate::services::metrics::{Aggregator, FlushBuckets};
@@ -1370,10 +1371,7 @@ impl ProjectCacheService {
 impl Service for ProjectCacheService {
     type Interface = ProjectCache;
 
-    fn spawn_handler(
-        self,
-        mut rx: relay_system::Receiver<Self::Interface>,
-    ) -> tokio::task::JoinHandle<()> {
+    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) -> JoinHandle<()> {
         let Self {
             config,
             memory_checker,

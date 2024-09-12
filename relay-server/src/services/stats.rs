@@ -5,6 +5,7 @@ use relay_config::{Config, RelayMode};
 use relay_redis::{RedisPool, RedisPools};
 use relay_statsd::metric;
 use relay_system::{Addr, Service};
+use tokio::task::JoinHandle;
 use tokio::time::interval;
 
 use crate::services::upstream::{IsNetworkOutage, UpstreamRelay};
@@ -136,10 +137,7 @@ impl RelayStats {
 impl Service for RelayStats {
     type Interface = ();
 
-    fn spawn_handler(
-        self,
-        _rx: relay_system::Receiver<Self::Interface>,
-    ) -> tokio::task::JoinHandle<()> {
+    fn spawn_handler(self, _rx: relay_system::Receiver<Self::Interface>) -> JoinHandle<()> {
         let Some(mut ticker) = self.config.metrics_periodic_interval().map(interval) else {
             return tokio::spawn(async {});
         };

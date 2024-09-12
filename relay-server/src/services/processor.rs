@@ -41,6 +41,7 @@ use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
 use reqwest::header;
 use smallvec::{smallvec, SmallVec};
+use tokio::task::JoinHandle;
 
 #[cfg(feature = "processing")]
 use {
@@ -2891,10 +2892,7 @@ impl Service for EnvelopeProcessorService {
     type Interface = EnvelopeProcessor;
 
     #[must_use]
-    fn spawn_handler(
-        self,
-        mut rx: relay_system::Receiver<Self::Interface>,
-    ) -> tokio::task::JoinHandle<()> {
+    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) -> JoinHandle<()> {
         tokio::spawn(async move {
             while let Some(message) = rx.recv().await {
                 let service = self.clone();

@@ -7,6 +7,7 @@ use std::collections::BTreeMap;
 use std::error::Error;
 use std::sync::Arc;
 use std::time::Instant;
+use tokio::task::JoinHandle;
 
 use bytes::Bytes;
 use relay_base_schema::data_category::DataCategory;
@@ -1044,10 +1045,7 @@ impl StoreService {
 impl Service for StoreService {
     type Interface = Store;
 
-    fn spawn_handler(
-        self,
-        mut rx: relay_system::Receiver<Self::Interface>,
-    ) -> tokio::task::JoinHandle<()> {
+    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) -> JoinHandle<()> {
         let this = Arc::new(self);
 
         tokio::spawn(async move {
