@@ -319,9 +319,10 @@ impl Service for EnvelopeBufferService {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use hashbrown::HashSet;
     use relay_dynamic_config::GlobalConfig;
-    use std::time::Duration;
     use tokio::sync::mpsc;
     use uuid::Uuid;
 
