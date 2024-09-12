@@ -321,7 +321,6 @@ impl Service for EnvelopeBufferService {
 mod tests {
     use std::time::Duration;
 
-    use hashbrown::HashSet;
     use relay_dynamic_config::GlobalConfig;
     use tokio::sync::mpsc;
     use uuid::Uuid;
@@ -466,16 +465,15 @@ mod tests {
         }
         addr.send(EnvelopeBuffer::Ready(project_key));
 
-        tokio::time::sleep(Duration::from_millis(1000)).await;
+        tokio::time::sleep(Duration::from_millis(100)).await;
 
-        let mut messages = HashSet::new();
-        while let Ok(value) = project_cache_rx.try_recv() {
-            messages.insert(value.variant());
-        }
+        let mut messages = vec![];
+        project_cache_rx.recv_many(&mut messages, 100).await;
+
         assert_eq!(
             messages
                 .iter()
-                .filter(|&&x| x == "HandleDequeuedEnvelope")
+                .filter(|message| matches!(message, ProjectCache::HandleDequeuedEnvelope(..)))
                 .count(),
             1
         );
