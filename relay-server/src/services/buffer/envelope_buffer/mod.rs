@@ -135,8 +135,11 @@ impl PolymorphicEnvelopeBuffer {
         }
     }
 
-    /// Consumes the [`PolymorphicEnvelopeBuffer`] and shuts it down.
+    /// Shuts down the [`PolymorphicEnvelopeBuffer`].
     pub async fn shutdown(&mut self) -> bool {
+        // Currently, we want to flush the buffer only for disk, since the in memory implementation
+        // tries to not do anything and pop as many elements as possible within the shutdown
+        // timeout.
         let Self::Sqlite(buffer) = self else {
             relay_log::trace!("PolymorphicEnvelopeBuffer: shutdown procedure not needed");
             return false;
