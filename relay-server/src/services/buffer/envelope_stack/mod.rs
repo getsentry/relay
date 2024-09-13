@@ -21,6 +21,6 @@ pub trait EnvelopeStack: Send + std::fmt::Debug {
     fn pop(&mut self) -> impl Future<Output = Result<Option<Box<Envelope>>, Self::Error>>;
 
     /// Persists all envelopes in the [`EnvelopeStack`]s to external storage, if possible,
-    /// and consume the [`StackProvider`].
+    /// and consumes the stack provider.
     fn flush(self) -> Vec<Box<Envelope>>;
 }
