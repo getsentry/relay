@@ -959,6 +959,9 @@
 <a href="#959" id="959">959</a>
 <a href="#960" id="960">960</a>
 <a href="#961" id="961">961</a>
+<a href="#962" id="962">962</a>
+<a href="#963" id="963">963</a>
+<a href="#964" id="964">964</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 <span class="attr">#[cfg(doc)]
 </span><span class="kw">use </span>tokio::runtime::RuntimeMetrics;
@@ -1491,6 +1494,8 @@
     </span>BufferPeek,
     <span class="doccomment">/// Timing in milliseconds for the time it takes for the buffer to pop.
     </span>BufferPop,
+    <span class="doccomment">/// Timing in milliseconds for the time it takes for the buffer to drain its envelopes.
+    </span>BufferDrain,
 }
 
 <span class="kw">impl </span>TimerMetric <span class="kw">for </span>RelayTimers {
@@ -1538,6 +1543,7 @@
             RelayTimers::BufferPush =&gt; <span class="string">"buffer.push.duration"</span>,
             RelayTimers::BufferPeek =&gt; <span class="string">"buffer.peek.duration"</span>,
             RelayTimers::BufferPop =&gt; <span class="string">"buffer.pop.duration"</span>,
+            RelayTimers::BufferDrain =&gt; <span class="string">"buffer.drain.duration"</span>,
         }
     }
 }

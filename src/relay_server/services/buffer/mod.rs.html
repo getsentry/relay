@@ -521,19 +521,64 @@
 <a href="#521" id="521">521</a>
 <a href="#522" id="522">522</a>
 <a href="#523" id="523">523</a>
+<a href="#524" id="524">524</a>
+<a href="#525" id="525">525</a>
+<a href="#526" id="526">526</a>
+<a href="#527" id="527">527</a>
+<a href="#528" id="528">528</a>
+<a href="#529" id="529">529</a>
+<a href="#530" id="530">530</a>
+<a href="#531" id="531">531</a>
+<a href="#532" id="532">532</a>
+<a href="#533" id="533">533</a>
+<a href="#534" id="534">534</a>
+<a href="#535" id="535">535</a>
+<a href="#536" id="536">536</a>
+<a href="#537" id="537">537</a>
+<a href="#538" id="538">538</a>
+<a href="#539" id="539">539</a>
+<a href="#540" id="540">540</a>
+<a href="#541" id="541">541</a>
+<a href="#542" id="542">542</a>
+<a href="#543" id="543">543</a>
+<a href="#544" id="544">544</a>
+<a href="#545" id="545">545</a>
+<a href="#546" id="546">546</a>
+<a href="#547" id="547">547</a>
+<a href="#548" id="548">548</a>
+<a href="#549" id="549">549</a>
+<a href="#550" id="550">550</a>
+<a href="#551" id="551">551</a>
+<a href="#552" id="552">552</a>
+<a href="#553" id="553">553</a>
+<a href="#554" id="554">554</a>
+<a href="#555" id="555">555</a>
+<a href="#556" id="556">556</a>
+<a href="#557" id="557">557</a>
+<a href="#558" id="558">558</a>
+<a href="#559" id="559">559</a>
+<a href="#560" id="560">560</a>
+<a href="#561" id="561">561</a>
+<a href="#562" id="562">562</a>
+<a href="#563" id="563">563</a>
+<a href="#564" id="564">564</a>
+<a href="#565" id="565">565</a>
+<a href="#566" id="566">566</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Types for buffering envelopes.
 
-</span><span class="kw">use </span>std::sync::atomic::AtomicBool;
+</span><span class="kw">use </span>std::error::Error;
+<span class="kw">use </span>std::sync::atomic::AtomicBool;
 <span class="kw">use </span>std::sync::atomic::Ordering;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
 <span class="kw">use </span>relay_config::Config;
-<span class="kw">use </span>relay_system::Request;
 <span class="kw">use </span>relay_system::SendError;
 <span class="kw">use </span>relay_system::{Addr, FromMessage, Interface, NoResponse, Receiver, Service};
+<span class="kw">use </span>relay_system::{Controller, Request, Shutdown};
 <span class="kw">use </span>tokio::sync::watch;
+<span class="kw">use </span>tokio::time::timeout;
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::Envelope;
 <span class="kw">use </span><span class="kw">crate</span>::services::buffer::envelope_buffer::Peek;
@@ -731,10 +776,10 @@
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         buffer: <span class="kw-2">&amp;mut </span>PolymorphicEnvelopeBuffer,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), EnvelopeBufferError&gt; {
-        <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService peek"</span>);
+        <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService: peeking the buffer"</span>);
         <span class="kw">match </span>buffer.peek().<span class="kw">await</span><span class="question-mark">? </span>{
             Peek::Empty =&gt; {
-                <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService empty"</span>);
+                <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService: peek returned empty"</span>);
                 <span class="macro">relay_statsd::metric!</span>(
                     counter(RelayCounters::BufferTryPop) += <span class="number">1</span>,
                     peek_result = <span class="string">"empty"
@@ -742,7 +787,7 @@
                 <span class="self">self</span>.sleep = Duration::MAX; <span class="comment">// wait for reset by `handle_message`.
             </span>}
             Peek::Ready(<span class="kw">_</span>) =&gt; {
-                <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService pop"</span>);
+                <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService: popping envelope"</span>);
                 <span class="macro">relay_statsd::metric!</span>(
                     counter(RelayCounters::BufferTryPop) += <span class="number">1</span>,
                     peek_result = <span class="string">"ready"
@@ -757,7 +802,7 @@
                 <span class="self">self</span>.sleep = Duration::ZERO; <span class="comment">// try next pop immediately
             </span>}
             Peek::NotReady(stack_key, envelope) =&gt; {
-                <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService request update"</span>);
+                <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService: project(s) of envelope not ready, requesting project update"</span>);
                 <span class="macro">relay_statsd::metric!</span>(
                     counter(RelayCounters::BufferTryPop) += <span class="number">1</span>,
                     peek_result = <span class="string">"not_ready"
@@ -791,22 +836,54 @@
                 // projects was already triggered (see XXX).
                 // For better separation of concerns, this prefetch should be triggered from here
                 // once buffer V1 has been removed.
-                </span><span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService push"</span>);
+                </span><span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService: received push message"</span>);
                 <span class="self">self</span>.push(buffer, envelope).<span class="kw">await</span>;
             }
             EnvelopeBuffer::NotReady(project_key, envelope) =&gt; {
-                <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService project not ready"</span>);
+                <span class="macro">relay_log::trace!</span>(
+                    <span class="string">"EnvelopeBufferService: received project not ready message for project key {}"</span>,
+                    <span class="kw-2">&amp;</span>project_key
+                );
                 buffer.mark_ready(<span class="kw-2">&amp;</span>project_key, <span class="bool-val">false</span>);
                 <span class="macro">relay_statsd::metric!</span>(counter(RelayCounters::BufferEnvelopesReturned) += <span class="number">1</span>);
                 <span class="self">self</span>.push(buffer, envelope).<span class="kw">await</span>;
             }
             EnvelopeBuffer::Ready(project_key) =&gt; {
-                <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService project ready {}"</span>, <span class="kw-2">&amp;</span>project_key);
+                <span class="macro">relay_log::trace!</span>(
+                    <span class="string">"EnvelopeBufferService: received project ready message for project key {}"</span>,
+                    <span class="kw-2">&amp;</span>project_key
+                );
                 buffer.mark_ready(<span class="kw-2">&amp;</span>project_key, <span class="bool-val">true</span>);
             }
         };
         <span class="self">self</span>.sleep = Duration::ZERO;
     }
+
+    <span class="kw">async fn </span>handle_shutdown(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        buffer: <span class="kw-2">&amp;mut </span>PolymorphicEnvelopeBuffer,
+        message: Shutdown,
+    ) -&gt; bool {
+        <span class="comment">// We gracefully shut down only if the shutdown has a timeout.
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(shutdown_timeout) = message.timeout {
+            <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService: shutting down gracefully"</span>);
+
+            <span class="kw">let </span>shutdown_result = timeout(shutdown_timeout, buffer.shutdown()).<span class="kw">await</span>;
+            <span class="kw">match </span>shutdown_result {
+                <span class="prelude-val">Ok</span>(shutdown_result) =&gt; {
+                    <span class="kw">return </span>shutdown_result;
+                }
+                <span class="prelude-val">Err</span>(error) =&gt; {
+                    <span class="macro">relay_log::error!</span>(
+                    error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
+                    <span class="string">"the envelope buffer didn't shut down in time, some envelopes might be lost"</span>,
+                );
+                }
+            }
+        }
+
+        <span class="bool-val">false
+    </span>}
 
     <span class="kw">async fn </span>push(<span class="kw-2">&amp;mut </span><span class="self">self</span>, buffer: <span class="kw-2">&amp;mut </span>PolymorphicEnvelopeBuffer, envelope: Box&lt;Envelope&gt;) {
         <span class="kw">if let </span><span class="prelude-val">Err</span>(e) = buffer.push(envelope).<span class="kw">await </span>{
@@ -845,15 +922,17 @@
             };
             buffer.initialize().<span class="kw">await</span>;
 
-            <span class="macro">relay_log::info!</span>(<span class="string">"EnvelopeBufferService start"</span>);
+            <span class="kw">let </span><span class="kw-2">mut </span>shutdown = Controller::shutdown_handle();
+
+            <span class="macro">relay_log::info!</span>(<span class="string">"EnvelopeBufferService: starting"</span>);
             <span class="kw">let </span><span class="kw-2">mut </span>iteration = <span class="number">0</span>;
             <span class="kw">loop </span>{
                 iteration += <span class="number">1</span>;
-                <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService loop iteration {iteration}"</span>);
+                <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService: loop iteration {iteration}"</span>);
 
                 <span class="macro">tokio::select!</span> {
                     <span class="comment">// NOTE: we do not select a bias here.
-                    // On the one hand, we might want to prioritize dequeing over enqueing
+                    // On the one hand, we might want to prioritize dequeuing over enqueuing
                     // so we do not exceed the buffer capacity by starving the dequeue.
                     // on the other hand, prioritizing old messages violates the LIFO design.
                     </span><span class="prelude-val">Ok</span>(()) = <span class="self">self</span>.ready_to_pop(<span class="kw-2">&amp;mut </span>buffer) =&gt; {
@@ -867,8 +946,15 @@
                     <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; {
                         <span class="self">self</span>.handle_message(<span class="kw-2">&amp;mut </span>buffer, message).<span class="kw">await</span>;
                     }
+                    shutdown = shutdown.notified() =&gt; {
+                        <span class="comment">// In case the shutdown was handled, we break out of the loop signaling that
+                        // there is no need to process anymore envelopes.
+                        </span><span class="kw">if </span><span class="self">self</span>.handle_shutdown(<span class="kw-2">&amp;mut </span>buffer, shutdown).<span class="kw">await </span>{
+                            <span class="kw">break</span>;
+                        }
+                    }
                     <span class="kw">_ </span>= global_config_rx.changed() =&gt; {
-                        <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService received global config"</span>);
+                        <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService: received global config"</span>);
                         <span class="self">self</span>.sleep = Duration::ZERO; <span class="comment">// Try to pop
                     </span>}
                     <span class="kw">else </span>=&gt; <span class="kw">break</span>,
@@ -877,7 +963,7 @@
                 <span class="self">self</span>.update_observable_state(<span class="kw-2">&amp;mut </span>buffer);
             }
 
-            <span class="macro">relay_log::info!</span>(<span class="string">"EnvelopeBufferService stop"</span>);
+            <span class="macro">relay_log::info!</span>(<span class="string">"EnvelopeBufferService: stopping"</span>);
         });
     }
 }

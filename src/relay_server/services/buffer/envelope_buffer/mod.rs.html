@@ -1053,10 +1053,36 @@
 <a href="#1053" id="1053">1053</a>
 <a href="#1054" id="1054">1054</a>
 <a href="#1055" id="1055">1055</a>
+<a href="#1056" id="1056">1056</a>
+<a href="#1057" id="1057">1057</a>
+<a href="#1058" id="1058">1058</a>
+<a href="#1059" id="1059">1059</a>
+<a href="#1060" id="1060">1060</a>
+<a href="#1061" id="1061">1061</a>
+<a href="#1062" id="1062">1062</a>
+<a href="#1063" id="1063">1063</a>
+<a href="#1064" id="1064">1064</a>
+<a href="#1065" id="1065">1065</a>
+<a href="#1066" id="1066">1066</a>
+<a href="#1067" id="1067">1067</a>
+<a href="#1068" id="1068">1068</a>
+<a href="#1069" id="1069">1069</a>
+<a href="#1070" id="1070">1070</a>
+<a href="#1071" id="1071">1071</a>
+<a href="#1072" id="1072">1072</a>
+<a href="#1073" id="1073">1073</a>
+<a href="#1074" id="1074">1074</a>
+<a href="#1075" id="1075">1075</a>
+<a href="#1076" id="1076">1076</a>
+<a href="#1077" id="1077">1077</a>
+<a href="#1078" id="1078">1078</a>
+<a href="#1079" id="1079">1079</a>
+<a href="#1080" id="1080">1080</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::cmp::Ordering;
 <span class="kw">use </span>std::collections::BTreeSet;
 <span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::error::Error;
+<span class="kw">use </span>std::mem;
 <span class="kw">use </span>std::sync::atomic::AtomicI64;
 <span class="kw">use </span>std::sync::atomic::Ordering <span class="kw">as </span>AtomicOrdering;
 <span class="kw">use </span>std::sync::Arc;
@@ -1110,9 +1136,11 @@
         memory_checker: MemoryChecker,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, EnvelopeBufferError&gt; {
         <span class="kw">let </span>buffer = <span class="kw">if </span>config.spool_envelopes_path().is_some() {
+            <span class="macro">relay_log::trace!</span>(<span class="string">"PolymorphicEnvelopeBuffer: initializing sqlite envelope buffer"</span>);
             <span class="kw">let </span>buffer = EnvelopeBuffer::&lt;SqliteStackProvider&gt;::new(config).<span class="kw">await</span><span class="question-mark">?</span>;
             <span class="self">Self</span>::Sqlite(buffer)
         } <span class="kw">else </span>{
+            <span class="macro">relay_log::trace!</span>(<span class="string">"PolymorphicEnvelopeBuffer: initializing memory envelope buffer"</span>);
             <span class="kw">let </span>buffer = EnvelopeBuffer::&lt;MemoryStackProvider&gt;::new(memory_checker);
             <span class="self">Self</span>::InMemory(buffer)
         };
@@ -1192,6 +1220,20 @@
             <span class="self">Self</span>::InMemory(buffer) =&gt; buffer.has_capacity(),
         }
     }
+
+    <span class="doccomment">/// Shuts down the [`PolymorphicEnvelopeBuffer`].
+    </span><span class="kw">pub async fn </span>shutdown(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; bool {
+        <span class="comment">// Currently, we want to flush the buffer only for disk, since the in memory implementation
+        // tries to not do anything and pop as many elements as possible within the shutdown
+        // timeout.
+        </span><span class="kw">let </span><span class="self">Self</span>::Sqlite(buffer) = <span class="self">self </span><span class="kw">else </span>{
+            <span class="macro">relay_log::trace!</span>(<span class="string">"PolymorphicEnvelopeBuffer: shutdown procedure not needed"</span>);
+            <span class="kw">return </span><span class="bool-val">false</span>;
+        };
+        buffer.flush().<span class="kw">await</span>;
+
+        <span class="bool-val">true
+    </span>}
 }
 
 <span class="doccomment">/// Error that occurs while interacting with the envelope buffer.
@@ -1429,6 +1471,19 @@
             });
     }
 
+    <span class="doccomment">/// Returns `true` if the underlying storage has the capacity to store more envelopes.
+    </span><span class="kw">pub fn </span>has_capacity(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.stack_provider.has_store_capacity()
+    }
+
+    <span class="doccomment">/// Flushes the envelope buffer.
+    </span><span class="kw">pub async fn </span>flush(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="kw">let </span>priority_queue = mem::take(<span class="kw-2">&amp;mut </span><span class="self">self</span>.priority_queue);
+        <span class="self">self</span>.stack_provider
+            .flush(priority_queue.into_iter().map(|(q, <span class="kw">_</span>)| q.value))
+            .<span class="kw">await</span>;
+    }
+
     <span class="doccomment">/// Pushes a new [`EnvelopeStack`] with the given [`Envelope`] inserted.
     </span><span class="kw">async fn </span>push_stack(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
@@ -1466,11 +1521,6 @@
         );
 
         <span class="prelude-val">Ok</span>(())
-    }
-
-    <span class="doccomment">/// Returns `true` if the underlying storage has the capacity to store more envelopes.
-    </span><span class="kw">pub fn </span>has_capacity(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="self">self</span>.stack_provider.has_store_capacity()
     }
 
     <span class="doccomment">/// Pops an [`EnvelopeStack`] with the supplied [`EnvelopeBufferError`].

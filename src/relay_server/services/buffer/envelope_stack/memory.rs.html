@@ -29,6 +29,10 @@
 <a href="#29" id="29">29</a>
 <a href="#30" id="30">30</a>
 <a href="#31" id="31">31</a>
+<a href="#32" id="32">32</a>
+<a href="#33" id="33">33</a>
+<a href="#34" id="34">34</a>
+<a href="#35" id="35">35</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 
 <span class="kw">use </span><span class="kw">crate</span>::Envelope;
@@ -59,5 +63,9 @@
     <span class="kw">async fn </span>pop(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;Box&lt;Envelope&gt;&gt;, <span class="self">Self</span>::Error&gt; {
         <span class="prelude-val">Ok</span>(<span class="self">self</span>.<span class="number">0</span>.pop())
     }
+
+    <span class="kw">fn </span>flush(<span class="self">self</span>) -&gt; Vec&lt;Box&lt;Envelope&gt;&gt; {
+        <span class="self">self</span>.<span class="number">0
+    </span>}
 }
 </code></pre></div></section></main></body></html>

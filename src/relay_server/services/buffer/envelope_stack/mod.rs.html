@@ -20,6 +20,10 @@
 <a href="#20" id="20">20</a>
 <a href="#21" id="21">21</a>
 <a href="#22" id="22">22</a>
+<a href="#23" id="23">23</a>
+<a href="#24" id="24">24</a>
+<a href="#25" id="25">25</a>
+<a href="#26" id="26">26</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::future::Future;
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::Envelope;
@@ -41,5 +45,9 @@
 
     <span class="doccomment">/// Pops the [`Envelope`] on top of the stack.
     </span><span class="kw">fn </span>pop(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Future&lt;Output = <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;Box&lt;Envelope&gt;&gt;, <span class="self">Self</span>::Error&gt;&gt;;
+
+    <span class="doccomment">/// Persists all envelopes in the [`EnvelopeStack`]s to external storage, if possible,
+    /// and consumes the stack provider.
+    </span><span class="kw">fn </span>flush(<span class="self">self</span>) -&gt; Vec&lt;Box&lt;Envelope&gt;&gt;;
 }
 </code></pre></div></section></main></body></html>
