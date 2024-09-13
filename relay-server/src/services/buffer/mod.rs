@@ -147,9 +147,21 @@ impl EnvelopeBufferService {
         );
 
         self.system_ready(buffer).await;
+
+        relay_statsd::metric!(
+            counter(RelayCounters::BufferReadyToPop) += 1,
+            status = "system_ready"
+        );
+
         if self.sleep > Duration::ZERO {
             tokio::time::sleep(self.sleep).await;
         }
+
+        relay_statsd::metric!(
+            counter(RelayCounters::BufferReadyToPop) += 1,
+            status = "slept"
+        );
+
         if let Some(project_cache_ready) = self.project_cache_ready.as_mut() {
             project_cache_ready.await?;
             self.project_cache_ready = None;
