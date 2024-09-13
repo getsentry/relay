@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::metrics::{MetricOutcomes, MetricStats};
-use crate::services::buffer::{EnvelopeBufferService, ObservableEnvelopeBuffer};
+use crate::services::buffer::{self, EnvelopeBufferService, ObservableEnvelopeBuffer};
 use crate::services::stats::RelayStats;
 use anyhow::{Context, Result};
 use axum::extract::FromRequestParts;
@@ -245,7 +245,11 @@ impl ServiceState {
             config.clone(),
             MemoryChecker::new(memory_stat.clone(), config.clone()),
             global_config_rx.clone(),
-            project_cache.clone(),
+            buffer::Services {
+                project_cache: project_cache.clone(),
+                outcome_aggregator: outcome_aggregator.clone(),
+                test_store: test_store.clone(),
+            },
         )
         .map(|b| b.start_observable());
 
