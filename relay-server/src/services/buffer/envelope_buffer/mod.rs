@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::convert::Infallible;
 use std::error::Error;
+use std::mem;
 use std::sync::atomic::AtomicI64;
 use std::sync::atomic::Ordering as AtomicOrdering;
 use std::sync::Arc;
@@ -55,9 +56,11 @@ impl PolymorphicEnvelopeBuffer {
         memory_checker: MemoryChecker,
     ) -> Result<Self, EnvelopeBufferError> {
         let buffer = if config.spool_envelopes_path().is_some() {
+            relay_log::trace!("PolymorphicEnvelopeBuffer: initializing sqlite envelope buffer");
             let buffer = EnvelopeBuffer::<SqliteStackProvider>::new(config).await?;
             Self::Sqlite(buffer)
         } else {
+            relay_log::trace!("PolymorphicEnvelopeBuffer: initializing memory envelope buffer");
             let buffer = EnvelopeBuffer::<MemoryStackProvider>::new(memory_checker);
             Self::InMemory(buffer)
         };
@@ -136,6 +139,20 @@ impl PolymorphicEnvelopeBuffer {
             Self::Sqlite(buffer) => buffer.has_capacity(),
             Self::InMemory(buffer) => buffer.has_capacity(),
         }
+    }
+
+    /// Shuts down the [`PolymorphicEnvelopeBuffer`].
+    pub async fn shutdown(&mut self) -> bool {
+        // Currently, we want to flush the buffer only for disk, since the in memory implementation
+        // tries to not do anything and pop as many elements as possible within the shutdown
+        // timeout.
+        let Self::Sqlite(buffer) = self else {
+            relay_log::trace!("PolymorphicEnvelopeBuffer: shutdown procedure not needed");
+            return false;
+        };
+        buffer.flush().await;
+
+        true
     }
 }
 
@@ -374,6 +391,19 @@ where
             });
     }
 
+    /// Returns `true` if the underlying storage has the capacity to store more envelopes.
+    pub fn has_capacity(&self) -> bool {
+        self.stack_provider.has_store_capacity()
+    }
+
+    /// Flushes the envelope buffer.
+    pub async fn flush(&mut self) {
+        let priority_queue = mem::take(&mut self.priority_queue);
+        self.stack_provider
+            .flush(priority_queue.into_iter().map(|(q, _)| q.value))
+            .await;
+    }
+
     /// Pushes a new [`EnvelopeStack`] with the given [`Envelope`] inserted.
     async fn push_stack(
         &mut self,
@@ -411,11 +441,6 @@ where
         );
 
         Ok(())
-    }
-
-    /// Returns `true` if the underlying storage has the capacity to store more envelopes.
-    pub fn has_capacity(&self) -> bool {
-        self.stack_provider.has_store_capacity()
     }
 
     /// Pops an [`EnvelopeStack`] with the supplied [`EnvelopeBufferError`].

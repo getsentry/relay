@@ -1,5 +1,6 @@
 //! Types for buffering envelopes.
 
+use std::error::Error;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
@@ -7,10 +8,11 @@ use std::time::Duration;
 
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
-use relay_system::Request;
 use relay_system::SendError;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Receiver, Service};
+use relay_system::{Controller, Request, Shutdown};
 use tokio::sync::watch;
+use tokio::time::timeout;
 
 use crate::envelope::Envelope;
 use crate::services::buffer::envelope_buffer::Peek;
@@ -208,10 +210,10 @@ impl EnvelopeBufferService {
         &mut self,
         buffer: &mut PolymorphicEnvelopeBuffer,
     ) -> Result<(), EnvelopeBufferError> {
-        relay_log::trace!("EnvelopeBufferService peek");
+        relay_log::trace!("EnvelopeBufferService: peeking the buffer");
         match buffer.peek().await? {
             Peek::Empty => {
-                relay_log::trace!("EnvelopeBufferService empty");
+                relay_log::trace!("EnvelopeBufferService: peek returned empty");
                 relay_statsd::metric!(
                     counter(RelayCounters::BufferTryPop) += 1,
                     peek_result = "empty"
@@ -219,7 +221,7 @@ impl EnvelopeBufferService {
                 self.sleep = Duration::MAX; // wait for reset by `handle_message`.
             }
             Peek::Ready(_) => {
-                relay_log::trace!("EnvelopeBufferService pop");
+                relay_log::trace!("EnvelopeBufferService: popping envelope");
                 relay_statsd::metric!(
                     counter(RelayCounters::BufferTryPop) += 1,
                     peek_result = "ready"
@@ -234,7 +236,7 @@ impl EnvelopeBufferService {
                 self.sleep = Duration::ZERO; // try next pop immediately
             }
             Peek::NotReady(stack_key, envelope) => {
-                relay_log::trace!("EnvelopeBufferService request update");
+                relay_log::trace!("EnvelopeBufferService: project(s) of envelope not ready, requesting project update");
                 relay_statsd::metric!(
                     counter(RelayCounters::BufferTryPop) += 1,
                     peek_result = "not_ready"
@@ -268,21 +270,53 @@ impl EnvelopeBufferService {
                 // projects was already triggered (see XXX).
                 // For better separation of concerns, this prefetch should be triggered from here
                 // once buffer V1 has been removed.
-                relay_log::trace!("EnvelopeBufferService push");
+                relay_log::trace!("EnvelopeBufferService: received push message");
                 self.push(buffer, envelope).await;
             }
             EnvelopeBuffer::NotReady(project_key, envelope) => {
-                relay_log::trace!("EnvelopeBufferService project not ready");
+                relay_log::trace!(
+                    "EnvelopeBufferService: received project not ready message for project key {}",
+                    &project_key
+                );
                 buffer.mark_ready(&project_key, false);
                 relay_statsd::metric!(counter(RelayCounters::BufferEnvelopesReturned) += 1);
                 self.push(buffer, envelope).await;
             }
             EnvelopeBuffer::Ready(project_key) => {
-                relay_log::trace!("EnvelopeBufferService project ready {}", &project_key);
+                relay_log::trace!(
+                    "EnvelopeBufferService: received project ready message for project key {}",
+                    &project_key
+                );
                 buffer.mark_ready(&project_key, true);
             }
         };
         self.sleep = Duration::ZERO;
+    }
+
+    async fn handle_shutdown(
+        &mut self,
+        buffer: &mut PolymorphicEnvelopeBuffer,
+        message: Shutdown,
+    ) -> bool {
+        // We gracefully shut down only if the shutdown has a timeout.
+        if let Some(shutdown_timeout) = message.timeout {
+            relay_log::trace!("EnvelopeBufferService: shutting down gracefully");
+
+            let shutdown_result = timeout(shutdown_timeout, buffer.shutdown()).await;
+            match shutdown_result {
+                Ok(shutdown_result) => {
+                    return shutdown_result;
+                }
+                Err(error) => {
+                    relay_log::error!(
+                    error = &error as &dyn Error,
+                    "the envelope buffer didn't shut down in time, some envelopes might be lost",
+                );
+                }
+            }
+        }
+
+        false
     }
 
     async fn push(&mut self, buffer: &mut PolymorphicEnvelopeBuffer, envelope: Box<Envelope>) {
@@ -322,15 +356,17 @@ impl Service for EnvelopeBufferService {
             };
             buffer.initialize().await;
 
-            relay_log::info!("EnvelopeBufferService start");
+            let mut shutdown = Controller::shutdown_handle();
+
+            relay_log::info!("EnvelopeBufferService: starting");
             let mut iteration = 0;
             loop {
                 iteration += 1;
-                relay_log::trace!("EnvelopeBufferService loop iteration {iteration}");
+                relay_log::trace!("EnvelopeBufferService: loop iteration {iteration}");
 
                 tokio::select! {
                     // NOTE: we do not select a bias here.
-                    // On the one hand, we might want to prioritize dequeing over enqueing
+                    // On the one hand, we might want to prioritize dequeuing over enqueuing
                     // so we do not exceed the buffer capacity by starving the dequeue.
                     // on the other hand, prioritizing old messages violates the LIFO design.
                     Ok(()) = self.ready_to_pop(&mut buffer) => {
@@ -344,8 +380,15 @@ impl Service for EnvelopeBufferService {
                     Some(message) = rx.recv() => {
                         self.handle_message(&mut buffer, message).await;
                     }
+                    shutdown = shutdown.notified() => {
+                        // In case the shutdown was handled, we break out of the loop signaling that
+                        // there is no need to process anymore envelopes.
+                        if self.handle_shutdown(&mut buffer, shutdown).await {
+                            break;
+                        }
+                    }
                     _ = global_config_rx.changed() => {
-                        relay_log::trace!("EnvelopeBufferService received global config");
+                        relay_log::trace!("EnvelopeBufferService: received global config");
                         self.sleep = Duration::ZERO; // Try to pop
                     }
                     else => break,
@@ -354,7 +397,7 @@ impl Service for EnvelopeBufferService {
                 self.update_observable_state(&mut buffer);
             }
 
-            relay_log::info!("EnvelopeBufferService stop");
+            relay_log::info!("EnvelopeBufferService: stopping");
         });
     }
 }
