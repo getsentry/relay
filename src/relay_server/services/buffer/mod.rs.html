@@ -494,6 +494,13 @@
 <a href="#494" id="494">494</a>
 <a href="#495" id="495">495</a>
 <a href="#496" id="496">496</a>
+<a href="#497" id="497">497</a>
+<a href="#498" id="498">498</a>
+<a href="#499" id="499">499</a>
+<a href="#500" id="500">500</a>
+<a href="#501" id="501">501</a>
+<a href="#502" id="502">502</a>
+<a href="#503" id="503">503</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Types for buffering envelopes.
 
 </span><span class="kw">use </span>std::sync::atomic::AtomicBool;
@@ -643,7 +650,9 @@
         </span>);
 
         <span class="self">self</span>.system_ready(buffer).<span class="kw">await</span>;
-        tokio::time::sleep(<span class="self">self</span>.sleep).<span class="kw">await</span>;
+        <span class="kw">if </span><span class="self">self</span>.sleep &gt; Duration::ZERO {
+            tokio::time::sleep(<span class="self">self</span>.sleep).<span class="kw">await</span>;
+        }
         <span class="kw">if let </span><span class="prelude-val">Some</span>(project_cache_ready) = <span class="self">self</span>.project_cache_ready.as_mut() {
             project_cache_ready.<span class="kw">await</span><span class="question-mark">?</span>;
             <span class="self">self</span>.project_cache_ready = <span class="prelude-val">None</span>;
@@ -822,7 +831,6 @@
                         <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService received global config"</span>);
                         <span class="self">self</span>.sleep = Duration::ZERO; <span class="comment">// Try to pop
                     </span>}
-
                     <span class="kw">else </span>=&gt; <span class="kw">break</span>,
                 }
 
@@ -982,12 +990,18 @@
         }
         addr.send(EnvelopeBuffer::Ready(project_key));
 
-        tokio::time::sleep(Duration::from_millis(<span class="number">1000</span>)).<span class="kw">await</span>;
+        tokio::time::sleep(Duration::from_millis(<span class="number">100</span>)).<span class="kw">await</span>;
 
-        <span class="comment">// Project cache received only one envelope:
-        </span><span class="macro">assert_eq!</span>(project_cache_rx.len(), <span class="number">1</span>); <span class="comment">// without throttling, this would be 5.
-        </span><span class="macro">assert!</span>(project_cache_rx.try_recv().is_ok());
-        <span class="macro">assert_eq!</span>(project_cache_rx.len(), <span class="number">0</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>messages = <span class="macro">vec!</span>[];
+        project_cache_rx.recv_many(<span class="kw-2">&amp;mut </span>messages, <span class="number">100</span>).<span class="kw">await</span>;
+
+        <span class="macro">assert_eq!</span>(
+            messages
+                .iter()
+                .filter(|message| <span class="macro">matches!</span>(message, ProjectCache::HandleDequeuedEnvelope(..)))
+                .count(),
+            <span class="number">1
+        </span>);
     }
 }
 </code></pre></div></section></main></body></html>
