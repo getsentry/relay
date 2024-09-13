@@ -281,7 +281,7 @@ impl EnvelopeBufferService {
             relay_log::trace!("EnvelopeBufferService: shutting down gracefully");
 
             let shutdown_result =
-                timeout(shutdown_timeout, async { buffer.shutdown().await }).await;
+                timeout(shutdown_timeout, buffer.shutdown()).await;
             match shutdown_result {
                 Ok(shutdown_result) => {
                     return shutdown_result;
