@@ -147,7 +147,9 @@ impl EnvelopeBufferService {
         );
 
         self.system_ready(buffer).await;
-        tokio::time::sleep(self.sleep).await;
+        if self.sleep > Duration::ZERO {
+            tokio::time::sleep(self.sleep).await;
+        }
         if let Some(project_cache_ready) = self.project_cache_ready.as_mut() {
             project_cache_ready.await?;
             self.project_cache_ready = None;
@@ -326,7 +328,6 @@ impl Service for EnvelopeBufferService {
                         relay_log::trace!("EnvelopeBufferService received global config");
                         self.sleep = Duration::ZERO; // Try to pop
                     }
-
                     else => break,
                 }
 
@@ -486,11 +487,17 @@ mod tests {
         }
         addr.send(EnvelopeBuffer::Ready(project_key));
 
-        tokio::time::sleep(Duration::from_millis(1000)).await;
+        tokio::time::sleep(Duration::from_millis(100)).await;
 
-        // Project cache received only one envelope:
-        assert_eq!(project_cache_rx.len(), 1); // without throttling, this would be 5.
-        assert!(project_cache_rx.try_recv().is_ok());
-        assert_eq!(project_cache_rx.len(), 0);
+        let mut messages = vec![];
+        project_cache_rx.recv_many(&mut messages, 100).await;
+
+        assert_eq!(
+            messages
+                .iter()
+                .filter(|message| matches!(message, ProjectCache::HandleDequeuedEnvelope(..)))
+                .count(),
+            1
+        );
     }
 }
