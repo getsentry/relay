@@ -163,7 +163,15 @@ impl EnvelopeBufferService {
         );
 
         if let Some(project_cache_ready) = self.project_cache_ready.as_mut() {
+            relay_statsd::metric!(
+                counter(RelayCounters::BufferReadyToPop) += 1,
+                status = "waiting_for_project_cache"
+            );
             project_cache_ready.await?;
+            relay_statsd::metric!(
+                counter(RelayCounters::BufferReadyToPop) += 1,
+                status = "waited_for_project_cache"
+            );
             self.project_cache_ready = None;
         }
 
