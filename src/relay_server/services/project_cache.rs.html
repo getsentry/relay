@@ -1768,8 +1768,19 @@
 <a href="#1768" id="1768">1768</a>
 <a href="#1769" id="1769">1769</a>
 <a href="#1770" id="1770">1770</a>
+<a href="#1771" id="1771">1771</a>
+<a href="#1772" id="1772">1772</a>
+<a href="#1773" id="1773">1773</a>
+<a href="#1774" id="1774">1774</a>
+<a href="#1775" id="1775">1775</a>
+<a href="#1776" id="1776">1776</a>
+<a href="#1777" id="1777">1777</a>
+<a href="#1778" id="1778">1778</a>
+<a href="#1779" id="1779">1779</a>
+<a href="#1780" id="1780">1780</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::error::Error;
+<span class="kw">use </span>std::sync::atomic::{AtomicBool, Ordering};
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
@@ -2062,7 +2073,7 @@
     UpdateSpoolIndex(UpdateSpoolIndex),
     SpoolHealth(Sender&lt;bool&gt;),
     RefreshIndexCache(RefreshIndexCache),
-    HandleDequeuedEnvelope(Box&lt;Envelope&gt;, Sender&lt;()&gt;),
+    HandleDequeuedEnvelope(Box&lt;Envelope&gt;),
     UpdateProject(ProjectKey),
 }
 
@@ -2081,7 +2092,7 @@
             <span class="self">Self</span>::UpdateSpoolIndex(<span class="kw">_</span>) =&gt; <span class="string">"UpdateSpoolIndex"</span>,
             <span class="self">Self</span>::SpoolHealth(<span class="kw">_</span>) =&gt; <span class="string">"SpoolHealth"</span>,
             <span class="self">Self</span>::RefreshIndexCache(<span class="kw">_</span>) =&gt; <span class="string">"RefreshIndexCache"</span>,
-            <span class="self">Self</span>::HandleDequeuedEnvelope(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="string">"HandleDequeuedEnvelope"</span>,
+            <span class="self">Self</span>::HandleDequeuedEnvelope(<span class="kw">_</span>) =&gt; <span class="string">"HandleDequeuedEnvelope"</span>,
             <span class="self">Self</span>::UpdateProject(<span class="kw">_</span>) =&gt; <span class="string">"UpdateProject"</span>,
         }
     }
@@ -2189,11 +2200,11 @@
 }
 
 <span class="kw">impl </span>FromMessage&lt;DequeuedEnvelope&gt; <span class="kw">for </span>ProjectCache {
-    <span class="kw">type </span>Response = relay_system::AsyncResponse&lt;()&gt;;
+    <span class="kw">type </span>Response = relay_system::NoResponse;
 
-    <span class="kw">fn </span>from_message(message: DequeuedEnvelope, sender: Sender&lt;()&gt;) -&gt; <span class="self">Self </span>{
+    <span class="kw">fn </span>from_message(message: DequeuedEnvelope, <span class="kw">_</span>: ()) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>DequeuedEnvelope(envelope) = message;
-        <span class="self">Self</span>::HandleDequeuedEnvelope(envelope, sender)
+        <span class="self">Self</span>::HandleDequeuedEnvelope(envelope)
     }
 }
 
@@ -2380,6 +2391,8 @@
     spool_v1: <span class="prelude-ty">Option</span>&lt;SpoolV1&gt;,
     <span class="doccomment">/// Status of the global configuration, used to determine readiness for processing.
     </span>global_config: GlobalConfigStatus,
+    <span class="doccomment">/// Atomic boolean signaling whether the project cache is ready to accept a new envelope.
+    </span>project_cache_ready: Arc&lt;AtomicBool&gt;,
 }
 
 <span class="attr">#[derive(Debug)]
@@ -3075,7 +3088,7 @@
                     ProjectCache::RefreshIndexCache(message) =&gt; {
                         <span class="self">self</span>.handle_refresh_index_cache(message)
                     }
-                    ProjectCache::HandleDequeuedEnvelope(message, sender) =&gt; {
+                    ProjectCache::HandleDequeuedEnvelope(message) =&gt; {
                         <span class="kw">let </span>envelope_buffer = <span class="self">self
                             </span>.services
                             .envelope_buffer
@@ -3088,8 +3101,9 @@
                                 <span class="string">"Failed to handle popped envelope"
                             </span>);
                         }
-                        <span class="comment">// Return response to signal readiness for next envelope:
-                        </span>sender.send(())
+
+                        <span class="comment">// We mark the project cache as ready to accept new traffic.
+                        </span><span class="self">self</span>.project_cache_ready.store(<span class="bool-val">true</span>, Ordering::SeqCst);
                     }
                     ProjectCache::UpdateProject(project) =&gt; <span class="self">self</span>.handle_update_project(project),
                 }
@@ -3106,6 +3120,7 @@
     services: Services,
     global_config_rx: watch::Receiver&lt;global_config::Status&gt;,
     redis: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;,
+    project_cache_ready: Arc&lt;AtomicBool&gt;,
 }
 
 <span class="kw">impl </span>ProjectCacheService {
@@ -3116,6 +3131,7 @@
         services: Services,
         global_config_rx: watch::Receiver&lt;global_config::Status&gt;,
         redis: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;,
+        project_cache_ready: Arc&lt;AtomicBool&gt;,
     ) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             config,
@@ -3123,6 +3139,7 @@
             services,
             global_config_rx,
             redis,
+            project_cache_ready,
         }
     }
 }
@@ -3137,6 +3154,7 @@
             services,
             <span class="kw-2">mut </span>global_config_rx,
             redis,
+            project_cache_ready,
         } = <span class="self">self</span>;
         <span class="kw">let </span>project_cache = services.project_cache.clone();
         <span class="kw">let </span>outcome_aggregator = services.outcome_aggregator.clone();
@@ -3218,6 +3236,7 @@
                 spool_v1_unspool_handle: SleepHandle::idle(),
                 spool_v1,
                 global_config,
+                project_cache_ready,
             };
 
             <span class="kw">loop </span>{
@@ -3412,6 +3431,7 @@
                     buffer_unspool_backoff: RetryBackoff::new(Duration::from_millis(<span class="number">100</span>)),
                 }),
                 global_config: GlobalConfigStatus::Pending,
+                project_cache_ready: Arc::new(AtomicBool::new(<span class="bool-val">true</span>)),
             },
             buffer,
         )
