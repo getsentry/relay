@@ -2,6 +2,8 @@ name: Binary Release Build
 
 on:
   push:
+    branches:
+      - release/**
 
 env:
   CARGO_TERM_COLOR: always
@@ -102,11 +104,15 @@ jobs:
           compression-level: '0'
 
   merge:
+    name: Create Release Artifact
     runs-on: ubuntu-latest
     needs: [linux, macos, windows]
     steps:
-      - name: Merge Artifacts
-        uses: actions/upload-artifact/merge@v4
+      # Note: due to the immutability of artifacts in upload-artifact v4,
+      # there cannot be mutliple upload-artifacts with the same name, in a sha's workflow runs.
+      # However in this case it is fine because this only runs on release/** branches,
+      # and the other runs on release-library/** branches.
+      - uses: actions/upload-artifact/merge@v4
         with:
           # Craft expects release assets to be a single artifact named after the sha.
           name: ${{ github.sha }}
