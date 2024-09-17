@@ -121,7 +121,7 @@ impl StackProvider for SqliteStackProvider {
     async fn flush(&mut self, envelope_stacks: impl IntoIterator<Item = Self::Stack>) {
         relay_log::trace!("Flushing sqlite envelope buffer");
 
-        relay_statsd::metric!(timer(RelayTimers::BufferDrain), {
+        relay_statsd::metric!(timer(RelayTimers::BufferFlush), {
             let mut envelopes = Vec::with_capacity(self.drain_batch_size);
             for envelope_stack in envelope_stacks {
                 for envelope in envelope_stack.flush() {
