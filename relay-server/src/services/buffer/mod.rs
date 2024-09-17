@@ -1,6 +1,7 @@
 //! Types for buffering envelopes.
 
 use std::error::Error;
+use std::future;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
@@ -97,6 +98,7 @@ pub struct EnvelopeBufferService {
     project_cache: Addr<ProjectCache>,
     has_capacity: Arc<AtomicBool>,
     sleep: Duration,
+    project_cache_ready: Arc<AtomicBool>,
 }
 
 /// The maximum amount of time between evaluations of dequeue conditions.
@@ -115,6 +117,7 @@ impl EnvelopeBufferService {
         memory_checker: MemoryChecker,
         global_config_rx: watch::Receiver<global_config::Status>,
         project_cache: Addr<ProjectCache>,
+        project_cache_ready: Arc<AtomicBool>,
     ) -> Option<Self> {
         config.spool_v2().then(|| Self {
             config,
@@ -124,6 +127,7 @@ impl EnvelopeBufferService {
             project_cache,
             has_capacity: Arc::new(AtomicBool::new(true)),
             sleep: Duration::ZERO,
+            project_cache_ready,
         })
     }
 
@@ -155,6 +159,11 @@ impl EnvelopeBufferService {
 
         if self.sleep > Duration::ZERO {
             tokio::time::sleep(self.sleep).await;
+        }
+
+        // In case the project cache is not ready, we don't want to attempt popping.
+        if !self.project_cache_ready.load(Ordering::Relaxed) {
+            return future::pending().await;
         }
 
         relay_statsd::metric!(
@@ -215,6 +224,9 @@ impl EnvelopeBufferService {
                     .pop()
                     .await?
                     .expect("Element disappeared despite exclusive excess");
+                // We assume that the project cache is now busy to process this envelope, so we flip
+                // the boolean flag, which will prioritize writes.
+                self.project_cache_ready.store(false, Ordering::SeqCst);
                 self.project_cache.send(DequeuedEnvelope(envelope));
 
                 self.sleep = Duration::ZERO; // try next pop immediately
@@ -403,6 +415,7 @@ mod tests {
         EnvelopeBufferService,
         watch::Sender<global_config::Status>,
         mpsc::UnboundedReceiver<ProjectCache>,
+        Arc<AtomicBool>,
     ) {
         let config = Arc::new(
             Config::from_json_value(serde_json::json!({
@@ -417,18 +430,26 @@ mod tests {
         let memory_checker = MemoryChecker::new(MemoryStat::default(), config.clone());
         let (global_tx, global_rx) = watch::channel(global_config::Status::Pending);
         let (project_cache_addr, project_cache_rx) = Addr::custom();
+        let project_cache_ready = Arc::new(AtomicBool::new(true));
         (
-            EnvelopeBufferService::new(config, memory_checker, global_rx, project_cache_addr)
-                .unwrap(),
+            EnvelopeBufferService::new(
+                config,
+                memory_checker,
+                global_rx,
+                project_cache_addr,
+                project_cache_ready.clone(),
+            )
+            .unwrap(),
             global_tx,
             project_cache_rx,
+            project_cache_ready,
         )
     }
 
     #[tokio::test]
     async fn capacity_is_updated() {
         tokio::time::pause();
-        let (service, _global_rx, _project_cache_tx) = buffer_service();
+        let (service, _global_rx, _project_cache_tx, _project_cache_ready) = buffer_service();
 
         // Set capacity to false:
         service.has_capacity.store(false, Ordering::Relaxed);
@@ -450,7 +471,7 @@ mod tests {
     #[tokio::test]
     async fn pop_requires_global_config() {
         tokio::time::pause();
-        let (service, global_tx, project_cache_rx) = buffer_service();
+        let (service, global_tx, project_cache_rx, _project_cache_ready) = buffer_service();
 
         let addr = service.start();
 
@@ -499,9 +520,15 @@ mod tests {
         )));
 
         let (project_cache_addr, project_cache_rx) = Addr::custom();
-        let service =
-            EnvelopeBufferService::new(config, memory_checker, global_rx, project_cache_addr)
-                .unwrap();
+        let project_cache_ready = Arc::new(AtomicBool::new(true));
+        let service = EnvelopeBufferService::new(
+            config,
+            memory_checker,
+            global_rx,
+            project_cache_addr,
+            project_cache_ready,
+        )
+        .unwrap();
         let addr = service.start();
 
         // Send five messages:
@@ -514,5 +541,37 @@ mod tests {
 
         // Nothing was dequeued, memory not ready:
         assert_eq!(project_cache_rx.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn output_is_throttled() {
+        tokio::time::pause();
+        let (service, global_tx, mut project_cache_rx, _project_cache_ready) = buffer_service();
+        global_tx.send_replace(global_config::Status::Ready(Arc::new(
+            GlobalConfig::default(),
+        )));
+
+        let addr = service.start();
+
+        // Send five messages:
+        let envelope = new_envelope(false, "foo");
+        let project_key = envelope.meta().public_key();
+        for _ in 0..5 {
+            addr.send(EnvelopeBuffer::Push(envelope.clone()));
+        }
+        addr.send(EnvelopeBuffer::Ready(project_key));
+
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        let mut messages = vec![];
+        project_cache_rx.recv_many(&mut messages, 100).await;
+
+        assert_eq!(
+            messages
+                .iter()
+                .filter(|message| matches!(message, ProjectCache::HandleDequeuedEnvelope(..)))
+                .count(),
+            1
+        );
     }
 }

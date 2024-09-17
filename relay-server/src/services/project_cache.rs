@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -292,7 +293,7 @@ pub enum ProjectCache {
     UpdateSpoolIndex(UpdateSpoolIndex),
     SpoolHealth(Sender<bool>),
     RefreshIndexCache(RefreshIndexCache),
-    HandleDequeuedEnvelope(Box<Envelope>, Sender<()>),
+    HandleDequeuedEnvelope(Box<Envelope>),
     UpdateProject(ProjectKey),
 }
 
@@ -311,7 +312,7 @@ impl ProjectCache {
             Self::UpdateSpoolIndex(_) => "UpdateSpoolIndex",
             Self::SpoolHealth(_) => "SpoolHealth",
             Self::RefreshIndexCache(_) => "RefreshIndexCache",
-            Self::HandleDequeuedEnvelope(_, _) => "HandleDequeuedEnvelope",
+            Self::HandleDequeuedEnvelope(_) => "HandleDequeuedEnvelope",
             Self::UpdateProject(_) => "UpdateProject",
         }
     }
@@ -419,11 +420,11 @@ impl FromMessage<SpoolHealth> for ProjectCache {
 }
 
 impl FromMessage<DequeuedEnvelope> for ProjectCache {
-    type Response = relay_system::AsyncResponse<()>;
+    type Response = relay_system::NoResponse;
 
-    fn from_message(message: DequeuedEnvelope, sender: Sender<()>) -> Self {
+    fn from_message(message: DequeuedEnvelope, _: ()) -> Self {
         let DequeuedEnvelope(envelope) = message;
-        Self::HandleDequeuedEnvelope(envelope, sender)
+        Self::HandleDequeuedEnvelope(envelope)
     }
 }
 
@@ -610,6 +611,8 @@ struct ProjectCacheBroker {
     spool_v1: Option<SpoolV1>,
     /// Status of the global configuration, used to determine readiness for processing.
     global_config: GlobalConfigStatus,
+    /// Atomic boolean signaling whether the project cache is ready to accept a new envelope.
+    project_cache_ready: Arc<AtomicBool>,
 }
 
 #[derive(Debug)]
@@ -1315,7 +1318,7 @@ impl ProjectCacheBroker {
                     ProjectCache::RefreshIndexCache(message) => {
                         self.handle_refresh_index_cache(message)
                     }
-                    ProjectCache::HandleDequeuedEnvelope(message, sender) => {
+                    ProjectCache::HandleDequeuedEnvelope(message) => {
                         let envelope_buffer = self
                             .services
                             .envelope_buffer
@@ -1328,8 +1331,9 @@ impl ProjectCacheBroker {
                                 "Failed to handle popped envelope"
                             );
                         }
-                        // Return response to signal readiness for next envelope:
-                        sender.send(())
+
+                        // We mark the project cache as ready to accept new traffic.
+                        self.project_cache_ready.store(true, Ordering::SeqCst);
                     }
                     ProjectCache::UpdateProject(project) => self.handle_update_project(project),
                 }
@@ -1346,6 +1350,7 @@ pub struct ProjectCacheService {
     services: Services,
     global_config_rx: watch::Receiver<global_config::Status>,
     redis: Option<RedisPool>,
+    project_cache_ready: Arc<AtomicBool>,
 }
 
 impl ProjectCacheService {
@@ -1356,6 +1361,7 @@ impl ProjectCacheService {
         services: Services,
         global_config_rx: watch::Receiver<global_config::Status>,
         redis: Option<RedisPool>,
+        project_cache_ready: Arc<AtomicBool>,
     ) -> Self {
         Self {
             config,
@@ -1363,6 +1369,7 @@ impl ProjectCacheService {
             services,
             global_config_rx,
             redis,
+            project_cache_ready,
         }
     }
 }
@@ -1377,6 +1384,7 @@ impl Service for ProjectCacheService {
             services,
             mut global_config_rx,
             redis,
+            project_cache_ready,
         } = self;
         let project_cache = services.project_cache.clone();
         let outcome_aggregator = services.outcome_aggregator.clone();
@@ -1458,6 +1466,7 @@ impl Service for ProjectCacheService {
                 spool_v1_unspool_handle: SleepHandle::idle(),
                 spool_v1,
                 global_config,
+                project_cache_ready,
             };
 
             loop {
@@ -1652,6 +1661,7 @@ mod tests {
                     buffer_unspool_backoff: RetryBackoff::new(Duration::from_millis(100)),
                 }),
                 global_config: GlobalConfigStatus::Pending,
+                project_cache_ready: Arc::new(AtomicBool::new(true)),
             },
             buffer,
         )
