@@ -110,7 +110,7 @@ pub struct EnvelopeBufferService {
     services: Services,
     has_capacity: Arc<AtomicBool>,
     sleep: Duration,
-    project_cache_ready: Arc<Waiter>,
+    project_cache_ready: Waiter,
 }
 
 /// The maximum amount of time between evaluations of dequeue conditions.
@@ -129,7 +129,7 @@ impl EnvelopeBufferService {
         memory_checker: MemoryChecker,
         global_config_rx: watch::Receiver<global_config::Status>,
         services: Services,
-        project_cache_ready: Arc<Waiter>,
+        project_cache_ready: Waiter,
     ) -> Option<Self> {
         config.spool_v2().then(|| Self {
             config,
@@ -449,7 +449,7 @@ mod tests {
         watch::Sender<global_config::Status>,
         mpsc::UnboundedReceiver<ProjectCache>,
         mpsc::UnboundedReceiver<TrackOutcome>,
-        Arc<Waiter>,
+        Waiter,
     ) {
         let config = Arc::new(
             Config::from_json_value(serde_json::json!({

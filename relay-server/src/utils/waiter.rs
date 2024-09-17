@@ -1,38 +1,45 @@
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use tokio::sync::Notify;
 
-/// Construct used to wait on a boolean variable only if it's set to `true`.
+/// Struct holding both the boolean state and the notifier.
 #[derive(Debug)]
-pub struct Waiter {
-    wait: RwLock<AtomicBool>,
+struct Inner {
+    wait: AtomicBool,
     notify: Notify,
 }
 
+/// Construct used to wait on a boolean variable only if it's set to `true`.
+#[derive(Debug, Clone)]
+pub struct Waiter {
+    inner: Arc<Inner>,
+}
+
 impl Waiter {
-    pub fn new(wait: bool) -> Arc<Self> {
-        Arc::new(Self {
-            wait: RwLock::new(AtomicBool::new(wait)),
-            notify: Notify::new(),
-        })
+    pub fn new(wait: bool) -> Self {
+        Self {
+            inner: Arc::new(Inner {
+                wait: AtomicBool::new(wait),
+                notify: Notify::new(),
+            }),
+        }
     }
 
     pub fn set_wait(&self, wait: bool) {
-        self.wait.write().unwrap().store(wait, Ordering::SeqCst);
+        self.inner.wait.store(wait, Ordering::SeqCst);
 
-        // If we are not waiting anymore, we want to notify all the subscribed futures that they
-        // are ready to try and proceed.
+        // If we are not waiting anymore, notify all the subscribed futures
         if !wait {
-            self.notify.notify_waiters();
+            self.inner.notify.notify_waiters();
         }
     }
 
     pub async fn try_wait(&self) {
-        if !self.wait.read().unwrap().load(Ordering::Relaxed) {
+        if !self.inner.wait.load(Ordering::Relaxed) {
             return;
         }
 
-        // If we have to wait, we will suspend on waiting for a notification.
-        self.notify.notified().await;
+        // Suspend on waiting for a notification if waiting is required
+        self.inner.notify.notified().await;
     }
 }

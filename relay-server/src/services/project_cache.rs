@@ -613,7 +613,7 @@ struct ProjectCacheBroker {
     /// Status of the global configuration, used to determine readiness for processing.
     global_config: GlobalConfigStatus,
     /// Waiter signaling whether the project cache is ready to accept a new envelope.
-    project_cache_ready: Arc<Waiter>,
+    project_cache_ready: Waiter,
 }
 
 #[derive(Debug)]
@@ -1341,7 +1341,7 @@ pub struct ProjectCacheService {
     services: Services,
     global_config_rx: watch::Receiver<global_config::Status>,
     redis: Option<RedisPool>,
-    project_cache_ready: Arc<Waiter>,
+    project_cache_ready: Waiter,
 }
 
 impl ProjectCacheService {
@@ -1352,7 +1352,7 @@ impl ProjectCacheService {
         services: Services,
         global_config_rx: watch::Receiver<global_config::Status>,
         redis: Option<RedisPool>,
-        project_cache_ready: Arc<Waiter>,
+        project_cache_ready: Waiter,
     ) -> Self {
         Self {
             config,
