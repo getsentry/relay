@@ -173,9 +173,10 @@ impl EnvelopeBufferService {
             tokio::time::sleep(self.sleep).await;
         }
 
-        // In case the project cache is not ready, we don't want to attempt popping.
+        // In case the project cache is not ready, we defer popping to first try and handle incoming
+        // messages and only come back to this in case within the timeout no data was received.
         if !self.project_cache_ready.load(Ordering::Relaxed) {
-            return future::pending().await;
+            tokio::time::sleep(DEFAULT_SLEEP).await;
         }
 
         relay_statsd::metric!(
