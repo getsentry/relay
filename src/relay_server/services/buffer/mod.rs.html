@@ -516,54 +516,6 @@
 <a href="#516" id="516">516</a>
 <a href="#517" id="517">517</a>
 <a href="#518" id="518">518</a>
-<a href="#519" id="519">519</a>
-<a href="#520" id="520">520</a>
-<a href="#521" id="521">521</a>
-<a href="#522" id="522">522</a>
-<a href="#523" id="523">523</a>
-<a href="#524" id="524">524</a>
-<a href="#525" id="525">525</a>
-<a href="#526" id="526">526</a>
-<a href="#527" id="527">527</a>
-<a href="#528" id="528">528</a>
-<a href="#529" id="529">529</a>
-<a href="#530" id="530">530</a>
-<a href="#531" id="531">531</a>
-<a href="#532" id="532">532</a>
-<a href="#533" id="533">533</a>
-<a href="#534" id="534">534</a>
-<a href="#535" id="535">535</a>
-<a href="#536" id="536">536</a>
-<a href="#537" id="537">537</a>
-<a href="#538" id="538">538</a>
-<a href="#539" id="539">539</a>
-<a href="#540" id="540">540</a>
-<a href="#541" id="541">541</a>
-<a href="#542" id="542">542</a>
-<a href="#543" id="543">543</a>
-<a href="#544" id="544">544</a>
-<a href="#545" id="545">545</a>
-<a href="#546" id="546">546</a>
-<a href="#547" id="547">547</a>
-<a href="#548" id="548">548</a>
-<a href="#549" id="549">549</a>
-<a href="#550" id="550">550</a>
-<a href="#551" id="551">551</a>
-<a href="#552" id="552">552</a>
-<a href="#553" id="553">553</a>
-<a href="#554" id="554">554</a>
-<a href="#555" id="555">555</a>
-<a href="#556" id="556">556</a>
-<a href="#557" id="557">557</a>
-<a href="#558" id="558">558</a>
-<a href="#559" id="559">559</a>
-<a href="#560" id="560">560</a>
-<a href="#561" id="561">561</a>
-<a href="#562" id="562">562</a>
-<a href="#563" id="563">563</a>
-<a href="#564" id="564">564</a>
-<a href="#565" id="565">565</a>
-<a href="#566" id="566">566</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Types for buffering envelopes.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -576,7 +528,7 @@
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_system::SendError;
 <span class="kw">use </span>relay_system::{Addr, FromMessage, Interface, NoResponse, Receiver, Service};
-<span class="kw">use </span>relay_system::{Controller, Request, Shutdown};
+<span class="kw">use </span>relay_system::{Controller, Shutdown};
 <span class="kw">use </span>tokio::sync::watch;
 <span class="kw">use </span>tokio::time::timeout;
 
@@ -663,7 +615,6 @@
     project_cache: Addr&lt;ProjectCache&gt;,
     has_capacity: Arc&lt;AtomicBool&gt;,
     sleep: Duration,
-    project_cache_ready: <span class="prelude-ty">Option</span>&lt;Request&lt;()&gt;&gt;,
 }
 
 <span class="doccomment">/// The maximum amount of time between evaluations of dequeue conditions.
@@ -691,7 +642,6 @@
             project_cache,
             has_capacity: Arc::new(AtomicBool::new(<span class="bool-val">true</span>)),
             sleep: Duration::ZERO,
-            project_cache_ready: <span class="prelude-val">None</span>,
         })
     }
 
@@ -729,19 +679,6 @@
             counter(RelayCounters::BufferReadyToPop) += <span class="number">1</span>,
             status = <span class="string">"slept"
         </span>);
-
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(project_cache_ready) = <span class="self">self</span>.project_cache_ready.as_mut() {
-            <span class="macro">relay_statsd::metric!</span>(
-                counter(RelayCounters::BufferReadyToPop) += <span class="number">1</span>,
-                status = <span class="string">"waiting_for_project_cache"
-            </span>);
-            project_cache_ready.<span class="kw">await</span><span class="question-mark">?</span>;
-            <span class="macro">relay_statsd::metric!</span>(
-                counter(RelayCounters::BufferReadyToPop) += <span class="number">1</span>,
-                status = <span class="string">"waited_for_project_cache"
-            </span>);
-            <span class="self">self</span>.project_cache_ready = <span class="prelude-val">None</span>;
-        }
 
         <span class="macro">relay_statsd::metric!</span>(
             counter(RelayCounters::BufferReadyToPop) += <span class="number">1</span>,
@@ -796,9 +733,8 @@
                     .pop()
                     .<span class="kw">await</span><span class="question-mark">?
                     </span>.expect(<span class="string">"Element disappeared despite exclusive excess"</span>);
+                <span class="self">self</span>.project_cache.send(DequeuedEnvelope(envelope));
 
-                <span class="self">self</span>.project_cache_ready
-                    .replace(<span class="self">self</span>.project_cache.send(DequeuedEnvelope(envelope)));
                 <span class="self">self</span>.sleep = Duration::ZERO; <span class="comment">// try next pop immediately
             </span>}
             Peek::NotReady(stack_key, envelope) =&gt; {
@@ -1096,38 +1032,6 @@
 
         <span class="comment">// Nothing was dequeued, memory not ready:
         </span><span class="macro">assert_eq!</span>(project_cache_rx.len(), <span class="number">0</span>);
-    }
-
-    <span class="attr">#[tokio::test]
-    </span><span class="kw">async fn </span>output_is_throttled() {
-        tokio::time::pause();
-        <span class="kw">let </span>(service, global_tx, <span class="kw-2">mut </span>project_cache_rx) = buffer_service();
-        global_tx.send_replace(global_config::Status::Ready(Arc::new(
-            GlobalConfig::default(),
-        )));
-
-        <span class="kw">let </span>addr = service.start();
-
-        <span class="comment">// Send five messages:
-        </span><span class="kw">let </span>envelope = new_envelope(<span class="bool-val">false</span>, <span class="string">"foo"</span>);
-        <span class="kw">let </span>project_key = envelope.meta().public_key();
-        <span class="kw">for _ in </span><span class="number">0</span>..<span class="number">5 </span>{
-            addr.send(EnvelopeBuffer::Push(envelope.clone()));
-        }
-        addr.send(EnvelopeBuffer::Ready(project_key));
-
-        tokio::time::sleep(Duration::from_millis(<span class="number">100</span>)).<span class="kw">await</span>;
-
-        <span class="kw">let </span><span class="kw-2">mut </span>messages = <span class="macro">vec!</span>[];
-        project_cache_rx.recv_many(<span class="kw-2">&amp;mut </span>messages, <span class="number">100</span>).<span class="kw">await</span>;
-
-        <span class="macro">assert_eq!</span>(
-            messages
-                .iter()
-                .filter(|message| <span class="macro">matches!</span>(message, ProjectCache::HandleDequeuedEnvelope(..)))
-                .count(),
-            <span class="number">1
-        </span>);
     }
 }
 </code></pre></div></section></main></body></html>
