@@ -1,6 +1,5 @@
 use std::convert::Infallible;
 use std::fmt;
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -30,7 +29,7 @@ use crate::services::relays::{RelayCache, RelayCacheService};
 use crate::services::store::StoreService;
 use crate::services::test_store::{TestStore, TestStoreService};
 use crate::services::upstream::{UpstreamRelay, UpstreamRelayService};
-use crate::utils::{MemoryChecker, MemoryStat};
+use crate::utils::{MemoryChecker, MemoryStat, Waiter};
 
 /// Indicates the type of failure of the server.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, thiserror::Error)]
@@ -244,7 +243,7 @@ impl ServiceState {
 
         // We initialize a shared boolean that is used to manage backpressure between the
         // EnvelopeBufferService and the ProjectCacheService.
-        let project_cache_ready = Arc::new(AtomicBool::new(true));
+        let project_cache_ready = Waiter::new(false);
         let envelope_buffer = EnvelopeBufferService::new(
             config.clone(),
             MemoryChecker::new(memory_stat.clone(), config.clone()),

@@ -26,8 +26,8 @@ use crate::services::project_cache::ProjectCache;
 use crate::services::project_cache::UpdateProject;
 use crate::services::test_store::TestStore;
 use crate::statsd::RelayCounters;
-use crate::utils::ManagedEnvelope;
 use crate::utils::MemoryChecker;
+use crate::utils::{ManagedEnvelope, Waiter};
 
 pub use envelope_buffer::EnvelopeBufferError;
 // pub for benchmarks
@@ -110,7 +110,7 @@ pub struct EnvelopeBufferService {
     services: Services,
     has_capacity: Arc<AtomicBool>,
     sleep: Duration,
-    project_cache_ready: Arc<AtomicBool>,
+    project_cache_ready: Arc<Waiter>,
 }
 
 /// The maximum amount of time between evaluations of dequeue conditions.
@@ -129,7 +129,7 @@ impl EnvelopeBufferService {
         memory_checker: MemoryChecker,
         global_config_rx: watch::Receiver<global_config::Status>,
         services: Services,
-        project_cache_ready: Arc<AtomicBool>,
+        project_cache_ready: Arc<Waiter>,
     ) -> Option<Self> {
         config.spool_v2().then(|| Self {
             config,
@@ -172,16 +172,13 @@ impl EnvelopeBufferService {
             tokio::time::sleep(self.sleep).await;
         }
 
-        // In case the project cache is not ready, we defer popping to first try and handle incoming
-        // messages and only come back to this in case within the timeout no data was received.
-        while !self.project_cache_ready.load(Ordering::Relaxed) {
-            tokio::time::sleep(Duration::from_millis(10)).await;
-        }
-
         relay_statsd::metric!(
             counter(RelayCounters::BufferReadyToPop) += 1,
             status = "slept"
         );
+
+        // We try to wait for the project cache.
+        self.project_cache_ready.try_wait().await;
 
         relay_statsd::metric!(
             counter(RelayCounters::BufferReadyToPop) += 1,
@@ -245,7 +242,7 @@ impl EnvelopeBufferService {
                     .expect("Element disappeared despite exclusive excess");
                 // We assume that the project cache is now busy to process this envelope, so we flip
                 // the boolean flag, which will prioritize writes.
-                self.project_cache_ready.store(false, Ordering::SeqCst);
+                self.project_cache_ready.set_wait(true);
                 self.services.project_cache.send(DequeuedEnvelope(envelope));
 
                 self.sleep = Duration::ZERO; // try next pop immediately
@@ -452,7 +449,7 @@ mod tests {
         watch::Sender<global_config::Status>,
         mpsc::UnboundedReceiver<ProjectCache>,
         mpsc::UnboundedReceiver<TrackOutcome>,
-        Arc<AtomicBool>,
+        Arc<Waiter>,
     ) {
         let config = Arc::new(
             Config::from_json_value(serde_json::json!({
@@ -468,7 +465,7 @@ mod tests {
         let (global_tx, global_rx) = watch::channel(global_config::Status::Pending);
         let (project_cache, project_cache_rx) = Addr::custom();
         let (outcome_aggregator, outcome_aggregator_rx) = Addr::custom();
-        let project_cache_ready = Arc::new(AtomicBool::new(true));
+        let project_cache_ready = Waiter::new(false);
         (
             EnvelopeBufferService::new(
                 config,
@@ -563,7 +560,7 @@ mod tests {
         )));
 
         let (project_cache, project_cache_rx) = Addr::custom();
-        let project_cache_ready = Arc::new(AtomicBool::new(true));
+        let project_cache_ready = Waiter::new(false);
         let service = EnvelopeBufferService::new(
             config,
             memory_checker,
@@ -609,7 +606,7 @@ mod tests {
         let (global_tx, global_rx) = watch::channel(global_config::Status::Pending);
         let (project_cache, project_cache_rx) = Addr::custom();
         let (outcome_aggregator, mut outcome_aggregator_rx) = Addr::custom();
-        let project_cache_ready = Arc::new(AtomicBool::new(true));
+        let project_cache_ready = Waiter::new(false);
         let service = EnvelopeBufferService::new(
             config,
             memory_checker,

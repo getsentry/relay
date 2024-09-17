@@ -19,6 +19,7 @@ mod native;
 mod serde;
 #[cfg(feature = "processing")]
 mod unreal;
+mod waiter;
 
 pub use self::api::*;
 pub use self::dynamic_sampling::*;
@@ -40,3 +41,4 @@ pub use self::statsd::*;
 pub use self::thread_pool::*;
 #[cfg(feature = "processing")]
 pub use self::unreal::*;
+pub use self::waiter::*;

@@ -1,6 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -41,7 +40,9 @@ use crate::services::test_store::TestStore;
 use crate::services::upstream::UpstreamRelay;
 
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
-use crate::utils::{GarbageDisposal, ManagedEnvelope, MemoryChecker, RetryBackoff, SleepHandle};
+use crate::utils::{
+    GarbageDisposal, ManagedEnvelope, MemoryChecker, RetryBackoff, SleepHandle, Waiter,
+};
 
 /// Requests a refresh of a project state from one of the available sources.
 ///
@@ -611,8 +612,8 @@ struct ProjectCacheBroker {
     spool_v1: Option<SpoolV1>,
     /// Status of the global configuration, used to determine readiness for processing.
     global_config: GlobalConfigStatus,
-    /// Atomic boolean signaling whether the project cache is ready to accept a new envelope.
-    project_cache_ready: Arc<AtomicBool>,
+    /// Waiter signaling whether the project cache is ready to accept a new envelope.
+    project_cache_ready: Arc<Waiter>,
 }
 
 #[derive(Debug)]
@@ -1323,7 +1324,7 @@ impl ProjectCacheBroker {
                         }
 
                         // We mark the project cache as ready to accept new traffic.
-                        self.project_cache_ready.store(true, Ordering::SeqCst);
+                        self.project_cache_ready.set_wait(false);
                     }
                     ProjectCache::UpdateProject(project) => self.handle_update_project(project),
                 }
@@ -1340,7 +1341,7 @@ pub struct ProjectCacheService {
     services: Services,
     global_config_rx: watch::Receiver<global_config::Status>,
     redis: Option<RedisPool>,
-    project_cache_ready: Arc<AtomicBool>,
+    project_cache_ready: Arc<Waiter>,
 }
 
 impl ProjectCacheService {
@@ -1351,7 +1352,7 @@ impl ProjectCacheService {
         services: Services,
         global_config_rx: watch::Receiver<global_config::Status>,
         redis: Option<RedisPool>,
-        project_cache_ready: Arc<AtomicBool>,
+        project_cache_ready: Arc<Waiter>,
     ) -> Self {
         Self {
             config,
@@ -1651,7 +1652,7 @@ mod tests {
                     buffer_unspool_backoff: RetryBackoff::new(Duration::from_millis(100)),
                 }),
                 global_config: GlobalConfigStatus::Pending,
-                project_cache_ready: Arc::new(AtomicBool::new(true)),
+                project_cache_ready: Waiter::new(false),
             },
             buffer,
         )
