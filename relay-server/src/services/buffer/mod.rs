@@ -574,7 +574,34 @@ mod tests {
     #[tokio::test]
     async fn old_envelope_is_dropped() {
         tokio::time::pause();
-        let (service, global_tx, project_cache_rx, mut outcome_rx) = buffer_service();
+
+        let config = Arc::new(
+            Config::from_json_value(serde_json::json!({
+                "spool": {
+                    "envelopes": {
+                        "version": "experimental",
+                        "max_envelope_delay_secs": 1,
+                    }
+                }
+            }))
+            .unwrap(),
+        );
+        let memory_checker = MemoryChecker::new(MemoryStat::default(), config.clone());
+        let (global_tx, global_rx) = watch::channel(global_config::Status::Pending);
+        let (project_cache, project_cache_rx) = Addr::custom();
+        let (outcome_aggregator, mut outcome_aggregator_rx) = Addr::custom();
+        let service = EnvelopeBufferService::new(
+            config,
+            memory_checker,
+            global_rx,
+            Services {
+                project_cache,
+                outcome_aggregator,
+                test_store: Addr::dummy(),
+            },
+        )
+        .unwrap();
+
         global_tx.send_replace(global_config::Status::Ready(Arc::new(
             GlobalConfig::default(),
         )));
@@ -592,7 +619,7 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(100)).await;
 
         assert!(project_cache_rx.is_empty());
-        let outcome = outcome_rx.try_recv().unwrap();
+        let outcome = outcome_aggregator_rx.try_recv().unwrap();
         assert_eq!(outcome.category, DataCategory::TransactionIndexed);
         assert_eq!(outcome.quantity, 1);
     }
