@@ -1,7 +1,6 @@
 //! Types for buffering envelopes.
 
 use std::error::Error;
-use std::future;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
@@ -175,8 +174,8 @@ impl EnvelopeBufferService {
 
         // In case the project cache is not ready, we defer popping to first try and handle incoming
         // messages and only come back to this in case within the timeout no data was received.
-        if !self.project_cache_ready.load(Ordering::Relaxed) {
-            tokio::time::sleep(DEFAULT_SLEEP).await;
+        while !self.project_cache_ready.load(Ordering::Relaxed) {
+            tokio::time::sleep(Duration::ZERO).await;
         }
 
         relay_statsd::metric!(
