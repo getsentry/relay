@@ -435,13 +435,17 @@
 <a href="#435" id="435">435</a>
 <a href="#436" id="436">436</a>
 <a href="#437" id="437">437</a>
+<a href="#438" id="438">438</a>
+<a href="#439" id="439">439</a>
+<a href="#440" id="440">440</a>
+<a href="#441" id="441">441</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span><span class="kw">crate</span>::metrics::{MetricOutcomes, MetricStats};
-<span class="kw">use </span><span class="kw">crate</span>::services::buffer::{EnvelopeBufferService, ObservableEnvelopeBuffer};
+<span class="kw">use </span><span class="kw">crate</span>::services::buffer::{<span class="self">self</span>, EnvelopeBufferService, ObservableEnvelopeBuffer};
 <span class="kw">use </span><span class="kw">crate</span>::services::stats::RelayStats;
 <span class="kw">use </span>anyhow::{Context, <span class="prelude-ty">Result</span>};
 <span class="kw">use </span>axum::extract::FromRequestParts;
@@ -682,7 +686,11 @@
             config.clone(),
             MemoryChecker::new(memory_stat.clone(), config.clone()),
             global_config_rx.clone(),
-            project_cache.clone(),
+            buffer::Services {
+                project_cache: project_cache.clone(),
+                outcome_aggregator: outcome_aggregator.clone(),
+                test_store: test_store.clone(),
+            },
         )
         .map(|b| b.start_observable());
 
