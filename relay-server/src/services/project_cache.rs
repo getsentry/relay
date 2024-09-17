@@ -1095,16 +1095,6 @@ impl ProjectCacheBroker {
         envelope: Box<Envelope>,
         envelope_buffer: Addr<EnvelopeBuffer>,
     ) -> Result<(), EnvelopeBufferError> {
-        if envelope.meta().start_time().elapsed() > self.config.spool_envelopes_max_age() {
-            let mut managed_envelope = ManagedEnvelope::new(
-                envelope,
-                self.services.outcome_aggregator.clone(),
-                self.services.test_store.clone(),
-                ProcessingGroup::Ungrouped,
-            );
-            managed_envelope.reject(Outcome::Invalid(DiscardReason::Timestamp));
-            return Ok(());
-        }
         let sampling_key = envelope.sampling_key();
         let services = self.services.clone();
 
