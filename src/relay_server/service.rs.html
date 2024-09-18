@@ -439,15 +439,8 @@
 <a href="#439" id="439">439</a>
 <a href="#440" id="440">440</a>
 <a href="#441" id="441">441</a>
-<a href="#442" id="442">442</a>
-<a href="#443" id="443">443</a>
-<a href="#444" id="444">444</a>
-<a href="#445" id="445">445</a>
-<a href="#446" id="446">446</a>
-<a href="#447" id="447">447</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::fmt;
-<span class="kw">use </span>std::sync::atomic::AtomicBool;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
@@ -689,9 +682,6 @@
         )
         .spawn_handler(processor_rx);
 
-        <span class="comment">// We initialize a shared boolean that is used to manage backpressure between the
-        // EnvelopeBufferService and the ProjectCacheService.
-        </span><span class="kw">let </span>project_cache_ready = Arc::new(AtomicBool::new(<span class="bool-val">true</span>));
         <span class="kw">let </span>envelope_buffer = EnvelopeBufferService::new(
             config.clone(),
             MemoryChecker::new(memory_stat.clone(), config.clone()),
@@ -701,7 +691,6 @@
                 outcome_aggregator: outcome_aggregator.clone(),
                 test_store: test_store.clone(),
             },
-            project_cache_ready.clone(),
         )
         .map(|b| b.start_observable());
 
@@ -724,7 +713,6 @@
             redis_pools
                 .as_ref()
                 .map(|pools| pools.project_configs.clone()),
-            project_cache_ready,
         )
         .spawn_handler(project_cache_rx);
 
