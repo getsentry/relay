@@ -14,7 +14,7 @@ use relay_config::Config;
 use tokio::time::timeout;
 
 use crate::envelope::Envelope;
-use crate::services::buffer::common::ProjectKeyPair;
+use crate::services::buffer::common::{ProjectKeyPair, ProjectKeyPairFetch};
 use crate::services::buffer::envelope_stack::sqlite::SqliteEnvelopeStackError;
 use crate::services::buffer::envelope_stack::EnvelopeStack;
 use crate::services::buffer::envelope_store::sqlite::SqliteEnvelopeStoreError;
@@ -301,7 +301,9 @@ where
         Ok(match (stack.peek().await?, ready) {
             (None, _) => Peek::Empty,
             (Some(envelope), true) => Peek::Ready(envelope),
-            (Some(envelope), false) => Peek::NotReady(*stack_key, envelope),
+            (Some(envelope), false) => {
+                Peek::NotReady(*stack_key, readiness.should_fetch(), envelope)
+            }
         })
     }
 
@@ -348,19 +350,25 @@ where
     /// Returns `true` if at least one priority was changed.
     pub fn mark_ready(&mut self, project: &ProjectKey, is_ready: bool) -> bool {
         let mut changed = false;
-        if let Some(project_key_pair) = self.stacks_by_project.get(project) {
-            for project_key_pair in project_key_pair {
+        if let Some(project_key_pairs) = self.stacks_by_project.get(project) {
+            // If we are marking a project as ready, we don't want to have a next fetch time but
+            // if we mark it as not ready, we want to fetch it as soon as possible.
+            let next_fetch_time = if is_ready { None } else { Some(Instant::now()) };
+
+            for project_key_pair in project_key_pairs {
                 self.priority_queue
                     .change_priority_by(project_key_pair, |stack| {
                         let mut found = false;
-                        for (subkey, readiness) in [
+                        for (subkey, readiness, next_fetch) in [
                             (
                                 project_key_pair.own_key,
                                 &mut stack.readiness.own_project_ready,
+                                &mut stack.readiness.own_project_next_fetch,
                             ),
                             (
                                 project_key_pair.sampling_key,
                                 &mut stack.readiness.sampling_project_ready,
+                                &mut stack.readiness.sampling_project_next_fetch,
                             ),
                         ] {
                             if subkey == *project {
@@ -369,6 +377,7 @@ where
                                     changed = true;
                                     *readiness = is_ready;
                                 }
+                                *next_fetch = next_fetch_time;
                             }
                         }
                         debug_assert!(found);
@@ -387,7 +396,15 @@ where
     pub fn mark_seen(&mut self, project_key_pair: &ProjectKeyPair) {
         self.priority_queue
             .change_priority_by(project_key_pair, |stack| {
+                // We update the last peek to prevent ahead of line blocking by prioritizing stacks
+                // with an older timestamp.
                 stack.last_peek = Instant::now();
+                // We schedule the next fetch for the individual project configurations to avoid
+                // overloading the project cache with constant requests. {}
+                // TODO: use a configuration parameter for the delay.
+                let next_fetch = Instant::now() + Duration::from_secs(30);
+                stack.readiness.own_project_next_fetch = Some(next_fetch);
+                stack.readiness.sampling_project_next_fetch = Some(next_fetch);
             });
     }
 
@@ -513,7 +530,7 @@ where
 pub enum Peek<'a> {
     Empty,
     Ready(&'a Envelope),
-    NotReady(ProjectKeyPair, &'a Envelope),
+    NotReady(ProjectKeyPair, ProjectKeyPairFetch, &'a Envelope),
 }
 
 #[derive(Debug)]
@@ -596,15 +613,33 @@ impl Eq for Priority {}
 #[derive(Debug, Clone, Copy)]
 struct Readiness {
     own_project_ready: bool,
+    own_project_next_fetch: Option<Instant>,
     sampling_project_ready: bool,
+    sampling_project_next_fetch: Option<Instant>,
 }
 
 impl Readiness {
     fn new() -> Self {
+        // The initial fetch is set to now, since we want to fetch the configurations immediately.
+        let now = Instant::now();
         Self {
             own_project_ready: false,
+            own_project_next_fetch: Some(now),
             sampling_project_ready: false,
+            sampling_project_next_fetch: Some(now),
         }
+    }
+
+    fn should_fetch(&self) -> ProjectKeyPairFetch {
+        // If both projects are ready, we return a fetch state which will never trigger fetching.
+        if self.ready() {
+            return ProjectKeyPairFetch::new(None, None);
+        }
+
+        ProjectKeyPairFetch::new(
+            self.own_project_next_fetch,
+            self.sampling_project_next_fetch,
+        )
     }
 
     fn ready(&self) -> bool {
@@ -638,19 +673,19 @@ mod tests {
         fn envelope(&self) -> Option<&Envelope> {
             match self {
                 Peek::Empty => None,
-                Peek::Ready(envelope) | Peek::NotReady(_, envelope) => Some(envelope),
+                Peek::Ready(envelope) | Peek::NotReady(_, _, envelope) => Some(envelope),
             }
         }
     }
 
     fn new_envelope(
-        project_key: ProjectKey,
+        own_key: ProjectKey,
         sampling_key: Option<ProjectKey>,
         event_id: Option<EventId>,
     ) -> Box<Envelope> {
         let mut envelope = Envelope::from_request(
             None,
-            RequestMeta::new(Dsn::from_str(&format!("http://{project_key}@localhost/1")).unwrap()),
+            RequestMeta::new(Dsn::from_str(&format!("http://{own_key}@localhost/1")).unwrap()),
         );
         if let Some(sampling_key) = sampling_key {
             envelope.set_dsc(DynamicSamplingContext {
@@ -981,7 +1016,9 @@ mod tests {
         let p1 = Priority {
             readiness: Readiness {
                 own_project_ready: true,
+                own_project_next_fetch: None,
                 sampling_project_ready: true,
+                sampling_project_next_fetch: None,
             },
             received_at: Instant::now(),
             last_peek: Instant::now(),
@@ -1010,13 +1047,13 @@ mod tests {
         buffer.push(envelope2).await.unwrap();
 
         // event_id_1 is first element:
-        let Peek::NotReady(_, envelope) = buffer.peek().await.unwrap() else {
+        let Peek::NotReady(_, _, envelope) = buffer.peek().await.unwrap() else {
             panic!();
         };
         assert_eq!(envelope.event_id(), Some(event_id_1));
 
         // Second peek returns same element:
-        let Peek::NotReady(stack_key, envelope) = buffer.peek().await.unwrap() else {
+        let Peek::NotReady(stack_key, _, envelope) = buffer.peek().await.unwrap() else {
             panic!();
         };
         assert_eq!(envelope.event_id(), Some(event_id_1));
@@ -1024,12 +1061,12 @@ mod tests {
         buffer.mark_seen(&stack_key);
 
         // After mark_seen, event 2 is on top:
-        let Peek::NotReady(_, envelope) = buffer.peek().await.unwrap() else {
+        let Peek::NotReady(_, _, envelope) = buffer.peek().await.unwrap() else {
             panic!();
         };
         assert_eq!(envelope.event_id(), Some(event_id_2));
 
-        let Peek::NotReady(stack_key, envelope) = buffer.peek().await.unwrap() else {
+        let Peek::NotReady(stack_key, _, envelope) = buffer.peek().await.unwrap() else {
             panic!();
         };
         assert_eq!(envelope.event_id(), Some(event_id_2));
@@ -1037,7 +1074,7 @@ mod tests {
         buffer.mark_seen(&stack_key);
 
         // After another mark_seen, cycle back to event 1:
-        let Peek::NotReady(_, envelope) = buffer.peek().await.unwrap() else {
+        let Peek::NotReady(_, _, envelope) = buffer.peek().await.unwrap() else {
             panic!();
         };
         assert_eq!(envelope.event_id(), Some(event_id_1));
@@ -1076,5 +1113,57 @@ mod tests {
         // We expect to have an entry per project key, since we have 1 pair, the total entries
         // should be 2.
         assert_eq!(buffer.stacks_by_project.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_next_fetch() {
+        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(mock_memory_checker());
+
+        let project_key_1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
+        let event_id_1 = EventId::new();
+        let envelope1 = new_envelope(project_key_1, None, Some(event_id_1));
+
+        buffer.push(envelope1).await.unwrap();
+
+        // We expect the top envelope to have the next fetch be immediately available since it just
+        // started.
+        let peek = buffer.peek().await.unwrap();
+        let Peek::NotReady(stack_key, project_key_pair_fetch, envelope) = peek else {
+            panic!();
+        };
+        assert_eq!(envelope.event_id(), Some(event_id_1));
+        assert!(project_key_pair_fetch.fetch_own_project_key());
+        assert!(project_key_pair_fetch.fetch_sampling_project_key());
+
+        buffer.mark_seen(&stack_key);
+
+        // After mark seen, we expect the next fetch time to be in the future.
+        let peek = buffer.peek().await.unwrap();
+        let Peek::NotReady(stack_key, project_key_pair_fetch, envelope) = peek else {
+            panic!();
+        };
+        assert_eq!(envelope.event_id(), Some(event_id_1));
+        assert!(!project_key_pair_fetch.fetch_own_project_key());
+        assert!(!project_key_pair_fetch.fetch_sampling_project_key());
+
+        buffer.mark_ready(&stack_key.own_key, true);
+
+        // After marking the project as ready, it means we fetched it, so we don't need to fetch it.
+        let peek = buffer.peek().await.unwrap();
+        let Peek::Ready(envelope) = peek else {
+            panic!();
+        };
+        assert_eq!(envelope.event_id(), Some(event_id_1));
+
+        buffer.mark_ready(&stack_key.own_key, false);
+
+        // After marking the project as not ready, we want to immediately schedule a next fetch.
+        let peek = buffer.peek().await.unwrap();
+        let Peek::NotReady(_, project_key_pair_fetch, envelope) = peek else {
+            panic!();
+        };
+        assert_eq!(envelope.event_id(), Some(event_id_1));
+        assert!(project_key_pair_fetch.fetch_own_project_key());
+        assert!(project_key_pair_fetch.fetch_sampling_project_key());
     }
 }

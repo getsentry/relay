@@ -237,24 +237,30 @@ impl EnvelopeBufferService {
                 self.services.project_cache.send(DequeuedEnvelope(envelope));
                 self.sleep = Duration::ZERO; // try next pop immediately
             }
-            Peek::NotReady(stack_key, envelope) => {
+            Peek::NotReady(stack_key, project_key_pair_fetch, envelope) => {
                 relay_log::trace!("EnvelopeBufferService: project(s) of envelope not ready, requesting project update");
                 relay_statsd::metric!(
                     counter(RelayCounters::BufferTryPop) += 1,
                     peek_result = "not_ready"
                 );
                 let project_key = envelope.meta().public_key();
-                self.services.project_cache.send(UpdateProject(project_key));
+                if project_key_pair_fetch.fetch_own_project_key() {
+                    self.services.project_cache.send(UpdateProject(project_key));
+                }
                 match envelope.sampling_key() {
                     None => {}
                     Some(sampling_key) if sampling_key == project_key => {} // already sent.
                     Some(sampling_key) => {
-                        self.services
-                            .project_cache
-                            .send(UpdateProject(sampling_key));
+                        if project_key_pair_fetch.fetch_sampling_project_key() {
+                            self.services
+                                .project_cache
+                                .send(UpdateProject(sampling_key));
+                        }
                     }
                 }
-                // deprioritize the stack to prevent head-of-line blocking
+
+                // Deprioritize the stack to prevent head-of-line blocking and update the next fetch
+                // time.
                 buffer.mark_seen(&stack_key);
                 self.sleep = DEFAULT_SLEEP;
             }
