@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features:**
+
+- Add a config option to add default tags to all Relay Sentry events. ([#3944](https://github.com/getsentry/relay/pull/3944))
+
 ## 24.9.0
 
 **Bug Fixes**:
