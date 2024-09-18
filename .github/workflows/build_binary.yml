@@ -2,8 +2,6 @@ name: Binary Release Build
 
 on:
   push:
-    branches:
-      - release/**
 
 env:
   CARGO_TERM_COLOR: always
@@ -40,7 +38,6 @@ jobs:
           path: target/release/relay-Linux-x86_64*
           if-no-files-found: 'error'
           # since this artifact will be merged, compression is not necessary
-          compression-level: '0'
 
   macos:
     name: macOS
@@ -71,7 +68,6 @@ jobs:
           path: target/release/relay-Darwin-x86_64*
           if-no-files-found: 'error'
           # since this artifact will be merged, compression is not necessary
-          compression-level: '0'
 
   windows:
     name: Windows
@@ -101,7 +97,6 @@ jobs:
           path: target/release/relay-Windows-x86_64*
           if-no-files-found: 'error'
           # since this artifact will be merged, compression is not necessary
-          compression-level: '0'
 
   merge:
     name: Create Release Artifact
