@@ -311,11 +311,33 @@
 <a href="#311" id="311">311</a>
 <a href="#312" id="312">312</a>
 <a href="#313" id="313">313</a>
+<a href="#314" id="314">314</a>
+<a href="#315" id="315">315</a>
+<a href="#316" id="316">316</a>
+<a href="#317" id="317">317</a>
+<a href="#318" id="318">318</a>
+<a href="#319" id="319">319</a>
+<a href="#320" id="320">320</a>
+<a href="#321" id="321">321</a>
+<a href="#322" id="322">322</a>
+<a href="#323" id="323">323</a>
+<a href="#324" id="324">324</a>
+<a href="#325" id="325">325</a>
+<a href="#326" id="326">326</a>
+<a href="#327" id="327">327</a>
+<a href="#328" id="328">328</a>
+<a href="#329" id="329">329</a>
+<a href="#330" id="330">330</a>
+<a href="#331" id="331">331</a>
+<a href="#332" id="332">332</a>
+<a href="#333" id="333">333</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
+<span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::env;
 <span class="kw">use </span>std::fmt::{<span class="self">self</span>, Display};
 <span class="kw">use </span>std::path::PathBuf;
 <span class="kw">use </span>std::str::FromStr;
+<span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>relay_common::impl_str_serde;
 <span class="kw">use </span>sentry::types::Dsn;
@@ -484,6 +506,9 @@
     <span class="doccomment">/// Sets the environment for this service.
     </span><span class="kw">pub </span>environment: <span class="prelude-ty">Option</span>&lt;Cow&lt;<span class="lifetime">'static</span>, str&gt;&gt;,
 
+    <span class="doccomment">/// Add defaults tags to the events emitted by Relay
+    </span><span class="kw">pub </span>default_tags: <span class="prelude-ty">Option</span>&lt;BTreeMap&lt;String, String&gt;&gt;,
+
     <span class="doccomment">/// Internal. Enables crash handling and sets the absolute path to where minidumps should be
     /// cached on disk. The path is created if it doesn't exist. Path must be UTF-8.
     </span><span class="kw">pub </span>_crash_db: <span class="prelude-ty">Option</span>&lt;PathBuf&gt;,
@@ -504,6 +529,7 @@
                 .ok(),
             enabled: <span class="bool-val">false</span>,
             environment: <span class="prelude-val">None</span>,
+            default_tags: <span class="prelude-val">None</span>,
             _crash_db: <span class="prelude-val">None</span>,
         }
     }
@@ -594,7 +620,7 @@
         .init();
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(dsn) = sentry.enabled_dsn() {
-        <span class="kw">let </span>guard = sentry::init(sentry::ClientOptions {
+        <span class="kw">let </span><span class="kw-2">mut </span>options = sentry::ClientOptions {
             dsn: <span class="prelude-val">Some</span>(dsn).cloned(),
             in_app_include: <span class="macro">vec!</span>[<span class="string">"relay"</span>],
             release: <span class="prelude-val">Some</span>(RELEASE.into()),
@@ -602,7 +628,21 @@
             environment: sentry.environment.clone(),
             traces_sample_rate: config.traces_sample_rate,
             ..Default::default()
-        });
+        };
+
+        <span class="comment">// If `default_tags` is set in Sentry configuration install the `before_send` hook
+        // in order to inject said tags into each event
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(default_tags) = sentry.default_tags.clone() {
+            <span class="comment">// Install hook
+            </span>options.before_send = <span class="prelude-val">Some</span>(Arc::new(<span class="kw">move </span>|<span class="kw-2">mut </span>event| {
+                <span class="comment">// Extend `event.tags` with `default_tags` without replacing tags already present
+                </span><span class="kw">let </span>previous_event_tags = std::mem::replace(<span class="kw-2">&amp;mut </span>event.tags, default_tags.clone());
+                event.tags.extend(previous_event_tags);
+                <span class="prelude-val">Some</span>(event)
+            }));
+        }
+
+        <span class="kw">let </span>guard = sentry::init(options);
 
         <span class="comment">// Keep the client initialized. The client is flushed manually in `main`.
         </span>std::mem::forget(guard);
