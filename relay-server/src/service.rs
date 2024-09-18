@@ -1,6 +1,5 @@
 use std::convert::Infallible;
 use std::fmt;
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -242,9 +241,6 @@ impl ServiceState {
         )
         .spawn_handler(processor_rx);
 
-        // We initialize a shared boolean that is used to manage backpressure between the
-        // EnvelopeBufferService and the ProjectCacheService.
-        let project_cache_ready = Arc::new(AtomicBool::new(true));
         let envelope_buffer = EnvelopeBufferService::new(
             config.clone(),
             MemoryChecker::new(memory_stat.clone(), config.clone()),
@@ -254,7 +250,6 @@ impl ServiceState {
                 outcome_aggregator: outcome_aggregator.clone(),
                 test_store: test_store.clone(),
             },
-            project_cache_ready.clone(),
         )
         .map(|b| b.start_observable());
 
@@ -277,7 +272,6 @@ impl ServiceState {
             redis_pools
                 .as_ref()
                 .map(|pools| pools.project_configs.clone()),
-            project_cache_ready,
         )
         .spawn_handler(project_cache_rx);
 
