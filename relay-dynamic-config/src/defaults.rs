@@ -180,7 +180,8 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
     let is_app_start = RuleCondition::glob("span.op", "app.start.*")
         & RuleCondition::eq("span.description", APP_START_ROOT_SPAN_DESCRIPTIONS);
 
-    let should_extract_geo = is_allowed_browser.clone() | is_mobile.clone() | is_resource.clone();
+    let should_extract_geo =
+        (is_allowed_browser.clone() & (is_resource.clone() | is_http.clone())) | is_mobile.clone();
 
     // Metrics for addon modules are only extracted if the feature flag is enabled:
     let is_addon = is_ai.clone() | is_queue_op.clone() | is_cache.clone();

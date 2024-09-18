@@ -120,6 +120,9 @@ def test_query_retry(failure_type, mini_sentry, relay):
 
     @mini_sentry.app.endpoint("get_project_config")
     def get_project_config():
+        if flask_request.json.get("global") is True:
+            return original_endpoint()
+
         nonlocal retry_count
         retry_count += 1
         print("RETRY", retry_count)

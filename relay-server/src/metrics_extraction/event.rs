@@ -171,6 +171,11 @@ mod tests {
                     "span_id": "bd429c44b67a3eb4",
                     "op": "mYOp",
                     "status": "ok"
+                },
+                "browser": {
+                    "name": "Chrome",
+                    "version": "120.1.1",
+                    "type": "browser"
                 }
             },
             "request": {

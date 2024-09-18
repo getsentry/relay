@@ -4,6 +4,7 @@ use crate::services::buffer::stack_provider::{
     InitializationState, StackCreationType, StackProvider,
 };
 use crate::utils::MemoryChecker;
+use crate::EnvelopeStack;
 
 #[derive(Debug)]
 pub struct MemoryStackProvider {
@@ -40,5 +41,12 @@ impl StackProvider for MemoryStackProvider {
 
     fn stack_type<'a>(&self) -> &'a str {
         "memory"
+    }
+
+    async fn flush(&mut self, envelope_stacks: impl IntoIterator<Item = Self::Stack>) {
+        for envelope_stack in envelope_stacks {
+            // The flushed envelopes will be immediately dropped.
+            let _ = envelope_stack.flush();
+        }
     }
 }

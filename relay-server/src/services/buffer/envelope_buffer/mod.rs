@@ -2,6 +2,7 @@ use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::convert::Infallible;
 use std::error::Error;
+use std::mem;
 use std::sync::atomic::AtomicI64;
 use std::sync::atomic::Ordering as AtomicOrdering;
 use std::sync::Arc;
@@ -36,11 +37,18 @@ pub enum PolymorphicEnvelopeBuffer {
     /// An enveloper buffer that uses in-memory envelopes stacks.
     InMemory(EnvelopeBuffer<MemoryStackProvider>),
     /// An enveloper buffer that uses sqlite envelopes stacks.
-    #[allow(dead_code)]
     Sqlite(EnvelopeBuffer<SqliteStackProvider>),
 }
 
 impl PolymorphicEnvelopeBuffer {
+    /// Returns true if the implementation stores envelopes on external storage (e.g. disk).
+    pub fn is_external(&self) -> bool {
+        match self {
+            PolymorphicEnvelopeBuffer::InMemory(_) => false,
+            PolymorphicEnvelopeBuffer::Sqlite(_) => true,
+        }
+    }
+
     /// Creates either a memory-based or a disk-based envelope buffer,
     /// depending on the given configuration.
     pub async fn from_config(
@@ -48,9 +56,11 @@ impl PolymorphicEnvelopeBuffer {
         memory_checker: MemoryChecker,
     ) -> Result<Self, EnvelopeBufferError> {
         let buffer = if config.spool_envelopes_path().is_some() {
+            relay_log::trace!("PolymorphicEnvelopeBuffer: initializing sqlite envelope buffer");
             let buffer = EnvelopeBuffer::<SqliteStackProvider>::new(config).await?;
             Self::Sqlite(buffer)
         } else {
+            relay_log::trace!("PolymorphicEnvelopeBuffer: initializing memory envelope buffer");
             let buffer = EnvelopeBuffer::<MemoryStackProvider>::new(memory_checker);
             Self::InMemory(buffer)
         };
@@ -68,28 +78,34 @@ impl PolymorphicEnvelopeBuffer {
 
     /// Adds an envelope to the buffer.
     pub async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), EnvelopeBufferError> {
-        match self {
-            Self::Sqlite(buffer) => buffer.push(envelope).await,
-            Self::InMemory(buffer) => buffer.push(envelope).await,
-        }?;
+        relay_statsd::metric!(timer(RelayTimers::BufferPush), {
+            match self {
+                Self::Sqlite(buffer) => buffer.push(envelope).await,
+                Self::InMemory(buffer) => buffer.push(envelope).await,
+            }?;
+        });
         relay_statsd::metric!(counter(RelayCounters::BufferEnvelopesWritten) += 1);
         Ok(())
     }
 
     /// Returns a reference to the next-in-line envelope.
     pub async fn peek(&mut self) -> Result<Peek, EnvelopeBufferError> {
-        match self {
-            Self::Sqlite(buffer) => buffer.peek().await,
-            Self::InMemory(buffer) => buffer.peek().await,
-        }
+        relay_statsd::metric!(timer(RelayTimers::BufferPeek), {
+            match self {
+                Self::Sqlite(buffer) => buffer.peek().await,
+                Self::InMemory(buffer) => buffer.peek().await,
+            }
+        })
     }
 
     /// Pops the next-in-line envelope.
     pub async fn pop(&mut self) -> Result<Option<Box<Envelope>>, EnvelopeBufferError> {
-        let envelope = match self {
-            Self::Sqlite(buffer) => buffer.pop().await,
-            Self::InMemory(buffer) => buffer.pop().await,
-        }?;
+        let envelope = relay_statsd::metric!(timer(RelayTimers::BufferPop), {
+            match self {
+                Self::Sqlite(buffer) => buffer.pop().await,
+                Self::InMemory(buffer) => buffer.pop().await,
+            }?
+        });
         relay_statsd::metric!(counter(RelayCounters::BufferEnvelopesRead) += 1);
         Ok(envelope)
     }
@@ -124,6 +140,20 @@ impl PolymorphicEnvelopeBuffer {
             Self::InMemory(buffer) => buffer.has_capacity(),
         }
     }
+
+    /// Shuts down the [`PolymorphicEnvelopeBuffer`].
+    pub async fn shutdown(&mut self) -> bool {
+        // Currently, we want to flush the buffer only for disk, since the in memory implementation
+        // tries to not do anything and pop as many elements as possible within the shutdown
+        // timeout.
+        let Self::Sqlite(buffer) = self else {
+            relay_log::trace!("PolymorphicEnvelopeBuffer: shutdown procedure not needed");
+            return false;
+        };
+        buffer.flush().await;
+
+        true
+    }
 }
 
 /// Error that occurs while interacting with the envelope buffer.
@@ -137,9 +167,12 @@ pub enum EnvelopeBufferError {
 
     #[error("failed to push envelope to the buffer")]
     PushFailed,
+}
 
-    #[error("impossible")]
-    Impossible(#[from] Infallible),
+impl From<Infallible> for EnvelopeBufferError {
+    fn from(value: Infallible) -> Self {
+        match value {}
+    }
 }
 
 /// An envelope buffer that holds an individual stack for each project/sampling project combination.
@@ -358,6 +391,19 @@ where
             });
     }
 
+    /// Returns `true` if the underlying storage has the capacity to store more envelopes.
+    pub fn has_capacity(&self) -> bool {
+        self.stack_provider.has_store_capacity()
+    }
+
+    /// Flushes the envelope buffer.
+    pub async fn flush(&mut self) {
+        let priority_queue = mem::take(&mut self.priority_queue);
+        self.stack_provider
+            .flush(priority_queue.into_iter().map(|(q, _)| q.value))
+            .await;
+    }
+
     /// Pushes a new [`EnvelopeStack`] with the given [`Envelope`] inserted.
     async fn push_stack(
         &mut self,
@@ -395,11 +441,6 @@ where
         );
 
         Ok(())
-    }
-
-    /// Returns `true` if the underlying storage has the capacity to store more envelopes.
-    pub fn has_capacity(&self) -> bool {
-        self.stack_provider.has_store_capacity()
     }
 
     /// Pops an [`EnvelopeStack`] with the supplied [`EnvelopeBufferError`].
@@ -501,11 +542,10 @@ impl<K: PartialEq, V> PartialEq for QueueItem<K, V> {
 
 impl<K: PartialEq, V> Eq for QueueItem<K, V> {}
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Priority {
     readiness: Readiness,
     received_at: Instant,
-    // FIXME(jjbayer): `last_peek` is currently never updated, see https://github.com/getsentry/relay/pull/3960.
     last_peek: Instant,
 }
 
@@ -518,22 +558,6 @@ impl Priority {
         }
     }
 }
-
-impl PartialEq for Priority {
-    fn eq(&self, other: &Self) -> bool {
-        self.readiness.ready() == other.readiness.ready()
-            && self.received_at == other.received_at
-            && self.last_peek == other.last_peek
-    }
-}
-
-impl PartialOrd for Priority {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Eq for Priority {}
 
 impl Ord for Priority {
     fn cmp(&self, other: &Self) -> Ordering {
@@ -555,7 +579,21 @@ impl Ord for Priority {
     }
 }
 
-#[derive(Debug)]
+impl PartialOrd for Priority {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for Priority {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other).is_eq()
+    }
+}
+
+impl Eq for Priority {}
+
+#[derive(Debug, Clone, Copy)]
 struct Readiness {
     own_project_ready: bool,
     sampling_project_ready: bool,
@@ -936,6 +974,24 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(buffer.priority_queue.len(), 2);
+    }
+
+    #[test]
+    fn test_total_order() {
+        let p1 = Priority {
+            readiness: Readiness {
+                own_project_ready: true,
+                sampling_project_ready: true,
+            },
+            received_at: Instant::now(),
+            last_peek: Instant::now(),
+        };
+        let mut p2 = p1.clone();
+        p2.last_peek += Duration::from_millis(1);
+
+        // Last peek does not matter because project is ready:
+        assert_eq!(p1.cmp(&p2), Ordering::Equal);
+        assert_eq!(p1, p2);
     }
 
     #[tokio::test]

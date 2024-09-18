@@ -28,4 +28,8 @@ impl EnvelopeStack for MemoryEnvelopeStack {
     async fn pop(&mut self) -> Result<Option<Box<Envelope>>, Self::Error> {
         Ok(self.0.pop())
     }
+
+    fn flush(self) -> Vec<Box<Envelope>> {
+        self.0
+    }
 }

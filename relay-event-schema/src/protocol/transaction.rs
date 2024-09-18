@@ -105,7 +105,10 @@ impl IntoValue for TransactionSource {
     where
         Self: Sized,
     {
-        Value::String(self.to_string())
+        Value::String(match self {
+            Self::Other(s) => s,
+            _ => self.as_str().to_owned(),
+        })
     }
 
     fn serialize_payload<S>(&self, s: S, _behavior: SkipSerialization) -> Result<S::Ok, S::Error>
@@ -113,7 +116,7 @@ impl IntoValue for TransactionSource {
         Self: Sized,
         S: serde::Serializer,
     {
-        serde::Serialize::serialize(&self.to_string(), s)
+        serde::Serialize::serialize(self.as_str(), s)
     }
 }
 

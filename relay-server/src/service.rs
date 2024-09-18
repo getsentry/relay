@@ -1,10 +1,11 @@
 use std::convert::Infallible;
 use std::fmt;
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::Duration;
 
 use crate::metrics::{MetricOutcomes, MetricStats};
-use crate::services::buffer::{EnvelopeBufferService, ObservableEnvelopeBuffer};
+use crate::services::buffer::{self, EnvelopeBufferService, ObservableEnvelopeBuffer};
 use crate::services::stats::RelayStats;
 use anyhow::{Context, Result};
 use axum::extract::FromRequestParts;
@@ -177,7 +178,8 @@ impl ServiceState {
         .start();
         let outcome_aggregator = OutcomeAggregator::new(&config, outcome_producer.clone()).start();
 
-        let global_config = GlobalConfigService::new(config.clone(), upstream_relay.clone());
+        let (global_config, global_config_rx) =
+            GlobalConfigService::new(config.clone(), upstream_relay.clone());
         let global_config_handle = global_config.handle();
         // The global config service must start before dependant services are
         // started. Messages like subscription requests to the global config
@@ -240,10 +242,19 @@ impl ServiceState {
         )
         .spawn_handler(processor_rx);
 
+        // We initialize a shared boolean that is used to manage backpressure between the
+        // EnvelopeBufferService and the ProjectCacheService.
+        let project_cache_ready = Arc::new(AtomicBool::new(true));
         let envelope_buffer = EnvelopeBufferService::new(
             config.clone(),
             MemoryChecker::new(memory_stat.clone(), config.clone()),
-            project_cache.clone(),
+            global_config_rx.clone(),
+            buffer::Services {
+                project_cache: project_cache.clone(),
+                outcome_aggregator: outcome_aggregator.clone(),
+                test_store: test_store.clone(),
+            },
+            project_cache_ready.clone(),
         )
         .map(|b| b.start_observable());
 
@@ -256,16 +267,17 @@ impl ServiceState {
             project_cache: project_cache.clone(),
             test_store: test_store.clone(),
             upstream_relay: upstream_relay.clone(),
-            global_config: global_config.clone(),
         };
 
         ProjectCacheService::new(
             config.clone(),
             MemoryChecker::new(memory_stat.clone(), config.clone()),
             project_cache_services,
+            global_config_rx,
             redis_pools
                 .as_ref()
                 .map(|pools| pools.project_configs.clone()),
+            project_cache_ready,
         )
         .spawn_handler(project_cache_rx);
 

@@ -132,7 +132,7 @@ impl IntoValue for EventType {
     where
         Self: Sized,
     {
-        Value::String(format!("{self}"))
+        Value::String(self.to_string())
     }
 
     fn serialize_payload<S>(&self, s: S, _behavior: SkipSerialization) -> Result<S::Ok, S::Error>
@@ -140,6 +140,6 @@ impl IntoValue for EventType {
         Self: Sized,
         S: serde::Serializer,
     {
-        Serialize::serialize(&self.to_string(), s)
+        Serialize::serialize(self.as_str(), s)
     }
 }

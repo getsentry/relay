@@ -1,11 +1,12 @@
 # Changelog
 
-## Unreleased
+## 24.9.0
 
 **Bug Fixes**:
 
 - Use `matches_any_origin` to scrub HTTP hosts in spans. ([#3939](https://github.com/getsentry/relay/pull/3939)).
 - Keep frames from both ends of the stacktrace when trimming frames. ([#3905](https://github.com/getsentry/relay/pull/3905))
+- Use `UnixTimestamp` instead of `DateTime` when sorting envelopes from disk. ([#4025](https://github.com/getsentry/relay/pull/4025))
 
 **Features**:
 
@@ -27,6 +28,8 @@
 - Remove the OTEL spans endpoint in favor of Envelopes. ([#3973](https://github.com/getsentry/relay/pull/3973))
 - Remove the `generate-schema` tool. Relay no longer exposes JSON schema for the event protocol. Consult the Rust type documentation of the `relay-event-schema` crate instead. ([#3974](https://github.com/getsentry/relay/pull/3974))
 - Allow creation of `SqliteEnvelopeBuffer` from config, and load existing stacks from db on startup. ([#3967](https://github.com/getsentry/relay/pull/3967))
+- Only tag `user.geo.subregion` on frontend and mobile projects. ([#4013](https://github.com/getsentry/relay/pull/4013), [#4023](https://github.com/getsentry/relay/pull/4023))
+- Implement graceful shutdown mechanism in the `EnvelopeBuffer`. ([#3980](https://github.com/getsentry/relay/pull/3980))
 
 ## 24.8.0
 

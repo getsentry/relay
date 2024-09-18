@@ -13,13 +13,14 @@ pub struct TraceId(pub String);
 impl FromValue for TraceId {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
-            Annotated(Some(Value::String(value)), mut meta) => {
+            Annotated(Some(Value::String(mut value)), mut meta) => {
                 if !is_hex_string(&value, 32) || value.bytes().all(|x| x == b'0') {
                     meta.add_error(Error::invalid("not a valid trace id"));
                     meta.set_original_value(Some(value));
                     Annotated(None, meta)
                 } else {
-                    Annotated(Some(TraceId(value.to_ascii_lowercase())), meta)
+                    value.make_ascii_lowercase();
+                    Annotated(Some(TraceId(value)), meta)
                 }
             }
             Annotated(None, meta) => Annotated(None, meta),
@@ -61,13 +62,14 @@ impl fmt::Display for SpanId {
 impl FromValue for SpanId {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
-            Annotated(Some(Value::String(value)), mut meta) => {
+            Annotated(Some(Value::String(mut value)), mut meta) => {
                 if !is_hex_string(&value, 16) || value.bytes().all(|x| x == b'0') {
                     meta.add_error(Error::invalid("not a valid span id"));
                     meta.set_original_value(Some(value));
                     Annotated(None, meta)
                 } else {
-                    Annotated(Some(SpanId(value.to_ascii_lowercase())), meta)
+                    value.make_ascii_lowercase();
+                    Annotated(Some(SpanId(value)), meta)
                 }
             }
             Annotated(None, meta) => Annotated(None, meta),

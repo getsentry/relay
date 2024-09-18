@@ -9,7 +9,7 @@ use crate::services::buffer::envelope_stack::EnvelopeStack;
 use crate::services::buffer::envelope_store::sqlite::{
     SqliteEnvelopeStore, SqliteEnvelopeStoreError,
 };
-use crate::statsd::RelayTimers;
+use crate::statsd::{RelayCounters, RelayTimers};
 
 /// An error returned when doing an operation on [`SqliteEnvelopeStack`].
 #[derive(Debug, thiserror::Error)]
@@ -91,6 +91,10 @@ impl SqliteEnvelopeStack {
         };
         self.batches_buffer_size -= envelopes.len();
 
+        relay_statsd::metric!(
+            counter(RelayCounters::BufferSpooledEnvelopes) += envelopes.len() as u64
+        );
+
         // We convert envelopes into a format which simplifies insertion in the store. If an
         // envelope can't be serialized, we will not insert it.
         let envelopes = envelopes.iter().filter_map(|e| e.as_ref().try_into().ok());
@@ -138,6 +142,10 @@ impl SqliteEnvelopeStack {
 
             return Ok(());
         }
+
+        relay_statsd::metric!(
+            counter(RelayCounters::BufferUnspooledEnvelopes) += envelopes.len() as u64
+        );
 
         // We push in the back of the buffer, since we still want to give priority to
         // incoming envelopes that have a more recent timestamp.
@@ -225,6 +233,10 @@ impl EnvelopeStack for SqliteEnvelopeStack {
         }
 
         Ok(result)
+    }
+
+    fn flush(self) -> Vec<Box<Envelope>> {
+        self.batches_buffer.into_iter().flatten().collect()
     }
 }
 
@@ -452,5 +464,33 @@ mod tests {
             );
         }
         assert_eq!(stack.batches_buffer_size, 0);
+    }
+
+    #[tokio::test]
+    async fn test_drain() {
+        let db = setup_db(true).await;
+        let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
+        let mut stack = SqliteEnvelopeStack::new(
+            envelope_store.clone(),
+            5,
+            1,
+            ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
+            true,
+        );
+
+        let envelopes = mock_envelopes(5);
+
+        // We push 5 envelopes and check that there is nothing on disk.
+        for envelope in envelopes.clone() {
+            assert!(stack.push(envelope).await.is_ok());
+        }
+        assert_eq!(stack.batches_buffer_size, 5);
+        assert_eq!(envelope_store.total_count().await.unwrap(), 0);
+
+        // We drain the stack and make sure nothing was spooled to disk.
+        let drained_envelopes = stack.flush();
+        assert_eq!(drained_envelopes.into_iter().collect::<Vec<_>>().len(), 5);
+        assert_eq!(envelope_store.total_count().await.unwrap(), 0);
     }
 }
