@@ -12,7 +12,7 @@ use relay_system::SendError;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Receiver, Service};
 use relay_system::{Controller, Shutdown};
 use tokio::sync::watch;
-use tokio::time::timeout;
+use tokio::time::{timeout, Instant};
 
 use crate::envelope::Envelope;
 use crate::services::buffer::envelope_buffer::Peek;
@@ -237,25 +237,35 @@ impl EnvelopeBufferService {
                 self.services.project_cache.send(DequeuedEnvelope(envelope));
                 self.sleep = Duration::ZERO; // try next pop immediately
             }
-            Peek::NotReady(stack_key, envelope) => {
-                relay_log::trace!("EnvelopeBufferService: project(s) of envelope not ready, requesting project update");
+            Peek::NotReady(stack_key, next_peek, envelope) => {
+                relay_log::trace!("EnvelopeBufferService: project(s) of envelope not ready");
                 relay_statsd::metric!(
                     counter(RelayCounters::BufferTryPop) += 1,
                     peek_result = "not_ready"
                 );
-                let project_key = envelope.meta().public_key();
-                self.services.project_cache.send(UpdateProject(project_key));
-                match envelope.sampling_key() {
-                    None => {}
-                    Some(sampling_key) if sampling_key == project_key => {} // already sent.
-                    Some(sampling_key) => {
-                        self.services
-                            .project_cache
-                            .send(UpdateProject(sampling_key));
+
+                // We want to fetch the configs again, only if some time passed between the last
+                // peek of this not ready project key pair and the current peek. This is done to
+                // avoid flooding the project cache with `UpdateProject` messages.
+                if Instant::now() >= next_peek {
+                    relay_log::trace!("EnvelopeBufferService: requesting project(s) update");
+                    let project_key = envelope.meta().public_key();
+                    self.services.project_cache.send(UpdateProject(project_key));
+                    match envelope.sampling_key() {
+                        None => {}
+                        Some(sampling_key) if sampling_key == project_key => {} // already sent.
+                        Some(sampling_key) => {
+                            self.services
+                                .project_cache
+                                .send(UpdateProject(sampling_key));
+                        }
                     }
+
+                    // Deprioritize the stack to prevent head-of-line blocking and update the next fetch
+                    // time.
+                    buffer.mark_seen(&stack_key, DEFAULT_SLEEP);
                 }
-                // deprioritize the stack to prevent head-of-line blocking
-                buffer.mark_seen(&stack_key);
+
                 self.sleep = DEFAULT_SLEEP;
             }
         }
@@ -622,5 +632,31 @@ mod tests {
         let outcome = outcome_aggregator_rx.try_recv().unwrap();
         assert_eq!(outcome.category, DataCategory::TransactionIndexed);
         assert_eq!(outcome.quantity, 1);
+    }
+
+    #[tokio::test]
+    async fn test_update_project() {
+        tokio::time::pause();
+        let (service, global_tx, project_cache_rx, _) = buffer_service();
+
+        let addr = service.start();
+
+        global_tx.send_replace(global_config::Status::Ready(Arc::new(
+            GlobalConfig::default(),
+        )));
+
+        let envelope = new_envelope(false, "foo");
+
+        addr.send(EnvelopeBuffer::Push(envelope.clone()));
+
+        tokio::time::sleep(Duration::from_secs(1)).await;
+
+        // We expect the project update request to be sent.
+        assert_eq!(project_cache_rx.len(), 1);
+
+        tokio::time::sleep(Duration::from_secs(1)).await;
+
+        // We expect the project update request to be sent again because 1 second passed.
+        assert_eq!(project_cache_rx.len(), 2);
     }
 }
