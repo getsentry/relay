@@ -27,7 +27,7 @@ fn build_limiter(redis: RedisPool, reset_redis: bool) -> RedisSetLimiter {
     let mut connection = client.connection().unwrap();
 
     if reset_redis {
-        redis::cmd("FLUSHALL").execute(&mut connection);
+        redis::cmd("FLUSHALL").exec(&mut connection).unwrap();
     }
 
     RedisSetLimiter::new(

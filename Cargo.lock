@@ -3127,8 +3127,8 @@ dependencies = [
 
 [[package]]
 name = "redis"
-version = "0.25.3"
-source = "git+https://github.com/getsentry/redis-rs.git?rev=939e5df6f9cc976b0a53987f6eb3f76b2c398bd6#939e5df6f9cc976b0a53987f6eb3f76b2c398bd6"
+version = "0.27.2"
+source = "git+https://github.com/getsentry/redis-rs.git?rev=fc7d98cc10c16fa7c0c31de64dc1b713354a4384#fc7d98cc10c16fa7c0c31de64dc1b713354a4384"
 dependencies = [
  "arc-swap",
  "combine",
@@ -3142,7 +3142,6 @@ dependencies = [
  "ryu",
  "sha1_smol",
  "socket2",
- "tokio",
  "url",
 ]
 
