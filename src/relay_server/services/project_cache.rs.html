@@ -1768,6 +1768,9 @@
 <a href="#1768" id="1768">1768</a>
 <a href="#1769" id="1769">1769</a>
 <a href="#1770" id="1770">1770</a>
+<a href="#1771" id="1771">1771</a>
+<a href="#1772" id="1772">1772</a>
+<a href="#1773" id="1773">1773</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
@@ -1930,7 +1933,8 @@
     }
 }
 
-<span class="kw">pub struct </span>UpdateRateLimits {
+<span class="attr">#[derive(Debug)]
+</span><span class="kw">pub struct </span>UpdateRateLimits {
     project_key: ProjectKey,
     rate_limits: RateLimits,
 }
@@ -2003,6 +2007,7 @@
 /// This message is sent from the project buffer in case of the error while fetching the data from
 /// the persistent buffer, ensuring that we still have the index pointing to the keys, which could be found in the
 /// persistent storage.
+</span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>UpdateSpoolIndex(<span class="kw">pub </span>HashSet&lt;QueueKey&gt;);
 
 <span class="kw">impl </span>UpdateSpoolIndex {
@@ -2046,6 +2051,7 @@
 /// associated with a project.
 ///
 /// See the enumerated variants for a full list of available messages for this service.
+</span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub enum </span>ProjectCache {
     RequestUpdate(RequestUpdate),
     Get(GetProjectState, ProjectSender),
