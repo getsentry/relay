@@ -304,6 +304,9 @@
 <a href="#304" id="304">304</a>
 <a href="#305" id="305">305</a>
 <a href="#306" id="306">306</a>
+<a href="#307" id="307">307</a>
+<a href="#308" id="308">308</a>
+<a href="#309" id="309">309</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_redis::{
     redis::{<span class="self">self</span>, FromRedisValue, Script},
     Connection,
@@ -584,7 +587,10 @@
         <span class="kw">let </span>script = CardinalityScript::load();
         <span class="kw">let </span>keys = keys(Uuid::new_v4(), <span class="kw-2">&amp;</span>[<span class="string">"a"</span>, <span class="string">"b"</span>, <span class="string">"c"</span>]);
 
-        redis::cmd(<span class="string">"SCRIPT"</span>).arg(<span class="string">"FLUSH"</span>).execute(<span class="kw-2">&amp;mut </span>connection);
+        redis::cmd(<span class="string">"SCRIPT"</span>)
+            .arg(<span class="string">"FLUSH"</span>)
+            .exec(<span class="kw-2">&amp;mut </span>connection)
+            .unwrap();
         script
             .invoke_one(<span class="kw-2">&amp;mut </span>connection, <span class="number">50</span>, <span class="number">3600</span>, <span class="number">0</span>..<span class="number">30</span>, keys)
             .unwrap();

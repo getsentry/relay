@@ -226,7 +226,70 @@ and store the result in the destination key.</div></details><details class="togg
     RV: FromRedisValue,</div></h4></section></summary><div class='docblock'>Increments a value.</div></details><details class="toggle method-toggle" open><summary><section id="method.hexists" class="method trait-impl"><a href="#method.hexists" class="anchor">§</a><h4 class="code-header">fn <a class="fn">hexists</a>&lt;'a, K, F, RV&gt;(&amp;mut self, key: K, field: F) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.81.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;RV, RedisError&gt;<div class="where">where
     K: ToRedisArgs,
     F: ToRedisArgs,
-    RV: FromRedisValue,</div></h4></section></summary><div class='docblock'>Checks if a field in a hash exists.</div></details><details class="toggle method-toggle" open><summary><section id="method.hkeys" class="method trait-impl"><a href="#method.hkeys" class="anchor">§</a><h4 class="code-header">fn <a class="fn">hkeys</a>&lt;'a, K, RV&gt;(&amp;mut self, key: K) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.81.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;RV, RedisError&gt;<div class="where">where
+    RV: FromRedisValue,</div></h4></section></summary><div class='docblock'>Checks if a field in a hash exists.</div></details><details class="toggle method-toggle" open><summary><section id="method.httl" class="method trait-impl"><a href="#method.httl" class="anchor">§</a><h4 class="code-header">fn <a class="fn">httl</a>&lt;'a, K, F, RV&gt;(&amp;mut self, key: K, fields: F) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.81.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;RV, RedisError&gt;<div class="where">where
+    K: ToRedisArgs,
+    F: ToRedisArgs,
+    RV: FromRedisValue,</div></h4></section></summary><div class='docblock'>Get one or more fields TTL in seconds.</div></details><details class="toggle method-toggle" open><summary><section id="method.hpttl" class="method trait-impl"><a href="#method.hpttl" class="anchor">§</a><h4 class="code-header">fn <a class="fn">hpttl</a>&lt;'a, K, F, RV&gt;(&amp;mut self, key: K, fields: F) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.81.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;RV, RedisError&gt;<div class="where">where
+    K: ToRedisArgs,
+    F: ToRedisArgs,
+    RV: FromRedisValue,</div></h4></section></summary><div class='docblock'>Get one or more fields TTL in milliseconds.</div></details><details class="toggle method-toggle" open><summary><section id="method.hexpire" class="method trait-impl"><a href="#method.hexpire" class="anchor">§</a><h4 class="code-header">fn <a class="fn">hexpire</a>&lt;'a, K, F, RV&gt;(
+    &amp;mut self,
+    key: K,
+    seconds: <a class="primitive" href="https://doc.rust-lang.org/1.81.0/std/primitive.i64.html">i64</a>,
+    opt: ExpireOption,
+    fields: F,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.81.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;RV, RedisError&gt;<div class="where">where
+    K: ToRedisArgs,
+    F: ToRedisArgs,
+    RV: FromRedisValue,</div></h4></section></summary><div class='docblock'>Set one or more fields time to live in seconds.</div></details><details class="toggle method-toggle" open><summary><section id="method.hexpire_at" class="method trait-impl"><a href="#method.hexpire_at" class="anchor">§</a><h4 class="code-header">fn <a class="fn">hexpire_at</a>&lt;'a, K, F, RV&gt;(
+    &amp;mut self,
+    key: K,
+    ts: <a class="primitive" href="https://doc.rust-lang.org/1.81.0/std/primitive.i64.html">i64</a>,
+    opt: ExpireOption,
+    fields: F,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.81.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;RV, RedisError&gt;<div class="where">where
+    K: ToRedisArgs,
+    F: ToRedisArgs,
+    RV: FromRedisValue,</div></h4></section></summary><div class='docblock'>Set the expiration for one or more fields as a UNIX timestamp in milliseconds.</div></details><details class="toggle method-toggle" open><summary><section id="method.hexpire_time" class="method trait-impl"><a href="#method.hexpire_time" class="anchor">§</a><h4 class="code-header">fn <a class="fn">hexpire_time</a>&lt;'a, K, F, RV&gt;(
+    &amp;mut self,
+    key: K,
+    fields: F,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.81.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;RV, RedisError&gt;<div class="where">where
+    K: ToRedisArgs,
+    F: ToRedisArgs,
+    RV: FromRedisValue,</div></h4></section></summary><div class='docblock'>Returns the absolute Unix expiration timestamp in seconds.</div></details><details class="toggle method-toggle" open><summary><section id="method.hpersist" class="method trait-impl"><a href="#method.hpersist" class="anchor">§</a><h4 class="code-header">fn <a class="fn">hpersist</a>&lt;'a, K, F, RV&gt;(
+    &amp;mut self,
+    key: K,
+    fields: F,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.81.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;RV, RedisError&gt;<div class="where">where
+    K: ToRedisArgs,
+    F: ToRedisArgs,
+    RV: FromRedisValue,</div></h4></section></summary><div class='docblock'>Remove the expiration from a key.</div></details><details class="toggle method-toggle" open><summary><section id="method.hpexpire" class="method trait-impl"><a href="#method.hpexpire" class="anchor">§</a><h4 class="code-header">fn <a class="fn">hpexpire</a>&lt;'a, K, F, RV&gt;(
+    &amp;mut self,
+    key: K,
+    milliseconds: <a class="primitive" href="https://doc.rust-lang.org/1.81.0/std/primitive.i64.html">i64</a>,
+    opt: ExpireOption,
+    fields: F,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.81.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;RV, RedisError&gt;<div class="where">where
+    K: ToRedisArgs,
+    F: ToRedisArgs,
+    RV: FromRedisValue,</div></h4></section></summary><div class='docblock'>Set one or more fields time to live in milliseconds.</div></details><details class="toggle method-toggle" open><summary><section id="method.hpexpire_at" class="method trait-impl"><a href="#method.hpexpire_at" class="anchor">§</a><h4 class="code-header">fn <a class="fn">hpexpire_at</a>&lt;'a, K, F, RV&gt;(
+    &amp;mut self,
+    key: K,
+    ts: <a class="primitive" href="https://doc.rust-lang.org/1.81.0/std/primitive.i64.html">i64</a>,
+    opt: ExpireOption,
+    fields: F,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.81.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;RV, RedisError&gt;<div class="where">where
+    K: ToRedisArgs,
+    F: ToRedisArgs,
+    RV: FromRedisValue,</div></h4></section></summary><div class='docblock'>Set the expiration for one or more fields as a UNIX timestamp in milliseconds.</div></details><details class="toggle method-toggle" open><summary><section id="method.hpexpire_time" class="method trait-impl"><a href="#method.hpexpire_time" class="anchor">§</a><h4 class="code-header">fn <a class="fn">hpexpire_time</a>&lt;'a, K, F, RV&gt;(
+    &amp;mut self,
+    key: K,
+    fields: F,
+) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.81.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;RV, RedisError&gt;<div class="where">where
+    K: ToRedisArgs,
+    F: ToRedisArgs,
+    RV: FromRedisValue,</div></h4></section></summary><div class='docblock'>Returns the absolute Unix expiration timestamp in seconds.</div></details><details class="toggle method-toggle" open><summary><section id="method.hkeys" class="method trait-impl"><a href="#method.hkeys" class="anchor">§</a><h4 class="code-header">fn <a class="fn">hkeys</a>&lt;'a, K, RV&gt;(&amp;mut self, key: K) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.81.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;RV, RedisError&gt;<div class="where">where
     K: ToRedisArgs,
     RV: FromRedisValue,</div></h4></section></summary><div class='docblock'>Gets all the keys in a hash.</div></details><details class="toggle method-toggle" open><summary><section id="method.hvals" class="method trait-impl"><a href="#method.hvals" class="anchor">§</a><h4 class="code-header">fn <a class="fn">hvals</a>&lt;'a, K, RV&gt;(&amp;mut self, key: K) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.81.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;RV, RedisError&gt;<div class="where">where
     K: ToRedisArgs,
@@ -500,7 +563,7 @@ already exists and holds a list.</div></details><details class="toggle method-to
 If the member does not exist, it is added with delta as its score.</div></details><details class="toggle method-toggle" open><summary><section id="method.zinterstore" class="method trait-impl"><a href="#method.zinterstore" class="anchor">§</a><h4 class="code-header">fn <a class="fn">zinterstore</a>&lt;'a, D, K, RV&gt;(
     &amp;mut self,
     dstkey: D,
-    keys: &amp;'a <a class="primitive" href="https://doc.rust-lang.org/1.81.0/std/primitive.slice.html">[K]</a>,
+    keys: K,
 ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.81.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;RV, RedisError&gt;<div class="where">where
     D: ToRedisArgs,
     K: ToRedisArgs,
@@ -508,7 +571,7 @@ If the member does not exist, it is added with delta as its score.</div></detail
 a new key using SUM as aggregation function.</div></details><details class="toggle method-toggle" open><summary><section id="method.zinterstore_min" class="method trait-impl"><a href="#method.zinterstore_min" class="anchor">§</a><h4 class="code-header">fn <a class="fn">zinterstore_min</a>&lt;'a, D, K, RV&gt;(
     &amp;mut self,
     dstkey: D,
-    keys: &amp;'a <a class="primitive" href="https://doc.rust-lang.org/1.81.0/std/primitive.slice.html">[K]</a>,
+    keys: K,
 ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.81.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;RV, RedisError&gt;<div class="where">where
     D: ToRedisArgs,
     K: ToRedisArgs,
@@ -516,7 +579,7 @@ a new key using SUM as aggregation function.</div></details><details class="togg
 a new key using MIN as aggregation function.</div></details><details class="toggle method-toggle" open><summary><section id="method.zinterstore_max" class="method trait-impl"><a href="#method.zinterstore_max" class="anchor">§</a><h4 class="code-header">fn <a class="fn">zinterstore_max</a>&lt;'a, D, K, RV&gt;(
     &amp;mut self,
     dstkey: D,
-    keys: &amp;'a <a class="primitive" href="https://doc.rust-lang.org/1.81.0/std/primitive.slice.html">[K]</a>,
+    keys: K,
 ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.81.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;RV, RedisError&gt;<div class="where">where
     D: ToRedisArgs,
     K: ToRedisArgs,
@@ -581,7 +644,7 @@ Blocks until a member is available otherwise.</div></details><details class="tog
     RV: FromRedisValue,</div></h4></section></summary><div class='docblock'>Removes and returns up to count members with the lowest scores in a sorted set</div></details><details class="toggle method-toggle" open><summary><section id="method.bzmpop_max" class="method trait-impl"><a href="#method.bzmpop_max" class="anchor">§</a><h4 class="code-header">fn <a class="fn">bzmpop_max</a>&lt;'a, K, RV&gt;(
     &amp;mut self,
     timeout: <a class="primitive" href="https://doc.rust-lang.org/1.81.0/std/primitive.f64.html">f64</a>,
-    keys: &amp;'a <a class="primitive" href="https://doc.rust-lang.org/1.81.0/std/primitive.slice.html">[K]</a>,
+    keys: K,
     count: <a class="primitive" href="https://doc.rust-lang.org/1.81.0/std/primitive.isize.html">isize</a>,
 ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.81.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;RV, RedisError&gt;<div class="where">where
     K: ToRedisArgs,
@@ -589,7 +652,7 @@ Blocks until a member is available otherwise.</div></details><details class="tog
 from the first non-empty sorted set in the provided list of key names.
 Blocks until a member is available otherwise.</div></details><details class="toggle method-toggle" open><summary><section id="method.zmpop_max" class="method trait-impl"><a href="#method.zmpop_max" class="anchor">§</a><h4 class="code-header">fn <a class="fn">zmpop_max</a>&lt;'a, K, RV&gt;(
     &amp;mut self,
-    keys: &amp;'a <a class="primitive" href="https://doc.rust-lang.org/1.81.0/std/primitive.slice.html">[K]</a>,
+    keys: K,
     count: <a class="primitive" href="https://doc.rust-lang.org/1.81.0/std/primitive.isize.html">isize</a>,
 ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.81.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;RV, RedisError&gt;<div class="where">where
     K: ToRedisArgs,
@@ -597,7 +660,7 @@ Blocks until a member is available otherwise.</div></details><details class="tog
 from the first non-empty sorted set in the provided list of key names.</div></details><details class="toggle method-toggle" open><summary><section id="method.bzmpop_min" class="method trait-impl"><a href="#method.bzmpop_min" class="anchor">§</a><h4 class="code-header">fn <a class="fn">bzmpop_min</a>&lt;'a, K, RV&gt;(
     &amp;mut self,
     timeout: <a class="primitive" href="https://doc.rust-lang.org/1.81.0/std/primitive.f64.html">f64</a>,
-    keys: &amp;'a <a class="primitive" href="https://doc.rust-lang.org/1.81.0/std/primitive.slice.html">[K]</a>,
+    keys: K,
     count: <a class="primitive" href="https://doc.rust-lang.org/1.81.0/std/primitive.isize.html">isize</a>,
 ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.81.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;RV, RedisError&gt;<div class="where">where
     K: ToRedisArgs,
@@ -605,7 +668,7 @@ from the first non-empty sorted set in the provided list of key names.</div></de
 from the first non-empty sorted set in the provided list of key names.
 Blocks until a member is available otherwise.</div></details><details class="toggle method-toggle" open><summary><section id="method.zmpop_min" class="method trait-impl"><a href="#method.zmpop_min" class="anchor">§</a><h4 class="code-header">fn <a class="fn">zmpop_min</a>&lt;'a, K, RV&gt;(
     &amp;mut self,
-    keys: &amp;'a <a class="primitive" href="https://doc.rust-lang.org/1.81.0/std/primitive.slice.html">[K]</a>,
+    keys: K,
     count: <a class="primitive" href="https://doc.rust-lang.org/1.81.0/std/primitive.isize.html">isize</a>,
 ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.81.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;RV, RedisError&gt;<div class="where">where
     K: ToRedisArgs,
@@ -825,7 +888,7 @@ ordered from high to low.</div></details><details class="toggle method-toggle" o
     RV: FromRedisValue,</div></h4></section></summary><div class='docblock'>Get the scores associated with multiple members in a sorted set.</div></details><details class="toggle method-toggle" open><summary><section id="method.zunionstore" class="method trait-impl"><a href="#method.zunionstore" class="anchor">§</a><h4 class="code-header">fn <a class="fn">zunionstore</a>&lt;'a, D, K, RV&gt;(
     &amp;mut self,
     dstkey: D,
-    keys: &amp;'a <a class="primitive" href="https://doc.rust-lang.org/1.81.0/std/primitive.slice.html">[K]</a>,
+    keys: K,
 ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.81.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;RV, RedisError&gt;<div class="where">where
     D: ToRedisArgs,
     K: ToRedisArgs,
@@ -833,7 +896,7 @@ ordered from high to low.</div></details><details class="toggle method-toggle" o
 a new key using SUM as aggregation function.</div></details><details class="toggle method-toggle" open><summary><section id="method.zunionstore_min" class="method trait-impl"><a href="#method.zunionstore_min" class="anchor">§</a><h4 class="code-header">fn <a class="fn">zunionstore_min</a>&lt;'a, D, K, RV&gt;(
     &amp;mut self,
     dstkey: D,
-    keys: &amp;'a <a class="primitive" href="https://doc.rust-lang.org/1.81.0/std/primitive.slice.html">[K]</a>,
+    keys: K,
 ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.81.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;RV, RedisError&gt;<div class="where">where
     D: ToRedisArgs,
     K: ToRedisArgs,
@@ -841,7 +904,7 @@ a new key using SUM as aggregation function.</div></details><details class="togg
 a new key using MIN as aggregation function.</div></details><details class="toggle method-toggle" open><summary><section id="method.zunionstore_max" class="method trait-impl"><a href="#method.zunionstore_max" class="anchor">§</a><h4 class="code-header">fn <a class="fn">zunionstore_max</a>&lt;'a, D, K, RV&gt;(
     &amp;mut self,
     dstkey: D,
-    keys: &amp;'a <a class="primitive" href="https://doc.rust-lang.org/1.81.0/std/primitive.slice.html">[K]</a>,
+    keys: K,
 ) -&gt; <a class="enum" href="https://doc.rust-lang.org/1.81.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;RV, RedisError&gt;<div class="where">where
     D: ToRedisArgs,
     K: ToRedisArgs,
