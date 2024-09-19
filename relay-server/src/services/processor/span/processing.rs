@@ -704,7 +704,7 @@ mod tests {
     use std::sync::Arc;
 
     use bytes::Bytes;
-    use insta::assert_debug_snapshot;
+    use once_cell::sync::Lazy;
     use relay_base_schema::project::ProjectId;
     use relay_event_schema::protocol::{
         Context, ContextInner, SpanId, Timestamp, TraceContext, TraceId,
@@ -1066,78 +1066,71 @@ mod tests {
         assert_eq!(get_value!(span.data.browser_name!), "Opera");
     }
 
+    static GEO_LOOKUP: Lazy<GeoIpLookup> = Lazy::new(|| {
+        GeoIpLookup::open("../relay-event-normalization/tests/fixtures/GeoIP2-Enterprise-Test.mmdb")
+            .unwrap()
+    });
+
+    fn normalize_config() -> NormalizeSpanConfig<'static> {
+        NormalizeSpanConfig {
+            received_at: DateTime::from_timestamp_nanos(0),
+            timestamp_range: UnixTimestamp::from_datetime(
+                DateTime::<Utc>::from_timestamp_millis(1000).unwrap(),
+            )
+            .unwrap()
+                ..UnixTimestamp::from_datetime(DateTime::<Utc>::MAX_UTC).unwrap(),
+            max_tag_value_size: 200,
+            performance_score: None,
+            measurements: None,
+            ai_model_costs: None,
+            max_name_and_unit_len: 200,
+            tx_name_rules: &[],
+            user_agent: None,
+            client_hints: ClientHints::default(),
+            allowed_hosts: &[],
+            scrub_mongo_description: ScrubMongoDescription::Disabled,
+            client_ip: Some(IpAddr("2.125.160.216".to_owned())),
+            geo_lookup: Some(&GEO_LOOKUP),
+        }
+    }
+
     #[test]
     fn user_ip_from_client_ip_without_auto() {
         let mut span = Annotated::from_json(
             r#"{
             "start_timestamp": 0,
             "timestamp": 1,
-            "trace_id": "1",
-            "span_id": "1",
+            "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+            "span_id": "922dda2462ea4ac2",
             "data": {
-                "client_address": "2.125.160.216"
+                "client.address": "2.125.160.216"
             }
         }"#,
         )
         .unwrap();
 
-        let geo_lookup = GeoIpLookup::open(
-            "../relay-event-normalization/tests/fixtures/GeoIP2-Enterprise-Test.mmdb",
-        )
-        .unwrap();
+        normalize(&mut span, normalize_config()).unwrap();
 
-        normalize(
-            &mut span,
-            NormalizeSpanConfig {
-                received_at: DateTime::from_timestamp_nanos(0),
-                timestamp_range: UnixTimestamp::from_datetime(DateTime::<Utc>::MIN_UTC).unwrap()
-                    ..UnixTimestamp::from_datetime(DateTime::<Utc>::MAX_UTC).unwrap(),
-                max_tag_value_size: 200,
-                performance_score: None,
-                measurements: None,
-                ai_model_costs: None,
-                max_name_and_unit_len: 200,
-                tx_name_rules: &[],
-                user_agent: None,
-                client_hints: ClientHints::default(),
-                allowed_hosts: &[],
-                scrub_mongo_description: ScrubMongoDescription::Disabled,
-                client_ip: None,
-                geo_lookup: Some(&geo_lookup),
-            },
-        )
-        .unwrap();
-
-        assert_debug_snapshot!(span, @"");
+        assert_eq!(get_value!(span.data.user_geo_city!), "Boxford");
     }
 
-    // #[test]
-    // fn user_ip_from_client_ip_with_auto() {
-    //     let span = Annotated::from_json(
-    //         r#"{
-    //         "data": {
-    //             "client_address": "{{auto}}",
-    //         }
-    //     }"#,
-    //     )
-    //     .unwrap();
+    #[test]
+    fn user_ip_from_client_ip_with_auto() {
+        let mut span = Annotated::from_json(
+            r#"{
+            "start_timestamp": 0,
+            "timestamp": 1,
+            "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+            "span_id": "922dda2462ea4ac2",
+            "data": {
+                "client.address": "{{auto}}"
+            }
+        }"#,
+        )
+        .unwrap();
 
-    //     let ip_address = IpAddr::parse("2.125.160.216").unwrap();
+        normalize(&mut span, normalize_config()).unwrap();
 
-    //     let geo = GeoIpLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
-    //     normalize_event(
-    //         &mut event,
-    //         &NormalizationConfig {
-    //             client_ip: Some(&ip_address),
-    //             geoip_lookup: Some(&geo),
-    //             ..Default::default()
-    //         },
-    //     );
-
-    //     let user = get_value!(event.user!);
-    //     let ip_addr = user.ip_address.value().expect("ip address missing");
-
-    //     assert_eq!(ip_addr, &IpAddr("2.125.160.216".to_string()));
-    //     assert!(user.geo.value().is_some());
-    // }
+        assert_eq!(get_value!(span.data.user_geo_city!), "Boxford");
+    }
 }
