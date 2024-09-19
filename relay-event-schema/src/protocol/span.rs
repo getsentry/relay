@@ -1,10 +1,12 @@
 mod convert;
 
-use relay_protocol::{Annotated, Empty, Error, FromValue, Getter, IntoValue, Object, Val, Value};
+use relay_protocol::{
+    Annotated, Array, Empty, Error, FromValue, Getter, IntoValue, Object, Val, Value,
+};
 
 use crate::processor::ProcessValue;
 use crate::protocol::{
-    EventId, JsonLenientString, LenientString, Measurements, MetricsSummary, OperationType,
+    EventId, IpAddr, JsonLenientString, LenientString, Measurements, MetricsSummary, OperationType,
     OriginType, SpanId, SpanStatus, ThreadId, Timestamp, TraceId,
 };
 
@@ -352,6 +354,66 @@ pub struct SpanData {
     #[metastructure(field = "user")]
     pub user: Annotated<Value>,
 
+    /// User email address.
+    ///
+    /// https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/
+    #[metastructure(field = "user.email")]
+    pub user_email: Annotated<String>,
+
+    /// User’s full name.
+    ///
+    /// https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/
+    #[metastructure(field = "user.full_name")]
+    pub user_full_name: Annotated<String>,
+
+    /// Two-letter country code (ISO 3166-1 alpha-2).
+    ///
+    /// This is not an OTel convention (yet).
+    #[metastructure(field = "user.geo.country_code")]
+    pub user_geo_country_code: Annotated<String>,
+
+    /// Human readable city name.
+    ///
+    /// This is not an OTel convention (yet).
+    #[metastructure(field = "user.geo.city")]
+    pub user_geo_city: Annotated<String>,
+
+    /// Human readable subdivision name.
+    ///
+    /// This is not an OTel convention (yet).
+    #[metastructure(field = "user.geo.subdivision")]
+    pub user_geo_subdivision: Annotated<String>,
+
+    /// Human readable region name or code.
+    ///
+    /// This is not an OTel convention (yet).
+    #[metastructure(field = "user.geo.region")]
+    pub user_geo_region: Annotated<String>,
+
+    /// Unique user hash to correlate information for a user in anonymized form.
+    ///
+    /// https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/
+    #[metastructure(field = "user.hash")]
+    pub user_hash: Annotated<String>,
+
+    /// Unique identifier of the user.
+    ///
+    /// https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/
+    #[metastructure(field = "user.id")]
+    pub user_id: Annotated<String>,
+
+    /// Short name or login/username of the user.
+    ///
+    /// https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/
+    #[metastructure(field = "user.name")]
+    pub user_name: Annotated<String>,
+
+    /// Array of user roles at the time of the event.
+    ///
+    /// https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/
+    #[metastructure(field = "user.roles")]
+    pub user_roles: Array<String>,
+
     /// Replay ID
     #[metastructure(field = "sentry.replay.id", legacy_alias = "replay_id")]
     pub replay_id: Annotated<Value>,
@@ -410,7 +472,7 @@ pub struct SpanData {
 
     /// The client's IP address.
     #[metastructure(field = "client.address")]
-    pub client_address: Annotated<String>,
+    pub client_address: Annotated<IpAddr>,
 
     /// The current route in the application.
     ///
@@ -463,6 +525,16 @@ impl Getter for SpanData {
             "thread\\.name" => self.thread_name.as_str()?.into(),
             "ui\\.component_name" => self.ui_component_name.value()?.into(),
             "url\\.scheme" => self.url_scheme.value()?.into(),
+            "user" => self.user.value()?.into(),
+            "user\\.email" => self.user_email.as_str()?.into(),
+            "user\\.full_name" => self.user_full_name.as_str()?.into(),
+            "user\\.geo\\.city" => self.user_geo_city.as_str()?.into(),
+            "user\\.geo\\.country_code" => self.user_geo_country_code.as_str()?.into(),
+            "user\\.geo\\.region" => self.user_geo_region.as_str()?.into(),
+            "user\\.geo\\.subdivision" => self.user_geo_subdivision.as_str()?.into(),
+            "user\\.hash" => self.user_hash.as_str()?.into(),
+            "user\\.id" => self.user_id.as_str()?.into(),
+            "user\\.name" => self.user_name.as_str()?.into(),
             "transaction" => self.segment_name.as_str()?.into(),
             "release" => self.release.as_str()?.into(),
             _ => {

@@ -24,7 +24,7 @@ use relay_event_schema::protocol::{BrowserContext, Span, SpanData};
 use relay_log::protocol::{Attachment, AttachmentType};
 use relay_metrics::{MetricNamespace, UnixTimestamp};
 use relay_pii::PiiProcessor;
-use relay_protocol::{Annotated, Empty};
+use relay_protocol::{get_path, get_value, get_value_mut, Annotated, Empty};
 use relay_quotas::DataCategory;
 use relay_spans::otel_trace::Span as OtelSpan;
 use thiserror::Error;
@@ -454,9 +454,7 @@ fn normalize(
 
     set_segment_attributes(annotated_span);
 
-    // This follows the steps of `NormalizeProcessor::process_event`.
-    // Ideally, `NormalizeProcessor` would execute these steps generically, i.e. also when calling
-    // `process` on it.
+    // This follows the steps of `event::normalize`.
 
     process_value(
         annotated_span,
@@ -482,6 +480,25 @@ fn normalize(
     let Some(span) = annotated_span.value_mut() else {
         return Err(ProcessingError::NoEventPayload);
     };
+
+    if let Some(data) = span.data.value_mut() {
+        // Replace {{auto}} IPs:
+        if let Some(client_ip) = config.client_ip {
+            if let Some(ip) = get_value_mut!(data.client_address) {
+                // TODO: is {{ auto }} set automatically for events?
+                if ip.is_auto() {
+                    config.client_ip.clone_into(ip);
+                }
+            }
+        }
+
+        // Derive geo ip:
+        if let Some(ip) = get_value!(annotated_span.data.client_address) {
+            if let Ok(Some(geo)) = geoip_lookup.lookup(ip.as_str()) {
+                data.user_geo = geo;
+            }
+        }
+    }
 
     populate_ua_fields(span, user_agent.as_deref(), client_hints.as_deref());
 
