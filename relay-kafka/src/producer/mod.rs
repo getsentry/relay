@@ -186,6 +186,23 @@ impl KafkaClient {
         })?;
         producer.send(key, headers, variant, payload)
     }
+
+    /// Flush all messages.
+    pub fn flush(&self, timeout: Duration) {
+        let start = Instant::now();
+        for (topic, producer) in &self.producers {
+            if let Err(e) = producer
+                .producer
+                .flush(timeout.saturating_sub(start.elapsed()))
+            {
+                relay_log::error!(
+                    error = &e as &dyn std::error::Error,
+                    tags.topic = ?topic,
+                    "error while flushing kafka topic"
+                );
+            }
+        }
+    }
 }
 
 /// Helper structure responsible for building the actual [`KafkaClient`].

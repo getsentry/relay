@@ -6,7 +6,7 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::error::Error;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use bytes::Bytes;
 use relay_base_schema::data_category::DataCategory;
@@ -22,7 +22,7 @@ use relay_metrics::{
 };
 use relay_quotas::Scoping;
 use relay_statsd::metric;
-use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
+use relay_system::{Addr, Controller, FromMessage, Interface, NoResponse, Service, Shutdown};
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
 use serde_json::Deserializer;
@@ -162,6 +162,10 @@ impl StoreService {
                 Store::Metrics(message) => self.handle_store_metrics(message),
             }
         })
+    }
+
+    fn flush(&self, timeout: Duration) {
+        self.producer.client.flush(timeout);
     }
 
     fn handle_store_envelope(&self, message: StoreEnvelope) {
@@ -1047,14 +1051,27 @@ impl Service for StoreService {
     fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
         let this = Arc::new(self);
 
+        let mut shutdown = Controller::shutdown_handle();
+
         tokio::spawn(async move {
             relay_log::info!("store forwarder started");
 
-            while let Some(message) = rx.recv().await {
-                let service = Arc::clone(&this);
-                this.workers
-                    .spawn(move || service.handle_message(message))
-                    .await;
+            loop {
+                tokio::select! {
+                    Some(message) = rx.recv() => {
+                        let service = Arc::clone(&this);
+                        this.workers
+                            .spawn(move || service.handle_message(message))
+                            .await;
+                    },
+                    Shutdown{ timeout: Some(timeout) } = shutdown.notified() => {
+                        let service = Arc::clone(&this);
+                        this.workers.spawn(move || {
+                            service.flush(timeout);
+                        }).await;
+                    },
+                    else => break,
+                }
             }
 
             relay_log::info!("store forwarder stopped");
