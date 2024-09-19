@@ -1078,6 +1078,12 @@
 <a href="#1078" id="1078">1078</a>
 <a href="#1079" id="1079">1079</a>
 <a href="#1080" id="1080">1080</a>
+<a href="#1081" id="1081">1081</a>
+<a href="#1082" id="1082">1082</a>
+<a href="#1083" id="1083">1083</a>
+<a href="#1084" id="1084">1084</a>
+<a href="#1085" id="1085">1085</a>
+<a href="#1086" id="1086">1086</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::cmp::Ordering;
 <span class="kw">use </span>std::collections::BTreeSet;
 <span class="kw">use </span>std::convert::Infallible;
@@ -1086,12 +1092,12 @@
 <span class="kw">use </span>std::sync::atomic::AtomicI64;
 <span class="kw">use </span>std::sync::atomic::Ordering <span class="kw">as </span>AtomicOrdering;
 <span class="kw">use </span>std::sync::Arc;
-<span class="kw">use </span>std::time::{Duration, Instant};
+<span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span>hashbrown::HashSet;
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
 <span class="kw">use </span>relay_config::Config;
-<span class="kw">use </span>tokio::time::timeout;
+<span class="kw">use </span>tokio::time::{timeout, Instant};
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::Envelope;
 <span class="kw">use </span><span class="kw">crate</span>::services::buffer::common::ProjectKeyPair;
@@ -1206,10 +1212,10 @@
     /// Non-ready stacks are deprioritized when they are marked as seen, such that
     /// the next call to `.peek()` will look at a different stack. This prevents
     /// head-of-line blocking.
-    </span><span class="kw">pub fn </span>mark_seen(<span class="kw-2">&amp;mut </span><span class="self">self</span>, project_key_pair: <span class="kw-2">&amp;</span>ProjectKeyPair) {
+    </span><span class="kw">pub fn </span>mark_seen(<span class="kw-2">&amp;mut </span><span class="self">self</span>, project_key_pair: <span class="kw-2">&amp;</span>ProjectKeyPair, next_fetch: Duration) {
         <span class="kw">match </span><span class="self">self </span>{
-            <span class="self">Self</span>::Sqlite(buffer) =&gt; buffer.mark_seen(project_key_pair),
-            <span class="self">Self</span>::InMemory(buffer) =&gt; buffer.mark_seen(project_key_pair),
+            <span class="self">Self</span>::Sqlite(buffer) =&gt; buffer.mark_seen(project_key_pair, next_fetch),
+            <span class="self">Self</span>::InMemory(buffer) =&gt; buffer.mark_seen(project_key_pair, next_fetch),
         }
     }
 
@@ -1331,7 +1337,7 @@
     /// If the envelope stack does not exist, a new stack is pushed to the priority queue.
     /// The priority of the stack is updated with the envelope's received_at time.
     </span><span class="kw">pub async fn </span>push(<span class="kw-2">&amp;mut </span><span class="self">self</span>, envelope: Box&lt;Envelope&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), EnvelopeBufferError&gt; {
-        <span class="kw">let </span>received_at = envelope.meta().start_time();
+        <span class="kw">let </span>received_at = envelope.meta().start_time().into();
         <span class="kw">let </span>project_key_pair = ProjectKeyPair::from_envelope(<span class="kw-2">&amp;</span>envelope);
         <span class="kw">if let </span><span class="prelude-val">Some</span>((
             QueueItem {
@@ -1370,7 +1376,11 @@
                 key: stack_key,
                 value: stack,
             },
-            Priority { readiness, .. },
+            Priority {
+                readiness,
+                next_project_fetch: next_peek,
+                ..
+            },
         )) = <span class="self">self</span>.priority_queue.peek_mut()
         <span class="kw">else </span>{
             <span class="kw">return </span><span class="prelude-val">Ok</span>(Peek::Empty);
@@ -1381,7 +1391,7 @@
         <span class="prelude-val">Ok</span>(<span class="kw">match </span>(stack.peek().<span class="kw">await</span><span class="question-mark">?</span>, ready) {
             (<span class="prelude-val">None</span>, <span class="kw">_</span>) =&gt; Peek::Empty,
             (<span class="prelude-val">Some</span>(envelope), <span class="bool-val">true</span>) =&gt; Peek::Ready(envelope),
-            (<span class="prelude-val">Some</span>(envelope), <span class="bool-val">false</span>) =&gt; Peek::NotReady(<span class="kw-2">*</span>stack_key, envelope),
+            (<span class="prelude-val">Some</span>(envelope), <span class="bool-val">false</span>) =&gt; Peek::NotReady(<span class="kw-2">*</span>stack_key, <span class="kw-2">*</span>next_peek, envelope),
         })
     }
 
@@ -1399,7 +1409,7 @@
         <span class="kw">let </span>next_received_at = stack
             .peek()
             .<span class="kw">await</span><span class="question-mark">?
-            </span>.map(|next_envelope| next_envelope.meta().start_time());
+            </span>.map(|next_envelope| next_envelope.meta().start_time().into());
 
         <span class="kw">match </span>next_received_at {
             <span class="prelude-val">None </span>=&gt; {
@@ -1428,8 +1438,8 @@
     /// Returns `true` if at least one priority was changed.
     </span><span class="kw">pub fn </span>mark_ready(<span class="kw-2">&amp;mut </span><span class="self">self</span>, project: <span class="kw-2">&amp;</span>ProjectKey, is_ready: bool) -&gt; bool {
         <span class="kw">let </span><span class="kw-2">mut </span>changed = <span class="bool-val">false</span>;
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(project_key_pair) = <span class="self">self</span>.stacks_by_project.get(project) {
-            <span class="kw">for </span>project_key_pair <span class="kw">in </span>project_key_pair {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(project_key_pairs) = <span class="self">self</span>.stacks_by_project.get(project) {
+            <span class="kw">for </span>project_key_pair <span class="kw">in </span>project_key_pairs {
                 <span class="self">self</span>.priority_queue
                     .change_priority_by(project_key_pair, |stack| {
                         <span class="kw">let </span><span class="kw-2">mut </span>found = <span class="bool-val">false</span>;
@@ -1464,10 +1474,12 @@
     /// Non-ready stacks are deprioritized when they are marked as seen, such that
     /// the next call to `.peek()` will look at a different stack. This prevents
     /// head-of-line blocking.
-    </span><span class="kw">pub fn </span>mark_seen(<span class="kw-2">&amp;mut </span><span class="self">self</span>, project_key_pair: <span class="kw-2">&amp;</span>ProjectKeyPair) {
+    </span><span class="kw">pub fn </span>mark_seen(<span class="kw-2">&amp;mut </span><span class="self">self</span>, project_key_pair: <span class="kw-2">&amp;</span>ProjectKeyPair, next_fetch: Duration) {
         <span class="self">self</span>.priority_queue
             .change_priority_by(project_key_pair, |stack| {
-                stack.last_peek = Instant::now();
+                <span class="comment">// We use the next project fetch to debounce project fetching and avoid head of
+                // line blocking of non-ready stacks.
+                </span>stack.next_project_fetch = Instant::now() + next_fetch;
             });
     }
 
@@ -1493,7 +1505,7 @@
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), EnvelopeBufferError&gt; {
         <span class="kw">let </span>received_at = envelope
             .as_ref()
-            .map_or(Instant::now(), |e| e.meta().start_time());
+            .map_or(Instant::now(), |e| e.meta().start_time().into());
 
         <span class="kw">let </span><span class="kw-2">mut </span>stack = <span class="self">self
             </span>.stack_provider
@@ -1593,7 +1605,7 @@
 </span><span class="kw">pub enum </span>Peek&lt;<span class="lifetime">'a</span>&gt; {
     Empty,
     Ready(<span class="kw-2">&amp;</span><span class="lifetime">'a </span>Envelope),
-    NotReady(ProjectKeyPair, <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Envelope),
+    NotReady(ProjectKeyPair, Instant, <span class="kw-2">&amp;</span><span class="lifetime">'a </span>Envelope),
 }
 
 <span class="attr">#[derive(Debug)]
@@ -1626,7 +1638,7 @@
 </span><span class="kw">struct </span>Priority {
     readiness: Readiness,
     received_at: Instant,
-    last_peek: Instant,
+    next_project_fetch: Instant,
 }
 
 <span class="kw">impl </span>Priority {
@@ -1634,7 +1646,7 @@
         <span class="self">Self </span>{
             readiness: Readiness::new(),
             received_at,
-            last_peek: Instant::now(),
+            next_project_fetch: Instant::now(),
         }
     }
 }
@@ -1651,8 +1663,8 @@
             <span class="comment">// For non-ready stacks, we invert the priority, such that projects that are not
             // ready and did not receive envelopes recently can be evicted.
             </span>(<span class="bool-val">false</span>, <span class="bool-val">false</span>) =&gt; <span class="self">self
-                </span>.last_peek
-                .cmp(<span class="kw-2">&amp;</span>other.last_peek)
+                </span>.next_project_fetch
+                .cmp(<span class="kw-2">&amp;</span>other.next_project_fetch)
                 .reverse()
                 .then(<span class="self">self</span>.received_at.cmp(<span class="kw-2">&amp;</span>other.received_at).reverse()),
         }
@@ -1718,19 +1730,19 @@
         <span class="kw">fn </span>envelope(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Envelope&gt; {
             <span class="kw">match </span><span class="self">self </span>{
                 Peek::Empty =&gt; <span class="prelude-val">None</span>,
-                Peek::Ready(envelope) | Peek::NotReady(<span class="kw">_</span>, envelope) =&gt; <span class="prelude-val">Some</span>(envelope),
+                Peek::Ready(envelope) | Peek::NotReady(<span class="kw">_</span>, <span class="kw">_</span>, envelope) =&gt; <span class="prelude-val">Some</span>(envelope),
             }
         }
     }
 
     <span class="kw">fn </span>new_envelope(
-        project_key: ProjectKey,
+        own_key: ProjectKey,
         sampling_key: <span class="prelude-ty">Option</span>&lt;ProjectKey&gt;,
         event_id: <span class="prelude-ty">Option</span>&lt;EventId&gt;,
     ) -&gt; Box&lt;Envelope&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(
             <span class="prelude-val">None</span>,
-            RequestMeta::new(Dsn::from_str(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"http://{project_key}@localhost/1"</span>)).unwrap()),
+            RequestMeta::new(Dsn::from_str(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"http://{own_key}@localhost/1"</span>)).unwrap()),
         );
         <span class="kw">if let </span><span class="prelude-val">Some</span>(sampling_key) = sampling_key {
             envelope.set_dsc(DynamicSamplingContext {
@@ -2064,10 +2076,10 @@
                 sampling_project_ready: <span class="bool-val">true</span>,
             },
             received_at: Instant::now(),
-            last_peek: Instant::now(),
+            next_project_fetch: Instant::now(),
         };
         <span class="kw">let </span><span class="kw-2">mut </span>p2 = p1.clone();
-        p2.last_peek += Duration::from_millis(<span class="number">1</span>);
+        p2.next_project_fetch += Duration::from_millis(<span class="number">1</span>);
 
         <span class="comment">// Last peek does not matter because project is ready:
         </span><span class="macro">assert_eq!</span>(p1.cmp(<span class="kw-2">&amp;</span>p2), Ordering::Equal);
@@ -2090,34 +2102,34 @@
         buffer.push(envelope2).<span class="kw">await</span>.unwrap();
 
         <span class="comment">// event_id_1 is first element:
-        </span><span class="kw">let </span>Peek::NotReady(<span class="kw">_</span>, envelope) = buffer.peek().<span class="kw">await</span>.unwrap() <span class="kw">else </span>{
+        </span><span class="kw">let </span>Peek::NotReady(<span class="kw">_</span>, <span class="kw">_</span>, envelope) = buffer.peek().<span class="kw">await</span>.unwrap() <span class="kw">else </span>{
             <span class="macro">panic!</span>();
         };
         <span class="macro">assert_eq!</span>(envelope.event_id(), <span class="prelude-val">Some</span>(event_id_1));
 
         <span class="comment">// Second peek returns same element:
-        </span><span class="kw">let </span>Peek::NotReady(stack_key, envelope) = buffer.peek().<span class="kw">await</span>.unwrap() <span class="kw">else </span>{
+        </span><span class="kw">let </span>Peek::NotReady(stack_key, <span class="kw">_</span>, envelope) = buffer.peek().<span class="kw">await</span>.unwrap() <span class="kw">else </span>{
             <span class="macro">panic!</span>();
         };
         <span class="macro">assert_eq!</span>(envelope.event_id(), <span class="prelude-val">Some</span>(event_id_1));
 
-        buffer.mark_seen(<span class="kw-2">&amp;</span>stack_key);
+        buffer.mark_seen(<span class="kw-2">&amp;</span>stack_key, Duration::ZERO);
 
         <span class="comment">// After mark_seen, event 2 is on top:
-        </span><span class="kw">let </span>Peek::NotReady(<span class="kw">_</span>, envelope) = buffer.peek().<span class="kw">await</span>.unwrap() <span class="kw">else </span>{
+        </span><span class="kw">let </span>Peek::NotReady(<span class="kw">_</span>, <span class="kw">_</span>, envelope) = buffer.peek().<span class="kw">await</span>.unwrap() <span class="kw">else </span>{
             <span class="macro">panic!</span>();
         };
         <span class="macro">assert_eq!</span>(envelope.event_id(), <span class="prelude-val">Some</span>(event_id_2));
 
-        <span class="kw">let </span>Peek::NotReady(stack_key, envelope) = buffer.peek().<span class="kw">await</span>.unwrap() <span class="kw">else </span>{
+        <span class="kw">let </span>Peek::NotReady(stack_key, <span class="kw">_</span>, envelope) = buffer.peek().<span class="kw">await</span>.unwrap() <span class="kw">else </span>{
             <span class="macro">panic!</span>();
         };
         <span class="macro">assert_eq!</span>(envelope.event_id(), <span class="prelude-val">Some</span>(event_id_2));
 
-        buffer.mark_seen(<span class="kw-2">&amp;</span>stack_key);
+        buffer.mark_seen(<span class="kw-2">&amp;</span>stack_key, Duration::ZERO);
 
         <span class="comment">// After another mark_seen, cycle back to event 1:
-        </span><span class="kw">let </span>Peek::NotReady(<span class="kw">_</span>, envelope) = buffer.peek().<span class="kw">await</span>.unwrap() <span class="kw">else </span>{
+        </span><span class="kw">let </span>Peek::NotReady(<span class="kw">_</span>, <span class="kw">_</span>, envelope) = buffer.peek().<span class="kw">await</span>.unwrap() <span class="kw">else </span>{
             <span class="macro">panic!</span>();
         };
         <span class="macro">assert_eq!</span>(envelope.event_id(), <span class="prelude-val">Some</span>(event_id_1));

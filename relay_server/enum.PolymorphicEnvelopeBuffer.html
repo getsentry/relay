@@ -26,7 +26,11 @@ depending on the given configuration.</p>
 </div></details><details class="toggle method-toggle" open><summary><section id="method.mark_ready" class="method"><a class="src rightside" href="../src/relay_server/services/buffer/envelope_buffer/mod.rs.html#117-122">source</a><h4 class="code-header">pub fn <a href="#method.mark_ready" class="fn">mark_ready</a>(&amp;mut self, project: &amp;<a class="struct" href="../relay_base_schema/project/struct.ProjectKey.html" title="struct relay_base_schema::project::ProjectKey">ProjectKey</a>, is_ready: <a class="primitive" href="https://doc.rust-lang.org/1.81.0/std/primitive.bool.html">bool</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.81.0/std/primitive.bool.html">bool</a></h4></section></summary><div class="docblock"><p>Marks a project as ready or not ready.</p>
 <p>The buffer re-prioritizes its envelopes based on this information.
 Returns <code>true</code> if at least one priority was changed.</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.mark_seen" class="method"><a class="src rightside" href="../src/relay_server/services/buffer/envelope_buffer/mod.rs.html#129-134">source</a><h4 class="code-header">pub fn <a href="#method.mark_seen" class="fn">mark_seen</a>(&amp;mut self, project_key_pair: &amp;ProjectKeyPair)</h4></section></summary><div class="docblock"><p>Marks a stack as seen.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.mark_seen" class="method"><a class="src rightside" href="../src/relay_server/services/buffer/envelope_buffer/mod.rs.html#129-134">source</a><h4 class="code-header">pub fn <a href="#method.mark_seen" class="fn">mark_seen</a>(
+    &amp;mut self,
+    project_key_pair: &amp;ProjectKeyPair,
+    next_fetch: <a class="struct" href="https://doc.rust-lang.org/1.81.0/core/time/struct.Duration.html" title="struct core::time::Duration">Duration</a>,
+)</h4></section></summary><div class="docblock"><p>Marks a stack as seen.</p>
 <p>Non-ready stacks are deprioritized when they are marked as seen, such that
 the next call to <code>.peek()</code> will look at a different stack. This prevents
 head-of-line blocking.</p>

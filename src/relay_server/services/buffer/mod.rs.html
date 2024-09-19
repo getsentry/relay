@@ -624,6 +624,42 @@
 <a href="#624" id="624">624</a>
 <a href="#625" id="625">625</a>
 <a href="#626" id="626">626</a>
+<a href="#627" id="627">627</a>
+<a href="#628" id="628">628</a>
+<a href="#629" id="629">629</a>
+<a href="#630" id="630">630</a>
+<a href="#631" id="631">631</a>
+<a href="#632" id="632">632</a>
+<a href="#633" id="633">633</a>
+<a href="#634" id="634">634</a>
+<a href="#635" id="635">635</a>
+<a href="#636" id="636">636</a>
+<a href="#637" id="637">637</a>
+<a href="#638" id="638">638</a>
+<a href="#639" id="639">639</a>
+<a href="#640" id="640">640</a>
+<a href="#641" id="641">641</a>
+<a href="#642" id="642">642</a>
+<a href="#643" id="643">643</a>
+<a href="#644" id="644">644</a>
+<a href="#645" id="645">645</a>
+<a href="#646" id="646">646</a>
+<a href="#647" id="647">647</a>
+<a href="#648" id="648">648</a>
+<a href="#649" id="649">649</a>
+<a href="#650" id="650">650</a>
+<a href="#651" id="651">651</a>
+<a href="#652" id="652">652</a>
+<a href="#653" id="653">653</a>
+<a href="#654" id="654">654</a>
+<a href="#655" id="655">655</a>
+<a href="#656" id="656">656</a>
+<a href="#657" id="657">657</a>
+<a href="#658" id="658">658</a>
+<a href="#659" id="659">659</a>
+<a href="#660" id="660">660</a>
+<a href="#661" id="661">661</a>
+<a href="#662" id="662">662</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Types for buffering envelopes.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -638,7 +674,7 @@
 <span class="kw">use </span>relay_system::{Addr, FromMessage, Interface, NoResponse, Receiver, Service};
 <span class="kw">use </span>relay_system::{Controller, Shutdown};
 <span class="kw">use </span>tokio::sync::watch;
-<span class="kw">use </span>tokio::time::timeout;
+<span class="kw">use </span>tokio::time::{timeout, Instant};
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::Envelope;
 <span class="kw">use </span><span class="kw">crate</span>::services::buffer::envelope_buffer::Peek;
@@ -863,25 +899,35 @@
                 <span class="self">self</span>.services.project_cache.send(DequeuedEnvelope(envelope));
                 <span class="self">self</span>.sleep = Duration::ZERO; <span class="comment">// try next pop immediately
             </span>}
-            Peek::NotReady(stack_key, envelope) =&gt; {
-                <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService: project(s) of envelope not ready, requesting project update"</span>);
+            Peek::NotReady(stack_key, next_peek, envelope) =&gt; {
+                <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService: project(s) of envelope not ready"</span>);
                 <span class="macro">relay_statsd::metric!</span>(
                     counter(RelayCounters::BufferTryPop) += <span class="number">1</span>,
                     peek_result = <span class="string">"not_ready"
                 </span>);
-                <span class="kw">let </span>project_key = envelope.meta().public_key();
-                <span class="self">self</span>.services.project_cache.send(UpdateProject(project_key));
-                <span class="kw">match </span>envelope.sampling_key() {
-                    <span class="prelude-val">None </span>=&gt; {}
-                    <span class="prelude-val">Some</span>(sampling_key) <span class="kw">if </span>sampling_key == project_key =&gt; {} <span class="comment">// already sent.
-                    </span><span class="prelude-val">Some</span>(sampling_key) =&gt; {
-                        <span class="self">self</span>.services
-                            .project_cache
-                            .send(UpdateProject(sampling_key));
+
+                <span class="comment">// We want to fetch the configs again, only if some time passed between the last
+                // peek of this not ready project key pair and the current peek. This is done to
+                // avoid flooding the project cache with `UpdateProject` messages.
+                </span><span class="kw">if </span>Instant::now() &gt;= next_peek {
+                    <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService: requesting project(s) update"</span>);
+                    <span class="kw">let </span>project_key = envelope.meta().public_key();
+                    <span class="self">self</span>.services.project_cache.send(UpdateProject(project_key));
+                    <span class="kw">match </span>envelope.sampling_key() {
+                        <span class="prelude-val">None </span>=&gt; {}
+                        <span class="prelude-val">Some</span>(sampling_key) <span class="kw">if </span>sampling_key == project_key =&gt; {} <span class="comment">// already sent.
+                        </span><span class="prelude-val">Some</span>(sampling_key) =&gt; {
+                            <span class="self">self</span>.services
+                                .project_cache
+                                .send(UpdateProject(sampling_key));
+                        }
                     }
+
+                    <span class="comment">// Deprioritize the stack to prevent head-of-line blocking and update the next fetch
+                    // time.
+                    </span>buffer.mark_seen(<span class="kw-2">&amp;</span>stack_key, DEFAULT_SLEEP);
                 }
-                <span class="comment">// deprioritize the stack to prevent head-of-line blocking
-                </span>buffer.mark_seen(<span class="kw-2">&amp;</span>stack_key);
+
                 <span class="self">self</span>.sleep = DEFAULT_SLEEP;
             }
         }
@@ -1248,6 +1294,32 @@
         <span class="kw">let </span>outcome = outcome_aggregator_rx.try_recv().unwrap();
         <span class="macro">assert_eq!</span>(outcome.category, DataCategory::TransactionIndexed);
         <span class="macro">assert_eq!</span>(outcome.quantity, <span class="number">1</span>);
+    }
+
+    <span class="attr">#[tokio::test]
+    </span><span class="kw">async fn </span>test_update_project() {
+        tokio::time::pause();
+        <span class="kw">let </span>(service, global_tx, project_cache_rx, <span class="kw">_</span>) = buffer_service();
+
+        <span class="kw">let </span>addr = service.start();
+
+        global_tx.send_replace(global_config::Status::Ready(Arc::new(
+            GlobalConfig::default(),
+        )));
+
+        <span class="kw">let </span>envelope = new_envelope(<span class="bool-val">false</span>, <span class="string">"foo"</span>);
+
+        addr.send(EnvelopeBuffer::Push(envelope.clone()));
+
+        tokio::time::sleep(Duration::from_secs(<span class="number">1</span>)).<span class="kw">await</span>;
+
+        <span class="comment">// We expect the project update request to be sent.
+        </span><span class="macro">assert_eq!</span>(project_cache_rx.len(), <span class="number">1</span>);
+
+        tokio::time::sleep(Duration::from_secs(<span class="number">1</span>)).<span class="kw">await</span>;
+
+        <span class="comment">// We expect the project update request to be sent again because 1 second passed.
+        </span><span class="macro">assert_eq!</span>(project_cache_rx.len(), <span class="number">2</span>);
     }
 }
 </code></pre></div></section></main></body></html>
