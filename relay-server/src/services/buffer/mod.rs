@@ -260,11 +260,12 @@ impl EnvelopeBufferService {
                                 .send(UpdateProject(sampling_key));
                         }
                     }
+
+                    // Deprioritize the stack to prevent head-of-line blocking and update the next fetch
+                    // time.
+                    buffer.mark_seen(&stack_key, DEFAULT_SLEEP);
                 }
 
-                // Deprioritize the stack to prevent head-of-line blocking and update the next fetch
-                // time.
-                buffer.mark_seen(&stack_key, DEFAULT_SLEEP);
                 self.sleep = DEFAULT_SLEEP;
             }
         }
