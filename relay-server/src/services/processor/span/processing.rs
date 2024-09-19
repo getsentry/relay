@@ -500,25 +500,27 @@ fn normalize(
         return Err(ProcessingError::NoEventPayload);
     };
 
-    if let Some(data) = span.data.value_mut() {
-        // Replace {{auto}} IPs:
-        if let Some(client_ip) = client_ip.as_ref() {
-            if let Some(ip) = data.client_address.value_mut().as_mut() {
-                if ip.is_auto() {
-                    *ip = client_ip.clone();
-                }
-            }
+    // Replace missing / {{auto}} IPs:
+    // Transaction and error events require an explicit `{{auto}}` to derive the IP, but
+    // for spans we derive it by default:
+    if let Some(client_ip) = client_ip.as_ref() {
+        let ip = span.data.value().and_then(|d| d.client_address.value());
+        if ip.map_or(true, |ip| ip.is_auto()) {
+            span.data
+                .get_or_insert_with(Default::default)
+                .client_address = Annotated::new(client_ip.clone());
         }
+    }
 
-        // Derive geo ip:
-        if let Some(geoip_lookup) = geo_lookup {
-            if let Some(ip) = data.client_address.value() {
-                if let Ok(Some(geo)) = geoip_lookup.lookup(ip.as_str()) {
-                    data.user_geo_city = geo.city;
-                    data.user_geo_country_code = geo.country_code;
-                    data.user_geo_region = geo.region;
-                    data.user_geo_subdivision = geo.subdivision;
-                }
+    // Derive geo ip:
+    if let Some(geoip_lookup) = geo_lookup {
+        let data = span.data.get_or_insert_with(Default::default);
+        if let Some(ip) = data.client_address.value() {
+            if let Ok(Some(geo)) = geoip_lookup.lookup(ip.as_str()) {
+                data.user_geo_city = geo.city;
+                data.user_geo_country_code = geo.country_code;
+                data.user_geo_region = geo.region;
+                data.user_geo_subdivision = geo.subdivision;
             }
         }
     }
@@ -1111,6 +1113,10 @@ mod tests {
 
         normalize(&mut span, normalize_config()).unwrap();
 
+        assert_eq!(
+            get_value!(span.data.client_address!).as_str(),
+            "2.125.160.216"
+        );
         assert_eq!(get_value!(span.data.user_geo_city!), "Boxford");
     }
 
@@ -1131,6 +1137,31 @@ mod tests {
 
         normalize(&mut span, normalize_config()).unwrap();
 
+        assert_eq!(
+            get_value!(span.data.client_address!).as_str(),
+            "2.125.160.216"
+        );
+        assert_eq!(get_value!(span.data.user_geo_city!), "Boxford");
+    }
+
+    #[test]
+    fn user_ip_from_client_ip_with_missing() {
+        let mut span = Annotated::from_json(
+            r#"{
+            "start_timestamp": 0,
+            "timestamp": 1,
+            "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+            "span_id": "922dda2462ea4ac2"
+        }"#,
+        )
+        .unwrap();
+
+        normalize(&mut span, normalize_config()).unwrap();
+
+        assert_eq!(
+            get_value!(span.data.client_address!).as_str(),
+            "2.125.160.216"
+        );
         assert_eq!(get_value!(span.data.user_geo_city!), "Boxford");
     }
 }
