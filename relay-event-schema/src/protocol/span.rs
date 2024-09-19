@@ -356,13 +356,13 @@ pub struct SpanData {
 
     /// User email address.
     ///
-    /// https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/
+    /// <https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/>
     #[metastructure(field = "user.email")]
     pub user_email: Annotated<String>,
 
     /// User’s full name.
     ///
-    /// https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/
+    /// <https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/>
     #[metastructure(field = "user.full_name")]
     pub user_full_name: Annotated<String>,
 
@@ -392,25 +392,25 @@ pub struct SpanData {
 
     /// Unique user hash to correlate information for a user in anonymized form.
     ///
-    /// https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/
+    /// <https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/>
     #[metastructure(field = "user.hash")]
     pub user_hash: Annotated<String>,
 
     /// Unique identifier of the user.
     ///
-    /// https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/
+    /// <https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/>
     #[metastructure(field = "user.id")]
     pub user_id: Annotated<String>,
 
     /// Short name or login/username of the user.
     ///
-    /// https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/
+    /// <https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/>
     #[metastructure(field = "user.name")]
     pub user_name: Annotated<String>,
 
     /// Array of user roles at the time of the event.
     ///
-    /// https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/
+    /// <https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/>
     #[metastructure(field = "user.roles")]
     pub user_roles: Annotated<Array<String>>,
 
