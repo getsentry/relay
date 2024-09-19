@@ -306,9 +306,9 @@ impl EnvelopeBufferService {
                     "EnvelopeBufferService: received project not ready message for project key {}",
                     &project_key
                 );
-                buffer.mark_ready(&project_key, false);
                 relay_statsd::metric!(counter(RelayCounters::BufferEnvelopesReturned) += 1);
                 self.push(buffer, envelope).await;
+                buffer.mark_ready(&project_key, false);
             }
             EnvelopeBuffer::Ready(project_key) => {
                 relay_log::trace!(
@@ -637,7 +637,7 @@ mod tests {
     #[tokio::test]
     async fn test_update_project() {
         tokio::time::pause();
-        let (service, global_tx, project_cache_rx, _) = buffer_service();
+        let (service, global_tx, mut project_cache_rx, _) = buffer_service();
 
         let addr = service.start();
 
@@ -646,17 +646,35 @@ mod tests {
         )));
 
         let envelope = new_envelope(false, "foo");
+        let project_key = envelope.meta().public_key();
 
         addr.send(EnvelopeBuffer::Push(envelope.clone()));
 
         tokio::time::sleep(Duration::from_secs(1)).await;
 
         // We expect the project update request to be sent.
+        let Some(ProjectCache::HandleDequeuedEnvelope(envelope, _)) = project_cache_rx.recv().await
+        else {
+            panic!();
+        };
+
+        addr.send(EnvelopeBuffer::NotReady(project_key, envelope));
+
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
         assert_eq!(project_cache_rx.len(), 1);
+        let message = project_cache_rx.recv().await;
+        assert!(matches!(
+            message,
+            Some(ProjectCache::UpdateProject(key)) if key == project_key
+        ));
 
         tokio::time::sleep(Duration::from_secs(1)).await;
 
-        // We expect the project update request to be sent again because 1 second passed.
-        assert_eq!(project_cache_rx.len(), 2);
+        assert_eq!(project_cache_rx.len(), 1);
+        assert!(matches!(
+            message,
+            Some(ProjectCache::UpdateProject(key)) if key == project_key
+        ))
     }
 }

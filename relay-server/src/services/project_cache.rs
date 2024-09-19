@@ -160,6 +160,7 @@ impl ValidateEnvelope {
     }
 }
 
+#[derive(Debug)]
 pub struct UpdateRateLimits {
     project_key: ProjectKey,
     rate_limits: RateLimits,
@@ -233,6 +234,7 @@ pub struct AddMetricMeta {
 /// This message is sent from the project buffer in case of the error while fetching the data from
 /// the persistent buffer, ensuring that we still have the index pointing to the keys, which could be found in the
 /// persistent storage.
+#[derive(Debug)]
 pub struct UpdateSpoolIndex(pub HashSet<QueueKey>);
 
 impl UpdateSpoolIndex {
@@ -276,6 +278,7 @@ pub struct UpdateProject(pub ProjectKey);
 /// associated with a project.
 ///
 /// See the enumerated variants for a full list of available messages for this service.
+#[derive(Debug)]
 pub enum ProjectCache {
     RequestUpdate(RequestUpdate),
     Get(GetProjectState, ProjectSender),
