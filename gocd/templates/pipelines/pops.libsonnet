@@ -25,6 +25,7 @@ local region_pops = {
     'us-pop-regional-3',
     'us-pop-regional-4',
   ],
+  s4s: [],
 };
 
 // The purpose of this stage is to let the deployment soak for a while and
@@ -189,6 +190,7 @@ local deploy_pops_stage(region) =
     },
   } {
     'deploy-primary'+: {
+      fetch_materials: true,
       jobs+: deploy_jobs(
         [region] + region_pops[region],
         deploy_pop_job,
@@ -213,6 +215,9 @@ local deployment_stages(region) =
   if region == 'us' || region == 'de' then
     // The canary stage is only for the US and DE regions
     [deploy_canary_pops_stage(region), deploy_pops_stage(region)]
+  else if region == 's4s' then
+    // We still want to create a sentry release for s4s
+    [deploy_pops_stage(region)]
   else
     [deploy_generic_pops_stage(region)];
 
