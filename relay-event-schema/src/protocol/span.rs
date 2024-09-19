@@ -412,7 +412,7 @@ pub struct SpanData {
     ///
     /// https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/
     #[metastructure(field = "user.roles")]
-    pub user_roles: Array<String>,
+    pub user_roles: Annotated<Array<String>>,
 
     /// Replay ID
     #[metastructure(field = "sentry.replay.id", legacy_alias = "replay_id")]

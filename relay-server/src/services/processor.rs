@@ -1866,7 +1866,7 @@ impl EnvelopeProcessorService {
         if_processing!(self.inner.config, {
             let global_config = self.inner.global_config.current();
 
-            span::process(state, &global_config);
+            span::process(state, &global_config, self.inner.geoip_lookup.as_ref());
 
             self.enforce_quotas(state)?;
         });

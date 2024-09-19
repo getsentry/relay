@@ -146,27 +146,6 @@ macro_rules! get_value {
     }};
 }
 
-#[macro_export]
-macro_rules! get_value_mut {
-    (@access $root:ident,) => {};
-    (@access $root:ident, !) => {
-        let $root = $root.unwrap();
-    };
-    (@access $root:ident, . $field:ident $( $tail:tt )*) => {
-        let $root = $root.and_then(|v| v.$field.value_mut().as_mut());
-        get_value_mut!(@access $root, $($tail)*);
-    };
-    (@access $root:ident, [ $index:literal ] $( $tail:tt )*) => {
-        let $root = $root.and_then(|v| v.get($index)).and_then(|a| a.value_mut());
-        get_value!(@access $root, $($tail)*);
-    };
-    ($root:ident $( $tail:tt )*) => {{
-        let $root = $root.value_mut();
-        $crate::get_value_mut!(@access $root, $($tail)*);
-        $root
-    }};
-}
-
 /// Derives the [`FromValue`], [`IntoValue`], and [`Empty`] traits using the string representation.
 ///
 /// Requires that this type implements `FromStr` and `Display`. Implements the following traits:

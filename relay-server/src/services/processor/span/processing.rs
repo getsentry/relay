@@ -16,15 +16,15 @@ use relay_event_normalization::{
     TransactionsProcessor,
 };
 use relay_event_normalization::{
-    normalize_transaction_name, ClientHints, FromUserAgentInfo, ModelCosts, SchemaProcessor,
-    TimestampProcessor, TransactionNameRule, TrimmingProcessor,
+    normalize_transaction_name, ClientHints, FromUserAgentInfo, GeoIpLookup, ModelCosts,
+    SchemaProcessor, TimestampProcessor, TransactionNameRule, TrimmingProcessor,
 };
 use relay_event_schema::processor::{process_value, ProcessingState};
-use relay_event_schema::protocol::{BrowserContext, Span, SpanData};
+use relay_event_schema::protocol::{BrowserContext, IpAddr, Span, SpanData};
 use relay_log::protocol::{Attachment, AttachmentType};
 use relay_metrics::{MetricNamespace, UnixTimestamp};
 use relay_pii::PiiProcessor;
-use relay_protocol::{get_path, get_value, get_value_mut, Annotated, Empty};
+use relay_protocol::{Annotated, Empty};
 use relay_quotas::DataCategory;
 use relay_spans::otel_trace::Span as OtelSpan;
 use thiserror::Error;
@@ -42,7 +42,11 @@ use crate::utils::{sample, ItemAction, ManagedEnvelope};
 #[error(transparent)]
 struct ValidationError(#[from] anyhow::Error);
 
-pub fn process(state: &mut ProcessEnvelopeState<SpanGroup>, global_config: &GlobalConfig) {
+pub fn process(
+    state: &mut ProcessEnvelopeState<SpanGroup>,
+    global_config: &GlobalConfig,
+    geo_lookup: Option<&GeoIpLookup>,
+) {
     use relay_event_normalization::RemoveOtherProcessor;
 
     // We only implement trace-based sampling rules for now, which can be computed
@@ -58,6 +62,8 @@ pub fn process(state: &mut ProcessEnvelopeState<SpanGroup>, global_config: &Glob
         global_config,
         state.project_state.config(),
         &state.managed_envelope,
+        state.envelope().meta().client_addr().map(IpAddr::from),
+        geo_lookup,
     );
 
     let client_ip = state.managed_envelope.envelope().meta().client_addr();
@@ -352,6 +358,13 @@ struct NormalizeSpanConfig<'a> {
     allowed_hosts: &'a [String],
     /// Whether or not to scrub MongoDB span descriptions during normalization.
     scrub_mongo_description: ScrubMongoDescription,
+    /// The IP address of the SDK that sent the event.
+    ///
+    /// When `{{auto}}` is specified and there is no other IP address in the payload, such as in the
+    /// `request` context, this IP address gets added to `span.data.client_address`.
+    client_ip: Option<IpAddr>,
+    /// An initialized GeoIP lookup.
+    geo_lookup: Option<&'a GeoIpLookup>,
 }
 
 impl<'a> NormalizeSpanConfig<'a> {
@@ -360,6 +373,8 @@ impl<'a> NormalizeSpanConfig<'a> {
         global_config: &'a GlobalConfig,
         project_config: &'a ProjectConfig,
         managed_envelope: &ManagedEnvelope,
+        client_ip: Option<IpAddr>,
+        geo_lookup: Option<&'a GeoIpLookup>,
     ) -> Self {
         let aggregator_config = config.aggregator_config_for(MetricNamespace::Spans);
 
@@ -397,6 +412,8 @@ impl<'a> NormalizeSpanConfig<'a> {
             } else {
                 ScrubMongoDescription::Disabled
             },
+            client_ip,
+            geo_lookup,
         }
     }
 }
@@ -450,6 +467,8 @@ fn normalize(
         client_hints,
         allowed_hosts,
         scrub_mongo_description,
+        client_ip,
+        geo_lookup,
     } = config;
 
     set_segment_attributes(annotated_span);
@@ -483,19 +502,23 @@ fn normalize(
 
     if let Some(data) = span.data.value_mut() {
         // Replace {{auto}} IPs:
-        if let Some(client_ip) = config.client_ip {
-            if let Some(ip) = get_value_mut!(data.client_address) {
-                // TODO: is {{ auto }} set automatically for events?
+        if let Some(client_ip) = client_ip.as_ref() {
+            if let Some(ip) = data.client_address.value_mut().as_mut() {
                 if ip.is_auto() {
-                    config.client_ip.clone_into(ip);
+                    *ip = client_ip.clone();
                 }
             }
         }
 
         // Derive geo ip:
-        if let Some(ip) = get_value!(annotated_span.data.client_address) {
-            if let Ok(Some(geo)) = geoip_lookup.lookup(ip.as_str()) {
-                data.user_geo = geo;
+        if let Some(geoip_lookup) = geo_lookup {
+            if let Some(ip) = data.client_address.value() {
+                if let Ok(Some(geo)) = geoip_lookup.lookup(ip.as_str()) {
+                    data.user_geo_city = geo.city;
+                    data.user_geo_country_code = geo.country_code;
+                    data.user_geo_region = geo.region;
+                    data.user_geo_subdivision = geo.subdivision;
+                }
             }
         }
     }
@@ -681,6 +704,7 @@ mod tests {
     use std::sync::Arc;
 
     use bytes::Bytes;
+    use insta::assert_debug_snapshot;
     use relay_base_schema::project::ProjectId;
     use relay_event_schema::protocol::{
         Context, ContextInner, SpanId, Timestamp, TraceContext, TraceId,
@@ -1041,4 +1065,79 @@ mod tests {
         assert_eq!(get_value!(span.data.user_agent_original), None);
         assert_eq!(get_value!(span.data.browser_name!), "Opera");
     }
+
+    #[test]
+    fn user_ip_from_client_ip_without_auto() {
+        let mut span = Annotated::from_json(
+            r#"{
+            "start_timestamp": 0,
+            "timestamp": 1,
+            "trace_id": "1",
+            "span_id": "1",
+            "data": {
+                "client_address": "2.125.160.216"
+            }
+        }"#,
+        )
+        .unwrap();
+
+        let geo_lookup = GeoIpLookup::open(
+            "../relay-event-normalization/tests/fixtures/GeoIP2-Enterprise-Test.mmdb",
+        )
+        .unwrap();
+
+        normalize(
+            &mut span,
+            NormalizeSpanConfig {
+                received_at: DateTime::from_timestamp_nanos(0),
+                timestamp_range: UnixTimestamp::from_datetime(DateTime::<Utc>::MIN_UTC).unwrap()
+                    ..UnixTimestamp::from_datetime(DateTime::<Utc>::MAX_UTC).unwrap(),
+                max_tag_value_size: 200,
+                performance_score: None,
+                measurements: None,
+                ai_model_costs: None,
+                max_name_and_unit_len: 200,
+                tx_name_rules: &[],
+                user_agent: None,
+                client_hints: ClientHints::default(),
+                allowed_hosts: &[],
+                scrub_mongo_description: ScrubMongoDescription::Disabled,
+                client_ip: None,
+                geo_lookup: Some(&geo_lookup),
+            },
+        )
+        .unwrap();
+
+        assert_debug_snapshot!(span, @"");
+    }
+
+    // #[test]
+    // fn user_ip_from_client_ip_with_auto() {
+    //     let span = Annotated::from_json(
+    //         r#"{
+    //         "data": {
+    //             "client_address": "{{auto}}",
+    //         }
+    //     }"#,
+    //     )
+    //     .unwrap();
+
+    //     let ip_address = IpAddr::parse("2.125.160.216").unwrap();
+
+    //     let geo = GeoIpLookup::open("tests/fixtures/GeoIP2-Enterprise-Test.mmdb").unwrap();
+    //     normalize_event(
+    //         &mut event,
+    //         &NormalizationConfig {
+    //             client_ip: Some(&ip_address),
+    //             geoip_lookup: Some(&geo),
+    //             ..Default::default()
+    //         },
+    //     );
+
+    //     let user = get_value!(event.user!);
+    //     let ip_addr = user.ip_address.value().expect("ip address missing");
+
+    //     assert_eq!(ip_addr, &IpAddr("2.125.160.216".to_string()));
+    //     assert!(user.geo.value().is_some());
+    // }
 }
