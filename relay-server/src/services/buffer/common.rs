@@ -1,5 +1,4 @@
 use relay_base_schema::project::ProjectKey;
-use std::time::Instant;
 
 use crate::Envelope;
 
@@ -30,32 +29,5 @@ impl ProjectKeyPair {
             sampling_key,
         } = self;
         std::iter::once(*own_key).chain((own_key != sampling_key).then_some(*sampling_key))
-    }
-}
-
-pub struct ProjectKeyPairFetch {
-    own_project_next_fetch: Option<Instant>,
-    sampling_project_next_fetch: Option<Instant>,
-}
-
-impl ProjectKeyPairFetch {
-    pub fn new(
-        own_project_next_fetch: Option<Instant>,
-        sampling_project_next_fetch: Option<Instant>,
-    ) -> Self {
-        Self {
-            own_project_next_fetch,
-            sampling_project_next_fetch,
-        }
-    }
-
-    pub fn fetch_own_project_key(&self) -> bool {
-        self.own_project_next_fetch
-            .map_or(false, |n| Instant::now() >= n)
-    }
-
-    pub fn fetch_sampling_project_key(&self) -> bool {
-        self.sampling_project_next_fetch
-            .map_or(false, |n| Instant::now() >= n)
     }
 }
