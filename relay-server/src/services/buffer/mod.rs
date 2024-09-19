@@ -237,7 +237,7 @@ impl EnvelopeBufferService {
                 self.services.project_cache.send(DequeuedEnvelope(envelope));
                 self.sleep = Duration::ZERO; // try next pop immediately
             }
-            Peek::NotReady(stack_key, next_peek, envelope) => {
+            Peek::NotReady(stack_key, next_project_fetch, envelope) => {
                 relay_log::trace!("EnvelopeBufferService: project(s) of envelope not ready");
                 relay_statsd::metric!(
                     counter(RelayCounters::BufferTryPop) += 1,
@@ -247,7 +247,7 @@ impl EnvelopeBufferService {
                 // We want to fetch the configs again, only if some time passed between the last
                 // peek of this not ready project key pair and the current peek. This is done to
                 // avoid flooding the project cache with `UpdateProject` messages.
-                if Instant::now() >= next_peek {
+                if Instant::now() >= next_project_fetch {
                     relay_log::trace!("EnvelopeBufferService: requesting project(s) update");
                     let project_key = envelope.meta().public_key();
                     self.services.project_cache.send(UpdateProject(project_key));

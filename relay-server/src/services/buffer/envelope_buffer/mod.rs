@@ -292,7 +292,7 @@ where
             },
             Priority {
                 readiness,
-                next_project_fetch: next_peek,
+                next_project_fetch,
                 ..
             },
         )) = self.priority_queue.peek_mut()
@@ -305,7 +305,7 @@ where
         Ok(match (stack.peek().await?, ready) {
             (None, _) => Peek::Empty,
             (Some(envelope), true) => Peek::Ready(envelope),
-            (Some(envelope), false) => Peek::NotReady(*stack_key, *next_peek, envelope),
+            (Some(envelope), false) => Peek::NotReady(*stack_key, *next_project_fetch, envelope),
         })
     }
 
@@ -607,9 +607,11 @@ struct Readiness {
 
 impl Readiness {
     fn new() -> Self {
+        // Optimistically set ready state to true.
+        // The large majority of stack creations are re-creations after a stack was emptied.
         Self {
-            own_project_ready: false,
-            sampling_project_ready: false,
+            own_project_ready: true,
+            sampling_project_ready: true,
         }
     }
 
