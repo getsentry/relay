@@ -8,10 +8,9 @@ use std::time::Duration;
 
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
-use relay_system::SendError;
-use relay_system::{Addr, FromMessage, Interface, NoResponse, Receiver, Service};
+use relay_system::{Addr, FromMessage, Interface, NoResponse, Receiver, SendError, Service};
 use relay_system::{Controller, Shutdown};
-use tokio::sync::watch;
+use tokio::sync::{mpsc, watch};
 use tokio::time::{timeout, Instant};
 
 use crate::envelope::Envelope;
@@ -21,9 +20,8 @@ use crate::services::outcome::DiscardReason;
 use crate::services::outcome::Outcome;
 use crate::services::outcome::TrackOutcome;
 use crate::services::processor::ProcessingGroup;
-use crate::services::project_cache::DequeuedEnvelope;
 use crate::services::project_cache::ProjectCache;
-use crate::services::project_cache::UpdateProject;
+
 use crate::services::test_store::TestStore;
 use crate::statsd::RelayCounters;
 use crate::utils::ManagedEnvelope;
@@ -96,7 +94,7 @@ impl ObservableEnvelopeBuffer {
 
 /// Services that the buffer service communicates with.
 pub struct Services {
-    pub project_cache: Addr<ProjectCache>,
+    pub project_cache: mpsc::Sender<ProjectCache>,
     pub outcome_aggregator: Addr<TrackOutcome>,
     pub test_store: Addr<TestStore>,
 }
@@ -149,10 +147,7 @@ impl EnvelopeBufferService {
     }
 
     /// Wait for the configured amount of time and make sure the project cache is ready to receive.
-    async fn ready_to_pop(
-        &mut self,
-        buffer: &mut PolymorphicEnvelopeBuffer,
-    ) -> Result<(), SendError> {
+    async fn ready_to_pop(&mut self, buffer: &PolymorphicEnvelopeBuffer) -> Result<(), SendError> {
         relay_statsd::metric!(
             counter(RelayCounters::BufferReadyToPop) += 1,
             status = "checking"
@@ -169,14 +164,13 @@ impl EnvelopeBufferService {
             tokio::time::sleep(self.sleep).await;
         }
 
-        relay_statsd::metric!(
-            counter(RelayCounters::BufferReadyToPop) += 1,
-            status = "slept"
-        );
+        while self.services.project_cache.capacity() == 0 {
+            tokio::time::sleep(Duration::from_millis(1)).await;
+        }
 
         relay_statsd::metric!(
             counter(RelayCounters::BufferReadyToPop) += 1,
-            status = "checked"
+            status = "acquired"
         );
 
         Ok(())
@@ -234,7 +228,17 @@ impl EnvelopeBufferService {
                     .pop()
                     .await?
                     .expect("Element disappeared despite exclusive excess");
-                self.services.project_cache.send(DequeuedEnvelope(envelope));
+                if let Err(error) = self
+                    .services
+                    .project_cache
+                    .send(ProjectCache::HandleDequeuedEnvelope(envelope))
+                    .await
+                {
+                    relay_log::error!(
+                        error = &error as &dyn Error,
+                        "the envelope buffer couldn't send an envelope to the project cache",
+                    );
+                };
                 self.sleep = Duration::ZERO; // try next pop immediately
             }
             Peek::NotReady(stack_key, next_project_fetch, envelope) => {
@@ -249,15 +253,23 @@ impl EnvelopeBufferService {
                 // avoid flooding the project cache with `UpdateProject` messages.
                 if Instant::now() >= next_project_fetch {
                     relay_log::trace!("EnvelopeBufferService: requesting project(s) update");
-                    let project_key = envelope.meta().public_key();
-                    self.services.project_cache.send(UpdateProject(project_key));
+                    let own_key = envelope.meta().public_key();
+
+                    // TODO: do we want to handle an error?
+                    let _ = self
+                        .services
+                        .project_cache
+                        .send(ProjectCache::UpdateProject(own_key))
+                        .await;
                     match envelope.sampling_key() {
                         None => {}
-                        Some(sampling_key) if sampling_key == project_key => {} // already sent.
+                        Some(sampling_key) if sampling_key == own_key => {} // already sent.
                         Some(sampling_key) => {
-                            self.services
+                            let _ = self
+                                .services
                                 .project_cache
-                                .send(UpdateProject(sampling_key));
+                                .send(ProjectCache::UpdateProject(sampling_key))
+                                .await;
                         }
                     }
 
@@ -397,7 +409,7 @@ impl Service for EnvelopeBufferService {
                     // On the one hand, we might want to prioritize dequeuing over enqueuing
                     // so we do not exceed the buffer capacity by starving the dequeue.
                     // on the other hand, prioritizing old messages violates the LIFO design.
-                    Ok(()) = self.ready_to_pop(&mut buffer) => {
+                    Ok(_) = self.ready_to_pop(&buffer) => {
                         if let Err(e) = self.try_pop(&mut buffer).await {
                             relay_log::error!(
                                 error = &e as &dyn std::error::Error,
@@ -447,7 +459,7 @@ mod tests {
     fn buffer_service() -> (
         EnvelopeBufferService,
         watch::Sender<global_config::Status>,
-        mpsc::UnboundedReceiver<ProjectCache>,
+        mpsc::Receiver<ProjectCache>,
         mpsc::UnboundedReceiver<TrackOutcome>,
     ) {
         let config = Arc::new(
@@ -462,7 +474,7 @@ mod tests {
         );
         let memory_checker = MemoryChecker::new(MemoryStat::default(), config.clone());
         let (global_tx, global_rx) = watch::channel(global_config::Status::Pending);
-        let (project_cache, project_cache_rx) = Addr::custom();
+        let (project_cache, project_cache_rx) = mpsc::channel(5);
         let (outcome_aggregator, outcome_aggregator_rx) = Addr::custom();
         (
             EnvelopeBufferService::new(
@@ -470,7 +482,7 @@ mod tests {
                 memory_checker,
                 global_rx,
                 Services {
-                    project_cache,
+                    project_cache: project_cache,
                     outcome_aggregator,
                     test_store: Addr::dummy(),
                 },
@@ -506,8 +518,9 @@ mod tests {
 
     #[tokio::test]
     async fn pop_requires_global_config() {
+        relay_log::init_test!();
         tokio::time::pause();
-        let (service, global_tx, project_cache_rx, _) = buffer_service();
+        let (service, global_tx, mut project_cache_rx, _) = buffer_service();
 
         let addr = service.start();
 
@@ -555,13 +568,13 @@ mod tests {
             GlobalConfig::default(),
         )));
 
-        let (project_cache, project_cache_rx) = Addr::custom();
+        let (project_cache, project_cache_rx) = mpsc::channel(20);
         let service = EnvelopeBufferService::new(
             config,
             memory_checker,
             global_rx,
             Services {
-                project_cache,
+                project_cache: project_cache,
                 outcome_aggregator: Addr::dummy(),
                 test_store: Addr::dummy(),
             },
@@ -598,14 +611,14 @@ mod tests {
         );
         let memory_checker = MemoryChecker::new(MemoryStat::default(), config.clone());
         let (global_tx, global_rx) = watch::channel(global_config::Status::Pending);
-        let (project_cache, project_cache_rx) = Addr::custom();
+        let (project_cache, project_cache_rx) = mpsc::channel(20);
         let (outcome_aggregator, mut outcome_aggregator_rx) = Addr::custom();
         let service = EnvelopeBufferService::new(
             config,
             memory_checker,
             global_rx,
             Services {
-                project_cache,
+                project_cache: project_cache,
                 outcome_aggregator,
                 test_store: Addr::dummy(),
             },
@@ -653,7 +666,7 @@ mod tests {
         tokio::time::sleep(Duration::from_secs(1)).await;
 
         // We expect the project update request to be sent.
-        let Some(ProjectCache::HandleDequeuedEnvelope(envelope, _)) = project_cache_rx.recv().await
+        let Some(ProjectCache::HandleDequeuedEnvelope(envelope)) = project_cache_rx.recv().await
         else {
             panic!();
         };

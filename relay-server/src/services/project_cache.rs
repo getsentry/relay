@@ -295,7 +295,7 @@ pub enum ProjectCache {
     UpdateSpoolIndex(UpdateSpoolIndex),
     SpoolHealth(Sender<bool>),
     RefreshIndexCache(RefreshIndexCache),
-    HandleDequeuedEnvelope(Box<Envelope>, Sender<()>),
+    HandleDequeuedEnvelope(Box<Envelope>),
     UpdateProject(ProjectKey),
 }
 
@@ -314,7 +314,7 @@ impl ProjectCache {
             Self::UpdateSpoolIndex(_) => "UpdateSpoolIndex",
             Self::SpoolHealth(_) => "SpoolHealth",
             Self::RefreshIndexCache(_) => "RefreshIndexCache",
-            Self::HandleDequeuedEnvelope(_, _) => "HandleDequeuedEnvelope",
+            Self::HandleDequeuedEnvelope(_) => "HandleDequeuedEnvelope",
             Self::UpdateProject(_) => "UpdateProject",
         }
     }
@@ -422,11 +422,11 @@ impl FromMessage<SpoolHealth> for ProjectCache {
 }
 
 impl FromMessage<DequeuedEnvelope> for ProjectCache {
-    type Response = relay_system::AsyncResponse<()>;
+    type Response = relay_system::NoResponse;
 
-    fn from_message(message: DequeuedEnvelope, sender: Sender<()>) -> Self {
+    fn from_message(message: DequeuedEnvelope, _: ()) -> Self {
         let DequeuedEnvelope(envelope) = message;
-        Self::HandleDequeuedEnvelope(envelope, sender)
+        Self::HandleDequeuedEnvelope(envelope)
     }
 }
 
@@ -1308,7 +1308,7 @@ impl ProjectCacheBroker {
                     ProjectCache::RefreshIndexCache(message) => {
                         self.handle_refresh_index_cache(message)
                     }
-                    ProjectCache::HandleDequeuedEnvelope(message, sender) => {
+                    ProjectCache::HandleDequeuedEnvelope(message) => {
                         let envelope_buffer = self
                             .services
                             .envelope_buffer
@@ -1321,8 +1321,6 @@ impl ProjectCacheBroker {
                                 "Failed to handle popped envelope"
                             );
                         }
-                        // Return response to signal readiness for next envelope:
-                        sender.send(())
                     }
                     ProjectCache::UpdateProject(project) => self.handle_update_project(project),
                 }
@@ -1338,6 +1336,7 @@ pub struct ProjectCacheService {
     memory_checker: MemoryChecker,
     services: Services,
     global_config_rx: watch::Receiver<global_config::Status>,
+    project_cache_bounded_rx: mpsc::Receiver<ProjectCache>,
     redis: Option<RedisPool>,
 }
 
@@ -1348,6 +1347,7 @@ impl ProjectCacheService {
         memory_checker: MemoryChecker,
         services: Services,
         global_config_rx: watch::Receiver<global_config::Status>,
+        project_cache_bounded_rx: mpsc::Receiver<ProjectCache>,
         redis: Option<RedisPool>,
     ) -> Self {
         Self {
@@ -1355,6 +1355,7 @@ impl ProjectCacheService {
             memory_checker,
             services,
             global_config_rx,
+            project_cache_bounded_rx,
             redis,
         }
     }
@@ -1369,6 +1370,7 @@ impl Service for ProjectCacheService {
             memory_checker,
             services,
             mut global_config_rx,
+            mut project_cache_bounded_rx,
             redis,
         } = self;
         let project_cache = services.project_cache.clone();
@@ -1487,6 +1489,12 @@ impl Service for ProjectCacheService {
                     () = &mut broker.spool_v1_unspool_handle => {
                         metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "periodic_unspool", {
                             broker.handle_periodic_unspool()
+                        })
+                    }
+                    // TODO: this prioritization might stab us in the back.
+                    Some(message) = project_cache_bounded_rx.recv() => {
+                        metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "handle_message_from_bounded", {
+                            broker.handle_message(message)
                         })
                     }
                     Some(message) = rx.recv() => {

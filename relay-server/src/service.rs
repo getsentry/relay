@@ -5,17 +5,6 @@ use std::time::Duration;
 
 use crate::metrics::{MetricOutcomes, MetricStats};
 use crate::services::buffer::{self, EnvelopeBufferService, ObservableEnvelopeBuffer};
-use crate::services::stats::RelayStats;
-use anyhow::{Context, Result};
-use axum::extract::FromRequestParts;
-use axum::http::request::Parts;
-use rayon::ThreadPool;
-use relay_cogs::Cogs;
-use relay_config::{Config, RedisConnection, RedisPoolConfigs};
-use relay_redis::{RedisConfigOptions, RedisError, RedisPool, RedisPools};
-use relay_system::{channel, Addr, Service};
-use tokio::runtime::Runtime;
-
 use crate::services::cogs::{CogsService, CogsServiceRecorder};
 use crate::services::global_config::{GlobalConfigManager, GlobalConfigService};
 use crate::services::health_check::{HealthCheck, HealthCheckService};
@@ -25,11 +14,22 @@ use crate::services::outcome_aggregator::OutcomeAggregator;
 use crate::services::processor::{self, EnvelopeProcessor, EnvelopeProcessorService};
 use crate::services::project_cache::{ProjectCache, ProjectCacheService, Services};
 use crate::services::relays::{RelayCache, RelayCacheService};
+use crate::services::stats::RelayStats;
 #[cfg(feature = "processing")]
 use crate::services::store::StoreService;
 use crate::services::test_store::{TestStore, TestStoreService};
 use crate::services::upstream::{UpstreamRelay, UpstreamRelayService};
 use crate::utils::{MemoryChecker, MemoryStat};
+use anyhow::{Context, Result};
+use axum::extract::FromRequestParts;
+use axum::http::request::Parts;
+use rayon::ThreadPool;
+use relay_cogs::Cogs;
+use relay_config::{Config, RedisConnection, RedisPoolConfigs};
+use relay_redis::{RedisConfigOptions, RedisError, RedisPool, RedisPools};
+use relay_system::{channel, Addr, Service};
+use tokio::runtime::Runtime;
+use tokio::sync::mpsc;
 
 /// Indicates the type of failure of the server.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, thiserror::Error)]
@@ -241,12 +241,13 @@ impl ServiceState {
         )
         .spawn_handler(processor_rx);
 
+        let (project_cache_bounded_tx, project_cache_bounded_rx) = mpsc::channel(500);
         let envelope_buffer = EnvelopeBufferService::new(
             config.clone(),
             MemoryChecker::new(memory_stat.clone(), config.clone()),
             global_config_rx.clone(),
             buffer::Services {
-                project_cache: project_cache.clone(),
+                project_cache: project_cache_bounded_tx,
                 outcome_aggregator: outcome_aggregator.clone(),
                 test_store: test_store.clone(),
             },
@@ -269,6 +270,7 @@ impl ServiceState {
             MemoryChecker::new(memory_stat.clone(), config.clone()),
             project_cache_services,
             global_config_rx,
+            project_cache_bounded_rx,
             redis_pools
                 .as_ref()
                 .map(|pools| pools.project_configs.clone()),
