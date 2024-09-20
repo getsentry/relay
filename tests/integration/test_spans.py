@@ -871,6 +871,7 @@ def test_span_ingestion_with_performance_scores(
         {
             "data": {
                 "browser.name": "Python Requests",
+                "client.address": "127.0.0.1",
                 "user_agent.original": "python-requests/2.32.2",
             },
             "duration_ms": 1500,
@@ -910,6 +911,7 @@ def test_span_ingestion_with_performance_scores(
         {
             "data": {
                 "browser.name": "Python Requests",
+                "client.address": "127.0.0.1",
                 "sentry.replay.id": "8477286c8e5148b386b71ade38374d58",
                 "sentry.segment.name": "/page/with/click/interaction/*/*",
                 "user": "admin@sentry.io",
