@@ -1326,6 +1326,7 @@ pub struct ProjectCacheService {
     memory_checker: MemoryChecker,
     services: Services,
     global_config_rx: watch::Receiver<global_config::Status>,
+    /// Bounded channel used exclusively to receive envelopes from the envelope buffer.
     envelopes_rx: mpsc::Receiver<DequeuedEnvelope>,
     redis: Option<RedisPool>,
 }
