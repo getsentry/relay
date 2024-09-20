@@ -5745,7 +5745,7 @@
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
             <span class="kw">let </span>global_config = <span class="self">self</span>.inner.global_config.current();
 
-            span::process(state, <span class="kw-2">&amp;</span>global_config);
+            span::process(state, <span class="kw-2">&amp;</span>global_config, <span class="self">self</span>.inner.geoip_lookup.as_ref());
 
             <span class="self">self</span>.enforce_quotas(state)<span class="question-mark">?</span>;
         });
