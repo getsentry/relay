@@ -188,7 +188,7 @@ impl Processor for TransactionsProcessor<'_> {
     }
 }
 
-/// TODO: docs
+/// Rules used to infer `span.op` from other span fields.
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
 pub struct SpanOpDefaults {
     rules: Vec<SpanOpDefaultRule>,
@@ -203,7 +203,7 @@ impl SpanOpDefaults {
     }
 }
 
-/// TODO: docs
+/// Borrowed version of [`SpanOpDefaults`].
 #[derive(Clone, Debug, Default)]
 pub struct BorrowedSpanOpDefaults<'a> {
     rules: &'a [SpanOpDefaultRule],
@@ -224,9 +224,8 @@ impl BorrowedSpanOpDefaults<'_> {
     }
 }
 
-/// TODO: docs
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-pub struct SpanOpDefaultRule {
+struct SpanOpDefaultRule {
     condition: RuleCondition,
     value: String,
 }
@@ -396,7 +395,6 @@ fn scrub_identifiers_with_regex(
 
 #[cfg(test)]
 mod tests {
-
     use chrono::{Duration, TimeZone, Utc};
     use insta::assert_debug_snapshot;
     use itertools::Itertools;
@@ -404,6 +402,7 @@ mod tests {
     use relay_event_schema::processor::process_value;
     use relay_event_schema::protocol::{ClientSdkInfo, Contexts, SpanId, TraceId};
     use relay_protocol::{assert_annotated_snapshot, get_value};
+    use serde_json::json;
 
     use crate::validation::validate_event;
     use crate::{EventValidationConfig, RedactionRule};
@@ -1686,5 +1685,56 @@ mod tests {
         range: None,
     },
 ]"#);
+    }
+
+    #[test]
+    fn test_infer_span_op_default() {
+        let span = Annotated::from_json(r#"{}"#).unwrap();
+        let defaults: SpanOpDefaults = serde_json::from_value(json!({
+                "rules": [{
+                    "condition": {
+                        "op": "not",
+                        "inner": {
+                            "op": "eq",
+                            "name": "span.data.messaging\\.system",
+                            "value": null,
+                        },
+                    },
+                    "value": "message"
+                }]
+            }
+        ))
+        .unwrap();
+        let op = defaults.borrow().infer(span.value().unwrap());
+        assert_eq!(&op, "default");
+    }
+
+    #[test]
+    fn test_infer_span_op_messaging() {
+        let span = Annotated::from_json(
+            r#"{
+            "data": {
+                "messaging.system": "activemq"
+            }
+        }"#,
+        )
+        .unwrap();
+        let defaults: SpanOpDefaults = serde_json::from_value(json!({
+                "rules": [{
+                    "condition": {
+                        "op": "not",
+                        "inner": {
+                            "op": "eq",
+                            "name": "span.data.messaging\\.system",
+                            "value": null,
+                        },
+                    },
+                    "value": "message"
+                }]
+            }
+        ))
+        .unwrap();
+        let op = defaults.borrow().infer(span.value().unwrap());
+        assert_eq!(&op, "message");
     }
 }
