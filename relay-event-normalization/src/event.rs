@@ -249,8 +249,8 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     // TODO: Parts of this processor should probably be a filter so we
     // can revert some changes to ProcessingAction)
     let mut transactions_processor = transactions::TransactionsProcessor::new(
-        config.transaction_name_config.clone(),
-        config.span_op_defaults.clone(),
+        config.transaction_name_config,
+        config.span_op_defaults,
     );
     let _ = transactions_processor.process_event(event, meta, ProcessingState::root());
 

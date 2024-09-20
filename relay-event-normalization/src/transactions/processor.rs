@@ -14,7 +14,7 @@ use crate::regexes::TRANSACTION_NAME_NORMALIZER_REGEX;
 use crate::TransactionNameRule;
 
 /// Configuration for sanitizing unparameterized transaction names.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct TransactionNameConfig<'r> {
     /// Rules for identifier replacement that were discovered by Sentry's transaction clusterer.
     pub rules: &'r [TransactionNameRule],
@@ -191,7 +191,8 @@ impl Processor for TransactionsProcessor<'_> {
 /// Rules used to infer `span.op` from other span fields.
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
 pub struct SpanOpDefaults {
-    rules: Vec<SpanOpDefaultRule>,
+    /// List of rules to apply. First match wins.
+    pub rules: Vec<SpanOpDefaultRule>,
 }
 
 impl SpanOpDefaults {
@@ -204,7 +205,7 @@ impl SpanOpDefaults {
 }
 
 /// Borrowed version of [`SpanOpDefaults`].
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct BorrowedSpanOpDefaults<'a> {
     rules: &'a [SpanOpDefaultRule],
 }
@@ -224,10 +225,13 @@ impl BorrowedSpanOpDefaults<'_> {
     }
 }
 
+/// A rule to infer [`Span::op`] from other span fields.
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
-struct SpanOpDefaultRule {
-    condition: RuleCondition,
-    value: String,
+pub struct SpanOpDefaultRule {
+    /// When to set the given value.
+    pub condition: RuleCondition,
+    /// Value for the [`Span::op`]. Only set if omitted by the SDK.
+    pub value: String,
 }
 
 /// Span status codes for the Ruby Rack integration that indicate raw URLs being sent as
