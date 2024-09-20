@@ -236,6 +236,8 @@ impl EnvelopeBufferService {
                     .expect("Element disappeared despite exclusive excess");
 
                 Self::drop_expired(envelope, services);
+
+                sleep = Duration::ZERO; // try next pop immediately
             }
             Peek::Ready(_) => {
                 relay_log::trace!("EnvelopeBufferService: popping envelope");
