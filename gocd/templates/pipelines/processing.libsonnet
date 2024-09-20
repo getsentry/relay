@@ -17,7 +17,7 @@ local soak_time(region) =
                 DATADOG_API_KEY: '{{SECRET:[devinfra][sentry_datadog_api_key]}}',
                 DATADOG_APP_KEY: '{{SECRET:[devinfra][sentry_datadog_app_key]}}',
                 // Datadog monitor IDs for the soak time
-                DATADOG_MONITOR_IDS: '14146876',
+                DATADOG_MONITOR_IDS: '14146876 154096671 154096678',
                 // Sentry projects to check for errors <project_id>:<project_slug>:<service>
                 SENTRY_PROJECTS: if region == 's4s' then '1513938:sentry-for-sentry:relay' else '4:relay:relay 9:pop-relay:relay-pop',
                 SENTRY_SINGLE_TENANT: if region == 's4s' then 'true' else 'false',
@@ -79,7 +79,7 @@ local deploy_canary(region) =
                 DATADOG_API_KEY: '{{SECRET:[devinfra][sentry_datadog_api_key]}}',
                 DATADOG_APP_KEY: '{{SECRET:[devinfra][sentry_datadog_app_key]}}',
                 // Datadog monitor IDs for the canary deployment
-                DATADOG_MONITOR_IDS: '14146876',
+                DATADOG_MONITOR_IDS: '14146876 154096671',
                 // Sentry projects to check for errors <project_id>:<project_slug>:<service>
                 SENTRY_PROJECTS: '4:relay:relay 9:pop-relay:relay-pop',
                 SENTRY_SINGLE_TENANT: 'false',
