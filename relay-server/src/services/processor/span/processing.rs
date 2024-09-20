@@ -16,11 +16,11 @@ use relay_event_normalization::{
     TransactionsProcessor,
 };
 use relay_event_normalization::{
-    normalize_transaction_name, ClientHints, FromUserAgentInfo, ModelCosts, SchemaProcessor,
-    TimestampProcessor, TransactionNameRule, TrimmingProcessor,
+    normalize_transaction_name, ClientHints, FromUserAgentInfo, GeoIpLookup, ModelCosts,
+    SchemaProcessor, TimestampProcessor, TransactionNameRule, TrimmingProcessor,
 };
 use relay_event_schema::processor::{process_value, ProcessingState};
-use relay_event_schema::protocol::{BrowserContext, Span, SpanData};
+use relay_event_schema::protocol::{BrowserContext, IpAddr, Span, SpanData};
 use relay_log::protocol::{Attachment, AttachmentType};
 use relay_metrics::{MetricNamespace, UnixTimestamp};
 use relay_pii::PiiProcessor;
@@ -42,7 +42,11 @@ use crate::utils::{sample, ItemAction, ManagedEnvelope};
 #[error(transparent)]
 struct ValidationError(#[from] anyhow::Error);
 
-pub fn process(state: &mut ProcessEnvelopeState<SpanGroup>, global_config: &GlobalConfig) {
+pub fn process(
+    state: &mut ProcessEnvelopeState<SpanGroup>,
+    global_config: &GlobalConfig,
+    geo_lookup: Option<&GeoIpLookup>,
+) {
     use relay_event_normalization::RemoveOtherProcessor;
 
     // We only implement trace-based sampling rules for now, which can be computed
@@ -58,6 +62,8 @@ pub fn process(state: &mut ProcessEnvelopeState<SpanGroup>, global_config: &Glob
         global_config,
         state.project_state.config(),
         &state.managed_envelope,
+        state.envelope().meta().client_addr().map(IpAddr::from),
+        geo_lookup,
     );
 
     let client_ip = state.managed_envelope.envelope().meta().client_addr();
@@ -352,6 +358,13 @@ struct NormalizeSpanConfig<'a> {
     allowed_hosts: &'a [String],
     /// Whether or not to scrub MongoDB span descriptions during normalization.
     scrub_mongo_description: ScrubMongoDescription,
+    /// The IP address of the SDK that sent the event.
+    ///
+    /// When `{{auto}}` is specified and there is no other IP address in the payload, such as in the
+    /// `request` context, this IP address gets added to `span.data.client_address`.
+    client_ip: Option<IpAddr>,
+    /// An initialized GeoIP lookup.
+    geo_lookup: Option<&'a GeoIpLookup>,
 }
 
 impl<'a> NormalizeSpanConfig<'a> {
@@ -360,6 +373,8 @@ impl<'a> NormalizeSpanConfig<'a> {
         global_config: &'a GlobalConfig,
         project_config: &'a ProjectConfig,
         managed_envelope: &ManagedEnvelope,
+        client_ip: Option<IpAddr>,
+        geo_lookup: Option<&'a GeoIpLookup>,
     ) -> Self {
         let aggregator_config = config.aggregator_config_for(MetricNamespace::Spans);
 
@@ -397,6 +412,8 @@ impl<'a> NormalizeSpanConfig<'a> {
             } else {
                 ScrubMongoDescription::Disabled
             },
+            client_ip,
+            geo_lookup,
         }
     }
 }
@@ -450,13 +467,13 @@ fn normalize(
         client_hints,
         allowed_hosts,
         scrub_mongo_description,
+        client_ip,
+        geo_lookup,
     } = config;
 
     set_segment_attributes(annotated_span);
 
-    // This follows the steps of `NormalizeProcessor::process_event`.
-    // Ideally, `NormalizeProcessor` would execute these steps generically, i.e. also when calling
-    // `process` on it.
+    // This follows the steps of `event::normalize`.
 
     process_value(
         annotated_span,
@@ -482,6 +499,31 @@ fn normalize(
     let Some(span) = annotated_span.value_mut() else {
         return Err(ProcessingError::NoEventPayload);
     };
+
+    // Replace missing / {{auto}} IPs:
+    // Transaction and error events require an explicit `{{auto}}` to derive the IP, but
+    // for spans we derive it by default:
+    if let Some(client_ip) = client_ip.as_ref() {
+        let ip = span.data.value().and_then(|d| d.client_address.value());
+        if ip.map_or(true, |ip| ip.is_auto()) {
+            span.data
+                .get_or_insert_with(Default::default)
+                .client_address = Annotated::new(client_ip.clone());
+        }
+    }
+
+    // Derive geo ip:
+    if let Some(geoip_lookup) = geo_lookup {
+        let data = span.data.get_or_insert_with(Default::default);
+        if let Some(ip) = data.client_address.value() {
+            if let Ok(Some(geo)) = geoip_lookup.lookup(ip.as_str()) {
+                data.user_geo_city = geo.city;
+                data.user_geo_country_code = geo.country_code;
+                data.user_geo_region = geo.region;
+                data.user_geo_subdivision = geo.subdivision;
+            }
+        }
+    }
 
     populate_ua_fields(span, user_agent.as_deref(), client_hints.as_deref());
 
@@ -664,6 +706,7 @@ mod tests {
     use std::sync::Arc;
 
     use bytes::Bytes;
+    use once_cell::sync::Lazy;
     use relay_base_schema::project::ProjectId;
     use relay_event_schema::protocol::{
         Context, ContextInner, SpanId, Timestamp, TraceContext, TraceId,
@@ -1023,5 +1066,102 @@ mod tests {
         );
         assert_eq!(get_value!(span.data.user_agent_original), None);
         assert_eq!(get_value!(span.data.browser_name!), "Opera");
+    }
+
+    static GEO_LOOKUP: Lazy<GeoIpLookup> = Lazy::new(|| {
+        GeoIpLookup::open("../relay-event-normalization/tests/fixtures/GeoIP2-Enterprise-Test.mmdb")
+            .unwrap()
+    });
+
+    fn normalize_config() -> NormalizeSpanConfig<'static> {
+        NormalizeSpanConfig {
+            received_at: DateTime::from_timestamp_nanos(0),
+            timestamp_range: UnixTimestamp::from_datetime(
+                DateTime::<Utc>::from_timestamp_millis(1000).unwrap(),
+            )
+            .unwrap()
+                ..UnixTimestamp::from_datetime(DateTime::<Utc>::MAX_UTC).unwrap(),
+            max_tag_value_size: 200,
+            performance_score: None,
+            measurements: None,
+            ai_model_costs: None,
+            max_name_and_unit_len: 200,
+            tx_name_rules: &[],
+            user_agent: None,
+            client_hints: ClientHints::default(),
+            allowed_hosts: &[],
+            scrub_mongo_description: ScrubMongoDescription::Disabled,
+            client_ip: Some(IpAddr("2.125.160.216".to_owned())),
+            geo_lookup: Some(&GEO_LOOKUP),
+        }
+    }
+
+    #[test]
+    fn user_ip_from_client_ip_without_auto() {
+        let mut span = Annotated::from_json(
+            r#"{
+            "start_timestamp": 0,
+            "timestamp": 1,
+            "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+            "span_id": "922dda2462ea4ac2",
+            "data": {
+                "client.address": "2.125.160.216"
+            }
+        }"#,
+        )
+        .unwrap();
+
+        normalize(&mut span, normalize_config()).unwrap();
+
+        assert_eq!(
+            get_value!(span.data.client_address!).as_str(),
+            "2.125.160.216"
+        );
+        assert_eq!(get_value!(span.data.user_geo_city!), "Boxford");
+    }
+
+    #[test]
+    fn user_ip_from_client_ip_with_auto() {
+        let mut span = Annotated::from_json(
+            r#"{
+            "start_timestamp": 0,
+            "timestamp": 1,
+            "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+            "span_id": "922dda2462ea4ac2",
+            "data": {
+                "client.address": "{{auto}}"
+            }
+        }"#,
+        )
+        .unwrap();
+
+        normalize(&mut span, normalize_config()).unwrap();
+
+        assert_eq!(
+            get_value!(span.data.client_address!).as_str(),
+            "2.125.160.216"
+        );
+        assert_eq!(get_value!(span.data.user_geo_city!), "Boxford");
+    }
+
+    #[test]
+    fn user_ip_from_client_ip_with_missing() {
+        let mut span = Annotated::from_json(
+            r#"{
+            "start_timestamp": 0,
+            "timestamp": 1,
+            "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+            "span_id": "922dda2462ea4ac2"
+        }"#,
+        )
+        .unwrap();
+
+        normalize(&mut span, normalize_config()).unwrap();
+
+        assert_eq!(
+            get_value!(span.data.client_address!).as_str(),
+            "2.125.160.216"
+        );
+        assert_eq!(get_value!(span.data.user_geo_city!), "Boxford");
     }
 }
