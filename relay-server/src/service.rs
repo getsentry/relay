@@ -242,7 +242,7 @@ impl ServiceState {
         )
         .spawn_handler(processor_rx);
 
-        let (envelopes_tx, envelopes_rx) = mpsc::channel(500);
+        let (envelopes_tx, envelopes_rx) = mpsc::channel(config.spool_max_backpressure_envelopes());
         let envelope_buffer = EnvelopeBufferService::new(
             config.clone(),
             MemoryChecker::new(memory_stat.clone(), config.clone()),

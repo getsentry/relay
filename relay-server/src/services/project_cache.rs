@@ -255,6 +255,7 @@ pub struct SpoolHealth;
 pub struct RefreshIndexCache(pub HashSet<QueueKey>);
 
 /// Handle an envelope that was popped from the envelope buffer.
+#[derive(Debug)]
 pub struct DequeuedEnvelope(pub Box<Envelope>);
 
 /// A request to update a project, typically sent by the envelope buffer.

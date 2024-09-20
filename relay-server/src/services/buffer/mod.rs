@@ -211,7 +211,7 @@ impl EnvelopeBufferService {
     async fn try_pop<'a>(
         config: &Config,
         buffer: &mut PolymorphicEnvelopeBuffer,
-        services: Services,
+        services: &Services,
         envelopes_tx_permit: Permit<'a, DequeuedEnvelope>,
     ) -> Result<Duration, EnvelopeBufferError> {
         relay_log::trace!("EnvelopeBufferService: peeking the buffer");
@@ -291,7 +291,7 @@ impl EnvelopeBufferService {
         envelope.meta().start_time().elapsed() > config.spool_envelopes_max_age()
     }
 
-    fn drop_expired(envelope: Box<Envelope>, services: Services) {
+    fn drop_expired(envelope: Box<Envelope>, services: &Services) {
         let mut managed_envelope = ManagedEnvelope::new(
             envelope,
             services.outcome_aggregator.clone(),
@@ -375,6 +375,7 @@ impl Service for EnvelopeBufferService {
         let memory_checker = self.memory_checker.clone();
         let mut global_config_rx = self.global_config_rx.clone();
         let services = self.services.clone();
+
         tokio::spawn(async move {
             let buffer = PolymorphicEnvelopeBuffer::from_config(&config, memory_checker).await;
 
@@ -405,7 +406,7 @@ impl Service for EnvelopeBufferService {
                     // so we do not exceed the buffer capacity by starving the dequeue.
                     // on the other hand, prioritizing old messages violates the LIFO design.
                     Some(permit) = self.ready_to_pop(&buffer) => {
-                        match Self::try_pop(&config, &mut buffer, services.clone(), permit).await {
+                        match Self::try_pop(&config, &mut buffer, &services, permit).await {
                             Ok(new_sleep) => {
                                 sleep = new_sleep;
                             }
@@ -430,7 +431,7 @@ impl Service for EnvelopeBufferService {
                     }
                     _ = global_config_rx.changed() => {
                         relay_log::trace!("EnvelopeBufferService: received global config");
-                        sleep = Duration::ZERO; // Try to pop
+                        sleep = Duration::ZERO;
                     }
                     else => break,
                 }
@@ -724,6 +725,19 @@ mod tests {
             addr.send(EnvelopeBuffer::Push(envelope.clone()));
         }
         addr.send(EnvelopeBuffer::Ready(project_key));
+
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        let mut messages = vec![];
+        envelopes_rx.recv_many(&mut messages, 100).await;
+
+        assert_eq!(
+            messages
+                .iter()
+                .filter(|message| matches!(message, DequeuedEnvelope(..)))
+                .count(),
+            5
+        );
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
