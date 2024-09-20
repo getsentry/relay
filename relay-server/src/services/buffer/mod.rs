@@ -705,4 +705,36 @@ mod tests {
             Some(ProjectCache::UpdateProject(key)) if key == project_key
         ))
     }
+
+    #[tokio::test]
+    async fn output_is_throttled() {
+        tokio::time::pause();
+        let (service, global_tx, mut envelopes_rx, _project_cache_rx, _) = buffer_service();
+        global_tx.send_replace(global_config::Status::Ready(Arc::new(
+            GlobalConfig::default(),
+        )));
+
+        let addr = service.start();
+
+        // Send 10 messages, with a bounded queue size of 5.
+        let envelope = new_envelope(false, "foo");
+        let project_key = envelope.meta().public_key();
+        for _ in 0..10 {
+            addr.send(EnvelopeBuffer::Push(envelope.clone()));
+        }
+        addr.send(EnvelopeBuffer::Ready(project_key));
+
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        let mut messages = vec![];
+        envelopes_rx.recv_many(&mut messages, 100).await;
+
+        assert_eq!(
+            messages
+                .iter()
+                .filter(|message| matches!(message, DequeuedEnvelope(..)))
+                .count(),
+            5
+        );
+    }
 }
