@@ -487,7 +487,7 @@ mod tests {
                 memory_checker,
                 global_rx,
                 Services {
-                    project_cache: project_cache,
+                    project_cache,
                     outcome_aggregator,
                     test_store: Addr::dummy(),
                 },
@@ -525,7 +525,7 @@ mod tests {
     async fn pop_requires_global_config() {
         relay_log::init_test!();
         tokio::time::pause();
-        let (service, global_tx, mut project_cache_rx, _) = buffer_service();
+        let (service, global_tx, project_cache_rx, _) = buffer_service();
 
         let addr = service.start();
 
@@ -579,7 +579,7 @@ mod tests {
             memory_checker,
             global_rx,
             Services {
-                project_cache: project_cache,
+                project_cache,
                 outcome_aggregator: Addr::dummy(),
                 test_store: Addr::dummy(),
             },
@@ -623,7 +623,7 @@ mod tests {
             memory_checker,
             global_rx,
             Services {
-                project_cache: project_cache,
+                project_cache,
                 outcome_aggregator,
                 test_store: Addr::dummy(),
             },
