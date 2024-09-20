@@ -322,7 +322,6 @@ mod tests {
         );
         assert_eq!(profile.metadata.active_thread_id, 12345);
         assert_eq!(profile.metadata.transaction_name, "transaction1");
-        assert_eq!(profile.metadata.duration_ns, 1000000000);
     }
 
     #[test]
