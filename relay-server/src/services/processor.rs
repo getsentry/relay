@@ -1610,6 +1610,7 @@ impl EnvelopeProcessorService {
                 } else {
                     ScrubMongoDescription::Disabled
                 },
+                span_op_defaults: global_config.span_op_defaults.borrow(),
             };
 
             metric!(timer(RelayTimers::EventProcessingNormalization), {

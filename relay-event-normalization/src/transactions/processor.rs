@@ -7,7 +7,8 @@ use relay_event_schema::processor::{
     self, ProcessValue, ProcessingResult, ProcessingState, Processor,
 };
 use relay_event_schema::protocol::{Event, Span, SpanStatus, TraceContext, TransactionSource};
-use relay_protocol::{Annotated, Meta, Remark, RemarkType};
+use relay_protocol::{Annotated, Meta, Remark, RemarkType, RuleCondition};
+use serde::{Deserialize, Serialize};
 
 use crate::regexes::TRANSACTION_NAME_NORMALIZER_REGEX;
 use crate::TransactionNameRule;
@@ -76,12 +77,27 @@ pub fn apply_transaction_rename_rules(
 #[derive(Debug, Default)]
 pub struct TransactionsProcessor<'r> {
     name_config: TransactionNameConfig<'r>,
+    span_op_defaults: BorrowedSpanOpDefaults<'r>,
 }
 
 impl<'r> TransactionsProcessor<'r> {
     /// Creates a new `TransactionsProcessor` instance.
-    pub fn new(name_config: TransactionNameConfig<'r>) -> Self {
-        Self { name_config }
+    pub fn new(
+        name_config: TransactionNameConfig<'r>,
+        span_op_defaults: BorrowedSpanOpDefaults<'r>,
+    ) -> Self {
+        Self {
+            name_config,
+            span_op_defaults,
+        }
+    }
+
+    #[cfg(test)]
+    fn new_name_config(name_config: TransactionNameConfig<'r>) -> Self {
+        Self {
+            name_config,
+            ..Default::default()
+        }
     }
 
     /// Returns `true` if the given transaction name should be treated as a URL.
@@ -163,12 +179,56 @@ impl Processor for TransactionsProcessor<'_> {
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        span.op.get_or_insert_with(|| "default".to_owned());
-
+        if span.op.value().is_none() {
+            *span.op.value_mut() = Some(self.span_op_defaults.infer(span));
+        }
         span.process_child_values(self, state)?;
 
         Ok(())
     }
+}
+
+/// TODO: docs
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
+pub struct SpanOpDefaults {
+    rules: Vec<SpanOpDefaultRule>,
+}
+
+impl SpanOpDefaults {
+    /// Gets a borrowed version of this config.
+    pub fn borrow(&self) -> BorrowedSpanOpDefaults {
+        BorrowedSpanOpDefaults {
+            rules: self.rules.as_slice(),
+        }
+    }
+}
+
+/// TODO: docs
+#[derive(Clone, Debug, Default)]
+pub struct BorrowedSpanOpDefaults<'a> {
+    rules: &'a [SpanOpDefaultRule],
+}
+
+impl BorrowedSpanOpDefaults<'_> {
+    /// Infer the span op from a set of rules.
+    ///
+    /// The first matching rule determines the span op.
+    /// If no rule matches, `"default"` is returned.
+    fn infer(&self, span: &Span) -> String {
+        for rule in self.rules {
+            if rule.condition.matches(span) {
+                return rule.value.clone();
+            }
+        }
+        "default".to_owned()
+    }
+}
+
+/// TODO: docs
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct SpanOpDefaultRule {
+    condition: RuleCondition,
+    value: String,
 }
 
 /// Span status codes for the Ruby Rack integration that indicate raw URLs being sent as
@@ -911,7 +971,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig {
+            &mut TransactionsProcessor::new_name_config(TransactionNameConfig {
                 rules: &[rule1, rule2, rule3],
             }),
             ProcessingState::root(),
@@ -992,7 +1052,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig {
+            &mut TransactionsProcessor::new_name_config(TransactionNameConfig {
                 rules: &[rule1, rule2, rule3],
             }),
             ProcessingState::root(),
@@ -1059,7 +1119,7 @@ mod tests {
 
         let mut event = Annotated::<Event>::from_json(json).unwrap();
 
-        let mut processor = TransactionsProcessor::new(TransactionNameConfig {
+        let mut processor = TransactionsProcessor::new_name_config(TransactionNameConfig {
             rules: rules.as_ref(),
         });
         process_value(&mut event, &mut processor, ProcessingState::root()).unwrap();
@@ -1174,7 +1234,7 @@ mod tests {
         // This must not normalize transaction name, since it's disabled.
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig {
+            &mut TransactionsProcessor::new_name_config(TransactionNameConfig {
                 rules: rules.as_ref(),
             }),
             ProcessingState::root(),
@@ -1231,7 +1291,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig {
+            &mut TransactionsProcessor::new_name_config(TransactionNameConfig {
                 rules: rules.as_ref(),
             }),
             ProcessingState::root(),
@@ -1316,7 +1376,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig { rules: &[rule] }),
+            &mut TransactionsProcessor::new_name_config(TransactionNameConfig { rules: &[rule] }),
             ProcessingState::root(),
         )
         .unwrap();
@@ -1521,7 +1581,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig {
+            &mut TransactionsProcessor::new_name_config(TransactionNameConfig {
                 rules: &[TransactionNameRule {
                     pattern: LazyGlob::new("/remains/*/1234567890/".to_owned()),
                     expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
@@ -1587,7 +1647,7 @@ mod tests {
 
         process_value(
             &mut event,
-            &mut TransactionsProcessor::new(TransactionNameConfig {
+            &mut TransactionsProcessor::new_name_config(TransactionNameConfig {
                 rules: &[TransactionNameRule {
                     pattern: LazyGlob::new("/remains/*/**".to_owned()),
                     expiry: Utc.with_ymd_and_hms(3000, 1, 1, 1, 1, 1).unwrap(),
