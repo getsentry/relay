@@ -242,13 +242,14 @@ impl ServiceState {
         )
         .spawn_handler(processor_rx);
 
-        let (project_cache_bounded_tx, project_cache_bounded_rx) = mpsc::channel(500);
+        let (envelopes_tx, envelopes_rx) = mpsc::channel(500);
         let envelope_buffer = EnvelopeBufferService::new(
             config.clone(),
             MemoryChecker::new(memory_stat.clone(), config.clone()),
             global_config_rx.clone(),
             buffer::Services {
-                project_cache: project_cache_bounded_tx,
+                envelopes_tx,
+                project_cache: project_cache.clone(),
                 outcome_aggregator: outcome_aggregator.clone(),
                 test_store: test_store.clone(),
             },
@@ -271,7 +272,7 @@ impl ServiceState {
             MemoryChecker::new(memory_stat.clone(), config.clone()),
             project_cache_services,
             global_config_rx,
-            project_cache_bounded_rx,
+            envelopes_rx,
             redis_pools
                 .as_ref()
                 .map(|pools| pools.project_configs.clone()),

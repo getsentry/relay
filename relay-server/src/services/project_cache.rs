@@ -295,7 +295,6 @@ pub enum ProjectCache {
     UpdateSpoolIndex(UpdateSpoolIndex),
     SpoolHealth(Sender<bool>),
     RefreshIndexCache(RefreshIndexCache),
-    HandleDequeuedEnvelope(Box<Envelope>),
     UpdateProject(ProjectKey),
 }
 
@@ -314,7 +313,6 @@ impl ProjectCache {
             Self::UpdateSpoolIndex(_) => "UpdateSpoolIndex",
             Self::SpoolHealth(_) => "SpoolHealth",
             Self::RefreshIndexCache(_) => "RefreshIndexCache",
-            Self::HandleDequeuedEnvelope(_) => "HandleDequeuedEnvelope",
             Self::UpdateProject(_) => "UpdateProject",
         }
     }
@@ -418,15 +416,6 @@ impl FromMessage<SpoolHealth> for ProjectCache {
 
     fn from_message(_message: SpoolHealth, sender: Sender<bool>) -> Self {
         Self::SpoolHealth(sender)
-    }
-}
-
-impl FromMessage<DequeuedEnvelope> for ProjectCache {
-    type Response = relay_system::NoResponse;
-
-    fn from_message(message: DequeuedEnvelope, _: ()) -> Self {
-        let DequeuedEnvelope(envelope) = message;
-        Self::HandleDequeuedEnvelope(envelope)
     }
 }
 
@@ -1308,24 +1297,25 @@ impl ProjectCacheBroker {
                     ProjectCache::RefreshIndexCache(message) => {
                         self.handle_refresh_index_cache(message)
                     }
-                    ProjectCache::HandleDequeuedEnvelope(message) => {
-                        let envelope_buffer = self
-                            .services
-                            .envelope_buffer
-                            .clone()
-                            .expect("Called HandleDequeuedEnvelope without an envelope buffer");
-
-                        if let Err(e) = self.handle_dequeued_envelope(message, envelope_buffer) {
-                            relay_log::error!(
-                                error = &e as &dyn std::error::Error,
-                                "Failed to handle popped envelope"
-                            );
-                        }
-                    }
                     ProjectCache::UpdateProject(project) => self.handle_update_project(project),
                 }
             }
         )
+    }
+
+    fn handle_envelope(&mut self, dequeued_envelope: DequeuedEnvelope) {
+        let envelope_buffer = self
+            .services
+            .envelope_buffer
+            .clone()
+            .expect("Called HandleDequeuedEnvelope without an envelope buffer");
+
+        if let Err(e) = self.handle_dequeued_envelope(dequeued_envelope.0, envelope_buffer) {
+            relay_log::error!(
+                error = &e as &dyn std::error::Error,
+                "Failed to handle popped envelope"
+            );
+        }
     }
 }
 
@@ -1336,7 +1326,7 @@ pub struct ProjectCacheService {
     memory_checker: MemoryChecker,
     services: Services,
     global_config_rx: watch::Receiver<global_config::Status>,
-    project_cache_bounded_rx: mpsc::Receiver<ProjectCache>,
+    envelopes_rx: mpsc::Receiver<DequeuedEnvelope>,
     redis: Option<RedisPool>,
 }
 
@@ -1347,7 +1337,7 @@ impl ProjectCacheService {
         memory_checker: MemoryChecker,
         services: Services,
         global_config_rx: watch::Receiver<global_config::Status>,
-        project_cache_bounded_rx: mpsc::Receiver<ProjectCache>,
+        envelopes_rx: mpsc::Receiver<DequeuedEnvelope>,
         redis: Option<RedisPool>,
     ) -> Self {
         Self {
@@ -1355,7 +1345,7 @@ impl ProjectCacheService {
             memory_checker,
             services,
             global_config_rx,
-            project_cache_bounded_rx,
+            envelopes_rx,
             redis,
         }
     }
@@ -1370,7 +1360,7 @@ impl Service for ProjectCacheService {
             memory_checker,
             services,
             mut global_config_rx,
-            mut project_cache_bounded_rx,
+            mut envelopes_rx,
             redis,
         } = self;
         let project_cache = services.project_cache.clone();
@@ -1491,10 +1481,9 @@ impl Service for ProjectCacheService {
                             broker.handle_periodic_unspool()
                         })
                     }
-                    // TODO: this prioritization might stab us in the back.
-                    Some(message) = project_cache_bounded_rx.recv() => {
-                        metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "handle_message_from_bounded", {
-                            broker.handle_message(message)
+                    Some(message) = envelopes_rx.recv() => {
+                        metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "handle_envelope", {
+                            broker.handle_envelope(message)
                         })
                     }
                     Some(message) = rx.recv() => {
