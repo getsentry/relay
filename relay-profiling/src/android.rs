@@ -153,7 +153,7 @@ impl AndroidProfilingEvent {
     }
 
     fn has_transaction_metadata(&self) -> bool {
-        !self.metadata.transaction_name.is_empty() && self.metadata.duration_ns > 0
+        !self.metadata.transaction_name.is_empty()
     }
 }
 
@@ -170,7 +170,6 @@ fn parse_profile(payload: &[u8]) -> Result<AndroidProfilingEvent, ProfileError> 
 
         // this is for compatibility
         profile.metadata.active_thread_id = transaction.active_thread_id;
-        profile.metadata.duration_ns = transaction.duration_ns();
         profile.metadata.trace_id = transaction.trace_id;
         profile.metadata.transaction_id = transaction.id;
         profile
@@ -206,6 +205,9 @@ fn parse_profile(payload: &[u8]) -> Result<AndroidProfilingEvent, ProfileError> 
     if profile.profile.elapsed_time > MAX_PROFILE_DURATION {
         return Err(ProfileError::DurationIsTooLong);
     }
+
+    // Use duration given by the profiler and not reported by the SDK.
+    profile.metadata.duration_ns = profile.profile.elapsed_time.as_nanos() as u64;
 
     Ok(profile)
 }
