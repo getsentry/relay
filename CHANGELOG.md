@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Bug Fixes**:
+
+- Report invalid spans with appropriate outcome reason. ([#4051](https://github.com/getsentry/relay/pull/4051))
+
 **Features:**
 
 - Add a config option to add default tags to all Relay Sentry events. ([#3944](https://github.com/getsentry/relay/pull/3944))

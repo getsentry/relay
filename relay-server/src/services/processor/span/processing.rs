@@ -92,7 +92,12 @@ pub fn process(
 
         if let Err(e) = normalize(&mut annotated_span, normalize_span_config.clone()) {
             relay_log::debug!("failed to normalize span: {}", e);
-            return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
+            return ItemAction::Drop(Outcome::Invalid(match e {
+                ProcessingError::InvalidTransaction | ProcessingError::InvalidTimestamp => {
+                    DiscardReason::InvalidSpan
+                }
+                _ => DiscardReason::Internal,
+            }));
         };
 
         if let Some(span) = annotated_span.value() {
