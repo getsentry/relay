@@ -1,8 +1,10 @@
 use std::borrow::Cow;
+use std::collections::BTreeMap;
 use std::env;
 use std::fmt::{self, Display};
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::sync::Arc;
 
 use relay_common::impl_str_serde;
 use sentry::types::Dsn;
@@ -171,6 +173,9 @@ pub struct SentryConfig {
     /// Sets the environment for this service.
     pub environment: Option<Cow<'static, str>>,
 
+    /// Add defaults tags to the events emitted by Relay
+    pub default_tags: Option<BTreeMap<String, String>>,
+
     /// Internal. Enables crash handling and sets the absolute path to where minidumps should be
     /// cached on disk. The path is created if it doesn't exist. Path must be UTF-8.
     pub _crash_db: Option<PathBuf>,
@@ -191,6 +196,7 @@ impl Default for SentryConfig {
                 .ok(),
             enabled: false,
             environment: None,
+            default_tags: None,
             _crash_db: None,
         }
     }
@@ -281,7 +287,7 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
         .init();
 
     if let Some(dsn) = sentry.enabled_dsn() {
-        let guard = sentry::init(sentry::ClientOptions {
+        let mut options = sentry::ClientOptions {
             dsn: Some(dsn).cloned(),
             in_app_include: vec!["relay"],
             release: Some(RELEASE.into()),
@@ -289,7 +295,21 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
             environment: sentry.environment.clone(),
             traces_sample_rate: config.traces_sample_rate,
             ..Default::default()
-        });
+        };
+
+        // If `default_tags` is set in Sentry configuration install the `before_send` hook
+        // in order to inject said tags into each event
+        if let Some(default_tags) = sentry.default_tags.clone() {
+            // Install hook
+            options.before_send = Some(Arc::new(move |mut event| {
+                // Extend `event.tags` with `default_tags` without replacing tags already present
+                let previous_event_tags = std::mem::replace(&mut event.tags, default_tags.clone());
+                event.tags.extend(previous_event_tags);
+                Some(event)
+            }));
+        }
+
+        let guard = sentry::init(options);
 
         // Keep the client initialized. The client is flushed manually in `main`.
         std::mem::forget(guard);

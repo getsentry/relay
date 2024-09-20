@@ -278,7 +278,10 @@ mod tests {
         let script = CardinalityScript::load();
         let keys = keys(Uuid::new_v4(), &["a", "b", "c"]);
 
-        redis::cmd("SCRIPT").arg("FLUSH").execute(&mut connection);
+        redis::cmd("SCRIPT")
+            .arg("FLUSH")
+            .exec(&mut connection)
+            .unwrap();
         script
             .invoke_one(&mut connection, 50, 3600, 0..30, keys)
             .unwrap();
