@@ -1,5 +1,9 @@
 # Changelog
 
+**Bug Fixes**:
+
+- Report invalid spans with appropriate outcome reason.
+
 ## Unreleased
 
 **Features:**
