@@ -214,10 +214,9 @@ impl EnvelopeBufferService {
         services: Services,
         envelopes_tx_permit: Permit<'a, DequeuedEnvelope>,
     ) -> Result<Duration, EnvelopeBufferError> {
-        let mut sleep = Duration::ZERO;
         relay_log::trace!("EnvelopeBufferService: peeking the buffer");
 
-        match buffer.peek().await? {
+        let sleep = match buffer.peek().await? {
             Peek::Empty => {
                 relay_log::trace!("EnvelopeBufferService: peek returned empty");
                 relay_statsd::metric!(
@@ -225,7 +224,7 @@ impl EnvelopeBufferService {
                     peek_result = "empty"
                 );
 
-                sleep = Duration::MAX; // wait for reset by `handle_message`.
+                Duration::MAX // wait for reset by `handle_message`.
             }
             Peek::Ready(envelope) | Peek::NotReady(.., envelope)
                 if Self::expired(config, envelope) =>
@@ -237,7 +236,7 @@ impl EnvelopeBufferService {
 
                 Self::drop_expired(envelope, services);
 
-                sleep = Duration::ZERO; // try next pop immediately
+                Duration::ZERO // try next pop immediately
             }
             Peek::Ready(_) => {
                 relay_log::trace!("EnvelopeBufferService: popping envelope");
@@ -251,7 +250,7 @@ impl EnvelopeBufferService {
                     .expect("Element disappeared despite exclusive excess");
                 envelopes_tx_permit.send(DequeuedEnvelope(envelope));
 
-                sleep = Duration::ZERO; // try next pop immediately
+                Duration::ZERO // try next pop immediately
             }
             Peek::NotReady(stack_key, next_project_fetch, envelope) => {
                 relay_log::trace!("EnvelopeBufferService: project(s) of envelope not ready");
@@ -281,9 +280,9 @@ impl EnvelopeBufferService {
                     buffer.mark_seen(&stack_key, DEFAULT_SLEEP);
                 }
 
-                sleep = DEFAULT_SLEEP;
+                DEFAULT_SLEEP // wait and prioritize handling new messages.
             }
-        }
+        };
 
         Ok(sleep)
     }
