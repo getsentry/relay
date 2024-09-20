@@ -1,10 +1,10 @@
 # Changelog
 
+## Unreleased
+
 **Bug Fixes**:
 
-- Report invalid spans with appropriate outcome reason.
-
-## Unreleased
+- Report invalid spans with appropriate outcome reason. ([#4051](https://github.com/getsentry/relay/pull/4051))
 
 **Features:**
 
