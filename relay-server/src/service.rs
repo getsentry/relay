@@ -3,6 +3,17 @@ use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
 
+use anyhow::{Context, Result};
+use axum::extract::FromRequestParts;
+use axum::http::request::Parts;
+use rayon::ThreadPool;
+use relay_cogs::Cogs;
+use relay_config::{Config, RedisConnection, RedisPoolConfigs};
+use relay_redis::{RedisConfigOptions, RedisError, RedisPool, RedisPools};
+use relay_system::{channel, Addr, Service};
+use tokio::runtime::Runtime;
+use tokio::sync::mpsc;
+
 use crate::metrics::{MetricOutcomes, MetricStats};
 use crate::services::buffer::{self, EnvelopeBufferService, ObservableEnvelopeBuffer};
 use crate::services::cogs::{CogsService, CogsServiceRecorder};
@@ -20,16 +31,6 @@ use crate::services::store::StoreService;
 use crate::services::test_store::{TestStore, TestStoreService};
 use crate::services::upstream::{UpstreamRelay, UpstreamRelayService};
 use crate::utils::{MemoryChecker, MemoryStat};
-use anyhow::{Context, Result};
-use axum::extract::FromRequestParts;
-use axum::http::request::Parts;
-use rayon::ThreadPool;
-use relay_cogs::Cogs;
-use relay_config::{Config, RedisConnection, RedisPoolConfigs};
-use relay_redis::{RedisConfigOptions, RedisError, RedisPool, RedisPools};
-use relay_system::{channel, Addr, Service};
-use tokio::runtime::Runtime;
-use tokio::sync::mpsc;
 
 /// Indicates the type of failure of the server.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, thiserror::Error)]

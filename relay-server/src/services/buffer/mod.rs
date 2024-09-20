@@ -164,13 +164,18 @@ impl EnvelopeBufferService {
             tokio::time::sleep(self.sleep).await;
         }
 
+        relay_statsd::metric!(
+            counter(RelayCounters::BufferReadyToPop) += 1,
+            status = "slept"
+        );
+
         while self.services.project_cache.capacity() == 0 {
             tokio::time::sleep(Duration::from_millis(1)).await;
         }
 
         relay_statsd::metric!(
             counter(RelayCounters::BufferReadyToPop) += 1,
-            status = "acquired"
+            status = "checked"
         );
 
         Ok(())
