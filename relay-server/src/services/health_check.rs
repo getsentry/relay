@@ -6,8 +6,8 @@ use std::future::Future;
 use tokio::sync::watch;
 use tokio::time::{timeout, Instant};
 
+use crate::services::buffer::ObservableEnvelopeBuffer;
 use crate::services::metrics::RouterHandle;
-use crate::services::project_cache::{ProjectCache, SpoolHealth};
 use crate::services::upstream::{IsAuthenticated, UpstreamRelay};
 use crate::statsd::RelayTimers;
 use crate::utils::{MemoryCheck, MemoryChecker};
@@ -86,7 +86,7 @@ pub struct HealthCheckService {
     memory_checker: MemoryChecker,
     aggregator: RouterHandle,
     upstream_relay: Addr<UpstreamRelay>,
-    project_cache: Addr<ProjectCache>,
+    envelope_buffer: Option<ObservableEnvelopeBuffer>, // make non-optional once V1 has been removed
 }
 
 impl HealthCheckService {
@@ -98,14 +98,14 @@ impl HealthCheckService {
         memory_checker: MemoryChecker,
         aggregator: RouterHandle,
         upstream_relay: Addr<UpstreamRelay>,
-        project_cache: Addr<ProjectCache>,
+        envelope_buffer: Option<ObservableEnvelopeBuffer>,
     ) -> Self {
         Self {
             config,
             memory_checker,
             aggregator,
             upstream_relay,
-            project_cache,
+            envelope_buffer,
         }
     }
 
@@ -151,10 +151,14 @@ impl HealthCheckService {
     }
 
     async fn spool_health_probe(&self) -> Status {
-        self.project_cache
-            .send(SpoolHealth)
-            .await
-            .map_or(Status::Unhealthy, Status::from)
+        let has_capacity = self
+            .envelope_buffer
+            .as_ref()
+            .map_or(true, |b| b.has_capacity());
+        match has_capacity {
+            true => Status::Healthy,
+            false => Status::Unhealthy,
+        }
     }
 
     async fn probe(&self, name: &'static str, fut: impl Future<Output = Status>) -> Status {

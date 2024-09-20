@@ -280,7 +280,7 @@ impl ServiceState {
             MemoryChecker::new(memory_stat.clone(), config.clone()),
             aggregator_handle,
             upstream_relay.clone(),
-            project_cache.clone(),
+            envelope_buffer.clone(),
         )
         .start();
 

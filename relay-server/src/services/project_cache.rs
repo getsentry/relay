@@ -243,10 +243,6 @@ impl UpdateSpoolIndex {
     }
 }
 
-/// Checks the status of underlying buffer spool.
-#[derive(Debug)]
-pub struct SpoolHealth;
-
 /// The current envelopes index fetched from the underlying buffer spool.
 ///
 /// This index will be received only once shortly after startup and will trigger refresh for the
@@ -293,7 +289,6 @@ pub enum ProjectCache {
     AddMetricMeta(AddMetricMeta),
     FlushBuckets(FlushBuckets),
     UpdateSpoolIndex(UpdateSpoolIndex),
-    SpoolHealth(Sender<bool>),
     RefreshIndexCache(RefreshIndexCache),
     HandleDequeuedEnvelope(Box<Envelope>, Sender<()>),
     UpdateProject(ProjectKey),
@@ -312,7 +307,6 @@ impl ProjectCache {
             Self::AddMetricMeta(_) => "AddMetricMeta",
             Self::FlushBuckets(_) => "FlushBuckets",
             Self::UpdateSpoolIndex(_) => "UpdateSpoolIndex",
-            Self::SpoolHealth(_) => "SpoolHealth",
             Self::RefreshIndexCache(_) => "RefreshIndexCache",
             Self::HandleDequeuedEnvelope(_, _) => "HandleDequeuedEnvelope",
             Self::UpdateProject(_) => "UpdateProject",
@@ -410,14 +404,6 @@ impl FromMessage<FlushBuckets> for ProjectCache {
 
     fn from_message(message: FlushBuckets, _: ()) -> Self {
         Self::FlushBuckets(message)
-    }
-}
-
-impl FromMessage<SpoolHealth> for ProjectCache {
-    type Response = relay_system::AsyncResponse<bool>;
-
-    fn from_message(_message: SpoolHealth, sender: Sender<bool>) -> Self {
-        Self::SpoolHealth(sender)
     }
 }
 
@@ -1304,7 +1290,6 @@ impl ProjectCacheBroker {
                     ProjectCache::AddMetricMeta(message) => self.handle_add_metric_meta(message),
                     ProjectCache::FlushBuckets(message) => self.handle_flush_buckets(message),
                     ProjectCache::UpdateSpoolIndex(message) => self.handle_buffer_index(message),
-                    ProjectCache::SpoolHealth(sender) => self.handle_spool_health(sender),
                     ProjectCache::RefreshIndexCache(message) => {
                         self.handle_refresh_index_cache(message)
                     }
