@@ -466,41 +466,46 @@ mod tests {
 
     use super::*;
 
-    fn buffer_service() -> (
+    fn mock_envelope_buffer_service(
+        config_json: Option<serde_json::Value>,
+        global_config_status: global_config::Status,
+    ) -> (
         EnvelopeBufferService,
         watch::Sender<global_config::Status>,
         mpsc::Receiver<DequeuedEnvelope>,
         mpsc::UnboundedReceiver<ProjectCache>,
         mpsc::UnboundedReceiver<TrackOutcome>,
     ) {
-        let config = Arc::new(
-            Config::from_json_value(serde_json::json!({
-                "spool": {
-                    "envelopes": {
-                        "version": "experimental"
-                    }
+        let config_json = config_json.unwrap_or(serde_json::json!({
+            "spool": {
+                "envelopes": {
+                    "version": "experimental"
                 }
-            }))
-            .unwrap(),
-        );
+            }
+        }));
+        let config = Arc::new(Config::from_json_value(config_json).unwrap());
+
         let memory_checker = MemoryChecker::new(MemoryStat::default(), config.clone());
-        let (global_tx, global_rx) = watch::channel(global_config::Status::Pending);
+        let (global_tx, global_rx) = watch::channel(global_config_status);
         let (envelopes_tx, envelopes_rx) = mpsc::channel(5);
         let (project_cache, project_cache_rx) = Addr::custom();
         let (outcome_aggregator, outcome_aggregator_rx) = Addr::custom();
+
+        let envelope_buffer_service = EnvelopeBufferService::new(
+            config,
+            memory_checker,
+            global_rx,
+            Services {
+                envelopes_tx,
+                project_cache,
+                outcome_aggregator,
+                test_store: Addr::dummy(),
+            },
+        )
+        .unwrap();
+
         (
-            EnvelopeBufferService::new(
-                config,
-                memory_checker,
-                global_rx,
-                Services {
-                    envelopes_tx,
-                    project_cache,
-                    outcome_aggregator,
-                    test_store: Addr::dummy(),
-                },
-            )
-            .unwrap(),
+            envelope_buffer_service,
             global_tx,
             envelopes_rx,
             project_cache_rx,
@@ -511,7 +516,9 @@ mod tests {
     #[tokio::test]
     async fn capacity_is_updated() {
         tokio::time::pause();
-        let (service, _global_tx, _envelopes_rx, _project_cache_tx, _) = buffer_service();
+
+        let (service, _global_tx, _envelopes_rx, _project_cache_tx, _outcome_aggregator_rx) =
+            mock_envelope_buffer_service(None, global_config::Status::Pending);
 
         // Set capacity to false:
         service.has_capacity.store(false, Ordering::Relaxed);
@@ -532,9 +539,10 @@ mod tests {
 
     #[tokio::test]
     async fn pop_requires_global_config() {
-        relay_log::init_test!();
         tokio::time::pause();
-        let (service, global_tx, envelopes_rx, project_cache_rx, _) = buffer_service();
+
+        let (service, global_tx, envelopes_rx, project_cache_rx, _outcome_aggregator_rx) =
+            mock_envelope_buffer_service(None, global_config::Status::Pending);
 
         let addr = service.start();
 
@@ -565,39 +573,22 @@ mod tests {
     async fn pop_requires_memory_capacity() {
         tokio::time::pause();
 
-        let config = Arc::new(
-            Config::from_json_value(serde_json::json!({
-                "spool": {
-                    "envelopes": {
-                        "version": "experimental",
-                        "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
+        let (service, _global_tx, envelopes_rx, project_cache_rx, _outcome_aggregator_rx) =
+            mock_envelope_buffer_service(
+                Some(serde_json::json!({
+                    "spool": {
+                        "envelopes": {
+                            "version": "experimental",
+                            "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
+                        }
+                    },
+                    "health": {
+                        "max_memory_bytes": 0,
                     }
-                },
-                "health": {
-                    "max_memory_bytes": 0,
-                }
-            }))
-            .unwrap(),
-        );
-        let memory_checker = MemoryChecker::new(MemoryStat::default(), config.clone());
-        let (_, global_rx) = watch::channel(global_config::Status::Ready(Arc::new(
-            GlobalConfig::default(),
-        )));
+                })),
+                global_config::Status::Ready(Arc::new(GlobalConfig::default())),
+            );
 
-        let (envelopes_tx, envelopes_rx) = mpsc::channel(5);
-        let (project_cache, project_cache_rx) = Addr::custom();
-        let service = EnvelopeBufferService::new(
-            config,
-            memory_checker,
-            global_rx,
-            Services {
-                envelopes_tx,
-                project_cache,
-                outcome_aggregator: Addr::dummy(),
-                test_store: Addr::dummy(),
-            },
-        )
-        .unwrap();
         let addr = service.start();
 
         // Send five messages:
@@ -617,38 +608,18 @@ mod tests {
     async fn old_envelope_is_dropped() {
         tokio::time::pause();
 
-        let config = Arc::new(
-            Config::from_json_value(serde_json::json!({
-                "spool": {
-                    "envelopes": {
-                        "version": "experimental",
-                        "max_envelope_delay_secs": 1,
+        let (service, _global_tx, envelopes_rx, project_cache_rx, mut outcome_aggregator_rx) =
+            mock_envelope_buffer_service(
+                Some(serde_json::json!({
+                    "spool": {
+                        "envelopes": {
+                            "version": "experimental",
+                            "max_envelope_delay_secs": 1,
+                        }
                     }
-                }
-            }))
-            .unwrap(),
-        );
-        let memory_checker = MemoryChecker::new(MemoryStat::default(), config.clone());
-        let (global_tx, global_rx) = watch::channel(global_config::Status::Pending);
-        let (envelopes_tx, envelopes_rx) = mpsc::channel(5);
-        let (project_cache, project_cache_rx) = Addr::custom();
-        let (outcome_aggregator, mut outcome_aggregator_rx) = Addr::custom();
-        let service = EnvelopeBufferService::new(
-            config,
-            memory_checker,
-            global_rx,
-            Services {
-                envelopes_tx,
-                project_cache,
-                outcome_aggregator,
-                test_store: Addr::dummy(),
-            },
-        )
-        .unwrap();
-
-        global_tx.send_replace(global_config::Status::Ready(Arc::new(
-            GlobalConfig::default(),
-        )));
+                })),
+                global_config::Status::Ready(Arc::new(GlobalConfig::default())),
+            );
 
         let config = service.config.clone();
         let addr = service.start();
@@ -673,13 +644,14 @@ mod tests {
     #[tokio::test]
     async fn test_update_project() {
         tokio::time::pause();
-        let (service, global_tx, mut envelopes_rx, mut project_cache_rx, _) = buffer_service();
+
+        let (service, _global_tx, mut envelopes_rx, mut project_cache_rx, _outcome_aggregator_rx) =
+            mock_envelope_buffer_service(
+                None,
+                global_config::Status::Ready(Arc::new(GlobalConfig::default())),
+            );
 
         let addr = service.start();
-
-        global_tx.send_replace(global_config::Status::Ready(Arc::new(
-            GlobalConfig::default(),
-        )));
 
         let envelope = new_envelope(false, "foo");
         let project_key = envelope.meta().public_key();
@@ -718,10 +690,12 @@ mod tests {
     #[tokio::test]
     async fn output_is_throttled() {
         tokio::time::pause();
-        let (service, global_tx, mut envelopes_rx, _project_cache_rx, _) = buffer_service();
-        global_tx.send_replace(global_config::Status::Ready(Arc::new(
-            GlobalConfig::default(),
-        )));
+
+        let (service, _global_tx, mut envelopes_rx, _project_cache_rx, _outcome_aggregator_rx) =
+            mock_envelope_buffer_service(
+                None,
+                global_config::Status::Ready(Arc::new(GlobalConfig::default())),
+            );
 
         let addr = service.start();
 
