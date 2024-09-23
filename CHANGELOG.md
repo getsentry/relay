@@ -12,6 +12,10 @@
 - Add a config option to add default tags to all Relay Sentry events. ([#3944](https://github.com/getsentry/relay/pull/3944))
 - Automatically derive `client.address` and `user.geo` for standalone spans. ([#4047](https://github.com/getsentry/relay/pull/4047))
 
+**Internal:**
+
+- Add the dynamic sampling rate to standalone spans as a measurement so that it can be stored, queried, and used for extrapolation. ([#4063](https://github.com/getsentry/relay/pull/4063))
+
 ## 24.9.0
 
 **Bug Fixes**:

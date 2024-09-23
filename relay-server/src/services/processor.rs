@@ -1711,6 +1711,12 @@ impl EnvelopeProcessorService {
             false => SamplingResult::Pending,
         };
 
+        #[cfg(feature = "processing")]
+        let server_sample_rate = match sampling_result {
+            SamplingResult::Match(ref sampling_match) => Some(sampling_match.sample_rate()),
+            SamplingResult::NoMatch | SamplingResult::Pending => None,
+        };
+
         if let Some(outcome) = sampling_result.into_dropped_outcome() {
             let keep_profiles = global_config.options.unsampled_profiles_enabled;
             // Process profiles before dropping the transaction, if necessary.
@@ -1753,7 +1759,7 @@ impl EnvelopeProcessorService {
                 .project_state
                 .has_feature(Feature::ExtractSpansFromEvent)
             {
-                span::extract_from_event(state, &global_config);
+                span::extract_from_event(state, &global_config, server_sample_rate);
             }
 
             self.enforce_quotas(state)?;
