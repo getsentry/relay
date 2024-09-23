@@ -872,8 +872,7 @@ mod tests {
 
         let event = Annotated::new(Event {
             release: Annotated::new(
-                String::from("���7��#1G����7��#1G����7��#1G����7��#1G����7��#")
-                    .into(),
+                String::from("���7��#1G����7��#1G����7��#1G����7��#1G����7��#").into(),
             ),
             ..Default::default()
         });
