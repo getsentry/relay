@@ -13,7 +13,6 @@ use crate::Envelope;
 use futures::stream::StreamExt;
 use hashbrown::HashSet;
 use relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
-use relay_common::time::UnixTimestamp;
 use relay_config::Config;
 use sqlx::migrate::MigrateError;
 use sqlx::query::Query;
