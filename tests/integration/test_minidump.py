@@ -366,6 +366,9 @@ def test_minidump_invalid_nested_formdata(mini_sentry, relay):
         ("attachment", "minidump.dmp"),
         ("transaction", "minidump.dmp"),
         (None, "minidump.dmp.gz"),
+        (None, "minidump.dmp.xz"),
+        (None, "minidump.dmp.bz2"),
+        (None, "minidump.dmp.zst"),
     ],
 )
 def test_minidump_with_processing(
@@ -435,6 +438,7 @@ def test_minidump_with_processing(
             "id": attachment_id,
             "name": minidump_filename,
             "attachment_type": "event.minidump",
+            "content_type": "application/x-dmp",
             "chunks": num_chunks,
             "size": len(content),
             "rate_limited": rate_limit == "attachment",
