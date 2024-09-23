@@ -962,6 +962,12 @@
 <a href="#962" id="962">962</a>
 <a href="#963" id="963">963</a>
 <a href="#964" id="964">964</a>
+<a href="#965" id="965">965</a>
+<a href="#966" id="966">966</a>
+<a href="#967" id="967">967</a>
+<a href="#968" id="968">968</a>
+<a href="#969" id="969">969</a>
+<a href="#970" id="970">970</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 <span class="attr">#[cfg(doc)]
 </span><span class="kw">use </span>tokio::runtime::RuntimeMetrics;
@@ -1142,6 +1148,9 @@
     /// This metric is tagged with:
     /// - `storage_type`: The type of storage used in the envelope buffer.
     </span>BufferEnvelopesCount,
+    <span class="doccomment">/// Number of envelopes in the backpressure buffer between the envelope buffer
+    /// and the project cache.
+    </span>BufferBackpressureEnvelopesCount,
     <span class="doccomment">/// The number of batches emitted per partition.
     </span>BatchesPerPartition,
     <span class="doccomment">/// The number of buckets in a batch emitted.
@@ -1267,6 +1276,9 @@
             RelayHistograms::BufferDiskSize =&gt; <span class="string">"buffer.disk_size"</span>,
             RelayHistograms::BufferDequeueAttempts =&gt; <span class="string">"buffer.dequeue_attempts"</span>,
             RelayHistograms::BufferEnvelopesCount =&gt; <span class="string">"buffer.envelopes_count"</span>,
+            RelayHistograms::BufferBackpressureEnvelopesCount =&gt; {
+                <span class="string">"buffer.backpressure_envelopes_count"
+            </span>}
             RelayHistograms::ProjectStatePending =&gt; <span class="string">"project_state.pending"</span>,
             RelayHistograms::ProjectStateAttempts =&gt; <span class="string">"project_state.attempts"</span>,
             RelayHistograms::ProjectStateRequestBatchSize =&gt; <span class="string">"project_state.request.batch_size"</span>,

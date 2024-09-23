@@ -2644,6 +2644,20 @@
 <a href="#2644" id="2644">2644</a>
 <a href="#2645" id="2645">2645</a>
 <a href="#2646" id="2646">2646</a>
+<a href="#2647" id="2647">2647</a>
+<a href="#2648" id="2648">2648</a>
+<a href="#2649" id="2649">2649</a>
+<a href="#2650" id="2650">2650</a>
+<a href="#2651" id="2651">2651</a>
+<a href="#2652" id="2652">2652</a>
+<a href="#2653" id="2653">2653</a>
+<a href="#2654" id="2654">2654</a>
+<a href="#2655" id="2655">2655</a>
+<a href="#2656" id="2656">2656</a>
+<a href="#2657" id="2657">2657</a>
+<a href="#2658" id="2658">2658</a>
+<a href="#2659" id="2659">2659</a>
+<a href="#2660" id="2660">2660</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
@@ -3558,6 +3572,11 @@
     <span class="number">100
 </span>}
 
+<span class="doccomment">/// Default bounded buffer size for handling backpressure.
+</span><span class="kw">fn </span>spool_max_backpressure_envelopes() -&gt; usize {
+    <span class="number">500
+</span>}
+
 <span class="doccomment">/// Persistent buffering configuration for incoming envelopes.
 </span><span class="attr">#[derive(Debug, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>EnvelopeSpool {
@@ -3601,6 +3620,9 @@
     /// internal page stats.
     </span><span class="attr">#[serde(default = <span class="string">"spool_disk_usage_refresh_frequency_ms"</span>)]
     </span>disk_usage_refresh_frequency_ms: u64,
+    <span class="doccomment">/// The amount of envelopes that the envelope buffer can push to its output queue.
+    </span><span class="attr">#[serde(default = <span class="string">"spool_max_backpressure_envelopes"</span>)]
+    </span>max_backpressure_envelopes: usize,
     <span class="doccomment">/// Version of the spooler.
     </span><span class="attr">#[serde(default)]
     </span>version: EnvelopeSpoolVersion,
@@ -3637,6 +3659,7 @@
             max_batches: spool_envelopes_stack_max_batches(),
             max_envelope_delay_secs: spool_envelopes_max_envelope_delay_secs(),
             disk_usage_refresh_frequency_ms: spool_disk_usage_refresh_frequency_ms(),
+            max_backpressure_envelopes: spool_max_backpressure_envelopes(),
             version: EnvelopeSpoolVersion::default(),
         }
     }
@@ -4856,6 +4879,11 @@
     <span class="doccomment">/// Returns the refresh frequency for disk usage monitoring as a [`Duration`] object.
     </span><span class="kw">pub fn </span>spool_disk_usage_refresh_frequency_ms(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
         Duration::from_millis(<span class="self">self</span>.values.spool.envelopes.disk_usage_refresh_frequency_ms)
+    }
+
+    <span class="doccomment">/// Returns the maximum number of envelopes that can be put in the bounded buffer.
+    </span><span class="kw">pub fn </span>spool_max_backpressure_envelopes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="self">self</span>.values.spool.envelopes.max_backpressure_envelopes
     }
 
     <span class="doccomment">/// Returns the maximum size of an event payload in bytes.

@@ -439,14 +439,15 @@
 <a href="#439" id="439">439</a>
 <a href="#440" id="440">440</a>
 <a href="#441" id="441">441</a>
+<a href="#442" id="442">442</a>
+<a href="#443" id="443">443</a>
+<a href="#444" id="444">444</a>
+<a href="#445" id="445">445</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
-<span class="kw">use </span><span class="kw">crate</span>::metrics::{MetricOutcomes, MetricStats};
-<span class="kw">use </span><span class="kw">crate</span>::services::buffer::{<span class="self">self</span>, EnvelopeBufferService, ObservableEnvelopeBuffer};
-<span class="kw">use </span><span class="kw">crate</span>::services::stats::RelayStats;
 <span class="kw">use </span>anyhow::{Context, <span class="prelude-ty">Result</span>};
 <span class="kw">use </span>axum::extract::FromRequestParts;
 <span class="kw">use </span>axum::http::request::Parts;
@@ -456,7 +457,10 @@
 <span class="kw">use </span>relay_redis::{RedisConfigOptions, RedisError, RedisPool, RedisPools};
 <span class="kw">use </span>relay_system::{channel, Addr, Service};
 <span class="kw">use </span>tokio::runtime::Runtime;
+<span class="kw">use </span>tokio::sync::mpsc;
 
+<span class="kw">use </span><span class="kw">crate</span>::metrics::{MetricOutcomes, MetricStats};
+<span class="kw">use </span><span class="kw">crate</span>::services::buffer::{<span class="self">self</span>, EnvelopeBufferService, ObservableEnvelopeBuffer};
 <span class="kw">use </span><span class="kw">crate</span>::services::cogs::{CogsService, CogsServiceRecorder};
 <span class="kw">use </span><span class="kw">crate</span>::services::global_config::{GlobalConfigManager, GlobalConfigService};
 <span class="kw">use </span><span class="kw">crate</span>::services::health_check::{HealthCheck, HealthCheckService};
@@ -466,6 +470,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{<span class="self">self</span>, EnvelopeProcessor, EnvelopeProcessorService};
 <span class="kw">use </span><span class="kw">crate</span>::services::project_cache::{ProjectCache, ProjectCacheService, Services};
 <span class="kw">use </span><span class="kw">crate</span>::services::relays::{RelayCache, RelayCacheService};
+<span class="kw">use </span><span class="kw">crate</span>::services::stats::RelayStats;
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">use </span><span class="kw">crate</span>::services::store::StoreService;
 <span class="kw">use </span><span class="kw">crate</span>::services::test_store::{TestStore, TestStoreService};
@@ -682,11 +687,13 @@
         )
         .spawn_handler(processor_rx);
 
+        <span class="kw">let </span>(envelopes_tx, envelopes_rx) = mpsc::channel(config.spool_max_backpressure_envelopes());
         <span class="kw">let </span>envelope_buffer = EnvelopeBufferService::new(
             config.clone(),
             MemoryChecker::new(memory_stat.clone(), config.clone()),
             global_config_rx.clone(),
             buffer::Services {
+                envelopes_tx,
                 project_cache: project_cache.clone(),
                 outcome_aggregator: outcome_aggregator.clone(),
                 test_store: test_store.clone(),
@@ -710,6 +717,7 @@
             MemoryChecker::new(memory_stat.clone(), config.clone()),
             project_cache_services,
             global_config_rx,
+            envelopes_rx,
             redis_pools
                 .as_ref()
                 .map(|pools| pools.project_configs.clone()),
