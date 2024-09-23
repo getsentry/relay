@@ -1502,10 +1502,6 @@ impl Default for Health {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
 pub struct Cogs {
-    /// Whether COGS measurements are enabled.
-    ///
-    /// Defaults to `false`.
-    enabled: bool,
     /// Maximium amount of COGS measurements allowed to backlog.
     ///
     /// Any additional COGS measurements recorded will be dropped.
@@ -1523,7 +1519,6 @@ pub struct Cogs {
 impl Default for Cogs {
     fn default() -> Self {
         Self {
-            enabled: false,
             max_queue_size: 10_000,
             relay_resource_id: "relay_service".to_owned(),
         }
@@ -2494,11 +2489,6 @@ impl Config {
     /// Refresh frequency for polling new memory stats.
     pub fn memory_stat_refresh_frequency_ms(&self) -> u64 {
         self.values.health.memory_stat_refresh_frequency_ms
-    }
-
-    /// Whether COGS measurements are enabled.
-    pub fn cogs_enabled(&self) -> bool {
-        self.values.cogs.enabled
     }
 
     /// Maximum amount of COGS measurements buffered in memory.
