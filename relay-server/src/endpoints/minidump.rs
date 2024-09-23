@@ -11,8 +11,6 @@ use bzip2::read::BzDecoder;
 use flate2::read::GzDecoder;
 use liblzma::read::XzDecoder;
 use multer::Multipart;
-use once_cell::sync::Lazy;
-use regex::Regex;
 use relay_config::Config;
 use relay_event_schema::protocol::EventId;
 use zstd::stream::Decoder as ZstdDecoder;
@@ -43,10 +41,6 @@ const MINIDUMP_MAGIC_HEADER_BE: &[u8] = b"PMDM";
 /// Content types by which standalone uploads can be recognized.
 const MINIDUMP_RAW_CONTENT_TYPES: &[&str] = &["application/octet-stream", "application/x-dmp"];
 
-/// Finds file extensions for the currently supported compression containers
-static CONTAINER_EXTENSIONS_RE: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"\.(gz|bz2|zst|xz)$").unwrap());
-
 fn validate_minidump(data: &[u8]) -> Result<(), BadStoreRequest> {
     if !data.starts_with(MINIDUMP_MAGIC_HEADER_LE) && !data.starts_with(MINIDUMP_MAGIC_HEADER_BE) {
         relay_log::trace!("invalid minidump file");
@@ -59,10 +53,8 @@ fn validate_minidump(data: &[u8]) -> Result<(), BadStoreRequest> {
 /// Convenience wrapper to let a decoder decode its full input into a buffer
 fn run_decoder(decoder: &mut Box<dyn Read>) -> Result<Vec<u8>, Error> {
     let mut buffer = Vec::new();
-    match decoder.read_to_end(&mut buffer) {
-        Ok(_) => Ok(buffer),
-        Err(err) => Err(err),
-    }
+    decoder.read_to_end(&mut buffer)?;
+    Ok(buffer)
 }
 
 /// Creates a decoder based on the magic bytes the minidump payload
@@ -107,11 +99,11 @@ fn decode_minidump(minidump_data: Bytes) -> Result<Bytes, BadStoreRequest> {
 /// Removes any compression container file extensions from the minidump
 /// filename so it can be updated in the item. Otherwise, attachments that
 /// have been decoded would still show the extension in the UI, which is misleading.
-fn remove_container_extension(filename: String) -> String {
-    let lc_filename = filename.to_ascii_lowercase();
-    let re_find_opt = CONTAINER_EXTENSIONS_RE.find(lc_filename.as_str());
-    if let Some(re_find) = re_find_opt {
-        filename[..re_find.start()].to_owned()
+fn remove_container_extension(filename: &str) -> &str {
+    if filename.ends_with("gz") || filename.ends_with("xz") {
+        &filename[..filename.len() - 3]
+    } else if filename.ends_with("bz2") || filename.ends_with("zst") {
+        &filename[..filename.len() - 4]
     } else {
         filename
     }
@@ -176,7 +168,7 @@ async fn extract_multipart(
     validate_minidump(&minidump_item.payload())?;
 
     if let Some(minidump_filename) = minidump_item.filename() {
-        minidump_item.set_filename(remove_container_extension(minidump_filename.to_string()));
+        minidump_item.set_filename(remove_container_extension(minidump_filename).to_owned());
     }
 
     let event_id = common::event_id_from_items(&items)?.unwrap_or_else(EventId::new);
@@ -323,44 +315,26 @@ mod tests {
 
     #[test]
     fn test_remove_container_extension() -> Result<(), Box<dyn std::error::Error>> {
+        assert_eq!(remove_container_extension("minidump"), "minidump");
+        assert_eq!(remove_container_extension("minidump.gz"), "minidump");
+        assert_eq!(remove_container_extension("minidump.bz2"), "minidump");
+        assert_eq!(remove_container_extension("minidump.xz"), "minidump");
+        assert_eq!(remove_container_extension("minidump.zst"), "minidump");
+        assert_eq!(remove_container_extension("minidump.dmp"), "minidump.dmp");
         assert_eq!(
-            remove_container_extension(String::from("minidump")),
-            "minidump"
-        );
-        assert_eq!(
-            remove_container_extension(String::from("minidump.gz")),
-            "minidump"
-        );
-        assert_eq!(
-            remove_container_extension(String::from("minidump.bz2")),
-            "minidump"
-        );
-        assert_eq!(
-            remove_container_extension(String::from("minidump.xz")),
-            "minidump"
-        );
-        assert_eq!(
-            remove_container_extension(String::from("minidump.zst")),
-            "minidump"
-        );
-        assert_eq!(
-            remove_container_extension(String::from("minidump.dmp")),
+            remove_container_extension("minidump.dmp.gz"),
             "minidump.dmp"
         );
         assert_eq!(
-            remove_container_extension(String::from("minidump.dmp.gz")),
+            remove_container_extension("minidump.dmp.bz2"),
             "minidump.dmp"
         );
         assert_eq!(
-            remove_container_extension(String::from("minidump.dmp.bz2")),
+            remove_container_extension("minidump.dmp.xz"),
             "minidump.dmp"
         );
         assert_eq!(
-            remove_container_extension(String::from("minidump.dmp.xz")),
-            "minidump.dmp"
-        );
-        assert_eq!(
-            remove_container_extension(String::from("minidump.dmp.zst")),
+            remove_container_extension("minidump.dmp.zst"),
             "minidump.dmp"
         );
 

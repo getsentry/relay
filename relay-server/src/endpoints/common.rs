@@ -68,7 +68,7 @@ pub enum BadStoreRequest {
     MissingMinidump,
 
     #[error("invalid compression container")]
-    InvalidCompressionContainer(#[from] std::io::Error),
+    InvalidCompressionContainer(#[source] std::io::Error),
 
     #[error("invalid event id")]
     InvalidEventId,
