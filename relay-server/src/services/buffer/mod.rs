@@ -24,7 +24,7 @@ use crate::services::processor::ProcessingGroup;
 use crate::services::project_cache::{DequeuedEnvelope, ProjectCache, UpdateProject};
 
 use crate::services::test_store::TestStore;
-use crate::statsd::RelayCounters;
+use crate::statsd::{RelayCounters, RelayHistograms};
 use crate::utils::ManagedEnvelope;
 use crate::utils::MemoryChecker;
 
@@ -175,6 +175,12 @@ impl EnvelopeBufferService {
         relay_statsd::metric!(
             counter(RelayCounters::BufferReadyToPop) += 1,
             status = "slept"
+        );
+
+        let used_capacity =
+            self.services.envelopes_tx.max_capacity() - self.services.envelopes_tx.capacity();
+        relay_statsd::metric!(
+            histogram(RelayHistograms::BufferBackpressureEnvelopesCount) = used_capacity
         );
 
         let permit = self.services.envelopes_tx.reserve().await.ok();
