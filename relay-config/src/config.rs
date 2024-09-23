@@ -960,7 +960,7 @@ pub struct EnvelopeSpool {
     /// internal page stats.
     #[serde(default = "spool_disk_usage_refresh_frequency_ms")]
     disk_usage_refresh_frequency_ms: u64,
-    /// The amount of envelopes that can be put in the bounded buffer.
+    /// The amount of envelopes that the envelope buffer can push to its output queue.
     #[serde(default = "spool_max_backpressure_envelopes")]
     max_backpressure_envelopes: usize,
     /// Version of the spooler.
