@@ -912,6 +912,11 @@ fn spool_disk_usage_refresh_frequency_ms() -> u64 {
     100
 }
 
+/// Default bounded buffer size for handling backpressure.
+fn spool_max_backpressure_envelopes() -> usize {
+    500
+}
+
 /// Persistent buffering configuration for incoming envelopes.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EnvelopeSpool {
@@ -955,6 +960,9 @@ pub struct EnvelopeSpool {
     /// internal page stats.
     #[serde(default = "spool_disk_usage_refresh_frequency_ms")]
     disk_usage_refresh_frequency_ms: u64,
+    /// The amount of envelopes that the envelope buffer can push to its output queue.
+    #[serde(default = "spool_max_backpressure_envelopes")]
+    max_backpressure_envelopes: usize,
     /// Version of the spooler.
     #[serde(default)]
     version: EnvelopeSpoolVersion,
@@ -991,6 +999,7 @@ impl Default for EnvelopeSpool {
             max_batches: spool_envelopes_stack_max_batches(),
             max_envelope_delay_secs: spool_envelopes_max_envelope_delay_secs(),
             disk_usage_refresh_frequency_ms: spool_disk_usage_refresh_frequency_ms(),
+            max_backpressure_envelopes: spool_max_backpressure_envelopes(),
             version: EnvelopeSpoolVersion::default(),
         }
     }
@@ -2210,6 +2219,11 @@ impl Config {
     /// Returns the refresh frequency for disk usage monitoring as a [`Duration`] object.
     pub fn spool_disk_usage_refresh_frequency_ms(&self) -> Duration {
         Duration::from_millis(self.values.spool.envelopes.disk_usage_refresh_frequency_ms)
+    }
+
+    /// Returns the maximum number of envelopes that can be put in the bounded buffer.
+    pub fn spool_max_backpressure_envelopes(&self) -> usize {
+        self.values.spool.envelopes.max_backpressure_envelopes
     }
 
     /// Returns the maximum size of an event payload in bytes.
