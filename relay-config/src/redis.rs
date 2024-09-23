@@ -70,6 +70,18 @@ enum RedisConfigFromFile {
         options: PartialRedisConfigOptions,
     },
 
+    /// Connect to a set of Redis instances for multiple writes.
+    MultiWrite {
+        /// List of `redis://` urls to use in multi write mode.
+        ///
+        /// This can also be a single node.
+        multi_write: Vec<String>,
+
+        /// Additional configuration options for the redis client and a connections pool.
+        #[serde(flatten)]
+        options: PartialRedisConfigOptions,
+    },
+
     /// Connect to a single Redis instance.
     ///
     /// Contains the `redis://` url to the node.
@@ -79,7 +91,7 @@ enum RedisConfigFromFile {
     ///
     /// Allows to provide more configuration options, e.g. `max_connections`.
     SingleWithOpts {
-        /// Containes the `redis://` url to the node.
+        /// Contains the `redis://` url to the node.
         server: String,
 
         /// Additional configuration options for the redis client and a connections pool.
@@ -94,6 +106,9 @@ pub enum RedisConnection {
     /// Connect to a Redis Cluster.
     #[serde(rename = "cluster_nodes")]
     Cluster(Vec<String>),
+    /// Connect to multiple Redis instances for multiple writes.
+    #[serde(rename = "multi_write")]
+    MultiWrite(Vec<String>),
     /// Connect to a single Redis instance.
     #[serde(rename = "server")]
     Single(String),
@@ -129,6 +144,13 @@ impl From<RedisConfigFromFile> for RedisConfig {
                 options,
             } => Self {
                 connection: RedisConnection::Cluster(cluster_nodes),
+                options,
+            },
+            RedisConfigFromFile::MultiWrite {
+                multi_write,
+                options,
+            } => Self {
+                connection: RedisConnection::MultiWrite(multi_write),
                 options,
             },
             RedisConfigFromFile::Single(server) => Self {
@@ -462,6 +484,33 @@ read_timeout: 10
     }
 
     #[test]
+    fn test_redis_multi_write_opts() {
+        let yaml = r#"
+multi_write:
+    - "redis://127.0.0.1:6379"
+    - "redis://127.0.0.2:6379"
+max_connections: 10
+"#;
+
+        let config: RedisConfig = serde_yaml::from_str(yaml)
+            .expect("Parsed processing redis config: single with options");
+
+        assert_eq!(
+            config,
+            RedisConfig {
+                connection: RedisConnection::MultiWrite(vec![
+                    "redis://127.0.0.1:6379".to_owned(),
+                    "redis://127.0.0.2:6379".to_owned()
+                ]),
+                options: PartialRedisConfigOptions {
+                    max_connections: Some(10),
+                    ..Default::default()
+                },
+            }
+        );
+    }
+
+    #[test]
     fn test_redis_cluster_nodes_opts_unified() {
         let yaml = r#"
 cluster_nodes:
@@ -560,7 +609,7 @@ read_timeout: 10
                 options: Default::default(),
             }),
             quotas: Box::new(RedisConfig {
-                connection: RedisConnection::Cluster(vec![
+                connection: RedisConnection::MultiWrite(vec![
                     "redis://127.0.0.1:6379".to_owned(),
                     "redis://127.0.0.2:6379".to_owned(),
                 ]),
@@ -599,7 +648,7 @@ read_timeout: 10
            "write_timeout": 3
          },
          "quotas": {
-           "cluster_nodes": [
+           "multi_write": [
              "redis://127.0.0.1:6379",
              "redis://127.0.0.2:6379"
            ],
