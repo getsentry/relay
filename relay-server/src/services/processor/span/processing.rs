@@ -20,9 +20,11 @@ use relay_event_normalization::{
     SchemaProcessor, TimestampProcessor, TransactionNameRule, TrimmingProcessor,
 };
 use relay_event_schema::processor::{process_value, ProcessingState};
-use relay_event_schema::protocol::{BrowserContext, IpAddr, Span, SpanData};
+use relay_event_schema::protocol::{
+    BrowserContext, IpAddr, Measurement, Measurements, Span, SpanData,
+};
 use relay_log::protocol::{Attachment, AttachmentType};
-use relay_metrics::{MetricNamespace, UnixTimestamp};
+use relay_metrics::{FractionUnit, MetricNamespace, MetricUnit, UnixTimestamp};
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Empty};
 use relay_quotas::DataCategory;
@@ -209,9 +211,26 @@ pub fn process(
     }
 }
 
+fn add_sample_rate(measurements: &mut Annotated<Measurements>, name: &str, value: Option<f64>) {
+    let value = match value {
+        Some(value) if value > 0.0 => value,
+        _ => return,
+    };
+
+    let measurement = Annotated::new(Measurement {
+        value: value.into(),
+        unit: MetricUnit::Fraction(FractionUnit::Ratio).into(),
+    });
+
+    measurements
+        .get_or_insert_with(Measurements::default)
+        .insert(name.to_owned(), measurement);
+}
+
 pub fn extract_from_event(
     state: &mut ProcessEnvelopeState<TransactionGroup>,
     global_config: &GlobalConfig,
+    server_sample_rate: Option<f64>,
 ) {
     // Only extract spans from transactions (not errors).
     if state.event_type() != Some(EventType::Transaction) {
@@ -228,7 +247,26 @@ pub fn extract_from_event(
         }
     }
 
-    let mut add_span = |mut span: Annotated<Span>| {
+    let client_sample_rate = state
+        .managed_envelope
+        .envelope()
+        .dsc()
+        .and_then(|ctx| ctx.sample_rate);
+
+    let mut add_span = |mut span: Span| {
+        add_sample_rate(
+            &mut span.measurements,
+            "client_sample_rate",
+            client_sample_rate,
+        );
+        add_sample_rate(
+            &mut span.measurements,
+            "server_sample_rate",
+            server_sample_rate,
+        );
+
+        let mut span = Annotated::new(span);
+
         match validate(&mut span) {
             Ok(span) => span,
             Err(e) => {
@@ -247,6 +285,7 @@ pub fn extract_from_event(
                 return;
             }
         };
+
         let span = match span.to_json() {
             Ok(span) => span,
             Err(e) => {
@@ -259,6 +298,7 @@ pub fn extract_from_event(
                 return;
             }
         };
+
         let mut item = Item::new(ItemType::Span);
         item.set_payload(ContentType::Json, span);
         // If metrics extraction happened for the event, it also happened for its spans:
@@ -311,11 +351,11 @@ pub fn extract_from_event(
             // child spans.
             new_span.profile_id = transaction_span.profile_id.clone();
 
-            add_span(Annotated::new(new_span));
+            add_span(new_span);
         }
     }
 
-    add_span(transaction_span.into());
+    add_span(transaction_span);
 
     state.spans_extracted = true;
 }
@@ -730,9 +770,10 @@ mod tests {
 
     fn state() -> ProcessEnvelopeState<'static, TransactionGroup> {
         let bytes = Bytes::from(
-            "\
-             {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\
-             {\"type\":\"transaction\"}\n{}\n",
+            r#"{"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","trace":{"trace_id":"89143b0763095bd9c9955e8175d1fb23","public_key":"e12d836b15bb49d7bbf99e64295d995b","sample_rate":"0.2"}}
+{"type":"transaction"}
+{}
+"#,
         );
 
         let dummy_envelope = Envelope::parse_bytes(bytes).unwrap();
@@ -792,7 +833,7 @@ mod tests {
         let global_config = GlobalConfig::default();
         assert!(global_config.options.span_extraction_sample_rate.is_none());
         let mut state = state();
-        extract_from_event(&mut state, &global_config);
+        extract_from_event(&mut state, &global_config, None);
         assert!(
             state
                 .envelope()
@@ -808,7 +849,7 @@ mod tests {
         let mut global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = Some(1.0);
         let mut state = state();
-        extract_from_event(&mut state, &global_config);
+        extract_from_event(&mut state, &global_config, None);
         assert!(
             state
                 .envelope()
@@ -824,7 +865,7 @@ mod tests {
         let mut global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = Some(0.0);
         let mut state = state();
-        extract_from_event(&mut state, &global_config);
+        extract_from_event(&mut state, &global_config, None);
         assert!(
             !state
                 .envelope()
@@ -833,6 +874,44 @@ mod tests {
             "{:?}",
             state.envelope()
         );
+    }
+
+    #[test]
+    fn extract_sample_rates() {
+        let mut global_config = GlobalConfig::default();
+        global_config.options.span_extraction_sample_rate = Some(1.0); // force enable
+        let mut state = state(); // client sample rate is 0.2
+        extract_from_event(&mut state, &global_config, Some(0.1));
+
+        let span = state
+            .envelope()
+            .items()
+            .find(|item| item.ty() == &ItemType::Span)
+            .unwrap();
+
+        let span = Annotated::<Span>::from_json_bytes(&span.payload()).unwrap();
+        let measurements = span.value().and_then(|s| s.measurements.value());
+
+        insta::assert_debug_snapshot!(measurements, @r###"
+        Some(
+            Measurements(
+                {
+                    "client_sample_rate": Measurement {
+                        value: 0.2,
+                        unit: Fraction(
+                            Ratio,
+                        ),
+                    },
+                    "server_sample_rate": Measurement {
+                        value: 0.1,
+                        unit: Fraction(
+                            Ratio,
+                        ),
+                    },
+                },
+            ),
+        )
+        "###);
     }
 
     #[test]
