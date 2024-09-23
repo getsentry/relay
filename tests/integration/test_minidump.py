@@ -409,7 +409,7 @@ def test_minidump_with_processing(
 
     attachments_consumer = attachments_consumer()
 
-    attachments = [(MINIDUMP_ATTACHMENT_NAME, minidump_filename, content)]
+    attachments = [(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", content)]
     response = relay.send_minidump(project_id=project_id, files=attachments)
 
     attachment = b""
@@ -436,7 +436,7 @@ def test_minidump_with_processing(
     assert list(message["attachments"]) == [
         {
             "id": attachment_id,
-            "name": minidump_filename,
+            "name": "minidump.dmp",
             "attachment_type": "event.minidump",
             "content_type": "application/x-dmp",
             "chunks": num_chunks,
