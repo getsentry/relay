@@ -41,7 +41,8 @@ static WEB_CRAWLERS: Lazy<Regex> = Lazy::new(|| {
 static ALLOWED_WEB_CRAWLERS: Lazy<Regex> = Lazy::new(|| {
     Regex::new(
         r"(?ix)
-        Slackbot\s1\.\d+             # Slack - see https://api.slack.com/robots
+        Slackbot\s1\.\d+|            # Slack - see https://api.slack.com/robots
+        SentryUptimeBot              # Uptime Checker https://docs.sentry.io/product/alerts/uptime-monitoring/
     ",
     )
     .expect("Invalid allowed web crawlers filter Regex")
@@ -145,6 +146,7 @@ mod tests {
             "APIs-Google (+https://developers.google.com/webmasters/APIs-Google.html)",
             "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36",
             "Slackbot 1.0(+https://api.slack.com/robots)",
+            "SentryUptimeBot/1.0 (+http://docs.sentry.io/product/alerts/uptime-monitoring/)",
         ];
         for user_agent in &normal_user_agents {
             let event = testutils::get_event_with_user_agent(user_agent);
