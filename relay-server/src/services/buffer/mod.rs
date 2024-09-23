@@ -180,7 +180,7 @@ impl EnvelopeBufferService {
         let used_capacity =
             self.services.envelopes_tx.max_capacity() - self.services.envelopes_tx.capacity();
         relay_statsd::metric!(
-            histogram(RelayHistograms::BufferBackpressureEnvelopesCount) = used_capacity
+            histogram(RelayHistograms::BufferBackpressureEnvelopesCount) = used_capacity as u64
         );
 
         let permit = self.services.envelopes_tx.reserve().await.ok();
