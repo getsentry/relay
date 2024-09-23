@@ -378,11 +378,17 @@ def test_minidump_with_processing(
     rate_limit,
     minidump_filename,
 ):
-    dmp_path = os.path.join(
-        os.path.dirname(__file__), f"fixtures/native/{minidump_filename}"
-    )
+    dmp_path = os.path.join(os.path.dirname(__file__), "fixtures/native/minidump.dmp")
     with open(dmp_path, "rb") as f:
         content = f.read()
+
+    # if we test a compressed minidump fixture we load both, the plain dump and the compressed one.
+    if minidump_filename != "minidump.dmp":
+        compressed_dmp_path = os.path.join(
+            os.path.dirname(__file__), f"fixtures/native/{minidump_filename}"
+        )
+        with open(compressed_dmp_path, "rb") as f:
+            compressed_content = f.read()
 
     relay = relay_with_processing()
 
@@ -409,7 +415,16 @@ def test_minidump_with_processing(
 
     attachments_consumer = attachments_consumer()
 
-    attachments = [(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", content)]
+    # if we test a compressed minidump fixture we upload the compressed content
+    # but retrieve the uncompressed minidump content from the `attachments_consumer` below.
+    attachments = [
+        (
+            MINIDUMP_ATTACHMENT_NAME,
+            minidump_filename,
+            content if minidump_filename == "minidump.dmp" else compressed_content,
+        )
+    ]
+
     response = relay.send_minidump(project_id=project_id, files=attachments)
 
     attachment = b""
