@@ -466,16 +466,18 @@ mod tests {
 
     use super::*;
 
-    fn mock_envelope_buffer_service(
+    struct EnvelopeBufferServiceResult {
+        service: EnvelopeBufferService,
+        global_tx: watch::Sender<global_config::Status>,
+        envelopes_rx: mpsc::Receiver<DequeuedEnvelope>,
+        project_cache_rx: mpsc::UnboundedReceiver<ProjectCache>,
+        outcome_aggregator_rx: mpsc::UnboundedReceiver<TrackOutcome>,
+    }
+
+    fn envelope_buffer_service(
         config_json: Option<serde_json::Value>,
         global_config_status: global_config::Status,
-    ) -> (
-        EnvelopeBufferService,
-        watch::Sender<global_config::Status>,
-        mpsc::Receiver<DequeuedEnvelope>,
-        mpsc::UnboundedReceiver<ProjectCache>,
-        mpsc::UnboundedReceiver<TrackOutcome>,
-    ) {
+    ) -> EnvelopeBufferServiceResult {
         let config_json = config_json.unwrap_or(serde_json::json!({
             "spool": {
                 "envelopes": {
@@ -504,36 +506,37 @@ mod tests {
         )
         .unwrap();
 
-        (
-            envelope_buffer_service,
+        EnvelopeBufferServiceResult {
+            service: envelope_buffer_service,
             global_tx,
             envelopes_rx,
             project_cache_rx,
             outcome_aggregator_rx,
-        )
+        }
     }
 
     #[tokio::test]
     async fn capacity_is_updated() {
         tokio::time::pause();
 
-        let (service, _global_tx, _envelopes_rx, _project_cache_tx, _outcome_aggregator_rx) =
-            mock_envelope_buffer_service(None, global_config::Status::Pending);
+        let EnvelopeBufferServiceResult {
+            service,
+            global_tx: _global_tx,
+            envelopes_rx: _envelopes_rx,
+            project_cache_rx: _project_cache_rx,
+            outcome_aggregator_rx: _outcome_aggregator_rx,
+        } = envelope_buffer_service(None, global_config::Status::Pending);
 
-        // Set capacity to false:
         service.has_capacity.store(false, Ordering::Relaxed);
 
-        // Observable has correct value:
         let ObservableEnvelopeBuffer { addr, has_capacity } = service.start_observable();
         assert!(!has_capacity.load(Ordering::Relaxed));
 
-        // Send a message to trigger update of `has_capacity` flag:
         let some_project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         addr.send(EnvelopeBuffer::Ready(some_project_key));
 
         tokio::time::advance(Duration::from_millis(100)).await;
 
-        // Observable has correct value:
         assert!(has_capacity.load(Ordering::Relaxed));
     }
 
@@ -541,12 +544,16 @@ mod tests {
     async fn pop_requires_global_config() {
         tokio::time::pause();
 
-        let (service, global_tx, envelopes_rx, project_cache_rx, _outcome_aggregator_rx) =
-            mock_envelope_buffer_service(None, global_config::Status::Pending);
+        let EnvelopeBufferServiceResult {
+            service,
+            global_tx,
+            envelopes_rx,
+            project_cache_rx,
+            outcome_aggregator_rx: _outcome_aggregator_rx,
+        } = envelope_buffer_service(None, global_config::Status::Pending);
 
         let addr = service.start();
 
-        // Send five messages:
         let envelope = new_envelope(false, "foo");
         let project_key = envelope.meta().public_key();
         addr.send(EnvelopeBuffer::Push(envelope.clone()));
@@ -554,7 +561,6 @@ mod tests {
 
         tokio::time::sleep(Duration::from_millis(1000)).await;
 
-        // Nothing was dequeued, global config not ready:
         assert_eq!(envelopes_rx.len(), 0);
         assert_eq!(project_cache_rx.len(), 0);
 
@@ -564,7 +570,6 @@ mod tests {
 
         tokio::time::sleep(Duration::from_millis(1000)).await;
 
-        // Dequeued, global config ready:
         assert_eq!(envelopes_rx.len(), 1);
         assert_eq!(project_cache_rx.len(), 0);
     }
@@ -573,25 +578,29 @@ mod tests {
     async fn pop_requires_memory_capacity() {
         tokio::time::pause();
 
-        let (service, _global_tx, envelopes_rx, project_cache_rx, _outcome_aggregator_rx) =
-            mock_envelope_buffer_service(
-                Some(serde_json::json!({
-                    "spool": {
-                        "envelopes": {
-                            "version": "experimental",
-                            "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
-                        }
-                    },
-                    "health": {
-                        "max_memory_bytes": 0,
+        let EnvelopeBufferServiceResult {
+            service,
+            envelopes_rx,
+            project_cache_rx,
+            outcome_aggregator_rx: _outcome_aggregator_rx,
+            global_tx: _global_tx,
+        } = envelope_buffer_service(
+            Some(serde_json::json!({
+                "spool": {
+                    "envelopes": {
+                        "version": "experimental",
+                        "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
                     }
-                })),
-                global_config::Status::Ready(Arc::new(GlobalConfig::default())),
-            );
+                },
+                "health": {
+                    "max_memory_bytes": 0,
+                }
+            })),
+            global_config::Status::Ready(Arc::new(GlobalConfig::default())),
+        );
 
         let addr = service.start();
 
-        // Send five messages:
         let envelope = new_envelope(false, "foo");
         let project_key = envelope.meta().public_key();
         addr.send(EnvelopeBuffer::Push(envelope.clone()));
@@ -599,7 +608,6 @@ mod tests {
 
         tokio::time::sleep(Duration::from_millis(1000)).await;
 
-        // Nothing was dequeued, memory not ready:
         assert_eq!(envelopes_rx.len(), 0);
         assert_eq!(project_cache_rx.len(), 0);
     }
@@ -608,23 +616,27 @@ mod tests {
     async fn old_envelope_is_dropped() {
         tokio::time::pause();
 
-        let (service, _global_tx, envelopes_rx, project_cache_rx, mut outcome_aggregator_rx) =
-            mock_envelope_buffer_service(
-                Some(serde_json::json!({
-                    "spool": {
-                        "envelopes": {
-                            "version": "experimental",
-                            "max_envelope_delay_secs": 1,
-                        }
+        let EnvelopeBufferServiceResult {
+            service,
+            envelopes_rx,
+            project_cache_rx,
+            mut outcome_aggregator_rx,
+            global_tx: _global_tx,
+        } = envelope_buffer_service(
+            Some(serde_json::json!({
+                "spool": {
+                    "envelopes": {
+                        "version": "experimental",
+                        "max_envelope_delay_secs": 1,
                     }
-                })),
-                global_config::Status::Ready(Arc::new(GlobalConfig::default())),
-            );
+                }
+            })),
+            global_config::Status::Ready(Arc::new(GlobalConfig::default())),
+        );
 
         let config = service.config.clone();
         let addr = service.start();
 
-        // Send five messages:
         let mut envelope = new_envelope(false, "foo");
         envelope
             .meta_mut()
@@ -645,11 +657,16 @@ mod tests {
     async fn test_update_project() {
         tokio::time::pause();
 
-        let (service, _global_tx, mut envelopes_rx, mut project_cache_rx, _outcome_aggregator_rx) =
-            mock_envelope_buffer_service(
-                None,
-                global_config::Status::Ready(Arc::new(GlobalConfig::default())),
-            );
+        let EnvelopeBufferServiceResult {
+            service,
+            mut envelopes_rx,
+            mut project_cache_rx,
+            global_tx: _global_tx,
+            outcome_aggregator_rx: _outcome_aggregator_rx,
+        } = envelope_buffer_service(
+            None,
+            global_config::Status::Ready(Arc::new(GlobalConfig::default())),
+        );
 
         let addr = service.start();
 
@@ -660,7 +677,6 @@ mod tests {
 
         tokio::time::sleep(Duration::from_secs(1)).await;
 
-        // We expect the envelope to be forwarded because by default we mark the project as ready.
         let Some(DequeuedEnvelope(envelope)) = envelopes_rx.recv().await else {
             panic!();
         };
@@ -669,7 +685,6 @@ mod tests {
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
-        // We expect the project update request to be sent.
         assert_eq!(project_cache_rx.len(), 1);
         let message = project_cache_rx.recv().await;
         assert!(matches!(
@@ -679,7 +694,6 @@ mod tests {
 
         tokio::time::sleep(Duration::from_secs(1)).await;
 
-        // We expect the project update request to be sent.
         assert_eq!(project_cache_rx.len(), 1);
         assert!(matches!(
             message,
@@ -691,15 +705,19 @@ mod tests {
     async fn output_is_throttled() {
         tokio::time::pause();
 
-        let (service, _global_tx, mut envelopes_rx, _project_cache_rx, _outcome_aggregator_rx) =
-            mock_envelope_buffer_service(
-                None,
-                global_config::Status::Ready(Arc::new(GlobalConfig::default())),
-            );
+        let EnvelopeBufferServiceResult {
+            service,
+            mut envelopes_rx,
+            global_tx: _global_tx,
+            project_cache_rx: _project_cache_rx,
+            outcome_aggregator_rx: _outcome_aggregator_rx,
+        } = envelope_buffer_service(
+            None,
+            global_config::Status::Ready(Arc::new(GlobalConfig::default())),
+        );
 
         let addr = service.start();
 
-        // Send 10 messages, with a bounded queue size of 5.
         let envelope = new_envelope(false, "foo");
         let project_key = envelope.meta().public_key();
         for _ in 0..10 {
