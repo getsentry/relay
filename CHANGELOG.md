@@ -5,6 +5,7 @@
 **Bug Fixes**:
 
 - Report invalid spans with appropriate outcome reason. ([#4051](https://github.com/getsentry/relay/pull/4051))
+- Use the duration reported by the profiler instead of the transaction. ([#4058](https://github.com/getsentry/relay/pull/4058))
 
 **Features:**
 
