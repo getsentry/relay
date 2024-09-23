@@ -1711,6 +1711,7 @@ impl EnvelopeProcessorService {
             false => SamplingResult::Pending,
         };
 
+        #[cfg(feature = "processing")]
         let server_sample_rate = match sampling_result {
             SamplingResult::Match(ref sampling_match) => Some(sampling_match.sample_rate()),
             SamplingResult::NoMatch | SamplingResult::Pending => None,
