@@ -3550,6 +3550,8 @@ dependencies = [
  "criterion",
  "memchr",
  "regex-lite",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
