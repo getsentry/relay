@@ -752,14 +752,6 @@
 <a href="#752" id="752">752</a>
 <a href="#753" id="753">753</a>
 <a href="#754" id="754">754</a>
-<a href="#755" id="755">755</a>
-<a href="#756" id="756">756</a>
-<a href="#757" id="757">757</a>
-<a href="#758" id="758">758</a>
-<a href="#759" id="759">759</a>
-<a href="#760" id="760">760</a>
-<a href="#761" id="761">761</a>
-<a href="#762" id="762">762</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Types for buffering envelopes.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -1228,174 +1220,34 @@
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="kw">fn </span>buffer_service() -&gt; (
-        EnvelopeBufferService,
-        watch::Sender&lt;global_config::Status&gt;,
-        mpsc::Receiver&lt;DequeuedEnvelope&gt;,
-        mpsc::UnboundedReceiver&lt;ProjectCache&gt;,
-        mpsc::UnboundedReceiver&lt;TrackOutcome&gt;,
-    ) {
-        <span class="kw">let </span>config = Arc::new(
-            Config::from_json_value(<span class="macro">serde_json::json!</span>({
-                <span class="string">"spool"</span>: {
-                    <span class="string">"envelopes"</span>: {
-                        <span class="string">"version"</span>: <span class="string">"experimental"
-                    </span>}
-                }
-            }))
-            .unwrap(),
-        );
+    <span class="kw">struct </span>EnvelopeBufferServiceResult {
+        service: EnvelopeBufferService,
+        global_tx: watch::Sender&lt;global_config::Status&gt;,
+        envelopes_rx: mpsc::Receiver&lt;DequeuedEnvelope&gt;,
+        project_cache_rx: mpsc::UnboundedReceiver&lt;ProjectCache&gt;,
+        outcome_aggregator_rx: mpsc::UnboundedReceiver&lt;TrackOutcome&gt;,
+    }
+
+    <span class="kw">fn </span>envelope_buffer_service(
+        config_json: <span class="prelude-ty">Option</span>&lt;serde_json::Value&gt;,
+        global_config_status: global_config::Status,
+    ) -&gt; EnvelopeBufferServiceResult {
+        <span class="kw">let </span>config_json = config_json.unwrap_or(<span class="macro">serde_json::json!</span>({
+            <span class="string">"spool"</span>: {
+                <span class="string">"envelopes"</span>: {
+                    <span class="string">"version"</span>: <span class="string">"experimental"
+                </span>}
+            }
+        }));
+        <span class="kw">let </span>config = Arc::new(Config::from_json_value(config_json).unwrap());
+
         <span class="kw">let </span>memory_checker = MemoryChecker::new(MemoryStat::default(), config.clone());
-        <span class="kw">let </span>(global_tx, global_rx) = watch::channel(global_config::Status::Pending);
+        <span class="kw">let </span>(global_tx, global_rx) = watch::channel(global_config_status);
         <span class="kw">let </span>(envelopes_tx, envelopes_rx) = mpsc::channel(<span class="number">5</span>);
         <span class="kw">let </span>(project_cache, project_cache_rx) = Addr::custom();
         <span class="kw">let </span>(outcome_aggregator, outcome_aggregator_rx) = Addr::custom();
-        (
-            EnvelopeBufferService::new(
-                config,
-                memory_checker,
-                global_rx,
-                Services {
-                    envelopes_tx,
-                    project_cache,
-                    outcome_aggregator,
-                    test_store: Addr::dummy(),
-                },
-            )
-            .unwrap(),
-            global_tx,
-            envelopes_rx,
-            project_cache_rx,
-            outcome_aggregator_rx,
-        )
-    }
 
-    <span class="attr">#[tokio::test]
-    </span><span class="kw">async fn </span>capacity_is_updated() {
-        tokio::time::pause();
-        <span class="kw">let </span>(service, _global_tx, _envelopes_rx, _project_cache_tx, <span class="kw">_</span>) = buffer_service();
-
-        <span class="comment">// Set capacity to false:
-        </span>service.has_capacity.store(<span class="bool-val">false</span>, Ordering::Relaxed);
-
-        <span class="comment">// Observable has correct value:
-        </span><span class="kw">let </span>ObservableEnvelopeBuffer { addr, has_capacity } = service.start_observable();
-        <span class="macro">assert!</span>(!has_capacity.load(Ordering::Relaxed));
-
-        <span class="comment">// Send a message to trigger update of `has_capacity` flag:
-        </span><span class="kw">let </span>some_project_key = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap();
-        addr.send(EnvelopeBuffer::Ready(some_project_key));
-
-        tokio::time::advance(Duration::from_millis(<span class="number">100</span>)).<span class="kw">await</span>;
-
-        <span class="comment">// Observable has correct value:
-        </span><span class="macro">assert!</span>(has_capacity.load(Ordering::Relaxed));
-    }
-
-    <span class="attr">#[tokio::test]
-    </span><span class="kw">async fn </span>pop_requires_global_config() {
-        <span class="macro">relay_log::init_test!</span>();
-        tokio::time::pause();
-        <span class="kw">let </span>(service, global_tx, envelopes_rx, project_cache_rx, <span class="kw">_</span>) = buffer_service();
-
-        <span class="kw">let </span>addr = service.start();
-
-        <span class="comment">// Send five messages:
-        </span><span class="kw">let </span>envelope = new_envelope(<span class="bool-val">false</span>, <span class="string">"foo"</span>);
-        <span class="kw">let </span>project_key = envelope.meta().public_key();
-        addr.send(EnvelopeBuffer::Push(envelope.clone()));
-        addr.send(EnvelopeBuffer::Ready(project_key));
-
-        tokio::time::sleep(Duration::from_millis(<span class="number">1000</span>)).<span class="kw">await</span>;
-
-        <span class="comment">// Nothing was dequeued, global config not ready:
-        </span><span class="macro">assert_eq!</span>(envelopes_rx.len(), <span class="number">0</span>);
-        <span class="macro">assert_eq!</span>(project_cache_rx.len(), <span class="number">0</span>);
-
-        global_tx.send_replace(global_config::Status::Ready(Arc::new(
-            GlobalConfig::default(),
-        )));
-
-        tokio::time::sleep(Duration::from_millis(<span class="number">1000</span>)).<span class="kw">await</span>;
-
-        <span class="comment">// Dequeued, global config ready:
-        </span><span class="macro">assert_eq!</span>(envelopes_rx.len(), <span class="number">1</span>);
-        <span class="macro">assert_eq!</span>(project_cache_rx.len(), <span class="number">0</span>);
-    }
-
-    <span class="attr">#[tokio::test]
-    </span><span class="kw">async fn </span>pop_requires_memory_capacity() {
-        tokio::time::pause();
-
-        <span class="kw">let </span>config = Arc::new(
-            Config::from_json_value(<span class="macro">serde_json::json!</span>({
-                <span class="string">"spool"</span>: {
-                    <span class="string">"envelopes"</span>: {
-                        <span class="string">"version"</span>: <span class="string">"experimental"</span>,
-                        <span class="string">"path"</span>: std::env::temp_dir().join(Uuid::new_v4().to_string()),
-                    }
-                },
-                <span class="string">"health"</span>: {
-                    <span class="string">"max_memory_bytes"</span>: <span class="number">0</span>,
-                }
-            }))
-            .unwrap(),
-        );
-        <span class="kw">let </span>memory_checker = MemoryChecker::new(MemoryStat::default(), config.clone());
-        <span class="kw">let </span>(<span class="kw">_</span>, global_rx) = watch::channel(global_config::Status::Ready(Arc::new(
-            GlobalConfig::default(),
-        )));
-
-        <span class="kw">let </span>(envelopes_tx, envelopes_rx) = mpsc::channel(<span class="number">5</span>);
-        <span class="kw">let </span>(project_cache, project_cache_rx) = Addr::custom();
-        <span class="kw">let </span>service = EnvelopeBufferService::new(
-            config,
-            memory_checker,
-            global_rx,
-            Services {
-                envelopes_tx,
-                project_cache,
-                outcome_aggregator: Addr::dummy(),
-                test_store: Addr::dummy(),
-            },
-        )
-        .unwrap();
-        <span class="kw">let </span>addr = service.start();
-
-        <span class="comment">// Send five messages:
-        </span><span class="kw">let </span>envelope = new_envelope(<span class="bool-val">false</span>, <span class="string">"foo"</span>);
-        <span class="kw">let </span>project_key = envelope.meta().public_key();
-        addr.send(EnvelopeBuffer::Push(envelope.clone()));
-        addr.send(EnvelopeBuffer::Ready(project_key));
-
-        tokio::time::sleep(Duration::from_millis(<span class="number">1000</span>)).<span class="kw">await</span>;
-
-        <span class="comment">// Nothing was dequeued, memory not ready:
-        </span><span class="macro">assert_eq!</span>(envelopes_rx.len(), <span class="number">0</span>);
-        <span class="macro">assert_eq!</span>(project_cache_rx.len(), <span class="number">0</span>);
-    }
-
-    <span class="attr">#[tokio::test]
-    </span><span class="kw">async fn </span>old_envelope_is_dropped() {
-        tokio::time::pause();
-
-        <span class="kw">let </span>config = Arc::new(
-            Config::from_json_value(<span class="macro">serde_json::json!</span>({
-                <span class="string">"spool"</span>: {
-                    <span class="string">"envelopes"</span>: {
-                        <span class="string">"version"</span>: <span class="string">"experimental"</span>,
-                        <span class="string">"max_envelope_delay_secs"</span>: <span class="number">1</span>,
-                    }
-                }
-            }))
-            .unwrap(),
-        );
-        <span class="kw">let </span>memory_checker = MemoryChecker::new(MemoryStat::default(), config.clone());
-        <span class="kw">let </span>(global_tx, global_rx) = watch::channel(global_config::Status::Pending);
-        <span class="kw">let </span>(envelopes_tx, envelopes_rx) = mpsc::channel(<span class="number">5</span>);
-        <span class="kw">let </span>(project_cache, project_cache_rx) = Addr::custom();
-        <span class="kw">let </span>(outcome_aggregator, <span class="kw-2">mut </span>outcome_aggregator_rx) = Addr::custom();
-        <span class="kw">let </span>service = EnvelopeBufferService::new(
+        <span class="kw">let </span>envelope_buffer_service = EnvelopeBufferService::new(
             config,
             memory_checker,
             global_rx,
@@ -1408,15 +1260,138 @@
         )
         .unwrap();
 
+        EnvelopeBufferServiceResult {
+            service: envelope_buffer_service,
+            global_tx,
+            envelopes_rx,
+            project_cache_rx,
+            outcome_aggregator_rx,
+        }
+    }
+
+    <span class="attr">#[tokio::test]
+    </span><span class="kw">async fn </span>capacity_is_updated() {
+        tokio::time::pause();
+
+        <span class="kw">let </span>EnvelopeBufferServiceResult {
+            service,
+            global_tx: _global_tx,
+            envelopes_rx: _envelopes_rx,
+            project_cache_rx: _project_cache_rx,
+            outcome_aggregator_rx: _outcome_aggregator_rx,
+        } = envelope_buffer_service(<span class="prelude-val">None</span>, global_config::Status::Pending);
+
+        service.has_capacity.store(<span class="bool-val">false</span>, Ordering::Relaxed);
+
+        <span class="kw">let </span>ObservableEnvelopeBuffer { addr, has_capacity } = service.start_observable();
+        <span class="macro">assert!</span>(!has_capacity.load(Ordering::Relaxed));
+
+        <span class="kw">let </span>some_project_key = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap();
+        addr.send(EnvelopeBuffer::Ready(some_project_key));
+
+        tokio::time::advance(Duration::from_millis(<span class="number">100</span>)).<span class="kw">await</span>;
+
+        <span class="macro">assert!</span>(has_capacity.load(Ordering::Relaxed));
+    }
+
+    <span class="attr">#[tokio::test]
+    </span><span class="kw">async fn </span>pop_requires_global_config() {
+        tokio::time::pause();
+
+        <span class="kw">let </span>EnvelopeBufferServiceResult {
+            service,
+            global_tx,
+            envelopes_rx,
+            project_cache_rx,
+            outcome_aggregator_rx: _outcome_aggregator_rx,
+        } = envelope_buffer_service(<span class="prelude-val">None</span>, global_config::Status::Pending);
+
+        <span class="kw">let </span>addr = service.start();
+
+        <span class="kw">let </span>envelope = new_envelope(<span class="bool-val">false</span>, <span class="string">"foo"</span>);
+        <span class="kw">let </span>project_key = envelope.meta().public_key();
+        addr.send(EnvelopeBuffer::Push(envelope.clone()));
+        addr.send(EnvelopeBuffer::Ready(project_key));
+
+        tokio::time::sleep(Duration::from_millis(<span class="number">1000</span>)).<span class="kw">await</span>;
+
+        <span class="macro">assert_eq!</span>(envelopes_rx.len(), <span class="number">0</span>);
+        <span class="macro">assert_eq!</span>(project_cache_rx.len(), <span class="number">0</span>);
+
         global_tx.send_replace(global_config::Status::Ready(Arc::new(
             GlobalConfig::default(),
         )));
 
+        tokio::time::sleep(Duration::from_millis(<span class="number">1000</span>)).<span class="kw">await</span>;
+
+        <span class="macro">assert_eq!</span>(envelopes_rx.len(), <span class="number">1</span>);
+        <span class="macro">assert_eq!</span>(project_cache_rx.len(), <span class="number">0</span>);
+    }
+
+    <span class="attr">#[tokio::test]
+    </span><span class="kw">async fn </span>pop_requires_memory_capacity() {
+        tokio::time::pause();
+
+        <span class="kw">let </span>EnvelopeBufferServiceResult {
+            service,
+            envelopes_rx,
+            project_cache_rx,
+            outcome_aggregator_rx: _outcome_aggregator_rx,
+            global_tx: _global_tx,
+        } = envelope_buffer_service(
+            <span class="prelude-val">Some</span>(<span class="macro">serde_json::json!</span>({
+                <span class="string">"spool"</span>: {
+                    <span class="string">"envelopes"</span>: {
+                        <span class="string">"version"</span>: <span class="string">"experimental"</span>,
+                        <span class="string">"path"</span>: std::env::temp_dir().join(Uuid::new_v4().to_string()),
+                    }
+                },
+                <span class="string">"health"</span>: {
+                    <span class="string">"max_memory_bytes"</span>: <span class="number">0</span>,
+                }
+            })),
+            global_config::Status::Ready(Arc::new(GlobalConfig::default())),
+        );
+
+        <span class="kw">let </span>addr = service.start();
+
+        <span class="kw">let </span>envelope = new_envelope(<span class="bool-val">false</span>, <span class="string">"foo"</span>);
+        <span class="kw">let </span>project_key = envelope.meta().public_key();
+        addr.send(EnvelopeBuffer::Push(envelope.clone()));
+        addr.send(EnvelopeBuffer::Ready(project_key));
+
+        tokio::time::sleep(Duration::from_millis(<span class="number">1000</span>)).<span class="kw">await</span>;
+
+        <span class="macro">assert_eq!</span>(envelopes_rx.len(), <span class="number">0</span>);
+        <span class="macro">assert_eq!</span>(project_cache_rx.len(), <span class="number">0</span>);
+    }
+
+    <span class="attr">#[tokio::test]
+    </span><span class="kw">async fn </span>old_envelope_is_dropped() {
+        tokio::time::pause();
+
+        <span class="kw">let </span>EnvelopeBufferServiceResult {
+            service,
+            envelopes_rx,
+            project_cache_rx,
+            <span class="kw-2">mut </span>outcome_aggregator_rx,
+            global_tx: _global_tx,
+        } = envelope_buffer_service(
+            <span class="prelude-val">Some</span>(<span class="macro">serde_json::json!</span>({
+                <span class="string">"spool"</span>: {
+                    <span class="string">"envelopes"</span>: {
+                        <span class="string">"version"</span>: <span class="string">"experimental"</span>,
+                        <span class="string">"max_envelope_delay_secs"</span>: <span class="number">1</span>,
+                    }
+                }
+            })),
+            global_config::Status::Ready(Arc::new(GlobalConfig::default())),
+        );
+
         <span class="kw">let </span>config = service.config.clone();
         <span class="kw">let </span>addr = service.start();
 
-        <span class="comment">// Send five messages:
-        </span><span class="kw">let </span><span class="kw-2">mut </span>envelope = new_envelope(<span class="bool-val">false</span>, <span class="string">"foo"</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>envelope = new_envelope(<span class="bool-val">false</span>, <span class="string">"foo"</span>);
         envelope
             .meta_mut()
             .set_start_time(Instant::now() - <span class="number">2 </span>* config.spool_envelopes_max_age());
@@ -1435,13 +1410,19 @@
     <span class="attr">#[tokio::test]
     </span><span class="kw">async fn </span>test_update_project() {
         tokio::time::pause();
-        <span class="kw">let </span>(service, global_tx, <span class="kw-2">mut </span>envelopes_rx, <span class="kw-2">mut </span>project_cache_rx, <span class="kw">_</span>) = buffer_service();
+
+        <span class="kw">let </span>EnvelopeBufferServiceResult {
+            service,
+            <span class="kw-2">mut </span>envelopes_rx,
+            <span class="kw-2">mut </span>project_cache_rx,
+            global_tx: _global_tx,
+            outcome_aggregator_rx: _outcome_aggregator_rx,
+        } = envelope_buffer_service(
+            <span class="prelude-val">None</span>,
+            global_config::Status::Ready(Arc::new(GlobalConfig::default())),
+        );
 
         <span class="kw">let </span>addr = service.start();
-
-        global_tx.send_replace(global_config::Status::Ready(Arc::new(
-            GlobalConfig::default(),
-        )));
 
         <span class="kw">let </span>envelope = new_envelope(<span class="bool-val">false</span>, <span class="string">"foo"</span>);
         <span class="kw">let </span>project_key = envelope.meta().public_key();
@@ -1450,8 +1431,7 @@
 
         tokio::time::sleep(Duration::from_secs(<span class="number">1</span>)).<span class="kw">await</span>;
 
-        <span class="comment">// We expect the envelope to be forwarded because by default we mark the project as ready.
-        </span><span class="kw">let </span><span class="prelude-val">Some</span>(DequeuedEnvelope(envelope)) = envelopes_rx.recv().<span class="kw">await else </span>{
+        <span class="kw">let </span><span class="prelude-val">Some</span>(DequeuedEnvelope(envelope)) = envelopes_rx.recv().<span class="kw">await else </span>{
             <span class="macro">panic!</span>();
         };
 
@@ -1459,8 +1439,7 @@
 
         tokio::time::sleep(Duration::from_millis(<span class="number">100</span>)).<span class="kw">await</span>;
 
-        <span class="comment">// We expect the project update request to be sent.
-        </span><span class="macro">assert_eq!</span>(project_cache_rx.len(), <span class="number">1</span>);
+        <span class="macro">assert_eq!</span>(project_cache_rx.len(), <span class="number">1</span>);
         <span class="kw">let </span>message = project_cache_rx.recv().<span class="kw">await</span>;
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(
             message,
@@ -1469,8 +1448,7 @@
 
         tokio::time::sleep(Duration::from_secs(<span class="number">1</span>)).<span class="kw">await</span>;
 
-        <span class="comment">// We expect the project update request to be sent.
-        </span><span class="macro">assert_eq!</span>(project_cache_rx.len(), <span class="number">1</span>);
+        <span class="macro">assert_eq!</span>(project_cache_rx.len(), <span class="number">1</span>);
         <span class="macro">assert!</span>(<span class="macro">matches!</span>(
             message,
             <span class="prelude-val">Some</span>(ProjectCache::UpdateProject(key)) <span class="kw">if </span>key == project_key
@@ -1480,15 +1458,21 @@
     <span class="attr">#[tokio::test]
     </span><span class="kw">async fn </span>output_is_throttled() {
         tokio::time::pause();
-        <span class="kw">let </span>(service, global_tx, <span class="kw-2">mut </span>envelopes_rx, _project_cache_rx, <span class="kw">_</span>) = buffer_service();
-        global_tx.send_replace(global_config::Status::Ready(Arc::new(
-            GlobalConfig::default(),
-        )));
+
+        <span class="kw">let </span>EnvelopeBufferServiceResult {
+            service,
+            <span class="kw-2">mut </span>envelopes_rx,
+            global_tx: _global_tx,
+            project_cache_rx: _project_cache_rx,
+            outcome_aggregator_rx: _outcome_aggregator_rx,
+        } = envelope_buffer_service(
+            <span class="prelude-val">None</span>,
+            global_config::Status::Ready(Arc::new(GlobalConfig::default())),
+        );
 
         <span class="kw">let </span>addr = service.start();
 
-        <span class="comment">// Send 10 messages, with a bounded queue size of 5.
-        </span><span class="kw">let </span>envelope = new_envelope(<span class="bool-val">false</span>, <span class="string">"foo"</span>);
+        <span class="kw">let </span>envelope = new_envelope(<span class="bool-val">false</span>, <span class="string">"foo"</span>);
         <span class="kw">let </span>project_key = envelope.meta().public_key();
         <span class="kw">for _ in </span><span class="number">0</span>..<span class="number">10 </span>{
             addr.send(EnvelopeBuffer::Push(envelope.clone()));
