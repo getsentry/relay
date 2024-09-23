@@ -3877,6 +3877,12 @@
 <a href="#3877" id="3877">3877</a>
 <a href="#3878" id="3878">3878</a>
 <a href="#3879" id="3879">3879</a>
+<a href="#3880" id="3880">3880</a>
+<a href="#3881" id="3881">3881</a>
+<a href="#3882" id="3882">3882</a>
+<a href="#3883" id="3883">3883</a>
+<a href="#3884" id="3884">3884</a>
+<a href="#3885" id="3885">3885</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -5590,6 +5596,12 @@
             <span class="bool-val">false </span>=&gt; SamplingResult::Pending,
         };
 
+        <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+        </span><span class="kw">let </span>server_sample_rate = <span class="kw">match </span>sampling_result {
+            SamplingResult::Match(<span class="kw-2">ref </span>sampling_match) =&gt; <span class="prelude-val">Some</span>(sampling_match.sample_rate()),
+            SamplingResult::NoMatch | SamplingResult::Pending =&gt; <span class="prelude-val">None</span>,
+        };
+
         <span class="kw">if let </span><span class="prelude-val">Some</span>(outcome) = sampling_result.into_dropped_outcome() {
             <span class="kw">let </span>keep_profiles = global_config.options.unsampled_profiles_enabled;
             <span class="comment">// Process profiles before dropping the transaction, if necessary.
@@ -5632,7 +5644,7 @@
                 .project_state
                 .has_feature(Feature::ExtractSpansFromEvent)
             {
-                span::extract_from_event(state, <span class="kw-2">&amp;</span>global_config);
+                span::extract_from_event(state, <span class="kw-2">&amp;</span>global_config, server_sample_rate);
             }
 
             <span class="self">self</span>.enforce_quotas(state)<span class="question-mark">?</span>;

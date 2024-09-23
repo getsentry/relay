@@ -2842,50 +2842,6 @@
 <a href="#2842" id="2842">2842</a>
 <a href="#2843" id="2843">2843</a>
 <a href="#2844" id="2844">2844</a>
-<a href="#2845" id="2845">2845</a>
-<a href="#2846" id="2846">2846</a>
-<a href="#2847" id="2847">2847</a>
-<a href="#2848" id="2848">2848</a>
-<a href="#2849" id="2849">2849</a>
-<a href="#2850" id="2850">2850</a>
-<a href="#2851" id="2851">2851</a>
-<a href="#2852" id="2852">2852</a>
-<a href="#2853" id="2853">2853</a>
-<a href="#2854" id="2854">2854</a>
-<a href="#2855" id="2855">2855</a>
-<a href="#2856" id="2856">2856</a>
-<a href="#2857" id="2857">2857</a>
-<a href="#2858" id="2858">2858</a>
-<a href="#2859" id="2859">2859</a>
-<a href="#2860" id="2860">2860</a>
-<a href="#2861" id="2861">2861</a>
-<a href="#2862" id="2862">2862</a>
-<a href="#2863" id="2863">2863</a>
-<a href="#2864" id="2864">2864</a>
-<a href="#2865" id="2865">2865</a>
-<a href="#2866" id="2866">2866</a>
-<a href="#2867" id="2867">2867</a>
-<a href="#2868" id="2868">2868</a>
-<a href="#2869" id="2869">2869</a>
-<a href="#2870" id="2870">2870</a>
-<a href="#2871" id="2871">2871</a>
-<a href="#2872" id="2872">2872</a>
-<a href="#2873" id="2873">2873</a>
-<a href="#2874" id="2874">2874</a>
-<a href="#2875" id="2875">2875</a>
-<a href="#2876" id="2876">2876</a>
-<a href="#2877" id="2877">2877</a>
-<a href="#2878" id="2878">2878</a>
-<a href="#2879" id="2879">2879</a>
-<a href="#2880" id="2880">2880</a>
-<a href="#2881" id="2881">2881</a>
-<a href="#2882" id="2882">2882</a>
-<a href="#2883" id="2883">2883</a>
-<a href="#2884" id="2884">2884</a>
-<a href="#2885" id="2885">2885</a>
-<a href="#2886" id="2886">2886</a>
-<a href="#2887" id="2887">2887</a>
-<a href="#2888" id="2888">2888</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for persisting items into `span.sentry_tags` and `span.measurements` fields.
 //! These are then used for metrics extraction.
 </span><span class="kw">use </span>std::borrow::Cow;
@@ -2896,12 +2852,12 @@
 
 <span class="kw">use </span>once_cell::sync::Lazy;
 <span class="kw">use </span>regex::Regex;
-<span class="kw">use </span>relay_base_schema::metrics::{DurationUnit, FractionUnit, InformationUnit, MetricUnit};
+<span class="kw">use </span>relay_base_schema::metrics::{DurationUnit, InformationUnit, MetricUnit};
 <span class="kw">use </span>relay_event_schema::protocol::{
-    AppContext, BrowserContext, Event, Measurement, Measurements, OsContext, ProfileContext, Span,
-    Timestamp, TraceContext,
+    AppContext, BrowserContext, Event, Measurement, OsContext, ProfileContext, Span, Timestamp,
+    TraceContext,
 };
-<span class="kw">use </span>relay_protocol::{Annotated, Empty, Value};
+<span class="kw">use </span>relay_protocol::{Annotated, Value};
 <span class="kw">use </span>sqlparser::ast::Visit;
 <span class="kw">use </span>sqlparser::ast::{ObjectName, Visitor};
 <span class="kw">use </span>url::Url;
@@ -3105,7 +3061,6 @@
     <span class="comment">// TODO: To prevent differences between metrics and payloads, we should not extract tags here
     // when they have already been extracted by a downstream relay.
     </span><span class="kw">let </span>shared_tags = extract_shared_tags(event);
-    <span class="kw">let </span>shared_measurements = extract_shared_measurements(event);
     <span class="kw">let </span>is_mobile = shared_tags
         .get(<span class="kw-2">&amp;</span>SpanTagKey::Mobile)
         .is_some_and(|v| v.as_str() == <span class="string">"true"</span>);
@@ -3138,17 +3093,6 @@
                 .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
                 .collect(),
         );
-
-        <span class="kw">if </span>!shared_measurements.is_empty() {
-            <span class="kw">match </span>span.measurements.value_mut() {
-                <span class="prelude-val">Some</span>(left) =&gt; shared_measurements.iter().for_each(|(key, val)| {
-                    left.insert(key.clone(), val.clone());
-                }),
-                <span class="prelude-val">None </span>=&gt; span
-                    .measurements
-                    .set_value(<span class="prelude-val">Some</span>(shared_measurements.clone())),
-            }
-        }
 
         extract_measurements(span, is_mobile);
     }
@@ -3764,27 +3708,6 @@
         <span class="prelude-val">Some</span>(Value::U64(u)) =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">*</span>u <span class="kw">as </span>f64),
         <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
     }
-}
-
-<span class="kw">fn </span>extract_shared_measurements(event: <span class="kw-2">&amp;</span>Event) -&gt; Measurements {
-    <span class="kw">let </span><span class="kw-2">mut </span>measurements = Measurements::default();
-
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(trace_context) = event.context::&lt;TraceContext&gt;() {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(client_sample_rate) = trace_context.client_sample_rate.value() {
-            <span class="kw">if </span><span class="kw-2">*</span>client_sample_rate &gt; <span class="number">0. </span>{
-                measurements.insert(
-                    <span class="string">"client_sample_rate"</span>.into(),
-                    Measurement {
-                        value: (<span class="kw-2">*</span>client_sample_rate).into(),
-                        unit: MetricUnit::Fraction(FractionUnit::Ratio).into(),
-                    }
-                    .into(),
-                );
-            }
-        }
-    }
-
-    measurements
 }
 
 <span class="doccomment">/// Copies specific numeric values from span data to span measurements.
@@ -4616,11 +4539,6 @@ LIMIT 1
     </span><span class="kw">fn </span>test_ai_extraction() {
         <span class="kw">let </span>json = <span class="string">r#"
             {
-                "contexts": {
-                    "trace": {
-                        "client_sample_rate": 0.1
-                    }
-                },
                 "spans": [
                     {
                         "timestamp": 1694732408.3145,
@@ -4680,12 +4598,6 @@ LIMIT 1
                 "ai_total_tokens_used": Measurement {
                     value: 300.0,
                     unit: None,
-                },
-                "client_sample_rate": Measurement {
-                    value: 0.1,
-                    unit: Fraction(
-                        Ratio,
-                    ),
                 },
             },
         )
