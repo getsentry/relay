@@ -178,6 +178,9 @@ pub enum RelayHistograms {
     /// This metric is tagged with:
     /// - `storage_type`: The type of storage used in the envelope buffer.
     BufferEnvelopesCount,
+    /// Number of envelopes in the backpressure buffer between the envelope buffer
+    /// and the project cache.
+    BufferBackpressureEnvelopesCount,
     /// The number of batches emitted per partition.
     BatchesPerPartition,
     /// The number of buckets in a batch emitted.
@@ -303,6 +306,9 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::BufferDiskSize => "buffer.disk_size",
             RelayHistograms::BufferDequeueAttempts => "buffer.dequeue_attempts",
             RelayHistograms::BufferEnvelopesCount => "buffer.envelopes_count",
+            RelayHistograms::BufferBackpressureEnvelopesCount => {
+                "buffer.backpressure_envelopes_count"
+            }
             RelayHistograms::ProjectStatePending => "project_state.pending",
             RelayHistograms::ProjectStateAttempts => "project_state.attempts",
             RelayHistograms::ProjectStateRequestBatchSize => "project_state.request.batch_size",
