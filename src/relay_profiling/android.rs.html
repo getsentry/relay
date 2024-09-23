@@ -371,6 +371,7 @@
 <a href="#371" id="371">371</a>
 <a href="#372" id="372">372</a>
 <a href="#373" id="373">373</a>
+<a href="#374" id="374">374</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Android Format
 //!
 //! Relay is expecting a JSON object with some mandatory metadata and a `sampled_profile` key
@@ -526,8 +527,8 @@
     }
 
     <span class="kw">fn </span>has_transaction_metadata(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        !<span class="self">self</span>.metadata.transaction_name.is_empty() &amp;&amp; <span class="self">self</span>.metadata.duration_ns &gt; <span class="number">0
-    </span>}
+        !<span class="self">self</span>.metadata.transaction_name.is_empty()
+    }
 }
 
 <span class="kw">fn </span>parse_profile(payload: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;AndroidProfilingEvent, ProfileError&gt; {
@@ -543,7 +544,6 @@
 
         <span class="comment">// this is for compatibility
         </span>profile.metadata.active_thread_id = transaction.active_thread_id;
-        profile.metadata.duration_ns = transaction.duration_ns();
         profile.metadata.trace_id = transaction.trace_id;
         profile.metadata.transaction_id = transaction.id;
         profile
@@ -579,6 +579,9 @@
     <span class="kw">if </span>profile.profile.elapsed_time &gt; MAX_PROFILE_DURATION {
         <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::DurationIsTooLong);
     }
+
+    <span class="comment">// Use duration given by the profiler and not reported by the SDK.
+    </span>profile.metadata.duration_ns = profile.profile.elapsed_time.as_nanos() <span class="kw">as </span>u64;
 
     <span class="prelude-val">Ok</span>(profile)
 }
@@ -693,7 +696,6 @@
         );
         <span class="macro">assert_eq!</span>(profile.metadata.active_thread_id, <span class="number">12345</span>);
         <span class="macro">assert_eq!</span>(profile.metadata.transaction_name, <span class="string">"transaction1"</span>);
-        <span class="macro">assert_eq!</span>(profile.metadata.duration_ns, <span class="number">1000000000</span>);
     }
 
     <span class="attr">#[test]

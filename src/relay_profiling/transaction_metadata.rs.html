@@ -100,10 +100,6 @@
 <a href="#100" id="100">100</a>
 <a href="#101" id="101">101</a>
 <a href="#102" id="102">102</a>
-<a href="#103" id="103">103</a>
-<a href="#104" id="104">104</a>
-<a href="#105" id="105">105</a>
-<a href="#106" id="106">106</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_event_schema::protocol::{EventId, SpanId};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
@@ -151,10 +147,6 @@
 <span class="kw">impl </span>TransactionMetadata {
     <span class="kw">pub fn </span>valid(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         !<span class="self">self</span>.id.is_nil() &amp;&amp; !<span class="self">self</span>.name.is_empty() &amp;&amp; !<span class="self">self</span>.trace_id.is_nil()
-    }
-
-    <span class="kw">pub fn </span>duration_ns(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u64 {
-        <span class="self">self</span>.relative_end_ns.saturating_sub(<span class="self">self</span>.relative_start_ns)
     }
 }
 
