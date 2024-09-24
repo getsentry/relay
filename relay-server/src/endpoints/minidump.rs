@@ -1,7 +1,3 @@
-use std::convert::Infallible;
-use std::io::Read;
-use std::io::{Cursor, Error};
-
 use axum::extract::{DefaultBodyLimit, Request};
 use axum::response::IntoResponse;
 use axum::routing::{post, MethodRouter};
@@ -13,6 +9,10 @@ use liblzma::read::XzDecoder;
 use multer::Multipart;
 use relay_config::Config;
 use relay_event_schema::protocol::EventId;
+use std::convert::Infallible;
+use std::error::Error;
+use std::io::Cursor;
+use std::io::Read;
 use zstd::stream::Decoder as ZstdDecoder;
 
 use crate::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT};
@@ -57,7 +57,7 @@ fn validate_minidump(data: &[u8]) -> Result<(), BadStoreRequest> {
 }
 
 /// Convenience wrapper to let a decoder decode its full input into a buffer
-fn run_decoder(decoder: &mut Box<dyn Read>) -> Result<Vec<u8>, Error> {
+fn run_decoder(decoder: &mut Box<dyn Read>) -> std::io::Result<Vec<u8>> {
     let mut buffer = Vec::new();
     decoder.read_to_end(&mut buffer)?;
     Ok(buffer)
@@ -74,8 +74,8 @@ fn decoder_from(minidump_data: Bytes) -> Option<Box<dyn Read>> {
     } else if minidump_data.starts_with(ZSTD_MAGIC_HEADER) {
         return match ZstdDecoder::new(Cursor::new(minidump_data)) {
             Ok(decoder) => Some(Box::new(decoder)),
-            Err(err) => {
-                relay_log::trace!("failed to create ZstdDecoder: {err}");
+            Err(ref err) => {
+                relay_log::error!(error = err as &dyn Error, "failed to create ZstdDecoder");
                 None
             }
         };
