@@ -10,8 +10,6 @@ use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Receiver, Service};
 use relay_system::{Controller, Shutdown};
-use tokio::signal;
-use tokio::signal::unix::SignalKind;
 use tokio::sync::mpsc::Permit;
 use tokio::sync::{mpsc, watch};
 use tokio::time::{timeout, Instant};
@@ -458,7 +456,8 @@ impl Service for EnvelopeBufferService {
 
         #[cfg(unix)]
         tokio::spawn(async move {
-            let Ok(mut signal) = signal::unix::signal(SignalKind::user_defined1()) else {
+            use tokio::signal::unix::{signal, SignalKind};
+            let Ok(mut signal) = signal(SignalKind::user_defined1()) else {
                 return;
             };
             while let Some(()) = signal.recv().await {
