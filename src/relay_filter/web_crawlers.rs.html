@@ -157,6 +157,8 @@
 <a href="#157" id="157">157</a>
 <a href="#158" id="158">158</a>
 <a href="#159" id="159">159</a>
+<a href="#160" id="160">160</a>
+<a href="#161" id="161">161</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Filters events coming from user agents known to be web crawlers.
 
 </span><span class="kw">use </span>once_cell::sync::Lazy;
@@ -200,7 +202,8 @@
 <span class="kw">static </span>ALLOWED_WEB_CRAWLERS: Lazy&lt;Regex&gt; = Lazy::new(|| {
     Regex::new(
         <span class="string">r"(?ix)
-        Slackbot\s1\.\d+             # Slack - see https://api.slack.com/robots
+        Slackbot\s1\.\d+|            # Slack - see https://api.slack.com/robots
+        SentryUptimeBot              # Uptime Checker https://docs.sentry.io/product/alerts/uptime-monitoring/
     "</span>,
     )
     .expect(<span class="string">"Invalid allowed web crawlers filter Regex"</span>)
@@ -304,6 +307,7 @@
             <span class="string">"APIs-Google (+https://developers.google.com/webmasters/APIs-Google.html)"</span>,
             <span class="string">"Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36"</span>,
             <span class="string">"Slackbot 1.0(+https://api.slack.com/robots)"</span>,
+            <span class="string">"SentryUptimeBot/1.0 (+http://docs.sentry.io/product/alerts/uptime-monitoring/)"</span>,
         ];
         <span class="kw">for </span>user_agent <span class="kw">in </span><span class="kw-2">&amp;</span>normal_user_agents {
             <span class="kw">let </span>event = testutils::get_event_with_user_agent(user_agent);
