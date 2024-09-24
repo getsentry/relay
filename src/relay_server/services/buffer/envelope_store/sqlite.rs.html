@@ -630,9 +630,6 @@
 <a href="#630" id="630">630</a>
 <a href="#631" id="631">631</a>
 <a href="#632" id="632">632</a>
-<a href="#633" id="633">633</a>
-<a href="#634" id="634">634</a>
-<a href="#635" id="635">635</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::path::Path;
 <span class="kw">use </span>std::pin::pin;
@@ -648,7 +645,6 @@
 <span class="kw">use </span>futures::stream::StreamExt;
 <span class="kw">use </span>hashbrown::HashSet;
 <span class="kw">use </span>relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
-<span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>sqlx::migrate::MigrateError;
 <span class="kw">use </span>sqlx::query::Query;
@@ -1009,9 +1005,7 @@
         //
         // Unfortunately we have to do this because SQLite `DELETE` with `RETURNING` doesn't
         // return deleted rows in a specific order.
-        </span>extracted_envelopes.sort_by_key(|a| {
-            UnixTimestamp::from_datetime(a.received_at()).unwrap_or(UnixTimestamp::now())
-        });
+        </span>extracted_envelopes.sort_by_key(|a| a.meta().start_time());
 
         <span class="prelude-val">Ok</span>(extracted_envelopes)
     }
