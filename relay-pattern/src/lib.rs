@@ -29,6 +29,7 @@
 use std::fmt::{self, Write};
 
 mod typed;
+mod wildmatch;
 
 pub use typed::*;
 
@@ -109,6 +110,7 @@ impl Pattern {
             MatchStrategy::Contains(contains) => match_contains(contains, haystack, self.options),
             MatchStrategy::Static(matches) => *matches,
             MatchStrategy::Regex(re) => re.is_match(haystack),
+            MatchStrategy::Wildmatch(tokens) => wildmatch::is_match(tokens, haystack, self.options),
         }
     }
 }
@@ -200,8 +202,9 @@ enum MatchStrategy {
     ///
     /// Example: `*`
     Static(bool),
-    /// The pattern is complex and compiled to a [`regex_lite::Regex`].
     Regex(regex_lite::Regex),
+    /// The pattern is complex and needs to be evaluated using [`wildmatch`].
+    Wildmatch(Tokens),
     // Possible future optimizations for `Any` variations:
     // Examples: `??`. `??suffix`, `prefix??` and `?contains?`.
 }
@@ -223,7 +226,7 @@ impl MatchStrategy {
             [Token::Wildcard, Token::Literal(literal), Token::Wildcard] => {
                 Self::Contains(take_case(literal))
             }
-            tokens => Self::Regex(to_regex(tokens, options)?),
+            _ => Self::Wildmatch(tokens),
         };
 
         Ok(s)
@@ -572,7 +575,14 @@ impl<'a> Parser<'a> {
 /// A container of tokens.
 ///
 /// Automatically folds redundant tokens.
-#[derive(Debug, Default)]
+///
+/// The contained tokens are guarnatueed to uphold the following invariants:
+/// - A [`Token::Wildcard`] is never followed by [`Token::Wildcard`].
+/// - A [`Token::Any`] is never followed by [`Token::Any`].
+/// - A [`Token::Any`] always matches at least one character.
+/// - A [`Token::Literal`] is never followed by [`Token::Literal`].
+/// - A [`Token::Class`] is never empty.
+#[derive(Clone, Debug, Default)]
 struct Tokens(Vec<Token>);
 
 impl Tokens {
@@ -600,19 +610,16 @@ impl Tokens {
             }
         }
 
-        let Some(last) = self.0.last_mut() else {
-            self.0.push(token);
-            return;
-        };
-
-        match (last, token) {
+        match (self.0.last_mut(), token) {
             // Collapse Any's.
-            (Token::Any(n), Token::Any(n2)) => *n += n2,
+            (Some(Token::Any(n)), Token::Any(n2)) => *n += n2,
             // We can collapse multiple wildcards into a single one.
             // TODO: separator special handling (?)
-            (Token::Wildcard, Token::Wildcard) => {}
+            (Some(Token::Wildcard), Token::Wildcard) => {}
             // Collapse multiple literals into one.
-            (Token::Literal(ref mut last), Token::Literal(s)) => last.push_str(&s),
+            (Some(Token::Literal(ref mut last)), Token::Literal(s)) => last.push_str(&s),
+            // Ignore empty class tokens.
+            (_, Token::Class { negated: _, ranges }) if ranges.is_empty() => {}
             // Everything else is just another token.
             (_, token) => self.0.push(token),
         }
@@ -628,7 +635,7 @@ impl Tokens {
 }
 
 /// Represents a token in a Relay pattern.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 enum Token {
     /// A literal token.
     Literal(String),
@@ -647,7 +654,7 @@ enum Token {
 ///
 /// For example the pattern `[a-z]` contains the range from `a` to `z`,
 /// the pattern `[ax-zbf-h]` contains the ranges `x-z`, `f-h`, `a-a` and `b-b`.
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 enum Ranges {
     /// An empty, default range not containing any characters.
     ///
@@ -700,6 +707,16 @@ impl Ranges {
         }
     }
 
+    /// Returns `true` if the character `c` is contained matches any contained range.
+    #[inline(always)]
+    fn contains(&self, c: char) -> bool {
+        match self {
+            Self::Empty => false,
+            Self::Single(range) => range.contains(c),
+            Self::Multiple(ranges) => ranges.iter().any(|range| range.contains(c)),
+        }
+    }
+
     /// Returns an iterator over all contained ranges.
     fn iter(&self) -> impl Iterator<Item = Range> + '_ {
         let single = match self {
@@ -742,6 +759,12 @@ impl Range {
         }
         self.end = end;
         Ok(())
+    }
+
+    /// Returns `true` if the character `c` is contained in the range.
+    #[inline(always)]
+    fn contains(&self, c: char) -> bool {
+        self.start <= c && c <= self.end
     }
 }
 
@@ -794,6 +817,7 @@ mod tests {
                 MatchStrategy::Contains(_) => "Contains",
                 MatchStrategy::Static(_) => "Static",
                 MatchStrategy::Regex(_) => "Regex",
+                MatchStrategy::Wildmatch(_) => "Wildmatch",
             };
             assert_eq!(
                 kind,
@@ -1134,7 +1158,7 @@ mod tests {
 
     #[test]
     fn test_classes() {
-        assert_pattern!("[]", "");
+        assert_pattern!("[]", NOT "");
         assert_pattern!("[]", NOT "_");
         assert_pattern!("[a]", "a");
         assert_pattern!("[a]", NOT "[a]");
@@ -1237,7 +1261,7 @@ mod tests {
 
     #[test]
     fn test_classes_negated() {
-        assert_pattern!("[!]", "");
+        assert_pattern!("[!]", NOT "");
         assert_pattern!("[!a]", "b");
         assert_pattern!("[!a]", "A");
         assert_pattern!("[!a]", "B");
@@ -1328,6 +1352,12 @@ mod tests {
         assert_pattern!(r"a{\[\],\{\}}a", NOT "a]a");
         assert_pattern!(r"a{\[\],\{\}}a", NOT "a{a");
         assert_pattern!(r"a{\[\],\{\}}a", NOT "a}a");
+        assert_pattern!("foo/{*.js,*.html}", "foo/.js");
+        assert_pattern!("foo/{*.js,*.html}", "foo/.html");
+        assert_pattern!("foo/{*.js,*.html}", "foo/bar.js");
+        assert_pattern!("foo/{*.js,*.html}", "foo/bar.html");
+        assert_pattern!("foo/{*.js,*.html}", NOT "foo/bar.png");
+        assert_pattern!("foo/{*.js,*.html}", NOT "bar/bar.js");
     }
 
     #[test]
