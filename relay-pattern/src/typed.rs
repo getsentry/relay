@@ -12,7 +12,9 @@ pub trait PatternConfig {
 /// The default pattern.
 ///
 /// Equivalent to [`Pattern::new`].
-impl PatternConfig for () {}
+pub struct DefaultPatternConfig;
+
+impl PatternConfig for DefaultPatternConfig {}
 
 /// The default pattern but with case insensitive matching.
 ///
@@ -44,7 +46,7 @@ impl PatternConfig for CaseInsensitive {
 /// let pattern = MetricPattern::new("[cd]:foo/bar").unwrap();
 /// assert!(pattern.is_match("c:foo/bar"));
 /// ```
-pub struct TypedPattern<C = ()> {
+pub struct TypedPattern<C = DefaultPatternConfig> {
     pattern: Pattern,
     _phantom: PhantomData<C>,
 }
@@ -148,7 +150,7 @@ mod tests {
     #[test]
     #[cfg(feature = "serde")]
     fn test_serialize() {
-        let pattern: TypedPattern<()> = TypedPattern::new("*[rt]x").unwrap();
+        let pattern: TypedPattern = TypedPattern::new("*[rt]x").unwrap();
         assert_eq!(serde_json::to_string(&pattern).unwrap(), r#""*[rt]x""#);
         let pattern: TypedPattern<CaseInsensitive> = TypedPattern::new("*[rt]x").unwrap();
         assert_eq!(serde_json::to_string(&pattern).unwrap(), r#""*[rt]x""#);
