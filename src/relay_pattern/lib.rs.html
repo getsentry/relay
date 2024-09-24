@@ -1347,6 +1347,32 @@
 <a href="#1347" id="1347">1347</a>
 <a href="#1348" id="1348">1348</a>
 <a href="#1349" id="1349">1349</a>
+<a href="#1350" id="1350">1350</a>
+<a href="#1351" id="1351">1351</a>
+<a href="#1352" id="1352">1352</a>
+<a href="#1353" id="1353">1353</a>
+<a href="#1354" id="1354">1354</a>
+<a href="#1355" id="1355">1355</a>
+<a href="#1356" id="1356">1356</a>
+<a href="#1357" id="1357">1357</a>
+<a href="#1358" id="1358">1358</a>
+<a href="#1359" id="1359">1359</a>
+<a href="#1360" id="1360">1360</a>
+<a href="#1361" id="1361">1361</a>
+<a href="#1362" id="1362">1362</a>
+<a href="#1363" id="1363">1363</a>
+<a href="#1364" id="1364">1364</a>
+<a href="#1365" id="1365">1365</a>
+<a href="#1366" id="1366">1366</a>
+<a href="#1367" id="1367">1367</a>
+<a href="#1368" id="1368">1368</a>
+<a href="#1369" id="1369">1369</a>
+<a href="#1370" id="1370">1370</a>
+<a href="#1371" id="1371">1371</a>
+<a href="#1372" id="1372">1372</a>
+<a href="#1373" id="1373">1373</a>
+<a href="#1374" id="1374">1374</a>
+<a href="#1375" id="1375">1375</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! A glob like pattern used throught Relay and its APIs.
 //!
 //! # Behaviour
@@ -1956,10 +1982,6 @@
             <span class="comment">// We can collapse multiple wildcards into a single one.
             // TODO: separator special handling (?)
             </span>(Token::Wildcard, Token::Wildcard) =&gt; {}
-            <span class="comment">// `*` followed by `?` is just `*`.
-            </span>(Token::Wildcard, Token::Any(<span class="kw">_</span>)) =&gt; {}
-            <span class="comment">// `?` followed by `*` is just `*`.
-            </span>(last @ Token::Any(<span class="kw">_</span>), Token::Wildcard) =&gt; <span class="kw-2">*</span>last = Token::Wildcard,
             <span class="comment">// Collapse multiple literals into one.
             </span>(Token::Literal(<span class="kw-2">ref mut </span>last), Token::Literal(s)) =&gt; last.push_str(<span class="kw-2">&amp;</span>s),
             <span class="comment">// Everything else is just another token.
@@ -2207,8 +2229,12 @@
         <span class="macro">assert_pattern!</span>(<span class="string">"foo*"</span>, <span class="string">"foo___"</span>);
         <span class="macro">assert_pattern!</span>(<span class="string">"foo*"</span>, <span class="string">"foo"</span>);
         <span class="macro">assert_pattern!</span>(<span class="string">"foo**"</span>, <span class="string">"foo"</span>);
-        <span class="macro">assert_pattern!</span>(<span class="string">"foo*?*"</span>, <span class="string">"foo"</span>);
-        <span class="macro">assert_pattern!</span>(<span class="string">"foo*?*?"</span>, <span class="string">"foo"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"foo*?*"</span>, NOT <span class="string">"foo"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"foo*?*"</span>, <span class="string">"foo_"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"foo*?*?"</span>, <span class="string">"foo_____"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"foo*?*?"</span>, NOT <span class="string">"foo"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"foo*?*?"</span>, <span class="string">"foo__"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"foo*?*?"</span>, <span class="string">"foo_____"</span>);
         <span class="macro">assert_pattern!</span>(<span class="string">"foo**"</span>, <span class="string">"foo___"</span>);
         <span class="macro">assert_pattern!</span>(<span class="string">"foo*?*"</span>, <span class="string">"foo___"</span>);
         <span class="macro">assert_pattern!</span>(<span class="string">"foo*?*?"</span>, <span class="string">"foo___"</span>);
@@ -2245,11 +2271,8 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_prefix_strategy() {
         <span class="macro">assert_strategy!</span>(<span class="string">"foo*"</span>, Prefix);
-        <span class="macro">assert_strategy!</span>(<span class="string">"foo*?"</span>, Prefix);
-        <span class="macro">assert_strategy!</span>(<span class="string">"foo?*"</span>, Prefix);
-        <span class="macro">assert_strategy!</span>(<span class="string">"foo*?*"</span>, Prefix);
-        <span class="macro">assert_strategy!</span>(<span class="string">"foo??***???****"</span>, Prefix);
-        <span class="macro">assert_strategy!</span>(<span class="string">"foo***???****??"</span>, Prefix);
+        <span class="macro">assert_strategy!</span>(<span class="string">"foo**"</span>, Prefix);
+        <span class="macro">assert_strategy!</span>(<span class="string">"foo?*"</span>, Regex);
     }
 
     <span class="attr">#[test]
@@ -2257,8 +2280,13 @@
         <span class="macro">assert_pattern!</span>(<span class="string">"*foo"</span>, <span class="string">"___foo"</span>);
         <span class="macro">assert_pattern!</span>(<span class="string">"*foo"</span>, <span class="string">"foo"</span>);
         <span class="macro">assert_pattern!</span>(<span class="string">"**foo"</span>, <span class="string">"foo"</span>);
-        <span class="macro">assert_pattern!</span>(<span class="string">"*?*foo"</span>, <span class="string">"foo"</span>);
-        <span class="macro">assert_pattern!</span>(<span class="string">"?*?*foo"</span>, <span class="string">"foo"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"*?*foo"</span>, NOT <span class="string">"foo"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"*?*foo"</span>, <span class="string">"_foo"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"*?*foo"</span>, <span class="string">"_____foo"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"?*?*foo"</span>, NOT <span class="string">"foo"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"?*?*foo"</span>, NOT <span class="string">"_foo"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"?*?*foo"</span>, <span class="string">"__foo"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"?*?*foo"</span>, <span class="string">"_____foo"</span>);
         <span class="macro">assert_pattern!</span>(<span class="string">"**foo"</span>, <span class="string">"___foo"</span>);
         <span class="macro">assert_pattern!</span>(<span class="string">"*?*foo"</span>, <span class="string">"___foo"</span>);
         <span class="macro">assert_pattern!</span>(<span class="string">"*?*?foo"</span>, <span class="string">"__foo"</span>);
@@ -2295,11 +2323,8 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_suffix_strategy() {
         <span class="macro">assert_strategy!</span>(<span class="string">"*foo"</span>, Suffix);
-        <span class="macro">assert_strategy!</span>(<span class="string">"*?foo"</span>, Suffix);
-        <span class="macro">assert_strategy!</span>(<span class="string">"?*foo"</span>, Suffix);
-        <span class="macro">assert_strategy!</span>(<span class="string">"*?*foo"</span>, Suffix);
-        <span class="macro">assert_strategy!</span>(<span class="string">"??***???****foo"</span>, Suffix);
-        <span class="macro">assert_strategy!</span>(<span class="string">"***???****??foo"</span>, Suffix);
+        <span class="macro">assert_strategy!</span>(<span class="string">"**foo"</span>, Suffix);
+        <span class="macro">assert_strategy!</span>(<span class="string">"*?foo"</span>, Regex);
     }
 
     <span class="attr">#[test]
@@ -2355,11 +2380,11 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_contains_strategy() {
         <span class="macro">assert_strategy!</span>(<span class="string">"*foo*"</span>, Contains);
-        <span class="macro">assert_strategy!</span>(<span class="string">"*?foo?*"</span>, Contains);
-        <span class="macro">assert_strategy!</span>(<span class="string">"?*foo*?"</span>, Contains);
-        <span class="macro">assert_strategy!</span>(<span class="string">"*?*foo*?*"</span>, Contains);
-        <span class="macro">assert_strategy!</span>(<span class="string">"??***???****foo??***???****"</span>, Contains);
-        <span class="macro">assert_strategy!</span>(<span class="string">"***???****??foo***???****??"</span>, Contains);
+        <span class="macro">assert_strategy!</span>(<span class="string">"**foo**"</span>, Contains);
+        <span class="macro">assert_strategy!</span>(<span class="string">"*?foo*"</span>, Regex);
+        <span class="macro">assert_strategy!</span>(<span class="string">"*foo?*"</span>, Regex);
+        <span class="macro">assert_strategy!</span>(<span class="string">"*foo*?"</span>, Regex);
+        <span class="macro">assert_strategy!</span>(<span class="string">"?*foo*"</span>, Regex);
     }
 
     <span class="attr">#[test]
@@ -2386,8 +2411,8 @@
         <span class="macro">assert_strategy!</span>(<span class="string">"{*}"</span>, Static);
         <span class="macro">assert_strategy!</span>(<span class="string">"{*,}"</span>, Static);
         <span class="macro">assert_strategy!</span>(<span class="string">"{foo,*}"</span>, Static);
-        <span class="macro">assert_strategy!</span>(<span class="string">"{foo,*}?{*,bar}"</span>, Static);
-        <span class="macro">assert_strategy!</span>(<span class="string">"{*,}?{*,}"</span>, Static);
+        <span class="macro">assert_strategy!</span>(<span class="string">"{foo,*}?{*,bar}"</span>, Regex);
+        <span class="macro">assert_strategy!</span>(<span class="string">"{*,}?{*,}"</span>, Regex);
     }
 
     <span class="attr">#[test]
@@ -2416,6 +2441,33 @@
 
         <span class="comment">// No special slash handling
         </span><span class="macro">assert_pattern!</span>(<span class="string">"?"</span>, <span class="string">"/"</span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_any_wildcard() {
+        <span class="macro">assert_pattern!</span>(<span class="string">"??*"</span>, NOT <span class="string">""</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"??*"</span>, NOT <span class="string">"a"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"??*"</span>, <span class="string">"ab"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"??*"</span>, <span class="string">"abc"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"??*"</span>, <span class="string">"abcde"</span>);
+
+        <span class="macro">assert_pattern!</span>(<span class="string">"*??"</span>, NOT <span class="string">""</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"*??"</span>, NOT <span class="string">"a"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"*??"</span>, <span class="string">"ab"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"*??"</span>, <span class="string">"abc"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"*??"</span>, <span class="string">"abcde"</span>);
+
+        <span class="macro">assert_pattern!</span>(<span class="string">"*??*"</span>, NOT <span class="string">""</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"*??*"</span>, NOT <span class="string">"a"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"*??*"</span>, <span class="string">"ab"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"*??*"</span>, <span class="string">"abc"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"*??*"</span>, <span class="string">"abcde"</span>);
+
+        <span class="macro">assert_pattern!</span>(<span class="string">"*?*?*"</span>, NOT <span class="string">""</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"*?*?*"</span>, NOT <span class="string">"a"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"*?*?*"</span>, <span class="string">"ab"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"*?*?*"</span>, <span class="string">"abc"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"*?*?*"</span>, <span class="string">"abcde"</span>);
     }
 
     <span class="attr">#[test]
