@@ -436,7 +436,7 @@ impl Service for EnvelopeBufferService {
                             break;
                         }
                     }
-                    _ = global_config_rx.changed() => {
+                    Ok(()) = global_config_rx.changed() => {
                         relay_log::trace!("EnvelopeBufferService: received global config");
                         sleep = Duration::ZERO;
                     }
