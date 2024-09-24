@@ -814,7 +814,6 @@ mod tests {
         ProcessEnvelopeState {
             event: Annotated::from(event),
             metrics: Default::default(),
-            sample_rates: None,
             extracted_metrics: ProcessingExtractedMetrics::new(),
             config: Arc::new(Config::default()),
             project_state,

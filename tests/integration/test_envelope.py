@@ -430,44 +430,6 @@ def test_span_exclusive_time(mini_sentry, relay_with_processing, transactions_co
     ]
 
 
-def test_sample_rates(mini_sentry, relay_chain):
-    relay = relay_chain(min_relay_version="21.1.0")
-    mini_sentry.add_basic_project_config(42)
-
-    sample_rates = [
-        {"id": "client_sampler", "rate": 0.01},
-        {"id": "dynamic_user", "rate": 0.5},
-    ]
-
-    envelope = Envelope()
-    envelope.add_event({"message": "hello, world!"})
-    envelope.items[0].headers["sample_rates"] = sample_rates
-    relay.send_envelope(42, envelope)
-
-    envelope = mini_sentry.captured_events.get(timeout=1)
-    assert envelope.items[0].headers["sample_rates"] == sample_rates
-
-
-def test_sample_rates_metrics(mini_sentry, relay_with_processing, events_consumer):
-    events_consumer = events_consumer()
-
-    relay = relay_with_processing()
-    mini_sentry.add_basic_project_config(42)
-
-    sample_rates = [
-        {"id": "client_sampler", "rate": 0.01},
-        {"id": "dynamic_user", "rate": 0.5},
-    ]
-
-    envelope = Envelope()
-    envelope.add_event({"message": "hello, world!"})
-    envelope.items[0].headers["sample_rates"] = sample_rates
-    relay.send_envelope(42, envelope)
-
-    event, _ = events_consumer.get_event()
-    assert event["_metrics"]["sample_rates"] == sample_rates
-
-
 def test_buffer_envelopes_without_global_config(
     mini_sentry, relay_with_processing, events_consumer
 ):

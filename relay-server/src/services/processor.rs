@@ -33,7 +33,7 @@ use relay_filter::FilterStatKey;
 use relay_metrics::{Bucket, BucketMetadata, BucketView, BucketsView, MetricMeta, MetricNamespace};
 use relay_pii::PiiConfigError;
 use relay_profiling::ProfileId;
-use relay_protocol::{Annotated, Value};
+use relay_protocol::Annotated;
 use relay_quotas::{DataCategory, RateLimits, Scoping};
 use relay_sampling::config::RuleId;
 use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator, SamplingDecision};
@@ -713,12 +713,6 @@ struct ProcessEnvelopeState<'a, Group> {
     /// persisted into the Event. All modifications afterwards will have no effect.
     metrics: Metrics,
 
-    /// A list of cumulative sample rates applied to this event.
-    ///
-    /// This element is obtained from the event or transaction item and re-serialized into the
-    /// resulting item.
-    sample_rates: Option<Value>,
-
     /// Metrics extracted from items in the envelope.
     ///
     /// Relay can extract metrics for sessions and transactions, which is controlled by
@@ -1295,7 +1289,6 @@ impl EnvelopeProcessorService {
             event_metrics_extracted: false,
             spans_extracted: false,
             metrics: Metrics::default(),
-            sample_rates: None,
             extracted_metrics,
             project_state,
             config,
