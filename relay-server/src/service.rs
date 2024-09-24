@@ -393,6 +393,9 @@ fn create_redis_pool(
         RedisConnection::Cluster(servers) => {
             RedisPool::cluster(servers.iter().map(|s| s.as_str()), options)
         }
+        RedisConnection::MultiWrite(servers) => {
+            RedisPool::multi_write(servers.iter().map(|s| s.as_str()), options)
+        }
         RedisConnection::Single(server) => RedisPool::single(server, options),
     }
 }

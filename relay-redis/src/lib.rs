@@ -19,5 +19,6 @@ pub use self::real::*;
 
 #[cfg(not(feature = "impl"))]
 mod noop;
+
 #[cfg(not(feature = "impl"))]
 pub use self::noop::*;

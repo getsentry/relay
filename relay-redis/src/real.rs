@@ -1,9 +1,10 @@
 use std::fmt;
+use std::ops::DerefMut;
 use std::time::Duration;
 
-use r2d2::{Pool, PooledConnection};
+use r2d2::{ManageConnection, Pool, PooledConnection, State};
 pub use redis;
-use redis::ConnectionLike;
+use redis::{Commands, ConnectionLike};
 use thiserror::Error;
 
 use crate::config::RedisConfigOptions;
@@ -22,6 +23,7 @@ pub enum RedisError {
 
 enum ConnectionInner<'a> {
     Cluster(&'a mut redis::cluster::ClusterConnection),
+    MultiWrite(Vec<ConnectionInner<'a>>),
     Single(&'a mut redis::Connection),
 }
 
@@ -74,6 +76,7 @@ impl ConnectionLike for Connection<'_> {
 
 enum PooledClientInner {
     Cluster(Box<PooledConnection<redis::cluster::ClusterClient>>),
+    MultiWrite(Vec<PooledClientInner>),
     Single(Box<PooledConnection<redis::Client>>),
 }
 
@@ -84,39 +87,59 @@ pub struct PooledClient {
 }
 
 impl PooledClient {
+    pub fn connection(&mut self) -> Result<Connection<'_>, RedisError> {
+        let inner = Self::connection_inner(&mut self.inner, &self.opts)?;
+        Ok(Connection { inner })
+    }
+
     /// Returns a pooled connection to this client.
     ///
     /// When the connection is fetched from the pool, we also set the read and write timeouts to
     /// the configured values.
-    pub fn connection(&mut self) -> Result<Connection<'_>, RedisError> {
-        let inner = match self.inner {
-            PooledClientInner::Cluster(ref mut client) => {
-                client
-                    .set_read_timeout(Some(Duration::from_secs(self.opts.read_timeout)))
+    pub fn connection_inner<'a>(
+        inner: &'a mut PooledClientInner,
+        opts: &RedisConfigOptions,
+    ) -> Result<ConnectionInner<'a>, RedisError> {
+        let inner = match inner {
+            PooledClientInner::Cluster(ref mut connection) => {
+                connection
+                    .set_read_timeout(Some(Duration::from_secs(opts.read_timeout)))
                     .map_err(RedisError::Redis)?;
-                client
-                    .set_write_timeout(Some(Duration::from_secs(self.opts.write_timeout)))
+                connection
+                    .set_write_timeout(Some(Duration::from_secs(opts.write_timeout)))
                     .map_err(RedisError::Redis)?;
-                ConnectionInner::Cluster(client)
+
+                ConnectionInner::Cluster(connection)
             }
-            PooledClientInner::Single(ref mut client) => {
-                client
-                    .set_read_timeout(Some(Duration::from_secs(self.opts.read_timeout)))
+            PooledClientInner::MultiWrite(ref mut clients) => {
+                let mut connections = Vec::with_capacity(clients.len());
+                for client in clients.iter_mut() {
+                    let connection = Self::connection_inner(client, opts)?;
+                    connections.push(connection);
+                }
+
+                ConnectionInner::MultiWrite(connections)
+            }
+            PooledClientInner::Single(ref mut connection) => {
+                connection
+                    .set_read_timeout(Some(Duration::from_secs(opts.read_timeout)))
                     .map_err(RedisError::Redis)?;
-                client
-                    .set_write_timeout(Some(Duration::from_secs(self.opts.write_timeout)))
+                connection
+                    .set_write_timeout(Some(Duration::from_secs(opts.write_timeout)))
                     .map_err(RedisError::Redis)?;
-                ConnectionInner::Single(client)
+
+                ConnectionInner::Single(connection)
             }
         };
 
-        Ok(Connection { inner })
+        Ok(inner)
     }
 }
 
 #[derive(Clone)]
 enum RedisPoolInner {
     Cluster(Pool<redis::cluster::ClusterClient>),
+    MultiWrite(Vec<RedisPoolInner>),
     Single(Pool<redis::Client>),
 }
 
@@ -124,6 +147,7 @@ impl fmt::Debug for RedisPoolInner {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Cluster(_) => f.debug_tuple("Cluster").finish(),
+            Self::MultiWrite(_) => f.debug_tuple("MultiWrite").finish(),
             Self::Single(_) => f.debug_tuple("Single").finish(),
         }
     }
@@ -163,9 +187,37 @@ impl RedisPool {
         Ok(RedisPool { opts, inner })
     }
 
+    /// Creates a `RedisPool` in multi write configuration.
+    pub fn multi_write<'a>(
+        servers: impl IntoIterator<Item = &'a str>,
+        opts: RedisConfigOptions,
+    ) -> Result<Self, RedisError> {
+        let pools = servers
+            .into_iter()
+            .map(|s| Self::client_pool(s, &opts))
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .map(|p| RedisPoolInner::Single(p))
+            .collect();
+
+        let inner = RedisPoolInner::MultiWrite(pools);
+        Ok(RedisPool { opts, inner })
+    }
+
     /// Creates a `RedisPool` in single-node configuration.
     pub fn single(server: &str, opts: RedisConfigOptions) -> Result<Self, RedisError> {
-        let pool = Pool::builder()
+        let pool = Self::client_pool(server, &opts)?;
+
+        let inner = RedisPoolInner::Single(pool);
+        Ok(RedisPool { opts, inner })
+    }
+
+    /// Returns a [`Pool`] with a [`redis::Client`].
+    fn client_pool(
+        server: &str,
+        opts: &RedisConfigOptions,
+    ) -> Result<Pool<redis::Client>, RedisError> {
+        Pool::builder()
             .max_size(opts.max_connections)
             .min_idle(opts.min_idle)
             .test_on_check_out(false)
@@ -173,39 +225,58 @@ impl RedisPool {
             .idle_timeout(Some(Duration::from_secs(opts.idle_timeout)))
             .connection_timeout(Duration::from_secs(opts.connection_timeout))
             .build(redis::Client::open(server).map_err(RedisError::Redis)?)
-            .map_err(RedisError::Pool)?;
-
-        let inner = RedisPoolInner::Single(pool);
-        Ok(RedisPool { opts, inner })
+            .map_err(RedisError::Pool)
     }
 
     /// Returns a pooled connection to a client.
     pub fn client(&self) -> Result<PooledClient, RedisError> {
-        let inner = match self.inner {
-            RedisPoolInner::Cluster(ref pool) => {
-                PooledClientInner::Cluster(Box::new(pool.get().map_err(RedisError::Pool)?))
-            }
-            RedisPoolInner::Single(ref pool) => {
-                PooledClientInner::Single(Box::new(pool.get().map_err(RedisError::Pool)?))
-            }
-        };
-
+        let inner = Self::client_inner(&self.inner)?;
         Ok(PooledClient {
             opts: self.opts.clone(),
             inner,
         })
     }
 
-    /// Returns information about the current state of the pool.
-    pub fn stats(&self) -> Stats {
-        let s = match &self.inner {
-            RedisPoolInner::Cluster(p) => p.state(),
-            RedisPoolInner::Single(p) => p.state(),
+    fn client_inner(inner: &RedisPoolInner) -> Result<PooledClientInner, RedisError> {
+        let inner = match inner {
+            RedisPoolInner::Cluster(ref pool) => {
+                PooledClientInner::Cluster(Box::new(pool.get().map_err(RedisError::Pool)?))
+            }
+            RedisPoolInner::MultiWrite(ref pools) => {
+                let mut clients = Vec::with_capacity(pools.len());
+                for pool in pools.iter() {
+                    let client = Self::client_inner(pool)?;
+                    clients.push(client);
+                }
+
+                PooledClientInner::MultiWrite(clients)
+            }
+            RedisPoolInner::Single(ref pool) => {
+                PooledClientInner::Single(Box::new(pool.get().map_err(RedisError::Pool)?))
+            }
         };
 
+        Ok(inner)
+    }
+
+    /// Returns information about the current state of the pool.
+    pub fn stats(&self) -> Stats {
+        let (connections, idle_connections) = Self::state(&self.inner);
         Stats {
-            connections: s.connections,
-            idle_connections: s.idle_connections,
+            connections,
+            idle_connections,
+        }
+    }
+
+    /// Recursively computes the state of the supplied [`RedisPoolInner`].
+    fn state(inner: &RedisPoolInner) -> (u32, u32) {
+        match inner {
+            RedisPoolInner::Cluster(p) => (p.state().connections, p.state().idle_connections),
+            RedisPoolInner::MultiWrite(p) => p.iter().fold((0, 0), |(c, i), p| {
+                let (connections, idle_connections) = Self::state(p);
+                (c + connections, i + idle_connections)
+            }),
+            RedisPoolInner::Single(p) => (p.state().connections, p.state().idle_connections),
         }
     }
 }
