@@ -3876,13 +3876,6 @@
 <a href="#3876" id="3876">3876</a>
 <a href="#3877" id="3877">3877</a>
 <a href="#3878" id="3878">3878</a>
-<a href="#3879" id="3879">3879</a>
-<a href="#3880" id="3880">3880</a>
-<a href="#3881" id="3881">3881</a>
-<a href="#3882" id="3882">3882</a>
-<a href="#3883" id="3883">3883</a>
-<a href="#3884" id="3884">3884</a>
-<a href="#3885" id="3885">3885</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -3918,7 +3911,7 @@
 <span class="kw">use </span>relay_metrics::{Bucket, BucketMetadata, BucketView, BucketsView, MetricMeta, MetricNamespace};
 <span class="kw">use </span>relay_pii::PiiConfigError;
 <span class="kw">use </span>relay_profiling::ProfileId;
-<span class="kw">use </span>relay_protocol::{Annotated, Value};
+<span class="kw">use </span>relay_protocol::Annotated;
 <span class="kw">use </span>relay_quotas::{DataCategory, RateLimits, Scoping};
 <span class="kw">use </span>relay_sampling::config::RuleId;
 <span class="kw">use </span>relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator, SamplingDecision};
@@ -4598,12 +4591,6 @@
     /// persisted into the Event. All modifications afterwards will have no effect.
     </span>metrics: Metrics,
 
-    <span class="doccomment">/// A list of cumulative sample rates applied to this event.
-    ///
-    /// This element is obtained from the event or transaction item and re-serialized into the
-    /// resulting item.
-    </span>sample_rates: <span class="prelude-ty">Option</span>&lt;Value&gt;,
-
     <span class="doccomment">/// Metrics extracted from items in the envelope.
     ///
     /// Relay can extract metrics for sessions and transactions, which is controlled by
@@ -5180,7 +5167,6 @@
             event_metrics_extracted: <span class="bool-val">false</span>,
             spans_extracted: <span class="bool-val">false</span>,
             metrics: Metrics::default(),
-            sample_rates: <span class="prelude-val">None</span>,
             extracted_metrics,
             project_state,
             config,

@@ -1248,7 +1248,6 @@
 <a href="#1248" id="1248">1248</a>
 <a href="#1249" id="1249">1249</a>
 <a href="#1250" id="1250">1250</a>
-<a href="#1251" id="1251">1251</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -2065,7 +2064,6 @@
         ProcessEnvelopeState {
             event: Annotated::from(event),
             metrics: Default::default(),
-            sample_rates: <span class="prelude-val">None</span>,
             extracted_metrics: ProcessingExtractedMetrics::new(),
             config: Arc::new(Config::default()),
             project_state,

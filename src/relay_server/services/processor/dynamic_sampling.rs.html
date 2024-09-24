@@ -769,8 +769,6 @@
 <a href="#769" id="769">769</a>
 <a href="#770" id="770">770</a>
 <a href="#771" id="771">771</a>
-<a href="#772" id="772">772</a>
-<a href="#773" id="773">773</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic sampling processor related code.
 
 </span><span class="kw">use </span>std::ops::ControlFlow;
@@ -1208,7 +1206,6 @@
             ProcessEnvelopeState::&lt;TransactionGroup&gt; {
                 event: Annotated::from(event),
                 metrics: Default::default(),
-                sample_rates: <span class="prelude-val">None</span>,
                 extracted_metrics: ProcessingExtractedMetrics::new(),
                 config: config.clone(),
                 project_state,
@@ -1480,7 +1477,6 @@
             event_metrics_extracted: <span class="bool-val">false</span>,
             spans_extracted: <span class="bool-val">false</span>,
             metrics: Default::default(),
-            sample_rates: Default::default(),
             extracted_metrics: ProcessingExtractedMetrics::new(),
             config: Arc::new(Config::default()),
             project_state: project_info,
