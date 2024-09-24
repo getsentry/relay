@@ -752,6 +752,23 @@
 <a href="#752" id="752">752</a>
 <a href="#753" id="753">753</a>
 <a href="#754" id="754">754</a>
+<a href="#755" id="755">755</a>
+<a href="#756" id="756">756</a>
+<a href="#757" id="757">757</a>
+<a href="#758" id="758">758</a>
+<a href="#759" id="759">759</a>
+<a href="#760" id="760">760</a>
+<a href="#761" id="761">761</a>
+<a href="#762" id="762">762</a>
+<a href="#763" id="763">763</a>
+<a href="#764" id="764">764</a>
+<a href="#765" id="765">765</a>
+<a href="#766" id="766">766</a>
+<a href="#767" id="767">767</a>
+<a href="#768" id="768">768</a>
+<a href="#769" id="769">769</a>
+<a href="#770" id="770">770</a>
+<a href="#771" id="771">771</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Types for buffering envelopes.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -909,13 +926,14 @@
     </span><span class="kw">async fn </span>ready_to_pop(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         buffer: <span class="kw-2">&amp;</span>PolymorphicEnvelopeBuffer,
+        dequeue: bool,
     ) -&gt; <span class="prelude-ty">Option</span>&lt;Permit&lt;DequeuedEnvelope&gt;&gt; {
         <span class="macro">relay_statsd::metric!</span>(
             counter(RelayCounters::BufferReadyToPop) += <span class="number">1</span>,
             status = <span class="string">"checking"
         </span>);
 
-        <span class="self">self</span>.system_ready(buffer).<span class="kw">await</span>;
+        <span class="self">self</span>.system_ready(buffer, dequeue).<span class="kw">await</span>;
 
         <span class="macro">relay_statsd::metric!</span>(
             counter(RelayCounters::BufferReadyToPop) += <span class="number">1</span>,
@@ -946,7 +964,7 @@
     /// - We should not pop from disk into memory when relay's overall memory capacity
     ///   has been reached.
     /// - We need a valid global config to unspool.
-    </span><span class="kw">async fn </span>system_ready(<span class="kw-2">&amp;</span><span class="self">self</span>, buffer: <span class="kw-2">&amp;</span>PolymorphicEnvelopeBuffer) {
+    </span><span class="kw">async fn </span>system_ready(<span class="kw-2">&amp;</span><span class="self">self</span>, buffer: <span class="kw-2">&amp;</span>PolymorphicEnvelopeBuffer, dequeue: bool) {
         <span class="kw">loop </span>{
             <span class="comment">// We should not unspool from external storage if memory capacity has been reached.
             // But if buffer storage is in memory, unspooling can reduce memory usage.
@@ -954,7 +972,7 @@
                 !buffer.is_external() || <span class="self">self</span>.memory_checker.check_memory().has_capacity();
             <span class="kw">let </span>global_config_ready = <span class="self">self</span>.global_config_rx.borrow().is_ready();
 
-            <span class="kw">if </span>memory_ready &amp;&amp; global_config_ready {
+            <span class="kw">if </span>memory_ready &amp;&amp; global_config_ready &amp;&amp; dequeue {
                 <span class="kw">return</span>;
             }
             tokio::time::sleep(DEFAULT_SLEEP).<span class="kw">await</span>;
@@ -1130,6 +1148,9 @@
         <span class="kw">let </span><span class="kw-2">mut </span>global_config_rx = <span class="self">self</span>.global_config_rx.clone();
         <span class="kw">let </span>services = <span class="self">self</span>.services.clone();
 
+        <span class="kw">let </span>dequeue = Arc::&lt;AtomicBool&gt;::new(<span class="bool-val">true</span>.into());
+        <span class="kw">let </span>dequeue1 = dequeue.clone();
+
         tokio::spawn(<span class="kw">async move </span>{
             <span class="kw">let </span>buffer = PolymorphicEnvelopeBuffer::from_config(<span class="kw-2">&amp;</span>config, memory_checker).<span class="kw">await</span>;
 
@@ -1166,7 +1187,7 @@
                     // On the one hand, we might want to prioritize dequeuing over enqueuing
                     // so we do not exceed the buffer capacity by starving the dequeue.
                     // on the other hand, prioritizing old messages violates the LIFO design.
-                    </span><span class="prelude-val">Some</span>(permit) = <span class="self">self</span>.ready_to_pop(<span class="kw-2">&amp;</span>buffer) =&gt; {
+                    </span><span class="prelude-val">Some</span>(permit) = <span class="self">self</span>.ready_to_pop(<span class="kw-2">&amp;</span>buffer, dequeue.load(Ordering::Relaxed)) =&gt; {
                         <span class="kw">match </span><span class="self">Self</span>::try_pop(<span class="kw-2">&amp;</span>config, <span class="kw-2">&amp;mut </span>buffer, <span class="kw-2">&amp;</span>services, permit).<span class="kw">await </span>{
                             <span class="prelude-val">Ok</span>(new_sleep) =&gt; {
                                 sleep = new_sleep;
@@ -1202,6 +1223,19 @@
             }
 
             <span class="macro">relay_log::info!</span>(<span class="string">"EnvelopeBufferService: stopping"</span>);
+        });
+
+        <span class="attr">#[cfg(unix)]
+        </span>tokio::spawn(<span class="kw">async move </span>{
+            <span class="kw">use </span>tokio::signal::unix::{signal, SignalKind};
+            <span class="kw">let </span><span class="prelude-val">Ok</span>(<span class="kw-2">mut </span>signal) = signal(SignalKind::user_defined1()) <span class="kw">else </span>{
+                <span class="kw">return</span>;
+            };
+            <span class="kw">while let </span><span class="prelude-val">Some</span>(()) = signal.recv().<span class="kw">await </span>{
+                <span class="kw">let </span>deq = !dequeue1.load(Ordering::Relaxed);
+                dequeue1.store(deq, Ordering::Relaxed);
+                <span class="macro">relay_log::info!</span>(<span class="string">"SIGUSR1 receive, dequeue={}"</span>, deq);
+            }
         });
     }
 }
