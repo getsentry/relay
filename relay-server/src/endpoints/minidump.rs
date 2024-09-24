@@ -38,10 +38,13 @@ const MINIDUMP_FILE_NAME: &str = "Minidump";
 const MINIDUMP_MAGIC_HEADER_LE: &[u8] = b"MDMP";
 const MINIDUMP_MAGIC_HEADER_BE: &[u8] = b"PMDM";
 
-/// Magic headers of the currently supported minidump compression containers.
+/// Magic bytes for gzip compressed minidump containers.
 const GZIP_MAGIC_HEADER: &[u8] = b"\x1F\x8B";
+/// Magic bytes for xz compressed minidump containers.
 const XZ_MAGIC_HEADER: &[u8] = b"\xFD\x37\x7A\x58\x5A\x00";
+/// Magic bytes for bzip2 compressed minidump containers.
 const BZIP2_MAGIC_HEADER: &[u8] = b"\x42\x5A\x68";
+/// Magic bytes for zstd compressed minidump containers.
 const ZSTD_MAGIC_HEADER: &[u8] = b"\x28\xB5\x2F\xFD";
 
 /// Content types by which standalone uploads can be recognized.
