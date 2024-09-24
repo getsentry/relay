@@ -38,6 +38,12 @@ const MINIDUMP_FILE_NAME: &str = "Minidump";
 const MINIDUMP_MAGIC_HEADER_LE: &[u8] = b"MDMP";
 const MINIDUMP_MAGIC_HEADER_BE: &[u8] = b"PMDM";
 
+/// Magic headers of the currently supported minidump compression containers.
+const GZIP_MAGIC_HEADER: &[u8] = b"\x1F\x8B";
+const XZ_MAGIC_HEADER: &[u8] = b"\xFD\x37\x7A\x58\x5A\x00";
+const BZIP2_MAGIC_HEADER: &[u8] = b"\x42\x5A\x68";
+const ZSTD_MAGIC_HEADER: &[u8] = b"\x28\xB5\x2F\xFD";
+
 /// Content types by which standalone uploads can be recognized.
 const MINIDUMP_RAW_CONTENT_TYPES: &[&str] = &["application/octet-stream", "application/x-dmp"];
 
@@ -59,16 +65,20 @@ fn run_decoder(decoder: &mut Box<dyn Read>) -> Result<Vec<u8>, Error> {
 
 /// Creates a decoder based on the magic bytes the minidump payload
 fn decoder_from(minidump_data: Bytes) -> Option<Box<dyn Read>> {
-    if minidump_data.starts_with(b"\x1F\x8B") {
+    if minidump_data.starts_with(GZIP_MAGIC_HEADER) {
         return Some(Box::new(GzDecoder::new(Cursor::new(minidump_data))));
-    } else if minidump_data.starts_with(b"\xFD\x37\x7A\x58\x5A\x00") {
+    } else if minidump_data.starts_with(XZ_MAGIC_HEADER) {
         return Some(Box::new(XzDecoder::new(Cursor::new(minidump_data))));
-    } else if minidump_data.starts_with(b"\x42\x5A\x68") {
+    } else if minidump_data.starts_with(BZIP2_MAGIC_HEADER) {
         return Some(Box::new(BzDecoder::new(Cursor::new(minidump_data))));
-    } else if minidump_data.starts_with(b"\x28\xB5\x2F\xFD") {
-        return Some(Box::new(
-            ZstdDecoder::new(Cursor::new(minidump_data)).unwrap(),
-        ));
+    } else if minidump_data.starts_with(ZSTD_MAGIC_HEADER) {
+        return match ZstdDecoder::new(Cursor::new(minidump_data)) {
+            Ok(decoder) => Some(Box::new(decoder)),
+            Err(err) => {
+                relay_log::trace!("failed to create ZstdDecoder: {err}");
+                None
+            }
+        };
     }
 
     None
@@ -100,13 +110,10 @@ fn decode_minidump(minidump_data: Bytes) -> Result<Bytes, BadStoreRequest> {
 /// filename so it can be updated in the item. Otherwise, attachments that
 /// have been decoded would still show the extension in the UI, which is misleading.
 fn remove_container_extension(filename: &str) -> &str {
-    if filename.ends_with("gz") || filename.ends_with("xz") {
-        &filename[..filename.len() - 3]
-    } else if filename.ends_with("bz2") || filename.ends_with("zst") {
-        &filename[..filename.len() - 4]
-    } else {
-        filename
-    }
+    [".gz", ".xz", ".bz2", ".zst"]
+        .into_iter()
+        .find_map(|suffix| filename.strip_suffix(suffix))
+        .unwrap_or(filename)
 }
 
 fn infer_attachment_type(field_name: Option<&str>) -> AttachmentType {
