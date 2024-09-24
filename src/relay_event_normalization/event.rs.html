@@ -4286,6 +4286,12 @@
 <a href="#4286" id="4286">4286</a>
 <a href="#4287" id="4287">4287</a>
 <a href="#4288" id="4288">4288</a>
+<a href="#4289" id="4289">4289</a>
+<a href="#4290" id="4290">4290</a>
+<a href="#4291" id="4291">4291</a>
+<a href="#4292" id="4292">4292</a>
+<a href="#4293" id="4293">4293</a>
+<a href="#4294" id="4294">4294</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Event normalization.
 //!
 //! This module provides a function to normalize events.
@@ -4322,9 +4328,9 @@
 <span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, get_event_user_tag, MAX_DURATION_MOBILE_MS};
 <span class="kw">use crate</span>::{
     breakdowns, event_error, legacy, mechanism, remove_other, schema, span, stacktrace,
-    transactions, trimming, user_agent, BreakdownsConfig, CombinedMeasurementsConfig, GeoIpLookup,
-    MaxChars, ModelCosts, PerformanceScoreConfig, RawUserAgentInfo, SpanDescriptionRule,
-    TransactionNameConfig,
+    transactions, trimming, user_agent, BorrowedSpanOpDefaults, BreakdownsConfig,
+    CombinedMeasurementsConfig, GeoIpLookup, MaxChars, ModelCosts, PerformanceScoreConfig,
+    RawUserAgentInfo, SpanDescriptionRule, TransactionNameConfig,
 };
 
 <span class="doccomment">/// Configuration for [`normalize_event`].
@@ -4449,6 +4455,9 @@
 
     <span class="doccomment">/// Controls whether or not MongoDB span descriptions will be scrubbed.
     </span><span class="kw">pub </span>scrub_mongo_description: ScrubMongoDescription,
+
+    <span class="doccomment">/// Rules to infer `span.op` from other span fields.
+    </span><span class="kw">pub </span>span_op_defaults: BorrowedSpanOpDefaults&lt;<span class="lifetime">'a</span>&gt;,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Default <span class="kw">for </span>NormalizationConfig&lt;<span class="lifetime">'a</span>&gt; {
@@ -4482,6 +4491,7 @@
             replay_id: Default::default(),
             span_allowed_hosts: Default::default(),
             scrub_mongo_description: ScrubMongoDescription::Disabled,
+            span_op_defaults: Default::default(),
         }
     }
 }
@@ -4532,8 +4542,10 @@
     // (internally noops for non-transaction events).
     // TODO: Parts of this processor should probably be a filter so we
     // can revert some changes to ProcessingAction)
-    </span><span class="kw">let </span><span class="kw-2">mut </span>transactions_processor =
-        transactions::TransactionsProcessor::new(config.transaction_name_config.clone());
+    </span><span class="kw">let </span><span class="kw-2">mut </span>transactions_processor = transactions::TransactionsProcessor::new(
+        config.transaction_name_config,
+        config.span_op_defaults,
+    );
     <span class="kw">let _ </span>= transactions_processor.process_event(event, meta, ProcessingState::root());
 
     <span class="comment">// Process security reports first to ensure all props.

@@ -531,6 +531,13 @@
 <a href="#531" id="531">531</a>
 <a href="#532" id="532">532</a>
 <a href="#533" id="533">533</a>
+<a href="#534" id="534">534</a>
+<a href="#535" id="535">535</a>
+<a href="#536" id="536">536</a>
+<a href="#537" id="537">537</a>
+<a href="#538" id="538">538</a>
+<a href="#539" id="539">539</a>
+<a href="#540" id="540">540</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::btree_map::Entry;
 <span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::fs::File;
@@ -538,7 +545,7 @@
 <span class="kw">use </span>std::path::Path;
 
 <span class="kw">use </span>relay_base_schema::metrics::MetricNamespace;
-<span class="kw">use </span>relay_event_normalization::{MeasurementsConfig, ModelCosts};
+<span class="kw">use </span>relay_event_normalization::{MeasurementsConfig, ModelCosts, SpanOpDefaults};
 <span class="kw">use </span>relay_filter::GenericFiltersConfig;
 <span class="kw">use </span>relay_quotas::Quota;
 <span class="kw">use </span>serde::{de, Deserialize, Serialize};
@@ -582,6 +589,13 @@
     <span class="doccomment">/// Configuration for AI span measurements.
     </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"is_missing"</span>)]
     </span><span class="kw">pub </span>ai_model_costs: ErrorBoundary&lt;ModelCosts&gt;,
+
+    <span class="doccomment">/// Configuration to derive the `span.op` from other span fields.
+    </span><span class="attr">#[serde(
+        deserialize_with = <span class="string">"default_on_error"</span>,
+        skip_serializing_if = <span class="string">"is_default"
+    </span>)]
+    </span><span class="kw">pub </span>span_op_defaults: SpanOpDefaults,
 }
 
 <span class="kw">impl </span>GlobalConfig {
@@ -870,7 +884,7 @@
 
 <span class="doccomment">/// Returns `true` if this value is equal to `Default::default()`.
 </span><span class="kw">fn </span>is_default&lt;T: Default + PartialEq&gt;(t: <span class="kw-2">&amp;</span>T) -&gt; bool {
-    <span class="kw-2">*</span>t == T::default()
+    t == <span class="kw-2">&amp;</span>T::default()
 }
 
 <span class="kw">fn </span>default_on_error&lt;<span class="lifetime">'de</span>, D, T&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;T, D::Error&gt;

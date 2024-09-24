@@ -1248,6 +1248,11 @@
 <a href="#1248" id="1248">1248</a>
 <a href="#1249" id="1249">1249</a>
 <a href="#1250" id="1250">1250</a>
+<a href="#1251" id="1251">1251</a>
+<a href="#1252" id="1252">1252</a>
+<a href="#1253" id="1253">1253</a>
+<a href="#1254" id="1254">1254</a>
+<a href="#1255" id="1255">1255</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -1266,8 +1271,9 @@
     TransactionsProcessor,
 };
 <span class="kw">use </span>relay_event_normalization::{
-    normalize_transaction_name, ClientHints, FromUserAgentInfo, GeoIpLookup, ModelCosts,
-    SchemaProcessor, TimestampProcessor, TransactionNameRule, TrimmingProcessor,
+    normalize_transaction_name, BorrowedSpanOpDefaults, ClientHints, FromUserAgentInfo,
+    GeoIpLookup, ModelCosts, SchemaProcessor, TimestampProcessor, TransactionNameRule,
+    TrimmingProcessor,
 };
 <span class="kw">use </span>relay_event_schema::processor::{process_value, ProcessingState};
 <span class="kw">use </span>relay_event_schema::protocol::{
@@ -1660,6 +1666,7 @@
     </span>client_ip: <span class="prelude-ty">Option</span>&lt;IpAddr&gt;,
     <span class="doccomment">/// An initialized GeoIP lookup.
     </span>geo_lookup: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>GeoIpLookup&gt;,
+    span_op_defaults: BorrowedSpanOpDefaults&lt;<span class="lifetime">'a</span>&gt;,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; NormalizeSpanConfig&lt;<span class="lifetime">'a</span>&gt; {
@@ -1709,6 +1716,7 @@
             },
             client_ip,
             geo_lookup,
+            span_op_defaults: global_config.span_op_defaults.borrow(),
         }
     }
 }
@@ -1764,6 +1772,7 @@
         scrub_mongo_description,
         client_ip,
         geo_lookup,
+        span_op_defaults,
     } = config;
 
     set_segment_attributes(annotated_span);
@@ -1787,7 +1796,7 @@
     }
     process_value(
         annotated_span,
-        <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(Default::default()),
+        <span class="kw-2">&amp;mut </span>TransactionsProcessor::new(Default::default(), span_op_defaults),
         ProcessingState::root(),
     )<span class="question-mark">?</span>;
 
@@ -2426,6 +2435,7 @@
             scrub_mongo_description: ScrubMongoDescription::Disabled,
             client_ip: <span class="prelude-val">Some</span>(IpAddr(<span class="string">"2.125.160.216"</span>.to_owned())),
             geo_lookup: <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>GEO_LOOKUP),
+            span_op_defaults: Default::default(),
         }
     }
 

@@ -3876,6 +3876,7 @@
 <a href="#3876" id="3876">3876</a>
 <a href="#3877" id="3877">3877</a>
 <a href="#3878" id="3878">3878</a>
+<a href="#3879" id="3879">3879</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -5481,6 +5482,7 @@
                 } <span class="kw">else </span>{
                     ScrubMongoDescription::Disabled
                 },
+                span_op_defaults: global_config.span_op_defaults.borrow(),
             };
 
             <span class="macro">metric!</span>(timer(RelayTimers::EventProcessingNormalization), {
