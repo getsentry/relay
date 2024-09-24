@@ -16,8 +16,9 @@ use relay_event_normalization::{
     TransactionsProcessor,
 };
 use relay_event_normalization::{
-    normalize_transaction_name, ClientHints, FromUserAgentInfo, GeoIpLookup, ModelCosts,
-    SchemaProcessor, TimestampProcessor, TransactionNameRule, TrimmingProcessor,
+    normalize_transaction_name, BorrowedSpanOpDefaults, ClientHints, FromUserAgentInfo,
+    GeoIpLookup, ModelCosts, SchemaProcessor, TimestampProcessor, TransactionNameRule,
+    TrimmingProcessor,
 };
 use relay_event_schema::processor::{process_value, ProcessingState};
 use relay_event_schema::protocol::{
@@ -410,6 +411,7 @@ struct NormalizeSpanConfig<'a> {
     client_ip: Option<IpAddr>,
     /// An initialized GeoIP lookup.
     geo_lookup: Option<&'a GeoIpLookup>,
+    span_op_defaults: BorrowedSpanOpDefaults<'a>,
 }
 
 impl<'a> NormalizeSpanConfig<'a> {
@@ -459,6 +461,7 @@ impl<'a> NormalizeSpanConfig<'a> {
             },
             client_ip,
             geo_lookup,
+            span_op_defaults: global_config.span_op_defaults.borrow(),
         }
     }
 }
@@ -514,6 +517,7 @@ fn normalize(
         scrub_mongo_description,
         client_ip,
         geo_lookup,
+        span_op_defaults,
     } = config;
 
     set_segment_attributes(annotated_span);
@@ -537,7 +541,7 @@ fn normalize(
     }
     process_value(
         annotated_span,
-        &mut TransactionsProcessor::new(Default::default()),
+        &mut TransactionsProcessor::new(Default::default(), span_op_defaults),
         ProcessingState::root(),
     )?;
 
@@ -1176,6 +1180,7 @@ mod tests {
             scrub_mongo_description: ScrubMongoDescription::Disabled,
             client_ip: Some(IpAddr("2.125.160.216".to_owned())),
             geo_lookup: Some(&GEO_LOOKUP),
+            span_op_defaults: Default::default(),
         }
     }
 
