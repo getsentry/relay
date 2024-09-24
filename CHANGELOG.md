@@ -5,12 +5,20 @@
 **Bug Fixes**:
 
 - Report invalid spans with appropriate outcome reason. ([#4051](https://github.com/getsentry/relay/pull/4051))
+- Use the duration reported by the profiler instead of the transaction. ([#4058](https://github.com/getsentry/relay/pull/4058))
+- Incorrect pattern matches involving adjacent any and wildcard matchers. ([#4072](https://github.com/getsentry/relay/pull/4072))
 
 **Features:**
 
 - Add a config option to add default tags to all Relay Sentry events. ([#3944](https://github.com/getsentry/relay/pull/3944))
 - Automatically derive `client.address` and `user.geo` for standalone spans. ([#4047](https://github.com/getsentry/relay/pull/4047))
 - Add support for uploading compressed (gzip, xz, zstd, bzip2) minidumps. ([#4029](https://github.com/getsentry/relay/pull/4029))
+- Configurable span.op inference. ([#4056](https://github.com/getsentry/relay/pull/4056))
+
+**Internal:**
+
+- Add the dynamic sampling rate to standalone spans as a measurement so that it can be stored, queried, and used for extrapolation. ([#4063](https://github.com/getsentry/relay/pull/4063))
+- Allowlist the SentryUptimeBot user-agent. ([#4068](https://github.com/getsentry/relay/pull/4068))
 
 ## 24.9.0
 

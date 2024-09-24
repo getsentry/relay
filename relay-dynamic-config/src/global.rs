@@ -5,7 +5,7 @@ use std::io::BufReader;
 use std::path::Path;
 
 use relay_base_schema::metrics::MetricNamespace;
-use relay_event_normalization::{MeasurementsConfig, ModelCosts};
+use relay_event_normalization::{MeasurementsConfig, ModelCosts, SpanOpDefaults};
 use relay_filter::GenericFiltersConfig;
 use relay_quotas::Quota;
 use serde::{de, Deserialize, Serialize};
@@ -49,6 +49,13 @@ pub struct GlobalConfig {
     /// Configuration for AI span measurements.
     #[serde(skip_serializing_if = "is_missing")]
     pub ai_model_costs: ErrorBoundary<ModelCosts>,
+
+    /// Configuration to derive the `span.op` from other span fields.
+    #[serde(
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "is_default"
+    )]
+    pub span_op_defaults: SpanOpDefaults,
 }
 
 impl GlobalConfig {
@@ -337,7 +344,7 @@ pub enum BucketEncoding {
 
 /// Returns `true` if this value is equal to `Default::default()`.
 fn is_default<T: Default + PartialEq>(t: &T) -> bool {
-    *t == T::default()
+    t == &T::default()
 }
 
 fn default_on_error<'de, D, T>(deserializer: D) -> Result<T, D::Error>

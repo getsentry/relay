@@ -46,10 +46,6 @@ impl TransactionMetadata {
     pub fn valid(&self) -> bool {
         !self.id.is_nil() && !self.name.is_empty() && !self.trace_id.is_nil()
     }
-
-    pub fn duration_ns(&self) -> u64 {
-        self.relative_end_ns.saturating_sub(self.relative_start_ns)
-    }
 }
 
 #[cfg(test)]
