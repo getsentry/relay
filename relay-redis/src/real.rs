@@ -272,6 +272,24 @@ impl RedisPool {
         Ok(RedisPool { opts, inner })
     }
 
+    /// Returns a pooled connection to a client.
+    pub fn client(&self) -> Result<PooledClient, RedisError> {
+        let inner = Self::client_inner(&self.inner)?;
+        Ok(PooledClient {
+            opts: self.opts.clone(),
+            inner,
+        })
+    }
+
+    /// Returns information about the current state of the pool.
+    pub fn stats(&self) -> Stats {
+        let (connections, idle_connections) = Self::state(&self.inner);
+        Stats {
+            connections,
+            idle_connections,
+        }
+    }
+
     /// Returns a [`Pool`] with a [`redis::Client`].
     fn client_pool(
         server: &str,
@@ -291,15 +309,6 @@ impl RedisPool {
             .max_lifetime(Some(Duration::from_secs(opts.max_lifetime)))
             .idle_timeout(Some(Duration::from_secs(opts.idle_timeout)))
             .connection_timeout(Duration::from_secs(opts.connection_timeout))
-    }
-
-    /// Returns a pooled connection to a client.
-    pub fn client(&self) -> Result<PooledClient, RedisError> {
-        let inner = Self::client_inner(&self.inner)?;
-        Ok(PooledClient {
-            opts: self.opts.clone(),
-            inner,
-        })
     }
 
     /// Recursively computes a [`PooledClientInner`].
@@ -323,15 +332,6 @@ impl RedisPool {
         };
 
         Ok(inner)
-    }
-
-    /// Returns information about the current state of the pool.
-    pub fn stats(&self) -> Stats {
-        let (connections, idle_connections) = Self::state(&self.inner);
-        Stats {
-            connections,
-            idle_connections,
-        }
     }
 
     /// Recursively computes the state of the supplied [`RedisPoolInner`].
