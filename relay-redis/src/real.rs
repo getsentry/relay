@@ -174,7 +174,7 @@ impl PooledClient {
                 ConnectionInner::Cluster(connection)
             }
             PooledClientInner::MultiWrite(primary_client, secondary_clients) => {
-                let primary_connection = Self::connection_inner(primary_client.as_mut(), &opts)?;
+                let primary_connection = Self::connection_inner(primary_client.as_mut(), opts)?;
                 let mut secondary_connections = Vec::with_capacity(secondary_clients.len());
                 for secondary_client in secondary_clients.iter_mut() {
                     let connection = Self::connection_inner(secondary_client, opts)?;
