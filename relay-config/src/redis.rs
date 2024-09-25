@@ -234,6 +234,7 @@ pub(super) fn create_redis_pools(configs: &RedisConfigs, cpu_concurrency: u32) -
         cpu_concurrency * 2,
         crate::redis::DEFAULT_MIN_MAX_CONNECTIONS,
     );
+    println!("CONFIGS {:?}", configs);
     match configs {
         RedisConfigs::Unified(cfg) => {
             let pool = create_redis_pool(cfg, project_configs_default_connections);
