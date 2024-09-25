@@ -394,7 +394,13 @@ fn create_redis_pool(
             RedisPool::cluster(servers.iter().map(|s| s.as_str()), options)
         }
         RedisConnection::MultiWrite(servers) => {
-            RedisPool::multi_write(servers.iter().map(|s| s.as_str()), options)
+            let primary = servers.first().ok_or(RedisError::Configuration)?;
+            // We advance the iterator for servers to exclude the first element.
+            let mut servers = servers.iter();
+            servers.next();
+            let secondaries = servers.map(|s| s.as_str());
+
+            RedisPool::multi_write(primary, secondaries, options)
         }
         RedisConnection::Single(server) => RedisPool::single(server, options),
     }

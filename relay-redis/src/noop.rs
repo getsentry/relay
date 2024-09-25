@@ -9,7 +9,10 @@ pub struct RedisPool;
 /// An error returned from `RedisPool`.
 #[derive(Debug, Error)]
 #[error("unreachable")]
-pub struct RedisError;
+pub enum RedisError {
+    /// Failure to configure Redis.
+    Configuration,
+}
 
 impl RedisPool {
     /// Creates a `RedisPool` in cluster configuration.
@@ -26,7 +29,8 @@ impl RedisPool {
     ///
     /// Always returns `Ok(Self)`.
     pub fn multi_write<'a>(
-        _servers: impl IntoIterator<Item = &'a str>,
+        _primary: &str,
+        _secondaries: impl IntoIterator<Item = &'a str>,
         _opts: RedisConfigOptions,
     ) -> Result<Self, RedisError> {
         Ok(Self)

@@ -11,6 +11,10 @@ use crate::config::RedisConfigOptions;
 /// An error returned from `RedisPool`.
 #[derive(Debug, Error)]
 pub enum RedisError {
+    /// Failure to configure Redis.
+    #[error("failed to configure redis")]
+    Configuration,
+
     /// Failure in r2d2 pool.
     #[error("failed to pool redis connection")]
     Pool(#[source] r2d2::Error),
@@ -22,7 +26,7 @@ pub enum RedisError {
 
 enum ConnectionInner<'a> {
     Cluster(&'a mut redis::cluster::ClusterConnection),
-    MultiWrite(Vec<ConnectionInner<'a>>),
+    MultiWrite(Box<ConnectionInner<'a>>, Vec<ConnectionInner<'a>>),
     Single(&'a mut redis::Connection),
 }
 
@@ -38,17 +42,13 @@ impl Connection<'_> {
     ) -> redis::RedisResult<redis::Value> {
         match inner {
             ConnectionInner::Cluster(ref mut con) => con.req_packed_command(cmd),
-            ConnectionInner::MultiWrite(ref mut connections) => {
-                let mut first_result = None;
-                for connection in connections.iter_mut() {
-                    let result = Self::req_packed_command_inner(connection, cmd);
-                    if first_result.is_none() {
-                        first_result = Some(result)
-                    }
+            ConnectionInner::MultiWrite(primary_connection, secondary_connections) => {
+                let primary_result = Self::req_packed_command_inner(primary_connection, cmd);
+                for secondary_connection in secondary_connections.iter_mut() {
+                    Self::req_packed_command_inner(secondary_connection, cmd)?;
                 }
 
-                first_result
-                    .expect("The multi-write Redis connection should have at least one connection")
+                primary_result
             }
             ConnectionInner::Single(ref mut con) => con.req_packed_command(cmd),
         }
@@ -62,17 +62,14 @@ impl Connection<'_> {
     ) -> redis::RedisResult<Vec<redis::Value>> {
         match inner {
             ConnectionInner::Cluster(ref mut con) => con.req_packed_commands(cmd, offset, count),
-            ConnectionInner::MultiWrite(ref mut connections) => {
-                let mut first_result = None;
-                for connection in connections.iter_mut() {
-                    let result = Self::req_packed_commands_inner(connection, cmd, offset, count);
-                    if first_result.is_none() {
-                        first_result = Some(result)
-                    }
+            ConnectionInner::MultiWrite(primary_connection, secondary_connections) => {
+                let primary_result =
+                    Self::req_packed_commands_inner(primary_connection, cmd, offset, count);
+                for secondary_connection in secondary_connections.iter_mut() {
+                    Self::req_packed_commands_inner(secondary_connection, cmd, offset, count)?;
                 }
 
-                first_result
-                    .expect("The multi-write Redis connection should have at least one connection")
+                primary_result
             }
             ConnectionInner::Single(ref mut con) => con.req_packed_commands(cmd, offset, count),
         }
@@ -81,12 +78,7 @@ impl Connection<'_> {
     fn get_db(inner: &ConnectionInner<'_>) -> i64 {
         match inner {
             ConnectionInner::Cluster(ref con) => con.get_db(),
-            ConnectionInner::MultiWrite(ref connections) => Self::get_db(
-                connections
-                    .iter()
-                    .next()
-                    .expect("The multi-write Redis connection should have at least one connection"),
-            ),
+            ConnectionInner::MultiWrite(primary_connection, _) => Self::get_db(primary_connection),
             ConnectionInner::Single(ref con) => con.get_db(),
         }
     }
@@ -94,9 +86,12 @@ impl Connection<'_> {
     fn check_connection_inner(inner: &mut ConnectionInner<'_>) -> bool {
         match inner {
             ConnectionInner::Cluster(ref mut con) => con.check_connection(),
-            ConnectionInner::MultiWrite(ref mut connections) => connections
-                .iter_mut()
-                .all(|c| Self::check_connection_inner(c)),
+            ConnectionInner::MultiWrite(primary_connection, secondary_connections) => {
+                Self::check_connection_inner(primary_connection)
+                    && secondary_connections
+                        .iter_mut()
+                        .all(|c| Self::check_connection_inner(c))
+            }
             ConnectionInner::Single(ref mut con) => con.check_connection(),
         }
     }
@@ -104,8 +99,9 @@ impl Connection<'_> {
     fn is_open_inner(inner: &ConnectionInner<'_>) -> bool {
         match inner {
             ConnectionInner::Cluster(ref con) => con.is_open(),
-            ConnectionInner::MultiWrite(ref connections) => {
-                connections.iter().all(|c| Self::is_open_inner(c))
+            ConnectionInner::MultiWrite(primary_connection, secondary_connections) => {
+                Self::is_open_inner(primary_connection)
+                    && secondary_connections.iter().all(|c| Self::is_open_inner(c))
             }
             ConnectionInner::Single(ref con) => con.is_open(),
         }
@@ -141,7 +137,7 @@ impl ConnectionLike for Connection<'_> {
 
 enum PooledClientInner {
     Cluster(Box<PooledConnection<redis::cluster::ClusterClient>>),
-    MultiWrite(Vec<PooledClientInner>),
+    MultiWrite(Box<PooledClientInner>, Vec<PooledClientInner>),
     Single(Box<PooledConnection<redis::Client>>),
 }
 
@@ -177,14 +173,15 @@ impl PooledClient {
 
                 ConnectionInner::Cluster(connection)
             }
-            PooledClientInner::MultiWrite(ref mut clients) => {
-                let mut connections = Vec::with_capacity(clients.len());
-                for client in clients.iter_mut() {
-                    let connection = Self::connection_inner(client, opts)?;
-                    connections.push(connection);
+            PooledClientInner::MultiWrite(primary_client, secondary_clients) => {
+                let primary_connection = Self::connection_inner(primary_client.as_mut(), &opts)?;
+                let mut secondary_connections = Vec::with_capacity(secondary_clients.len());
+                for secondary_client in secondary_clients.iter_mut() {
+                    let connection = Self::connection_inner(secondary_client, opts)?;
+                    secondary_connections.push(connection);
                 }
 
-                ConnectionInner::MultiWrite(connections)
+                ConnectionInner::MultiWrite(Box::new(primary_connection), secondary_connections)
             }
             PooledClientInner::Single(ref mut connection) => {
                 connection
@@ -205,7 +202,7 @@ impl PooledClient {
 #[derive(Clone)]
 enum RedisPoolInner {
     Cluster(Pool<redis::cluster::ClusterClient>),
-    MultiWrite(Vec<RedisPoolInner>),
+    MultiWrite(Box<RedisPoolInner>, Vec<RedisPoolInner>),
     Single(Pool<redis::Client>),
 }
 
@@ -213,7 +210,7 @@ impl fmt::Debug for RedisPoolInner {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Cluster(_) => f.debug_tuple("Cluster").finish(),
-            Self::MultiWrite(_) => f.debug_tuple("MultiWrite").finish(),
+            Self::MultiWrite(_, _) => f.debug_tuple("MultiWrite").finish(),
             Self::Single(_) => f.debug_tuple("Single").finish(),
         }
     }
@@ -249,10 +246,12 @@ impl RedisPool {
 
     /// Creates a [`RedisPool`] in multi write configuration.
     pub fn multi_write<'a>(
-        servers: impl IntoIterator<Item = &'a str>,
+        primary: &str,
+        secondaries: impl IntoIterator<Item = &'a str>,
         opts: RedisConfigOptions,
     ) -> Result<Self, RedisError> {
-        let pools = servers
+        let primary_pool = RedisPoolInner::Single(Self::client_pool(primary, &opts)?);
+        let secondary_pools = secondaries
             .into_iter()
             .map(|s| Self::client_pool(s, &opts))
             .collect::<Result<Vec<_>, _>>()?
@@ -260,7 +259,7 @@ impl RedisPool {
             .map(RedisPoolInner::Single)
             .collect();
 
-        let inner = RedisPoolInner::MultiWrite(pools);
+        let inner = RedisPoolInner::MultiWrite(Box::new(primary_pool), secondary_pools);
         Ok(RedisPool { opts, inner })
     }
 
@@ -317,14 +316,15 @@ impl RedisPool {
             RedisPoolInner::Cluster(ref pool) => {
                 PooledClientInner::Cluster(Box::new(pool.get().map_err(RedisError::Pool)?))
             }
-            RedisPoolInner::MultiWrite(ref pools) => {
-                let mut clients = Vec::with_capacity(pools.len());
-                for pool in pools.iter() {
-                    let client = Self::client_inner(pool)?;
-                    clients.push(client);
+            RedisPoolInner::MultiWrite(ref primary_pool, ref secondary_pools) => {
+                let primary_client = Self::client_inner(primary_pool)?;
+                let mut secondary_clients = Vec::with_capacity(secondary_pools.len());
+                for secondary_pool in secondary_pools.iter() {
+                    let client = Self::client_inner(secondary_pool)?;
+                    secondary_clients.push(client);
                 }
 
-                PooledClientInner::MultiWrite(clients)
+                PooledClientInner::MultiWrite(Box::new(primary_client), secondary_clients)
             }
             RedisPoolInner::Single(ref pool) => {
                 PooledClientInner::Single(Box::new(pool.get().map_err(RedisError::Pool)?))
@@ -338,10 +338,19 @@ impl RedisPool {
     fn state(inner: &RedisPoolInner) -> (u32, u32) {
         match inner {
             RedisPoolInner::Cluster(p) => (p.state().connections, p.state().idle_connections),
-            RedisPoolInner::MultiWrite(p) => p.iter().fold((0, 0), |(c, i), p| {
-                let (connections, idle_connections) = Self::state(p);
-                (c + connections, i + idle_connections)
-            }),
+            RedisPoolInner::MultiWrite(p, s) => {
+                let (primary_connections, primary_idle_connections) = Self::state(p);
+                let (secondary_connections, secondary_idle_connections) =
+                    s.iter().fold((0, 0), |(c, i), p| {
+                        let (connections, idle_connections) = Self::state(p);
+                        (c + connections, i + idle_connections)
+                    });
+
+                (
+                    primary_connections + secondary_connections,
+                    primary_idle_connections + secondary_idle_connections,
+                )
+            }
             RedisPoolInner::Single(p) => (p.state().connections, p.state().idle_connections),
         }
     }
