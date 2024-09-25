@@ -93,10 +93,6 @@ def test_feedback_event_with_processing(
     events_consumer,
     feedback_consumer,
 ):
-    mini_sentry.add_basic_project_config(
-        42, extra={"config": {"features": ["organizations:user-feedback-ingest"]}}
-    )
-
     consumer = feedback_consumer(timeout=20)
     other_consumer = events_consumer(timeout=20)
 
@@ -117,11 +113,6 @@ def test_feedback_event_with_processing(
 
 def test_feedback_events_without_processing(mini_sentry, relay_chain):
     project_id = 42
-    mini_sentry.add_basic_project_config(
-        project_id,
-        extra={"config": {"features": ["organizations:user-feedback-ingest"]}},
-    )
-
     replay_item = generate_feedback_sdk_event()
     relay = relay_chain(min_relay_version="latest")
     relay.send_user_feedback(42, replay_item)
@@ -140,10 +131,6 @@ def test_feedback_with_attachment_in_same_envelope(
     events_consumer,
     attachments_consumer,
 ):
-    mini_sentry.add_basic_project_config(
-        42, extra={"config": {"features": ["organizations:user-feedback-ingest"]}}
-    )
-
     other_consumer = events_consumer(timeout=20)
     feedback_consumer = feedback_consumer(timeout=20)
     attachments_consumer = attachments_consumer(timeout=20)

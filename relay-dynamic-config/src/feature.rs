@@ -26,13 +26,6 @@ pub enum Feature {
     /// Serialized as `organizations:session-replay-video-disabled`.
     #[serde(rename = "organizations:session-replay-video-disabled")]
     SessionReplayVideoDisabled,
-    /// Enables new User Feedback ingest.
-    ///
-    /// TODO(jferg): rename to UserFeedbackIngest once old UserReport logic is deprecated.
-    ///
-    /// Serialized as `organizations:user-feedback-ingest`.
-    #[serde(rename = "organizations:user-feedback-ingest")]
-    UserReportV2Ingest,
     /// Enables device.class synthesis
     ///
     /// Enables device.class tag synthesis on mobile events.

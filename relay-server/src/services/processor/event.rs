@@ -94,11 +94,6 @@ pub fn extract<G: EventProcessing>(
         })
     } else if let Some(item) = user_report_v2_item {
         relay_log::trace!("processing user_report_v2");
-        let project_state = &state.project_state;
-        let user_report_v2_ingest = project_state.has_feature(Feature::UserReportV2Ingest);
-        if !user_report_v2_ingest {
-            return Err(ProcessingError::NoEventPayload);
-        }
         event_from_json_payload(item, Some(EventType::UserReportV2))?
     } else if let Some(item) = raw_security_item {
         relay_log::trace!("processing security report");
@@ -847,8 +842,7 @@ mod tests {
 
         let event = Annotated::new(Event {
             release: Annotated::new(
-                String::from("���7��#1G����7��#1G����7��#1G����7��#1G����7��#")
-                    .into(),
+                String::from("���7��#1G����7��#1G����7��#1G����7��#1G����7��#").into(),
             ),
             ..Default::default()
         });
