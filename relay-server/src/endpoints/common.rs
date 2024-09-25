@@ -67,6 +67,9 @@ pub enum BadStoreRequest {
     #[error("missing minidump")]
     MissingMinidump,
 
+    #[error("invalid compression container")]
+    InvalidCompressionContainer(#[source] std::io::Error),
+
     #[error("invalid event id")]
     InvalidEventId,
 
@@ -349,8 +352,7 @@ pub async fn handle_envelope(
         )
     }
 
-    // TODO(jjbayer): Remove this check once spool v1 is removed.
-    if state.envelope_buffer().is_none() && state.memory_checker().check_memory().is_exceeded() {
+    if state.memory_checker().check_memory().is_exceeded() {
         return Err(BadStoreRequest::QueueFailed);
     };
 

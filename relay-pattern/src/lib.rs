@@ -607,10 +607,6 @@ impl Tokens {
             // We can collapse multiple wildcards into a single one.
             // TODO: separator special handling (?)
             (Token::Wildcard, Token::Wildcard) => {}
-            // `*` followed by `?` is just `*`.
-            (Token::Wildcard, Token::Any(_)) => {}
-            // `?` followed by `*` is just `*`.
-            (last @ Token::Any(_), Token::Wildcard) => *last = Token::Wildcard,
             // Collapse multiple literals into one.
             (Token::Literal(ref mut last), Token::Literal(s)) => last.push_str(&s),
             // Everything else is just another token.
@@ -858,8 +854,12 @@ mod tests {
         assert_pattern!("foo*", "foo___");
         assert_pattern!("foo*", "foo");
         assert_pattern!("foo**", "foo");
-        assert_pattern!("foo*?*", "foo");
-        assert_pattern!("foo*?*?", "foo");
+        assert_pattern!("foo*?*", NOT "foo");
+        assert_pattern!("foo*?*", "foo_");
+        assert_pattern!("foo*?*?", "foo_____");
+        assert_pattern!("foo*?*?", NOT "foo");
+        assert_pattern!("foo*?*?", "foo__");
+        assert_pattern!("foo*?*?", "foo_____");
         assert_pattern!("foo**", "foo___");
         assert_pattern!("foo*?*", "foo___");
         assert_pattern!("foo*?*?", "foo___");
@@ -896,11 +896,8 @@ mod tests {
     #[test]
     fn test_prefix_strategy() {
         assert_strategy!("foo*", Prefix);
-        assert_strategy!("foo*?", Prefix);
-        assert_strategy!("foo?*", Prefix);
-        assert_strategy!("foo*?*", Prefix);
-        assert_strategy!("foo??***???****", Prefix);
-        assert_strategy!("foo***???****??", Prefix);
+        assert_strategy!("foo**", Prefix);
+        assert_strategy!("foo?*", Regex);
     }
 
     #[test]
@@ -908,8 +905,13 @@ mod tests {
         assert_pattern!("*foo", "___foo");
         assert_pattern!("*foo", "foo");
         assert_pattern!("**foo", "foo");
-        assert_pattern!("*?*foo", "foo");
-        assert_pattern!("?*?*foo", "foo");
+        assert_pattern!("*?*foo", NOT "foo");
+        assert_pattern!("*?*foo", "_foo");
+        assert_pattern!("*?*foo", "_____foo");
+        assert_pattern!("?*?*foo", NOT "foo");
+        assert_pattern!("?*?*foo", NOT "_foo");
+        assert_pattern!("?*?*foo", "__foo");
+        assert_pattern!("?*?*foo", "_____foo");
         assert_pattern!("**foo", "___foo");
         assert_pattern!("*?*foo", "___foo");
         assert_pattern!("*?*?foo", "__foo");
@@ -946,11 +948,8 @@ mod tests {
     #[test]
     fn test_suffix_strategy() {
         assert_strategy!("*foo", Suffix);
-        assert_strategy!("*?foo", Suffix);
-        assert_strategy!("?*foo", Suffix);
-        assert_strategy!("*?*foo", Suffix);
-        assert_strategy!("??***???****foo", Suffix);
-        assert_strategy!("***???****??foo", Suffix);
+        assert_strategy!("**foo", Suffix);
+        assert_strategy!("*?foo", Regex);
     }
 
     #[test]
@@ -1006,11 +1005,11 @@ mod tests {
     #[test]
     fn test_contains_strategy() {
         assert_strategy!("*foo*", Contains);
-        assert_strategy!("*?foo?*", Contains);
-        assert_strategy!("?*foo*?", Contains);
-        assert_strategy!("*?*foo*?*", Contains);
-        assert_strategy!("??***???****foo??***???****", Contains);
-        assert_strategy!("***???****??foo***???****??", Contains);
+        assert_strategy!("**foo**", Contains);
+        assert_strategy!("*?foo*", Regex);
+        assert_strategy!("*foo?*", Regex);
+        assert_strategy!("*foo*?", Regex);
+        assert_strategy!("?*foo*", Regex);
     }
 
     #[test]
@@ -1037,8 +1036,8 @@ mod tests {
         assert_strategy!("{*}", Static);
         assert_strategy!("{*,}", Static);
         assert_strategy!("{foo,*}", Static);
-        assert_strategy!("{foo,*}?{*,bar}", Static);
-        assert_strategy!("{*,}?{*,}", Static);
+        assert_strategy!("{foo,*}?{*,bar}", Regex);
+        assert_strategy!("{*,}?{*,}", Regex);
     }
 
     #[test]
@@ -1067,6 +1066,33 @@ mod tests {
 
         // No special slash handling
         assert_pattern!("?", "/");
+    }
+
+    #[test]
+    fn test_any_wildcard() {
+        assert_pattern!("??*", NOT "");
+        assert_pattern!("??*", NOT "a");
+        assert_pattern!("??*", "ab");
+        assert_pattern!("??*", "abc");
+        assert_pattern!("??*", "abcde");
+
+        assert_pattern!("*??", NOT "");
+        assert_pattern!("*??", NOT "a");
+        assert_pattern!("*??", "ab");
+        assert_pattern!("*??", "abc");
+        assert_pattern!("*??", "abcde");
+
+        assert_pattern!("*??*", NOT "");
+        assert_pattern!("*??*", NOT "a");
+        assert_pattern!("*??*", "ab");
+        assert_pattern!("*??*", "abc");
+        assert_pattern!("*??*", "abcde");
+
+        assert_pattern!("*?*?*", NOT "");
+        assert_pattern!("*?*?*", NOT "a");
+        assert_pattern!("*?*?*", "ab");
+        assert_pattern!("*?*?*", "abc");
+        assert_pattern!("*?*?*", "abcde");
     }
 
     #[test]

@@ -275,6 +275,7 @@ pub unsafe extern "C" fn relay_store_normalizer_normalize_event(
         replay_id: config.replay_id,
         span_allowed_hosts: &[], // only supported in relay
         scrub_mongo_description: ScrubMongoDescription::Disabled, // only supported in relay
+        span_op_defaults: Default::default(), // only supported in relay
     };
     normalize_event(&mut event, &normalization_config);
 

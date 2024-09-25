@@ -15,7 +15,7 @@ use relay_event_schema::protocol::{
     OtelContext, RelayInfo, SecurityReportType, Values,
 };
 use relay_pii::PiiProcessor;
-use relay_protocol::{Annotated, Array, Empty, FromValue, Object, Value};
+use relay_protocol::{Annotated, Array, Empty, Object, Value};
 use relay_quotas::DataCategory;
 use relay_statsd::metric;
 use serde_json::Value as SerdeValue;
@@ -70,10 +70,8 @@ pub fn extract<G: EventProcessing>(
 
     let skip_normalization = config.processing_enabled() && event_fully_normalized;
 
-    let mut sample_rates = None;
-    let (event, event_len) = if let Some(mut item) = event_item.or(security_item) {
+    let (event, event_len) = if let Some(item) = event_item.or(security_item) {
         relay_log::trace!("processing json event");
-        sample_rates = item.take_sample_rates();
         metric!(timer(RelayTimers::EventProcessingDeserialize), {
             let (mut annotated_event, len) = event_from_json_payload(item, None)?;
             // Event items can never include transactions, so retain the event type and let
@@ -85,9 +83,8 @@ pub fn extract<G: EventProcessing>(
             }
             (annotated_event, len)
         })
-    } else if let Some(mut item) = transaction_item {
+    } else if let Some(item) = transaction_item {
         relay_log::trace!("processing json transaction");
-        sample_rates = item.take_sample_rates();
         state.event_metrics_extracted = item.metrics_extracted();
         state.spans_extracted = item.spans_extracted();
         metric!(timer(RelayTimers::EventProcessingDeserialize), {
@@ -103,9 +100,8 @@ pub fn extract<G: EventProcessing>(
             return Err(ProcessingError::NoEventPayload);
         }
         event_from_json_payload(item, Some(EventType::UserReportV2))?
-    } else if let Some(mut item) = raw_security_item {
+    } else if let Some(item) = raw_security_item {
         relay_log::trace!("processing security report");
-        sample_rates = item.take_sample_rates();
         event_from_security_report(item, envelope.meta()).map_err(|error| {
             if !matches!(error, ProcessingError::UnsupportedSecurityType) {
                 relay_log::error!(
@@ -138,7 +134,6 @@ pub fn extract<G: EventProcessing>(
     };
 
     state.event = event;
-    state.sample_rates = sample_rates;
     state.metrics.bytes_ingested_event = Annotated::new(event_len as u64);
 
     Ok(())
@@ -194,18 +189,6 @@ pub fn finalize<G: EventProcessing>(
 
         if attachment_size > 0 {
             metrics.bytes_ingested_event_attachment = Annotated::new(attachment_size);
-        }
-
-        let sample_rates = state
-            .sample_rates
-            .take()
-            .and_then(|value| Array::from_value(Annotated::new(value)).into_value());
-
-        if let Some(rates) = sample_rates {
-            metrics
-                .sample_rates
-                .get_or_insert_with(Array::new)
-                .extend(rates)
         }
 
         event._metrics = Annotated::new(metrics);
@@ -386,18 +369,10 @@ pub fn serialize<G: EventProcessing>(
     let mut event_item = Item::new(ItemType::from_event_type(event_type));
     event_item.set_payload(ContentType::Json, data);
 
+    // TODO: The state should simply maintain & update an `ItemHeaders` object.
     // If transaction metrics were extracted, set the corresponding item header
     event_item.set_metrics_extracted(state.event_metrics_extracted);
-
-    // TODO: The state should simply maintain & update an `ItemHeaders` object.
     event_item.set_spans_extracted(state.spans_extracted);
-
-    // If there are sample rates, write them back to the envelope. In processing mode, sample
-    // rates have been removed from the state and burnt into the event via `finalize_event`.
-    if let Some(sample_rates) = state.sample_rates.take() {
-        event_item.set_sample_rates(sample_rates);
-    }
-
     event_item.set_fully_normalized(state.event_fully_normalized);
 
     state.envelope_mut().add_item(event_item);

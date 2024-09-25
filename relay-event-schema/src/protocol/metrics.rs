@@ -1,26 +1,6 @@
-use relay_protocol::{Annotated, Array, Empty, FromValue, IntoValue};
+use relay_protocol::{Annotated, Empty, FromValue, IntoValue};
 
 use crate::processor::ProcessValue;
-
-#[derive(Clone, Debug, Default, Empty, PartialEq, FromValue, IntoValue)]
-pub struct SampleRate {
-    /// The unique identifier of the sampling rule or mechanism.
-    ///
-    /// For client-side sampling, this identifies the sampling mechanism:
-    ///  - `client_rate`: Default base sample rate configured in client options. Only reported in
-    ///    the absence of the traces sampler callback.
-    ///  - `client_sampler`: Return value from the traces sampler callback during runtime. Always
-    ///    overrides the `client_rate`.
-    ///
-    /// For server-side sampling, this identifies the dynamic sampling rule.
-    id: Annotated<String>,
-
-    /// The effective sample rate in the range `(0..1]`.
-    ///
-    /// While allowed in the protocol, a value of `0` can never occur in practice since such events
-    /// would never be reported to Sentry and thus never generate this metric.
-    rate: Annotated<f64>,
-}
 
 /// Metrics captured during event ingestion and processing.
 ///
@@ -156,12 +136,6 @@ pub struct Metrics {
     /// This metric is measured in Sentry and should be reported in all processing tasks.
     #[metastructure(field = "flag.processing.fatal")]
     pub flag_processing_fatal: Annotated<bool>,
-
-    /// A list of cumulative sample rates applied to this event.
-    ///
-    /// Multiple entries in `sample_rates` mean that the event was sampled multiple times. The
-    /// effective sample rate is multiplied.
-    pub sample_rates: Annotated<Array<SampleRate>>,
 }
 
 // Do not process Metrics

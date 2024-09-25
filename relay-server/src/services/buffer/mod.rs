@@ -26,7 +26,8 @@ use crate::services::project_cache::{DequeuedEnvelope, ProjectCache, UpdateProje
 use crate::services::test_store::TestStore;
 use crate::statsd::{RelayCounters, RelayHistograms};
 use crate::utils::ManagedEnvelope;
-use crate::utils::MemoryChecker;
+use crate::MemoryChecker;
+use crate::MemoryStat;
 
 pub use envelope_buffer::EnvelopeBufferError;
 // pub for benchmarks
@@ -108,7 +109,7 @@ pub struct Services {
 /// becomes ready.
 pub struct EnvelopeBufferService {
     config: Arc<Config>,
-    memory_checker: MemoryChecker,
+    memory_stat: MemoryStat,
     global_config_rx: watch::Receiver<global_config::Status>,
     services: Services,
     has_capacity: Arc<AtomicBool>,
@@ -128,13 +129,13 @@ impl EnvelopeBufferService {
     /// if V2 spooling is not configured.
     pub fn new(
         config: Arc<Config>,
-        memory_checker: MemoryChecker,
+        memory_stat: MemoryStat,
         global_config_rx: watch::Receiver<global_config::Status>,
         services: Services,
     ) -> Option<Self> {
         config.spool_v2().then(|| Self {
             config,
-            memory_checker,
+            memory_stat,
             global_config_rx,
             services,
             has_capacity: Arc::new(AtomicBool::new(true)),
@@ -155,13 +156,14 @@ impl EnvelopeBufferService {
     async fn ready_to_pop(
         &mut self,
         buffer: &PolymorphicEnvelopeBuffer,
+        dequeue: bool,
     ) -> Option<Permit<DequeuedEnvelope>> {
         relay_statsd::metric!(
             counter(RelayCounters::BufferReadyToPop) += 1,
             status = "checking"
         );
 
-        self.system_ready(buffer).await;
+        self.system_ready(buffer, dequeue).await;
 
         relay_statsd::metric!(
             counter(RelayCounters::BufferReadyToPop) += 1,
@@ -192,19 +194,23 @@ impl EnvelopeBufferService {
     /// - We should not pop from disk into memory when relay's overall memory capacity
     ///   has been reached.
     /// - We need a valid global config to unspool.
-    async fn system_ready(&self, buffer: &PolymorphicEnvelopeBuffer) {
+    async fn system_ready(&self, buffer: &PolymorphicEnvelopeBuffer, dequeue: bool) {
         loop {
             // We should not unspool from external storage if memory capacity has been reached.
             // But if buffer storage is in memory, unspooling can reduce memory usage.
-            let memory_ready =
-                !buffer.is_external() || self.memory_checker.check_memory().has_capacity();
+            let memory_ready = buffer.is_memory() || self.memory_ready();
             let global_config_ready = self.global_config_rx.borrow().is_ready();
 
-            if memory_ready && global_config_ready {
+            if memory_ready && global_config_ready && dequeue {
                 return;
             }
             tokio::time::sleep(DEFAULT_SLEEP).await;
         }
+    }
+
+    fn memory_ready(&self) -> bool {
+        self.memory_stat.memory().used_percent()
+            <= self.config.spool_max_backpressure_memory_percent()
     }
 
     /// Tries to pop an envelope for a ready project.
@@ -372,9 +378,12 @@ impl Service for EnvelopeBufferService {
 
     fn spawn_handler(mut self, mut rx: Receiver<Self::Interface>) {
         let config = self.config.clone();
-        let memory_checker = self.memory_checker.clone();
+        let memory_checker = MemoryChecker::new(self.memory_stat.clone(), config.clone());
         let mut global_config_rx = self.global_config_rx.clone();
         let services = self.services.clone();
+
+        let dequeue = Arc::<AtomicBool>::new(true.into());
+        let dequeue1 = dequeue.clone();
 
         tokio::spawn(async move {
             let buffer = PolymorphicEnvelopeBuffer::from_config(&config, memory_checker).await;
@@ -412,7 +421,7 @@ impl Service for EnvelopeBufferService {
                     // On the one hand, we might want to prioritize dequeuing over enqueuing
                     // so we do not exceed the buffer capacity by starving the dequeue.
                     // on the other hand, prioritizing old messages violates the LIFO design.
-                    Some(permit) = self.ready_to_pop(&buffer) => {
+                    Some(permit) = self.ready_to_pop(&buffer, dequeue.load(Ordering::Relaxed)) => {
                         match Self::try_pop(&config, &mut buffer, &services, permit).await {
                             Ok(new_sleep) => {
                                 sleep = new_sleep;
@@ -436,7 +445,7 @@ impl Service for EnvelopeBufferService {
                             break;
                         }
                     }
-                    _ = global_config_rx.changed() => {
+                    Ok(()) = global_config_rx.changed() => {
                         relay_log::trace!("EnvelopeBufferService: received global config");
                         sleep = Duration::ZERO;
                     }
@@ -448,6 +457,19 @@ impl Service for EnvelopeBufferService {
             }
 
             relay_log::info!("EnvelopeBufferService: stopping");
+        });
+
+        #[cfg(unix)]
+        tokio::spawn(async move {
+            use tokio::signal::unix::{signal, SignalKind};
+            let Ok(mut signal) = signal(SignalKind::user_defined1()) else {
+                return;
+            };
+            while let Some(()) = signal.recv().await {
+                let deq = !dequeue1.load(Ordering::Relaxed);
+                dequeue1.store(deq, Ordering::Relaxed);
+                relay_log::info!("SIGUSR1 receive, dequeue={}", deq);
+            }
         });
     }
 }
@@ -487,7 +509,7 @@ mod tests {
         }));
         let config = Arc::new(Config::from_json_value(config_json).unwrap());
 
-        let memory_checker = MemoryChecker::new(MemoryStat::default(), config.clone());
+        let memory_stat = MemoryStat::default();
         let (global_tx, global_rx) = watch::channel(global_config_status);
         let (envelopes_tx, envelopes_rx) = mpsc::channel(5);
         let (project_cache, project_cache_rx) = Addr::custom();
@@ -495,7 +517,7 @@ mod tests {
 
         let envelope_buffer_service = EnvelopeBufferService::new(
             config,
-            memory_checker,
+            memory_stat,
             global_rx,
             Services {
                 envelopes_tx,

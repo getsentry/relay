@@ -33,7 +33,7 @@ use relay_filter::FilterStatKey;
 use relay_metrics::{Bucket, BucketMetadata, BucketView, BucketsView, MetricMeta, MetricNamespace};
 use relay_pii::PiiConfigError;
 use relay_profiling::ProfileId;
-use relay_protocol::{Annotated, Value};
+use relay_protocol::Annotated;
 use relay_quotas::{DataCategory, RateLimits, Scoping};
 use relay_sampling::config::RuleId;
 use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator, SamplingDecision};
@@ -713,12 +713,6 @@ struct ProcessEnvelopeState<'a, Group> {
     /// persisted into the Event. All modifications afterwards will have no effect.
     metrics: Metrics,
 
-    /// A list of cumulative sample rates applied to this event.
-    ///
-    /// This element is obtained from the event or transaction item and re-serialized into the
-    /// resulting item.
-    sample_rates: Option<Value>,
-
     /// Metrics extracted from items in the envelope.
     ///
     /// Relay can extract metrics for sessions and transactions, which is controlled by
@@ -1295,7 +1289,6 @@ impl EnvelopeProcessorService {
             event_metrics_extracted: false,
             spans_extracted: false,
             metrics: Metrics::default(),
-            sample_rates: None,
             extracted_metrics,
             project_state,
             config,
@@ -1610,6 +1603,7 @@ impl EnvelopeProcessorService {
                 } else {
                     ScrubMongoDescription::Disabled
                 },
+                span_op_defaults: global_config.span_op_defaults.borrow(),
             };
 
             metric!(timer(RelayTimers::EventProcessingNormalization), {
@@ -1711,6 +1705,12 @@ impl EnvelopeProcessorService {
             false => SamplingResult::Pending,
         };
 
+        #[cfg(feature = "processing")]
+        let server_sample_rate = match sampling_result {
+            SamplingResult::Match(ref sampling_match) => Some(sampling_match.sample_rate()),
+            SamplingResult::NoMatch | SamplingResult::Pending => None,
+        };
+
         if let Some(outcome) = sampling_result.into_dropped_outcome() {
             let keep_profiles = global_config.options.unsampled_profiles_enabled;
             // Process profiles before dropping the transaction, if necessary.
@@ -1753,7 +1753,7 @@ impl EnvelopeProcessorService {
                 .project_state
                 .has_feature(Feature::ExtractSpansFromEvent)
             {
-                span::extract_from_event(state, &global_config);
+                span::extract_from_event(state, &global_config, server_sample_rate);
             }
 
             self.enforce_quotas(state)?;
