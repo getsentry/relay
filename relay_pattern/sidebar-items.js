@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["Error","Pattern","PatternBuilder"]};
+window.SIDEBAR_ITEMS = {"struct":["CaseInsensitive","DefaultPatternConfig","Error","Pattern","PatternBuilder","TypedPattern"],"trait":["PatternConfig"]};

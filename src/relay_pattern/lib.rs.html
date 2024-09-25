@@ -1373,6 +1373,10 @@
 <a href="#1373" id="1373">1373</a>
 <a href="#1374" id="1374">1374</a>
 <a href="#1375" id="1375">1375</a>
+<a href="#1376" id="1376">1376</a>
+<a href="#1377" id="1377">1377</a>
+<a href="#1378" id="1378">1378</a>
+<a href="#1379" id="1379">1379</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! A glob like pattern used throught Relay and its APIs.
 //!
 //! # Behaviour
@@ -1402,6 +1406,10 @@
 //! * `\` escapes any of the above special characters and treats it as a literal.
 
 </span><span class="kw">use </span>std::fmt::{<span class="self">self</span>, Write};
+
+<span class="kw">mod </span>typed;
+
+<span class="kw">pub use </span>typed::<span class="kw-2">*</span>;
 
 <span class="doccomment">/// Pattern parsing error.
 </span><span class="attr">#[derive(Debug)]
