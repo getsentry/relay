@@ -283,20 +283,196 @@
 <a href="#283" id="283">283</a>
 <a href="#284" id="284">284</a>
 <a href="#285" id="285">285</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
-
-<span class="kw">use </span>axum::extract::{DefaultBodyLimit, Request};
+<a href="#286" id="286">286</a>
+<a href="#287" id="287">287</a>
+<a href="#288" id="288">288</a>
+<a href="#289" id="289">289</a>
+<a href="#290" id="290">290</a>
+<a href="#291" id="291">291</a>
+<a href="#292" id="292">292</a>
+<a href="#293" id="293">293</a>
+<a href="#294" id="294">294</a>
+<a href="#295" id="295">295</a>
+<a href="#296" id="296">296</a>
+<a href="#297" id="297">297</a>
+<a href="#298" id="298">298</a>
+<a href="#299" id="299">299</a>
+<a href="#300" id="300">300</a>
+<a href="#301" id="301">301</a>
+<a href="#302" id="302">302</a>
+<a href="#303" id="303">303</a>
+<a href="#304" id="304">304</a>
+<a href="#305" id="305">305</a>
+<a href="#306" id="306">306</a>
+<a href="#307" id="307">307</a>
+<a href="#308" id="308">308</a>
+<a href="#309" id="309">309</a>
+<a href="#310" id="310">310</a>
+<a href="#311" id="311">311</a>
+<a href="#312" id="312">312</a>
+<a href="#313" id="313">313</a>
+<a href="#314" id="314">314</a>
+<a href="#315" id="315">315</a>
+<a href="#316" id="316">316</a>
+<a href="#317" id="317">317</a>
+<a href="#318" id="318">318</a>
+<a href="#319" id="319">319</a>
+<a href="#320" id="320">320</a>
+<a href="#321" id="321">321</a>
+<a href="#322" id="322">322</a>
+<a href="#323" id="323">323</a>
+<a href="#324" id="324">324</a>
+<a href="#325" id="325">325</a>
+<a href="#326" id="326">326</a>
+<a href="#327" id="327">327</a>
+<a href="#328" id="328">328</a>
+<a href="#329" id="329">329</a>
+<a href="#330" id="330">330</a>
+<a href="#331" id="331">331</a>
+<a href="#332" id="332">332</a>
+<a href="#333" id="333">333</a>
+<a href="#334" id="334">334</a>
+<a href="#335" id="335">335</a>
+<a href="#336" id="336">336</a>
+<a href="#337" id="337">337</a>
+<a href="#338" id="338">338</a>
+<a href="#339" id="339">339</a>
+<a href="#340" id="340">340</a>
+<a href="#341" id="341">341</a>
+<a href="#342" id="342">342</a>
+<a href="#343" id="343">343</a>
+<a href="#344" id="344">344</a>
+<a href="#345" id="345">345</a>
+<a href="#346" id="346">346</a>
+<a href="#347" id="347">347</a>
+<a href="#348" id="348">348</a>
+<a href="#349" id="349">349</a>
+<a href="#350" id="350">350</a>
+<a href="#351" id="351">351</a>
+<a href="#352" id="352">352</a>
+<a href="#353" id="353">353</a>
+<a href="#354" id="354">354</a>
+<a href="#355" id="355">355</a>
+<a href="#356" id="356">356</a>
+<a href="#357" id="357">357</a>
+<a href="#358" id="358">358</a>
+<a href="#359" id="359">359</a>
+<a href="#360" id="360">360</a>
+<a href="#361" id="361">361</a>
+<a href="#362" id="362">362</a>
+<a href="#363" id="363">363</a>
+<a href="#364" id="364">364</a>
+<a href="#365" id="365">365</a>
+<a href="#366" id="366">366</a>
+<a href="#367" id="367">367</a>
+<a href="#368" id="368">368</a>
+<a href="#369" id="369">369</a>
+<a href="#370" id="370">370</a>
+<a href="#371" id="371">371</a>
+<a href="#372" id="372">372</a>
+<a href="#373" id="373">373</a>
+<a href="#374" id="374">374</a>
+<a href="#375" id="375">375</a>
+<a href="#376" id="376">376</a>
+<a href="#377" id="377">377</a>
+<a href="#378" id="378">378</a>
+<a href="#379" id="379">379</a>
+<a href="#380" id="380">380</a>
+<a href="#381" id="381">381</a>
+<a href="#382" id="382">382</a>
+<a href="#383" id="383">383</a>
+<a href="#384" id="384">384</a>
+<a href="#385" id="385">385</a>
+<a href="#386" id="386">386</a>
+<a href="#387" id="387">387</a>
+<a href="#388" id="388">388</a>
+<a href="#389" id="389">389</a>
+<a href="#390" id="390">390</a>
+<a href="#391" id="391">391</a>
+<a href="#392" id="392">392</a>
+<a href="#393" id="393">393</a>
+<a href="#394" id="394">394</a>
+<a href="#395" id="395">395</a>
+<a href="#396" id="396">396</a>
+<a href="#397" id="397">397</a>
+<a href="#398" id="398">398</a>
+<a href="#399" id="399">399</a>
+<a href="#400" id="400">400</a>
+<a href="#401" id="401">401</a>
+<a href="#402" id="402">402</a>
+<a href="#403" id="403">403</a>
+<a href="#404" id="404">404</a>
+<a href="#405" id="405">405</a>
+<a href="#406" id="406">406</a>
+<a href="#407" id="407">407</a>
+<a href="#408" id="408">408</a>
+<a href="#409" id="409">409</a>
+<a href="#410" id="410">410</a>
+<a href="#411" id="411">411</a>
+<a href="#412" id="412">412</a>
+<a href="#413" id="413">413</a>
+<a href="#414" id="414">414</a>
+<a href="#415" id="415">415</a>
+<a href="#416" id="416">416</a>
+<a href="#417" id="417">417</a>
+<a href="#418" id="418">418</a>
+<a href="#419" id="419">419</a>
+<a href="#420" id="420">420</a>
+<a href="#421" id="421">421</a>
+<a href="#422" id="422">422</a>
+<a href="#423" id="423">423</a>
+<a href="#424" id="424">424</a>
+<a href="#425" id="425">425</a>
+<a href="#426" id="426">426</a>
+<a href="#427" id="427">427</a>
+<a href="#428" id="428">428</a>
+<a href="#429" id="429">429</a>
+<a href="#430" id="430">430</a>
+<a href="#431" id="431">431</a>
+<a href="#432" id="432">432</a>
+<a href="#433" id="433">433</a>
+<a href="#434" id="434">434</a>
+<a href="#435" id="435">435</a>
+<a href="#436" id="436">436</a>
+<a href="#437" id="437">437</a>
+<a href="#438" id="438">438</a>
+<a href="#439" id="439">439</a>
+<a href="#440" id="440">440</a>
+<a href="#441" id="441">441</a>
+<a href="#442" id="442">442</a>
+<a href="#443" id="443">443</a>
+<a href="#444" id="444">444</a>
+<a href="#445" id="445">445</a>
+<a href="#446" id="446">446</a>
+<a href="#447" id="447">447</a>
+<a href="#448" id="448">448</a>
+<a href="#449" id="449">449</a>
+<a href="#450" id="450">450</a>
+<a href="#451" id="451">451</a>
+<a href="#452" id="452">452</a>
+<a href="#453" id="453">453</a>
+<a href="#454" id="454">454</a>
+</pre></div><pre class="rust"><code><span class="kw">use </span>axum::extract::{DefaultBodyLimit, Request};
 <span class="kw">use </span>axum::response::IntoResponse;
 <span class="kw">use </span>axum::routing::{post, MethodRouter};
 <span class="kw">use </span>axum::RequestExt;
 <span class="kw">use </span>bytes::Bytes;
+<span class="kw">use </span>bzip2::read::BzDecoder;
+<span class="kw">use </span>flate2::read::GzDecoder;
+<span class="kw">use </span>liblzma::read::XzDecoder;
 <span class="kw">use </span>multer::Multipart;
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_event_schema::protocol::EventId;
+<span class="kw">use </span>std::convert::Infallible;
+<span class="kw">use </span>std::error::Error;
+<span class="kw">use </span>std::io::Cursor;
+<span class="kw">use </span>std::io::Read;
+<span class="kw">use </span>zstd::stream::Decoder <span class="kw">as </span>ZstdDecoder;
 
 <span class="kw">use </span><span class="kw">crate</span>::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT};
 <span class="kw">use </span><span class="kw">crate</span>::endpoints::common::{<span class="self">self</span>, BadStoreRequest, TextResponse};
-<span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
+<span class="kw">use </span><span class="kw">crate</span>::envelope::ContentType::Minidump;
+<span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, Envelope, Item, ItemType};
 <span class="kw">use </span><span class="kw">crate</span>::extractors::{RawContentType, Remote, RequestMeta};
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 <span class="kw">use </span><span class="kw">crate</span>::utils;
@@ -316,6 +492,15 @@
 </span><span class="kw">const </span>MINIDUMP_MAGIC_HEADER_LE: <span class="kw-2">&amp;</span>[u8] = <span class="string">b"MDMP"</span>;
 <span class="kw">const </span>MINIDUMP_MAGIC_HEADER_BE: <span class="kw-2">&amp;</span>[u8] = <span class="string">b"PMDM"</span>;
 
+<span class="doccomment">/// Magic bytes for gzip compressed minidump containers.
+</span><span class="kw">const </span>GZIP_MAGIC_HEADER: <span class="kw-2">&amp;</span>[u8] = <span class="string">b"\x1F\x8B"</span>;
+<span class="doccomment">/// Magic bytes for xz compressed minidump containers.
+</span><span class="kw">const </span>XZ_MAGIC_HEADER: <span class="kw-2">&amp;</span>[u8] = <span class="string">b"\xFD\x37\x7A\x58\x5A\x00"</span>;
+<span class="doccomment">/// Magic bytes for bzip2 compressed minidump containers.
+</span><span class="kw">const </span>BZIP2_MAGIC_HEADER: <span class="kw-2">&amp;</span>[u8] = <span class="string">b"\x42\x5A\x68"</span>;
+<span class="doccomment">/// Magic bytes for zstd compressed minidump containers.
+</span><span class="kw">const </span>ZSTD_MAGIC_HEADER: <span class="kw-2">&amp;</span>[u8] = <span class="string">b"\x28\xB5\x2F\xFD"</span>;
+
 <span class="doccomment">/// Content types by which standalone uploads can be recognized.
 </span><span class="kw">const </span>MINIDUMP_RAW_CONTENT_TYPES: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str] = <span class="kw-2">&amp;</span>[<span class="string">"application/octet-stream"</span>, <span class="string">"application/x-dmp"</span>];
 
@@ -326,6 +511,66 @@
     }
 
     <span class="prelude-val">Ok</span>(())
+}
+
+<span class="doccomment">/// Convenience wrapper to let a decoder decode its full input into a buffer
+</span><span class="kw">fn </span>run_decoder(decoder: <span class="kw-2">&amp;mut </span>Box&lt;<span class="kw">dyn </span>Read&gt;) -&gt; std::io::Result&lt;Vec&lt;u8&gt;&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>buffer = Vec::new();
+    decoder.read_to_end(<span class="kw-2">&amp;mut </span>buffer)<span class="question-mark">?</span>;
+    <span class="prelude-val">Ok</span>(buffer)
+}
+
+<span class="doccomment">/// Creates a decoder based on the magic bytes the minidump payload
+</span><span class="kw">fn </span>decoder_from(minidump_data: Bytes) -&gt; <span class="prelude-ty">Option</span>&lt;Box&lt;<span class="kw">dyn </span>Read&gt;&gt; {
+    <span class="kw">if </span>minidump_data.starts_with(GZIP_MAGIC_HEADER) {
+        <span class="kw">return </span><span class="prelude-val">Some</span>(Box::new(GzDecoder::new(Cursor::new(minidump_data))));
+    } <span class="kw">else if </span>minidump_data.starts_with(XZ_MAGIC_HEADER) {
+        <span class="kw">return </span><span class="prelude-val">Some</span>(Box::new(XzDecoder::new(Cursor::new(minidump_data))));
+    } <span class="kw">else if </span>minidump_data.starts_with(BZIP2_MAGIC_HEADER) {
+        <span class="kw">return </span><span class="prelude-val">Some</span>(Box::new(BzDecoder::new(Cursor::new(minidump_data))));
+    } <span class="kw">else if </span>minidump_data.starts_with(ZSTD_MAGIC_HEADER) {
+        <span class="kw">return match </span>ZstdDecoder::new(Cursor::new(minidump_data)) {
+            <span class="prelude-val">Ok</span>(decoder) =&gt; <span class="prelude-val">Some</span>(Box::new(decoder)),
+            <span class="prelude-val">Err</span>(<span class="kw-2">ref </span>err) =&gt; {
+                <span class="macro">relay_log::error!</span>(error = err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">"failed to create ZstdDecoder"</span>);
+                <span class="prelude-val">None
+            </span>}
+        };
+    }
+
+    <span class="prelude-val">None
+</span>}
+
+<span class="doccomment">/// Tries to decode a minidump using any of the supported compression formats
+/// or returns the provided minidump payload untouched if no format where detected
+</span><span class="kw">fn </span>decode_minidump(minidump_data: Bytes) -&gt; <span class="prelude-ty">Result</span>&lt;Bytes, BadStoreRequest&gt; {
+    <span class="kw">match </span>decoder_from(minidump_data.clone()) {
+        <span class="prelude-val">Some</span>(<span class="kw-2">mut </span>decoder) =&gt; {
+            <span class="kw">match </span>run_decoder(<span class="kw-2">&amp;mut </span>decoder) {
+                <span class="prelude-val">Ok</span>(decoded) =&gt; <span class="prelude-val">Ok</span>(Bytes::from(decoded)),
+                <span class="prelude-val">Err</span>(err) =&gt; {
+                    <span class="comment">// we detected a compression container but failed to decode it
+                    </span><span class="macro">relay_log::trace!</span>(<span class="string">"invalid compression container"</span>);
+                    <span class="prelude-val">Err</span>(BadStoreRequest::InvalidCompressionContainer(err))
+                }
+            }
+        }
+        <span class="prelude-val">None </span>=&gt; {
+            <span class="comment">// this means we haven't detected any compression container
+            // proceed to process the payload untouched (as a plain minidump).
+            </span><span class="prelude-val">Ok</span>(minidump_data)
+        }
+    }
+}
+
+<span class="doccomment">/// Removes any compression container file extensions from the minidump
+/// filename so it can be updated in the item. Otherwise, attachments that
+/// have been decoded would still show the extension in the UI, which is misleading.
+</span><span class="kw">fn </span>remove_container_extension(filename: <span class="kw-2">&amp;</span>str) -&gt; <span class="kw-2">&amp;</span>str {
+    [<span class="string">".gz"</span>, <span class="string">".xz"</span>, <span class="string">".bz2"</span>, <span class="string">".zst"</span>]
+        .into_iter()
+        .find_map(|suffix| filename.strip_suffix(suffix))
+        .unwrap_or(filename)
 }
 
 <span class="kw">fn </span>infer_attachment_type(field_name: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; AttachmentType {
@@ -379,10 +624,16 @@
 
     <span class="kw">let </span>embedded_opt = extract_embedded_minidump(minidump_item.payload()).<span class="kw">await</span><span class="question-mark">?</span>;
     <span class="kw">if let </span><span class="prelude-val">Some</span>(embedded) = embedded_opt {
-        minidump_item.set_payload(ContentType::Minidump, embedded);
+        minidump_item.set_payload(Minidump, embedded);
     }
 
+    minidump_item.set_payload(Minidump, decode_minidump(minidump_item.payload())<span class="question-mark">?</span>);
+
     validate_minidump(<span class="kw-2">&amp;</span>minidump_item.payload())<span class="question-mark">?</span>;
+
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(minidump_filename) = minidump_item.filename() {
+        minidump_item.set_filename(remove_container_extension(minidump_filename).to_owned());
+    }
 
     <span class="kw">let </span>event_id = common::event_id_from_items(<span class="kw-2">&amp;</span>items)<span class="question-mark">?</span>.unwrap_or_else(EventId::new);
     <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(event_id), meta);
@@ -395,10 +646,10 @@
 }
 
 <span class="kw">fn </span>extract_raw_minidump(data: Bytes, meta: RequestMeta) -&gt; <span class="prelude-ty">Result</span>&lt;Box&lt;Envelope&gt;, BadStoreRequest&gt; {
-    validate_minidump(<span class="kw-2">&amp;</span>data)<span class="question-mark">?</span>;
-
     <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Attachment);
-    item.set_payload(ContentType::Minidump, data);
+
+    item.set_payload(Minidump, decode_minidump(data)<span class="question-mark">?</span>);
+    validate_minidump(<span class="kw-2">&amp;</span>item.payload())<span class="question-mark">?</span>;
     item.set_filename(MINIDUMP_FILE_NAME);
     item.set_attachment_type(AttachmentType::Minidump);
 
@@ -447,10 +698,17 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-    <span class="kw">use </span>axum::body::Body;
-    <span class="kw">use </span>relay_config::Config;
-
+    <span class="kw">use </span><span class="kw">crate</span>::envelope::ContentType;
     <span class="kw">use </span><span class="kw">crate</span>::utils::{multipart_items, FormDataIter};
+    <span class="kw">use </span>axum::body::Body;
+    <span class="kw">use </span>bzip2::write::BzEncoder;
+    <span class="kw">use </span>bzip2::Compression <span class="kw">as </span>BzCompression;
+    <span class="kw">use </span>flate2::write::GzEncoder;
+    <span class="kw">use </span>flate2::Compression <span class="kw">as </span>GzCompression;
+    <span class="kw">use </span>liblzma::write::XzEncoder;
+    <span class="kw">use </span>relay_config::Config;
+    <span class="kw">use </span>std::io::Write;
+    <span class="kw">use </span>zstd::stream::Encoder <span class="kw">as </span>ZstdEncoder;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
@@ -464,6 +722,87 @@
 
         <span class="kw">let </span>garbage = <span class="string">b"xxxxxx"</span>;
         <span class="macro">assert!</span>(validate_minidump(garbage).is_err());
+    }
+
+    <span class="kw">type </span>EncodeFunction = <span class="kw">fn</span>(<span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Bytes, Box&lt;<span class="kw">dyn </span>std::error::Error&gt;&gt;;
+
+    <span class="kw">fn </span>encode_gzip(be_minidump: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Bytes, Box&lt;<span class="kw">dyn </span>std::error::Error&gt;&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>encoder = GzEncoder::new(Vec::new(), GzCompression::default());
+        encoder.write_all(be_minidump)<span class="question-mark">?</span>;
+        <span class="kw">let </span>compressed = encoder.finish()<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(Bytes::from(compressed))
+    }
+    <span class="kw">fn </span>encode_bzip(be_minidump: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Bytes, Box&lt;<span class="kw">dyn </span>std::error::Error&gt;&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>encoder = BzEncoder::new(Vec::new(), BzCompression::default());
+        encoder.write_all(be_minidump)<span class="question-mark">?</span>;
+        <span class="kw">let </span>compressed = encoder.finish()<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(Bytes::from(compressed))
+    }
+    <span class="kw">fn </span>encode_xz(be_minidump: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Bytes, Box&lt;<span class="kw">dyn </span>std::error::Error&gt;&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>encoder = XzEncoder::new(Vec::new(), <span class="number">6</span>);
+        encoder.write_all(be_minidump)<span class="question-mark">?</span>;
+        <span class="kw">let </span>compressed = encoder.finish()<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(Bytes::from(compressed))
+    }
+    <span class="kw">fn </span>encode_zst(be_minidump: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Bytes, Box&lt;<span class="kw">dyn </span>std::error::Error&gt;&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>encoder = ZstdEncoder::new(Vec::new(), <span class="number">0</span>)<span class="question-mark">?</span>;
+        encoder.write_all(be_minidump)<span class="question-mark">?</span>;
+        <span class="kw">let </span>compressed = encoder.finish()<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(Bytes::from(compressed))
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_validate_encoded_minidump() -&gt; <span class="prelude-ty">Result</span>&lt;(), Box&lt;<span class="kw">dyn </span>std::error::Error&gt;&gt; {
+        <span class="kw">let </span>encoders: Vec&lt;EncodeFunction&gt; = <span class="macro">vec!</span>[encode_gzip, encode_zst, encode_bzip, encode_xz];
+
+        <span class="kw">for </span>encoder <span class="kw">in </span><span class="kw-2">&amp;</span>encoders {
+            <span class="kw">let </span>be_minidump = <span class="string">b"PMDMxxxxxx"</span>;
+            <span class="kw">let </span>compressed = encoder(be_minidump)<span class="question-mark">?</span>;
+            <span class="kw">let </span><span class="kw-2">mut </span>decoder = decoder_from(compressed).unwrap();
+            <span class="macro">assert!</span>(run_decoder(<span class="kw-2">&amp;mut </span>decoder).is_ok());
+
+            <span class="kw">let </span>le_minidump = <span class="string">b"MDMPxxxxxx"</span>;
+            <span class="kw">let </span>compressed = encoder(le_minidump)<span class="question-mark">?</span>;
+            <span class="kw">let </span><span class="kw-2">mut </span>decoder = decoder_from(compressed).unwrap();
+            <span class="macro">assert!</span>(run_decoder(<span class="kw-2">&amp;mut </span>decoder).is_ok());
+
+            <span class="kw">let </span>garbage = <span class="string">b"xxxxxx"</span>;
+            <span class="kw">let </span>compressed = encoder(garbage)<span class="question-mark">?</span>;
+            <span class="kw">let </span><span class="kw-2">mut </span>decoder = decoder_from(compressed).unwrap();
+            <span class="kw">let </span>decoded = run_decoder(<span class="kw-2">&amp;mut </span>decoder);
+            <span class="macro">assert!</span>(decoded.is_ok());
+            <span class="macro">assert!</span>(validate_minidump(<span class="kw-2">&amp;</span>decoded.unwrap()).is_err());
+        }
+
+        <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_remove_container_extension() -&gt; <span class="prelude-ty">Result</span>&lt;(), Box&lt;<span class="kw">dyn </span>std::error::Error&gt;&gt; {
+        <span class="macro">assert_eq!</span>(remove_container_extension(<span class="string">"minidump"</span>), <span class="string">"minidump"</span>);
+        <span class="macro">assert_eq!</span>(remove_container_extension(<span class="string">"minidump.gz"</span>), <span class="string">"minidump"</span>);
+        <span class="macro">assert_eq!</span>(remove_container_extension(<span class="string">"minidump.bz2"</span>), <span class="string">"minidump"</span>);
+        <span class="macro">assert_eq!</span>(remove_container_extension(<span class="string">"minidump.xz"</span>), <span class="string">"minidump"</span>);
+        <span class="macro">assert_eq!</span>(remove_container_extension(<span class="string">"minidump.zst"</span>), <span class="string">"minidump"</span>);
+        <span class="macro">assert_eq!</span>(remove_container_extension(<span class="string">"minidump.dmp"</span>), <span class="string">"minidump.dmp"</span>);
+        <span class="macro">assert_eq!</span>(
+            remove_container_extension(<span class="string">"minidump.dmp.gz"</span>),
+            <span class="string">"minidump.dmp"
+        </span>);
+        <span class="macro">assert_eq!</span>(
+            remove_container_extension(<span class="string">"minidump.dmp.bz2"</span>),
+            <span class="string">"minidump.dmp"
+        </span>);
+        <span class="macro">assert_eq!</span>(
+            remove_container_extension(<span class="string">"minidump.dmp.xz"</span>),
+            <span class="string">"minidump.dmp"
+        </span>);
+        <span class="macro">assert_eq!</span>(
+            remove_container_extension(<span class="string">"minidump.dmp.zst"</span>),
+            <span class="string">"minidump.dmp"
+        </span>);
+
+        <span class="prelude-val">Ok</span>(())
     }
 
     <span class="attr">#[tokio::test]
@@ -495,8 +834,7 @@
                 <span class="string">"content-type"</span>,
                 <span class="string">"multipart/form-data; boundary=---MultipartBoundary-sQ95dYmFvVzJ2UcOSdGPBkqrW0syf0Uw---"</span>,
             )
-            .body(Body::from(multipart_body))
-            .unwrap();
+            .body(Body::from(multipart_body))<span class="question-mark">?</span>;
 
         <span class="kw">let </span>config = Config::default();
 

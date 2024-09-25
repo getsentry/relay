@@ -478,6 +478,9 @@
 <a href="#478" id="478">478</a>
 <a href="#479" id="479">479</a>
 <a href="#480" id="480">480</a>
+<a href="#481" id="481">481</a>
+<a href="#482" id="482">482</a>
+<a href="#483" id="483">483</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Common facilities for ingesting events through store-like endpoints.
 
 </span><span class="kw">use </span>axum::http::{header, StatusCode};
@@ -546,6 +549,9 @@
 
     <span class="attr">#[error(<span class="string">"missing minidump"</span>)]
     </span>MissingMinidump,
+
+    <span class="attr">#[error(<span class="string">"invalid compression container"</span>)]
+    </span>InvalidCompressionContainer(<span class="attr">#[source] </span>std::io::Error),
 
     <span class="attr">#[error(<span class="string">"invalid event id"</span>)]
     </span>InvalidEventId,
