@@ -1,17 +1,24 @@
-use std::convert::Infallible;
-
 use axum::extract::{DefaultBodyLimit, Request};
 use axum::response::IntoResponse;
 use axum::routing::{post, MethodRouter};
 use axum::RequestExt;
 use bytes::Bytes;
+use bzip2::read::BzDecoder;
+use flate2::read::GzDecoder;
+use liblzma::read::XzDecoder;
 use multer::Multipart;
 use relay_config::Config;
 use relay_event_schema::protocol::EventId;
+use std::convert::Infallible;
+use std::error::Error;
+use std::io::Cursor;
+use std::io::Read;
+use zstd::stream::Decoder as ZstdDecoder;
 
 use crate::constants::{ITEM_NAME_BREADCRUMBS1, ITEM_NAME_BREADCRUMBS2, ITEM_NAME_EVENT};
 use crate::endpoints::common::{self, BadStoreRequest, TextResponse};
-use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
+use crate::envelope::ContentType::Minidump;
+use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 use crate::extractors::{RawContentType, Remote, RequestMeta};
 use crate::service::ServiceState;
 use crate::utils;
@@ -31,6 +38,15 @@ const MINIDUMP_FILE_NAME: &str = "Minidump";
 const MINIDUMP_MAGIC_HEADER_LE: &[u8] = b"MDMP";
 const MINIDUMP_MAGIC_HEADER_BE: &[u8] = b"PMDM";
 
+/// Magic bytes for gzip compressed minidump containers.
+const GZIP_MAGIC_HEADER: &[u8] = b"\x1F\x8B";
+/// Magic bytes for xz compressed minidump containers.
+const XZ_MAGIC_HEADER: &[u8] = b"\xFD\x37\x7A\x58\x5A\x00";
+/// Magic bytes for bzip2 compressed minidump containers.
+const BZIP2_MAGIC_HEADER: &[u8] = b"\x42\x5A\x68";
+/// Magic bytes for zstd compressed minidump containers.
+const ZSTD_MAGIC_HEADER: &[u8] = b"\x28\xB5\x2F\xFD";
+
 /// Content types by which standalone uploads can be recognized.
 const MINIDUMP_RAW_CONTENT_TYPES: &[&str] = &["application/octet-stream", "application/x-dmp"];
 
@@ -41,6 +57,66 @@ fn validate_minidump(data: &[u8]) -> Result<(), BadStoreRequest> {
     }
 
     Ok(())
+}
+
+/// Convenience wrapper to let a decoder decode its full input into a buffer
+fn run_decoder(decoder: &mut Box<dyn Read>) -> std::io::Result<Vec<u8>> {
+    let mut buffer = Vec::new();
+    decoder.read_to_end(&mut buffer)?;
+    Ok(buffer)
+}
+
+/// Creates a decoder based on the magic bytes the minidump payload
+fn decoder_from(minidump_data: Bytes) -> Option<Box<dyn Read>> {
+    if minidump_data.starts_with(GZIP_MAGIC_HEADER) {
+        return Some(Box::new(GzDecoder::new(Cursor::new(minidump_data))));
+    } else if minidump_data.starts_with(XZ_MAGIC_HEADER) {
+        return Some(Box::new(XzDecoder::new(Cursor::new(minidump_data))));
+    } else if minidump_data.starts_with(BZIP2_MAGIC_HEADER) {
+        return Some(Box::new(BzDecoder::new(Cursor::new(minidump_data))));
+    } else if minidump_data.starts_with(ZSTD_MAGIC_HEADER) {
+        return match ZstdDecoder::new(Cursor::new(minidump_data)) {
+            Ok(decoder) => Some(Box::new(decoder)),
+            Err(ref err) => {
+                relay_log::error!(error = err as &dyn Error, "failed to create ZstdDecoder");
+                None
+            }
+        };
+    }
+
+    None
+}
+
+/// Tries to decode a minidump using any of the supported compression formats
+/// or returns the provided minidump payload untouched if no format where detected
+fn decode_minidump(minidump_data: Bytes) -> Result<Bytes, BadStoreRequest> {
+    match decoder_from(minidump_data.clone()) {
+        Some(mut decoder) => {
+            match run_decoder(&mut decoder) {
+                Ok(decoded) => Ok(Bytes::from(decoded)),
+                Err(err) => {
+                    // we detected a compression container but failed to decode it
+                    relay_log::trace!("invalid compression container");
+                    Err(BadStoreRequest::InvalidCompressionContainer(err))
+                }
+            }
+        }
+        None => {
+            // this means we haven't detected any compression container
+            // proceed to process the payload untouched (as a plain minidump).
+            Ok(minidump_data)
+        }
+    }
+}
+
+/// Removes any compression container file extensions from the minidump
+/// filename so it can be updated in the item. Otherwise, attachments that
+/// have been decoded would still show the extension in the UI, which is misleading.
+fn remove_container_extension(filename: &str) -> &str {
+    [".gz", ".xz", ".bz2", ".zst"]
+        .into_iter()
+        .find_map(|suffix| filename.strip_suffix(suffix))
+        .unwrap_or(filename)
 }
 
 fn infer_attachment_type(field_name: Option<&str>) -> AttachmentType {
@@ -94,10 +170,16 @@ async fn extract_multipart(
 
     let embedded_opt = extract_embedded_minidump(minidump_item.payload()).await?;
     if let Some(embedded) = embedded_opt {
-        minidump_item.set_payload(ContentType::Minidump, embedded);
+        minidump_item.set_payload(Minidump, embedded);
     }
 
+    minidump_item.set_payload(Minidump, decode_minidump(minidump_item.payload())?);
+
     validate_minidump(&minidump_item.payload())?;
+
+    if let Some(minidump_filename) = minidump_item.filename() {
+        minidump_item.set_filename(remove_container_extension(minidump_filename).to_owned());
+    }
 
     let event_id = common::event_id_from_items(&items)?.unwrap_or_else(EventId::new);
     let mut envelope = Envelope::from_request(Some(event_id), meta);
@@ -110,10 +192,10 @@ async fn extract_multipart(
 }
 
 fn extract_raw_minidump(data: Bytes, meta: RequestMeta) -> Result<Box<Envelope>, BadStoreRequest> {
-    validate_minidump(&data)?;
-
     let mut item = Item::new(ItemType::Attachment);
-    item.set_payload(ContentType::Minidump, data);
+
+    item.set_payload(Minidump, decode_minidump(data)?);
+    validate_minidump(&item.payload())?;
     item.set_filename(MINIDUMP_FILE_NAME);
     item.set_attachment_type(AttachmentType::Minidump);
 
@@ -162,10 +244,17 @@ pub fn route(config: &Config) -> MethodRouter<ServiceState> {
 
 #[cfg(test)]
 mod tests {
-    use axum::body::Body;
-    use relay_config::Config;
-
+    use crate::envelope::ContentType;
     use crate::utils::{multipart_items, FormDataIter};
+    use axum::body::Body;
+    use bzip2::write::BzEncoder;
+    use bzip2::Compression as BzCompression;
+    use flate2::write::GzEncoder;
+    use flate2::Compression as GzCompression;
+    use liblzma::write::XzEncoder;
+    use relay_config::Config;
+    use std::io::Write;
+    use zstd::stream::Encoder as ZstdEncoder;
 
     use super::*;
 
@@ -179,6 +268,87 @@ mod tests {
 
         let garbage = b"xxxxxx";
         assert!(validate_minidump(garbage).is_err());
+    }
+
+    type EncodeFunction = fn(&[u8]) -> Result<Bytes, Box<dyn std::error::Error>>;
+
+    fn encode_gzip(be_minidump: &[u8]) -> Result<Bytes, Box<dyn std::error::Error>> {
+        let mut encoder = GzEncoder::new(Vec::new(), GzCompression::default());
+        encoder.write_all(be_minidump)?;
+        let compressed = encoder.finish()?;
+        Ok(Bytes::from(compressed))
+    }
+    fn encode_bzip(be_minidump: &[u8]) -> Result<Bytes, Box<dyn std::error::Error>> {
+        let mut encoder = BzEncoder::new(Vec::new(), BzCompression::default());
+        encoder.write_all(be_minidump)?;
+        let compressed = encoder.finish()?;
+        Ok(Bytes::from(compressed))
+    }
+    fn encode_xz(be_minidump: &[u8]) -> Result<Bytes, Box<dyn std::error::Error>> {
+        let mut encoder = XzEncoder::new(Vec::new(), 6);
+        encoder.write_all(be_minidump)?;
+        let compressed = encoder.finish()?;
+        Ok(Bytes::from(compressed))
+    }
+    fn encode_zst(be_minidump: &[u8]) -> Result<Bytes, Box<dyn std::error::Error>> {
+        let mut encoder = ZstdEncoder::new(Vec::new(), 0)?;
+        encoder.write_all(be_minidump)?;
+        let compressed = encoder.finish()?;
+        Ok(Bytes::from(compressed))
+    }
+
+    #[test]
+    fn test_validate_encoded_minidump() -> Result<(), Box<dyn std::error::Error>> {
+        let encoders: Vec<EncodeFunction> = vec![encode_gzip, encode_zst, encode_bzip, encode_xz];
+
+        for encoder in &encoders {
+            let be_minidump = b"PMDMxxxxxx";
+            let compressed = encoder(be_minidump)?;
+            let mut decoder = decoder_from(compressed).unwrap();
+            assert!(run_decoder(&mut decoder).is_ok());
+
+            let le_minidump = b"MDMPxxxxxx";
+            let compressed = encoder(le_minidump)?;
+            let mut decoder = decoder_from(compressed).unwrap();
+            assert!(run_decoder(&mut decoder).is_ok());
+
+            let garbage = b"xxxxxx";
+            let compressed = encoder(garbage)?;
+            let mut decoder = decoder_from(compressed).unwrap();
+            let decoded = run_decoder(&mut decoder);
+            assert!(decoded.is_ok());
+            assert!(validate_minidump(&decoded.unwrap()).is_err());
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_remove_container_extension() -> Result<(), Box<dyn std::error::Error>> {
+        assert_eq!(remove_container_extension("minidump"), "minidump");
+        assert_eq!(remove_container_extension("minidump.gz"), "minidump");
+        assert_eq!(remove_container_extension("minidump.bz2"), "minidump");
+        assert_eq!(remove_container_extension("minidump.xz"), "minidump");
+        assert_eq!(remove_container_extension("minidump.zst"), "minidump");
+        assert_eq!(remove_container_extension("minidump.dmp"), "minidump.dmp");
+        assert_eq!(
+            remove_container_extension("minidump.dmp.gz"),
+            "minidump.dmp"
+        );
+        assert_eq!(
+            remove_container_extension("minidump.dmp.bz2"),
+            "minidump.dmp"
+        );
+        assert_eq!(
+            remove_container_extension("minidump.dmp.xz"),
+            "minidump.dmp"
+        );
+        assert_eq!(
+            remove_container_extension("minidump.dmp.zst"),
+            "minidump.dmp"
+        );
+
+        Ok(())
     }
 
     #[tokio::test]
@@ -210,8 +380,7 @@ mod tests {
                 "content-type",
                 "multipart/form-data; boundary=---MultipartBoundary-sQ95dYmFvVzJ2UcOSdGPBkqrW0syf0Uw---",
             )
-            .body(Body::from(multipart_body))
-            .unwrap();
+            .body(Body::from(multipart_body))?;
 
         let config = Config::default();
 
