@@ -485,6 +485,22 @@ pub struct SpanData {
     #[metastructure(field = "previousRoute", pii = "maybe", skip_serialization = "empty")]
     pub previous_route: Annotated<Route>,
 
+    // The dom element responsible for the largest contentful paint
+    #[metastructure(field = "lcp.element")]
+    pub lcp_element: Annotated<String>,
+
+    // The size of the largest contentful paint element
+    #[metastructure(field = "lcp.size")]
+    pub lcp_size: Annotated<Value>,
+
+    // The id of the largest contentful paint element
+    #[metastructure(field = "lcp.id")]
+    pub lcp_id: Annotated<String>,
+
+    // The url of the largest contentful paint element
+    #[metastructure(field = "lcp.url")]
+    pub lcp_url: Annotated<String>,
+
     /// Other fields in `span.data`.
     #[metastructure(
         additional_properties,
