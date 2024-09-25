@@ -28,6 +28,10 @@
 
 use std::fmt::{self, Write};
 
+mod typed;
+
+pub use typed::*;
+
 /// Pattern parsing error.
 #[derive(Debug)]
 pub struct Error {
