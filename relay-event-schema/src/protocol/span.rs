@@ -908,6 +908,10 @@ mod tests {
             ),
             route: ~,
             previous_route: ~,
+            lcp_element: ~,
+            lcp_size: ~,
+            lcp_id: ~,
+            lcp_url: ~,
             other: {
                 "bar": String(
                     "3",
