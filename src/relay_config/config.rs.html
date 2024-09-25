@@ -2658,6 +2658,28 @@
 <a href="#2658" id="2658">2658</a>
 <a href="#2659" id="2659">2659</a>
 <a href="#2660" id="2660">2660</a>
+<a href="#2661" id="2661">2661</a>
+<a href="#2662" id="2662">2662</a>
+<a href="#2663" id="2663">2663</a>
+<a href="#2664" id="2664">2664</a>
+<a href="#2665" id="2665">2665</a>
+<a href="#2666" id="2666">2666</a>
+<a href="#2667" id="2667">2667</a>
+<a href="#2668" id="2668">2668</a>
+<a href="#2669" id="2669">2669</a>
+<a href="#2670" id="2670">2670</a>
+<a href="#2671" id="2671">2671</a>
+<a href="#2672" id="2672">2672</a>
+<a href="#2673" id="2673">2673</a>
+<a href="#2674" id="2674">2674</a>
+<a href="#2675" id="2675">2675</a>
+<a href="#2676" id="2676">2676</a>
+<a href="#2677" id="2677">2677</a>
+<a href="#2678" id="2678">2678</a>
+<a href="#2679" id="2679">2679</a>
+<a href="#2680" id="2680">2680</a>
+<a href="#2681" id="2681">2681</a>
+<a href="#2682" id="2682">2682</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
@@ -3577,6 +3599,11 @@
     <span class="number">500
 </span>}
 
+<span class="doccomment">/// Default max memory usage for unspooling.
+</span><span class="kw">fn </span>spool_max_backpressure_memory_percent() -&gt; f32 {
+    <span class="number">0.9
+</span>}
+
 <span class="doccomment">/// Persistent buffering configuration for incoming envelopes.
 </span><span class="attr">#[derive(Debug, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>EnvelopeSpool {
@@ -3623,6 +3650,17 @@
     <span class="doccomment">/// The amount of envelopes that the envelope buffer can push to its output queue.
     </span><span class="attr">#[serde(default = <span class="string">"spool_max_backpressure_envelopes"</span>)]
     </span>max_backpressure_envelopes: usize,
+    <span class="doccomment">/// The relative memory usage above which the buffer service will stop dequeueing envelopes.
+    ///
+    /// Only applies when [`Self::path`] is set.
+    /// This value should be lower than [`Health::max_memory_percent`] to prevent flip-flopping.
+    ///
+    /// Warning: this threshold can cause the buffer service to deadlock when the buffer itself
+    /// is using too much memory (influenced by [`Self::max_batches`] and [`Self::disk_batch_size`]).
+    ///
+    /// Defaults to 90% (5% less than max memory).
+    </span><span class="attr">#[serde(default = <span class="string">"spool_max_backpressure_memory_percent"</span>)]
+    </span>max_backpressure_memory_percent: f32,
     <span class="doccomment">/// Version of the spooler.
     </span><span class="attr">#[serde(default)]
     </span>version: EnvelopeSpoolVersion,
@@ -3660,6 +3698,7 @@
             max_envelope_delay_secs: spool_envelopes_max_envelope_delay_secs(),
             disk_usage_refresh_frequency_ms: spool_disk_usage_refresh_frequency_ms(),
             max_backpressure_envelopes: spool_max_backpressure_envelopes(),
+            max_backpressure_memory_percent: spool_max_backpressure_memory_percent(),
             version: EnvelopeSpoolVersion::default(),
         }
     }
@@ -4884,6 +4923,11 @@
     <span class="doccomment">/// Returns the maximum number of envelopes that can be put in the bounded buffer.
     </span><span class="kw">pub fn </span>spool_max_backpressure_envelopes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
         <span class="self">self</span>.values.spool.envelopes.max_backpressure_envelopes
+    }
+
+    <span class="doccomment">/// Returns the relative memory usage up to which the disk buffer will unspool envelopes.
+    </span><span class="kw">pub fn </span>spool_max_backpressure_memory_percent(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; f32 {
+        <span class="self">self</span>.values.spool.envelopes.max_backpressure_memory_percent
     }
 
     <span class="doccomment">/// Returns the maximum size of an event payload in bytes.

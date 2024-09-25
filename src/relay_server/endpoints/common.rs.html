@@ -480,7 +480,6 @@
 <a href="#480" id="480">480</a>
 <a href="#481" id="481">481</a>
 <a href="#482" id="482">482</a>
-<a href="#483" id="483">483</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Common facilities for ingesting events through store-like endpoints.
 
 </span><span class="kw">use </span>axum::http::{header, StatusCode};
@@ -835,8 +834,7 @@
         )
     }
 
-    <span class="comment">// TODO(jjbayer): Remove this check once spool v1 is removed.
-    </span><span class="kw">if </span>state.envelope_buffer().is_none() &amp;&amp; state.memory_checker().check_memory().is_exceeded() {
+    <span class="kw">if </span>state.memory_checker().check_memory().is_exceeded() {
         <span class="kw">return </span><span class="prelude-val">Err</span>(BadStoreRequest::QueueFailed);
     };
 

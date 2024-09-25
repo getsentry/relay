@@ -769,6 +769,11 @@
 <a href="#769" id="769">769</a>
 <a href="#770" id="770">770</a>
 <a href="#771" id="771">771</a>
+<a href="#772" id="772">772</a>
+<a href="#773" id="773">773</a>
+<a href="#774" id="774">774</a>
+<a href="#775" id="775">775</a>
+<a href="#776" id="776">776</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Types for buffering envelopes.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -797,7 +802,8 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::test_store::TestStore;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms};
 <span class="kw">use </span><span class="kw">crate</span>::utils::ManagedEnvelope;
-<span class="kw">use </span><span class="kw">crate</span>::utils::MemoryChecker;
+<span class="kw">use </span><span class="kw">crate</span>::MemoryChecker;
+<span class="kw">use </span><span class="kw">crate</span>::MemoryStat;
 
 <span class="kw">pub use </span>envelope_buffer::EnvelopeBufferError;
 <span class="comment">// pub for benchmarks
@@ -879,7 +885,7 @@
 /// becomes ready.
 </span><span class="kw">pub struct </span>EnvelopeBufferService {
     config: Arc&lt;Config&gt;,
-    memory_checker: MemoryChecker,
+    memory_stat: MemoryStat,
     global_config_rx: watch::Receiver&lt;global_config::Status&gt;,
     services: Services,
     has_capacity: Arc&lt;AtomicBool&gt;,
@@ -899,13 +905,13 @@
     /// if V2 spooling is not configured.
     </span><span class="kw">pub fn </span>new(
         config: Arc&lt;Config&gt;,
-        memory_checker: MemoryChecker,
+        memory_stat: MemoryStat,
         global_config_rx: watch::Receiver&lt;global_config::Status&gt;,
         services: Services,
     ) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
         config.spool_v2().then(|| <span class="self">Self </span>{
             config,
-            memory_checker,
+            memory_stat,
             global_config_rx,
             services,
             has_capacity: Arc::new(AtomicBool::new(<span class="bool-val">true</span>)),
@@ -968,8 +974,7 @@
         <span class="kw">loop </span>{
             <span class="comment">// We should not unspool from external storage if memory capacity has been reached.
             // But if buffer storage is in memory, unspooling can reduce memory usage.
-            </span><span class="kw">let </span>memory_ready =
-                !buffer.is_external() || <span class="self">self</span>.memory_checker.check_memory().has_capacity();
+            </span><span class="kw">let </span>memory_ready = buffer.is_memory() || <span class="self">self</span>.memory_ready();
             <span class="kw">let </span>global_config_ready = <span class="self">self</span>.global_config_rx.borrow().is_ready();
 
             <span class="kw">if </span>memory_ready &amp;&amp; global_config_ready &amp;&amp; dequeue {
@@ -977,6 +982,11 @@
             }
             tokio::time::sleep(DEFAULT_SLEEP).<span class="kw">await</span>;
         }
+    }
+
+    <span class="kw">fn </span>memory_ready(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.memory_stat.memory().used_percent()
+            &lt;= <span class="self">self</span>.config.spool_max_backpressure_memory_percent()
     }
 
     <span class="doccomment">/// Tries to pop an envelope for a ready project.
@@ -1144,7 +1154,7 @@
 
     <span class="kw">fn </span>spawn_handler(<span class="kw-2">mut </span><span class="self">self</span>, <span class="kw-2">mut </span>rx: Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
         <span class="kw">let </span>config = <span class="self">self</span>.config.clone();
-        <span class="kw">let </span>memory_checker = <span class="self">self</span>.memory_checker.clone();
+        <span class="kw">let </span>memory_checker = MemoryChecker::new(<span class="self">self</span>.memory_stat.clone(), config.clone());
         <span class="kw">let </span><span class="kw-2">mut </span>global_config_rx = <span class="self">self</span>.global_config_rx.clone();
         <span class="kw">let </span>services = <span class="self">self</span>.services.clone();
 
@@ -1275,7 +1285,7 @@
         }));
         <span class="kw">let </span>config = Arc::new(Config::from_json_value(config_json).unwrap());
 
-        <span class="kw">let </span>memory_checker = MemoryChecker::new(MemoryStat::default(), config.clone());
+        <span class="kw">let </span>memory_stat = MemoryStat::default();
         <span class="kw">let </span>(global_tx, global_rx) = watch::channel(global_config_status);
         <span class="kw">let </span>(envelopes_tx, envelopes_rx) = mpsc::channel(<span class="number">5</span>);
         <span class="kw">let </span>(project_cache, project_cache_rx) = Addr::custom();
@@ -1283,7 +1293,7 @@
 
         <span class="kw">let </span>envelope_buffer_service = EnvelopeBufferService::new(
             config,
-            memory_checker,
+            memory_stat,
             global_rx,
             Services {
                 envelopes_tx,

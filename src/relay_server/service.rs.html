@@ -690,7 +690,7 @@
         <span class="kw">let </span>(envelopes_tx, envelopes_rx) = mpsc::channel(config.spool_max_backpressure_envelopes());
         <span class="kw">let </span>envelope_buffer = EnvelopeBufferService::new(
             config.clone(),
-            MemoryChecker::new(memory_stat.clone(), config.clone()),
+            memory_stat.clone(),
             global_config_rx.clone(),
             buffer::Services {
                 envelopes_tx,
