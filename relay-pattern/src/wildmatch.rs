@@ -1,7 +1,4 @@
-use crate::{Options, Token, Tokens};
-
-use memchr::arch::all::is_prefix;
-use memchr::memmem;
+use crate::{Literal, Options, Ranges, Token, Tokens};
 
 /// Matches [`Tokens`] against a `haystack` with the provided [`Options`].
 ///
@@ -11,18 +8,111 @@ use memchr::memmem;
 ///
 /// [jkrauss]: http://developforperformance.com/MatchingWildcards_AnImprovedAlgorithmForBigData.html
 pub fn is_match(tokens: &Tokens, haystack: &str, options: Options) -> bool {
-    is_match_inner(tokens.as_slice(), haystack, options)
+    match options.case_insensitive {
+        false => is_match_impl::<_, CaseSensitive>(tokens.as_slice(), haystack),
+        true => is_match_impl::<_, CaseInsensitive>(tokens.as_slice(), haystack),
+    }
+}
+
+/// Boundles necessary matchers for [`is_match_impl`].
+trait Matcher {
+    /// Returns the length of the needle in the haystack if the needle` is a prefix of `haystack`.
+    fn is_prefix(haystack: &str, needle: &Literal) -> Option<usize>;
+    /// Searches for the `needle` in the `haystack` and returns the index of the start of the match
+    /// and the length of match or `None` if the `needle` is not contained in the `haystack`.
+    fn find(haystack: &str, needle: &Literal) -> Option<(usize, usize)>;
+    /// Returns `true` if the char `c` is contained within `ranges`.
+    fn ranges_match(c: char, negated: bool, ranges: &Ranges) -> bool;
+    /// Searches for the next occurrence of `ranges` in the `haystack`.
+    ///
+    /// Returns the offset in bytes and matching `char` if the range is contained within the
+    /// `haystack`.
+    #[inline(always)]
+    fn ranges_find(haystack: &str, negated: bool, ranges: &Ranges) -> Option<(usize, char)> {
+        // TODO: possibly optimize range finding.
+        // TODO: possibly optimize with `memchr{1,2,3}` for short ranges.
+        haystack
+            .char_indices()
+            .find(|&(_, c)| Self::ranges_match(c, negated, ranges))
+    }
+}
+
+/// A case sensitive [`Matcher`].
+struct CaseSensitive;
+
+impl Matcher for CaseSensitive {
+    #[inline(always)]
+    fn is_prefix(haystack: &str, needle: &Literal) -> Option<usize> {
+        let needle = needle.as_case_converted_bytes();
+        memchr::arch::all::is_prefix(haystack.as_bytes(), needle).then_some(needle.len())
+    }
+
+    #[inline(always)]
+    fn find(haystack: &str, needle: &Literal) -> Option<(usize, usize)> {
+        let needle = needle.as_case_converted_bytes();
+        memchr::memmem::find(haystack.as_bytes(), needle).map(|offset| (offset, needle.len()))
+    }
+
+    #[inline(always)]
+    fn ranges_match(c: char, negated: bool, ranges: &Ranges) -> bool {
+        ranges.contains(c) ^ negated
+    }
+}
+
+/// A case insensitive [`Matcher`].
+struct CaseInsensitive;
+
+impl Matcher for CaseInsensitive {
+    #[inline(always)]
+    fn is_prefix(haystack: &str, needle: &Literal) -> Option<usize> {
+        // We can safely assume `needle` is already full lowercase. This transformation is done on
+        // token creation based on the options.
+        //
+        // The haystack cannot be converted to full lowercase to not break class matches on
+        // uppercase unicode characters which would produce multiple lowercase characters.
+        //
+        // TODO: benchmark if allocation free is better/faster.
+        let needle = needle.as_case_converted_bytes();
+        let lower_haystack = haystack.to_lowercase();
+
+        memchr::arch::all::is_prefix(lower_haystack.as_bytes(), needle)
+            .then(|| recover_offset_len(haystack, 0, needle.len()).1)
+    }
+
+    #[inline(always)]
+    fn find(haystack: &str, needle: &Literal) -> Option<(usize, usize)> {
+        // TODO: implement manual lowercase which remembers if there were 'special' unicode
+        // conversion involved, if not, there is no recovery necessary.
+        // TODO: benchmark if a lut from offset -> original offset makes sense.
+        // TODO: benchmark allocation free and search with proper case insensitive search.
+        let needle = needle.as_case_converted_bytes();
+        let lower_haystack = haystack.to_lowercase();
+
+        let offset = memchr::memmem::find(lower_haystack.as_bytes(), needle)?;
+
+        // `offset` now points into the lowercase converted string, but this may not match the
+        // offset in the original string. Time to recover the index.
+        Some(recover_offset_len(haystack, offset, offset + needle.len()))
+    }
+
+    #[inline(always)]
+    fn ranges_match(c: char, negated: bool, ranges: &Ranges) -> bool {
+        let matches = exactly_one(c.to_lowercase()).is_some_and(|c| ranges.contains(c))
+            || exactly_one(c.to_uppercase()).is_some_and(|c| ranges.contains(c));
+        matches ^ negated
+    }
 }
 
 #[inline(always)]
-fn is_match_inner<T>(tokens: &T, haystack: &str, options: Options) -> bool
+fn is_match_impl<T, M>(tokens: &T, haystack: &str) -> bool
 where
     T: TokenIndex + ?Sized,
+    M: Matcher,
 {
     // Remainder of the haystack which still needs to be matched.
     let mut h_current = haystack;
     // Saved haystack position for backtracking.
-    let mut h_saved = haystack;
+    let mut h_revert = haystack;
     // Revert index for `tokens`. In case of backtracking we backtrack to this index.
     //
     // If `t_revert` is zero, it means there is no currently saved backtracking position.
@@ -53,9 +143,10 @@ where
         // println!("CURRENT: {h_current:?} | TOKEN: {token:?}");
 
         let matched = match token {
-            Token::Literal(literal) => {
-                is_prefix(h_current.as_bytes(), literal.as_bytes()) && advance!(literal.len())
-            }
+            Token::Literal(literal) => match M::is_prefix(h_current, literal) {
+                Some(n) => advance!(n),
+                None => false,
+            },
             Token::Any(n) => {
                 advance!(match n_chars_to_bytes(*n, h_current) {
                     Some(n) => n,
@@ -71,10 +162,10 @@ where
 
                 t_revert = t_next;
 
-                match skip_to_token(tokens, t_next, h_current) {
-                    Some((tokens, saved, remaining)) => {
+                match skip_to_token::<_, M>(tokens, t_next, h_current) {
+                    Some((tokens, revert, remaining)) => {
                         t_next += tokens;
-                        h_saved = saved;
+                        h_revert = revert;
                         h_current = remaining;
                     }
                     None => return false,
@@ -83,13 +174,14 @@ where
                 true
             }
             Token::Class { negated, ranges } => match h_current.chars().next() {
-                Some(next) => (ranges.contains(next) ^ negated) && advance!(next.len_utf8()),
+                Some(next) => M::ranges_match(next, *negated, ranges) && advance!(next.len_utf8()),
                 None => false,
             },
             Token::Alternates(alternates) => {
+                // TODO: should we make this iterative instead of recursive?
                 let matches = alternates.iter().any(|alternate| {
                     let tokens = tokens.with_alternate(t_next, alternate.as_slice());
-                    is_match_inner(&tokens, h_current, options)
+                    is_match_impl::<_, M>(&tokens, h_current)
                 });
 
                 // The brace match already matches to the end, if it is successful we can end right here.
@@ -108,7 +200,7 @@ where
                 return false;
             }
         } else if !matched || (t_next == tokens.len() && !h_current.is_empty()) {
-            h_current = h_saved;
+            h_current = h_revert;
             t_next = t_revert;
 
             // Backtrack to the previous location +1 character.
@@ -117,10 +209,10 @@ where
                 None => return false,
             });
 
-            match skip_to_token(tokens, t_next, h_current) {
-                Some((tokens, saved, remaining)) => {
+            match skip_to_token::<_, M>(tokens, t_next, h_current) {
+                Some((tokens, revert, remaining)) => {
                     t_next += tokens;
-                    h_saved = saved;
+                    h_revert = revert;
                     h_current = remaining;
                 }
                 None => return false,
@@ -131,19 +223,21 @@ where
 
 /// Efficiently skips to the next matching possible match after a wildcard.
 ///
+/// Tokens must be indexable with `t_next`.
+///
 /// Returns `None` if there is no match and the matching can be aborted.
 /// Otherwise returns the amount of tokens consumed, the new save point to backtrack to
 /// and the remaining haystack.
 #[inline(always)]
-fn skip_to_token<'a, T>(
+fn skip_to_token<'a, T, M>(
     tokens: &T,
     t_next: usize,
     haystack: &'a str,
 ) -> Option<(usize, &'a str, &'a str)>
 where
     T: TokenIndex + ?Sized,
+    M: Matcher,
 {
-    println!("SKIP {tokens:?} | {t_next}");
     let next = &tokens[t_next];
 
     // TODO: optimize other cases like:
@@ -151,20 +245,17 @@ where
     //  - `[Any(n)]` (minimum remaining length)
     Some(match next {
         Token::Literal(literal) => {
-            match memmem::find(haystack.as_bytes(), literal.as_bytes()) {
-                // We cannot use `offset + literal.len()` as the saved position
+            match M::find(haystack, literal) {
+                // We cannot use `offset + literal.len()` as the revert position
                 // to not discard overlapping matches.
-                Some(offset) => (1, &haystack[offset..], &haystack[offset + literal.len()..]),
+                Some((offset, len)) => (1, &haystack[offset..], &haystack[offset + len..]),
                 // The literal does not exist in the remaining slice.
                 // No backtracking necessary, we won't ever find it.
                 None => return None,
             }
         }
         Token::Class { negated, ranges } => {
-            match haystack
-                .char_indices()
-                .find(|&(_, c)| ranges.contains(c) ^ negated)
-            {
+            match M::ranges_find(haystack, *negated, ranges) {
                 Some((offset, c)) => (1, &haystack[offset..], &haystack[offset + c.len_utf8()..]),
                 // None of the remaining characters matches this class.
                 // No backtracking necessary, we won't ever find it.
@@ -179,6 +270,67 @@ where
     })
 }
 
+/// Calculates a byte offset of the next `n` chars in the string `s`.
+///
+/// Returns `None` if the string is too short.
+#[inline(always)]
+fn n_chars_to_bytes(n: usize, s: &str) -> Option<usize> {
+    if n == 0 {
+        return Some(0);
+    }
+    // Fast path check, if there are less bytes than characters.
+    if n > s.len() {
+        return None;
+    }
+    s.char_indices()
+        .skip(n - 1)
+        .next()
+        .map(|(i, c)| i + c.len_utf8())
+}
+
+/// Returns `Some` if `iter` contains exactly one element.
+#[inline(always)]
+fn exactly_one<T>(mut iter: impl Iterator<Item = T>) -> Option<T> {
+    match iter.next() {
+        Some(item) => match iter.next() {
+            Some(_) => None,
+            None => Some(item),
+        },
+        None => None,
+    }
+}
+
+/// Recovers offset and length from a case insensitive search in `haystack` using a lowecase
+/// haystack and a lowercase needle.
+///
+/// `lower_offset` is the offset of the match in the lowercase haystack.
+/// `lower_end` is the end offset of the match in the lowercase haystack.
+///
+/// Returns the recovered offset and length.
+#[inline(always)]
+fn recover_offset_len(
+    haystack: &str,
+    lower_offset: usize,
+    lower_offset_end: usize,
+) -> (usize, usize) {
+    haystack
+        .chars()
+        .try_fold((0, 0, 0), |(lower, h_offset, h_len), c| {
+            let lower = lower + c.to_lowercase().map(|c| c.len_utf8()).sum::<usize>();
+
+            if lower < lower_offset {
+                Ok((lower, h_offset + c.len_utf8(), 0))
+            } else if lower == lower_offset {
+                Ok((lower, h_offset, c.len_utf8()))
+            } else if lower <= lower_offset_end {
+                Ok((lower, h_offset, h_len + c.len_utf8()))
+            } else {
+                Err((h_offset, h_len))
+            }
+        })
+        .map_or_else(|e| e, |(_, offset, len)| (offset, len))
+}
+
 /// Minimum requirements to process tokens during matching.
 ///
 /// This is very closely coupled to [`is_match_inner`] and the process
@@ -190,7 +342,7 @@ trait TokenIndex: std::ops::Index<usize, Output = Token> + std::fmt::Debug {
     ///
     /// We need an associated type here to not produce and endlessly recursive
     /// type. Alternates are only allowed for the first 'level' (can't be nested),
-    /// which allows us to break through the
+    /// which allows us to avoid the recursion.
     type WithAlternates<'a>: TokenIndex
     where
         Self: 'a;
@@ -257,8 +409,18 @@ impl<'a> TokenIndex for AltAndTokens<'a> {
         self.alternate.len() + self.tokens.len()
     }
 
-    fn with_alternate<'b>(&'b self, _: usize, _: &'b [Token]) -> Self::WithAlternates<'b> {
-        unreachable!("No nested alternates")
+    fn with_alternate<'b>(
+        &'b self,
+        offset: usize,
+        alternate: &'b [Token],
+    ) -> Self::WithAlternates<'b> {
+        if offset < self.alternate.len() {
+            unreachable!("No nested alternates")
+        }
+        AltAndTokens {
+            alternate,
+            tokens: &self.tokens[offset - self.alternate.len()..],
+        }
     }
 }
 
@@ -274,31 +436,28 @@ impl<'a> std::ops::Index<usize> for AltAndTokens<'a> {
     }
 }
 
-#[inline(always)]
-fn n_chars_to_bytes(n: usize, s: &str) -> Option<usize> {
-    if n == 0 {
-        return Some(0);
-    }
-    // Fast path check, if there are less bytes than characters.
-    if n > s.len() {
-        return None;
-    }
-    s.char_indices()
-        .skip(n - 1)
-        .next()
-        .map(|(i, c)| i + c.len_utf8())
-}
-
 // Just some tests, full test suite is run on globs not tokens.
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{Range, Ranges};
 
+    fn literal(s: &str) -> Literal {
+        Literal::new(s.to_owned(), Default::default())
+    }
+
+    #[test]
+    fn test_exactly_one() {
+        assert_eq!(exactly_one([].into_iter()), None::<i32>);
+        assert_eq!(exactly_one([1].into_iter()), Some(1));
+        assert_eq!(exactly_one([1, 2].into_iter()), None);
+        assert_eq!(exactly_one([1, 2, 3].into_iter()), None);
+    }
+
     #[test]
     fn test_literal() {
         let mut tokens = Tokens::default();
-        tokens.push(Token::Literal("abc".to_owned()));
+        tokens.push(Token::Literal(literal("abc")));
         assert!(is_match(&tokens, "abc", Default::default()));
         assert!(!is_match(&tokens, "abcd", Default::default()));
         assert!(!is_match(&tokens, "bc", Default::default()));
@@ -307,12 +466,12 @@ mod tests {
     #[test]
     fn test_class() {
         let mut tokens = Tokens::default();
-        tokens.push(Token::Literal("a".to_owned()));
+        tokens.push(Token::Literal(literal("a")));
         tokens.push(Token::Class {
             negated: false,
             ranges: Ranges::Single(Range::single('b')),
         });
-        tokens.push(Token::Literal("c".to_owned()));
+        tokens.push(Token::Literal(literal("c")));
         assert!(is_match(&tokens, "abc", Default::default()));
         assert!(!is_match(&tokens, "aac", Default::default()));
         assert!(!is_match(&tokens, "abbc", Default::default()));
@@ -321,12 +480,12 @@ mod tests {
     #[test]
     fn test_class_negated() {
         let mut tokens = Tokens::default();
-        tokens.push(Token::Literal("a".to_owned()));
+        tokens.push(Token::Literal(literal("a")));
         tokens.push(Token::Class {
             negated: true,
             ranges: Ranges::Single(Range::single('b')),
         });
-        tokens.push(Token::Literal("c".to_owned()));
+        tokens.push(Token::Literal(literal("c")));
         assert!(!is_match(&tokens, "abc", Default::default()));
         assert!(is_match(&tokens, "aac", Default::default()));
         assert!(!is_match(&tokens, "abbc", Default::default()));
@@ -335,9 +494,9 @@ mod tests {
     #[test]
     fn test_any_one() {
         let mut tokens = Tokens::default();
-        tokens.push(Token::Literal("a".to_owned()));
+        tokens.push(Token::Literal(literal("a")));
         tokens.push(Token::Any(1));
-        tokens.push(Token::Literal("c".to_owned()));
+        tokens.push(Token::Literal(literal("c")));
         assert!(is_match(&tokens, "abc", Default::default()));
         assert!(is_match(&tokens, "aඞc", Default::default()));
         assert!(!is_match(&tokens, "abbc", Default::default()));
@@ -346,9 +505,9 @@ mod tests {
     #[test]
     fn test_any_many() {
         let mut tokens = Tokens::default();
-        tokens.push(Token::Literal("a".to_owned()));
+        tokens.push(Token::Literal(literal("a")));
         tokens.push(Token::Any(2));
-        tokens.push(Token::Literal("d".to_owned()));
+        tokens.push(Token::Literal(literal("d")));
         assert!(is_match(&tokens, "abcd", Default::default()));
         assert!(is_match(&tokens, "aඞ_d", Default::default()));
         assert!(!is_match(&tokens, "abbc", Default::default()));
@@ -361,21 +520,21 @@ mod tests {
     fn test_wildcard_start() {
         let mut tokens = Tokens::default();
         tokens.push(Token::Wildcard);
-        tokens.push(Token::Literal("b".to_owned()));
-        // assert!(is_match(&tokens, "b", Default::default()));
-        // assert!(is_match(&tokens, "aaaab", Default::default()));
-        // assert!(is_match(&tokens, "ඞb", Default::default()));
-        // assert!(!is_match(&tokens, "", Default::default()));
-        // assert!(!is_match(&tokens, "a", Default::default()));
-        // assert!(!is_match(&tokens, "aa", Default::default()));
-        // assert!(!is_match(&tokens, "aaa", Default::default()));
+        tokens.push(Token::Literal(literal("b")));
+        assert!(is_match(&tokens, "b", Default::default()));
+        assert!(is_match(&tokens, "aaaab", Default::default()));
+        assert!(is_match(&tokens, "ඞb", Default::default()));
+        assert!(!is_match(&tokens, "", Default::default()));
+        assert!(!is_match(&tokens, "a", Default::default()));
+        assert!(!is_match(&tokens, "aa", Default::default()));
+        assert!(!is_match(&tokens, "aaa", Default::default()));
         assert!(!is_match(&tokens, "ba", Default::default()));
     }
 
     #[test]
     fn test_wildcard_end() {
         let mut tokens = Tokens::default();
-        tokens.push(Token::Literal("a".to_owned()));
+        tokens.push(Token::Literal(literal("a")));
         tokens.push(Token::Wildcard);
         assert!(is_match(&tokens, "a", Default::default()));
         assert!(is_match(&tokens, "aaaab", Default::default()));
@@ -388,22 +547,39 @@ mod tests {
     }
 
     #[test]
+    fn test_wildcard_end_unicode_case_insensitive() {
+        let options = Options {
+            case_insensitive: true,
+            ..Default::default()
+        };
+        let mut tokens = Tokens::default();
+        tokens.push(Token::Literal(Literal::new("İ".to_string(), options)));
+        tokens.push(Token::Wildcard);
+
+        assert!(is_match(&tokens, "İ___", options));
+        assert!(is_match(&tokens, "İ", options));
+        assert!(is_match(&tokens, "i̇", options));
+        assert!(is_match(&tokens, "i\u{307}___", options));
+        assert!(!is_match(&tokens, "i____", options));
+    }
+
+    #[test]
     fn test_alternate() {
         let mut tokens = Tokens::default();
-        tokens.push(Token::Literal("a".to_owned()));
+        tokens.push(Token::Literal(literal("a")));
         tokens.push(Token::Alternates(vec![
             {
                 let mut tokens = Tokens::default();
-                tokens.push(Token::Literal("b".to_owned()));
+                tokens.push(Token::Literal(literal("b")));
                 tokens
             },
             {
                 let mut tokens = Tokens::default();
-                tokens.push(Token::Literal("c".to_owned()));
+                tokens.push(Token::Literal(literal("c")));
                 tokens
             },
         ]));
-        tokens.push(Token::Literal("a".to_owned()));
+        tokens.push(Token::Literal(literal("a")));
         assert!(is_match(&tokens, "aba", Default::default()));
         assert!(is_match(&tokens, "aca", Default::default()));
         assert!(!is_match(&tokens, "ada", Default::default()));
