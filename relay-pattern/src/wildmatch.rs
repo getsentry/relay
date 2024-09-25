@@ -2,11 +2,11 @@ use crate::{Literal, Options, Ranges, Token, Tokens};
 
 /// Matches [`Tokens`] against a `haystack` with the provided [`Options`].
 ///
-/// This implementation is largely based on the algorithm described by [Kirk J Krauss](jkrauss)
+/// This implementation is largely based on the algorithm described by [Kirk J Krauss]
 /// and combining the two loops into a single one and other small modifications to take advantage
 /// of the already pre-processed [`Tokens`] structure and its invariants.
 ///
-/// [jkrauss]: http://developforperformance.com/MatchingWildcards_AnImprovedAlgorithmForBigData.html
+/// [Kirk J Krauss]: http://developforperformance.com/MatchingWildcards_AnImprovedAlgorithmForBigData.html
 pub fn is_match(tokens: &Tokens, haystack: &str, options: Options) -> bool {
     match options.case_insensitive {
         false => is_match_impl::<_, CaseSensitive>(tokens.as_slice(), haystack),
@@ -139,8 +139,6 @@ where
 
         let token = &tokens[t_next];
         t_next += 1;
-
-        // println!("CURRENT: {h_current:?} | TOKEN: {token:?}");
 
         let matched = match token {
             Token::Literal(literal) => match M::is_prefix(h_current, literal) {
@@ -282,7 +280,7 @@ fn n_chars_to_bytes(n: usize, s: &str) -> Option<usize> {
     if n > s.len() {
         return None;
     }
-    s.char_indices().nth(n).map(|(i, c)| i + c.len_utf8())
+    s.char_indices().nth(n - 1).map(|(i, c)| i + c.len_utf8())
 }
 
 /// Returns `Some` if `iter` contains exactly one element.
@@ -330,7 +328,7 @@ fn recover_offset_len(
 
 /// Minimum requirements to process tokens during matching.
 ///
-/// This is very closely coupled to [`is_match_inner`] and the process
+/// This is very closely coupled to [`is_match_impl`] and the process
 /// of also matching alternate branches of a pattern. We use a trait here
 /// to make use of monomorphization to make sure the alternate matching
 /// can be inlined.
@@ -547,7 +545,6 @@ mod tests {
     fn test_wildcard_end_unicode_case_insensitive() {
         let options = Options {
             case_insensitive: true,
-            ..Default::default()
         };
         let mut tokens = Tokens::default();
         tokens.push(Token::Literal(Literal::new("İ".to_string(), options)));
