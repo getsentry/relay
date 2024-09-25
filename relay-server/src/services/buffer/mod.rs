@@ -26,7 +26,8 @@ use crate::services::project_cache::{DequeuedEnvelope, ProjectCache, UpdateProje
 use crate::services::test_store::TestStore;
 use crate::statsd::{RelayCounters, RelayHistograms};
 use crate::utils::ManagedEnvelope;
-use crate::utils::MemoryChecker;
+use crate::MemoryChecker;
+use crate::MemoryStat;
 
 pub use envelope_buffer::EnvelopeBufferError;
 // pub for benchmarks
@@ -108,7 +109,7 @@ pub struct Services {
 /// becomes ready.
 pub struct EnvelopeBufferService {
     config: Arc<Config>,
-    memory_checker: MemoryChecker,
+    memory_stat: MemoryStat,
     global_config_rx: watch::Receiver<global_config::Status>,
     services: Services,
     has_capacity: Arc<AtomicBool>,
@@ -128,13 +129,13 @@ impl EnvelopeBufferService {
     /// if V2 spooling is not configured.
     pub fn new(
         config: Arc<Config>,
-        memory_checker: MemoryChecker,
+        memory_stat: MemoryStat,
         global_config_rx: watch::Receiver<global_config::Status>,
         services: Services,
     ) -> Option<Self> {
         config.spool_v2().then(|| Self {
             config,
-            memory_checker,
+            memory_stat,
             global_config_rx,
             services,
             has_capacity: Arc::new(AtomicBool::new(true)),
@@ -197,8 +198,7 @@ impl EnvelopeBufferService {
         loop {
             // We should not unspool from external storage if memory capacity has been reached.
             // But if buffer storage is in memory, unspooling can reduce memory usage.
-            let memory_ready =
-                !buffer.is_external() || self.memory_checker.check_memory().has_capacity();
+            let memory_ready = buffer.is_memory() || self.memory_ready();
             let global_config_ready = self.global_config_rx.borrow().is_ready();
 
             if memory_ready && global_config_ready && dequeue {
@@ -206,6 +206,11 @@ impl EnvelopeBufferService {
             }
             tokio::time::sleep(DEFAULT_SLEEP).await;
         }
+    }
+
+    fn memory_ready(&self) -> bool {
+        self.memory_stat.memory().used_percent()
+            <= self.config.spool_max_backpressure_memory_percent()
     }
 
     /// Tries to pop an envelope for a ready project.
@@ -373,7 +378,7 @@ impl Service for EnvelopeBufferService {
 
     fn spawn_handler(mut self, mut rx: Receiver<Self::Interface>) {
         let config = self.config.clone();
-        let memory_checker = self.memory_checker.clone();
+        let memory_checker = MemoryChecker::new(self.memory_stat.clone(), config.clone());
         let mut global_config_rx = self.global_config_rx.clone();
         let services = self.services.clone();
 
@@ -504,7 +509,7 @@ mod tests {
         }));
         let config = Arc::new(Config::from_json_value(config_json).unwrap());
 
-        let memory_checker = MemoryChecker::new(MemoryStat::default(), config.clone());
+        let memory_stat = MemoryStat::default();
         let (global_tx, global_rx) = watch::channel(global_config_status);
         let (envelopes_tx, envelopes_rx) = mpsc::channel(5);
         let (project_cache, project_cache_rx) = Addr::custom();
@@ -512,7 +517,7 @@ mod tests {
 
         let envelope_buffer_service = EnvelopeBufferService::new(
             config,
-            memory_checker,
+            memory_stat,
             global_rx,
             Services {
                 envelopes_tx,

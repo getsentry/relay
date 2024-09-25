@@ -917,6 +917,11 @@ fn spool_max_backpressure_envelopes() -> usize {
     500
 }
 
+/// Default max memory usage for unspooling.
+fn spool_max_backpressure_memory_percent() -> f32 {
+    0.9
+}
+
 /// Persistent buffering configuration for incoming envelopes.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EnvelopeSpool {
@@ -963,6 +968,17 @@ pub struct EnvelopeSpool {
     /// The amount of envelopes that the envelope buffer can push to its output queue.
     #[serde(default = "spool_max_backpressure_envelopes")]
     max_backpressure_envelopes: usize,
+    /// The relative memory usage above which the buffer service will stop dequeueing envelopes.
+    ///
+    /// Only applies when [`Self::path`] is set.
+    /// This value should be lower than [`Health::max_memory_percent`] to prevent flip-flopping.
+    ///
+    /// Warning: this threshold can cause the buffer service to deadlock when the buffer itself
+    /// is using too much memory (influenced by [`Self::max_batches`] and [`Self::disk_batch_size`]).
+    ///
+    /// Defaults to 90% (5% less than max memory).
+    #[serde(default = "spool_max_backpressure_memory_percent")]
+    max_backpressure_memory_percent: f32,
     /// Version of the spooler.
     #[serde(default)]
     version: EnvelopeSpoolVersion,
@@ -1000,6 +1016,7 @@ impl Default for EnvelopeSpool {
             max_envelope_delay_secs: spool_envelopes_max_envelope_delay_secs(),
             disk_usage_refresh_frequency_ms: spool_disk_usage_refresh_frequency_ms(),
             max_backpressure_envelopes: spool_max_backpressure_envelopes(),
+            max_backpressure_memory_percent: spool_max_backpressure_memory_percent(),
             version: EnvelopeSpoolVersion::default(),
         }
     }
@@ -2224,6 +2241,11 @@ impl Config {
     /// Returns the maximum number of envelopes that can be put in the bounded buffer.
     pub fn spool_max_backpressure_envelopes(&self) -> usize {
         self.values.spool.envelopes.max_backpressure_envelopes
+    }
+
+    /// Returns the relative memory usage up to which the disk buffer will unspool envelopes.
+    pub fn spool_max_backpressure_memory_percent(&self) -> f32 {
+        self.values.spool.envelopes.max_backpressure_memory_percent
     }
 
     /// Returns the maximum size of an event payload in bytes.

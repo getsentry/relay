@@ -41,11 +41,11 @@ pub enum PolymorphicEnvelopeBuffer {
 }
 
 impl PolymorphicEnvelopeBuffer {
-    /// Returns true if the implementation stores envelopes on external storage (e.g. disk).
-    pub fn is_external(&self) -> bool {
+    /// Returns true if the implementation stores all envelopes in RAM.
+    pub fn is_memory(&self) -> bool {
         match self {
-            PolymorphicEnvelopeBuffer::InMemory(_) => false,
-            PolymorphicEnvelopeBuffer::Sqlite(_) => true,
+            PolymorphicEnvelopeBuffer::InMemory(_) => true,
+            PolymorphicEnvelopeBuffer::Sqlite(_) => false,
         }
     }
 
