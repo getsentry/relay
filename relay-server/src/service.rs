@@ -245,7 +245,7 @@ impl ServiceState {
         let (envelopes_tx, envelopes_rx) = mpsc::channel(config.spool_max_backpressure_envelopes());
         let envelope_buffer = EnvelopeBufferService::new(
             config.clone(),
-            MemoryChecker::new(memory_stat.clone(), config.clone()),
+            memory_stat.clone(),
             global_config_rx.clone(),
             buffer::Services {
                 envelopes_tx,
