@@ -978,34 +978,34 @@ pub fn normalize_performance_score(
     version
 }
 
-// Extracts lcp related tags from the trace context
-pub fn normalize_trace_context_tags(event: &mut Event) {
+// Extracts lcp related tags from the trace context.
+fn normalize_trace_context_tags(event: &mut Event) {
     let tags = &mut event.tags.value_mut().get_or_insert_with(Tags::default).0;
     if let Some(contexts) = event.contexts.value() {
         if let Some(trace_context) = contexts.get::<TraceContext>() {
             if let Some(data) = trace_context.data.value() {
                 if let Some(lcp_element) = data.lcp_element.value() {
-                    if tags.get("lcp.element").is_none() {
+                    if !tags.contains("lcp.element") {
                         let tag_name = "lcp.element".to_string();
-                        tags.insert(tag_name, Annotated::new(lcp_element.to_string()));
+                        tags.insert(tag_name, Annotated::new(lcp_element.clone()));
                     }
                 }
                 if let Some(lcp_size) = data.lcp_size.value() {
-                    if tags.get("lcp.size").is_none() {
+                    if !tags.contains("lcp.size") {
                         let tag_name = "lcp.size".to_string();
-                        tags.insert(tag_name, Annotated::new(lcp_size.try_into().unwrap()));
+                        tags.insert(tag_name, Annotated::new(lcp_size.to_string()));
                     }
                 }
                 if let Some(lcp_id) = data.lcp_id.value() {
                     let tag_name = "lcp.id".to_string();
-                    if tags.get("lcp.id").is_none() {
-                        tags.insert(tag_name, Annotated::new(lcp_id.to_string()));
+                    if !tags.contains("lcp.id") {
+                        tags.insert(tag_name, Annotated::new(lcp_id.clone()));
                     }
                 }
                 if let Some(lcp_url) = data.lcp_url.value() {
                     let tag_name = "lcp.url".to_string();
-                    if tags.get("lcp.url").is_none() {
-                        tags.insert(tag_name, Annotated::new(lcp_url.to_string()));
+                    if !tags.contains("lcp.url") {
+                        tags.insert(tag_name, Annotated::new(lcp_url.clone()));
                     }
                 }
             }
