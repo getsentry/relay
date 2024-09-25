@@ -32,12 +32,90 @@ pub struct Connection<'a> {
     inner: ConnectionInner<'a>,
 }
 
-impl ConnectionLike for Connection<'_> {
-    fn req_packed_command(&mut self, cmd: &[u8]) -> redis::RedisResult<redis::Value> {
-        match self.inner {
+impl Connection<'_> {
+    fn req_packed_command_inner(
+        inner: &mut ConnectionInner<'_>,
+        cmd: &[u8],
+    ) -> redis::RedisResult<redis::Value> {
+        match inner {
             ConnectionInner::Cluster(ref mut con) => con.req_packed_command(cmd),
+            ConnectionInner::MultiWrite(ref mut connections) => {
+                let mut first_result = None;
+                for connection in connections.iter_mut() {
+                    let result = Self::req_packed_command_inner(connection, cmd);
+                    if first_result.is_none() {
+                        first_result = Some(result)
+                    }
+                }
+
+                first_result
+                    .expect("The multi-write Redis connection should have at least one connection")
+            }
             ConnectionInner::Single(ref mut con) => con.req_packed_command(cmd),
         }
+    }
+
+    fn req_packed_commands_inner(
+        inner: &mut ConnectionInner<'_>,
+        cmd: &[u8],
+        offset: usize,
+        count: usize,
+    ) -> redis::RedisResult<Vec<redis::Value>> {
+        match inner {
+            ConnectionInner::Cluster(ref mut con) => con.req_packed_commands(cmd, offset, count),
+            ConnectionInner::MultiWrite(ref mut connections) => {
+                let mut first_result = None;
+                for connection in connections.iter_mut() {
+                    let result = Self::req_packed_commands_inner(connection, cmd, offset, count);
+                    if first_result.is_none() {
+                        first_result = Some(result)
+                    }
+                }
+
+                first_result
+                    .expect("The multi-write Redis connection should have at least one connection")
+            }
+            ConnectionInner::Single(ref mut con) => con.req_packed_commands(cmd, offset, count),
+        }
+    }
+
+    fn get_db(inner: &ConnectionInner<'_>) -> i64 {
+        match inner {
+            ConnectionInner::Cluster(ref con) => con.get_db(),
+            ConnectionInner::MultiWrite(ref connections) => Self::get_db(
+                connections
+                    .iter()
+                    .next()
+                    .expect("The multi-write Redis connection should have at least one connection"),
+            ),
+            ConnectionInner::Single(ref con) => con.get_db(),
+        }
+    }
+
+    fn check_connection_inner(inner: &mut ConnectionInner<'_>) -> bool {
+        match inner {
+            ConnectionInner::Cluster(ref mut con) => con.check_connection(),
+            ConnectionInner::MultiWrite(ref mut connections) => connections
+                .iter_mut()
+                .all(|c| Self::check_connection_inner(c)),
+            ConnectionInner::Single(ref mut con) => con.check_connection(),
+        }
+    }
+
+    fn is_open_inner(inner: &ConnectionInner<'_>) -> bool {
+        match inner {
+            ConnectionInner::Cluster(ref con) => con.is_open(),
+            ConnectionInner::MultiWrite(ref connections) => {
+                connections.iter().all(|c| Self::is_open_inner(c))
+            }
+            ConnectionInner::Single(ref con) => con.is_open(),
+        }
+    }
+}
+
+impl ConnectionLike for Connection<'_> {
+    fn req_packed_command(&mut self, cmd: &[u8]) -> redis::RedisResult<redis::Value> {
+        Self::req_packed_command_inner(&mut self.inner, cmd)
     }
 
     fn req_packed_commands(
@@ -46,31 +124,19 @@ impl ConnectionLike for Connection<'_> {
         offset: usize,
         count: usize,
     ) -> redis::RedisResult<Vec<redis::Value>> {
-        match self.inner {
-            ConnectionInner::Cluster(ref mut con) => con.req_packed_commands(cmd, offset, count),
-            ConnectionInner::Single(ref mut con) => con.req_packed_commands(cmd, offset, count),
-        }
+        Self::req_packed_commands_inner(&mut self.inner, cmd, offset, count)
     }
 
     fn get_db(&self) -> i64 {
-        match self.inner {
-            ConnectionInner::Cluster(ref con) => con.get_db(),
-            ConnectionInner::Single(ref con) => con.get_db(),
-        }
+        Self::get_db(&self.inner)
     }
 
     fn check_connection(&mut self) -> bool {
-        match self.inner {
-            ConnectionInner::Cluster(ref mut con) => con.check_connection(),
-            ConnectionInner::Single(ref mut con) => con.check_connection(),
-        }
+        Self::check_connection_inner(&mut self.inner)
     }
 
     fn is_open(&self) -> bool {
-        match self.inner {
-            ConnectionInner::Cluster(ref con) => con.is_open(),
-            ConnectionInner::Single(ref con) => con.is_open(),
-        }
+        Self::is_open_inner(&self.inner)
     }
 }
 
@@ -197,7 +263,7 @@ impl RedisPool {
             .map(|s| Self::client_pool(s, &opts))
             .collect::<Result<Vec<_>, _>>()?
             .into_iter()
-            .map(|p| RedisPoolInner::Single(p))
+            .map(RedisPoolInner::Single)
             .collect();
 
         let inner = RedisPoolInner::MultiWrite(pools);
@@ -237,6 +303,7 @@ impl RedisPool {
         })
     }
 
+    /// Recursively computes a [`PooledClientInner`].
     fn client_inner(inner: &RedisPoolInner) -> Result<PooledClientInner, RedisError> {
         let inner = match inner {
             RedisPoolInner::Cluster(ref pool) => {
