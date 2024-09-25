@@ -491,7 +491,7 @@ pub struct SpanData {
 
     // The size of the largest contentful paint element.
     #[metastructure(field = "lcp.size")]
-    pub lcp_size: Annotated<LenientString>,
+    pub lcp_size: Annotated<u64>,
 
     // The id of the largest contentful paint element.
     #[metastructure(field = "lcp.id")]
