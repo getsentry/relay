@@ -282,10 +282,7 @@ fn n_chars_to_bytes(n: usize, s: &str) -> Option<usize> {
     if n > s.len() {
         return None;
     }
-    s.char_indices()
-        .skip(n - 1)
-        .next()
-        .map(|(i, c)| i + c.len_utf8())
+    s.char_indices().nth(n).map(|(i, c)| i + c.len_utf8())
 }
 
 /// Returns `Some` if `iter` contains exactly one element.

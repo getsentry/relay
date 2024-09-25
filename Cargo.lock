@@ -3590,7 +3590,6 @@ version = "24.9.0"
 dependencies = [
  "criterion",
  "memchr",
- "regex-lite",
  "serde",
  "serde_json",
 ]

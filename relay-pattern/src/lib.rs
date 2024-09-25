@@ -26,7 +26,7 @@
 //! * `{a,b}` matches any pattern within the alternation group.
 //! * `\` escapes any of the above special characters and treats it as a literal.
 
-use std::fmt::{self, Write};
+use std::fmt;
 
 mod typed;
 mod wildmatch;
@@ -55,8 +55,6 @@ enum ErrorKind {
     UnbalancedAlternates,
     /// Dangling escape character.
     DanglingEscape,
-    /// The pattern produced an invalid regex pattern which couldn't be compiled.
-    Regex(String),
 }
 
 impl std::error::Error for Error {}
@@ -73,7 +71,6 @@ impl fmt::Display for Error {
             ErrorKind::NestedAlternates => write!(f, "Nested alternates"),
             ErrorKind::UnbalancedAlternates => write!(f, "Unbalanced alternates"),
             ErrorKind::DanglingEscape => write!(f, "Dangling escape"),
-            ErrorKind::Regex(s) => f.write_str(s),
         }
     }
 }
@@ -109,7 +106,6 @@ impl Pattern {
             MatchStrategy::Suffix(suffix) => match_suffix(suffix, haystack, self.options),
             MatchStrategy::Contains(contains) => match_contains(contains, haystack, self.options),
             MatchStrategy::Static(matches) => *matches,
-            MatchStrategy::Regex(re) => re.is_match(haystack),
             MatchStrategy::Wildmatch(tokens) => wildmatch::is_match(tokens, haystack, self.options),
         }
     }
@@ -168,7 +164,7 @@ struct Options {
 /// Matching strategy for a [`Pattern`].
 ///
 /// Certain patterns can be matched more efficiently while the complex
-/// patterns fallback to a regex.
+/// patterns fallback to [`wildmatch::is_match`].
 #[derive(Debug, Clone)]
 enum MatchStrategy {
     /// The pattern is a single literal string.
@@ -202,7 +198,6 @@ enum MatchStrategy {
     ///
     /// Example: `*`
     Static(bool),
-    Regex(regex_lite::Regex),
     /// The pattern is complex and needs to be evaluated using [`wildmatch`].
     Wildmatch(Tokens),
     // Possible future optimizations for `Any` variations:
@@ -228,96 +223,6 @@ impl MatchStrategy {
 
         Ok(s)
     }
-}
-
-/// Convert a list of tokens to a [`regex_lite::Regex`].
-fn to_regex(tokens: &[Token], options: Options) -> Result<regex_lite::Regex, ErrorKind> {
-    fn push_class_escaped(sink: &mut String, c: char) {
-        match c {
-            '\\' => sink.push_str(r"\\"),
-            '[' => sink.push_str(r"\["),
-            ']' => sink.push_str(r"\]"),
-            c => sink.push(c),
-        }
-    }
-
-    fn tokens_to_regex(re: &mut String, tokens: &[Token]) {
-        for token in tokens {
-            match token {
-                Token::Literal(literal) => {
-                    re.push_str(&regex_lite::escape(literal.as_case_converted_str()))
-                }
-                Token::Any(n) => match n {
-                    0 => debug_assert!(false, "empty any token"),
-                    1 => re.push('.'),
-                    // The simple case with a 'few' any matchers.
-                    &i @ 2..=20 => {
-                        re.reserve(i);
-                        for _ in 0..i {
-                            re.push('.');
-                        }
-                    }
-                    // The generic case with a 'a lot of' any matchers.
-                    i => {
-                        re.push('.');
-                        re.push('{');
-                        write!(re, "{i}").ok();
-                        re.push('}')
-                    }
-                },
-                Token::Wildcard => re.push_str(".*"),
-                Token::Class { negated, ranges } => {
-                    if ranges.is_empty() {
-                        continue;
-                    }
-
-                    re.push('[');
-                    if *negated {
-                        re.push('^');
-                    }
-                    for range in ranges.iter() {
-                        push_class_escaped(re, range.start);
-                        if range.start != range.end {
-                            re.push('-');
-                            push_class_escaped(re, range.end);
-                        }
-                    }
-                    re.push(']');
-                }
-                Token::Alternates(alternates) => {
-                    if alternates.is_empty() {
-                        continue;
-                    }
-
-                    re.push_str("(?:");
-                    let mut first = true;
-                    for alternate in alternates {
-                        if !first {
-                            re.push('|');
-                        }
-                        first = false;
-
-                        tokens_to_regex(re, alternate.as_slice());
-                    }
-                    re.push(')');
-                }
-            }
-        }
-    }
-
-    let mut re = String::new();
-    re.push_str("(?-u)");
-    if options.case_insensitive {
-        re.push_str("(?i)");
-    }
-    re.push('^');
-    tokens_to_regex(&mut re, tokens);
-    re.push('$');
-
-    regex_lite::RegexBuilder::new(&re)
-        .dot_matches_new_line(true)
-        .build()
-        .map_err(|err| ErrorKind::Regex(err.to_string()))
 }
 
 #[inline(always)]
@@ -767,24 +672,6 @@ impl Ranges {
             Self::Multiple(ranges) => ranges.iter().any(|range| range.contains(c)),
         }
     }
-
-    /// Returns an iterator over all contained ranges.
-    fn iter(&self) -> impl Iterator<Item = Range> + '_ {
-        let single = match self {
-            Ranges::Single(range) => Some(*range),
-            _ => None,
-        }
-        .into_iter();
-
-        let multiple = match self {
-            Ranges::Multiple(ranges) => Some(ranges.iter().copied()),
-            _ => None,
-        }
-        .into_iter()
-        .flatten();
-
-        single.chain(multiple)
-    }
 }
 
 /// Represents a character range in a [`Token::Class`].
@@ -867,7 +754,6 @@ mod tests {
                 MatchStrategy::Suffix(_) => "Suffix",
                 MatchStrategy::Contains(_) => "Contains",
                 MatchStrategy::Static(_) => "Static",
-                MatchStrategy::Regex(_) => "Regex",
                 MatchStrategy::Wildmatch(_) => "Wildmatch",
             };
             assert_eq!(
