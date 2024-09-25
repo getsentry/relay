@@ -1,7 +1,7 @@
 use std::fmt;
 use std::time::Duration;
 
-use r2d2::{Pool, PooledConnection};
+use r2d2::{Builder, ManageConnection, Pool, PooledConnection};
 pub use redis;
 use redis::ConnectionLike;
 use thiserror::Error;
@@ -239,13 +239,7 @@ impl RedisPool {
         servers: impl IntoIterator<Item = &'a str>,
         opts: RedisConfigOptions,
     ) -> Result<Self, RedisError> {
-        let pool = Pool::builder()
-            .max_size(opts.max_connections)
-            .min_idle(opts.min_idle)
-            .test_on_check_out(false)
-            .max_lifetime(Some(Duration::from_secs(opts.max_lifetime)))
-            .idle_timeout(Some(Duration::from_secs(opts.idle_timeout)))
-            .connection_timeout(Duration::from_secs(opts.connection_timeout))
+        let pool = Self::base_pool_builder(&opts)
             .build(redis::cluster::ClusterClient::new(servers).map_err(RedisError::Redis)?)
             .map_err(RedisError::Pool)?;
 
@@ -283,6 +277,13 @@ impl RedisPool {
         server: &str,
         opts: &RedisConfigOptions,
     ) -> Result<Pool<redis::Client>, RedisError> {
+        Self::base_pool_builder(opts)
+            .build(redis::Client::open(server).map_err(RedisError::Redis)?)
+            .map_err(RedisError::Pool)
+    }
+
+    /// Returns the base builder for the pool with the options applied.
+    fn base_pool_builder<M: ManageConnection>(opts: &RedisConfigOptions) -> Builder<M> {
         Pool::builder()
             .max_size(opts.max_connections)
             .min_idle(opts.min_idle)
@@ -290,8 +291,6 @@ impl RedisPool {
             .max_lifetime(Some(Duration::from_secs(opts.max_lifetime)))
             .idle_timeout(Some(Duration::from_secs(opts.idle_timeout)))
             .connection_timeout(Duration::from_secs(opts.connection_timeout))
-            .build(redis::Client::open(server).map_err(RedisError::Redis)?)
-            .map_err(RedisError::Pool)
     }
 
     /// Returns a pooled connection to a client.
