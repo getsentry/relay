@@ -1,10 +1,9 @@
 use std::fmt;
-use std::ops::DerefMut;
 use std::time::Duration;
 
-use r2d2::{ManageConnection, Pool, PooledConnection, State};
+use r2d2::{Pool, PooledConnection};
 pub use redis;
-use redis::{Commands, ConnectionLike};
+use redis::ConnectionLike;
 use thiserror::Error;
 
 use crate::config::RedisConfigOptions;
@@ -153,16 +152,17 @@ pub struct PooledClient {
 }
 
 impl PooledClient {
+    /// Returns a pooled connection to this client.
+    ///
+    /// When the connection is fetched from the pool, we also set the read and write timeouts to
+    /// the configured values.
     pub fn connection(&mut self) -> Result<Connection<'_>, RedisError> {
         let inner = Self::connection_inner(&mut self.inner, &self.opts)?;
         Ok(Connection { inner })
     }
 
-    /// Returns a pooled connection to this client.
-    ///
-    /// When the connection is fetched from the pool, we also set the read and write timeouts to
-    /// the configured values.
-    pub fn connection_inner<'a>(
+    /// Recursively computes the [`ConnectionInner`] from a [`PooledClientInner`].
+    fn connection_inner<'a>(
         inner: &'a mut PooledClientInner,
         opts: &RedisConfigOptions,
     ) -> Result<ConnectionInner<'a>, RedisError> {
@@ -234,7 +234,7 @@ pub struct RedisPool {
 }
 
 impl RedisPool {
-    /// Creates a `RedisPool` in cluster configuration.
+    /// Creates a [`RedisPool`] in cluster configuration.
     pub fn cluster<'a>(
         servers: impl IntoIterator<Item = &'a str>,
         opts: RedisConfigOptions,
@@ -253,7 +253,7 @@ impl RedisPool {
         Ok(RedisPool { opts, inner })
     }
 
-    /// Creates a `RedisPool` in multi write configuration.
+    /// Creates a [`RedisPool`] in multi write configuration.
     pub fn multi_write<'a>(
         servers: impl IntoIterator<Item = &'a str>,
         opts: RedisConfigOptions,
@@ -270,7 +270,7 @@ impl RedisPool {
         Ok(RedisPool { opts, inner })
     }
 
-    /// Creates a `RedisPool` in single-node configuration.
+    /// Creates a [`RedisPool`] in single-node configuration.
     pub fn single(server: &str, opts: RedisConfigOptions) -> Result<Self, RedisError> {
         let pool = Self::client_pool(server, &opts)?;
 
