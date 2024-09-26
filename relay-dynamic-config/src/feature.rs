@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 /// to downstream Relays to operate correctly.
 ///
 /// This is useful when a feature is supposed to be "always on" (after feature graduation).
-const GRADUATED_FEATURE_FLAGS: &[&str] = &["organizations:user-feedback-ingest"];
+const GRATUATED_FEATURE_FLAGS: &[&str] = &["organizations:user-feedback-ingest"];
 
 /// Features exposed by project config.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -175,11 +175,11 @@ impl Serialize for FeatureSet {
         S: serde::Serializer,
     {
         let mut seq =
-            serializer.serialize_seq(Some(self.0.len() + HARDCODED_FEATURE_FLAGS.len()))?;
+            serializer.serialize_seq(Some(self.0.len() + GRATUATED_FEATURE_FLAGS.len()))?;
         for element in &self.0 {
             seq.serialize_element(element)?;
         }
-        for flag in HARDCODED_FEATURE_FLAGS {
+        for flag in GRATUATED_FEATURE_FLAGS {
             seq.serialize_element(flag)?;
         }
         seq.end()
