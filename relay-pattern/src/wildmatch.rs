@@ -14,16 +14,16 @@ pub fn is_match(tokens: &Tokens, haystack: &str, options: Options) -> bool {
     }
 }
 
-/// Boundles necessary matchers for [`is_match_impl`].
+/// Bundles necessary matchers for [`is_match_impl`].
 trait Matcher {
-    /// Returns the length of the needle in the haystack if the needle` is a prefix of `haystack`.
+    /// Returns the length of the `needle` in the `haystack` if the `needle` is a prefix of `haystack`.
     fn is_prefix(haystack: &str, needle: &Literal) -> Option<usize>;
     /// Searches for the `needle` in the `haystack` and returns the index of the start of the match
     /// and the length of match or `None` if the `needle` is not contained in the `haystack`.
     fn find(haystack: &str, needle: &Literal) -> Option<(usize, usize)>;
     /// Returns `true` if the char `c` is contained within `ranges`.
     fn ranges_match(c: char, negated: bool, ranges: &Ranges) -> bool;
-    /// Searches for the next occurrence of `ranges` in the `haystack`.
+    /// Searches for the first char in the `haystack` that is contained in one of the `ranges`.
     ///
     /// Returns the offset in bytes and matching `char` if the range is contained within the
     /// `haystack`.
