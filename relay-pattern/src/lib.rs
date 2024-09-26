@@ -1022,6 +1022,7 @@ mod tests {
         );
         assert_pattern!("foo?bar", "foo?bar");
         assert_pattern!("foo?bar", "foo!bar");
+        assert_pattern!("a??a", "aඞඞa");
 
         // No special slash handling
         assert_pattern!("?", "/");

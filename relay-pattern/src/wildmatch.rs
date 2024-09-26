@@ -522,6 +522,19 @@ mod tests {
     }
 
     #[test]
+    fn test_any_unicode() {
+        let mut tokens = Tokens::default();
+        tokens.push(Token::Literal(literal("a")));
+        tokens.push(Token::Any(NonZeroUsize::new(3).unwrap()));
+        tokens.push(Token::Literal(literal("a")));
+        assert!(is_match(&tokens, "abbba", Default::default()));
+        assert!(is_match(&tokens, "aඞbඞa", Default::default()));
+        // `i̇` is `i\u{307}`
+        assert!(is_match(&tokens, "aඞi̇a", Default::default()));
+        assert!(!is_match(&tokens, "aඞi̇ඞa", Default::default()));
+    }
+
+    #[test]
     fn test_wildcard_start() {
         let mut tokens = Tokens::default();
         tokens.push(Token::Wildcard);
