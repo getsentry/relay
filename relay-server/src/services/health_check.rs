@@ -151,10 +151,8 @@ impl HealthCheckService {
     }
 
     async fn spool_health_probe(&self) -> Status {
-        let has_capacity = self
-            .envelope_buffer
-            .as_ref()
-            .map_or(true, |b| b.has_capacity());
+        let has_capacity =
+            dbg!(self.envelope_buffer.as_ref()).map_or(true, |b| dbg!(b.has_capacity()));
         match has_capacity {
             true => Status::Healthy,
             false => Status::Unhealthy,
