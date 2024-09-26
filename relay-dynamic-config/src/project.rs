@@ -10,13 +10,13 @@ use relay_sampling::SamplingConfig;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::defaults;
 use crate::error_boundary::ErrorBoundary;
 use crate::feature::FeatureSet;
 use crate::metrics::{
     self, MetricExtractionConfig, Metrics, SessionMetricsConfig, TaggingRule,
     TransactionMetricsConfig,
 };
+use crate::{defaults, GRADUATED_FEATURE_FLAGS};
 
 /// Dynamic, per-DSN configuration passed down from Sentry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -90,7 +90,7 @@ pub struct ProjectConfig {
 
 impl ProjectConfig {
     /// Validates fields in this project config and removes values that are partially invalid.
-    pub fn sanitized(&mut self) {
+    pub fn sanitize(&mut self) {
         self.quotas.retain(Quota::is_valid);
 
         metrics::convert_conditional_tagging(self);
@@ -98,6 +98,10 @@ impl ProjectConfig {
 
         if let Some(ErrorBoundary::Ok(ref mut sampling_config)) = self.sampling {
             sampling_config.normalize();
+        }
+
+        for flag in GRADUATED_FEATURE_FLAGS {
+            self.features.0.insert(*flag);
         }
     }
 }

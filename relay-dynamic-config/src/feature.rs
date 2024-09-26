@@ -2,11 +2,9 @@ use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
 
-/// Feature flags that are not used by the current version of Relay, but have to be propagated
-/// to downstream Relays to operate correctly.
-///
-/// This is useful when a feature is supposed to be "always on" (after feature graduation).
-const GRATUATED_FEATURE_FLAGS: &[Feature] = &[Feature::UserReportV2Ingest];
+/// Feature flags of graduated features are no longer sent by sentry, but Relay needs to insert them
+/// for outdated downstream Relays that may still rely on the feature flag.
+pub const GRADUATED_FEATURE_FLAGS: &[Feature] = &[Feature::UserReportV2Ingest];
 
 /// Features exposed by project config.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -137,7 +135,7 @@ pub enum Feature {
 
 /// A set of [`Feature`]s.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
-pub struct FeatureSet(BTreeSet<Feature>);
+pub struct FeatureSet(pub BTreeSet<Feature>);
 
 impl FeatureSet {
     /// Returns `true` if the set of features is empty.
@@ -170,9 +168,6 @@ impl<'de> Deserialize<'de> for FeatureSet {
         D: serde::Deserializer<'de>,
     {
         let mut set = BTreeSet::<Feature>::deserialize(deserializer)?;
-        for graduated_feature in GRATUATED_FEATURE_FLAGS {
-            set.insert(*graduated_feature);
-        }
         set.remove(&Feature::Unknown);
         Ok(Self(set))
     }
