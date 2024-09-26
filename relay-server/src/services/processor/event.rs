@@ -7,7 +7,7 @@ use chrono::Duration as SignedDuration;
 use relay_auth::RelayVersion;
 use relay_base_schema::events::EventType;
 use relay_config::Config;
-use relay_dynamic_config::{Feature, GlobalConfig};
+use relay_dynamic_config::GlobalConfig;
 use relay_event_normalization::{nel, ClockDriftProcessor};
 use relay_event_schema::processor::{self, ProcessingState};
 use relay_event_schema::protocol::{
@@ -842,7 +842,8 @@ mod tests {
 
         let event = Annotated::new(Event {
             release: Annotated::new(
-                String::from("���7��#1G����7��#1G����7��#1G����7��#1G����7��#").into(),
+                String::from("���7��#1G����7��#1G����7��#1G����7��#1G����7��#")
+                    .into(),
             ),
             ..Default::default()
         });

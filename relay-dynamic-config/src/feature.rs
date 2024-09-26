@@ -1,6 +1,13 @@
 use std::collections::BTreeSet;
 
+use serde::ser::SerializeSeq;
 use serde::{Deserialize, Serialize};
+
+/// Feature flags that are not used by the current version of Relay, but have to be propagated
+/// to downstream Relays to operate correctly.
+///
+/// This is useful when a feature is supposed to be "always on" (after feature graduation).
+const HARDCODED_FEATURE_FLAGS: &[&str] = &["organizations:user-feedback-ingest"];
 
 /// Features exposed by project config.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -123,7 +130,7 @@ pub enum Feature {
 }
 
 /// A set of [`Feature`]s.
-#[derive(Clone, Debug, Default, Serialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct FeatureSet(pub BTreeSet<Feature>);
 
 impl FeatureSet {
@@ -162,6 +169,23 @@ impl<'de> Deserialize<'de> for FeatureSet {
     }
 }
 
+impl Serialize for FeatureSet {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut seq =
+            serializer.serialize_seq(Some(self.0.len() + HARDCODED_FEATURE_FLAGS.len()))?;
+        for element in &self.0 {
+            seq.serialize_element(element)?;
+        }
+        for flag in HARDCODED_FEATURE_FLAGS {
+            seq.serialize_element(flag)?;
+        }
+        seq.end()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -176,7 +200,17 @@ mod tests {
         );
         assert_eq!(
             serde_json::to_string(&features).unwrap(),
-            r#"["organizations:session-replay"]"#
+            r#"["organizations:session-replay","organizations:user-feedback-ingest"]"#
+        );
+    }
+
+    #[test]
+    fn user_feedback_hard_coded() {
+        let features: FeatureSet = serde_json::from_str(r#"[]"#).unwrap();
+        assert!(features.is_empty());
+        assert_eq!(
+            serde_json::to_string(&features).unwrap(),
+            r#"["organizations:user-feedback-ingest"]"#
         );
     }
 }
