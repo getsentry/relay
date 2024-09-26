@@ -97,8 +97,6 @@ fn extract_span_metrics_for_event(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeSet;
-
     use chrono::{DateTime, Utc};
     use insta::assert_debug_snapshot;
     use relay_dynamic_config::{
@@ -123,14 +121,14 @@ mod tests {
     }
 
     fn combined_config(
-        features: impl Into<BTreeSet<Feature>>,
+        features: impl IntoIterator<Item = Feature>,
         metric_extraction: Option<MetricExtractionConfig>,
     ) -> OwnedConfig {
         let mut global = GlobalConfig::default();
         global.normalize(); // defines metrics extraction rules
         let global = global.metric_extraction.ok().unwrap();
 
-        let features = FeatureSet(features.into());
+        let features = FeatureSet::from(features);
 
         let mut project = ProjectConfig {
             features,
@@ -143,7 +141,7 @@ mod tests {
         OwnedConfig { global, project }
     }
 
-    fn extract_span_metrics(features: impl Into<BTreeSet<Feature>>) -> Vec<Bucket> {
+    fn extract_span_metrics(features: impl IntoIterator<Item = Feature>) -> Vec<Bucket> {
         let json = r#"
         {
             "type": "transaction",

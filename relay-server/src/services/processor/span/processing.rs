@@ -785,7 +785,6 @@ mod tests {
         project_state
             .config
             .features
-            .0
             .insert(Feature::ExtractCommonSpanMetricsFromEvent);
         let project_state = Arc::new(project_state);
 

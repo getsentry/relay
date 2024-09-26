@@ -136,7 +136,7 @@ pub enum Feature {
 }
 
 /// A set of [`Feature`]s.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 pub struct FeatureSet(BTreeSet<Feature>);
 
 impl FeatureSet {
@@ -156,6 +156,31 @@ impl FeatureSet {
             || self.has(Feature::StandaloneSpanIngestion)
             || self.has(Feature::ExtractCommonSpanMetricsFromEvent)
     }
+
+    /// Inserts a feature, and returns `false` if the feature was already part of the set.
+    pub fn insert(&mut self, feature: Feature) -> bool {
+        self.0.insert(feature)
+    }
+}
+
+impl Default for FeatureSet {
+    fn default() -> Self {
+        Self(BTreeSet::from_iter(GRATUATED_FEATURE_FLAGS.iter().copied()))
+    }
+}
+
+impl<T> From<T> for FeatureSet
+where
+    T: IntoIterator<Item = Feature>,
+{
+    /// Only used for tests.
+    fn from(value: T) -> Self {
+        let mut set = Self::default();
+        for feature in value.into_iter() {
+            set.insert(feature);
+        }
+        set
+    }
 }
 
 impl FromIterator<Feature> for FeatureSet {
@@ -169,12 +194,11 @@ impl<'de> Deserialize<'de> for FeatureSet {
     where
         D: serde::Deserializer<'de>,
     {
-        let mut set = BTreeSet::<Feature>::deserialize(deserializer)?;
-        for graduated_feature in GRATUATED_FEATURE_FLAGS {
-            set.insert(*graduated_feature);
-        }
-        set.remove(&Feature::Unknown);
-        Ok(Self(set))
+        let mut set = Self::default();
+        set.0
+            .append(&mut BTreeSet::<Feature>::deserialize(deserializer)?);
+        set.0.remove(&Feature::Unknown);
+        Ok(set)
     }
 }
 
