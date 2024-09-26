@@ -20,6 +20,10 @@
 - Add the dynamic sampling rate to standalone spans as a measurement so that it can be stored, queried, and used for extrapolation. ([#4063](https://github.com/getsentry/relay/pull/4063))
 - Allowlist the SentryUptimeBot user-agent. ([#4068](https://github.com/getsentry/relay/pull/4068))
 
+**Internal:**
+
+- Remove unused `cogs.enabled` configuration option. ([#4060](https://github.com/getsentry/relay/pull/4060))
+
 ## 24.9.0
 
 **Bug Fixes**:
