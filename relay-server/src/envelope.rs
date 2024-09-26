@@ -539,13 +539,6 @@ pub struct ItemHeaders {
     #[serde(default, skip)]
     source_quantities: Option<SourceQuantities>,
 
-    /// A list of cumulative sample rates applied to this event.
-    ///
-    /// Multiple entries in `sample_rates` mean that the event was sampled multiple times. The
-    /// effective sample rate is multiplied.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    sample_rates: Option<Value>,
-
     /// Flag indicating if metrics have already been extracted from the item.
     ///
     /// In order to only extract metrics once from an item while through a
@@ -645,7 +638,6 @@ impl Item {
                 rate_limited: false,
                 replay_combined_payload: false,
                 source_quantities: None,
-                sample_rates: None,
                 other: BTreeMap::new(),
                 metrics_extracted: false,
                 spans_extracted: false,
@@ -800,11 +792,6 @@ impl Item {
         self.headers.rate_limited = rate_limited;
     }
 
-    /// Removes sample rates from the headers, if any.
-    pub fn take_sample_rates(&mut self) -> Option<Value> {
-        self.headers.sample_rates.take()
-    }
-
     /// Returns the contained source quantities.
     pub fn source_quantities(&self) -> Option<SourceQuantities> {
         self.headers.source_quantities
@@ -824,13 +811,6 @@ impl Item {
     /// Sets the replay_combined_payload for this item.
     pub fn set_replay_combined_payload(&mut self, combined_payload: bool) {
         self.headers.replay_combined_payload = combined_payload;
-    }
-
-    /// Sets sample rates for this item.
-    pub fn set_sample_rates(&mut self, sample_rates: Value) {
-        if matches!(sample_rates, Value::Array(ref a) if !a.is_empty()) {
-            self.headers.sample_rates = Some(sample_rates);
-        }
     }
 
     /// Returns the metrics extracted flag.

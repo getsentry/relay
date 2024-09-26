@@ -435,7 +435,6 @@ mod tests {
             ProcessEnvelopeState::<TransactionGroup> {
                 event: Annotated::from(event),
                 metrics: Default::default(),
-                sample_rates: None,
                 extracted_metrics: ProcessingExtractedMetrics::new(),
                 config: config.clone(),
                 project_state,
@@ -707,7 +706,6 @@ mod tests {
             event_metrics_extracted: false,
             spans_extracted: false,
             metrics: Default::default(),
-            sample_rates: Default::default(),
             extracted_metrics: ProcessingExtractedMetrics::new(),
             config: Arc::new(Config::default()),
             project_state: project_info,
