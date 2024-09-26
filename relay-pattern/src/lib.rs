@@ -1376,4 +1376,244 @@ mod tests {
             NOT r"/api/0/organizations/\{organization_slug\}/event/foobar"
         );
     }
+
+    /// Tests collected by [Kirk J Krauss].
+    ///
+    /// Kirk J Krauss: http://developforperformance.com/MatchingWildcards_AnImprovedAlgorithmForBigData.html.
+    #[test]
+    fn test_kirk_j_krauss() {
+        // Case with first wildcard after total match.
+        assert_pattern!("Hi*", "Hi");
+
+        // Case with mismatch after '*'
+        assert_pattern!("ab*d", NOT "abc");
+
+        // Cases with repeating character sequences.
+        assert_pattern!("*ccd", "abcccd");
+        assert_pattern!("*issip*ss*", "mississipissippi");
+        assert_pattern!("xxxx*zzy*fffff", NOT "xxxx*zzzzzzzzy*f");
+        assert_pattern!("xxx*zzy*f", "xxxx*zzzzzzzzy*f");
+        assert_pattern!("xxxx*zzy*fffff", NOT "xxxxzzzzzzzzyf");
+        assert_pattern!("xxxx*zzy*f", "xxxxzzzzzzzzyf");
+        assert_pattern!("xy*z*xyz", "xyxyxyzyxyz");
+        assert_pattern!("*sip*", "mississippi");
+        assert_pattern!("xy*xyz", "xyxyxyxyz");
+        assert_pattern!("mi*sip*", "mississippi");
+        assert_pattern!("*abac*", "ababac");
+        assert_pattern!("*abac*", "ababac");
+        assert_pattern!("a*zz*", "aaazz");
+        assert_pattern!("*12*23", NOT "a12b12");
+        assert_pattern!("a12b", NOT "a12b12");
+        assert_pattern!("*12*12*", "a12b12");
+
+        // From DDJ reader Andy Belf
+        assert_pattern!("*a?b", "caaab");
+
+        // Additional cases where the '*' char appears in the tame string.
+        assert_pattern!("*", "*");
+        assert_pattern!("a*b", "a*abab");
+        assert_pattern!("a*", "a*r");
+        assert_pattern!("a*aar", NOT "a*ar");
+
+        // More double wildcard scenarios.
+        assert_pattern!("XY*Z*XYz", "XYXYXYZYXYz");
+        assert_pattern!("*SIP*", "missisSIPpi");
+        assert_pattern!("*issip*PI", "mississipPI");
+        assert_pattern!("xy*xyz", "xyxyxyxyz");
+        assert_pattern!("mi*sip*", "miSsissippi");
+        assert_pattern!("mi*Sip*", NOT "miSsissippi");
+        assert_pattern!("*Abac*", "abAbac");
+        assert_pattern!("*Abac*", "abAbac");
+        assert_pattern!("a*zz*", "aAazz");
+        assert_pattern!("*12*23", NOT "A12b12");
+        assert_pattern!("*12*12*", "a12B12");
+        assert_pattern!("*oWn*", "oWn");
+
+        // Completely tame (no wildcards) cases.
+        assert_pattern!("bLah", "bLah");
+        assert_pattern!("bLaH", NOT "bLah");
+
+        // Simple mixed wildcard tests suggested by Marlin Deckert.
+        assert_pattern!("*?", "a");
+        assert_pattern!("*?", "ab");
+        assert_pattern!("*?", "abc");
+
+        // More mixed wildcard tests including coverage for false positives.
+        assert_pattern!("??", NOT "a");
+        assert_pattern!("?*?", "ab");
+        assert_pattern!("*?*?*", "ab");
+        assert_pattern!("?**?*?", "abc");
+        assert_pattern!("?**?*&?", NOT "abc");
+        assert_pattern!("?b*??", "abcd");
+        assert_pattern!("?a*??", NOT "abcd");
+        assert_pattern!("?**?c?", "abcd");
+        assert_pattern!("?**?d?", NOT "abcd");
+        assert_pattern!("?*b*?*d*?", "abcde");
+
+        // Single-character-match cases.
+        assert_pattern!("bL?h", "bLah");
+        assert_pattern!("bLa?", NOT "bLaaa");
+        assert_pattern!("bLa?", "bLah");
+        assert_pattern!("?Lah", NOT "bLaH");
+        assert_pattern!("?LaH", "bLaH");
+
+        // Many-wildcard scenarios.
+        assert_pattern!(
+            "a*a*a*a*a*a*aa*aaa*a*a*b",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"
+        );
+        assert_pattern!(
+            "*a*b*ba*ca*a*aa*aaa*fa*ga*b*",
+            "abababababababababababababababababababaacacacacacacacadaeafagahaiajakalaaaaaaaaaaaaaaaaaffafagaagggagaaaaaaaab"
+        );
+        assert_pattern!(
+            "*a*b*ba*ca*a*x*aaa*fa*ga*b*",
+            NOT "abababababababababababababababababababaacacacacacacacadaeafagahaiajakalaaaaaaaaaaaaaaaaaffafagaagggagaaaaaaaab"
+        );
+        assert_pattern!(
+            "*a*b*ba*ca*aaaa*fa*ga*gggg*b*",
+            NOT "abababababababababababababababababababaacacacacacacacadaeafagahaiajakalaaaaaaaaaaaaaaaaaffafagaagggagaaaaaaaab"
+        );
+        assert_pattern!(
+            "*a*b*ba*ca*aaaa*fa*ga*ggg*b*",
+            "abababababababababababababababababababaacacacacacacacadaeafagahaiajakalaaaaaaaaaaaaaaaaaffafagaagggagaaaaaaaab"
+        );
+        assert_pattern!("*aabbaa*a*", "aaabbaabbaab");
+        assert_pattern!(
+            "a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*",
+            "a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*"
+        );
+        assert_pattern!("*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*", "aaaaaaaaaaaaaaaaa");
+        assert_pattern!(
+            "*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*",
+            NOT "aaaaaaaaaaaaaaaa"
+        );
+        assert_pattern!(
+            "abc*abc*abc*abc*abc*abc*abc*abc*abc*abc*abc*abc*abc*abc*abc*abc*abc*",
+            NOT "abc*abcd*abcde*abcdef*abcdefg*abcdefgh*abcdefghi*abcdefghij*abcdefghijk*abcdefghijkl*abcdefghijklm*abcdefghijklmn"
+        );
+        assert_pattern!(
+            "abc*abc*abc*abc*abc*abc*abc*abc*abc*abc*abc*abc*",
+            "abc*abcd*abcde*abcdef*abcdefg*abcdefgh*abcdefghi*abcdefghij*abcdefghijk*abcdefghijkl*abcdefghijklm*abcdefghijklmn"
+        );
+        assert_pattern!("abc*abc*abc*abc*abc", NOT "abc*abcd*abcd*abc*abcd");
+        assert_pattern!(
+            "abc*abc*abc*abc*abc*abc*abc*abc*abc*abc*abcd",
+            "abc*abcd*abcd*abc*abcd*abcd*abc*abcd*abc*abc*abcd"
+        );
+        assert_pattern!("********a********b********c********", "abc");
+        assert_pattern!("abc", NOT "********a********b********c********");
+        assert_pattern!("********a********b********b********", NOT "abc");
+        assert_pattern!("***a*b*c***", "*abc*");
+
+        // A case-insensitive algorithm test.
+        assert_pattern!("*issip*PI", "mississippi", i);
+
+        // Tests suggested by other DDJ readers
+        assert_pattern!("?", NOT "");
+        assert_pattern!("*?", NOT "");
+        // assert_pattern!("", ""); - Removed, relay-pattern behaves differently for empty strings.
+        assert_pattern!("", NOT "a");
+
+        // Tame tests:
+        assert_pattern!("abd", NOT "abc");
+
+        // Cases with repeating character sequences.
+        assert_pattern!("abcccd", "abcccd");
+        assert_pattern!("mississipissippi", "mississipissippi");
+        assert_pattern!("xxxxzzzzzzzzyfffff", NOT "xxxxzzzzzzzzyf");
+        assert_pattern!("xxxxzzzzzzzzyf", "xxxxzzzzzzzzyf");
+        assert_pattern!("xxxxzzy.fffff", NOT "xxxxzzzzzzzzyf");
+        assert_pattern!("xxxxzzzzzzzzyf", "xxxxzzzzzzzzyf");
+        assert_pattern!("xyxyxyzyxyz", "xyxyxyzyxyz");
+        assert_pattern!("mississippi", "mississippi");
+        assert_pattern!("xyxyxyxyz", "xyxyxyxyz");
+        assert_pattern!("m ississippi", "m ississippi");
+        assert_pattern!("ababac?", NOT "ababac");
+        assert_pattern!("ababac", NOT "dababac");
+        assert_pattern!("aaazz", "aaazz");
+        assert_pattern!("1212", NOT "a12b12");
+        assert_pattern!("a12b", NOT "a12b12");
+        assert_pattern!("a12b12", "a12b12");
+
+        // A mix of cases
+        assert_pattern!("n", "n");
+        assert_pattern!("aabab", "aabab");
+        assert_pattern!("ar", "ar");
+        assert_pattern!("aaar", NOT "aar");
+        assert_pattern!("XYXYXYZYXYz", "XYXYXYZYXYz");
+        assert_pattern!("missisSIPpi", "missisSIPpi");
+        assert_pattern!("mississipPI", "mississipPI");
+        assert_pattern!("xyxyxyxyz", "xyxyxyxyz");
+        assert_pattern!("miSsissippi", "miSsissippi");
+        assert_pattern!("miSsisSippi", NOT "miSsissippi");
+        assert_pattern!("abAbac", "abAbac");
+        assert_pattern!("abAbac", "abAbac");
+        assert_pattern!("aAazz", "aAazz");
+        assert_pattern!("A12b123", NOT "A12b12");
+        assert_pattern!("a12B12", "a12B12");
+        assert_pattern!("oWn", "oWn");
+        assert_pattern!("bLah", "bLah");
+        assert_pattern!("bLaH", NOT "bLah");
+
+        // Single '?' cases.
+        assert_pattern!("a", "a");
+        assert_pattern!("a?", "ab");
+        assert_pattern!("ab?", "abc");
+
+        // Mixed '?' cases.
+        assert_pattern!("??", NOT "a");
+        assert_pattern!("??", "ab");
+        assert_pattern!("???", "abc");
+        assert_pattern!("????", "abcd");
+        assert_pattern!("????", NOT "abc");
+        assert_pattern!("?b??", "abcd");
+        assert_pattern!("?a??", NOT "abcd");
+        assert_pattern!("??c?", "abcd");
+        assert_pattern!("??d?", NOT "abcd");
+        assert_pattern!("?b?d*?", "abcde");
+
+        // Longer string scenarios.
+        assert_pattern!(
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"
+        );
+        assert_pattern!(
+            "abababababababababababababababababababaacacacacacacacadaeafagahaiajakalaaaaaaaaaaaaaaaaaffafagaagggagaaaaaaaab",
+            "abababababababababababababababababababaacacacacacacacadaeafagahaiajakalaaaaaaaaaaaaaaaaaffafagaagggagaaaaaaaab"
+        );
+        assert_pattern!(
+            "abababababababababababababababababababaacacacacacacacadaeafagahaiajaxalaaaaaaaaaaaaaaaaaffafagaagggagaaaaaaaab",
+            NOT "abababababababababababababababababababaacacacacacacacadaeafagahaiajakalaaaaaaaaaaaaaaaaaffafagaagggagaaaaaaaab"
+        );
+        assert_pattern!(
+            "abababababababababababababababababababaacacacacacacacadaeafagahaiajakalaaaaaaaaaaaaaaaaaffafagaggggagaaaaaaaab",
+            NOT "abababababababababababababababababababaacacacacacacacadaeafagahaiajakalaaaaaaaaaaaaaaaaaffafagaagggagaaaaaaaab"
+        );
+        assert_pattern!(
+            "abababababababababababababababababababaacacacacacacacadaeafagahaiajakalaaaaaaaaaaaaaaaaaffafagaagggagaaaaaaaab",
+            "abababababababababababababababababababaacacacacacacacadaeafagahaiajakalaaaaaaaaaaaaaaaaaffafagaagggagaaaaaaaab"
+        );
+        assert_pattern!("aaabbaabbaab", "aaabbaabbaab");
+        assert_pattern!(
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        );
+        assert_pattern!("aaaaaaaaaaaaaaaaa", "aaaaaaaaaaaaaaaaa");
+        assert_pattern!("aaaaaaaaaaaaaaaaa", NOT "aaaaaaaaaaaaaaaa");
+        assert_pattern!(
+            "abcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabc",
+            NOT "abcabcdabcdeabcdefabcdefgabcdefghabcdefghiabcdefghijabcdefghijkabcdefghijklabcdefghijklmabcdefghijklmn"
+        );
+        assert_pattern!(
+            "abcabcdabcdeabcdefabcdefgabcdefghabcdefghiabcdefghijabcdefghijkabcdefghijklabcdefghijklmabcdefghijklmn",
+            "abcabcdabcdeabcdefabcdefgabcdefghabcdefghiabcdefghijabcdefghijkabcdefghijklabcdefghijklmabcdefghijklmn"
+        );
+        assert_pattern!("abcabc?abcabcabc", NOT "abcabcdabcdabcabcd");
+        assert_pattern!(
+            "abcabc?abc?abcabc?abc?abc?bc?abc?bc?bcd",
+            "abcabcdabcdabcabcdabcdabcabcdabcabcabcd"
+        );
+        assert_pattern!("?abc?", "?abc?");
+    }
 }
