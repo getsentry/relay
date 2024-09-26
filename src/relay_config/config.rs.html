@@ -2670,16 +2670,6 @@
 <a href="#2670" id="2670">2670</a>
 <a href="#2671" id="2671">2671</a>
 <a href="#2672" id="2672">2672</a>
-<a href="#2673" id="2673">2673</a>
-<a href="#2674" id="2674">2674</a>
-<a href="#2675" id="2675">2675</a>
-<a href="#2676" id="2676">2676</a>
-<a href="#2677" id="2677">2677</a>
-<a href="#2678" id="2678">2678</a>
-<a href="#2679" id="2679">2679</a>
-<a href="#2680" id="2680">2680</a>
-<a href="#2681" id="2681">2681</a>
-<a href="#2682" id="2682">2682</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
@@ -4201,10 +4191,6 @@
 </span><span class="attr">#[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
 </span><span class="kw">pub struct </span>Cogs {
-    <span class="doccomment">/// Whether COGS measurements are enabled.
-    ///
-    /// Defaults to `false`.
-    </span>enabled: bool,
     <span class="doccomment">/// Maximium amount of COGS measurements allowed to backlog.
     ///
     /// Any additional COGS measurements recorded will be dropped.
@@ -4222,7 +4208,6 @@
 <span class="kw">impl </span>Default <span class="kw">for </span>Cogs {
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
-            enabled: <span class="bool-val">false</span>,
             max_queue_size: <span class="number">10_000</span>,
             relay_resource_id: <span class="string">"relay_service"</span>.to_owned(),
         }
@@ -5198,11 +5183,6 @@
     <span class="doccomment">/// Refresh frequency for polling new memory stats.
     </span><span class="kw">pub fn </span>memory_stat_refresh_frequency_ms(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u64 {
         <span class="self">self</span>.values.health.memory_stat_refresh_frequency_ms
-    }
-
-    <span class="doccomment">/// Whether COGS measurements are enabled.
-    </span><span class="kw">pub fn </span>cogs_enabled(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="self">self</span>.values.cogs.enabled
     }
 
     <span class="doccomment">/// Maximum amount of COGS measurements buffered in memory.
