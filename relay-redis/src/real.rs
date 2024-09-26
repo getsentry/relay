@@ -26,26 +26,24 @@ pub enum RedisError {
 
 enum ConnectionInner<'a> {
     Cluster(&'a mut redis::cluster::ClusterConnection),
-    MultiWrite(Box<ConnectionInner<'a>>, Vec<ConnectionInner<'a>>),
+    MultiWrite {
+        primary: Box<ConnectionInner<'a>>,
+        secondaries: Vec<ConnectionInner<'a>>,
+    },
     Single(&'a mut redis::Connection),
 }
 
-/// A reference to a pooled connection from `PooledClient`.
-pub struct Connection<'a> {
-    inner: ConnectionInner<'a>,
-}
-
-impl Connection<'_> {
-    fn req_packed_command_inner(
-        inner: &mut ConnectionInner<'_>,
-        cmd: &[u8],
-    ) -> redis::RedisResult<redis::Value> {
-        match inner {
+impl ConnectionLike for ConnectionInner<'_> {
+    fn req_packed_command(&mut self, cmd: &[u8]) -> redis::RedisResult<redis::Value> {
+        match self {
             ConnectionInner::Cluster(ref mut con) => con.req_packed_command(cmd),
-            ConnectionInner::MultiWrite(primary_connection, secondary_connections) => {
-                let primary_result = Self::req_packed_command_inner(primary_connection, cmd);
+            ConnectionInner::MultiWrite {
+                primary: primary_connection,
+                secondaries: secondary_connections,
+            } => {
+                let primary_result = primary_connection.req_packed_command(cmd);
                 for secondary_connection in secondary_connections.iter_mut() {
-                    Self::req_packed_command_inner(secondary_connection, cmd)?;
+                    secondary_connection.req_packed_command(cmd)?;
                 }
 
                 primary_result
@@ -54,19 +52,21 @@ impl Connection<'_> {
         }
     }
 
-    fn req_packed_commands_inner(
-        inner: &mut ConnectionInner<'_>,
+    fn req_packed_commands(
+        &mut self,
         cmd: &[u8],
         offset: usize,
         count: usize,
     ) -> redis::RedisResult<Vec<redis::Value>> {
-        match inner {
+        match self {
             ConnectionInner::Cluster(ref mut con) => con.req_packed_commands(cmd, offset, count),
-            ConnectionInner::MultiWrite(primary_connection, secondary_connections) => {
-                let primary_result =
-                    Self::req_packed_commands_inner(primary_connection, cmd, offset, count);
+            ConnectionInner::MultiWrite {
+                primary: primary_connection,
+                secondaries: secondary_connections,
+            } => {
+                let primary_result = primary_connection.req_packed_commands(cmd, offset, count);
                 for secondary_connection in secondary_connections.iter_mut() {
-                    Self::req_packed_commands_inner(secondary_connection, cmd, offset, count)?;
+                    secondary_connection.req_packed_commands(cmd, offset, count)?;
                 }
 
                 primary_result
@@ -75,42 +75,53 @@ impl Connection<'_> {
         }
     }
 
-    fn get_db(inner: &ConnectionInner<'_>) -> i64 {
-        match inner {
+    fn get_db(&self) -> i64 {
+        match self {
             ConnectionInner::Cluster(ref con) => con.get_db(),
-            ConnectionInner::MultiWrite(primary_connection, _) => Self::get_db(primary_connection),
+            ConnectionInner::MultiWrite {
+                primary: primary_connection,
+                ..
+            } => primary_connection.get_db(),
             ConnectionInner::Single(ref con) => con.get_db(),
         }
     }
 
-    fn check_connection_inner(inner: &mut ConnectionInner<'_>) -> bool {
-        match inner {
+    fn check_connection(&mut self) -> bool {
+        match self {
             ConnectionInner::Cluster(ref mut con) => con.check_connection(),
-            ConnectionInner::MultiWrite(primary_connection, secondary_connections) => {
-                Self::check_connection_inner(primary_connection)
+            ConnectionInner::MultiWrite {
+                primary: primary_connection,
+                secondaries: secondary_connections,
+            } => {
+                primary_connection.check_connection()
                     && secondary_connections
                         .iter_mut()
-                        .all(|c| Self::check_connection_inner(c))
+                        .all(|c| c.check_connection())
             }
             ConnectionInner::Single(ref mut con) => con.check_connection(),
         }
     }
 
-    fn is_open_inner(inner: &ConnectionInner<'_>) -> bool {
-        match inner {
+    fn is_open(&self) -> bool {
+        match self {
             ConnectionInner::Cluster(ref con) => con.is_open(),
-            ConnectionInner::MultiWrite(primary_connection, secondary_connections) => {
-                Self::is_open_inner(primary_connection)
-                    && secondary_connections.iter().all(|c| Self::is_open_inner(c))
-            }
+            ConnectionInner::MultiWrite {
+                primary: primary_connection,
+                secondaries: secondary_connections,
+            } => primary_connection.is_open() && secondary_connections.iter().all(|c| c.is_open()),
             ConnectionInner::Single(ref con) => con.is_open(),
         }
     }
 }
 
+/// A reference to a pooled connection from `PooledClient`.
+pub struct Connection<'a> {
+    inner: ConnectionInner<'a>,
+}
+
 impl ConnectionLike for Connection<'_> {
     fn req_packed_command(&mut self, cmd: &[u8]) -> redis::RedisResult<redis::Value> {
-        Self::req_packed_command_inner(&mut self.inner, cmd)
+        self.inner.req_packed_command(cmd)
     }
 
     fn req_packed_commands(
@@ -119,19 +130,19 @@ impl ConnectionLike for Connection<'_> {
         offset: usize,
         count: usize,
     ) -> redis::RedisResult<Vec<redis::Value>> {
-        Self::req_packed_commands_inner(&mut self.inner, cmd, offset, count)
+        self.inner.req_packed_commands(cmd, offset, count)
     }
 
     fn get_db(&self) -> i64 {
-        Self::get_db(&self.inner)
+        self.inner.get_db()
     }
 
     fn check_connection(&mut self) -> bool {
-        Self::check_connection_inner(&mut self.inner)
+        self.inner.check_connection()
     }
 
     fn is_open(&self) -> bool {
-        Self::is_open_inner(&self.inner)
+        self.inner.is_open()
     }
 }
 
@@ -181,7 +192,10 @@ impl PooledClient {
                     secondary_connections.push(connection);
                 }
 
-                ConnectionInner::MultiWrite(Box::new(primary_connection), secondary_connections)
+                ConnectionInner::MultiWrite {
+                    primary: Box::new(primary_connection),
+                    secondaries: secondary_connections,
+                }
             }
             PooledClientInner::Single(ref mut connection) => {
                 connection
