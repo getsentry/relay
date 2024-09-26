@@ -132,72 +132,74 @@ where
         return false;
     }
 
-    loop {
-        if t_next == tokens.len() {
-            return h_current.is_empty();
-        }
+    while t_next != tokens.len() || !h_current.is_empty() {
+        let matched = if t_next == tokens.len() {
+            false
+        } else {
+            let token = &tokens[t_next];
+            t_next += 1;
 
-        let token = &tokens[t_next];
-        t_next += 1;
-
-        let matched = match token {
-            Token::Literal(literal) => match M::is_prefix(h_current, literal) {
-                Some(n) => advance!(n),
-                None => false,
-            },
-            Token::Any(n) => {
-                advance!(match n_chars_to_bytes(*n, h_current) {
-                    Some(n) => n,
-                    None => return false,
-                });
-                true
-            }
-            Token::Wildcard => {
-                // `ab*c*` matches `abcd`.
-                if t_next == tokens.len() {
-                    return true;
+            match token {
+                Token::Literal(literal) => match M::is_prefix(h_current, literal) {
+                    Some(n) => advance!(n),
+                    None => false,
+                },
+                Token::Any(n) => {
+                    advance!(match n_chars_to_bytes(*n, h_current) {
+                        Some(n) => n,
+                        None => return false,
+                    });
+                    true
                 }
-
-                t_revert = t_next;
-
-                match skip_to_token::<_, M>(tokens, t_next, h_current) {
-                    Some((tokens, revert, remaining)) => {
-                        t_next += tokens;
-                        h_revert = revert;
-                        h_current = remaining;
+                Token::Wildcard => {
+                    // `ab*c*` matches `abcd`.
+                    if t_next == tokens.len() {
+                        return true;
                     }
-                    None => return false,
-                };
 
-                true
-            }
-            Token::Class { negated, ranges } => match h_current.chars().next() {
-                Some(next) => M::ranges_match(next, *negated, ranges) && advance!(next.len_utf8()),
-                None => false,
-            },
-            Token::Alternates(alternates) => {
-                // TODO: should we make this iterative instead of recursive?
-                let matches = alternates.iter().any(|alternate| {
-                    let tokens = tokens.with_alternate(t_next, alternate.as_slice());
-                    is_match_impl::<_, M>(&tokens, h_current)
-                });
+                    t_revert = t_next;
 
-                // The brace match already matches to the end, if it is successful we can end right here.
-                if matches {
-                    return true;
+                    match skip_to_token::<_, M>(tokens, t_next, h_current) {
+                        Some((tokens, revert, remaining)) => {
+                            t_next += tokens;
+                            h_revert = revert;
+                            h_current = remaining;
+                        }
+                        None => return false,
+                    };
+                    println!("next possible match: {h_current}");
+
+                    true
                 }
-                // No match, allow for backtracking.
-                false
+                Token::Class { negated, ranges } => match h_current.chars().next() {
+                    Some(next) => {
+                        M::ranges_match(next, *negated, ranges) && advance!(next.len_utf8())
+                    }
+                    None => false,
+                },
+                Token::Alternates(alternates) => {
+                    // TODO: should we make this iterative instead of recursive?
+                    let matches = alternates.iter().any(|alternate| {
+                        let tokens = tokens.with_alternate(t_next, alternate.as_slice());
+                        is_match_impl::<_, M>(&tokens, h_current)
+                    });
+
+                    // The brace match already matches to the end, if it is successful we can end right here.
+                    if matches {
+                        return true;
+                    }
+                    // No match, allow for backtracking.
+                    false
+                }
             }
         };
 
-        if t_revert == 0 {
-            // No backtracking necessary, no star encountered.
-            // Didn't match and no backtracking -> no match.
-            if !matched {
+        if !matched {
+            if t_revert == 0 {
+                // No backtracking necessary, no star encountered.
+                // Didn't match and no backtracking -> no match.
                 return false;
             }
-        } else if !matched || (t_next == tokens.len() && !h_current.is_empty()) {
             h_current = h_revert;
             t_next = t_revert;
 
@@ -217,6 +219,7 @@ where
             };
         }
     }
+    true
 }
 
 /// Efficiently skips to the next matching possible match after a wildcard.
@@ -519,6 +522,7 @@ mod tests {
         assert!(is_match(&tokens, "b", Default::default()));
         assert!(is_match(&tokens, "aaaab", Default::default()));
         assert!(is_match(&tokens, "ඞb", Default::default()));
+        assert!(is_match(&tokens, "bbbbbbbbb", Default::default()));
         assert!(!is_match(&tokens, "", Default::default()));
         assert!(!is_match(&tokens, "a", Default::default()));
         assert!(!is_match(&tokens, "aa", Default::default()));

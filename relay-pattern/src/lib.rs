@@ -837,13 +837,13 @@ mod tests {
 
     #[test]
     fn test_prefix_case_insensitive() {
-        // assert_pattern!("foo*", "foo___", i);
-        // assert_pattern!("foo*", "fOo___", i);
-        // assert_pattern!("foo*", "FOO___", i);
-        // assert_pattern!("fOo*", "FOO___", i);
-        // assert_pattern!("fOo*", "Foo___", i);
+        assert_pattern!("foo*", "foo___", i);
+        assert_pattern!("foo*", "fOo___", i);
+        assert_pattern!("foo*", "FOO___", i);
+        assert_pattern!("fOo*", "FOO___", i);
+        assert_pattern!("fOo*", "Foo___", i);
 
-        // assert_pattern!("İ*", "İ___", i);
+        assert_pattern!("İ*", "İ___", i);
         assert_pattern!("İ*", "İ", i);
         assert_pattern!("İ*", "i̇", i);
         assert_pattern!("İ*", "i\u{307}___", i);
@@ -1226,8 +1226,8 @@ mod tests {
 
     #[test]
     fn test_classes_negated_case_insensitive() {
-        // assert_pattern!("[!a]", "b", i);
-        // assert_pattern!("[!a]", "B", i);
+        assert_pattern!("[!a]", "b", i);
+        assert_pattern!("[!a]", "B", i);
         assert_pattern!("[!b]", NOT "b", i);
         assert_pattern!("[!b]", NOT "B", i);
         assert_pattern!("[!ab]", NOT "a", i);
@@ -1338,6 +1338,7 @@ mod tests {
         assert_pattern!("!*!*.md", "!foo!.md"); // no `!` outside of character classes
         assert_pattern!("foo*foofoo*foobar", "foofoofooxfoofoobar");
         assert_pattern!("foo*fooFOO*fOobar", "fooFoofooXfoofooBAR", i);
+        assert_pattern!("[0-9]*a", "0aaaaaaaaa", i);
 
         assert_pattern!(
             r"/api/0/organizations/\{organization_slug\}/event*",
