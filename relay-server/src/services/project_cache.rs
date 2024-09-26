@@ -14,7 +14,7 @@ use crate::Envelope;
 use chrono::{DateTime, Utc};
 use hashbrown::HashSet;
 use relay_base_schema::project::ProjectKey;
-use relay_config::{Config, RelayMode};
+use relay_config::{Config, RedisConfigRef, RelayMode};
 use relay_metrics::{Bucket, MetricMeta};
 use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
@@ -456,14 +456,14 @@ impl ProjectSource {
 
         #[cfg(feature = "processing")]
         let redis_maxconns = config.redis().map(|configs| {
-            let opts = match configs {
-                relay_config::RedisPoolConfigs::Unified((_, opts)) => opts,
+            let config = match configs {
+                relay_config::RedisPoolConfigs::Unified(config) => config,
                 relay_config::RedisPoolConfigs::Individual {
-                    project_configs: (_, opts),
+                    project_configs: config,
                     ..
-                } => opts,
+                } => config,
             };
-            opts.max_connections
+            Self::compute_max_connections(config)
         });
         #[cfg(feature = "processing")]
         let redis_source = _redis.map(|pool| RedisProjectSource::new(config.clone(), pool));
@@ -478,6 +478,17 @@ impl ProjectSource {
             redis_semaphore: Arc::new(Semaphore::new(
                 redis_maxconns.unwrap_or(10).try_into().unwrap(),
             )),
+        }
+    }
+
+    fn compute_max_connections(config: RedisConfigRef) -> u32 {
+        match config {
+            RedisConfigRef::Cluster { options, .. } => options.max_connections,
+            RedisConfigRef::MultiWrite { configs } => configs
+                .into_iter()
+                .map(|c| Self::compute_max_connections(c))
+                .max(),
+            RedisConfigRef::Single { options, .. } => options.max_connections,
         }
     }
 

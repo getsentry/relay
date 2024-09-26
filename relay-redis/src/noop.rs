@@ -28,10 +28,9 @@ impl RedisPool {
     /// Creates a [`RedisPool`] in multi write configuration.
     ///
     /// Always returns `Ok(Self)`.
-    pub fn multi_write<'a>(
-        _primary: &str,
-        _secondaries: impl IntoIterator<Item = &'a str>,
-        _opts: RedisConfigOptions,
+    pub fn multi_write(
+        _primary: RedisPool,
+        _secondaries: Vec<RedisPool>,
     ) -> Result<Self, RedisError> {
         Ok(Self)
     }

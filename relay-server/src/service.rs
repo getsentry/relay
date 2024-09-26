@@ -8,8 +8,8 @@ use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
 use rayon::ThreadPool;
 use relay_cogs::Cogs;
-use relay_config::{Config, RedisConnection, RedisPoolConfigs};
-use relay_redis::{RedisConfigOptions, RedisError, RedisPool, RedisPools};
+use relay_config::{Config, RedisConfigRef, RedisPoolConfigs};
+use relay_redis::{RedisError, RedisPool, RedisPools};
 use relay_system::{channel, Addr, Service};
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
@@ -386,21 +386,22 @@ impl ServiceState {
     }
 }
 
-fn create_redis_pool(
-    (connection, options): (&RedisConnection, RedisConfigOptions),
-) -> Result<RedisPool, RedisError> {
-    match connection {
-        RedisConnection::Cluster(servers) => {
-            RedisPool::cluster(servers.iter().map(|s| s.as_str()), options)
-        }
-        RedisConnection::MultiWrite(servers) => {
-            let mut servers = servers.iter();
-            let primary = servers.next().ok_or(RedisError::Configuration)?;
-            let secondaries = servers.map(|s| s.as_str());
+fn create_redis_pool(redis_config: RedisConfigRef) -> Result<RedisPool, RedisError> {
+    match redis_config {
+        RedisConfigRef::Cluster {
+            cluster_nodes,
+            options,
+        } => RedisPool::cluster(cluster_nodes.iter().map(|s| s.as_str()), options),
+        RedisConfigRef::MultiWrite { configs } => {
+            let mut configs = configs.into_iter();
+            let primary = create_redis_pool(configs.next().ok_or(RedisError::Configuration)?)?;
+            let secondaries = configs
+                .map(|s| create_redis_pool(s).map_err(|_| RedisError::Configuration))
+                .collect::<Result<Vec<_>, _>>()?;
 
-            RedisPool::multi_write(primary, secondaries, options)
+            RedisPool::multi_write(primary, secondaries)
         }
-        RedisConnection::Single(server) => RedisPool::single(server, options),
+        RedisConfigRef::Single { server, options } => RedisPool::single(server, options),
     }
 }
 
