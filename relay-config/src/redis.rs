@@ -75,7 +75,7 @@ enum RedisConfigFromFile {
         /// List of `redis://` urls to use in multi write mode.
         ///
         /// This can also be a single node.
-        multi_write: Vec<String>,
+        nodes: Vec<String>,
 
         /// Additional configuration options for the redis client and a connections pool.
         #[serde(flatten)]
@@ -146,11 +146,8 @@ impl From<RedisConfigFromFile> for RedisConfig {
                 connection: RedisConnection::Cluster(cluster_nodes),
                 options,
             },
-            RedisConfigFromFile::MultiWrite {
-                multi_write,
-                options,
-            } => Self {
-                connection: RedisConnection::MultiWrite(multi_write),
+            RedisConfigFromFile::MultiWrite { nodes, options } => Self {
+                connection: RedisConnection::MultiWrite(nodes),
                 options,
             },
             RedisConfigFromFile::Single(server) => Self {
@@ -234,7 +231,7 @@ pub(super) fn create_redis_pools(configs: &RedisConfigs, cpu_concurrency: u32) -
         cpu_concurrency * 2,
         crate::redis::DEFAULT_MIN_MAX_CONNECTIONS,
     );
-    println!("CONFIGS {:?}", configs);
+
     match configs {
         RedisConfigs::Unified(cfg) => {
             let pool = create_redis_pool(cfg, project_configs_default_connections);
@@ -487,7 +484,7 @@ read_timeout: 10
     #[test]
     fn test_redis_multi_write_opts() {
         let yaml = r#"
-multi_write:
+nodes:
     - "redis://127.0.0.1:6379"
     - "redis://127.0.0.2:6379"
 max_connections: 10

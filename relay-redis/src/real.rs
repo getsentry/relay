@@ -253,11 +253,8 @@ impl RedisPool {
         let primary_pool = RedisPoolInner::Single(Self::client_pool(primary, &opts)?);
         let secondary_pools = secondaries
             .into_iter()
-            .map(|s| Self::client_pool(s, &opts))
-            .collect::<Result<Vec<_>, _>>()?
-            .into_iter()
-            .map(RedisPoolInner::Single)
-            .collect();
+            .map(|s| Self::client_pool(s, &opts).map(RedisPoolInner::Single))
+            .collect::<Result<Vec<_>, _>>()?;
 
         let inner = RedisPoolInner::MultiWrite(Box::new(primary_pool), secondary_pools);
         Ok(RedisPool { opts, inner })
