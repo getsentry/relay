@@ -220,6 +220,10 @@ mod tests {
                 client_address: ~,
                 route: ~,
                 previous_route: ~,
+                lcp_element: ~,
+                lcp_size: ~,
+                lcp_id: ~,
+                lcp_url: ~,
                 other: {
                     "custom_attribute": I64(
                         42,
