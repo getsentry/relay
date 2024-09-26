@@ -183,27 +183,11 @@ mod tests {
             serde_json::from_str(r#"["organizations:session-replay", "foo"]"#).unwrap();
         assert_eq!(
             &features,
-            &FeatureSet(BTreeSet::from([
-                Feature::SessionReplay,
-                Feature::UserReportV2Ingest
-            ]))
+            &FeatureSet(BTreeSet::from([Feature::SessionReplay]))
         );
         assert_eq!(
             serde_json::to_string(&features).unwrap(),
-            r#"["organizations:session-replay","organizations:user-feedback-ingest"]"#
-        );
-    }
-
-    #[test]
-    fn user_feedback_hard_coded() {
-        let features: FeatureSet = serde_json::from_str(r#"[]"#).unwrap();
-        assert_eq!(
-            &features,
-            &FeatureSet(BTreeSet::from([Feature::UserReportV2Ingest]))
-        );
-        assert_eq!(
-            serde_json::to_string(&features).unwrap(),
-            r#"["organizations:user-feedback-ingest"]"#
+            r#"["organizations:session-replay"]"#
         );
     }
 }

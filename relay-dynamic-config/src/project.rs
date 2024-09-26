@@ -196,3 +196,18 @@ pub struct LimitedProjectConfig {
 fn is_false(value: &bool) -> bool {
     !*value
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::Feature;
+
+    use super::*;
+
+    #[test]
+    fn graduated_feature_flag_gets_inserted() {
+        let mut project_config = ProjectConfig::default();
+        assert!(!project_config.features.has(Feature::UserReportV2Ingest));
+        project_config.sanitize();
+        assert!(project_config.features.has(Feature::UserReportV2Ingest));
+    }
+}
