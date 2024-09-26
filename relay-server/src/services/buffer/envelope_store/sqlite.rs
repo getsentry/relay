@@ -13,7 +13,6 @@ use crate::Envelope;
 use futures::stream::StreamExt;
 use hashbrown::HashSet;
 use relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
-use relay_common::time::UnixTimestamp;
 use relay_config::Config;
 use sqlx::migrate::MigrateError;
 use sqlx::query::Query;
@@ -374,9 +373,7 @@ impl SqliteEnvelopeStore {
         //
         // Unfortunately we have to do this because SQLite `DELETE` with `RETURNING` doesn't
         // return deleted rows in a specific order.
-        extracted_envelopes.sort_by_key(|a| {
-            UnixTimestamp::from_datetime(a.received_at()).unwrap_or(UnixTimestamp::now())
-        });
+        extracted_envelopes.sort_by_key(|a| a.meta().start_time());
 
         Ok(extracted_envelopes)
     }

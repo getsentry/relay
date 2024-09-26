@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add `spanOpDefaults` to global config. ([#4056](https://github.com/getsentry/relay/pull/4056))
+
 ## 0.9.1
 
 - Add REPLAY_VIDEO entry to DataCategory. ([#3847](https://github.com/getsentry/relay/pull/3847))

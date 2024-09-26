@@ -251,6 +251,7 @@ impl UpdateSpoolIndex {
 pub struct RefreshIndexCache(pub HashSet<QueueKey>);
 
 /// Handle an envelope that was popped from the envelope buffer.
+#[derive(Debug)]
 pub struct DequeuedEnvelope(pub Box<Envelope>);
 
 /// A request to update a project, typically sent by the envelope buffer.
@@ -290,7 +291,6 @@ pub enum ProjectCache {
     FlushBuckets(FlushBuckets),
     UpdateSpoolIndex(UpdateSpoolIndex),
     RefreshIndexCache(RefreshIndexCache),
-    HandleDequeuedEnvelope(Box<Envelope>, Sender<()>),
     UpdateProject(ProjectKey),
 }
 
@@ -308,7 +308,6 @@ impl ProjectCache {
             Self::FlushBuckets(_) => "FlushBuckets",
             Self::UpdateSpoolIndex(_) => "UpdateSpoolIndex",
             Self::RefreshIndexCache(_) => "RefreshIndexCache",
-            Self::HandleDequeuedEnvelope(_, _) => "HandleDequeuedEnvelope",
             Self::UpdateProject(_) => "UpdateProject",
         }
     }
@@ -404,15 +403,6 @@ impl FromMessage<FlushBuckets> for ProjectCache {
 
     fn from_message(message: FlushBuckets, _: ()) -> Self {
         Self::FlushBuckets(message)
-    }
-}
-
-impl FromMessage<DequeuedEnvelope> for ProjectCache {
-    type Response = relay_system::AsyncResponse<()>;
-
-    fn from_message(message: DequeuedEnvelope, sender: Sender<()>) -> Self {
-        let DequeuedEnvelope(envelope) = message;
-        Self::HandleDequeuedEnvelope(envelope, sender)
     }
 }
 
@@ -1053,13 +1043,6 @@ impl ProjectCacheBroker {
         spool_v1.index.extend(message.0);
     }
 
-    fn handle_spool_health(&self, sender: Sender<bool>) {
-        match &self.spool_v1 {
-            Some(spool_v1) => spool_v1.buffer.send(spooler::Health(sender)),
-            None => sender.send(true), // TODO
-        }
-    }
-
     fn handle_refresh_index_cache(&mut self, message: RefreshIndexCache) {
         let RefreshIndexCache(index) = message;
         let project_cache = self.services.project_cache.clone();
@@ -1293,26 +1276,25 @@ impl ProjectCacheBroker {
                     ProjectCache::RefreshIndexCache(message) => {
                         self.handle_refresh_index_cache(message)
                     }
-                    ProjectCache::HandleDequeuedEnvelope(message, sender) => {
-                        let envelope_buffer = self
-                            .services
-                            .envelope_buffer
-                            .clone()
-                            .expect("Called HandleDequeuedEnvelope without an envelope buffer");
-
-                        if let Err(e) = self.handle_dequeued_envelope(message, envelope_buffer) {
-                            relay_log::error!(
-                                error = &e as &dyn std::error::Error,
-                                "Failed to handle popped envelope"
-                            );
-                        }
-                        // Return response to signal readiness for next envelope:
-                        sender.send(())
-                    }
                     ProjectCache::UpdateProject(project) => self.handle_update_project(project),
                 }
             }
         )
+    }
+
+    fn handle_envelope(&mut self, dequeued_envelope: DequeuedEnvelope) {
+        let envelope_buffer = self
+            .services
+            .envelope_buffer
+            .clone()
+            .expect("Called HandleDequeuedEnvelope without an envelope buffer");
+
+        if let Err(e) = self.handle_dequeued_envelope(dequeued_envelope.0, envelope_buffer) {
+            relay_log::error!(
+                error = &e as &dyn std::error::Error,
+                "Failed to handle popped envelope"
+            );
+        }
     }
 }
 
@@ -1323,6 +1305,8 @@ pub struct ProjectCacheService {
     memory_checker: MemoryChecker,
     services: Services,
     global_config_rx: watch::Receiver<global_config::Status>,
+    /// Bounded channel used exclusively to receive envelopes from the envelope buffer.
+    envelopes_rx: mpsc::Receiver<DequeuedEnvelope>,
     redis: Option<RedisPool>,
 }
 
@@ -1333,6 +1317,7 @@ impl ProjectCacheService {
         memory_checker: MemoryChecker,
         services: Services,
         global_config_rx: watch::Receiver<global_config::Status>,
+        envelopes_rx: mpsc::Receiver<DequeuedEnvelope>,
         redis: Option<RedisPool>,
     ) -> Self {
         Self {
@@ -1340,6 +1325,7 @@ impl ProjectCacheService {
             memory_checker,
             services,
             global_config_rx,
+            envelopes_rx,
             redis,
         }
     }
@@ -1354,6 +1340,7 @@ impl Service for ProjectCacheService {
             memory_checker,
             services,
             mut global_config_rx,
+            mut envelopes_rx,
             redis,
         } = self;
         let project_cache = services.project_cache.clone();
@@ -1472,6 +1459,11 @@ impl Service for ProjectCacheService {
                     () = &mut broker.spool_v1_unspool_handle => {
                         metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "periodic_unspool", {
                             broker.handle_periodic_unspool()
+                        })
+                    }
+                    Some(message) = envelopes_rx.recv() => {
+                        metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "handle_envelope", {
+                            broker.handle_envelope(message)
                         })
                     }
                     Some(message) = rx.recv() => {

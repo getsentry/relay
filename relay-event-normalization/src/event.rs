@@ -34,9 +34,9 @@ use crate::span::tag_extraction::extract_span_tags_from_event;
 use crate::utils::{self, get_event_user_tag, MAX_DURATION_MOBILE_MS};
 use crate::{
     breakdowns, event_error, legacy, mechanism, remove_other, schema, span, stacktrace,
-    transactions, trimming, user_agent, BreakdownsConfig, CombinedMeasurementsConfig, GeoIpLookup,
-    MaxChars, ModelCosts, PerformanceScoreConfig, RawUserAgentInfo, SpanDescriptionRule,
-    TransactionNameConfig,
+    transactions, trimming, user_agent, BorrowedSpanOpDefaults, BreakdownsConfig,
+    CombinedMeasurementsConfig, GeoIpLookup, MaxChars, ModelCosts, PerformanceScoreConfig,
+    RawUserAgentInfo, SpanDescriptionRule, TransactionNameConfig,
 };
 
 /// Configuration for [`normalize_event`].
@@ -161,6 +161,9 @@ pub struct NormalizationConfig<'a> {
 
     /// Controls whether or not MongoDB span descriptions will be scrubbed.
     pub scrub_mongo_description: ScrubMongoDescription,
+
+    /// Rules to infer `span.op` from other span fields.
+    pub span_op_defaults: BorrowedSpanOpDefaults<'a>,
 }
 
 impl<'a> Default for NormalizationConfig<'a> {
@@ -194,6 +197,7 @@ impl<'a> Default for NormalizationConfig<'a> {
             replay_id: Default::default(),
             span_allowed_hosts: Default::default(),
             scrub_mongo_description: ScrubMongoDescription::Disabled,
+            span_op_defaults: Default::default(),
         }
     }
 }
@@ -244,8 +248,10 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     // (internally noops for non-transaction events).
     // TODO: Parts of this processor should probably be a filter so we
     // can revert some changes to ProcessingAction)
-    let mut transactions_processor =
-        transactions::TransactionsProcessor::new(config.transaction_name_config.clone());
+    let mut transactions_processor = transactions::TransactionsProcessor::new(
+        config.transaction_name_config,
+        config.span_op_defaults,
+    );
     let _ = transactions_processor.process_event(event, meta, ProcessingState::root());
 
     // Process security reports first to ensure all props.

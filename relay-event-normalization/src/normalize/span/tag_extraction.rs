@@ -8,12 +8,12 @@ use std::ops::ControlFlow;
 
 use once_cell::sync::Lazy;
 use regex::Regex;
-use relay_base_schema::metrics::{DurationUnit, FractionUnit, InformationUnit, MetricUnit};
+use relay_base_schema::metrics::{DurationUnit, InformationUnit, MetricUnit};
 use relay_event_schema::protocol::{
-    AppContext, BrowserContext, Event, Measurement, Measurements, OsContext, ProfileContext, Span,
-    Timestamp, TraceContext,
+    AppContext, BrowserContext, Event, Measurement, OsContext, ProfileContext, Span, Timestamp,
+    TraceContext,
 };
-use relay_protocol::{Annotated, Empty, Value};
+use relay_protocol::{Annotated, Value};
 use sqlparser::ast::Visit;
 use sqlparser::ast::{ObjectName, Visitor};
 use url::Url;
@@ -217,7 +217,6 @@ pub fn extract_span_tags(
     // TODO: To prevent differences between metrics and payloads, we should not extract tags here
     // when they have already been extracted by a downstream relay.
     let shared_tags = extract_shared_tags(event);
-    let shared_measurements = extract_shared_measurements(event);
     let is_mobile = shared_tags
         .get(&SpanTagKey::Mobile)
         .is_some_and(|v| v.as_str() == "true");
@@ -250,17 +249,6 @@ pub fn extract_span_tags(
                 .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
                 .collect(),
         );
-
-        if !shared_measurements.is_empty() {
-            match span.measurements.value_mut() {
-                Some(left) => shared_measurements.iter().for_each(|(key, val)| {
-                    left.insert(key.clone(), val.clone());
-                }),
-                None => span
-                    .measurements
-                    .set_value(Some(shared_measurements.clone())),
-            }
-        }
 
         extract_measurements(span, is_mobile);
     }
@@ -876,27 +864,6 @@ fn value_to_f64(val: Option<&Value>) -> Option<f64> {
         Some(Value::U64(u)) => Some(*u as f64),
         _ => None,
     }
-}
-
-fn extract_shared_measurements(event: &Event) -> Measurements {
-    let mut measurements = Measurements::default();
-
-    if let Some(trace_context) = event.context::<TraceContext>() {
-        if let Some(client_sample_rate) = trace_context.client_sample_rate.value() {
-            if *client_sample_rate > 0. {
-                measurements.insert(
-                    "client_sample_rate".into(),
-                    Measurement {
-                        value: (*client_sample_rate).into(),
-                        unit: MetricUnit::Fraction(FractionUnit::Ratio).into(),
-                    }
-                    .into(),
-                );
-            }
-        }
-    }
-
-    measurements
 }
 
 /// Copies specific numeric values from span data to span measurements.
@@ -1728,11 +1695,6 @@ LIMIT 1
     fn test_ai_extraction() {
         let json = r#"
             {
-                "contexts": {
-                    "trace": {
-                        "client_sample_rate": 0.1
-                    }
-                },
                 "spans": [
                     {
                         "timestamp": 1694732408.3145,
@@ -1792,12 +1754,6 @@ LIMIT 1
                 "ai_total_tokens_used": Measurement {
                     value: 300.0,
                     unit: None,
-                },
-                "client_sample_rate": Measurement {
-                    value: 0.1,
-                    unit: Fraction(
-                        Ratio,
-                    ),
                 },
             },
         )

@@ -16,7 +16,6 @@ processing = [
     "dep:minidump",
     "dep:symbolic-common",
     "dep:symbolic-unreal",
-    "dep:zstd",
     "relay-cardinality/redis",
     "relay-config/processing",
     "relay-kafka/producer",
@@ -39,6 +38,7 @@ arc-swap = { workspace = true }
 backoff = { workspace = true }
 brotli = { workspace = true }
 bytes = { workspace = true, features = ["serde"] }
+bzip2 = { workspace = true }
 chrono = { workspace = true, features = ["clock"] }
 data-encoding = { workspace = true }
 flate2 = { workspace = true }
@@ -48,6 +48,7 @@ hashbrown = { workspace = true }
 hyper-util = { workspace = true }
 itertools = { workspace = true }
 json-forensics = { workspace = true }
+liblzma = { workspace = true }
 mime = { workspace = true }
 minidump = { workspace = true, optional = true }
 multer = { workspace = true }
@@ -121,7 +122,7 @@ tower-http = { workspace = true, default-features = false, features = [
 ] }
 url = { workspace = true, features = ["serde"] }
 uuid = { workspace = true, features = ["v5"] }
-zstd = { workspace = true, optional = true }
+zstd = { workspace = true }
 semver = { workspace = true }
 
 [dev-dependencies]
