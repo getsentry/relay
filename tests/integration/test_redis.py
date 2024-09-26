@@ -20,7 +20,12 @@ def test_multi_write_redis_client(
     relay = relay_with_processing(
         {
             "processing": {
-                "redis": {"nodes": ["redis://127.0.0.1:6379", "redis://127.0.0.1:6380"]}
+                "redis": {
+                    "configs": [
+                        {"server": "redis://127.0.0.1:6379"},
+                        {"server": "redis://127.0.0.1:6380"},
+                    ]
+                }
             }
         }
     )

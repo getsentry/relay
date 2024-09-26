@@ -170,7 +170,7 @@ impl PooledClient {
         })
     }
 
-    /// Recursively computes the [`ConnectionInner`] from a [`PooledClientInner`].
+    /// Recursively computes the [`ConnectionInner`] from a [`PooledClient`].
     fn connection_inner(&mut self) -> Result<ConnectionInner<'_>, RedisError> {
         let inner = match self {
             PooledClient::Cluster(ref mut connection, opts) => {
