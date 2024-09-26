@@ -260,6 +260,10 @@
 <a href="#260" id="260">260</a>
 <a href="#261" id="261">261</a>
 <a href="#262" id="262">262</a>
+<a href="#263" id="263">263</a>
+<a href="#264" id="264">264</a>
+<a href="#265" id="265">265</a>
+<a href="#266" id="266">266</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module defines bidirectional field mappings between spans and transactions.
 
 </span><span class="kw">use </span><span class="kw">crate</span>::protocol::{BrowserContext, Event, ProfileContext, Span, SpanData, TraceContext};
@@ -482,6 +486,10 @@
                 client_address: ~,
                 route: ~,
                 previous_route: ~,
+                lcp_element: ~,
+                lcp_size: ~,
+                lcp_id: ~,
+                lcp_url: ~,
                 other: {
                     "custom_attribute": I64(
                         42,
