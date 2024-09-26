@@ -595,14 +595,6 @@ impl Literal {
     }
 }
 
-// impl std::ops::Deref for Literal {
-//     type Target = str;
-//
-//     fn deref(&self) -> &Self::Target {
-//         &self.s
-//     }
-// }
-
 /// A [`Range`] contains whatever is contained between `[` and `]` of
 /// a glob pattern, except the negation.
 ///
