@@ -23,7 +23,9 @@ def test_multi_write_redis_client(
                 "redis": {
                     "configs": [
                         {"server": "redis://127.0.0.1:6379"},
-                        {"server": "redis://127.0.0.1:6380"},
+                        # We want to test with multiple nesting levels to make sure the multi-write
+                        # works nonetheless.
+                        {"configs": [{"server": "redis://127.0.0.1:6380"}]},
                     ]
                 }
             }
