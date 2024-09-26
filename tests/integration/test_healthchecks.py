@@ -79,7 +79,6 @@ def test_readiness_proxy(mini_sentry, relay):
 
 
 def test_readiness_not_enough_memory_bytes(mini_sentry, relay):
-    pass
     relay = relay(
         mini_sentry,
         {"relay": {"mode": "proxy"}, "health": {"max_memory_bytes": 42}},
