@@ -97,7 +97,7 @@ impl StackProvider for SqliteStackProvider {
     }
 
     fn has_store_capacity(&self) -> bool {
-        (self.envelope_store.usage() as usize) < self.max_disk_size
+        (dbg!(self.envelope_store.usage()) as usize) < self.max_disk_size
     }
 
     async fn store_total_count(&self) -> u64 {

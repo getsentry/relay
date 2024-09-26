@@ -168,9 +168,11 @@ def test_readiness_disk_spool(mini_sentry, relay):
             "spool": {
                 # if the config contains max_disk_size and max_memory_size set both to 0, Relay will never passes readiness check
                 "envelopes": {
+                    "version": "experimental",
                     "path": dbfile,
-                    "max_memory_size": 0,
-                    "max_disk_size": "24577",  # one more than the initial size
+                    "max_disk_size": 24577,  # one more than the initial size
+                    "disk_batch_size": 1,
+                    "max_batches": 1,
                 }
             },
         }
@@ -178,11 +180,11 @@ def test_readiness_disk_spool(mini_sentry, relay):
         relay = relay(mini_sentry, relay_config)
 
         # Second sent event can trigger error on the relay size, since the spool is full now.
-        for i in range(20):
+        for _ in range(20):
             # It takes ~10 events to make SQLlite use more pages.
             relay.send_event(project_key)
 
-        time.sleep(0.1)  # Wait for one refresh interval
+        time.sleep(1.0)  # Wait for one refresh interval
 
         response = wait_get(relay, "/api/relay/healthcheck/ready/")
         assert response.status_code == 503
