@@ -14,7 +14,9 @@ use crate::Envelope;
 use chrono::{DateTime, Utc};
 use hashbrown::HashSet;
 use relay_base_schema::project::ProjectKey;
-use relay_config::{Config, RedisConfigRef, RelayMode};
+#[cfg(feature = "processing")]
+use relay_config::RedisConfigRef;
+use relay_config::{Config, RelayMode};
 use relay_metrics::{Bucket, MetricMeta};
 use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
@@ -455,16 +457,19 @@ impl ProjectSource {
             UpstreamProjectSourceService::new(config.clone(), upstream_relay).start();
 
         #[cfg(feature = "processing")]
-        let redis_maxconns = config.redis().map(|configs| {
-            let config = match configs {
-                relay_config::RedisPoolConfigs::Unified(config) => config,
-                relay_config::RedisPoolConfigs::Individual {
-                    project_configs: config,
-                    ..
-                } => config,
-            };
-            Self::compute_max_connections(config)
-        });
+        let redis_maxconns = config
+            .redis()
+            .map(|configs| {
+                let config = match configs {
+                    relay_config::RedisPoolConfigs::Unified(config) => config,
+                    relay_config::RedisPoolConfigs::Individual {
+                        project_configs: config,
+                        ..
+                    } => config,
+                };
+                Self::compute_max_connections(config).unwrap_or(10)
+            })
+            .unwrap_or(10);
         #[cfg(feature = "processing")]
         let redis_source = _redis.map(|pool| RedisProjectSource::new(config.clone(), pool));
 
@@ -475,20 +480,19 @@ impl ProjectSource {
             #[cfg(feature = "processing")]
             redis_source,
             #[cfg(feature = "processing")]
-            redis_semaphore: Arc::new(Semaphore::new(
-                redis_maxconns.unwrap_or(10).try_into().unwrap(),
-            )),
+            redis_semaphore: Arc::new(Semaphore::new(redis_maxconns.try_into().unwrap())),
         }
     }
 
-    fn compute_max_connections(config: RedisConfigRef) -> u32 {
+    #[cfg(feature = "processing")]
+    fn compute_max_connections(config: RedisConfigRef) -> Option<u32> {
         match config {
-            RedisConfigRef::Cluster { options, .. } => options.max_connections,
+            RedisConfigRef::Cluster { options, .. } => Some(options.max_connections),
             RedisConfigRef::MultiWrite { configs } => configs
                 .into_iter()
-                .map(|c| Self::compute_max_connections(c))
+                .filter_map(|c| Self::compute_max_connections(c))
                 .max(),
-            RedisConfigRef::Single { options, .. } => options.max_connections,
+            RedisConfigRef::Single { options, .. } => Some(options.max_connections),
         }
     }
 
