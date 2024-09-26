@@ -354,7 +354,7 @@ trait TokenIndex: std::ops::Index<usize, Output = Token> + std::fmt::Debug {
         &'a self,
         offset: usize,
         alternate: &'a [Token],
-    ) -> Self::WithAlternates<'_>;
+    ) -> Self::WithAlternates<'a>;
 }
 
 impl TokenIndex for [Token] {
@@ -370,7 +370,7 @@ impl TokenIndex for [Token] {
         &'a self,
         offset: usize,
         alternate: &'a [Token],
-    ) -> Self::WithAlternates<'_> {
+    ) -> Self::WithAlternates<'a> {
         AltAndTokens {
             alternate,
             tokens: &self[offset..],
