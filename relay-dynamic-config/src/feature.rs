@@ -1,13 +1,12 @@
 use std::collections::BTreeSet;
 
-use serde::ser::SerializeSeq;
 use serde::{Deserialize, Serialize};
 
 /// Feature flags that are not used by the current version of Relay, but have to be propagated
 /// to downstream Relays to operate correctly.
 ///
 /// This is useful when a feature is supposed to be "always on" (after feature graduation).
-const GRATUATED_FEATURE_FLAGS: &[&str] = &["organizations:user-feedback-ingest"];
+const GRATUATED_FEATURE_FLAGS: &[Feature] = &[Feature::UserReportV2Ingest];
 
 /// Features exposed by project config.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -33,6 +32,13 @@ pub enum Feature {
     /// Serialized as `organizations:session-replay-video-disabled`.
     #[serde(rename = "organizations:session-replay-video-disabled")]
     SessionReplayVideoDisabled,
+    /// Enables new User Feedback ingest.
+    ///
+    /// This feature has graduated and is hard-coded for external Relays.
+    ///
+    /// Serialized as `organizations:user-feedback-ingest`.
+    #[serde(rename = "organizations:user-feedback-ingest")]
+    UserReportV2Ingest,
     /// Enables device.class synthesis
     ///
     /// Enables device.class tag synthesis on mobile events.
@@ -130,8 +136,8 @@ pub enum Feature {
 }
 
 /// A set of [`Feature`]s.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct FeatureSet(pub BTreeSet<Feature>);
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
+pub struct FeatureSet(BTreeSet<Feature>);
 
 impl FeatureSet {
     /// Returns `true` if the set of features is empty.
@@ -164,25 +170,11 @@ impl<'de> Deserialize<'de> for FeatureSet {
         D: serde::Deserializer<'de>,
     {
         let mut set = BTreeSet::<Feature>::deserialize(deserializer)?;
+        for graduated_feature in GRATUATED_FEATURE_FLAGS {
+            set.insert(*graduated_feature);
+        }
         set.remove(&Feature::Unknown);
         Ok(Self(set))
-    }
-}
-
-impl Serialize for FeatureSet {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let mut seq =
-            serializer.serialize_seq(Some(self.0.len() + GRATUATED_FEATURE_FLAGS.len()))?;
-        for element in &self.0 {
-            seq.serialize_element(element)?;
-        }
-        for flag in GRATUATED_FEATURE_FLAGS {
-            seq.serialize_element(flag)?;
-        }
-        seq.end()
     }
 }
 
@@ -196,7 +188,10 @@ mod tests {
             serde_json::from_str(r#"["organizations:session-replay", "foo"]"#).unwrap();
         assert_eq!(
             &features,
-            &FeatureSet(BTreeSet::from([Feature::SessionReplay]))
+            &FeatureSet(BTreeSet::from([
+                Feature::SessionReplay,
+                Feature::UserReportV2Ingest
+            ]))
         );
         assert_eq!(
             serde_json::to_string(&features).unwrap(),
@@ -207,7 +202,10 @@ mod tests {
     #[test]
     fn user_feedback_hard_coded() {
         let features: FeatureSet = serde_json::from_str(r#"[]"#).unwrap();
-        assert!(features.is_empty());
+        assert_eq!(
+            &features,
+            &FeatureSet(BTreeSet::from([Feature::UserReportV2Ingest]))
+        );
         assert_eq!(
             serde_json::to_string(&features).unwrap(),
             r#"["organizations:user-feedback-ingest"]"#
