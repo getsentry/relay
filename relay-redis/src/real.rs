@@ -1,4 +1,5 @@
 use std::fmt;
+use std::process::id;
 use std::time::Duration;
 
 use r2d2::{Builder, ManageConnection, Pool, PooledConnection};
@@ -351,16 +352,7 @@ impl RedisPool {
             RedisPoolInner::Cluster(p) => (p.state().connections, p.state().idle_connections),
             RedisPoolInner::MultiWrite(p, s) => {
                 let (primary_connections, primary_idle_connections) = Self::state(p);
-                let (secondary_connections, secondary_idle_connections) =
-                    s.iter().fold((0, 0), |(c, i), p| {
-                        let (connections, idle_connections) = Self::state(p);
-                        (c + connections, i + idle_connections)
-                    });
-
-                (
-                    primary_connections + secondary_connections,
-                    primary_idle_connections + secondary_idle_connections,
-                )
+                (primary_connections, primary_idle_connections)
             }
             RedisPoolInner::Single(p) => (p.state().connections, p.state().idle_connections),
         }
