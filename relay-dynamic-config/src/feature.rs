@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 /// to downstream Relays to operate correctly.
 ///
 /// This is useful when a feature is supposed to be "always on" (after feature graduation).
-const HARDCODED_FEATURE_FLAGS: &[&str] = &["organizations:user-feedback-ingest"];
+const GRADUATED_FEATURE_FLAGS: &[&str] = &["organizations:user-feedback-ingest"];
 
 /// Features exposed by project config.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
