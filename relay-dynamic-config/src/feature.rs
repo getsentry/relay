@@ -4,7 +4,10 @@ use serde::{Deserialize, Serialize};
 
 /// Feature flags of graduated features are no longer sent by sentry, but Relay needs to insert them
 /// for outdated downstream Relays that may still rely on the feature flag.
-pub const GRADUATED_FEATURE_FLAGS: &[Feature] = &[Feature::UserReportV2Ingest];
+pub const GRADUATED_FEATURE_FLAGS: &[Feature] = &[
+    Feature::UserReportV2Ingest,
+    Feature::IngestUnsampledProfiles,
+];
 
 /// Features exposed by project config.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -30,13 +33,6 @@ pub enum Feature {
     /// Serialized as `organizations:session-replay-video-disabled`.
     #[serde(rename = "organizations:session-replay-video-disabled")]
     SessionReplayVideoDisabled,
-    /// Enables new User Feedback ingest.
-    ///
-    /// This feature has graduated and is hard-coded for external Relays.
-    ///
-    /// Serialized as `organizations:user-feedback-ingest`.
-    #[serde(rename = "organizations:user-feedback-ingest")]
-    UserReportV2Ingest,
     /// Enables device.class synthesis
     ///
     /// Enables device.class tag synthesis on mobile events.
@@ -102,31 +98,13 @@ pub enum Feature {
     /// Serialized as `organizations:performance-queries-mongodb-extraction`.
     #[serde(rename = "organizations:performance-queries-mongodb-extraction")]
     ScrubMongoDbDescriptions,
-
-    /// Deprecated, still forwarded for older downstream Relays.
-    #[doc(hidden)]
-    #[serde(rename = "organizations:transaction-name-mark-scrubbed-as-sanitized")]
-    Deprecated1,
-    /// Deprecated, still forwarded for older downstream Relays.
-    #[doc(hidden)]
-    #[serde(rename = "organizations:transaction-name-normalize")]
-    Deprecated2,
-    /// Deprecated, still forwarded for older downstream Relays.
-    #[doc(hidden)]
-    #[serde(rename = "projects:extract-standalone-spans")]
-    Deprecated4,
-    /// Deprecated, still forwarded for older downstream Relays.
-    #[doc(hidden)]
-    #[serde(rename = "projects:span-metrics-extraction-resource")]
-    Deprecated5,
-    /// Deprecated, still forwarded for older downstream Relays.
-    #[doc(hidden)]
-    #[serde(rename = "projects:span-metrics-extraction-all-modules")]
-    Deprecated6,
-    /// Deprecated, still forwarded for older downstream Relays.
+    /// This feature has graduated and is hard-coded for external Relays.
     #[doc(hidden)]
     #[serde(rename = "projects:profiling-ingest-unsampled-profiles")]
-    Deprecated7,
+    IngestUnsampledProfiles,
+    /// This feature has graduated and is hard-coded for external Relays.
+    #[serde(rename = "organizations:user-feedback-ingest")]
+    UserReportV2Ingest,
     /// Forward compatibility.
     #[doc(hidden)]
     #[serde(other)]
