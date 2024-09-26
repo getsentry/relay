@@ -45,7 +45,6 @@ pub enum Feature {
     /// Serialized as `organizations:custom-metrics`.
     #[serde(rename = "organizations:custom-metrics")]
     CustomMetrics,
-
     /// Enable processing profiles.
     ///
     /// Serialized as `organizations:profiling`.
@@ -61,19 +60,16 @@ pub enum Feature {
     /// Serialized as `projects:relay-otel-endpoint`.
     #[serde(rename = "projects:relay-otel-endpoint")]
     OtelEndpoint,
-
     /// Discard transactions in a spans-only world.
     ///
     /// Serialized as `projects:discard-transaction`.
     #[serde(rename = "projects:discard-transaction")]
     DiscardTransaction,
-
     /// Enable continuous profiling.
     ///
     /// Serialized as `organizations:continuous-profiling`.
     #[serde(rename = "organizations:continuous-profiling")]
     ContinuousProfiling,
-
     /// Enables metric extraction from spans for common modules.
     ///
     /// Serialized as `projects:span-metrics-extraction`.
@@ -85,24 +81,24 @@ pub enum Feature {
     /// Serialized as `projects:span-metrics-extraction-addons`.
     #[serde(rename = "projects:span-metrics-extraction-addons")]
     ExtractAddonsSpanMetricsFromEvent,
-
     /// When enabled, spans will be extracted from a transaction.
     ///
     /// Serialized as `organizations:indexed-spans-extraction`.
     #[serde(rename = "organizations:indexed-spans-extraction")]
     ExtractSpansFromEvent,
-
     /// Enables description scrubbing for MongoDB spans (and consequently, their presence in the
     /// Queries module inside Sentry).
     ///
     /// Serialized as `organizations:performance-queries-mongodb-extraction`.
     #[serde(rename = "organizations:performance-queries-mongodb-extraction")]
     ScrubMongoDbDescriptions,
+
     /// This feature has graduated and is hard-coded for external Relays.
     #[doc(hidden)]
     #[serde(rename = "projects:profiling-ingest-unsampled-profiles")]
     IngestUnsampledProfiles,
     /// This feature has graduated and is hard-coded for external Relays.
+    #[doc(hidden)]
     #[serde(rename = "organizations:user-feedback-ingest")]
     UserReportV2Ingest,
     /// Forward compatibility.
