@@ -1,3 +1,5 @@
+use std::num::NonZeroUsize;
+
 use crate::{Literal, Options, Ranges, Token, Tokens};
 
 /// Matches [`Tokens`] against a `haystack` with the provided [`Options`].
@@ -142,11 +144,17 @@ where
             match token {
                 Token::Literal(literal) => match M::is_prefix(h_current, literal) {
                     Some(n) => advance!(n),
+                    // The literal does not match, but it may match after backtracking.
+                    // TODO: possible optimization: if the literal cannot possibly match anymore
+                    // because it is too long for the remaining haystack, we can immediately return
+                    // no match here.
                     None => false,
                 },
                 Token::Any(n) => {
                     advance!(match n_chars_to_bytes(*n, h_current) {
                         Some(n) => n,
+                        // Not enough characters in the haystack remaining,
+                        // there cannot be any other possible match.
                         None => return false,
                     });
                     true
@@ -167,7 +175,6 @@ where
                         }
                         None => return false,
                     };
-                    println!("next possible match: {h_current}");
 
                     true
                 }
@@ -204,7 +211,7 @@ where
             t_next = t_revert;
 
             // Backtrack to the previous location +1 character.
-            advance!(match n_chars_to_bytes(1, h_current) {
+            advance!(match n_chars_to_bytes(NonZeroUsize::MIN, h_current) {
                 Some(n) => n,
                 None => return false,
             });
@@ -219,6 +226,7 @@ where
             };
         }
     }
+
     true
 }
 
@@ -275,15 +283,14 @@ where
 ///
 /// Returns `None` if the string is too short.
 #[inline(always)]
-fn n_chars_to_bytes(n: usize, s: &str) -> Option<usize> {
-    if n == 0 {
-        return Some(0);
-    }
+fn n_chars_to_bytes(n: NonZeroUsize, s: &str) -> Option<usize> {
     // Fast path check, if there are less bytes than characters.
-    if n > s.len() {
+    if n.get() > s.len() {
         return None;
     }
-    s.char_indices().nth(n - 1).map(|(i, c)| i + c.len_utf8())
+    s.char_indices()
+        .nth(n.get() - 1)
+        .map(|(i, c)| i + c.len_utf8())
 }
 
 /// Returns `Some` if `iter` contains exactly one element.
@@ -493,7 +500,7 @@ mod tests {
     fn test_any_one() {
         let mut tokens = Tokens::default();
         tokens.push(Token::Literal(literal("a")));
-        tokens.push(Token::Any(1));
+        tokens.push(Token::Any(NonZeroUsize::MIN));
         tokens.push(Token::Literal(literal("c")));
         assert!(is_match(&tokens, "abc", Default::default()));
         assert!(is_match(&tokens, "aඞc", Default::default()));
@@ -504,7 +511,7 @@ mod tests {
     fn test_any_many() {
         let mut tokens = Tokens::default();
         tokens.push(Token::Literal(literal("a")));
-        tokens.push(Token::Any(2));
+        tokens.push(Token::Any(NonZeroUsize::new(2).unwrap()));
         tokens.push(Token::Literal(literal("d")));
         assert!(is_match(&tokens, "abcd", Default::default()));
         assert!(is_match(&tokens, "aඞ_d", Default::default()));

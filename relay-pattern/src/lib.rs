@@ -27,6 +27,7 @@
 //! * `\` escapes any of the above special characters and treats it as a literal.
 
 use std::fmt;
+use std::num::NonZeroUsize;
 
 mod typed;
 mod wildmatch;
@@ -326,7 +327,7 @@ impl<'a> Parser<'a> {
     fn parse(&mut self) -> Result<(), ErrorKind> {
         while let Some(c) = self.advance() {
             match c {
-                '?' => self.push_token(Token::Any(1)),
+                '?' => self.push_token(Token::Any(NonZeroUsize::MIN)),
                 '*' => self.push_token(Token::Wildcard),
                 '[' => self.parse_class()?,
                 ']' => return Err(ErrorKind::UnbalancedCharacterClass),
@@ -485,7 +486,6 @@ impl<'a> Parser<'a> {
 /// The contained tokens are guarnatueed to uphold the following invariants:
 /// - A [`Token::Wildcard`] is never followed by [`Token::Wildcard`].
 /// - A [`Token::Any`] is never followed by [`Token::Any`].
-/// - A [`Token::Any`] always matches at least one character.
 /// - A [`Token::Literal`] is never followed by [`Token::Literal`].
 /// - A [`Token::Class`] is never empty.
 #[derive(Clone, Debug, Default)]
@@ -518,7 +518,7 @@ impl Tokens {
 
         match (self.0.last_mut(), token) {
             // Collapse Any's.
-            (Some(Token::Any(n)), Token::Any(n2)) => *n += n2,
+            (Some(Token::Any(n)), Token::Any(n2)) => *n = n.saturating_add(n2.get()),
             // We can collapse multiple wildcards into a single one.
             // TODO: separator special handling (?)
             (Some(Token::Wildcard), Token::Wildcard) => {}
@@ -546,7 +546,7 @@ enum Token {
     /// A literal token.
     Literal(Literal),
     /// The any token `?` and how many `?` are seen in a row.
-    Any(usize),
+    Any(NonZeroUsize),
     /// The wildcard token `*`.
     Wildcard,
     /// A class token `[abc]` or its negated variant `[!abc]`.
