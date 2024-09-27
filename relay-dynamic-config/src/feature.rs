@@ -4,7 +4,10 @@ use serde::{Deserialize, Serialize};
 
 /// Feature flags of graduated features are no longer sent by sentry, but Relay needs to insert them
 /// for outdated downstream Relays that may still rely on the feature flag.
-pub const GRADUATED_FEATURE_FLAGS: &[Feature] = &[Feature::UserReportV2Ingest];
+pub const GRADUATED_FEATURE_FLAGS: &[Feature] = &[
+    Feature::UserReportV2Ingest,
+    Feature::IngestUnsampledProfiles,
+];
 
 /// Features exposed by project config.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -30,13 +33,6 @@ pub enum Feature {
     /// Serialized as `organizations:session-replay-video-disabled`.
     #[serde(rename = "organizations:session-replay-video-disabled")]
     SessionReplayVideoDisabled,
-    /// Enables new User Feedback ingest.
-    ///
-    /// This feature has graduated and is hard-coded for external Relays.
-    ///
-    /// Serialized as `organizations:user-feedback-ingest`.
-    #[serde(rename = "organizations:user-feedback-ingest")]
-    UserReportV2Ingest,
     /// Enables device.class synthesis
     ///
     /// Enables device.class tag synthesis on mobile events.
@@ -49,7 +45,6 @@ pub enum Feature {
     /// Serialized as `organizations:custom-metrics`.
     #[serde(rename = "organizations:custom-metrics")]
     CustomMetrics,
-
     /// Enable processing profiles.
     ///
     /// Serialized as `organizations:profiling`.
@@ -65,19 +60,16 @@ pub enum Feature {
     /// Serialized as `projects:relay-otel-endpoint`.
     #[serde(rename = "projects:relay-otel-endpoint")]
     OtelEndpoint,
-
     /// Discard transactions in a spans-only world.
     ///
     /// Serialized as `projects:discard-transaction`.
     #[serde(rename = "projects:discard-transaction")]
     DiscardTransaction,
-
     /// Enable continuous profiling.
     ///
     /// Serialized as `organizations:continuous-profiling`.
     #[serde(rename = "organizations:continuous-profiling")]
     ContinuousProfiling,
-
     /// Enables metric extraction from spans for common modules.
     ///
     /// Serialized as `projects:span-metrics-extraction`.
@@ -89,13 +81,11 @@ pub enum Feature {
     /// Serialized as `projects:span-metrics-extraction-addons`.
     #[serde(rename = "projects:span-metrics-extraction-addons")]
     ExtractAddonsSpanMetricsFromEvent,
-
     /// When enabled, spans will be extracted from a transaction.
     ///
     /// Serialized as `organizations:indexed-spans-extraction`.
     #[serde(rename = "organizations:indexed-spans-extraction")]
     ExtractSpansFromEvent,
-
     /// Enables description scrubbing for MongoDB spans (and consequently, their presence in the
     /// Queries module inside Sentry).
     ///
@@ -103,30 +93,14 @@ pub enum Feature {
     #[serde(rename = "organizations:performance-queries-mongodb-extraction")]
     ScrubMongoDbDescriptions,
 
-    /// Deprecated, still forwarded for older downstream Relays.
-    #[doc(hidden)]
-    #[serde(rename = "organizations:transaction-name-mark-scrubbed-as-sanitized")]
-    Deprecated1,
-    /// Deprecated, still forwarded for older downstream Relays.
-    #[doc(hidden)]
-    #[serde(rename = "organizations:transaction-name-normalize")]
-    Deprecated2,
-    /// Deprecated, still forwarded for older downstream Relays.
-    #[doc(hidden)]
-    #[serde(rename = "projects:extract-standalone-spans")]
-    Deprecated4,
-    /// Deprecated, still forwarded for older downstream Relays.
-    #[doc(hidden)]
-    #[serde(rename = "projects:span-metrics-extraction-resource")]
-    Deprecated5,
-    /// Deprecated, still forwarded for older downstream Relays.
-    #[doc(hidden)]
-    #[serde(rename = "projects:span-metrics-extraction-all-modules")]
-    Deprecated6,
-    /// Deprecated, still forwarded for older downstream Relays.
+    /// This feature has graduated and is hard-coded for external Relays.
     #[doc(hidden)]
     #[serde(rename = "projects:profiling-ingest-unsampled-profiles")]
-    Deprecated7,
+    IngestUnsampledProfiles,
+    /// This feature has graduated and is hard-coded for external Relays.
+    #[doc(hidden)]
+    #[serde(rename = "organizations:user-feedback-ingest")]
+    UserReportV2Ingest,
     /// Forward compatibility.
     #[doc(hidden)]
     #[serde(other)]
