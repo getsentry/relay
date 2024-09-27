@@ -154,7 +154,10 @@ pub enum PooledClient {
         RedisConfigOptions,
     ),
     /// Multiple pools that are used for multi-write.
-    MultiWrite(Box<PooledClient>, Vec<PooledClient>),
+    MultiWrite {
+        primary: Box<PooledClient>,
+        secondaries: Vec<PooledClient>,
+    },
     /// Pool that is connected to a single Redis instance.
     Single(Box<PooledConnection<redis::Client>>, RedisConfigOptions),
 }
@@ -183,7 +186,10 @@ impl PooledClient {
 
                 ConnectionInner::Cluster(connection)
             }
-            PooledClient::MultiWrite(primary_client, secondary_clients) => {
+            PooledClient::MultiWrite {
+                primary: primary_client,
+                secondaries: secondary_clients,
+            } => {
                 let primary_connection = primary_client.connection_inner()?;
                 let mut secondary_connections = Vec::with_capacity(secondary_clients.len());
                 for secondary_client in secondary_clients.iter_mut() {
@@ -225,7 +231,10 @@ pub enum RedisPool {
     /// Pool that is connected to a Redis cluster.
     Cluster(Pool<redis::cluster::ClusterClient>, RedisConfigOptions),
     /// Multiple pools that are used for multi-write.
-    MultiWrite(Box<RedisPool>, Vec<RedisPool>),
+    MultiWrite {
+        primary: Box<RedisPool>,
+        secondaries: Vec<RedisPool>,
+    },
     /// Pool that is connected to a single Redis instance.
     Single(Pool<redis::Client>, RedisConfigOptions),
 }
@@ -234,7 +243,7 @@ impl fmt::Debug for RedisPool {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Cluster(_, _) => f.debug_tuple("Cluster").finish(),
-            Self::MultiWrite(_, _) => f.debug_tuple("MultiWrite").finish(),
+            Self::MultiWrite { .. } => f.debug_tuple("MultiWrite").finish(),
             Self::Single(_, _) => f.debug_tuple("Single").finish(),
         }
     }
@@ -258,7 +267,10 @@ impl RedisPool {
         primary: RedisPool,
         secondaries: Vec<RedisPool>,
     ) -> Result<Self, RedisError> {
-        Ok(RedisPool::MultiWrite(Box::new(primary), secondaries))
+        Ok(RedisPool::MultiWrite {
+            primary: Box::new(primary),
+            secondaries,
+        })
     }
 
     /// Creates a [`RedisPool`] in single-node configuration.
@@ -275,7 +287,10 @@ impl RedisPool {
                 Box::new(pool.get().map_err(RedisError::Pool)?),
                 opts.clone(),
             ),
-            RedisPool::MultiWrite(ref primary_pool, ref secondary_pools) => {
+            RedisPool::MultiWrite {
+                primary: primary_pool,
+                secondaries: secondary_pools,
+            } => {
                 let primary_client = primary_pool.client()?;
                 let mut secondary_clients = Vec::with_capacity(secondary_pools.len());
                 for secondary_pool in secondary_pools.iter() {
@@ -283,7 +298,10 @@ impl RedisPool {
                     secondary_clients.push(client);
                 }
 
-                PooledClient::MultiWrite(Box::new(primary_client), secondary_clients)
+                PooledClient::MultiWrite {
+                    primary: Box::new(primary_client),
+                    secondaries: secondary_clients,
+                }
             }
             RedisPool::Single(ref pool, opts) => PooledClient::Single(
                 Box::new(pool.get().map_err(RedisError::Pool)?),
@@ -328,7 +346,7 @@ impl RedisPool {
     fn state(&self) -> (u32, u32) {
         match self {
             RedisPool::Cluster(p, _) => (p.state().connections, p.state().idle_connections),
-            RedisPool::MultiWrite(p, _) => p.state(),
+            RedisPool::MultiWrite { primary: p, .. } => p.state(),
             RedisPool::Single(p, _) => (p.state().connections, p.state().idle_connections),
         }
     }

@@ -1,11 +1,12 @@
 import json
 import time
+import uuid
 
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 from datetime import datetime, timezone, time as dttime
 
 
-def test_multi_write_redis_client(
+def test_multi_write_redis_client_with_metric_meta(
     mini_sentry, redis_client, secondary_redis_client, relay_with_processing
 ):
     project_id = 42
@@ -64,3 +65,61 @@ def test_multi_write_redis_client(
             key=lambda x: x["lineno"],
         )
         assert len(stored) == 1
+
+
+def test_multi_write_redis_client_with_rate_limiting(
+    mini_sentry,
+    relay_with_processing,
+    events_consumer,
+    outcomes_consumer,
+):
+    project_id = 42
+    event_id = uuid.uuid1().hex
+    relay = relay_with_processing(
+        {
+            "processing": {
+                "redis": {
+                    "configs": [
+                        {"server": "redis://127.0.0.1:6379"},
+                        {"server": "redis://127.0.0.1:6380"},
+                    ]
+                }
+            }
+        }
+    )
+    outcomes_consumer = outcomes_consumer(timeout=10)
+    events_consumer = events_consumer()
+
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["quotas"] = [
+        {
+            "id": f"test_rate_limiting_{event_id}",
+            "categories": ["error"],
+            "window": 3600,
+            "limit": 1,
+            "reasonCode": "drop_all",
+        }
+    ]
+
+    error_payload = {
+        "event_id": event_id,
+        "message": "test",
+        "extra": {"msg_text": "test"},
+        "type": "error",
+        "environment": "production",
+        "release": "foo@1.2.3",
+    }
+
+    envelope = Envelope()
+    envelope.add_item(Item(PayloadRef(json=error_payload), type="event"))
+
+    # We send the first envelope.
+    relay.send_envelope(project_id, envelope)
+
+    # Because of the quotas, we should drop error, and since the user_report is in the same envelope, we should also drop it.
+    events_consumer.assert_empty()
+
+    # We must have 1 outcome with provided reason.
+    outcomes = outcomes_consumer.get_outcomes()
+    assert len(outcomes) == 1
+    assert outcomes[0]["reason"] == "drop_all"
