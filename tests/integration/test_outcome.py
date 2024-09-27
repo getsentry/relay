@@ -771,6 +771,7 @@ def test_outcomes_rate_limit(
             "reasonCode": reason_code,
         }
     ]
+
     project_config["config"]["features"] = ["organizations:user-feedback-ingest"]
 
     outcomes_consumer = outcomes_consumer()

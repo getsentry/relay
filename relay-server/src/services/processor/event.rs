@@ -7,7 +7,7 @@ use chrono::Duration as SignedDuration;
 use relay_auth::RelayVersion;
 use relay_base_schema::events::EventType;
 use relay_config::Config;
-use relay_dynamic_config::{Feature, GlobalConfig};
+use relay_dynamic_config::GlobalConfig;
 use relay_event_normalization::{nel, ClockDriftProcessor};
 use relay_event_schema::processor::{self, ProcessingState};
 use relay_event_schema::protocol::{
@@ -94,11 +94,6 @@ pub fn extract<G: EventProcessing>(
         })
     } else if let Some(item) = user_report_v2_item {
         relay_log::trace!("processing user_report_v2");
-        let project_state = &state.project_state;
-        let user_report_v2_ingest = project_state.has_feature(Feature::UserReportV2Ingest);
-        if !user_report_v2_ingest {
-            return Err(ProcessingError::NoEventPayload);
-        }
         event_from_json_payload(item, Some(EventType::UserReportV2))?
     } else if let Some(item) = raw_security_item {
         relay_log::trace!("processing security report");

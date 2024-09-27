@@ -2,6 +2,10 @@ use std::collections::BTreeSet;
 
 use serde::{Deserialize, Serialize};
 
+/// Feature flags of graduated features are no longer sent by sentry, but Relay needs to insert them
+/// for outdated downstream Relays that may still rely on the feature flag.
+pub const GRADUATED_FEATURE_FLAGS: &[Feature] = &[Feature::UserReportV2Ingest];
+
 /// Features exposed by project config.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum Feature {
@@ -28,7 +32,7 @@ pub enum Feature {
     SessionReplayVideoDisabled,
     /// Enables new User Feedback ingest.
     ///
-    /// TODO(jferg): rename to UserFeedbackIngest once old UserReport logic is deprecated.
+    /// This feature has graduated and is hard-coded for external Relays.
     ///
     /// Serialized as `organizations:user-feedback-ingest`.
     #[serde(rename = "organizations:user-feedback-ingest")]
@@ -130,7 +134,7 @@ pub enum Feature {
 }
 
 /// A set of [`Feature`]s.
-#[derive(Clone, Debug, Default, Serialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
 pub struct FeatureSet(pub BTreeSet<Feature>);
 
 impl FeatureSet {
