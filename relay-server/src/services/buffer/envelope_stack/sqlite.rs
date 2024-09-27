@@ -28,7 +28,7 @@ pub struct SqliteEnvelopeStack {
     envelope_store: SqliteEnvelopeStore,
     /// Threshold defining the maximum number of envelopes in the `batches_buffer` before spooling
     /// to disk will take place.
-    spool_threshold: NonZeroUsize,
+    spool_threshold: usize,
     /// Size of a batch of envelopes that is written to disk.
     batch_size: NonZeroUsize,
     /// The project key of the project to which all the envelopes belong.
@@ -57,8 +57,7 @@ impl SqliteEnvelopeStack {
     ) -> Self {
         Self {
             envelope_store,
-            spool_threshold: NonZeroUsize::new(disk_batch_size * max_batches)
-                .expect("the spool threshold must be > 0"),
+            spool_threshold: disk_batch_size * max_batches,
             batch_size: NonZeroUsize::new(disk_batch_size)
                 .expect("the disk batch size must be > 0"),
             own_key,
@@ -71,7 +70,7 @@ impl SqliteEnvelopeStack {
 
     /// Threshold above which the [`SqliteEnvelopeStack`] will spool data from the `buffer` to disk.
     fn above_spool_threshold(&self) -> bool {
-        self.batches_buffer_size >= self.spool_threshold.get()
+        self.batches_buffer_size >= self.spool_threshold
     }
 
     /// Threshold below which the [`SqliteEnvelopeStack`] will unspool data from disk to the
@@ -85,11 +84,20 @@ impl SqliteEnvelopeStack {
     /// In case there is a failure while writing envelopes, all the envelopes that were enqueued
     /// to be written to disk are lost. The explanation for this behavior can be found in the body
     /// of the method.
-    async fn spool_to_disk(&mut self) -> Result<(), SqliteEnvelopeStackError> {
-        let Some(envelopes) = self.batches_buffer.pop_front() else {
+    #[allow(clippy::vec_box)]
+    async fn spool_to_disk(
+        &mut self,
+        envelopes: Option<Vec<Box<Envelope>>>,
+    ) -> Result<(), SqliteEnvelopeStackError> {
+        let used_buffer = envelopes.is_none();
+        let Some(envelopes) = envelopes.or_else(|| self.batches_buffer.pop_front()) else {
             return Ok(());
         };
-        self.batches_buffer_size -= envelopes.len();
+
+        // Only if we removed envelopes from the buffer, we decrement the size.
+        if used_buffer {
+            self.batches_buffer_size -= envelopes.len();
+        }
 
         relay_statsd::metric!(
             counter(RelayCounters::BufferSpooledEnvelopes) += envelopes.len() as u64
@@ -172,7 +180,13 @@ impl EnvelopeStack for SqliteEnvelopeStack {
         debug_assert!(self.validate_envelope(&envelope));
 
         if self.above_spool_threshold() {
-            self.spool_to_disk().await?;
+            // A spool threshold of 0 is a special case since we don't want to touch the in memory
+            // buffer at all and rather directly spool to disk.
+            if self.batches_buffer_size == 0 && self.spool_threshold == 0 {
+                return self.spool_to_disk(Some(vec![envelope])).await;
+            } else {
+                self.spool_to_disk(None).await?;
+            }
         }
 
         // We need to check if the topmost batch has space, if not we have to create a new batch and
@@ -464,6 +478,52 @@ mod tests {
             );
         }
         assert_eq!(stack.batches_buffer_size, 0);
+    }
+
+    #[tokio::test]
+    async fn test_push_and_pop_with_zero_spool_threshold() {
+        let db = setup_db(true).await;
+        let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
+        let mut stack = SqliteEnvelopeStack::new(
+            envelope_store,
+            1,
+            0,
+            ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
+            true,
+        );
+
+        let envelopes = mock_envelopes(2);
+
+        // We push 1 envelope.
+        assert!(stack.push(envelopes[0].clone()).await.is_ok());
+        // Since we directly spool to disk, we expect no data to be in the buffer.
+        assert_eq!(stack.batches_buffer_size, 0);
+
+        // We peek the top element.
+        let peeked_envelope = stack.peek().await.unwrap().unwrap();
+        assert_eq!(
+            peeked_envelope.event_id().unwrap(),
+            envelopes.clone()[0].event_id().unwrap()
+        );
+        // Since we don't have any data in the buffer, as soon as we peek, we unspool and increment
+        // the buffer size.
+        assert_eq!(stack.batches_buffer_size, 1);
+
+        // We push 1 envelope.
+        assert!(stack.push(envelopes[1].clone()).await.is_ok());
+        // Since we have 1 element in the spool from the previous peek, we will now add one and
+        // flush one, so we end up with the buffer size still 1.
+        assert_eq!(stack.batches_buffer_size, 1);
+
+        // We pop 2 envelopes.
+        for envelope in envelopes.iter().rev() {
+            let popped_envelope = stack.pop().await.unwrap().unwrap();
+            assert_eq!(
+                popped_envelope.event_id().unwrap(),
+                envelope.event_id().unwrap()
+            );
+        }
     }
 
     #[tokio::test]
