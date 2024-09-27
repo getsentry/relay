@@ -73,22 +73,28 @@ def test_multi_write_redis_client_with_rate_limiting(
     events_consumer,
     outcomes_consumer,
 ):
+    outcomes_consumer = outcomes_consumer(timeout=10)
+    events_consumer = events_consumer()
+
     redis_configs = [
+        # First, we double-write/-read from both Redis instances.
         {
             "configs": [
                 {"server": "redis://127.0.0.1:6379"},
                 {"server": "redis://127.0.0.1:6380"},
             ]
         },
+        # # Afterward, we point to the secondary instance to make sure we are
+        # # correctly reading the quotas written before.
         {"server": "redis://127.0.0.1:6380"},
     ]
 
-    for redis_config, expects_event in zip(redis_configs, [False, True]):
+    for redis_config, expects_event, event_name in zip(
+        redis_configs, [True, False], ["event_1", "event_2"]
+    ):
         project_id = 42
         event_id = uuid.uuid1().hex
         relay = relay_with_processing({"processing": {"redis": redis_config}})
-        outcomes_consumer = outcomes_consumer(timeout=10)
-        events_consumer = events_consumer()
 
         project_config = mini_sentry.add_full_project_config(project_id)
         project_config["config"]["quotas"] = [
@@ -96,15 +102,15 @@ def test_multi_write_redis_client_with_rate_limiting(
                 "id": f"test_rate_limiting_{event_id}",
                 "categories": ["error"],
                 "window": 3600,
-                "limit": 1,
+                "limit": 0,
                 "reasonCode": "drop_all",
             }
         ]
 
         error_payload = {
             "event_id": event_id,
-            "message": "test",
-            "extra": {"msg_text": "test"},
+            "message": event_name,
+            "extra": {"msg_text": event_name},
             "type": "error",
             "environment": "production",
             "release": "foo@1.2.3",
@@ -116,10 +122,11 @@ def test_multi_write_redis_client_with_rate_limiting(
         relay.send_envelope(project_id, envelope)
 
         if expects_event:
+            # We expect to pass the first rate-limit since we have a limit of 1.
             event, _ = events_consumer.get_event()
-            assert event["id"] == event_id
+            assert event["logentry"]["formatted"] == event_name
         else:
-            # Because of the quotas, we should drop error, and since the user_report is in the same envelope, we should also drop it.
+            # Because of the quotas, we should drop error.
             events_consumer.assert_empty()
 
             # We must have 1 outcome with provided reason.
