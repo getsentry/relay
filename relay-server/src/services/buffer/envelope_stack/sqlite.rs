@@ -180,8 +180,8 @@ impl EnvelopeStack for SqliteEnvelopeStack {
         debug_assert!(self.validate_envelope(&envelope));
 
         if self.above_spool_threshold() {
-            // A spool threshold of 0 is a special case since we don't want to touch the in memory
-            // buffer at all and rather directly spool to disk.
+            // We spool directly without adding data to the in memory buffer only if we have no data
+            // and a spool threshold of 0. In all the other cases, we just consume from the buffer.
             if self.batches_buffer_size == 0 && self.spool_threshold == 0 {
                 return self.spool_to_disk(Some(vec![envelope])).await;
             } else {
