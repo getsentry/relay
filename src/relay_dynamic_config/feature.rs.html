@@ -165,39 +165,16 @@
 <a href="#165" id="165">165</a>
 <a href="#166" id="166">166</a>
 <a href="#167" id="167">167</a>
-<a href="#168" id="168">168</a>
-<a href="#169" id="169">169</a>
-<a href="#170" id="170">170</a>
-<a href="#171" id="171">171</a>
-<a href="#172" id="172">172</a>
-<a href="#173" id="173">173</a>
-<a href="#174" id="174">174</a>
-<a href="#175" id="175">175</a>
-<a href="#176" id="176">176</a>
-<a href="#177" id="177">177</a>
-<a href="#178" id="178">178</a>
-<a href="#179" id="179">179</a>
-<a href="#180" id="180">180</a>
-<a href="#181" id="181">181</a>
-<a href="#182" id="182">182</a>
-<a href="#183" id="183">183</a>
-<a href="#184" id="184">184</a>
-<a href="#185" id="185">185</a>
-<a href="#186" id="186">186</a>
-<a href="#187" id="187">187</a>
-<a href="#188" id="188">188</a>
-<a href="#189" id="189">189</a>
-<a href="#190" id="190">190</a>
-<a href="#191" id="191">191</a>
-<a href="#192" id="192">192</a>
-<a href="#193" id="193">193</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeSet;
 
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="doccomment">/// Feature flags of graduated features are no longer sent by sentry, but Relay needs to insert them
 /// for outdated downstream Relays that may still rely on the feature flag.
-</span><span class="kw">pub const </span>GRADUATED_FEATURE_FLAGS: <span class="kw-2">&amp;</span>[Feature] = <span class="kw-2">&amp;</span>[Feature::UserReportV2Ingest];
+</span><span class="kw">pub const </span>GRADUATED_FEATURE_FLAGS: <span class="kw-2">&amp;</span>[Feature] = <span class="kw-2">&amp;</span>[
+    Feature::UserReportV2Ingest,
+    Feature::IngestUnsampledProfiles,
+];
 
 <span class="doccomment">/// Features exposed by project config.
 </span><span class="attr">#[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -223,13 +200,6 @@
     /// Serialized as `organizations:session-replay-video-disabled`.
     </span><span class="attr">#[serde(rename = <span class="string">"organizations:session-replay-video-disabled"</span>)]
     </span>SessionReplayVideoDisabled,
-    <span class="doccomment">/// Enables new User Feedback ingest.
-    ///
-    /// This feature has graduated and is hard-coded for external Relays.
-    ///
-    /// Serialized as `organizations:user-feedback-ingest`.
-    </span><span class="attr">#[serde(rename = <span class="string">"organizations:user-feedback-ingest"</span>)]
-    </span>UserReportV2Ingest,
     <span class="doccomment">/// Enables device.class synthesis
     ///
     /// Enables device.class tag synthesis on mobile events.
@@ -242,7 +212,6 @@
     /// Serialized as `organizations:custom-metrics`.
     </span><span class="attr">#[serde(rename = <span class="string">"organizations:custom-metrics"</span>)]
     </span>CustomMetrics,
-
     <span class="doccomment">/// Enable processing profiles.
     ///
     /// Serialized as `organizations:profiling`.
@@ -258,19 +227,16 @@
     /// Serialized as `projects:relay-otel-endpoint`.
     </span><span class="attr">#[serde(rename = <span class="string">"projects:relay-otel-endpoint"</span>)]
     </span>OtelEndpoint,
-
     <span class="doccomment">/// Discard transactions in a spans-only world.
     ///
     /// Serialized as `projects:discard-transaction`.
     </span><span class="attr">#[serde(rename = <span class="string">"projects:discard-transaction"</span>)]
     </span>DiscardTransaction,
-
     <span class="doccomment">/// Enable continuous profiling.
     ///
     /// Serialized as `organizations:continuous-profiling`.
     </span><span class="attr">#[serde(rename = <span class="string">"organizations:continuous-profiling"</span>)]
     </span>ContinuousProfiling,
-
     <span class="doccomment">/// Enables metric extraction from spans for common modules.
     ///
     /// Serialized as `projects:span-metrics-extraction`.
@@ -282,13 +248,11 @@
     /// Serialized as `projects:span-metrics-extraction-addons`.
     </span><span class="attr">#[serde(rename = <span class="string">"projects:span-metrics-extraction-addons"</span>)]
     </span>ExtractAddonsSpanMetricsFromEvent,
-
     <span class="doccomment">/// When enabled, spans will be extracted from a transaction.
     ///
     /// Serialized as `organizations:indexed-spans-extraction`.
     </span><span class="attr">#[serde(rename = <span class="string">"organizations:indexed-spans-extraction"</span>)]
     </span>ExtractSpansFromEvent,
-
     <span class="doccomment">/// Enables description scrubbing for MongoDB spans (and consequently, their presence in the
     /// Queries module inside Sentry).
     ///
@@ -296,30 +260,14 @@
     </span><span class="attr">#[serde(rename = <span class="string">"organizations:performance-queries-mongodb-extraction"</span>)]
     </span>ScrubMongoDbDescriptions,
 
-    <span class="doccomment">/// Deprecated, still forwarded for older downstream Relays.
-    </span><span class="attr">#[doc(hidden)]
-    #[serde(rename = <span class="string">"organizations:transaction-name-mark-scrubbed-as-sanitized"</span>)]
-    </span>Deprecated1,
-    <span class="doccomment">/// Deprecated, still forwarded for older downstream Relays.
-    </span><span class="attr">#[doc(hidden)]
-    #[serde(rename = <span class="string">"organizations:transaction-name-normalize"</span>)]
-    </span>Deprecated2,
-    <span class="doccomment">/// Deprecated, still forwarded for older downstream Relays.
-    </span><span class="attr">#[doc(hidden)]
-    #[serde(rename = <span class="string">"projects:extract-standalone-spans"</span>)]
-    </span>Deprecated4,
-    <span class="doccomment">/// Deprecated, still forwarded for older downstream Relays.
-    </span><span class="attr">#[doc(hidden)]
-    #[serde(rename = <span class="string">"projects:span-metrics-extraction-resource"</span>)]
-    </span>Deprecated5,
-    <span class="doccomment">/// Deprecated, still forwarded for older downstream Relays.
-    </span><span class="attr">#[doc(hidden)]
-    #[serde(rename = <span class="string">"projects:span-metrics-extraction-all-modules"</span>)]
-    </span>Deprecated6,
-    <span class="doccomment">/// Deprecated, still forwarded for older downstream Relays.
+    <span class="doccomment">/// This feature has graduated and is hard-coded for external Relays.
     </span><span class="attr">#[doc(hidden)]
     #[serde(rename = <span class="string">"projects:profiling-ingest-unsampled-profiles"</span>)]
-    </span>Deprecated7,
+    </span>IngestUnsampledProfiles,
+    <span class="doccomment">/// This feature has graduated and is hard-coded for external Relays.
+    </span><span class="attr">#[doc(hidden)]
+    #[serde(rename = <span class="string">"organizations:user-feedback-ingest"</span>)]
+    </span>UserReportV2Ingest,
     <span class="doccomment">/// Forward compatibility.
     </span><span class="attr">#[doc(hidden)]
     #[serde(other)]
