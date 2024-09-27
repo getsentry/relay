@@ -103,13 +103,8 @@ impl ConnectionLike for ConnectionInner<'_> {
             ConnectionInner::Cluster(ref mut con) => con.check_connection(),
             ConnectionInner::MultiWrite {
                 primary: primary_connection,
-                secondaries: secondary_connections,
-            } => {
-                primary_connection.check_connection()
-                    && secondary_connections
-                        .iter_mut()
-                        .all(|c| c.check_connection())
-            }
+                ..
+            } => primary_connection.check_connection(),
             ConnectionInner::Single(ref mut con) => con.check_connection(),
         }
     }
@@ -119,8 +114,8 @@ impl ConnectionLike for ConnectionInner<'_> {
             ConnectionInner::Cluster(ref con) => con.is_open(),
             ConnectionInner::MultiWrite {
                 primary: primary_connection,
-                secondaries: secondary_connections,
-            } => primary_connection.is_open() && secondary_connections.iter().all(|c| c.is_open()),
+                ..
+            } => primary_connection.is_open(),
             ConnectionInner::Single(ref con) => con.is_open(),
         }
     }
