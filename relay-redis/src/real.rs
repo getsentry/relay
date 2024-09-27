@@ -1,3 +1,4 @@
+use std::error::Error;
 use std::fmt;
 use std::time::Duration;
 
@@ -43,7 +44,12 @@ impl ConnectionLike for ConnectionInner<'_> {
             } => {
                 let primary_result = primary_connection.req_packed_command(cmd);
                 for secondary_connection in secondary_connections.iter_mut() {
-                    secondary_connection.req_packed_command(cmd)?;
+                    if let Err(error) = secondary_connection.req_packed_command(cmd) {
+                        relay_log::error!(
+                            error = &error as &dyn Error,
+                            "sending cmd to the secondary Redis instance failed",
+                        );
+                    }
                 }
 
                 primary_result
@@ -66,7 +72,13 @@ impl ConnectionLike for ConnectionInner<'_> {
             } => {
                 let primary_result = primary_connection.req_packed_commands(cmd, offset, count);
                 for secondary_connection in secondary_connections.iter_mut() {
-                    secondary_connection.req_packed_commands(cmd, offset, count)?;
+                    if let Err(error) = secondary_connection.req_packed_commands(cmd, offset, count)
+                    {
+                        relay_log::error!(
+                            error = &error as &dyn Error,
+                            "sending cmds to the secondary Redis instance failed",
+                        );
+                    }
                 }
 
                 primary_result
