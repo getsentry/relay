@@ -76,6 +76,20 @@ def test_multi_write_redis_client_with_rate_limiting(
     outcomes_consumer = outcomes_consumer(timeout=10)
     events_consumer = events_consumer()
 
+    project_cache_redis_prefix = f"relay-test-relayconfig-{uuid.uuid4()}"
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["quotas"] = [
+        {
+            "id": f"error_rate_limiting",
+            "categories": ["error"],
+            "window": 3600,
+            "limit": 1,
+            "reasonCode": "drop_all",
+        }
+    ]
+
     redis_configs = [
         # First, we double-write/-read from both Redis instances.
         {
@@ -92,21 +106,17 @@ def test_multi_write_redis_client_with_rate_limiting(
     for redis_config, expects_event, event_name in zip(
         redis_configs, [True, False], ["event_1", "event_2"]
     ):
-        project_id = 42
-        event_id = uuid.uuid1().hex
-        relay = relay_with_processing({"processing": {"redis": redis_config}})
-
-        project_config = mini_sentry.add_full_project_config(project_id)
-        project_config["config"]["quotas"] = [
+        relay = relay_with_processing(
             {
-                "id": f"test_rate_limiting_{event_id}",
-                "categories": ["error"],
-                "window": 3600,
-                "limit": 0,
-                "reasonCode": "drop_all",
+                "processing": {
+                    "redis": redis_config,
+                    # We use the same prefix across the instances to make sure they read/write the same keys.
+                    "projectconfig_cache_prefix": project_cache_redis_prefix,
+                },
             }
-        ]
+        )
 
+        event_id = uuid.uuid1().hex
         error_payload = {
             "event_id": event_id,
             "message": event_name,
