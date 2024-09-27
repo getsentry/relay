@@ -184,7 +184,7 @@ def test_readiness_disk_spool(mini_sentry, relay):
             # It takes ~10 events to make SQLlite use more pages.
             relay.send_event(project_key)
 
-        time.sleep(1.0)  # Wait for one refresh interval
+        time.sleep(2.0)
 
         response = wait_get(relay, "/api/relay/healthcheck/ready/")
         assert response.status_code == 503
