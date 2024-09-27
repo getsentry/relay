@@ -82,7 +82,7 @@ def test_multi_write_redis_client_with_rate_limiting(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["quotas"] = [
         {
-            "id": f"error_rate_limiting",
+            "id": "error_rate_limiting",
             "categories": ["error"],
             "window": 3600,
             "limit": 1,
