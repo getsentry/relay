@@ -187,9 +187,17 @@
 <a href="#187" id="187">187</a>
 <a href="#188" id="188">188</a>
 <a href="#189" id="189">189</a>
+<a href="#190" id="190">190</a>
+<a href="#191" id="191">191</a>
+<a href="#192" id="192">192</a>
+<a href="#193" id="193">193</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeSet;
 
 <span class="kw">use </span>serde::{Deserialize, Serialize};
+
+<span class="doccomment">/// Feature flags of graduated features are no longer sent by sentry, but Relay needs to insert them
+/// for outdated downstream Relays that may still rely on the feature flag.
+</span><span class="kw">pub const </span>GRADUATED_FEATURE_FLAGS: <span class="kw-2">&amp;</span>[Feature] = <span class="kw-2">&amp;</span>[Feature::UserReportV2Ingest];
 
 <span class="doccomment">/// Features exposed by project config.
 </span><span class="attr">#[derive(Clone, Copy, Debug, Eq, PartialEq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -217,7 +225,7 @@
     </span>SessionReplayVideoDisabled,
     <span class="doccomment">/// Enables new User Feedback ingest.
     ///
-    /// TODO(jferg): rename to UserFeedbackIngest once old UserReport logic is deprecated.
+    /// This feature has graduated and is hard-coded for external Relays.
     ///
     /// Serialized as `organizations:user-feedback-ingest`.
     </span><span class="attr">#[serde(rename = <span class="string">"organizations:user-feedback-ingest"</span>)]
@@ -319,7 +327,7 @@
 }
 
 <span class="doccomment">/// A set of [`Feature`]s.
-</span><span class="attr">#[derive(Clone, Debug, Default, Serialize, PartialEq, Eq)]
+</span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize)]
 </span><span class="kw">pub struct </span>FeatureSet(<span class="kw">pub </span>BTreeSet&lt;Feature&gt;);
 
 <span class="kw">impl </span>FeatureSet {
