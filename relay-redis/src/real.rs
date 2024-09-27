@@ -155,7 +155,9 @@ pub enum PooledClient {
     ),
     /// Multiple pools that are used for multi-write.
     MultiWrite {
+        /// Primary [`PooledClient`].
         primary: Box<PooledClient>,
+        /// Array of secondary [`PooledClient`]s.
         secondaries: Vec<PooledClient>,
     },
     /// Pool that is connected to a single Redis instance.
@@ -232,7 +234,9 @@ pub enum RedisPool {
     Cluster(Pool<redis::cluster::ClusterClient>, RedisConfigOptions),
     /// Multiple pools that are used for multi-write.
     MultiWrite {
+        /// Primary [`RedisPool`].
         primary: Box<RedisPool>,
+        /// Array of secondary [`RedisPool`]s.
         secondaries: Vec<RedisPool>,
     },
     /// Pool that is connected to a single Redis instance.
