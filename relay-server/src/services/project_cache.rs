@@ -45,6 +45,7 @@ use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::{GarbageDisposal, ManagedEnvelope, MemoryChecker, RetryBackoff, SleepHandle};
 
 /// Default value of maximum connections to Redis. This value was arbitrarily determined.
+#[cfg(feature = "processing")]
 const DEFAULT_REDIS_MAX_CONNECTIONS: u32 = 10;
 
 /// Requests a refresh of a project state from one of the available sources.
