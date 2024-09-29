@@ -9,29 +9,21 @@ assignees: ''
 
 ## Background
 
-<!--
 Add context and motivation here.
--->
 
 ## Requirements
 
-<!--
 What is the desired outcome of this initiative? What are the hard technical requirements.
 Add measurable success criteria here.
--->
 
 ## Design
 
-<!--
 Describe how you want to meet the requirements above.
--->
 
 ## Infrastructure checklist
 
-<!--
 Be sure to assess the infrastructure impact of your initiative early on, such that
 the required work can be planned in advance.
--->
 
 - [ ] Will this affect CPU and / or memory usage?
 - [ ] Does this plan require different machine types (different memory to CPU ratio)?
@@ -42,9 +34,7 @@ the required work can be planned in advance.
 
 ## Implementation
 
-<!--
 Once the planning is done, list implementation tasks here.
--->
 
 ```[tasklist]
 ### Implementation tasks
