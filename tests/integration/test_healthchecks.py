@@ -88,7 +88,7 @@ def test_readiness_not_enough_memory_bytes(mini_sentry, relay):
     )
 
     response = wait_get(relay, "/api/relay/healthcheck/ready/")
-    time.sleep(0.3)  # Wait for error
+    time.sleep(0.5)  # Wait for error
     error = str(mini_sentry.test_failures.pop(0))
     assert "Not enough memory" in error and ">= 42" in error
     error = str(mini_sentry.test_failures.pop(0))
