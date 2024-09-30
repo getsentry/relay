@@ -101,7 +101,7 @@ struct ProjectStateChannel {
     // Main broadcast channel.
     channel: BroadcastChannel<UpstreamProjectState>,
     // Additional broadcast channels tracked from merge operations.
-    other: Vec<BroadcastChannel<UpstreamProjectState>>,
+    merged: Vec<BroadcastChannel<UpstreamProjectState>>,
     revision: Option<String>,
     deadline: Instant,
     no_cache: bool,
@@ -123,7 +123,7 @@ impl ProjectStateChannel {
         Self {
             no_cache,
             channel: sender.into_channel(),
-            other: Vec::new(),
+            merged: Vec::new(),
             revision,
             deadline: now + timeout,
             attempts: 0,
@@ -154,7 +154,7 @@ impl ProjectStateChannel {
     }
 
     pub fn send(self, state: UpstreamProjectState) {
-        for channel in self.other {
+        for channel in self.merged {
             channel.send(state.clone());
         }
         self.channel.send(state)
@@ -167,7 +167,7 @@ impl ProjectStateChannel {
     pub fn merge(&mut self, channel: ProjectStateChannel) {
         let ProjectStateChannel {
             channel,
-            other,
+            merged,
             revision,
             deadline,
             no_cache,
@@ -176,8 +176,8 @@ impl ProjectStateChannel {
             pending,
         } = channel;
 
-        self.other.push(channel);
-        self.other.extend(other);
+        self.merged.push(channel);
+        self.merged.extend(merged);
         if self.revision != revision {
             self.revision = None;
         }
