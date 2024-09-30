@@ -41,10 +41,10 @@ pub fn process(
         return Ok(());
     }
 
-    let rs = {
+    let rpc = {
         let meta = state.envelope().meta();
 
-        ReplayState {
+        ReplayProcessingConfig {
             config: &state.project_state.config,
             global_config,
             geoip_lookup,
@@ -63,7 +63,7 @@ pub fn process(
         .project_state
         .has_feature(Feature::SessionReplayRecordingScrubbing)
     {
-        let datascrubbing_config = rs
+        let datascrubbing_config = rpc
             .config
             .datascrubbing_settings
             .pii_config()
@@ -72,7 +72,7 @@ pub fn process(
 
         Some(RecordingScrubber::new(
             state.config.max_replay_uncompressed_size(),
-            rs.config.pii_config.as_ref(),
+            rpc.config.pii_config.as_ref(),
             datascrubbing_config,
         ))
     } else {
@@ -89,7 +89,7 @@ pub fn process(
 
         match item.ty() {
             ItemType::ReplayEvent => {
-                let replay_event = handle_replay_event_item(item.payload(), &rs)?;
+                let replay_event = handle_replay_event_item(item.payload(), &rpc)?;
                 item.set_payload(ContentType::Json, replay_event);
             }
             ItemType::ReplayRecording => {
@@ -99,7 +99,7 @@ pub fn process(
             }
             ItemType::ReplayVideo => {
                 let replay_video =
-                    handle_replay_video_item(item.payload(), scrubber.as_mut(), &rs)?;
+                    handle_replay_video_item(item.payload(), scrubber.as_mut(), &rpc)?;
                 item.set_payload(ContentType::OctetStream, replay_video);
             }
             _ => {}
@@ -110,7 +110,7 @@ pub fn process(
 }
 
 #[derive(Debug)]
-struct ReplayState<'a> {
+struct ReplayProcessingConfig<'a> {
     pub config: &'a ProjectConfig,
     pub global_config: &'a GlobalConfig,
     pub geoip_lookup: Option<&'a GeoIpLookup>,
@@ -125,16 +125,16 @@ struct ReplayState<'a> {
 
 fn handle_replay_event_item(
     payload: Bytes,
-    state: &ReplayState<'_>,
+    config: &ReplayProcessingConfig<'_>,
 ) -> Result<Bytes, ProcessingError> {
-    match process_replay_event(&payload, state) {
+    match process_replay_event(&payload, config) {
         Ok(replay) => {
             if let Some(replay_type) = replay.value() {
                 relay_filter::should_filter(
                     replay_type,
-                    state.client_addr,
-                    &state.config.filter_settings,
-                    state.global_config.filters(),
+                    config.client_addr,
+                    &config.config.filter_settings,
+                    config.global_config.filters(),
                 )
                 .map_err(ProcessingError::ReplayFiltered)?;
 
@@ -145,9 +145,9 @@ fn handle_replay_event_item(
                         metric!(counter(RelayCounters::ReplayExceededSegmentLimit) += 1);
 
                         relay_log::warn!(
-                            event_id = ?state.event_id,
-                            project_id = state.project_id.map(|v| v.value()),
-                            organization_id = state.organization_id,
+                            event_id = ?config.event_id,
+                            project_id = config.project_id.map(|v| v.value()),
+                            organization_id = config.organization_id,
                             segment_id = segment_id,
                             "replay segment-exceeded-limit"
                         );
@@ -160,7 +160,7 @@ fn handle_replay_event_item(
                 Err(error) => {
                     relay_log::error!(
                         error = &error as &dyn Error,
-                        event_id = ?state.event_id,
+                        event_id = ?config.event_id,
                         "failed to serialize replay"
                     );
                     Ok(payload)
@@ -170,9 +170,9 @@ fn handle_replay_event_item(
         Err(error) => {
             relay_log::warn!(
                 error = &error as &dyn Error,
-                event_id = ?state.event_id,
-                project_id = state.project_id.map(|v| v.value()),
-                organization_id = state.organization_id,
+                event_id = ?config.event_id,
+                project_id = config.project_id.map(|v| v.value()),
+                organization_id = config.organization_id,
                 "invalid replay event"
             );
             Err(match error {
@@ -196,7 +196,7 @@ fn handle_replay_event_item(
 /// Validates, normalizes, and scrubs PII from a replay event.
 fn process_replay_event(
     payload: &[u8],
-    state: &ReplayState<'_>,
+    config: &ReplayProcessingConfig<'_>,
 ) -> Result<Annotated<Replay>, ReplayError> {
     let mut replay =
         Annotated::<Replay>::from_json_bytes(payload).map_err(ReplayError::CouldNotParse)?;
@@ -208,18 +208,18 @@ fn process_replay_event(
     replay::validate(replay_value)?;
     replay::normalize(
         &mut replay,
-        state.client_addr,
-        state.user_agent.as_deref(),
-        state.geoip_lookup,
+        config.client_addr,
+        config.user_agent.as_deref(),
+        config.geoip_lookup,
     );
 
-    if let Some(ref config) = state.config.pii_config {
+    if let Some(ref config) = config.config.pii_config {
         let mut processor = PiiProcessor::new(config.compiled());
         processor::process_value(&mut replay, &mut processor, ProcessingState::root())
             .map_err(|e| ReplayError::CouldNotScrub(e.to_string()))?;
     }
 
-    let pii_config = state
+    let pii_config = config
         .config
         .datascrubbing_settings
         .pii_config()
@@ -272,7 +272,7 @@ struct ReplayVideoEvent {
 fn handle_replay_video_item(
     payload: Bytes,
     scrubber: Option<&mut RecordingScrubber>,
-    state: &ReplayState<'_>,
+    config: &ReplayProcessingConfig<'_>,
 ) -> Result<Bytes, ProcessingError> {
     let ReplayVideoEvent {
         replay_event,
@@ -282,7 +282,7 @@ fn handle_replay_video_item(
         .map_err(|_| ProcessingError::InvalidReplay(DiscardReason::InvalidReplayVideoEvent))?;
 
     // Process as a replay-event envelope item.
-    let replay_event = handle_replay_event_item(replay_event, state)?;
+    let replay_event = handle_replay_event_item(replay_event, config)?;
 
     // Process as a replay-recording envelope item.
     let replay_recording = handle_replay_recording_item(replay_recording, scrubber)?;
