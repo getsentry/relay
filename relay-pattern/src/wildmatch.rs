@@ -296,12 +296,10 @@ fn n_chars_to_bytes(n: NonZeroUsize, s: &str) -> Option<usize> {
 /// Returns `Some` if `iter` contains exactly one element.
 #[inline(always)]
 fn exactly_one<T>(mut iter: impl Iterator<Item = T>) -> Option<T> {
+    let item = iter.next()?;
     match iter.next() {
-        Some(item) => match iter.next() {
-            Some(_) => None,
-            None => Some(item),
-        },
-        None => None,
+        Some(_) => None,
+        None => Some(item),
     }
 }
 

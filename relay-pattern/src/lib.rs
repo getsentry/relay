@@ -483,7 +483,7 @@ impl<'a> Parser<'a> {
 ///
 /// Automatically folds redundant tokens.
 ///
-/// The contained tokens are guarnatueed to uphold the following invariants:
+/// The contained tokens are guaranteed to uphold the following invariants:
 /// - A [`Token::Wildcard`] is never followed by [`Token::Wildcard`].
 /// - A [`Token::Any`] is never followed by [`Token::Any`].
 /// - A [`Token::Literal`] is never followed by [`Token::Literal`].
