@@ -42,6 +42,7 @@ class Sentry(SentryLike):
         self.captured_outcomes = Queue()
         self.captured_metrics = Queue()
         self.test_failures = []
+        self.reraise_test_failures = True
         self.hits = {}
         self.known_relays = {}
         self.fail_on_relay_error = True
@@ -442,7 +443,7 @@ def mini_sentry(request):  # noqa
         raise e
 
     def reraise_test_failures():
-        if sentry.test_failures:
+        if sentry.test_failures and sentry.reraise_test_failures:
             pytest.fail(
                 "{n} exceptions happened in mini_sentry:\n\n{failures}".format(
                     n=len(sentry.test_failures), failures=sentry.format_failures()
