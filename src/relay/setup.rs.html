@@ -104,8 +104,8 @@
         );
     }
 
-    <span class="kw">if </span>config.relay_mode() == RelayMode::Proxy &amp;&amp; config.processing_enabled() {
-        <span class="macro">anyhow::bail!</span>(<span class="string">"Processing cannot be enabled while in proxy mode."</span>);
+    <span class="kw">if </span>config.relay_mode() != RelayMode::Managed &amp;&amp; config.processing_enabled() {
+        <span class="macro">anyhow::bail!</span>(<span class="string">"Processing can only be enabled in managed mode."</span>);
     }
 
     <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
