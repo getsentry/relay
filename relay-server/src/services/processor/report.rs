@@ -12,6 +12,7 @@ use relay_quotas::ReasonCode;
 use relay_sampling::evaluation::MatchedRuleIds;
 use relay_system::Addr;
 
+use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::envelope::{ContentType, ItemType};
 use crate::services::outcome::{Outcome, RuleCategories, TrackOutcome};
 use crate::services::processor::{ClientReportGroup, ProcessEnvelopeState, MINIMUM_CLOCK_DRIFT};
@@ -130,7 +131,12 @@ pub fn process_client_reports(
         clock_drift_processor.process_timestamp(timestamp);
     }
 
-    let max_age = SignedDuration::seconds(config.max_secs_in_past());
+    let retention_days = state
+        .project_state
+        .config()
+        .event_retention
+        .unwrap_or(DEFAULT_EVENT_RETENTION);
+    let max_age = SignedDuration::days(retention_days.into());
     // also if we unable to parse the timestamp, we assume it's way too old here.
     let in_past = timestamp
         .as_datetime()

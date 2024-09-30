@@ -1,9 +1,5 @@
 use cookie::Cookie;
-#[cfg(feature = "jsonschema")]
-use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{Annotated, Empty, Error, FromValue, IntoValue, Object, Value};
-#[cfg(feature = "jsonschema")]
-use schemars::{gen::SchemaGenerator, schema::Schema};
 use url::form_urlencoded;
 
 use crate::processor::ProcessValue;
@@ -13,7 +9,6 @@ type CookieEntry = Annotated<(Annotated<String>, Annotated<String>)>;
 
 /// A map holding cookies.
 #[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Cookies(pub PairList<(Annotated<String>, Annotated<String>)>);
 
 impl Cookies {
@@ -88,7 +83,6 @@ impl FromValue for Cookies {
 
 /// A "into-string" type that normalizes header names.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Empty, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_header_name")]
 pub struct HeaderName(String);
 
@@ -161,7 +155,6 @@ impl FromValue for HeaderName {
 
 /// A "into-string" type that normalizes header values.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Empty, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct HeaderValue(String);
 
 impl HeaderValue {
@@ -231,7 +224,6 @@ impl FromValue for HeaderValue {
 
 /// A map holding headers.
 #[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Headers(pub PairList<(Annotated<HeaderName>, Annotated<HeaderValue>)>);
 
 impl Headers {
@@ -348,29 +340,6 @@ impl FromValue for Query {
     }
 }
 
-#[cfg(feature = "jsonschema")]
-impl schemars::JsonSchema for Query {
-    fn schema_name() -> String {
-        "Query".to_string()
-    }
-
-    fn json_schema(gen: &mut SchemaGenerator) -> Schema {
-        #[derive(schemars::JsonSchema)]
-        #[schemars(untagged)]
-        #[allow(unused)]
-        enum Helper {
-            QueryString(String),
-            CanonicalQueryObject(PairList<(Annotated<String>, Annotated<String>)>),
-        }
-
-        Helper::json_schema(gen)
-    }
-
-    fn is_referenceable() -> bool {
-        false
-    }
-}
-
 /// Http request information.
 ///
 /// The Request interface contains information on a HTTP request related to the event. In client
@@ -430,7 +399,6 @@ impl schemars::JsonSchema for Query {
 /// }
 /// ```
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_request", value_type = "Request")]
 pub struct Request {
     /// The URL of the request if available.

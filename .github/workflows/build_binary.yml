@@ -34,10 +34,13 @@ jobs:
           zip relay-Linux-x86_64-debug.zip relay.debug
           mv relay relay-Linux-x86_64
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
-          name: ${{ github.sha }}
+          name: artifact-linux
           path: target/release/relay-Linux-x86_64*
+          if-no-files-found: 'error'
+          # since this artifact will be merged, compression is not necessary
+          compression-level: '0'
 
   macos:
     name: macOS
@@ -62,10 +65,13 @@ jobs:
           mv relay relay-Darwin-x86_64
           zip -r relay-Darwin-x86_64-dsym.zip relay.dSYM
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
-          name: ${{ github.sha }}
+          name: artifact-macos
           path: target/release/relay-Darwin-x86_64*
+          if-no-files-found: 'error'
+          # since this artifact will be merged, compression is not necessary
+          compression-level: '0'
 
   windows:
     name: Windows
@@ -89,7 +95,26 @@ jobs:
           7z a relay-Windows-x86_64-pdb.zip relay.pdb
           mv relay.exe relay-Windows-x86_64.exe
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
-          name: ${{ github.sha }}
+          name: artifact-windows
           path: target/release/relay-Windows-x86_64*
+          if-no-files-found: 'error'
+          # since this artifact will be merged, compression is not necessary
+          compression-level: '0'
+
+  merge:
+    name: Create Release Artifact
+    runs-on: ubuntu-latest
+    needs: [linux, macos, windows]
+    steps:
+      # Note: due to the immutability of artifacts in upload-artifact v4,
+      # there cannot be mutliple upload-artifacts with the same name, in a sha's workflow runs.
+      # However in this case it is fine because this only runs on release/** branches,
+      # and the other runs on release-library/** branches.
+      - uses: actions/upload-artifact/merge@v4
+        with:
+          # Craft expects release assets to be a single artifact named after the sha.
+          name: ${{ github.sha }}
+          pattern: artifact-*
+          delete-merged: true

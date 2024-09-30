@@ -8,24 +8,29 @@ use relay_config::Config;
 use relay_dynamic_config::{
     CombinedMetricExtractionConfig, ErrorBoundary, Feature, GlobalConfig, ProjectConfig,
 };
+use relay_event_normalization::span::ai::extract_ai_measurements;
+use relay_event_normalization::span::description::ScrubMongoDescription;
 use relay_event_normalization::{
     normalize_measurements, normalize_performance_score, span::tag_extraction, validate_span,
     CombinedMeasurementsConfig, MeasurementsConfig, PerformanceScoreConfig, RawUserAgentInfo,
     TransactionsProcessor,
 };
 use relay_event_normalization::{
-    normalize_transaction_name, ClientHints, FromUserAgentInfo, ModelCosts, SchemaProcessor,
-    TimestampProcessor, TransactionNameRule, TrimmingProcessor,
+    normalize_transaction_name, BorrowedSpanOpDefaults, ClientHints, FromUserAgentInfo,
+    GeoIpLookup, ModelCosts, SchemaProcessor, TimestampProcessor, TransactionNameRule,
+    TrimmingProcessor,
 };
 use relay_event_schema::processor::{process_value, ProcessingState};
-use relay_event_schema::protocol::{BrowserContext, Span, SpanData};
+use relay_event_schema::protocol::{
+    BrowserContext, IpAddr, Measurement, Measurements, Span, SpanData,
+};
 use relay_log::protocol::{Attachment, AttachmentType};
-use relay_metrics::{MetricNamespace, UnixTimestamp};
+use relay_metrics::{FractionUnit, MetricNamespace, MetricUnit, UnixTimestamp};
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Empty};
 use relay_quotas::DataCategory;
-use relay_spans::{otel_to_sentry_span, otel_trace::Span as OtelSpan};
-use url::Host;
+use relay_spans::otel_trace::Span as OtelSpan;
+use thiserror::Error;
 
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::metrics_extraction::metrics_summary;
@@ -35,14 +40,16 @@ use crate::services::processor::{
     dynamic_sampling, ProcessEnvelopeState, ProcessingError, SpanGroup, TransactionGroup,
 };
 use crate::utils::{sample, ItemAction, ManagedEnvelope};
-use relay_event_normalization::span::ai::extract_ai_measurements;
-use thiserror::Error;
 
 #[derive(Error, Debug)]
 #[error(transparent)]
 struct ValidationError(#[from] anyhow::Error);
 
-pub fn process(state: &mut ProcessEnvelopeState<SpanGroup>, global_config: &GlobalConfig) {
+pub fn process(
+    state: &mut ProcessEnvelopeState<SpanGroup>,
+    global_config: &GlobalConfig,
+    geo_lookup: Option<&GeoIpLookup>,
+) {
     use relay_event_normalization::RemoveOtherProcessor;
 
     // We only implement trace-based sampling rules for now, which can be computed
@@ -58,6 +65,8 @@ pub fn process(state: &mut ProcessEnvelopeState<SpanGroup>, global_config: &Glob
         global_config,
         state.project_state.config(),
         &state.managed_envelope,
+        state.envelope().meta().client_addr().map(IpAddr::from),
+        geo_lookup,
     );
 
     let client_ip = state.managed_envelope.envelope().meta().client_addr();
@@ -67,7 +76,7 @@ pub fn process(state: &mut ProcessEnvelopeState<SpanGroup>, global_config: &Glob
     state.managed_envelope.retain_items(|item| {
         let mut annotated_span = match item.ty() {
             ItemType::OtelSpan => match serde_json::from_slice::<OtelSpan>(&item.payload()) {
-                Ok(otel_span) => Annotated::new(otel_to_sentry_span(otel_span)),
+                Ok(otel_span) => Annotated::new(relay_spans::otel_to_sentry_span(otel_span)),
                 Err(err) => {
                     relay_log::debug!("failed to parse OTel span: {}", err);
                     return ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidJson));
@@ -86,7 +95,12 @@ pub fn process(state: &mut ProcessEnvelopeState<SpanGroup>, global_config: &Glob
 
         if let Err(e) = normalize(&mut annotated_span, normalize_span_config.clone()) {
             relay_log::debug!("failed to normalize span: {}", e);
-            return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
+            return ItemAction::Drop(Outcome::Invalid(match e {
+                ProcessingError::InvalidTransaction | ProcessingError::InvalidTimestamp => {
+                    DiscardReason::InvalidSpan
+                }
+                _ => DiscardReason::Internal,
+            }));
         };
 
         if let Some(span) = annotated_span.value() {
@@ -198,9 +212,26 @@ pub fn process(state: &mut ProcessEnvelopeState<SpanGroup>, global_config: &Glob
     }
 }
 
+fn add_sample_rate(measurements: &mut Annotated<Measurements>, name: &str, value: Option<f64>) {
+    let value = match value {
+        Some(value) if value > 0.0 => value,
+        _ => return,
+    };
+
+    let measurement = Annotated::new(Measurement {
+        value: value.into(),
+        unit: MetricUnit::Fraction(FractionUnit::Ratio).into(),
+    });
+
+    measurements
+        .get_or_insert_with(Measurements::default)
+        .insert(name.to_owned(), measurement);
+}
+
 pub fn extract_from_event(
     state: &mut ProcessEnvelopeState<TransactionGroup>,
     global_config: &GlobalConfig,
+    server_sample_rate: Option<f64>,
 ) {
     // Only extract spans from transactions (not errors).
     if state.event_type() != Some(EventType::Transaction) {
@@ -217,7 +248,26 @@ pub fn extract_from_event(
         }
     }
 
-    let mut add_span = |mut span: Annotated<Span>| {
+    let client_sample_rate = state
+        .managed_envelope
+        .envelope()
+        .dsc()
+        .and_then(|ctx| ctx.sample_rate);
+
+    let mut add_span = |mut span: Span| {
+        add_sample_rate(
+            &mut span.measurements,
+            "client_sample_rate",
+            client_sample_rate,
+        );
+        add_sample_rate(
+            &mut span.measurements,
+            "server_sample_rate",
+            server_sample_rate,
+        );
+
+        let mut span = Annotated::new(span);
+
         match validate(&mut span) {
             Ok(span) => span,
             Err(e) => {
@@ -236,6 +286,7 @@ pub fn extract_from_event(
                 return;
             }
         };
+
         let span = match span.to_json() {
             Ok(span) => span,
             Err(e) => {
@@ -248,6 +299,7 @@ pub fn extract_from_event(
                 return;
             }
         };
+
         let mut item = Item::new(ItemType::Span);
         item.set_payload(ContentType::Json, span);
         // If metrics extraction happened for the event, it also happened for its spans:
@@ -269,6 +321,16 @@ pub fn extract_from_event(
             .aggregator
             .max_tag_value_length,
         &[],
+        if state
+            .project_state
+            .config
+            .features
+            .has(Feature::ScrubMongoDbDescriptions)
+        {
+            ScrubMongoDescription::Enabled
+        } else {
+            ScrubMongoDescription::Disabled
+        },
     ) else {
         return;
     };
@@ -290,11 +352,11 @@ pub fn extract_from_event(
             // child spans.
             new_span.profile_id = transaction_span.profile_id.clone();
 
-            add_span(Annotated::new(new_span));
+            add_span(new_span);
         }
     }
 
-    add_span(transaction_span.into());
+    add_span(transaction_span);
 
     state.spans_extracted = true;
 }
@@ -339,7 +401,17 @@ struct NormalizeSpanConfig<'a> {
     /// Client hints parsed from the request.
     client_hints: ClientHints<String>,
     /// Hosts that are not replaced by "*" in HTTP span grouping.
-    allowed_hosts: &'a [Host],
+    allowed_hosts: &'a [String],
+    /// Whether or not to scrub MongoDB span descriptions during normalization.
+    scrub_mongo_description: ScrubMongoDescription,
+    /// The IP address of the SDK that sent the event.
+    ///
+    /// When `{{auto}}` is specified and there is no other IP address in the payload, such as in the
+    /// `request` context, this IP address gets added to `span.data.client_address`.
+    client_ip: Option<IpAddr>,
+    /// An initialized GeoIP lookup.
+    geo_lookup: Option<&'a GeoIpLookup>,
+    span_op_defaults: BorrowedSpanOpDefaults<'a>,
 }
 
 impl<'a> NormalizeSpanConfig<'a> {
@@ -348,6 +420,8 @@ impl<'a> NormalizeSpanConfig<'a> {
         global_config: &'a GlobalConfig,
         project_config: &'a ProjectConfig,
         managed_envelope: &ManagedEnvelope,
+        client_ip: Option<IpAddr>,
+        geo_lookup: Option<&'a GeoIpLookup>,
     ) -> Self {
         let aggregator_config = config.aggregator_config_for(MetricNamespace::Spans);
 
@@ -377,6 +451,17 @@ impl<'a> NormalizeSpanConfig<'a> {
                 .map(String::from),
             client_hints: managed_envelope.meta().client_hints().clone(),
             allowed_hosts: global_config.options.http_span_allowed_hosts.as_slice(),
+            scrub_mongo_description: if project_config
+                .features
+                .has(Feature::ScrubMongoDbDescriptions)
+            {
+                ScrubMongoDescription::Enabled
+            } else {
+                ScrubMongoDescription::Disabled
+            },
+            client_ip,
+            geo_lookup,
+            span_op_defaults: global_config.span_op_defaults.borrow(),
         }
     }
 }
@@ -384,9 +469,9 @@ impl<'a> NormalizeSpanConfig<'a> {
 fn set_segment_attributes(span: &mut Annotated<Span>) {
     let Some(span) = span.value_mut() else { return };
 
-    // Identify INP spans and make sure they are not wrapped in a segment.
+    // Identify INP spans or other WebVital spans and make sure they are not wrapped in a segment.
     if let Some(span_op) = span.op.value() {
-        if span_op.starts_with("ui.interaction.") {
+        if span_op.starts_with("ui.interaction.") || span_op.starts_with("ui.webvital.") {
             span.is_segment = None.into();
             span.parent_span_id = None.into();
             span.segment_id = None.into();
@@ -429,13 +514,15 @@ fn normalize(
         user_agent,
         client_hints,
         allowed_hosts,
+        scrub_mongo_description,
+        client_ip,
+        geo_lookup,
+        span_op_defaults,
     } = config;
 
     set_segment_attributes(annotated_span);
 
-    // This follows the steps of `NormalizeProcessor::process_event`.
-    // Ideally, `NormalizeProcessor` would execute these steps generically, i.e. also when calling
-    // `process` on it.
+    // This follows the steps of `event::normalize`.
 
     process_value(
         annotated_span,
@@ -454,13 +541,38 @@ fn normalize(
     }
     process_value(
         annotated_span,
-        &mut TransactionsProcessor::new(Default::default()),
+        &mut TransactionsProcessor::new(Default::default(), span_op_defaults),
         ProcessingState::root(),
     )?;
 
     let Some(span) = annotated_span.value_mut() else {
         return Err(ProcessingError::NoEventPayload);
     };
+
+    // Replace missing / {{auto}} IPs:
+    // Transaction and error events require an explicit `{{auto}}` to derive the IP, but
+    // for spans we derive it by default:
+    if let Some(client_ip) = client_ip.as_ref() {
+        let ip = span.data.value().and_then(|d| d.client_address.value());
+        if ip.map_or(true, |ip| ip.is_auto()) {
+            span.data
+                .get_or_insert_with(Default::default)
+                .client_address = Annotated::new(client_ip.clone());
+        }
+    }
+
+    // Derive geo ip:
+    if let Some(geoip_lookup) = geo_lookup {
+        let data = span.data.get_or_insert_with(Default::default);
+        if let Some(ip) = data.client_address.value() {
+            if let Ok(Some(geo)) = geoip_lookup.lookup(ip.as_str()) {
+                data.user_geo_city = geo.city;
+                data.user_geo_country_code = geo.country_code;
+                data.user_geo_region = geo.region;
+                data.user_geo_subdivision = geo.subdivision;
+            }
+        }
+    }
 
     populate_ua_fields(span, user_agent.as_deref(), client_hints.as_deref());
 
@@ -496,6 +608,7 @@ fn normalize(
         is_mobile,
         None,
         allowed_hosts,
+        scrub_mongo_description,
     );
     span.sentry_tags = Annotated::new(
         tags.into_iter()
@@ -642,6 +755,7 @@ mod tests {
     use std::sync::Arc;
 
     use bytes::Bytes;
+    use once_cell::sync::Lazy;
     use relay_base_schema::project::ProjectId;
     use relay_event_schema::protocol::{
         Context, ContextInner, SpanId, Timestamp, TraceContext, TraceId,
@@ -660,9 +774,10 @@ mod tests {
 
     fn state() -> ProcessEnvelopeState<'static, TransactionGroup> {
         let bytes = Bytes::from(
-            "\
-             {\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42\"}\n\
-             {\"type\":\"transaction\"}\n{}\n",
+            r#"{"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","trace":{"trace_id":"89143b0763095bd9c9955e8175d1fb23","public_key":"e12d836b15bb49d7bbf99e64295d995b","sample_rate":"0.2"}}
+{"type":"transaction"}
+{}
+"#,
         );
 
         let dummy_envelope = Envelope::parse_bytes(bytes).unwrap();
@@ -703,12 +818,7 @@ mod tests {
         ProcessEnvelopeState {
             event: Annotated::from(event),
             metrics: Default::default(),
-            sample_rates: None,
-            extracted_metrics: ProcessingExtractedMetrics::new(
-                project_state.clone(),
-                Arc::new(GlobalConfig::default()),
-                managed_envelope.envelope().dsc(),
-            ),
+            extracted_metrics: ProcessingExtractedMetrics::new(),
             config: Arc::new(Config::default()),
             project_state,
             sampling_project_state: None,
@@ -726,7 +836,7 @@ mod tests {
         let global_config = GlobalConfig::default();
         assert!(global_config.options.span_extraction_sample_rate.is_none());
         let mut state = state();
-        extract_from_event(&mut state, &global_config);
+        extract_from_event(&mut state, &global_config, None);
         assert!(
             state
                 .envelope()
@@ -742,7 +852,7 @@ mod tests {
         let mut global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = Some(1.0);
         let mut state = state();
-        extract_from_event(&mut state, &global_config);
+        extract_from_event(&mut state, &global_config, None);
         assert!(
             state
                 .envelope()
@@ -758,7 +868,7 @@ mod tests {
         let mut global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = Some(0.0);
         let mut state = state();
-        extract_from_event(&mut state, &global_config);
+        extract_from_event(&mut state, &global_config, None);
         assert!(
             !state
                 .envelope()
@@ -767,6 +877,44 @@ mod tests {
             "{:?}",
             state.envelope()
         );
+    }
+
+    #[test]
+    fn extract_sample_rates() {
+        let mut global_config = GlobalConfig::default();
+        global_config.options.span_extraction_sample_rate = Some(1.0); // force enable
+        let mut state = state(); // client sample rate is 0.2
+        extract_from_event(&mut state, &global_config, Some(0.1));
+
+        let span = state
+            .envelope()
+            .items()
+            .find(|item| item.ty() == &ItemType::Span)
+            .unwrap();
+
+        let span = Annotated::<Span>::from_json_bytes(&span.payload()).unwrap();
+        let measurements = span.value().and_then(|s| s.measurements.value());
+
+        insta::assert_debug_snapshot!(measurements, @r###"
+        Some(
+            Measurements(
+                {
+                    "client_sample_rate": Measurement {
+                        value: 0.2,
+                        unit: Fraction(
+                            Ratio,
+                        ),
+                    },
+                    "server_sample_rate": Measurement {
+                        value: 0.1,
+                        unit: Fraction(
+                            Ratio,
+                        ),
+                    },
+                },
+            ),
+        )
+        "###);
     }
 
     #[test]
@@ -1005,5 +1153,103 @@ mod tests {
         );
         assert_eq!(get_value!(span.data.user_agent_original), None);
         assert_eq!(get_value!(span.data.browser_name!), "Opera");
+    }
+
+    static GEO_LOOKUP: Lazy<GeoIpLookup> = Lazy::new(|| {
+        GeoIpLookup::open("../relay-event-normalization/tests/fixtures/GeoIP2-Enterprise-Test.mmdb")
+            .unwrap()
+    });
+
+    fn normalize_config() -> NormalizeSpanConfig<'static> {
+        NormalizeSpanConfig {
+            received_at: DateTime::from_timestamp_nanos(0),
+            timestamp_range: UnixTimestamp::from_datetime(
+                DateTime::<Utc>::from_timestamp_millis(1000).unwrap(),
+            )
+            .unwrap()
+                ..UnixTimestamp::from_datetime(DateTime::<Utc>::MAX_UTC).unwrap(),
+            max_tag_value_size: 200,
+            performance_score: None,
+            measurements: None,
+            ai_model_costs: None,
+            max_name_and_unit_len: 200,
+            tx_name_rules: &[],
+            user_agent: None,
+            client_hints: ClientHints::default(),
+            allowed_hosts: &[],
+            scrub_mongo_description: ScrubMongoDescription::Disabled,
+            client_ip: Some(IpAddr("2.125.160.216".to_owned())),
+            geo_lookup: Some(&GEO_LOOKUP),
+            span_op_defaults: Default::default(),
+        }
+    }
+
+    #[test]
+    fn user_ip_from_client_ip_without_auto() {
+        let mut span = Annotated::from_json(
+            r#"{
+            "start_timestamp": 0,
+            "timestamp": 1,
+            "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+            "span_id": "922dda2462ea4ac2",
+            "data": {
+                "client.address": "2.125.160.216"
+            }
+        }"#,
+        )
+        .unwrap();
+
+        normalize(&mut span, normalize_config()).unwrap();
+
+        assert_eq!(
+            get_value!(span.data.client_address!).as_str(),
+            "2.125.160.216"
+        );
+        assert_eq!(get_value!(span.data.user_geo_city!), "Boxford");
+    }
+
+    #[test]
+    fn user_ip_from_client_ip_with_auto() {
+        let mut span = Annotated::from_json(
+            r#"{
+            "start_timestamp": 0,
+            "timestamp": 1,
+            "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+            "span_id": "922dda2462ea4ac2",
+            "data": {
+                "client.address": "{{auto}}"
+            }
+        }"#,
+        )
+        .unwrap();
+
+        normalize(&mut span, normalize_config()).unwrap();
+
+        assert_eq!(
+            get_value!(span.data.client_address!).as_str(),
+            "2.125.160.216"
+        );
+        assert_eq!(get_value!(span.data.user_geo_city!), "Boxford");
+    }
+
+    #[test]
+    fn user_ip_from_client_ip_with_missing() {
+        let mut span = Annotated::from_json(
+            r#"{
+            "start_timestamp": 0,
+            "timestamp": 1,
+            "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+            "span_id": "922dda2462ea4ac2"
+        }"#,
+        )
+        .unwrap();
+
+        normalize(&mut span, normalize_config()).unwrap();
+
+        assert_eq!(
+            get_value!(span.data.client_address!).as_str(),
+            "2.125.160.216"
+        );
+        assert_eq!(get_value!(span.data.user_geo_city!), "Boxford");
     }
 }

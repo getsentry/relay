@@ -26,14 +26,12 @@ pub enum RelayGauges {
     /// This metric is tagged with:
     /// - `reason`: Why keys are / are not unspooled.
     BufferPeriodicUnspool,
-    /// Number of envelopes currently waiting to be buffered.
-    ///
-    /// This corresponds to the number of corresponding tokio tasks currently scheduled or running.
-    BufferPushInFlight,
     /// The number of individual stacks in the priority queue.
     ///
     /// Per combination of `(own_key, sampling_key)`, a new stack is created.
     BufferStackCount,
+    /// The used disk for the buffer.
+    BufferDiskUsed,
     /// The currently used memory by the entire system.
     ///
     /// Relay uses the same value for its memory health check.
@@ -58,8 +56,8 @@ impl GaugeMetric for RelayGauges {
             RelayGauges::BufferEnvelopesMemoryCount => "buffer.envelopes_mem_count",
             RelayGauges::BufferEnvelopesDiskCount => "buffer.envelopes_disk_count",
             RelayGauges::BufferPeriodicUnspool => "buffer.unspool.periodic",
-            RelayGauges::BufferPushInFlight => "buffer.push_inflight",
             RelayGauges::BufferStackCount => "buffer.stack_count",
+            RelayGauges::BufferDiskUsed => "buffer.disk_used",
             RelayGauges::SystemMemoryUsed => "health.system_memory.used",
             RelayGauges::SystemMemoryTotal => "health.system_memory.total",
             #[cfg(feature = "processing")]
@@ -175,6 +173,14 @@ pub enum RelayHistograms {
     BufferDiskSize,
     /// Number of attempts needed to dequeue spooled envelopes from disk.
     BufferDequeueAttempts,
+    /// Number of elements in the envelope buffer across all the stacks.
+    ///
+    /// This metric is tagged with:
+    /// - `storage_type`: The type of storage used in the envelope buffer.
+    BufferEnvelopesCount,
+    /// Number of envelopes in the backpressure buffer between the envelope buffer
+    /// and the project cache.
+    BufferBackpressureEnvelopesCount,
     /// The number of batches emitted per partition.
     BatchesPerPartition,
     /// The number of buckets in a batch emitted.
@@ -299,6 +305,10 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::BufferEnvelopesMemoryBytes => "buffer.envelopes_mem",
             RelayHistograms::BufferDiskSize => "buffer.disk_size",
             RelayHistograms::BufferDequeueAttempts => "buffer.dequeue_attempts",
+            RelayHistograms::BufferEnvelopesCount => "buffer.envelopes_count",
+            RelayHistograms::BufferBackpressureEnvelopesCount => {
+                "buffer.backpressure_envelopes_count"
+            }
             RelayHistograms::ProjectStatePending => "project_state.pending",
             RelayHistograms::ProjectStateAttempts => "project_state.attempts",
             RelayHistograms::ProjectStateRequestBatchSize => "project_state.request.batch_size",
@@ -514,6 +524,20 @@ pub enum RelayTimers {
     ///  - `message`: The type of message that was processed.
     #[cfg(feature = "processing")]
     StoreServiceDuration,
+    /// Timing in milliseconds for the time it takes for initialize the buffer.
+    BufferInitialization,
+    /// Timing in milliseconds for the time it takes for the buffer to spool data to disk.
+    BufferSpool,
+    /// Timing in milliseconds for the time it takes for the buffer to unspool data from disk.
+    BufferUnspool,
+    /// Timing in milliseconds for the time it takes for the buffer to push.
+    BufferPush,
+    /// Timing in milliseconds for the time it takes for the buffer to peek.
+    BufferPeek,
+    /// Timing in milliseconds for the time it takes for the buffer to pop.
+    BufferPop,
+    /// Timing in milliseconds for the time it takes for the buffer to drain its envelopes.
+    BufferDrain,
 }
 
 impl TimerMetric for RelayTimers {
@@ -555,6 +579,13 @@ impl TimerMetric for RelayTimers {
             RelayTimers::MetricRouterServiceDuration => "metrics.router.message.duration",
             #[cfg(feature = "processing")]
             RelayTimers::StoreServiceDuration => "store.message.duration",
+            RelayTimers::BufferInitialization => "buffer.initialization.duration",
+            RelayTimers::BufferSpool => "buffer.spool.duration",
+            RelayTimers::BufferUnspool => "buffer.unspool.duration",
+            RelayTimers::BufferPush => "buffer.push.duration",
+            RelayTimers::BufferPeek => "buffer.peek.duration",
+            RelayTimers::BufferPop => "buffer.pop.duration",
+            RelayTimers::BufferDrain => "buffer.drain.duration",
         }
     }
 }
@@ -600,6 +631,22 @@ pub enum RelayCounters {
     ///  - `state_out`: The new state. `memory`, `memory_file_standby`, or `disk`.
     ///  - `reason`: Why a transition was made (or not made).
     BufferStateTransition,
+    /// Number of envelopes that were returned to the envelope buffer by the project cache.
+    ///
+    /// This happens when the envelope buffer falsely assumes that the envelope's projects are loaded
+    /// in the cache and sends the envelope onward, even though the project cache cannot handle it.
+    BufferEnvelopesReturned,
+    /// Number of times an envelope stack is popped from the priority queue of stacks in the
+    /// envelope buffer.
+    BufferEnvelopeStacksPopped,
+    /// Number of times an envelope from the buffer is trying to be popped.
+    BufferTryPop,
+    /// Number of times the readiness check of the buffer is polled.
+    BufferReadyToPop,
+    /// Number of envelopes spool to disk.
+    BufferSpooledEnvelopes,
+    /// Number of envelopes unspooled from disk.
+    BufferUnspooledEnvelopes,
     ///
     /// Number of outcomes and reasons for rejected Envelopes.
     ///
@@ -801,6 +848,8 @@ pub enum RelayCounters {
     /// This metric is tagged with:
     ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
     BucketsDropped,
+    /// Incremented every time a segment exceeds the expected limit.
+    ReplayExceededSegmentLimit,
 }
 
 impl CounterMetric for RelayCounters {
@@ -813,7 +862,13 @@ impl CounterMetric for RelayCounters {
             RelayCounters::BufferReadsDisk => "buffer.reads",
             RelayCounters::BufferEnvelopesWritten => "buffer.envelopes_written",
             RelayCounters::BufferEnvelopesRead => "buffer.envelopes_read",
+            RelayCounters::BufferEnvelopesReturned => "buffer.envelopes_returned",
             RelayCounters::BufferStateTransition => "buffer.state.transition",
+            RelayCounters::BufferEnvelopeStacksPopped => "buffer.envelope_stacks_popped",
+            RelayCounters::BufferTryPop => "buffer.try_pop",
+            RelayCounters::BufferReadyToPop => "buffer.ready_to_pop",
+            RelayCounters::BufferSpooledEnvelopes => "buffer.spooled_envelopes",
+            RelayCounters::BufferUnspooledEnvelopes => "buffer.unspooled_envelopes",
             RelayCounters::Outcomes => "events.outcomes",
             RelayCounters::ProjectStateGet => "project_state.get",
             RelayCounters::ProjectStateRequest => "project_state.request",
@@ -843,6 +898,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::CogsUsage => "cogs.usage",
             RelayCounters::ProjectStateFlushMetricsNoProject => "project_state.metrics.no_project",
             RelayCounters::BucketsDropped => "metrics.buckets.dropped",
+            RelayCounters::ReplayExceededSegmentLimit => "replay.segment_limit_exceeded",
         }
     }
 }

@@ -8,8 +8,8 @@ use super::EnvelopeStack;
 pub struct MemoryEnvelopeStack(#[allow(clippy::vec_box)] Vec<Box<Envelope>>);
 
 impl MemoryEnvelopeStack {
-    pub fn new(envelope: Box<Envelope>) -> Self {
-        Self(vec![envelope])
+    pub fn new() -> Self {
+        Self(vec![])
     }
 }
 
@@ -27,5 +27,9 @@ impl EnvelopeStack for MemoryEnvelopeStack {
 
     async fn pop(&mut self) -> Result<Option<Box<Envelope>>, Self::Error> {
         Ok(self.0.pop())
+    }
+
+    fn flush(self) -> Vec<Box<Envelope>> {
+        self.0
     }
 }

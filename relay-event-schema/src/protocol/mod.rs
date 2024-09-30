@@ -21,8 +21,6 @@ mod nel;
 mod relay_info;
 mod replay;
 mod request;
-#[cfg(feature = "jsonschema")]
-mod schema;
 mod security_report;
 mod session;
 mod span;
@@ -59,8 +57,6 @@ pub use self::nel::*;
 pub use self::relay_info::*;
 pub use self::replay::*;
 pub use self::request::*;
-#[cfg(feature = "jsonschema")]
-pub use self::schema::event_json_schema;
 pub use self::security_report::*;
 pub use self::session::*;
 pub use self::span::*;

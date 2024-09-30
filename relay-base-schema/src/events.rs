@@ -7,8 +7,6 @@ use std::fmt;
 use std::str::FromStr;
 
 use relay_protocol::{Annotated, Empty, ErrorKind, FromValue, IntoValue, SkipSerialization, Value};
-#[cfg(feature = "jsonschema")]
-use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// The type of an event.
@@ -26,7 +24,6 @@ use serde::{Deserialize, Serialize};
 #[derive(
     Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Deserialize, Serialize, Default,
 )]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[serde(rename_all = "lowercase")]
 pub enum EventType {
     /// Events that carry an exception payload.
@@ -135,7 +132,7 @@ impl IntoValue for EventType {
     where
         Self: Sized,
     {
-        Value::String(format!("{self}"))
+        Value::String(self.to_string())
     }
 
     fn serialize_payload<S>(&self, s: S, _behavior: SkipSerialization) -> Result<S::Ok, S::Error>
@@ -143,6 +140,6 @@ impl IntoValue for EventType {
         Self: Sized,
         S: serde::Serializer,
     {
-        Serialize::serialize(&self.to_string(), s)
+        Serialize::serialize(self.as_str(), s)
     }
 }

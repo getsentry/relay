@@ -4,13 +4,12 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "The Relay binary, a proxy server for Sentry"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "24.8.0"
+version = "24.9.0"
 edition = "2021"
 license-file = "../LICENSE.md"
 publish = false
 
 [features]
-dashboard = ["relay-server/dashboard", "relay-log/dashboard"]
 default = []
 processing = ["relay-server/processing", "dep:relay-kafka"]
 crash-handler = ["relay-log/crash-handler"]

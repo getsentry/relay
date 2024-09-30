@@ -1,5 +1,3 @@
-#[cfg(feature = "jsonschema")]
-use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{
     Annotated, Empty, Error, ErrorKind, FromValue, IntoValue, SkipSerialization, Value,
 };
@@ -9,7 +7,6 @@ use crate::protocol::LenientString;
 
 /// A fingerprint value.
 #[derive(Debug, Clone, PartialEq)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Fingerprint(Vec<String>);
 
 impl std::ops::Deref for Fingerprint {

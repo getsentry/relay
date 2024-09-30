@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use axum::extract::Query;
+use axum::extract::{Query, Request};
 use axum::handler::Handler;
-use axum::http::Request;
 use axum::response::{IntoResponse, Result};
 use axum::{Json, RequestExt};
-use futures::future;
+use futures::stream::FuturesUnordered;
+use futures::StreamExt;
 use relay_base_schema::project::ProjectKey;
 use relay_dynamic_config::{ErrorBoundary, GlobalConfig};
 use serde::{Deserialize, Serialize};
@@ -79,6 +79,8 @@ struct GetProjectStatesResponseWrapper {
     configs: HashMap<ProjectKey, ProjectStateWrapper>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pending: Vec<ProjectKey>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    unchanged: Vec<ProjectKey>,
     #[serde(skip_serializing_if = "Option::is_none")]
     global: Option<Arc<GlobalConfig>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -92,13 +94,45 @@ struct GetProjectStatesResponseWrapper {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct GetProjectStatesRequest {
+    /// The list of all requested project configs.
     public_keys: Vec<ErrorBoundary<ProjectKey>>,
+    /// List of revisions for all project configs.
+    ///
+    /// This length of this list if specified must be the same length
+    /// as [`Self::public_keys`], the items are asssociated by index.
+    revisions: Option<ErrorBoundary<Vec<Option<String>>>>,
     #[serde(default)]
     full_config: bool,
     #[serde(default)]
     no_cache: bool,
     #[serde(default)]
     global: bool,
+}
+
+fn into_valid_keys(
+    public_keys: Vec<ErrorBoundary<ProjectKey>>,
+    revisions: Option<ErrorBoundary<Vec<Option<String>>>>,
+) -> impl Iterator<Item = (ProjectKey, Option<String>)> {
+    let mut revisions = revisions.and_then(|e| e.ok()).unwrap_or_default();
+    if !revisions.is_empty() && revisions.len() != public_keys.len() {
+        // The downstream sent us a different amount of revisions than project keys,
+        // this indicates an error in the downstream code. Just to be safe, discard
+        // all revisions and carry on as if the downstream never sent any revisions.
+        relay_log::warn!(
+            "downstream sent {} project keys but {} revisions, discarding all revisions",
+            public_keys.len(),
+            revisions.len()
+        );
+        revisions.clear();
+    }
+    let revisions = revisions.into_iter().chain(std::iter::repeat(None));
+
+    std::iter::zip(public_keys, revisions).filter_map(|(public_key, revision)| {
+        // Skip unparsable public keys.
+        // The downstream Relay will consider them `ProjectState::missing`.
+        let public_key = public_key.ok()?;
+        Some((public_key, revision))
+    })
 }
 
 async fn inner(
@@ -112,21 +146,21 @@ async fn inner(
     let no_cache = inner.no_cache;
     let keys_len = inner.public_keys.len();
 
-    // Skip unparsable public keys. The downstream Relay will consider them `ProjectState::missing`.
-    let valid_keys = inner.public_keys.into_iter().filter_map(|e| e.ok());
-    let futures = valid_keys.map(|project_key| async move {
-        let state_result = if version.version >= ENDPOINT_V3 && !no_cache {
-            project_cache
-                .send(GetCachedProjectState::new(project_key))
-                .await
-        } else {
-            project_cache
-                .send(GetProjectState::new(project_key).no_cache(no_cache))
-                .await
-        };
+    let mut futures: FuturesUnordered<_> = into_valid_keys(inner.public_keys, inner.revisions)
+        .map(|(project_key, revision)| async move {
+            let state_result = if version.version >= ENDPOINT_V3 && !no_cache {
+                project_cache
+                    .send(GetCachedProjectState::new(project_key))
+                    .await
+            } else {
+                project_cache
+                    .send(GetProjectState::new(project_key).no_cache(no_cache))
+                    .await
+            };
 
-        (project_key, state_result)
-    });
+            (project_key, revision, state_result)
+        })
+        .collect();
 
     let (global, global_status) = if inner.global {
         match state.global_config().send(global_config::Get).await? {
@@ -143,8 +177,10 @@ async fn inner(
     };
 
     let mut pending = Vec::with_capacity(keys_len);
+    let mut unchanged = Vec::with_capacity(keys_len);
     let mut configs = HashMap::with_capacity(keys_len);
-    for (project_key, state_result) in future::join_all(futures).await {
+
+    while let Some((project_key, revision, state_result)) = futures.next().await {
         let project_info = match state_result? {
             ProjectState::Enabled(info) => info,
             ProjectState::Disabled => {
@@ -156,6 +192,12 @@ async fn inner(
                 continue;
             }
         };
+
+        // Only ever omit responses when there was a valid revision in the first place.
+        if revision.is_some() && project_info.rev == revision {
+            unchanged.push(project_key);
+            continue;
+        }
 
         // If public key is known (even if rate-limited, which is Some(false)), it has
         // access to the project config
@@ -187,6 +229,7 @@ async fn inner(
     Ok(Json(GetProjectStatesResponseWrapper {
         configs,
         pending,
+        unchanged,
         global,
         global_status,
     }))
@@ -208,12 +251,7 @@ fn is_compatible(Query(query): Query<VersionQuery>) -> bool {
 /// Relays can drop compatibility with old versions of the project config endpoint, for instance the
 /// initial version 1. However, Sentry's HTTP endpoint will retain compatibility for much longer to
 /// support old Relay versions.
-pub async fn handle<B>(state: ServiceState, mut req: Request<B>) -> Result<impl IntoResponse>
-where
-    B: axum::body::HttpBody + Send + 'static,
-    B::Data: Send,
-    B::Error: Into<axum::BoxError>,
-{
+pub async fn handle(state: ServiceState, mut req: Request) -> Result<impl IntoResponse> {
     let data = req.extract_parts().await?;
     Ok(if is_compatible(data) {
         inner.call(req, state).await

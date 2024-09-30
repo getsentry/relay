@@ -742,10 +742,10 @@ impl SharedClient {
             // In the forward endpoint, this means that content negotiation is done twice, and the
             // response body is first decompressed by the client, then re-compressed by the server.
             .gzip(true)
-            // Enables async resolver through the `trust-dns-resolver` crate, which uses an LRU cache for the resolved entries.
-            // This helps to limit the amount of requests made to upstream DNS server (important
-            // for K8s infrastructure).
-            .trust_dns(true)
+            // Enables async resolver through the `hickory-dns` crate, which uses an LRU cache for
+            // the resolved entries. This helps to limit the amount of requests made to upstream DNS
+            // server (important for K8s infrastructure).
+            .hickory_dns(true)
             .build()
             .unwrap();
 
@@ -1202,10 +1202,13 @@ impl AuthMonitor {
                     }
                 }
                 Err(err) => {
-                    relay_log::error!(
-                        error = &err as &dyn std::error::Error,
-                        "authentication encountered error"
-                    );
+                    if backoff.attempt() > 1 {
+                        relay_log::error!(
+                            error = &err as &dyn std::error::Error,
+                            tags.attempts = backoff.attempt(),
+                            "authentication encountered error",
+                        );
+                    }
 
                     // ChannelClosed indicates that there are no more listeners, so we stop
                     // authenticating.

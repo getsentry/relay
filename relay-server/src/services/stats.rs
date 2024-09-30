@@ -37,7 +37,7 @@ impl RelayStats {
     async fn tokio_metrics(&self) {
         let m = tokio::runtime::Handle::current().metrics();
 
-        metric!(gauge(TokioGauges::ActiveTasksCount) = m.active_tasks_count() as u64);
+        metric!(gauge(TokioGauges::ActiveTasksCount) = m.num_alive_tasks() as u64);
         metric!(gauge(TokioGauges::BlockingQueueDepth) = m.blocking_queue_depth() as u64);
         metric!(gauge(TokioGauges::BudgetForcedYieldCount) = m.budget_forced_yield_count());
         metric!(gauge(TokioGauges::NumBlockingThreads) = m.num_blocking_threads() as u64);

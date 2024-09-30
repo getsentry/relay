@@ -3,6 +3,7 @@ use std::error::Error;
 use std::net::IpAddr;
 
 use bytes::Bytes;
+use relay_base_schema::project::ProjectId;
 use relay_dynamic_config::{Feature, GlobalConfig, ProjectConfig};
 use relay_event_normalization::replay::{self, ReplayError};
 use relay_event_normalization::RawUserAgentInfo;
@@ -17,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use crate::envelope::{ContentType, ItemType};
 use crate::services::outcome::DiscardReason;
 use crate::services::processor::{ProcessEnvelopeState, ProcessingError, ReplayGroup};
-use crate::statsd::RelayTimers;
+use crate::statsd::{RelayCounters, RelayTimers};
 
 /// Removes replays if the feature flag is not enabled.
 pub fn process(
@@ -28,6 +29,8 @@ pub fn process(
     let replays_disabled = state.should_filter(Feature::SessionReplay);
     let scrubbing_enabled = project_state.has_feature(Feature::SessionReplayRecordingScrubbing);
     let replay_video_disabled = project_state.has_feature(Feature::SessionReplayVideoDisabled);
+    let project_id = project_state.project_id;
+    let organization_id = project_state.organization_id;
 
     let meta = state.envelope().meta().clone();
     let client_addr = meta.client_addr();
@@ -79,6 +82,8 @@ pub fn process(
                     global_config,
                     client_addr,
                     user_agent,
+                    project_id,
+                    organization_id,
                 )?;
                 item.set_payload(ContentType::Json, replay_event);
             }
@@ -101,6 +106,8 @@ pub fn process(
                     user_agent,
                     scrubbing_enabled,
                     &mut scrubber,
+                    project_id,
+                    organization_id,
                 )?;
                 item.set_payload(ContentType::OctetStream, replay_video);
             }
@@ -113,6 +120,7 @@ pub fn process(
 
 // Replay Event Processing.
 
+#[allow(clippy::too_many_arguments)]
 fn handle_replay_event_item(
     payload: Bytes,
     event_id: &Option<EventId>,
@@ -120,6 +128,8 @@ fn handle_replay_event_item(
     global_config: &GlobalConfig,
     client_ip: Option<IpAddr>,
     user_agent: &RawUserAgentInfo<&str>,
+    project_id: Option<ProjectId>,
+    organization_id: Option<u64>,
 ) -> Result<Bytes, ProcessingError> {
     let filter_settings = &config.filter_settings;
 
@@ -133,6 +143,22 @@ fn handle_replay_event_item(
                     global_config.filters(),
                 )
                 .map_err(ProcessingError::ReplayFiltered)?;
+
+                // Log segments that exceed the hour limit so we can diagnose errant SDKs
+                // or exotic customer implementations.
+                if let Some(segment_id) = replay_type.segment_id.value() {
+                    if *segment_id > 720 {
+                        metric!(counter(RelayCounters::ReplayExceededSegmentLimit) += 1);
+
+                        relay_log::warn!(
+                            ?event_id,
+                            project_id = project_id.map(|v| v.value()),
+                            organization_id = organization_id,
+                            segment_id = segment_id,
+                            "replay segment-exceeded-limit"
+                        );
+                    }
+                }
             }
 
             match replay.to_json() {
@@ -151,6 +177,8 @@ fn handle_replay_event_item(
             relay_log::warn!(
                 error = &error as &dyn Error,
                 ?event_id,
+                project_id = project_id.map(|v| v.value()),
+                organization_id = organization_id,
                 "invalid replay event"
             );
             Err(match error {
@@ -259,6 +287,8 @@ fn handle_replay_video_item(
     user_agent: &RawUserAgentInfo<&str>,
     scrubbing_enabled: bool,
     scrubber: &mut RecordingScrubber,
+    project_id: Option<ProjectId>,
+    organization_id: Option<u64>,
 ) -> Result<Bytes, ProcessingError> {
     let ReplayVideoEvent {
         replay_event,
@@ -282,6 +312,8 @@ fn handle_replay_video_item(
         global_config,
         client_ip,
         user_agent,
+        project_id,
+        organization_id,
     )?;
 
     // Process as a replay-recording envelope item.

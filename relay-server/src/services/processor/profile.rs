@@ -19,7 +19,7 @@ use crate::utils::ItemAction;
 pub fn filter<G>(state: &mut ProcessEnvelopeState<G>) -> Option<ProfileId> {
     let profiling_disabled = state.should_filter(Feature::Profiling);
     let has_transaction = state.event_type() == Some(EventType::Transaction);
-    let keep_unsampled_profiles = !state.should_filter(Feature::IngestUnsampledProfiles);
+    let keep_unsampled_profiles = true;
 
     let mut profile_id = None;
     state.managed_envelope.retain_items(|item| match item.ty() {

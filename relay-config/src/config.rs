@@ -907,6 +907,21 @@ fn spool_envelopes_max_envelope_delay_secs() -> u64 {
     24 * 60 * 60
 }
 
+/// Default refresh frequency in ms for the disk usage monitoring.
+fn spool_disk_usage_refresh_frequency_ms() -> u64 {
+    100
+}
+
+/// Default bounded buffer size for handling backpressure.
+fn spool_max_backpressure_envelopes() -> usize {
+    500
+}
+
+/// Default max memory usage for unspooling.
+fn spool_max_backpressure_memory_percent() -> f32 {
+    0.9
+}
+
 /// Persistent buffering configuration for incoming envelopes.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EnvelopeSpool {
@@ -922,7 +937,7 @@ pub struct EnvelopeSpool {
     min_connections: u32,
     /// The maximum size of the buffer to keep, in bytes.
     ///
-    /// If not set the befault is 524288000 bytes (500MB).
+    /// If not set the default is 524288000 bytes (500MB).
     #[serde(default = "spool_envelopes_max_disk_size")]
     max_disk_size: ByteSize,
     /// The maximum bytes to keep in the memory buffer before spooling envelopes to disk, in bytes.
@@ -946,6 +961,24 @@ pub struct EnvelopeSpool {
     /// they are dropped. Defaults to 24h.
     #[serde(default = "spool_envelopes_max_envelope_delay_secs")]
     max_envelope_delay_secs: u64,
+    /// The refresh frequency in ms of how frequently disk usage is updated by querying SQLite
+    /// internal page stats.
+    #[serde(default = "spool_disk_usage_refresh_frequency_ms")]
+    disk_usage_refresh_frequency_ms: u64,
+    /// The amount of envelopes that the envelope buffer can push to its output queue.
+    #[serde(default = "spool_max_backpressure_envelopes")]
+    max_backpressure_envelopes: usize,
+    /// The relative memory usage above which the buffer service will stop dequeueing envelopes.
+    ///
+    /// Only applies when [`Self::path`] is set.
+    /// This value should be lower than [`Health::max_memory_percent`] to prevent flip-flopping.
+    ///
+    /// Warning: this threshold can cause the buffer service to deadlock when the buffer itself
+    /// is using too much memory (influenced by [`Self::max_batches`] and [`Self::disk_batch_size`]).
+    ///
+    /// Defaults to 90% (5% less than max memory).
+    #[serde(default = "spool_max_backpressure_memory_percent")]
+    max_backpressure_memory_percent: f32,
     /// Version of the spooler.
     #[serde(default)]
     version: EnvelopeSpoolVersion,
@@ -981,6 +1014,9 @@ impl Default for EnvelopeSpool {
             disk_batch_size: spool_envelopes_stack_disk_batch_size(),
             max_batches: spool_envelopes_stack_max_batches(),
             max_envelope_delay_secs: spool_envelopes_max_envelope_delay_secs(),
+            disk_usage_refresh_frequency_ms: spool_disk_usage_refresh_frequency_ms(),
+            max_backpressure_envelopes: spool_max_backpressure_envelopes(),
+            max_backpressure_memory_percent: spool_max_backpressure_memory_percent(),
             version: EnvelopeSpoolVersion::default(),
         }
     }
@@ -1058,10 +1094,6 @@ fn default_max_secs_in_future() -> u32 {
     60 // 1 minute
 }
 
-fn default_max_secs_in_past() -> u32 {
-    30 * 24 * 3600 // 30 days
-}
-
 fn default_max_session_secs_in_past() -> u32 {
     5 * 24 * 3600 // 5 days
 }
@@ -1090,9 +1122,6 @@ pub struct Processing {
     /// Maximum future timestamp of ingested events.
     #[serde(default = "default_max_secs_in_future")]
     pub max_secs_in_future: u32,
-    /// Maximum age of ingested events. Older events will be adjusted to `now()`.
-    #[serde(default = "default_max_secs_in_past")]
-    pub max_secs_in_past: u32,
     /// Maximum age of ingested sessions. Older sessions will be dropped.
     #[serde(default = "default_max_session_secs_in_past")]
     pub max_session_secs_in_past: u32,
@@ -1146,7 +1175,6 @@ impl Default for Processing {
             enabled: false,
             geoip_path: None,
             max_secs_in_future: default_max_secs_in_future(),
-            max_secs_in_past: default_max_secs_in_past(),
             max_session_secs_in_past: default_max_session_secs_in_past(),
             kafka_config: Vec::new(),
             secondary_kafka_configs: BTreeMap::new(),
@@ -1491,20 +1519,6 @@ impl Default for Health {
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
 pub struct Cogs {
-    /// Whether COGS measurements are enabled.
-    ///
-    /// Defaults to `false`.
-    enabled: bool,
-    /// Granularity of the COGS measurements.
-    ///
-    /// Measurements are aggregated based on the granularity in seconds.
-    ///
-    /// Aggregated measurements are always flushed at the end of their
-    /// aggregation window, which means the granularity also controls the flush
-    /// interval.
-    ///
-    /// Defaults to `60` (1 minute).
-    granularity_secs: u64,
     /// Maximium amount of COGS measurements allowed to backlog.
     ///
     /// Any additional COGS measurements recorded will be dropped.
@@ -1522,8 +1536,6 @@ pub struct Cogs {
 impl Default for Cogs {
     fn default() -> Self {
         Self {
-            enabled: false,
-            granularity_secs: 60,
             max_queue_size: 10_000,
             relay_resource_id: "relay_service".to_owned(),
         }
@@ -2216,6 +2228,21 @@ impl Config {
         Duration::from_secs(self.values.spool.envelopes.max_envelope_delay_secs)
     }
 
+    /// Returns the refresh frequency for disk usage monitoring as a [`Duration`] object.
+    pub fn spool_disk_usage_refresh_frequency_ms(&self) -> Duration {
+        Duration::from_millis(self.values.spool.envelopes.disk_usage_refresh_frequency_ms)
+    }
+
+    /// Returns the maximum number of envelopes that can be put in the bounded buffer.
+    pub fn spool_max_backpressure_envelopes(&self) -> usize {
+        self.values.spool.envelopes.max_backpressure_envelopes
+    }
+
+    /// Returns the relative memory usage up to which the disk buffer will unspool envelopes.
+    pub fn spool_max_backpressure_memory_percent(&self) -> f32 {
+        self.values.spool.envelopes.max_backpressure_memory_percent
+    }
+
     /// Returns the maximum size of an event payload in bytes.
     pub fn max_event_size(&self) -> usize {
         self.values.limits.max_event_size.as_bytes()
@@ -2395,11 +2422,6 @@ impl Config {
         self.values.processing.max_secs_in_future.into()
     }
 
-    /// Maximum age of ingested events. Older events will be adjusted to `now()`.
-    pub fn max_secs_in_past(&self) -> i64 {
-        self.values.processing.max_secs_in_past.into()
-    }
-
     /// Maximum age of ingested sessions. Older sessions will be dropped.
     pub fn max_session_secs_in_past(&self) -> i64 {
         self.values.processing.max_session_secs_in_past.into()
@@ -2489,16 +2511,6 @@ impl Config {
     /// Refresh frequency for polling new memory stats.
     pub fn memory_stat_refresh_frequency_ms(&self) -> u64 {
         self.values.health.memory_stat_refresh_frequency_ms
-    }
-
-    /// Whether COGS measurements are enabled.
-    pub fn cogs_enabled(&self) -> bool {
-        self.values.cogs.enabled
-    }
-
-    /// Granularity for COGS measurements.
-    pub fn cogs_granularity(&self) -> Duration {
-        Duration::from_secs(self.values.cogs.granularity_secs)
     }
 
     /// Maximum amount of COGS measurements buffered in memory.

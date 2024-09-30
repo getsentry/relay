@@ -94,17 +94,6 @@ impl std::str::FromStr for MetricUnit {
 
 relay_common::impl_str_serde!(MetricUnit, "a metric unit string");
 
-#[cfg(feature = "jsonschema")]
-impl schemars::JsonSchema for MetricUnit {
-    fn schema_name() -> String {
-        std::any::type_name::<Self>().to_owned()
-    }
-
-    fn json_schema(gen: &mut schemars::gen::SchemaGenerator) -> schemars::schema::Schema {
-        String::json_schema(gen)
-    }
-}
-
 impl Empty for MetricUnit {
     #[inline]
     fn is_empty(&self) -> bool {
@@ -134,7 +123,7 @@ impl IntoValue for MetricUnit {
     where
         Self: Sized,
     {
-        Value::String(format!("{self}"))
+        Value::String(self.to_string())
     }
 
     fn serialize_payload<S>(&self, s: S, _behavior: SkipSerialization) -> Result<S::Ok, S::Error>
@@ -142,7 +131,7 @@ impl IntoValue for MetricUnit {
         Self: Sized,
         S: serde::Serializer,
     {
-        serde::Serialize::serialize(&self.to_string(), s)
+        serde::Serialize::serialize(self.as_str(), s)
     }
 }
 

@@ -3,9 +3,6 @@ use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::metrics::{MetricOutcomes, MetricStats};
-use crate::services::buffer::GuardedEnvelopeBuffer;
-use crate::services::stats::RelayStats;
 use anyhow::{Context, Result};
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
@@ -15,7 +12,10 @@ use relay_config::{Config, RedisConnection, RedisPoolConfigs};
 use relay_redis::{RedisConfigOptions, RedisError, RedisPool, RedisPools};
 use relay_system::{channel, Addr, Service};
 use tokio::runtime::Runtime;
+use tokio::sync::mpsc;
 
+use crate::metrics::{MetricOutcomes, MetricStats};
+use crate::services::buffer::{self, EnvelopeBufferService, ObservableEnvelopeBuffer};
 use crate::services::cogs::{CogsService, CogsServiceRecorder};
 use crate::services::global_config::{GlobalConfigManager, GlobalConfigService};
 use crate::services::health_check::{HealthCheck, HealthCheckService};
@@ -25,6 +25,7 @@ use crate::services::outcome_aggregator::OutcomeAggregator;
 use crate::services::processor::{self, EnvelopeProcessor, EnvelopeProcessorService};
 use crate::services::project_cache::{ProjectCache, ProjectCacheService, Services};
 use crate::services::relays::{RelayCache, RelayCacheService};
+use crate::services::stats::RelayStats;
 #[cfg(feature = "processing")]
 use crate::services::store::StoreService;
 use crate::services::test_store::{TestStore, TestStoreService};
@@ -60,6 +61,7 @@ pub struct Registry {
     pub global_config: Addr<GlobalConfigManager>,
     pub project_cache: Addr<ProjectCache>,
     pub upstream_relay: Addr<UpstreamRelay>,
+    pub envelope_buffer: Option<ObservableEnvelopeBuffer>,
 }
 
 impl fmt::Debug for Registry {
@@ -139,7 +141,6 @@ fn create_store_pool(config: &Config) -> Result<ThreadPool> {
 struct StateInner {
     config: Arc<Config>,
     memory_checker: MemoryChecker,
-    envelope_buffer: Option<Arc<GuardedEnvelopeBuffer>>,
     registry: Registry,
 }
 
@@ -177,7 +178,8 @@ impl ServiceState {
         .start();
         let outcome_aggregator = OutcomeAggregator::new(&config, outcome_producer.clone()).start();
 
-        let global_config = GlobalConfigService::new(config.clone(), upstream_relay.clone());
+        let (global_config, global_config_rx) =
+            GlobalConfigService::new(config.clone(), upstream_relay.clone());
         let global_config_handle = global_config.handle();
         // The global config service must start before dependant services are
         // started. Messages like subscription requests to the global config
@@ -217,11 +219,7 @@ impl ServiceState {
             })
             .transpose()?;
 
-        let cogs = CogsService::new(
-            &config,
-            #[cfg(feature = "processing")]
-            store.clone(),
-        );
+        let cogs = CogsService::new(&config);
         let cogs = Cogs::new(CogsServiceRecorder::new(&config, cogs.start()));
 
         EnvelopeProcessorService::new(
@@ -244,22 +242,37 @@ impl ServiceState {
         )
         .spawn_handler(processor_rx);
 
+        let (envelopes_tx, envelopes_rx) = mpsc::channel(config.spool_max_backpressure_envelopes());
+        let envelope_buffer = EnvelopeBufferService::new(
+            config.clone(),
+            memory_stat.clone(),
+            global_config_rx.clone(),
+            buffer::Services {
+                envelopes_tx,
+                project_cache: project_cache.clone(),
+                outcome_aggregator: outcome_aggregator.clone(),
+                test_store: test_store.clone(),
+            },
+        )
+        .map(|b| b.start_observable());
+
         // Keep all the services in one context.
-        let project_cache_services = Services::new(
-            aggregator.clone(),
-            processor.clone(),
-            outcome_aggregator.clone(),
-            project_cache.clone(),
-            test_store.clone(),
-            upstream_relay.clone(),
-            global_config.clone(),
-        );
-        let envelope_buffer = GuardedEnvelopeBuffer::from_config(&config).map(Arc::new);
+        let project_cache_services = Services {
+            envelope_buffer: envelope_buffer.as_ref().map(ObservableEnvelopeBuffer::addr),
+            aggregator: aggregator.clone(),
+            envelope_processor: processor.clone(),
+            outcome_aggregator: outcome_aggregator.clone(),
+            project_cache: project_cache.clone(),
+            test_store: test_store.clone(),
+            upstream_relay: upstream_relay.clone(),
+        };
+
         ProjectCacheService::new(
             config.clone(),
             MemoryChecker::new(memory_stat.clone(), config.clone()),
-            envelope_buffer.clone(),
             project_cache_services,
+            global_config_rx,
+            envelopes_rx,
             redis_pools
                 .as_ref()
                 .map(|pools| pools.project_configs.clone()),
@@ -271,7 +284,7 @@ impl ServiceState {
             MemoryChecker::new(memory_stat.clone(), config.clone()),
             aggregator_handle,
             upstream_relay.clone(),
-            project_cache.clone(),
+            envelope_buffer.clone(),
         )
         .start();
 
@@ -296,12 +309,12 @@ impl ServiceState {
             global_config,
             project_cache,
             upstream_relay,
+            envelope_buffer,
         };
 
         let state = StateInner {
             config: config.clone(),
             memory_checker: MemoryChecker::new(memory_stat, config.clone()),
-            envelope_buffer,
             registry,
         };
 
@@ -323,10 +336,8 @@ impl ServiceState {
     }
 
     /// Returns the V2 envelope buffer, if present.
-    ///
-    /// Clones the inner Arc.
-    pub fn envelope_buffer(&self) -> Option<Arc<GuardedEnvelopeBuffer>> {
-        self.inner.envelope_buffer.clone()
+    pub fn envelope_buffer(&self) -> Option<&ObservableEnvelopeBuffer> {
+        self.inner.registry.envelope_buffer.as_ref()
     }
 
     /// Returns the address of the [`ProjectCache`] service.

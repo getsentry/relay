@@ -3,13 +3,9 @@ use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
 
 use enumset::EnumSet;
-#[cfg(feature = "jsonschema")]
-use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{
     Annotated, Array, Empty, Error, FromValue, IntoValue, Meta, Object, SkipSerialization, Value,
 };
-#[cfg(feature = "jsonschema")]
-use schemars::{gen::SchemaGenerator, schema::Schema};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -21,7 +17,6 @@ use crate::protocol::Addr;
 ///
 /// Those strings get special treatment in our PII processor to avoid stripping the basename.
 #[derive(Debug, FromValue, IntoValue, Empty, Clone, PartialEq, Deserialize, Serialize)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct NativeImagePath(pub String);
 
 impl NativeImagePath {
@@ -78,7 +73,6 @@ impl ProcessValue for NativeImagePath {
 /// This is relevant for iOS and other platforms that have a system
 /// SDK.  Not to be confused with the client SDK.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct SystemSdkInfo {
     /// The internal name of the SDK.
     pub sdk_name: Annotated<String>,
@@ -101,7 +95,6 @@ pub struct SystemSdkInfo {
 ///
 /// This was also used for non-apple platforms with similar debug setups.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct AppleDebugImage {
     /// Path and name of the debug image (required).
     #[metastructure(required = "true")]
@@ -138,17 +131,6 @@ pub struct AppleDebugImage {
 
 macro_rules! impl_traits {
     ($type:ident, $inner:path, $expectation:literal) => {
-        #[cfg(feature = "jsonschema")]
-        impl schemars::JsonSchema for $type {
-            fn schema_name() -> String {
-                stringify!($type).to_owned()
-            }
-
-            fn json_schema(gen: &mut SchemaGenerator) -> Schema {
-                String::json_schema(gen)
-            }
-        }
-
         impl Empty for $type {
             #[inline]
             fn is_empty(&self) -> bool {
@@ -303,7 +285,6 @@ where
 /// }
 /// ```
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct NativeDebugImage {
     /// Optional identifier of the code file.
     ///
@@ -425,7 +406,6 @@ pub struct NativeDebugImage {
 /// for `code_file`/`abs_path` are not PII stripped as they need to line up
 /// perfectly for source map processing.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct SourceMapDebugImage {
     /// Path and name of the image file as URL. (required).
     ///
@@ -457,7 +437,6 @@ pub struct SourceMapDebugImage {
 /// }
 /// ```
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct JvmDebugImage {
     /// Unique debug identifier of the bundle.
     #[metastructure(required = "true")]
@@ -472,7 +451,6 @@ pub struct JvmDebugImage {
 ///
 /// Proguard images refer to `mapping.txt` files generated when Proguard obfuscates function names. The Java SDK integrations assign this file a unique identifier, which has to be included in the list of images.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct ProguardDebugImage {
     /// UUID computed from the file contents, assigned by the Java SDK.
     #[metastructure(required = "true")]
@@ -485,7 +463,6 @@ pub struct ProguardDebugImage {
 
 /// A debug information file (debug image).
 #[derive(Clone, Debug, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_debug_image")]
 pub enum DebugImage {
     /// Legacy apple debug images (MachO).
@@ -535,7 +512,6 @@ pub enum DebugImage {
 /// }
 /// ```
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_debug_meta")]
 pub struct DebugMeta {
     /// Information about the system SDK (e.g. iOS SDK).

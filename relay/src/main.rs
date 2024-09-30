@@ -46,7 +46,6 @@
 //!  - [`relay-ffi`]: Utilities for error handling in FFI bindings.
 //!  - [`relay-ffi-macros`]: Macros for error handling in FFI bindings.
 //!  - [`relay-filter`]: Inbound data filters.
-//!  - [`relay-jsonschema-derive`]: Derive for JSON schema on Relay protocol types.
 //!  - [`relay-kafka`]: Kafka-related functionality.
 //!  - [`relay-log`]: Error reporting and logging.
 //!  - [`relay-metrics`]: Metrics protocol and processing.
@@ -72,7 +71,6 @@
 //! of Relay's functionality or to export information:
 //!
 //!  - [`document-metrics`]: Generate documentation for metrics.
-//!  - [`generate-schema`]: Generate an event payload schema file.
 //!  - [`process-event`]: Process a Sentry event payload.
 //!  - [`scrub-minidump`]: Scrub PII from a Minidump file.
 //!
@@ -92,7 +90,6 @@
 //! [`relay-ffi`]: ../relay_ffi/index.html
 //! [`relay-ffi-macros`]: ../relay_ffi_macros/index.html
 //! [`relay-filter`]: ../relay_filter/index.html
-//! [`relay-jsonschema-derive`]: ../relay_jsonschema_derive/index.html
 //! [`relay-kafka`]: ../relay_kafka/index.html
 //! [`relay-log`]: ../relay_log/index.html
 //! [`relay-metrics`]: ../relay_metrics/index.html
@@ -112,7 +109,6 @@
 //! [`relay-test`]: ../relay_test/index.html
 //! [`relay-ua`]: ../relay_ua/index.html
 //! [`document-metrics`]: ../document_metrics/index.html
-//! [`generate-schema`]: ../generate_schema/index.html
 //! [`process-event`]: ../process_event/index.html
 //! [`scrub-minidump`]: ../scrub_minidump/index.html
 

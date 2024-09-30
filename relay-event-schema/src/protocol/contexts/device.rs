@@ -1,5 +1,3 @@
-#[cfg(feature = "jsonschema")]
-use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
 use uuid::Uuid;
 
@@ -10,7 +8,6 @@ use crate::processor::ProcessValue;
 /// Device context describes the device that caused the event. This is most appropriate for mobile
 /// applications.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct DeviceContext {
     /// Name of the device.
     #[metastructure(pii = "maybe")]

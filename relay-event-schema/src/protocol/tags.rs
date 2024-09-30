@@ -1,12 +1,9 @@
-#[cfg(feature = "jsonschema")]
-use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{Annotated, Array, Empty, FromValue, IntoValue, Object, Value};
 
 use crate::processor::ProcessValue;
 use crate::protocol::{AsPair, JsonLenientString, LenientString, PairList};
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct TagEntry(
     #[metastructure(max_chars = 200, allow_chars = "a-zA-Z0-9_.:-")] pub Annotated<String>,
     #[metastructure(max_chars = 200, deny_chars = "\n")] pub Annotated<String>,
@@ -47,7 +44,6 @@ impl FromValue for TagEntry {
 
 /// Manual key/value tag pairs.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct Tags(pub PairList<TagEntry>);
 
 impl Tags {

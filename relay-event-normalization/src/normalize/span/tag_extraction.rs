@@ -8,20 +8,21 @@ use std::ops::ControlFlow;
 
 use once_cell::sync::Lazy;
 use regex::Regex;
-use relay_base_schema::metrics::{DurationUnit, FractionUnit, InformationUnit, MetricUnit};
+use relay_base_schema::metrics::{DurationUnit, InformationUnit, MetricUnit};
 use relay_event_schema::protocol::{
-    AppContext, BrowserContext, Event, Measurement, Measurements, OsContext, ProfileContext, Span,
-    Timestamp, TraceContext,
+    AppContext, BrowserContext, Event, Measurement, OsContext, ProfileContext, Span, Timestamp,
+    TraceContext,
 };
-use relay_protocol::{Annotated, Empty, Value};
+use relay_protocol::{Annotated, Value};
 use sqlparser::ast::Visit;
 use sqlparser::ast::{ObjectName, Visitor};
-use url::{Host, Url};
+use url::Url;
 
 use crate::span::country_subregion::Subregion;
 use crate::span::description::{
-    concatenate_host_and_port, scrub_domain_name, scrub_span_description,
+    concatenate_host_and_port, scrub_domain_name, scrub_span_description, ScrubMongoDescription,
 };
+use crate::span::TABLE_NAME_REGEX;
 use crate::utils::{
     extract_transaction_op, http_status_code_from_span, MAIN_THREAD_NAME, MOBILE_SDKS,
 };
@@ -184,7 +185,8 @@ impl std::fmt::Display for RenderBlockingStatus {
 pub(crate) fn extract_span_tags_from_event(
     event: &mut Event,
     max_tag_value_size: usize,
-    http_scrubbing_allow_list: &[Host],
+    http_scrubbing_allow_list: &[String],
+    scrub_mongo_description: ScrubMongoDescription,
 ) {
     // Temporarily take ownership to pass both an event reference and a mutable span reference to `extract_span_tags`.
     let mut spans = std::mem::take(&mut event.spans);
@@ -196,6 +198,7 @@ pub(crate) fn extract_span_tags_from_event(
         spans_vec.as_mut_slice(),
         max_tag_value_size,
         http_scrubbing_allow_list,
+        scrub_mongo_description,
     );
 
     event.spans = spans;
@@ -208,12 +211,12 @@ pub fn extract_span_tags(
     event: &Event,
     spans: &mut [Annotated<Span>],
     max_tag_value_size: usize,
-    span_allowed_hosts: &[Host],
+    span_allowed_hosts: &[String],
+    scrub_mongo_description: ScrubMongoDescription,
 ) {
     // TODO: To prevent differences between metrics and payloads, we should not extract tags here
     // when they have already been extracted by a downstream relay.
     let shared_tags = extract_shared_tags(event);
-    let shared_measurements = extract_shared_measurements(event);
     let is_mobile = shared_tags
         .get(&SpanTagKey::Mobile)
         .is_some_and(|v| v.as_str() == "true");
@@ -235,6 +238,7 @@ pub fn extract_span_tags(
             is_mobile,
             start_type,
             span_allowed_hosts,
+            scrub_mongo_description,
         );
 
         span.sentry_tags = Annotated::new(
@@ -245,17 +249,6 @@ pub fn extract_span_tags(
                 .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
                 .collect(),
         );
-
-        if !shared_measurements.is_empty() {
-            match span.measurements.value_mut() {
-                Some(left) => shared_measurements.iter().for_each(|(key, val)| {
-                    left.insert(key.clone(), val.clone());
-                }),
-                None => span
-                    .measurements
-                    .set_value(Some(shared_measurements.clone())),
-            }
-        }
 
         extract_measurements(span, is_mobile);
     }
@@ -313,11 +306,19 @@ fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
         if let Some(user_email) = user.email.value() {
             tags.insert(SpanTagKey::UserEmail, user_email.clone());
         }
-        if let Some(country_code) = user.geo.value().and_then(|geo| geo.country_code.value()) {
-            tags.insert(SpanTagKey::UserCountryCode, country_code.to_owned());
-            if let Some(subregion) = Subregion::from_iso2(country_code.as_str()) {
-                let numerical_subregion = subregion as u8;
-                tags.insert(SpanTagKey::UserSubregion, numerical_subregion.to_string());
+
+        // We only want this on frontend or mobile modules.
+        let should_extract_geo = (event.context::<BrowserContext>().is_some()
+            && event.platform.as_str() == Some("javascript"))
+            || MOBILE_SDKS.contains(&event.sdk_name());
+
+        if should_extract_geo {
+            if let Some(country_code) = user.geo.value().and_then(|geo| geo.country_code.value()) {
+                tags.insert(SpanTagKey::UserCountryCode, country_code.to_owned());
+                if let Some(subregion) = Subregion::from_iso2(country_code.as_str()) {
+                    let numerical_subregion = subregion as u8;
+                    tags.insert(SpanTagKey::UserSubregion, numerical_subregion.to_string());
+                }
             }
         }
     }
@@ -344,7 +345,7 @@ fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
 
     if let Some(trace_context) = event.context::<TraceContext>() {
         if let Some(op) = extract_transaction_op(trace_context) {
-            tags.insert(SpanTagKey::TransactionOp, op.to_lowercase().to_owned());
+            tags.insert(SpanTagKey::TransactionOp, op.to_lowercase());
         }
 
         if let Some(status) = trace_context.status.value() {
@@ -488,6 +489,7 @@ fn extract_segment_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
 /// [span operations](https://develop.sentry.dev/sdk/performance/span-operations/) and
 /// existing [span data](https://develop.sentry.dev/sdk/performance/span-data-conventions/) fields,
 /// and rely on Sentry conventions and heuristics.
+#[allow(clippy::too_many_arguments)]
 pub fn extract_tags(
     span: &Span,
     max_tag_value_size: usize,
@@ -495,7 +497,8 @@ pub fn extract_tags(
     full_display: Option<Timestamp>,
     is_mobile: bool,
     start_type: Option<&str>,
-    span_allowed_hosts: &[Host],
+    span_allowed_hosts: &[String],
+    scrub_mongo_description: ScrubMongoDescription,
 ) -> BTreeMap<SpanTagKey, String> {
     let mut span_tags: BTreeMap<SpanTagKey, String> = BTreeMap::new();
 
@@ -513,7 +516,7 @@ pub fn extract_tags(
     }
 
     if let Some(unsanitized_span_op) = span.op.value() {
-        let span_op = unsanitized_span_op.to_owned().to_lowercase();
+        let span_op = unsanitized_span_op.to_lowercase();
 
         span_tags.insert(SpanTagKey::SpanOp, span_op.to_owned());
 
@@ -522,7 +525,8 @@ pub fn extract_tags(
             span_tags.insert(SpanTagKey::Category, category.to_owned());
         }
 
-        let (scrubbed_description, parsed_sql) = scrub_span_description(span, span_allowed_hosts);
+        let (scrubbed_description, parsed_sql) =
+            scrub_span_description(span, span_allowed_hosts, scrub_mongo_description);
 
         let action = match (category, span_op.as_str(), &scrubbed_description) {
             (Some("http"), _, _) => span
@@ -626,9 +630,28 @@ pub fn extract_tags(
                 .and_then(|s| s.strip_suffix(')'))
                 .map(String::from)
         } else if span_op.starts_with("db") {
-            span.description
+            let system = span
+                .data
                 .value()
-                .and_then(|query| sql_tables_from_query(query, &parsed_sql))
+                .and_then(|data| data.db_system.value())
+                .and_then(|db_op| db_op.as_str());
+            if system == Some("mongodb") {
+                span.data
+                    .value()
+                    .and_then(|data| data.db_collection_name.value())
+                    .and_then(|db_collection| db_collection.as_str())
+                    .map(|db_collection| {
+                        if let Cow::Owned(s) = TABLE_NAME_REGEX.replace_all(db_collection, "{%s}") {
+                            s
+                        } else {
+                            db_collection.to_owned()
+                        }
+                    })
+            } else {
+                span.description
+                    .value()
+                    .and_then(|query| sql_tables_from_query(query, &parsed_sql))
+            }
         } else {
             None
         };
@@ -750,7 +773,9 @@ pub fn extract_tags(
             }
         }
         if let Some(measurements) = span.measurements.value() {
-            if span_op.starts_with("ui.interaction.") && measurements.contains_key("inp") {
+            if (span_op.starts_with("ui.interaction.") && measurements.contains_key("inp"))
+                || span_op.starts_with("ui.webvital.")
+            {
                 if let Some(transaction) = span
                     .data
                     .value()
@@ -839,27 +864,6 @@ fn value_to_f64(val: Option<&Value>) -> Option<f64> {
         Some(Value::U64(u)) => Some(*u as f64),
         _ => None,
     }
-}
-
-fn extract_shared_measurements(event: &Event) -> Measurements {
-    let mut measurements = Measurements::default();
-
-    if let Some(trace_context) = event.context::<TraceContext>() {
-        if let Some(client_sample_rate) = trace_context.client_sample_rate.value() {
-            if *client_sample_rate > 0. {
-                measurements.insert(
-                    "client_sample_rate".into(),
-                    Measurement {
-                        value: (*client_sample_rate).into(),
-                        unit: MetricUnit::Fraction(FractionUnit::Ratio).into(),
-                    }
-                    .into(),
-                );
-            }
-        }
-    }
-
-    measurements
 }
 
 /// Copies specific numeric values from span data to span measurements.
@@ -1486,7 +1490,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags_from_event(&mut event, 200, &[]);
+        extract_span_tags_from_event(&mut event, 200, &[], ScrubMongoDescription::Disabled);
 
         let spans = event.spans.value().unwrap();
 
@@ -1548,7 +1552,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags_from_event(&mut event, 200, &[]);
+        extract_span_tags_from_event(&mut event, 200, &[], ScrubMongoDescription::Disabled);
 
         let span = &event.spans.value().unwrap()[0];
 
@@ -1666,7 +1670,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags_from_event(&mut event, 200, &[]);
+        extract_span_tags_from_event(&mut event, 200, &[], ScrubMongoDescription::Disabled);
 
         let span_1 = &event.spans.value().unwrap()[0];
         let span_2 = &event.spans.value().unwrap()[1];
@@ -1691,11 +1695,6 @@ LIMIT 1
     fn test_ai_extraction() {
         let json = r#"
             {
-                "contexts": {
-                    "trace": {
-                        "client_sample_rate": 0.1
-                    }
-                },
                 "spans": [
                     {
                         "timestamp": 1694732408.3145,
@@ -1724,7 +1723,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags_from_event(&mut event, 200, &[]);
+        extract_span_tags_from_event(&mut event, 200, &[], ScrubMongoDescription::Disabled);
 
         let span = &event
             .spans
@@ -1755,12 +1754,6 @@ LIMIT 1
                 "ai_total_tokens_used": Measurement {
                     value: 300.0,
                     unit: None,
-                },
-                "client_sample_rate": Measurement {
-                    value: 0.1,
-                    unit: Fraction(
-                        Ratio,
-                    ),
                 },
             },
         )
@@ -1838,7 +1831,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags_from_event(&mut event, 200, &[]);
+        extract_span_tags_from_event(&mut event, 200, &[], ScrubMongoDescription::Disabled);
 
         let span_1 = &event.spans.value().unwrap()[0];
         let span_2 = &event.spans.value().unwrap()[1];
@@ -1961,7 +1954,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags_from_event(&mut event, 200, &[]);
+        extract_span_tags_from_event(&mut event, 200, &[], ScrubMongoDescription::Disabled);
 
         let span_1 = &event.spans.value().unwrap()[0];
         let span_2 = &event.spans.value().unwrap()[1];
@@ -2069,7 +2062,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags_from_event(&mut event, 200, &[]);
+        extract_span_tags_from_event(&mut event, 200, &[], ScrubMongoDescription::Disabled);
 
         let span = &event.spans.value().unwrap()[0];
 
@@ -2126,7 +2119,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags_from_event(&mut event, 200, &[]);
+        extract_span_tags_from_event(&mut event, 200, &[], ScrubMongoDescription::Disabled);
 
         let span = &event.spans.value().unwrap()[0];
         let tags = span.value().unwrap().sentry_tags.value().unwrap();
@@ -2154,7 +2147,16 @@ LIMIT 1
             .unwrap()
             .into_value()
             .unwrap();
-        let tags = extract_tags(&span, 200, None, None, false, None, &[]);
+        let tags = extract_tags(
+            &span,
+            200,
+            None,
+            None,
+            false,
+            None,
+            &[],
+            ScrubMongoDescription::Disabled,
+        );
 
         assert_eq!(
             tags.get(&SpanTagKey::BrowserName),
@@ -2194,7 +2196,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags_from_event(&mut event, 200, &[]);
+        extract_span_tags_from_event(&mut event, 200, &[], ScrubMongoDescription::Disabled);
 
         let span = &event.spans.value().unwrap()[0];
         let tags = span.value().unwrap().sentry_tags.value().unwrap();
@@ -2225,7 +2227,16 @@ LIMIT 1
             .unwrap()
             .into_value()
             .unwrap();
-        let tags = extract_tags(&span, 200, None, None, false, None, &[]);
+        let tags = extract_tags(
+            &span,
+            200,
+            None,
+            None,
+            false,
+            None,
+            &[],
+            ScrubMongoDescription::Disabled,
+        );
 
         assert_eq!(
             tags.get(&SpanTagKey::MessagingDestinationName),
@@ -2350,7 +2361,7 @@ LIMIT 1
             .into_value()
             .unwrap();
 
-        extract_span_tags_from_event(&mut event, 200, &[]);
+        extract_span_tags_from_event(&mut event, 200, &[], ScrubMongoDescription::Disabled);
 
         let span = &event.spans.value().unwrap()[0];
         let tags = span.value().unwrap().sentry_tags.value().unwrap();
@@ -2448,7 +2459,16 @@ LIMIT 1
             .unwrap();
         span.description.set_value(Some(description.into()));
 
-        extract_tags(&span, 200, None, None, false, None, &[])
+        extract_tags(
+            &span,
+            200,
+            None,
+            None,
+            false,
+            None,
+            &[],
+            ScrubMongoDescription::Disabled,
+        )
     }
 
     #[test]
@@ -2484,6 +2504,82 @@ LIMIT 1
 
         assert_eq!(tags.get(&SpanTagKey::Description), None);
         assert_eq!(tags.get(&SpanTagKey::Domain), None);
+    }
+
+    #[test]
+    fn mongodb() {
+        let json = r#"
+            {
+                "op": "db",
+                "span_id": "bd429c44b67a3eb1",
+                "start_timestamp": 1597976300.0000000,
+                "timestamp": 1597976302.0000000,
+                "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                "data": {
+                    "db.operation": "find",
+                    "db.collection.name": "documents",
+                    "db.system": "mongodb"
+                }
+            }
+        "#;
+        let span: Span = Annotated::<Span>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+        let tags = extract_tags(
+            &span,
+            200,
+            None,
+            None,
+            false,
+            None,
+            &[],
+            ScrubMongoDescription::Disabled,
+        );
+
+        assert_eq!(tags.get(&SpanTagKey::Action), Some(&"FIND".to_string()));
+
+        assert_eq!(
+            tags.get(&SpanTagKey::Domain),
+            Some(&"documents".to_string())
+        );
+    }
+
+    #[test]
+    fn mongodb_collection_name_scrubbing() {
+        let json = r#"
+            {
+                "op": "db",
+                "span_id": "bd429c44b67a3eb1",
+                "start_timestamp": 1597976300.0000000,
+                "timestamp": 1597976302.0000000,
+                "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                "data": {
+                    "db.operation": "find",
+                    "db.collection.name": "documents_a1b2c3d4",
+                    "db.system": "mongodb"
+                }
+            }
+        "#;
+        let span: Span = Annotated::<Span>::from_json(json)
+            .unwrap()
+            .into_value()
+            .unwrap();
+        let tags = extract_tags(
+            &span,
+            200,
+            None,
+            None,
+            false,
+            None,
+            &[],
+            ScrubMongoDescription::Disabled,
+        );
+
+        assert_eq!(
+            tags.get(&SpanTagKey::Domain),
+            Some(&"documents_{%s}".to_string())
+        );
     }
 
     #[test]
@@ -2544,6 +2640,9 @@ LIMIT 1
                     "trace": {
                         "trace_id": "ff62a8b040f340bda5d830223def1d81",
                         "span_id": "bd429c44b67a3eb4"
+                    },
+                    "browser": {
+                        "name": "Chrome"
                     }
                 },
                 "user": {
@@ -2588,6 +2687,63 @@ LIMIT 1
         );
         assert_eq!(get_value!(span.sentry_tags["user.geo.country_code"]!), "US");
         assert_eq!(get_value!(span.sentry_tags["user.geo.subregion"]!), "21");
+    }
+
+    #[test]
+    fn not_extract_geo_location_if_not_browser() {
+        let json = r#"
+            {
+                "type": "transaction",
+                "platform": "python",
+                "start_timestamp": "2021-04-26T07:59:01+0100",
+                "timestamp": "2021-04-26T08:00:00+0100",
+                "transaction": "foo",
+                "contexts": {
+                    "trace": {
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                        "span_id": "bd429c44b67a3eb4"
+                    },
+                    "browser": {
+                        "name": "Chrome"
+                    }
+                },
+                "user": {
+                    "id": "1",
+                    "email": "admin@sentry.io",
+                    "username": "admin",
+                    "geo": {
+                        "country_code": "US"
+                    }
+                },
+                "spans": [
+                    {
+                        "op": "http.client",
+                        "span_id": "bd429c44b67a3eb1",
+                        "start_timestamp": 1597976300.0000000,
+                        "timestamp": 1597976302.0000000,
+                        "trace_id": "ff62a8b040f340bda5d830223def1d81"
+                    }
+                ]
+            }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+
+        normalize_event(
+            &mut event,
+            &NormalizationConfig {
+                enrich_spans: true,
+                ..Default::default()
+            },
+        );
+
+        let spans = get_value!(event.spans!);
+        let span = &spans[0];
+
+        let tags = span.value().unwrap().sentry_tags.value().unwrap();
+
+        assert_eq!(tags.get("user.geo.subregion"), None);
+        assert_eq!(tags.get("user.geo.country_code"), None);
     }
 
     #[test]

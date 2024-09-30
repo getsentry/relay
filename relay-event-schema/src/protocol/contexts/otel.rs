@@ -1,5 +1,3 @@
-#[cfg(feature = "jsonschema")]
-use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
 
 use crate::processor::ProcessValue;
@@ -8,7 +6,6 @@ use crate::processor::ProcessValue;
 ///
 /// If an event has this context, it was generated from an OpenTelemetry signal (trace, metric, log).
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct OtelContext {
     /// Attributes of the OpenTelemetry span that maps to a Sentry event.
     ///

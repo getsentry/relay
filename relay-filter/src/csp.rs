@@ -81,7 +81,7 @@ impl From<&str> for SchemeDomainPort {
             (None, url) // no scheme, chop nothing form original string
         };
 
-        //extract domain:port from the rest of the url
+        // extract domain:port from the rest of the url
         let end_domain_idx = rest.find('/');
         let domain_port = if let Some(end_domain_idx) = end_domain_idx {
             &rest[..end_domain_idx] // remove the path from rest
@@ -89,8 +89,17 @@ impl From<&str> for SchemeDomainPort {
             rest // no path, use everything
         };
 
-        //split the domain and the port
-        let port_separator_idx = domain_port.find(':');
+        // split the domain and the port
+        let ipv6_end_bracket_idx = domain_port.rfind(']');
+        let port_separator_idx = if let Some(end_bracket_idx) = ipv6_end_bracket_idx {
+            // we have an ipv6 address, find the port separator after the closing bracket
+            domain_port[end_bracket_idx..]
+                .rfind(':')
+                .map(|x| x + end_bracket_idx)
+        } else {
+            // no ipv6 address, find the port separator in the whole string
+            domain_port.rfind(':')
+        };
         let (domain, port) = if let Some(port_separator_idx) = port_separator_idx {
             //we have a port separator, split the string into domain and port
             (
@@ -219,10 +228,87 @@ mod tests {
                 Some("4000"),
             ),
             ("http://", Some("http"), Some(""), None),
+            ("abc.com/[something]", None, Some("abc.com"), None),
+            ("abc.com/something]:", None, Some("abc.com"), None),
+            ("abc.co]m/[something:", None, Some("abc.co]m"), None),
+            ("]abc.com:9000", None, Some("]abc.com"), Some("9000")),
+            (
+                "https://api.example.com/foo/00000000-0000-0000-0000-000000000000?includes[]=user&includes[]=image&includes[]=author&includes[]=tag",
+                Some("https"),
+                Some("api.example.com"),
+                None,
+            )
         ];
 
         for (url, scheme, domain, port) in examples {
             let actual: SchemeDomainPort = (*url).into();
+            assert_eq!(
+                (actual.scheme, actual.domain, actual.port),
+                (
+                    scheme.map(|x| x.to_string()),
+                    domain.map(|x| x.to_string()),
+                    port.map(|x| x.to_string())
+                )
+            );
+        }
+    }
+
+    #[test]
+    fn test_scheme_domain_port_with_ip() {
+        let examples = [
+            (
+                "http://192.168.1.1:3000",
+                Some("http"),
+                Some("192.168.1.1"),
+                Some("3000"),
+            ),
+            ("192.168.1.1", None, Some("192.168.1.1"), None),
+            ("[fd45:7aa3:7ae4::]", None, Some("[fd45:7aa3:7ae4::]"), None),
+            ("http://172.16.*.*", Some("http"), Some("172.16.*.*"), None),
+            (
+                "http://[1fff:0:a88:85a3::ac1f]:8001",
+                Some("http"),
+                Some("[1fff:0:a88:85a3::ac1f]"),
+                Some("8001"),
+            ),
+            // invalid IPv6 for localhost since it's not inside brackets
+            ("::1", None, Some(":"), Some("1")),
+            ("[::1]", None, Some("[::1]"), None),
+            (
+                "http://[fe80::862a:fdff:fe78:a2bf%13]",
+                Some("http"),
+                Some("[fe80::862a:fdff:fe78:a2bf%13]"),
+                None,
+            ),
+            // invalid addresses. although these results don't represent correct results,
+            // they are here to make sure the application won't crash.
+            ("192.168.1.1.1", None, Some("192.168.1.1.1"), None),
+            ("192.168.1.300", None, Some("192.168.1.300"), None),
+            (
+                "[2001:0db8:85a3:::8a2e:0370:7334]",
+                None,
+                Some("[2001:0db8:85a3:::8a2e:0370:7334]"),
+                None,
+            ),
+            ("[fe80::1::]", None, Some("[fe80::1::]"), None),
+            ("fe80::1::", None, Some("fe80::1:"), Some("")),
+            (
+                "[2001:0db8:85a3:xyz::8a2e:0370:7334]",
+                None,
+                Some("[2001:0db8:85a3:xyz::8a2e:0370:7334]"),
+                None,
+            ),
+            (
+                "2001:0db8:85a3:xyz::8a2e:0370:7334",
+                None,
+                Some("2001:0db8:85a3:xyz::8a2e:0370"),
+                Some("7334"),
+            ),
+            ("192.168.0.1/24", None, Some("192.168.0.1"), None),
+        ];
+
+        for (url, scheme, domain, port) in examples {
+            let actual = SchemeDomainPort::from(url);
             assert_eq!(
                 (actual.scheme, actual.domain, actual.port),
                 (

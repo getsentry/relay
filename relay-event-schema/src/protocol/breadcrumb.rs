@@ -1,7 +1,5 @@
 #[cfg(test)]
 use chrono::{TimeZone, Utc};
-#[cfg(feature = "jsonschema")]
-use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
 
 use crate::processor::ProcessValue;
@@ -47,7 +45,6 @@ use crate::protocol::{EventId, Level, Timestamp};
 /// }
 /// ```
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_breadcrumb", value_type = "Breadcrumb")]
 pub struct Breadcrumb {
     /// The timestamp of the breadcrumb. Recommended.

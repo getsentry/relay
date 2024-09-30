@@ -1,7 +1,5 @@
 use std::fmt;
 
-#[cfg(feature = "jsonschema")]
-use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{
     Annotated, Empty, Error, ErrorKind, FromValue, IntoValue, Object, SkipSerialization, Value,
 };
@@ -12,7 +10,6 @@ use crate::protocol::{RawStacktrace, Stacktrace};
 
 /// Represents a thread id.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Ord, PartialOrd, Hash)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[serde(untagged)]
 pub enum ThreadId {
     /// Integer representation of the thread id.
@@ -84,8 +81,6 @@ impl fmt::Display for ThreadId {
 
 /// Possible lock types responsible for a thread's blocked state
 #[derive(Debug, Copy, Clone, Eq, PartialEq, ProcessValue, Empty)]
-#[cfg_attr(feature = "jsonschema", derive(schemars::JsonSchema))]
-#[cfg_attr(feature = "jsonschema", schemars(rename_all = "lowercase"))]
 pub enum LockReasonType {
     /// Thread is Runnable but holding a lock object (generic case).
     Locked = 1,
@@ -160,7 +155,6 @@ impl IntoValue for LockReasonType {
 
 /// Represents an instance of a held lock (java monitor object) in a thread.
 #[derive(Clone, Debug, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct LockReason {
     /// Type of lock on the thread with available options being blocked, waiting, sleeping and locked.
     #[metastructure(field = "type", required = "true")]
@@ -210,7 +204,6 @@ pub struct LockReason {
 /// }
 /// ```
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_thread", value_type = "Thread")]
 pub struct Thread {
     /// The ID of the thread. Typically a number or numeric string.

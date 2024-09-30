@@ -1,5 +1,3 @@
-#[cfg(feature = "jsonschema")]
-use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{Annotated, Empty, FromValue, Getter, IntoValue, Object, Val, Value};
 
 use crate::processor::ProcessValue;
@@ -29,7 +27,6 @@ use crate::protocol::{JsonLenientString, Mechanism, RawStacktrace, Stacktrace, T
 /// }
 /// ```
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_exception", value_type = "Exception")]
 pub struct Exception {
     /// Exception type, e.g. `ValueError`.

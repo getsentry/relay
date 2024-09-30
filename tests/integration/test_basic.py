@@ -2,12 +2,15 @@ import datetime
 import queue
 import os
 import gzip
+import sqlite3
+import tempfile
+
 import pytest
 import signal
 import zlib
 
 
-def test_graceful_shutdown(mini_sentry, relay):
+def test_graceful_shutdown_with_in_memory_buffer(mini_sentry, relay):
     from time import sleep
 
     get_project_config_original = mini_sentry.app.view_functions["get_project_config"]
@@ -17,14 +20,72 @@ def test_graceful_shutdown(mini_sentry, relay):
         sleep(1)  # Causes the process to wait for one second before shutting down
         return get_project_config_original()
 
-    relay = relay(mini_sentry, {"limits": {"shutdown_timeout": 2}})
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
+
+    relay = relay(
+        mini_sentry,
+        {
+            "limits": {"shutdown_timeout": 2},
+            "spool": {"envelopes": {"version": "experimental"}},
+        },
+    )
+
     relay.send_event(project_id)
 
     relay.shutdown(sig=signal.SIGTERM)
+
+    # When using the memory envelope buffer, we optimistically do not do anything on shutdown, which means that the
+    # buffer will try and pop as always as long as it can (within the shutdown timeout).
     event = mini_sentry.captured_events.get(timeout=0).get_event()
     assert event["logentry"] == {"formatted": "Hello, World!"}
+
+
+def test_graceful_shutdown_with_sqlite_buffer(mini_sentry, relay):
+    from time import sleep
+
+    # Create a temporary directory for the sqlite db.
+    db_file_path = os.path.join(tempfile.mkdtemp(), "database.db")
+
+    get_project_config_original = mini_sentry.app.view_functions["get_project_config"]
+
+    @mini_sentry.app.endpoint("get_project_config")
+    def get_project_config():
+        sleep(1)  # Causes the process to wait for one second before shutting down
+        return get_project_config_original()
+
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
+
+    relay = relay(
+        mini_sentry,
+        {
+            "limits": {"shutdown_timeout": 2},
+            "spool": {"envelopes": {"version": "experimental", "path": db_file_path}},
+        },
+    )
+
+    n = 10
+    for i in range(n):
+        relay.send_event(project_id)
+
+    relay.shutdown(sig=signal.SIGTERM)
+
+    # When using the disk envelope buffer, we don't forward envelopes, but we spool them to disk.
+    assert mini_sentry.captured_events.empty()
+
+    # Check if there's data in the SQLite table `envelopes`
+    conn = sqlite3.connect(db_file_path)
+    cursor = conn.cursor()
+
+    # Check if there's data in the `envelopes` table
+    cursor.execute("SELECT COUNT(*) FROM envelopes")
+    row_count = cursor.fetchone()[0]
+    assert (
+        row_count == n
+    ), f"The 'envelopes' table is empty. Expected {n} rows, but found {row_count}"
+
+    conn.close()
 
 
 @pytest.mark.skip("Flaky test")
@@ -153,16 +214,15 @@ def test_store_allowed_origins_passes(mini_sentry, relay, allowed_origins):
 
 
 @pytest.mark.parametrize(
-    "route,status_code",
+    "route",
     [
-        ("/api/42/store/", 413),
-        ("/api/42/envelope/", 413),
-        ("/api/42/attachment/", 413),
-        # Minidumps attempt to read the first line (using dedicated limits) and parse it
-        ("/api/42/minidump/", 400),
+        "/api/42/store/",
+        "/api/42/envelope/",
+        "/api/42/attachment/",
+        "/api/42/minidump/",
     ],
 )
-def test_zipbomb_content_encoding(mini_sentry, relay, route, status_code):
+def test_zipbomb_content_encoding(mini_sentry, relay, route):
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
     relay = relay(
@@ -189,11 +249,15 @@ def test_zipbomb_content_encoding(mini_sentry, relay, route, status_code):
                 route,
                 mini_sentry.get_dsn_public_key(project_id),
             ),
-            headers={"content-encoding": "gzip", "content-length": str(size)},
+            headers={
+                "content-encoding": "gzip",
+                "content-length": str(size),
+                "content-type": "application/octet-stream",
+            },
             data=f,
         )
 
-    assert response.status_code == status_code
+    assert response.status_code == 413
 
 
 @pytest.mark.parametrize("content_encoding", ["gzip", "deflate", "identity", ""])

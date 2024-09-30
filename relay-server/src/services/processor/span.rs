@@ -1,10 +1,10 @@
 //! Processor code related to standalone spans.
 
 use relay_dynamic_config::Feature;
+use relay_event_normalization::span::description::ScrubMongoDescription;
 use relay_event_normalization::span::tag_extraction;
 use relay_event_schema::protocol::{Event, Span};
 use relay_protocol::Annotated;
-use url::Host;
 
 use crate::services::processor::SpanGroup;
 use crate::{services::processor::ProcessEnvelopeState, utils::ItemAction};
@@ -32,11 +32,18 @@ pub fn filter(state: &mut ProcessEnvelopeState<SpanGroup>) {
 pub fn extract_transaction_span(
     event: &Event,
     max_tag_value_size: usize,
-    span_allowed_hosts: &[Host],
+    span_allowed_hosts: &[String],
+    scrub_mongo_description: ScrubMongoDescription,
 ) -> Option<Span> {
     let mut spans = [Span::from(event).into()];
 
-    tag_extraction::extract_span_tags(event, &mut spans, max_tag_value_size, span_allowed_hosts);
+    tag_extraction::extract_span_tags(
+        event,
+        &mut spans,
+        max_tag_value_size,
+        span_allowed_hosts,
+        scrub_mongo_description,
+    );
     tag_extraction::extract_segment_span_tags(event, &mut spans);
 
     spans.into_iter().next().and_then(Annotated::into_value)

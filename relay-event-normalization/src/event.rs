@@ -25,18 +25,18 @@ use relay_protocol::{
     RemarkType, Value,
 };
 use smallvec::SmallVec;
-use url::Host;
 use uuid::Uuid;
 
 use crate::normalize::request;
 use crate::span::ai::normalize_ai_measurements;
+use crate::span::description::ScrubMongoDescription;
 use crate::span::tag_extraction::extract_span_tags_from_event;
 use crate::utils::{self, get_event_user_tag, MAX_DURATION_MOBILE_MS};
 use crate::{
     breakdowns, event_error, legacy, mechanism, remove_other, schema, span, stacktrace,
-    transactions, trimming, user_agent, BreakdownsConfig, CombinedMeasurementsConfig, GeoIpLookup,
-    MaxChars, ModelCosts, PerformanceScoreConfig, RawUserAgentInfo, SpanDescriptionRule,
-    TransactionNameConfig,
+    transactions, trimming, user_agent, BorrowedSpanOpDefaults, BreakdownsConfig,
+    CombinedMeasurementsConfig, GeoIpLookup, MaxChars, ModelCosts, PerformanceScoreConfig,
+    RawUserAgentInfo, SpanDescriptionRule, TransactionNameConfig,
 };
 
 /// Configuration for [`normalize_event`].
@@ -157,7 +157,13 @@ pub struct NormalizationConfig<'a> {
     pub replay_id: Option<Uuid>,
 
     /// Controls list of hosts to be excluded from scrubbing
-    pub span_allowed_hosts: &'a [Host],
+    pub span_allowed_hosts: &'a [String],
+
+    /// Controls whether or not MongoDB span descriptions will be scrubbed.
+    pub scrub_mongo_description: ScrubMongoDescription,
+
+    /// Rules to infer `span.op` from other span fields.
+    pub span_op_defaults: BorrowedSpanOpDefaults<'a>,
 }
 
 impl<'a> Default for NormalizationConfig<'a> {
@@ -190,6 +196,8 @@ impl<'a> Default for NormalizationConfig<'a> {
             normalize_spans: true,
             replay_id: Default::default(),
             span_allowed_hosts: Default::default(),
+            scrub_mongo_description: ScrubMongoDescription::Disabled,
+            span_op_defaults: Default::default(),
         }
     }
 }
@@ -240,8 +248,10 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     // (internally noops for non-transaction events).
     // TODO: Parts of this processor should probably be a filter so we
     // can revert some changes to ProcessingAction)
-    let mut transactions_processor =
-        transactions::TransactionsProcessor::new(config.transaction_name_config.clone());
+    let mut transactions_processor = transactions::TransactionsProcessor::new(
+        config.transaction_name_config,
+        config.span_op_defaults,
+    );
     let _ = transactions_processor.process_event(event, meta, ProcessingState::root());
 
     // Process security reports first to ensure all props.
@@ -312,6 +322,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     normalize_ai_measurements(event, config.ai_model_costs);
     normalize_breakdowns(event, config.breakdowns_config); // Breakdowns are part of the metric extraction too
     normalize_default_attributes(event, meta, config);
+    normalize_trace_context_tags(event);
 
     let _ = processor::apply(&mut event.request, |request, _| {
         request::normalize_request(request);
@@ -332,6 +343,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
             event,
             config.max_tag_value_length,
             config.span_allowed_hosts,
+            config.scrub_mongo_description,
         );
     }
 
@@ -964,6 +976,41 @@ pub fn normalize_performance_score(
         }
     }
     version
+}
+
+// Extracts lcp related tags from the trace context.
+fn normalize_trace_context_tags(event: &mut Event) {
+    let tags = &mut event.tags.value_mut().get_or_insert_with(Tags::default).0;
+    if let Some(contexts) = event.contexts.value() {
+        if let Some(trace_context) = contexts.get::<TraceContext>() {
+            if let Some(data) = trace_context.data.value() {
+                if let Some(lcp_element) = data.lcp_element.value() {
+                    if !tags.contains("lcp.element") {
+                        let tag_name = "lcp.element".to_string();
+                        tags.insert(tag_name, Annotated::new(lcp_element.clone()));
+                    }
+                }
+                if let Some(lcp_size) = data.lcp_size.value() {
+                    if !tags.contains("lcp.size") {
+                        let tag_name = "lcp.size".to_string();
+                        tags.insert(tag_name, Annotated::new(lcp_size.to_string()));
+                    }
+                }
+                if let Some(lcp_id) = data.lcp_id.value() {
+                    let tag_name = "lcp.id".to_string();
+                    if !tags.contains("lcp.id") {
+                        tags.insert(tag_name, Annotated::new(lcp_id.clone()));
+                    }
+                }
+                if let Some(lcp_url) = data.lcp_url.value() {
+                    let tag_name = "lcp.url".to_string();
+                    if !tags.contains("lcp.url") {
+                        tags.insert(tag_name, Annotated::new(lcp_url.clone()));
+                    }
+                }
+            }
+        }
+    }
 }
 
 impl MutMeasurements for Event {
@@ -3382,6 +3429,107 @@ mod tests {
     }
 
     #[test]
+    fn test_computes_standalone_cls_performance_score() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "cls": {"value": 0.5}
+            }
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+            {
+                "name": "Default",
+                "scoreComponents": [
+                    {
+                        "measurement": "fcp",
+                        "weight": 0.15,
+                        "p10": 900.0,
+                        "p50": 1600.0,
+                        "optional": true,
+                    },
+                    {
+                        "measurement": "lcp",
+                        "weight": 0.30,
+                        "p10": 1200.0,
+                        "p50": 2400.0,
+                        "optional": true,
+                    },
+                    {
+                        "measurement": "cls",
+                        "weight": 0.15,
+                        "p10": 0.1,
+                        "p50": 0.25,
+                        "optional": true,
+                    },
+                    {
+                        "measurement": "ttfb",
+                        "weight": 0.10,
+                        "p10": 200.0,
+                        "p50": 400.0,
+                        "optional": true,
+                    },
+                ],
+                "condition": {
+                    "op": "and",
+                    "inner": [],
+                },
+            }
+            ]
+        }))
+        .unwrap();
+
+        normalize(
+            &mut event,
+            &mut Meta::default(),
+            &NormalizationConfig {
+                performance_score: Some(&performance_score),
+                ..Default::default()
+            },
+        );
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&event.measurements), {}, @r###"
+        {
+          "cls": {
+            "value": 0.5,
+            "unit": "none",
+          },
+          "score.cls": {
+            "value": 0.16615877613713903,
+            "unit": "ratio",
+          },
+          "score.total": {
+            "value": 0.16615877613713903,
+            "unit": "ratio",
+          },
+          "score.weight.cls": {
+            "value": 1.0,
+            "unit": "ratio",
+          },
+          "score.weight.fcp": {
+            "value": 0.0,
+            "unit": "ratio",
+          },
+          "score.weight.lcp": {
+            "value": 0.0,
+            "unit": "ratio",
+          },
+          "score.weight.ttfb": {
+            "value": 0.0,
+            "unit": "ratio",
+          },
+        }
+        "###);
+    }
+
+    #[test]
     fn test_computed_performance_score_uses_first_matching_profile() {
         let json = r#"
         {
@@ -4178,5 +4326,143 @@ mod tests {
             },
         );
         assert!(get_value!(event.spans[0].exclusive_time).is_some());
+    }
+
+    #[test]
+    fn test_normalize_trace_context_tags_extracts_lcp_info() {
+        let json = r#"{
+            "type": "transaction",
+            "start_timestamp": 1,
+            "timestamp": 2,
+            "contexts": {
+                "trace": {
+                    "data": {
+                        "lcp.element": "body > div#app > div > h1#header",
+                        "lcp.size": 24827,
+                        "lcp.id": "header",
+                        "lcp.url": "http://example.com/image.jpg"
+                    }
+                }
+            },
+            "measurements": {
+                "lcp": { "value": 146.20000000298023, "unit": "millisecond" }
+            }
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+        normalize_trace_context_tags(&mut event);
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r#"
+        {
+          "type": "transaction",
+          "timestamp": 2.0,
+          "start_timestamp": 1.0,
+          "contexts": {
+            "trace": {
+              "data": {
+                "lcp.element": "body > div#app > div > h1#header",
+                "lcp.size": 24827,
+                "lcp.id": "header",
+                "lcp.url": "http://example.com/image.jpg",
+              },
+              "type": "trace",
+            },
+          },
+          "tags": [
+            [
+              "lcp.element",
+              "body > div#app > div > h1#header",
+            ],
+            [
+              "lcp.size",
+              "24827",
+            ],
+            [
+              "lcp.id",
+              "header",
+            ],
+            [
+              "lcp.url",
+              "http://example.com/image.jpg",
+            ],
+          ],
+          "measurements": {
+            "lcp": {
+              "value": 146.20000000298023,
+              "unit": "millisecond",
+            },
+          },
+        }
+        "#);
+    }
+
+    #[test]
+    fn test_normalize_trace_context_tags_does_not_overwrite_lcp_tags() {
+        let json = r#"{
+          "type": "transaction",
+          "start_timestamp": 1,
+          "timestamp": 2,
+          "contexts": {
+              "trace": {
+                  "data": {
+                      "lcp.element": "body > div#app > div > h1#id",
+                      "lcp.size": 33333,
+                      "lcp.id": "id",
+                      "lcp.url": "http://example.com/another-image.jpg"
+                  }
+              }
+          },
+          "tags": {
+              "lcp.element": "body > div#app > div > h1#header",
+              "lcp.size": 24827,
+              "lcp.id": "header",
+              "lcp.url": "http://example.com/image.jpg"
+          },
+          "measurements": {
+              "lcp": { "value": 146.20000000298023, "unit": "millisecond" }
+          }
+        }"#;
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+        normalize_trace_context_tags(&mut event);
+        insta::assert_ron_snapshot!(SerializableAnnotated(&Annotated::new(event)), {}, @r#"
+        {
+          "type": "transaction",
+          "timestamp": 2.0,
+          "start_timestamp": 1.0,
+          "contexts": {
+            "trace": {
+              "data": {
+                "lcp.element": "body > div#app > div > h1#id",
+                "lcp.size": 33333,
+                "lcp.id": "id",
+                "lcp.url": "http://example.com/another-image.jpg",
+              },
+              "type": "trace",
+            },
+          },
+          "tags": [
+            [
+              "lcp.element",
+              "body > div#app > div > h1#header",
+            ],
+            [
+              "lcp.id",
+              "header",
+            ],
+            [
+              "lcp.size",
+              "24827",
+            ],
+            [
+              "lcp.url",
+              "http://example.com/image.jpg",
+            ],
+          ],
+          "measurements": {
+            "lcp": {
+              "value": 146.20000000298023,
+              "unit": "millisecond",
+            },
+          },
+        }
+        "#);
     }
 }

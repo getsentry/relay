@@ -1,5 +1,3 @@
-#[cfg(feature = "jsonschema")]
-use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
 
 use crate::processor::ProcessValue;
@@ -10,7 +8,6 @@ use crate::protocol::{Cookies, Headers};
 /// The data variable should only contain the response body. It can either be
 /// a dictionary (for standard HTTP responses) or a raw response body.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct ResponseContext {
     /// The cookie values.
     ///

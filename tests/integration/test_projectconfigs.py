@@ -197,7 +197,7 @@ def test_pending_projects(mini_sentry, relay):
         if data["configs"]:
             break
     else:
-        print("Relay did still not receive a project config from minisentry")
+        assert False, "Relay did still not receive a project config from minisentry"
     assert public_key in data["configs"]
     assert data.get("pending") is None
 
@@ -302,6 +302,8 @@ def test_unparsable_project_config(mini_sentry, relay):
 
 
 def test_cached_project_config(mini_sentry, relay):
+    mini_sentry.project_config_ignore_revision = True
+
     project_key = 42
     relay_config = {
         "cache": {"project_expiry": 2, "project_grace_period": 5, "miss_expiry": 2}
@@ -397,3 +399,44 @@ def test_compression(mini_sentry, relay):
     assert response.ok
     assert response.headers["content-encoding"] == "gzip"
     assert public_key in response.json()["configs"]
+
+
+def test_unchanged_projects(mini_sentry, relay):
+    relay = relay(mini_sentry)
+    cfg = mini_sentry.add_basic_project_config(42)
+    cfg["rev"] = "123"
+    public_key = mini_sentry.get_dsn_public_key(42)
+
+    body = {"publicKeys": [public_key], "revisions": ["123"]}
+    packed, signature = SecretKey.parse(relay.secret_key).pack(body)
+
+    def request_config():
+        return relay.post(
+            "/api/0/relays/projectconfigs/?version=3",
+            data=packed,
+            headers={
+                "X-Sentry-Relay-Id": relay.relay_id,
+                "X-Sentry-Relay-Signature": signature,
+            },
+        )
+
+    response = request_config()
+
+    assert response.ok
+    data = response.json()
+    assert public_key in data["pending"]
+    assert public_key not in data.get("unchanged", [])
+
+    deadline = time.monotonic() + 15
+    while time.monotonic() <= deadline:
+        response = request_config()
+        assert response.ok
+        data = response.json()
+        if data.get("unchanged"):
+            break
+    else:
+        assert False, "Relay did still not receive a project config from minisentry"
+
+    assert public_key in data["unchanged"]
+    assert public_key not in data["configs"]
+    assert data.get("pending") is None

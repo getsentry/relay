@@ -359,23 +359,42 @@ def test_minidump_invalid_nested_formdata(mini_sentry, relay):
         relay.send_minidump(project_id=project_id, files=attachments)
 
 
-@pytest.mark.parametrize("rate_limit", [None, "attachment", "transaction"])
+@pytest.mark.parametrize(
+    "rate_limit,minidump_filename",
+    [
+        (None, "minidump.dmp"),
+        ("attachment", "minidump.dmp"),
+        ("transaction", "minidump.dmp"),
+        (None, "minidump.dmp.gz"),
+        (None, "minidump.dmp.xz"),
+        (None, "minidump.dmp.bz2"),
+        (None, "minidump.dmp.zst"),
+    ],
+)
 def test_minidump_with_processing(
-    mini_sentry, relay_with_processing, attachments_consumer, rate_limit
+    mini_sentry,
+    relay_with_processing,
+    attachments_consumer,
+    rate_limit,
+    minidump_filename,
 ):
     dmp_path = os.path.join(os.path.dirname(__file__), "fixtures/native/minidump.dmp")
     with open(dmp_path, "rb") as f:
         content = f.read()
 
-    relay = relay_with_processing(
-        {
-            # Prevent normalization from overwriting the minidump timestamp
-            "processing": {"max_secs_in_past": 2**32 - 1}
-        }
-    )
+    # if we test a compressed minidump fixture we load both, the plain dump and the compressed one.
+    if minidump_filename != "minidump.dmp":
+        compressed_dmp_path = os.path.join(
+            os.path.dirname(__file__), f"fixtures/native/{minidump_filename}"
+        )
+        with open(compressed_dmp_path, "rb") as f:
+            compressed_content = f.read()
+
+    relay = relay_with_processing()
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["eventRetention"] = 50000
 
     # Disable scurbbing, the basic and full project configs from the mini_sentry fixture
     # will modify the minidump since it contains user paths in the module list.  This breaks
@@ -396,7 +415,16 @@ def test_minidump_with_processing(
 
     attachments_consumer = attachments_consumer()
 
-    attachments = [(MINIDUMP_ATTACHMENT_NAME, "minidump.dmp", content)]
+    # if we test a compressed minidump fixture we upload the compressed content
+    # but retrieve the uncompressed minidump content from the `attachments_consumer` below.
+    attachments = [
+        (
+            MINIDUMP_ATTACHMENT_NAME,
+            minidump_filename,
+            content if minidump_filename == "minidump.dmp" else compressed_content,
+        )
+    ]
+
     response = relay.send_minidump(project_id=project_id, files=attachments)
 
     attachment = b""
@@ -425,6 +453,7 @@ def test_minidump_with_processing(
             "id": attachment_id,
             "name": "minidump.dmp",
             "attachment_type": "event.minidump",
+            "content_type": "application/x-dmp",
             "chunks": num_chunks,
             "size": len(content),
             "rate_limited": rate_limit == "attachment",

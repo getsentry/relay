@@ -9,9 +9,9 @@ use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
 
-use axum::extract::DefaultBodyLimit;
+use axum::extract::{DefaultBodyLimit, Request};
 use axum::handler::Handler;
-use axum::http::{header, HeaderMap, HeaderName, HeaderValue, Request, StatusCode, Uri};
+use axum::http::{header, HeaderMap, HeaderName, HeaderValue, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
 use bytes::Bytes;
 use once_cell::sync::Lazy;
@@ -265,12 +265,7 @@ fn get_limit_for_path(path: &str, config: &Config) -> usize {
 ///
 /// - Use it as [`Handler`] directly in router methods when registering this as a route.
 /// - Call this manually from other request handlers to conditionally forward from other endpoints.
-pub fn forward<B>(state: ServiceState, req: Request<B>) -> impl Future<Output = Response>
-where
-    B: axum::body::HttpBody + Send + 'static,
-    B::Data: Send,
-    B::Error: Into<axum::BoxError>,
-{
+pub fn forward(state: ServiceState, req: Request) -> impl Future<Output = Response> {
     let limit = get_limit_for_path(req.uri().path(), state.config());
     handle.layer(DefaultBodyLimit::max(limit)).call(req, state)
 }

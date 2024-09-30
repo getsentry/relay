@@ -1,8 +1,6 @@
 use std::fmt;
 use std::str::FromStr;
 
-#[cfg(feature = "jsonschema")]
-use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{Annotated, Empty, Error, FromValue, IntoValue, Object, Value};
 
 use crate::processor::ProcessValue;
@@ -10,19 +8,19 @@ use crate::protocol::{OperationType, OriginType, SpanData, SpanStatus};
 
 /// A 32-character hex string as described in the W3C trace context spec.
 #[derive(Clone, Debug, Default, PartialEq, Empty, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct TraceId(pub String);
 
 impl FromValue for TraceId {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
-            Annotated(Some(Value::String(value)), mut meta) => {
+            Annotated(Some(Value::String(mut value)), mut meta) => {
                 if !is_hex_string(&value, 32) || value.bytes().all(|x| x == b'0') {
                     meta.add_error(Error::invalid("not a valid trace id"));
                     meta.set_original_value(Some(value));
                     Annotated(None, meta)
                 } else {
-                    Annotated(Some(TraceId(value.to_ascii_lowercase())), meta)
+                    value.make_ascii_lowercase();
+                    Annotated(Some(TraceId(value)), meta)
                 }
             }
             Annotated(None, meta) => Annotated(None, meta),
@@ -43,7 +41,6 @@ impl AsRef<str> for TraceId {
 
 /// A 16-character hex string as described in the W3C trace context spec.
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq, Empty, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct SpanId(pub String);
 
 relay_common::impl_str_serde!(SpanId, "a span identifier");
@@ -65,13 +62,14 @@ impl fmt::Display for SpanId {
 impl FromValue for SpanId {
     fn from_value(value: Annotated<Value>) -> Annotated<Self> {
         match value {
-            Annotated(Some(Value::String(value)), mut meta) => {
+            Annotated(Some(Value::String(mut value)), mut meta) => {
                 if !is_hex_string(&value, 16) || value.bytes().all(|x| x == b'0') {
                     meta.add_error(Error::invalid("not a valid span id"));
                     meta.set_original_value(Some(value));
                     Annotated(None, meta)
                 } else {
-                    Annotated(Some(SpanId(value.to_ascii_lowercase())), meta)
+                    value.make_ascii_lowercase();
+                    Annotated(Some(SpanId(value)), meta)
                 }
             }
             Annotated(None, meta) => Annotated(None, meta),
@@ -96,7 +94,6 @@ fn is_hex_string(string: &str, len: usize) -> bool {
 
 /// Trace context
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 #[metastructure(process_func = "process_trace_context")]
 pub struct TraceContext {
     /// The trace ID.

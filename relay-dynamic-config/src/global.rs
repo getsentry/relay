@@ -5,12 +5,11 @@ use std::io::BufReader;
 use std::path::Path;
 
 use relay_base_schema::metrics::MetricNamespace;
-use relay_event_normalization::{MeasurementsConfig, ModelCosts};
+use relay_event_normalization::{MeasurementsConfig, ModelCosts, SpanOpDefaults};
 use relay_filter::GenericFiltersConfig;
 use relay_quotas::Quota;
 use serde::{de, Deserialize, Serialize};
 use serde_json::Value;
-use url::Host;
 
 use crate::{defaults, ErrorBoundary, MetricExtractionGroup, MetricExtractionGroups};
 
@@ -50,6 +49,13 @@ pub struct GlobalConfig {
     /// Configuration for AI span measurements.
     #[serde(skip_serializing_if = "is_missing")]
     pub ai_model_costs: ErrorBoundary<ModelCosts>,
+
+    /// Configuration to derive the `span.op` from other span fields.
+    #[serde(
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "is_default"
+    )]
+    pub span_op_defaults: SpanOpDefaults,
 }
 
 impl GlobalConfig {
@@ -107,23 +113,6 @@ fn is_err_or_empty(filters_config: &ErrorBoundary<GenericFiltersConfig>) -> bool
 #[derive(Default, Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct Options {
-    /// List of platform names for which we allow using unsampled profiles for the purpose
-    /// of improving profile (function) metrics
-    #[serde(
-        rename = "profiling.profile_metrics.unsampled_profiles.platforms",
-        deserialize_with = "default_on_error",
-        skip_serializing_if = "Vec::is_empty"
-    )]
-    pub profile_metrics_allowed_platforms: Vec<String>,
-
-    /// Sample rate for tuning the amount of unsampled profiles that we "let through"
-    #[serde(
-        rename = "profiling.profile_metrics.unsampled_profiles.sample_rate",
-        deserialize_with = "default_on_error",
-        skip_serializing_if = "is_default"
-    )]
-    pub profile_metrics_sample_rate: f32,
-
     /// Kill switch for shutting down unsampled_profile metrics
     #[serde(
         rename = "profiling.profile_metrics.unsampled_profiles.enabled",
@@ -131,7 +120,6 @@ pub struct Options {
         skip_serializing_if = "is_default"
     )]
     pub unsampled_profiles_enabled: bool,
-
     /// Kill switch for shutting down profile function metrics
     /// ingestion in the generic-metrics platform
     #[serde(
@@ -202,19 +190,6 @@ pub struct Options {
     )]
     pub span_extraction_sample_rate: Option<f32>,
 
-    /// The maximum duplication factor used to extrapolate distribution metrics from sampled data.
-    ///
-    /// This applies as long as Relay duplicates distribution values to extrapolate. The default is
-    /// `0`, which disables extrapolation of distributions completely. This option does not apply to
-    /// any other metric types.
-    #[serde(
-        default,
-        rename = "sentry-metrics.extrapolation.duplication-limit",
-        deserialize_with = "default_on_error",
-        skip_serializing_if = "is_default"
-    )]
-    pub extrapolation_duplication_limit: usize,
-
     /// List of values on span description that are allowed to be sent to Sentry without being scrubbed.
     ///
     /// At this point, it doesn't accept IP addresses in CIDR format.. yet.
@@ -223,7 +198,25 @@ pub struct Options {
         deserialize_with = "default_on_error",
         skip_serializing_if = "Vec::is_empty"
     )]
-    pub http_span_allowed_hosts: Vec<Host>,
+    pub http_span_allowed_hosts: Vec<String>,
+
+    /// Deprecated, still forwarded for older downstream Relays.
+    #[doc(hidden)]
+    #[serde(
+        rename = "profiling.profile_metrics.unsampled_profiles.platforms",
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "Vec::is_empty"
+    )]
+    pub deprecated1: Vec<String>,
+
+    /// Deprecated, still forwarded for older downstream Relays.
+    #[doc(hidden)]
+    #[serde(
+        rename = "profiling.profile_metrics.unsampled_profiles.sample_rate",
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "is_default"
+    )]
+    pub deprecated2: f32,
 
     /// All other unknown options.
     #[serde(flatten)]
@@ -351,7 +344,7 @@ pub enum BucketEncoding {
 
 /// Returns `true` if this value is equal to `Default::default()`.
 fn is_default<T: Default + PartialEq>(t: &T) -> bool {
-    *t == T::default()
+    t == &T::default()
 }
 
 fn default_on_error<'de, D, T>(deserializer: D) -> Result<T, D::Error>
@@ -443,9 +436,6 @@ mod tests {
         }
       }
     ]
-  },
-  "options": {
-    "profiling.profile_metrics.unsampled_profiles.enabled": true
   }
 }"#;
 
@@ -458,8 +448,7 @@ mod tests {
     fn test_global_config_invalid_value_is_default() {
         let options: Options = serde_json::from_str(
             r#"{
-                "relay.cardinality-limiter.mode": "passive",
-                "profiling.profile_metrics.unsampled_profiles.sample_rate": "foo"
+                "relay.cardinality-limiter.mode": "passive"
             }"#,
         )
         .unwrap();

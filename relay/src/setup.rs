@@ -11,8 +11,8 @@ pub fn check_config(config: &Config) -> Result<()> {
         );
     }
 
-    if config.relay_mode() == RelayMode::Proxy && config.processing_enabled() {
-        anyhow::bail!("Processing cannot be enabled while in proxy mode.");
+    if config.relay_mode() != RelayMode::Managed && config.processing_enabled() {
+        anyhow::bail!("Processing can only be enabled in managed mode.");
     }
 
     #[cfg(feature = "processing")]

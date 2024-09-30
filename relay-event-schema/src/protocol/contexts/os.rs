@@ -1,5 +1,3 @@
-#[cfg(feature = "jsonschema")]
-use relay_jsonschema_derive::JsonSchema;
 use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
 
 use crate::processor::ProcessValue;
@@ -10,7 +8,6 @@ use crate::protocol::LenientString;
 /// OS context describes the operating system on which the event was created. In web contexts, this
 /// is the operating system of the browser (generally pulled from the User-Agent string).
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct OsContext {
     /// Name of the operating system.
     pub name: Annotated<String>,
@@ -50,7 +47,6 @@ pub struct OsContext {
 
 /// Metadata for the Linux Distribution.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[cfg_attr(feature = "jsonschema", derive(JsonSchema))]
 pub struct LinuxDistribution {
     /// An index-able name that is stable for each distribution.
     pub name: Annotated<String>,
