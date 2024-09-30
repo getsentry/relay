@@ -1835,7 +1835,11 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<ReplayGroup>,
     ) -> Result<(), ProcessingError> {
-        replay::process(state, &self.inner.global_config.current())?;
+        replay::process(
+            state,
+            &self.inner.global_config.current(),
+            self.inner.geoip_lookup.as_ref(),
+        )?;
         if_processing!(self.inner.config, {
             self.enforce_quotas(state)?;
         });
