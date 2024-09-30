@@ -6,6 +6,8 @@ import time
 import tempfile
 import os
 
+from requests import HTTPError
+
 
 def failing_check_challenge(*args, **kwargs):
     return "fail", 400
@@ -103,7 +105,7 @@ def test_readiness_not_enough_memory_percent(mini_sentry, relay):
         wait_health_check=False,
     )
     response = wait_get(relay, "/api/relay/healthcheck/ready/")
-    time.sleep(0.3)  # Wait for error
+    time.sleep(0.5)  # Wait for error
     error = str(mini_sentry.test_failures.pop(0))
     assert "Not enough memory" in error and ">= 1.00%" in error
     error = str(mini_sentry.test_failures.pop(0))
@@ -151,43 +153,44 @@ def test_readiness_depends_on_aggregator_being_full_after_metrics(mini_sentry, r
 
 
 def test_readiness_disk_spool(mini_sentry, relay):
-    try:
-        temp = tempfile.mkdtemp()
-        dbfile = os.path.join(temp, "buffer.db")
+    mini_sentry.reraise_test_failures = False
+    temp = tempfile.mkdtemp()
+    dbfile = os.path.join(temp, "buffer.db")
 
-        project_key = 42
-        mini_sentry.add_full_project_config(project_key)
-        # Set the broken config, so we won't be able to dequeue the envelopes.
-        config = mini_sentry.project_configs[project_key]["config"]
-        config["quotas"] = None
+    project_key = 42
+    mini_sentry.add_full_project_config(project_key)
+    # Set the broken config, so we won't be able to dequeue the envelopes.
+    config = mini_sentry.project_configs[project_key]["config"]
+    config["quotas"] = None
 
-        relay_config = {
-            "health": {
-                "refresh_interval_ms": 100,
-            },
-            "spool": {
-                # if the config contains max_disk_size and max_memory_size set both to 0, Relay will never passes readiness check
-                "envelopes": {
-                    "version": "experimental",
-                    "path": dbfile,
-                    "max_disk_size": 24577,  # one more than the initial size
-                    "disk_batch_size": 1,
-                    "max_batches": 1,
-                }
-            },
-        }
+    relay_config = {
+        "health": {
+            "refresh_interval_ms": 100,
+        },
+        "spool": {
+            # if the config contains max_disk_size and max_memory_size set both to 0, Relay will never passes readiness check
+            "envelopes": {
+                "version": "experimental",
+                "path": dbfile,
+                "max_disk_size": 24577,  # one more than the initial size
+                "disk_batch_size": 1,
+                "max_batches": 1,
+            }
+        },
+    }
 
-        relay = relay(mini_sentry, relay_config)
+    relay = relay(mini_sentry, relay_config)
 
-        # Second sent event can trigger error on the relay size, since the spool is full now.
-        for _ in range(20):
-            # It takes ~10 events to make SQLlite use more pages.
+    # Second sent event can trigger error on the relay size, since the spool is full now.
+    for _ in range(20):
+        # It takes ~10 events to make SQLlite use more pages.
+        try:
             relay.send_event(project_key)
+        except HTTPError as e:
+            # Might already reject responses
+            assert e.response.status_code == 503
 
-        time.sleep(2.0)
+    time.sleep(2.0)
 
-        response = wait_get(relay, "/api/relay/healthcheck/ready/")
-        assert response.status_code == 503
-
-    finally:
-        mini_sentry.test_failures.clear()
+    response = wait_get(relay, "/api/relay/healthcheck/ready/")
+    assert response.status_code == 503
