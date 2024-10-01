@@ -19,6 +19,7 @@
 - Add support for uploading compressed (gzip, xz, zstd, bzip2) minidumps. ([#4029](https://github.com/getsentry/relay/pull/4029))
 - Add user geo information to Replays. ([#4088](https://github.com/getsentry/relay/pull/4088))
 - Configurable span.op inference. ([#4056](https://github.com/getsentry/relay/pull/4056))
+- Enable support for zstd `Content-Encoding`. ([#4089](https://github.com/getsentry/relay/pull/4089))
 
 **Internal:**
 

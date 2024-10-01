@@ -113,10 +113,12 @@ tower-http = { workspace = true, default-features = false, features = [
     "compression-br",
     "compression-deflate",
     "compression-gzip",
+    "compression-zstd",
     "cors",
     "decompression-br",
     "decompression-deflate",
     "decompression-gzip",
+    "decompression-zstd",
     "set-header",
     "trace",
 ] }
