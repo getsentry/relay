@@ -1340,6 +1340,7 @@ mod tests {
         assert_pattern!("foo*foofoo*foobar", "foofoofooxfoofoobar");
         assert_pattern!("foo*fooFOO*fOobar", "fooFoofooXfoofooBAR", i);
         assert_pattern!("[0-9]*a", "0aaaaaaaaa", i);
+        assert_pattern!("[0-9]*Bar[x]", "0foobarx", i);
 
         assert_pattern!(
             r"/api/0/organizations/\{organization_slug\}/event*",

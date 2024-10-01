@@ -321,10 +321,8 @@ fn recover_offset_len(
         .try_fold((0, 0, 0), |(lower, h_offset, h_len), c| {
             let lower = lower + c.to_lowercase().map(|c| c.len_utf8()).sum::<usize>();
 
-            if lower < lower_offset {
+            if lower <= lower_offset {
                 Ok((lower, h_offset + c.len_utf8(), 0))
-            } else if lower == lower_offset {
-                Ok((lower, h_offset, c.len_utf8()))
             } else if lower <= lower_offset_end {
                 Ok((lower, h_offset, h_len + c.len_utf8()))
             } else {
@@ -447,6 +445,19 @@ mod tests {
 
     fn literal(s: &str) -> Literal {
         Literal::new(s.to_owned(), Default::default())
+    }
+
+    fn literal_ci(s: &str) -> Literal {
+        Literal::new(
+            s.to_owned(),
+            Options {
+                case_insensitive: true,
+            },
+        )
+    }
+
+    fn range(start: char, end: char) -> Ranges {
+        Ranges::Single(Range { start, end })
     }
 
     #[test]
@@ -599,5 +610,244 @@ mod tests {
         assert!(is_match("aba", &tokens, Default::default()));
         assert!(is_match("aca", &tokens, Default::default()));
         assert!(!is_match("ada", &tokens, Default::default()));
+    }
+
+    #[test]
+    fn test_matcher_case_sensitive_prefix() {
+        macro_rules! test {
+            ($haystack:expr, $needle:expr, $result:expr) => {
+                assert_eq!(
+                    CaseSensitive::is_prefix($haystack, &literal($needle)),
+                    $result
+                );
+            };
+        }
+
+        test!("foobar", "f", Some(1));
+        test!("foobar", "foo", Some(3));
+        test!("foobar", "foobar", Some(6));
+        test!("foobar", "oobar", None);
+        test!("foobar", "foobar2", None);
+        test!("İ", "İ", Some(2));
+        test!("İ", "i", None);
+        test!("i", "İ", None);
+        test!("i", "i", Some(1));
+        test!("i̇", "i", Some(1));
+        test!("i̇", "i\u{307}", Some(3));
+        test!("i̇x", "i\u{307}", Some(3));
+        test!("i̇x", "i\u{307}x", Some(4));
+        test!("i̇x", "i\u{307}_", None);
+    }
+
+    #[test]
+    fn test_matcher_case_sensitive_find() {
+        macro_rules! test {
+            ($haystack:expr, $needle:expr, $result:expr) => {
+                assert_eq!(CaseSensitive::find($haystack, &literal($needle)), $result);
+            };
+        }
+
+        test!("foobar", "f", Some((0, 1)));
+        test!("foobar", "foo", Some((0, 3)));
+        test!("foobar", "foobar", Some((0, 6)));
+        test!("foobar", "bar", Some((3, 3)));
+        test!("foobar", "oobar", Some((1, 5)));
+        test!("foobar", "foobar2", None);
+        test!("İ", "İ", Some((0, 2)));
+        test!("i", "i", Some((0, 1)));
+        test!("i̇", "i\u{307}", Some((0, 3)));
+        test!("i̇x", "i\u{307}x", Some((0, 4)));
+        test!("i̇x", "i\u{307}_", None);
+        test!("xi̇x", "i\u{307}", Some((1, 3)));
+        test!("xi̇ඞi̇x", "ඞ", Some((4, 3)));
+        test!("xi̇ඞi̇x", "ඞi̇", Some((4, 6)));
+    }
+
+    #[test]
+    fn test_matcher_case_sensitive_ranges_match() {
+        macro_rules! test {
+            ($c:expr, $negated:expr, [$start:literal - $end:literal], $result:expr) => {
+                assert_eq!(
+                    CaseSensitive::ranges_match($c, $negated, &range($start, $end)),
+                    $result
+                );
+            };
+        }
+
+        test!('a', false, ['a' - 'a'], true);
+        test!('a', true, ['a' - 'a'], false);
+        test!('b', false, ['a' - 'a'], false);
+        test!('b', true, ['a' - 'a'], true);
+        test!('b', false, ['a' - 'c'], true);
+        test!('b', false, ['b' - 'c'], true);
+        test!('b', false, ['a' - 'b'], true);
+
+        test!('A', false, ['a' - 'a'], false);
+        test!('ඞ', false, ['ඞ' - 'ඞ'], true);
+    }
+
+    #[test]
+    fn test_matcher_case_sensitive_ranges_find() {
+        macro_rules! test {
+            ($haystack:expr, $negated:expr, [$start:literal - $end:literal], $result:expr) => {
+                assert_eq!(
+                    CaseSensitive::ranges_find($haystack, $negated, &range($start, $end)),
+                    $result
+                );
+            };
+        }
+
+        test!("ඞaඞ", false, ['a' - 'a'], Some((3, 'a')));
+        test!("a", true, ['a' - 'a'], None);
+        test!("ඞaඞ", true, ['a' - 'a'], Some((0, 'ඞ')));
+        test!("aඞaඞ", true, ['a' - 'a'], Some((1, 'ඞ')));
+        test!("ඞbඞ", false, ['a' - 'a'], None);
+        test!("ඞbඞ", true, ['ඞ' - 'ඞ'], Some((3, 'b')));
+        test!("ඞbඞ", false, ['a' - 'c'], Some((3, 'b')));
+        test!("ඞbඞ", false, ['b' - 'c'], Some((3, 'b')));
+        test!("ඞbඞ", false, ['a' - 'b'], Some((3, 'b')));
+        test!("AAAAA", false, ['a' - 'a'], None);
+        test!("aaaaaaabb", true, ['a' - 'a'], Some((7, 'b')));
+        test!("AaaaaaAbb", false, ['b' - 'b'], Some((7, 'b')));
+    }
+
+    #[test]
+    fn test_matcher_case_insensitive_prefix() {
+        macro_rules! test {
+            ($haystack:expr, $needle:expr, $result:expr) => {
+                assert_eq!(
+                    CaseInsensitive::is_prefix($haystack, &literal_ci($needle)),
+                    $result
+                );
+            };
+        }
+
+        test!("foobar", "f", Some(1));
+        test!("foobar", "F", Some(1));
+        test!("fOobar", "foo", Some(3));
+        test!("fooBAR", "foobar", Some(6));
+        test!("foobar", "oobar", None);
+        test!("FOOBAR", "oobar", None);
+        test!("foobar", "foobar2", None);
+        test!("İ", "İ", Some(2));
+        test!("İ", "i", Some(0));
+        test!("İ", "i̇", Some(2));
+        test!("i", "İ", None);
+        test!("i", "i", Some(1));
+        test!("i̇", "i", Some(1));
+        test!("i̇", "i\u{307}", Some(3));
+        test!("i̇x", "i\u{307}", Some(3));
+        test!("i̇x", "i\u{307}x", Some(4));
+        test!("i̇x", "i\u{307}_", None);
+    }
+
+    #[test]
+    fn test_matcher_case_insensitive_find() {
+        macro_rules! test {
+            ($haystack:expr, $needle:expr, $result:expr) => {
+                assert_eq!(
+                    CaseInsensitive::find($haystack, &literal_ci($needle)),
+                    $result
+                );
+            };
+        }
+
+        test!("Foobar", "f", Some((0, 1)));
+        test!("foObar", "FOO", Some((0, 3)));
+        test!("foObar", "Foobar", Some((0, 6)));
+        test!("foObar", "bar", Some((3, 3)));
+        test!("foObarx", "bar", Some((3, 3)));
+        test!("foObarbarbar", "bar", Some((3, 3)));
+        test!("foObar", "Oobar", Some((1, 5)));
+        test!("foObar", "Foobar2", None);
+        test!("İ", "İ", Some((0, 2)));
+        test!("i", "i", Some((0, 1)));
+        test!("i̇", "i\u{307}", Some((0, 3)));
+        test!("i̇x", "i\u{307}x", Some((0, 4)));
+        test!("i̇x", "i\u{307}_", None);
+        test!("xi̇x", "i\u{307}", Some((1, 3)));
+        test!("xi̇ඞi̇x", "ඞ", Some((4, 3)));
+        test!("xi̇ඞi̇x", "ඞi̇", Some((4, 6)));
+        test!("xi̇ඞİx", "ඞi̇", Some((4, 5)));
+    }
+
+    #[test]
+    fn test_matcher_case_insensitive_ranges_match() {
+        macro_rules! test {
+            ($c:expr, $negated:expr, [$start:literal - $end:literal], $result:expr) => {
+                assert_eq!(
+                    CaseInsensitive::ranges_match($c, $negated, &range($start, $end)),
+                    $result
+                );
+            };
+        }
+
+        test!('a', false, ['a' - 'a'], true);
+        test!('a', true, ['a' - 'a'], false);
+        test!('b', false, ['a' - 'a'], false);
+        test!('b', true, ['a' - 'a'], true);
+        test!('b', false, ['a' - 'c'], true);
+        test!('b', false, ['b' - 'c'], true);
+        test!('b', false, ['a' - 'b'], true);
+
+        test!('b', false, ['A' - 'A'], false);
+        test!('b', true, ['A' - 'A'], true);
+        test!('b', false, ['A' - 'C'], true);
+        test!('b', false, ['B' - 'C'], true);
+        test!('b', false, ['A' - 'B'], true);
+
+        test!('B', false, ['a' - 'a'], false);
+        test!('B', true, ['a' - 'a'], true);
+        test!('B', false, ['a' - 'c'], true);
+        test!('B', false, ['b' - 'c'], true);
+        test!('B', false, ['a' - 'b'], true);
+
+        test!('ǧ', false, ['Ǧ' - 'Ǧ'], true);
+        test!('Ǧ', false, ['ǧ' - 'ǧ'], true);
+        test!('ǧ', true, ['Ǧ' - 'Ǧ'], false);
+        test!('Ǧ', true, ['ǧ' - 'ǧ'], false);
+
+        test!('ඞ', false, ['ඞ' - 'ඞ'], true);
+    }
+
+    #[test]
+    fn test_matcher_case_insensitive_ranges_find() {
+        macro_rules! test {
+            ($haystack:expr, $negated:expr, [$start:literal - $end:literal], $result:expr) => {
+                assert_eq!(
+                    CaseInsensitive::ranges_find($haystack, $negated, &range($start, $end)),
+                    $result
+                );
+            };
+        }
+
+        test!("ඞaඞ", false, ['a' - 'a'], Some((3, 'a')));
+        test!("a", true, ['a' - 'a'], None);
+        test!("ඞaඞ", true, ['a' - 'a'], Some((0, 'ඞ')));
+        test!("aඞaඞ", true, ['a' - 'a'], Some((1, 'ඞ')));
+        test!("ඞbඞ", false, ['a' - 'a'], None);
+        test!("ඞbඞ", true, ['ඞ' - 'ඞ'], Some((3, 'b')));
+        test!("ඞbඞ", false, ['a' - 'c'], Some((3, 'b')));
+        test!("ඞbඞ", false, ['b' - 'c'], Some((3, 'b')));
+        test!("ඞbඞ", false, ['a' - 'b'], Some((3, 'b')));
+        test!("AAAAA", false, ['a' - 'a'], Some((0, 'A')));
+        test!("aaaaaaabb", true, ['a' - 'a'], Some((7, 'b')));
+        test!("AaaaaaAbb", false, ['b' - 'b'], Some((7, 'b')));
+
+        test!("ඞBඞ", false, ['a' - 'a'], None);
+        test!("ඞBඞ", true, ['ඞ' - 'ඞ'], Some((3, 'B')));
+        test!("ඞBඞ", false, ['a' - 'c'], Some((3, 'B')));
+        test!("ඞBඞ", false, ['b' - 'c'], Some((3, 'B')));
+        test!("ඞBඞ", false, ['a' - 'b'], Some((3, 'B')));
+
+        test!("ඞbඞ", false, ['A' - 'A'], None);
+        test!("ඞbඞ", true, ['ඞ' - 'ඞ'], Some((3, 'b')));
+        test!("ඞbඞ", false, ['A' - 'C'], Some((3, 'b')));
+        test!("ඞbඞ", false, ['B' - 'C'], Some((3, 'b')));
+        test!("ඞbඞ", false, ['A' - 'B'], Some((3, 'b')));
+
+        test!("fඞoǧbar", false, ['ǧ' - 'ǧ'], Some((5, 'ǧ')));
+        test!("fඞoǧbar", false, ['Ǧ' - 'Ǧ'], Some((5, 'ǧ')));
+        test!("fඞoǦbar", false, ['ǧ' - 'ǧ'], Some((5, 'Ǧ')));
     }
 }
