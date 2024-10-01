@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Breaking Changes:**
+
+- Only allow processing enabled in managed mode. ([#4087](https://github.com/getsentry/relay/pull/4087))
+
 **Bug Fixes**:
 
 - Report invalid spans with appropriate outcome reason. ([#4051](https://github.com/getsentry/relay/pull/4051))
