@@ -3,7 +3,7 @@ import time
 import uuid
 
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
-from datetime import datetime, timezone, time as dttime, UTC
+from datetime import datetime, timezone, time as dttime
 
 
 def test_multi_write_redis_client_with_metric_meta(
