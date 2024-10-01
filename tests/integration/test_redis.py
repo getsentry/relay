@@ -143,3 +143,5 @@ def test_multi_write_redis_client_with_rate_limiting(
             outcomes = outcomes_consumer.get_outcomes()
             assert len(outcomes) == 1
             assert outcomes[0]["reason"] == "drop_all"
+
+        relay.shutdown()
