@@ -3877,6 +3877,10 @@
 <a href="#3877" id="3877">3877</a>
 <a href="#3878" id="3878">3878</a>
 <a href="#3879" id="3879">3879</a>
+<a href="#3880" id="3880">3880</a>
+<a href="#3881" id="3881">3881</a>
+<a href="#3882" id="3882">3882</a>
+<a href="#3883" id="3883">3883</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -4673,7 +4677,7 @@
     <span class="doccomment">/// Function for on-off switches that filter specific item types (profiles, spans)
     /// based on a feature flag.
     ///
-    /// If the project config did not come from the upstream, we keep the items
+    /// If the project config did not come from the upstream, we keep the items.
     </span><span class="kw">fn </span>should_filter(<span class="kw-2">&amp;</span><span class="self">self</span>, feature: Feature) -&gt; bool {
         <span class="kw">match </span><span class="self">self</span>.config.relay_mode() {
             RelayMode::Proxy | RelayMode::Static | RelayMode::Capture =&gt; <span class="bool-val">false</span>,
@@ -5714,7 +5718,11 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;ReplayGroup&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
-        replay::process(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current())<span class="question-mark">?</span>;
+        replay::process(
+            state,
+            <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current(),
+            <span class="self">self</span>.inner.geoip_lookup.as_ref(),
+        )<span class="question-mark">?</span>;
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
             <span class="self">self</span>.enforce_quotas(state)<span class="question-mark">?</span>;
         });
