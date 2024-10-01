@@ -84,7 +84,7 @@ def test_multi_write_redis_client_with_rate_limiting(
         {
             "id": f"error_rate_limiting_{uuid.uuid4()}",
             "categories": ["error"],
-            "window": int(datetime.now(UTC).timestamp()),
+            "window": 3600,
             "limit": 1,
             "reasonCode": "drop_all",
         }
