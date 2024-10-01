@@ -7,6 +7,8 @@ use crate::{Error, Pattern};
 pub trait PatternConfig {
     /// Configures the pattern to match case insensitive.
     const CASE_INSENSITIVE: bool = false;
+    /// Configures the maximum allowed complexity of the pattern.
+    const MAX_COMPLEXITY: u64 = u64::MAX;
 }
 
 /// The default pattern.
@@ -67,6 +69,7 @@ impl<C: PatternConfig> TypedPattern<C> {
     pub fn new(pattern: &str) -> Result<Self, Error> {
         Pattern::builder(pattern)
             .case_insensitive(C::CASE_INSENSITIVE)
+            .max_complexity(C::MAX_COMPLEXITY)
             .build()
             .map(|pattern| Self {
                 pattern,
@@ -144,6 +147,19 @@ mod tests {
     #[cfg(feature = "serde")]
     fn test_deserialize_err() {
         let r: Result<TypedPattern<CaseInsensitive>, _> = serde_json::from_str(r#""[invalid""#);
+        assert!(r.is_err());
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_deserialize_complexity() {
+        struct Test;
+        impl PatternConfig for Test {
+            const MAX_COMPLEXITY: u64 = 2;
+        }
+        let r: Result<TypedPattern<Test>, _> = serde_json::from_str(r#""{foo,bar}""#);
+        assert!(r.is_ok());
+        let r: Result<TypedPattern<Test>, _> = serde_json::from_str(r#""{foo,bar,baz}""#);
         assert!(r.is_err());
     }
 
