@@ -1308,20 +1308,29 @@ def test_buffer_events_during_outage(relay, mini_sentry):
     assert event["logentry"] == {"formatted": "123"}
 
 
-def test_store_invalid_gzip(mini_sentry, relay_chain):
-    relay = relay_chain(min_relay_version="21.6.0")
+def test_store_content_encodings(mini_sentry, relay):
+    relay = relay(mini_sentry)
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
 
-    headers = {
-        "Content-Encoding": "gzip",
-        "X-Sentry-Auth": relay.get_auth_header(project_id),
-    }
-
     url = "/api/%s/store/" % project_id
 
+    # All of the supported content encodings should generate a 400 error.
+    # An unknown/unsupported encoding generates a 415 (not supported).
+    for content_encoding in ["gzip", "br", "zstd", "deflate"]:
+        headers = {
+            "Content-Encoding": content_encoding,
+            "X-Sentry-Auth": relay.get_auth_header(project_id),
+        }
+        response = relay.post(url, headers=headers)
+        assert response.status_code == 400, content_encoding
+
+    headers = {
+        "Content-Encoding": "this-does-not-exist",
+        "X-Sentry-Auth": relay.get_auth_header(project_id),
+    }
     response = relay.post(url, headers=headers)
-    assert response.status_code == 400
+    assert response.status_code == 415
 
 
 def test_store_project_move(mini_sentry, relay):
