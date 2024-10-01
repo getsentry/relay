@@ -9,11 +9,136 @@ use crate::{Literal, Options, Ranges, Token, Tokens};
 /// of the already pre-processed [`Tokens`] structure and its invariants.
 ///
 /// [Kirk J Krauss]: http://developforperformance.com/MatchingWildcards_AnImprovedAlgorithmForBigData.html
-pub fn is_match(tokens: &Tokens, haystack: &str, options: Options) -> bool {
+pub fn is_match(haystack: &str, tokens: &Tokens, options: Options) -> bool {
     match options.case_insensitive {
-        false => is_match_impl::<_, CaseSensitive>(tokens.as_slice(), haystack),
-        true => is_match_impl::<_, CaseInsensitive>(tokens.as_slice(), haystack),
+        false => is_match_impl::<_, CaseSensitive>(haystack, tokens.as_slice()),
+        true => is_match_impl::<_, CaseInsensitive>(haystack, tokens.as_slice()),
     }
+}
+
+#[inline(always)]
+fn is_match_impl<T, M>(haystack: &str, tokens: &T) -> bool
+where
+    T: TokenIndex + ?Sized,
+    M: Matcher,
+{
+    // Remainder of the haystack which still needs to be matched.
+    let mut h_current = haystack;
+    // Saved haystack position for backtracking.
+    let mut h_revert = haystack;
+    // Revert index for `tokens`. In case of backtracking we backtrack to this index.
+    //
+    // If `t_revert` is zero, it means there is no currently saved backtracking position.
+    let mut t_revert = 0;
+    // The next token position which needs to be evaluted.
+    let mut t_next = 0;
+
+    macro_rules! advance {
+        ($len:expr) => {{
+            h_current = &h_current[$len..];
+            true
+        }};
+    }
+
+    // Empty glob never matches.
+    if tokens.is_empty() {
+        return false;
+    }
+
+    while t_next != tokens.len() || !h_current.is_empty() {
+        let matched = if t_next == tokens.len() {
+            false
+        } else {
+            let token = &tokens[t_next];
+            t_next += 1;
+
+            match token {
+                Token::Literal(literal) => match M::is_prefix(h_current, literal) {
+                    Some(n) => advance!(n),
+                    // The literal does not match, but it may match after backtracking.
+                    // TODO: possible optimization: if the literal cannot possibly match anymore
+                    // because it is too long for the remaining haystack, we can immediately return
+                    // no match here.
+                    None => false,
+                },
+                Token::Any(n) => {
+                    advance!(match n_chars_to_bytes(*n, h_current) {
+                        Some(n) => n,
+                        // Not enough characters in the haystack remaining,
+                        // there cannot be any other possible match.
+                        None => return false,
+                    });
+                    true
+                }
+                Token::Wildcard => {
+                    // `ab*c*` matches `abcd`.
+                    if t_next == tokens.len() {
+                        return true;
+                    }
+
+                    t_revert = t_next;
+
+                    match skip_to_token::<_, M>(tokens, t_next, h_current) {
+                        Some((tokens, revert, remaining)) => {
+                            t_next += tokens;
+                            h_revert = revert;
+                            h_current = remaining;
+                        }
+                        None => return false,
+                    };
+
+                    true
+                }
+                Token::Class { negated, ranges } => match h_current.chars().next() {
+                    Some(next) => {
+                        M::ranges_match(next, *negated, ranges) && advance!(next.len_utf8())
+                    }
+                    None => false,
+                },
+                Token::Alternates(alternates) => {
+                    // TODO: should we make this iterative instead of recursive?
+                    let matches = alternates.iter().any(|alternate| {
+                        let tokens = tokens.with_alternate(t_next, alternate.as_slice());
+                        is_match_impl::<_, M>(h_current, &tokens)
+                    });
+
+                    // The brace match already matches to the end, if it is successful we can end right here.
+                    if matches {
+                        return true;
+                    }
+                    // No match, allow for backtracking.
+                    false
+                }
+            }
+        };
+
+        if !matched {
+            if t_revert == 0 {
+                // No backtracking necessary, no star encountered.
+                // Didn't match and no backtracking -> no match.
+                return false;
+            }
+            h_current = h_revert;
+            t_next = t_revert;
+
+            // Backtrack to the previous location +1 character.
+            advance!(match n_chars_to_bytes(NonZeroUsize::MIN, h_current) {
+                Some(n) => n,
+                None => return false,
+            });
+
+            match skip_to_token::<_, M>(tokens, t_next, h_current) {
+                Some((tokens, revert, remaining)) => {
+                    t_next += tokens;
+                    h_revert = revert;
+                    h_current = remaining;
+                }
+                None => return false,
+            };
+        }
+    }
+
+    true
 }
 
 /// Bundles necessary matchers for [`is_match_impl`].
@@ -103,131 +228,6 @@ impl Matcher for CaseInsensitive {
             || exactly_one(c.to_uppercase()).is_some_and(|c| ranges.contains(c));
         matches ^ negated
     }
-}
-
-#[inline(always)]
-fn is_match_impl<T, M>(tokens: &T, haystack: &str) -> bool
-where
-    T: TokenIndex + ?Sized,
-    M: Matcher,
-{
-    // Remainder of the haystack which still needs to be matched.
-    let mut h_current = haystack;
-    // Saved haystack position for backtracking.
-    let mut h_revert = haystack;
-    // Revert index for `tokens`. In case of backtracking we backtrack to this index.
-    //
-    // If `t_revert` is zero, it means there is no currently saved backtracking position.
-    let mut t_revert = 0;
-    // The next token position which needs to be evaluted.
-    let mut t_next = 0;
-
-    macro_rules! advance {
-        ($len:expr) => {{
-            h_current = &h_current[$len..];
-            true
-        }};
-    }
-
-    // Empty glob never matches.
-    if tokens.is_empty() {
-        return false;
-    }
-
-    while t_next != tokens.len() || !h_current.is_empty() {
-        let matched = if t_next == tokens.len() {
-            false
-        } else {
-            let token = &tokens[t_next];
-            t_next += 1;
-
-            match token {
-                Token::Literal(literal) => match M::is_prefix(h_current, literal) {
-                    Some(n) => advance!(n),
-                    // The literal does not match, but it may match after backtracking.
-                    // TODO: possible optimization: if the literal cannot possibly match anymore
-                    // because it is too long for the remaining haystack, we can immediately return
-                    // no match here.
-                    None => false,
-                },
-                Token::Any(n) => {
-                    advance!(match n_chars_to_bytes(*n, h_current) {
-                        Some(n) => n,
-                        // Not enough characters in the haystack remaining,
-                        // there cannot be any other possible match.
-                        None => return false,
-                    });
-                    true
-                }
-                Token::Wildcard => {
-                    // `ab*c*` matches `abcd`.
-                    if t_next == tokens.len() {
-                        return true;
-                    }
-
-                    t_revert = t_next;
-
-                    match skip_to_token::<_, M>(tokens, t_next, h_current) {
-                        Some((tokens, revert, remaining)) => {
-                            t_next += tokens;
-                            h_revert = revert;
-                            h_current = remaining;
-                        }
-                        None => return false,
-                    };
-
-                    true
-                }
-                Token::Class { negated, ranges } => match h_current.chars().next() {
-                    Some(next) => {
-                        M::ranges_match(next, *negated, ranges) && advance!(next.len_utf8())
-                    }
-                    None => false,
-                },
-                Token::Alternates(alternates) => {
-                    // TODO: should we make this iterative instead of recursive?
-                    let matches = alternates.iter().any(|alternate| {
-                        let tokens = tokens.with_alternate(t_next, alternate.as_slice());
-                        is_match_impl::<_, M>(&tokens, h_current)
-                    });
-
-                    // The brace match already matches to the end, if it is successful we can end right here.
-                    if matches {
-                        return true;
-                    }
-                    // No match, allow for backtracking.
-                    false
-                }
-            }
-        };
-
-        if !matched {
-            if t_revert == 0 {
-                // No backtracking necessary, no star encountered.
-                // Didn't match and no backtracking -> no match.
-                return false;
-            }
-            h_current = h_revert;
-            t_next = t_revert;
-
-            // Backtrack to the previous location +1 character.
-            advance!(match n_chars_to_bytes(NonZeroUsize::MIN, h_current) {
-                Some(n) => n,
-                None => return false,
-            });
-
-            match skip_to_token::<_, M>(tokens, t_next, h_current) {
-                Some((tokens, revert, remaining)) => {
-                    t_next += tokens;
-                    h_revert = revert;
-                    h_current = remaining;
-                }
-                None => return false,
-            };
-        }
-    }
-
-    true
 }
 
 /// Efficiently skips to the next matching possible match after a wildcard.
@@ -461,9 +461,9 @@ mod tests {
     fn test_literal() {
         let mut tokens = Tokens::default();
         tokens.push(Token::Literal(literal("abc")));
-        assert!(is_match(&tokens, "abc", Default::default()));
-        assert!(!is_match(&tokens, "abcd", Default::default()));
-        assert!(!is_match(&tokens, "bc", Default::default()));
+        assert!(is_match("abc", &tokens, Default::default()));
+        assert!(!is_match("abcd", &tokens, Default::default()));
+        assert!(!is_match("bc", &tokens, Default::default()));
     }
 
     #[test]
@@ -475,9 +475,9 @@ mod tests {
             ranges: Ranges::Single(Range::single('b')),
         });
         tokens.push(Token::Literal(literal("c")));
-        assert!(is_match(&tokens, "abc", Default::default()));
-        assert!(!is_match(&tokens, "aac", Default::default()));
-        assert!(!is_match(&tokens, "abbc", Default::default()));
+        assert!(is_match("abc", &tokens, Default::default()));
+        assert!(!is_match("aac", &tokens, Default::default()));
+        assert!(!is_match("abbc", &tokens, Default::default()));
     }
 
     #[test]
@@ -489,9 +489,9 @@ mod tests {
             ranges: Ranges::Single(Range::single('b')),
         });
         tokens.push(Token::Literal(literal("c")));
-        assert!(!is_match(&tokens, "abc", Default::default()));
-        assert!(is_match(&tokens, "aac", Default::default()));
-        assert!(!is_match(&tokens, "abbc", Default::default()));
+        assert!(!is_match("abc", &tokens, Default::default()));
+        assert!(is_match("aac", &tokens, Default::default()));
+        assert!(!is_match("abbc", &tokens, Default::default()));
     }
 
     #[test]
@@ -500,9 +500,9 @@ mod tests {
         tokens.push(Token::Literal(literal("a")));
         tokens.push(Token::Any(NonZeroUsize::MIN));
         tokens.push(Token::Literal(literal("c")));
-        assert!(is_match(&tokens, "abc", Default::default()));
-        assert!(is_match(&tokens, "aඞc", Default::default()));
-        assert!(!is_match(&tokens, "abbc", Default::default()));
+        assert!(is_match("abc", &tokens, Default::default()));
+        assert!(is_match("aඞc", &tokens, Default::default()));
+        assert!(!is_match("abbc", &tokens, Default::default()));
     }
 
     #[test]
@@ -511,12 +511,12 @@ mod tests {
         tokens.push(Token::Literal(literal("a")));
         tokens.push(Token::Any(NonZeroUsize::new(2).unwrap()));
         tokens.push(Token::Literal(literal("d")));
-        assert!(is_match(&tokens, "abcd", Default::default()));
-        assert!(is_match(&tokens, "aඞ_d", Default::default()));
-        assert!(!is_match(&tokens, "abbc", Default::default()));
-        assert!(!is_match(&tokens, "abcde", Default::default()));
-        assert!(!is_match(&tokens, "abc", Default::default()));
-        assert!(!is_match(&tokens, "bcd", Default::default()));
+        assert!(is_match("abcd", &tokens, Default::default()));
+        assert!(is_match("aඞ_d", &tokens, Default::default()));
+        assert!(!is_match("abbc", &tokens, Default::default()));
+        assert!(!is_match("abcde", &tokens, Default::default()));
+        assert!(!is_match("abc", &tokens, Default::default()));
+        assert!(!is_match("bcd", &tokens, Default::default()));
     }
 
     #[test]
@@ -525,11 +525,11 @@ mod tests {
         tokens.push(Token::Literal(literal("a")));
         tokens.push(Token::Any(NonZeroUsize::new(3).unwrap()));
         tokens.push(Token::Literal(literal("a")));
-        assert!(is_match(&tokens, "abbba", Default::default()));
-        assert!(is_match(&tokens, "aඞbඞa", Default::default()));
+        assert!(is_match("abbba", &tokens, Default::default()));
+        assert!(is_match("aඞbඞa", &tokens, Default::default()));
         // `i̇` is `i\u{307}`
-        assert!(is_match(&tokens, "aඞi̇a", Default::default()));
-        assert!(!is_match(&tokens, "aඞi̇ඞa", Default::default()));
+        assert!(is_match("aඞi̇a", &tokens, Default::default()));
+        assert!(!is_match("aඞi̇ඞa", &tokens, Default::default()));
     }
 
     #[test]
@@ -537,15 +537,15 @@ mod tests {
         let mut tokens = Tokens::default();
         tokens.push(Token::Wildcard);
         tokens.push(Token::Literal(literal("b")));
-        assert!(is_match(&tokens, "b", Default::default()));
-        assert!(is_match(&tokens, "aaaab", Default::default()));
-        assert!(is_match(&tokens, "ඞb", Default::default()));
-        assert!(is_match(&tokens, "bbbbbbbbb", Default::default()));
-        assert!(!is_match(&tokens, "", Default::default()));
-        assert!(!is_match(&tokens, "a", Default::default()));
-        assert!(!is_match(&tokens, "aa", Default::default()));
-        assert!(!is_match(&tokens, "aaa", Default::default()));
-        assert!(!is_match(&tokens, "ba", Default::default()));
+        assert!(is_match("b", &tokens, Default::default()));
+        assert!(is_match("aaaab", &tokens, Default::default()));
+        assert!(is_match("ඞb", &tokens, Default::default()));
+        assert!(is_match("bbbbbbbbb", &tokens, Default::default()));
+        assert!(!is_match("", &tokens, Default::default()));
+        assert!(!is_match("a", &tokens, Default::default()));
+        assert!(!is_match("aa", &tokens, Default::default()));
+        assert!(!is_match("aaa", &tokens, Default::default()));
+        assert!(!is_match("ba", &tokens, Default::default()));
     }
 
     #[test]
@@ -553,14 +553,14 @@ mod tests {
         let mut tokens = Tokens::default();
         tokens.push(Token::Literal(literal("a")));
         tokens.push(Token::Wildcard);
-        assert!(is_match(&tokens, "a", Default::default()));
-        assert!(is_match(&tokens, "aaaab", Default::default()));
-        assert!(is_match(&tokens, "aඞ", Default::default()));
-        assert!(!is_match(&tokens, "", Default::default()));
-        assert!(!is_match(&tokens, "b", Default::default()));
-        assert!(!is_match(&tokens, "bb", Default::default()));
-        assert!(!is_match(&tokens, "bbb", Default::default()));
-        assert!(!is_match(&tokens, "ba", Default::default()));
+        assert!(is_match("a", &tokens, Default::default()));
+        assert!(is_match("aaaab", &tokens, Default::default()));
+        assert!(is_match("aඞ", &tokens, Default::default()));
+        assert!(!is_match("", &tokens, Default::default()));
+        assert!(!is_match("b", &tokens, Default::default()));
+        assert!(!is_match("bb", &tokens, Default::default()));
+        assert!(!is_match("bbb", &tokens, Default::default()));
+        assert!(!is_match("ba", &tokens, Default::default()));
     }
 
     #[test]
@@ -572,11 +572,11 @@ mod tests {
         tokens.push(Token::Literal(Literal::new("İ".to_string(), options)));
         tokens.push(Token::Wildcard);
 
-        assert!(is_match(&tokens, "İ___", options));
-        assert!(is_match(&tokens, "İ", options));
-        assert!(is_match(&tokens, "i̇", options));
-        assert!(is_match(&tokens, "i\u{307}___", options));
-        assert!(!is_match(&tokens, "i____", options));
+        assert!(is_match("İ___", &tokens, options));
+        assert!(is_match("İ", &tokens, options));
+        assert!(is_match("i̇", &tokens, options));
+        assert!(is_match("i\u{307}___", &tokens, options));
+        assert!(!is_match("i____", &tokens, options));
     }
 
     #[test]
@@ -596,8 +596,8 @@ mod tests {
             },
         ]));
         tokens.push(Token::Literal(literal("a")));
-        assert!(is_match(&tokens, "aba", Default::default()));
-        assert!(is_match(&tokens, "aca", Default::default()));
-        assert!(!is_match(&tokens, "ada", Default::default()));
+        assert!(is_match("aba", &tokens, Default::default()));
+        assert!(is_match("aca", &tokens, Default::default()));
+        assert!(!is_match("ada", &tokens, Default::default()));
     }
 }

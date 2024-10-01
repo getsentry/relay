@@ -107,7 +107,7 @@ impl Pattern {
             MatchStrategy::Suffix(suffix) => match_suffix(suffix, haystack, self.options),
             MatchStrategy::Contains(contains) => match_contains(contains, haystack, self.options),
             MatchStrategy::Static(matches) => *matches,
-            MatchStrategy::Wildmatch(tokens) => wildmatch::is_match(tokens, haystack, self.options),
+            MatchStrategy::Wildmatch(tokens) => wildmatch::is_match(haystack, tokens, self.options),
         }
     }
 }
