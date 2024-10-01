@@ -72,17 +72,9 @@ def test_multi_write_redis_client_with_rate_limiting(
     relay_with_processing,
     events_consumer,
     outcomes_consumer,
-    redis_client,
-    secondary_redis_client,
 ):
     outcomes_consumer = outcomes_consumer(timeout=10)
     events_consumer = events_consumer()
-
-    # We prepare the test with an empty Redis.
-    redis_client.flushall()
-    secondary_redis_client.flushall()
-    redis_client.script_flush()
-    secondary_redis_client.script_flush()
 
     project_cache_redis_prefix = f"relay-test-relayconfig-{uuid.uuid4()}"
 
@@ -90,7 +82,7 @@ def test_multi_write_redis_client_with_rate_limiting(
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["quotas"] = [
         {
-            "id": "error_rate_limiting",
+            "id": f"error_rate_limiting_{uuid.uuid4()}",
             "categories": ["error"],
             "window": 3600,
             "limit": 1,

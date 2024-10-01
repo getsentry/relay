@@ -14,14 +14,15 @@ use crate::config::RedisConfigOptions;
 enum SecondaryErrorHandling {
     /// The error will be silently discarded as if it didn't happen.
     Discard,
-    /// The error will be returned after all the secondary Redis instance received the command.
-    Return,
+    /// The error will be returned if it's the first error that happened in any secondary Redis
+    /// instance and no error happened in the primary instance.
+    ReturnIfFirst,
 }
 
 impl<'a> From<&'a redis::RedisError> for SecondaryErrorHandling {
     fn from(value: &'a redis::RedisError) -> Self {
         match value.kind() {
-            ErrorKind::NoScriptError => SecondaryErrorHandling::Return,
+            ErrorKind::NoScriptError => SecondaryErrorHandling::ReturnIfFirst,
             _ => SecondaryErrorHandling::Discard,
         }
     }
@@ -70,7 +71,7 @@ impl ConnectionLike for ConnectionInner<'_> {
                             "sending cmd to the secondary Redis instance failed",
                         );
 
-                        if let (SecondaryErrorHandling::Return, None) =
+                        if let (SecondaryErrorHandling::ReturnIfFirst, None) =
                             (SecondaryErrorHandling::from(&error), &secondary_error)
                         {
                             secondary_error = Some(error);
@@ -78,11 +79,13 @@ impl ConnectionLike for ConnectionInner<'_> {
                     }
                 }
 
+                let primary_result = primary_result?;
+
                 if let Some(secondary_error) = secondary_error {
                     return Err(secondary_error);
                 }
 
-                primary_result
+                Ok(primary_result)
             }
             ConnectionInner::Single(ref mut con) => con.req_packed_command(cmd),
         }
@@ -111,7 +114,7 @@ impl ConnectionLike for ConnectionInner<'_> {
                             "sending cmds to the secondary Redis instance failed",
                         );
 
-                        if let (SecondaryErrorHandling::Return, None) =
+                        if let (SecondaryErrorHandling::ReturnIfFirst, None) =
                             (SecondaryErrorHandling::from(&error), &secondary_error)
                         {
                             secondary_error = Some(error);
@@ -119,11 +122,13 @@ impl ConnectionLike for ConnectionInner<'_> {
                     }
                 }
 
+                let primary_result = primary_result?;
+
                 if let Some(secondary_error) = secondary_error {
                     return Err(secondary_error);
                 }
 
-                primary_result
+                Ok(primary_result)
             }
             ConnectionInner::Single(ref mut con) => con.req_packed_commands(cmd, offset, count),
         }
