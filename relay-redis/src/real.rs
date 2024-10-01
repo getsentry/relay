@@ -9,6 +9,24 @@ use thiserror::Error;
 
 use crate::config::RedisConfigOptions;
 
+/// Enum representing the ways in which a redis error should be handled in a multi-write
+/// configuration.
+enum SecondaryErrorHandling {
+    /// The error will be silently discarded as if it didn't happen.
+    Discard,
+    /// The error will be returned after all the secondary Redis instance received the command.
+    Return,
+}
+
+impl<'a> From<&'a redis::RedisError> for SecondaryErrorHandling {
+    fn from(value: &'a redis::RedisError) -> Self {
+        match value.kind() {
+            ErrorKind::NoScriptError => SecondaryErrorHandling::Return,
+            _ => SecondaryErrorHandling::Discard,
+        }
+    }
+}
+
 /// An error returned from `RedisPool`.
 #[derive(Debug, Error)]
 pub enum RedisError {
@@ -42,7 +60,7 @@ impl ConnectionLike for ConnectionInner<'_> {
                 primary: primary_connection,
                 secondaries: secondary_connections,
             } => {
-                let mut secondary_no_script_error: Option<redis::RedisError> = None;
+                let mut secondary_error: Option<redis::RedisError> = None;
 
                 let primary_result = primary_connection.req_packed_command(cmd);
                 for secondary_connection in secondary_connections.iter_mut() {
@@ -52,17 +70,16 @@ impl ConnectionLike for ConnectionInner<'_> {
                             "sending cmd to the secondary Redis instance failed",
                         );
 
-                        if error.kind() == ErrorKind::NoScriptError {
-                            secondary_no_script_error = Some(error);
+                        if let (SecondaryErrorHandling::Return, None) =
+                            (SecondaryErrorHandling::from(&error), &secondary_error)
+                        {
+                            secondary_error = Some(error);
                         }
                     }
                 }
 
-                // In case we had at least one secondary replica with no script, we will propagate
-                // the error to signal the caller that the script has to be propagated to all
-                // nodes in the multi-write configuration.
-                if let Some(secondary_no_script_error) = secondary_no_script_error {
-                    return Err(secondary_no_script_error);
+                if let Some(secondary_error) = secondary_error {
+                    return Err(secondary_error);
                 }
 
                 primary_result
@@ -83,7 +100,7 @@ impl ConnectionLike for ConnectionInner<'_> {
                 primary: primary_connection,
                 secondaries: secondary_connections,
             } => {
-                let mut secondary_no_script_error: Option<redis::RedisError> = None;
+                let mut secondary_error = None;
 
                 let primary_result = primary_connection.req_packed_commands(cmd, offset, count);
                 for secondary_connection in secondary_connections.iter_mut() {
@@ -94,17 +111,16 @@ impl ConnectionLike for ConnectionInner<'_> {
                             "sending cmds to the secondary Redis instance failed",
                         );
 
-                        if error.kind() == ErrorKind::NoScriptError {
-                            secondary_no_script_error = Some(error);
+                        if let (SecondaryErrorHandling::Return, None) =
+                            (SecondaryErrorHandling::from(&error), &secondary_error)
+                        {
+                            secondary_error = Some(error);
                         }
                     }
                 }
 
-                // In case we had at least one secondary replica with no script, we will propagate
-                // the error to signal the caller that the script has to be propagated to all
-                // nodes in the multi-write configuration.
-                if let Some(secondary_no_script_error) = secondary_no_script_error {
-                    return Err(secondary_no_script_error);
+                if let Some(secondary_error) = secondary_error {
+                    return Err(secondary_error);
                 }
 
                 primary_result
