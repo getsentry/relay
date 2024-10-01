@@ -92,7 +92,12 @@ def test_multi_write_redis_client_with_rate_limiting(
 
     redis_configs = [
         # First, we double-write/-read to/from both Redis instances.
-        {"server": "redis://127.0.0.1:6380"},
+        {
+            "configs": [
+                {"server": "redis://127.0.0.1:6379"},
+                {"server": "redis://127.0.0.1:6380"},
+            ]
+        },
         # Afterward, we point to the secondary instance to make sure we are
         # correctly reading the quotas written before.
         {"server": "redis://127.0.0.1:6380"},
