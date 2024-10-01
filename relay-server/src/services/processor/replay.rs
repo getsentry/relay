@@ -34,7 +34,9 @@ pub fn process(
 
     // If the replay video feature is not enabled check the envelope items for a
     // replay video event.
-    if state.should_filter(Feature::SessionReplayVideoDisabled)
+    if state
+        .project_state
+        .has_feature(Feature::SessionReplayVideoDisabled)
         && count_replay_video_events(state) > 0
     {
         state.managed_envelope.drop_items_silently();
