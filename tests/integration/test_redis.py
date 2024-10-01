@@ -3,7 +3,7 @@ import time
 import uuid
 
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
-from datetime import datetime, timezone, time as dttime
+from datetime import datetime, timezone, time as dttime, UTC
 
 
 def test_multi_write_redis_client_with_metric_meta(
@@ -84,7 +84,7 @@ def test_multi_write_redis_client_with_rate_limiting(
         {
             "id": f"error_rate_limiting_{uuid.uuid4()}",
             "categories": ["error"],
-            "window": 3600,
+            "window": int(datetime.now(UTC).timestamp()),
             "limit": 1,
             "reasonCode": "drop_all",
         }
