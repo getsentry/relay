@@ -1,6 +1,10 @@
 # Rust
 **/*.rs.bk
 target
+**/fuzz/corpus
+**/fuzz/artifacts
+**/fuzz/coverage
+**/fuzz/*.html
 *.pending-snap
 
 # Python
