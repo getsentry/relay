@@ -39,7 +39,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: artifact-linux
+          name: artifact-linux-${{ matrix.build-arch }}
           path: py/dist/*
           if-no-files-found: 'error'
           # since this artifact will be merged, compression is not necessary
@@ -85,7 +85,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: artifact-macos
+          name: artifact-macos-${{ matrix.py-platform }}
           path: py/dist/*
           if-no-files-found: 'error'
           # since this artifact will be merged, compression is not necessary

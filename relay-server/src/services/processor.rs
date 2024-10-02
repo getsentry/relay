@@ -794,7 +794,7 @@ impl<'a, Group> ProcessEnvelopeState<'a, Group> {
     /// Function for on-off switches that filter specific item types (profiles, spans)
     /// based on a feature flag.
     ///
-    /// If the project config did not come from the upstream, we keep the items
+    /// If the project config did not come from the upstream, we keep the items.
     fn should_filter(&self, feature: Feature) -> bool {
         match self.config.relay_mode() {
             RelayMode::Proxy | RelayMode::Static | RelayMode::Capture => false,
@@ -1835,7 +1835,11 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<ReplayGroup>,
     ) -> Result<(), ProcessingError> {
-        replay::process(state, &self.inner.global_config.current())?;
+        replay::process(
+            state,
+            &self.inner.global_config.current(),
+            self.inner.geoip_lookup.as_ref(),
+        )?;
         if_processing!(self.inner.config, {
             self.enforce_quotas(state)?;
         });

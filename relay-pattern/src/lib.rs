@@ -26,7 +26,13 @@
 //! * `{a,b}` matches any pattern within the alternation group.
 //! * `\` escapes any of the above special characters and treats it as a literal.
 
-use std::fmt::{self, Write};
+use std::fmt;
+use std::num::NonZeroUsize;
+
+mod typed;
+mod wildmatch;
+
+pub use typed::*;
 
 /// Pattern parsing error.
 #[derive(Debug)]
@@ -50,8 +56,6 @@ enum ErrorKind {
     UnbalancedAlternates,
     /// Dangling escape character.
     DanglingEscape,
-    /// The pattern produced an invalid regex pattern which couldn't be compiled.
-    Regex(String),
 }
 
 impl std::error::Error for Error {}
@@ -68,7 +72,6 @@ impl fmt::Display for Error {
             ErrorKind::NestedAlternates => write!(f, "Nested alternates"),
             ErrorKind::UnbalancedAlternates => write!(f, "Unbalanced alternates"),
             ErrorKind::DanglingEscape => write!(f, "Dangling escape"),
-            ErrorKind::Regex(s) => f.write_str(s),
         }
     }
 }
@@ -104,7 +107,7 @@ impl Pattern {
             MatchStrategy::Suffix(suffix) => match_suffix(suffix, haystack, self.options),
             MatchStrategy::Contains(contains) => match_contains(contains, haystack, self.options),
             MatchStrategy::Static(matches) => *matches,
-            MatchStrategy::Regex(re) => re.is_match(haystack),
+            MatchStrategy::Wildmatch(tokens) => wildmatch::is_match(haystack, tokens, self.options),
         }
     }
 }
@@ -133,7 +136,7 @@ impl<'a> PatternBuilder<'a> {
 
     /// build a new [`Pattern`] from the passed pattern and configured options.
     pub fn build(&self) -> Result<Pattern, Error> {
-        let mut parser = Parser::new(self.pattern);
+        let mut parser = Parser::new(self.pattern, self.options);
         parser.parse().map_err(|kind| Error {
             pattern: self.pattern.to_owned(),
             kind,
@@ -162,7 +165,7 @@ struct Options {
 /// Matching strategy for a [`Pattern`].
 ///
 /// Certain patterns can be matched more efficiently while the complex
-/// patterns fallback to a regex.
+/// patterns fallback to [`wildmatch::is_match`].
 #[derive(Debug, Clone)]
 enum MatchStrategy {
     /// The pattern is a single literal string.
@@ -196,19 +199,16 @@ enum MatchStrategy {
     ///
     /// Example: `*`
     Static(bool),
-    /// The pattern is complex and compiled to a [`regex_lite::Regex`].
-    Regex(regex_lite::Regex),
+    /// The pattern is complex and needs to be evaluated using [`wildmatch`].
+    Wildmatch(Tokens),
     // Possible future optimizations for `Any` variations:
     // Examples: `??`. `??suffix`, `prefix??` and `?contains?`.
 }
 
 impl MatchStrategy {
     /// Create a [`MatchStrategy`] from [`Tokens`].
-    fn from_tokens(mut tokens: Tokens, options: Options) -> Result<Self, ErrorKind> {
-        let take_case = |s: &mut String| match options.case_insensitive {
-            true => std::mem::take(s).to_lowercase(),
-            false => std::mem::take(s),
-        };
+    fn from_tokens(mut tokens: Tokens, _options: Options) -> Result<Self, ErrorKind> {
+        let take_case = |s: &mut Literal| std::mem::take(s).into_case_converted();
 
         let s = match tokens.as_mut_slice() {
             [] => Self::Static(false),
@@ -219,99 +219,11 @@ impl MatchStrategy {
             [Token::Wildcard, Token::Literal(literal), Token::Wildcard] => {
                 Self::Contains(take_case(literal))
             }
-            tokens => Self::Regex(to_regex(tokens, options)?),
+            _ => Self::Wildmatch(tokens),
         };
 
         Ok(s)
     }
-}
-
-/// Convert a list of tokens to a [`regex_lite::Regex`].
-fn to_regex(tokens: &[Token], options: Options) -> Result<regex_lite::Regex, ErrorKind> {
-    fn push_class_escaped(sink: &mut String, c: char) {
-        match c {
-            '\\' => sink.push_str(r"\\"),
-            '[' => sink.push_str(r"\["),
-            ']' => sink.push_str(r"\]"),
-            c => sink.push(c),
-        }
-    }
-
-    fn tokens_to_regex(re: &mut String, tokens: &[Token]) {
-        for token in tokens {
-            match token {
-                Token::Literal(literal) => re.push_str(&regex_lite::escape(literal)),
-                Token::Any(n) => match n {
-                    0 => debug_assert!(false, "empty any token"),
-                    1 => re.push('.'),
-                    // The simple case with a 'few' any matchers.
-                    &i @ 2..=20 => {
-                        re.reserve(i);
-                        for _ in 0..i {
-                            re.push('.');
-                        }
-                    }
-                    // The generic case with a 'a lot of' any matchers.
-                    i => {
-                        re.push('.');
-                        re.push('{');
-                        write!(re, "{i}").ok();
-                        re.push('}')
-                    }
-                },
-                Token::Wildcard => re.push_str(".*"),
-                Token::Class { negated, ranges } => {
-                    if ranges.is_empty() {
-                        continue;
-                    }
-
-                    re.push('[');
-                    if *negated {
-                        re.push('^');
-                    }
-                    for range in ranges.iter() {
-                        push_class_escaped(re, range.start);
-                        if range.start != range.end {
-                            re.push('-');
-                            push_class_escaped(re, range.end);
-                        }
-                    }
-                    re.push(']');
-                }
-                Token::Alternates(alternates) => {
-                    if alternates.is_empty() {
-                        continue;
-                    }
-
-                    re.push_str("(?:");
-                    let mut first = true;
-                    for alternate in alternates {
-                        if !first {
-                            re.push('|');
-                        }
-                        first = false;
-
-                        tokens_to_regex(re, alternate.as_slice());
-                    }
-                    re.push(')');
-                }
-            }
-        }
-    }
-
-    let mut re = String::new();
-    re.push_str("(?-u)");
-    if options.case_insensitive {
-        re.push_str("(?i)");
-    }
-    re.push('^');
-    tokens_to_regex(&mut re, tokens);
-    re.push('$');
-
-    regex_lite::RegexBuilder::new(&re)
-        .dot_matches_new_line(true)
-        .build()
-        .map_err(|err| ErrorKind::Regex(err.to_string()))
 }
 
 #[inline(always)]
@@ -398,22 +310,24 @@ struct Parser<'a> {
     tokens: Tokens,
     alternates: Option<Vec<Tokens>>,
     current_literal: Option<String>,
+    options: Options,
 }
 
 impl<'a> Parser<'a> {
-    fn new(pattern: &'a str) -> Self {
+    fn new(pattern: &'a str, options: Options) -> Self {
         Self {
             chars: pattern.chars().peekable(),
             tokens: Default::default(),
             alternates: None,
             current_literal: None,
+            options,
         }
     }
 
     fn parse(&mut self) -> Result<(), ErrorKind> {
         while let Some(c) = self.advance() {
             match c {
-                '?' => self.push_token(Token::Any(1)),
+                '?' => self.push_token(Token::Any(NonZeroUsize::MIN)),
                 '*' => self.push_token(Token::Wildcard),
                 '[' => self.parse_class()?,
                 ']' => return Err(ErrorKind::UnbalancedCharacterClass),
@@ -527,7 +441,7 @@ impl<'a> Parser<'a> {
     /// Finishes and pushes the currently in progress literal token.
     fn finish_literal(&mut self) {
         if let Some(literal) = self.current_literal.take() {
-            self.push_token(Token::Literal(literal));
+            self.push_token(Token::Literal(Literal::new(literal, self.options)));
         }
     }
 
@@ -568,7 +482,13 @@ impl<'a> Parser<'a> {
 /// A container of tokens.
 ///
 /// Automatically folds redundant tokens.
-#[derive(Debug, Default)]
+///
+/// The contained tokens are guaranteed to uphold the following invariants:
+/// - A [`Token::Wildcard`] is never followed by [`Token::Wildcard`].
+/// - A [`Token::Any`] is never followed by [`Token::Any`].
+/// - A [`Token::Literal`] is never followed by [`Token::Literal`].
+/// - A [`Token::Class`] is never empty.
+#[derive(Clone, Debug, Default)]
 struct Tokens(Vec<Token>);
 
 impl Tokens {
@@ -596,19 +516,16 @@ impl Tokens {
             }
         }
 
-        let Some(last) = self.0.last_mut() else {
-            self.0.push(token);
-            return;
-        };
-
-        match (last, token) {
+        match (self.0.last_mut(), token) {
             // Collapse Any's.
-            (Token::Any(n), Token::Any(n2)) => *n += n2,
+            (Some(Token::Any(n)), Token::Any(n2)) => *n = n.saturating_add(n2.get()),
             // We can collapse multiple wildcards into a single one.
             // TODO: separator special handling (?)
-            (Token::Wildcard, Token::Wildcard) => {}
+            (Some(Token::Wildcard), Token::Wildcard) => {}
             // Collapse multiple literals into one.
-            (Token::Literal(ref mut last), Token::Literal(s)) => last.push_str(&s),
+            (Some(Token::Literal(ref mut last)), Token::Literal(s)) => last.push(&s),
+            // Ignore empty class tokens.
+            (_, Token::Class { negated: _, ranges }) if ranges.is_empty() => {}
             // Everything else is just another token.
             (_, token) => self.0.push(token),
         }
@@ -624,12 +541,12 @@ impl Tokens {
 }
 
 /// Represents a token in a Relay pattern.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 enum Token {
     /// A literal token.
-    Literal(String),
+    Literal(Literal),
     /// The any token `?` and how many `?` are seen in a row.
-    Any(usize),
+    Any(NonZeroUsize),
     /// The wildcard token `*`.
     Wildcard,
     /// A class token `[abc]` or its negated variant `[!abc]`.
@@ -638,12 +555,52 @@ enum Token {
     Alternates(Vec<Tokens>),
 }
 
+/// A string literal.
+///
+/// The contained literal is only available as a case converted string.
+/// Depending on whether the pattern is case sensitive or case insensitive the literal is either
+/// the original string or converted to lowercase.
+#[derive(Clone, Debug, Default)]
+struct Literal(String);
+
+impl Literal {
+    /// Creates a new literal from `s` and `options`.
+    fn new(s: String, options: Options) -> Self {
+        match options.case_insensitive {
+            false => Self(s),
+            true => Self(s.to_lowercase()),
+        }
+    }
+
+    /// Adds a literal to this literal.
+    ///
+    /// This function does not validate case conversion, both literals must be for the same caseing.
+    fn push(&mut self, Literal(other): &Literal) {
+        self.0.push_str(other);
+    }
+
+    /// Returns a reference to the case converted string.
+    fn as_case_converted_str(&self) -> &str {
+        &self.0
+    }
+
+    /// Returns a reference to the case converted string as bytes.
+    fn as_case_converted_bytes(&self) -> &[u8] {
+        self.as_case_converted_str().as_bytes()
+    }
+
+    /// Returns the inner case converted string, destructuring the literal.
+    fn into_case_converted(self) -> String {
+        self.0
+    }
+}
+
 /// A [`Range`] contains whatever is contained between `[` and `]` of
 /// a glob pattern, except the negation.
 ///
 /// For example the pattern `[a-z]` contains the range from `a` to `z`,
 /// the pattern `[ax-zbf-h]` contains the ranges `x-z`, `f-h`, `a-a` and `b-b`.
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 enum Ranges {
     /// An empty, default range not containing any characters.
     ///
@@ -696,22 +653,16 @@ impl Ranges {
         }
     }
 
-    /// Returns an iterator over all contained ranges.
-    fn iter(&self) -> impl Iterator<Item = Range> + '_ {
-        let single = match self {
-            Ranges::Single(range) => Some(*range),
-            _ => None,
+    /// Returns `true` if the character `c` is contained matches any contained range.
+    #[inline(always)]
+    fn contains(&self, c: char) -> bool {
+        // TODO: optimize this into a `starts_with` which gets a `&str`, this can be optimized to
+        // byte matches
+        match self {
+            Self::Empty => false,
+            Self::Single(range) => range.contains(c),
+            Self::Multiple(ranges) => ranges.iter().any(|range| range.contains(c)),
         }
-        .into_iter();
-
-        let multiple = match self {
-            Ranges::Multiple(ranges) => Some(ranges.iter().copied()),
-            _ => None,
-        }
-        .into_iter()
-        .flatten();
-
-        single.chain(multiple)
     }
 }
 
@@ -738,6 +689,12 @@ impl Range {
         }
         self.end = end;
         Ok(())
+    }
+
+    /// Returns `true` if the character `c` is contained in the range.
+    #[inline(always)]
+    fn contains(&self, c: char) -> bool {
+        self.start <= c && c <= self.end
     }
 }
 
@@ -789,7 +746,7 @@ mod tests {
                 MatchStrategy::Suffix(_) => "Suffix",
                 MatchStrategy::Contains(_) => "Contains",
                 MatchStrategy::Static(_) => "Static",
-                MatchStrategy::Regex(_) => "Regex",
+                MatchStrategy::Wildmatch(_) => "Wildmatch",
             };
             assert_eq!(
                 kind,
@@ -897,7 +854,7 @@ mod tests {
     fn test_prefix_strategy() {
         assert_strategy!("foo*", Prefix);
         assert_strategy!("foo**", Prefix);
-        assert_strategy!("foo?*", Regex);
+        assert_strategy!("foo?*", Wildmatch);
     }
 
     #[test]
@@ -949,7 +906,7 @@ mod tests {
     fn test_suffix_strategy() {
         assert_strategy!("*foo", Suffix);
         assert_strategy!("**foo", Suffix);
-        assert_strategy!("*?foo", Regex);
+        assert_strategy!("*?foo", Wildmatch);
     }
 
     #[test]
@@ -1006,10 +963,10 @@ mod tests {
     fn test_contains_strategy() {
         assert_strategy!("*foo*", Contains);
         assert_strategy!("**foo**", Contains);
-        assert_strategy!("*?foo*", Regex);
-        assert_strategy!("*foo?*", Regex);
-        assert_strategy!("*foo*?", Regex);
-        assert_strategy!("?*foo*", Regex);
+        assert_strategy!("*?foo*", Wildmatch);
+        assert_strategy!("*foo?*", Wildmatch);
+        assert_strategy!("*foo*?", Wildmatch);
+        assert_strategy!("?*foo*", Wildmatch);
     }
 
     #[test]
@@ -1036,8 +993,8 @@ mod tests {
         assert_strategy!("{*}", Static);
         assert_strategy!("{*,}", Static);
         assert_strategy!("{foo,*}", Static);
-        assert_strategy!("{foo,*}?{*,bar}", Regex);
-        assert_strategy!("{*,}?{*,}", Regex);
+        assert_strategy!("{foo,*}?{*,bar}", Wildmatch);
+        assert_strategy!("{*,}?{*,}", Wildmatch);
     }
 
     #[test]
@@ -1063,6 +1020,9 @@ mod tests {
             "??????????????????????????????????????????????????",
             "?????????????????????????????????????????????????!"
         );
+        assert_pattern!("foo?bar", "foo?bar");
+        assert_pattern!("foo?bar", "foo!bar");
+        assert_pattern!("a??a", "aඞඞa");
 
         // No special slash handling
         assert_pattern!("?", "/");
@@ -1130,7 +1090,7 @@ mod tests {
 
     #[test]
     fn test_classes() {
-        assert_pattern!("[]", "");
+        assert_pattern!("[]", NOT "");
         assert_pattern!("[]", NOT "_");
         assert_pattern!("[a]", "a");
         assert_pattern!("[a]", NOT "[a]");
@@ -1229,11 +1189,13 @@ mod tests {
         assert_pattern!("x[ab]x", NOT "Xcx", i);
         assert_pattern!("x[ab]x", NOT "aAx", i);
         assert_pattern!("x[ab]x", NOT "xAa", i);
+        assert_pattern!("[ǧ]", "Ǧ", i);
+        assert_pattern!("[Ǧ]", "ǧ", i);
     }
 
     #[test]
     fn test_classes_negated() {
-        assert_pattern!("[!]", "");
+        assert_pattern!("[!]", NOT "");
         assert_pattern!("[!a]", "b");
         assert_pattern!("[!a]", "A");
         assert_pattern!("[!a]", "B");
@@ -1324,6 +1286,20 @@ mod tests {
         assert_pattern!(r"a{\[\],\{\}}a", NOT "a]a");
         assert_pattern!(r"a{\[\],\{\}}a", NOT "a{a");
         assert_pattern!(r"a{\[\],\{\}}a", NOT "a}a");
+        assert_pattern!("foo/{*.js,*.html}", "foo/.js");
+        assert_pattern!("foo/{*.js,*.html}", "foo/.html");
+        assert_pattern!("foo/{*.js,*.html}", "foo/bar.js");
+        assert_pattern!("foo/{*.js,*.html}", "foo/bar.html");
+        assert_pattern!("foo/{*.js,*.html}", NOT "foo/bar.png");
+        assert_pattern!("foo/{*.js,*.html}", NOT "bar/bar.js");
+        assert_pattern!("{foo,abc}{def,bar}", "foodef");
+        assert_pattern!("{foo,abc}{def,bar}", "foobar");
+        assert_pattern!("{foo,abc}{def,bar}", "abcdef");
+        assert_pattern!("{foo,abc}{def,bar}", "abcbar");
+        assert_pattern!("{foo,abc}{def,bar}", NOT "foofoo");
+        assert_pattern!("{foo,abc}{def,bar}", NOT "fooabc");
+        assert_pattern!("{foo,abc}{def,bar}", NOT "defdef");
+        assert_pattern!("{foo,abc}{def,bar}", NOT "defabc");
     }
 
     #[test]
@@ -1362,6 +1338,9 @@ mod tests {
         assert_pattern!("1.18.[!0-4].*", NOT "1.18.3.abc");
         assert_pattern!("!*!*.md", "!foo!.md"); // no `!` outside of character classes
         assert_pattern!("foo*foofoo*foobar", "foofoofooxfoofoobar");
+        assert_pattern!("foo*fooFOO*fOobar", "fooFoofooXfoofooBAR", i);
+        assert_pattern!("[0-9]*a", "0aaaaaaaaa", i);
+        assert_pattern!("[0-9]*Bar[x]", "0foobarx", i);
 
         assert_pattern!(
             r"/api/0/organizations/\{organization_slug\}/event*",
@@ -1371,5 +1350,255 @@ mod tests {
             r"/api/0/organizations/\{organization_slug\}/event*",
             NOT r"/api/0/organizations/\{organization_slug\}/event/foobar"
         );
+
+        assert_pattern!(
+            "*b??{foo,bar,baz,with}*cr{x,y,z,?}zyl[a-z]ng{suffix,pr?*ix}*it?**?uallymatches",
+            "foobarwithacrazylongprefixandanditactuallymatches"
+        );
+        assert_pattern!(
+            "*b??{foo,bar,baz,with}*cr{x,y,z,?}zyl[a-z]ng{suffix,pr?*ix}*it?**?uallymatches",
+            "FOOBARWITHACRAZYLONGPREFIXANDANDITACTUALLYMATCHES",
+            i
+        );
+    }
+
+    /// Tests collected by [Kirk J Krauss].
+    ///
+    /// Kirk J Krauss: http://developforperformance.com/MatchingWildcards_AnImprovedAlgorithmForBigData.html.
+    #[test]
+    fn test_kirk_j_krauss() {
+        // Case with first wildcard after total match.
+        assert_pattern!("Hi*", "Hi");
+
+        // Case with mismatch after '*'
+        assert_pattern!("ab*d", NOT "abc");
+
+        // Cases with repeating character sequences.
+        assert_pattern!("*ccd", "abcccd");
+        assert_pattern!("*issip*ss*", "mississipissippi");
+        assert_pattern!("xxxx*zzy*fffff", NOT "xxxx*zzzzzzzzy*f");
+        assert_pattern!("xxx*zzy*f", "xxxx*zzzzzzzzy*f");
+        assert_pattern!("xxxx*zzy*fffff", NOT "xxxxzzzzzzzzyf");
+        assert_pattern!("xxxx*zzy*f", "xxxxzzzzzzzzyf");
+        assert_pattern!("xy*z*xyz", "xyxyxyzyxyz");
+        assert_pattern!("*sip*", "mississippi");
+        assert_pattern!("xy*xyz", "xyxyxyxyz");
+        assert_pattern!("mi*sip*", "mississippi");
+        assert_pattern!("*abac*", "ababac");
+        assert_pattern!("*abac*", "ababac");
+        assert_pattern!("a*zz*", "aaazz");
+        assert_pattern!("*12*23", NOT "a12b12");
+        assert_pattern!("a12b", NOT "a12b12");
+        assert_pattern!("*12*12*", "a12b12");
+
+        // From DDJ reader Andy Belf
+        assert_pattern!("*a?b", "caaab");
+
+        // Additional cases where the '*' char appears in the tame string.
+        assert_pattern!("*", "*");
+        assert_pattern!("a*b", "a*abab");
+        assert_pattern!("a*", "a*r");
+        assert_pattern!("a*aar", NOT "a*ar");
+
+        // More double wildcard scenarios.
+        assert_pattern!("XY*Z*XYz", "XYXYXYZYXYz");
+        assert_pattern!("*SIP*", "missisSIPpi");
+        assert_pattern!("*issip*PI", "mississipPI");
+        assert_pattern!("xy*xyz", "xyxyxyxyz");
+        assert_pattern!("mi*sip*", "miSsissippi");
+        assert_pattern!("mi*Sip*", NOT "miSsissippi");
+        assert_pattern!("*Abac*", "abAbac");
+        assert_pattern!("*Abac*", "abAbac");
+        assert_pattern!("a*zz*", "aAazz");
+        assert_pattern!("*12*23", NOT "A12b12");
+        assert_pattern!("*12*12*", "a12B12");
+        assert_pattern!("*oWn*", "oWn");
+
+        // Completely tame (no wildcards) cases.
+        assert_pattern!("bLah", "bLah");
+        assert_pattern!("bLaH", NOT "bLah");
+
+        // Simple mixed wildcard tests suggested by Marlin Deckert.
+        assert_pattern!("*?", "a");
+        assert_pattern!("*?", "ab");
+        assert_pattern!("*?", "abc");
+
+        // More mixed wildcard tests including coverage for false positives.
+        assert_pattern!("??", NOT "a");
+        assert_pattern!("?*?", "ab");
+        assert_pattern!("*?*?*", "ab");
+        assert_pattern!("?**?*?", "abc");
+        assert_pattern!("?**?*&?", NOT "abc");
+        assert_pattern!("?b*??", "abcd");
+        assert_pattern!("?a*??", NOT "abcd");
+        assert_pattern!("?**?c?", "abcd");
+        assert_pattern!("?**?d?", NOT "abcd");
+        assert_pattern!("?*b*?*d*?", "abcde");
+
+        // Single-character-match cases.
+        assert_pattern!("bL?h", "bLah");
+        assert_pattern!("bLa?", NOT "bLaaa");
+        assert_pattern!("bLa?", "bLah");
+        assert_pattern!("?Lah", NOT "bLaH");
+        assert_pattern!("?LaH", "bLaH");
+
+        // Many-wildcard scenarios.
+        assert_pattern!(
+            "a*a*a*a*a*a*aa*aaa*a*a*b",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"
+        );
+        assert_pattern!(
+            "*a*b*ba*ca*a*aa*aaa*fa*ga*b*",
+            "abababababababababababababababababababaacacacacacacacadaeafagahaiajakalaaaaaaaaaaaaaaaaaffafagaagggagaaaaaaaab"
+        );
+        assert_pattern!(
+            "*a*b*ba*ca*a*x*aaa*fa*ga*b*",
+            NOT "abababababababababababababababababababaacacacacacacacadaeafagahaiajakalaaaaaaaaaaaaaaaaaffafagaagggagaaaaaaaab"
+        );
+        assert_pattern!(
+            "*a*b*ba*ca*aaaa*fa*ga*gggg*b*",
+            NOT "abababababababababababababababababababaacacacacacacacadaeafagahaiajakalaaaaaaaaaaaaaaaaaffafagaagggagaaaaaaaab"
+        );
+        assert_pattern!(
+            "*a*b*ba*ca*aaaa*fa*ga*ggg*b*",
+            "abababababababababababababababababababaacacacacacacacadaeafagahaiajakalaaaaaaaaaaaaaaaaaffafagaagggagaaaaaaaab"
+        );
+        assert_pattern!("*aabbaa*a*", "aaabbaabbaab");
+        assert_pattern!(
+            "a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*",
+            "a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*"
+        );
+        assert_pattern!("*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*", "aaaaaaaaaaaaaaaaa");
+        assert_pattern!(
+            "*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*a*",
+            NOT "aaaaaaaaaaaaaaaa"
+        );
+        assert_pattern!(
+            "abc*abc*abc*abc*abc*abc*abc*abc*abc*abc*abc*abc*abc*abc*abc*abc*abc*",
+            NOT "abc*abcd*abcde*abcdef*abcdefg*abcdefgh*abcdefghi*abcdefghij*abcdefghijk*abcdefghijkl*abcdefghijklm*abcdefghijklmn"
+        );
+        assert_pattern!(
+            "abc*abc*abc*abc*abc*abc*abc*abc*abc*abc*abc*abc*",
+            "abc*abcd*abcde*abcdef*abcdefg*abcdefgh*abcdefghi*abcdefghij*abcdefghijk*abcdefghijkl*abcdefghijklm*abcdefghijklmn"
+        );
+        assert_pattern!("abc*abc*abc*abc*abc", NOT "abc*abcd*abcd*abc*abcd");
+        assert_pattern!(
+            "abc*abc*abc*abc*abc*abc*abc*abc*abc*abc*abcd",
+            "abc*abcd*abcd*abc*abcd*abcd*abc*abcd*abc*abc*abcd"
+        );
+        assert_pattern!("********a********b********c********", "abc");
+        assert_pattern!("abc", NOT "********a********b********c********");
+        assert_pattern!("********a********b********b********", NOT "abc");
+        assert_pattern!("***a*b*c***", "*abc*");
+
+        // A case-insensitive algorithm test.
+        assert_pattern!("*issip*PI", "mississippi", i);
+
+        // Tests suggested by other DDJ readers
+        assert_pattern!("?", NOT "");
+        assert_pattern!("*?", NOT "");
+        // assert_pattern!("", ""); - Removed, relay-pattern behaves differently for empty strings.
+        assert_pattern!("", NOT "a");
+
+        // Tame tests:
+        assert_pattern!("abd", NOT "abc");
+
+        // Cases with repeating character sequences.
+        assert_pattern!("abcccd", "abcccd");
+        assert_pattern!("mississipissippi", "mississipissippi");
+        assert_pattern!("xxxxzzzzzzzzyfffff", NOT "xxxxzzzzzzzzyf");
+        assert_pattern!("xxxxzzzzzzzzyf", "xxxxzzzzzzzzyf");
+        assert_pattern!("xxxxzzy.fffff", NOT "xxxxzzzzzzzzyf");
+        assert_pattern!("xxxxzzzzzzzzyf", "xxxxzzzzzzzzyf");
+        assert_pattern!("xyxyxyzyxyz", "xyxyxyzyxyz");
+        assert_pattern!("mississippi", "mississippi");
+        assert_pattern!("xyxyxyxyz", "xyxyxyxyz");
+        assert_pattern!("m ississippi", "m ississippi");
+        assert_pattern!("ababac?", NOT "ababac");
+        assert_pattern!("ababac", NOT "dababac");
+        assert_pattern!("aaazz", "aaazz");
+        assert_pattern!("1212", NOT "a12b12");
+        assert_pattern!("a12b", NOT "a12b12");
+        assert_pattern!("a12b12", "a12b12");
+
+        // A mix of cases
+        assert_pattern!("n", "n");
+        assert_pattern!("aabab", "aabab");
+        assert_pattern!("ar", "ar");
+        assert_pattern!("aaar", NOT "aar");
+        assert_pattern!("XYXYXYZYXYz", "XYXYXYZYXYz");
+        assert_pattern!("missisSIPpi", "missisSIPpi");
+        assert_pattern!("mississipPI", "mississipPI");
+        assert_pattern!("xyxyxyxyz", "xyxyxyxyz");
+        assert_pattern!("miSsissippi", "miSsissippi");
+        assert_pattern!("miSsisSippi", NOT "miSsissippi");
+        assert_pattern!("abAbac", "abAbac");
+        assert_pattern!("abAbac", "abAbac");
+        assert_pattern!("aAazz", "aAazz");
+        assert_pattern!("A12b123", NOT "A12b12");
+        assert_pattern!("a12B12", "a12B12");
+        assert_pattern!("oWn", "oWn");
+        assert_pattern!("bLah", "bLah");
+        assert_pattern!("bLaH", NOT "bLah");
+
+        // Single '?' cases.
+        assert_pattern!("a", "a");
+        assert_pattern!("a?", "ab");
+        assert_pattern!("ab?", "abc");
+
+        // Mixed '?' cases.
+        assert_pattern!("??", NOT "a");
+        assert_pattern!("??", "ab");
+        assert_pattern!("???", "abc");
+        assert_pattern!("????", "abcd");
+        assert_pattern!("????", NOT "abc");
+        assert_pattern!("?b??", "abcd");
+        assert_pattern!("?a??", NOT "abcd");
+        assert_pattern!("??c?", "abcd");
+        assert_pattern!("??d?", NOT "abcd");
+        assert_pattern!("?b?d*?", "abcde");
+
+        // Longer string scenarios.
+        assert_pattern!(
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"
+        );
+        assert_pattern!(
+            "abababababababababababababababababababaacacacacacacacadaeafagahaiajakalaaaaaaaaaaaaaaaaaffafagaagggagaaaaaaaab",
+            "abababababababababababababababababababaacacacacacacacadaeafagahaiajakalaaaaaaaaaaaaaaaaaffafagaagggagaaaaaaaab"
+        );
+        assert_pattern!(
+            "abababababababababababababababababababaacacacacacacacadaeafagahaiajaxalaaaaaaaaaaaaaaaaaffafagaagggagaaaaaaaab",
+            NOT "abababababababababababababababababababaacacacacacacacadaeafagahaiajakalaaaaaaaaaaaaaaaaaffafagaagggagaaaaaaaab"
+        );
+        assert_pattern!(
+            "abababababababababababababababababababaacacacacacacacadaeafagahaiajakalaaaaaaaaaaaaaaaaaffafagaggggagaaaaaaaab",
+            NOT "abababababababababababababababababababaacacacacacacacadaeafagahaiajakalaaaaaaaaaaaaaaaaaffafagaagggagaaaaaaaab"
+        );
+        assert_pattern!(
+            "abababababababababababababababababababaacacacacacacacadaeafagahaiajakalaaaaaaaaaaaaaaaaaffafagaagggagaaaaaaaab",
+            "abababababababababababababababababababaacacacacacacacadaeafagahaiajakalaaaaaaaaaaaaaaaaaffafagaagggagaaaaaaaab"
+        );
+        assert_pattern!("aaabbaabbaab", "aaabbaabbaab");
+        assert_pattern!(
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        );
+        assert_pattern!("aaaaaaaaaaaaaaaaa", "aaaaaaaaaaaaaaaaa");
+        assert_pattern!("aaaaaaaaaaaaaaaaa", NOT "aaaaaaaaaaaaaaaa");
+        assert_pattern!(
+            "abcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabcabc",
+            NOT "abcabcdabcdeabcdefabcdefgabcdefghabcdefghiabcdefghijabcdefghijkabcdefghijklabcdefghijklmabcdefghijklmn"
+        );
+        assert_pattern!(
+            "abcabcdabcdeabcdefabcdefgabcdefghabcdefghiabcdefghijabcdefghijkabcdefghijklabcdefghijklmabcdefghijklmn",
+            "abcabcdabcdeabcdefabcdefgabcdefghabcdefghiabcdefghijabcdefghijkabcdefghijklabcdefghijklmabcdefghijklmn"
+        );
+        assert_pattern!("abcabc?abcabcabc", NOT "abcabcdabcdabcabcd");
+        assert_pattern!(
+            "abcabc?abc?abcabc?abc?abc?bc?abc?bc?bcd",
+            "abcabcdabcdabcabcdabcdabcabcdabcabcabcd"
+        );
+        assert_pattern!("?abc?", "?abc?");
     }
 }

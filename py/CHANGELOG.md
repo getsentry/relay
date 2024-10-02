@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.9.2
 
 - Add `spanOpDefaults` to global config. ([#4056](https://github.com/getsentry/relay/pull/4056))
 

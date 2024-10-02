@@ -249,10 +249,6 @@ impl UpdateSpoolIndex {
     }
 }
 
-/// Checks the status of underlying buffer spool.
-#[derive(Debug)]
-pub struct SpoolHealth;
-
 /// The current envelopes index fetched from the underlying buffer spool.
 ///
 /// This index will be received only once shortly after startup and will trigger refresh for the
@@ -300,7 +296,6 @@ pub enum ProjectCache {
     AddMetricMeta(AddMetricMeta),
     FlushBuckets(FlushBuckets),
     UpdateSpoolIndex(UpdateSpoolIndex),
-    SpoolHealth(Sender<bool>),
     RefreshIndexCache(RefreshIndexCache),
     UpdateProject(ProjectKey),
 }
@@ -318,7 +313,6 @@ impl ProjectCache {
             Self::AddMetricMeta(_) => "AddMetricMeta",
             Self::FlushBuckets(_) => "FlushBuckets",
             Self::UpdateSpoolIndex(_) => "UpdateSpoolIndex",
-            Self::SpoolHealth(_) => "SpoolHealth",
             Self::RefreshIndexCache(_) => "RefreshIndexCache",
             Self::UpdateProject(_) => "UpdateProject",
         }
@@ -415,14 +409,6 @@ impl FromMessage<FlushBuckets> for ProjectCache {
 
     fn from_message(message: FlushBuckets, _: ()) -> Self {
         Self::FlushBuckets(message)
-    }
-}
-
-impl FromMessage<SpoolHealth> for ProjectCache {
-    type Response = relay_system::AsyncResponse<bool>;
-
-    fn from_message(_message: SpoolHealth, sender: Sender<bool>) -> Self {
-        Self::SpoolHealth(sender)
     }
 }
 
@@ -1076,13 +1062,6 @@ impl ProjectCacheBroker {
         spool_v1.index.extend(message.0);
     }
 
-    fn handle_spool_health(&self, sender: Sender<bool>) {
-        match &self.spool_v1 {
-            Some(spool_v1) => spool_v1.buffer.send(spooler::Health(sender)),
-            None => sender.send(true), // TODO
-        }
-    }
-
     fn handle_refresh_index_cache(&mut self, message: RefreshIndexCache) {
         let RefreshIndexCache(index) = message;
         let project_cache = self.services.project_cache.clone();
@@ -1313,7 +1292,6 @@ impl ProjectCacheBroker {
                     ProjectCache::AddMetricMeta(message) => self.handle_add_metric_meta(message),
                     ProjectCache::FlushBuckets(message) => self.handle_flush_buckets(message),
                     ProjectCache::UpdateSpoolIndex(message) => self.handle_buffer_index(message),
-                    ProjectCache::SpoolHealth(sender) => self.handle_spool_health(sender),
                     ProjectCache::RefreshIndexCache(message) => {
                         self.handle_refresh_index_cache(message)
                     }

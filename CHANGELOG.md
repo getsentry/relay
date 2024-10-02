@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+**Breaking Changes:**
+
+- Only allow processing enabled in managed mode. ([#4087](https://github.com/getsentry/relay/pull/4087))
+
 **Bug Fixes**:
 
 - Report invalid spans with appropriate outcome reason. ([#4051](https://github.com/getsentry/relay/pull/4051))
@@ -13,13 +17,18 @@
 - Add a config option to add default tags to all Relay Sentry events. ([#3944](https://github.com/getsentry/relay/pull/3944))
 - Automatically derive `client.address` and `user.geo` for standalone spans. ([#4047](https://github.com/getsentry/relay/pull/4047))
 - Add support for uploading compressed (gzip, xz, zstd, bzip2) minidumps. ([#4029](https://github.com/getsentry/relay/pull/4029))
+- Add user geo information to Replays. ([#4088](https://github.com/getsentry/relay/pull/4088))
 - Configurable span.op inference. ([#4056](https://github.com/getsentry/relay/pull/4056))
+- Enable support for zstd `Content-Encoding`. ([#4089](https://github.com/getsentry/relay/pull/4089))
 - Add multi-write Redis client. ([#4064](https://github.com/getsentry/relay/pull/4064))
 
 **Internal:**
 
+- Remove unused `cogs.enabled` configuration option. ([#4060](https://github.com/getsentry/relay/pull/4060))
 - Add the dynamic sampling rate to standalone spans as a measurement so that it can be stored, queried, and used for extrapolation. ([#4063](https://github.com/getsentry/relay/pull/4063))
+- Use custom wildcard matching instead of regular expressions. ([#4073](https://github.com/getsentry/relay/pull/4073))
 - Allowlist the SentryUptimeBot user-agent. ([#4068](https://github.com/getsentry/relay/pull/4068))
+- Feature flags of graduated features are now hard-coded in Relay so they can be removed from Sentry. ([#4076](https://github.com/getsentry/relay/pull/4076), [#4080](https://github.com/getsentry/relay/pull/4080))
 
 ## 24.9.0
 
