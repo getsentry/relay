@@ -466,7 +466,7 @@
                     <span class="kw">if </span><span class="kw-2">*</span>segment_id &gt; <span class="number">720 </span>{
                         <span class="macro">metric!</span>(counter(RelayCounters::ReplayExceededSegmentLimit) += <span class="number">1</span>);
 
-                        <span class="macro">relay_log::warn!</span>(
+                        <span class="macro">relay_log::debug!</span>(
                             event_id = <span class="question-mark">?</span>config.event_id,
                             project_id = config.project_id.map(|v| v.value()),
                             organization_id = config.organization_id,

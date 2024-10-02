@@ -382,7 +382,7 @@
                 <span class="kw">let _</span>: android::ProfileMetadata = <span class="kw">match </span>serde_path_to_error::deserialize(d) {
                     <span class="prelude-val">Ok</span>(profile) =&gt; profile,
                     <span class="prelude-val">Err</span>(err) =&gt; {
-                        <span class="macro">relay_log::warn!</span>(
+                        <span class="macro">relay_log::debug!</span>(
                             error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
                             from = <span class="string">"metadata"</span>,
                             platform = <span class="string">"android"</span>,
@@ -446,7 +446,7 @@
                 <span class="prelude-val">Err</span>(ProfileError::InvalidJson(err))
             }
             <span class="kw">_ </span>=&gt; {
-                <span class="macro">relay_log::warn!</span>(
+                <span class="macro">relay_log::debug!</span>(
                     error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
                     from = <span class="string">"parsing"</span>,
                     platform = profile.platform,
