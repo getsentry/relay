@@ -3,17 +3,6 @@ use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::{Context, Result};
-use axum::extract::FromRequestParts;
-use axum::http::request::Parts;
-use rayon::ThreadPool;
-use relay_cogs::Cogs;
-use relay_config::{Config, RedisConfigRef, RedisPoolConfigs};
-use relay_redis::{RedisError, RedisPool, RedisPools};
-use relay_system::{channel, Addr, Service};
-use tokio::runtime::Runtime;
-use tokio::sync::mpsc;
-
 use crate::metrics::{MetricOutcomes, MetricStats};
 use crate::services::buffer::{self, EnvelopeBufferService, ObservableEnvelopeBuffer};
 use crate::services::cogs::{CogsService, CogsServiceRecorder};
@@ -31,6 +20,17 @@ use crate::services::store::StoreService;
 use crate::services::test_store::{TestStore, TestStoreService};
 use crate::services::upstream::{UpstreamRelay, UpstreamRelayService};
 use crate::utils::{MemoryChecker, MemoryStat};
+use anyhow::{Context, Result};
+use axum::extract::FromRequestParts;
+use axum::http::request::Parts;
+use rayon::ThreadPool;
+use relay_cogs::Cogs;
+use relay_config::{Config, RedisConfigRef, RedisPoolConfigs};
+use relay_redis::redis::Script;
+use relay_redis::{redis, Connection, PooledClient, RedisError, RedisPool, RedisPools};
+use relay_system::{channel, Addr, Service};
+use tokio::runtime::Runtime;
+use tokio::sync::mpsc;
 
 /// Indicates the type of failure of the server.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, thiserror::Error)]
@@ -162,6 +162,14 @@ impl ServiceState {
             .map(create_redis_pools)
             .transpose()
             .context(ServiceError::Redis)?;
+
+        // If we have Redis configured, we want to initialize all the scripts by loading them in
+        // the scripts cache if not present. Our custom ConnectionLike implementation relies on this
+        // initialization to work properly since it assumes that scripts are loaded across all Redis
+        // instances.
+        if let Some(redis_pools) = redis_pools {
+            initialize_redis_scripts_for_pools(redis_pools).context(ServiceError::Redis)?;
+        }
 
         // We create an instance of `MemoryStat` which can be supplied composed with any arbitrary
         // configuration object down the line.
@@ -441,6 +449,38 @@ pub fn create_redis_pools(configs: RedisPoolConfigs) -> Result<RedisPools, Redis
             })
         }
     }
+}
+
+fn initialize_redis_scripts_for_pools(redis_pools: RedisPools) -> Result<(), RedisError> {
+    let project_configs = redis_pools.project_configs.client()?;
+    let cardinality = redis_pools.cardinality.client()?;
+    let quotas = redis_pools.quotas.client()?;
+    let misc = redis_pools.misc.client()?;
+
+    let scripts = [];
+
+    let pools = [project_configs, cardinality, quotas, misc];
+    for pool in pools {
+        initialize_redis_scripts(pool)?;
+    }
+
+    Ok(())
+}
+
+fn initialize_redis_scripts(mut pooled_client: PooledClient) -> Result<(), RedisError> {
+    let mut connection = pooled_client.connection()?;
+
+    Ok(())
+}
+
+fn initialize_redis_script(connection: &mut Connection, script: &Script) -> Result<(), RedisError> {
+    let result: redis::Value = redis::cmd("SCRIPT")
+        .arg("EXISTS")
+        .arg(&script.get_hash().as_bytes())
+        .query(connection)
+        .map_err(RedisError::Redis)?;
+
+    Ok(())
 }
 
 #[axum::async_trait]
