@@ -120,7 +120,7 @@ pub fn parse_metadata(payload: &[u8], project_id: ProjectId) -> Result<ProfileId
                 let _: android::ProfileMetadata = match serde_path_to_error::deserialize(d) {
                     Ok(profile) => profile,
                     Err(err) => {
-                        relay_log::warn!(
+                        relay_log::debug!(
                             error = &err as &dyn Error,
                             from = "metadata",
                             platform = "android",
@@ -184,7 +184,7 @@ pub fn expand_profile(payload: &[u8], event: &Event) -> Result<(ProfileId, Vec<u
                 Err(ProfileError::InvalidJson(err))
             }
             _ => {
-                relay_log::warn!(
+                relay_log::debug!(
                     error = &err as &dyn Error,
                     from = "parsing",
                     platform = profile.platform,
