@@ -165,7 +165,7 @@ impl std::ops::Deref for RedisQuota<'_> {
 /// Requires the `redis` feature.
 pub struct RedisRateLimiter {
     pool: RedisPool,
-    script: Arc<Script>,
+    script: &'static Script,
     max_limit: Option<u64>,
     global_limits: GlobalRateLimits,
 }
@@ -175,7 +175,7 @@ impl RedisRateLimiter {
     pub fn new(pool: RedisPool) -> Self {
         RedisRateLimiter {
             pool,
-            script: Arc::new(RedisScripts::load_is_rate_limited().script().clone()),
+            script: RedisScripts::load_is_rate_limited().script(),
             max_limit: None,
             global_limits: GlobalRateLimits::default(),
         }
@@ -321,7 +321,7 @@ mod tests {
 
         RedisRateLimiter {
             pool: RedisPool::single(&url, RedisConfigOptions::default()).unwrap(),
-            script: Arc::new(RedisScripts::load_is_rate_limited().script().clone()),
+            script: RedisScripts::load_is_rate_limited().script(),
             max_limit: None,
             global_limits: GlobalRateLimits::default(),
         }
