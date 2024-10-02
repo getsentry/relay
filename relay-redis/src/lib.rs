@@ -24,6 +24,5 @@ pub use self::scripts::*;
 
 #[cfg(not(feature = "impl"))]
 mod noop;
-
 #[cfg(not(feature = "impl"))]
 pub use self::noop::*;
