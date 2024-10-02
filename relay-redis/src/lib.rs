@@ -12,6 +12,9 @@
 mod config;
 pub use self::config::*;
 
+mod scripts;
+pub use self::scripts::*;
+
 #[cfg(feature = "impl")]
 mod real;
 #[cfg(feature = "impl")]
@@ -19,5 +22,6 @@ pub use self::real::*;
 
 #[cfg(not(feature = "impl"))]
 mod noop;
+
 #[cfg(not(feature = "impl"))]
 pub use self::noop::*;

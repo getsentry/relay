@@ -27,7 +27,9 @@ use rayon::ThreadPool;
 use relay_cogs::Cogs;
 use relay_config::{Config, RedisConfigRef, RedisPoolConfigs};
 use relay_redis::redis::Script;
-use relay_redis::{redis, Connection, PooledClient, RedisError, RedisPool, RedisPools};
+use relay_redis::{
+    redis, Connection, PooledClient, RedisError, RedisPool, RedisPools, RedisScript, RedisScripts,
+};
 use relay_system::{channel, Addr, Service};
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
@@ -167,7 +169,7 @@ impl ServiceState {
         // the scripts cache if not present. Our custom ConnectionLike implementation relies on this
         // initialization to work properly since it assumes that scripts are loaded across all Redis
         // instances.
-        if let Some(redis_pools) = redis_pools {
+        if let Some(redis_pools) = &redis_pools {
             initialize_redis_scripts_for_pools(redis_pools).context(ServiceError::Redis)?;
         }
 
@@ -451,34 +453,41 @@ pub fn create_redis_pools(configs: RedisPoolConfigs) -> Result<RedisPools, Redis
     }
 }
 
-fn initialize_redis_scripts_for_pools(redis_pools: RedisPools) -> Result<(), RedisError> {
+fn initialize_redis_scripts_for_pools(redis_pools: &RedisPools) -> Result<(), RedisError> {
     let project_configs = redis_pools.project_configs.client()?;
     let cardinality = redis_pools.cardinality.client()?;
     let quotas = redis_pools.quotas.client()?;
     let misc = redis_pools.misc.client()?;
 
-    let scripts = [];
+    let scripts = [
+        RedisScripts::load_cardinality(),
+        RedisScripts::load_global_quota(),
+        RedisScripts::load_is_rate_limited(),
+    ];
 
     let pools = [project_configs, cardinality, quotas, misc];
     for pool in pools {
-        initialize_redis_scripts(pool)?;
+        initialize_redis_scripts(pool, &scripts)?;
     }
 
     Ok(())
 }
 
-fn initialize_redis_scripts(mut pooled_client: PooledClient) -> Result<(), RedisError> {
+fn initialize_redis_scripts(
+    mut pooled_client: PooledClient,
+    scripts: &[&RedisScript; 3],
+) -> Result<(), RedisError> {
     let mut connection = pooled_client.connection()?;
 
-    Ok(())
-}
-
-fn initialize_redis_script(connection: &mut Connection, script: &Script) -> Result<(), RedisError> {
-    let result: redis::Value = redis::cmd("SCRIPT")
-        .arg("EXISTS")
-        .arg(&script.get_hash().as_bytes())
-        .query(connection)
-        .map_err(RedisError::Redis)?;
+    for script in scripts {
+        // We load on all instances without checking if the script is already in cache because of a
+        // limitation in the connection implementation.
+        redis::cmd("SCRIPT")
+            .arg("LOAD")
+            .arg(&script.code().as_bytes())
+            .exec(&mut connection)
+            .map_err(RedisError::Redis)?;
+    }
 
     Ok(())
 }

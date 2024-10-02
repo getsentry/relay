@@ -3,17 +3,12 @@ use std::sync::{Mutex, OnceLock, PoisonError};
 use itertools::Itertools;
 use relay_base_schema::metrics::MetricNamespace;
 use relay_redis::redis::Script;
-use relay_redis::{PooledClient, RedisError};
+use relay_redis::{PooledClient, RedisError, RedisScripts};
 
 use crate::RedisQuota;
 
 /// Default percentage of the quota limit to reserve from Redis as a local cache.
 const DEFAULT_BUDGET_RATIO: f32 = 0.001;
-
-fn load_global_quota_lua_script() -> &'static Script {
-    static SCRIPT: OnceLock<Script> = OnceLock::new();
-    SCRIPT.get_or_init(|| Script::new(include_str!("global_quota.lua")))
-}
 
 /// A rate limiter for global rate limits.
 #[derive(Default)]
@@ -214,7 +209,8 @@ impl GlobalRateLimit {
 
         let budget_to_reserve = min_required_budget.max(self.default_request_size(quantity, quota));
 
-        let (budget, value): (u64, u64) = load_global_quota_lua_script()
+        let (budget, value): (u64, u64) = RedisScripts::load_global_quota()
+            .script()
             .prepare_invoke()
             .key(redis_key.0)
             .arg(budget_to_reserve)
