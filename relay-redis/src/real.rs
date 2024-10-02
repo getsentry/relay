@@ -4,29 +4,10 @@ use std::time::Duration;
 
 use r2d2::{Builder, ManageConnection, Pool, PooledConnection};
 pub use redis;
-use redis::{ConnectionLike, ErrorKind};
+use redis::ConnectionLike;
 use thiserror::Error;
 
 use crate::config::RedisConfigOptions;
-
-/// Enum representing the ways in which a redis error should be handled in a multi-write
-/// configuration.
-enum SecondaryErrorHandling {
-    /// The error will be silently discarded as if it didn't happen.
-    Discard,
-    /// The error will be returned if it's the first error that happened in any secondary Redis
-    /// instance and no error happened in the primary instance.
-    ReturnIfFirst,
-}
-
-impl<'a> From<&'a redis::RedisError> for SecondaryErrorHandling {
-    fn from(value: &'a redis::RedisError) -> Self {
-        match value.kind() {
-            ErrorKind::NoScriptError => SecondaryErrorHandling::ReturnIfFirst,
-            _ => SecondaryErrorHandling::Discard,
-        }
-    }
-}
 
 /// An error returned from `RedisPool`.
 #[derive(Debug, Error)]
@@ -61,8 +42,6 @@ impl ConnectionLike for ConnectionInner<'_> {
                 primary: primary_connection,
                 secondaries: secondary_connections,
             } => {
-                let mut secondary_error: Option<redis::RedisError> = None;
-
                 let primary_result = primary_connection.req_packed_command(cmd);
                 for secondary_connection in secondary_connections.iter_mut() {
                     if let Err(error) = secondary_connection.req_packed_command(cmd) {
@@ -70,22 +49,10 @@ impl ConnectionLike for ConnectionInner<'_> {
                             error = &error as &dyn Error,
                             "sending cmd to the secondary Redis instance failed",
                         );
-
-                        if let (SecondaryErrorHandling::ReturnIfFirst, None) =
-                            (SecondaryErrorHandling::from(&error), &secondary_error)
-                        {
-                            secondary_error = Some(error);
-                        }
                     }
                 }
 
-                let primary_result = primary_result?;
-
-                if let Some(secondary_error) = secondary_error {
-                    return Err(secondary_error);
-                }
-
-                Ok(primary_result)
+                primary_result
             }
             ConnectionInner::Single(ref mut con) => con.req_packed_command(cmd),
         }
@@ -103,8 +70,6 @@ impl ConnectionLike for ConnectionInner<'_> {
                 primary: primary_connection,
                 secondaries: secondary_connections,
             } => {
-                let mut secondary_error = None;
-
                 let primary_result = primary_connection.req_packed_commands(cmd, offset, count);
                 for secondary_connection in secondary_connections.iter_mut() {
                     if let Err(error) = secondary_connection.req_packed_commands(cmd, offset, count)
@@ -113,22 +78,10 @@ impl ConnectionLike for ConnectionInner<'_> {
                             error = &error as &dyn Error,
                             "sending cmds to the secondary Redis instance failed",
                         );
-
-                        if let (SecondaryErrorHandling::ReturnIfFirst, None) =
-                            (SecondaryErrorHandling::from(&error), &secondary_error)
-                        {
-                            secondary_error = Some(error);
-                        }
                     }
                 }
 
-                let primary_result = primary_result?;
-
-                if let Some(secondary_error) = secondary_error {
-                    return Err(secondary_error);
-                }
-
-                Ok(primary_result)
+                primary_result
             }
             ConnectionInner::Single(ref mut con) => con.req_packed_commands(cmd, offset, count),
         }
