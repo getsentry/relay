@@ -26,9 +26,9 @@ use axum::http::request::Parts;
 use rayon::ThreadPool;
 use relay_cogs::Cogs;
 use relay_config::{Config, RedisConfigRef, RedisPoolConfigs};
-use relay_redis::{
-    redis, PooledClient, RedisError, RedisPool, RedisPools, RedisScript, RedisScripts,
-};
+#[cfg(feature = "processing")]
+use relay_redis::{redis, PooledClient, RedisScript, RedisScripts};
+use relay_redis::{RedisError, RedisPool, RedisPools};
 use relay_system::{channel, Addr, Service};
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
@@ -168,6 +168,7 @@ impl ServiceState {
         // the scripts cache if not present. Our custom ConnectionLike implementation relies on this
         // initialization to work properly since it assumes that scripts are loaded across all Redis
         // instances.
+        #[cfg(feature = "processing")]
         if let Some(redis_pools) = &redis_pools {
             initialize_redis_scripts_for_pools(redis_pools).context(ServiceError::Redis)?;
         }
@@ -452,6 +453,7 @@ pub fn create_redis_pools(configs: RedisPoolConfigs) -> Result<RedisPools, Redis
     }
 }
 
+#[cfg(feature = "processing")]
 fn initialize_redis_scripts_for_pools(redis_pools: &RedisPools) -> Result<(), RedisError> {
     let project_configs = redis_pools.project_configs.client()?;
     let cardinality = redis_pools.cardinality.client()?;
@@ -472,6 +474,7 @@ fn initialize_redis_scripts_for_pools(redis_pools: &RedisPools) -> Result<(), Re
     Ok(())
 }
 
+#[cfg(feature = "processing")]
 fn initialize_redis_scripts(
     mut pooled_client: PooledClient,
     scripts: &[&RedisScript; 3],
