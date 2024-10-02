@@ -1,5 +1,5 @@
 [workspace]
-members = ["relay", "relay-*", "tools/*"]
+members = ["relay", "relay-*", "relay-*/fuzz/", "tools/*"]
 default-members = ["relay"]
 resolver = "2"
 

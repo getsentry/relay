@@ -18,7 +18,6 @@ serde = ["dep:serde"]
 
 [dependencies]
 memchr = { workspace = true }
-regex-lite = { workspace = true }
 serde = { workspace = true, optional = true}
 
 [dev-dependencies]
