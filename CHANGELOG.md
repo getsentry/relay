@@ -18,6 +18,7 @@
 - Automatically derive `client.address` and `user.geo` for standalone spans. ([#4047](https://github.com/getsentry/relay/pull/4047))
 - Add support for uploading compressed (gzip, xz, zstd, bzip2) minidumps. ([#4029](https://github.com/getsentry/relay/pull/4029))
 - Configurable span.op inference. ([#4056](https://github.com/getsentry/relay/pull/4056))
+- Add support for creating User from LoginId in Unreal Crash Context. ([#4093](https://github.com/getsentry/relay/pull/4093))
 
 **Internal:**
 
