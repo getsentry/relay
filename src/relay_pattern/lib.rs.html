@@ -1602,21 +1602,6 @@
 <a href="#1602" id="1602">1602</a>
 <a href="#1603" id="1603">1603</a>
 <a href="#1604" id="1604">1604</a>
-<a href="#1605" id="1605">1605</a>
-<a href="#1606" id="1606">1606</a>
-<a href="#1607" id="1607">1607</a>
-<a href="#1608" id="1608">1608</a>
-<a href="#1609" id="1609">1609</a>
-<a href="#1610" id="1610">1610</a>
-<a href="#1611" id="1611">1611</a>
-<a href="#1612" id="1612">1612</a>
-<a href="#1613" id="1613">1613</a>
-<a href="#1614" id="1614">1614</a>
-<a href="#1615" id="1615">1615</a>
-<a href="#1616" id="1616">1616</a>
-<a href="#1617" id="1617">1617</a>
-<a href="#1618" id="1618">1618</a>
-<a href="#1619" id="1619">1619</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! A glob like pattern used throught Relay and its APIs.
 //!
 //! # Behaviour
@@ -1645,9 +1630,11 @@
 //! * `{a,b}` matches any pattern within the alternation group.
 //! * `\` escapes any of the above special characters and treats it as a literal.
 
-</span><span class="kw">use </span>std::fmt::{<span class="self">self</span>, Write};
+</span><span class="kw">use </span>std::fmt;
+<span class="kw">use </span>std::num::NonZeroUsize;
 
 <span class="kw">mod </span>typed;
+<span class="kw">mod </span>wildmatch;
 
 <span class="kw">pub use </span>typed::<span class="kw-2">*</span>;
 
@@ -1673,8 +1660,6 @@
     </span>UnbalancedAlternates,
     <span class="doccomment">/// Dangling escape character.
     </span>DanglingEscape,
-    <span class="doccomment">/// The pattern produced an invalid regex pattern which couldn't be compiled.
-    </span>Regex(String),
 }
 
 <span class="kw">impl </span>std::error::Error <span class="kw">for </span>Error {}
@@ -1691,7 +1676,6 @@
             ErrorKind::NestedAlternates =&gt; <span class="macro">write!</span>(f, <span class="string">"Nested alternates"</span>),
             ErrorKind::UnbalancedAlternates =&gt; <span class="macro">write!</span>(f, <span class="string">"Unbalanced alternates"</span>),
             ErrorKind::DanglingEscape =&gt; <span class="macro">write!</span>(f, <span class="string">"Dangling escape"</span>),
-            ErrorKind::Regex(s) =&gt; f.write_str(s),
         }
     }
 }
@@ -1727,7 +1711,7 @@
             MatchStrategy::Suffix(suffix) =&gt; match_suffix(suffix, haystack, <span class="self">self</span>.options),
             MatchStrategy::Contains(contains) =&gt; match_contains(contains, haystack, <span class="self">self</span>.options),
             MatchStrategy::Static(matches) =&gt; <span class="kw-2">*</span>matches,
-            MatchStrategy::Regex(re) =&gt; re.is_match(haystack),
+            MatchStrategy::Wildmatch(tokens) =&gt; wildmatch::is_match(haystack, tokens, <span class="self">self</span>.options),
         }
     }
 }
@@ -1756,7 +1740,7 @@
 
     <span class="doccomment">/// build a new [`Pattern`] from the passed pattern and configured options.
     </span><span class="kw">pub fn </span>build(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Pattern, Error&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>parser = Parser::new(<span class="self">self</span>.pattern);
+        <span class="kw">let </span><span class="kw-2">mut </span>parser = Parser::new(<span class="self">self</span>.pattern, <span class="self">self</span>.options);
         parser.parse().map_err(|kind| Error {
             pattern: <span class="self">self</span>.pattern.to_owned(),
             kind,
@@ -1785,7 +1769,7 @@
 <span class="doccomment">/// Matching strategy for a [`Pattern`].
 ///
 /// Certain patterns can be matched more efficiently while the complex
-/// patterns fallback to a regex.
+/// patterns fallback to [`wildmatch::is_match`].
 </span><span class="attr">#[derive(Debug, Clone)]
 </span><span class="kw">enum </span>MatchStrategy {
     <span class="doccomment">/// The pattern is a single literal string.
@@ -1819,19 +1803,16 @@
     ///
     /// Example: `*`
     </span>Static(bool),
-    <span class="doccomment">/// The pattern is complex and compiled to a [`regex_lite::Regex`].
-    </span>Regex(regex_lite::Regex),
+    <span class="doccomment">/// The pattern is complex and needs to be evaluated using [`wildmatch`].
+    </span>Wildmatch(Tokens),
     <span class="comment">// Possible future optimizations for `Any` variations:
     // Examples: `??`. `??suffix`, `prefix??` and `?contains?`.
 </span>}
 
 <span class="kw">impl </span>MatchStrategy {
     <span class="doccomment">/// Create a [`MatchStrategy`] from [`Tokens`].
-    </span><span class="kw">fn </span>from_tokens(<span class="kw-2">mut </span>tokens: Tokens, options: Options) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ErrorKind&gt; {
-        <span class="kw">let </span>take_case = |s: <span class="kw-2">&amp;mut </span>String| <span class="kw">match </span>options.case_insensitive {
-            <span class="bool-val">true </span>=&gt; std::mem::take(s).to_lowercase(),
-            <span class="bool-val">false </span>=&gt; std::mem::take(s),
-        };
+    </span><span class="kw">fn </span>from_tokens(<span class="kw-2">mut </span>tokens: Tokens, _options: Options) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ErrorKind&gt; {
+        <span class="kw">let </span>take_case = |s: <span class="kw-2">&amp;mut </span>Literal| std::mem::take(s).into_case_converted();
 
         <span class="kw">let </span>s = <span class="kw">match </span>tokens.as_mut_slice() {
             [] =&gt; <span class="self">Self</span>::Static(<span class="bool-val">false</span>),
@@ -1842,99 +1823,11 @@
             [Token::Wildcard, Token::Literal(literal), Token::Wildcard] =&gt; {
                 <span class="self">Self</span>::Contains(take_case(literal))
             }
-            tokens =&gt; <span class="self">Self</span>::Regex(to_regex(tokens, options)<span class="question-mark">?</span>),
+            <span class="kw">_ </span>=&gt; <span class="self">Self</span>::Wildmatch(tokens),
         };
 
         <span class="prelude-val">Ok</span>(s)
     }
-}
-
-<span class="doccomment">/// Convert a list of tokens to a [`regex_lite::Regex`].
-</span><span class="kw">fn </span>to_regex(tokens: <span class="kw-2">&amp;</span>[Token], options: Options) -&gt; <span class="prelude-ty">Result</span>&lt;regex_lite::Regex, ErrorKind&gt; {
-    <span class="kw">fn </span>push_class_escaped(sink: <span class="kw-2">&amp;mut </span>String, c: char) {
-        <span class="kw">match </span>c {
-            <span class="string">'\\' </span>=&gt; sink.push_str(<span class="string">r"\\"</span>),
-            <span class="string">'[' </span>=&gt; sink.push_str(<span class="string">r"\["</span>),
-            <span class="string">']' </span>=&gt; sink.push_str(<span class="string">r"\]"</span>),
-            c =&gt; sink.push(c),
-        }
-    }
-
-    <span class="kw">fn </span>tokens_to_regex(re: <span class="kw-2">&amp;mut </span>String, tokens: <span class="kw-2">&amp;</span>[Token]) {
-        <span class="kw">for </span>token <span class="kw">in </span>tokens {
-            <span class="kw">match </span>token {
-                Token::Literal(literal) =&gt; re.push_str(<span class="kw-2">&amp;</span>regex_lite::escape(literal)),
-                Token::Any(n) =&gt; <span class="kw">match </span>n {
-                    <span class="number">0 </span>=&gt; <span class="macro">debug_assert!</span>(<span class="bool-val">false</span>, <span class="string">"empty any token"</span>),
-                    <span class="number">1 </span>=&gt; re.push(<span class="string">'.'</span>),
-                    <span class="comment">// The simple case with a 'few' any matchers.
-                    </span><span class="kw-2">&amp;</span>i @ <span class="number">2</span>..=<span class="number">20 </span>=&gt; {
-                        re.reserve(i);
-                        <span class="kw">for _ in </span><span class="number">0</span>..i {
-                            re.push(<span class="string">'.'</span>);
-                        }
-                    }
-                    <span class="comment">// The generic case with a 'a lot of' any matchers.
-                    </span>i =&gt; {
-                        re.push(<span class="string">'.'</span>);
-                        re.push(<span class="string">'{'</span>);
-                        <span class="macro">write!</span>(re, <span class="string">"{i}"</span>).ok();
-                        re.push(<span class="string">'}'</span>)
-                    }
-                },
-                Token::Wildcard =&gt; re.push_str(<span class="string">".*"</span>),
-                Token::Class { negated, ranges } =&gt; {
-                    <span class="kw">if </span>ranges.is_empty() {
-                        <span class="kw">continue</span>;
-                    }
-
-                    re.push(<span class="string">'['</span>);
-                    <span class="kw">if </span><span class="kw-2">*</span>negated {
-                        re.push(<span class="string">'^'</span>);
-                    }
-                    <span class="kw">for </span>range <span class="kw">in </span>ranges.iter() {
-                        push_class_escaped(re, range.start);
-                        <span class="kw">if </span>range.start != range.end {
-                            re.push(<span class="string">'-'</span>);
-                            push_class_escaped(re, range.end);
-                        }
-                    }
-                    re.push(<span class="string">']'</span>);
-                }
-                Token::Alternates(alternates) =&gt; {
-                    <span class="kw">if </span>alternates.is_empty() {
-                        <span class="kw">continue</span>;
-                    }
-
-                    re.push_str(<span class="string">"(?:"</span>);
-                    <span class="kw">let </span><span class="kw-2">mut </span>first = <span class="bool-val">true</span>;
-                    <span class="kw">for </span>alternate <span class="kw">in </span>alternates {
-                        <span class="kw">if </span>!first {
-                            re.push(<span class="string">'|'</span>);
-                        }
-                        first = <span class="bool-val">false</span>;
-
-                        tokens_to_regex(re, alternate.as_slice());
-                    }
-                    re.push(<span class="string">')'</span>);
-                }
-            }
-        }
-    }
-
-    <span class="kw">let </span><span class="kw-2">mut </span>re = String::new();
-    re.push_str(<span class="string">"(?-u)"</span>);
-    <span class="kw">if </span>options.case_insensitive {
-        re.push_str(<span class="string">"(?i)"</span>);
-    }
-    re.push(<span class="string">'^'</span>);
-    tokens_to_regex(<span class="kw-2">&amp;mut </span>re, tokens);
-    re.push(<span class="string">'$'</span>);
-
-    regex_lite::RegexBuilder::new(<span class="kw-2">&amp;</span>re)
-        .dot_matches_new_line(<span class="bool-val">true</span>)
-        .build()
-        .map_err(|err| ErrorKind::Regex(err.to_string()))
 }
 
 <span class="attr">#[inline(always)]
@@ -2021,22 +1914,24 @@
     tokens: Tokens,
     alternates: <span class="prelude-ty">Option</span>&lt;Vec&lt;Tokens&gt;&gt;,
     current_literal: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    options: Options,
 }
 
 <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Parser&lt;<span class="lifetime">'a</span>&gt; {
-    <span class="kw">fn </span>new(pattern: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str) -&gt; <span class="self">Self </span>{
+    <span class="kw">fn </span>new(pattern: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str, options: Options) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             chars: pattern.chars().peekable(),
             tokens: Default::default(),
             alternates: <span class="prelude-val">None</span>,
             current_literal: <span class="prelude-val">None</span>,
+            options,
         }
     }
 
     <span class="kw">fn </span>parse(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), ErrorKind&gt; {
         <span class="kw">while let </span><span class="prelude-val">Some</span>(c) = <span class="self">self</span>.advance() {
             <span class="kw">match </span>c {
-                <span class="string">'?' </span>=&gt; <span class="self">self</span>.push_token(Token::Any(<span class="number">1</span>)),
+                <span class="string">'?' </span>=&gt; <span class="self">self</span>.push_token(Token::Any(NonZeroUsize::MIN)),
                 <span class="string">'*' </span>=&gt; <span class="self">self</span>.push_token(Token::Wildcard),
                 <span class="string">'[' </span>=&gt; <span class="self">self</span>.parse_class()<span class="question-mark">?</span>,
                 <span class="string">']' </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(ErrorKind::UnbalancedCharacterClass),
@@ -2150,7 +2045,7 @@
     <span class="doccomment">/// Finishes and pushes the currently in progress literal token.
     </span><span class="kw">fn </span>finish_literal(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(literal) = <span class="self">self</span>.current_literal.take() {
-            <span class="self">self</span>.push_token(Token::Literal(literal));
+            <span class="self">self</span>.push_token(Token::Literal(Literal::new(literal, <span class="self">self</span>.options)));
         }
     }
 
@@ -2191,7 +2086,13 @@
 <span class="doccomment">/// A container of tokens.
 ///
 /// Automatically folds redundant tokens.
-</span><span class="attr">#[derive(Debug, Default)]
+///
+/// The contained tokens are guaranteed to uphold the following invariants:
+/// - A [`Token::Wildcard`] is never followed by [`Token::Wildcard`].
+/// - A [`Token::Any`] is never followed by [`Token::Any`].
+/// - A [`Token::Literal`] is never followed by [`Token::Literal`].
+/// - A [`Token::Class`] is never empty.
+</span><span class="attr">#[derive(Clone, Debug, Default)]
 </span><span class="kw">struct </span>Tokens(Vec&lt;Token&gt;);
 
 <span class="kw">impl </span>Tokens {
@@ -2219,19 +2120,16 @@
             }
         }
 
-        <span class="kw">let </span><span class="prelude-val">Some</span>(last) = <span class="self">self</span>.<span class="number">0</span>.last_mut() <span class="kw">else </span>{
-            <span class="self">self</span>.<span class="number">0</span>.push(token);
-            <span class="kw">return</span>;
-        };
-
-        <span class="kw">match </span>(last, token) {
+        <span class="kw">match </span>(<span class="self">self</span>.<span class="number">0</span>.last_mut(), token) {
             <span class="comment">// Collapse Any's.
-            </span>(Token::Any(n), Token::Any(n2)) =&gt; <span class="kw-2">*</span>n += n2,
+            </span>(<span class="prelude-val">Some</span>(Token::Any(n)), Token::Any(n2)) =&gt; <span class="kw-2">*</span>n = n.saturating_add(n2.get()),
             <span class="comment">// We can collapse multiple wildcards into a single one.
             // TODO: separator special handling (?)
-            </span>(Token::Wildcard, Token::Wildcard) =&gt; {}
+            </span>(<span class="prelude-val">Some</span>(Token::Wildcard), Token::Wildcard) =&gt; {}
             <span class="comment">// Collapse multiple literals into one.
-            </span>(Token::Literal(<span class="kw-2">ref mut </span>last), Token::Literal(s)) =&gt; last.push_str(<span class="kw-2">&amp;</span>s),
+            </span>(<span class="prelude-val">Some</span>(Token::Literal(<span class="kw-2">ref mut </span>last)), Token::Literal(s)) =&gt; last.push(<span class="kw-2">&amp;</span>s),
+            <span class="comment">// Ignore empty class tokens.
+            </span>(<span class="kw">_</span>, Token::Class { negated: <span class="kw">_</span>, ranges }) <span class="kw">if </span>ranges.is_empty() =&gt; {}
             <span class="comment">// Everything else is just another token.
             </span>(<span class="kw">_</span>, token) =&gt; <span class="self">self</span>.<span class="number">0</span>.push(token),
         }
@@ -2247,12 +2145,12 @@
 }
 
 <span class="doccomment">/// Represents a token in a Relay pattern.
-</span><span class="attr">#[derive(Debug)]
+</span><span class="attr">#[derive(Clone, Debug)]
 </span><span class="kw">enum </span>Token {
     <span class="doccomment">/// A literal token.
-    </span>Literal(String),
+    </span>Literal(Literal),
     <span class="doccomment">/// The any token `?` and how many `?` are seen in a row.
-    </span>Any(usize),
+    </span>Any(NonZeroUsize),
     <span class="doccomment">/// The wildcard token `*`.
     </span>Wildcard,
     <span class="doccomment">/// A class token `[abc]` or its negated variant `[!abc]`.
@@ -2261,12 +2159,52 @@
     </span>Alternates(Vec&lt;Tokens&gt;),
 }
 
+<span class="doccomment">/// A string literal.
+///
+/// The contained literal is only available as a case converted string.
+/// Depending on whether the pattern is case sensitive or case insensitive the literal is either
+/// the original string or converted to lowercase.
+</span><span class="attr">#[derive(Clone, Debug, Default)]
+</span><span class="kw">struct </span>Literal(String);
+
+<span class="kw">impl </span>Literal {
+    <span class="doccomment">/// Creates a new literal from `s` and `options`.
+    </span><span class="kw">fn </span>new(s: String, options: Options) -&gt; <span class="self">Self </span>{
+        <span class="kw">match </span>options.case_insensitive {
+            <span class="bool-val">false </span>=&gt; <span class="self">Self</span>(s),
+            <span class="bool-val">true </span>=&gt; <span class="self">Self</span>(s.to_lowercase()),
+        }
+    }
+
+    <span class="doccomment">/// Adds a literal to this literal.
+    ///
+    /// This function does not validate case conversion, both literals must be for the same caseing.
+    </span><span class="kw">fn </span>push(<span class="kw-2">&amp;mut </span><span class="self">self</span>, Literal(other): <span class="kw-2">&amp;</span>Literal) {
+        <span class="self">self</span>.<span class="number">0</span>.push_str(other);
+    }
+
+    <span class="doccomment">/// Returns a reference to the case converted string.
+    </span><span class="kw">fn </span>as_case_converted_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0
+    </span>}
+
+    <span class="doccomment">/// Returns a reference to the case converted string as bytes.
+    </span><span class="kw">fn </span>as_case_converted_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
+        <span class="self">self</span>.as_case_converted_str().as_bytes()
+    }
+
+    <span class="doccomment">/// Returns the inner case converted string, destructuring the literal.
+    </span><span class="kw">fn </span>into_case_converted(<span class="self">self</span>) -&gt; String {
+        <span class="self">self</span>.<span class="number">0
+    </span>}
+}
+
 <span class="doccomment">/// A [`Range`] contains whatever is contained between `[` and `]` of
 /// a glob pattern, except the negation.
 ///
 /// For example the pattern `[a-z]` contains the range from `a` to `z`,
 /// the pattern `[ax-zbf-h]` contains the ranges `x-z`, `f-h`, `a-a` and `b-b`.
-</span><span class="attr">#[derive(Debug, Default)]
+</span><span class="attr">#[derive(Clone, Debug, Default)]
 </span><span class="kw">enum </span>Ranges {
     <span class="doccomment">/// An empty, default range not containing any characters.
     ///
@@ -2319,22 +2257,16 @@
         }
     }
 
-    <span class="doccomment">/// Returns an iterator over all contained ranges.
-    </span><span class="kw">fn </span>iter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = Range&gt; + <span class="lifetime">'_ </span>{
-        <span class="kw">let </span>single = <span class="kw">match </span><span class="self">self </span>{
-            Ranges::Single(range) =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">*</span>range),
-            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
+    <span class="doccomment">/// Returns `true` if the character `c` is contained matches any contained range.
+    </span><span class="attr">#[inline(always)]
+    </span><span class="kw">fn </span>contains(<span class="kw-2">&amp;</span><span class="self">self</span>, c: char) -&gt; bool {
+        <span class="comment">// TODO: optimize this into a `starts_with` which gets a `&amp;str`, this can be optimized to
+        // byte matches
+        </span><span class="kw">match </span><span class="self">self </span>{
+            <span class="self">Self</span>::Empty =&gt; <span class="bool-val">false</span>,
+            <span class="self">Self</span>::Single(range) =&gt; range.contains(c),
+            <span class="self">Self</span>::Multiple(ranges) =&gt; ranges.iter().any(|range| range.contains(c)),
         }
-        .into_iter();
-
-        <span class="kw">let </span>multiple = <span class="kw">match </span><span class="self">self </span>{
-            Ranges::Multiple(ranges) =&gt; <span class="prelude-val">Some</span>(ranges.iter().copied()),
-            <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
-        }
-        .into_iter()
-        .flatten();
-
-        single.chain(multiple)
     }
 }
 
@@ -2361,6 +2293,12 @@
         }
         <span class="self">self</span>.end = end;
         <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="doccomment">/// Returns `true` if the character `c` is contained in the range.
+    </span><span class="attr">#[inline(always)]
+    </span><span class="kw">fn </span>contains(<span class="kw-2">&amp;</span><span class="self">self</span>, c: char) -&gt; bool {
+        <span class="self">self</span>.start &lt;= c &amp;&amp; c &lt;= <span class="self">self</span>.end
     }
 }
 
@@ -2412,7 +2350,7 @@
                 MatchStrategy::Suffix(<span class="kw">_</span>) =&gt; <span class="string">"Suffix"</span>,
                 MatchStrategy::Contains(<span class="kw">_</span>) =&gt; <span class="string">"Contains"</span>,
                 MatchStrategy::Static(<span class="kw">_</span>) =&gt; <span class="string">"Static"</span>,
-                MatchStrategy::Regex(<span class="kw">_</span>) =&gt; <span class="string">"Regex"</span>,
+                MatchStrategy::Wildmatch(<span class="kw">_</span>) =&gt; <span class="string">"Wildmatch"</span>,
             };
             <span class="macro">assert_eq!</span>(
                 kind,
@@ -2520,7 +2458,7 @@
     </span><span class="kw">fn </span>test_prefix_strategy() {
         <span class="macro">assert_strategy!</span>(<span class="string">"foo*"</span>, Prefix);
         <span class="macro">assert_strategy!</span>(<span class="string">"foo**"</span>, Prefix);
-        <span class="macro">assert_strategy!</span>(<span class="string">"foo?*"</span>, Regex);
+        <span class="macro">assert_strategy!</span>(<span class="string">"foo?*"</span>, Wildmatch);
     }
 
     <span class="attr">#[test]
@@ -2572,7 +2510,7 @@
     </span><span class="kw">fn </span>test_suffix_strategy() {
         <span class="macro">assert_strategy!</span>(<span class="string">"*foo"</span>, Suffix);
         <span class="macro">assert_strategy!</span>(<span class="string">"**foo"</span>, Suffix);
-        <span class="macro">assert_strategy!</span>(<span class="string">"*?foo"</span>, Regex);
+        <span class="macro">assert_strategy!</span>(<span class="string">"*?foo"</span>, Wildmatch);
     }
 
     <span class="attr">#[test]
@@ -2629,10 +2567,10 @@
     </span><span class="kw">fn </span>test_contains_strategy() {
         <span class="macro">assert_strategy!</span>(<span class="string">"*foo*"</span>, Contains);
         <span class="macro">assert_strategy!</span>(<span class="string">"**foo**"</span>, Contains);
-        <span class="macro">assert_strategy!</span>(<span class="string">"*?foo*"</span>, Regex);
-        <span class="macro">assert_strategy!</span>(<span class="string">"*foo?*"</span>, Regex);
-        <span class="macro">assert_strategy!</span>(<span class="string">"*foo*?"</span>, Regex);
-        <span class="macro">assert_strategy!</span>(<span class="string">"?*foo*"</span>, Regex);
+        <span class="macro">assert_strategy!</span>(<span class="string">"*?foo*"</span>, Wildmatch);
+        <span class="macro">assert_strategy!</span>(<span class="string">"*foo?*"</span>, Wildmatch);
+        <span class="macro">assert_strategy!</span>(<span class="string">"*foo*?"</span>, Wildmatch);
+        <span class="macro">assert_strategy!</span>(<span class="string">"?*foo*"</span>, Wildmatch);
     }
 
     <span class="attr">#[test]
@@ -2659,8 +2597,8 @@
         <span class="macro">assert_strategy!</span>(<span class="string">"{*}"</span>, Static);
         <span class="macro">assert_strategy!</span>(<span class="string">"{*,}"</span>, Static);
         <span class="macro">assert_strategy!</span>(<span class="string">"{foo,*}"</span>, Static);
-        <span class="macro">assert_strategy!</span>(<span class="string">"{foo,*}?{*,bar}"</span>, Regex);
-        <span class="macro">assert_strategy!</span>(<span class="string">"{*,}?{*,}"</span>, Regex);
+        <span class="macro">assert_strategy!</span>(<span class="string">"{foo,*}?{*,bar}"</span>, Wildmatch);
+        <span class="macro">assert_strategy!</span>(<span class="string">"{*,}?{*,}"</span>, Wildmatch);
     }
 
     <span class="attr">#[test]
@@ -2686,6 +2624,9 @@
             <span class="string">"??????????????????????????????????????????????????"</span>,
             <span class="string">"?????????????????????????????????????????????????!"
         </span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"foo?bar"</span>, <span class="string">"foo?bar"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"foo?bar"</span>, <span class="string">"foo!bar"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"a??a"</span>, <span class="string">"aඞඞa"</span>);
 
         <span class="comment">// No special slash handling
         </span><span class="macro">assert_pattern!</span>(<span class="string">"?"</span>, <span class="string">"/"</span>);
@@ -2753,7 +2694,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_classes() {
-        <span class="macro">assert_pattern!</span>(<span class="string">"[]"</span>, <span class="string">""</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"[]"</span>, NOT <span class="string">""</span>);
         <span class="macro">assert_pattern!</span>(<span class="string">"[]"</span>, NOT <span class="string">"_"</span>);
         <span class="macro">assert_pattern!</span>(<span class="string">"[a]"</span>, <span class="string">"a"</span>);
         <span class="macro">assert_pattern!</span>(<span class="string">"[a]"</span>, NOT <span class="string">"[a]"</span>);
@@ -2852,11 +2793,13 @@
         <span class="macro">assert_pattern!</span>(<span class="string">"x[ab]x"</span>, NOT <span class="string">"Xcx"</span>, i);
         <span class="macro">assert_pattern!</span>(<span class="string">"x[ab]x"</span>, NOT <span class="string">"aAx"</span>, i);
         <span class="macro">assert_pattern!</span>(<span class="string">"x[ab]x"</span>, NOT <span class="string">"xAa"</span>, i);
+        <span class="macro">assert_pattern!</span>(<span class="string">"[ǧ]"</span>, <span class="string">"Ǧ"</span>, i);
+        <span class="macro">assert_pattern!</span>(<span class="string">"[Ǧ]"</span>, <span class="string">"ǧ"</span>, i);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_classes_negated() {
-        <span class="macro">assert_pattern!</span>(<span class="string">"[!]"</span>, <span class="string">""</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"[!]"</span>, NOT <span class="string">""</span>);
         <span class="macro">assert_pattern!</span>(<span class="string">"[!a]"</span>, <span class="string">"b"</span>);
         <span class="macro">assert_pattern!</span>(<span class="string">"[!a]"</span>, <span class="string">"A"</span>);
         <span class="macro">assert_pattern!</span>(<span class="string">"[!a]"</span>, <span class="string">"B"</span>);
@@ -2947,6 +2890,20 @@
         <span class="macro">assert_pattern!</span>(<span class="string">r"a{\[\],\{\}}a"</span>, NOT <span class="string">"a]a"</span>);
         <span class="macro">assert_pattern!</span>(<span class="string">r"a{\[\],\{\}}a"</span>, NOT <span class="string">"a{a"</span>);
         <span class="macro">assert_pattern!</span>(<span class="string">r"a{\[\],\{\}}a"</span>, NOT <span class="string">"a}a"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"foo/{*.js,*.html}"</span>, <span class="string">"foo/.js"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"foo/{*.js,*.html}"</span>, <span class="string">"foo/.html"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"foo/{*.js,*.html}"</span>, <span class="string">"foo/bar.js"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"foo/{*.js,*.html}"</span>, <span class="string">"foo/bar.html"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"foo/{*.js,*.html}"</span>, NOT <span class="string">"foo/bar.png"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"foo/{*.js,*.html}"</span>, NOT <span class="string">"bar/bar.js"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"{foo,abc}{def,bar}"</span>, <span class="string">"foodef"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"{foo,abc}{def,bar}"</span>, <span class="string">"foobar"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"{foo,abc}{def,bar}"</span>, <span class="string">"abcdef"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"{foo,abc}{def,bar}"</span>, <span class="string">"abcbar"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"{foo,abc}{def,bar}"</span>, NOT <span class="string">"foofoo"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"{foo,abc}{def,bar}"</span>, NOT <span class="string">"fooabc"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"{foo,abc}{def,bar}"</span>, NOT <span class="string">"defdef"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"{foo,abc}{def,bar}"</span>, NOT <span class="string">"defabc"</span>);
     }
 
     <span class="attr">#[test]
@@ -2985,6 +2942,9 @@
         <span class="macro">assert_pattern!</span>(<span class="string">"1.18.[!0-4].*"</span>, NOT <span class="string">"1.18.3.abc"</span>);
         <span class="macro">assert_pattern!</span>(<span class="string">"!*!*.md"</span>, <span class="string">"!foo!.md"</span>); <span class="comment">// no `!` outside of character classes
         </span><span class="macro">assert_pattern!</span>(<span class="string">"foo*foofoo*foobar"</span>, <span class="string">"foofoofooxfoofoobar"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"foo*fooFOO*fOobar"</span>, <span class="string">"fooFoofooXfoofooBAR"</span>, i);
+        <span class="macro">assert_pattern!</span>(<span class="string">"[0-9]*a"</span>, <span class="string">"0aaaaaaaaa"</span>, i);
+        <span class="macro">assert_pattern!</span>(<span class="string">"[0-9]*Bar[x]"</span>, <span class="string">"0foobarx"</span>, i);
 
         <span class="macro">assert_pattern!</span>(
             <span class="string">r"/api/0/organizations/\{organization_slug\}/event*"</span>,
@@ -2994,6 +2954,16 @@
             <span class="string">r"/api/0/organizations/\{organization_slug\}/event*"</span>,
             NOT <span class="string">r"/api/0/organizations/\{organization_slug\}/event/foobar"
         </span>);
+
+        <span class="macro">assert_pattern!</span>(
+            <span class="string">"*b??{foo,bar,baz,with}*cr{x,y,z,?}zyl[a-z]ng{suffix,pr?*ix}*it?**?uallymatches"</span>,
+            <span class="string">"foobarwithacrazylongprefixandanditactuallymatches"
+        </span>);
+        <span class="macro">assert_pattern!</span>(
+            <span class="string">"*b??{foo,bar,baz,with}*cr{x,y,z,?}zyl[a-z]ng{suffix,pr?*ix}*it?**?uallymatches"</span>,
+            <span class="string">"FOOBARWITHACRAZYLONGPREFIXANDANDITACTUALLYMATCHES"</span>,
+            i
+        );
     }
 
     <span class="doccomment">/// Tests collected by [Kirk J Krauss].
