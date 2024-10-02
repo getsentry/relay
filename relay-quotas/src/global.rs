@@ -1,8 +1,7 @@
-use std::sync::{Mutex, OnceLock, PoisonError};
+use std::sync::{Mutex, PoisonError};
 
 use itertools::Itertools;
 use relay_base_schema::metrics::MetricNamespace;
-use relay_redis::redis::Script;
 use relay_redis::{PooledClient, RedisError, RedisScripts};
 
 use crate::RedisQuota;

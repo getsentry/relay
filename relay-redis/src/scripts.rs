@@ -7,20 +7,24 @@ pub struct RedisScripts;
 impl RedisScripts {
     /// Loads the cardinality Redis script.
     pub fn load_cardinality() -> &'static RedisScript {
-        static SCRIPT: OnceLock<RedisScript> = OnceLock::new();
-        SCRIPT.get_or_init(|| RedisScript::new(include_str!("scripts/cardinality.lua")))
+        static SCRIPT: OnceLock<Box<RedisScript>> = OnceLock::new();
+        SCRIPT.get_or_init(|| Box::new(RedisScript::new(include_str!("scripts/cardinality.lua"))))
     }
 
     /// Loads the global quota Redis script.
     pub fn load_global_quota() -> &'static RedisScript {
-        static SCRIPT: OnceLock<RedisScript> = OnceLock::new();
-        SCRIPT.get_or_init(|| RedisScript::new(include_str!("scripts/global_quota.lua")))
+        static SCRIPT: OnceLock<Box<RedisScript>> = OnceLock::new();
+        SCRIPT.get_or_init(|| Box::new(RedisScript::new(include_str!("scripts/global_quota.lua"))))
     }
 
     /// Loads the rate limiting check Redis script.
     pub fn load_is_rate_limited() -> &'static RedisScript {
-        static SCRIPT: OnceLock<RedisScript> = OnceLock::new();
-        SCRIPT.get_or_init(|| RedisScript::new(include_str!("scripts/is_rate_limited.lua")))
+        static SCRIPT: OnceLock<Box<RedisScript>> = OnceLock::new();
+        SCRIPT.get_or_init(|| {
+            Box::new(RedisScript::new(include_str!(
+                "scripts/is_rate_limited.lua"
+            )))
+        })
     }
 }
 

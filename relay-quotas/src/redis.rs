@@ -1,16 +1,15 @@
 use std::fmt::{self, Debug};
 use std::sync::Arc;
 
+use crate::global::GlobalRateLimits;
+use crate::quota::{ItemScoping, Quota, QuotaScope};
+use crate::rate_limit::{RateLimit, RateLimits, RetryAfter};
+use crate::REJECT_ALL_SECS;
 use relay_common::time::UnixTimestamp;
 use relay_log::protocol::value;
 use relay_redis::redis::Script;
 use relay_redis::{RedisError, RedisPool, RedisScripts};
 use thiserror::Error;
-
-use crate::global::GlobalRateLimits;
-use crate::quota::{ItemScoping, Quota, QuotaScope};
-use crate::rate_limit::{RateLimit, RateLimits, RetryAfter};
-use crate::REJECT_ALL_SECS;
 
 /// The `grace` period allows accomodating for clock drift in TTL
 /// calculation since the clock on the Redis instance used to store quota

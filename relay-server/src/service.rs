@@ -26,9 +26,8 @@ use axum::http::request::Parts;
 use rayon::ThreadPool;
 use relay_cogs::Cogs;
 use relay_config::{Config, RedisConfigRef, RedisPoolConfigs};
-use relay_redis::redis::Script;
 use relay_redis::{
-    redis, Connection, PooledClient, RedisError, RedisPool, RedisPools, RedisScript, RedisScripts,
+    redis, PooledClient, RedisError, RedisPool, RedisPools, RedisScript, RedisScripts,
 };
 use relay_system::{channel, Addr, Service};
 use tokio::runtime::Runtime;
@@ -484,7 +483,7 @@ fn initialize_redis_scripts(
         // limitation in the connection implementation.
         redis::cmd("SCRIPT")
             .arg("LOAD")
-            .arg(&script.code().as_bytes())
+            .arg(script.code().as_bytes())
             .exec(&mut connection)
             .map_err(RedisError::Redis)?;
     }
