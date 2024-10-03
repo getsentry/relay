@@ -754,7 +754,7 @@ def _get_span_payload():
     "category,outcome_categories",
     [
         ("session", []),
-        ("transaction", ["transaction", "transaction_indexed"]),
+        ("transaction", ["transaction", "transaction_indexed", "span", "span_indexed"]),
         ("user_report_v2", ["user_report_v2"]),
     ],
 )

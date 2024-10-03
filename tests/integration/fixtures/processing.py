@@ -7,6 +7,8 @@ import os
 import confluent_kafka as kafka
 from copy import deepcopy
 
+from sentry_relay.consts import DataCategory
+
 
 @pytest.fixture
 def get_topic_name():
@@ -220,27 +222,7 @@ class ConsumerBase:
 
 
 def category_value(category):
-    if category == "default":
-        return 0
-    if category == "error":
-        return 1
-    if category == "transaction":
-        return 2
-    if category == "security":
-        return 3
-    if category == "attachment":
-        return 4
-    if category == "session":
-        return 5
-    if category == "transaction_processed":
-        return 8
-    if category == "transaction_indexed":
-        return 9
-    if category == "user_report_v2":
-        return 14
-    if category == "metric_bucket":
-        return 15
-    assert False, "invalid category"
+    return DataCategory.parse(category)
 
 
 class OutcomesConsumer(ConsumerBase):
