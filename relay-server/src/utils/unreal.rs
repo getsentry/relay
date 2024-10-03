@@ -514,7 +514,7 @@ mod tests {
 
         assert_eq!(
             event.user.0.unwrap().id.0.unwrap(),
-            LenientString("SOME_ID".to_string())
+            LenientString("SOME_ID".to_owned())
         );
     }
 }
