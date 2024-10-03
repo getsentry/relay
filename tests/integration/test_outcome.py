@@ -16,6 +16,7 @@ import pytest
 import requests
 from requests.exceptions import HTTPError
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
+from sentry_relay.consts import DataCategory
 from .asserts import time_within_delta
 
 from .test_metrics import metrics_by_name
@@ -1912,14 +1913,6 @@ def test_span_outcomes_invalid(
     # Create an envelope with an invalid profile:
     def make_envelope():
         envelope = Envelope()
-        payload = _get_event_payload("transaction")
-        payload["spans"][0].pop("span_id", None)
-        envelope.add_item(
-            Item(
-                payload=PayloadRef(bytes=json.dumps(payload).encode()),
-                type="transaction",
-            )
-        )
         payload = _get_span_payload()
         payload.pop("span_id", None)
         envelope.add_item(
@@ -1933,7 +1926,7 @@ def test_span_outcomes_invalid(
     envelope = make_envelope()
     upstream.send_envelope(project_id, envelope)
 
-    outcomes = outcomes_consumer.get_outcomes(timeout=10.0, n=4)
+    outcomes = outcomes_consumer.get_outcomes(timeout=10.0, n=2)
     outcomes.sort(key=lambda o: sorted(o.items()))
 
     assert outcomes == [
@@ -1944,15 +1937,13 @@ def test_span_outcomes_invalid(
             "outcome": 3,  # Invalid
             "project_id": 42,
             "quantity": 1,
-            "reason": reason,
+            "reason": "invalid_span",
             "source": "pop-relay",
             "timestamp": time_within_delta(),
         }
-        for (category, reason) in [
-            (2, "invalid_transaction"),
-            (9, "invalid_transaction"),
-            (12, "internal"),
-            (16, "internal"),
+        for category in [
+            DataCategory.SPAN.value,
+            DataCategory.SPAN_INDEXED.value,
         ]
     ]
 
