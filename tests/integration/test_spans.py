@@ -8,10 +8,12 @@ import pytest
 from requests import HTTPError
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
+
 from .consts import (
     METRICS_EXTRACTION_MIN_SUPPORTED_VERSION,
     TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
 )
+from .test_envelope import generate_transaction_item
 from .test_metrics import TEST_CONFIG
 from .test_store import make_transaction
 
@@ -1264,6 +1266,84 @@ def test_rate_limit_is_consistent_between_transaction_and_spans(
             (16, 2): 2,  # SpanIndexed, Rate Limited
         }
         assert usage_metrics() == (1, 2)
+
+
+def test_rate_limit_spans_without_redis(
+    mini_sentry,
+    relay,
+):
+    """Rate limits for total spans are enforced and no metrics are emitted."""
+    relay = relay(mini_sentry, TEST_CONFIG)
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "projects:span-metrics-extraction",
+    ]
+    project_config["config"]["transactionMetrics"] = {
+        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
+    }
+
+    project_config["config"]["quotas"] = [
+        {
+            "categories": ["span_indexed"],
+            "limit": 0,
+            "window": int(datetime.now(UTC).timestamp()),
+            "id": uuid.uuid4(),
+            "reasonCode": "foo",
+        },
+    ]
+    project_config["config"]["sampling"] = (
+        {  # Drop everything, to trigger metrics extraction
+            "version": 2,
+            "rules": [
+                {
+                    "id": 1,
+                    "samplingValue": {"type": "sampleRate", "value": 0.0},
+                    "type": "transaction",
+                    "condition": {"op": "and", "inner": []},
+                }
+            ],
+        }
+    )
+
+    # Send an error event to populate the project cache:
+    relay.send_event(project_id)
+    envelope = mini_sentry.captured_events.get()
+    assert [item.type for item in envelope.items] == ["event"]
+
+    with pytest.raises(HTTPError) as e:
+        relay.send_transaction(project_id, generate_transaction_item())
+    assert (
+        e.value.response.headers["x-sentry-rate-limits"]
+        == "60:span_indexed:organization:foo"
+    )
+
+    # Spans were rate limited
+    client_report = mini_sentry.get_client_report()
+    del client_report["timestamp"]
+    assert client_report == {
+        "discarded_events": [],
+        "rate_limited_events": [
+            {"reason": "foo", "category": "span_indexed", "quantity": 2}
+        ],
+    }
+
+    # Transaction was dynamically sampled
+    client_report = mini_sentry.get_client_report()
+    del client_report["timestamp"]
+    assert client_report == {
+        "discarded_events": [],
+        "filtered_sampling_events": [
+            {"reason": "Sampled:0", "category": "transaction_indexed", "quantity": 1}
+        ],
+    }
+
+    # Metrics were received regardless
+    metrics = mini_sentry.get_metrics()
+    assert any(metric["name"] == "c:spans/usage@none" for metric in metrics)
+
+    # Nothing else was sent upstream
+    assert mini_sentry.captured_events.empty()
 
 
 @pytest.mark.parametrize(
