@@ -1,8 +1,8 @@
-use std::convert::Infallible;
-
 use crate::Envelope;
+use std::convert::Infallible;
+use std::mem;
 
-use super::EnvelopeStack;
+use super::{CollectionStrategy, EnvelopeStack};
 
 #[derive(Debug)]
 pub struct MemoryEnvelopeStack(#[allow(clippy::vec_box)] Vec<Box<Envelope>>);
@@ -29,7 +29,14 @@ impl EnvelopeStack for MemoryEnvelopeStack {
         Ok(self.0.pop())
     }
 
-    fn flush(self) -> Vec<Box<Envelope>> {
-        self.0
+    fn collect(&mut self, collection_strategy: CollectionStrategy) -> Vec<Box<Envelope>> {
+        match collection_strategy {
+            CollectionStrategy::All => mem::replace(&mut self.0, vec![]),
+            CollectionStrategy::N(n) => {
+                let drain_amount = (n as usize).min(self.0.len());
+                self.0.drain(0..drain_amount).collect()
+            }
+            CollectionStrategy::None => vec![],
+        }
     }
 }

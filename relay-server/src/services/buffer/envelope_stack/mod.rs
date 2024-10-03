@@ -1,9 +1,34 @@
 use std::future::Future;
 
 use crate::envelope::Envelope;
+use crate::services::buffer::stack_provider::SpoolingStrategy;
 
 pub mod memory;
 pub mod sqlite;
+
+/// The strategy for collecting [`Envelope`]s from the [`EnvelopeStack`].
+#[derive(Copy, Clone)]
+pub enum CollectionStrategy {
+    All,
+    N(u64),
+    None,
+}
+
+impl From<SpoolingStrategy> for CollectionStrategy {
+    fn from(value: SpoolingStrategy) -> Self {
+        match value {
+            SpoolingStrategy::All => CollectionStrategy::All,
+            SpoolingStrategy::N { n, envelope_stacks } => {
+                // In case no stacks are there, we don't want to spool.
+                if envelope_stacks == 0 {
+                    CollectionStrategy::None
+                } else {
+                    CollectionStrategy::N(n.saturating_div(envelope_stacks))
+                }
+            }
+        }
+    }
+}
 
 /// A stack-like data structure that holds [`Envelope`]s.
 pub trait EnvelopeStack: Send + std::fmt::Debug {
@@ -20,7 +45,6 @@ pub trait EnvelopeStack: Send + std::fmt::Debug {
     /// Pops the [`Envelope`] on top of the stack.
     fn pop(&mut self) -> impl Future<Output = Result<Option<Box<Envelope>>, Self::Error>>;
 
-    /// Persists all envelopes in the [`EnvelopeStack`]s to external storage, if possible,
-    /// and consumes the stack provider.
-    fn flush(self) -> Vec<Box<Envelope>>;
+    /// Collects envelopes from the [`EnvelopeStack`]s given a [`CollectionStrategy`].
+    fn collect(&mut self, collection_strategy: CollectionStrategy) -> Vec<Box<Envelope>>;
 }

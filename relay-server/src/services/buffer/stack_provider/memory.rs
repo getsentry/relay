@@ -1,7 +1,8 @@
 use crate::services::buffer::common::ProjectKeyPair;
 use crate::services::buffer::envelope_stack::memory::MemoryEnvelopeStack;
+use crate::services::buffer::envelope_stack::CollectionStrategy;
 use crate::services::buffer::stack_provider::{
-    InitializationState, StackCreationType, StackProvider,
+    InitializationState, SpoolingStrategy, StackCreationType, StackProvider,
 };
 use crate::utils::MemoryChecker;
 use crate::EnvelopeStack;
@@ -19,7 +20,7 @@ impl MemoryStackProvider {
     }
 }
 
-impl StackProvider for MemoryStackProvider {
+impl<'a> StackProvider<'a> for MemoryStackProvider {
     type Stack = MemoryEnvelopeStack;
 
     async fn initialize(&self) -> InitializationState {
@@ -39,14 +40,19 @@ impl StackProvider for MemoryStackProvider {
         0
     }
 
-    fn stack_type<'a>(&self) -> &'a str {
+    fn stack_type(&self) -> &str {
         "memory"
     }
 
-    async fn flush(&mut self, envelope_stacks: impl IntoIterator<Item = Self::Stack>) {
+    async fn spool(
+        &mut self,
+        envelope_stacks: impl IntoIterator<Item = &'a mut Self::Stack>,
+        spooling_strategy: SpoolingStrategy,
+    ) {
+        let collection_strategy: CollectionStrategy = spooling_strategy.into();
         for envelope_stack in envelope_stacks {
-            // The flushed envelopes will be immediately dropped.
-            let _ = envelope_stack.flush();
+            // We just drop the data immediately because we can't spool anywhere with this strategy.
+            let _ = envelope_stack.collect(collection_strategy);
         }
     }
 }

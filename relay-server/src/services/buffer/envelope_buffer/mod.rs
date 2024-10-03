@@ -16,11 +16,11 @@ use tokio::time::{timeout, Instant};
 use crate::envelope::Envelope;
 use crate::services::buffer::common::ProjectKeyPair;
 use crate::services::buffer::envelope_stack::sqlite::SqliteEnvelopeStackError;
-use crate::services::buffer::envelope_stack::EnvelopeStack;
+use crate::services::buffer::envelope_stack::{CollectionStrategy, EnvelopeStack};
 use crate::services::buffer::envelope_store::sqlite::SqliteEnvelopeStoreError;
 use crate::services::buffer::stack_provider::memory::MemoryStackProvider;
 use crate::services::buffer::stack_provider::sqlite::SqliteStackProvider;
-use crate::services::buffer::stack_provider::{StackCreationType, StackProvider};
+use crate::services::buffer::stack_provider::{SpoolingStrategy, StackCreationType, StackProvider};
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::MemoryChecker;
 
@@ -33,14 +33,14 @@ use crate::utils::MemoryChecker;
 /// object safe.
 #[derive(Debug)]
 #[allow(private_interfaces)]
-pub enum PolymorphicEnvelopeBuffer {
+pub enum PolymorphicEnvelopeBuffer<'a> {
     /// An enveloper buffer that uses in-memory envelopes stacks.
-    InMemory(EnvelopeBuffer<MemoryStackProvider>),
+    InMemory(EnvelopeBuffer<'a, MemoryStackProvider>),
     /// An enveloper buffer that uses sqlite envelopes stacks.
-    Sqlite(EnvelopeBuffer<SqliteStackProvider>),
+    Sqlite(EnvelopeBuffer<'a, SqliteStackProvider>),
 }
 
-impl PolymorphicEnvelopeBuffer {
+impl<'a> PolymorphicEnvelopeBuffer<'a> {
     /// Returns true if the implementation stores all envelopes in RAM.
     pub fn is_memory(&self) -> bool {
         match self {
@@ -207,26 +207,36 @@ impl SpoolOrchestrator {
         Self::NeverSpool
     }
 
-    pub fn increment(&mut self) {
+    /// Increments the count of envelopes by `n`.
+    pub fn increment(&mut self, n: u64) {
         if let Self::CanSpool {
             total_in_memory_count,
             ..
         } = self
         {
-            total_in_memory_count.fetch_add(1, AtomicOrdering::SeqCst);
+            total_in_memory_count.fetch_add(n, AtomicOrdering::SeqCst);
         }
     }
 
-    pub fn decrement(&mut self) {
+    /// Decrements the count of envelopes by `n`.
+    pub fn decrement(&mut self, n: u64) {
         if let Self::CanSpool {
             total_in_memory_count,
             ..
         } = self
         {
-            total_in_memory_count.fetch_sub(1, AtomicOrdering::SeqCst);
+            if total_in_memory_count.load(AtomicOrdering::Relaxed) - n < 0 {
+                total_in_memory_count.store(0, AtomicOrdering::SeqCst);
+            } else {
+                total_in_memory_count.fetch_sub(n, AtomicOrdering::SeqCst);
+            }
         }
     }
 
+    /// Signals whether spooling should be performed.
+    ///
+    /// Returns `Some(x)` where `x` is the number of envelopes to spool to disk or `None` if no
+    /// spooling has to be done.
     pub fn should_spool(&self) -> Option<usize> {
         match self {
             SpoolOrchestrator::CanSpool {
@@ -253,7 +263,7 @@ impl SpoolOrchestrator {
 /// Envelope stacks are organized in a priority queue, and are re-prioritized every time an envelope
 /// is pushed, popped, or when a project becomes ready.
 #[derive(Debug)]
-struct EnvelopeBuffer<P: StackProvider> {
+struct EnvelopeBuffer<'a, P: StackProvider<'a>> {
     /// The central priority queue.
     priority_queue: priority_queue::PriorityQueue<QueueItem<ProjectKeyPair, P::Stack>, Priority>,
     /// A lookup table to find all stacks involving a project.
@@ -279,7 +289,7 @@ struct EnvelopeBuffer<P: StackProvider> {
     spool_orchestrator: SpoolOrchestrator,
 }
 
-impl EnvelopeBuffer<MemoryStackProvider> {
+impl<'a> EnvelopeBuffer<'a, MemoryStackProvider> {
     /// Creates an empty memory-based buffer.
     pub fn new(memory_checker: MemoryChecker) -> Self {
         Self {
@@ -294,7 +304,7 @@ impl EnvelopeBuffer<MemoryStackProvider> {
 }
 
 #[allow(dead_code)]
-impl EnvelopeBuffer<SqliteStackProvider> {
+impl<'a> EnvelopeBuffer<'a, SqliteStackProvider> {
     /// Creates an empty sqlite-based buffer.
     pub async fn new(config: &Config) -> Result<Self, EnvelopeBufferError> {
         let spool_orchestrator = SpoolOrchestrator::new(config);
@@ -310,7 +320,7 @@ impl EnvelopeBuffer<SqliteStackProvider> {
     }
 }
 
-impl<P: StackProvider> EnvelopeBuffer<P>
+impl<'a, P: StackProvider<'a>> EnvelopeBuffer<'a, P>
 where
     EnvelopeBufferError: From<<P::Stack as EnvelopeStack>::Error>,
 {
@@ -483,9 +493,11 @@ where
 
     /// Flushes the envelope buffer.
     pub async fn flush(&mut self) {
-        let priority_queue = mem::take(&mut self.priority_queue);
+        // We take the priority queue and replace it with an empty one since `flush` is a
+        // destructive operation.
+        let envelope_stacks = self.priority_queue.iter_mut().map(|(q, _)| &mut q.value);
         self.stack_provider
-            .flush(priority_queue.into_iter().map(|(q, _)| q.value))
+            .spool(envelope_stacks, SpoolingStrategy::All)
             .await;
     }
 
@@ -776,7 +788,9 @@ mod tests {
         MemoryChecker::new(MemoryStat::default(), mock_config("my/db/path").clone())
     }
 
-    async fn peek_project_key(buffer: &mut EnvelopeBuffer<MemoryStackProvider>) -> ProjectKey {
+    async fn peek_project_key<'a>(
+        buffer: &mut EnvelopeBuffer<'a, MemoryStackProvider>,
+    ) -> ProjectKey {
         buffer
             .peek()
             .await

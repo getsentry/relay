@@ -1,4 +1,5 @@
 use crate::services::buffer::common::ProjectKeyPair;
+use crate::services::buffer::envelope_stack::CollectionStrategy;
 use crate::EnvelopeStack;
 use hashbrown::HashSet;
 use std::future::Future;
@@ -36,10 +37,16 @@ pub enum StackCreationType {
     New,
 }
 
+/// The strategy for spooling envelopes from the [`EnvelopeStack`] to an external storage medium.
+pub enum SpoolingStrategy {
+    All,
+    N { n: u64, envelope_stacks: u64 },
+}
+
 /// A provider of [`EnvelopeStack`] instances that is responsible for creating them.
-pub trait StackProvider: std::fmt::Debug {
+pub trait StackProvider<'a>: std::fmt::Debug {
     /// The implementation of [`EnvelopeStack`] that this manager creates.
-    type Stack: EnvelopeStack;
+    type Stack: EnvelopeStack + 'a;
 
     /// Initializes the [`StackProvider`].
     fn initialize(&self) -> impl Future<Output = InitializationState>;
@@ -59,11 +66,12 @@ pub trait StackProvider: std::fmt::Debug {
     fn store_total_count(&self) -> impl Future<Output = u64>;
 
     /// Returns the string representation of the stack type offered by this [`StackProvider`].
-    fn stack_type<'a>(&self) -> &'a str;
+    fn stack_type(&self) -> &str;
 
-    /// Flushes the supplied [`EnvelopeStack`]s and consumes the [`StackProvider`].
-    fn flush(
+    /// Spools envelopes from the [`EnvelopeStack`]s given a [`SpoolingStrategy`].
+    fn spool(
         &mut self,
-        envelope_stacks: impl IntoIterator<Item = Self::Stack>,
+        envelope_stacks: impl IntoIterator<Item = &'a mut Self::Stack>,
+        spooling_strategy: SpoolingStrategy,
     ) -> impl Future<Output = ()>;
 }
