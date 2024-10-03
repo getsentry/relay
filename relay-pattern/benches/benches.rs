@@ -4,8 +4,16 @@ use criterion::{criterion_group, criterion_main, BenchmarkGroup, Criterion};
 use relay_pattern::Pattern;
 
 fn bench(group: &mut BenchmarkGroup<'_, WallTime>, haystack: &str, needle: &str) {
-    group.bench_function("pattern", |b| {
+    group.bench_function("case_sensitive", |b| {
         let pattern = Pattern::new(needle).unwrap();
+        b.iter(|| assert!(pattern.is_match(haystack)))
+    });
+
+    group.bench_function("case_insensitive", |b| {
+        let pattern = Pattern::builder(needle)
+            .case_insensitive(true)
+            .build()
+            .unwrap();
         b.iter(|| assert!(pattern.is_match(haystack)))
     });
 }
@@ -64,6 +72,18 @@ fn wildcard_match(c: &mut Criterion) {
     group.finish();
 }
 
+fn complex_match(c: &mut Criterion) {
+    let mut group = c.benchmark_group("complex_match");
+
+    const HAYSTACK: &str = "foobarwithacrazylongprefixandanditactuallymatches";
+    const NEEDLE: &str =
+        "*b??{foo,bar,baz,with}*cr{x,y,z,?}zyl[a-z]ng{suffix,pr?*ix}*it?**?uallymatches";
+
+    bench(&mut group, HAYSTACK, NEEDLE);
+
+    group.finish();
+}
+
 criterion_group!(
     benches,
     literal_match,
@@ -71,5 +91,6 @@ criterion_group!(
     suffix_match,
     contains_match,
     wildcard_match,
+    complex_match,
 );
 criterion_main!(benches);

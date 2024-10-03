@@ -21,6 +21,7 @@ redis = { workspace = true, optional = true, features = [
     "keep-alive",
     "script",
 ], default-features = false }
+relay-log = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
 

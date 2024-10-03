@@ -199,6 +199,13 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
             .set_value(Some(username.into()));
     }
 
+    if let Some(login_id) = &runtime_props.login_id {
+        let id = event.user.get_or_insert_with(User::default).id.value_mut();
+        if id.is_none() {
+            *id = Some(login_id.clone().into());
+        }
+    }
+
     let contexts = event.contexts.get_or_insert_with(Contexts::default);
 
     if let Some(memory_physical) = runtime_props.memory_stats_total_physical.take() {
@@ -402,6 +409,22 @@ mod tests {
         Unreal4Context::parse(raw_context).unwrap()
     }
 
+    fn get_context_with_login_id() -> Unreal4Context {
+        let raw_context = br#"<?xml version="1.0" encoding="UTF-8"?>
+<FGenericCrashContext>
+	<RuntimeProperties>
+        <LoginId>SOME_ID</LoginId>
+	</RuntimeProperties>
+	<EngineData>
+	</EngineData>
+	<PlatformProperties>
+	</PlatformProperties>
+</FGenericCrashContext>
+"#;
+
+        Unreal4Context::parse(raw_context).unwrap()
+    }
+
     #[test]
     fn test_merge_unreal_context() {
         let context = get_context();
@@ -480,5 +503,18 @@ mod tests {
         merge_unreal_context(&mut event, crash.context().unwrap().unwrap());
 
         insta::assert_snapshot!(Annotated::new(event).to_json_pretty().unwrap());
+    }
+
+    #[test]
+    fn test_merge_unreal_context_login_id() {
+        let context = get_context_with_login_id();
+        let mut event = Event::default();
+
+        merge_unreal_context(&mut event, context);
+
+        assert_eq!(
+            event.user.0.unwrap().id.0.unwrap(),
+            LenientString("SOME_ID".to_owned())
+        );
     }
 }

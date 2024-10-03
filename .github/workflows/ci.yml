@@ -121,6 +121,10 @@ jobs:
         image: redis
         ports:
           - 6379:6379
+      redis_secondary:
+        image: redis
+        ports:
+          - 6380:6379
 
     steps:
       - name: Install libcurl-dev
@@ -514,6 +518,10 @@ jobs:
         image: redis
         ports:
           - 6379:6379
+      redis_secondary:
+        image: redis
+        ports:
+          - 6380:6379
 
       # Kafka + Zookeeper version synced with
       # https://github.com/getsentry/sentry/blob/363509c242aff197409207ce4990fb061f3534a3/.github/actions/setup-sentry/action.yml#L174

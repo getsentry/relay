@@ -146,7 +146,7 @@ fn handle_replay_event_item(
                     if *segment_id > 720 {
                         metric!(counter(RelayCounters::ReplayExceededSegmentLimit) += 1);
 
-                        relay_log::warn!(
+                        relay_log::debug!(
                             event_id = ?config.event_id,
                             project_id = config.project_id.map(|v| v.value()),
                             organization_id = config.organization_id,

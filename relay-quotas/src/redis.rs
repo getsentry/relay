@@ -1,10 +1,9 @@
 use std::fmt::{self, Debug};
-use std::sync::Arc;
 
 use relay_common::time::UnixTimestamp;
 use relay_log::protocol::value;
 use relay_redis::redis::Script;
-use relay_redis::{RedisError, RedisPool};
+use relay_redis::{RedisError, RedisPool, RedisScripts};
 use thiserror::Error;
 
 use crate::global::GlobalRateLimits;
@@ -23,10 +22,6 @@ pub enum RateLimitingError {
     /// Failed to communicate with Redis.
     #[error("failed to communicate with redis")]
     Redis(#[source] RedisError),
-}
-
-fn load_lua_script() -> Script {
-    Script::new(include_str!("is_rate_limited.lua"))
 }
 
 fn get_refunded_quota_key(counter_key: &str) -> String {
@@ -170,7 +165,7 @@ impl std::ops::Deref for RedisQuota<'_> {
 /// Requires the `redis` feature.
 pub struct RedisRateLimiter {
     pool: RedisPool,
-    script: Arc<Script>,
+    script: &'static Script,
     max_limit: Option<u64>,
     global_limits: GlobalRateLimits,
 }
@@ -180,7 +175,7 @@ impl RedisRateLimiter {
     pub fn new(pool: RedisPool) -> Self {
         RedisRateLimiter {
             pool,
-            script: Arc::new(load_lua_script()),
+            script: RedisScripts::load_is_rate_limited(),
             max_limit: None,
             global_limits: GlobalRateLimits::default(),
         }
@@ -326,7 +321,7 @@ mod tests {
 
         RedisRateLimiter {
             pool: RedisPool::single(&url, RedisConfigOptions::default()).unwrap(),
-            script: Arc::new(load_lua_script()),
+            script: RedisScripts::load_is_rate_limited(),
             max_limit: None,
             global_limits: GlobalRateLimits::default(),
         }
@@ -904,7 +899,7 @@ mod tests {
         let orange = format!("orange___{now}");
         let baz = format!("baz___{now}");
 
-        let script = load_lua_script();
+        let script = RedisScripts::load_is_rate_limited();
 
         let mut invocation = script.prepare_invoke();
         invocation

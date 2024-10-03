@@ -30,18 +30,21 @@ def processing_config(get_topic_name):
         bootstrap_servers = os.environ.get("KAFKA_BOOTSTRAP_SERVER", "127.0.0.1:9092")
 
         options = deepcopy(options)  # avoid lateral effects
-
         if options is None:
             options = {}
+
         if options.get("processing") is None:
             options["processing"] = {}
+
         processing = options["processing"]
         processing["enabled"] = True
+
         if processing.get("kafka_config") is None:
             processing["kafka_config"] = [
                 {"name": "bootstrap.servers", "value": bootstrap_servers},
                 # {'name': 'batch.size', 'value': '0'}  # do not batch messages
             ]
+
         if processing.get("topics") is None:
             metrics_topic = get_topic_name("metrics")
             outcomes_topic = get_topic_name("outcomes")
@@ -62,12 +65,13 @@ def processing_config(get_topic_name):
                 "feedback": get_topic_name("feedback"),
             }
 
-        if not processing.get("redis"):
+        if processing.get("redis") is None:
             processing["redis"] = "redis://127.0.0.1"
 
-        processing["projectconfig_cache_prefix"] = (
-            f"relay-test-relayconfig-{uuid.uuid4()}"
-        )
+        if processing.get("projectconfig_cache_prefix") is None:
+            processing["projectconfig_cache_prefix"] = (
+                f"relay-test-relayconfig-{uuid.uuid4()}"
+            )
 
         return options
 

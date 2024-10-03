@@ -14,6 +14,8 @@ use crate::Envelope;
 use chrono::{DateTime, Utc};
 use hashbrown::HashSet;
 use relay_base_schema::project::ProjectKey;
+#[cfg(feature = "processing")]
+use relay_config::RedisConfigRef;
 use relay_config::{Config, RelayMode};
 use relay_metrics::{Bucket, MetricMeta};
 use relay_quotas::RateLimits;
@@ -41,6 +43,10 @@ use crate::services::upstream::UpstreamRelay;
 
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::{GarbageDisposal, ManagedEnvelope, MemoryChecker, RetryBackoff, SleepHandle};
+
+/// Default value of maximum connections to Redis. This value was arbitrarily determined.
+#[cfg(feature = "processing")]
+const DEFAULT_REDIS_MAX_CONNECTIONS: u32 = 10;
 
 /// Requests a refresh of a project state from one of the available sources.
 ///
@@ -441,16 +447,19 @@ impl ProjectSource {
             UpstreamProjectSourceService::new(config.clone(), upstream_relay).start();
 
         #[cfg(feature = "processing")]
-        let redis_maxconns = config.redis().map(|configs| {
-            let opts = match configs {
-                relay_config::RedisPoolConfigs::Unified((_, opts)) => opts,
-                relay_config::RedisPoolConfigs::Individual {
-                    project_configs: (_, opts),
-                    ..
-                } => opts,
-            };
-            opts.max_connections
-        });
+        let redis_max_connections = config
+            .redis()
+            .map(|configs| {
+                let config = match configs {
+                    relay_config::RedisPoolConfigs::Unified(config) => config,
+                    relay_config::RedisPoolConfigs::Individual {
+                        project_configs: config,
+                        ..
+                    } => config,
+                };
+                Self::compute_max_connections(config).unwrap_or(DEFAULT_REDIS_MAX_CONNECTIONS)
+            })
+            .unwrap_or(DEFAULT_REDIS_MAX_CONNECTIONS);
         #[cfg(feature = "processing")]
         let redis_source = _redis.map(|pool| RedisProjectSource::new(config.clone(), pool));
 
@@ -461,9 +470,19 @@ impl ProjectSource {
             #[cfg(feature = "processing")]
             redis_source,
             #[cfg(feature = "processing")]
-            redis_semaphore: Arc::new(Semaphore::new(
-                redis_maxconns.unwrap_or(10).try_into().unwrap(),
-            )),
+            redis_semaphore: Arc::new(Semaphore::new(redis_max_connections.try_into().unwrap())),
+        }
+    }
+
+    #[cfg(feature = "processing")]
+    fn compute_max_connections(config: RedisConfigRef) -> Option<u32> {
+        match config {
+            RedisConfigRef::Cluster { options, .. } => Some(options.max_connections),
+            RedisConfigRef::MultiWrite { configs } => configs
+                .into_iter()
+                .filter_map(|c| Self::compute_max_connections(c))
+                .max(),
+            RedisConfigRef::Single { options, .. } => Some(options.max_connections),
         }
     }
 
