@@ -217,6 +217,9 @@ impl EnvelopeSummary {
                 summary.profile_quantity += source_quantities.profiles;
             }
 
+            // Also count nested spans:
+            summary.span_quantity += item.count_nested_spans();
+
             summary.payload_size += item.len();
             summary.set_quantity(item);
         }
@@ -448,6 +451,7 @@ impl Enforcement {
         envelope
             .envelope_mut()
             .retain_items(|item| self.retain_item(item));
+
         self.track_outcomes(envelope);
     }
 
@@ -455,6 +459,12 @@ impl Enforcement {
     fn retain_item(&self, item: &mut Item) -> bool {
         // Remove event items and all items that depend on this event
         if self.event.is_active() && item.requires_event() {
+            if item.ty() == &ItemType::Transaction && self.spans_indexed.is_active() {
+                // We cannot remove nested spans from the transaction, but we can prevent them
+                // from being extracted into standalone spans.
+                item.set_spans_extracted(true);
+            }
+
             return false;
         }
 

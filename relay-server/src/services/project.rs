@@ -12,7 +12,6 @@ use relay_system::{Addr, BroadcastChannel};
 use serde::{Deserialize, Serialize};
 use tokio::time::Instant;
 
-use crate::envelope::ItemType;
 use crate::services::metrics::{Aggregator, MergeBuckets};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{EncodeMetricMeta, EnvelopeProcessor, ProcessProjectMetrics};
@@ -20,7 +19,6 @@ use crate::services::project::state::ExpiryState;
 use crate::services::project_cache::{
     CheckedEnvelope, ProcessMetrics, ProjectCache, RequestUpdate,
 };
-use crate::utils::{Enforcement, SeqCount};
 
 use crate::statsd::RelayCounters;
 use crate::utils::{EnvelopeLimiter, ManagedEnvelope, RetryBackoff};
@@ -557,18 +555,8 @@ impl Project {
             Ok(current_limits.check_with_quotas(quotas, item_scoping))
         });
 
-        let (mut enforcement, mut rate_limits) =
+        let (enforcement, mut rate_limits) =
             envelope_limiter.compute(envelope.envelope_mut(), &scoping)?;
-
-        let check_nested_spans = state
-            .as_ref()
-            .is_some_and(|s| s.has_feature(Feature::ExtractSpansFromEvent));
-
-        // If we can extract spans from the event, we want to try and count the number of nested
-        // spans to correctly emit negative outcomes in case the transaction itself is dropped.
-        if check_nested_spans {
-            sync_spans_to_enforcement(&envelope, &mut enforcement);
-        }
 
         enforcement.apply_with_outcomes(&mut envelope);
 
@@ -598,52 +586,9 @@ impl Project {
     }
 }
 
-/// Adds category limits for the nested spans inside a transaction.
-///
-/// On the fast path of rate limiting, we do not have nested spans of a transaction extracted
-/// as top-level spans, thus if we limited a transaction, we want to count and emit negative
-/// outcomes for each of the spans nested inside that transaction.
-fn sync_spans_to_enforcement(envelope: &ManagedEnvelope, enforcement: &mut Enforcement) {
-    if !enforcement.is_event_active() {
-        return;
-    }
-
-    let spans_count = count_nested_spans(envelope);
-    if spans_count == 0 {
-        return;
-    }
-
-    if enforcement.event.is_active() {
-        enforcement.spans = enforcement.event.clone_for(DataCategory::Span, spans_count);
-    }
-
-    if enforcement.event_indexed.is_active() {
-        enforcement.spans_indexed = enforcement
-            .event_indexed
-            .clone_for(DataCategory::SpanIndexed, spans_count);
-    }
-}
-
-/// Counts the nested spans inside the first transaction envelope item inside the [`Envelope`](crate::envelope::Envelope).
-fn count_nested_spans(envelope: &ManagedEnvelope) -> usize {
-    #[derive(Debug, Deserialize)]
-    struct PartialEvent {
-        spans: SeqCount,
-    }
-
-    envelope
-        .envelope()
-        .items()
-        .find(|item| *item.ty() == ItemType::Transaction && !item.spans_extracted())
-        .and_then(|item| serde_json::from_slice::<PartialEvent>(&item.payload()).ok())
-        // We do + 1, since we count the transaction itself because it will be extracted
-        // as a span and counted during the slow path of rate limiting.
-        .map_or(0, |event| event.spans.0 + 1)
-}
-
 #[cfg(test)]
 mod tests {
-    use crate::envelope::{ContentType, Envelope, Item};
+    use crate::envelope::{ContentType, Envelope, Item, ItemType};
     use crate::extractors::RequestMeta;
     use crate::services::processor::ProcessingGroup;
     use relay_base_schema::project::ProjectId;
