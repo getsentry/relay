@@ -3718,6 +3718,7 @@ version = "24.9.0"
 dependencies = [
  "r2d2",
  "redis",
+ "relay-log",
  "serde",
  "serde_yaml",
  "thiserror",
