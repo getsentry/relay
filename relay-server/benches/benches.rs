@@ -3,6 +3,7 @@ use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Through
 use relay_config::Config;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
 use sqlx::{Pool, Sqlite};
+use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -99,7 +100,7 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
 
                             let stack = SqliteEnvelopeStack::new(
                                 envelope_store.clone(),
-                                disk_batch_size,
+                                NonZeroUsize::new(disk_batch_size).unwrap(),
                                 2,
                                 ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
                                 ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
@@ -136,7 +137,7 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
 
                                 let mut stack = SqliteEnvelopeStack::new(
                                     envelope_store.clone(),
-                                    disk_batch_size,
+                                    NonZeroUsize::new(disk_batch_size).unwrap(),
                                     2,
                                     ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
                                     ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
@@ -155,9 +156,10 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
                         |mut stack| {
                             runtime.block_on(async {
                                 // Benchmark popping
-                                for _ in 0..size {
-                                    stack.pop().await.unwrap();
-                                }
+                                stack
+                                    .pop_many(NonZeroUsize::new(size).unwrap())
+                                    .await
+                                    .unwrap();
                             });
                         },
                     );
@@ -177,7 +179,7 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
 
                             let stack = SqliteEnvelopeStack::new(
                                 envelope_store.clone(),
-                                disk_batch_size,
+                                NonZeroUsize::new(disk_batch_size).unwrap(),
                                 2,
                                 ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
                                 ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
@@ -198,10 +200,15 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
                                         if let Some(envelope) = envelope_iter.next() {
                                             stack.push(envelope).await.unwrap();
                                         }
-                                    } else if stack.pop().await.is_err() {
-                                        // If pop fails (empty stack), push instead
-                                        if let Some(envelope) = envelope_iter.next() {
-                                            stack.push(envelope).await.unwrap();
+                                    } else {
+                                        match stack.pop_many(NonZeroUsize::new(1).unwrap()).await {
+                                            Ok(_) => {}
+                                            Err(_) => {
+                                                // If pop fails (empty stack), push instead
+                                                if let Some(envelope) = envelope_iter.next() {
+                                                    stack.push(envelope).await.unwrap();
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -304,8 +311,11 @@ fn benchmark_envelope_buffer(c: &mut Criterion) {
                         // Mark as ready:
                         buffer.mark_ready(&public_key, true);
                     }
-                    for _ in 0..n {
-                        let envelope = buffer.pop().await.unwrap().unwrap();
+                    let envelopes = buffer
+                        .pop_many(NonZeroUsize::new(n).unwrap())
+                        .await
+                        .unwrap();
+                    for envelope in envelopes {
                         // Send back to end of queue to get worse-case behavior:
                         buffer.mark_ready(&envelope.meta().public_key(), false);
                     }

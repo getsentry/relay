@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 use std::io::Write;
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
+use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::time::Duration;
@@ -894,8 +895,8 @@ fn spool_envelopes_unspool_interval() -> u64 {
 }
 
 /// Default batch size for the stack.
-fn spool_envelopes_stack_disk_batch_size() -> usize {
-    200
+fn spool_envelopes_stack_disk_batch_size() -> NonZeroUsize {
+    NonZeroUsize::new(200).unwrap()
 }
 
 /// Default maximum number of batches for the stack.
@@ -950,7 +951,7 @@ pub struct EnvelopeSpool {
     unspool_interval: u64,
     /// Number of elements of the envelope stack that are flushed to disk.
     #[serde(default = "spool_envelopes_stack_disk_batch_size")]
-    disk_batch_size: usize,
+    disk_batch_size: NonZeroUsize,
     /// Number of batches of size [`Self::disk_batch_size`] that need to be accumulated before
     /// flushing one batch to disk.
     #[serde(default = "spool_envelopes_stack_max_batches")]
@@ -2205,7 +2206,7 @@ impl Config {
 
     /// Number of batches of size `stack_disk_batch_size` that need to be accumulated before
     /// flushing one batch to disk.
-    pub fn spool_envelopes_stack_disk_batch_size(&self) -> usize {
+    pub fn spool_envelopes_stack_disk_batch_size(&self) -> NonZeroUsize {
         self.values.spool.envelopes.disk_batch_size
     }
 
