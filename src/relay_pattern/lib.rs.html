@@ -1591,17 +1591,6 @@
 <a href="#1591" id="1591">1591</a>
 <a href="#1592" id="1592">1592</a>
 <a href="#1593" id="1593">1593</a>
-<a href="#1594" id="1594">1594</a>
-<a href="#1595" id="1595">1595</a>
-<a href="#1596" id="1596">1596</a>
-<a href="#1597" id="1597">1597</a>
-<a href="#1598" id="1598">1598</a>
-<a href="#1599" id="1599">1599</a>
-<a href="#1600" id="1600">1600</a>
-<a href="#1601" id="1601">1601</a>
-<a href="#1602" id="1602">1602</a>
-<a href="#1603" id="1603">1603</a>
-<a href="#1604" id="1604">1604</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! A glob like pattern used throught Relay and its APIs.
 //!
 //! # Behaviour
@@ -1777,28 +1766,28 @@
     /// The stored string is converted to lowercase for case insensitive patterns.
     ///
     /// Example pattern: `foobar`.
-    </span>Literal(String),
+    </span>Literal(Literal),
     <span class="doccomment">/// The pattern only has a single wildcard in the end and can be
     /// matched with a simple prefix check.
     ///
     /// The stored string is converted to lowercase for case insensitive patterns.
     ///
     /// Example pattern: `foobar*`.
-    </span>Prefix(String),
+    </span>Prefix(Literal),
     <span class="doccomment">/// The pattern only has a single wildcard at the start and can be
     /// matched with a simple suffix check.
     ///
     /// The stored string is converted to lowercase for case insensitive patterns.
     ///
     /// Example pattern: `*foobar`.
-    </span>Suffix(String),
+    </span>Suffix(Literal),
     <span class="doccomment">/// The pattern is surrounded with wildcards and contains a literal in the middle
     /// and can be matched with a simple contains check.
     ///
     /// The stored string is converted to lowercase for case insensitive patterns.
     ///
     /// Example pattern: `*foobar*`.
-    </span>Contains(String),
+    </span>Contains(Literal),
     <span class="doccomment">/// The pattern always evaluates to a static boolean.
     ///
     /// Example: `*`
@@ -1812,16 +1801,14 @@
 <span class="kw">impl </span>MatchStrategy {
     <span class="doccomment">/// Create a [`MatchStrategy`] from [`Tokens`].
     </span><span class="kw">fn </span>from_tokens(<span class="kw-2">mut </span>tokens: Tokens, _options: Options) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, ErrorKind&gt; {
-        <span class="kw">let </span>take_case = |s: <span class="kw-2">&amp;mut </span>Literal| std::mem::take(s).into_case_converted();
-
         <span class="kw">let </span>s = <span class="kw">match </span>tokens.as_mut_slice() {
             [] =&gt; <span class="self">Self</span>::Static(<span class="bool-val">false</span>),
             [Token::Wildcard] =&gt; <span class="self">Self</span>::Static(<span class="bool-val">true</span>),
-            [Token::Literal(literal)] =&gt; <span class="self">Self</span>::Literal(take_case(literal)),
-            [Token::Literal(literal), Token::Wildcard] =&gt; <span class="self">Self</span>::Prefix(take_case(literal)),
-            [Token::Wildcard, Token::Literal(literal)] =&gt; <span class="self">Self</span>::Suffix(take_case(literal)),
+            [Token::Literal(literal)] =&gt; <span class="self">Self</span>::Literal(std::mem::take(literal)),
+            [Token::Literal(literal), Token::Wildcard] =&gt; <span class="self">Self</span>::Prefix(std::mem::take(literal)),
+            [Token::Wildcard, Token::Literal(literal)] =&gt; <span class="self">Self</span>::Suffix(std::mem::take(literal)),
             [Token::Wildcard, Token::Literal(literal), Token::Wildcard] =&gt; {
-                <span class="self">Self</span>::Contains(take_case(literal))
+                <span class="self">Self</span>::Contains(std::mem::take(literal))
             }
             <span class="kw">_ </span>=&gt; <span class="self">Self</span>::Wildmatch(tokens),
         };
@@ -1831,12 +1818,11 @@
 }
 
 <span class="attr">#[inline(always)]
-</span><span class="kw">fn </span>match_literal(literal: <span class="kw-2">&amp;</span>str, haystack: <span class="kw-2">&amp;</span>str, options: Options) -&gt; bool {
+</span><span class="kw">fn </span>match_literal(literal: <span class="kw-2">&amp;</span>Literal, haystack: <span class="kw-2">&amp;</span>str, options: Options) -&gt; bool {
     <span class="kw">if </span>options.case_insensitive {
         <span class="comment">// Can't do an explicit len compare first here `literal.len() == haystack.len()`,
         // the amount of characters can change when converting case.
-        </span><span class="macro">debug_assert!</span>(literal.to_lowercase() == literal);
-        <span class="kw">let </span><span class="kw-2">mut </span>literal = literal.chars();
+        </span><span class="kw">let </span><span class="kw-2">mut </span>literal = literal.as_case_converted_str().chars();
         <span class="kw">let </span><span class="kw-2">mut </span>haystack = haystack.chars().flat_map(|c| c.to_lowercase());
 
         <span class="kw">loop </span>{
@@ -1850,15 +1836,14 @@
             }
         }
     } <span class="kw">else </span>{
-        literal == haystack
+        literal.as_case_converted_str() == haystack
     }
 }
 
 <span class="attr">#[inline(always)]
-</span><span class="kw">fn </span>match_prefix(prefix: <span class="kw-2">&amp;</span>str, haystack: <span class="kw-2">&amp;</span>str, options: Options) -&gt; bool {
+</span><span class="kw">fn </span>match_prefix(prefix: <span class="kw-2">&amp;</span>Literal, haystack: <span class="kw-2">&amp;</span>str, options: Options) -&gt; bool {
     <span class="kw">if </span>options.case_insensitive {
-        <span class="macro">debug_assert!</span>(prefix.to_lowercase() == prefix);
-        <span class="kw">let </span><span class="kw-2">mut </span>prefix = prefix.chars();
+        <span class="kw">let </span><span class="kw-2">mut </span>prefix = prefix.as_case_converted_str().chars();
         <span class="kw">let </span><span class="kw-2">mut </span>haystack = haystack.chars().flat_map(|c| c.to_lowercase());
 
         <span class="kw">loop </span>{
@@ -1872,15 +1857,14 @@
             }
         }
     } <span class="kw">else </span>{
-        haystack.starts_with(prefix)
+        haystack.starts_with(prefix.as_case_converted_str())
     }
 }
 
 <span class="attr">#[inline(always)]
-</span><span class="kw">fn </span>match_suffix(suffix: <span class="kw-2">&amp;</span>str, haystack: <span class="kw-2">&amp;</span>str, options: Options) -&gt; bool {
+</span><span class="kw">fn </span>match_suffix(suffix: <span class="kw-2">&amp;</span>Literal, haystack: <span class="kw-2">&amp;</span>str, options: Options) -&gt; bool {
     <span class="kw">if </span>options.case_insensitive {
-        <span class="macro">debug_assert!</span>(suffix.to_lowercase() == suffix);
-        <span class="kw">let </span><span class="kw-2">mut </span>suffix = suffix.chars().rev();
+        <span class="kw">let </span><span class="kw-2">mut </span>suffix = suffix.as_case_converted_str().chars().rev();
         <span class="kw">let </span><span class="kw-2">mut </span>haystack = haystack.chars().flat_map(|c| c.to_lowercase()).rev();
 
         <span class="kw">loop </span>{
@@ -1894,18 +1878,17 @@
             }
         }
     } <span class="kw">else </span>{
-        haystack.ends_with(suffix)
+        haystack.ends_with(suffix.as_case_converted_str())
     }
 }
 
 <span class="attr">#[inline(always)]
-</span><span class="kw">fn </span>match_contains(contains: <span class="kw-2">&amp;</span>str, haystack: <span class="kw-2">&amp;</span>str, options: Options) -&gt; bool {
+</span><span class="kw">fn </span>match_contains(contains: <span class="kw-2">&amp;</span>Literal, haystack: <span class="kw-2">&amp;</span>str, options: Options) -&gt; bool {
     <span class="kw">if </span>options.case_insensitive {
-        <span class="macro">debug_assert!</span>(contains.to_lowercase() == contains);
         <span class="kw">let </span>haystack = haystack.to_lowercase();
-        memchr::memmem::find(haystack.as_bytes(), contains.as_bytes()).is_some()
+        memchr::memmem::find(haystack.as_bytes(), contains.as_case_converted_bytes()).is_some()
     } <span class="kw">else </span>{
-        memchr::memmem::find(haystack.as_bytes(), contains.as_bytes()).is_some()
+        memchr::memmem::find(haystack.as_bytes(), contains.as_case_converted_bytes()).is_some()
     }
 }
 
@@ -2192,11 +2175,6 @@
     </span><span class="kw">fn </span>as_case_converted_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
         <span class="self">self</span>.as_case_converted_str().as_bytes()
     }
-
-    <span class="doccomment">/// Returns the inner case converted string, destructuring the literal.
-    </span><span class="kw">fn </span>into_case_converted(<span class="self">self</span>) -&gt; String {
-        <span class="self">self</span>.<span class="number">0
-    </span>}
 }
 
 <span class="doccomment">/// A [`Range`] contains whatever is contained between `[` and `]` of
