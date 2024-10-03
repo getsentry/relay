@@ -173,28 +173,28 @@ enum MatchStrategy {
     /// The stored string is converted to lowercase for case insensitive patterns.
     ///
     /// Example pattern: `foobar`.
-    Literal(String),
+    Literal(Literal),
     /// The pattern only has a single wildcard in the end and can be
     /// matched with a simple prefix check.
     ///
     /// The stored string is converted to lowercase for case insensitive patterns.
     ///
     /// Example pattern: `foobar*`.
-    Prefix(String),
+    Prefix(Literal),
     /// The pattern only has a single wildcard at the start and can be
     /// matched with a simple suffix check.
     ///
     /// The stored string is converted to lowercase for case insensitive patterns.
     ///
     /// Example pattern: `*foobar`.
-    Suffix(String),
+    Suffix(Literal),
     /// The pattern is surrounded with wildcards and contains a literal in the middle
     /// and can be matched with a simple contains check.
     ///
     /// The stored string is converted to lowercase for case insensitive patterns.
     ///
     /// Example pattern: `*foobar*`.
-    Contains(String),
+    Contains(Literal),
     /// The pattern always evaluates to a static boolean.
     ///
     /// Example: `*`
@@ -208,16 +208,14 @@ enum MatchStrategy {
 impl MatchStrategy {
     /// Create a [`MatchStrategy`] from [`Tokens`].
     fn from_tokens(mut tokens: Tokens, _options: Options) -> Result<Self, ErrorKind> {
-        let take_case = |s: &mut Literal| std::mem::take(s).into_case_converted();
-
         let s = match tokens.as_mut_slice() {
             [] => Self::Static(false),
             [Token::Wildcard] => Self::Static(true),
-            [Token::Literal(literal)] => Self::Literal(take_case(literal)),
-            [Token::Literal(literal), Token::Wildcard] => Self::Prefix(take_case(literal)),
-            [Token::Wildcard, Token::Literal(literal)] => Self::Suffix(take_case(literal)),
+            [Token::Literal(literal)] => Self::Literal(std::mem::take(literal)),
+            [Token::Literal(literal), Token::Wildcard] => Self::Prefix(std::mem::take(literal)),
+            [Token::Wildcard, Token::Literal(literal)] => Self::Suffix(std::mem::take(literal)),
             [Token::Wildcard, Token::Literal(literal), Token::Wildcard] => {
-                Self::Contains(take_case(literal))
+                Self::Contains(std::mem::take(literal))
             }
             _ => Self::Wildmatch(tokens),
         };
@@ -227,12 +225,11 @@ impl MatchStrategy {
 }
 
 #[inline(always)]
-fn match_literal(literal: &str, haystack: &str, options: Options) -> bool {
+fn match_literal(literal: &Literal, haystack: &str, options: Options) -> bool {
     if options.case_insensitive {
         // Can't do an explicit len compare first here `literal.len() == haystack.len()`,
         // the amount of characters can change when converting case.
-        debug_assert!(literal.to_lowercase() == literal);
-        let mut literal = literal.chars();
+        let mut literal = literal.as_case_converted_str().chars();
         let mut haystack = haystack.chars().flat_map(|c| c.to_lowercase());
 
         loop {
@@ -246,15 +243,14 @@ fn match_literal(literal: &str, haystack: &str, options: Options) -> bool {
             }
         }
     } else {
-        literal == haystack
+        literal.as_case_converted_str() == haystack
     }
 }
 
 #[inline(always)]
-fn match_prefix(prefix: &str, haystack: &str, options: Options) -> bool {
+fn match_prefix(prefix: &Literal, haystack: &str, options: Options) -> bool {
     if options.case_insensitive {
-        debug_assert!(prefix.to_lowercase() == prefix);
-        let mut prefix = prefix.chars();
+        let mut prefix = prefix.as_case_converted_str().chars();
         let mut haystack = haystack.chars().flat_map(|c| c.to_lowercase());
 
         loop {
@@ -268,15 +264,14 @@ fn match_prefix(prefix: &str, haystack: &str, options: Options) -> bool {
             }
         }
     } else {
-        haystack.starts_with(prefix)
+        haystack.starts_with(prefix.as_case_converted_str())
     }
 }
 
 #[inline(always)]
-fn match_suffix(suffix: &str, haystack: &str, options: Options) -> bool {
+fn match_suffix(suffix: &Literal, haystack: &str, options: Options) -> bool {
     if options.case_insensitive {
-        debug_assert!(suffix.to_lowercase() == suffix);
-        let mut suffix = suffix.chars().rev();
+        let mut suffix = suffix.as_case_converted_str().chars().rev();
         let mut haystack = haystack.chars().flat_map(|c| c.to_lowercase()).rev();
 
         loop {
@@ -290,18 +285,17 @@ fn match_suffix(suffix: &str, haystack: &str, options: Options) -> bool {
             }
         }
     } else {
-        haystack.ends_with(suffix)
+        haystack.ends_with(suffix.as_case_converted_str())
     }
 }
 
 #[inline(always)]
-fn match_contains(contains: &str, haystack: &str, options: Options) -> bool {
+fn match_contains(contains: &Literal, haystack: &str, options: Options) -> bool {
     if options.case_insensitive {
-        debug_assert!(contains.to_lowercase() == contains);
         let haystack = haystack.to_lowercase();
-        memchr::memmem::find(haystack.as_bytes(), contains.as_bytes()).is_some()
+        memchr::memmem::find(haystack.as_bytes(), contains.as_case_converted_bytes()).is_some()
     } else {
-        memchr::memmem::find(haystack.as_bytes(), contains.as_bytes()).is_some()
+        memchr::memmem::find(haystack.as_bytes(), contains.as_case_converted_bytes()).is_some()
     }
 }
 
@@ -587,11 +581,6 @@ impl Literal {
     /// Returns a reference to the case converted string as bytes.
     fn as_case_converted_bytes(&self) -> &[u8] {
         self.as_case_converted_str().as_bytes()
-    }
-
-    /// Returns the inner case converted string, destructuring the literal.
-    fn into_case_converted(self) -> String {
-        self.0
     }
 }
 
