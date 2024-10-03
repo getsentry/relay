@@ -5,56 +5,30 @@ use std::sync::OnceLock;
 pub struct RedisScripts;
 
 impl RedisScripts {
+    /// Returns all [`Script`]s.
+    pub fn all() -> [&'static Script; 3] {
+        [
+            Self::load_cardinality(),
+            Self::load_global_quota(),
+            Self::load_is_rate_limited(),
+        ]
+    }
+
     /// Loads the cardinality Redis script.
-    pub fn load_cardinality() -> &'static RedisScript {
-        static SCRIPT: OnceLock<Box<RedisScript>> = OnceLock::new();
-        SCRIPT.get_or_init(|| Box::new(RedisScript::new(include_str!("scripts/cardinality.lua"))))
+    pub fn load_cardinality() -> &'static Script {
+        static SCRIPT: OnceLock<Script> = OnceLock::new();
+        SCRIPT.get_or_init(|| Script::new(include_str!("scripts/cardinality.lua")))
     }
 
     /// Loads the global quota Redis script.
-    pub fn load_global_quota() -> &'static RedisScript {
-        static SCRIPT: OnceLock<Box<RedisScript>> = OnceLock::new();
-        SCRIPT.get_or_init(|| Box::new(RedisScript::new(include_str!("scripts/global_quota.lua"))))
+    pub fn load_global_quota() -> &'static Script {
+        static SCRIPT: OnceLock<Script> = OnceLock::new();
+        SCRIPT.get_or_init(|| Script::new(include_str!("scripts/global_quota.lua")))
     }
 
     /// Loads the rate limiting check Redis script.
-    pub fn load_is_rate_limited() -> &'static RedisScript {
-        static SCRIPT: OnceLock<Box<RedisScript>> = OnceLock::new();
-        SCRIPT.get_or_init(|| {
-            Box::new(RedisScript::new(include_str!(
-                "scripts/is_rate_limited.lua"
-            )))
-        })
-    }
-}
-
-/// Represents a Redis script with its code and compiled form.
-pub struct RedisScript {
-    code: String,
-    script: Script,
-}
-
-impl RedisScript {
-    /// Creates a new `RedisScript` instance from the provided Lua code.
-    pub fn new(code: &str) -> Self {
-        RedisScript {
-            code: code.to_string(),
-            script: Script::new(code),
-        }
-    }
-
-    /// Returns the Lua code of the Redis script.
-    pub fn code(&self) -> &str {
-        &self.code
-    }
-
-    /// Returns the SHA1 hash of the Redis script.
-    pub fn hash(&self) -> &str {
-        self.script.get_hash()
-    }
-
-    /// Returns a reference to the compiled Redis script.
-    pub fn script(&self) -> &Script {
-        &self.script
+    pub fn load_is_rate_limited() -> &'static Script {
+        static SCRIPT: OnceLock<Script> = OnceLock::new();
+        SCRIPT.get_or_init(|| Script::new(include_str!("scripts/is_rate_limited.lua")))
     }
 }

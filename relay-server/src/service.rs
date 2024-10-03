@@ -3,19 +3,6 @@ use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::{Context, Result};
-use axum::extract::FromRequestParts;
-use axum::http::request::Parts;
-use rayon::ThreadPool;
-use relay_cogs::Cogs;
-use relay_config::{Config, RedisConfigRef, RedisPoolConfigs};
-#[cfg(feature = "processing")]
-use relay_redis::{redis, PooledClient, RedisScript, RedisScripts};
-use relay_redis::{RedisError, RedisPool, RedisPools};
-use relay_system::{channel, Addr, Service};
-use tokio::runtime::Runtime;
-use tokio::sync::mpsc;
-
 use crate::metrics::{MetricOutcomes, MetricStats};
 use crate::services::buffer::{self, EnvelopeBufferService, ObservableEnvelopeBuffer};
 use crate::services::cogs::{CogsService, CogsServiceRecorder};
@@ -33,6 +20,20 @@ use crate::services::store::StoreService;
 use crate::services::test_store::{TestStore, TestStoreService};
 use crate::services::upstream::{UpstreamRelay, UpstreamRelayService};
 use crate::utils::{MemoryChecker, MemoryStat};
+use anyhow::{Context, Result};
+use axum::extract::FromRequestParts;
+use axum::http::request::Parts;
+use rayon::ThreadPool;
+use relay_cogs::Cogs;
+use relay_config::{Config, RedisConfigRef, RedisPoolConfigs};
+#[cfg(feature = "processing")]
+use relay_redis::redis::Script;
+#[cfg(feature = "processing")]
+use relay_redis::{PooledClient, RedisScripts};
+use relay_redis::{RedisError, RedisPool, RedisPools};
+use relay_system::{channel, Addr, Service};
+use tokio::runtime::Runtime;
+use tokio::sync::mpsc;
 
 /// Indicates the type of failure of the server.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, thiserror::Error)]
@@ -461,11 +462,7 @@ fn initialize_redis_scripts_for_pools(redis_pools: &RedisPools) -> Result<(), Re
     let quotas = redis_pools.quotas.client()?;
     let misc = redis_pools.misc.client()?;
 
-    let scripts = [
-        RedisScripts::load_cardinality(),
-        RedisScripts::load_global_quota(),
-        RedisScripts::load_is_rate_limited(),
-    ];
+    let scripts = RedisScripts::all();
 
     let pools = [project_configs, cardinality, quotas, misc];
     for pool in pools {
@@ -478,17 +475,16 @@ fn initialize_redis_scripts_for_pools(redis_pools: &RedisPools) -> Result<(), Re
 #[cfg(feature = "processing")]
 fn initialize_redis_scripts(
     mut pooled_client: PooledClient,
-    scripts: &[&RedisScript; 3],
+    scripts: &[&Script; 3],
 ) -> Result<(), RedisError> {
     let mut connection = pooled_client.connection()?;
 
     for script in scripts {
         // We load on all instances without checking if the script is already in cache because of a
         // limitation in the connection implementation.
-        redis::cmd("SCRIPT")
-            .arg("LOAD")
-            .arg(script.code().as_bytes())
-            .exec(&mut connection)
+        script
+            .prepare_invoke()
+            .load(&mut connection)
             .map_err(RedisError::Redis)?;
     }
 

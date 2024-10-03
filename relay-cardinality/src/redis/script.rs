@@ -101,7 +101,7 @@ impl CardinalityScript {
     ///
     /// This is somewhat costly and shouldn't be done often.
     pub fn load() -> Self {
-        Self(RedisScripts::load_cardinality().script())
+        Self(RedisScripts::load_cardinality())
     }
 
     /// Creates a new pipeline to batch multiple script invocations.

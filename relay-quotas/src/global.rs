@@ -209,7 +209,6 @@ impl GlobalRateLimit {
         let budget_to_reserve = min_required_budget.max(self.default_request_size(quantity, quota));
 
         let (budget, value): (u64, u64) = RedisScripts::load_global_quota()
-            .script()
             .prepare_invoke()
             .key(redis_key.0)
             .arg(budget_to_reserve)

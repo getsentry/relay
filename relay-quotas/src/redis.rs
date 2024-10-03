@@ -175,7 +175,7 @@ impl RedisRateLimiter {
     pub fn new(pool: RedisPool) -> Self {
         RedisRateLimiter {
             pool,
-            script: RedisScripts::load_is_rate_limited().script(),
+            script: RedisScripts::load_is_rate_limited(),
             max_limit: None,
             global_limits: GlobalRateLimits::default(),
         }
@@ -321,7 +321,7 @@ mod tests {
 
         RedisRateLimiter {
             pool: RedisPool::single(&url, RedisConfigOptions::default()).unwrap(),
-            script: RedisScripts::load_is_rate_limited().script(),
+            script: RedisScripts::load_is_rate_limited(),
             max_limit: None,
             global_limits: GlobalRateLimits::default(),
         }
@@ -899,7 +899,7 @@ mod tests {
         let orange = format!("orange___{now}");
         let baz = format!("baz___{now}");
 
-        let script = RedisScripts::load_is_rate_limited().script();
+        let script = RedisScripts::load_is_rate_limited();
 
         let mut invocation = script.prepare_invoke();
         invocation
