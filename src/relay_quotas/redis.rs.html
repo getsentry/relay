@@ -991,18 +991,12 @@
 <a href="#991" id="991">991</a>
 <a href="#992" id="992">992</a>
 <a href="#993" id="993">993</a>
-<a href="#994" id="994">994</a>
-<a href="#995" id="995">995</a>
-<a href="#996" id="996">996</a>
-<a href="#997" id="997">997</a>
-<a href="#998" id="998">998</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt::{<span class="self">self</span>, Debug};
-<span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_log::protocol::value;
 <span class="kw">use </span>relay_redis::redis::Script;
-<span class="kw">use </span>relay_redis::{RedisError, RedisPool};
+<span class="kw">use </span>relay_redis::{RedisError, RedisPool, RedisScripts};
 <span class="kw">use </span>thiserror::Error;
 
 <span class="kw">use </span><span class="kw">crate</span>::global::GlobalRateLimits;
@@ -1021,10 +1015,6 @@
     <span class="doccomment">/// Failed to communicate with Redis.
     </span><span class="attr">#[error(<span class="string">"failed to communicate with redis"</span>)]
     </span>Redis(<span class="attr">#[source] </span>RedisError),
-}
-
-<span class="kw">fn </span>load_lua_script() -&gt; Script {
-    Script::new(<span class="macro">include_str!</span>(<span class="string">"is_rate_limited.lua"</span>))
 }
 
 <span class="kw">fn </span>get_refunded_quota_key(counter_key: <span class="kw-2">&amp;</span>str) -&gt; String {
@@ -1168,7 +1158,7 @@
 /// Requires the `redis` feature.
 </span><span class="kw">pub struct </span>RedisRateLimiter {
     pool: RedisPool,
-    script: Arc&lt;Script&gt;,
+    script: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>Script,
     max_limit: <span class="prelude-ty">Option</span>&lt;u64&gt;,
     global_limits: GlobalRateLimits,
 }
@@ -1178,7 +1168,7 @@
     </span><span class="kw">pub fn </span>new(pool: RedisPool) -&gt; <span class="self">Self </span>{
         RedisRateLimiter {
             pool,
-            script: Arc::new(load_lua_script()),
+            script: RedisScripts::load_is_rate_limited(),
             max_limit: <span class="prelude-val">None</span>,
             global_limits: GlobalRateLimits::default(),
         }
@@ -1324,7 +1314,7 @@
 
         RedisRateLimiter {
             pool: RedisPool::single(<span class="kw-2">&amp;</span>url, RedisConfigOptions::default()).unwrap(),
-            script: Arc::new(load_lua_script()),
+            script: RedisScripts::load_is_rate_limited(),
             max_limit: <span class="prelude-val">None</span>,
             global_limits: GlobalRateLimits::default(),
         }
@@ -1902,7 +1892,7 @@
         <span class="kw">let </span>orange = <span class="macro">format!</span>(<span class="string">"orange___{now}"</span>);
         <span class="kw">let </span>baz = <span class="macro">format!</span>(<span class="string">"baz___{now}"</span>);
 
-        <span class="kw">let </span>script = load_lua_script();
+        <span class="kw">let </span>script = RedisScripts::load_is_rate_limited();
 
         <span class="kw">let </span><span class="kw-2">mut </span>invocation = script.prepare_invoke();
         invocation

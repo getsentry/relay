@@ -309,7 +309,7 @@
 <a href="#309" id="309">309</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_redis::{
     redis::{<span class="self">self</span>, FromRedisValue, Script},
-    Connection,
+    Connection, RedisScripts,
 };
 
 <span class="kw">use </span><span class="kw">crate</span>::Result;
@@ -403,14 +403,14 @@
 }
 
 <span class="doccomment">/// Abstraction over the `cardinality.lua` lua Redis script.
-</span><span class="kw">pub struct </span>CardinalityScript(Script);
+</span><span class="kw">pub struct </span>CardinalityScript(<span class="kw-2">&amp;</span><span class="lifetime">'static </span>Script);
 
 <span class="kw">impl </span>CardinalityScript {
     <span class="doccomment">/// Loads the script.
     ///
     /// This is somewhat costly and shouldn't be done often.
     </span><span class="kw">pub fn </span>load() -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>(Script::new(<span class="macro">include_str!</span>(<span class="string">"cardinality.lua"</span>)))
+        <span class="self">Self</span>(RedisScripts::load_cardinality())
     }
 
     <span class="doccomment">/// Creates a new pipeline to batch multiple script invocations.

@@ -1748,6 +1748,25 @@
 <a href="#1748" id="1748">1748</a>
 <a href="#1749" id="1749">1749</a>
 <a href="#1750" id="1750">1750</a>
+<a href="#1751" id="1751">1751</a>
+<a href="#1752" id="1752">1752</a>
+<a href="#1753" id="1753">1753</a>
+<a href="#1754" id="1754">1754</a>
+<a href="#1755" id="1755">1755</a>
+<a href="#1756" id="1756">1756</a>
+<a href="#1757" id="1757">1757</a>
+<a href="#1758" id="1758">1758</a>
+<a href="#1759" id="1759">1759</a>
+<a href="#1760" id="1760">1760</a>
+<a href="#1761" id="1761">1761</a>
+<a href="#1762" id="1762">1762</a>
+<a href="#1763" id="1763">1763</a>
+<a href="#1764" id="1764">1764</a>
+<a href="#1765" id="1765">1765</a>
+<a href="#1766" id="1766">1766</a>
+<a href="#1767" id="1767">1767</a>
+<a href="#1768" id="1768">1768</a>
+<a href="#1769" id="1769">1769</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
@@ -1764,6 +1783,8 @@
 <span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>hashbrown::HashSet;
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
+<span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+</span><span class="kw">use </span>relay_config::RedisConfigRef;
 <span class="kw">use </span>relay_config::{Config, RelayMode};
 <span class="kw">use </span>relay_metrics::{Bucket, MetricMeta};
 <span class="kw">use </span>relay_quotas::RateLimits;
@@ -1791,6 +1812,10 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{GarbageDisposal, ManagedEnvelope, MemoryChecker, RetryBackoff, SleepHandle};
+
+<span class="doccomment">/// Default value of maximum connections to Redis. This value was arbitrarily determined.
+</span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+</span><span class="kw">const </span>DEFAULT_REDIS_MAX_CONNECTIONS: u32 = <span class="number">10</span>;
 
 <span class="doccomment">/// Requests a refresh of a project state from one of the available sources.
 ///
@@ -2191,16 +2216,19 @@
             UpstreamProjectSourceService::new(config.clone(), upstream_relay).start();
 
         <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-        </span><span class="kw">let </span>redis_maxconns = config.redis().map(|configs| {
-            <span class="kw">let </span>opts = <span class="kw">match </span>configs {
-                relay_config::RedisPoolConfigs::Unified((<span class="kw">_</span>, opts)) =&gt; opts,
-                relay_config::RedisPoolConfigs::Individual {
-                    project_configs: (<span class="kw">_</span>, opts),
-                    ..
-                } =&gt; opts,
-            };
-            opts.max_connections
-        });
+        </span><span class="kw">let </span>redis_max_connections = config
+            .redis()
+            .map(|configs| {
+                <span class="kw">let </span>config = <span class="kw">match </span>configs {
+                    relay_config::RedisPoolConfigs::Unified(config) =&gt; config,
+                    relay_config::RedisPoolConfigs::Individual {
+                        project_configs: config,
+                        ..
+                    } =&gt; config,
+                };
+                <span class="self">Self</span>::compute_max_connections(config).unwrap_or(DEFAULT_REDIS_MAX_CONNECTIONS)
+            })
+            .unwrap_or(DEFAULT_REDIS_MAX_CONNECTIONS);
         <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
         </span><span class="kw">let </span>redis_source = _redis.map(|pool| RedisProjectSource::new(config.clone(), pool));
 
@@ -2211,9 +2239,19 @@
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>redis_source,
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-            </span>redis_semaphore: Arc::new(Semaphore::new(
-                redis_maxconns.unwrap_or(<span class="number">10</span>).try_into().unwrap(),
-            )),
+            </span>redis_semaphore: Arc::new(Semaphore::new(redis_max_connections.try_into().unwrap())),
+        }
+    }
+
+    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+    </span><span class="kw">fn </span>compute_max_connections(config: RedisConfigRef) -&gt; <span class="prelude-ty">Option</span>&lt;u32&gt; {
+        <span class="kw">match </span>config {
+            RedisConfigRef::Cluster { options, .. } =&gt; <span class="prelude-val">Some</span>(options.max_connections),
+            RedisConfigRef::MultiWrite { configs } =&gt; configs
+                .into_iter()
+                .filter_map(|c| <span class="self">Self</span>::compute_max_connections(c))
+                .max(),
+            RedisConfigRef::Single { options, .. } =&gt; <span class="prelude-val">Some</span>(options.max_connections),
         }
     }
 

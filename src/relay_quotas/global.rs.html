@@ -535,28 +535,16 @@
 <a href="#535" id="535">535</a>
 <a href="#536" id="536">536</a>
 <a href="#537" id="537">537</a>
-<a href="#538" id="538">538</a>
-<a href="#539" id="539">539</a>
-<a href="#540" id="540">540</a>
-<a href="#541" id="541">541</a>
-<a href="#542" id="542">542</a>
-<a href="#543" id="543">543</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::{Mutex, OnceLock, PoisonError};
+</pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::{Mutex, PoisonError};
 
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>relay_base_schema::metrics::MetricNamespace;
-<span class="kw">use </span>relay_redis::redis::Script;
-<span class="kw">use </span>relay_redis::{PooledClient, RedisError};
+<span class="kw">use </span>relay_redis::{PooledClient, RedisError, RedisScripts};
 
 <span class="kw">use </span><span class="kw">crate</span>::RedisQuota;
 
 <span class="doccomment">/// Default percentage of the quota limit to reserve from Redis as a local cache.
 </span><span class="kw">const </span>DEFAULT_BUDGET_RATIO: f32 = <span class="number">0.001</span>;
-
-<span class="kw">fn </span>load_global_lua_script() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>Script {
-    <span class="kw">static </span>SCRIPT: OnceLock&lt;Script&gt; = OnceLock::new();
-    SCRIPT.get_or_init(|| Script::new(<span class="macro">include_str!</span>(<span class="string">"global_quota.lua"</span>)))
-}
 
 <span class="doccomment">/// A rate limiter for global rate limits.
 </span><span class="attr">#[derive(Default)]
@@ -757,7 +745,7 @@
 
         <span class="kw">let </span>budget_to_reserve = min_required_budget.max(<span class="self">self</span>.default_request_size(quantity, quota));
 
-        <span class="kw">let </span>(budget, value): (u64, u64) = load_global_lua_script()
+        <span class="kw">let </span>(budget, value): (u64, u64) = RedisScripts::load_global_quota()
             .prepare_invoke()
             .key(redis_key.<span class="number">0</span>)
             .arg(budget_to_reserve)

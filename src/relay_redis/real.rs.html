@@ -230,10 +230,164 @@
 <a href="#230" id="230">230</a>
 <a href="#231" id="231">231</a>
 <a href="#232" id="232">232</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
+<a href="#233" id="233">233</a>
+<a href="#234" id="234">234</a>
+<a href="#235" id="235">235</a>
+<a href="#236" id="236">236</a>
+<a href="#237" id="237">237</a>
+<a href="#238" id="238">238</a>
+<a href="#239" id="239">239</a>
+<a href="#240" id="240">240</a>
+<a href="#241" id="241">241</a>
+<a href="#242" id="242">242</a>
+<a href="#243" id="243">243</a>
+<a href="#244" id="244">244</a>
+<a href="#245" id="245">245</a>
+<a href="#246" id="246">246</a>
+<a href="#247" id="247">247</a>
+<a href="#248" id="248">248</a>
+<a href="#249" id="249">249</a>
+<a href="#250" id="250">250</a>
+<a href="#251" id="251">251</a>
+<a href="#252" id="252">252</a>
+<a href="#253" id="253">253</a>
+<a href="#254" id="254">254</a>
+<a href="#255" id="255">255</a>
+<a href="#256" id="256">256</a>
+<a href="#257" id="257">257</a>
+<a href="#258" id="258">258</a>
+<a href="#259" id="259">259</a>
+<a href="#260" id="260">260</a>
+<a href="#261" id="261">261</a>
+<a href="#262" id="262">262</a>
+<a href="#263" id="263">263</a>
+<a href="#264" id="264">264</a>
+<a href="#265" id="265">265</a>
+<a href="#266" id="266">266</a>
+<a href="#267" id="267">267</a>
+<a href="#268" id="268">268</a>
+<a href="#269" id="269">269</a>
+<a href="#270" id="270">270</a>
+<a href="#271" id="271">271</a>
+<a href="#272" id="272">272</a>
+<a href="#273" id="273">273</a>
+<a href="#274" id="274">274</a>
+<a href="#275" id="275">275</a>
+<a href="#276" id="276">276</a>
+<a href="#277" id="277">277</a>
+<a href="#278" id="278">278</a>
+<a href="#279" id="279">279</a>
+<a href="#280" id="280">280</a>
+<a href="#281" id="281">281</a>
+<a href="#282" id="282">282</a>
+<a href="#283" id="283">283</a>
+<a href="#284" id="284">284</a>
+<a href="#285" id="285">285</a>
+<a href="#286" id="286">286</a>
+<a href="#287" id="287">287</a>
+<a href="#288" id="288">288</a>
+<a href="#289" id="289">289</a>
+<a href="#290" id="290">290</a>
+<a href="#291" id="291">291</a>
+<a href="#292" id="292">292</a>
+<a href="#293" id="293">293</a>
+<a href="#294" id="294">294</a>
+<a href="#295" id="295">295</a>
+<a href="#296" id="296">296</a>
+<a href="#297" id="297">297</a>
+<a href="#298" id="298">298</a>
+<a href="#299" id="299">299</a>
+<a href="#300" id="300">300</a>
+<a href="#301" id="301">301</a>
+<a href="#302" id="302">302</a>
+<a href="#303" id="303">303</a>
+<a href="#304" id="304">304</a>
+<a href="#305" id="305">305</a>
+<a href="#306" id="306">306</a>
+<a href="#307" id="307">307</a>
+<a href="#308" id="308">308</a>
+<a href="#309" id="309">309</a>
+<a href="#310" id="310">310</a>
+<a href="#311" id="311">311</a>
+<a href="#312" id="312">312</a>
+<a href="#313" id="313">313</a>
+<a href="#314" id="314">314</a>
+<a href="#315" id="315">315</a>
+<a href="#316" id="316">316</a>
+<a href="#317" id="317">317</a>
+<a href="#318" id="318">318</a>
+<a href="#319" id="319">319</a>
+<a href="#320" id="320">320</a>
+<a href="#321" id="321">321</a>
+<a href="#322" id="322">322</a>
+<a href="#323" id="323">323</a>
+<a href="#324" id="324">324</a>
+<a href="#325" id="325">325</a>
+<a href="#326" id="326">326</a>
+<a href="#327" id="327">327</a>
+<a href="#328" id="328">328</a>
+<a href="#329" id="329">329</a>
+<a href="#330" id="330">330</a>
+<a href="#331" id="331">331</a>
+<a href="#332" id="332">332</a>
+<a href="#333" id="333">333</a>
+<a href="#334" id="334">334</a>
+<a href="#335" id="335">335</a>
+<a href="#336" id="336">336</a>
+<a href="#337" id="337">337</a>
+<a href="#338" id="338">338</a>
+<a href="#339" id="339">339</a>
+<a href="#340" id="340">340</a>
+<a href="#341" id="341">341</a>
+<a href="#342" id="342">342</a>
+<a href="#343" id="343">343</a>
+<a href="#344" id="344">344</a>
+<a href="#345" id="345">345</a>
+<a href="#346" id="346">346</a>
+<a href="#347" id="347">347</a>
+<a href="#348" id="348">348</a>
+<a href="#349" id="349">349</a>
+<a href="#350" id="350">350</a>
+<a href="#351" id="351">351</a>
+<a href="#352" id="352">352</a>
+<a href="#353" id="353">353</a>
+<a href="#354" id="354">354</a>
+<a href="#355" id="355">355</a>
+<a href="#356" id="356">356</a>
+<a href="#357" id="357">357</a>
+<a href="#358" id="358">358</a>
+<a href="#359" id="359">359</a>
+<a href="#360" id="360">360</a>
+<a href="#361" id="361">361</a>
+<a href="#362" id="362">362</a>
+<a href="#363" id="363">363</a>
+<a href="#364" id="364">364</a>
+<a href="#365" id="365">365</a>
+<a href="#366" id="366">366</a>
+<a href="#367" id="367">367</a>
+<a href="#368" id="368">368</a>
+<a href="#369" id="369">369</a>
+<a href="#370" id="370">370</a>
+<a href="#371" id="371">371</a>
+<a href="#372" id="372">372</a>
+<a href="#373" id="373">373</a>
+<a href="#374" id="374">374</a>
+<a href="#375" id="375">375</a>
+<a href="#376" id="376">376</a>
+<a href="#377" id="377">377</a>
+<a href="#378" id="378">378</a>
+<a href="#379" id="379">379</a>
+<a href="#380" id="380">380</a>
+<a href="#381" id="381">381</a>
+<a href="#382" id="382">382</a>
+<a href="#383" id="383">383</a>
+<a href="#384" id="384">384</a>
+<a href="#385" id="385">385</a>
+</pre></div><pre class="rust"><code><span class="kw">use </span>std::error::Error;
+<span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::time::Duration;
 
-<span class="kw">use </span>r2d2::{Pool, PooledConnection};
+<span class="kw">use </span>r2d2::{Builder, ManageConnection, Pool, PooledConnection};
 <span class="kw">pub use </span>redis;
 <span class="kw">use </span>redis::ConnectionLike;
 <span class="kw">use </span>thiserror::Error;
@@ -243,6 +397,10 @@
 <span class="doccomment">/// An error returned from `RedisPool`.
 </span><span class="attr">#[derive(Debug, Error)]
 </span><span class="kw">pub enum </span>RedisError {
+    <span class="doccomment">/// Failure to configure Redis.
+    </span><span class="attr">#[error(<span class="string">"failed to configure redis"</span>)]
+    </span>Configuration,
+
     <span class="doccomment">/// Failure in r2d2 pool.
     </span><span class="attr">#[error(<span class="string">"failed to pool redis connection"</span>)]
     </span>Pool(<span class="attr">#[source] </span>r2d2::Error),
@@ -254,18 +412,33 @@
 
 <span class="kw">enum </span>ConnectionInner&lt;<span class="lifetime">'a</span>&gt; {
     Cluster(<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>redis::cluster::ClusterConnection),
+    MultiWrite {
+        primary: Box&lt;ConnectionInner&lt;<span class="lifetime">'a</span>&gt;&gt;,
+        secondaries: Vec&lt;ConnectionInner&lt;<span class="lifetime">'a</span>&gt;&gt;,
+    },
     Single(<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>redis::Connection),
 }
 
-<span class="doccomment">/// A reference to a pooled connection from `PooledClient`.
-</span><span class="kw">pub struct </span>Connection&lt;<span class="lifetime">'a</span>&gt; {
-    inner: ConnectionInner&lt;<span class="lifetime">'a</span>&gt;,
-}
-
-<span class="kw">impl </span>ConnectionLike <span class="kw">for </span>Connection&lt;<span class="lifetime">'_</span>&gt; {
+<span class="kw">impl </span>ConnectionLike <span class="kw">for </span>ConnectionInner&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>req_packed_command(<span class="kw-2">&amp;mut </span><span class="self">self</span>, cmd: <span class="kw-2">&amp;</span>[u8]) -&gt; redis::RedisResult&lt;redis::Value&gt; {
-        <span class="kw">match </span><span class="self">self</span>.inner {
+        <span class="kw">match </span><span class="self">self </span>{
             ConnectionInner::Cluster(<span class="kw-2">ref mut </span>con) =&gt; con.req_packed_command(cmd),
+            ConnectionInner::MultiWrite {
+                primary: primary_connection,
+                secondaries: secondary_connections,
+            } =&gt; {
+                <span class="kw">let </span>primary_result = primary_connection.req_packed_command(cmd);
+                <span class="kw">for </span>secondary_connection <span class="kw">in </span>secondary_connections.iter_mut() {
+                    <span class="kw">if let </span><span class="prelude-val">Err</span>(error) = secondary_connection.req_packed_command(cmd) {
+                        <span class="macro">relay_log::error!</span>(
+                            error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
+                            <span class="string">"sending cmd to the secondary Redis instance failed"</span>,
+                        );
+                    }
+                }
+
+                primary_result
+            }
             ConnectionInner::Single(<span class="kw-2">ref mut </span>con) =&gt; con.req_packed_command(cmd),
         }
     }
@@ -276,43 +449,111 @@
         offset: usize,
         count: usize,
     ) -&gt; redis::RedisResult&lt;Vec&lt;redis::Value&gt;&gt; {
-        <span class="kw">match </span><span class="self">self</span>.inner {
+        <span class="kw">match </span><span class="self">self </span>{
             ConnectionInner::Cluster(<span class="kw-2">ref mut </span>con) =&gt; con.req_packed_commands(cmd, offset, count),
+            ConnectionInner::MultiWrite {
+                primary: primary_connection,
+                secondaries: secondary_connections,
+            } =&gt; {
+                <span class="kw">let </span>primary_result = primary_connection.req_packed_commands(cmd, offset, count);
+                <span class="kw">for </span>secondary_connection <span class="kw">in </span>secondary_connections.iter_mut() {
+                    <span class="kw">if let </span><span class="prelude-val">Err</span>(error) = secondary_connection.req_packed_commands(cmd, offset, count)
+                    {
+                        <span class="macro">relay_log::error!</span>(
+                            error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
+                            <span class="string">"sending cmds to the secondary Redis instance failed"</span>,
+                        );
+                    }
+                }
+
+                primary_result
+            }
             ConnectionInner::Single(<span class="kw-2">ref mut </span>con) =&gt; con.req_packed_commands(cmd, offset, count),
         }
     }
 
     <span class="kw">fn </span>get_db(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; i64 {
-        <span class="kw">match </span><span class="self">self</span>.inner {
+        <span class="kw">match </span><span class="self">self </span>{
             ConnectionInner::Cluster(<span class="kw-2">ref </span>con) =&gt; con.get_db(),
+            ConnectionInner::MultiWrite {
+                primary: primary_connection,
+                ..
+            } =&gt; primary_connection.get_db(),
             ConnectionInner::Single(<span class="kw-2">ref </span>con) =&gt; con.get_db(),
         }
     }
 
     <span class="kw">fn </span>check_connection(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; bool {
-        <span class="kw">match </span><span class="self">self</span>.inner {
+        <span class="kw">match </span><span class="self">self </span>{
             ConnectionInner::Cluster(<span class="kw-2">ref mut </span>con) =&gt; con.check_connection(),
+            ConnectionInner::MultiWrite {
+                primary: primary_connection,
+                ..
+            } =&gt; primary_connection.check_connection(),
             ConnectionInner::Single(<span class="kw-2">ref mut </span>con) =&gt; con.check_connection(),
         }
     }
 
     <span class="kw">fn </span>is_open(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="kw">match </span><span class="self">self</span>.inner {
+        <span class="kw">match </span><span class="self">self </span>{
             ConnectionInner::Cluster(<span class="kw-2">ref </span>con) =&gt; con.is_open(),
+            ConnectionInner::MultiWrite {
+                primary: primary_connection,
+                ..
+            } =&gt; primary_connection.is_open(),
             ConnectionInner::Single(<span class="kw-2">ref </span>con) =&gt; con.is_open(),
         }
     }
 }
 
-<span class="kw">enum </span>PooledClientInner {
-    Cluster(Box&lt;PooledConnection&lt;redis::cluster::ClusterClient&gt;&gt;),
-    Single(Box&lt;PooledConnection&lt;redis::Client&gt;&gt;),
+<span class="doccomment">/// A reference to a pooled connection from `PooledClient`.
+</span><span class="kw">pub struct </span>Connection&lt;<span class="lifetime">'a</span>&gt; {
+    inner: ConnectionInner&lt;<span class="lifetime">'a</span>&gt;,
+}
+
+<span class="kw">impl </span>ConnectionLike <span class="kw">for </span>Connection&lt;<span class="lifetime">'_</span>&gt; {
+    <span class="kw">fn </span>req_packed_command(<span class="kw-2">&amp;mut </span><span class="self">self</span>, cmd: <span class="kw-2">&amp;</span>[u8]) -&gt; redis::RedisResult&lt;redis::Value&gt; {
+        <span class="self">self</span>.inner.req_packed_command(cmd)
+    }
+
+    <span class="kw">fn </span>req_packed_commands(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        cmd: <span class="kw-2">&amp;</span>[u8],
+        offset: usize,
+        count: usize,
+    ) -&gt; redis::RedisResult&lt;Vec&lt;redis::Value&gt;&gt; {
+        <span class="self">self</span>.inner.req_packed_commands(cmd, offset, count)
+    }
+
+    <span class="kw">fn </span>get_db(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; i64 {
+        <span class="self">self</span>.inner.get_db()
+    }
+
+    <span class="kw">fn </span>check_connection(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.inner.check_connection()
+    }
+
+    <span class="kw">fn </span>is_open(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.inner.is_open()
+    }
 }
 
 <span class="doccomment">/// A pooled Redis client.
-</span><span class="kw">pub struct </span>PooledClient {
-    opts: RedisConfigOptions,
-    inner: PooledClientInner,
+</span><span class="kw">pub enum </span>PooledClient {
+    <span class="doccomment">/// Pool that is connected to a Redis cluster.
+    </span>Cluster(
+        Box&lt;PooledConnection&lt;redis::cluster::ClusterClient&gt;&gt;,
+        RedisConfigOptions,
+    ),
+    <span class="doccomment">/// Multiple pools that are used for multi-write.
+    </span>MultiWrite {
+        <span class="doccomment">/// Primary [`PooledClient`].
+        </span>primary: Box&lt;PooledClient&gt;,
+        <span class="doccomment">/// Array of secondary [`PooledClient`]s.
+        </span>secondaries: Vec&lt;PooledClient&gt;,
+    },
+    <span class="doccomment">/// Pool that is connected to a single Redis instance.
+    </span>Single(Box&lt;PooledConnection&lt;redis::Client&gt;&gt;, RedisConfigOptions),
 }
 
 <span class="kw">impl </span>PooledClient {
@@ -321,43 +562,53 @@
     /// When the connection is fetched from the pool, we also set the read and write timeouts to
     /// the configured values.
     </span><span class="kw">pub fn </span>connection(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Connection&lt;<span class="lifetime">'_</span>&gt;, RedisError&gt; {
-        <span class="kw">let </span>inner = <span class="kw">match </span><span class="self">self</span>.inner {
-            PooledClientInner::Cluster(<span class="kw-2">ref mut </span>client) =&gt; {
-                client
-                    .set_read_timeout(<span class="prelude-val">Some</span>(Duration::from_secs(<span class="self">self</span>.opts.read_timeout)))
+        <span class="prelude-val">Ok</span>(Connection {
+            inner: <span class="self">self</span>.connection_inner()<span class="question-mark">?</span>,
+        })
+    }
+
+    <span class="doccomment">/// Recursively computes the [`ConnectionInner`] from a [`PooledClient`].
+    </span><span class="kw">fn </span>connection_inner(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;ConnectionInner&lt;<span class="lifetime">'_</span>&gt;, RedisError&gt; {
+        <span class="kw">let </span>inner = <span class="kw">match </span><span class="self">self </span>{
+            PooledClient::Cluster(<span class="kw-2">ref mut </span>connection, opts) =&gt; {
+                connection
+                    .set_read_timeout(<span class="prelude-val">Some</span>(Duration::from_secs(opts.read_timeout)))
                     .map_err(RedisError::Redis)<span class="question-mark">?</span>;
-                client
-                    .set_write_timeout(<span class="prelude-val">Some</span>(Duration::from_secs(<span class="self">self</span>.opts.write_timeout)))
+                connection
+                    .set_write_timeout(<span class="prelude-val">Some</span>(Duration::from_secs(opts.write_timeout)))
                     .map_err(RedisError::Redis)<span class="question-mark">?</span>;
-                ConnectionInner::Cluster(client)
+
+                ConnectionInner::Cluster(connection)
             }
-            PooledClientInner::Single(<span class="kw-2">ref mut </span>client) =&gt; {
-                client
-                    .set_read_timeout(<span class="prelude-val">Some</span>(Duration::from_secs(<span class="self">self</span>.opts.read_timeout)))
+            PooledClient::MultiWrite {
+                primary: primary_client,
+                secondaries: secondary_clients,
+            } =&gt; {
+                <span class="kw">let </span>primary_connection = primary_client.connection_inner()<span class="question-mark">?</span>;
+                <span class="kw">let </span><span class="kw-2">mut </span>secondary_connections = Vec::with_capacity(secondary_clients.len());
+                <span class="kw">for </span>secondary_client <span class="kw">in </span>secondary_clients.iter_mut() {
+                    <span class="kw">let </span>connection = secondary_client.connection_inner()<span class="question-mark">?</span>;
+                    secondary_connections.push(connection);
+                }
+
+                ConnectionInner::MultiWrite {
+                    primary: Box::new(primary_connection),
+                    secondaries: secondary_connections,
+                }
+            }
+            PooledClient::Single(<span class="kw-2">ref mut </span>connection, opts) =&gt; {
+                connection
+                    .set_read_timeout(<span class="prelude-val">Some</span>(Duration::from_secs(opts.read_timeout)))
                     .map_err(RedisError::Redis)<span class="question-mark">?</span>;
-                client
-                    .set_write_timeout(<span class="prelude-val">Some</span>(Duration::from_secs(<span class="self">self</span>.opts.write_timeout)))
+                connection
+                    .set_write_timeout(<span class="prelude-val">Some</span>(Duration::from_secs(opts.write_timeout)))
                     .map_err(RedisError::Redis)<span class="question-mark">?</span>;
-                ConnectionInner::Single(client)
+
+                ConnectionInner::Single(connection)
             }
         };
 
-        <span class="prelude-val">Ok</span>(Connection { inner })
-    }
-}
-
-<span class="attr">#[derive(Clone)]
-</span><span class="kw">enum </span>RedisPoolInner {
-    Cluster(Pool&lt;redis::cluster::ClusterClient&gt;),
-    Single(Pool&lt;redis::Client&gt;),
-}
-
-<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>RedisPoolInner {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-        <span class="kw">match </span><span class="self">self </span>{
-            <span class="self">Self</span>::Cluster(<span class="kw">_</span>) =&gt; f.debug_tuple(<span class="string">"Cluster"</span>).finish(),
-            <span class="self">Self</span>::Single(<span class="kw">_</span>) =&gt; f.debug_tuple(<span class="string">"Single"</span>).finish(),
-        }
+        <span class="prelude-val">Ok</span>(inner)
     }
 }
 
@@ -369,75 +620,130 @@
 ///
 /// Basically don't waste your time here, if you want to abstract over this, consider
 /// upstreaming to the redis crate.
-</span><span class="attr">#[derive(Clone, Debug)]
-</span><span class="kw">pub struct </span>RedisPool {
-    opts: RedisConfigOptions,
-    inner: RedisPoolInner,
+</span><span class="attr">#[derive(Clone)]
+</span><span class="kw">pub enum </span>RedisPool {
+    <span class="doccomment">/// Pool that is connected to a Redis cluster.
+    </span>Cluster(Pool&lt;redis::cluster::ClusterClient&gt;, RedisConfigOptions),
+    <span class="doccomment">/// Multiple pools that are used for multi-write.
+    </span>MultiWrite {
+        <span class="doccomment">/// Primary [`RedisPool`].
+        </span>primary: Box&lt;RedisPool&gt;,
+        <span class="doccomment">/// Array of secondary [`RedisPool`]s.
+        </span>secondaries: Vec&lt;RedisPool&gt;,
+    },
+    <span class="doccomment">/// Pool that is connected to a single Redis instance.
+    </span>Single(Pool&lt;redis::Client&gt;, RedisConfigOptions),
+}
+
+<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>RedisPool {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">match </span><span class="self">self </span>{
+            <span class="self">Self</span>::Cluster(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; f.debug_tuple(<span class="string">"Cluster"</span>).finish(),
+            <span class="self">Self</span>::MultiWrite { .. } =&gt; f.debug_tuple(<span class="string">"MultiWrite"</span>).finish(),
+            <span class="self">Self</span>::Single(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; f.debug_tuple(<span class="string">"Single"</span>).finish(),
+        }
+    }
 }
 
 <span class="kw">impl </span>RedisPool {
-    <span class="doccomment">/// Creates a `RedisPool` in cluster configuration.
+    <span class="doccomment">/// Creates a [`RedisPool`] in cluster configuration.
     </span><span class="kw">pub fn </span>cluster&lt;<span class="lifetime">'a</span>&gt;(
         servers: <span class="kw">impl </span>IntoIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str&gt;,
         opts: RedisConfigOptions,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, RedisError&gt; {
-        <span class="kw">let </span>pool = Pool::builder()
-            .max_size(opts.max_connections)
-            .min_idle(opts.min_idle)
-            .test_on_check_out(<span class="bool-val">false</span>)
-            .max_lifetime(<span class="prelude-val">Some</span>(Duration::from_secs(opts.max_lifetime)))
-            .idle_timeout(<span class="prelude-val">Some</span>(Duration::from_secs(opts.idle_timeout)))
-            .connection_timeout(Duration::from_secs(opts.connection_timeout))
+        <span class="kw">let </span>pool = <span class="self">Self</span>::base_pool_builder(<span class="kw-2">&amp;</span>opts)
             .build(redis::cluster::ClusterClient::new(servers).map_err(RedisError::Redis)<span class="question-mark">?</span>)
             .map_err(RedisError::Pool)<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>inner = RedisPoolInner::Cluster(pool);
-        <span class="prelude-val">Ok</span>(RedisPool { opts, inner })
+        <span class="prelude-val">Ok</span>(RedisPool::Cluster(pool, opts))
     }
 
-    <span class="doccomment">/// Creates a `RedisPool` in single-node configuration.
-    </span><span class="kw">pub fn </span>single(server: <span class="kw-2">&amp;</span>str, opts: RedisConfigOptions) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, RedisError&gt; {
-        <span class="kw">let </span>pool = Pool::builder()
-            .max_size(opts.max_connections)
-            .min_idle(opts.min_idle)
-            .test_on_check_out(<span class="bool-val">false</span>)
-            .max_lifetime(<span class="prelude-val">Some</span>(Duration::from_secs(opts.max_lifetime)))
-            .idle_timeout(<span class="prelude-val">Some</span>(Duration::from_secs(opts.idle_timeout)))
-            .connection_timeout(Duration::from_secs(opts.connection_timeout))
-            .build(redis::Client::open(server).map_err(RedisError::Redis)<span class="question-mark">?</span>)
-            .map_err(RedisError::Pool)<span class="question-mark">?</span>;
+    <span class="doccomment">/// Creates a [`RedisPool`] in multi write configuration.
+    </span><span class="kw">pub fn </span>multi_write(
+        primary: RedisPool,
+        secondaries: Vec&lt;RedisPool&gt;,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, RedisError&gt; {
+        <span class="prelude-val">Ok</span>(RedisPool::MultiWrite {
+            primary: Box::new(primary),
+            secondaries,
+        })
+    }
 
-        <span class="kw">let </span>inner = RedisPoolInner::Single(pool);
-        <span class="prelude-val">Ok</span>(RedisPool { opts, inner })
+    <span class="doccomment">/// Creates a [`RedisPool`] in single-node configuration.
+    </span><span class="kw">pub fn </span>single(server: <span class="kw-2">&amp;</span>str, opts: RedisConfigOptions) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, RedisError&gt; {
+        <span class="kw">let </span>pool = <span class="self">Self</span>::client_pool(server, <span class="kw-2">&amp;</span>opts)<span class="question-mark">?</span>;
+
+        <span class="prelude-val">Ok</span>(RedisPool::Single(pool, opts))
     }
 
     <span class="doccomment">/// Returns a pooled connection to a client.
     </span><span class="kw">pub fn </span>client(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;PooledClient, RedisError&gt; {
-        <span class="kw">let </span>inner = <span class="kw">match </span><span class="self">self</span>.inner {
-            RedisPoolInner::Cluster(<span class="kw-2">ref </span>pool) =&gt; {
-                PooledClientInner::Cluster(Box::new(pool.get().map_err(RedisError::Pool)<span class="question-mark">?</span>))
+        <span class="kw">let </span>pool = <span class="kw">match </span><span class="self">self </span>{
+            RedisPool::Cluster(<span class="kw-2">ref </span>pool, opts) =&gt; PooledClient::Cluster(
+                Box::new(pool.get().map_err(RedisError::Pool)<span class="question-mark">?</span>),
+                opts.clone(),
+            ),
+            RedisPool::MultiWrite {
+                primary: primary_pool,
+                secondaries: secondary_pools,
+            } =&gt; {
+                <span class="kw">let </span>primary_client = primary_pool.client()<span class="question-mark">?</span>;
+                <span class="kw">let </span><span class="kw-2">mut </span>secondary_clients = Vec::with_capacity(secondary_pools.len());
+                <span class="kw">for </span>secondary_pool <span class="kw">in </span>secondary_pools.iter() {
+                    <span class="kw">let </span>client = secondary_pool.client()<span class="question-mark">?</span>;
+                    secondary_clients.push(client);
+                }
+
+                PooledClient::MultiWrite {
+                    primary: Box::new(primary_client),
+                    secondaries: secondary_clients,
+                }
             }
-            RedisPoolInner::Single(<span class="kw-2">ref </span>pool) =&gt; {
-                PooledClientInner::Single(Box::new(pool.get().map_err(RedisError::Pool)<span class="question-mark">?</span>))
-            }
+            RedisPool::Single(<span class="kw-2">ref </span>pool, opts) =&gt; PooledClient::Single(
+                Box::new(pool.get().map_err(RedisError::Pool)<span class="question-mark">?</span>),
+                opts.clone(),
+            ),
         };
 
-        <span class="prelude-val">Ok</span>(PooledClient {
-            opts: <span class="self">self</span>.opts.clone(),
-            inner,
-        })
+        <span class="prelude-val">Ok</span>(pool)
     }
 
     <span class="doccomment">/// Returns information about the current state of the pool.
     </span><span class="kw">pub fn </span>stats(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Stats {
-        <span class="kw">let </span>s = <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.inner {
-            RedisPoolInner::Cluster(p) =&gt; p.state(),
-            RedisPoolInner::Single(p) =&gt; p.state(),
-        };
-
+        <span class="kw">let </span>(connections, idle_connections) = <span class="self">self</span>.state();
         Stats {
-            connections: s.connections,
-            idle_connections: s.idle_connections,
+            connections,
+            idle_connections,
+        }
+    }
+
+    <span class="doccomment">/// Returns a [`Pool`] with a [`redis::Client`].
+    </span><span class="kw">fn </span>client_pool(
+        server: <span class="kw-2">&amp;</span>str,
+        opts: <span class="kw-2">&amp;</span>RedisConfigOptions,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Pool&lt;redis::Client&gt;, RedisError&gt; {
+        <span class="self">Self</span>::base_pool_builder(opts)
+            .build(redis::Client::open(server).map_err(RedisError::Redis)<span class="question-mark">?</span>)
+            .map_err(RedisError::Pool)
+    }
+
+    <span class="doccomment">/// Returns the base builder for the pool with the options applied.
+    </span><span class="kw">fn </span>base_pool_builder&lt;M: ManageConnection&gt;(opts: <span class="kw-2">&amp;</span>RedisConfigOptions) -&gt; Builder&lt;M&gt; {
+        Pool::builder()
+            .max_size(opts.max_connections)
+            .min_idle(opts.min_idle)
+            .test_on_check_out(<span class="bool-val">false</span>)
+            .max_lifetime(<span class="prelude-val">Some</span>(Duration::from_secs(opts.max_lifetime)))
+            .idle_timeout(<span class="prelude-val">Some</span>(Duration::from_secs(opts.idle_timeout)))
+            .connection_timeout(Duration::from_secs(opts.connection_timeout))
+    }
+
+    <span class="doccomment">/// Recursively computes the state of the [`RedisPool`].
+    </span><span class="kw">fn </span>state(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (u32, u32) {
+        <span class="kw">match </span><span class="self">self </span>{
+            RedisPool::Cluster(p, <span class="kw">_</span>) =&gt; (p.state().connections, p.state().idle_connections),
+            RedisPool::MultiWrite { primary: p, .. } =&gt; p.state(),
+            RedisPool::Single(p, <span class="kw">_</span>) =&gt; (p.state().connections, p.state().idle_connections),
         }
     }
 }
