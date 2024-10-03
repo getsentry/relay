@@ -25,8 +25,11 @@ impl EnvelopeStack for MemoryEnvelopeStack {
         Ok(self.0.last().map(Box::as_ref))
     }
 
-    async fn pop(&mut self) -> Result<Option<Box<Envelope>>, Self::Error> {
-        Ok(self.0.pop())
+    async fn pop_many(
+        &mut self,
+        count: std::num::NonZeroUsize,
+    ) -> Result<Vec<Box<Envelope>>, Self::Error> {
+        Ok(self.0.split_off(self.0.len().saturating_sub(count.get())))
     }
 
     fn flush(self) -> Vec<Box<Envelope>> {

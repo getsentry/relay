@@ -1,6 +1,7 @@
 //! Types for buffering envelopes.
 
 use std::error::Error;
+use std::num::NonZeroUsize;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
@@ -10,7 +11,7 @@ use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Receiver, Service};
 use relay_system::{Controller, Shutdown};
-use tokio::sync::mpsc::Permit;
+use tokio::sync::mpsc::PermitIterator;
 use tokio::sync::{mpsc, watch};
 use tokio::time::{timeout, Instant};
 
@@ -157,7 +158,7 @@ impl EnvelopeBufferService {
         &mut self,
         buffer: &PolymorphicEnvelopeBuffer,
         dequeue: bool,
-    ) -> Option<Permit<DequeuedEnvelope>> {
+    ) -> Option<PermitIterator<DequeuedEnvelope>> {
         relay_statsd::metric!(
             counter(RelayCounters::BufferReadyToPop) += 1,
             status = "checking"
@@ -179,7 +180,12 @@ impl EnvelopeBufferService {
             status = "slept"
         );
 
-        let permit = self.services.envelopes_tx.reserve().await.ok();
+        let permit = self
+            .services
+            .envelopes_tx
+            .reserve_many(self.config.spool_envelopes_stack_disk_batch_size().get())
+            .await
+            .ok();
 
         relay_statsd::metric!(
             counter(RelayCounters::BufferReadyToPop) += 1,
@@ -218,7 +224,7 @@ impl EnvelopeBufferService {
         config: &Config,
         buffer: &mut PolymorphicEnvelopeBuffer,
         services: &Services,
-        envelopes_tx_permit: Permit<'a, DequeuedEnvelope>,
+        send_permits: PermitIterator<'a, DequeuedEnvelope>,
     ) -> Result<Duration, EnvelopeBufferError> {
         relay_log::trace!("EnvelopeBufferService: peeking the buffer");
 
@@ -236,8 +242,9 @@ impl EnvelopeBufferService {
                 if Self::expired(config, envelope) =>
             {
                 let envelope = buffer
-                    .pop()
+                    .pop_many(NonZeroUsize::new(1).unwrap()) // TODO
                     .await?
+                    .pop()
                     .expect("Element disappeared despite exclusive excess");
 
                 Self::drop_expired(envelope, services);
@@ -250,11 +257,13 @@ impl EnvelopeBufferService {
                     counter(RelayCounters::BufferTryPop) += 1,
                     peek_result = "ready"
                 );
-                let envelope = buffer
-                    .pop()
-                    .await?
-                    .expect("Element disappeared despite exclusive excess");
-                envelopes_tx_permit.send(DequeuedEnvelope(envelope));
+                let batch_size = NonZeroUsize::new(send_permits.len())
+                    .expect("permit should not have zero length");
+                let envelopes = buffer.pop_many(batch_size).await?;
+                debug_assert!(envelopes.len() <= batch_size.get());
+                for (envelope, permit) in envelopes.into_iter().zip(send_permits) {
+                    permit.send(DequeuedEnvelope(envelope));
+                }
 
                 Duration::ZERO // try next pop immediately
             }

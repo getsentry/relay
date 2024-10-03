@@ -1,4 +1,5 @@
 use std::error::Error;
+use std::num::NonZeroUsize;
 
 use relay_config::Config;
 
@@ -15,10 +16,10 @@ use crate::{Envelope, EnvelopeStack, SqliteEnvelopeStack};
 #[derive(Debug)]
 pub struct SqliteStackProvider {
     envelope_store: SqliteEnvelopeStore,
-    disk_batch_size: usize,
+    disk_batch_size: NonZeroUsize,
     max_batches: usize,
     max_disk_size: usize,
-    drain_batch_size: usize,
+    drain_batch_size: NonZeroUsize,
 }
 
 #[warn(dead_code)]
@@ -122,12 +123,12 @@ impl StackProvider for SqliteStackProvider {
         relay_log::trace!("Flushing sqlite envelope buffer");
 
         relay_statsd::metric!(timer(RelayTimers::BufferDrain), {
-            let mut envelopes = Vec::with_capacity(self.drain_batch_size);
+            let mut envelopes = Vec::with_capacity(self.drain_batch_size.get());
             for envelope_stack in envelope_stacks {
                 for envelope in envelope_stack.flush() {
-                    if envelopes.len() >= self.drain_batch_size {
+                    if envelopes.len() >= self.drain_batch_size.get() {
                         self.drain_many(envelopes).await;
-                        envelopes = Vec::with_capacity(self.drain_batch_size);
+                        envelopes = Vec::with_capacity(self.drain_batch_size.get());
                     }
 
                     envelopes.push(envelope);

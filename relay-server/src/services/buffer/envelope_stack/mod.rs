@@ -1,4 +1,5 @@
 use std::future::Future;
+use std::num::NonZeroUsize;
 
 use crate::envelope::Envelope;
 
@@ -17,8 +18,13 @@ pub trait EnvelopeStack: Send + std::fmt::Debug {
     /// Peeks the [`Envelope`] on top of the stack.
     fn peek(&mut self) -> impl Future<Output = Result<Option<&Envelope>, Self::Error>>;
 
-    /// Pops the [`Envelope`] on top of the stack.
-    fn pop(&mut self) -> impl Future<Output = Result<Option<Box<Envelope>>, Self::Error>>;
+    /// Pops at most `count` [`Envelope`]s from the top of the stack.
+    ///
+    /// Returns fewer elements than `count` if no more elements exist on the stack.
+    fn pop_many(
+        &mut self,
+        count: NonZeroUsize,
+    ) -> impl Future<Output = Result<Vec<Box<Envelope>>, Self::Error>>;
 
     /// Persists all envelopes in the [`EnvelopeStack`]s to external storage, if possible,
     /// and consumes the stack provider.

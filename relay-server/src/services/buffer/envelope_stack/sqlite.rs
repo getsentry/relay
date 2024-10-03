@@ -49,7 +49,7 @@ impl SqliteEnvelopeStack {
     /// Creates a new empty [`SqliteEnvelopeStack`].
     pub fn new(
         envelope_store: SqliteEnvelopeStore,
-        disk_batch_size: usize,
+        disk_batch_size: NonZeroUsize,
         max_batches: usize,
         own_key: ProjectKey,
         sampling_key: ProjectKey,
@@ -57,10 +57,9 @@ impl SqliteEnvelopeStack {
     ) -> Self {
         Self {
             envelope_store,
-            spool_threshold: NonZeroUsize::new(disk_batch_size * max_batches)
-                .expect("the spool threshold must be > 0"),
-            batch_size: NonZeroUsize::new(disk_batch_size)
-                .expect("the disk batch size must be > 0"),
+            spool_threshold: NonZeroUsize::new(disk_batch_size.get() * max_batches)
+                .expect("max_batches must be > 0"),
+            batch_size: disk_batch_size,
             own_key,
             sampling_key,
             batches_buffer: VecDeque::with_capacity(max_batches),
@@ -208,20 +207,19 @@ impl EnvelopeStack for SqliteEnvelopeStack {
         Ok(last)
     }
 
-    async fn pop(&mut self) -> Result<Option<Box<Envelope>>, Self::Error> {
+    async fn pop_many(&mut self, count: NonZeroUsize) -> Result<Vec<Box<Envelope>>, Self::Error> {
         if self.below_unspool_threshold() && self.check_disk {
             relay_log::trace!("Unspool from disk");
             self.unspool_from_disk().await?
         }
 
-        let result = self.batches_buffer.back_mut().and_then(|last_batch| {
-            self.batches_buffer_size -= 1;
+        let Some(result) = self.batches_buffer.back_mut().map(|last_batch| {
+            self.batches_buffer_size -= last_batch.len();
             relay_log::trace!("Popping from memory");
-            last_batch.pop()
-        });
-        if result.is_none() {
-            return Ok(None);
-        }
+            last_batch.split_off(last_batch.len().saturating_sub(count.get()))
+        }) else {
+            return Ok(vec![]);
+        };
 
         // Since we might leave a batch without elements, we want to pop it from the buffer.
         if self
@@ -256,7 +254,7 @@ mod tests {
         let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store,
-            2,
+            NonZeroUsize::new(2).unwrap(),
             2,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("c25ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
@@ -273,7 +271,7 @@ mod tests {
         let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store,
-            2,
+            NonZeroUsize::new(2).unwrap(),
             2,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
@@ -302,9 +300,24 @@ mod tests {
         assert_eq!(stack.batches_buffer_size, 3);
 
         // We pop the remaining elements, expecting the last added envelope to be on top.
-        let popped_envelope_1 = stack.pop().await.unwrap().unwrap();
-        let popped_envelope_2 = stack.pop().await.unwrap().unwrap();
-        let popped_envelope_3 = stack.pop().await.unwrap().unwrap();
+        let popped_envelope_1 = stack
+            .pop_many(NonZeroUsize::new(1).unwrap())
+            .await
+            .unwrap()
+            .pop()
+            .unwrap();
+        let popped_envelope_2 = stack
+            .pop_many(NonZeroUsize::new(1).unwrap())
+            .await
+            .unwrap()
+            .pop()
+            .unwrap();
+        let popped_envelope_3 = stack
+            .pop_many(NonZeroUsize::new(1).unwrap())
+            .await
+            .unwrap()
+            .pop()
+            .unwrap();
         assert_eq!(
             popped_envelope_1.event_id().unwrap(),
             envelope.event_id().unwrap()
@@ -326,7 +339,7 @@ mod tests {
         let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store,
-            2,
+            NonZeroUsize::new(2).unwrap(),
             2,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
@@ -335,7 +348,7 @@ mod tests {
 
         // We pop with an invalid db.
         assert!(matches!(
-            stack.pop().await,
+            stack.pop_many(NonZeroUsize::new(1).unwrap()).await,
             Err(SqliteEnvelopeStackError::EnvelopeStoreError(_))
         ));
     }
@@ -346,7 +359,7 @@ mod tests {
         let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store,
-            2,
+            NonZeroUsize::new(2).unwrap(),
             2,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
@@ -355,7 +368,11 @@ mod tests {
 
         // We pop with no elements.
         // We pop with no elements.
-        assert!(stack.pop().await.unwrap().is_none());
+        assert!(stack
+            .pop_many(NonZeroUsize::new(1).unwrap())
+            .await
+            .unwrap()
+            .is_empty());
     }
 
     #[tokio::test]
@@ -364,7 +381,7 @@ mod tests {
         let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store,
-            5,
+            NonZeroUsize::new(5).unwrap(),
             2,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
@@ -388,7 +405,12 @@ mod tests {
 
         // We pop 5 envelopes.
         for envelope in envelopes.iter().rev() {
-            let popped_envelope = stack.pop().await.unwrap().unwrap();
+            let popped_envelope = stack
+                .pop_many(NonZeroUsize::new(1).unwrap())
+                .await
+                .unwrap()
+                .pop()
+                .unwrap();
             assert_eq!(
                 popped_envelope.event_id().unwrap(),
                 envelope.event_id().unwrap()
@@ -402,7 +424,7 @@ mod tests {
         let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store,
-            5,
+            NonZeroUsize::new(5).unwrap(),
             2,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
@@ -427,7 +449,12 @@ mod tests {
         // We pop 10 envelopes, and we expect that the last 10 are in memory, since the first 5
         // should have been spooled to disk.
         for envelope in envelopes[5..15].iter().rev() {
-            let popped_envelope = stack.pop().await.unwrap().unwrap();
+            let popped_envelope = stack
+                .pop_many(NonZeroUsize::new(1).unwrap())
+                .await
+                .unwrap()
+                .pop()
+                .unwrap();
             assert_eq!(
                 popped_envelope.event_id().unwrap(),
                 envelope.event_id().unwrap()
@@ -448,7 +475,12 @@ mod tests {
         assert!(stack.push(envelope.clone()).await.is_ok());
 
         // We pop and expect the newly inserted element.
-        let popped_envelope = stack.pop().await.unwrap().unwrap();
+        let popped_envelope = stack
+            .pop_many(NonZeroUsize::new(1).unwrap())
+            .await
+            .unwrap()
+            .pop()
+            .unwrap();
         assert_eq!(
             popped_envelope.event_id().unwrap(),
             envelope.event_id().unwrap()
@@ -457,7 +489,12 @@ mod tests {
         // We pop 5 envelopes, which should not result in a disk load since `peek()` already should
         // have caused it.
         for envelope in envelopes[0..5].iter().rev() {
-            let popped_envelope = stack.pop().await.unwrap().unwrap();
+            let popped_envelope = stack
+                .pop_many(NonZeroUsize::new(1).unwrap())
+                .await
+                .unwrap()
+                .pop()
+                .unwrap();
             assert_eq!(
                 popped_envelope.event_id().unwrap(),
                 envelope.event_id().unwrap()
@@ -472,7 +509,7 @@ mod tests {
         let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store.clone(),
-            5,
+            NonZeroUsize::new(5).unwrap(),
             1,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),

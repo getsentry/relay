@@ -3,6 +3,7 @@ use std::collections::BTreeSet;
 use std::convert::Infallible;
 use std::error::Error;
 use std::mem;
+use std::num::NonZeroUsize;
 use std::sync::atomic::AtomicI64;
 use std::sync::atomic::Ordering as AtomicOrdering;
 use std::sync::Arc;
@@ -98,16 +99,23 @@ impl PolymorphicEnvelopeBuffer {
         })
     }
 
-    /// Pops the next-in-line envelope.
-    pub async fn pop(&mut self) -> Result<Option<Box<Envelope>>, EnvelopeBufferError> {
-        let envelope = relay_statsd::metric!(timer(RelayTimers::BufferPop), {
+    /// Pops the next-in-line batch of envelopes.
+    ///
+    /// Returns at most `count` elements. Returns an empty vector if the stack itself is empty.
+    pub async fn pop_many(
+        &mut self,
+        count: NonZeroUsize,
+    ) -> Result<Vec<Box<Envelope>>, EnvelopeBufferError> {
+        let envelopes = relay_statsd::metric!(timer(RelayTimers::BufferPop), {
             match self {
-                Self::Sqlite(buffer) => buffer.pop().await,
-                Self::InMemory(buffer) => buffer.pop().await,
+                Self::Sqlite(buffer) => buffer.pop_many(count).await,
+                Self::InMemory(buffer) => buffer.pop_many(count).await,
             }?
         });
-        relay_statsd::metric!(counter(RelayCounters::BufferEnvelopesRead) += 1);
-        Ok(envelope)
+        relay_statsd::metric!(
+            counter(RelayCounters::BufferEnvelopesRead) += envelopes.len() as u64
+        );
+        Ok(envelopes)
     }
 
     /// Marks a project as ready or not ready.
@@ -313,13 +321,15 @@ where
     ///
     /// The priority of the envelope's stack is updated with the next envelope's received_at
     /// time. If the stack is empty after popping, it is removed from the priority queue.
-    pub async fn pop(&mut self) -> Result<Option<Box<Envelope>>, EnvelopeBufferError> {
+    pub async fn pop_many(
+        &mut self,
+        count: NonZeroUsize,
+    ) -> Result<Vec<Box<Envelope>>, EnvelopeBufferError> {
         let Some((QueueItem { key, value: stack }, _)) = self.priority_queue.peek_mut() else {
-            return Ok(None);
+            return Ok(vec![]);
         };
         let project_key_pair = *key;
-        let envelope = stack.pop().await.unwrap().expect("found an empty stack");
-
+        let envelopes = stack.pop_many(count).await?;
         let next_received_at = stack
             .peek()
             .await?
@@ -344,7 +354,7 @@ where
         self.total_count.fetch_sub(1, AtomicOrdering::SeqCst);
         self.track_total_count();
 
-        Ok(Some(envelope))
+        Ok(envelopes)
     }
 
     /// Re-prioritizes all stacks that involve the given project key by setting it to "ready".
@@ -716,7 +726,11 @@ mod tests {
         let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let project_key3 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fef").unwrap();
 
-        assert!(buffer.pop().await.unwrap().is_none());
+        assert!(buffer
+            .pop_many(NonZeroUsize::new(1).unwrap())
+            .await
+            .unwrap()
+            .is_empty());
         assert!(buffer.peek().await.unwrap().is_empty());
 
         buffer
@@ -751,7 +765,12 @@ mod tests {
         buffer.mark_ready(&project_key3, true);
         assert_eq!(peek_project_key(&mut buffer).await, project_key3);
         assert_eq!(
-            buffer.pop().await.unwrap().unwrap().meta().public_key(),
+            buffer
+                .pop_many(NonZeroUsize::new(1).unwrap())
+                .await
+                .unwrap()[0]
+                .meta()
+                .public_key(),
             project_key3
         );
 
@@ -766,16 +785,30 @@ mod tests {
         buffer.mark_ready(&project_key2, true);
         assert_eq!(peek_project_key(&mut buffer).await, project_key2);
         assert_eq!(
-            buffer.pop().await.unwrap().unwrap().meta().public_key(),
+            buffer
+                .pop_many(NonZeroUsize::new(1).unwrap())
+                .await
+                .unwrap()[0]
+                .meta()
+                .public_key(),
             project_key2
         );
 
         // Pop last element:
         assert_eq!(
-            buffer.pop().await.unwrap().unwrap().meta().public_key(),
+            buffer
+                .pop_many(NonZeroUsize::new(1).unwrap())
+                .await
+                .unwrap()[0]
+                .meta()
+                .public_key(),
             project_key1
         );
-        assert!(buffer.pop().await.unwrap().is_none());
+        assert!(buffer
+            .pop_many(NonZeroUsize::new(1).unwrap())
+            .await
+            .unwrap()
+            .is_empty());
         assert!(buffer.peek().await.unwrap().is_empty());
     }
 
@@ -796,14 +829,28 @@ mod tests {
         buffer.push(envelope2).await.unwrap();
 
         assert_eq!(
-            buffer.pop().await.unwrap().unwrap().meta().start_time(),
+            buffer
+                .pop_many(NonZeroUsize::new(1).unwrap())
+                .await
+                .unwrap()[0]
+                .meta()
+                .start_time(),
             instant2
         );
         assert_eq!(
-            buffer.pop().await.unwrap().unwrap().meta().start_time(),
+            buffer
+                .pop_many(NonZeroUsize::new(1).unwrap())
+                .await
+                .unwrap()[0]
+                .meta()
+                .start_time(),
             instant1
         );
-        assert!(buffer.pop().await.unwrap().is_none());
+        assert!(buffer
+            .pop_many(NonZeroUsize::new(1).unwrap())
+            .await
+            .unwrap()
+            .is_empty());
     }
 
     #[tokio::test]
@@ -886,7 +933,12 @@ mod tests {
         // when both projects are ready, event no 3 ends up on top:
         buffer.mark_ready(&project_key2, true);
         assert_eq!(
-            buffer.pop().await.unwrap().unwrap().meta().start_time(),
+            buffer
+                .pop_many(NonZeroUsize::new(1).unwrap())
+                .await
+                .unwrap()[0]
+                .meta()
+                .start_time(),
             instant3
         );
         assert_eq!(
@@ -903,15 +955,29 @@ mod tests {
 
         buffer.mark_ready(&project_key2, false);
         assert_eq!(
-            buffer.pop().await.unwrap().unwrap().meta().start_time(),
+            buffer
+                .pop_many(NonZeroUsize::new(1).unwrap())
+                .await
+                .unwrap()[0]
+                .meta()
+                .start_time(),
             instant1
         );
         assert_eq!(
-            buffer.pop().await.unwrap().unwrap().meta().start_time(),
+            buffer
+                .pop_many(NonZeroUsize::new(1).unwrap())
+                .await
+                .unwrap()[0]
+                .meta()
+                .start_time(),
             instant2
         );
 
-        assert!(buffer.pop().await.unwrap().is_none());
+        assert!(buffer
+            .pop_many(NonZeroUsize::new(1).unwrap())
+            .await
+            .unwrap()
+            .is_empty());
     }
 
     #[tokio::test]
