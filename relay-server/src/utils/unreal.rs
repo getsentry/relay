@@ -200,9 +200,9 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
     }
 
     if let Some(login_id) = &runtime_props.login_id {
-        let user = event.user.get_or_insert_with(User::default);
-        if user.id.0.is_none() {
-            user.id.set_value(Some(login_id.clone().into()));
+        let id = event.user.get_or_insert_with(User::default).id.value_mut();
+        if id.is_none() {
+            *id = Some(login_id.clone().into());
         }
     }
 
