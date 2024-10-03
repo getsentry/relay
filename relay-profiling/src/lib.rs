@@ -60,6 +60,7 @@ mod native_debug_image;
 mod outcomes;
 mod sample;
 mod transaction_metadata;
+mod types;
 mod utils;
 
 const MAX_PROFILE_DURATION: Duration = Duration::from_secs(30);
@@ -117,7 +118,8 @@ pub fn parse_metadata(payload: &[u8], project_id: ProjectId) -> Result<ProfileId
         _ => match profile.platform.as_str() {
             "android" => {
                 let d = &mut Deserializer::from_slice(payload);
-                let _: android::ProfileMetadata = match serde_path_to_error::deserialize(d) {
+                let _: android::legacy::ProfileMetadata = match serde_path_to_error::deserialize(d)
+                {
                     Ok(profile) => profile,
                     Err(err) => {
                         relay_log::warn!(
@@ -161,9 +163,11 @@ pub fn expand_profile(payload: &[u8], event: &Event) -> Result<(ProfileId, Vec<u
             sample::v1::parse_sample_profile(payload, transaction_metadata, transaction_tags)
         }
         _ => match profile.platform.as_str() {
-            "android" => {
-                android::parse_android_profile(payload, transaction_metadata, transaction_tags)
-            }
+            "android" => android::legacy::parse_android_profile(
+                payload,
+                transaction_metadata,
+                transaction_tags,
+            ),
             _ => return Err(ProfileError::PlatformNotSupported),
         },
     };
@@ -212,13 +216,16 @@ pub fn expand_profile_chunk(payload: &[u8]) -> Result<Vec<u8>, ProfileError> {
             return Err(ProfileError::InvalidJson(err));
         }
     };
-    match profile.version {
-        sample::Version::V2 => {
-            let mut profile = sample::v2::parse(payload)?;
-            profile.normalize()?;
-            serde_json::to_vec(&profile).map_err(|_| ProfileError::CannotSerializePayload)
-        }
-        _ => Err(ProfileError::PlatformNotSupported),
+    match profile.platform.as_str() {
+        "android" => android::chunk::parse(payload),
+        _ => match profile.version {
+            sample::Version::V2 => {
+                let mut profile = sample::v2::parse(payload)?;
+                profile.normalize()?;
+                serde_json::to_vec(&profile).map_err(|_| ProfileError::CannotSerializePayload)
+            }
+            _ => Err(ProfileError::PlatformNotSupported),
+        },
     }
 }
 
@@ -256,7 +263,7 @@ mod tests {
 
     #[test]
     fn test_expand_profile_without_version() {
-        let payload = include_bytes!("../tests/fixtures/android/roundtrip.json");
+        let payload = include_bytes!("../tests/fixtures/android/legacy/roundtrip.json");
         assert!(expand_profile(payload, &Event::default()).is_ok());
     }
 }

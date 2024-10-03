@@ -15,9 +15,9 @@ use relay_event_schema::protocol::{EventId, SpanId};
 use serde::{Deserialize, Serialize};
 
 use crate::measurements::Measurement;
-use crate::native_debug_image::NativeDebugImage;
 use crate::sample::v1::SampleProfile;
 use crate::transaction_metadata::TransactionMetadata;
+use crate::types::{ClientSdk, DebugMeta};
 use crate::utils::{deserialize_number_from_string, is_zero};
 use crate::{ProfileError, MAX_PROFILE_DURATION};
 
@@ -80,9 +80,6 @@ pub struct ProfileMetadata {
     #[serde(skip_serializing_if = "Option::is_none")]
     transaction: Option<TransactionMetadata>,
 
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    measurements: Option<HashMap<String, Measurement>>,
-
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     transaction_metadata: BTreeMap<String, String>,
 
@@ -94,12 +91,6 @@ pub struct ProfileMetadata {
 
     #[serde(skip_serializing_if = "Option::is_none")]
     client_sdk: Option<ClientSdk>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ClientSdk {
-    name: String,
-    version: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -115,11 +106,9 @@ struct AndroidProfilingEvent {
 
     #[serde(default = "AndroidProfilingEvent::default")]
     profile: AndroidTraceLog,
-}
 
-#[derive(Default, Debug, Serialize, Deserialize, Clone)]
-struct DebugMeta {
-    images: Vec<NativeDebugImage>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    measurements: Option<HashMap<String, Measurement>>,
 }
 
 impl AndroidProfilingEvent {
@@ -270,7 +259,7 @@ mod tests {
 
     #[test]
     fn test_roundtrip_android() {
-        let payload = include_bytes!("../tests/fixtures/android/roundtrip.json");
+        let payload = include_bytes!("../../tests/fixtures/android/legacy/roundtrip.json");
         let profile = parse_profile(payload);
         assert!(profile.is_ok());
         let data = serde_json::to_vec(&profile.unwrap());
@@ -281,7 +270,7 @@ mod tests {
 
     #[test]
     fn test_roundtrip_react_native() {
-        let payload = include_bytes!("../tests/fixtures/android/roundtrip.rn.json");
+        let payload = include_bytes!("../../tests/fixtures/android/legacy/roundtrip.rn.json");
         let profile = parse_profile(payload);
         assert!(profile.is_ok());
         let data = serde_json::to_vec(&profile.unwrap());
@@ -292,21 +281,23 @@ mod tests {
 
     #[test]
     fn test_no_transaction() {
-        let payload = include_bytes!("../tests/fixtures/android/no_transaction.json");
+        let payload = include_bytes!("../../tests/fixtures/android/legacy/no_transaction.json");
         let data = parse_android_profile(payload, BTreeMap::new(), BTreeMap::new());
         assert!(data.is_err());
     }
 
     #[test]
     fn test_remove_invalid_events() {
-        let payload = include_bytes!("../tests/fixtures/android/remove_invalid_events.json");
+        let payload =
+            include_bytes!("../../tests/fixtures/android/legacy/remove_invalid_events.json");
         let data = parse_android_profile(payload, BTreeMap::new(), BTreeMap::new());
         assert!(data.is_err());
     }
 
     #[test]
     fn test_transactions_to_top_level() {
-        let payload = include_bytes!("../tests/fixtures/android/multiple_transactions.json");
+        let payload =
+            include_bytes!("../../tests/fixtures/android/legacy/multiple_transactions.json");
 
         let profile = match parse_profile(payload) {
             Err(err) => panic!("cannot parse profile: {err:?}"),
@@ -334,7 +325,7 @@ mod tests {
             ),
         ]);
 
-        let payload = include_bytes!("../tests/fixtures/android/valid.json");
+        let payload = include_bytes!("../../tests/fixtures/android/legacy/valid.json");
         let profile_json = parse_android_profile(payload, transaction_metadata, BTreeMap::new());
         assert!(profile_json.is_ok());
 
@@ -356,7 +347,7 @@ mod tests {
 
     #[test]
     fn test_timestamp() {
-        let payload = include_bytes!("../tests/fixtures/android/roundtrip.json");
+        let payload = include_bytes!("../../tests/fixtures/android/legacy/roundtrip.json");
         let profile = parse_profile(payload);
 
         assert!(profile.is_ok());
