@@ -874,6 +874,9 @@ impl Item {
 
     /// Counts how many spans are contained in a transaction payload.
     ///
+    /// The transaction itself represents a span as well, so this function returns
+    /// `len(event.spans) + 1`.
+    ///
     /// Returns zero if
     /// - the item is not a transaction,
     /// - the spans have already been extracted (in which case they are represented elsewhere).
@@ -887,7 +890,7 @@ impl Item {
             return 0;
         }
 
-        serde_json::from_slice::<PartialEvent>(&self.payload()).map_or(0, |event| event.spans.0)
+        serde_json::from_slice::<PartialEvent>(&self.payload()).map_or(0, |event| event.spans.0 + 1)
     }
 
     /// Determines whether the given item creates an event.

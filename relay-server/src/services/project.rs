@@ -720,27 +720,7 @@ mod tests {
         RequestMeta::new(dsn)
     }
 
-    #[test]
-    fn test_track_nested_spans_outcomes() {
-        let mut project = create_project(Some(json!({
-            "features": [
-                "organizations:indexed-spans-extraction"
-            ],
-            "quotas": [{
-               "id": "foo",
-               "categories": ["transaction"],
-               "window": 3600,
-               "limit": 0,
-               "reasonCode": "foo",
-           }]
-        })));
-
-        let mut envelope = Envelope::from_request(Some(EventId::new()), request_meta());
-
-        let mut transaction = Item::new(ItemType::Transaction);
-        transaction.set_payload(
-            ContentType::Json,
-            r#"{
+    const EVENT_WITH_SPANS: &str = r#"{
   "event_id": "52df9022835246eeb317dbd739ccd059",
   "type": "transaction",
   "transaction": "I have a stale timestamp, but I'm recent!",
@@ -766,8 +746,27 @@ mod tests {
       "trace_id": "ff62a8b040f340bda5d830223def1d81"
     }
   ]
-}"#,
-        );
+}"#;
+
+    #[test]
+    fn test_track_nested_spans_outcomes() {
+        let mut project = create_project(Some(json!({
+            "features": [
+                "organizations:indexed-spans-extraction"
+            ],
+            "quotas": [{
+               "id": "foo",
+               "categories": ["transaction"],
+               "window": 3600,
+               "limit": 0,
+               "reasonCode": "foo",
+           }]
+        })));
+
+        let mut envelope = Envelope::from_request(Some(EventId::new()), request_meta());
+
+        let mut transaction = Item::new(ItemType::Transaction);
+        transaction.set_payload(ContentType::Json, EVENT_WITH_SPANS);
 
         envelope.add_item(transaction);
 
@@ -790,6 +789,61 @@ mod tests {
             (DataCategory::Span, 3),
             (DataCategory::SpanIndexed, 3),
         ];
+
+        for (expected_category, expected_quantity) in expected {
+            let outcome = outcome_aggregator_rx.blocking_recv().unwrap();
+            assert_eq!(outcome.category, expected_category);
+            assert_eq!(outcome.quantity, expected_quantity);
+        }
+    }
+
+    #[test]
+    fn test_track_nested_spans_outcomes_span_quota() {
+        let mut project = create_project(Some(json!({
+            "features": [
+                "organizations:indexed-spans-extraction"
+            ],
+            "quotas": [{
+               "id": "foo",
+               "categories": ["span_indexed"],
+               "window": 3600,
+               "limit": 0,
+               "reasonCode": "foo",
+           }]
+        })));
+
+        let mut envelope = Envelope::from_request(Some(EventId::new()), request_meta());
+
+        let mut transaction = Item::new(ItemType::Transaction);
+        transaction.set_payload(ContentType::Json, EVENT_WITH_SPANS);
+
+        envelope.add_item(transaction);
+
+        let (outcome_aggregator, mut outcome_aggregator_rx) = Addr::custom();
+        let (test_store, _) = Addr::custom();
+
+        let managed_envelope = ManagedEnvelope::new(
+            envelope,
+            outcome_aggregator.clone(),
+            test_store,
+            ProcessingGroup::Transaction,
+        );
+
+        let CheckedEnvelope {
+            envelope,
+            rate_limits: _,
+        } = project.check_envelope(managed_envelope).unwrap();
+        let envelope = envelope.unwrap();
+        let transaction_item = envelope
+            .envelope()
+            .items()
+            .find(|i| *i.ty() == ItemType::Transaction)
+            .unwrap();
+        assert!(transaction_item.spans_extracted());
+
+        drop(outcome_aggregator);
+
+        let expected = [(DataCategory::SpanIndexed, 3)];
 
         for (expected_category, expected_quantity) in expected {
             let outcome = outcome_aggregator_rx.blocking_recv().unwrap();
