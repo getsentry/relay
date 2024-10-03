@@ -5,6 +5,7 @@ use std::num::NonZeroUsize;
 use relay_base_schema::project::ProjectKey;
 
 use crate::envelope::Envelope;
+use crate::services::buffer::envelope_buffer::SpoolOrchestrator;
 use crate::services::buffer::envelope_stack::EnvelopeStack;
 use crate::services::buffer::envelope_store::sqlite::{
     SqliteEnvelopeStore, SqliteEnvelopeStoreError,
@@ -26,6 +27,9 @@ pub enum SqliteEnvelopeStackError {
 pub struct SqliteEnvelopeStack {
     /// Shared SQLite database pool which will be used to read and write from disk.
     envelope_store: SqliteEnvelopeStore,
+    /// Spooling orchestrator used to notify the envelope buffer when new envelopes are added or
+    /// removed from this stack.
+    spool_orchestrator: SpoolOrchestrator,
     /// Threshold defining the maximum number of envelopes in the `batches_buffer` before spooling
     /// to disk will take place.
     spool_threshold: NonZeroUsize,
@@ -49,6 +53,7 @@ impl SqliteEnvelopeStack {
     /// Creates a new empty [`SqliteEnvelopeStack`].
     pub fn new(
         envelope_store: SqliteEnvelopeStore,
+        spool_orchestrator: SpoolOrchestrator,
         disk_batch_size: usize,
         max_batches: usize,
         own_key: ProjectKey,
@@ -57,6 +62,7 @@ impl SqliteEnvelopeStack {
     ) -> Self {
         Self {
             envelope_store,
+            spool_orchestrator,
             spool_threshold: NonZeroUsize::new(disk_batch_size * max_batches)
                 .expect("the spool threshold must be > 0"),
             batch_size: NonZeroUsize::new(disk_batch_size)
@@ -69,51 +75,10 @@ impl SqliteEnvelopeStack {
         }
     }
 
-    /// Threshold above which the [`SqliteEnvelopeStack`] will spool data from the `buffer` to disk.
-    fn above_spool_threshold(&self) -> bool {
-        self.batches_buffer_size >= self.spool_threshold.get()
-    }
-
     /// Threshold below which the [`SqliteEnvelopeStack`] will unspool data from disk to the
     /// `buffer`.
     fn below_unspool_threshold(&self) -> bool {
         self.batches_buffer_size == 0
-    }
-
-    /// Spools to disk up to `disk_batch_size` envelopes from the `buffer`.
-    ///
-    /// In case there is a failure while writing envelopes, all the envelopes that were enqueued
-    /// to be written to disk are lost. The explanation for this behavior can be found in the body
-    /// of the method.
-    async fn spool_to_disk(&mut self) -> Result<(), SqliteEnvelopeStackError> {
-        let Some(envelopes) = self.batches_buffer.pop_front() else {
-            return Ok(());
-        };
-        self.batches_buffer_size -= envelopes.len();
-
-        relay_statsd::metric!(
-            counter(RelayCounters::BufferSpooledEnvelopes) += envelopes.len() as u64
-        );
-
-        // We convert envelopes into a format which simplifies insertion in the store. If an
-        // envelope can't be serialized, we will not insert it.
-        let envelopes = envelopes.iter().filter_map(|e| e.as_ref().try_into().ok());
-
-        // When early return here, we are acknowledging that the elements that we popped from
-        // the buffer are lost in case of failure. We are doing this on purposes, since if we were
-        // to have a database corruption during runtime, and we were to put the values back into
-        // the buffer we will end up with an infinite cycle.
-        relay_statsd::metric!(timer(RelayTimers::BufferSpool), {
-            self.envelope_store
-                .insert_many(envelopes)
-                .await
-                .map_err(SqliteEnvelopeStackError::EnvelopeStoreError)?;
-        });
-
-        // If we successfully spooled to disk, we know that data should be there.
-        self.check_disk = true;
-
-        Ok(())
     }
 
     /// Unspools from disk up to `disk_batch_size` envelopes and appends them to the `buffer`.
@@ -171,10 +136,6 @@ impl EnvelopeStack for SqliteEnvelopeStack {
     async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), Self::Error> {
         debug_assert!(self.validate_envelope(&envelope));
 
-        if self.above_spool_threshold() {
-            self.spool_to_disk().await?;
-        }
-
         // We need to check if the topmost batch has space, if not we have to create a new batch and
         // push it in front.
         if let Some(last_batch) = self
@@ -189,6 +150,10 @@ impl EnvelopeStack for SqliteEnvelopeStack {
             self.batches_buffer.push_back(new_batch);
         }
 
+        self.spool_orchestrator.increment();
+        if self.spool_orchestrator.should_spool().is_some() {
+            self.check_disk = true;
+        }
         self.batches_buffer_size += 1;
 
         Ok(())
@@ -215,6 +180,7 @@ impl EnvelopeStack for SqliteEnvelopeStack {
         }
 
         let result = self.batches_buffer.back_mut().and_then(|last_batch| {
+            self.spool_orchestrator.decrement();
             self.batches_buffer_size -= 1;
             relay_log::trace!("Popping from memory");
             last_batch.pop()
@@ -256,6 +222,7 @@ mod tests {
         let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store,
+            SpoolOrchestrator::NeverSpool,
             2,
             2,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -273,6 +240,7 @@ mod tests {
         let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store,
+            SpoolOrchestrator::NeverSpool,
             2,
             2,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -326,6 +294,7 @@ mod tests {
         let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store,
+            SpoolOrchestrator::NeverSpool,
             2,
             2,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -346,6 +315,7 @@ mod tests {
         let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store,
+            SpoolOrchestrator::NeverSpool,
             2,
             2,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -364,6 +334,7 @@ mod tests {
         let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store,
+            SpoolOrchestrator::NeverSpool,
             5,
             2,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -402,6 +373,7 @@ mod tests {
         let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store,
+            SpoolOrchestrator::NeverSpool,
             5,
             2,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -472,6 +444,7 @@ mod tests {
         let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store.clone(),
+            SpoolOrchestrator::NeverSpool,
             5,
             1,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),

@@ -3,8 +3,8 @@ use std::collections::BTreeSet;
 use std::convert::Infallible;
 use std::error::Error;
 use std::mem;
-use std::sync::atomic::AtomicI64;
 use std::sync::atomic::Ordering as AtomicOrdering;
+use std::sync::atomic::{AtomicI64, AtomicU64};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -175,6 +175,79 @@ impl From<Infallible> for EnvelopeBufferError {
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum SpoolOrchestrator {
+    /// A [`SpoolOrchestrator`] that can signal spooling based on the counter and configuration
+    /// parameters.
+    CanSpool {
+        disk_batch_size: usize,
+        max_batches: usize,
+        /// The total count of envelopes that are currently in memory and that the buffer is working with.
+        ///
+        /// This counter is meant to be shared and updates individually by each [`EnvelopeStack`].
+        total_in_memory_count: Arc<AtomicU64>,
+    },
+    /// A [`SpoolOrchestrator`] that will never signal to spool. This orchestrator can be used in
+    /// tandem with buffering strategies that do not need spooling.
+    NeverSpool,
+}
+
+impl SpoolOrchestrator {
+    /// Creates a new instance of the [`SpoolOrchestrator`].
+    fn new(config: &Config) -> Self {
+        Self::CanSpool {
+            disk_batch_size: config.spool_envelopes_stack_disk_batch_size(),
+            max_batches: config.spool_envelopes_stack_max_batches(),
+            total_in_memory_count: Arc::new(AtomicU64::new(0)),
+        }
+    }
+
+    /// Creates a new instance of the [`SpoolOrchestrator`] which will never spool.
+    fn never() -> Self {
+        Self::NeverSpool
+    }
+
+    pub fn increment(&mut self) {
+        if let Self::CanSpool {
+            total_in_memory_count,
+            ..
+        } = self
+        {
+            total_in_memory_count.fetch_add(1, AtomicOrdering::SeqCst);
+        }
+    }
+
+    pub fn decrement(&mut self) {
+        if let Self::CanSpool {
+            total_in_memory_count,
+            ..
+        } = self
+        {
+            total_in_memory_count.fetch_sub(1, AtomicOrdering::SeqCst);
+        }
+    }
+
+    pub fn should_spool(&self) -> Option<usize> {
+        match self {
+            SpoolOrchestrator::CanSpool {
+                total_in_memory_count,
+                disk_batch_size,
+                max_batches,
+            } => {
+                let total_in_memory_count = total_in_memory_count.load(AtomicOrdering::Relaxed);
+                if total_in_memory_count <= (disk_batch_size * max_batches) as u64 {
+                    return None;
+                }
+
+                // The in memory count will be decremented by each envelope stack when the envelopes are
+                // going to be flushed.
+                Some(*disk_batch_size)
+            }
+            SpoolOrchestrator::NeverSpool => None,
+        }
+    }
+}
+
 /// An envelope buffer that holds an individual stack for each project/sampling project combination.
 ///
 /// Envelope stacks are organized in a priority queue, and are re-prioritized every time an envelope
@@ -196,12 +269,14 @@ struct EnvelopeBuffer<P: StackProvider> {
     /// count might not succeed if it takes more than a set timeout. For example, if we load the
     /// count of all envelopes from disk, and it takes more than the time we set, we will mark the
     /// initial count as 0 and just count incoming and outgoing envelopes from the buffer.
-    total_count: Arc<AtomicI64>,
+    total_count: AtomicI64,
     /// Whether the count initialization succeeded or not.
     ///
     /// This boolean is just used for tagging the metric that tracks the total count of envelopes
     /// in the buffer.
     total_count_initialized: bool,
+    /// Utility used to keep track of the necessity to spool across [`EnvelopeStack`]s.
+    spool_orchestrator: SpoolOrchestrator,
 }
 
 impl EnvelopeBuffer<MemoryStackProvider> {
@@ -211,8 +286,9 @@ impl EnvelopeBuffer<MemoryStackProvider> {
             stacks_by_project: Default::default(),
             priority_queue: Default::default(),
             stack_provider: MemoryStackProvider::new(memory_checker),
-            total_count: Arc::new(AtomicI64::new(0)),
+            total_count: AtomicI64::new(0),
             total_count_initialized: false,
+            spool_orchestrator: SpoolOrchestrator::never(),
         }
     }
 }
@@ -221,12 +297,15 @@ impl EnvelopeBuffer<MemoryStackProvider> {
 impl EnvelopeBuffer<SqliteStackProvider> {
     /// Creates an empty sqlite-based buffer.
     pub async fn new(config: &Config) -> Result<Self, EnvelopeBufferError> {
+        let spool_orchestrator = SpoolOrchestrator::new(config);
+
         Ok(Self {
             stacks_by_project: Default::default(),
             priority_queue: Default::default(),
-            stack_provider: SqliteStackProvider::new(config).await?,
-            total_count: Arc::new(AtomicI64::new(0)),
+            stack_provider: SqliteStackProvider::new(config, spool_orchestrator.clone()).await?,
+            total_count: AtomicI64::new(0),
             total_count_initialized: false,
+            spool_orchestrator,
         })
     }
 }

@@ -3,6 +3,7 @@ use std::error::Error;
 use relay_config::Config;
 
 use crate::services::buffer::common::ProjectKeyPair;
+use crate::services::buffer::envelope_buffer::SpoolOrchestrator;
 use crate::services::buffer::envelope_store::sqlite::{
     SqliteEnvelopeStore, SqliteEnvelopeStoreError,
 };
@@ -15,6 +16,7 @@ use crate::{Envelope, EnvelopeStack, SqliteEnvelopeStack};
 #[derive(Debug)]
 pub struct SqliteStackProvider {
     envelope_store: SqliteEnvelopeStore,
+    spool_orchestrator: SpoolOrchestrator,
     disk_batch_size: usize,
     max_batches: usize,
     max_disk_size: usize,
@@ -24,10 +26,14 @@ pub struct SqliteStackProvider {
 #[warn(dead_code)]
 impl SqliteStackProvider {
     /// Creates a new [`SqliteStackProvider`] from the provided [`Config`].
-    pub async fn new(config: &Config) -> Result<Self, SqliteEnvelopeStoreError> {
+    pub async fn new(
+        config: &Config,
+        spool_orchestrator: SpoolOrchestrator,
+    ) -> Result<Self, SqliteEnvelopeStoreError> {
         let envelope_store = SqliteEnvelopeStore::prepare(config).await?;
         Ok(Self {
             envelope_store,
+            spool_orchestrator,
             disk_batch_size: config.spool_envelopes_stack_disk_batch_size(),
             max_batches: config.spool_envelopes_stack_max_batches(),
             max_disk_size: config.spool_envelopes_max_disk_size(),
