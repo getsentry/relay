@@ -120,20 +120,52 @@ impl Pattern {
 
     /// Returns `true` if the pattern matches the passed string.
     pub fn is_match(&self, haystack: &str) -> bool {
-        match &self.strategy {
-            MatchStrategy::Literal(literal) => match_literal(literal, haystack, self.options),
-            MatchStrategy::Prefix(prefix) => match_prefix(prefix, haystack, self.options),
-            MatchStrategy::Suffix(suffix) => match_suffix(suffix, haystack, self.options),
-            MatchStrategy::Contains(contains) => match_contains(contains, haystack, self.options),
-            MatchStrategy::Static(matches) => *matches,
-            MatchStrategy::Wildmatch(tokens) => wildmatch::is_match(haystack, tokens, self.options),
-        }
+        self.strategy.is_match(haystack, self.options)
     }
 }
 
 impl fmt::Display for Pattern {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.pattern)
+    }
+}
+
+/// A collection of [`Pattern`]s sharing the same configuration.
+#[derive(Debug, Clone)]
+pub struct Patterns {
+    strategies: Vec<MatchStrategy>,
+    options: Options,
+}
+
+impl Patterns {
+    /// Creates an empty [`Patterns`] instance which never matches anything.
+    ///
+    /// ```
+    /// # use relay_pattern::Patterns;
+    /// let patterns = Patterns::empty();
+    ///
+    /// assert!(!patterns.is_match(""));
+    /// assert!(!patterns.is_match("foobar"));
+    /// ```
+    pub fn empty() -> Self {
+        Self {
+            strategies: Vec::new(),
+            options: Options::default(),
+        }
+    }
+
+    /// Returns a [`PatternsBuilder`].
+    pub fn builder() -> PatternsBuilder {
+        PatternsBuilder {
+            options: Options::default(),
+        }
+    }
+
+    /// Returns `true` if any of the contained patterns matches the passed string.
+    pub fn is_match(&self, haystack: &str) -> bool {
+        self.strategies
+            .iter()
+            .any(|s| s.is_match(haystack, self.options))
     }
 }
 
@@ -165,7 +197,7 @@ impl<'a> PatternBuilder<'a> {
         self
     }
 
-    /// build a new [`Pattern`] from the passed pattern and configured options.
+    /// Build a new [`Pattern`] from the passed pattern and configured options.
     pub fn build(&self) -> Result<Pattern, Error> {
         let mut parser = Parser::new(self.pattern, self.options);
         parser.parse().map_err(|kind| Error {
@@ -194,6 +226,88 @@ impl<'a> PatternBuilder<'a> {
             options: self.options,
             strategy,
         })
+    }
+}
+
+/// A builder for a collection of [`Patterns`].
+#[derive(Debug)]
+pub struct PatternsBuilder {
+    options: Options,
+}
+
+impl PatternsBuilder {
+    /// If enabled matches the pattern case insensitive.
+    ///
+    /// This is disabled by default.
+    pub fn case_insensitive(&mut self, enabled: bool) -> &mut Self {
+        self.options.case_insensitive = enabled;
+        self
+    }
+
+    /// Returns a [`PatternsBuilderConfigured`] builder which allows adding patterns.
+    pub fn patterns(&mut self) -> PatternsBuilderConfigured {
+        PatternsBuilderConfigured {
+            strategies: Vec::new(),
+            options: self.options,
+        }
+    }
+
+    /// Adds a pattern to the builder and returns the resulting [`PatternsBuilderConfigured`].
+    pub fn add(&mut self, pattern: &str) -> Result<PatternsBuilderConfigured, Error> {
+        let mut builder = PatternsBuilderConfigured {
+            strategies: Vec::with_capacity(1),
+            options: self.options,
+        };
+        builder.add(pattern)?;
+        Ok(builder)
+    }
+}
+
+/// A [`PatternsBuilder`] with all options configured.
+///
+/// The second step after [`PatternsBuilder`].
+#[derive(Debug)]
+pub struct PatternsBuilderConfigured {
+    strategies: Vec<MatchStrategy>,
+    options: Options,
+}
+
+impl PatternsBuilderConfigured {
+    /// Adds a pattern to the builder.
+    pub fn add(&mut self, pattern: &str) -> Result<&mut Self, Error> {
+        let mut parser = Parser::new(pattern, self.options);
+        parser.parse().map_err(|kind| Error {
+            pattern: pattern.to_owned(),
+            kind,
+        })?;
+
+        let strategy =
+            MatchStrategy::from_tokens(parser.tokens, self.options).map_err(|kind| Error {
+                pattern: pattern.to_owned(),
+                kind,
+            })?;
+
+        self.strategies.push(strategy);
+
+        Ok(self)
+    }
+
+    /// Builds a [`Patterns`] from the contained patterns.
+    pub fn build(self) -> Patterns {
+        Patterns {
+            strategies: self.strategies,
+            options: self.options,
+        }
+    }
+
+    /// Returns [`Patterns`] containing all added patterns and removes them from the builder.
+    ///
+    /// The builder can still be used afterwards, it keeps the configuration.
+    pub fn take(&mut self) -> Patterns {
+        Patterns {
+            strategies: std::mem::take(&mut self.strategies),
+            options: self.options,
+        }
     }
 }
 
@@ -262,6 +376,18 @@ impl MatchStrategy {
         };
 
         Ok(s)
+    }
+
+    /// Returns `true` if the pattern matches the passed string.
+    pub fn is_match(&self, haystack: &str, options: Options) -> bool {
+        match &self {
+            MatchStrategy::Literal(literal) => match_literal(literal, haystack, options),
+            MatchStrategy::Prefix(prefix) => match_prefix(prefix, haystack, options),
+            MatchStrategy::Suffix(suffix) => match_suffix(suffix, haystack, options),
+            MatchStrategy::Contains(contains) => match_contains(contains, haystack, options),
+            MatchStrategy::Static(matches) => *matches,
+            MatchStrategy::Wildmatch(tokens) => wildmatch::is_match(haystack, tokens, options),
+        }
     }
 }
 
@@ -1660,5 +1786,63 @@ mod tests {
             .max_complexity(6)
             .build()
             .is_ok());
+    }
+
+    #[test]
+    fn test_patterns() {
+        let patterns = Patterns::builder()
+            .add("foobaR")
+            .unwrap()
+            .add("a*")
+            .unwrap()
+            .add("*a")
+            .unwrap()
+            .add("[0-9]*baz")
+            .unwrap()
+            .take();
+
+        assert!(patterns.is_match("foobaR"));
+        assert!(patterns.is_match("abc"));
+        assert!(patterns.is_match("cba"));
+        assert!(patterns.is_match("3baz"));
+        assert!(patterns.is_match("123456789baz"));
+        assert!(!patterns.is_match("foobar"));
+        assert!(!patterns.is_match("FOOBAR"));
+    }
+
+    #[test]
+    fn test_patterns_case_insensitive() {
+        let patterns = Patterns::builder()
+            .case_insensitive(true)
+            .add("fOObar")
+            .unwrap()
+            .add("a*")
+            .unwrap()
+            .add("*a")
+            .unwrap()
+            .add("[0-9]*baz")
+            .unwrap()
+            .take();
+
+        assert!(patterns.is_match("FooBar"));
+        assert!(patterns.is_match("abC"));
+        assert!(patterns.is_match("cbA"));
+        assert!(patterns.is_match("3BAZ"));
+        assert!(patterns.is_match("123456789baz"));
+        assert!(!patterns.is_match("b"));
+    }
+
+    #[test]
+    fn test_patterns_take_clears_builder() {
+        let mut builder = Patterns::builder().add("foo").unwrap();
+
+        let patterns = builder.take();
+        assert!(patterns.is_match("foo"));
+        assert!(!patterns.is_match("bar"));
+
+        builder.add("bar").unwrap();
+        let patterns = builder.build();
+        assert!(!patterns.is_match("foo"));
+        assert!(patterns.is_match("bar"));
     }
 }
