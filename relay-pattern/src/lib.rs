@@ -25,6 +25,17 @@
 //! * `[!a-z]` matches one character that is not in the given range.
 //! * `{a,b}` matches any pattern within the alternation group.
 //! * `\` escapes any of the above special characters and treats it as a literal.
+//!
+//! # Complexity
+//!
+//! Patterns can be limited to a maximum complexity using [`PatternBuilder::max_complexity`].
+//! Complexity of a pattern is calculated by the amount of possible combinations created with
+//! alternations.
+//!
+//! For example, the pattern `{foo,bar}` has a complexity of 2, the pattern `{foo,bar}/{*.html,*.js,*.css}`
+//! has a complexity of `2 * 3`.
+//!
+//! For untrusted user input it is highly recommended to limit the maximum complexity.
 
 use std::fmt;
 use std::num::NonZeroUsize;
@@ -56,6 +67,11 @@ enum ErrorKind {
     UnbalancedAlternates,
     /// Dangling escape character.
     DanglingEscape,
+    /// The pattern's complexity exceeds the maximum allowed complexity.
+    Complexity {
+        complexity: u64,
+        max_complexity: u64,
+    },
 }
 
 impl std::error::Error for Error {}
@@ -72,6 +88,8 @@ impl fmt::Display for Error {
             ErrorKind::NestedAlternates => write!(f, "Nested alternates"),
             ErrorKind::UnbalancedAlternates => write!(f, "Unbalanced alternates"),
             ErrorKind::DanglingEscape => write!(f, "Dangling escape"),
+            ErrorKind::Complexity { complexity, max_complexity } =>
+                write!(f, "Pattern complexity ({complexity}) exceeds maximum allowed complexity ({max_complexity})"),
         }
     }
 }
@@ -96,6 +114,7 @@ impl Pattern {
         PatternBuilder {
             pattern,
             options: Options::default(),
+            max_complexity: u64::MAX,
         }
     }
 
@@ -122,6 +141,7 @@ impl fmt::Display for Pattern {
 #[derive(Debug)]
 pub struct PatternBuilder<'a> {
     pattern: &'a str,
+    max_complexity: u64,
     options: Options,
 }
 
@@ -134,6 +154,17 @@ impl<'a> PatternBuilder<'a> {
         self
     }
 
+    /// Sets the max complexity for this pattern.
+    ///
+    /// Attempting to build a pattern with a complexity higher
+    /// than the maximum specified here will fail.
+    ///
+    /// Defaults to `u64::MAX`.
+    pub fn max_complexity(&mut self, max_complexity: u64) -> &mut Self {
+        self.max_complexity = max_complexity;
+        self
+    }
+
     /// build a new [`Pattern`] from the passed pattern and configured options.
     pub fn build(&self) -> Result<Pattern, Error> {
         let mut parser = Parser::new(self.pattern, self.options);
@@ -141,6 +172,16 @@ impl<'a> PatternBuilder<'a> {
             pattern: self.pattern.to_owned(),
             kind,
         })?;
+
+        if parser.complexity > self.max_complexity {
+            return Err(Error {
+                pattern: self.pattern.to_owned(),
+                kind: ErrorKind::Complexity {
+                    complexity: parser.complexity,
+                    max_complexity: self.max_complexity,
+                },
+            });
+        }
 
         let strategy =
             MatchStrategy::from_tokens(parser.tokens, self.options).map_err(|kind| Error {
@@ -305,6 +346,7 @@ struct Parser<'a> {
     alternates: Option<Vec<Tokens>>,
     current_literal: Option<String>,
     options: Options,
+    complexity: u64,
 }
 
 impl<'a> Parser<'a> {
@@ -315,6 +357,7 @@ impl<'a> Parser<'a> {
             alternates: None,
             current_literal: None,
             options,
+            complexity: 0,
         }
     }
 
@@ -360,7 +403,15 @@ impl<'a> Parser<'a> {
         self.finish_literal();
         match self.alternates.take() {
             None => return Err(ErrorKind::UnbalancedAlternates),
-            Some(alternates) => self.push_token(Token::Alternates(alternates)),
+            Some(alternates) => {
+                if !alternates.is_empty() {
+                    self.complexity = self
+                        .complexity
+                        .max(1)
+                        .saturating_mul(alternates.len() as u64);
+                    self.push_token(Token::Alternates(alternates));
+                }
+            }
         }
 
         Ok(())
@@ -1589,5 +1640,25 @@ mod tests {
             "abcabcdabcdabcabcdabcdabcabcdabcabcabcd"
         );
         assert_pattern!("?abc?", "?abc?");
+    }
+
+    #[test]
+    fn test_builder_complexity() {
+        assert!(Pattern::builder("{foo,bar}")
+            .max_complexity(1)
+            .build()
+            .is_err());
+        assert!(Pattern::builder("{foo,bar}")
+            .max_complexity(2)
+            .build()
+            .is_ok());
+        assert!(Pattern::builder("{foo,bar}/{*.html,*.js,*.css}")
+            .max_complexity(5)
+            .build()
+            .is_err());
+        assert!(Pattern::builder("{foo,bar}/{*.html,*.js,*.css}")
+            .max_complexity(6)
+            .build()
+            .is_ok());
     }
 }
