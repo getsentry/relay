@@ -771,10 +771,10 @@ def test_outcomes_rate_limit(
     relay = relay_with_processing(config)
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    reason_code = "transactions are banned"
+    reason_code = "banned"
     project_config["config"]["quotas"] = [
         {
-            "id": "transaction category",
+            "id": "some_id",
             "categories": [category],
             "limit": 0,
             "window": 1600,

@@ -118,6 +118,7 @@ impl DataCategory {
             "span" => Self::Span,
             "monitor_seat" => Self::MonitorSeat,
             "feedback" => Self::UserReportV2,
+            "user_report_v2" => Self::UserReportV2,
             "metric_bucket" => Self::MetricBucket,
             "span_indexed" => Self::SpanIndexed,
             "profile_duration" => Self::ProfileDuration,
