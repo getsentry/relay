@@ -10,10 +10,7 @@ use tempfile::TempDir;
 use tokio::runtime::Runtime;
 
 use relay_base_schema::project::ProjectKey;
-use relay_server::{
-    Envelope, EnvelopeStack, MemoryChecker, MemoryStat, PolymorphicEnvelopeBuffer,
-    SqliteEnvelopeStack, SqliteEnvelopeStore,
-};
+use relay_server::{Envelope, EnvelopeBufferImpl, MemoryChecker, MemoryStat, SqliteEnvelopeStore};
 
 fn setup_db(path: &PathBuf) -> Pool<Sqlite> {
     let options = SqliteConnectOptions::new()
@@ -70,150 +67,151 @@ fn mock_envelope_with_project_key(project_key: &ProjectKey, size: &str) -> Box<E
     envelope
 }
 
-fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
-    let temp_dir = TempDir::new().unwrap();
-    let db_path = temp_dir.path().join("test.db");
-    let db = setup_db(&db_path);
-    let envelope_store = SqliteEnvelopeStore::new(db.clone(), Duration::from_millis(100));
-
-    let runtime = Runtime::new().unwrap();
-
-    let mut group = c.benchmark_group("sqlite_envelope_stack");
-    group.measurement_time(Duration::from_secs(60));
-
-    let disk_batch_size = 1000;
-    for size in [1_000, 10_000, 100_000].iter() {
-        for envelope_size in &["small", "medium", "big", "huge"] {
-            group.throughput(Throughput::Elements(*size as u64));
-
-            // Benchmark push operations
-            group.bench_with_input(
-                BenchmarkId::new(format!("push_{}", envelope_size), size),
-                size,
-                |b, &size| {
-                    b.iter_with_setup(
-                        || {
-                            runtime.block_on(async {
-                                reset_db(db.clone()).await;
-                            });
-
-                            let stack = SqliteEnvelopeStack::new(
-                                envelope_store.clone(),
-                                disk_batch_size,
-                                2,
-                                ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
-                                ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
-                                true,
-                            );
-
-                            let mut envelopes = Vec::with_capacity(size);
-                            for _ in 0..size {
-                                envelopes.push(mock_envelope(envelope_size));
-                            }
-
-                            (stack, envelopes)
-                        },
-                        |(mut stack, envelopes)| {
-                            runtime.block_on(async {
-                                for envelope in envelopes {
-                                    stack.push(envelope).await.unwrap();
-                                }
-                            });
-                        },
-                    );
-                },
-            );
-
-            // Benchmark pop operations
-            group.bench_with_input(
-                BenchmarkId::new(format!("pop_{}", envelope_size), size),
-                size,
-                |b, &size| {
-                    b.iter_with_setup(
-                        || {
-                            runtime.block_on(async {
-                                reset_db(db.clone()).await;
-
-                                let mut stack = SqliteEnvelopeStack::new(
-                                    envelope_store.clone(),
-                                    disk_batch_size,
-                                    2,
-                                    ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
-                                    ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
-                                    true,
-                                );
-
-                                // Pre-fill the stack
-                                for _ in 0..size {
-                                    let envelope = mock_envelope(envelope_size);
-                                    stack.push(envelope).await.unwrap();
-                                }
-
-                                stack
-                            })
-                        },
-                        |mut stack| {
-                            runtime.block_on(async {
-                                // Benchmark popping
-                                for _ in 0..size {
-                                    stack.pop().await.unwrap();
-                                }
-                            });
-                        },
-                    );
-                },
-            );
-
-            // Benchmark mixed push and pop operations
-            group.bench_with_input(
-                BenchmarkId::new(format!("mixed_{}", envelope_size), size),
-                size,
-                |b, &size| {
-                    b.iter_with_setup(
-                        || {
-                            runtime.block_on(async {
-                                reset_db(db.clone()).await;
-                            });
-
-                            let stack = SqliteEnvelopeStack::new(
-                                envelope_store.clone(),
-                                disk_batch_size,
-                                2,
-                                ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
-                                ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
-                                true,
-                            );
-
-                            // Pre-generate envelopes
-                            let envelopes: Vec<Box<Envelope>> =
-                                (0..size).map(|_| mock_envelope(envelope_size)).collect();
-
-                            (stack, envelopes)
-                        },
-                        |(mut stack, envelopes)| {
-                            runtime.block_on(async {
-                                let mut envelope_iter = envelopes.into_iter();
-                                for _ in 0..size {
-                                    if rand::random::<bool>() {
-                                        if let Some(envelope) = envelope_iter.next() {
-                                            stack.push(envelope).await.unwrap();
-                                        }
-                                    } else if stack.pop().await.is_err() {
-                                        // If pop fails (empty stack), push instead
-                                        if let Some(envelope) = envelope_iter.next() {
-                                            stack.push(envelope).await.unwrap();
-                                        }
-                                    }
-                                }
-                            });
-                        },
-                    );
-                },
-            );
-        }
-    }
-
-    group.finish();
+// TODO: update benchmark to use the envelope provider.
+fn benchmark_sqlite_envelope_provider(c: &mut Criterion) {
+    // let temp_dir = TempDir::new().unwrap();
+    // let db_path = temp_dir.path().join("test.db");
+    // let db = setup_db(&db_path);
+    // let envelope_store = SqliteEnvelopeStore::new(db.clone(), Duration::from_millis(100));
+    //
+    // let runtime = Runtime::new().unwrap();
+    //
+    // let mut group = c.benchmark_group("sqlite_envelope_stack");
+    // group.measurement_time(Duration::from_secs(60));
+    //
+    // let disk_batch_size = 1000;
+    // for size in [1_000, 10_000, 100_000].iter() {
+    //     for envelope_size in &["small", "medium", "big", "huge"] {
+    //         group.throughput(Throughput::Elements(*size as u64));
+    //
+    //         // Benchmark push operations
+    //         group.bench_with_input(
+    //             BenchmarkId::new(format!("push_{}", envelope_size), size),
+    //             size,
+    //             |b, &size| {
+    //                 b.iter_with_setup(
+    //                     || {
+    //                         runtime.block_on(async {
+    //                             reset_db(db.clone()).await;
+    //                         });
+    //
+    //                         let stack = SqliteEnvelopeStack::new(
+    //                             envelope_store.clone(),
+    //                             disk_batch_size,
+    //                             2,
+    //                             ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
+    //                             ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
+    //                             true,
+    //                         );
+    //
+    //                         let mut envelopes = Vec::with_capacity(size);
+    //                         for _ in 0..size {
+    //                             envelopes.push(mock_envelope(envelope_size));
+    //                         }
+    //
+    //                         (stack, envelopes)
+    //                     },
+    //                     |(mut stack, envelopes)| {
+    //                         runtime.block_on(async {
+    //                             for envelope in envelopes {
+    //                                 stack.push(envelope).await.unwrap();
+    //                             }
+    //                         });
+    //                     },
+    //                 );
+    //             },
+    //         );
+    //
+    //         // Benchmark pop operations
+    //         group.bench_with_input(
+    //             BenchmarkId::new(format!("pop_{}", envelope_size), size),
+    //             size,
+    //             |b, &size| {
+    //                 b.iter_with_setup(
+    //                     || {
+    //                         runtime.block_on(async {
+    //                             reset_db(db.clone()).await;
+    //
+    //                             let mut stack = SqliteEnvelopeStack::new(
+    //                                 envelope_store.clone(),
+    //                                 disk_batch_size,
+    //                                 2,
+    //                                 ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
+    //                                 ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
+    //                                 true,
+    //                             );
+    //
+    //                             // Pre-fill the stack
+    //                             for _ in 0..size {
+    //                                 let envelope = mock_envelope(envelope_size);
+    //                                 stack.push(envelope).await.unwrap();
+    //                             }
+    //
+    //                             stack
+    //                         })
+    //                     },
+    //                     |mut stack| {
+    //                         runtime.block_on(async {
+    //                             // Benchmark popping
+    //                             for _ in 0..size {
+    //                                 stack.pop().await.unwrap();
+    //                             }
+    //                         });
+    //                     },
+    //                 );
+    //             },
+    //         );
+    //
+    //         // Benchmark mixed push and pop operations
+    //         group.bench_with_input(
+    //             BenchmarkId::new(format!("mixed_{}", envelope_size), size),
+    //             size,
+    //             |b, &size| {
+    //                 b.iter_with_setup(
+    //                     || {
+    //                         runtime.block_on(async {
+    //                             reset_db(db.clone()).await;
+    //                         });
+    //
+    //                         let stack = SqliteEnvelopeStack::new(
+    //                             envelope_store.clone(),
+    //                             disk_batch_size,
+    //                             2,
+    //                             ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
+    //                             ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
+    //                             true,
+    //                         );
+    //
+    //                         // Pre-generate envelopes
+    //                         let envelopes: Vec<Box<Envelope>> =
+    //                             (0..size).map(|_| mock_envelope(envelope_size)).collect();
+    //
+    //                         (stack, envelopes)
+    //                     },
+    //                     |(mut stack, envelopes)| {
+    //                         runtime.block_on(async {
+    //                             let mut envelope_iter = envelopes.into_iter();
+    //                             for _ in 0..size {
+    //                                 if rand::random::<bool>() {
+    //                                     if let Some(envelope) = envelope_iter.next() {
+    //                                         stack.push(envelope).await.unwrap();
+    //                                     }
+    //                                 } else if stack.pop().await.is_err() {
+    //                                     // If pop fails (empty stack), push instead
+    //                                     if let Some(envelope) = envelope_iter.next() {
+    //                                         stack.push(envelope).await.unwrap();
+    //                                     }
+    //                                 }
+    //                             }
+    //                         });
+    //                     },
+    //                 );
+    //             },
+    //         );
+    //     }
+    // }
+    //
+    // group.finish();
 }
 
 fn benchmark_envelope_buffer(c: &mut Criterion) {
@@ -262,7 +260,7 @@ fn benchmark_envelope_buffer(c: &mut Criterion) {
             |envelopes| {
                 runtime.block_on(async {
                     let mut buffer =
-                        PolymorphicEnvelopeBuffer::from_config(&config, memory_checker.clone())
+                        EnvelopeBufferImpl::from_config(&config, memory_checker.clone())
                             .await
                             .unwrap();
                     for envelope in envelopes.into_iter() {
@@ -294,7 +292,7 @@ fn benchmark_envelope_buffer(c: &mut Criterion) {
             |envelopes| {
                 runtime.block_on(async {
                     let mut buffer =
-                        PolymorphicEnvelopeBuffer::from_config(&config, memory_checker.clone())
+                        EnvelopeBufferImpl::from_config(&config, memory_checker.clone())
                             .await
                             .unwrap();
                     let n = envelopes.len();
@@ -317,6 +315,6 @@ fn benchmark_envelope_buffer(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(sqlite, benchmark_sqlite_envelope_stack);
+criterion_group!(sqlite, benchmark_sqlite_envelope_provider);
 criterion_group!(buffer, benchmark_envelope_buffer);
 criterion_main!(sqlite, buffer);

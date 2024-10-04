@@ -1,14 +1,9 @@
 use crate::services::buffer::common::{EnvelopeBufferError, ProjectKeyPair};
 use crate::services::buffer::envelope_provider::memory::MemoryEnvelopeProvider;
-use crate::services::buffer::envelope_provider::sqlite::{
-    SQLiteEnvelopeProvider, SqliteEnvelopeProviderError,
-};
-use crate::services::buffer::envelope_store::sqlite::SqliteEnvelopeStoreError;
-use crate::services::buffer::stack_provider::StackProvider;
-use crate::{Envelope, MemoryChecker, SqliteEnvelopeStore};
-use hashbrown::{HashMap, HashSet};
+use crate::services::buffer::envelope_provider::sqlite::SqliteEnvelopeProvider;
+use crate::{Envelope, MemoryChecker};
+use hashbrown::HashSet;
 use relay_config::Config;
-use std::convert::Infallible;
 use std::fmt;
 
 pub mod memory;
@@ -22,19 +17,33 @@ pub struct InitializationState {
     pub project_key_pairs: HashSet<ProjectKeyPair>,
 }
 
+impl InitializationState {
+    /// Create a new [`InitializationState`].
+    pub fn new(project_key_pairs: HashSet<ProjectKeyPair>) -> Self {
+        Self { project_key_pairs }
+    }
+
+    /// Creates a new empty [`InitializationState`].
+    pub fn empty() -> Self {
+        Self {
+            project_key_pairs: HashSet::new(),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum EnvelopeProvider {
     Memory(MemoryEnvelopeProvider),
-    SQLite(SQLiteEnvelopeProvider),
+    SQLite(SqliteEnvelopeProvider),
 }
 
 impl EnvelopeProvider {
-    pub fn memory(memory_checker: MemoryChecker) -> Self {
-        Self::Memory(MemoryEnvelopeProvider::new(memory_checker))
+    pub fn memory(memory_checker: MemoryChecker) -> Result<Self, EnvelopeBufferError> {
+        Ok(Self::Memory(MemoryEnvelopeProvider::new(memory_checker)))
     }
 
-    pub fn sqlite(config: &Config, envelope_store: SqliteEnvelopeStore) -> Self {
-        Self::SQLite(SQLiteEnvelopeProvider::new(config, envelope_store))
+    pub async fn sqlite(config: &Config) -> Result<Self, EnvelopeBufferError> {
+        Ok(Self::SQLite(SqliteEnvelopeProvider::new(config).await?))
     }
 
     pub async fn push(
@@ -51,7 +60,7 @@ impl EnvelopeProvider {
     }
 
     pub async fn peek(
-        &self,
+        &mut self,
         project_key_pair: ProjectKeyPair,
     ) -> Result<Option<&Envelope>, EnvelopeBufferError> {
         let envelope = match self {

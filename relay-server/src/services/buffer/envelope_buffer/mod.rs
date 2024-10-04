@@ -1,38 +1,34 @@
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
-use std::convert::Infallible;
 use std::error::Error;
 use std::sync::atomic::AtomicI64;
 use std::sync::atomic::Ordering as AtomicOrdering;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::envelope::Envelope;
+use crate::services::buffer::common::{EnvelopeBufferError, ProjectKeyPair};
+use crate::services::buffer::envelope_provider::EnvelopeProvider;
+use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
+use crate::MemoryChecker;
 use hashbrown::{HashMap, HashSet};
 use priority_queue::PriorityQueue;
 use relay_base_schema::project::ProjectKey;
+use relay_config::Config;
 use tokio::time::{timeout, Instant};
-
-use crate::envelope::Envelope;
-use crate::services::buffer::common::{EnvelopeBufferError, ProjectKeyPair};
-use crate::services::buffer::envelope_provider::sqlite::SqliteEnvelopeProviderError;
-use crate::services::buffer::envelope_provider::EnvelopeProvider;
-use crate::services::buffer::envelope_store::sqlite::SqliteEnvelopeStoreError;
-use crate::services::buffer::stack_provider::StackCreationType;
-use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 
 /// An envelope buffer that holds an individual stack for each project/sampling project combination.
 ///
 /// Envelope stacks are organized in a priority queue, and are re-prioritized every time an envelope
 /// is pushed, popped, or when a project becomes ready.
 #[derive(Debug)]
-struct EnvelopeBuffer {
+pub struct EnvelopeBuffer {
     /// The central priority queue.
     priority_queue: PriorityQueue<ProjectKeyPair, Priority>,
-    /// A lookup table to find all stacks involving a project.
-    stacks_by_project: HashMap<ProjectKey, BTreeSet<ProjectKeyPair>>,
+    /// A lookup table to find all project key pairs for a given project.
+    project_to_pairs: HashMap<ProjectKey, BTreeSet<ProjectKeyPair>>,
     /// Provider of envelopes that can provide envelopes via different implementations.
     envelope_provider: EnvelopeProvider,
-    // TODO: move counts to the provider.
     /// The total count of envelopes that the buffer is working with.
     ///
     /// Note that this count is not meant to be perfectly accurate since the initialization of the
@@ -48,6 +44,45 @@ struct EnvelopeBuffer {
 }
 
 impl EnvelopeBuffer {
+    /// Creates either a memory-based or a disk-based envelope buffer,
+    /// depending on the given configuration.
+    pub async fn from_config(
+        config: &Config,
+        memory_checker: MemoryChecker,
+    ) -> Result<Self, EnvelopeBufferError> {
+        let buffer = if config.spool_envelopes_path().is_some() {
+            relay_log::trace!("EnvelopeBuffer: initializing sqlite envelope buffer");
+            Self::sqlite(config).await?
+        } else {
+            relay_log::trace!("EnvelopeBuffer: initializing memory envelope buffer");
+            Self::memory(memory_checker)?
+        };
+
+        Ok(buffer)
+    }
+
+    /// Creates a memory-based [`EnvelopeBuffer`].
+    fn memory(memory_checker: MemoryChecker) -> Result<Self, EnvelopeBufferError> {
+        Ok(Self {
+            project_to_pairs: Default::default(),
+            priority_queue: Default::default(),
+            envelope_provider: EnvelopeProvider::memory(memory_checker)?,
+            total_count: Arc::new(AtomicI64::new(0)),
+            total_count_initialized: false,
+        })
+    }
+
+    /// Creates a memory-based [`EnvelopeBuffer`].
+    async fn sqlite(config: &Config) -> Result<Self, EnvelopeBufferError> {
+        Ok(Self {
+            project_to_pairs: Default::default(),
+            priority_queue: Default::default(),
+            envelope_provider: EnvelopeProvider::sqlite(config).await?,
+            total_count: Arc::new(AtomicI64::new(0)),
+            total_count_initialized: false,
+        })
+    }
+
     /// Initializes the [`EnvelopeBuffer`] given the initialization state from the
     /// [`StackProvider`].
     pub async fn initialize(&mut self) {
@@ -153,7 +188,7 @@ impl EnvelopeBuffer {
     /// Returns `true` if at least one priority was changed.
     pub fn mark_ready(&mut self, project: &ProjectKey, is_ready: bool) -> bool {
         let mut changed = false;
-        if let Some(project_key_pairs) = self.stacks_by_project.get(project) {
+        if let Some(project_key_pairs) = self.project_to_pairs.get(project) {
             for project_key_pair in project_key_pairs {
                 self.priority_queue
                     .change_priority_by(project_key_pair, |stack| {
@@ -207,13 +242,25 @@ impl EnvelopeBuffer {
     }
 
     /// Flushes the envelope buffer.
-    pub async fn flush(self) {
-        match self.envelope_provider {
+    ///
+    /// Returns `true` in case after the flushing it is safe to destroy the buffer, `false`
+    /// otherwise.
+    ///
+    /// This is done because we want to make sure we know whether it is safe to drop the
+    /// [`EnvelopeBuffer`] after flushing is performed.
+    pub async fn flush(&mut self) -> bool {
+        match &mut self.envelope_provider {
             EnvelopeProvider::Memory(provider) => provider.flush().await,
             EnvelopeProvider::SQLite(provider) => provider.flush().await,
         }
     }
 
+    /// Returns `true` if the [`EnvelopeBuffer`] is using an in-memory strategy.
+    pub fn is_memory(&self) -> bool {
+        matches!(self.envelope_provider, EnvelopeProvider::Memory(_))
+    }
+
+    /// Adds a new [`ProjectKeyPair`] to the `priority_queue` and `project_to_pairs`.
     fn add(&mut self, project_key_pair: ProjectKeyPair, envelope: Option<&Envelope>) {
         let received_at = envelope
             .as_ref()
@@ -225,7 +272,7 @@ impl EnvelopeBuffer {
         debug_assert!(previous_entry.is_none());
 
         for project_key in project_key_pair.iter() {
-            self.stacks_by_project
+            self.project_to_pairs
                 .entry(project_key)
                 .or_default()
                 .insert(project_key_pair);
@@ -235,9 +282,10 @@ impl EnvelopeBuffer {
         );
     }
 
+    /// Removes a [`ProjectKeyPair`] from the `priority_queue` and `project_to_pairs`.
     fn remove(&mut self, project_key_pair: ProjectKeyPair) {
         for project_key in project_key_pair.iter() {
-            self.stacks_by_project
+            self.project_to_pairs
                 .get_mut(&project_key)
                 .expect("project_key is missing from lookup")
                 .remove(&project_key_pair);
@@ -307,32 +355,6 @@ pub enum Peek<'a> {
     Ready(&'a Envelope),
     NotReady(ProjectKeyPair, Instant, &'a Envelope),
 }
-
-#[derive(Debug)]
-struct QueueItem<K, V> {
-    key: K,
-    value: V,
-}
-
-impl<K, V> std::borrow::Borrow<K> for QueueItem<K, V> {
-    fn borrow(&self) -> &K {
-        &self.key
-    }
-}
-
-impl<K: std::hash::Hash, V> std::hash::Hash for QueueItem<K, V> {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.key.hash(state);
-    }
-}
-
-impl<K: PartialEq, V> PartialEq for QueueItem<K, V> {
-    fn eq(&self, other: &Self) -> bool {
-        self.key == other.key
-    }
-}
-
-impl<K: PartialEq, V> Eq for QueueItem<K, V> {}
 
 #[derive(Debug, Clone)]
 struct Priority {

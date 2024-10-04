@@ -536,8 +536,8 @@ pub enum RelayTimers {
     BufferPeek,
     /// Timing in milliseconds for the time it takes for the buffer to pop.
     BufferPop,
-    /// Timing in milliseconds for the time it takes for the buffer to drain its envelopes.
-    BufferDrain,
+    /// Timing in milliseconds for the time it takes for the buffer to flush its envelopes.
+    BufferFlush,
 }
 
 impl TimerMetric for RelayTimers {
@@ -585,7 +585,7 @@ impl TimerMetric for RelayTimers {
             RelayTimers::BufferPush => "buffer.push.duration",
             RelayTimers::BufferPeek => "buffer.peek.duration",
             RelayTimers::BufferPop => "buffer.pop.duration",
-            RelayTimers::BufferDrain => "buffer.drain.duration",
+            RelayTimers::BufferFlush => "buffer.flush.duration",
         }
     }
 }

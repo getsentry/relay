@@ -29,22 +29,20 @@ use crate::utils::ManagedEnvelope;
 use crate::MemoryChecker;
 use crate::MemoryStat;
 
-pub use envelope_buffer::EnvelopeBufferError;
+pub use common::EnvelopeBufferError;
 // pub for benchmarks
-pub use envelope_buffer::PolymorphicEnvelopeBuffer;
+pub use envelope_buffer::EnvelopeBuffer as EnvelopeBufferImpl;
 // pub for benchmarks
-pub use envelope_stack::sqlite::SqliteEnvelopeStack;
+pub use envelope_provider::sqlite::SqliteEnvelopeProvider;
 // pub for benchmarks
-pub use envelope_stack::EnvelopeStack;
+pub use envelope_provider::EnvelopeProvider;
 // pub for benchmarks
 pub use envelope_store::sqlite::SqliteEnvelopeStore;
 
 mod common;
 mod envelope_buffer;
 mod envelope_provider;
-mod envelope_stack;
 mod envelope_store;
-mod stack_provider;
 mod testutils;
 
 /// Message interface for [`EnvelopeBufferService`].
@@ -156,7 +154,7 @@ impl EnvelopeBufferService {
     /// Wait for the configured amount of time and make sure the project cache is ready to receive.
     async fn ready_to_pop(
         &mut self,
-        buffer: &PolymorphicEnvelopeBuffer,
+        buffer: &EnvelopeBufferImpl,
         dequeue: bool,
     ) -> Option<Permit<DequeuedEnvelope>> {
         relay_statsd::metric!(
@@ -195,7 +193,7 @@ impl EnvelopeBufferService {
     /// - We should not pop from disk into memory when relay's overall memory capacity
     ///   has been reached.
     /// - We need a valid global config to unspool.
-    async fn system_ready(&self, buffer: &PolymorphicEnvelopeBuffer, dequeue: bool) {
+    async fn system_ready(&self, buffer: &EnvelopeBufferImpl, dequeue: bool) {
         loop {
             // We should not unspool from external storage if memory capacity has been reached.
             // But if buffer storage is in memory, unspooling can reduce memory usage.
@@ -217,7 +215,7 @@ impl EnvelopeBufferService {
     /// Tries to pop an envelope for a ready project.
     async fn try_pop<'a>(
         config: &Config,
-        buffer: &mut PolymorphicEnvelopeBuffer,
+        buffer: &mut EnvelopeBufferImpl,
         services: &Services,
         envelopes_tx_permit: Permit<'a, DequeuedEnvelope>,
     ) -> Result<Duration, EnvelopeBufferError> {
@@ -305,7 +303,7 @@ impl EnvelopeBufferService {
         managed_envelope.reject(Outcome::Invalid(DiscardReason::Timestamp));
     }
 
-    async fn handle_message(buffer: &mut PolymorphicEnvelopeBuffer, message: EnvelopeBuffer) {
+    async fn handle_message(buffer: &mut EnvelopeBufferImpl, message: EnvelopeBuffer) {
         match message {
             EnvelopeBuffer::Push(envelope) => {
                 // NOTE: This function assumes that a project state update for the relevant
@@ -334,12 +332,12 @@ impl EnvelopeBufferService {
         };
     }
 
-    async fn handle_shutdown(buffer: &mut PolymorphicEnvelopeBuffer, message: Shutdown) -> bool {
+    async fn handle_shutdown(buffer: &mut EnvelopeBufferImpl, message: Shutdown) -> bool {
         // We gracefully shut down only if the shutdown has a timeout.
         if let Some(shutdown_timeout) = message.timeout {
             relay_log::trace!("EnvelopeBufferService: shutting down gracefully");
 
-            let shutdown_result = timeout(shutdown_timeout, buffer.shutdown()).await;
+            let shutdown_result = timeout(shutdown_timeout, buffer.flush()).await;
             match shutdown_result {
                 Ok(shutdown_result) => {
                     return shutdown_result;
@@ -356,7 +354,7 @@ impl EnvelopeBufferService {
         false
     }
 
-    async fn push(buffer: &mut PolymorphicEnvelopeBuffer, envelope: Box<Envelope>) {
+    async fn push(buffer: &mut EnvelopeBufferImpl, envelope: Box<Envelope>) {
         if let Err(e) = buffer.push(envelope).await {
             relay_log::error!(
                 error = &e as &dyn std::error::Error,
@@ -365,7 +363,7 @@ impl EnvelopeBufferService {
         }
     }
 
-    fn update_observable_state(&self, buffer: &mut PolymorphicEnvelopeBuffer) {
+    fn update_observable_state(&self, buffer: &mut EnvelopeBufferImpl) {
         self.has_capacity
             .store(buffer.has_capacity(), Ordering::Relaxed);
     }
@@ -384,7 +382,7 @@ impl Service for EnvelopeBufferService {
         let dequeue1 = dequeue.clone();
 
         tokio::spawn(async move {
-            let buffer = PolymorphicEnvelopeBuffer::from_config(&config, memory_checker).await;
+            let buffer = EnvelopeBufferImpl::from_config(&config, memory_checker).await;
 
             let mut buffer = match buffer {
                 Ok(buffer) => buffer,
