@@ -197,6 +197,15 @@ class Sentry(SentryLike):
 
         return json.loads(item.payload.bytes)
 
+    def get_metrics(self, timeout=None):
+        envelope = self.captured_events.get(timeout=timeout)
+        items = envelope.items
+        assert len(items) == 1
+        item = items[0]
+        assert item.headers["type"] == "metric_buckets"
+
+        return item.payload.json
+
 
 def _get_project_id(public_key, project_configs):
     for project_id, project_config in project_configs.items():

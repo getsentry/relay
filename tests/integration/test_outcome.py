@@ -16,6 +16,7 @@ import pytest
 import requests
 from requests.exceptions import HTTPError
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
+from sentry_relay.consts import DataCategory
 from .asserts import time_within_delta
 
 from .test_metrics import metrics_by_name
@@ -267,7 +268,16 @@ def test_outcomes_non_processing(relay, mini_sentry, event_type):
 
     _send_event(relay, event_type=event_type)
 
-    expected_categories = [2, 9] if event_type == "transaction" else [1]  # Error
+    expected_categories = (
+        [
+            DataCategory.TRANSACTION,
+            DataCategory.TRANSACTION_INDEXED,
+            DataCategory.SPAN,
+            DataCategory.SPAN_INDEXED,
+        ]
+        if event_type == "transaction"
+        else [1]
+    )  # Error
 
     outcomes = []
     for _ in expected_categories:
@@ -471,7 +481,7 @@ def test_outcome_forwarding(
 
     _send_event(downstream_relay, event_type=event_type)
 
-    expected_categories = [1] if event_type == "error" else [2, 9]
+    expected_categories = [1] if event_type == "error" else [2, 9, 12, 16]
     outcomes = outcomes_consumer.get_outcomes(n=len(expected_categories))
     outcomes.sort(key=lambda x: x["category"])
 
@@ -744,7 +754,7 @@ def _get_span_payload():
     "category,outcome_categories",
     [
         ("session", []),
-        ("transaction", ["transaction", "transaction_indexed"]),
+        ("transaction", ["transaction", "transaction_indexed", "span", "span_indexed"]),
         ("user_report_v2", ["user_report_v2"]),
     ],
 )
@@ -761,10 +771,10 @@ def test_outcomes_rate_limit(
     relay = relay_with_processing(config)
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
-    reason_code = "transactions are banned"
+    reason_code = "banned"
     project_config["config"]["quotas"] = [
         {
-            "id": "transaction category",
+            "id": "some_id",
             "categories": [category],
             "limit": 0,
             "window": 1600,
@@ -1634,11 +1644,19 @@ def test_profile_outcomes_rate_limited(
     outcomes = outcomes_consumer.get_outcomes()
     outcomes.sort(key=lambda o: sorted(o.items()))
 
-    expected_categories = [6, 11]  # Profile, ProfileIndexed
+    expected_categories_and_quantities = [
+        (DataCategory.PROFILE, 1),
+        (DataCategory.PROFILE_INDEXED, 1),
+    ]  # Profile, ProfileIndexed
     if quota_category == "transaction":
         # Transaction got rate limited as well:
-        expected_categories += [2, 9]  # Transaction, TransactionIndexed
-    expected_categories.sort()
+        expected_categories_and_quantities += [
+            (DataCategory.TRANSACTION, 1),
+            (DataCategory.TRANSACTION_INDEXED, 1),
+            (DataCategory.SPAN, 2),
+            (DataCategory.SPAN_INDEXED, 2),
+        ]  # Transaction, TransactionIndexed
+    expected_categories_and_quantities.sort()
 
     expected_outcomes = [
         {
@@ -1647,11 +1665,11 @@ def test_profile_outcomes_rate_limited(
             "org_id": 1,
             "outcome": 2,  # RateLimited
             "project_id": 42,
-            "quantity": 1,
+            "quantity": quantity,
             "reason": "profiles_exceeded",
             "timestamp": time_within_delta(),
         }
-        for category in expected_categories
+        for (category, quantity) in expected_categories_and_quantities
     ]
 
     assert outcomes == expected_outcomes, outcomes
@@ -1912,14 +1930,6 @@ def test_span_outcomes_invalid(
     # Create an envelope with an invalid profile:
     def make_envelope():
         envelope = Envelope()
-        payload = _get_event_payload("transaction")
-        payload["spans"][0].pop("span_id", None)
-        envelope.add_item(
-            Item(
-                payload=PayloadRef(bytes=json.dumps(payload).encode()),
-                type="transaction",
-            )
-        )
         payload = _get_span_payload()
         payload.pop("span_id", None)
         envelope.add_item(
@@ -1933,7 +1943,7 @@ def test_span_outcomes_invalid(
     envelope = make_envelope()
     upstream.send_envelope(project_id, envelope)
 
-    outcomes = outcomes_consumer.get_outcomes(timeout=10.0, n=4)
+    outcomes = outcomes_consumer.get_outcomes(timeout=10.0, n=2)
     outcomes.sort(key=lambda o: sorted(o.items()))
 
     assert outcomes == [
@@ -1944,15 +1954,13 @@ def test_span_outcomes_invalid(
             "outcome": 3,  # Invalid
             "project_id": 42,
             "quantity": 1,
-            "reason": reason,
+            "reason": "invalid_span",
             "source": "pop-relay",
             "timestamp": time_within_delta(),
         }
-        for (category, reason) in [
-            (2, "invalid_transaction"),
-            (9, "invalid_transaction"),
-            (12, "internal"),
-            (16, "internal"),
+        for category in [
+            DataCategory.SPAN,
+            DataCategory.SPAN_INDEXED,
         ]
     ]
 

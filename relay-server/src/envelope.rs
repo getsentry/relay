@@ -53,6 +53,7 @@ use smallvec::SmallVec;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::extractors::{PartialMeta, RequestMeta};
+use crate::utils::SeqCount;
 
 pub const CONTENT_TYPE: &str = "application/x-sentry-envelope";
 
@@ -869,6 +870,27 @@ impl Item {
         V: Into<Value>,
     {
         self.headers.other.insert(name.into(), value.into())
+    }
+
+    /// Counts how many spans are contained in a transaction payload.
+    ///
+    /// The transaction itself represents a span as well, so this function returns
+    /// `len(event.spans) + 1`.
+    ///
+    /// Returns zero if
+    /// - the item is not a transaction,
+    /// - the spans have already been extracted (in which case they are represented elsewhere).
+    pub fn count_nested_spans(&self) -> usize {
+        #[derive(Debug, Deserialize)]
+        struct PartialEvent {
+            spans: SeqCount,
+        }
+
+        if self.ty() != &ItemType::Transaction || self.spans_extracted() {
+            return 0;
+        }
+
+        serde_json::from_slice::<PartialEvent>(&self.payload()).map_or(0, |event| event.spans.0 + 1)
     }
 
     /// Determines whether the given item creates an event.
