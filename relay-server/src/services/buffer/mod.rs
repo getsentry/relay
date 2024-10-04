@@ -41,6 +41,7 @@ pub use envelope_store::sqlite::SqliteEnvelopeStore;
 
 mod common;
 mod envelope_buffer;
+mod envelope_provider;
 mod envelope_stack;
 mod envelope_store;
 mod stack_provider;

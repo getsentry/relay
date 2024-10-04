@@ -1,6 +1,28 @@
 use relay_base_schema::project::ProjectKey;
+use std::convert::Infallible;
 
+use crate::services::buffer::envelope_provider::sqlite::SqliteEnvelopeProviderError;
+use crate::services::buffer::envelope_store::sqlite::SqliteEnvelopeStoreError;
 use crate::Envelope;
+
+/// Error that occurs while interacting with the envelope buffer.
+#[derive(Debug, thiserror::Error)]
+pub enum EnvelopeBufferError {
+    #[error("sqlite")]
+    SqliteStore(#[from] SqliteEnvelopeStoreError),
+
+    #[error("sqlite")]
+    SqliteProvider(#[from] SqliteEnvelopeProviderError),
+
+    #[error("failed to push envelope to the buffer")]
+    PushFailed,
+}
+
+impl From<Infallible> for EnvelopeBufferError {
+    fn from(value: Infallible) -> Self {
+        match value {}
+    }
+}
 
 /// Struct that represents two project keys.
 #[derive(Debug, Clone, Copy, Eq, Hash, Ord, PartialOrd, PartialEq)]
