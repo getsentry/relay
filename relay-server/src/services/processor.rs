@@ -45,7 +45,7 @@ use smallvec::{smallvec, SmallVec};
 #[cfg(feature = "processing")]
 use {
     crate::services::store::{Store, StoreEnvelope},
-    crate::utils::{sample, ApplyLimits, Enforcement, EnvelopeLimiter, ItemAction},
+    crate::utils::{sample, CheckLimits, Enforcement, EnvelopeLimiter, ItemAction},
     itertools::Itertools,
     relay_cardinality::{
         CardinalityLimit, CardinalityLimiter, CardinalityLimitsSplit, RedisSetLimiter,
@@ -1318,7 +1318,7 @@ impl EnvelopeProcessorService {
         state: &mut ProcessEnvelopeState<G>,
     ) -> Result<(), ProcessingError> {
         self.enforce_cached_quotas(state)?;
-        self.enforce_consistend_quotas(state)?;
+        self.enforce_consistent_quotas(state)?;
         Ok(())
     }
 
@@ -1334,7 +1334,7 @@ impl EnvelopeProcessorService {
     }
 
     #[cfg(feature = "processing")]
-    fn enforce_consistend_quotas<G>(
+    fn enforce_consistent_quotas<G>(
         &self,
         state: &mut ProcessEnvelopeState<G>,
     ) -> Result<(), ProcessingError> {
@@ -2943,7 +2943,7 @@ impl<'a> RateLimiter<'a> {
         // When invoking the rate limiter, capture if the event item has been rate limited to also
         // remove it from the processing state eventually.
         let mut envelope_limiter =
-            EnvelopeLimiter::new(ApplyLimits::All, |item_scope, quantity| match self {
+            EnvelopeLimiter::new(CheckLimits::All, |item_scope, quantity| match self {
                 RateLimiter::Cached => Ok(state.rate_limits.check_with_quotas(quotas, item_scope)),
                 RateLimiter::Consistent(rl) => Ok::<_, ProcessingError>(
                     rl.is_rate_limited(quotas, item_scope, quantity, false)?,

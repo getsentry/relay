@@ -510,23 +510,23 @@ impl Enforcement {
     }
 }
 
-/// Which limits to apply with the [`EnvelopeLimiter`].
+/// Which limits to check with the [`EnvelopeLimiter`].
 #[derive(Debug, Copy, Clone)]
-pub enum ApplyLimits {
-    /// Applies all limits to the envelope except indexed categories.
+pub enum CheckLimits {
+    /// Checks all limits except indexed categories.
     ///
     /// In the fast path it is necessary to apply cached rate limits but to not enforce indexed rate limits.
     /// Because at the time of the check the decision whether an envelope is sampled or not is not yet known.
     /// Additionally even if the item is later dropped by dynamic sampling, it must still be around to extract metrics
     /// and cannot be dropped too early.
     NonIndexed,
-    /// Applies all limits to the envelope.
+    /// Checks all limits against the envelope.
     #[cfg_attr(not(any(feature = "processing", test)), expect(dead_code))]
     All,
 }
 
 struct Check<F> {
-    limits: ApplyLimits,
+    limits: CheckLimits,
     check: F,
 }
 
@@ -535,7 +535,7 @@ where
     F: FnMut(ItemScoping<'_>, usize) -> Result<RateLimits, E>,
 {
     fn apply(&mut self, scoping: ItemScoping<'_>, quantity: usize) -> Result<RateLimits, E> {
-        if matches!(self.limits, ApplyLimits::NonIndexed) && scoping.category.is_indexed() {
+        if matches!(self.limits, CheckLimits::NonIndexed) && scoping.category.is_indexed() {
             return Ok(RateLimits::default());
         }
 
@@ -564,7 +564,7 @@ where
     F: FnMut(ItemScoping<'_>, usize) -> Result<RateLimits, E>,
 {
     /// Create a new `EnvelopeLimiter` with the given `check` function.
-    pub fn new(limits: ApplyLimits, check: F) -> Self {
+    pub fn new(limits: CheckLimits, check: F) -> Self {
         Self {
             check: Check { check, limits },
             event_category: None,
@@ -1100,7 +1100,7 @@ mod tests {
         let scoping = envelope.scoping();
 
         #[allow(unused_mut)]
-        let mut limiter = EnvelopeLimiter::new(ApplyLimits::All, |s, q| mock.check(s, q));
+        let mut limiter = EnvelopeLimiter::new(CheckLimits::All, |s, q| mock.check(s, q));
         #[cfg(feature = "processing")]
         if let Some(assume_event) = assume_event {
             limiter.assume_event(assume_event);
@@ -1339,7 +1339,7 @@ mod tests {
 
         let mut mock = MockLimiter::default().deny(DataCategory::TransactionIndexed);
 
-        let limiter = EnvelopeLimiter::new(ApplyLimits::NonIndexed, |s, q| mock.check(s, q));
+        let limiter = EnvelopeLimiter::new(CheckLimits::NonIndexed, |s, q| mock.check(s, q));
         let (enforcement, limits) = limiter.compute(envelope.envelope_mut(), &scoping).unwrap();
         enforcement.clone().apply_with_outcomes(&mut envelope);
 
