@@ -20,7 +20,7 @@ use relay_event_normalization::{
     GeoIpLookup, ModelCosts, SchemaProcessor, TimestampProcessor, TransactionNameRule,
     TrimmingProcessor,
 };
-use relay_event_schema::processor::{process_value, ProcessingState};
+use relay_event_schema::processor::{process_value, ProcessingAction, ProcessingState};
 use relay_event_schema::protocol::{
     BrowserContext, IpAddr, Measurement, Measurements, Span, SpanData,
 };

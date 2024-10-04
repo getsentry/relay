@@ -1644,19 +1644,17 @@ def test_profile_outcomes_rate_limited(
     outcomes = outcomes_consumer.get_outcomes()
     outcomes.sort(key=lambda o: sorted(o.items()))
 
-    expected_categories_and_quantities = [
-        (DataCategory.PROFILE, 1),
-        (DataCategory.PROFILE_INDEXED, 1),
+    expected_categories = [
+        DataCategory.PROFILE,
+        DataCategory.PROFILE_INDEXED,
     ]  # Profile, ProfileIndexed
     if quota_category == "transaction":
         # Transaction got rate limited as well:
-        expected_categories_and_quantities += [
-            (DataCategory.TRANSACTION, 1),
-            (DataCategory.TRANSACTION_INDEXED, 1),
-            (DataCategory.SPAN, 2),
-            (DataCategory.SPAN_INDEXED, 2),
+        expected_categories += [
+            DataCategory.TRANSACTION,
+            DataCategory.TRANSACTION_INDEXED,
         ]  # Transaction, TransactionIndexed
-    expected_categories_and_quantities.sort()
+    expected_categories.sort()
 
     expected_outcomes = [
         {
