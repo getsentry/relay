@@ -89,7 +89,7 @@ pub fn transfer_id(
 
 /// Processes profiles and set the profile ID in the profile context on the transaction if successful.
 pub fn process(state: &mut ProcessEnvelopeState<TransactionGroup>) -> Option<ProfileId> {
-    let profiling_enabled = state.project_state.has_feature(Feature::Profiling);
+    let profiling_enabled = state.project_info.has_feature(Feature::Profiling);
     let mut profile_id = None;
 
     state.managed_envelope.retain_items(|item| match item.ty() {

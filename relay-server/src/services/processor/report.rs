@@ -132,7 +132,7 @@ pub fn process_client_reports(
     }
 
     let retention_days = state
-        .project_state
+        .project_info
         .config()
         .event_retention
         .unwrap_or(DEFAULT_EVENT_RETENTION);
