@@ -24,7 +24,7 @@ use crate::utils::ItemAction;
 /// are out of range after clock drift correction.
 pub fn process(state: &mut ProcessEnvelopeState<SessionGroup>, config: &Config) {
     let received = state.managed_envelope.received_at();
-    let metrics_config = state.project_state.config().session_metrics;
+    let metrics_config = state.project_info.config().session_metrics;
     let envelope = state.managed_envelope.envelope_mut();
     let client = envelope.meta().client().map(|x| x.to_owned());
     let client_addr = envelope.meta().client_addr();
