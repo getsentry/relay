@@ -430,422 +430,420 @@ impl Readiness {
 
 #[cfg(test)]
 mod tests {
-    // use relay_common::Dsn;
-    // use relay_event_schema::protocol::EventId;
-    // use relay_sampling::DynamicSamplingContext;
-    // use std::str::FromStr;
-    // use std::sync::Arc;
-    // use uuid::Uuid;
-    //
-    // use crate::envelope::{Item, ItemType};
-    // use crate::extractors::RequestMeta;
-    // use crate::services::buffer::common::ProjectKeyPair;
-    // use crate::services::buffer::testutils::utils::mock_envelopes;
-    // use crate::utils::MemoryStat;
-    // use crate::SqliteEnvelopeStore;
-    //
-    // use super::*;
-    //
-    // impl Peek<'_> {
-    //     fn is_empty(&self) -> bool {
-    //         matches!(self, Peek::Empty)
-    //     }
-    //
-    //     fn envelope(&self) -> Option<&Envelope> {
-    //         match self {
-    //             Peek::Empty => None,
-    //             Peek::Ready(envelope) | Peek::NotReady(_, _, envelope) => Some(envelope),
-    //         }
-    //     }
-    // }
-    //
-    // fn new_envelope(
-    //     own_key: ProjectKey,
-    //     sampling_key: Option<ProjectKey>,
-    //     event_id: Option<EventId>,
-    // ) -> Box<Envelope> {
-    //     let mut envelope = Envelope::from_request(
-    //         None,
-    //         RequestMeta::new(Dsn::from_str(&format!("http://{own_key}@localhost/1")).unwrap()),
-    //     );
-    //     if let Some(sampling_key) = sampling_key {
-    //         envelope.set_dsc(DynamicSamplingContext {
-    //             public_key: sampling_key,
-    //             trace_id: Uuid::new_v4(),
-    //             release: None,
-    //             user: Default::default(),
-    //             replay_id: None,
-    //             environment: None,
-    //             transaction: None,
-    //             sample_rate: None,
-    //             sampled: None,
-    //             other: Default::default(),
-    //         });
-    //         envelope.add_item(Item::new(ItemType::Transaction));
-    //     }
-    //     if let Some(event_id) = event_id {
-    //         envelope.set_event_id(event_id);
-    //     }
-    //     envelope
-    // }
-    //
-    // fn mock_config(path: &str) -> Arc<Config> {
-    //     Config::from_json_value(serde_json::json!({
-    //         "spool": {
-    //             "envelopes": {
-    //                 "path": path
-    //             }
-    //         }
-    //     }))
-    //     .unwrap()
-    //     .into()
-    // }
-    //
-    // fn mock_memory_checker() -> MemoryChecker {
-    //     MemoryChecker::new(MemoryStat::default(), mock_config("my/db/path").clone())
-    // }
-    //
-    // async fn peek_project_key(buffer: &mut EnvelopeBuffer<MemoryStackProvider>) -> ProjectKey {
-    //     buffer
-    //         .peek()
-    //         .await
-    //         .unwrap()
-    //         .envelope()
-    //         .unwrap()
-    //         .meta()
-    //         .public_key()
-    // }
-    //
-    // #[tokio::test]
-    // async fn test_insert_pop() {
-    //     let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(mock_memory_checker());
-    //
-    //     let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
-    //     let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-    //     let project_key3 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fef").unwrap();
-    //
-    //     assert!(buffer.pop().await.unwrap().is_none());
-    //     assert!(buffer.peek().await.unwrap().is_empty());
-    //
-    //     buffer
-    //         .push(new_envelope(project_key1, None, None))
-    //         .await
-    //         .unwrap();
-    //
-    //     buffer
-    //         .push(new_envelope(project_key2, None, None))
-    //         .await
-    //         .unwrap();
-    //
-    //     // Both projects are ready, so project 2 is on top (has the newest envelopes):
-    //     assert_eq!(peek_project_key(&mut buffer).await, project_key2);
-    //
-    //     buffer.mark_ready(&project_key1, false);
-    //     buffer.mark_ready(&project_key2, false);
-    //
-    //     // Both projects are not ready, so project 1 is on top (has the oldest envelopes):
-    //     assert_eq!(peek_project_key(&mut buffer).await, project_key1);
-    //
-    //     buffer
-    //         .push(new_envelope(project_key3, None, None))
-    //         .await
-    //         .unwrap();
-    //     buffer.mark_ready(&project_key3, false);
-    //
-    //     // All projects are not ready, so project 1 is on top (has the oldest envelopes):
-    //     assert_eq!(peek_project_key(&mut buffer).await, project_key1);
-    //
-    //     // After marking a project ready, it goes to the top:
-    //     buffer.mark_ready(&project_key3, true);
-    //     assert_eq!(peek_project_key(&mut buffer).await, project_key3);
-    //     assert_eq!(
-    //         buffer.pop().await.unwrap().unwrap().meta().public_key(),
-    //         project_key3
-    //     );
-    //
-    //     // After popping, project 1 is on top again:
-    //     assert_eq!(peek_project_key(&mut buffer).await, project_key1);
-    //
-    //     // Mark project 1 as ready (still on top):
-    //     buffer.mark_ready(&project_key1, true);
-    //     assert_eq!(peek_project_key(&mut buffer).await, project_key1);
-    //
-    //     // Mark project 2 as ready as well (now on top because most recent):
-    //     buffer.mark_ready(&project_key2, true);
-    //     assert_eq!(peek_project_key(&mut buffer).await, project_key2);
-    //     assert_eq!(
-    //         buffer.pop().await.unwrap().unwrap().meta().public_key(),
-    //         project_key2
-    //     );
-    //
-    //     // Pop last element:
-    //     assert_eq!(
-    //         buffer.pop().await.unwrap().unwrap().meta().public_key(),
-    //         project_key1
-    //     );
-    //     assert!(buffer.pop().await.unwrap().is_none());
-    //     assert!(buffer.peek().await.unwrap().is_empty());
-    // }
-    //
-    // #[tokio::test]
-    // async fn test_project_internal_order() {
-    //     let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(mock_memory_checker());
-    //
-    //     let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
-    //
-    //     let envelope1 = new_envelope(project_key, None, None);
-    //     let instant1 = envelope1.meta().start_time();
-    //     let envelope2 = new_envelope(project_key, None, None);
-    //     let instant2 = envelope2.meta().start_time();
-    //
-    //     assert!(instant2 > instant1);
-    //
-    //     buffer.push(envelope1).await.unwrap();
-    //     buffer.push(envelope2).await.unwrap();
-    //
-    //     assert_eq!(
-    //         buffer.pop().await.unwrap().unwrap().meta().start_time(),
-    //         instant2
-    //     );
-    //     assert_eq!(
-    //         buffer.pop().await.unwrap().unwrap().meta().start_time(),
-    //         instant1
-    //     );
-    //     assert!(buffer.pop().await.unwrap().is_none());
-    // }
-    //
-    // #[tokio::test]
-    // async fn test_sampling_projects() {
-    //     let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(mock_memory_checker());
-    //
-    //     let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
-    //     let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fef").unwrap();
-    //
-    //     let envelope1 = new_envelope(project_key1, None, None);
-    //     let instant1 = envelope1.meta().start_time();
-    //     buffer.push(envelope1).await.unwrap();
-    //
-    //     let envelope2 = new_envelope(project_key2, None, None);
-    //     let instant2 = envelope2.meta().start_time();
-    //     buffer.push(envelope2).await.unwrap();
-    //
-    //     let envelope3 = new_envelope(project_key1, Some(project_key2), None);
-    //     let instant3 = envelope3.meta().start_time();
-    //     buffer.push(envelope3).await.unwrap();
-    //
-    //     buffer.mark_ready(&project_key1, false);
-    //     buffer.mark_ready(&project_key2, false);
-    //
-    //     // Nothing is ready, instant1 is on top:
-    //     assert_eq!(
-    //         buffer
-    //             .peek()
-    //             .await
-    //             .unwrap()
-    //             .envelope()
-    //             .unwrap()
-    //             .meta()
-    //             .start_time(),
-    //         instant1
-    //     );
-    //
-    //     // Mark project 2 ready, gets on top:
-    //     buffer.mark_ready(&project_key2, true);
-    //     assert_eq!(
-    //         buffer
-    //             .peek()
-    //             .await
-    //             .unwrap()
-    //             .envelope()
-    //             .unwrap()
-    //             .meta()
-    //             .start_time(),
-    //         instant2
-    //     );
-    //
-    //     // Revert
-    //     buffer.mark_ready(&project_key2, false);
-    //     assert_eq!(
-    //         buffer
-    //             .peek()
-    //             .await
-    //             .unwrap()
-    //             .envelope()
-    //             .unwrap()
-    //             .meta()
-    //             .start_time(),
-    //         instant1
-    //     );
-    //
-    //     // Project 1 ready:
-    //     buffer.mark_ready(&project_key1, true);
-    //     assert_eq!(
-    //         buffer
-    //             .peek()
-    //             .await
-    //             .unwrap()
-    //             .envelope()
-    //             .unwrap()
-    //             .meta()
-    //             .start_time(),
-    //         instant1
-    //     );
-    //
-    //     // when both projects are ready, event no 3 ends up on top:
-    //     buffer.mark_ready(&project_key2, true);
-    //     assert_eq!(
-    //         buffer.pop().await.unwrap().unwrap().meta().start_time(),
-    //         instant3
-    //     );
-    //     assert_eq!(
-    //         buffer
-    //             .peek()
-    //             .await
-    //             .unwrap()
-    //             .envelope()
-    //             .unwrap()
-    //             .meta()
-    //             .start_time(),
-    //         instant2
-    //     );
-    //
-    //     buffer.mark_ready(&project_key2, false);
-    //     assert_eq!(
-    //         buffer.pop().await.unwrap().unwrap().meta().start_time(),
-    //         instant1
-    //     );
-    //     assert_eq!(
-    //         buffer.pop().await.unwrap().unwrap().meta().start_time(),
-    //         instant2
-    //     );
-    //
-    //     assert!(buffer.pop().await.unwrap().is_none());
-    // }
-    //
-    // #[tokio::test]
-    // async fn test_project_keys_distinct() {
-    //     let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
-    //     let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fef").unwrap();
-    //
-    //     let project_key_pair1 = ProjectKeyPair::new(project_key1, project_key2);
-    //     let project_key_pair2 = ProjectKeyPair::new(project_key2, project_key1);
-    //
-    //     assert_ne!(project_key_pair1, project_key_pair2);
-    //
-    //     let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(mock_memory_checker());
-    //     buffer
-    //         .push(new_envelope(project_key1, Some(project_key2), None))
-    //         .await
-    //         .unwrap();
-    //     buffer
-    //         .push(new_envelope(project_key2, Some(project_key1), None))
-    //         .await
-    //         .unwrap();
-    //     assert_eq!(buffer.priority_queue.len(), 2);
-    // }
-    //
-    // #[test]
-    // fn test_total_order() {
-    //     let p1 = Priority {
-    //         readiness: Readiness {
-    //             own_project_ready: true,
-    //             sampling_project_ready: true,
-    //         },
-    //         received_at: Instant::now(),
-    //         next_project_fetch: Instant::now(),
-    //     };
-    //     let mut p2 = p1.clone();
-    //     p2.next_project_fetch += Duration::from_millis(1);
-    //
-    //     // Last peek does not matter because project is ready:
-    //     assert_eq!(p1.cmp(&p2), Ordering::Equal);
-    //     assert_eq!(p1, p2);
-    // }
-    //
-    // #[tokio::test]
-    // async fn test_last_peek_internal_order() {
-    //     let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(mock_memory_checker());
-    //
-    //     let project_key_1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
-    //     let event_id_1 = EventId::new();
-    //     let envelope1 = new_envelope(project_key_1, None, Some(event_id_1));
-    //
-    //     let project_key_2 = ProjectKey::parse("b56ae32be2584e0bbd7a4cbb95971fed").unwrap();
-    //     let event_id_2 = EventId::new();
-    //     let envelope2 = new_envelope(project_key_2, None, Some(event_id_2));
-    //
-    //     buffer.push(envelope1).await.unwrap();
-    //     buffer.push(envelope2).await.unwrap();
-    //
-    //     buffer.mark_ready(&project_key_1, false);
-    //     buffer.mark_ready(&project_key_2, false);
-    //
-    //     // event_id_1 is first element:
-    //     let Peek::NotReady(_, _, envelope) = buffer.peek().await.unwrap() else {
-    //         panic!();
-    //     };
-    //     assert_eq!(envelope.event_id(), Some(event_id_1));
-    //
-    //     // Second peek returns same element:
-    //     let Peek::NotReady(stack_key, _, envelope) = buffer.peek().await.unwrap() else {
-    //         panic!();
-    //     };
-    //     assert_eq!(envelope.event_id(), Some(event_id_1));
-    //
-    //     buffer.mark_seen(&stack_key, Duration::ZERO);
-    //
-    //     // After mark_seen, event 2 is on top:
-    //     let Peek::NotReady(_, _, envelope) = buffer.peek().await.unwrap() else {
-    //         panic!();
-    //     };
-    //     assert_eq!(envelope.event_id(), Some(event_id_2));
-    //
-    //     let Peek::NotReady(stack_key, _, envelope) = buffer.peek().await.unwrap() else {
-    //         panic!();
-    //     };
-    //     assert_eq!(envelope.event_id(), Some(event_id_2));
-    //
-    //     buffer.mark_seen(&stack_key, Duration::ZERO);
-    //
-    //     // After another mark_seen, cycle back to event 1:
-    //     let Peek::NotReady(_, _, envelope) = buffer.peek().await.unwrap() else {
-    //         panic!();
-    //     };
-    //     assert_eq!(envelope.event_id(), Some(event_id_1));
-    // }
-    //
-    // #[tokio::test]
-    // async fn test_initialize_buffer() {
-    //     let path = std::env::temp_dir()
-    //         .join(Uuid::new_v4().to_string())
-    //         .into_os_string()
-    //         .into_string()
-    //         .unwrap();
-    //     let config = mock_config(&path);
-    //     let mut store = SqliteEnvelopeStore::prepare(&config).await.unwrap();
-    //     let mut buffer = EnvelopeBuffer::<SqliteStackProvider>::new(&config)
-    //         .await
-    //         .unwrap();
-    //
-    //     // We write 5 envelopes to disk so that we can check if they are loaded. These envelopes
-    //     // belong to the same project keys, so they belong to the same envelope stack.
-    //     let envelopes = mock_envelopes(10);
-    //     assert!(store
-    //         .insert_many(envelopes.iter().map(|e| e.as_ref().try_into().unwrap()))
-    //         .await
-    //         .is_ok());
-    //
-    //     // We assume that the buffer is empty.
-    //     assert!(buffer.priority_queue.is_empty());
-    //     assert!(buffer.stacks_by_project.is_empty());
-    //
-    //     buffer.initialize().await;
-    //
-    //     // We assume that we loaded only 1 envelope stack, because of the project keys combinations
-    //     // of the envelopes we inserted above.
-    //     assert_eq!(buffer.priority_queue.len(), 1);
-    //     // We expect to have an entry per project key, since we have 1 pair, the total entries
-    //     // should be 2.
-    //     assert_eq!(buffer.stacks_by_project.len(), 2);
-    // }
+    use relay_common::Dsn;
+    use relay_event_schema::protocol::EventId;
+    use relay_sampling::DynamicSamplingContext;
+    use std::str::FromStr;
+    use std::sync::Arc;
+    use uuid::Uuid;
+
+    use crate::envelope::{Item, ItemType};
+    use crate::extractors::RequestMeta;
+    use crate::services::buffer::common::ProjectKeyPair;
+    use crate::services::buffer::testutils::utils::mock_envelopes;
+    use crate::utils::MemoryStat;
+    use crate::SqliteEnvelopeStore;
+
+    use super::*;
+
+    impl Peek<'_> {
+        fn is_empty(&self) -> bool {
+            matches!(self, Peek::Empty)
+        }
+
+        fn envelope(&self) -> Option<&Envelope> {
+            match self {
+                Peek::Empty => None,
+                Peek::Ready(envelope) | Peek::NotReady(_, _, envelope) => Some(envelope),
+            }
+        }
+    }
+
+    fn new_envelope(
+        own_key: ProjectKey,
+        sampling_key: Option<ProjectKey>,
+        event_id: Option<EventId>,
+    ) -> Box<Envelope> {
+        let mut envelope = Envelope::from_request(
+            None,
+            RequestMeta::new(Dsn::from_str(&format!("http://{own_key}@localhost/1")).unwrap()),
+        );
+        if let Some(sampling_key) = sampling_key {
+            envelope.set_dsc(DynamicSamplingContext {
+                public_key: sampling_key,
+                trace_id: Uuid::new_v4(),
+                release: None,
+                user: Default::default(),
+                replay_id: None,
+                environment: None,
+                transaction: None,
+                sample_rate: None,
+                sampled: None,
+                other: Default::default(),
+            });
+            envelope.add_item(Item::new(ItemType::Transaction));
+        }
+        if let Some(event_id) = event_id {
+            envelope.set_event_id(event_id);
+        }
+        envelope
+    }
+
+    fn mock_config(path: &str) -> Arc<Config> {
+        Config::from_json_value(serde_json::json!({
+            "spool": {
+                "envelopes": {
+                    "path": path
+                }
+            }
+        }))
+        .unwrap()
+        .into()
+    }
+
+    fn mock_memory_checker() -> MemoryChecker {
+        MemoryChecker::new(MemoryStat::default(), mock_config("my/db/path").clone())
+    }
+
+    async fn peek_project_key(buffer: &mut EnvelopeBuffer) -> ProjectKey {
+        buffer
+            .peek()
+            .await
+            .unwrap()
+            .envelope()
+            .unwrap()
+            .meta()
+            .public_key()
+    }
+
+    #[tokio::test]
+    async fn test_insert_pop() {
+        let mut buffer = EnvelopeBuffer::memory(mock_memory_checker()).unwrap();
+
+        let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
+        let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+        let project_key3 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fef").unwrap();
+
+        assert!(buffer.pop().await.unwrap().is_none());
+        assert!(buffer.peek().await.unwrap().is_empty());
+
+        buffer
+            .push(new_envelope(project_key1, None, None))
+            .await
+            .unwrap();
+
+        buffer
+            .push(new_envelope(project_key2, None, None))
+            .await
+            .unwrap();
+
+        // Both projects are ready, so project 2 is on top (has the newest envelopes):
+        assert_eq!(peek_project_key(&mut buffer).await, project_key2);
+
+        buffer.mark_ready(&project_key1, false);
+        buffer.mark_ready(&project_key2, false);
+
+        // Both projects are not ready, so project 1 is on top (has the oldest envelopes):
+        assert_eq!(peek_project_key(&mut buffer).await, project_key1);
+
+        buffer
+            .push(new_envelope(project_key3, None, None))
+            .await
+            .unwrap();
+        buffer.mark_ready(&project_key3, false);
+
+        // All projects are not ready, so project 1 is on top (has the oldest envelopes):
+        assert_eq!(peek_project_key(&mut buffer).await, project_key1);
+
+        // After marking a project ready, it goes to the top:
+        buffer.mark_ready(&project_key3, true);
+        assert_eq!(peek_project_key(&mut buffer).await, project_key3);
+        assert_eq!(
+            buffer.pop().await.unwrap().unwrap().meta().public_key(),
+            project_key3
+        );
+
+        // After popping, project 1 is on top again:
+        assert_eq!(peek_project_key(&mut buffer).await, project_key1);
+
+        // Mark project 1 as ready (still on top):
+        buffer.mark_ready(&project_key1, true);
+        assert_eq!(peek_project_key(&mut buffer).await, project_key1);
+
+        // Mark project 2 as ready as well (now on top because most recent):
+        buffer.mark_ready(&project_key2, true);
+        assert_eq!(peek_project_key(&mut buffer).await, project_key2);
+        assert_eq!(
+            buffer.pop().await.unwrap().unwrap().meta().public_key(),
+            project_key2
+        );
+
+        // Pop last element:
+        assert_eq!(
+            buffer.pop().await.unwrap().unwrap().meta().public_key(),
+            project_key1
+        );
+        assert!(buffer.pop().await.unwrap().is_none());
+        assert!(buffer.peek().await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_project_internal_order() {
+        let mut buffer = EnvelopeBuffer::memory(mock_memory_checker()).unwrap();
+
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
+
+        let envelope1 = new_envelope(project_key, None, None);
+        let instant1 = envelope1.meta().start_time();
+        let envelope2 = new_envelope(project_key, None, None);
+        let instant2 = envelope2.meta().start_time();
+
+        assert!(instant2 > instant1);
+
+        buffer.push(envelope1).await.unwrap();
+        buffer.push(envelope2).await.unwrap();
+
+        assert_eq!(
+            buffer.pop().await.unwrap().unwrap().meta().start_time(),
+            instant2
+        );
+        assert_eq!(
+            buffer.pop().await.unwrap().unwrap().meta().start_time(),
+            instant1
+        );
+        assert!(buffer.pop().await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn test_sampling_projects() {
+        let mut buffer = EnvelopeBuffer::memory(mock_memory_checker()).unwrap();
+
+        let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
+        let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fef").unwrap();
+
+        let envelope1 = new_envelope(project_key1, None, None);
+        let instant1 = envelope1.meta().start_time();
+        buffer.push(envelope1).await.unwrap();
+
+        let envelope2 = new_envelope(project_key2, None, None);
+        let instant2 = envelope2.meta().start_time();
+        buffer.push(envelope2).await.unwrap();
+
+        let envelope3 = new_envelope(project_key1, Some(project_key2), None);
+        let instant3 = envelope3.meta().start_time();
+        buffer.push(envelope3).await.unwrap();
+
+        buffer.mark_ready(&project_key1, false);
+        buffer.mark_ready(&project_key2, false);
+
+        // Nothing is ready, instant1 is on top:
+        assert_eq!(
+            buffer
+                .peek()
+                .await
+                .unwrap()
+                .envelope()
+                .unwrap()
+                .meta()
+                .start_time(),
+            instant1
+        );
+
+        // Mark project 2 ready, gets on top:
+        buffer.mark_ready(&project_key2, true);
+        assert_eq!(
+            buffer
+                .peek()
+                .await
+                .unwrap()
+                .envelope()
+                .unwrap()
+                .meta()
+                .start_time(),
+            instant2
+        );
+
+        // Revert
+        buffer.mark_ready(&project_key2, false);
+        assert_eq!(
+            buffer
+                .peek()
+                .await
+                .unwrap()
+                .envelope()
+                .unwrap()
+                .meta()
+                .start_time(),
+            instant1
+        );
+
+        // Project 1 ready:
+        buffer.mark_ready(&project_key1, true);
+        assert_eq!(
+            buffer
+                .peek()
+                .await
+                .unwrap()
+                .envelope()
+                .unwrap()
+                .meta()
+                .start_time(),
+            instant1
+        );
+
+        // when both projects are ready, event no 3 ends up on top:
+        buffer.mark_ready(&project_key2, true);
+        assert_eq!(
+            buffer.pop().await.unwrap().unwrap().meta().start_time(),
+            instant3
+        );
+        assert_eq!(
+            buffer
+                .peek()
+                .await
+                .unwrap()
+                .envelope()
+                .unwrap()
+                .meta()
+                .start_time(),
+            instant2
+        );
+
+        buffer.mark_ready(&project_key2, false);
+        assert_eq!(
+            buffer.pop().await.unwrap().unwrap().meta().start_time(),
+            instant1
+        );
+        assert_eq!(
+            buffer.pop().await.unwrap().unwrap().meta().start_time(),
+            instant2
+        );
+
+        assert!(buffer.pop().await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn test_project_keys_distinct() {
+        let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
+        let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fef").unwrap();
+
+        let project_key_pair1 = ProjectKeyPair::new(project_key1, project_key2);
+        let project_key_pair2 = ProjectKeyPair::new(project_key2, project_key1);
+
+        assert_ne!(project_key_pair1, project_key_pair2);
+
+        let mut buffer = EnvelopeBuffer::memory(mock_memory_checker()).unwrap();
+        buffer
+            .push(new_envelope(project_key1, Some(project_key2), None))
+            .await
+            .unwrap();
+        buffer
+            .push(new_envelope(project_key2, Some(project_key1), None))
+            .await
+            .unwrap();
+        assert_eq!(buffer.priority_queue.len(), 2);
+    }
+
+    #[test]
+    fn test_total_order() {
+        let p1 = Priority {
+            readiness: Readiness {
+                own_project_ready: true,
+                sampling_project_ready: true,
+            },
+            received_at: Instant::now(),
+            next_project_fetch: Instant::now(),
+        };
+        let mut p2 = p1.clone();
+        p2.next_project_fetch += Duration::from_millis(1);
+
+        // Last peek does not matter because project is ready:
+        assert_eq!(p1.cmp(&p2), Ordering::Equal);
+        assert_eq!(p1, p2);
+    }
+
+    #[tokio::test]
+    async fn test_last_peek_internal_order() {
+        let mut buffer = EnvelopeBuffer::memory(mock_memory_checker()).unwrap();
+
+        let project_key_1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
+        let event_id_1 = EventId::new();
+        let envelope1 = new_envelope(project_key_1, None, Some(event_id_1));
+
+        let project_key_2 = ProjectKey::parse("b56ae32be2584e0bbd7a4cbb95971fed").unwrap();
+        let event_id_2 = EventId::new();
+        let envelope2 = new_envelope(project_key_2, None, Some(event_id_2));
+
+        buffer.push(envelope1).await.unwrap();
+        buffer.push(envelope2).await.unwrap();
+
+        buffer.mark_ready(&project_key_1, false);
+        buffer.mark_ready(&project_key_2, false);
+
+        // event_id_1 is first element:
+        let Peek::NotReady(_, _, envelope) = buffer.peek().await.unwrap() else {
+            panic!();
+        };
+        assert_eq!(envelope.event_id(), Some(event_id_1));
+
+        // Second peek returns same element:
+        let Peek::NotReady(stack_key, _, envelope) = buffer.peek().await.unwrap() else {
+            panic!();
+        };
+        assert_eq!(envelope.event_id(), Some(event_id_1));
+
+        buffer.mark_seen(&stack_key, Duration::ZERO);
+
+        // After mark_seen, event 2 is on top:
+        let Peek::NotReady(_, _, envelope) = buffer.peek().await.unwrap() else {
+            panic!();
+        };
+        assert_eq!(envelope.event_id(), Some(event_id_2));
+
+        let Peek::NotReady(stack_key, _, envelope) = buffer.peek().await.unwrap() else {
+            panic!();
+        };
+        assert_eq!(envelope.event_id(), Some(event_id_2));
+
+        buffer.mark_seen(&stack_key, Duration::ZERO);
+
+        // After another mark_seen, cycle back to event 1:
+        let Peek::NotReady(_, _, envelope) = buffer.peek().await.unwrap() else {
+            panic!();
+        };
+        assert_eq!(envelope.event_id(), Some(event_id_1));
+    }
+
+    #[tokio::test]
+    async fn test_initialize_buffer() {
+        let path = std::env::temp_dir()
+            .join(Uuid::new_v4().to_string())
+            .into_os_string()
+            .into_string()
+            .unwrap();
+        let config = mock_config(&path);
+        let mut store = SqliteEnvelopeStore::prepare(&config).await.unwrap();
+        let mut buffer = EnvelopeBuffer::sqlite(&config).await.unwrap();
+
+        // We write 5 envelopes to disk so that we can check if they are loaded. These envelopes
+        // belong to the same project keys, so they belong to the same envelope stack.
+        let envelopes = mock_envelopes(10);
+        assert!(store
+            .insert_many(envelopes.iter().map(|e| e.as_ref().try_into().unwrap()))
+            .await
+            .is_ok());
+
+        // We assume that the buffer is empty.
+        assert!(buffer.priority_queue.is_empty());
+        assert!(buffer.project_to_pairs.is_empty());
+
+        buffer.initialize().await;
+
+        // We assume that we loaded only 1 envelope stack, because of the project keys combinations
+        // of the envelopes we inserted above.
+        assert_eq!(buffer.priority_queue.len(), 1);
+        // We expect to have an entry per project key, since we have 1 pair, the total entries
+        // should be 2.
+        assert_eq!(buffer.project_to_pairs.len(), 2);
+    }
 }

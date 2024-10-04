@@ -7,7 +7,6 @@ use hashbrown::HashMap;
 use relay_config::Config;
 use std::collections::BTreeSet;
 use std::error::Error;
-use std::mem;
 use std::ops::Sub;
 
 /// An error returned when doing an operation on [`SqliteEnvelopeProvider`].
@@ -25,6 +24,7 @@ pub enum SqliteEnvelopeProviderError {
 /// memory usage and disk I/O.
 #[derive(Debug)]
 pub struct SqliteEnvelopeProvider {
+    #[allow(clippy::vec_box)]
     envelopes: HashMap<ProjectKeyPair, Vec<Box<Envelope>>>,
     envelope_store: SqliteEnvelopeStore,
     buffered_envelopes_size: u64,
@@ -82,7 +82,7 @@ impl SqliteEnvelopeProvider {
 
         self.envelopes
             .entry(project_key_pair)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(envelope);
 
         Ok(())
@@ -130,7 +130,7 @@ impl SqliteEnvelopeProvider {
             let mut envelopes = Vec::with_capacity(self.disk_batch_size);
 
             for (_, inner_invelopes) in self.envelopes.iter_mut() {
-                for envelope in mem::replace(inner_invelopes, vec![]) {
+                for envelope in inner_invelopes.drain(..) {
                     if envelopes.len() >= self.disk_batch_size {
                         Self::flush_many(&mut self.envelope_store, envelopes).await;
                         envelopes = Vec::with_capacity(self.disk_batch_size);
@@ -276,7 +276,7 @@ impl SqliteEnvelopeProvider {
         self.buffered_envelopes_size += envelopes.len() as u64;
         self.envelopes
             .entry(project_key_pair)
-            .or_insert_with(Vec::new)
+            .or_default()
             .append(&mut envelopes);
 
         Ok(())

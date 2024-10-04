@@ -31,21 +31,27 @@ impl InitializationState {
     }
 }
 
+/// Represents different types of envelope providers.
 #[derive(Debug)]
 pub enum EnvelopeProvider {
+    /// In-memory envelope provider.
     Memory(MemoryEnvelopeProvider),
+    /// SQLite-based envelope provider.
     SQLite(SqliteEnvelopeProvider),
 }
 
 impl EnvelopeProvider {
+    /// Creates a new memory-based envelope provider.
     pub fn memory(memory_checker: MemoryChecker) -> Result<Self, EnvelopeBufferError> {
         Ok(Self::Memory(MemoryEnvelopeProvider::new(memory_checker)))
     }
 
+    /// Creates a new SQLite-based envelope provider.
     pub async fn sqlite(config: &Config) -> Result<Self, EnvelopeBufferError> {
         Ok(Self::SQLite(SqliteEnvelopeProvider::new(config).await?))
     }
 
+    /// Pushes an envelope to the provider for the given project key pair.
     pub async fn push(
         &mut self,
         project_key_pair: ProjectKeyPair,
@@ -59,6 +65,7 @@ impl EnvelopeProvider {
         Ok(())
     }
 
+    /// Peeks at the next envelope for the given project key pair without removing it.
     pub async fn peek(
         &mut self,
         project_key_pair: ProjectKeyPair,
@@ -71,6 +78,7 @@ impl EnvelopeProvider {
         Ok(envelope)
     }
 
+    /// Pops and returns the next envelope for the given project key pair.
     pub async fn pop(
         &mut self,
         project_key_pair: ProjectKeyPair,
@@ -85,6 +93,7 @@ impl EnvelopeProvider {
 }
 
 impl fmt::Display for EnvelopeProvider {
+    /// Provides a string representation of the EnvelopeProvider.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             EnvelopeProvider::Memory(_) => write!(f, "memory"),
