@@ -45,7 +45,7 @@ use smallvec::{smallvec, SmallVec};
 #[cfg(feature = "processing")]
 use {
     crate::services::store::{Store, StoreEnvelope},
-    crate::utils::{sample, Enforcement, EnvelopeLimiter, ItemAction},
+    crate::utils::{sample, ApplyLimits, Enforcement, EnvelopeLimiter, ItemAction},
     itertools::Itertools,
     relay_cardinality::{
         CardinalityLimit, CardinalityLimiter, CardinalityLimitsSplit, RedisSetLimiter,
@@ -722,6 +722,10 @@ struct ProcessEnvelopeState<'a, Group> {
     /// The state of the project that this envelope belongs to.
     project_info: Arc<ProjectInfo>,
 
+    /// Currently active cached rate limits of the project this envelope belongs to.
+    #[cfg_attr(not(feature = "processing"), expect(dead_code))]
+    rate_limits: RateLimits,
+
     /// The config of this Relay instance.
     config: Arc<Config>,
 
@@ -832,9 +836,15 @@ pub struct ProcessEnvelopeResponse {
 ///  - Rate limiters and inbound filters on events in processing mode.
 #[derive(Debug)]
 pub struct ProcessEnvelope {
+    /// Envelope to process.
     pub envelope: ManagedEnvelope,
+    /// The project info.
     pub project_info: Arc<ProjectInfo>,
+    /// Currently active cached rate limits for this project.
+    pub rate_limits: RateLimits,
+    /// Root sampling project info.
     pub sampling_project_info: Option<Arc<ProjectInfo>>,
+    /// Sampling reservoir counters.
     pub reservoir_counters: ReservoirCounters,
 }
 
@@ -1251,6 +1261,7 @@ impl EnvelopeProcessorService {
         mut managed_envelope: TypedEnvelope<G>,
         project_id: ProjectId,
         project_info: Arc<ProjectInfo>,
+        rate_limits: RateLimits,
         sampling_project_info: Option<Arc<ProjectInfo>>,
         reservoir_counters: Arc<Mutex<BTreeMap<RuleId, i64>>>,
     ) -> ProcessEnvelopeState<G> {
@@ -1291,6 +1302,7 @@ impl EnvelopeProcessorService {
             metrics: Metrics::default(),
             extracted_metrics,
             project_info,
+            rate_limits,
             config,
             sampling_project_info,
             project_id,
@@ -1305,55 +1317,41 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<G>,
     ) -> Result<(), ProcessingError> {
+        self.enforce_cached_quotas(state)?;
+        self.enforce_consistend_quotas(state)?;
+        Ok(())
+    }
+
+    #[cfg(feature = "processing")]
+    fn enforce_cached_quotas<G>(
+        &self,
+        state: &mut ProcessEnvelopeState<G>,
+    ) -> Result<(), ProcessingError> {
+        let global_config = self.inner.global_config.current();
+        let _ = RateLimiter::Cached.enforce(&global_config, state)?;
+
+        Ok(())
+    }
+
+    #[cfg(feature = "processing")]
+    fn enforce_consistend_quotas<G>(
+        &self,
+        state: &mut ProcessEnvelopeState<G>,
+    ) -> Result<(), ProcessingError> {
+        let global_config = self.inner.global_config.current();
         let rate_limiter = match self.inner.rate_limiter.as_ref() {
             Some(rate_limiter) => rate_limiter,
             None => return Ok(()),
         };
 
-        let project_info = &state.project_info;
-        let global_config = self.inner.global_config.current();
-        let quotas = CombinedQuotas::new(&global_config, project_info.get_quotas());
+        let limits = RateLimiter::Consistent(rate_limiter).enforce(&global_config, state)?;
 
-        if quotas.is_empty() {
-            return Ok(());
-        }
-
-        let event_category = state.event_category();
-
-        // When invoking the rate limiter, capture if the event item has been rate limited to also
-        // remove it from the processing state eventually.
-        let mut envelope_limiter = EnvelopeLimiter::new(|item_scope, quantity| {
-            rate_limiter.is_rate_limited(quotas, item_scope, quantity, false)
-        });
-
-        // Tell the envelope limiter about the event, since it has been removed from the Envelope at
-        // this stage in processing.
-        if let Some(category) = event_category {
-            envelope_limiter.assume_event(category);
-        }
-
-        let scoping = state.managed_envelope.scoping();
-        let (enforcement, limits) = metric!(timer(RelayTimers::EventProcessingRateLimiting), {
-            envelope_limiter.compute(state.managed_envelope.envelope_mut(), &scoping)?
-        });
-        let event_active = enforcement.is_event_active();
-
-        // Use the same rate limits as used for the envelope on the metrics.
-        // Those rate limits should not be checked for expiry or similar to ensure a consistent
-        // limiting of envelope items and metrics.
-        state.extracted_metrics.apply_enforcement(&enforcement);
-        enforcement.apply_with_outcomes(&mut state.managed_envelope);
-
-        if event_active {
-            state.remove_event();
-            debug_assert!(state.envelope().is_empty());
-        }
-
+        // Update cached rate limits with the freshly computed ones.
         if !limits.is_empty() {
-            self.inner
-                .addrs
-                .project_cache
-                .send(UpdateRateLimits::new(scoping.project_key, limits));
+            self.inner.addrs.project_cache.send(UpdateRateLimits::new(
+                state.managed_envelope.scoping().project_key,
+                limits,
+            ));
         }
 
         Ok(())
@@ -1749,6 +1747,13 @@ impl EnvelopeProcessorService {
             // Always extract metrics in processing Relays for sampled items.
             self.extract_transaction_metrics(state, SamplingDecision::Keep, profile_id)?;
 
+            // Enforce cached quotas here, because it is relatively cheap and can prevent
+            // us from extracting spans when it's not necessary.
+            //
+            // But do it *after* metric extraction to make sure we do not drop due to an indexed
+            // quota and never extract any metrics.
+            self.enforce_cached_quotas(state)?;
+
             if state
                 .project_info
                 .has_feature(Feature::ExtractSpansFromEvent)
@@ -1882,6 +1887,7 @@ impl EnvelopeProcessorService {
         mut managed_envelope: ManagedEnvelope,
         project_id: ProjectId,
         project_info: Arc<ProjectInfo>,
+        rate_limits: RateLimits,
         sampling_project_info: Option<Arc<ProjectInfo>>,
         reservoir_counters: Arc<Mutex<BTreeMap<RuleId, i64>>>,
     ) -> Result<ProcessingStateResult, ProcessingError> {
@@ -1906,6 +1912,7 @@ impl EnvelopeProcessorService {
                     managed_envelope,
                     project_id,
                     project_info,
+                    rate_limits,
                     sampling_project_info,
                     reservoir_counters,
                 );
@@ -1982,6 +1989,7 @@ impl EnvelopeProcessorService {
         let ProcessEnvelope {
             envelope: mut managed_envelope,
             project_info,
+            rate_limits,
             sampling_project_info,
             reservoir_counters,
         } = message;
@@ -2030,6 +2038,7 @@ impl EnvelopeProcessorService {
                     managed_envelope,
                     project_id,
                     project_info,
+                    rate_limits,
                     sampling_project_info,
                     reservoir_counters,
                 ) {
@@ -2907,6 +2916,67 @@ impl Service for EnvelopeProcessorService {
     }
 }
 
+#[cfg(feature = "processing")]
+enum RateLimiter<'a> {
+    Cached,
+    Consistent(&'a RedisRateLimiter),
+}
+
+#[cfg(feature = "processing")]
+impl<'a> RateLimiter<'a> {
+    fn enforce<G>(
+        &self,
+        global_config: &GlobalConfig,
+        state: &mut ProcessEnvelopeState<G>,
+    ) -> Result<RateLimits, ProcessingError> {
+        if state.envelope().is_empty() {
+            return Ok(RateLimits::default());
+        }
+
+        let quotas = CombinedQuotas::new(global_config, state.project_info.get_quotas());
+        if quotas.is_empty() {
+            return Ok(RateLimits::default());
+        }
+
+        let event_category = state.event_category();
+
+        // When invoking the rate limiter, capture if the event item has been rate limited to also
+        // remove it from the processing state eventually.
+        let mut envelope_limiter =
+            EnvelopeLimiter::new(ApplyLimits::All, |item_scope, quantity| match self {
+                RateLimiter::Cached => Ok(state.rate_limits.check_with_quotas(quotas, item_scope)),
+                RateLimiter::Consistent(rl) => Ok::<_, ProcessingError>(
+                    rl.is_rate_limited(quotas, item_scope, quantity, false)?,
+                ),
+            });
+
+        // Tell the envelope limiter about the event, since it has been removed from the Envelope at
+        // this stage in processing.
+        if let Some(category) = event_category {
+            envelope_limiter.assume_event(category);
+        }
+
+        let scoping = state.managed_envelope.scoping();
+        let (enforcement, limits) = metric!(timer(RelayTimers::EventProcessingRateLimiting), {
+            envelope_limiter.compute(state.managed_envelope.envelope_mut(), &scoping)?
+        });
+        let event_active = enforcement.is_event_active();
+
+        // Use the same rate limits as used for the envelope on the metrics.
+        // Those rate limits should not be checked for expiry or similar to ensure a consistent
+        // limiting of envelope items and metrics.
+        state.extracted_metrics.apply_enforcement(&enforcement);
+        enforcement.apply_with_outcomes(&mut state.managed_envelope);
+
+        if event_active {
+            state.remove_event();
+            debug_assert!(state.envelope().is_empty());
+        }
+
+        Ok(limits)
+    }
+}
+
 fn encode_payload(body: &Bytes, http_encoding: HttpEncoding) -> Result<Bytes, std::io::Error> {
     let envelope_body: Vec<u8> = match http_encoding {
         HttpEncoding::Identity => return Ok(body.clone()),
@@ -3464,6 +3534,7 @@ mod tests {
         let message = ProcessEnvelope {
             envelope,
             project_info: Arc::new(project_info),
+            rate_limits: Default::default(),
             sampling_project_info: None,
             reservoir_counters: ReservoirCounters::default(),
         };
@@ -3526,6 +3597,7 @@ mod tests {
         let process_message = ProcessEnvelope {
             envelope: managed_envelope,
             project_info: Arc::new(ProjectInfo::default()),
+            rate_limits: Default::default(),
             sampling_project_info: None,
             reservoir_counters: ReservoirCounters::default(),
         };

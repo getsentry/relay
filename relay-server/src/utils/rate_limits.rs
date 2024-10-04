@@ -510,6 +510,39 @@ impl Enforcement {
     }
 }
 
+/// Which limits to apply with the [`EnvelopeLimiter`].
+#[derive(Debug, Copy, Clone)]
+pub enum ApplyLimits {
+    /// Applies all limits to the envelope except indexed categories.
+    ///
+    /// In the fast path it is necessary to apply cached rate limits but to not enforce indexed rate limits.
+    /// Because at the time of the check the decision whether an envelope is sampled or not is not yet known.
+    /// Additionally even if the item is later dropped by dynamic sampling, it must still be around to extract metrics
+    /// and cannot be dropped too early.
+    NonIndexed,
+    /// Applies all limits to the envelope.
+    #[cfg_attr(not(any(feature = "processing", test)), expect(dead_code))]
+    All,
+}
+
+struct Check<F> {
+    limits: ApplyLimits,
+    check: F,
+}
+
+impl<F, E> Check<F>
+where
+    F: FnMut(ItemScoping<'_>, usize) -> Result<RateLimits, E>,
+{
+    fn apply(&mut self, scoping: ItemScoping<'_>, quantity: usize) -> Result<RateLimits, E> {
+        if matches!(self.limits, ApplyLimits::NonIndexed) && scoping.category.is_indexed() {
+            return Ok(RateLimits::default());
+        }
+
+        (self.check)(scoping, quantity)
+    }
+}
+
 /// Enforces rate limits with the given `check` function on items in the envelope.
 ///
 /// The `check` function is called with the following rules:
@@ -522,7 +555,7 @@ impl Enforcement {
 ///  - Attachments are not removed if they create events (e.g. minidumps).
 ///  - Sessions are handled separate to all of the above.
 pub struct EnvelopeLimiter<F> {
-    check: F,
+    check: Check<F>,
     event_category: Option<DataCategory>,
 }
 
@@ -531,9 +564,9 @@ where
     F: FnMut(ItemScoping<'_>, usize) -> Result<RateLimits, E>,
 {
     /// Create a new `EnvelopeLimiter` with the given `check` function.
-    pub fn new(check: F) -> Self {
+    pub fn new(limits: ApplyLimits, check: F) -> Self {
         Self {
-            check,
+            check: Check { check, limits },
             event_category: None,
         }
     }
@@ -580,14 +613,14 @@ where
 
         if let Some(category) = summary.event_category {
             // Check the broad category for limits.
-            let mut event_limits = (self.check)(scoping.item(category), 1)?;
+            let mut event_limits = self.check.apply(scoping.item(category), 1)?;
             enforcement.event = CategoryLimit::new(category, 1, event_limits.longest());
 
             if let Some(index_category) = category.index_category() {
                 // Check the specific/indexed category for limits only if the specific one has not already
                 // an enforced limit.
                 if event_limits.is_empty() {
-                    event_limits.merge((self.check)(scoping.item(index_category), 1)?);
+                    event_limits.merge(self.check.apply(scoping.item(index_category), 1)?);
                 }
 
                 enforcement.event_indexed =
@@ -602,7 +635,9 @@ where
                 limit.clone_for(DataCategory::Attachment, summary.attachment_quantity);
         } else if summary.attachment_quantity > 0 {
             let item_scoping = scoping.item(DataCategory::Attachment);
-            let attachment_limits = (self.check)(item_scoping, summary.attachment_quantity)?;
+            let attachment_limits = self
+                .check
+                .apply(item_scoping, summary.attachment_quantity)?;
             enforcement.attachments = CategoryLimit::new(
                 DataCategory::Attachment,
                 summary.attachment_quantity,
@@ -619,7 +654,7 @@ where
 
         if summary.session_quantity > 0 {
             let item_scoping = scoping.item(DataCategory::Session);
-            let session_limits = (self.check)(item_scoping, summary.session_quantity)?;
+            let session_limits = self.check.apply(item_scoping, summary.session_quantity)?;
             enforcement.sessions = CategoryLimit::new(
                 DataCategory::Session,
                 summary.session_quantity,
@@ -637,7 +672,7 @@ where
                 .event_indexed
                 .clone_for(DataCategory::ProfileIndexed, summary.profile_quantity)
         } else if summary.profile_quantity > 0 {
-            let mut profile_limits = (self.check)(
+            let mut profile_limits = self.check.apply(
                 scoping.item(DataCategory::Profile),
                 summary.profile_quantity,
             )?;
@@ -648,7 +683,7 @@ where
             );
 
             if profile_limits.is_empty() {
-                profile_limits.merge((self.check)(
+                profile_limits.merge(self.check.apply(
                     scoping.item(DataCategory::ProfileIndexed),
                     summary.profile_quantity,
                 )?);
@@ -665,7 +700,7 @@ where
 
         if summary.replay_quantity > 0 {
             let item_scoping = scoping.item(DataCategory::Replay);
-            let replay_limits = (self.check)(item_scoping, summary.replay_quantity)?;
+            let replay_limits = self.check.apply(item_scoping, summary.replay_quantity)?;
             enforcement.replays = CategoryLimit::new(
                 DataCategory::Replay,
                 summary.replay_quantity,
@@ -676,7 +711,7 @@ where
 
         if summary.checkin_quantity > 0 {
             let item_scoping = scoping.item(DataCategory::Monitor);
-            let checkin_limits = (self.check)(item_scoping, summary.checkin_quantity)?;
+            let checkin_limits = self.check.apply(item_scoping, summary.checkin_quantity)?;
             enforcement.check_ins = CategoryLimit::new(
                 DataCategory::Monitor,
                 summary.checkin_quantity,
@@ -694,8 +729,9 @@ where
                 .event_indexed
                 .clone_for(DataCategory::SpanIndexed, summary.span_quantity);
         } else if summary.span_quantity > 0 {
-            let mut span_limits =
-                (self.check)(scoping.item(DataCategory::Span), summary.span_quantity)?;
+            let mut span_limits = self
+                .check
+                .apply(scoping.item(DataCategory::Span), summary.span_quantity)?;
             enforcement.spans = CategoryLimit::new(
                 DataCategory::Span,
                 summary.span_quantity,
@@ -703,7 +739,7 @@ where
             );
 
             if span_limits.is_empty() {
-                span_limits.merge((self.check)(
+                span_limits.merge(self.check.apply(
                     scoping.item(DataCategory::SpanIndexed),
                     summary.span_quantity,
                 )?);
@@ -720,7 +756,9 @@ where
 
         if summary.profile_chunk_quantity > 0 {
             let item_scoping = scoping.item(DataCategory::ProfileChunk);
-            let profile_chunk_limits = (self.check)(item_scoping, summary.profile_chunk_quantity)?;
+            let profile_chunk_limits = self
+                .check
+                .apply(item_scoping, summary.profile_chunk_quantity)?;
             enforcement.profile_chunks = CategoryLimit::new(
                 DataCategory::ProfileChunk,
                 summary.profile_chunk_quantity,
@@ -1062,7 +1100,7 @@ mod tests {
         let scoping = envelope.scoping();
 
         #[allow(unused_mut)]
-        let mut limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
+        let mut limiter = EnvelopeLimiter::new(ApplyLimits::All, |s, q| mock.check(s, q));
         #[cfg(feature = "processing")]
         if let Some(assume_event) = assume_event {
             limiter.assume_event(assume_event);
@@ -1292,6 +1330,26 @@ mod tests {
                 (DataCategory::TransactionIndexed, 1),
             ]
         );
+    }
+
+    #[test]
+    fn test_enforce_transaction_non_indexed() {
+        let mut envelope = envelope![Transaction, Profile];
+        let scoping = envelope.scoping();
+
+        let mut mock = MockLimiter::default().deny(DataCategory::TransactionIndexed);
+
+        let limiter = EnvelopeLimiter::new(ApplyLimits::NonIndexed, |s, q| mock.check(s, q));
+        let (enforcement, limits) = limiter.compute(envelope.envelope_mut(), &scoping).unwrap();
+        enforcement.clone().apply_with_outcomes(&mut envelope);
+
+        assert!(!limits.is_limited());
+        assert!(!enforcement.event_indexed.is_active());
+        assert!(!enforcement.event.is_active());
+        assert!(!enforcement.profiles_indexed.is_active());
+        assert!(!enforcement.profiles.is_active());
+        mock.assert_call(DataCategory::Transaction, 1);
+        mock.assert_call(DataCategory::Profile, 1);
     }
 
     #[test]

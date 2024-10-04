@@ -872,6 +872,8 @@ impl ProjectCacheBroker {
             ..
         }) = project.check_envelope(managed_envelope)
         {
+            let rate_limits = project.current_rate_limits().clone();
+
             let reservoir_counters = project.reservoir_counters();
 
             let sampling_project_info = managed_envelope
@@ -884,6 +886,7 @@ impl ProjectCacheBroker {
             let process = ProcessEnvelope {
                 envelope: managed_envelope,
                 project_info,
+                rate_limits,
                 sampling_project_info,
                 reservoir_counters,
             };
@@ -1156,6 +1159,7 @@ impl ProjectCacheBroker {
             services.envelope_processor.send(ProcessEnvelope {
                 envelope: managed_envelope,
                 project_info: project_info.clone(),
+                rate_limits: project.current_rate_limits().clone(),
                 sampling_project_info: sampling_project_info.clone(),
                 reservoir_counters,
             });
