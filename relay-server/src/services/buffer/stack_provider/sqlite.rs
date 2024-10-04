@@ -67,7 +67,7 @@ impl SqliteStackProvider {
     }
 }
 
-impl<'a> StackProvider<'a> for SqliteStackProvider {
+impl StackProvider for SqliteStackProvider {
     type Stack = SqliteEnvelopeStack;
 
     async fn initialize(&self) -> InitializationState {
@@ -126,7 +126,7 @@ impl<'a> StackProvider<'a> for SqliteStackProvider {
         "sqlite"
     }
 
-    async fn spool(
+    async fn spool<'a>(
         &mut self,
         envelope_stacks: impl IntoIterator<Item = &'a mut Self::Stack>,
         spooling_strategy: SpoolingStrategy,

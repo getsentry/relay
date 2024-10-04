@@ -2,7 +2,6 @@ use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::convert::Infallible;
 use std::error::Error;
-use std::mem;
 use std::sync::atomic::Ordering as AtomicOrdering;
 use std::sync::atomic::{AtomicI64, AtomicU64};
 use std::sync::Arc;
@@ -16,7 +15,7 @@ use tokio::time::{timeout, Instant};
 use crate::envelope::Envelope;
 use crate::services::buffer::common::ProjectKeyPair;
 use crate::services::buffer::envelope_stack::sqlite::SqliteEnvelopeStackError;
-use crate::services::buffer::envelope_stack::{CollectionStrategy, EnvelopeStack};
+use crate::services::buffer::envelope_stack::EnvelopeStack;
 use crate::services::buffer::envelope_store::sqlite::SqliteEnvelopeStoreError;
 use crate::services::buffer::stack_provider::memory::MemoryStackProvider;
 use crate::services::buffer::stack_provider::sqlite::SqliteStackProvider;
@@ -33,14 +32,14 @@ use crate::utils::MemoryChecker;
 /// object safe.
 #[derive(Debug)]
 #[allow(private_interfaces)]
-pub enum PolymorphicEnvelopeBuffer<'a> {
+pub enum PolymorphicEnvelopeBuffer {
     /// An enveloper buffer that uses in-memory envelopes stacks.
-    InMemory(EnvelopeBuffer<'a, MemoryStackProvider>),
+    InMemory(EnvelopeBuffer<MemoryStackProvider>),
     /// An enveloper buffer that uses sqlite envelopes stacks.
-    Sqlite(EnvelopeBuffer<'a, SqliteStackProvider>),
+    Sqlite(EnvelopeBuffer<SqliteStackProvider>),
 }
 
-impl<'a> PolymorphicEnvelopeBuffer<'a> {
+impl PolymorphicEnvelopeBuffer {
     /// Returns true if the implementation stores all envelopes in RAM.
     pub fn is_memory(&self) -> bool {
         match self {
@@ -263,7 +262,7 @@ impl SpoolOrchestrator {
 /// Envelope stacks are organized in a priority queue, and are re-prioritized every time an envelope
 /// is pushed, popped, or when a project becomes ready.
 #[derive(Debug)]
-struct EnvelopeBuffer<'a, P: StackProvider<'a>> {
+struct EnvelopeBuffer<P: StackProvider> {
     /// The central priority queue.
     priority_queue: priority_queue::PriorityQueue<QueueItem<ProjectKeyPair, P::Stack>, Priority>,
     /// A lookup table to find all stacks involving a project.
@@ -289,7 +288,7 @@ struct EnvelopeBuffer<'a, P: StackProvider<'a>> {
     spool_orchestrator: SpoolOrchestrator,
 }
 
-impl<'a> EnvelopeBuffer<'a, MemoryStackProvider> {
+impl EnvelopeBuffer<MemoryStackProvider> {
     /// Creates an empty memory-based buffer.
     pub fn new(memory_checker: MemoryChecker) -> Self {
         Self {
@@ -304,7 +303,7 @@ impl<'a> EnvelopeBuffer<'a, MemoryStackProvider> {
 }
 
 #[allow(dead_code)]
-impl<'a> EnvelopeBuffer<'a, SqliteStackProvider> {
+impl EnvelopeBuffer<SqliteStackProvider> {
     /// Creates an empty sqlite-based buffer.
     pub async fn new(config: &Config) -> Result<Self, EnvelopeBufferError> {
         let spool_orchestrator = SpoolOrchestrator::new(config);
@@ -320,7 +319,7 @@ impl<'a> EnvelopeBuffer<'a, SqliteStackProvider> {
     }
 }
 
-impl<'a, P: StackProvider<'a>> EnvelopeBuffer<'a, P>
+impl<P: StackProvider> EnvelopeBuffer<P>
 where
     EnvelopeBufferError: From<<P::Stack as EnvelopeStack>::Error>,
 {
@@ -788,9 +787,7 @@ mod tests {
         MemoryChecker::new(MemoryStat::default(), mock_config("my/db/path").clone())
     }
 
-    async fn peek_project_key<'a>(
-        buffer: &mut EnvelopeBuffer<'a, MemoryStackProvider>,
-    ) -> ProjectKey {
+    async fn peek_project_key(buffer: &mut EnvelopeBuffer<MemoryStackProvider>) -> ProjectKey {
         buffer
             .peek()
             .await

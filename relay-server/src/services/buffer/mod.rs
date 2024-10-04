@@ -153,9 +153,9 @@ impl EnvelopeBufferService {
     }
 
     /// Wait for the configured amount of time and make sure the project cache is ready to receive.
-    async fn ready_to_pop<'a>(
+    async fn ready_to_pop(
         &mut self,
-        buffer: &PolymorphicEnvelopeBuffer<'a>,
+        buffer: &PolymorphicEnvelopeBuffer,
         dequeue: bool,
     ) -> Option<Permit<DequeuedEnvelope>> {
         relay_statsd::metric!(
@@ -194,7 +194,7 @@ impl EnvelopeBufferService {
     /// - We should not pop from disk into memory when relay's overall memory capacity
     ///   has been reached.
     /// - We need a valid global config to unspool.
-    async fn system_ready<'a>(&self, buffer: &PolymorphicEnvelopeBuffer<'a>, dequeue: bool) {
+    async fn system_ready(&self, buffer: &PolymorphicEnvelopeBuffer, dequeue: bool) {
         loop {
             // We should not unspool from external storage if memory capacity has been reached.
             // But if buffer storage is in memory, unspooling can reduce memory usage.
@@ -216,7 +216,7 @@ impl EnvelopeBufferService {
     /// Tries to pop an envelope for a ready project.
     async fn try_pop<'a>(
         config: &Config,
-        buffer: &mut PolymorphicEnvelopeBuffer<'a>,
+        buffer: &mut PolymorphicEnvelopeBuffer,
         services: &Services,
         envelopes_tx_permit: Permit<'a, DequeuedEnvelope>,
     ) -> Result<Duration, EnvelopeBufferError> {
@@ -307,10 +307,7 @@ impl EnvelopeBufferService {
         managed_envelope.reject(Outcome::Invalid(DiscardReason::Timestamp));
     }
 
-    async fn handle_message<'a>(
-        buffer: &mut PolymorphicEnvelopeBuffer<'a>,
-        message: EnvelopeBuffer,
-    ) {
+    async fn handle_message(buffer: &mut PolymorphicEnvelopeBuffer, message: EnvelopeBuffer) {
         match message {
             EnvelopeBuffer::Push(envelope) => {
                 // NOTE: This function assumes that a project state update for the relevant
@@ -339,10 +336,7 @@ impl EnvelopeBufferService {
         };
     }
 
-    async fn handle_shutdown<'a>(
-        buffer: &mut PolymorphicEnvelopeBuffer<'a>,
-        message: Shutdown,
-    ) -> bool {
+    async fn handle_shutdown(buffer: &mut PolymorphicEnvelopeBuffer, message: Shutdown) -> bool {
         // We gracefully shut down only if the shutdown has a timeout.
         if let Some(shutdown_timeout) = message.timeout {
             relay_log::trace!("EnvelopeBufferService: shutting down gracefully");
@@ -364,7 +358,7 @@ impl EnvelopeBufferService {
         false
     }
 
-    async fn push<'a>(buffer: &mut PolymorphicEnvelopeBuffer<'a>, envelope: Box<Envelope>) {
+    async fn push(buffer: &mut PolymorphicEnvelopeBuffer, envelope: Box<Envelope>) {
         if let Err(e) = buffer.push(envelope).await {
             relay_log::error!(
                 error = &e as &dyn std::error::Error,

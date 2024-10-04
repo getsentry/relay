@@ -20,7 +20,7 @@ impl MemoryStackProvider {
     }
 }
 
-impl<'a> StackProvider<'a> for MemoryStackProvider {
+impl StackProvider for MemoryStackProvider {
     type Stack = MemoryEnvelopeStack;
 
     async fn initialize(&self) -> InitializationState {
@@ -44,7 +44,7 @@ impl<'a> StackProvider<'a> for MemoryStackProvider {
         "memory"
     }
 
-    async fn spool(
+    async fn spool<'a>(
         &mut self,
         envelope_stacks: impl IntoIterator<Item = &'a mut Self::Stack>,
         spooling_strategy: SpoolingStrategy,

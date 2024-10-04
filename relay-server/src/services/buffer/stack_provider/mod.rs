@@ -1,5 +1,4 @@
 use crate::services::buffer::common::ProjectKeyPair;
-use crate::services::buffer::envelope_stack::CollectionStrategy;
 use crate::EnvelopeStack;
 use hashbrown::HashSet;
 use std::future::Future;
@@ -44,9 +43,9 @@ pub enum SpoolingStrategy {
 }
 
 /// A provider of [`EnvelopeStack`] instances that is responsible for creating them.
-pub trait StackProvider<'a>: std::fmt::Debug {
+pub trait StackProvider: std::fmt::Debug {
     /// The implementation of [`EnvelopeStack`] that this manager creates.
-    type Stack: EnvelopeStack + 'a;
+    type Stack: EnvelopeStack + 'static;
 
     /// Initializes the [`StackProvider`].
     fn initialize(&self) -> impl Future<Output = InitializationState>;
@@ -69,7 +68,7 @@ pub trait StackProvider<'a>: std::fmt::Debug {
     fn stack_type(&self) -> &str;
 
     /// Spools envelopes from the [`EnvelopeStack`]s given a [`SpoolingStrategy`].
-    fn spool(
+    fn spool<'a>(
         &mut self,
         envelope_stacks: impl IntoIterator<Item = &'a mut Self::Stack>,
         spooling_strategy: SpoolingStrategy,
