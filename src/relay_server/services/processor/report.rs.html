@@ -785,7 +785,7 @@
     }
 
     <span class="kw">let </span>retention_days = state
-        .project_state
+        .project_info
         .config()
         .event_retention
         .unwrap_or(DEFAULT_EVENT_RETENTION);

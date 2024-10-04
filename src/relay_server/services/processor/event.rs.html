@@ -1150,7 +1150,7 @@
     };
 
     <span class="kw">let </span>client_ip = state.managed_envelope.envelope().meta().client_addr();
-    <span class="kw">let </span>filter_settings = <span class="kw-2">&amp;</span>state.project_state.config.filter_settings;
+    <span class="kw">let </span>filter_settings = <span class="kw-2">&amp;</span>state.project_info.config.filter_settings;
 
     <span class="macro">metric!</span>(timer(RelayTimers::EventProcessingFiltering), {
         relay_filter::should_filter(event, client_ip, filter_settings, global_config.filters())
@@ -1169,7 +1169,7 @@
     </span><span class="kw">let </span>supported_generic_filters = global_config.filters.is_ok()
         &amp;&amp; relay_filter::are_generic_filters_supported(
             global_config.filters().map(|f| f.version),
-            state.project_state.config.filter_settings.generic.version,
+            state.project_info.config.filter_settings.generic.version,
         );
     <span class="kw">if </span>supported_generic_filters {
         <span class="prelude-val">Ok</span>(FiltersStatus::Ok)
@@ -1185,7 +1185,7 @@
     state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
     <span class="kw">let </span>event = <span class="kw-2">&amp;mut </span>state.event;
-    <span class="kw">let </span>config = <span class="kw-2">&amp;</span>state.project_state.config;
+    <span class="kw">let </span>config = <span class="kw-2">&amp;</span>state.project_info.config;
 
     <span class="kw">if </span>config.datascrubbing_settings.scrub_data {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(event) = event.value_mut() {

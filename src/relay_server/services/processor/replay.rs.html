@@ -355,7 +355,7 @@
     <span class="comment">// If the replay video feature is not enabled check the envelope items for a
     // replay video event.
     </span><span class="kw">if </span>state
-        .project_state
+        .project_info
         .has_feature(Feature::SessionReplayVideoDisabled)
         &amp;&amp; count_replay_video_events(state) &gt; <span class="number">0
     </span>{
@@ -367,12 +367,12 @@
         <span class="kw">let </span>meta = state.envelope().meta();
 
         ReplayProcessingConfig {
-            config: <span class="kw-2">&amp;</span>state.project_state.config,
+            config: <span class="kw-2">&amp;</span>state.project_info.config,
             global_config,
             geoip_lookup,
             event_id: state.envelope().event_id(),
-            project_id: state.project_state.project_id,
-            organization_id: state.project_state.organization_id,
+            project_id: state.project_info.project_id,
+            organization_id: state.project_info.organization_id,
             client_addr: meta.client_addr(),
             user_agent: RawUserAgentInfo {
                 user_agent: meta.user_agent().map(|s| s.to_owned()),
@@ -382,7 +382,7 @@
     };
 
     <span class="kw">let </span><span class="kw-2">mut </span>scrubber = <span class="kw">if </span>state
-        .project_state
+        .project_info
         .has_feature(Feature::SessionReplayRecordingScrubbing)
     {
         <span class="kw">let </span>datascrubbing_config = rpc
@@ -403,7 +403,7 @@
 
     <span class="kw">for </span>item <span class="kw">in </span>state.managed_envelope.envelope_mut().items_mut() {
         <span class="kw">if </span>state
-            .project_state
+            .project_info
             .has_feature(Feature::SessionReplayCombinedEnvelopeItems)
         {
             item.set_replay_combined_payload(<span class="bool-val">true</span>);

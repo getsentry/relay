@@ -486,7 +486,7 @@
 /// are out of range after clock drift correction.
 </span><span class="kw">pub fn </span>process(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;SessionGroup&gt;, config: <span class="kw-2">&amp;</span>Config) {
     <span class="kw">let </span>received = state.managed_envelope.received_at();
-    <span class="kw">let </span>metrics_config = state.project_state.config().session_metrics;
+    <span class="kw">let </span>metrics_config = state.project_info.config().session_metrics;
     <span class="kw">let </span>envelope = state.managed_envelope.envelope_mut();
     <span class="kw">let </span>client = envelope.meta().client().map(|x| x.to_owned());
     <span class="kw">let </span>client_addr = envelope.meta().client_addr();

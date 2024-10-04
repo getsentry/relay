@@ -1311,21 +1311,21 @@
     // once for all spans in the envelope.
     </span><span class="kw">let </span>sampling_result = dynamic_sampling::run(state);
 
-    <span class="kw">let </span>span_metrics_extraction_config = <span class="kw">match </span>state.project_state.config.metric_extraction {
+    <span class="kw">let </span>span_metrics_extraction_config = <span class="kw">match </span>state.project_info.config.metric_extraction {
         ErrorBoundary::Ok(<span class="kw-2">ref </span>config) <span class="kw">if </span>config.is_enabled() =&gt; <span class="prelude-val">Some</span>(config),
         <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
     };
     <span class="kw">let </span>normalize_span_config = NormalizeSpanConfig::new(
         <span class="kw-2">&amp;</span>state.config,
         global_config,
-        state.project_state.config(),
+        state.project_info.config(),
         <span class="kw-2">&amp;</span>state.managed_envelope,
         state.envelope().meta().client_addr().map(IpAddr::from),
         geo_lookup,
     );
 
     <span class="kw">let </span>client_ip = state.managed_envelope.envelope().meta().client_addr();
-    <span class="kw">let </span>filter_settings = <span class="kw-2">&amp;</span>state.project_state.config.filter_settings;
+    <span class="kw">let </span>filter_settings = <span class="kw-2">&amp;</span>state.project_info.config.filter_settings;
 
     <span class="kw">let </span><span class="kw-2">mut </span>dynamic_sampling_dropped_spans = <span class="number">0</span>;
     state.managed_envelope.retain_items(|item| {
@@ -1404,7 +1404,7 @@
             </span><span class="kw">return </span>ItemAction::DropSilently;
         }
 
-        <span class="kw">if let </span><span class="prelude-val">Err</span>(e) = scrub(<span class="kw-2">&amp;mut </span>annotated_span, <span class="kw-2">&amp;</span>state.project_state.config) {
+        <span class="kw">if let </span><span class="prelude-val">Err</span>(e) = scrub(<span class="kw-2">&amp;mut </span>annotated_span, <span class="kw-2">&amp;</span>state.project_info.config) {
             <span class="macro">relay_log::error!</span>(<span class="string">"failed to scrub span: {e}"</span>);
         }
 
@@ -1577,7 +1577,7 @@
             .max_tag_value_length,
         <span class="kw-2">&amp;</span>[],
         <span class="kw">if </span>state
-            .project_state
+            .project_info
             .config
             .features
             .has(Feature::ScrubMongoDbDescriptions)
@@ -1619,7 +1619,7 @@
 <span class="doccomment">/// Removes the transaction in case the project has made the transition to spans-only.
 </span><span class="kw">pub fn </span>maybe_discard_transaction(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;) {
     <span class="kw">if </span>state.event_type() == <span class="prelude-val">Some</span>(EventType::Transaction)
-        &amp;&amp; state.project_state.has_feature(Feature::DiscardTransaction)
+        &amp;&amp; state.project_info.has_feature(Feature::DiscardTransaction)
     {
         state.remove_event();
         state.managed_envelope.update();
@@ -2036,13 +2036,13 @@
         );
 
         <span class="kw">let </span>dummy_envelope = Envelope::parse_bytes(bytes).unwrap();
-        <span class="kw">let </span><span class="kw-2">mut </span>project_state = ProjectInfo::default();
-        project_state
+        <span class="kw">let </span><span class="kw-2">mut </span>project_info = ProjectInfo::default();
+        project_info
             .config
             .features
             .<span class="number">0
             </span>.insert(Feature::ExtractCommonSpanMetricsFromEvent);
-        <span class="kw">let </span>project_state = Arc::new(project_state);
+        <span class="kw">let </span>project_info = Arc::new(project_info);
 
         <span class="kw">let </span>event = Event {
             ty: EventType::Transaction.into(),
@@ -2075,8 +2075,8 @@
             metrics: Default::default(),
             extracted_metrics: ProcessingExtractedMetrics::new(),
             config: Arc::new(Config::default()),
-            project_state,
-            sampling_project_state: <span class="prelude-val">None</span>,
+            project_info,
+            sampling_project_info: <span class="prelude-val">None</span>,
             project_id: ProjectId::new(<span class="number">42</span>),
             managed_envelope: managed_envelope.try_into().unwrap(),
             event_metrics_extracted: <span class="bool-val">false</span>,

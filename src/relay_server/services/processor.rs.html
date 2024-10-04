@@ -4050,7 +4050,7 @@
 <span class="doccomment">/// A trait for processing groups that can be dynamically sampled.
 </span><span class="kw">pub trait </span>Sampling {
     <span class="doccomment">/// Whether dynamic sampling should run under the given project's conditions.
-    </span><span class="kw">fn </span>supports_sampling(project_state: <span class="kw-2">&amp;</span>ProjectInfo) -&gt; bool;
+    </span><span class="kw">fn </span>supports_sampling(project_info: <span class="kw-2">&amp;</span>ProjectInfo) -&gt; bool;
 
     <span class="doccomment">/// Whether reservoir sampling applies to this processing group (a.k.a. data type).
     </span><span class="kw">fn </span>supports_reservoir_sampling() -&gt; bool;
@@ -4060,9 +4060,9 @@
 <span class="kw">impl </span>EventProcessing <span class="kw">for </span>TransactionGroup {}
 
 <span class="kw">impl </span>Sampling <span class="kw">for </span>TransactionGroup {
-    <span class="kw">fn </span>supports_sampling(project_state: <span class="kw-2">&amp;</span>ProjectInfo) -&gt; bool {
+    <span class="kw">fn </span>supports_sampling(project_info: <span class="kw-2">&amp;</span>ProjectInfo) -&gt; bool {
         <span class="comment">// For transactions, we require transaction metrics to be enabled before sampling.
-        </span><span class="macro">matches!</span>(<span class="kw-2">&amp;</span>project_state.config.transaction_metrics, <span class="prelude-val">Some</span>(ErrorBoundary::Ok(c)) <span class="kw">if </span>c.is_enabled())
+        </span><span class="macro">matches!</span>(<span class="kw-2">&amp;</span>project_info.config.transaction_metrics, <span class="prelude-val">Some</span>(ErrorBoundary::Ok(c)) <span class="kw">if </span>c.is_enabled())
     }
 
     <span class="kw">fn </span>supports_reservoir_sampling() -&gt; bool {
@@ -4081,9 +4081,9 @@
 <span class="macro">processing_group!</span>(SpanGroup, Span);
 
 <span class="kw">impl </span>Sampling <span class="kw">for </span>SpanGroup {
-    <span class="kw">fn </span>supports_sampling(project_state: <span class="kw-2">&amp;</span>ProjectInfo) -&gt; bool {
+    <span class="kw">fn </span>supports_sampling(project_info: <span class="kw-2">&amp;</span>ProjectInfo) -&gt; bool {
         <span class="comment">// If no metrics could be extracted, do not sample anything.
-        </span><span class="macro">matches!</span>(<span class="kw-2">&amp;</span>project_state.config().metric_extraction, ErrorBoundary::Ok(c) <span class="kw">if </span>c.is_supported())
+        </span><span class="macro">matches!</span>(<span class="kw-2">&amp;</span>project_info.config().metric_extraction, ErrorBoundary::Ok(c) <span class="kw">if </span>c.is_supported())
     }
 
     <span class="kw">fn </span>supports_reservoir_sampling() -&gt; bool {
@@ -4602,14 +4602,14 @@
     </span>extracted_metrics: ProcessingExtractedMetrics,
 
     <span class="doccomment">/// The state of the project that this envelope belongs to.
-    </span>project_state: Arc&lt;ProjectInfo&gt;,
+    </span>project_info: Arc&lt;ProjectInfo&gt;,
 
     <span class="doccomment">/// The config of this Relay instance.
     </span>config: Arc&lt;Config&gt;,
 
     <span class="doccomment">/// The state of the project that initiated the current trace.
     /// This is the config used for trace-based dynamic sampling.
-    </span>sampling_project_state: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectInfo&gt;&gt;,
+    </span>sampling_project_info: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectInfo&gt;&gt;,
 
     <span class="doccomment">/// The id of the project that this envelope is ingested into.
     ///
@@ -4680,7 +4680,7 @@
     </span><span class="kw">fn </span>should_filter(<span class="kw-2">&amp;</span><span class="self">self</span>, feature: Feature) -&gt; bool {
         <span class="kw">match </span><span class="self">self</span>.config.relay_mode() {
             RelayMode::Proxy | RelayMode::Static | RelayMode::Capture =&gt; <span class="bool-val">false</span>,
-            RelayMode::Managed =&gt; !<span class="self">self</span>.project_state.has_feature(feature),
+            RelayMode::Managed =&gt; !<span class="self">self</span>.project_info.has_feature(feature),
         }
     }
 }
@@ -5132,15 +5132,15 @@
         config: Arc&lt;Config&gt;,
         <span class="kw-2">mut </span>managed_envelope: TypedEnvelope&lt;G&gt;,
         project_id: ProjectId,
-        project_state: Arc&lt;ProjectInfo&gt;,
-        sampling_project_state: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectInfo&gt;&gt;,
+        project_info: Arc&lt;ProjectInfo&gt;,
+        sampling_project_info: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectInfo&gt;&gt;,
         reservoir_counters: Arc&lt;Mutex&lt;BTreeMap&lt;RuleId, i64&gt;&gt;&gt;,
     ) -&gt; ProcessEnvelopeState&lt;G&gt; {
         <span class="kw">let </span>envelope = managed_envelope.envelope_mut();
 
         <span class="comment">// Set the event retention. Effectively, this value will only be available in processing
         // mode when the full project config is queried from the upstream.
-        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(retention) = project_state.config.event_retention {
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(retention) = project_info.config.event_retention {
             envelope.set_retention(retention);
         }
 
@@ -5172,9 +5172,9 @@
             spans_extracted: <span class="bool-val">false</span>,
             metrics: Metrics::default(),
             extracted_metrics,
-            project_state,
+            project_info,
             config,
-            sampling_project_state,
+            sampling_project_info,
             project_id,
             managed_envelope,
             reservoir,
@@ -5192,9 +5192,9 @@
             <span class="prelude-val">None </span>=&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(()),
         };
 
-        <span class="kw">let </span>project_state = <span class="kw-2">&amp;</span>state.project_state;
+        <span class="kw">let </span>project_info = <span class="kw-2">&amp;</span>state.project_info;
         <span class="kw">let </span>global_config = <span class="self">self</span>.inner.global_config.current();
-        <span class="kw">let </span>quotas = CombinedQuotas::new(<span class="kw-2">&amp;</span>global_config, project_state.get_quotas());
+        <span class="kw">let </span>quotas = CombinedQuotas::new(<span class="kw-2">&amp;</span>global_config, project_info.get_quotas());
 
         <span class="kw">if </span>quotas.is_empty() {
             <span class="kw">return </span><span class="prelude-val">Ok</span>(());
@@ -5260,7 +5260,7 @@
         // it is not present in the actual project config payload.
         </span><span class="kw">let </span>global = <span class="self">self</span>.inner.global_config.current();
         <span class="kw">let </span>combined_config = {
-            <span class="kw">let </span>config = <span class="kw">match </span><span class="kw-2">&amp;</span>state.project_state.config.metric_extraction {
+            <span class="kw">let </span>config = <span class="kw">match </span><span class="kw-2">&amp;</span>state.project_info.config.metric_extraction {
                 ErrorBoundary::Ok(<span class="kw-2">ref </span>config) <span class="kw">if </span>config.is_supported() =&gt; config,
                 <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(()),
             };
@@ -5285,7 +5285,7 @@
         };
 
         <span class="comment">// Require a valid transaction metrics config.
-        </span><span class="kw">let </span>tx_config = <span class="kw">match </span><span class="kw-2">&amp;</span>state.project_state.config.transaction_metrics {
+        </span><span class="kw">let </span>tx_config = <span class="kw">match </span><span class="kw-2">&amp;</span>state.project_info.config.transaction_metrics {
             <span class="prelude-val">Some</span>(ErrorBoundary::Ok(tx_config)) =&gt; tx_config,
             <span class="prelude-val">Some</span>(ErrorBoundary::Err(e)) =&gt; {
                 <span class="macro">relay_log::debug!</span>(<span class="string">"Failed to parse legacy transaction metrics config: {e}"</span>);
@@ -5326,7 +5326,7 @@
             .extracted_metrics
             .extend_project_metrics(metrics, <span class="prelude-val">Some</span>(sampling_decision));
 
-        <span class="kw">if </span>!state.project_state.has_feature(Feature::DiscardTransaction) {
+        <span class="kw">if </span>!state.project_info.has_feature(Feature::DiscardTransaction) {
             <span class="kw">let </span>transaction_from_dsc = state
                 .managed_envelope
                 .envelope()
@@ -5387,7 +5387,7 @@
         <span class="kw">let </span>http_span_allowed_hosts = global_config.options.http_span_allowed_hosts.as_slice();
 
         <span class="kw">let </span>retention_days: i64 = state
-            .project_state
+            .project_info
             .config
             .event_retention
             .unwrap_or(DEFAULT_EVENT_RETENTION)
@@ -5405,7 +5405,7 @@
             };
 
             <span class="kw">let </span>key_id = state
-                .project_state
+                .project_info
                 .get_public_key_config()
                 .and_then(|key| <span class="prelude-val">Some</span>(key.numeric_id<span class="question-mark">?</span>.to_string()));
             <span class="kw">if </span>full_normalization &amp;&amp; key_id.is_none() {
@@ -5420,7 +5420,7 @@
                 client: request_meta.client().map(str::to_owned),
                 key_id,
                 protocol_version: <span class="prelude-val">Some</span>(request_meta.version().to_string()),
-                grouping_config: state.project_state.config.grouping_config.clone(),
+                grouping_config: state.project_info.config.grouping_config.clone(),
                 client_ip: client_ipaddr.as_ref(),
                 client_sample_rate: state
                     .managed_envelope
@@ -5437,20 +5437,20 @@
                         .max_name_length
                         .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
                 ),
-                breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
-                performance_score: state.project_state.config.performance_score.as_ref(),
+                breakdowns_config: state.project_info.config.breakdowns_v2.as_ref(),
+                performance_score: state.project_info.config.performance_score.as_ref(),
                 normalize_user_agent: <span class="prelude-val">Some</span>(<span class="bool-val">true</span>),
                 transaction_name_config: TransactionNameConfig {
-                    rules: <span class="kw-2">&amp;</span>state.project_state.config.tx_name_rules,
+                    rules: <span class="kw-2">&amp;</span>state.project_info.config.tx_name_rules,
                 },
                 device_class_synthesis_config: state
-                    .project_state
+                    .project_info
                     .has_feature(Feature::DeviceClassSynthesis),
                 enrich_spans: state
-                    .project_state
+                    .project_info
                     .has_feature(Feature::ExtractSpansFromEvent)
                     || state
-                        .project_state
+                        .project_info
                         .has_feature(Feature::ExtractCommonSpanMetricsFromEvent),
                 max_tag_value_length: <span class="self">self
                     </span>.inner
@@ -5461,12 +5461,12 @@
                 is_renormalize: <span class="bool-val">false</span>,
                 remove_other: full_normalization,
                 emit_event_errors: full_normalization,
-                span_description_rules: state.project_state.config.span_description_rules.as_ref(),
+                span_description_rules: state.project_info.config.span_description_rules.as_ref(),
                 geoip_lookup: <span class="self">self</span>.inner.geoip_lookup.as_ref(),
                 ai_model_costs: ai_model_costs.as_ref(),
                 enable_trimming: <span class="bool-val">true</span>,
                 measurements: <span class="prelude-val">Some</span>(CombinedMeasurementsConfig::new(
-                    state.project_state.config().measurements.as_ref(),
+                    state.project_info.config().measurements.as_ref(),
                     global_config.measurements.as_ref(),
                 )),
                 normalize_spans: <span class="bool-val">true</span>,
@@ -5477,7 +5477,7 @@
                     .and_then(|ctx| ctx.replay_id),
                 span_allowed_hosts: http_span_allowed_hosts,
                 scrub_mongo_description: <span class="kw">if </span>state
-                    .project_state
+                    .project_info
                     .has_feature(Feature::ScrubMongoDbDescriptions)
                 {
                     ScrubMongoDescription::Enabled
@@ -5631,7 +5631,7 @@
             </span><span class="self">self</span>.extract_transaction_metrics(state, SamplingDecision::Keep, profile_id)<span class="question-mark">?</span>;
 
             <span class="kw">if </span>state
-                .project_state
+                .project_info
                 .has_feature(Feature::ExtractSpansFromEvent)
             {
                 span::extract_from_event(state, <span class="kw-2">&amp;</span>global_config, server_sample_rate);
@@ -5762,8 +5762,8 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="kw-2">mut </span>managed_envelope: ManagedEnvelope,
         project_id: ProjectId,
-        project_state: Arc&lt;ProjectInfo&gt;,
-        sampling_project_state: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectInfo&gt;&gt;,
+        project_info: Arc&lt;ProjectInfo&gt;,
+        sampling_project_info: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectInfo&gt;&gt;,
         reservoir_counters: Arc&lt;Mutex&lt;BTreeMap&lt;RuleId, i64&gt;&gt;&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;ProcessingStateResult, ProcessingError&gt; {
         <span class="comment">// Get the group from the managed envelope context, and if it's not set, try to guess it
@@ -5771,7 +5771,7 @@
         </span><span class="kw">let </span>group = managed_envelope.group();
 
         <span class="comment">// Pre-process the envelope headers.
-        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(sampling_state) = sampling_project_state.as_ref() {
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(sampling_state) = sampling_project_info.as_ref() {
             <span class="comment">// Both transactions and standalone span envelopes need a normalized DSC header
             // to make sampling rules based on the segment/transaction name work correctly.
             </span>managed_envelope
@@ -5786,8 +5786,8 @@
                     <span class="self">self</span>.inner.config.clone(),
                     managed_envelope,
                     project_id,
-                    project_state,
-                    sampling_project_state,
+                    project_info,
+                    sampling_project_info,
                     reservoir_counters,
                 );
                 <span class="kw">match </span><span class="self">self</span>.<span class="macro-nonterminal">$</span><span class="kw">fn</span>(<span class="kw-2">&amp;mut </span><span class="macro-nonterminal">state</span>) {
@@ -6262,7 +6262,7 @@
     </span><span class="kw">fn </span>rate_limit_buckets(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         scoping: Scoping,
-        project_state: <span class="kw-2">&amp;</span>ProjectInfo,
+        project_info: <span class="kw-2">&amp;</span>ProjectInfo,
         <span class="kw-2">mut </span>buckets: Vec&lt;Bucket&gt;,
     ) -&gt; Vec&lt;Bucket&gt; {
         <span class="kw">let </span><span class="prelude-val">Some</span>(rate_limiter) = <span class="self">self</span>.inner.rate_limiter.as_ref() <span class="kw">else </span>{
@@ -6275,7 +6275,7 @@
             .filter_map(|bucket| bucket.name.try_namespace())
             .counts();
 
-        <span class="kw">let </span>quotas = CombinedQuotas::new(<span class="kw-2">&amp;</span>global_config, project_state.get_quotas());
+        <span class="kw">let </span>quotas = CombinedQuotas::new(<span class="kw-2">&amp;</span>global_config, project_info.get_quotas());
 
         <span class="kw">for </span>(namespace, quantity) <span class="kw">in </span>namespaces {
             <span class="kw">let </span>item_scoping = scoping.metric_bucket(namespace);
@@ -6311,7 +6311,7 @@
             }
         }
 
-        <span class="kw">match </span>MetricsLimiter::create(buckets, project_state.config.quotas.clone(), scoping) {
+        <span class="kw">match </span>MetricsLimiter::create(buckets, project_info.config.quotas.clone(), scoping) {
             <span class="prelude-val">Err</span>(buckets) =&gt; buckets,
             <span class="prelude-val">Ok</span>(bucket_limiter) =&gt; <span class="self">self</span>.apply_other_rate_limits(bucket_limiter),
         }

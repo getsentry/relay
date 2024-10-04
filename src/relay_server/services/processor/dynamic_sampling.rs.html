@@ -810,7 +810,7 @@
 ///
 /// If there is no transaction event in the envelope, this function will do nothing.
 </span><span class="kw">pub fn </span>ensure_dsc(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;) {
-    <span class="kw">if </span>state.envelope().dsc().is_some() &amp;&amp; state.sampling_project_state.is_some() {
+    <span class="kw">if </span>state.envelope().dsc().is_some() &amp;&amp; state.sampling_project_info.is_some() {
         <span class="kw">return</span>;
     }
 
@@ -819,13 +819,13 @@
     </span><span class="kw">let </span><span class="prelude-val">Some</span>(event) = state.event.value() <span class="kw">else </span>{
         <span class="kw">return</span>;
     };
-    <span class="kw">let </span><span class="prelude-val">Some</span>(key_config) = state.project_state.get_public_key_config() <span class="kw">else </span>{
+    <span class="kw">let </span><span class="prelude-val">Some</span>(key_config) = state.project_info.get_public_key_config() <span class="kw">else </span>{
         <span class="kw">return</span>;
     };
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(dsc) = utils::dsc_from_event(key_config.public_key, event) {
         state.envelope_mut().set_dsc(dsc);
-        state.sampling_project_state = <span class="prelude-val">Some</span>(state.project_state.clone());
+        state.sampling_project_info = <span class="prelude-val">Some</span>(state.project_info.clone());
     }
 }
 
@@ -834,16 +834,16 @@
 <span class="kw">where
     </span>Group: Sampling,
 {
-    <span class="kw">if </span>!Group::supports_sampling(<span class="kw-2">&amp;</span>state.project_state) {
+    <span class="kw">if </span>!Group::supports_sampling(<span class="kw-2">&amp;</span>state.project_info) {
         <span class="kw">return </span>SamplingResult::Pending;
     }
 
-    <span class="kw">let </span>sampling_config = <span class="kw">match </span>state.project_state.config.sampling {
+    <span class="kw">let </span>sampling_config = <span class="kw">match </span>state.project_info.config.sampling {
         <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>config)) <span class="kw">if </span>!config.unsupported() =&gt; <span class="prelude-val">Some</span>(config),
         <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
     };
 
-    <span class="kw">let </span>root_state = state.sampling_project_state.as_ref();
+    <span class="kw">let </span>root_state = state.sampling_project_info.as_ref();
     <span class="kw">let </span>root_config = <span class="kw">match </span>root_state.and_then(|s| s.config.sampling.as_ref()) {
         <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>config)) <span class="kw">if </span>!config.unsupported() =&gt; <span class="prelude-val">Some</span>(config),
         <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
@@ -967,7 +967,7 @@
         <span class="kw">return</span>;
     };
 
-    <span class="kw">let </span>root_state = state.sampling_project_state.as_ref();
+    <span class="kw">let </span>root_state = state.sampling_project_info.as_ref();
     <span class="kw">let </span>sampling_config = <span class="kw">match </span>root_state.and_then(|s| s.config.sampling.as_ref()) {
         <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>config)) =&gt; config,
         <span class="kw">_ </span>=&gt; <span class="kw">return</span>,
@@ -1185,14 +1185,14 @@
                 ..Event::default()
             };
 
-            <span class="kw">let </span><span class="kw-2">mut </span>project_state = state_with_rule_and_condition(
+            <span class="kw">let </span><span class="kw-2">mut </span>project_info = state_with_rule_and_condition(
                 <span class="prelude-val">Some</span>(<span class="number">0.0</span>),
                 RuleType::Transaction,
                 RuleCondition::all(),
             );
 
             <span class="kw">if let </span><span class="prelude-val">Some</span>(version) = version {
-                project_state.config.transaction_metrics =
+                project_info.config.transaction_metrics =
                     ErrorBoundary::Ok(relay_dynamic_config::TransactionMetricsConfig {
                         version,
                         ..Default::default()
@@ -1200,7 +1200,7 @@
                     .into();
             }
 
-            <span class="kw">let </span>project_state = Arc::new(project_state);
+            <span class="kw">let </span>project_info = Arc::new(project_info);
             <span class="kw">let </span>envelope = new_envelope(<span class="bool-val">false</span>, <span class="string">"foo"</span>);
 
             ProcessEnvelopeState::&lt;TransactionGroup&gt; {
@@ -1208,8 +1208,8 @@
                 metrics: Default::default(),
                 extracted_metrics: ProcessingExtractedMetrics::new(),
                 config: config.clone(),
-                project_state,
-                sampling_project_state: <span class="prelude-val">None</span>,
+                project_info,
+                sampling_project_info: <span class="prelude-val">None</span>,
                 project_id: ProjectId::new(<span class="number">42</span>),
                 managed_envelope: ManagedEnvelope::new(
                     envelope,
@@ -1479,8 +1479,8 @@
             metrics: Default::default(),
             extracted_metrics: ProcessingExtractedMetrics::new(),
             config: Arc::new(Config::default()),
-            project_state: project_info,
-            sampling_project_state: {
+            project_info,
+            sampling_project_info: {
                 <span class="kw">let </span><span class="kw-2">mut </span>state = ProjectInfo::default();
                 state.config.metric_extraction =
                     ErrorBoundary::Ok(MetricExtractionConfig::default());
