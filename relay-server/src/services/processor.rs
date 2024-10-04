@@ -2929,7 +2929,7 @@ impl<'a> RateLimiter<'a> {
         global_config: &GlobalConfig,
         state: &mut ProcessEnvelopeState<G>,
     ) -> Result<RateLimits, ProcessingError> {
-        if state.envelope().is_empty() {
+        if state.envelope().is_empty() && !state.has_event() {
             return Ok(RateLimits::default());
         }
 
@@ -2971,6 +2971,7 @@ impl<'a> RateLimiter<'a> {
         if event_active {
             state.remove_event();
             debug_assert!(state.envelope().is_empty());
+            debug_assert!(!state.has_event());
         }
 
         Ok(limits)
