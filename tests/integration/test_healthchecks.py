@@ -6,6 +6,7 @@ import time
 import tempfile
 import os
 
+import pytest
 from requests import HTTPError
 
 
@@ -80,7 +81,8 @@ def test_readiness_proxy(mini_sentry, relay):
     assert response.status_code == 200
 
 
-def test_readiness_not_enough_memory_bytes(mini_sentry, relay):
+@pytest.mark.parametrize("iteration", range(10))  # remove before merge
+def test_readiness_not_enough_memory_bytes(mini_sentry, relay, iteration):
     relay = relay(
         mini_sentry,
         {"relay": {"mode": "proxy"}, "health": {"max_memory_bytes": 42}},
