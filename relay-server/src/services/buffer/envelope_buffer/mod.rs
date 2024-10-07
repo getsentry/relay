@@ -9,7 +9,7 @@ use std::time::Duration;
 use crate::envelope::Envelope;
 use crate::services::buffer::common::{EnvelopeBufferError, ProjectKeyPair};
 use crate::services::buffer::envelope_repository::EnvelopeRepository;
-use crate::statsd::{RelayGauges, RelayHistograms, RelayTimers};
+use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::MemoryChecker;
 use hashbrown::{HashMap, HashSet};
 use priority_queue::PriorityQueue;
@@ -155,6 +155,10 @@ impl EnvelopeBuffer {
             };
 
             let Some(envelope) = self.envelope_repository.pop(project_key_pair).await? else {
+                // If we have no data from the envelope repository, we remove this project key pair
+                // from the priority queue to free some memory up.
+                relay_statsd::metric!(counter(RelayCounters::BufferEnvelopeStacksPopped) += 1);
+                self.remove(project_key_pair);
                 return Ok(None);
             };
 

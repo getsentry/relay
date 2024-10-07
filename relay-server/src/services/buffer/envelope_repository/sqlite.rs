@@ -149,7 +149,6 @@ impl SqliteEnvelopeRepository {
         // If we have no envelopes in the buffer and no on disk, we can be safe removing the entry
         // in the buffer.
         if envelopes.is_empty() {
-            relay_statsd::metric!(counter(RelayCounters::BufferEnvelopeStacksPopped) += 1);
             self.envelopes.remove(&project_key_pair);
         }
 
