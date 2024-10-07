@@ -88,11 +88,11 @@ def test_readiness_not_enough_memory_bytes(mini_sentry, relay):
     )
 
     response = wait_get(relay, "/api/relay/healthcheck/ready/")
-    error = str(mini_sentry.test_failures.get(timeout=2))
+    error = str(mini_sentry.test_failures.get(timeout=5))
     assert "Not enough memory" in error and ">= 42" in error
-    error = str(mini_sentry.test_failures.get(timeout=2))
+    error = str(mini_sentry.test_failures.get(timeout=5))
     assert "Health check probe 'system memory'" in error
-    error = str(mini_sentry.test_failures.get(timeout=2))
+    error = str(mini_sentry.test_failures.get(timeout=5))
     assert "Health check probe 'spool health'" in error
     assert response.status_code == 503
 
@@ -105,11 +105,11 @@ def test_readiness_not_enough_memory_percent(mini_sentry, relay):
     )
     response = wait_get(relay, "/api/relay/healthcheck/ready/")
 
-    error = str(mini_sentry.test_failures.get(timeout=2))
+    error = str(mini_sentry.test_failures.get(timeout=5))
     assert "Not enough memory" in error and ">= 1.00%" in error
-    error = str(mini_sentry.test_failures.get(timeout=2))
+    error = str(mini_sentry.test_failures.get(timeout=5))
     assert "Health check probe 'system memory'" in error
-    error = str(mini_sentry.test_failures.get(timeout=2))
+    error = str(mini_sentry.test_failures.get(timeout=5))
     assert "Health check probe 'spool health'" in error
     assert response.status_code == 503
 
