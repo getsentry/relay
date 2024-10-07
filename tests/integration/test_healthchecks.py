@@ -139,12 +139,11 @@ def test_readiness_depends_on_aggregator_being_full_after_metrics(mini_sentry, r
 
     for _ in range(100):
         response = wait_get(relay, "/api/relay/healthcheck/ready/")
-        print(response, response.status_code)
         if response.status_code == 503:
-            error = str(mini_sentry.test_failures.get_nowait())
-            assert "Health check probe 'aggregator'" in error
-            error = str(mini_sentry.test_failures.get_nowait())
+            error = str(mini_sentry.test_failures.get(timeout=1))
             assert "aggregator limit exceeded" in error
+            error = str(mini_sentry.test_failures.get(timeout=1))
+            assert "Health check probe 'aggregator'" in error
             return
         time.sleep(0.1)
 
