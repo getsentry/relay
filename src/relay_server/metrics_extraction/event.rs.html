@@ -1910,6 +1910,19 @@
 <a href="#1910" id="1910">1910</a>
 <a href="#1911" id="1911">1911</a>
 <a href="#1912" id="1912">1912</a>
+<a href="#1913" id="1913">1913</a>
+<a href="#1914" id="1914">1914</a>
+<a href="#1915" id="1915">1915</a>
+<a href="#1916" id="1916">1916</a>
+<a href="#1917" id="1917">1917</a>
+<a href="#1918" id="1918">1918</a>
+<a href="#1919" id="1919">1919</a>
+<a href="#1920" id="1920">1920</a>
+<a href="#1921" id="1921">1921</a>
+<a href="#1922" id="1922">1922</a>
+<a href="#1923" id="1923">1923</a>
+<a href="#1924" id="1924">1924</a>
+<a href="#1925" id="1925">1925</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_dynamic_config::CombinedMetricExtractionConfig;
 <span class="kw">use </span>relay_event_normalization::span::description::ScrubMongoDescription;
@@ -1961,12 +1974,14 @@
 /// If this is a transaction event with spans, metrics will also be extracted from the spans.
 </span><span class="kw">pub fn </span>extract_metrics(
     event: <span class="kw-2">&amp;mut </span>Event,
+    spans_extracted: bool,
     config: CombinedMetricExtractionConfig&lt;<span class="lifetime">'_</span>&gt;,
     max_tag_value_size: usize,
     span_extraction_sample_rate: <span class="prelude-ty">Option</span>&lt;f32&gt;,
 ) -&gt; Vec&lt;Bucket&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>metrics = generic::extract_metrics(event, config);
-    <span class="kw">if </span>sample(span_extraction_sample_rate.unwrap_or(<span class="number">1.0</span>)) {
+    <span class="comment">// If spans were already extracted for an event, we rely on span processing to extract metrics.
+    </span><span class="kw">if </span>!spans_extracted &amp;&amp; sample(span_extraction_sample_rate.unwrap_or(<span class="number">1.0</span>)) {
         extract_span_metrics_for_event(event, config, max_tag_value_size, <span class="kw-2">&amp;mut </span>metrics);
     }
 
@@ -3112,6 +3127,7 @@
 
         extract_metrics(
             event.value_mut().as_mut().unwrap(),
+            <span class="bool-val">false</span>,
             combined_config(features, <span class="prelude-val">None</span>).combined(),
             <span class="number">200</span>,
             <span class="prelude-val">None</span>,
@@ -3322,6 +3338,7 @@
 
         <span class="kw">let </span>metrics = extract_metrics(
             event.value_mut().as_mut().unwrap(),
+            <span class="bool-val">false</span>,
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent], <span class="prelude-val">None</span>).combined(),
             <span class="number">200</span>,
             <span class="prelude-val">None</span>,
@@ -3378,6 +3395,7 @@
 
         <span class="kw">let </span>metrics = extract_metrics(
             event.value_mut().as_mut().unwrap(),
+            <span class="bool-val">false</span>,
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent], <span class="prelude-val">None</span>).combined(),
             <span class="number">200</span>,
             <span class="prelude-val">None</span>,
@@ -3409,6 +3427,7 @@
 
         <span class="kw">let </span>metrics = extract_metrics(
             event.value_mut().as_mut().unwrap(),
+            <span class="bool-val">false</span>,
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent], <span class="prelude-val">None</span>).combined(),
             <span class="number">200</span>,
             <span class="prelude-val">None</span>,
@@ -3671,6 +3690,7 @@
 
         <span class="kw">let </span>metrics = extract_metrics(
             event.value_mut().as_mut().unwrap(),
+            <span class="bool-val">false</span>,
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent], <span class="prelude-val">None</span>).combined(),
             <span class="number">200</span>,
             <span class="prelude-val">None</span>,
@@ -3811,7 +3831,13 @@
         );
         <span class="kw">let </span>config = binding.combined();
 
-        <span class="kw">let _ </span>= extract_metrics(event.value_mut().as_mut().unwrap(), config, <span class="number">200</span>, <span class="prelude-val">None</span>);
+        <span class="kw">let _ </span>= extract_metrics(
+            event.value_mut().as_mut().unwrap(),
+            <span class="bool-val">false</span>,
+            config,
+            <span class="number">200</span>,
+            <span class="prelude-val">None</span>,
+        );
 
         <span class="macro">insta::assert_debug_snapshot!</span>(<span class="kw-2">&amp;</span>event.value().unwrap()._metrics_summary);
         <span class="macro">insta::assert_debug_snapshot!</span>(

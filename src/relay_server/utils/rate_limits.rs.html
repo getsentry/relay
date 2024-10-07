@@ -1462,16 +1462,6 @@
 <a href="#1462" id="1462">1462</a>
 <a href="#1463" id="1463">1463</a>
 <a href="#1464" id="1464">1464</a>
-<a href="#1465" id="1465">1465</a>
-<a href="#1466" id="1466">1466</a>
-<a href="#1467" id="1467">1467</a>
-<a href="#1468" id="1468">1468</a>
-<a href="#1469" id="1469">1469</a>
-<a href="#1470" id="1470">1470</a>
-<a href="#1471" id="1471">1471</a>
-<a href="#1472" id="1472">1472</a>
-<a href="#1473" id="1473">1473</a>
-<a href="#1474" id="1474">1474</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt::{<span class="self">self</span>, Write};
 
 <span class="kw">use </span>relay_quotas::{
@@ -1690,9 +1680,6 @@
                 summary.secondary_span_quantity += source_quantities.spans;
                 summary.profile_quantity += source_quantities.profiles;
             }
-
-            <span class="comment">// Also count nested spans:
-            </span>summary.span_quantity += item.count_nested_spans();
 
             summary.payload_size += item.len();
             summary.set_quantity(item);
@@ -1925,7 +1912,6 @@
         envelope
             .envelope_mut()
             .retain_items(|item| <span class="self">self</span>.retain_item(item));
-
         <span class="self">self</span>.track_outcomes(envelope);
     }
 
@@ -1934,12 +1920,6 @@
         <span class="comment">// Remove event items and all items that depend on this event
         </span><span class="kw">if </span><span class="self">self</span>.event.is_active() &amp;&amp; item.requires_event() {
             <span class="kw">return </span><span class="bool-val">false</span>;
-        }
-
-        <span class="kw">if </span>item.ty() == <span class="kw-2">&amp;</span>ItemType::Transaction &amp;&amp; <span class="self">self</span>.spans_indexed.is_active() {
-            <span class="comment">// We cannot remove nested spans from the transaction, but we can prevent them
-            // from being extracted into standalone spans.
-            </span>item.set_spans_extracted(<span class="bool-val">true</span>);
         }
 
         <span class="comment">// When checking limits for categories that have an indexed variant,

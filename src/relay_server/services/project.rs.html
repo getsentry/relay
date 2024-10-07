@@ -852,6 +852,7 @@
 <a href="#852" id="852">852</a>
 <a href="#853" id="853">853</a>
 <a href="#854" id="854">854</a>
+<a href="#855" id="855">855</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
@@ -866,6 +867,7 @@
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>tokio::time::Instant;
 
+<span class="kw">use </span><span class="kw">crate</span>::envelope::ItemType;
 <span class="kw">use </span><span class="kw">crate</span>::services::metrics::{Aggregator, MergeBuckets};
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome};
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{EncodeMetricMeta, EnvelopeProcessor, ProcessProjectMetrics};
@@ -873,6 +875,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::project_cache::{
     CheckedEnvelope, ProcessMetrics, ProjectCache, RequestUpdate,
 };
+<span class="kw">use </span><span class="kw">crate</span>::utils::{Enforcement, SeqCount};
 
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
 <span class="kw">use </span><span class="kw">crate</span>::utils::{EnvelopeLimiter, ManagedEnvelope, RetryBackoff};
@@ -1409,8 +1412,18 @@
             <span class="prelude-val">Ok</span>(current_limits.check_with_quotas(quotas, item_scoping))
         });
 
-        <span class="kw">let </span>(enforcement, <span class="kw-2">mut </span>rate_limits) =
+        <span class="kw">let </span>(<span class="kw-2">mut </span>enforcement, <span class="kw-2">mut </span>rate_limits) =
             envelope_limiter.compute(envelope.envelope_mut(), <span class="kw-2">&amp;</span>scoping)<span class="question-mark">?</span>;
+
+        <span class="kw">let </span>check_nested_spans = state
+            .as_ref()
+            .is_some_and(|s| s.has_feature(Feature::ExtractSpansFromEvent));
+
+        <span class="comment">// If we can extract spans from the event, we want to try and count the number of nested
+        // spans to correctly emit negative outcomes in case the transaction itself is dropped.
+        </span><span class="kw">if </span>check_nested_spans {
+            sync_spans_to_enforcement(<span class="kw-2">&amp;</span>envelope, <span class="kw-2">&amp;mut </span>enforcement);
+        }
 
         enforcement.apply_with_outcomes(<span class="kw-2">&amp;mut </span>envelope);
 
@@ -1440,9 +1453,52 @@
     }
 }
 
+<span class="doccomment">/// Adds category limits for the nested spans inside a transaction.
+///
+/// On the fast path of rate limiting, we do not have nested spans of a transaction extracted
+/// as top-level spans, thus if we limited a transaction, we want to count and emit negative
+/// outcomes for each of the spans nested inside that transaction.
+</span><span class="kw">fn </span>sync_spans_to_enforcement(envelope: <span class="kw-2">&amp;</span>ManagedEnvelope, enforcement: <span class="kw-2">&amp;mut </span>Enforcement) {
+    <span class="kw">if </span>!enforcement.is_event_active() {
+        <span class="kw">return</span>;
+    }
+
+    <span class="kw">let </span>spans_count = count_nested_spans(envelope);
+    <span class="kw">if </span>spans_count == <span class="number">0 </span>{
+        <span class="kw">return</span>;
+    }
+
+    <span class="kw">if </span>enforcement.event.is_active() {
+        enforcement.spans = enforcement.event.clone_for(DataCategory::Span, spans_count);
+    }
+
+    <span class="kw">if </span>enforcement.event_indexed.is_active() {
+        enforcement.spans_indexed = enforcement
+            .event_indexed
+            .clone_for(DataCategory::SpanIndexed, spans_count);
+    }
+}
+
+<span class="doccomment">/// Counts the nested spans inside the first transaction envelope item inside the [`Envelope`](crate::envelope::Envelope).
+</span><span class="kw">fn </span>count_nested_spans(envelope: <span class="kw-2">&amp;</span>ManagedEnvelope) -&gt; usize {
+    <span class="attr">#[derive(Debug, Deserialize)]
+    </span><span class="kw">struct </span>PartialEvent {
+        spans: SeqCount,
+    }
+
+    envelope
+        .envelope()
+        .items()
+        .find(|item| <span class="kw-2">*</span>item.ty() == ItemType::Transaction &amp;&amp; !item.spans_extracted())
+        .and_then(|item| serde_json::from_slice::&lt;PartialEvent&gt;(<span class="kw-2">&amp;</span>item.payload()).ok())
+        <span class="comment">// We do + 1, since we count the transaction itself because it will be extracted
+        // as a span and counted during the slow path of rate limiting.
+        </span>.map_or(<span class="number">0</span>, |event| event.spans.<span class="number">0 </span>+ <span class="number">1</span>)
+}
+
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-    <span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Envelope, Item, ItemType};
+    <span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Envelope, Item};
     <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
     <span class="kw">use </span><span class="kw">crate</span>::services::processor::ProcessingGroup;
     <span class="kw">use </span>relay_base_schema::project::ProjectId;
@@ -1574,7 +1630,27 @@
         RequestMeta::new(dsn)
     }
 
-    <span class="kw">const </span>EVENT_WITH_SPANS: <span class="kw-2">&amp;</span>str = <span class="string">r#"{
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_track_nested_spans_outcomes() {
+        <span class="kw">let </span><span class="kw-2">mut </span>project = create_project(<span class="prelude-val">Some</span>(<span class="macro">json!</span>({
+            <span class="string">"features"</span>: [
+                <span class="string">"organizations:indexed-spans-extraction"
+            </span>],
+            <span class="string">"quotas"</span>: [{
+               <span class="string">"id"</span>: <span class="string">"foo"</span>,
+               <span class="string">"categories"</span>: [<span class="string">"transaction"</span>],
+               <span class="string">"window"</span>: <span class="number">3600</span>,
+               <span class="string">"limit"</span>: <span class="number">0</span>,
+               <span class="string">"reasonCode"</span>: <span class="string">"foo"</span>,
+           }]
+        })));
+
+        <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(EventId::new()), request_meta());
+
+        <span class="kw">let </span><span class="kw-2">mut </span>transaction = Item::new(ItemType::Transaction);
+        transaction.set_payload(
+            ContentType::Json,
+            <span class="string">r#"{
   "event_id": "52df9022835246eeb317dbd739ccd059",
   "type": "transaction",
   "transaction": "I have a stale timestamp, but I'm recent!",
@@ -1600,27 +1676,8 @@
       "trace_id": "ff62a8b040f340bda5d830223def1d81"
     }
   ]
-}"#</span>;
-
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_track_nested_spans_outcomes() {
-        <span class="kw">let </span><span class="kw-2">mut </span>project = create_project(<span class="prelude-val">Some</span>(<span class="macro">json!</span>({
-            <span class="string">"features"</span>: [
-                <span class="string">"organizations:indexed-spans-extraction"
-            </span>],
-            <span class="string">"quotas"</span>: [{
-               <span class="string">"id"</span>: <span class="string">"foo"</span>,
-               <span class="string">"categories"</span>: [<span class="string">"transaction"</span>],
-               <span class="string">"window"</span>: <span class="number">3600</span>,
-               <span class="string">"limit"</span>: <span class="number">0</span>,
-               <span class="string">"reasonCode"</span>: <span class="string">"foo"</span>,
-           }]
-        })));
-
-        <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(EventId::new()), request_meta());
-
-        <span class="kw">let </span><span class="kw-2">mut </span>transaction = Item::new(ItemType::Transaction);
-        transaction.set_payload(ContentType::Json, EVENT_WITH_SPANS);
+}"#</span>,
+        );
 
         envelope.add_item(transaction);
 
@@ -1643,61 +1700,6 @@
             (DataCategory::Span, <span class="number">3</span>),
             (DataCategory::SpanIndexed, <span class="number">3</span>),
         ];
-
-        <span class="kw">for </span>(expected_category, expected_quantity) <span class="kw">in </span>expected {
-            <span class="kw">let </span>outcome = outcome_aggregator_rx.blocking_recv().unwrap();
-            <span class="macro">assert_eq!</span>(outcome.category, expected_category);
-            <span class="macro">assert_eq!</span>(outcome.quantity, expected_quantity);
-        }
-    }
-
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_track_nested_spans_outcomes_span_quota() {
-        <span class="kw">let </span><span class="kw-2">mut </span>project = create_project(<span class="prelude-val">Some</span>(<span class="macro">json!</span>({
-            <span class="string">"features"</span>: [
-                <span class="string">"organizations:indexed-spans-extraction"
-            </span>],
-            <span class="string">"quotas"</span>: [{
-               <span class="string">"id"</span>: <span class="string">"foo"</span>,
-               <span class="string">"categories"</span>: [<span class="string">"span_indexed"</span>],
-               <span class="string">"window"</span>: <span class="number">3600</span>,
-               <span class="string">"limit"</span>: <span class="number">0</span>,
-               <span class="string">"reasonCode"</span>: <span class="string">"foo"</span>,
-           }]
-        })));
-
-        <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(EventId::new()), request_meta());
-
-        <span class="kw">let </span><span class="kw-2">mut </span>transaction = Item::new(ItemType::Transaction);
-        transaction.set_payload(ContentType::Json, EVENT_WITH_SPANS);
-
-        envelope.add_item(transaction);
-
-        <span class="kw">let </span>(outcome_aggregator, <span class="kw-2">mut </span>outcome_aggregator_rx) = Addr::custom();
-        <span class="kw">let </span>(test_store, <span class="kw">_</span>) = Addr::custom();
-
-        <span class="kw">let </span>managed_envelope = ManagedEnvelope::new(
-            envelope,
-            outcome_aggregator.clone(),
-            test_store,
-            ProcessingGroup::Transaction,
-        );
-
-        <span class="kw">let </span>CheckedEnvelope {
-            envelope,
-            rate_limits: <span class="kw">_</span>,
-        } = project.check_envelope(managed_envelope).unwrap();
-        <span class="kw">let </span>envelope = envelope.unwrap();
-        <span class="kw">let </span>transaction_item = envelope
-            .envelope()
-            .items()
-            .find(|i| <span class="kw-2">*</span>i.ty() == ItemType::Transaction)
-            .unwrap();
-        <span class="macro">assert!</span>(transaction_item.spans_extracted());
-
-        drop(outcome_aggregator);
-
-        <span class="kw">let </span>expected = [(DataCategory::SpanIndexed, <span class="number">3</span>)];
 
         <span class="kw">for </span>(expected_category, expected_quantity) <span class="kw">in </span>expected {
             <span class="kw">let </span>outcome = outcome_aggregator_rx.blocking_recv().unwrap();
