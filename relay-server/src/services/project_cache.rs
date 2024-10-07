@@ -1480,14 +1480,14 @@ impl Service for ProjectCacheService {
                             broker.handle_periodic_unspool()
                         })
                     }
-                    Some(message) = envelopes_rx.recv() => {
-                        metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "handle_envelope", {
-                            broker.handle_envelope(message)
-                        })
-                    }
                     Some(message) = rx.recv() => {
                         metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "handle_message", {
                             broker.handle_message(message)
+                        })
+                    }
+                    Some(message) = envelopes_rx.recv() => {
+                        metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "handle_envelope", {
+                            broker.handle_envelope(message)
                         })
                     }
                     else => break,
