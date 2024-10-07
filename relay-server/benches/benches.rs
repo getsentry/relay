@@ -12,7 +12,7 @@ use tokio::runtime::Runtime;
 use relay_base_schema::project::ProjectKey;
 use relay_server::{
     Envelope, EnvelopeBufferImpl, MemoryChecker, MemoryStat, ProjectKeyPair,
-    SqliteEnvelopeProvider, SqliteEnvelopeStore,
+    SqliteEnvelopeRepository, SqliteEnvelopeStore,
 };
 
 fn setup_db(path: &PathBuf) -> Pool<Sqlite> {
@@ -70,7 +70,7 @@ fn mock_envelope_with_project_key(project_key: &ProjectKey, size: &str) -> Box<E
     envelope
 }
 
-fn benchmark_sqlite_envelope_provider(c: &mut Criterion) {
+fn benchmark_sqlite_envelope_repository(c: &mut Criterion) {
     let temp_dir = TempDir::new().unwrap();
     let db_path = temp_dir.path().join("test.db");
     let db = setup_db(&db_path);
@@ -110,7 +110,7 @@ fn benchmark_sqlite_envelope_provider(c: &mut Criterion) {
                             .unwrap()
                             .into();
 
-                            let stack = SqliteEnvelopeProvider::new_with_store(
+                            let stack = SqliteEnvelopeRepository::new_with_store(
                                 &config,
                                 envelope_store.clone(),
                             );
@@ -152,7 +152,7 @@ fn benchmark_sqlite_envelope_provider(c: &mut Criterion) {
                                     .unwrap()
                                     .into();
 
-                                let mut stack = SqliteEnvelopeProvider::new_with_store(
+                                let mut stack = SqliteEnvelopeRepository::new_with_store(
                                     &config,
                                     envelope_store.clone(),
                                 );
@@ -197,7 +197,7 @@ fn benchmark_sqlite_envelope_provider(c: &mut Criterion) {
                             .unwrap()
                             .into();
 
-                            let stack = SqliteEnvelopeProvider::new_with_store(
+                            let stack = SqliteEnvelopeRepository::new_with_store(
                                 &config,
                                 envelope_store.clone(),
                             );
@@ -335,6 +335,6 @@ fn benchmark_envelope_buffer(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(sqlite, benchmark_sqlite_envelope_provider);
+criterion_group!(sqlite, benchmark_sqlite_envelope_repository);
 criterion_group!(buffer, benchmark_envelope_buffer);
 criterion_main!(sqlite, buffer);

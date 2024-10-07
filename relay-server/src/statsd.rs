@@ -181,6 +181,8 @@ pub enum RelayHistograms {
     /// Number of envelopes in the backpressure buffer between the envelope buffer
     /// and the project cache.
     BufferBackpressureEnvelopesCount,
+    /// Number of envelopes in the buffer per key pair of projects.
+    BufferInMemoryEnvelopesPerKeyPair,
     /// The number of batches emitted per partition.
     BatchesPerPartition,
     /// The number of buckets in a batch emitted.
@@ -308,6 +310,9 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::BufferEnvelopesCount => "buffer.envelopes_count",
             RelayHistograms::BufferBackpressureEnvelopesCount => {
                 "buffer.backpressure_envelopes_count"
+            }
+            RelayHistograms::BufferInMemoryEnvelopesPerKeyPair => {
+                "buffer.in_memory_envelopes_per_key_pair"
             }
             RelayHistograms::ProjectStatePending => "project_state.pending",
             RelayHistograms::ProjectStateAttempts => "project_state.attempts",
@@ -637,7 +642,7 @@ pub enum RelayCounters {
     /// in the cache and sends the envelope onward, even though the project cache cannot handle it.
     BufferEnvelopesReturned,
     /// Number of times a project key pair is popped from the envelope provider.
-    BufferProjectKeyPairPopped,
+    BufferEnvelopeStacksPopped,
     /// Number of times an envelope from the buffer is trying to be popped.
     BufferTryPop,
     /// Number of times the readiness check of the buffer is polled.
@@ -863,7 +868,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::BufferEnvelopesRead => "buffer.envelopes_read",
             RelayCounters::BufferEnvelopesReturned => "buffer.envelopes_returned",
             RelayCounters::BufferStateTransition => "buffer.state.transition",
-            RelayCounters::BufferProjectKeyPairPopped => "buffer.project_key_pair_popped",
+            RelayCounters::BufferEnvelopeStacksPopped => "buffer.envelope_stacks_popped",
             RelayCounters::BufferTryPop => "buffer.try_pop",
             RelayCounters::BufferReadyToPop => "buffer.ready_to_pop",
             RelayCounters::BufferSpooledEnvelopes => "buffer.spooled_envelopes",

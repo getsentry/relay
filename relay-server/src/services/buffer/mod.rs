@@ -34,15 +34,15 @@ pub use common::{EnvelopeBufferError, ProjectKeyPair};
 // pub for benchmarks
 pub use envelope_buffer::EnvelopeBuffer as EnvelopeBufferImpl;
 // pub for benchmarks
-pub use envelope_provider::sqlite::SqliteEnvelopeProvider;
+pub use envelope_repository::sqlite::SqliteEnvelopeRepository;
 // pub for benchmarks
-pub use envelope_provider::EnvelopeProvider;
+pub use envelope_repository::EnvelopeRepository;
 // pub for benchmarks
 pub use envelope_store::sqlite::SqliteEnvelopeStore;
 
 mod common;
 mod envelope_buffer;
-mod envelope_provider;
+mod envelope_repository;
 mod envelope_store;
 mod testutils;
 

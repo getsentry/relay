@@ -1,19 +1,19 @@
 use crate::services::buffer::common::ProjectKeyPair;
-use crate::services::buffer::envelope_provider::InitializationState;
+use crate::services::buffer::envelope_repository::InitializationState;
 use crate::{Envelope, MemoryChecker};
 use hashbrown::HashMap;
 use std::convert::Infallible;
 
 /// Provides in-memory storage for envelopes, organized by project key pairs.
 #[derive(Debug)]
-pub struct MemoryEnvelopeProvider {
+pub struct MemoryEnvelopeRepository {
     #[allow(clippy::vec_box)]
     envelopes: HashMap<ProjectKeyPair, Vec<Box<Envelope>>>,
     memory_checker: MemoryChecker,
 }
 
-impl MemoryEnvelopeProvider {
-    /// Creates a new MemoryEnvelopeProvider with the given memory checker.
+impl MemoryEnvelopeRepository {
+    /// Creates a new [`MemoryEnvelopeRepository`] with the given memory checker.
     pub fn new(memory_checker: MemoryChecker) -> Self {
         Self {
             envelopes: HashMap::new(),
@@ -21,12 +21,12 @@ impl MemoryEnvelopeProvider {
         }
     }
 
-    /// Initializes the provider, returning an empty initialization state.
+    /// Initializes the repository, returning an empty initialization state.
     pub async fn initialize(&self) -> InitializationState {
         InitializationState::empty()
     }
 
-    /// Pushes an envelope to the provider for the given project key pair.
+    /// Pushes an envelope to the repository for the given project key pair.
     pub async fn push(
         &mut self,
         project_key_pair: ProjectKeyPair,
@@ -62,11 +62,11 @@ impl MemoryEnvelopeProvider {
             .and_then(|envelopes| envelopes.pop()))
     }
 
-    /// Attempts to flush envelopes to storage. This is a no-op for in-memory implementation.
+    /// Attempts to flush envelopes to storage.
     pub async fn flush(&mut self) -> bool {
-        // This is a noop for the in-memory implementation since we don't have any way to flush
-        // envelopes to storage.
-        false
+        // Only if there are no envelopes we can signal to the caller that it is safe to drop the
+        // buffer.
+        self.envelopes.is_empty()
     }
 
     /// Checks if there is capacity to store more envelopes.

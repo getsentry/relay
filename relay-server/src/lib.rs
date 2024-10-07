@@ -270,7 +270,7 @@ mod utils;
 pub use self::envelope::Envelope;
 // pub for benchmarks
 pub use self::services::buffer::{
-    EnvelopeBufferImpl, EnvelopeProvider, ProjectKeyPair, SqliteEnvelopeProvider,
+    EnvelopeBufferImpl, EnvelopeRepository, ProjectKeyPair, SqliteEnvelopeRepository,
     SqliteEnvelopeStore,
 };
 // pub for benchmarks

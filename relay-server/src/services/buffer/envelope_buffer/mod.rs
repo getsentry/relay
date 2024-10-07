@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use crate::envelope::Envelope;
 use crate::services::buffer::common::{EnvelopeBufferError, ProjectKeyPair};
-use crate::services::buffer::envelope_provider::EnvelopeProvider;
+use crate::services::buffer::envelope_repository::EnvelopeRepository;
 use crate::statsd::{RelayGauges, RelayHistograms, RelayTimers};
 use crate::MemoryChecker;
 use hashbrown::{HashMap, HashSet};
@@ -28,7 +28,7 @@ pub struct EnvelopeBuffer {
     /// A lookup table to find all project key pairs for a given project.
     project_to_pairs: HashMap<ProjectKey, BTreeSet<ProjectKeyPair>>,
     /// Provider of envelopes that can provide envelopes via different implementations.
-    envelope_provider: EnvelopeProvider,
+    envelope_repository: EnvelopeRepository,
     /// The total count of envelopes that the buffer is working with.
     ///
     /// Note that this count is not meant to be perfectly accurate since the initialization of the
@@ -66,7 +66,7 @@ impl EnvelopeBuffer {
         Ok(Self {
             project_to_pairs: Default::default(),
             priority_queue: Default::default(),
-            envelope_provider: EnvelopeProvider::memory(memory_checker)?,
+            envelope_repository: EnvelopeRepository::memory(memory_checker)?,
             total_count: Arc::new(AtomicI64::new(0)),
             total_count_initialized: false,
         })
@@ -77,19 +77,19 @@ impl EnvelopeBuffer {
         Ok(Self {
             project_to_pairs: Default::default(),
             priority_queue: Default::default(),
-            envelope_provider: EnvelopeProvider::sqlite(config).await?,
+            envelope_repository: EnvelopeRepository::sqlite(config).await?,
             total_count: Arc::new(AtomicI64::new(0)),
             total_count_initialized: false,
         })
     }
 
     /// Initializes the [`EnvelopeBuffer`] given the initialization state from the
-    /// [`EnvelopeProvider`].
+    /// [`EnvelopeRepository`].
     pub async fn initialize(&mut self) {
         relay_statsd::metric!(timer(RelayTimers::BufferInitialization), {
-            let initialization_state = match &mut self.envelope_provider {
-                EnvelopeProvider::Memory(provider) => provider.initialize().await,
-                EnvelopeProvider::SQLite(provider) => provider.initialize().await,
+            let initialization_state = match &mut self.envelope_repository {
+                EnvelopeRepository::Memory(provider) => provider.initialize().await,
+                EnvelopeRepository::SQLite(provider) => provider.initialize().await,
             };
             self.load_project_key_pairs(initialization_state.project_key_pairs)
                 .await;
@@ -97,7 +97,7 @@ impl EnvelopeBuffer {
         });
     }
 
-    /// Pushes an envelope to the [`EnvelopeProvider`] and updates the priority queue accordingly.
+    /// Pushes an envelope to the [`EnvelopeRepository`] and updates the priority queue accordingly.
     pub async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), EnvelopeBufferError> {
         relay_statsd::metric!(timer(RelayTimers::BufferPush), {
             let received_at = envelope.meta().start_time().into();
@@ -114,7 +114,7 @@ impl EnvelopeBuffer {
                     });
             }
 
-            self.envelope_provider
+            self.envelope_repository
                 .push(project_key_pair, envelope)
                 .await?;
 
@@ -132,7 +132,7 @@ impl EnvelopeBuffer {
                 return Ok(Peek::Empty);
             };
 
-            let envelope = self.envelope_provider.peek(project_key_pair).await?;
+            let envelope = self.envelope_repository.peek(project_key_pair).await?;
 
             Ok(match (envelope, priority.readiness.ready()) {
                 (None, _) => Peek::Empty,
@@ -154,12 +154,12 @@ impl EnvelopeBuffer {
                 return Ok(None);
             };
 
-            let Some(envelope) = self.envelope_provider.pop(project_key_pair).await? else {
+            let Some(envelope) = self.envelope_repository.pop(project_key_pair).await? else {
                 return Ok(None);
             };
 
             let next_received_at = self
-                .envelope_provider
+                .envelope_repository
                 .peek(project_key_pair)
                 .await?
                 .map(|next_envelope| next_envelope.meta().start_time().into());
@@ -239,9 +239,9 @@ impl EnvelopeBuffer {
     /// Returns `true` if the underlying storage has the capacity to store more envelopes, false
     /// otherwise.
     pub fn has_capacity(&self) -> bool {
-        match &self.envelope_provider {
-            EnvelopeProvider::Memory(provider) => provider.has_store_capacity(),
-            EnvelopeProvider::SQLite(provider) => provider.has_store_capacity(),
+        match &self.envelope_repository {
+            EnvelopeRepository::Memory(provider) => provider.has_store_capacity(),
+            EnvelopeRepository::SQLite(provider) => provider.has_store_capacity(),
         }
     }
 
@@ -251,15 +251,15 @@ impl EnvelopeBuffer {
     /// otherwise. This is done because we want to make sure we know whether it is safe to drop the
     /// [`EnvelopeBuffer`] after flushing is performed.
     pub async fn flush(&mut self) -> bool {
-        match &mut self.envelope_provider {
-            EnvelopeProvider::Memory(provider) => provider.flush().await,
-            EnvelopeProvider::SQLite(provider) => provider.flush().await,
+        match &mut self.envelope_repository {
+            EnvelopeRepository::Memory(provider) => provider.flush().await,
+            EnvelopeRepository::SQLite(provider) => provider.flush().await,
         }
     }
 
     /// Returns `true` if the [`EnvelopeBuffer`] is using an in-memory strategy, false otherwise.
     pub fn is_memory(&self) -> bool {
-        matches!(self.envelope_provider, EnvelopeProvider::Memory(_))
+        matches!(self.envelope_repository, EnvelopeRepository::Memory(_))
     }
 
     /// Adds a new [`ProjectKeyPair`] to the `priority_queue` and `project_to_pairs`.
@@ -313,9 +313,9 @@ impl EnvelopeBuffer {
     /// lifecycle
     async fn load_store_total_count(&mut self) {
         let total_count = timeout(Duration::from_secs(1), async {
-            match &self.envelope_provider {
-                EnvelopeProvider::Memory(_) => 0,
-                EnvelopeProvider::SQLite(provider) => provider.store_total_count().await,
+            match &self.envelope_repository {
+                EnvelopeRepository::Memory(_) => 0,
+                EnvelopeRepository::SQLite(provider) => provider.store_total_count().await,
             }
         })
         .await;
@@ -346,7 +346,7 @@ impl EnvelopeBuffer {
         relay_statsd::metric!(
             histogram(RelayHistograms::BufferEnvelopesCount) = total_count,
             initialized = initialized,
-            stack_type = &self.envelope_provider.to_string()
+            stack_type = &self.envelope_repository.name()
         );
     }
 }

@@ -1,7 +1,7 @@
 use relay_base_schema::project::ProjectKey;
 use std::convert::Infallible;
 
-use crate::services::buffer::envelope_provider::sqlite::SqliteEnvelopeProviderError;
+use crate::services::buffer::envelope_repository::sqlite::SqliteEnvelopeRepositoryError;
 use crate::services::buffer::envelope_store::sqlite::SqliteEnvelopeStoreError;
 use crate::Envelope;
 
@@ -12,7 +12,7 @@ pub enum EnvelopeBufferError {
     SqliteStore(#[from] SqliteEnvelopeStoreError),
 
     #[error("sqlite")]
-    SqliteProvider(#[from] SqliteEnvelopeProviderError),
+    SqliteProvider(#[from] SqliteEnvelopeRepositoryError),
 
     #[error("failed to push envelope to the buffer")]
     PushFailed,
