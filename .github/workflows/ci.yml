@@ -366,7 +366,7 @@ jobs:
 
     steps:
       - name: Install cosign
-        uses: sigstore/cosign-installer@v3.6.0
+        uses: sigstore/cosign-installer@v3.7.0
 
       - name: Install regctl
         uses: regclient/actions/regctl-installer@2dac4eff5925ed07edbfe12d2d11af6304df29a6
@@ -414,7 +414,7 @@ jobs:
 
     steps:
       - name: Install cosign
-        uses: sigstore/cosign-installer@v3.6.0
+        uses: sigstore/cosign-installer@v3.7.0
 
       - name: Google Auth
         id: auth
