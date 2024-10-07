@@ -38,7 +38,7 @@ def test_local_project_config(mini_sentry, relay):
     dsn_key = config["publicKeys"][0]["publicKey"]
 
     relay.wait_relay_health_check()
-    mini_sentry.test_failures.clear()
+    mini_sentry.clear_test_failures()
 
     relay.send_event(project_id, dsn_key=dsn_key)
     event = mini_sentry.captured_events.get(timeout=1).get_event()
@@ -148,11 +148,10 @@ def test_query_retry(failure_type, mini_sentry, relay):
         assert event["logentry"] == {"formatted": "Hello, World!"}
         assert retry_count == 3
 
-        if mini_sentry.test_failures:
-            for _, error in mini_sentry.test_failures:
-                assert isinstance(error, (socket.error, AssertionError))
+        for _, error in mini_sentry.current_test_failures():
+            assert isinstance(error, (socket.error, AssertionError))
     finally:
-        mini_sentry.test_failures.clear()
+        mini_sentry.clear_test_failures()
 
 
 def test_query_retry_maxed_out(mini_sentry, relay_with_processing, events_consumer):
@@ -190,18 +189,18 @@ def test_query_retry_maxed_out(mini_sentry, relay_with_processing, events_consum
     )
 
     # No error messages yet
-    assert not mini_sentry.test_failures
+    assert mini_sentry.test_failures.empty()
 
     try:
         relay.send_event(42)
         time.sleep(query_timeout)
 
         assert request_count == 1 + RETRIES
-        assert {str(e) for _, e in mini_sentry.test_failures} == {
+        assert {str(e) for _, e in mini_sentry.current_test_failures()} == {
             "Relay sent us event: error fetching project states: upstream request returned error 500 Internal Server Error: no error details",
         }
     finally:
-        mini_sentry.test_failures.clear()
+        mini_sentry.clear_test_failures()
 
 
 @pytest.mark.parametrize("disabled", (True, False))

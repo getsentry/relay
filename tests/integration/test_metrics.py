@@ -1182,7 +1182,7 @@ def test_transaction_metrics_not_extracted_on_unsupported_version(
     tx_consumer.assert_empty()
 
     if unsupported_version < TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION:
-        error = str(mini_sentry.test_failures.pop(0))
+        error = str(mini_sentry.test_failures.get_nowait())
         assert "Processing Relay outdated" in error
 
     metrics_consumer.assert_empty()

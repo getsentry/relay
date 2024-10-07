@@ -14,9 +14,9 @@ def test_invalid_kafka_config_should_fail(mini_sentry, relay_with_processing):
     relay = relay_with_processing(options=options, wait_health_check=False)
     assert relay.wait_for_exit() != 0
 
-    error = str(mini_sentry.test_failures.pop(0))
+    error = str(mini_sentry.test_failures.get_nowait())
     assert "__unknown" in error
-    error = str(mini_sentry.test_failures.pop(0))
+    error = str(mini_sentry.test_failures.get_nowait())
     assert "profiles" in error.lower()
 
 
@@ -26,5 +26,5 @@ def test_invalid_topics_raise_error(mini_sentry, relay_with_processing):
     relay = relay_with_processing(options=options, wait_health_check=False)
     assert relay.wait_for_exit() != 0
 
-    error = str(mini_sentry.test_failures.pop(0))
+    error = str(mini_sentry.test_failures.get_nowait())
     assert "failed to validate the topic with name" in error

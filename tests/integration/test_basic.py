@@ -110,7 +110,7 @@ def test_forced_shutdown(mini_sentry, relay):
         relay.shutdown(sig=signal.SIGINT)
         pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
 
-        failures = mini_sentry.test_failures
+        failures = mini_sentry.current_test_failures()
         assert failures
 
         # we are expecting at least a dropped unfinished future error
@@ -121,7 +121,7 @@ def test_forced_shutdown(mini_sentry, relay):
                 dropped_unfinished_error_found = True
         assert dropped_unfinished_error_found
     finally:
-        mini_sentry.test_failures.clear()
+        mini_sentry.clear_test_failures()
 
 
 @pytest.mark.parametrize("trailing_slash", [True, False])
