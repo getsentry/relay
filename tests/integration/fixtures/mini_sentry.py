@@ -6,7 +6,7 @@ import os
 import re
 import uuid
 from copy import deepcopy
-from queue import Queue
+from queue import Empty, Queue
 
 import pytest
 
@@ -41,8 +41,7 @@ class Sentry(SentryLike):
         self.captured_events = Queue()
         self.captured_outcomes = Queue()
         self.captured_metrics = Queue()
-        self.test_failures = []
-        self.reraise_test_failures = True
+        self.test_failures = Queue()
         self.hits = {}
         self.known_relays = {}
         self.fail_on_relay_error = True
@@ -64,9 +63,21 @@ class Sentry(SentryLike):
         self.hits.setdefault(path, 0)
         self.hits[path] += 1
 
+    def current_test_failures(self):
+        """Return current list of test failures without waiting for additional failures."""
+        try:
+            while failure := self.test_failures.get_nowait():
+                yield failure
+        except Empty:
+            return
+
+    def clear_test_failures(self):
+        """Reset test failures to an empty queue."""
+        self.test_failures = Queue()
+
     def format_failures(self):
         s = ""
-        for route, error in self.test_failures:
+        for route, error in self.current_test_failures():
             s += f"> {route}: {error}\n"
         return s
 
@@ -197,6 +208,15 @@ class Sentry(SentryLike):
 
         return json.loads(item.payload.bytes)
 
+    def get_metrics(self, timeout=None):
+        envelope = self.captured_events.get(timeout=timeout)
+        items = envelope.items
+        assert len(items) == 1
+        item = items[0]
+        assert item.headers["type"] == "metric_buckets"
+
+        return item.payload.json
+
 
 def _get_project_id(public_key, project_configs):
     for project_id, project_config in project_configs.items():
@@ -287,7 +307,7 @@ def mini_sentry(request):  # noqa
 
         if event is not None and sentry.fail_on_relay_error:
             error = AssertionError("Relay sent us event: " + get_error_message(event))
-            sentry.test_failures.append(("/api/666/envelope/", error))
+            sentry.test_failures.put(("/api/666/envelope/", error))
 
         return jsonify({"event_id": uuid.uuid4().hex})
 
@@ -443,10 +463,10 @@ def mini_sentry(request):  # noqa
         raise e
 
     def reraise_test_failures():
-        if sentry.test_failures and sentry.reraise_test_failures:
+        if not sentry.test_failures.empty():
             pytest.fail(
                 "{n} exceptions happened in mini_sentry:\n\n{failures}".format(
-                    n=len(sentry.test_failures), failures=sentry.format_failures()
+                    n=sentry.test_failures.qsize(), failures=sentry.format_failures()
                 )
             )
 

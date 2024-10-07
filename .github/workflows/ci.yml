@@ -365,12 +365,6 @@ jobs:
       REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
 
     steps:
-      - name: Install cosign
-        uses: sigstore/cosign-installer@v3.6.0
-
-      - name: Install regctl
-        uses: regclient/actions/regctl-installer@2dac4eff5925ed07edbfe12d2d11af6304df29a6
-
       - name: Login to DockerHub
         run: docker login --username=sentrybuilder --password ${{ secrets.DOCKER_HUB_RW_TOKEN }}
 
@@ -378,14 +372,14 @@ jobs:
         run: |
           # We push 3 tags to Dockerhub:
           # 1) the full sha of the commit
-          regctl image copy "${GHCR_DOCKER_IMAGE}:${REVISION}" "${DH_DOCKER_IMAGE}:${REVISION}"
+          docker buildx imagetools create --tag "${DH_DOCKER_IMAGE}:${REVISION}" "${GHCR_DOCKER_IMAGE}:${REVISION}"
 
           # 2) the short sha
           SHORT_SHA=$(echo ${GITHUB_SHA} | cut -c1-8)
-          regctl image copy "${GHCR_DOCKER_IMAGE}:${REVISION}" "${DH_DOCKER_IMAGE}:${SHORT_SHA}"
+          docker buildx imagetools create --tag "${DH_DOCKER_IMAGE}:${SHORT_SHA}" "${GHCR_DOCKER_IMAGE}:${REVISION}"
 
           # 3) nightly
-          regctl image copy "${GHCR_DOCKER_IMAGE}:nightly" "${DH_DOCKER_IMAGE}:nightly"
+          docker buildx imagetools create --tag "${DH_DOCKER_IMAGE}:nightly" "${GHCR_DOCKER_IMAGE}:${REVISION}"
 
   publish-to-gcr:
     timeout-minutes: 5
@@ -413,9 +407,6 @@ jobs:
     if: "!startsWith(github.ref, 'refs/heads/release-library/') && !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]' && needs.build-setup.outputs.full_ci == 'true'"
 
     steps:
-      - name: Install cosign
-        uses: sigstore/cosign-installer@v3.6.0
-
       - name: Google Auth
         id: auth
         uses: google-github-actions/auth@v2
@@ -434,15 +425,12 @@ jobs:
         run: |
           gcloud auth configure-docker us-central1-docker.pkg.dev
 
-      - name: Install regctl
-        uses: regclient/actions/regctl-installer@2dac4eff5925ed07edbfe12d2d11af6304df29a6
-
       - name: Copy Image from GHCR to AR
-        run: regctl image copy "${GHCR_DOCKER_IMAGE}:${REVISION}" "${AR_DOCKER_IMAGE}:${REVISION}"
+        run: docker buildx imagetools create --tag "${AR_DOCKER_IMAGE}:${REVISION}" "${GHCR_DOCKER_IMAGE}:${REVISION}"
 
       - name: Copy Nightly from GHCR to AR
         if: github.ref == 'refs/heads/master'
-        run: regctl image copy "${GHCR_DOCKER_IMAGE}:nightly" "${AR_DOCKER_IMAGE}:nightly"
+        run: docker buildx imagetools create --tag "${AR_DOCKER_IMAGE}:nightly" "${GHCR_DOCKER_IMAGE}:nightly"
 
   gocd-artifacts:
     timeout-minutes: 5
@@ -508,7 +496,7 @@ jobs:
   test_integration:
     name: Integration Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
 
     # Skip redundant checks for library releases
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"

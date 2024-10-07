@@ -168,7 +168,7 @@ pub trait EventProcessing {}
 /// A trait for processing groups that can be dynamically sampled.
 pub trait Sampling {
     /// Whether dynamic sampling should run under the given project's conditions.
-    fn supports_sampling(project_state: &ProjectInfo) -> bool;
+    fn supports_sampling(project_info: &ProjectInfo) -> bool;
 
     /// Whether reservoir sampling applies to this processing group (a.k.a. data type).
     fn supports_reservoir_sampling() -> bool;
@@ -178,9 +178,9 @@ processing_group!(TransactionGroup, Transaction);
 impl EventProcessing for TransactionGroup {}
 
 impl Sampling for TransactionGroup {
-    fn supports_sampling(project_state: &ProjectInfo) -> bool {
+    fn supports_sampling(project_info: &ProjectInfo) -> bool {
         // For transactions, we require transaction metrics to be enabled before sampling.
-        matches!(&project_state.config.transaction_metrics, Some(ErrorBoundary::Ok(c)) if c.is_enabled())
+        matches!(&project_info.config.transaction_metrics, Some(ErrorBoundary::Ok(c)) if c.is_enabled())
     }
 
     fn supports_reservoir_sampling() -> bool {
@@ -199,9 +199,9 @@ processing_group!(CheckInGroup, CheckIn);
 processing_group!(SpanGroup, Span);
 
 impl Sampling for SpanGroup {
-    fn supports_sampling(project_state: &ProjectInfo) -> bool {
+    fn supports_sampling(project_info: &ProjectInfo) -> bool {
         // If no metrics could be extracted, do not sample anything.
-        matches!(&project_state.config().metric_extraction, ErrorBoundary::Ok(c) if c.is_supported())
+        matches!(&project_info.config().metric_extraction, ErrorBoundary::Ok(c) if c.is_supported())
     }
 
     fn supports_reservoir_sampling() -> bool {
@@ -720,14 +720,14 @@ struct ProcessEnvelopeState<'a, Group> {
     extracted_metrics: ProcessingExtractedMetrics,
 
     /// The state of the project that this envelope belongs to.
-    project_state: Arc<ProjectInfo>,
+    project_info: Arc<ProjectInfo>,
 
     /// The config of this Relay instance.
     config: Arc<Config>,
 
     /// The state of the project that initiated the current trace.
     /// This is the config used for trace-based dynamic sampling.
-    sampling_project_state: Option<Arc<ProjectInfo>>,
+    sampling_project_info: Option<Arc<ProjectInfo>>,
 
     /// The id of the project that this envelope is ingested into.
     ///
@@ -798,7 +798,7 @@ impl<'a, Group> ProcessEnvelopeState<'a, Group> {
     fn should_filter(&self, feature: Feature) -> bool {
         match self.config.relay_mode() {
             RelayMode::Proxy | RelayMode::Static | RelayMode::Capture => false,
-            RelayMode::Managed => !self.project_state.has_feature(feature),
+            RelayMode::Managed => !self.project_info.has_feature(feature),
         }
     }
 }
@@ -1250,15 +1250,15 @@ impl EnvelopeProcessorService {
         config: Arc<Config>,
         mut managed_envelope: TypedEnvelope<G>,
         project_id: ProjectId,
-        project_state: Arc<ProjectInfo>,
-        sampling_project_state: Option<Arc<ProjectInfo>>,
+        project_info: Arc<ProjectInfo>,
+        sampling_project_info: Option<Arc<ProjectInfo>>,
         reservoir_counters: Arc<Mutex<BTreeMap<RuleId, i64>>>,
     ) -> ProcessEnvelopeState<G> {
         let envelope = managed_envelope.envelope_mut();
 
         // Set the event retention. Effectively, this value will only be available in processing
         // mode when the full project config is queried from the upstream.
-        if let Some(retention) = project_state.config.event_retention {
+        if let Some(retention) = project_info.config.event_retention {
             envelope.set_retention(retention);
         }
 
@@ -1290,9 +1290,9 @@ impl EnvelopeProcessorService {
             spans_extracted: false,
             metrics: Metrics::default(),
             extracted_metrics,
-            project_state,
+            project_info,
             config,
-            sampling_project_state,
+            sampling_project_info,
             project_id,
             managed_envelope,
             reservoir,
@@ -1310,9 +1310,9 @@ impl EnvelopeProcessorService {
             None => return Ok(()),
         };
 
-        let project_state = &state.project_state;
+        let project_info = &state.project_info;
         let global_config = self.inner.global_config.current();
-        let quotas = CombinedQuotas::new(&global_config, project_state.get_quotas());
+        let quotas = CombinedQuotas::new(&global_config, project_info.get_quotas());
 
         if quotas.is_empty() {
             return Ok(());
@@ -1378,7 +1378,7 @@ impl EnvelopeProcessorService {
         // it is not present in the actual project config payload.
         let global = self.inner.global_config.current();
         let combined_config = {
-            let config = match &state.project_state.config.metric_extraction {
+            let config = match &state.project_info.config.metric_extraction {
                 ErrorBoundary::Ok(ref config) if config.is_supported() => config,
                 _ => return Ok(()),
             };
@@ -1403,7 +1403,7 @@ impl EnvelopeProcessorService {
         };
 
         // Require a valid transaction metrics config.
-        let tx_config = match &state.project_state.config.transaction_metrics {
+        let tx_config = match &state.project_info.config.transaction_metrics {
             Some(ErrorBoundary::Ok(tx_config)) => tx_config,
             Some(ErrorBoundary::Err(e)) => {
                 relay_log::debug!("Failed to parse legacy transaction metrics config: {e}");
@@ -1445,7 +1445,7 @@ impl EnvelopeProcessorService {
             .extracted_metrics
             .extend_project_metrics(metrics, Some(sampling_decision));
 
-        if !state.project_state.has_feature(Feature::DiscardTransaction) {
+        if !state.project_info.has_feature(Feature::DiscardTransaction) {
             let transaction_from_dsc = state
                 .managed_envelope
                 .envelope()
@@ -1506,7 +1506,7 @@ impl EnvelopeProcessorService {
         let http_span_allowed_hosts = global_config.options.http_span_allowed_hosts.as_slice();
 
         let retention_days: i64 = state
-            .project_state
+            .project_info
             .config
             .event_retention
             .unwrap_or(DEFAULT_EVENT_RETENTION)
@@ -1524,7 +1524,7 @@ impl EnvelopeProcessorService {
             };
 
             let key_id = state
-                .project_state
+                .project_info
                 .get_public_key_config()
                 .and_then(|key| Some(key.numeric_id?.to_string()));
             if full_normalization && key_id.is_none() {
@@ -1539,7 +1539,7 @@ impl EnvelopeProcessorService {
                 client: request_meta.client().map(str::to_owned),
                 key_id,
                 protocol_version: Some(request_meta.version().to_string()),
-                grouping_config: state.project_state.config.grouping_config.clone(),
+                grouping_config: state.project_info.config.grouping_config.clone(),
                 client_ip: client_ipaddr.as_ref(),
                 client_sample_rate: state
                     .managed_envelope
@@ -1556,20 +1556,20 @@ impl EnvelopeProcessorService {
                         .max_name_length
                         .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
                 ),
-                breakdowns_config: state.project_state.config.breakdowns_v2.as_ref(),
-                performance_score: state.project_state.config.performance_score.as_ref(),
+                breakdowns_config: state.project_info.config.breakdowns_v2.as_ref(),
+                performance_score: state.project_info.config.performance_score.as_ref(),
                 normalize_user_agent: Some(true),
                 transaction_name_config: TransactionNameConfig {
-                    rules: &state.project_state.config.tx_name_rules,
+                    rules: &state.project_info.config.tx_name_rules,
                 },
                 device_class_synthesis_config: state
-                    .project_state
+                    .project_info
                     .has_feature(Feature::DeviceClassSynthesis),
                 enrich_spans: state
-                    .project_state
+                    .project_info
                     .has_feature(Feature::ExtractSpansFromEvent)
                     || state
-                        .project_state
+                        .project_info
                         .has_feature(Feature::ExtractCommonSpanMetricsFromEvent),
                 max_tag_value_length: self
                     .inner
@@ -1580,12 +1580,12 @@ impl EnvelopeProcessorService {
                 is_renormalize: false,
                 remove_other: full_normalization,
                 emit_event_errors: full_normalization,
-                span_description_rules: state.project_state.config.span_description_rules.as_ref(),
+                span_description_rules: state.project_info.config.span_description_rules.as_ref(),
                 geoip_lookup: self.inner.geoip_lookup.as_ref(),
                 ai_model_costs: ai_model_costs.as_ref(),
                 enable_trimming: true,
                 measurements: Some(CombinedMeasurementsConfig::new(
-                    state.project_state.config().measurements.as_ref(),
+                    state.project_info.config().measurements.as_ref(),
                     global_config.measurements.as_ref(),
                 )),
                 normalize_spans: true,
@@ -1596,7 +1596,7 @@ impl EnvelopeProcessorService {
                     .and_then(|ctx| ctx.replay_id),
                 span_allowed_hosts: http_span_allowed_hosts,
                 scrub_mongo_description: if state
-                    .project_state
+                    .project_info
                     .has_feature(Feature::ScrubMongoDbDescriptions)
                 {
                     ScrubMongoDescription::Enabled
@@ -1750,7 +1750,7 @@ impl EnvelopeProcessorService {
             self.extract_transaction_metrics(state, SamplingDecision::Keep, profile_id)?;
 
             if state
-                .project_state
+                .project_info
                 .has_feature(Feature::ExtractSpansFromEvent)
             {
                 span::extract_from_event(state, &global_config, server_sample_rate);
@@ -1881,8 +1881,8 @@ impl EnvelopeProcessorService {
         &self,
         mut managed_envelope: ManagedEnvelope,
         project_id: ProjectId,
-        project_state: Arc<ProjectInfo>,
-        sampling_project_state: Option<Arc<ProjectInfo>>,
+        project_info: Arc<ProjectInfo>,
+        sampling_project_info: Option<Arc<ProjectInfo>>,
         reservoir_counters: Arc<Mutex<BTreeMap<RuleId, i64>>>,
     ) -> Result<ProcessingStateResult, ProcessingError> {
         // Get the group from the managed envelope context, and if it's not set, try to guess it
@@ -1890,7 +1890,7 @@ impl EnvelopeProcessorService {
         let group = managed_envelope.group();
 
         // Pre-process the envelope headers.
-        if let Some(sampling_state) = sampling_project_state.as_ref() {
+        if let Some(sampling_state) = sampling_project_info.as_ref() {
             // Both transactions and standalone span envelopes need a normalized DSC header
             // to make sampling rules based on the segment/transaction name work correctly.
             managed_envelope
@@ -1905,8 +1905,8 @@ impl EnvelopeProcessorService {
                     self.inner.config.clone(),
                     managed_envelope,
                     project_id,
-                    project_state,
-                    sampling_project_state,
+                    project_info,
+                    sampling_project_info,
                     reservoir_counters,
                 );
                 match self.$fn(&mut state) {
@@ -2381,7 +2381,7 @@ impl EnvelopeProcessorService {
     fn rate_limit_buckets(
         &self,
         scoping: Scoping,
-        project_state: &ProjectInfo,
+        project_info: &ProjectInfo,
         mut buckets: Vec<Bucket>,
     ) -> Vec<Bucket> {
         let Some(rate_limiter) = self.inner.rate_limiter.as_ref() else {
@@ -2394,7 +2394,7 @@ impl EnvelopeProcessorService {
             .filter_map(|bucket| bucket.name.try_namespace())
             .counts();
 
-        let quotas = CombinedQuotas::new(&global_config, project_state.get_quotas());
+        let quotas = CombinedQuotas::new(&global_config, project_info.get_quotas());
 
         for (namespace, quantity) in namespaces {
             let item_scoping = scoping.metric_bucket(namespace);
@@ -2430,7 +2430,7 @@ impl EnvelopeProcessorService {
             }
         }
 
-        match MetricsLimiter::create(buckets, project_state.config.quotas.clone(), scoping) {
+        match MetricsLimiter::create(buckets, project_info.config.quotas.clone(), scoping) {
             Err(buckets) => buckets,
             Ok(bucket_limiter) => self.apply_other_rate_limits(bucket_limiter),
         }

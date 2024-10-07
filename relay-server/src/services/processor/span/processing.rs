@@ -20,7 +20,7 @@ use relay_event_normalization::{
     GeoIpLookup, ModelCosts, SchemaProcessor, TimestampProcessor, TransactionNameRule,
     TrimmingProcessor,
 };
-use relay_event_schema::processor::{process_value, ProcessingState};
+use relay_event_schema::processor::{process_value, ProcessingAction, ProcessingState};
 use relay_event_schema::protocol::{
     BrowserContext, IpAddr, Measurement, Measurements, Span, SpanData,
 };
@@ -56,21 +56,21 @@ pub fn process(
     // once for all spans in the envelope.
     let sampling_result = dynamic_sampling::run(state);
 
-    let span_metrics_extraction_config = match state.project_state.config.metric_extraction {
+    let span_metrics_extraction_config = match state.project_info.config.metric_extraction {
         ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),
         _ => None,
     };
     let normalize_span_config = NormalizeSpanConfig::new(
         &state.config,
         global_config,
-        state.project_state.config(),
+        state.project_info.config(),
         &state.managed_envelope,
         state.envelope().meta().client_addr().map(IpAddr::from),
         geo_lookup,
     );
 
     let client_ip = state.managed_envelope.envelope().meta().client_addr();
-    let filter_settings = &state.project_state.config.filter_settings;
+    let filter_settings = &state.project_info.config.filter_settings;
 
     let mut dynamic_sampling_dropped_spans = 0;
     state.managed_envelope.retain_items(|item| {
@@ -96,9 +96,9 @@ pub fn process(
         if let Err(e) = normalize(&mut annotated_span, normalize_span_config.clone()) {
             relay_log::debug!("failed to normalize span: {}", e);
             return ItemAction::Drop(Outcome::Invalid(match e {
-                ProcessingError::InvalidTransaction | ProcessingError::InvalidTimestamp => {
-                    DiscardReason::InvalidSpan
-                }
+                ProcessingError::ProcessingFailed(ProcessingAction::InvalidTransaction(_))
+                | ProcessingError::InvalidTransaction
+                | ProcessingError::InvalidTimestamp => DiscardReason::InvalidSpan,
                 _ => DiscardReason::Internal,
             }));
         };
@@ -149,7 +149,7 @@ pub fn process(
             return ItemAction::DropSilently;
         }
 
-        if let Err(e) = scrub(&mut annotated_span, &state.project_state.config) {
+        if let Err(e) = scrub(&mut annotated_span, &state.project_info.config) {
             relay_log::error!("failed to scrub span: {e}");
         }
 
@@ -322,7 +322,7 @@ pub fn extract_from_event(
             .max_tag_value_length,
         &[],
         if state
-            .project_state
+            .project_info
             .config
             .features
             .has(Feature::ScrubMongoDbDescriptions)
@@ -364,7 +364,7 @@ pub fn extract_from_event(
 /// Removes the transaction in case the project has made the transition to spans-only.
 pub fn maybe_discard_transaction(state: &mut ProcessEnvelopeState<TransactionGroup>) {
     if state.event_type() == Some(EventType::Transaction)
-        && state.project_state.has_feature(Feature::DiscardTransaction)
+        && state.project_info.has_feature(Feature::DiscardTransaction)
     {
         state.remove_event();
         state.managed_envelope.update();
@@ -781,13 +781,13 @@ mod tests {
         );
 
         let dummy_envelope = Envelope::parse_bytes(bytes).unwrap();
-        let mut project_state = ProjectInfo::default();
-        project_state
+        let mut project_info = ProjectInfo::default();
+        project_info
             .config
             .features
             .0
             .insert(Feature::ExtractCommonSpanMetricsFromEvent);
-        let project_state = Arc::new(project_state);
+        let project_info = Arc::new(project_info);
 
         let event = Event {
             ty: EventType::Transaction.into(),
@@ -820,8 +820,8 @@ mod tests {
             metrics: Default::default(),
             extracted_metrics: ProcessingExtractedMetrics::new(),
             config: Arc::new(Config::default()),
-            project_state,
-            sampling_project_state: None,
+            project_info,
+            sampling_project_info: None,
             project_id: ProjectId::new(42),
             managed_envelope: managed_envelope.try_into().unwrap(),
             event_metrics_extracted: false,

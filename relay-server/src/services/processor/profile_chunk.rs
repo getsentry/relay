@@ -15,9 +15,7 @@ use {
 
 /// Removes profile chunks from the envelope if the feature is not enabled.
 pub fn filter<G>(state: &mut ProcessEnvelopeState<G>) {
-    let continuous_profiling_enabled = state
-        .project_state
-        .has_feature(Feature::ContinuousProfiling);
+    let continuous_profiling_enabled = state.project_info.has_feature(Feature::ContinuousProfiling);
     state.managed_envelope.retain_items(|item| match item.ty() {
         ItemType::ProfileChunk if !continuous_profiling_enabled => ItemAction::DropSilently,
         _ => ItemAction::Keep,
@@ -27,9 +25,7 @@ pub fn filter<G>(state: &mut ProcessEnvelopeState<G>) {
 /// Processes profile chunks.
 #[cfg(feature = "processing")]
 pub fn process(state: &mut ProcessEnvelopeState<ProfileChunkGroup>, config: &Config) {
-    let continuous_profiling_enabled = state
-        .project_state
-        .has_feature(Feature::ContinuousProfiling);
+    let continuous_profiling_enabled = state.project_info.has_feature(Feature::ContinuousProfiling);
     state.managed_envelope.retain_items(|item| match item.ty() {
         ItemType::ProfileChunk => {
             if !continuous_profiling_enabled {
