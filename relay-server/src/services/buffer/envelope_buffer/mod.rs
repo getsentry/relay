@@ -72,7 +72,7 @@ impl EnvelopeBuffer {
         })
     }
 
-    /// Creates a memory-based [`EnvelopeBuffer`].
+    /// Creates a sqlite-based [`EnvelopeBuffer`].
     async fn sqlite(config: &Config) -> Result<Self, EnvelopeBufferError> {
         Ok(Self {
             project_to_pairs: Default::default(),
@@ -97,10 +97,7 @@ impl EnvelopeBuffer {
         });
     }
 
-    /// Pushes an envelope to the appropriate envelope stack and re-prioritizes the stack.
-    ///
-    /// If the envelope stack does not exist, a new stack is pushed to the priority queue.
-    /// The priority of the stack is updated with the envelope's received_at time.
+    /// Pushes an envelope to the [`EnvelopeProvider`] and updates the priority queue accordingly.
     pub async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), EnvelopeBufferError> {
         relay_statsd::metric!(timer(RelayTimers::BufferPush), {
             let received_at = envelope.meta().start_time().into();
@@ -149,8 +146,8 @@ impl EnvelopeBuffer {
 
     /// Returns the next-in-line envelope, if one exists.
     ///
-    /// The priority of the envelope's stack is updated with the next envelope's received_at
-    /// time. If the stack is empty after popping, it is removed from the priority queue.
+    /// The priority of the [`ProjectKeyPair`] is updated with the next envelope's received_at
+    /// time.
     pub async fn pop(&mut self) -> Result<Option<Box<Envelope>>, EnvelopeBufferError> {
         relay_statsd::metric!(timer(RelayTimers::BufferPop), {
             let Some((&project_key_pair, _)) = self.priority_queue.peek() else {
@@ -168,7 +165,6 @@ impl EnvelopeBuffer {
                 .map(|next_envelope| next_envelope.meta().start_time().into());
             match next_received_at {
                 None => {
-                    relay_statsd::metric!(counter(RelayCounters::BufferEnvelopeStacksPopped) += 1);
                     self.remove(project_key_pair);
                 }
                 Some(next_received_at) => {
@@ -189,7 +185,8 @@ impl EnvelopeBuffer {
         })
     }
 
-    /// Re-prioritizes all stacks that involve the given project key by setting it to "ready".
+    /// Re-prioritizes all [`ProjectKeyPair`]s that involve the given project key by setting it to
+    /// "ready".
     ///
     /// Returns `true` if at least one priority was changed.
     pub fn mark_ready(&mut self, project: &ProjectKey, is_ready: bool) -> bool {
@@ -239,7 +236,8 @@ impl EnvelopeBuffer {
             });
     }
 
-    /// Returns `true` if the underlying storage has the capacity to store more envelopes.
+    /// Returns `true` if the underlying storage has the capacity to store more envelopes, false
+    /// otherwise.
     pub fn has_capacity(&self) -> bool {
         match &self.envelope_provider {
             EnvelopeProvider::Memory(provider) => provider.has_store_capacity(),
@@ -250,9 +248,7 @@ impl EnvelopeBuffer {
     /// Flushes the envelope buffer.
     ///
     /// Returns `true` in case after the flushing it is safe to destroy the buffer, `false`
-    /// otherwise.
-    ///
-    /// This is done because we want to make sure we know whether it is safe to drop the
+    /// otherwise. This is done because we want to make sure we know whether it is safe to drop the
     /// [`EnvelopeBuffer`] after flushing is performed.
     pub async fn flush(&mut self) -> bool {
         match &mut self.envelope_provider {
@@ -261,7 +257,7 @@ impl EnvelopeBuffer {
         }
     }
 
-    /// Returns `true` if the [`EnvelopeBuffer`] is using an in-memory strategy.
+    /// Returns `true` if the [`EnvelopeBuffer`] is using an in-memory strategy, false otherwise.
     pub fn is_memory(&self) -> bool {
         matches!(self.envelope_provider, EnvelopeProvider::Memory(_))
     }

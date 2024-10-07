@@ -141,6 +141,18 @@ impl SqliteEnvelopeProvider {
             .envelopes
             .get_mut(&project_key_pair)
             .and_then(|envelopes| envelopes.pop());
+
+        let envelopes_size = self
+            .envelopes
+            .get(&project_key_pair)
+            .map_or(0, |envelopes| envelopes.len());
+        // If we have no more envelopes to pop from the buffer, we want to remove the project key
+        // pair to free up some memory.
+        if envelopes_size == 0 {
+            relay_statsd::metric!(counter(RelayCounters::BufferProjectKeyPairPopped) += 1);
+            self.envelopes.remove(&project_key_pair);
+        }
+
         if let Some(envelope) = envelope {
             // We only decrement the counter when removing data from the in memory buffer.
             self.buffered_envelopes_size -= 1;
@@ -413,6 +425,7 @@ mod tests {
 
         // Ensure the provider is empty
         assert!(provider.pop(project_key_pair).await.unwrap().is_none());
+        assert!(!provider.envelopes.contains_key(&project_key_pair));
     }
 
     #[tokio::test]
@@ -442,6 +455,10 @@ mod tests {
             popped_envelope.event_id().unwrap(),
             envelope.event_id().unwrap()
         );
+
+        // Ensure the provider has deallocated the project key pair entry in the map since the last
+        // element was popped
+        assert!(!provider.envelopes.contains_key(&project_key_pair));
     }
 
     #[tokio::test]
