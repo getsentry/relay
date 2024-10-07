@@ -106,12 +106,7 @@ impl SqliteEnvelopeProvider {
         &mut self,
         project_key_pair: ProjectKeyPair,
     ) -> Result<Option<&Envelope>, SqliteEnvelopeProviderError> {
-        let envelopes_size = self
-            .envelopes
-            .get(&project_key_pair)
-            .map_or(0, |envelopes| envelopes.len());
-        // If we have no data in memory, we want to load it from disk in the buffer.
-        if envelopes_size == 0 {
+        if self.is_empty(project_key_pair) {
             let envelopes = self.unspool_from_disk(project_key_pair, 1).await?;
             if envelopes.is_empty() {
                 return Ok(None);
@@ -127,7 +122,7 @@ impl SqliteEnvelopeProvider {
         Ok(self
             .envelopes
             .get(&project_key_pair)
-            .and_then(|envelopes| envelopes.last().map(|boxed| boxed.as_ref())))
+            .and_then(|e| e.last().map(Box::as_ref)))
     }
 
     /// Pops and returns the next envelope for the given project key pair.
@@ -142,13 +137,9 @@ impl SqliteEnvelopeProvider {
             .get_mut(&project_key_pair)
             .and_then(|envelopes| envelopes.pop());
 
-        let envelopes_size = self
-            .envelopes
-            .get(&project_key_pair)
-            .map_or(0, |envelopes| envelopes.len());
         // If we have no more envelopes to pop from the buffer, we want to remove the project key
         // pair to free up some memory.
-        if envelopes_size == 0 {
+        if self.is_empty(project_key_pair) {
             relay_statsd::metric!(counter(RelayCounters::BufferProjectKeyPairPopped) += 1);
             self.envelopes.remove(&project_key_pair);
         }
@@ -213,6 +204,14 @@ impl SqliteEnvelopeProvider {
                 // In case we have an error, we default to communicating a total count of 0.
                 0
             })
+    }
+
+    /// Returns `true` if there are no [`Envelope`]s for the given [`ProjectKeyPair`], false
+    /// otherwise.
+    fn is_empty(&self, project_key_pair: ProjectKeyPair) -> bool {
+        self.envelopes
+            .get(&project_key_pair)
+            .map_or(true, |e| e.is_empty())
     }
 
     /// Determines if the number of buffered envelopes is above the spool threshold.

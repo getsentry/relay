@@ -9,7 +9,7 @@ use std::time::Duration;
 use crate::envelope::Envelope;
 use crate::services::buffer::common::{EnvelopeBufferError, ProjectKeyPair};
 use crate::services::buffer::envelope_provider::EnvelopeProvider;
-use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
+use crate::statsd::{RelayGauges, RelayHistograms, RelayTimers};
 use crate::MemoryChecker;
 use hashbrown::{HashMap, HashSet};
 use priority_queue::PriorityQueue;
