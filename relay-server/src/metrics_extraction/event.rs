@@ -49,12 +49,14 @@ impl Extractable for Span {
 /// If this is a transaction event with spans, metrics will also be extracted from the spans.
 pub fn extract_metrics(
     event: &mut Event,
+    spans_extracted: bool,
     config: CombinedMetricExtractionConfig<'_>,
     max_tag_value_size: usize,
     span_extraction_sample_rate: Option<f32>,
 ) -> Vec<Bucket> {
     let mut metrics = generic::extract_metrics(event, config);
-    if sample(span_extraction_sample_rate.unwrap_or(1.0)) {
+    // If spans were already extracted for an event, we rely on span processing to extract metrics.
+    if !spans_extracted && sample(span_extraction_sample_rate.unwrap_or(1.0)) {
         extract_span_metrics_for_event(event, config, max_tag_value_size, &mut metrics);
     }
 
@@ -1200,6 +1202,7 @@ mod tests {
 
         extract_metrics(
             event.value_mut().as_mut().unwrap(),
+            false,
             combined_config(features, None).combined(),
             200,
             None,
@@ -1410,6 +1413,7 @@ mod tests {
 
         let metrics = extract_metrics(
             event.value_mut().as_mut().unwrap(),
+            false,
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent], None).combined(),
             200,
             None,
@@ -1466,6 +1470,7 @@ mod tests {
 
         let metrics = extract_metrics(
             event.value_mut().as_mut().unwrap(),
+            false,
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent], None).combined(),
             200,
             None,
@@ -1497,6 +1502,7 @@ mod tests {
 
         let metrics = extract_metrics(
             event.value_mut().as_mut().unwrap(),
+            false,
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent], None).combined(),
             200,
             None,
@@ -1759,6 +1765,7 @@ mod tests {
 
         let metrics = extract_metrics(
             event.value_mut().as_mut().unwrap(),
+            false,
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent], None).combined(),
             200,
             None,
@@ -1899,7 +1906,13 @@ mod tests {
         );
         let config = binding.combined();
 
-        let _ = extract_metrics(event.value_mut().as_mut().unwrap(), config, 200, None);
+        let _ = extract_metrics(
+            event.value_mut().as_mut().unwrap(),
+            false,
+            config,
+            200,
+            None,
+        );
 
         insta::assert_debug_snapshot!(&event.value().unwrap()._metrics_summary);
         insta::assert_debug_snapshot!(

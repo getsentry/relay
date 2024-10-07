@@ -1206,21 +1206,19 @@ def test_no_transaction_metrics_when_filtered(mini_sentry, relay):
     relay = relay(mini_sentry, options=TEST_CONFIG)
     relay.send_transaction(project_id, tx)
 
-    # The only envelopes received should be outcomes for {Span,Transaction}[Indexed]?:
-    reports = [mini_sentry.get_client_report() for _ in range(4)]
+    # The only envelopes received should be outcomes for Transaction{,Indexed}:
+    reports = [mini_sentry.get_client_report() for _ in range(2)]
     filtered_events = [
         outcome for report in reports for outcome in report["filtered_events"]
     ]
     filtered_events.sort(key=lambda x: x["category"])
 
     assert filtered_events == [
-        {"reason": "release-version", "category": "span", "quantity": 2},
-        {"reason": "release-version", "category": "span_indexed", "quantity": 2},
         {"reason": "release-version", "category": "transaction", "quantity": 1},
         {"reason": "release-version", "category": "transaction_indexed", "quantity": 1},
     ]
 
-    assert mini_sentry.captured_events.empty
+    assert mini_sentry.captured_events.empty()
 
 
 def test_transaction_name_too_long(
