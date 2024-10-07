@@ -150,11 +150,9 @@ impl SqliteEnvelopeProvider {
             return Ok(Some(envelope));
         }
 
+        // If we have no envelopes in the buffer, we try to pop and immediately return data from
+        // disk.
         let mut envelopes = self.unspool_from_disk(project_key_pair, 1).await?;
-        if envelopes.is_empty() {
-            return Ok(None);
-        }
-
         Ok(envelopes.pop())
     }
 
