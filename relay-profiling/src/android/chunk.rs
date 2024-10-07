@@ -95,14 +95,8 @@ impl Chunk {
 
 fn parse_chunk(payload: &[u8]) -> Result<Chunk, ProfileError> {
     let d = &mut serde_json::Deserializer::from_slice(payload);
-    let mut profile: Chunk = match serde_path_to_error::deserialize(d) {
-        Ok(p) => p,
-        Err(e) => {
-            println!("{:#?}", e);
-            return Err(ProfileError::InvalidJson(e));
-        }
-    };
-    // .map_err(ProfileError::InvalidJson)?;
+    let mut profile: Chunk =
+        serde_path_to_error::deserialize(d).map_err(ProfileError::InvalidJson)?;
 
     if let Some(ref mut js_profile) = profile.js_profile {
         js_profile.normalize(profile.metadata.platform.as_str())?;
