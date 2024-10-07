@@ -29,7 +29,8 @@ use crate::utils::ManagedEnvelope;
 use crate::MemoryChecker;
 use crate::MemoryStat;
 
-pub use common::EnvelopeBufferError;
+// pub for benchmarks
+pub use common::{EnvelopeBufferError, ProjectKeyPair};
 // pub for benchmarks
 pub use envelope_buffer::EnvelopeBuffer as EnvelopeBufferImpl;
 // pub for benchmarks

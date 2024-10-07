@@ -102,44 +102,48 @@ impl EnvelopeBuffer {
     /// If the envelope stack does not exist, a new stack is pushed to the priority queue.
     /// The priority of the stack is updated with the envelope's received_at time.
     pub async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), EnvelopeBufferError> {
-        let received_at = envelope.meta().start_time().into();
-        let project_key_pair = ProjectKeyPair::from_envelope(&envelope);
+        relay_statsd::metric!(timer(RelayTimers::BufferPush), {
+            let received_at = envelope.meta().start_time().into();
+            let project_key_pair = ProjectKeyPair::from_envelope(&envelope);
 
-        // If we haven't seen this project key pair, we will add it to the priority queue, otherwise
-        // we just update its priority.
-        if self.priority_queue.get_mut(&project_key_pair).is_none() {
-            self.add(project_key_pair, Some(envelope.as_ref()))
-        } else {
-            self.priority_queue
-                .change_priority_by(&project_key_pair, |prio| {
-                    prio.received_at = received_at;
-                });
-        }
+            // If we haven't seen this project key pair, we will add it to the priority queue, otherwise
+            // we just update its priority.
+            if self.priority_queue.get_mut(&project_key_pair).is_none() {
+                self.add(project_key_pair, Some(envelope.as_ref()))
+            } else {
+                self.priority_queue
+                    .change_priority_by(&project_key_pair, |prio| {
+                        prio.received_at = received_at;
+                    });
+            }
 
-        self.envelope_provider
-            .push(project_key_pair, envelope)
-            .await?;
+            self.envelope_provider
+                .push(project_key_pair, envelope)
+                .await?;
 
-        self.total_count.fetch_add(1, AtomicOrdering::SeqCst);
-        self.track_total_count();
+            self.total_count.fetch_add(1, AtomicOrdering::SeqCst);
+            self.track_total_count();
 
-        Ok(())
+            Ok(())
+        })
     }
 
     /// Returns a reference to the next-in-line envelope, if one exists.
     pub async fn peek(&mut self) -> Result<Peek, EnvelopeBufferError> {
-        let Some((&project_key_pair, priority)) = self.priority_queue.peek() else {
-            return Ok(Peek::Empty);
-        };
+        relay_statsd::metric!(timer(RelayTimers::BufferPeek), {
+            let Some((&project_key_pair, priority)) = self.priority_queue.peek() else {
+                return Ok(Peek::Empty);
+            };
 
-        let envelope = self.envelope_provider.peek(project_key_pair).await?;
+            let envelope = self.envelope_provider.peek(project_key_pair).await?;
 
-        Ok(match (envelope, priority.readiness.ready()) {
-            (None, _) => Peek::Empty,
-            (Some(envelope), true) => Peek::Ready(envelope),
-            (Some(envelope), false) => {
-                Peek::NotReady(project_key_pair, priority.next_project_fetch, envelope)
-            }
+            Ok(match (envelope, priority.readiness.ready()) {
+                (None, _) => Peek::Empty,
+                (Some(envelope), true) => Peek::Ready(envelope),
+                (Some(envelope), false) => {
+                    Peek::NotReady(project_key_pair, priority.next_project_fetch, envelope)
+                }
+            })
         })
     }
 
@@ -148,39 +152,41 @@ impl EnvelopeBuffer {
     /// The priority of the envelope's stack is updated with the next envelope's received_at
     /// time. If the stack is empty after popping, it is removed from the priority queue.
     pub async fn pop(&mut self) -> Result<Option<Box<Envelope>>, EnvelopeBufferError> {
-        let Some((&project_key_pair, _)) = self.priority_queue.peek() else {
-            return Ok(None);
-        };
+        relay_statsd::metric!(timer(RelayTimers::BufferPop), {
+            let Some((&project_key_pair, _)) = self.priority_queue.peek() else {
+                return Ok(None);
+            };
 
-        let Some(envelope) = self.envelope_provider.pop(project_key_pair).await? else {
-            return Ok(None);
-        };
+            let Some(envelope) = self.envelope_provider.pop(project_key_pair).await? else {
+                return Ok(None);
+            };
 
-        let next_received_at = self
-            .envelope_provider
-            .peek(project_key_pair)
-            .await?
-            .map(|next_envelope| next_envelope.meta().start_time().into());
-        match next_received_at {
-            None => {
-                relay_statsd::metric!(counter(RelayCounters::BufferEnvelopeStacksPopped) += 1);
-                self.remove(project_key_pair);
+            let next_received_at = self
+                .envelope_provider
+                .peek(project_key_pair)
+                .await?
+                .map(|next_envelope| next_envelope.meta().start_time().into());
+            match next_received_at {
+                None => {
+                    relay_statsd::metric!(counter(RelayCounters::BufferEnvelopeStacksPopped) += 1);
+                    self.remove(project_key_pair);
+                }
+                Some(next_received_at) => {
+                    self.priority_queue
+                        .change_priority_by(&project_key_pair, |prio| {
+                            prio.received_at = next_received_at;
+                        });
+                }
             }
-            Some(next_received_at) => {
-                self.priority_queue
-                    .change_priority_by(&project_key_pair, |prio| {
-                        prio.received_at = next_received_at;
-                    });
-            }
-        }
 
-        // We are fine with the count going negative, since it represents that more data was popped,
-        // than it was initially counted, meaning that we had a wrong total count from
-        // initialization.
-        self.total_count.fetch_sub(1, AtomicOrdering::SeqCst);
-        self.track_total_count();
+            // We are fine with the count going negative, since it represents that more data was popped,
+            // than it was initially counted, meaning that we had a wrong total count from
+            // initialization.
+            self.total_count.fetch_sub(1, AtomicOrdering::SeqCst);
+            self.track_total_count();
 
-        Ok(Some(envelope))
+            Ok(Some(envelope))
+        })
     }
 
     /// Re-prioritizes all stacks that involve the given project key by setting it to "ready".

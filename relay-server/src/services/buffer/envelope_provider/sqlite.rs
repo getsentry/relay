@@ -30,14 +30,11 @@ pub struct SqliteEnvelopeProvider {
     buffered_envelopes_size: u64,
     disk_empty: BTreeSet<ProjectKeyPair>,
     disk_batch_size: usize,
-    max_batches: usize,
     max_disk_size: usize,
 }
 
 impl SqliteEnvelopeProvider {
-    /// Creates a new `SQLiteEnvelopeProvider` instance.
-    ///
-    /// Initializes the provider with the given configuration and envelope store.
+    /// Creates a new [`SQLiteEnvelopeProvider`] instance.
     pub async fn new(config: &Config) -> Result<Self, SqliteEnvelopeProviderError> {
         let envelope_store = SqliteEnvelopeStore::prepare(config).await?;
         Ok(Self {
@@ -46,9 +43,20 @@ impl SqliteEnvelopeProvider {
             buffered_envelopes_size: 0,
             disk_empty: BTreeSet::new(),
             disk_batch_size: config.spool_envelopes_stack_disk_batch_size(),
-            max_batches: config.spool_envelopes_stack_max_batches(),
             max_disk_size: config.spool_envelopes_max_disk_size(),
         })
+    }
+
+    /// Creates a new [`SqliteEnvelopeProvider`] instance given a [`SqliteEnvelopeStore`].
+    pub fn new_with_store(config: &Config, envelope_store: SqliteEnvelopeStore) -> Self {
+        Self {
+            envelopes: HashMap::new(),
+            envelope_store,
+            buffered_envelopes_size: 0,
+            disk_empty: BTreeSet::new(),
+            disk_batch_size: config.spool_envelopes_stack_disk_batch_size(),
+            max_disk_size: config.spool_envelopes_max_disk_size(),
+        }
     }
 
     /// Initializes the envelope provider.
@@ -85,18 +93,35 @@ impl SqliteEnvelopeProvider {
             .or_default()
             .push(envelope);
 
+        self.buffered_envelopes_size += 1;
+
         Ok(())
     }
 
     /// Peeks at the next envelope for the given project key pair without removing it.
     ///
-    /// If the unspool threshold is reached, it may trigger unspooling from disk.
+    /// If no envelope is in the buffer, it will be loaded from disk and a reference will be
+    /// returned.
     pub async fn peek(
         &mut self,
         project_key_pair: ProjectKeyPair,
     ) -> Result<Option<&Envelope>, SqliteEnvelopeProviderError> {
-        if self.below_unspool_threshold() {
-            self.unspool_from_disk(project_key_pair).await?;
+        let envelopes_size = self
+            .envelopes
+            .get(&project_key_pair)
+            .map_or(0, |envelopes| envelopes.len());
+        // If we have no data in memory, we want to load it from disk in the buffer.
+        if envelopes_size == 0 {
+            let envelopes = self.unspool_from_disk(project_key_pair, 1).await?;
+            if envelopes.is_empty() {
+                return Ok(None);
+            }
+
+            self.buffered_envelopes_size += envelopes.len() as u64;
+            self.envelopes
+                .entry(project_key_pair)
+                .or_default()
+                .extend(envelopes);
         }
 
         Ok(self
@@ -107,19 +132,27 @@ impl SqliteEnvelopeProvider {
 
     /// Pops and returns the next envelope for the given project key pair.
     ///
-    /// If the unspool threshold is reached, it may trigger unspooling from disk.
+    /// If no envelope is in the buffer, it will be loaded from disk.
     pub async fn pop(
         &mut self,
         project_key_pair: ProjectKeyPair,
     ) -> Result<Option<Box<Envelope>>, SqliteEnvelopeProviderError> {
-        if self.below_unspool_threshold() {
-            self.unspool_from_disk(project_key_pair).await?;
-        }
-
-        Ok(self
+        let envelope = self
             .envelopes
             .get_mut(&project_key_pair)
-            .and_then(|envelopes| envelopes.pop()))
+            .and_then(|envelopes| envelopes.pop());
+        if let Some(envelope) = envelope {
+            // We only decrement the counter when removing data from the in memory buffer.
+            self.buffered_envelopes_size -= 1;
+            return Ok(Some(envelope));
+        }
+
+        let mut envelopes = self.unspool_from_disk(project_key_pair, 1).await?;
+        if envelopes.is_empty() {
+            return Ok(None);
+        }
+
+        Ok(envelopes.pop())
     }
 
     /// Flushes all remaining envelopes to disk.
@@ -143,6 +176,8 @@ impl SqliteEnvelopeProvider {
             if !envelopes.is_empty() {
                 Self::flush_many(&mut self.envelope_store, envelopes).await;
             }
+
+            self.buffered_envelopes_size = 0;
         });
 
         true
@@ -170,12 +205,7 @@ impl SqliteEnvelopeProvider {
 
     /// Determines if the number of buffered envelopes is above the spool threshold.
     fn above_spool_threshold(&self) -> bool {
-        self.buffered_envelopes_size >= (self.disk_batch_size * self.max_batches) as u64
-    }
-
-    /// Determines if the number of buffered envelopes is below the unspool threshold.
-    fn below_unspool_threshold(&self) -> bool {
-        self.buffered_envelopes_size == 0
+        self.buffered_envelopes_size >= self.disk_batch_size as u64
     }
 
     /// Spools envelopes to disk, evenly distributing across all project key pairs.
@@ -188,26 +218,12 @@ impl SqliteEnvelopeProvider {
     /// single group from monopolizing the disk storage.
     async fn spool_to_disk(&mut self) -> Result<(), SqliteEnvelopeProviderError> {
         let mut envelopes_to_spool = Vec::with_capacity(self.disk_batch_size);
-        let mut remaining = self.disk_batch_size;
-
-        let group_count = self.envelopes.len();
-        if group_count == 0 {
-            return Ok(());
-        }
-
-        let per_group = remaining / group_count;
-        if per_group == 0 {
-            return Ok(());
-        }
 
         // We take envelopes from each project key pair and keep track of which pairs have been
         // written to disk, to update the disk empty state accordingly.
         let mut written_project_key_pairs = BTreeSet::new();
         for (&project_key_pair, envelopes) in self.envelopes.iter_mut() {
-            let to_take = std::cmp::min(per_group, envelopes.len());
-            envelopes_to_spool.extend(envelopes.drain(..to_take));
-            remaining -= to_take;
-
+            envelopes_to_spool.append(envelopes);
             written_project_key_pairs.insert(project_key_pair);
         }
         if envelopes_to_spool.is_empty() {
@@ -238,23 +254,18 @@ impl SqliteEnvelopeProvider {
         Ok(())
     }
 
-    /// Unspools from disk up to `disk_batch_size` envelopes and appends them to the `buffer`.
-    ///
-    /// In case a single deletion fails, the affected envelope will not be unspooled and unspooling
-    /// will continue with the remaining envelopes.
-    ///
-    /// In case an envelope fails deserialization due to malformed data in the database, the affected
-    /// envelope will not be unspooled and unspooling will continue with the remaining envelopes.
+    /// Unspools from disk up to `n` envelopes and returns them.
     async fn unspool_from_disk(
         &mut self,
         project_key_pair: ProjectKeyPair,
-    ) -> Result<(), SqliteEnvelopeProviderError> {
-        let mut envelopes = relay_statsd::metric!(timer(RelayTimers::BufferUnspool), {
+        n: u64,
+    ) -> Result<Vec<Box<Envelope>>, SqliteEnvelopeProviderError> {
+        let envelopes = relay_statsd::metric!(timer(RelayTimers::BufferUnspool), {
             self.envelope_store
                 .delete_many(
                     project_key_pair.own_key,
                     project_key_pair.sampling_key,
-                    self.disk_batch_size as i64,
+                    n as i64,
                 )
                 .await
                 .map_err(SqliteEnvelopeProviderError::EnvelopeStoreError)?
@@ -264,22 +275,14 @@ impl SqliteEnvelopeProvider {
             // In case no envelopes were unspooled, we will mark this pair as having no data on disk.
             self.disk_empty.insert(project_key_pair);
 
-            return Ok(());
+            return Ok(vec![]);
         }
 
         relay_statsd::metric!(
             counter(RelayCounters::BufferUnspooledEnvelopes) += envelopes.len() as u64
         );
 
-        // We push in the back of the buffer, since we still want to give priority to
-        // incoming envelopes that have a more recent timestamp.
-        self.buffered_envelopes_size += envelopes.len() as u64;
-        self.envelopes
-            .entry(project_key_pair)
-            .or_default()
-            .append(&mut envelopes);
-
-        Ok(())
+        Ok(envelopes)
     }
 
     /// Flushes multiple envelopes to the envelope store.
@@ -300,5 +303,310 @@ impl SqliteEnvelopeProvider {
                 "failed to flush envelopes, some might be lost",
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::services::buffer::testutils::utils::{
+        mock_envelope, mock_envelopes, mock_envelopes_for_project, setup_db,
+    };
+    use relay_base_schema::project::ProjectKey;
+    use std::time::{Duration, Instant};
+
+    async fn setup_provider(
+        run_migrations: bool,
+        disk_batch_size: usize,
+        max_disk_size: usize,
+    ) -> SqliteEnvelopeProvider {
+        let db = setup_db(run_migrations).await;
+        let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
+
+        SqliteEnvelopeProvider {
+            envelopes: HashMap::new(),
+            envelope_store,
+            buffered_envelopes_size: 0,
+            disk_empty: Default::default(),
+            disk_batch_size,
+            max_disk_size,
+        }
+    }
+
+    #[tokio::test]
+    async fn test_initialize_with_unmigrated_db() {
+        let provider = setup_provider(false, 2, 0).await;
+
+        let initialization_state = provider.initialize().await;
+        assert!(initialization_state.project_key_pairs.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_push_with_unmigrated_db() {
+        let mut provider = setup_provider(false, 1, 0).await;
+
+        let project_key_pair = ProjectKeyPair::new(
+            ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
+        );
+
+        let envelope_1 = mock_envelope(Instant::now(), Some(project_key_pair.sampling_key));
+        let envelope_2 = mock_envelope(Instant::now(), Some(project_key_pair.sampling_key));
+
+        // Push should succeed as it doesn't interact with the database initially
+        assert!(provider.push(project_key_pair, envelope_1).await.is_ok());
+
+        // Push should fail because after the second insertion we try to spool
+        let result = provider.push(project_key_pair, envelope_2).await;
+        assert!(result.is_err());
+        if let Err(error) = result {
+            assert!(matches!(
+                error,
+                SqliteEnvelopeProviderError::EnvelopeStoreError(_)
+            ));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_pop_with_unmigrated_db() {
+        let mut provider = setup_provider(false, 1, 0).await;
+
+        let project_key_pair = ProjectKeyPair::new(
+            ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
+        );
+
+        // Pop should fail because we can't unspool data from disk
+        let result = provider.pop(project_key_pair).await;
+        assert!(result.is_err());
+        if let Err(error) = result {
+            assert!(matches!(
+                error,
+                SqliteEnvelopeProviderError::EnvelopeStoreError(_)
+            ));
+        }
+    }
+
+    #[tokio::test]
+    async fn test_push_and_pop() {
+        let mut provider = setup_provider(true, 2, 0).await;
+        let project_key_pair = ProjectKeyPair::new(
+            ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
+        );
+
+        let envelopes = mock_envelopes(5);
+
+        // Push 5 envelopes
+        for envelope in envelopes.clone() {
+            assert!(provider.push(project_key_pair, envelope).await.is_ok());
+        }
+
+        // Pop 5 envelopes
+        for envelope in envelopes.iter().rev() {
+            let popped_envelope = provider.pop(project_key_pair).await.unwrap().unwrap();
+            assert_eq!(
+                popped_envelope.event_id().unwrap(),
+                envelope.event_id().unwrap()
+            );
+        }
+
+        // Ensure the provider is empty
+        assert!(provider.pop(project_key_pair).await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn test_peek() {
+        let mut provider = setup_provider(true, 2, 0).await;
+        let project_key_pair = ProjectKeyPair::new(
+            ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
+        );
+
+        let envelope = mock_envelope(Instant::now(), None);
+        provider
+            .push(project_key_pair, envelope.clone())
+            .await
+            .unwrap();
+
+        // Peek at the envelope
+        let peeked_envelope = provider.peek(project_key_pair).await.unwrap().unwrap();
+        assert_eq!(
+            peeked_envelope.event_id().unwrap(),
+            envelope.event_id().unwrap()
+        );
+
+        // Ensure the envelope is still there after peeking
+        let popped_envelope = provider.pop(project_key_pair).await.unwrap().unwrap();
+        assert_eq!(
+            popped_envelope.event_id().unwrap(),
+            envelope.event_id().unwrap()
+        );
+    }
+
+    #[tokio::test]
+    async fn test_spool_and_unspool_disk() {
+        let mut provider = setup_provider(true, 5, 0).await;
+        let project_key_pair = ProjectKeyPair::new(
+            ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
+        );
+
+        let envelopes = mock_envelopes(15);
+
+        // Push 15 envelopes (should trigger spooling after 5)
+        for envelope in envelopes.clone() {
+            assert!(provider.push(project_key_pair, envelope).await.is_ok());
+        }
+
+        // Check that we have 5 envelopes in memory (1 batch of 3)
+        assert_eq!(provider.buffered_envelopes_size, 5);
+        assert_eq!(provider.store_total_count().await, 10);
+
+        // Pop all envelopes
+        for envelope in envelopes.iter().rev() {
+            let popped_envelope = provider.pop(project_key_pair).await.unwrap().unwrap();
+            assert_eq!(
+                popped_envelope.event_id().unwrap(),
+                envelope.event_id().unwrap(),
+            );
+        }
+
+        // Ensure the provider is now empty
+        assert!(provider.pop(project_key_pair).await.unwrap().is_none());
+        assert_eq!(provider.buffered_envelopes_size, 0);
+        assert_eq!(provider.store_total_count().await, 0);
+    }
+
+    #[tokio::test]
+    async fn test_flush() {
+        let mut provider = setup_provider(true, 2, 1000).await;
+        let project_key_pair = ProjectKeyPair::new(
+            ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
+        );
+
+        let envelopes = mock_envelopes(5);
+
+        // Push 5 envelopes
+        for envelope in envelopes.clone() {
+            assert!(provider.push(project_key_pair, envelope).await.is_ok());
+        }
+
+        // Flush all envelopes to disk
+        assert!(provider.flush().await);
+
+        // Check that all envelopes are now on disk
+        assert_eq!(provider.store_total_count().await, 5);
+
+        // Pop all envelopes (should trigger unspool from disk)
+        for envelope in envelopes.iter().rev() {
+            let popped_envelope = provider.pop(project_key_pair).await.unwrap().unwrap();
+            assert_eq!(
+                popped_envelope.event_id().unwrap(),
+                envelope.event_id().unwrap()
+            );
+        }
+
+        // Ensure the provider is empty
+        assert!(provider.pop(project_key_pair).await.unwrap().is_none());
+        assert_eq!(provider.store_total_count().await, 0);
+    }
+
+    #[tokio::test]
+    async fn test_multiple_project_key_pairs() {
+        let mut provider = setup_provider(true, 2, 1000).await;
+        let project_key_pair1 = ProjectKeyPair::new(
+            ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            ProjectKey::parse("b28ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+        );
+        let project_key_pair2 = ProjectKeyPair::new(
+            ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            ProjectKey::parse("c67ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+        );
+
+        let envelopes1 = mock_envelopes_for_project(3, project_key_pair1.sampling_key);
+        let envelopes2 = mock_envelopes_for_project(2, project_key_pair2.sampling_key);
+
+        // Push envelopes for both project key pairs
+        for envelope in envelopes1.clone() {
+            assert!(provider.push(project_key_pair1, envelope).await.is_ok());
+        }
+        for envelope in envelopes2.clone() {
+            assert!(provider.push(project_key_pair2, envelope).await.is_ok());
+        }
+
+        // Pop envelopes for project_key_pair1
+        for envelope in envelopes1.iter().rev() {
+            let popped_envelope = provider.pop(project_key_pair1).await.unwrap().unwrap();
+            assert_eq!(
+                popped_envelope.event_id().unwrap(),
+                envelope.event_id().unwrap()
+            );
+        }
+
+        // Pop envelopes for project_key_pair2
+        for envelope in envelopes2.iter().rev() {
+            let popped_envelope = provider.pop(project_key_pair2).await.unwrap().unwrap();
+            assert_eq!(
+                popped_envelope.event_id().unwrap(),
+                envelope.event_id().unwrap()
+            );
+        }
+
+        // Ensure both project key pairs are empty
+        assert!(provider.pop(project_key_pair1).await.unwrap().is_none());
+        assert!(provider.pop(project_key_pair2).await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn test_disk_empty() {
+        let mut provider = setup_provider(true, 2, 0).await;
+        let project_key_pair1 = ProjectKeyPair::new(
+            ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            ProjectKey::parse("b28ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+        );
+        let project_key_pair2 = ProjectKeyPair::new(
+            ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            ProjectKey::parse("c67ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+        );
+
+        // Initially, disk_empty should be empty
+        assert!(provider.disk_empty.is_empty());
+
+        // Push 3 envelopes for project_key_pair1 (should trigger spooling)
+        let envelopes1 = mock_envelopes_for_project(3, project_key_pair1.sampling_key);
+        for envelope in envelopes1 {
+            assert!(provider.push(project_key_pair1, envelope).await.is_ok());
+        }
+
+        // disk_empty should still be empty after spooling
+        assert!(provider.disk_empty.is_empty());
+
+        // Pop all envelopes for project_key_pair1
+        while provider.pop(project_key_pair1).await.unwrap().is_some() {}
+
+        // After popping all envelopes, project_key_pair1 should be in disk_empty
+        assert!(provider.disk_empty.contains(&project_key_pair1));
+
+        // Push 1 envelope for project_key_pair2 (should not trigger spooling)
+        let envelope = mock_envelope(Instant::now(), Some(project_key_pair2.sampling_key));
+        assert!(provider.push(project_key_pair2, envelope).await.is_ok());
+
+        // Flush remaining envelopes to disk
+        assert!(provider.flush().await);
+
+        // After flushing, project_key_pair2 should not be in disk_empty
+        assert!(!provider.disk_empty.contains(&project_key_pair2));
+
+        // Pop all envelopes for project_key_pair1
+        while provider.pop(project_key_pair2).await.unwrap().is_some() {}
+
+        // After popping, project_key_pair2 should now be in disk_empty
+        assert!(provider.disk_empty.contains(&project_key_pair2));
+
+        // Final check: both project key pairs should be in disk_empty
+        assert!(provider.disk_empty.contains(&project_key_pair1));
+        assert!(provider.disk_empty.contains(&project_key_pair2));
     }
 }

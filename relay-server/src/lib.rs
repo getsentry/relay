@@ -266,12 +266,17 @@ mod services;
 mod statsd;
 mod utils;
 
-pub use self::envelope::Envelope; // pub for benchmarks
+// pub for benchmarks
+pub use self::envelope::Envelope;
+// pub for benchmarks
 pub use self::services::buffer::{
-    EnvelopeBufferImpl, EnvelopeProvider, SqliteEnvelopeProvider, SqliteEnvelopeStore,
-}; // pub for benchmarks
+    EnvelopeBufferImpl, EnvelopeProvider, ProjectKeyPair, SqliteEnvelopeProvider,
+    SqliteEnvelopeStore,
+};
+// pub for benchmarks
 pub use self::services::spooler::spool_utils;
-pub use self::utils::{MemoryChecker, MemoryStat}; // pub for benchmarks
+// pub for benchmarks
+pub use self::utils::{MemoryChecker, MemoryStat};
 
 #[cfg(test)]
 mod testutils;
