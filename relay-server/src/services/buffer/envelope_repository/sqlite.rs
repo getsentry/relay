@@ -3,11 +3,9 @@ use crate::services::buffer::envelope_repository::InitializationState;
 use crate::services::buffer::envelope_store::sqlite::SqliteEnvelopeStoreError;
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::{Envelope, SqliteEnvelopeStore};
-use hashbrown::HashMap;
+use hashbrown::{HashMap, HashSet};
 use relay_config::Config;
-use std::collections::BTreeSet;
 use std::error::Error;
-use std::ops::Sub;
 
 /// An error returned when doing an operation on [`SqliteEnvelopeRepository`].
 #[derive(Debug, thiserror::Error)]
@@ -17,6 +15,13 @@ pub enum SqliteEnvelopeRepositoryError {
     EnvelopeStoreError(#[from] SqliteEnvelopeStoreError),
 }
 
+#[derive(Debug, Default)]
+struct EnvelopeStack {
+    #[allow(clippy::vec_box)]
+    envelopes: Vec<Box<Envelope>>,
+    check_disk: bool,
+}
+
 /// A repository for storing and managing envelopes using SQLite as a backend.
 ///
 /// This struct manages both in-memory and on-disk storage of envelopes,
@@ -24,11 +29,9 @@ pub enum SqliteEnvelopeRepositoryError {
 /// memory usage and disk I/O.
 #[derive(Debug)]
 pub struct SqliteEnvelopeRepository {
-    #[allow(clippy::vec_box)]
-    envelopes: HashMap<ProjectKeyPair, Vec<Box<Envelope>>>,
+    envelope_stacks: HashMap<ProjectKeyPair, EnvelopeStack>,
     envelope_store: SqliteEnvelopeStore,
     buffered_envelopes_size: u64,
-    disk_empty: BTreeSet<ProjectKeyPair>,
     disk_batch_size: usize,
     max_disk_size: usize,
 }
@@ -38,10 +41,9 @@ impl SqliteEnvelopeRepository {
     pub async fn new(config: &Config) -> Result<Self, SqliteEnvelopeRepositoryError> {
         let envelope_store = SqliteEnvelopeStore::prepare(config).await?;
         Ok(Self {
-            envelopes: HashMap::new(),
+            envelope_stacks: HashMap::new(),
             envelope_store,
             buffered_envelopes_size: 0,
-            disk_empty: BTreeSet::new(),
             disk_batch_size: config.spool_envelopes_stack_disk_batch_size(),
             max_disk_size: config.spool_envelopes_max_disk_size(),
         })
@@ -50,10 +52,9 @@ impl SqliteEnvelopeRepository {
     /// Creates a new [`SqliteEnvelopeRepository`] instance given a [`SqliteEnvelopeStore`].
     pub fn new_with_store(config: &Config, envelope_store: SqliteEnvelopeStore) -> Self {
         Self {
-            envelopes: HashMap::new(),
+            envelope_stacks: HashMap::new(),
             envelope_store,
             buffered_envelopes_size: 0,
-            disk_empty: BTreeSet::new(),
             disk_batch_size: config.spool_envelopes_stack_disk_batch_size(),
             max_disk_size: config.spool_envelopes_max_disk_size(),
         }
@@ -63,9 +64,12 @@ impl SqliteEnvelopeRepository {
     ///
     /// Retrieves the project key pairs from the envelope store and creates
     /// an initialization state.
-    pub async fn initialize(&self) -> InitializationState {
+    pub async fn initialize(&mut self) -> InitializationState {
         match self.envelope_store.project_key_pairs().await {
-            Ok(project_key_pairs) => InitializationState::new(project_key_pairs),
+            Ok(project_key_pairs) => {
+                self.initialize_empty_stacks(&project_key_pairs);
+                InitializationState::new(project_key_pairs)
+            }
             Err(error) => {
                 relay_log::error!(
                     error = &error as &dyn Error,
@@ -88,9 +92,10 @@ impl SqliteEnvelopeRepository {
             self.spool_to_disk().await?;
         }
 
-        self.envelopes
+        self.envelope_stacks
             .entry(project_key_pair)
             .or_default()
+            .envelopes
             .push(envelope);
 
         self.buffered_envelopes_size += 1;
@@ -106,7 +111,7 @@ impl SqliteEnvelopeRepository {
         &mut self,
         project_key_pair: ProjectKeyPair,
     ) -> Result<Option<&Envelope>, SqliteEnvelopeRepositoryError> {
-        if self.memory_empty(project_key_pair) {
+        if self.memory_empty(project_key_pair) && self.should_check_disk(project_key_pair) {
             let envelopes = self.unspool_from_disk(project_key_pair, 1).await?;
             debug_assert!(!envelopes.is_empty());
             if envelopes.is_empty() {
@@ -114,16 +119,17 @@ impl SqliteEnvelopeRepository {
             }
 
             self.buffered_envelopes_size += envelopes.len() as u64;
-            self.envelopes
+            self.envelope_stacks
                 .entry(project_key_pair)
                 .or_default()
+                .envelopes
                 .extend(envelopes);
         }
 
         Ok(self
-            .envelopes
+            .envelope_stacks
             .get(&project_key_pair)
-            .and_then(|e| e.last().map(Box::as_ref)))
+            .and_then(|e| e.envelopes.last().map(Box::as_ref)))
     }
 
     /// Pops and returns the next envelope for the given project key pair.
@@ -134,13 +140,19 @@ impl SqliteEnvelopeRepository {
         project_key_pair: ProjectKeyPair,
     ) -> Result<Option<Box<Envelope>>, SqliteEnvelopeRepositoryError> {
         let envelope = self
-            .envelopes
+            .envelope_stacks
             .get_mut(&project_key_pair)
-            .and_then(|envelopes| envelopes.pop());
+            .and_then(|envelopes| envelopes.envelopes.pop());
         if let Some(envelope) = envelope {
             // We only decrement the counter when removing data from the in memory buffer.
             self.buffered_envelopes_size -= 1;
             return Ok(Some(envelope));
+        }
+
+        // If we don't need to check disk, we assume there are no envelopes, so we early return
+        // `None`.
+        if !self.should_check_disk(project_key_pair) {
+            return Ok(None);
         }
 
         // If we have no envelopes in the buffer, we try to pop and immediately return data from
@@ -149,7 +161,7 @@ impl SqliteEnvelopeRepository {
         // If we have no envelopes in the buffer and no on disk, we can be safe removing the entry
         // in the buffer.
         if envelopes.is_empty() {
-            self.envelopes.remove(&project_key_pair);
+            self.envelope_stacks.remove(&project_key_pair);
         }
 
         Ok(envelopes.pop())
@@ -162,8 +174,9 @@ impl SqliteEnvelopeRepository {
         relay_statsd::metric!(timer(RelayTimers::BufferFlush), {
             let mut envelopes = Vec::with_capacity(self.disk_batch_size);
 
-            for (_, inner_invelopes) in self.envelopes.iter_mut() {
-                for envelope in inner_invelopes.drain(..) {
+            for (_, envelope_stack) in self.envelope_stacks.iter_mut() {
+                envelope_stack.check_disk = true;
+                for envelope in envelope_stack.envelopes.drain(..) {
                     if envelopes.len() >= self.disk_batch_size {
                         Self::flush_many(&mut self.envelope_store, envelopes).await;
                         envelopes = Vec::with_capacity(self.disk_batch_size);
@@ -203,12 +216,21 @@ impl SqliteEnvelopeRepository {
             })
     }
 
+    /// Initializes a set of empty [`EnvelopeStack`]s.
+    fn initialize_empty_stacks(&mut self, project_key_pairs: &HashSet<ProjectKeyPair>) {
+        for &project_key_pair in project_key_pairs {
+            let envelope_stack = self.envelope_stacks.entry(project_key_pair).or_default();
+            // When creating an envelope stack during initialization, we assume data is on disk.
+            envelope_stack.check_disk = true;
+        }
+    }
+
     /// Returns `true` if there are no [`Envelope`]s for the given [`ProjectKeyPair`], false
     /// otherwise.
     fn memory_empty(&self, project_key_pair: ProjectKeyPair) -> bool {
-        self.envelopes
+        self.envelope_stacks
             .get(&project_key_pair)
-            .map_or(true, |e| e.is_empty())
+            .map_or(true, |e| e.envelopes.is_empty())
     }
 
     /// Determines if the number of buffered envelopes is above the spool threshold.
@@ -227,15 +249,12 @@ impl SqliteEnvelopeRepository {
     async fn spool_to_disk(&mut self) -> Result<(), SqliteEnvelopeRepositoryError> {
         let mut envelopes_to_spool = Vec::with_capacity(self.disk_batch_size);
 
-        // We take envelopes from each project key pair and keep track of which pairs have been
-        // written to disk, to update the disk empty state accordingly.
-        let mut written_project_key_pairs = BTreeSet::new();
-        for (&project_key_pair, envelopes) in self.envelopes.iter_mut() {
-            envelopes_to_spool.append(envelopes);
-            written_project_key_pairs.insert(project_key_pair);
+        for envelope_stack in self.envelope_stacks.values_mut() {
+            envelopes_to_spool.append(&mut envelope_stack.envelopes);
+            envelope_stack.check_disk = true;
             relay_statsd::metric!(
                 histogram(RelayHistograms::BufferInMemoryEnvelopesPerKeyPair) =
-                    envelopes.len() as u64
+                    envelope_stack.envelopes.len() as u64
             );
         }
         if envelopes_to_spool.is_empty() {
@@ -259,10 +278,6 @@ impl SqliteEnvelopeRepository {
                 .map_err(SqliteEnvelopeRepositoryError::EnvelopeStoreError)?;
         });
 
-        // If we successfully spooled to disk, we know that data should be there. We subtract all
-        // pairs that previously were marked as not having data on disk and that now have it.
-        self.disk_empty = self.disk_empty.sub(&written_project_key_pairs);
-
         Ok(())
     }
 
@@ -284,8 +299,9 @@ impl SqliteEnvelopeRepository {
         });
 
         if envelopes.is_empty() {
-            // In case no envelopes were unspooled, we will mark this pair as having no data on disk.
-            self.disk_empty.insert(project_key_pair);
+            // In case no envelopes were unspooled, we mark this project key pair as having no
+            // envelopes on disk.
+            self.set_check_disk(project_key_pair, false);
 
             return Ok(vec![]);
         }
@@ -295,6 +311,22 @@ impl SqliteEnvelopeRepository {
         );
 
         Ok(envelopes)
+    }
+
+    /// Returns `true` whether the disk should be checked for data for a given [`ProjectKeyPair`],
+    /// false otherwise.
+    fn should_check_disk(&self, project_key_pair: ProjectKeyPair) -> bool {
+        // If a project key pair is unknown, we don't want to check disk.
+        self.envelope_stacks
+            .get(&project_key_pair)
+            .map_or(false, |e| e.check_disk)
+    }
+
+    /// Sets on the [`EnvelopeStack`] whether the disk should be checked or not.
+    fn set_check_disk(&mut self, project_key_pair: ProjectKeyPair, check_disk: bool) {
+        if let Some(envelope_stack) = self.envelope_stacks.get_mut(&project_key_pair) {
+            envelope_stack.check_disk = check_disk;
+        }
     }
 
     /// Flushes multiple envelopes to the envelope store.
@@ -336,10 +368,9 @@ mod tests {
         let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
 
         SqliteEnvelopeRepository {
-            envelopes: HashMap::new(),
+            envelope_stacks: HashMap::new(),
             envelope_store,
             buffered_envelopes_size: 0,
-            disk_empty: Default::default(),
             disk_batch_size,
             max_disk_size,
         }
@@ -347,7 +378,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_initialize_with_unmigrated_db() {
-        let repository = setup_repository(false, 2, 0).await;
+        let mut repository = setup_repository(false, 2, 0).await;
 
         let initialization_state = repository.initialize().await;
         assert!(initialization_state.project_key_pairs.is_empty());
@@ -388,6 +419,11 @@ mod tests {
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
         );
 
+        // We initialize empty stacks to make sure the repository checks for disk
+        let mut project_key_pairs = HashSet::new();
+        project_key_pairs.insert(project_key_pair);
+        repository.initialize_empty_stacks(&project_key_pairs);
+
         // Pop should fail because we can't unspool data from disk
         let result = repository.pop(project_key_pair).await;
         assert!(result.is_err());
@@ -425,7 +461,7 @@ mod tests {
 
         // Ensure the repository is empty
         assert!(repository.pop(project_key_pair).await.unwrap().is_none());
-        assert!(!repository.envelopes.contains_key(&project_key_pair));
+        assert!(!repository.envelope_stacks.contains_key(&project_key_pair));
     }
 
     #[tokio::test]
@@ -573,7 +609,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_disk_empty() {
+    async fn test_check_disk() {
         let mut repository = setup_repository(true, 2, 0).await;
         let project_key_pair1 = ProjectKeyPair::new(
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -584,23 +620,23 @@ mod tests {
             ProjectKey::parse("c67ae32be2584e0bbd7a4cbb95971fee").unwrap(),
         );
 
-        // Initially, disk_empty should be empty
-        assert!(repository.disk_empty.is_empty());
-
         // Push 3 envelopes for project_key_pair1 (should trigger spooling)
         let envelopes1 = mock_envelopes_for_project(3, project_key_pair1.sampling_key);
         for envelope in envelopes1 {
             assert!(repository.push(project_key_pair1, envelope).await.is_ok());
         }
 
-        // disk_empty should still be empty after spooling
-        assert!(repository.disk_empty.is_empty());
+        // Since we spool, we expect to be able to check disk for project_key_pair1
+        for (&project_key_pair, envelope_stack) in repository.envelope_stacks.iter() {
+            assert_eq!(
+                envelope_stack.check_disk,
+                project_key_pair == project_key_pair1
+            );
+        }
 
         // Pop all envelopes for project_key_pair1
         while repository.pop(project_key_pair1).await.unwrap().is_some() {}
-
-        // After popping all envelopes, project_key_pair1 should be in disk_empty
-        assert!(repository.disk_empty.contains(&project_key_pair1));
+        assert_eq!(repository.store_total_count().await, 0);
 
         // Push 1 envelope for project_key_pair2 (should not trigger spooling)
         let envelope = mock_envelope(Instant::now(), Some(project_key_pair2.sampling_key));
@@ -609,17 +645,16 @@ mod tests {
         // Flush remaining envelopes to disk
         assert!(repository.flush().await);
 
-        // After flushing, project_key_pair2 should not be in disk_empty
-        assert!(!repository.disk_empty.contains(&project_key_pair2));
+        // After flushing, we expect to be able to check disk for project_key_pair2
+        for (&project_key_pair, envelope_stack) in repository.envelope_stacks.iter() {
+            assert_eq!(
+                envelope_stack.check_disk,
+                project_key_pair == project_key_pair2
+            );
+        }
 
         // Pop all envelopes for project_key_pair1
         while repository.pop(project_key_pair2).await.unwrap().is_some() {}
-
-        // After popping, project_key_pair2 should now be in disk_empty
-        assert!(repository.disk_empty.contains(&project_key_pair2));
-
-        // Final check: both project key pairs should be in disk_empty
-        assert!(repository.disk_empty.contains(&project_key_pair1));
-        assert!(repository.disk_empty.contains(&project_key_pair2));
+        assert_eq!(repository.store_total_count().await, 0);
     }
 }
