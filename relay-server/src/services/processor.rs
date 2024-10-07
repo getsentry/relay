@@ -1317,33 +1317,17 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<G>,
     ) -> Result<(), ProcessingError> {
-        self.enforce_cached_quotas(state)?;
-        self.enforce_consistent_quotas(state)?;
-        Ok(())
-    }
-
-    #[cfg(feature = "processing")]
-    fn enforce_cached_quotas<G>(
-        &self,
-        state: &mut ProcessEnvelopeState<G>,
-    ) -> Result<(), ProcessingError> {
-        let global_config = self.inner.global_config.current();
-        let _ = RateLimiter::Cached.enforce(&global_config, state)?;
-
-        Ok(())
-    }
-
-    #[cfg(feature = "processing")]
-    fn enforce_consistent_quotas<G>(
-        &self,
-        state: &mut ProcessEnvelopeState<G>,
-    ) -> Result<(), ProcessingError> {
         let global_config = self.inner.global_config.current();
         let rate_limiter = match self.inner.rate_limiter.as_ref() {
             Some(rate_limiter) => rate_limiter,
             None => return Ok(()),
         };
 
+        // Cached quotas first, they are quick to evaluate and some quotas (indexed) are not
+        // applied in the fast path, all cached quotas can be applied here.
+        let _ = RateLimiter::Cached.enforce(&global_config, state)?;
+
+        // Enforce all quotas consistently with Redis.
         let limits = RateLimiter::Consistent(rate_limiter).enforce(&global_config, state)?;
 
         // Update cached rate limits with the freshly computed ones.
@@ -1746,13 +1730,6 @@ impl EnvelopeProcessorService {
 
             // Always extract metrics in processing Relays for sampled items.
             self.extract_transaction_metrics(state, SamplingDecision::Keep, profile_id)?;
-
-            // Enforce cached quotas here, because it is relatively cheap and can prevent
-            // us from extracting spans when it's not necessary.
-            //
-            // But do it *after* metric extraction to make sure we do not drop due to an indexed
-            // quota and never extract any metrics.
-            self.enforce_cached_quotas(state)?;
 
             if state
                 .project_info
