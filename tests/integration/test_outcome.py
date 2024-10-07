@@ -1960,13 +1960,15 @@ def test_span_outcomes_invalid(
             "outcome": 3,  # Invalid
             "project_id": 42,
             "quantity": 1,
-            "reason": "invalid_span",
+            "reason": reason,
             "source": "pop-relay",
             "timestamp": time_within_delta(),
         }
-        for category in [
-            DataCategory.SPAN,
-            DataCategory.SPAN_INDEXED,
+        for (category, reason) in [
+            (DataCategory.TRANSACTION, "invalid_transaction"),
+            (DataCategory.TRANSACTION_INDEXED, "invalid_transaction"),
+            (DataCategory.SPAN, "invalid_span"),
+            (DataCategory.SPAN_INDEXED, "invalid_span"),
         ]
     ]
 
