@@ -254,7 +254,7 @@ def _send_event(relay, project_id=42, event_type="error", event_id=None, trace_i
     return event_id
 
 
-@pytest.mark.parametrize("event_type", ["transaction"])
+@pytest.mark.parametrize("event_type", ["error", "transaction"])
 def test_outcomes_non_processing(relay, mini_sentry, event_type):
     """
     Test basic outcome functionality.
@@ -272,12 +272,10 @@ def test_outcomes_non_processing(relay, mini_sentry, event_type):
         [
             DataCategory.TRANSACTION,
             DataCategory.TRANSACTION_INDEXED,
-            DataCategory.SPAN,
-            DataCategory.SPAN_INDEXED,
         ]
         if event_type == "transaction"
-        else [1]
-    )  # Error
+        else [DataCategory.ERROR]
+    )
 
     outcomes = []
     for _ in expected_categories:
