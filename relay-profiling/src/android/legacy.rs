@@ -14,7 +14,7 @@ use data_encoding::BASE64_NOPAD;
 use relay_event_schema::protocol::{EventId, SpanId};
 use serde::{Deserialize, Serialize};
 
-use crate::measurements::Measurement;
+use crate::measurements::LegacyMeasurement;
 use crate::sample::v1::SampleProfile;
 use crate::transaction_metadata::TransactionMetadata;
 use crate::types::{ClientSdk, DebugMeta};
@@ -108,7 +108,7 @@ struct AndroidProfilingEvent {
     profile: AndroidTraceLog,
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    measurements: Option<HashMap<String, Measurement>>,
+    measurements: Option<HashMap<String, LegacyMeasurement>>,
 }
 
 impl AndroidProfilingEvent {

@@ -17,7 +17,7 @@ use relay_event_schema::protocol::EventId;
 use relay_metrics::FiniteF64;
 
 use crate::error::ProfileError;
-use crate::measurements::Measurement;
+use crate::measurements::ChunkMeasurement;
 use crate::sample::{DebugMeta, Frame, ThreadMetadata, Version};
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -63,7 +63,7 @@ pub struct Sample {
 pub struct ProfileChunk {
     // `measurements` contains CPU/memory measurements we do during the capture of the chunk.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub measurements: BTreeMap<String, Measurement>,
+    pub measurements: BTreeMap<String, ChunkMeasurement>,
     /// This struct contains all the metadata related to the chunk but all fields are expected to
     /// be at the top-level of the object.
     #[serde(flatten)]
