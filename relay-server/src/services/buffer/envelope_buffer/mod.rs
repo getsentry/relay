@@ -84,7 +84,7 @@ impl EnvelopeBuffer {
     }
 
     /// Initializes the [`EnvelopeBuffer`] given the initialization state from the
-    /// [`StackProvider`].
+    /// [`EnvelopeProvider`].
     pub async fn initialize(&mut self) {
         relay_statsd::metric!(timer(RelayTimers::BufferInitialization), {
             let initialization_state = match &mut self.envelope_provider {
@@ -303,7 +303,7 @@ impl EnvelopeBuffer {
         );
     }
 
-    /// Creates all the [`EnvelopeStack`]s with no data given a set of [`ProjectKeyPair`].
+    /// Creates all the priority queue entries given the supplied [`ProjectKeyPair`]s.
     async fn load_project_key_pairs(&mut self, project_key_pairs: HashSet<ProjectKeyPair>) {
         for project_key_pair in project_key_pairs {
             self.add(project_key_pair, None);

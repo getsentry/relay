@@ -9,9 +9,9 @@ use std::fmt;
 pub mod memory;
 pub mod sqlite;
 
-/// State of the initialization of the [`StackProvider`].
+/// State of the initialization of the [`EnvelopeProvider`].
 ///
-/// This state is necessary for initializing resources whenever a [`StackProvider`] is used.
+/// This state is necessary for initializing resources whenever a [`EnvelopeProvider`] is used.
 #[derive(Debug)]
 pub struct InitializationState {
     pub project_key_pairs: HashSet<ProjectKeyPair>,

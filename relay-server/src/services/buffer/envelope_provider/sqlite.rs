@@ -34,7 +34,7 @@ pub struct SqliteEnvelopeProvider {
 }
 
 impl SqliteEnvelopeProvider {
-    /// Creates a new [`SQLiteEnvelopeProvider`] instance.
+    /// Creates a new [`SqliteEnvelopeProvider`] instance.
     pub async fn new(config: &Config) -> Result<Self, SqliteEnvelopeProviderError> {
         let envelope_store = SqliteEnvelopeStore::prepare(config).await?;
         Ok(Self {
