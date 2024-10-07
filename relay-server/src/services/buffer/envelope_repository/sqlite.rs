@@ -113,7 +113,7 @@ impl SqliteEnvelopeRepository {
     ) -> Result<Option<&Envelope>, SqliteEnvelopeRepositoryError> {
         if self.memory_empty(project_key_pair) && self.should_check_disk(project_key_pair) {
             let envelopes = self.unspool_from_disk(project_key_pair, 1).await?;
-            debug_assert!(!envelopes.is_empty());
+            debug_assert!(envelopes.is_empty());
             if envelopes.is_empty() {
                 return Ok(None);
             }
