@@ -53,7 +53,7 @@ def test_readiness(mini_sentry, relay):
         mini_sentry.app.view_functions["check_challenge"] = original_check_challenge
         relay.wait_relay_health_check()
     finally:
-        mini_sentry.test_failures.clear()
+        mini_sentry.clear_test_failures()
 
     response = relay.get("/api/relay/healthcheck/ready/")
     assert response.status_code == 200
@@ -69,7 +69,7 @@ def test_readiness_flag(mini_sentry, relay):
         response = wait_get(relay, "/api/relay/healthcheck/ready/")
         assert response.status_code == 200
     finally:
-        mini_sentry.test_failures.clear()
+        mini_sentry.clear_test_failures()
 
 
 def test_readiness_proxy(mini_sentry, relay):
@@ -88,12 +88,11 @@ def test_readiness_not_enough_memory_bytes(mini_sentry, relay):
     )
 
     response = wait_get(relay, "/api/relay/healthcheck/ready/")
-    time.sleep(1.0)  # Wait for error
-    error = str(mini_sentry.test_failures.pop(0))
+    error = str(mini_sentry.test_failures.get(timeout=2))
     assert "Not enough memory" in error and ">= 42" in error
-    error = str(mini_sentry.test_failures.pop(0))
+    error = str(mini_sentry.test_failures.get(timeout=1))
     assert "Health check probe 'system memory'" in error
-    error = str(mini_sentry.test_failures.pop(0))
+    error = str(mini_sentry.test_failures.get(timeout=1))
     assert "Health check probe 'spool health'" in error
     assert response.status_code == 503
 
@@ -105,12 +104,12 @@ def test_readiness_not_enough_memory_percent(mini_sentry, relay):
         wait_health_check=False,
     )
     response = wait_get(relay, "/api/relay/healthcheck/ready/")
-    time.sleep(1.0)  # Wait for error
-    error = str(mini_sentry.test_failures.pop(0))
+
+    error = str(mini_sentry.test_failures.get(timeout=2))
     assert "Not enough memory" in error and ">= 1.00%" in error
-    error = str(mini_sentry.test_failures.pop(0))
+    error = str(mini_sentry.test_failures.get(timeout=1))
     assert "Health check probe 'system memory'" in error
-    error = str(mini_sentry.test_failures.pop(0))
+    error = str(mini_sentry.test_failures.get(timeout=1))
     assert "Health check probe 'spool health'" in error
     assert response.status_code == 503
 
@@ -123,8 +122,8 @@ def test_readiness_depends_on_aggregator_being_full(mini_sentry, relay):
     )
 
     response = wait_get(relay, "/api/relay/healthcheck/ready/")
-    time.sleep(0.3)  # Wait for error
-    error = str(mini_sentry.test_failures.pop())
+
+    error = str(mini_sentry.test_failures.get(timeout=1))
     assert "Health check probe 'aggregator'" in error
     assert response.status_code == 503
 
@@ -140,12 +139,11 @@ def test_readiness_depends_on_aggregator_being_full_after_metrics(mini_sentry, r
 
     for _ in range(100):
         response = wait_get(relay, "/api/relay/healthcheck/ready/")
-        print(response, response.status_code)
         if response.status_code == 503:
-            error = str(mini_sentry.test_failures.pop())
-            assert "Health check probe 'aggregator'" in error
-            error = str(mini_sentry.test_failures.pop())
+            error = str(mini_sentry.test_failures.get(timeout=1))
             assert "aggregator limit exceeded" in error
+            error = str(mini_sentry.test_failures.get(timeout=1))
+            assert "Health check probe 'aggregator'" in error
             return
         time.sleep(0.1)
 
@@ -153,7 +151,7 @@ def test_readiness_depends_on_aggregator_being_full_after_metrics(mini_sentry, r
 
 
 def test_readiness_disk_spool(mini_sentry, relay):
-    mini_sentry.reraise_test_failures = False
+    mini_sentry.fail_on_relay_error = False
     temp = tempfile.mkdtemp()
     dbfile = os.path.join(temp, "buffer.db")
 
