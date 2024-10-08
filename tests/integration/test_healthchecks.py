@@ -86,7 +86,7 @@ def assert_not_enough_memory(relay, mini_sentry, expected_comparison):
     response = wait_get(relay, "/api/relay/healthcheck/ready/")
     assert response.status_code == 503
     errors = ""
-    for _ in range(10):
+    for _ in range(100):
         try:
             errors += f"{mini_sentry.test_failures.get(timeout=1)}\n"
         except queue.Empty:
@@ -102,7 +102,7 @@ def assert_not_enough_memory(relay, mini_sentry, expected_comparison):
     assert False, f"Not all errors represented: {errors}"
 
 
-@pytest.mark.parametrize("i", range(10))  # remove before merge
+@pytest.mark.parametrize("i", range(100))  # remove before merge
 def test_readiness_not_enough_memory_bytes(mini_sentry, relay, i):
     relay = relay(
         mini_sentry,
@@ -113,7 +113,7 @@ def test_readiness_not_enough_memory_bytes(mini_sentry, relay, i):
     assert_not_enough_memory(relay, mini_sentry, ">= 42")
 
 
-@pytest.mark.parametrize("i", range(10))  # remove before merge
+@pytest.mark.parametrize("i", range(100))  # remove before merge
 def test_readiness_not_enough_memory_percent(mini_sentry, relay, i):
     relay = relay(
         mini_sentry,
