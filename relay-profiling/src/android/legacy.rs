@@ -195,6 +195,10 @@ fn parse_profile(payload: &[u8]) -> Result<AndroidProfilingEvent, ProfileError> 
         return Err(ProfileError::DurationIsTooLong);
     }
 
+    if profile.profile.elapsed_time.is_zero() {
+        return Err(ProfileError::DurationIsZero);
+    }
+
     // Use duration given by the profiler and not reported by the SDK.
     profile.metadata.duration_ns = profile.profile.elapsed_time.as_nanos() as u64;
 
