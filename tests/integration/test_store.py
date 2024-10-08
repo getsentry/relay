@@ -193,7 +193,7 @@ def test_store_static_config(mini_sentry, relay):
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
     sleep(1)  # Regression test: Relay tried to issue a request for 0 states
-    if mini_sentry.test_failures:
+    if not mini_sentry.test_failures.empty():
         raise AssertionError(
             f"Exceptions happened in mini_sentry: {mini_sentry.format_failures()}"
         )
@@ -230,7 +230,7 @@ def test_store_with_low_memory(mini_sentry, relay):
         pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
 
         found_queue_error = False
-        for _, error in mini_sentry.test_failures:
+        for _, error in mini_sentry.current_test_failures():
             assert isinstance(error, AssertionError)
             if "failed to queue envelope" in str(error):
                 found_queue_error = True
@@ -238,7 +238,7 @@ def test_store_with_low_memory(mini_sentry, relay):
 
         assert found_queue_error
     finally:
-        mini_sentry.test_failures.clear()
+        mini_sentry.clear_test_failures()
 
 
 def test_store_max_concurrent_requests(mini_sentry, relay):
@@ -954,7 +954,7 @@ def test_events_buffered_before_auth(relay, mini_sentry):
         assert event["logentry"] == {"formatted": "Hello, World!"}
     finally:
         # Relay reports authentication errors, which is fine.
-        mini_sentry.test_failures.clear()
+        mini_sentry.clear_test_failures()
 
 
 def test_events_are_retried(relay, mini_sentry):
@@ -1181,7 +1181,7 @@ def test_re_auth_failure(relay, mini_sentry):
     evt.clear()
     assert evt.wait(2)
     # clear authentication errors accumulated until now
-    mini_sentry.test_failures.clear()
+    mini_sentry.clear_test_failures()
     # check that we have had some auth that succeeded
     auth_count_3 = counter[0]
     assert auth_count_2 < auth_count_3
@@ -1250,7 +1250,7 @@ def test_permanent_rejection(relay, mini_sentry):
     # to be sure verify that we have only been called once (after failing)
     assert counter[1] == 1
     # clear authentication errors accumulated until now
-    mini_sentry.test_failures.clear()
+    mini_sentry.clear_test_failures()
 
 
 def test_buffer_events_during_outage(relay, mini_sentry):
