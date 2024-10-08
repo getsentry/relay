@@ -158,18 +158,14 @@ pub fn expand_profile(payload: &[u8], event: &Event) -> Result<(ProfileId, Vec<u
     };
     let transaction_metadata = extract_transaction_metadata(event);
     let transaction_tags = extract_transaction_tags(event);
-    let processed_payload = match profile.version {
-        sample::Version::V1 => {
+    let processed_payload = match (profile.platform.as_str(), profile.version) {
+        (_, sample::Version::V1) => {
             sample::v1::parse_sample_profile(payload, transaction_metadata, transaction_tags)
         }
-        _ => match profile.platform.as_str() {
-            "android" => android::legacy::parse_android_profile(
-                payload,
-                transaction_metadata,
-                transaction_tags,
-            ),
-            _ => return Err(ProfileError::PlatformNotSupported),
-        },
+        ("android", _) => {
+            android::legacy::parse_android_profile(payload, transaction_metadata, transaction_tags)
+        }
+        (_, _) => return Err(ProfileError::PlatformNotSupported),
     };
     match processed_payload {
         Ok(payload) => Ok((profile.event_id, payload)),
@@ -216,16 +212,14 @@ pub fn expand_profile_chunk(payload: &[u8]) -> Result<Vec<u8>, ProfileError> {
             return Err(ProfileError::InvalidJson(err));
         }
     };
-    match profile.platform.as_str() {
-        "android" => android::chunk::parse(payload),
-        _ => match profile.version {
-            sample::Version::V2 => {
-                let mut profile = sample::v2::parse(payload)?;
-                profile.normalize()?;
-                serde_json::to_vec(&profile).map_err(|_| ProfileError::CannotSerializePayload)
-            }
-            _ => Err(ProfileError::PlatformNotSupported),
-        },
+    match (profile.platform.as_str(), profile.version) {
+        ("android", _) => android::chunk::parse(payload),
+        (_, sample::Version::V2) => {
+            let mut profile = sample::v2::parse(payload)?;
+            profile.normalize()?;
+            serde_json::to_vec(&profile).map_err(|_| ProfileError::CannotSerializePayload)
+        }
+        (_, _) => Err(ProfileError::PlatformNotSupported),
     }
 }
 
