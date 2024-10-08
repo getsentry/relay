@@ -300,7 +300,11 @@ impl RateLimits {
     ///
     /// If no limits or quotas match, then the returned `RateLimits` instance evalutes `is_ok`.
     /// Otherwise, it contains rate limits that match the given scoping.
-    pub fn check_with_quotas(&self, quotas: &[Quota], scoping: ItemScoping<'_>) -> Self {
+    pub fn check_with_quotas<'a>(
+        &self,
+        quotas: impl IntoIterator<Item = &'a Quota>,
+        scoping: ItemScoping<'_>,
+    ) -> Self {
         let mut applied_limits = Self::new();
 
         for quota in quotas {
@@ -396,13 +400,7 @@ impl<'a> IntoIterator for &'a RateLimits {
 /// Like [`RateLimits`], a collection of scoped rate limits but with all the checks
 /// necessary to cache the limits.
 ///
-/// The data structure makes sure no expired rate limits are enforced as well
-/// as removing any indexed rate limit.
-///
-/// Cached rate limits don't enforce indexed rate limits because at the time of the check
-/// the decision whether an envelope is sampled or not is not yet known. Additionally
-/// even if the item is later dropped by dynamic sampling, it must still be around to extract metrics
-/// and cannot be dropped too early.
+/// The data structure makes sure no expired rate limits are enforced.
 #[derive(Debug, Default)]
 pub struct CachedRateLimits(RateLimits);
 
@@ -415,13 +413,7 @@ impl CachedRateLimits {
     /// Adds a limit to this collection.
     ///
     /// See also: [`RateLimits::add`].
-    pub fn add(&mut self, mut limit: RateLimit) {
-        if !limit.categories.is_empty() {
-            limit.categories.retain(|category| !category.is_indexed());
-            if limit.categories.is_empty() {
-                return;
-            }
-        }
+    pub fn add(&mut self, limit: RateLimit) {
         self.0.add(limit);
     }
 
@@ -1083,7 +1075,7 @@ mod tests {
         });
 
         rate_limits1.add(RateLimit {
-            categories: smallvec![DataCategory::Transaction],
+            categories: smallvec![DataCategory::TransactionIndexed],
             scope: RateLimitScope::Organization(42),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
@@ -1114,7 +1106,7 @@ mod tests {
             ),
             RateLimit(
               categories: [
-                transaction,
+                transaction_indexed,
               ],
               scope: Organization(42),
               reason_code: None,
@@ -1160,45 +1152,6 @@ mod tests {
               scope: Organization(42),
               reason_code: None,
               retry_after: RetryAfter(1),
-              namespaces: [],
-            ),
-          ],
-        )
-        "###);
-    }
-
-    #[test]
-    fn test_cached_rate_limits_indexed() {
-        let mut cached = CachedRateLimits::new();
-
-        cached.add(RateLimit {
-            categories: smallvec![DataCategory::Transaction, DataCategory::TransactionIndexed],
-            scope: RateLimitScope::Organization(42),
-            reason_code: None,
-            retry_after: RetryAfter::from_secs(5),
-            namespaces: smallvec![],
-        });
-
-        cached.add(RateLimit {
-            categories: smallvec![DataCategory::TransactionIndexed],
-            scope: RateLimitScope::Project(ProjectId::new(21)),
-            reason_code: None,
-            retry_after: RetryAfter::from_secs(5),
-            namespaces: smallvec![],
-        });
-
-        let rate_limits = cached.current_limits();
-
-        insta::assert_ron_snapshot!(rate_limits, @r###"
-        RateLimits(
-          limits: [
-            RateLimit(
-              categories: [
-                transaction,
-              ],
-              scope: Organization(42),
-              reason_code: None,
-              retry_after: RetryAfter(5),
               namespaces: [],
             ),
           ],

@@ -21,7 +21,7 @@ use crate::services::project_cache::{CheckedEnvelope, ProjectCache, RequestUpdat
 use crate::utils::{Enforcement, SeqCount};
 
 use crate::statsd::RelayCounters;
-use crate::utils::{EnvelopeLimiter, ManagedEnvelope, RetryBackoff};
+use crate::utils::{CheckLimits, EnvelopeLimiter, ManagedEnvelope, RetryBackoff};
 
 pub mod state;
 
@@ -534,7 +534,7 @@ impl Project {
         let current_limits = self.rate_limits.current_limits();
 
         let quotas = state.as_deref().map(|s| s.get_quotas()).unwrap_or(&[]);
-        let envelope_limiter = EnvelopeLimiter::new(|item_scoping, _| {
+        let envelope_limiter = EnvelopeLimiter::new(CheckLimits::NonIndexed, |item_scoping, _| {
             Ok(current_limits.check_with_quotas(quotas, item_scoping))
         });
 
