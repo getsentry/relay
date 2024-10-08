@@ -50,7 +50,7 @@ impl EnvelopeRepository {
         Ok(Self::SQLite(SqliteEnvelopeRepository::new(config).await?))
     }
 
-    /// Initializes the [`EnvelopeRepository`] and returns an [`InitializationState`].
+    /// Initializes the [`EnvelopeRepository`] and returns the initialization state.
     pub async fn initialize(&mut self) -> InitializationState {
         match self {
             EnvelopeRepository::Memory(_) => InitializationState::empty(),

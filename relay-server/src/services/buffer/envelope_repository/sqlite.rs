@@ -186,7 +186,6 @@ impl SqliteEnvelopeRepository {
                     );
                 }
             }
-            self.buffered_envelopes_size = 0;
         });
 
         true
@@ -228,9 +227,14 @@ impl SqliteEnvelopeRepository {
 
     /// Spools all buffered envelopes to disk.
     async fn spool_to_disk(&mut self) -> Result<(), SqliteEnvelopeRepositoryError> {
-        for batch in self.get_envelope_batches() {
+        let batches = self.get_envelope_batches();
+        // We should have only one batch here, since we spool when we reach the batch size.
+        debug_assert!(batches.len() == 1);
+
+        for batch in batches {
             self.insert_envelope_batch(batch).await?;
         }
+
         Ok(())
     }
 
@@ -288,8 +292,11 @@ impl SqliteEnvelopeRepository {
         let mut all_envelopes = Vec::new();
 
         for envelope_stack in self.envelope_stacks.values_mut() {
+            // When we remove envelopes from the buffer, we assume we now have data on disk.
             envelope_stack.check_disk = true;
+            self.buffered_envelopes_size -= envelope_stack.cached_envelopes.len() as u64;
             all_envelopes.append(&mut envelope_stack.cached_envelopes);
+
             relay_statsd::metric!(
                 histogram(RelayHistograms::BufferInMemoryEnvelopesPerKeyPair) =
                     envelope_stack.cached_envelopes.len() as u64
@@ -311,8 +318,6 @@ impl SqliteEnvelopeRepository {
         if batch.is_empty() {
             return Ok(());
         }
-
-        self.buffered_envelopes_size -= batch.len() as u64;
 
         relay_statsd::metric!(counter(RelayCounters::BufferSpooledEnvelopes) += batch.len() as u64);
 
