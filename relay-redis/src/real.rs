@@ -26,6 +26,11 @@ pub enum RedisError {
     Redis(#[source] redis::RedisError),
 }
 
+struct Connections<'a> {
+    primary: &'a mut (dyn ConnectionLike + Send),
+    secondaries: Vec<&'a mut (dyn ConnectionLike + Send)>,
+}
+
 enum ConnectionInner<'a> {
     Cluster(&'a mut redis::cluster::ClusterConnection),
     MultiWrite {
@@ -36,65 +41,53 @@ enum ConnectionInner<'a> {
 }
 
 impl ConnectionInner<'_> {
-    fn get_connections(&mut self) -> Vec<&mut (dyn ConnectionLike + Send)> {
+    fn get_connections(&mut self) -> Connections<'_> {
         match self {
-            ConnectionInner::Cluster(con) => vec![con as &mut (dyn ConnectionLike + Send)],
+            ConnectionInner::Cluster(con) => Connections {
+                primary: con as &mut (dyn ConnectionLike + Send),
+                secondaries: vec![],
+            },
             ConnectionInner::MultiWrite {
                 primary: primary_connection,
                 secondaries: secondary_connections,
             } => {
                 let mut connections = primary_connection.get_connections();
+
                 for secondary_connection in secondary_connections.iter_mut() {
-                    connections.extend(secondary_connection.get_connections());
+                    let secondary_connections = secondary_connection.get_connections();
+                    connections.secondaries.push(secondary_connections.primary);
+                    connections
+                        .secondaries
+                        .extend(secondary_connections.secondaries);
                 }
 
                 connections
             }
-            ConnectionInner::Single(con) => vec![con as &mut (dyn ConnectionLike + Send)],
+            ConnectionInner::Single(con) => Connections {
+                primary: con as &mut (dyn ConnectionLike + Send),
+                secondaries: vec![],
+            },
         }
     }
 }
 
 impl ConnectionLike for ConnectionInner<'_> {
     fn req_packed_command(&mut self, cmd: &[u8]) -> redis::RedisResult<redis::Value> {
-        let mut results = thread::scope(|s| {
-            let handles: Vec<_> = self
-                .get_connections()
-                .into_iter()
-                .map(|connection| s.spawn(move || connection.req_packed_command(cmd)))
-                .collect();
-
-            handles
-                .into_iter()
-                .map(|handle| handle.join())
-                .collect::<Vec<_>>()
-        })
-        .into_iter();
-
-        let Some(Ok(primary_result)) = results.next() else {
-            relay_log::error!("sending cmd to primary Redis instance failed");
-            return Err(io::Error::new(
-                ErrorKind::Other,
-                "failed to send cmd to primary Redis instance",
-            )
-            .into());
-        };
-
-        for result in results {
-            match result {
-                Ok(result) => {
-                    if let Err(error) = result {
+        let primary_result = thread::scope(|s| {
+            let connections = self.get_connections();
+            for connection in connections.secondaries {
+                s.spawn(move || {
+                    if let Err(error) = connection.req_packed_command(cmd) {
                         relay_log::error!(
                             error = &error as &dyn Error,
-                            "sending cmd to the secondary Redis instance failed",
+                            "sending cmds to the secondary Redis instance failed",
                         );
                     }
-                }
-                Err(_) => {
-                    relay_log::error!("sending cmd to secondary Redis instance failed");
-                }
+                });
             }
-        }
+
+            connections.primary.req_packed_command(cmd)
+        });
 
         primary_result
     }
@@ -105,46 +98,21 @@ impl ConnectionLike for ConnectionInner<'_> {
         offset: usize,
         count: usize,
     ) -> redis::RedisResult<Vec<redis::Value>> {
-        let mut results = thread::scope(|s| {
-            let handles: Vec<_> = self
-                .get_connections()
-                .into_iter()
-                .map(|connection| {
-                    s.spawn(move || connection.req_packed_commands(cmd, offset, count))
-                })
-                .collect();
-
-            handles
-                .into_iter()
-                .map(|handle| handle.join())
-                .collect::<Vec<_>>()
-        })
-        .into_iter();
-
-        let Some(Ok(primary_result)) = results.next() else {
-            relay_log::error!("sending cmds to primary Redis instance failed");
-            return Err(io::Error::new(
-                ErrorKind::Other,
-                "failed to send cmds to primary Redis instance",
-            )
-            .into());
-        };
-
-        for result in results {
-            match result {
-                Ok(result) => {
-                    if let Err(error) = result {
+        let primary_result = thread::scope(|s| {
+            let connections = self.get_connections();
+            for connection in connections.secondaries {
+                s.spawn(move || {
+                    if let Err(error) = connection.req_packed_commands(cmd, offset, count) {
                         relay_log::error!(
                             error = &error as &dyn Error,
-                            "sending cmds tos the secondary Redis instance failed",
+                            "sending cmds to the secondary Redis instance failed",
                         );
                     }
-                }
-                Err(_) => {
-                    relay_log::error!("sending cmds to secondary Redis instance failed");
-                }
+                });
             }
-        }
+
+            connections.primary.req_packed_commands(cmd, offset, count)
+        });
 
         primary_result
     }
