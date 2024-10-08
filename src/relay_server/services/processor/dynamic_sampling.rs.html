@@ -769,6 +769,9 @@
 <a href="#769" id="769">769</a>
 <a href="#770" id="770">770</a>
 <a href="#771" id="771">771</a>
+<a href="#772" id="772">772</a>
+<a href="#773" id="773">773</a>
+<a href="#774" id="774">774</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic sampling processor related code.
 
 </span><span class="kw">use </span>std::ops::ControlFlow;
@@ -1069,6 +1072,7 @@
         <span class="kw">let </span>message = ProcessEnvelope {
             envelope: ManagedEnvelope::new(envelope, outcome_aggregator, test_store, group),
             project_info: Arc::new(ProjectInfo::default()),
+            rate_limits: Default::default(),
             sampling_project_info,
             reservoir_counters: ReservoirCounters::default(),
         };
@@ -1209,6 +1213,7 @@
                 extracted_metrics: ProcessingExtractedMetrics::new(),
                 config: config.clone(),
                 project_info,
+                rate_limits: Default::default(),
                 sampling_project_info: <span class="prelude-val">None</span>,
                 project_id: ProjectId::new(<span class="number">42</span>),
                 managed_envelope: ManagedEnvelope::new(
@@ -1480,6 +1485,7 @@
             extracted_metrics: ProcessingExtractedMetrics::new(),
             config: Arc::new(Config::default()),
             project_info,
+            rate_limits: Default::default(),
             sampling_project_info: {
                 <span class="kw">let </span><span class="kw-2">mut </span>state = ProjectInfo::default();
                 state.config.metric_extraction =

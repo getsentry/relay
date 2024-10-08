@@ -1462,6 +1462,64 @@
 <a href="#1462" id="1462">1462</a>
 <a href="#1463" id="1463">1463</a>
 <a href="#1464" id="1464">1464</a>
+<a href="#1465" id="1465">1465</a>
+<a href="#1466" id="1466">1466</a>
+<a href="#1467" id="1467">1467</a>
+<a href="#1468" id="1468">1468</a>
+<a href="#1469" id="1469">1469</a>
+<a href="#1470" id="1470">1470</a>
+<a href="#1471" id="1471">1471</a>
+<a href="#1472" id="1472">1472</a>
+<a href="#1473" id="1473">1473</a>
+<a href="#1474" id="1474">1474</a>
+<a href="#1475" id="1475">1475</a>
+<a href="#1476" id="1476">1476</a>
+<a href="#1477" id="1477">1477</a>
+<a href="#1478" id="1478">1478</a>
+<a href="#1479" id="1479">1479</a>
+<a href="#1480" id="1480">1480</a>
+<a href="#1481" id="1481">1481</a>
+<a href="#1482" id="1482">1482</a>
+<a href="#1483" id="1483">1483</a>
+<a href="#1484" id="1484">1484</a>
+<a href="#1485" id="1485">1485</a>
+<a href="#1486" id="1486">1486</a>
+<a href="#1487" id="1487">1487</a>
+<a href="#1488" id="1488">1488</a>
+<a href="#1489" id="1489">1489</a>
+<a href="#1490" id="1490">1490</a>
+<a href="#1491" id="1491">1491</a>
+<a href="#1492" id="1492">1492</a>
+<a href="#1493" id="1493">1493</a>
+<a href="#1494" id="1494">1494</a>
+<a href="#1495" id="1495">1495</a>
+<a href="#1496" id="1496">1496</a>
+<a href="#1497" id="1497">1497</a>
+<a href="#1498" id="1498">1498</a>
+<a href="#1499" id="1499">1499</a>
+<a href="#1500" id="1500">1500</a>
+<a href="#1501" id="1501">1501</a>
+<a href="#1502" id="1502">1502</a>
+<a href="#1503" id="1503">1503</a>
+<a href="#1504" id="1504">1504</a>
+<a href="#1505" id="1505">1505</a>
+<a href="#1506" id="1506">1506</a>
+<a href="#1507" id="1507">1507</a>
+<a href="#1508" id="1508">1508</a>
+<a href="#1509" id="1509">1509</a>
+<a href="#1510" id="1510">1510</a>
+<a href="#1511" id="1511">1511</a>
+<a href="#1512" id="1512">1512</a>
+<a href="#1513" id="1513">1513</a>
+<a href="#1514" id="1514">1514</a>
+<a href="#1515" id="1515">1515</a>
+<a href="#1516" id="1516">1516</a>
+<a href="#1517" id="1517">1517</a>
+<a href="#1518" id="1518">1518</a>
+<a href="#1519" id="1519">1519</a>
+<a href="#1520" id="1520">1520</a>
+<a href="#1521" id="1521">1521</a>
+<a href="#1522" id="1522">1522</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt::{<span class="self">self</span>, Write};
 
 <span class="kw">use </span>relay_quotas::{
@@ -1974,6 +2032,39 @@
     }
 }
 
+<span class="doccomment">/// Which limits to check with the [`EnvelopeLimiter`].
+</span><span class="attr">#[derive(Debug, Copy, Clone)]
+</span><span class="kw">pub enum </span>CheckLimits {
+    <span class="doccomment">/// Checks all limits except indexed categories.
+    ///
+    /// In the fast path it is necessary to apply cached rate limits but to not enforce indexed rate limits.
+    /// Because at the time of the check the decision whether an envelope is sampled or not is not yet known.
+    /// Additionally even if the item is later dropped by dynamic sampling, it must still be around to extract metrics
+    /// and cannot be dropped too early.
+    </span>NonIndexed,
+    <span class="doccomment">/// Checks all limits against the envelope.
+    </span><span class="attr">#[cfg_attr(not(any(feature = <span class="string">"processing"</span>, test)), expect(dead_code))]
+    </span>All,
+}
+
+<span class="kw">struct </span>Check&lt;F&gt; {
+    limits: CheckLimits,
+    check: F,
+}
+
+<span class="kw">impl</span>&lt;F, E&gt; Check&lt;F&gt;
+<span class="kw">where
+    </span>F: FnMut(ItemScoping&lt;<span class="lifetime">'_</span>&gt;, usize) -&gt; <span class="prelude-ty">Result</span>&lt;RateLimits, E&gt;,
+{
+    <span class="kw">fn </span>apply(<span class="kw-2">&amp;mut </span><span class="self">self</span>, scoping: ItemScoping&lt;<span class="lifetime">'_</span>&gt;, quantity: usize) -&gt; <span class="prelude-ty">Result</span>&lt;RateLimits, E&gt; {
+        <span class="kw">if </span><span class="macro">matches!</span>(<span class="self">self</span>.limits, CheckLimits::NonIndexed) &amp;&amp; scoping.category.is_indexed() {
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(RateLimits::default());
+        }
+
+        (<span class="self">self</span>.check)(scoping, quantity)
+    }
+}
+
 <span class="doccomment">/// Enforces rate limits with the given `check` function on items in the envelope.
 ///
 /// The `check` function is called with the following rules:
@@ -1986,7 +2077,7 @@
 ///  - Attachments are not removed if they create events (e.g. minidumps).
 ///  - Sessions are handled separate to all of the above.
 </span><span class="kw">pub struct </span>EnvelopeLimiter&lt;F&gt; {
-    check: F,
+    check: Check&lt;F&gt;,
     event_category: <span class="prelude-ty">Option</span>&lt;DataCategory&gt;,
 }
 
@@ -1995,9 +2086,9 @@
     </span>F: FnMut(ItemScoping&lt;<span class="lifetime">'_</span>&gt;, usize) -&gt; <span class="prelude-ty">Result</span>&lt;RateLimits, E&gt;,
 {
     <span class="doccomment">/// Create a new `EnvelopeLimiter` with the given `check` function.
-    </span><span class="kw">pub fn </span>new(check: F) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>new(limits: CheckLimits, check: F) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
-            check,
+            check: Check { check, limits },
             event_category: <span class="prelude-val">None</span>,
         }
     }
@@ -2044,14 +2135,14 @@
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(category) = summary.event_category {
             <span class="comment">// Check the broad category for limits.
-            </span><span class="kw">let </span><span class="kw-2">mut </span>event_limits = (<span class="self">self</span>.check)(scoping.item(category), <span class="number">1</span>)<span class="question-mark">?</span>;
+            </span><span class="kw">let </span><span class="kw-2">mut </span>event_limits = <span class="self">self</span>.check.apply(scoping.item(category), <span class="number">1</span>)<span class="question-mark">?</span>;
             enforcement.event = CategoryLimit::new(category, <span class="number">1</span>, event_limits.longest());
 
             <span class="kw">if let </span><span class="prelude-val">Some</span>(index_category) = category.index_category() {
                 <span class="comment">// Check the specific/indexed category for limits only if the specific one has not already
                 // an enforced limit.
                 </span><span class="kw">if </span>event_limits.is_empty() {
-                    event_limits.merge((<span class="self">self</span>.check)(scoping.item(index_category), <span class="number">1</span>)<span class="question-mark">?</span>);
+                    event_limits.merge(<span class="self">self</span>.check.apply(scoping.item(index_category), <span class="number">1</span>)<span class="question-mark">?</span>);
                 }
 
                 enforcement.event_indexed =
@@ -2066,7 +2157,9 @@
                 limit.clone_for(DataCategory::Attachment, summary.attachment_quantity);
         } <span class="kw">else if </span>summary.attachment_quantity &gt; <span class="number">0 </span>{
             <span class="kw">let </span>item_scoping = scoping.item(DataCategory::Attachment);
-            <span class="kw">let </span>attachment_limits = (<span class="self">self</span>.check)(item_scoping, summary.attachment_quantity)<span class="question-mark">?</span>;
+            <span class="kw">let </span>attachment_limits = <span class="self">self
+                </span>.check
+                .apply(item_scoping, summary.attachment_quantity)<span class="question-mark">?</span>;
             enforcement.attachments = CategoryLimit::new(
                 DataCategory::Attachment,
                 summary.attachment_quantity,
@@ -2083,7 +2176,7 @@
 
         <span class="kw">if </span>summary.session_quantity &gt; <span class="number">0 </span>{
             <span class="kw">let </span>item_scoping = scoping.item(DataCategory::Session);
-            <span class="kw">let </span>session_limits = (<span class="self">self</span>.check)(item_scoping, summary.session_quantity)<span class="question-mark">?</span>;
+            <span class="kw">let </span>session_limits = <span class="self">self</span>.check.apply(item_scoping, summary.session_quantity)<span class="question-mark">?</span>;
             enforcement.sessions = CategoryLimit::new(
                 DataCategory::Session,
                 summary.session_quantity,
@@ -2101,7 +2194,7 @@
                 .event_indexed
                 .clone_for(DataCategory::ProfileIndexed, summary.profile_quantity)
         } <span class="kw">else if </span>summary.profile_quantity &gt; <span class="number">0 </span>{
-            <span class="kw">let </span><span class="kw-2">mut </span>profile_limits = (<span class="self">self</span>.check)(
+            <span class="kw">let </span><span class="kw-2">mut </span>profile_limits = <span class="self">self</span>.check.apply(
                 scoping.item(DataCategory::Profile),
                 summary.profile_quantity,
             )<span class="question-mark">?</span>;
@@ -2112,7 +2205,7 @@
             );
 
             <span class="kw">if </span>profile_limits.is_empty() {
-                profile_limits.merge((<span class="self">self</span>.check)(
+                profile_limits.merge(<span class="self">self</span>.check.apply(
                     scoping.item(DataCategory::ProfileIndexed),
                     summary.profile_quantity,
                 )<span class="question-mark">?</span>);
@@ -2129,7 +2222,7 @@
 
         <span class="kw">if </span>summary.replay_quantity &gt; <span class="number">0 </span>{
             <span class="kw">let </span>item_scoping = scoping.item(DataCategory::Replay);
-            <span class="kw">let </span>replay_limits = (<span class="self">self</span>.check)(item_scoping, summary.replay_quantity)<span class="question-mark">?</span>;
+            <span class="kw">let </span>replay_limits = <span class="self">self</span>.check.apply(item_scoping, summary.replay_quantity)<span class="question-mark">?</span>;
             enforcement.replays = CategoryLimit::new(
                 DataCategory::Replay,
                 summary.replay_quantity,
@@ -2140,7 +2233,7 @@
 
         <span class="kw">if </span>summary.checkin_quantity &gt; <span class="number">0 </span>{
             <span class="kw">let </span>item_scoping = scoping.item(DataCategory::Monitor);
-            <span class="kw">let </span>checkin_limits = (<span class="self">self</span>.check)(item_scoping, summary.checkin_quantity)<span class="question-mark">?</span>;
+            <span class="kw">let </span>checkin_limits = <span class="self">self</span>.check.apply(item_scoping, summary.checkin_quantity)<span class="question-mark">?</span>;
             enforcement.check_ins = CategoryLimit::new(
                 DataCategory::Monitor,
                 summary.checkin_quantity,
@@ -2158,8 +2251,9 @@
                 .event_indexed
                 .clone_for(DataCategory::SpanIndexed, summary.span_quantity);
         } <span class="kw">else if </span>summary.span_quantity &gt; <span class="number">0 </span>{
-            <span class="kw">let </span><span class="kw-2">mut </span>span_limits =
-                (<span class="self">self</span>.check)(scoping.item(DataCategory::Span), summary.span_quantity)<span class="question-mark">?</span>;
+            <span class="kw">let </span><span class="kw-2">mut </span>span_limits = <span class="self">self
+                </span>.check
+                .apply(scoping.item(DataCategory::Span), summary.span_quantity)<span class="question-mark">?</span>;
             enforcement.spans = CategoryLimit::new(
                 DataCategory::Span,
                 summary.span_quantity,
@@ -2167,7 +2261,7 @@
             );
 
             <span class="kw">if </span>span_limits.is_empty() {
-                span_limits.merge((<span class="self">self</span>.check)(
+                span_limits.merge(<span class="self">self</span>.check.apply(
                     scoping.item(DataCategory::SpanIndexed),
                     summary.span_quantity,
                 )<span class="question-mark">?</span>);
@@ -2184,7 +2278,9 @@
 
         <span class="kw">if </span>summary.profile_chunk_quantity &gt; <span class="number">0 </span>{
             <span class="kw">let </span>item_scoping = scoping.item(DataCategory::ProfileChunk);
-            <span class="kw">let </span>profile_chunk_limits = (<span class="self">self</span>.check)(item_scoping, summary.profile_chunk_quantity)<span class="question-mark">?</span>;
+            <span class="kw">let </span>profile_chunk_limits = <span class="self">self
+                </span>.check
+                .apply(item_scoping, summary.profile_chunk_quantity)<span class="question-mark">?</span>;
             enforcement.profile_chunks = CategoryLimit::new(
                 DataCategory::ProfileChunk,
                 summary.profile_chunk_quantity,
@@ -2526,7 +2622,7 @@
         <span class="kw">let </span>scoping = envelope.scoping();
 
         <span class="attr">#[allow(unused_mut)]
-        </span><span class="kw">let </span><span class="kw-2">mut </span>limiter = EnvelopeLimiter::new(|s, q| mock.check(s, q));
+        </span><span class="kw">let </span><span class="kw-2">mut </span>limiter = EnvelopeLimiter::new(CheckLimits::All, |s, q| mock.check(s, q));
         <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
         </span><span class="kw">if let </span><span class="prelude-val">Some</span>(assume_event) = assume_event {
             limiter.assume_event(assume_event);
@@ -2756,6 +2852,26 @@
                 (DataCategory::TransactionIndexed, <span class="number">1</span>),
             ]
         );
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_enforce_transaction_non_indexed() {
+        <span class="kw">let </span><span class="kw-2">mut </span>envelope = <span class="macro">envelope!</span>[Transaction, Profile];
+        <span class="kw">let </span>scoping = envelope.scoping();
+
+        <span class="kw">let </span><span class="kw-2">mut </span>mock = MockLimiter::default().deny(DataCategory::TransactionIndexed);
+
+        <span class="kw">let </span>limiter = EnvelopeLimiter::new(CheckLimits::NonIndexed, |s, q| mock.check(s, q));
+        <span class="kw">let </span>(enforcement, limits) = limiter.compute(envelope.envelope_mut(), <span class="kw-2">&amp;</span>scoping).unwrap();
+        enforcement.clone().apply_with_outcomes(<span class="kw-2">&amp;mut </span>envelope);
+
+        <span class="macro">assert!</span>(!limits.is_limited());
+        <span class="macro">assert!</span>(!enforcement.event_indexed.is_active());
+        <span class="macro">assert!</span>(!enforcement.event.is_active());
+        <span class="macro">assert!</span>(!enforcement.profiles_indexed.is_active());
+        <span class="macro">assert!</span>(!enforcement.profiles.is_active());
+        mock.assert_call(DataCategory::Transaction, <span class="number">1</span>);
+        mock.assert_call(DataCategory::Profile, <span class="number">1</span>);
     }
 
     <span class="attr">#[test]

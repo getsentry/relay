@@ -651,6 +651,11 @@
 <a href="#651" id="651">651</a>
 <a href="#652" id="652">652</a>
 <a href="#653" id="653">653</a>
+<a href="#654" id="654">654</a>
+<a href="#655" id="655">655</a>
+<a href="#656" id="656">656</a>
+<a href="#657" id="657">657</a>
+<a href="#658" id="658">658</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains code related to validation and normalization of the user and client reports.
 
 </span><span class="kw">use </span>std::collections::BTreeMap;
@@ -978,6 +983,7 @@
         <span class="kw">let </span>message = ProcessEnvelope {
             envelope,
             project_info: Arc::new(ProjectInfo::default()),
+            rate_limits: Default::default(),
             sampling_project_info: <span class="prelude-val">None</span>,
             reservoir_counters: ReservoirCounters::default(),
         };
@@ -1032,6 +1038,7 @@
         <span class="kw">let </span>message = ProcessEnvelope {
             envelope,
             project_info: Arc::new(ProjectInfo::default()),
+            rate_limits: Default::default(),
             sampling_project_info: <span class="prelude-val">None</span>,
             reservoir_counters: ReservoirCounters::default(),
         };
@@ -1094,6 +1101,7 @@
         <span class="kw">let </span>message = ProcessEnvelope {
             envelope,
             project_info: Arc::new(ProjectInfo::default()),
+            rate_limits: Default::default(),
             sampling_project_info: <span class="prelude-val">None</span>,
             reservoir_counters: ReservoirCounters::default(),
         };
@@ -1134,6 +1142,7 @@
         <span class="kw">let </span>message = ProcessEnvelope {
             envelope,
             project_info: Arc::new(ProjectInfo::default()),
+            rate_limits: Default::default(),
             sampling_project_info: <span class="prelude-val">None</span>,
             reservoir_counters: ReservoirCounters::default(),
         };
@@ -1182,6 +1191,7 @@
         <span class="kw">let </span>message = ProcessEnvelope {
             envelope,
             project_info: Arc::new(ProjectInfo::default()),
+            rate_limits: Default::default(),
             sampling_project_info: <span class="prelude-val">None</span>,
             reservoir_counters: ReservoirCounters::default(),
         };

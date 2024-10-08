@@ -857,7 +857,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::utils::{Enforcement, SeqCount};
 
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
-<span class="kw">use </span><span class="kw">crate</span>::utils::{EnvelopeLimiter, ManagedEnvelope, RetryBackoff};
+<span class="kw">use </span><span class="kw">crate</span>::utils::{CheckLimits, EnvelopeLimiter, ManagedEnvelope, RetryBackoff};
 
 <span class="kw">pub mod </span>state;
 
@@ -1370,7 +1370,7 @@
         <span class="kw">let </span>current_limits = <span class="self">self</span>.rate_limits.current_limits();
 
         <span class="kw">let </span>quotas = state.as_deref().map(|s| s.get_quotas()).unwrap_or(<span class="kw-2">&amp;</span>[]);
-        <span class="kw">let </span>envelope_limiter = EnvelopeLimiter::new(|item_scoping, <span class="kw">_</span>| {
+        <span class="kw">let </span>envelope_limiter = EnvelopeLimiter::new(CheckLimits::NonIndexed, |item_scoping, <span class="kw">_</span>| {
             <span class="prelude-val">Ok</span>(current_limits.check_with_quotas(quotas, item_scoping))
         });
 

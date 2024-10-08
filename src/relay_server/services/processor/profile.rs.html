@@ -558,6 +558,10 @@
 <a href="#558" id="558">558</a>
 <a href="#559" id="559">559</a>
 <a href="#560" id="560">560</a>
+<a href="#561" id="561">561</a>
+<a href="#562" id="562">562</a>
+<a href="#563" id="563">563</a>
+<a href="#564" id="564">564</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Profiles related processor code.
 
 </span><span class="kw">use </span>relay_dynamic_config::Feature;
@@ -819,6 +823,7 @@
         <span class="kw">let </span>message = ProcessEnvelope {
             envelope,
             project_info: Arc::new(project_state),
+            rate_limits: Default::default(),
             sampling_project_info: <span class="prelude-val">None</span>,
             reservoir_counters: ReservoirCounters::default(),
         };
@@ -949,6 +954,7 @@
         <span class="kw">let </span>message = ProcessEnvelope {
             envelope,
             project_info: Arc::new(project_info),
+            rate_limits: Default::default(),
             sampling_project_info: <span class="prelude-val">None</span>,
             reservoir_counters: ReservoirCounters::default(),
         };
@@ -1018,6 +1024,7 @@
         <span class="kw">let </span>message = ProcessEnvelope {
             envelope,
             project_info: Arc::new(project_state),
+            rate_limits: Default::default(),
             sampling_project_info: <span class="prelude-val">None</span>,
             reservoir_counters: ReservoirCounters::default(),
         };
@@ -1089,6 +1096,7 @@
         <span class="kw">let </span>message = ProcessEnvelope {
             envelope,
             project_info: Arc::new(project_state),
+            rate_limits: Default::default(),
             sampling_project_info: <span class="prelude-val">None</span>,
             reservoir_counters: ReservoirCounters::default(),
         };

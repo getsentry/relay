@@ -1788,6 +1788,10 @@
 <a href="#1788" id="1788">1788</a>
 <a href="#1789" id="1789">1789</a>
 <a href="#1790" id="1790">1790</a>
+<a href="#1791" id="1791">1791</a>
+<a href="#1792" id="1792">1792</a>
+<a href="#1793" id="1793">1793</a>
+<a href="#1794" id="1794">1794</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
@@ -2662,6 +2666,8 @@
             ..
         }) = project.check_envelope(managed_envelope)
         {
+            <span class="kw">let </span>rate_limits = project.current_rate_limits().clone();
+
             <span class="kw">let </span>reservoir_counters = project.reservoir_counters();
 
             <span class="kw">let </span>sampling_project_info = managed_envelope
@@ -2674,6 +2680,7 @@
             <span class="kw">let </span>process = ProcessEnvelope {
                 envelope: managed_envelope,
                 project_info,
+                rate_limits,
                 sampling_project_info,
                 reservoir_counters,
             };
@@ -2967,6 +2974,7 @@
             services.envelope_processor.send(ProcessEnvelope {
                 envelope: managed_envelope,
                 project_info: project_info.clone(),
+                rate_limits: project.current_rate_limits().clone(),
                 sampling_project_info: sampling_project_info.clone(),
                 reservoir_counters,
             });
