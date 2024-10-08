@@ -52,45 +52,32 @@ impl EnvelopeBuffer {
     ) -> Result<Self, EnvelopeBufferError> {
         let buffer = if config.spool_envelopes_path().is_some() {
             relay_log::trace!("EnvelopeBuffer: initializing sqlite envelope buffer");
-            Self::sqlite(config).await?
+            Self {
+                project_to_pairs: Default::default(),
+                priority_queue: Default::default(),
+                envelope_repository: EnvelopeRepository::sqlite(config).await?,
+                total_count: Arc::new(AtomicI64::new(0)),
+                total_count_initialized: false,
+            }
         } else {
             relay_log::trace!("EnvelopeBuffer: initializing memory envelope buffer");
-            Self::memory(memory_checker)?
+            Self {
+                project_to_pairs: Default::default(),
+                priority_queue: Default::default(),
+                envelope_repository: EnvelopeRepository::memory(memory_checker)?,
+                total_count: Arc::new(AtomicI64::new(0)),
+                total_count_initialized: false,
+            }
         };
 
         Ok(buffer)
-    }
-
-    /// Creates a memory-based [`EnvelopeBuffer`].
-    fn memory(memory_checker: MemoryChecker) -> Result<Self, EnvelopeBufferError> {
-        Ok(Self {
-            project_to_pairs: Default::default(),
-            priority_queue: Default::default(),
-            envelope_repository: EnvelopeRepository::memory(memory_checker)?,
-            total_count: Arc::new(AtomicI64::new(0)),
-            total_count_initialized: false,
-        })
-    }
-
-    /// Creates a sqlite-based [`EnvelopeBuffer`].
-    async fn sqlite(config: &Config) -> Result<Self, EnvelopeBufferError> {
-        Ok(Self {
-            project_to_pairs: Default::default(),
-            priority_queue: Default::default(),
-            envelope_repository: EnvelopeRepository::sqlite(config).await?,
-            total_count: Arc::new(AtomicI64::new(0)),
-            total_count_initialized: false,
-        })
     }
 
     /// Initializes the [`EnvelopeBuffer`] given the initialization state from the
     /// [`EnvelopeRepository`].
     pub async fn initialize(&mut self) {
         relay_statsd::metric!(timer(RelayTimers::BufferInitialization), {
-            let initialization_state = match &mut self.envelope_repository {
-                EnvelopeRepository::Memory(repository) => repository.initialize().await,
-                EnvelopeRepository::SQLite(repository) => repository.initialize().await,
-            };
+            let initialization_state = self.envelope_repository.initialize().await;
             self.load_project_key_pairs(initialization_state.project_key_pairs)
                 .await;
             self.load_store_total_count().await;
@@ -255,10 +242,7 @@ impl EnvelopeBuffer {
     /// otherwise. This is done because we want to make sure we know whether it is safe to drop the
     /// [`EnvelopeBuffer`] after flushing is performed.
     pub async fn flush(&mut self) -> bool {
-        match &mut self.envelope_repository {
-            EnvelopeRepository::Memory(repository) => repository.flush().await,
-            EnvelopeRepository::SQLite(repository) => repository.flush().await,
-        }
+        self.envelope_repository.flush().await
     }
 
     /// Returns `true` if the [`EnvelopeBuffer`] is using an in-memory strategy, false otherwise.
@@ -495,7 +479,13 @@ mod tests {
         envelope
     }
 
-    fn mock_config(path: &str) -> Arc<Config> {
+    fn mock_config() -> Arc<Config> {
+        Config::from_json_value(serde_json::json!({}))
+            .unwrap()
+            .into()
+    }
+
+    fn mock_config_with_path(path: &str) -> Arc<Config> {
         Config::from_json_value(serde_json::json!({
             "spool": {
                 "envelopes": {
@@ -508,7 +498,7 @@ mod tests {
     }
 
     fn mock_memory_checker() -> MemoryChecker {
-        MemoryChecker::new(MemoryStat::default(), mock_config("my/db/path").clone())
+        MemoryChecker::new(MemoryStat::default(), mock_config())
     }
 
     async fn peek_project_key(buffer: &mut EnvelopeBuffer) -> ProjectKey {
@@ -524,7 +514,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_insert_pop() {
-        let mut buffer = EnvelopeBuffer::memory(mock_memory_checker()).unwrap();
+        let mut buffer = EnvelopeBuffer::from_config(&mock_config(), mock_memory_checker())
+            .await
+            .unwrap();
 
         let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
@@ -595,7 +587,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_project_internal_order() {
-        let mut buffer = EnvelopeBuffer::memory(mock_memory_checker()).unwrap();
+        let mut buffer = EnvelopeBuffer::from_config(&mock_config(), mock_memory_checker())
+            .await
+            .unwrap();
 
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
@@ -622,7 +616,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_sampling_projects() {
-        let mut buffer = EnvelopeBuffer::memory(mock_memory_checker()).unwrap();
+        let mut buffer = EnvelopeBuffer::from_config(&mock_config(), mock_memory_checker())
+            .await
+            .unwrap();
 
         let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fef").unwrap();
@@ -738,7 +734,9 @@ mod tests {
 
         assert_ne!(project_key_pair1, project_key_pair2);
 
-        let mut buffer = EnvelopeBuffer::memory(mock_memory_checker()).unwrap();
+        let mut buffer = EnvelopeBuffer::from_config(&mock_config(), mock_memory_checker())
+            .await
+            .unwrap();
         buffer
             .push(new_envelope(project_key1, Some(project_key2), None))
             .await
@@ -770,7 +768,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_last_peek_internal_order() {
-        let mut buffer = EnvelopeBuffer::memory(mock_memory_checker()).unwrap();
+        let mut buffer = EnvelopeBuffer::from_config(&mock_config(), mock_memory_checker())
+            .await
+            .unwrap();
 
         let project_key_1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let event_id_1 = EventId::new();
@@ -827,9 +827,11 @@ mod tests {
             .into_os_string()
             .into_string()
             .unwrap();
-        let config = mock_config(&path);
+        let config = mock_config_with_path(&path);
         let mut store = SqliteEnvelopeStore::prepare(&config).await.unwrap();
-        let mut buffer = EnvelopeBuffer::sqlite(&config).await.unwrap();
+        let mut buffer = EnvelopeBuffer::from_config(&config, mock_memory_checker())
+            .await
+            .unwrap();
 
         // We write 5 envelopes to disk so that we can check if they are loaded. These envelopes
         // belong to the same project keys, so they belong to the same envelope stack.

@@ -50,6 +50,14 @@ impl EnvelopeRepository {
         Ok(Self::SQLite(SqliteEnvelopeRepository::new(config).await?))
     }
 
+    /// Initializes the [`EnvelopeRepository`] and returns an [`InitializationState`].
+    pub async fn initialize(&mut self) -> InitializationState {
+        match self {
+            EnvelopeRepository::Memory(repository) => repository.initialize().await,
+            EnvelopeRepository::SQLite(repository) => repository.initialize().await,
+        }
+    }
+
     /// Pushes an envelope to the repository for the given project key pair.
     pub async fn push(
         &mut self,
@@ -92,6 +100,14 @@ impl EnvelopeRepository {
         };
 
         Ok(envelope)
+    }
+
+    /// Flushes the [`Envelope`]s in the [`EnvelopeRepository`].
+    pub async fn flush(&mut self) -> bool {
+        match self {
+            EnvelopeRepository::Memory(repository) => repository.flush().await,
+            EnvelopeRepository::SQLite(repository) => repository.flush().await,
+        }
     }
 
     /// Returns the string representation of the [`EnvelopeRepository`]'s strategy.
