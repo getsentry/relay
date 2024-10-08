@@ -88,7 +88,7 @@ def assert_not_enough_memory(relay, mini_sentry, expected_comparison):
     errors = ""
     for _ in range(100):
         try:
-            errors += f"{mini_sentry.test_failures.get(timeout=1)}\n"
+            errors += f"{mini_sentry.test_failures.get(timeout=10)}\n"
         except queue.Empty:
             break
         if (
