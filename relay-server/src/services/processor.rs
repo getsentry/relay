@@ -2193,12 +2193,66 @@ impl EnvelopeProcessorService {
             sent_at,
         } = message;
 
-        #[derive(serde::Deserialize)]
-        struct Wrapper {
-            buckets: HashMap<ProjectKey, Vec<Bucket>>,
+        /// Custom struct to optimize deserialization.
+        ///
+        /// Equivalent to deserializing to `HashMap<ProjectKey, Vec<Bucket>>` and then transforming
+        /// to `SmallVec<[(ProjectKey, MetricData); _]>` in a separate step.
+        ///
+        /// But implemented with a custom deserializer to rminimize iterations over the parsed data
+        /// (to compute feature weights) as well as minimizing allocations for contained items by
+        /// deserializing directly into the proper smallvec.
+        struct Buckets {
+            data: SmallVec<[(ProjectKey, MetricData); 1]>,
+            feature_weights: FeatureWeights,
         }
 
-        let buckets = match serde_json::from_slice(&payload) {
+        impl<'de> serde::Deserialize<'de> for Buckets {
+            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct Visitor;
+
+                impl<'de> serde::de::Visitor<'de> for Visitor {
+                    type Value = Buckets;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                        formatter.write_str("a mapping of project key to list of buckets")
+                    }
+
+                    fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+                    where
+                        A: serde::de::MapAccess<'de>,
+                    {
+                        let mut data = smallvec![];
+                        let mut feature_weights = FeatureWeights::none();
+
+                        while let Some((project_key, buckets)) = map.next_entry::<_, Vec<_>>()? {
+                            feature_weights =
+                                feature_weights.merge(relay_metrics::cogs::BySize(&buckets).into());
+                            data.push((project_key, MetricData::Parsed(buckets)));
+                        }
+
+                        Ok(Buckets {
+                            data,
+                            feature_weights,
+                        })
+                    }
+                }
+
+                deserializer.deserialize_map(Visitor)
+            }
+        }
+
+        #[derive(serde::Deserialize)]
+        struct Wrapper {
+            buckets: Buckets,
+        }
+
+        let Buckets {
+            data,
+            feature_weights,
+        } = match serde_json::from_slice(&payload) {
             Ok(Wrapper { buckets }) => buckets,
             Err(error) => {
                 relay_log::debug!(
@@ -2210,21 +2264,14 @@ impl EnvelopeProcessorService {
             }
         };
 
-        let mut feature_weights = FeatureWeights::none();
-        for (project_key, buckets) in buckets {
-            feature_weights = feature_weights.merge(relay_metrics::cogs::BySize(&buckets).into());
+        cogs.update(feature_weights);
 
-            self.inner.addrs.project_cache.send(ProcessMetrics {
-                data: smallvec![(project_key, MetricData::Parsed(buckets))],
-                source,
-                start_time: start_time.into(),
-                sent_at,
-            });
-        }
-
-        if !feature_weights.is_empty() {
-            cogs.update(feature_weights);
-        }
+        self.inner.addrs.project_cache.send(ProcessMetrics {
+            data,
+            source,
+            start_time: start_time.into(),
+            sent_at,
+        });
     }
 
     fn handle_process_metric_meta(&self, message: ProcessMetricMeta) {
@@ -3903,27 +3950,12 @@ mod tests {
         processor.handle_process_batched_metrics(&mut token, message);
 
         let value = project_cache_rx.recv().await.unwrap();
-        let ProjectCache::ProcessMetrics(pm1) = value else {
-            panic!()
-        };
-        let value = project_cache_rx.recv().await.unwrap();
-        let ProjectCache::ProcessMetrics(pm2) = value else {
+        let ProjectCache::ProcessMetrics(pm) = value else {
             panic!()
         };
 
-        let mut messages = vec![pm1, pm2];
-        messages.sort_by_key(|pm| pm.data[0].0);
-
-        let actual = messages
-            .into_iter()
-            .map(|mut pm| {
-                assert_eq!(pm.data.len(), 1);
-                let (project_key, data) = pm.data.pop().unwrap();
-                (project_key, data, pm.source)
-            })
-            .collect::<Vec<_>>();
-
-        assert_debug_snapshot!(actual, @r###"
+        assert_eq!(pm.source, BucketSource::Internal);
+        assert_debug_snapshot!(pm.data, @r###"
         [
             (
                 ProjectKey("11111111111111111111111111111111"),
@@ -3951,7 +3983,6 @@ mod tests {
                         },
                     ],
                 ),
-                Internal,
             ),
             (
                 ProjectKey("22222222222222222222222222222222"),
@@ -3977,9 +4008,10 @@ mod tests {
                         },
                     ],
                 ),
-                Internal,
             ),
         ]
         "###);
+
+        assert!(project_cache_rx.try_recv().is_err());
     }
 }
