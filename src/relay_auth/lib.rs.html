@@ -907,6 +907,7 @@
 <a href="#907" id="907">907</a>
 <a href="#908" id="908">908</a>
 <a href="#909" id="909">909</a>
+<a href="#910" id="910">910</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Authentication and crypto for Relay.
 //!
 //! This library contains the [`PublicKey`] and [`SecretKey`] types, which can be used to validate
@@ -1726,6 +1727,7 @@
     /// exchanged authentication structures.
     /// It follows test_registration but instead of asserting it prints the strings
     </span><span class="attr">#[test]
+    #[allow(clippy::print_stdout, reason = <span class="string">"helper test to generate output"</span>)]
     </span><span class="kw">fn </span>test_generate_strings_for_test_auth_py() {
         <span class="kw">let </span>max_age = Duration::minutes(<span class="number">15</span>);
         <span class="macro">println!</span>(<span class="string">"Generating test data for test_auth.py..."</span>);

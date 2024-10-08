@@ -1771,6 +1771,7 @@
 <a href="#1771" id="1771">1771</a>
 <a href="#1772" id="1772">1772</a>
 <a href="#1773" id="1773">1773</a>
+<a href="#1774" id="1774">1774</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the [`BufferService`], which is responsible for spooling of the incoming
 //! envelopes, either to in-memory or to persistent storage.
 //!
@@ -3471,6 +3472,7 @@
 
     <span class="attr">#[ignore] </span><span class="comment">// Slow. Should probably be a criterion benchmark.
     </span><span class="attr">#[tokio::test]
+    #[allow(clippy::print_stdout, reason = <span class="string">"benchmark test"</span>)]
     </span><span class="kw">async fn </span>compare_counts() {
         <span class="kw">let </span>path = std::env::temp_dir().join(Uuid::new_v4().to_string());
         <span class="kw">let </span>options = SqliteConnectOptions::new()

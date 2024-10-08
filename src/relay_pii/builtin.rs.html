@@ -1326,7 +1326,6 @@
 <a href="#1326" id="1326">1326</a>
 <a href="#1327" id="1327">1327</a>
 <a href="#1328" id="1328">1328</a>
-<a href="#1329" id="1329">1329</a>
 </pre></div><pre class="rust"><code><span class="attr">#![allow(clippy::needless_update)]
 </span><span class="kw">use </span>std::collections::BTreeMap;
 
@@ -2650,7 +2649,6 @@ HdmUCGvfKiF2CodxyLon1XkK8pX+Ap86MbJhluqK
         ] {
             <span class="kw">for </span>redaction_method <span class="kw">in </span><span class="kw-2">&amp;</span>[<span class="string">"mask"</span>, <span class="string">"remove"</span>, <span class="string">"hash"</span>, <span class="string">"replace"</span>] {
                 <span class="kw">let </span>key = <span class="macro">format!</span>(<span class="string">"@{rule_type}:{redaction_method}"</span>);
-                <span class="macro">println!</span>(<span class="string">"looking up {key}"</span>);
                 <span class="macro">assert!</span>(BUILTIN_RULES_MAP.contains_key(key.as_str()));
             }
         }

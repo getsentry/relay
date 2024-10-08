@@ -143,6 +143,10 @@
 <a href="#143" id="143">143</a>
 <a href="#144" id="144">144</a>
 <a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! &lt;p align="center"&gt;
 //!   &lt;img src="https://github.com/getsentry/relay/blob/master/artwork/relay-logo.png?raw=true" alt="Relay" width="480"&gt;
 //! &lt;/p&gt;
@@ -261,7 +265,11 @@
     html_logo_url = <span class="string">"https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"</span>,
     html_favicon_url = <span class="string">"https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 </span>)]
-#![allow(clippy::derive_partial_eq_without_eq)]
+#![allow(
+    clippy::derive_partial_eq_without_eq,
+    clippy::print_stdout,
+    clippy::print_stderr
+)]
 
 </span><span class="kw">mod </span>cli;
 <span class="kw">mod </span>cliapp;

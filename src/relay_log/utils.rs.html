@@ -49,6 +49,7 @@
 <a href="#49" id="49">49</a>
 <a href="#50" id="50">50</a>
 <a href="#51" id="51">51</a>
+<a href="#52" id="52">52</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::fmt;
 
@@ -74,6 +75,7 @@
 /// Prefer to use [`relay_log::error`](crate::error) over this function whenever possible. This
 /// function is intended to be used during startup, where initializing the logger may fail or when
 /// errors need to be logged before the logger has been initialized.
+</span><span class="attr">#[allow(clippy::print_stderr, reason = <span class="string">"necessary for early logging"</span>)]
 </span><span class="kw">pub fn </span>ensure_error&lt;E: AsRef&lt;<span class="kw">dyn </span>Error&gt;&gt;(error: E) {
     <span class="kw">if </span><span class="macro">tracing::event_enabled!</span>(Level::ERROR) {
         <span class="macro">crate::error!</span>(error = error.as_ref());
