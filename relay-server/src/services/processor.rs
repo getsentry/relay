@@ -3950,27 +3950,12 @@ mod tests {
         processor.handle_process_batched_metrics(&mut token, message);
 
         let value = project_cache_rx.recv().await.unwrap();
-        let ProjectCache::ProcessMetrics(pm1) = value else {
-            panic!()
-        };
-        let value = project_cache_rx.recv().await.unwrap();
-        let ProjectCache::ProcessMetrics(pm2) = value else {
+        let ProjectCache::ProcessMetrics(pm) = value else {
             panic!()
         };
 
-        let mut messages = vec![pm1, pm2];
-        messages.sort_by_key(|pm| pm.data[0].0);
-
-        let actual = messages
-            .into_iter()
-            .map(|mut pm| {
-                assert_eq!(pm.data.len(), 1);
-                let (project_key, data) = pm.data.pop().unwrap();
-                (project_key, data, pm.source)
-            })
-            .collect::<Vec<_>>();
-
-        assert_debug_snapshot!(actual, @r###"
+        assert_eq!(pm.source, BucketSource::Internal);
+        assert_debug_snapshot!(pm.data, @r###"
         [
             (
                 ProjectKey("11111111111111111111111111111111"),
@@ -3998,7 +3983,6 @@ mod tests {
                         },
                     ],
                 ),
-                Internal,
             ),
             (
                 ProjectKey("22222222222222222222222222222222"),
@@ -4024,9 +4008,10 @@ mod tests {
                         },
                     ],
                 ),
-                Internal,
             ),
         ]
         "###);
+
+        assert!(project_cache_rx.try_recv().is_err());
     }
 }
