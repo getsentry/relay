@@ -102,7 +102,6 @@ def assert_not_enough_memory(relay, mini_sentry, expected_comparison):
     assert False, f"Not all errors represented: {errors}"
 
 
-@pytest.mark.parametrize("i", range(100))  # remove before merge
 def test_readiness_not_enough_memory_bytes(mini_sentry, relay, i):
     relay = relay(
         mini_sentry,
@@ -113,7 +112,6 @@ def test_readiness_not_enough_memory_bytes(mini_sentry, relay, i):
     assert_not_enough_memory(relay, mini_sentry, ">= 42")
 
 
-@pytest.mark.parametrize("i", range(100))  # remove before merge
 def test_readiness_not_enough_memory_percent(mini_sentry, relay, i):
     relay = relay(
         mini_sentry,
