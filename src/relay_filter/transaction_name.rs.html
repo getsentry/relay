@@ -249,6 +249,10 @@
 <a href="#249" id="249">249</a>
 <a href="#250" id="250">250</a>
 <a href="#251" id="251">251</a>
+<a href="#252" id="252">252</a>
+<a href="#253" id="253">253</a>
+<a href="#254" id="254">254</a>
+<a href="#255" id="255">255</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Implements event filtering based on whether the endpoint called is a healthcheck endpoint.
 //!
 //! If this filter is enabled transactions from healthcheck endpoints will be filtered out.
@@ -300,6 +304,7 @@
             <span class="string">"*/health"</span>,
             <span class="string">"*/healthz"</span>,
             <span class="string">"*/ping"</span>,
+            <span class="string">"*/up"</span>,
         ]
         .map(|val| val.to_string())
         .to_vec();
@@ -339,6 +344,8 @@
             <span class="string">"123/health"</span>,
             <span class="string">"123/healthz"</span>,
             <span class="string">"123/ping"</span>,
+            <span class="string">"/up"</span>,
+            <span class="string">"123/up"</span>,
         ];
 
         <span class="kw">for </span>name <span class="kw">in </span>transaction_names {
@@ -370,6 +377,7 @@
             <span class="string">"delivery"</span>,
             <span class="string">"notready"</span>,
             <span class="string">"already"</span>,
+            <span class="string">"/upload"</span>,
         ];
         <span class="kw">let </span>config = _get_config();
 
