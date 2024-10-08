@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 use std::ops::Deref;
 
-use crate::{Error, Pattern};
+use crate::{Error, Pattern, Patterns, PatternsBuilderConfigured};
 
 /// Compile time configuration for a [`TypedPattern`].
 pub trait PatternConfig {
@@ -99,6 +99,12 @@ impl<C> serde::Serialize for TypedPattern<C> {
     }
 }
 
+impl<C> From<TypedPattern<C>> for Pattern {
+    fn from(value: TypedPattern<C>) -> Self {
+        value.pattern
+    }
+}
+
 impl<C> AsRef<Pattern> for TypedPattern<C> {
     fn as_ref(&self) -> &Pattern {
         &self.pattern
@@ -110,6 +116,132 @@ impl<C> Deref for TypedPattern<C> {
 
     fn deref(&self) -> &Self::Target {
         &self.pattern
+    }
+}
+
+/// [`Patterns`] with a compile time configured [`PatternConfig`].
+pub struct TypedPatterns<C = DefaultPatternConfig> {
+    patterns: Patterns,
+    #[cfg(feature = "serde")]
+    raw: Vec<String>,
+    _phantom: PhantomData<C>,
+}
+
+impl<C: PatternConfig> TypedPatterns<C> {
+    pub fn builder() -> TypedPatternsBuilder<C> {
+        let builder = Patterns::builder()
+            .case_insensitive(C::CASE_INSENSITIVE)
+            .patterns();
+
+        TypedPatternsBuilder {
+            builder,
+            raw: Vec::new(),
+            _phantom: PhantomData,
+        }
+    }
+}
+
+/// Deserializes patterns from a sequence of strings.
+///
+/// Invalid patterns are ignored while deserializing.
+#[cfg(feature = "serde")]
+impl<'de, C: PatternConfig> serde::Deserialize<'de> for TypedPatterns<C> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct Visitor<C>(PhantomData<C>);
+
+        impl<'a, C: PatternConfig> serde::de::Visitor<'a> for Visitor<C> {
+            type Value = TypedPatterns<C>;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("a sequence of patterns")
+            }
+
+            fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
+            where
+                A: serde::de::SeqAccess<'a>,
+            {
+                let mut builder = TypedPatterns::<C>::builder();
+
+                while let Some(item) = seq.next_element()? {
+                    // Ignore invalid patterns as documented.
+                    let _ = builder.add(item);
+                }
+
+                Ok(builder.build())
+            }
+        }
+
+        deserializer.deserialize_seq(Visitor(PhantomData))
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<C> serde::Serialize for TypedPatterns<C> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.raw.serialize(serializer)
+    }
+}
+
+impl<C> From<TypedPatterns<C>> for Patterns {
+    fn from(value: TypedPatterns<C>) -> Self {
+        value.patterns
+    }
+}
+
+impl<C> AsRef<Patterns> for TypedPatterns<C> {
+    fn as_ref(&self) -> &Patterns {
+        &self.patterns
+    }
+}
+
+impl<C> Deref for TypedPatterns<C> {
+    type Target = Patterns;
+
+    fn deref(&self) -> &Self::Target {
+        &self.patterns
+    }
+}
+
+pub struct TypedPatternsBuilder<C> {
+    builder: PatternsBuilderConfigured,
+    #[cfg(feature = "serde")]
+    raw: Vec<String>,
+    _phantom: PhantomData<C>,
+}
+
+impl<C: PatternConfig> TypedPatternsBuilder<C> {
+    /// Adds a pattern to the builder.
+    pub fn add(&mut self, pattern: String) -> Result<&mut Self, Error> {
+        self.builder.add(&pattern)?;
+        #[cfg(feature = "serde")]
+        self.raw.push(pattern);
+        Ok(self)
+    }
+
+    /// Builds a [`TypedPatterns`] from the contained patterns.
+    pub fn build(self) -> TypedPatterns<C> {
+        TypedPatterns {
+            patterns: self.builder.build(),
+            #[cfg(feature = "serde")]
+            raw: self.raw,
+            _phantom: PhantomData,
+        }
+    }
+
+    /// Builds a [`TypedPatterns`] from the contained patterns and clears the builder.
+    pub fn take(&mut self) -> TypedPatterns<C> {
+        TypedPatterns {
+            patterns: self.builder.take(),
+            #[cfg(feature = "serde")]
+            raw: std::mem::take(&mut self.raw),
+            _phantom: PhantomData,
+        }
     }
 }
 
@@ -170,5 +302,79 @@ mod tests {
         assert_eq!(serde_json::to_string(&pattern).unwrap(), r#""*[rt]x""#);
         let pattern: TypedPattern<CaseInsensitive> = TypedPattern::new("*[rt]x").unwrap();
         assert_eq!(serde_json::to_string(&pattern).unwrap(), r#""*[rt]x""#);
+    }
+
+    #[test]
+    fn test_patterns_default() {
+        let patterns: TypedPatterns = TypedPatterns::builder()
+            .add("*[rt]x".to_owned())
+            .unwrap()
+            .add("foobar".to_owned())
+            .unwrap()
+            .take();
+        assert!(patterns.is_match("f/o_rx"));
+        assert!(patterns.is_match("foobar"));
+        assert!(!patterns.is_match("Foobar"));
+    }
+
+    #[test]
+    fn test_patterns_case_insensitive() {
+        let patterns: TypedPatterns<CaseInsensitive> = TypedPatterns::builder()
+            .add("*[rt]x".to_owned())
+            .unwrap()
+            .add("foobar".to_owned())
+            .unwrap()
+            .take();
+        assert!(patterns.is_match("f/o_rx"));
+        assert!(patterns.is_match("f/o_Rx"));
+        assert!(patterns.is_match("foobar"));
+        assert!(patterns.is_match("Foobar"));
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_patterns_deserialize() {
+        let pattern: TypedPatterns<CaseInsensitive> =
+            serde_json::from_str(r#"["*[rt]x","foobar"]"#).unwrap();
+        assert!(pattern.is_match("foobar_rx"));
+        assert!(pattern.is_match("FOOBAR"));
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_patterns_deserialize_err() {
+        let r: TypedPatterns<CaseInsensitive> =
+            serde_json::from_str(r#"["[invalid","foobar"]"#).unwrap();
+        assert!(r.is_match("foobar"));
+        assert!(r.is_match("FOOBAR"));
+
+        // The invalid element is dropped.
+        assert_eq!(serde_json::to_string(&r).unwrap(), r#"["foobar"]"#);
+    }
+
+    #[test]
+    #[cfg(feature = "serde")]
+    fn test_patterns_serialize() {
+        let pattern: TypedPatterns = TypedPatterns::builder()
+            .add("*[rt]x".to_owned())
+            .unwrap()
+            .add("foobar".to_owned())
+            .unwrap()
+            .take();
+        assert_eq!(
+            serde_json::to_string(&pattern).unwrap(),
+            r#"["*[rt]x","foobar"]"#
+        );
+
+        let pattern: TypedPatterns<CaseInsensitive> = TypedPatterns::builder()
+            .add("*[rt]x".to_owned())
+            .unwrap()
+            .add("foobar".to_owned())
+            .unwrap()
+            .take();
+        assert_eq!(
+            serde_json::to_string(&pattern).unwrap(),
+            r#"["*[rt]x","foobar"]"#
+        );
     }
 }

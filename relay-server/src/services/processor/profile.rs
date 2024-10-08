@@ -259,6 +259,7 @@ mod tests {
         let message = ProcessEnvelope {
             envelope,
             project_info: Arc::new(project_state),
+            rate_limits: Default::default(),
             sampling_project_info: None,
             reservoir_counters: ReservoirCounters::default(),
         };
@@ -389,6 +390,7 @@ mod tests {
         let message = ProcessEnvelope {
             envelope,
             project_info: Arc::new(project_info),
+            rate_limits: Default::default(),
             sampling_project_info: None,
             reservoir_counters: ReservoirCounters::default(),
         };
@@ -458,6 +460,7 @@ mod tests {
         let message = ProcessEnvelope {
             envelope,
             project_info: Arc::new(project_state),
+            rate_limits: Default::default(),
             sampling_project_info: None,
             reservoir_counters: ReservoirCounters::default(),
         };
@@ -529,6 +532,7 @@ mod tests {
         let message = ProcessEnvelope {
             envelope,
             project_info: Arc::new(project_state),
+            rate_limits: Default::default(),
             sampling_project_info: None,
             reservoir_counters: ReservoirCounters::default(),
         };

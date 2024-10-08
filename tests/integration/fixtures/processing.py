@@ -226,6 +226,8 @@ class ConsumerBase:
 
 
 def category_value(category):
+    if isinstance(category, DataCategory):
+        return category
     return DataCategory.parse(category)
 
 
@@ -243,7 +245,13 @@ class OutcomesConsumer(ConsumerBase):
         return outcomes[0]
 
     def assert_rate_limited(
-        self, reason, key_id=None, categories=None, quantity=None, timeout=1
+        self,
+        reason,
+        key_id=None,
+        categories=None,
+        quantity=None,
+        timeout=1,
+        ignore_other=False,
     ):
         if categories is None:
             outcome = self.get_outcome(timeout=timeout)
@@ -253,6 +261,8 @@ class OutcomesConsumer(ConsumerBase):
             outcomes = self.get_outcomes(timeout=timeout)
             expected = {category_value(category) for category in categories}
             actual = {outcome["category"] for outcome in outcomes}
+            if ignore_other:
+                actual = actual & set(categories)
             assert actual == expected, (actual, expected)
 
         for outcome in outcomes:

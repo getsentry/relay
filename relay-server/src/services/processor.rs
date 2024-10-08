@@ -45,7 +45,7 @@ use smallvec::{smallvec, SmallVec};
 #[cfg(feature = "processing")]
 use {
     crate::services::store::{Store, StoreEnvelope},
-    crate::utils::{sample, Enforcement, EnvelopeLimiter, ItemAction},
+    crate::utils::{sample, CheckLimits, Enforcement, EnvelopeLimiter, ItemAction},
     itertools::Itertools,
     relay_cardinality::{
         CardinalityLimit, CardinalityLimiter, CardinalityLimitsSplit, RedisSetLimiter,
@@ -638,24 +638,59 @@ impl ProcessingExtractedMetrics {
     /// This is used to apply rate limits which have been enforced on sampled items of an envelope
     /// to also consistently apply to the metrics extracted from these items.
     #[cfg(feature = "processing")]
-    fn apply_enforcement(&mut self, enforcement: &Enforcement) {
-        for (namespace, limit) in [
-            (MetricNamespace::Transactions, &enforcement.event),
-            (MetricNamespace::Spans, &enforcement.spans),
+    fn apply_enforcement(&mut self, enforcement: &Enforcement, enforced_consistently: bool) {
+        // Metric namespaces which need to be dropped.
+        let mut drop_namespaces: SmallVec<[_; 2]> = smallvec![];
+        // Metrics belonging to this metric namespace need to have the `extracted_from_indexed`
+        // flag reset to `false`.
+        let mut reset_extracted_from_indexed: SmallVec<[_; 2]> = smallvec![];
+
+        for (namespace, limit, indexed) in [
+            (
+                MetricNamespace::Transactions,
+                &enforcement.event,
+                &enforcement.event_indexed,
+            ),
+            (
+                MetricNamespace::Spans,
+                &enforcement.spans,
+                &enforcement.spans_indexed,
+            ),
         ] {
             if limit.is_active() {
-                relay_log::trace!(
-                    "dropping {namespace} metrics, due to enforced limit on envelope"
-                );
-                self.retain(|bucket| bucket.name.try_namespace() != Some(namespace));
+                drop_namespaces.push(namespace);
+            } else if indexed.is_active() && !enforced_consistently {
+                // If the enforcment was not computed by consistently checking the limits,
+                // the quota for the metrics has not yet been incremented.
+                // In this case we have a dropped indexed payload but a metric which still needs to
+                // be accounted for, make sure the metric will still be rate limited.
+                reset_extracted_from_indexed.push(namespace);
             }
+        }
+
+        if !drop_namespaces.is_empty() || !reset_extracted_from_indexed.is_empty() {
+            self.retain_mut(|bucket| {
+                let Some(namespace) = bucket.name.try_namespace() else {
+                    return true;
+                };
+
+                if drop_namespaces.contains(&namespace) {
+                    return false;
+                }
+
+                if reset_extracted_from_indexed.contains(&namespace) {
+                    bucket.metadata.extracted_from_indexed = false;
+                }
+
+                true
+            });
         }
     }
 
     #[cfg(feature = "processing")]
-    fn retain(&mut self, mut f: impl FnMut(&Bucket) -> bool) {
-        self.metrics.project_metrics.retain(&mut f);
-        self.metrics.sampling_metrics.retain(&mut f);
+    fn retain_mut(&mut self, mut f: impl FnMut(&mut Bucket) -> bool) {
+        self.metrics.project_metrics.retain_mut(&mut f);
+        self.metrics.sampling_metrics.retain_mut(&mut f);
     }
 }
 
@@ -721,6 +756,10 @@ struct ProcessEnvelopeState<'a, Group> {
 
     /// The state of the project that this envelope belongs to.
     project_info: Arc<ProjectInfo>,
+
+    /// Currently active cached rate limits of the project this envelope belongs to.
+    #[cfg_attr(not(feature = "processing"), expect(dead_code))]
+    rate_limits: RateLimits,
 
     /// The config of this Relay instance.
     config: Arc<Config>,
@@ -832,9 +871,15 @@ pub struct ProcessEnvelopeResponse {
 ///  - Rate limiters and inbound filters on events in processing mode.
 #[derive(Debug)]
 pub struct ProcessEnvelope {
+    /// Envelope to process.
     pub envelope: ManagedEnvelope,
+    /// The project info.
     pub project_info: Arc<ProjectInfo>,
+    /// Currently active cached rate limits for this project.
+    pub rate_limits: RateLimits,
+    /// Root sampling project info.
     pub sampling_project_info: Option<Arc<ProjectInfo>>,
+    /// Sampling reservoir counters.
     pub reservoir_counters: ReservoirCounters,
 }
 
@@ -851,6 +896,21 @@ pub struct ProcessEnvelope {
 /// the Envelope specifies the [`sent_at`](Envelope::sent_at) header.
 #[derive(Debug)]
 pub struct ProcessProjectMetrics {
+    pub data: SmallVec<[ProcessProjectData; 1]>,
+    /// Whether to keep or reset the metric metadata.
+    pub source: BucketSource,
+    /// The instant at which the request was received.
+    pub start_time: Instant,
+    /// The value of the Envelope's [`sent_at`](Envelope::sent_at) header for clock drift
+    /// correction.
+    pub sent_at: Option<DateTime<Utc>>,
+}
+
+/// Raw metric data associated with project data.
+#[derive(Debug)]
+pub struct ProcessProjectData {
+    /// The target project.
+    pub project_key: ProjectKey,
     /// The project state the metrics belong to.
     ///
     /// The project state can be pending, in which case cached rate limits
@@ -859,18 +919,8 @@ pub struct ProcessProjectMetrics {
     pub project_state: ProjectState,
     /// Currently active cached rate limits for this project.
     pub rate_limits: RateLimits,
-
-    /// A list of metric items.
+    /// The metric data.
     pub data: MetricData,
-    /// The target project.
-    pub project_key: ProjectKey,
-    /// Whether to keep or reset the metric metadata.
-    pub source: BucketSource,
-    /// The instant at which the request was received.
-    pub start_time: Instant,
-    /// The value of the Envelope's [`sent_at`](Envelope::sent_at) header for clock drift
-    /// correction.
-    pub sent_at: Option<DateTime<Utc>>,
 }
 
 /// Raw unparsed metric data.
@@ -1251,6 +1301,7 @@ impl EnvelopeProcessorService {
         mut managed_envelope: TypedEnvelope<G>,
         project_id: ProjectId,
         project_info: Arc<ProjectInfo>,
+        rate_limits: RateLimits,
         sampling_project_info: Option<Arc<ProjectInfo>>,
         reservoir_counters: Arc<Mutex<BTreeMap<RuleId, i64>>>,
     ) -> ProcessEnvelopeState<G> {
@@ -1291,6 +1342,7 @@ impl EnvelopeProcessorService {
             metrics: Metrics::default(),
             extracted_metrics,
             project_info,
+            rate_limits,
             config,
             sampling_project_info,
             project_id,
@@ -1305,55 +1357,25 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<G>,
     ) -> Result<(), ProcessingError> {
+        let global_config = self.inner.global_config.current();
         let rate_limiter = match self.inner.rate_limiter.as_ref() {
             Some(rate_limiter) => rate_limiter,
             None => return Ok(()),
         };
 
-        let project_info = &state.project_info;
-        let global_config = self.inner.global_config.current();
-        let quotas = CombinedQuotas::new(&global_config, project_info.get_quotas());
+        // Cached quotas first, they are quick to evaluate and some quotas (indexed) are not
+        // applied in the fast path, all cached quotas can be applied here.
+        let _ = RateLimiter::Cached.enforce(&global_config, state)?;
 
-        if quotas.is_empty() {
-            return Ok(());
-        }
+        // Enforce all quotas consistently with Redis.
+        let limits = RateLimiter::Consistent(rate_limiter).enforce(&global_config, state)?;
 
-        let event_category = state.event_category();
-
-        // When invoking the rate limiter, capture if the event item has been rate limited to also
-        // remove it from the processing state eventually.
-        let mut envelope_limiter = EnvelopeLimiter::new(|item_scope, quantity| {
-            rate_limiter.is_rate_limited(quotas, item_scope, quantity, false)
-        });
-
-        // Tell the envelope limiter about the event, since it has been removed from the Envelope at
-        // this stage in processing.
-        if let Some(category) = event_category {
-            envelope_limiter.assume_event(category);
-        }
-
-        let scoping = state.managed_envelope.scoping();
-        let (enforcement, limits) = metric!(timer(RelayTimers::EventProcessingRateLimiting), {
-            envelope_limiter.compute(state.managed_envelope.envelope_mut(), &scoping)?
-        });
-        let event_active = enforcement.is_event_active();
-
-        // Use the same rate limits as used for the envelope on the metrics.
-        // Those rate limits should not be checked for expiry or similar to ensure a consistent
-        // limiting of envelope items and metrics.
-        state.extracted_metrics.apply_enforcement(&enforcement);
-        enforcement.apply_with_outcomes(&mut state.managed_envelope);
-
-        if event_active {
-            state.remove_event();
-            debug_assert!(state.envelope().is_empty());
-        }
-
+        // Update cached rate limits with the freshly computed ones.
         if !limits.is_empty() {
-            self.inner
-                .addrs
-                .project_cache
-                .send(UpdateRateLimits::new(scoping.project_key, limits));
+            self.inner.addrs.project_cache.send(UpdateRateLimits::new(
+                state.managed_envelope.scoping().project_key,
+                limits,
+            ));
         }
 
         Ok(())
@@ -1882,6 +1904,7 @@ impl EnvelopeProcessorService {
         mut managed_envelope: ManagedEnvelope,
         project_id: ProjectId,
         project_info: Arc<ProjectInfo>,
+        rate_limits: RateLimits,
         sampling_project_info: Option<Arc<ProjectInfo>>,
         reservoir_counters: Arc<Mutex<BTreeMap<RuleId, i64>>>,
     ) -> Result<ProcessingStateResult, ProcessingError> {
@@ -1906,6 +1929,7 @@ impl EnvelopeProcessorService {
                     managed_envelope,
                     project_id,
                     project_info,
+                    rate_limits,
                     sampling_project_info,
                     reservoir_counters,
                 );
@@ -1982,6 +2006,7 @@ impl EnvelopeProcessorService {
         let ProcessEnvelope {
             envelope: mut managed_envelope,
             project_info,
+            rate_limits,
             sampling_project_info,
             reservoir_counters,
         } = message;
@@ -2030,6 +2055,7 @@ impl EnvelopeProcessorService {
                     managed_envelope,
                     project_id,
                     project_info,
+                    rate_limits,
                     sampling_project_info,
                     reservoir_counters,
                 ) {
@@ -2098,10 +2124,7 @@ impl EnvelopeProcessorService {
 
     fn handle_process_project_metrics(&self, cogs: &mut Token, message: ProcessProjectMetrics) {
         let ProcessProjectMetrics {
-            project_state,
-            rate_limits,
             data,
-            project_key,
             start_time,
             sent_at,
             source,
@@ -2109,49 +2132,57 @@ impl EnvelopeProcessorService {
 
         let received_timestamp = UnixTimestamp::from_instant(start_time);
 
-        let mut buckets = data.into_buckets(received_timestamp);
-        if buckets.is_empty() {
-            return;
-        };
-        cogs.update(relay_metrics::cogs::BySize(&buckets));
+        for ProcessProjectData {
+            project_key,
+            project_state,
+            rate_limits,
+            data,
+        } in data
+        {
+            let mut buckets = data.into_buckets(received_timestamp);
+            if buckets.is_empty() {
+                return;
+            };
+            cogs.update(relay_metrics::cogs::BySize(&buckets));
 
-        let received = relay_common::time::instant_to_date_time(start_time);
-        let clock_drift_processor =
-            ClockDriftProcessor::new(sent_at, received).at_least(MINIMUM_CLOCK_DRIFT);
+            let received = relay_common::time::instant_to_date_time(start_time);
+            let clock_drift_processor =
+                ClockDriftProcessor::new(sent_at, received).at_least(MINIMUM_CLOCK_DRIFT);
 
-        buckets.retain_mut(|bucket| {
-            if let Err(error) = relay_metrics::normalize_bucket(bucket) {
-                relay_log::debug!(error = &error as &dyn Error, "dropping bucket {bucket:?}");
-                return false;
-            }
+            buckets.retain_mut(|bucket| {
+                if let Err(error) = relay_metrics::normalize_bucket(bucket) {
+                    relay_log::debug!(error = &error as &dyn Error, "dropping bucket {bucket:?}");
+                    return false;
+                }
 
-            if !self::metrics::is_valid_namespace(bucket, source) {
-                return false;
-            }
+                if !self::metrics::is_valid_namespace(bucket, source) {
+                    return false;
+                }
 
-            clock_drift_processor.process_timestamp(&mut bucket.timestamp);
+                clock_drift_processor.process_timestamp(&mut bucket.timestamp);
 
-            if !matches!(source, BucketSource::Internal) {
-                bucket.metadata = BucketMetadata::new(received_timestamp);
-            }
+                if !matches!(source, BucketSource::Internal) {
+                    bucket.metadata = BucketMetadata::new(received_timestamp);
+                }
 
-            true
-        });
+                true
+            });
 
-        // Best effort check to filter and rate limit buckets, if there is no project state
-        // available at the current time, we will check again after flushing.
-        let buckets = match project_state.enabled() {
-            Some(project_info) => {
-                self.check_buckets(project_key, &project_info, &rate_limits, buckets)
-            }
-            None => buckets,
-        };
+            // Best effort check to filter and rate limit buckets, if there is no project state
+            // available at the current time, we will check again after flushing.
+            let buckets = match project_state.enabled() {
+                Some(project_info) => {
+                    self.check_buckets(project_key, &project_info, &rate_limits, buckets)
+                }
+                None => buckets,
+            };
 
-        relay_log::trace!("merging metric buckets into the aggregator");
-        self.inner
-            .addrs
-            .aggregator
-            .send(MergeBuckets::new(project_key, buckets));
+            relay_log::trace!("merging metric buckets into the aggregator");
+            self.inner
+                .addrs
+                .aggregator
+                .send(MergeBuckets::new(project_key, buckets));
+        }
     }
 
     fn handle_process_batched_metrics(&self, cogs: &mut Token, message: ProcessBatchedMetrics) {
@@ -2162,12 +2193,66 @@ impl EnvelopeProcessorService {
             sent_at,
         } = message;
 
-        #[derive(serde::Deserialize)]
-        struct Wrapper {
-            buckets: HashMap<ProjectKey, Vec<Bucket>>,
+        /// Custom struct to optimize deserialization.
+        ///
+        /// Equivalent to deserializing to `HashMap<ProjectKey, Vec<Bucket>>` and then transforming
+        /// to `SmallVec<[(ProjectKey, MetricData); _]>` in a separate step.
+        ///
+        /// But implemented with a custom deserializer to rminimize iterations over the parsed data
+        /// (to compute feature weights) as well as minimizing allocations for contained items by
+        /// deserializing directly into the proper smallvec.
+        struct Buckets {
+            data: SmallVec<[(ProjectKey, MetricData); 1]>,
+            feature_weights: FeatureWeights,
         }
 
-        let buckets = match serde_json::from_slice(&payload) {
+        impl<'de> serde::Deserialize<'de> for Buckets {
+            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                struct Visitor;
+
+                impl<'de> serde::de::Visitor<'de> for Visitor {
+                    type Value = Buckets;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                        formatter.write_str("a mapping of project key to list of buckets")
+                    }
+
+                    fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
+                    where
+                        A: serde::de::MapAccess<'de>,
+                    {
+                        let mut data = smallvec![];
+                        let mut feature_weights = FeatureWeights::none();
+
+                        while let Some((project_key, buckets)) = map.next_entry::<_, Vec<_>>()? {
+                            feature_weights =
+                                feature_weights.merge(relay_metrics::cogs::BySize(&buckets).into());
+                            data.push((project_key, MetricData::Parsed(buckets)));
+                        }
+
+                        Ok(Buckets {
+                            data,
+                            feature_weights,
+                        })
+                    }
+                }
+
+                deserializer.deserialize_map(Visitor)
+            }
+        }
+
+        #[derive(serde::Deserialize)]
+        struct Wrapper {
+            buckets: Buckets,
+        }
+
+        let Buckets {
+            data,
+            feature_weights,
+        } = match serde_json::from_slice(&payload) {
             Ok(Wrapper { buckets }) => buckets,
             Err(error) => {
                 relay_log::debug!(
@@ -2179,22 +2264,14 @@ impl EnvelopeProcessorService {
             }
         };
 
-        let mut feature_weights = FeatureWeights::none();
-        for (project_key, buckets) in buckets {
-            feature_weights = feature_weights.merge(relay_metrics::cogs::BySize(&buckets).into());
+        cogs.update(feature_weights);
 
-            self.inner.addrs.project_cache.send(ProcessMetrics {
-                data: MetricData::Parsed(buckets),
-                project_key,
-                source,
-                start_time: start_time.into(),
-                sent_at,
-            });
-        }
-
-        if !feature_weights.is_empty() {
-            cogs.update(feature_weights);
-        }
+        self.inner.addrs.project_cache.send(ProcessMetrics {
+            data,
+            source,
+            start_time: start_time.into(),
+            sent_at,
+        });
     }
 
     fn handle_process_metric_meta(&self, message: ProcessMetricMeta) {
@@ -2907,6 +2984,70 @@ impl Service for EnvelopeProcessorService {
     }
 }
 
+#[cfg(feature = "processing")]
+enum RateLimiter<'a> {
+    Cached,
+    Consistent(&'a RedisRateLimiter),
+}
+
+#[cfg(feature = "processing")]
+impl<'a> RateLimiter<'a> {
+    fn enforce<G>(
+        &self,
+        global_config: &GlobalConfig,
+        state: &mut ProcessEnvelopeState<G>,
+    ) -> Result<RateLimits, ProcessingError> {
+        if state.envelope().is_empty() && !state.has_event() {
+            return Ok(RateLimits::default());
+        }
+
+        let quotas = CombinedQuotas::new(global_config, state.project_info.get_quotas());
+        if quotas.is_empty() {
+            return Ok(RateLimits::default());
+        }
+
+        let event_category = state.event_category();
+
+        // When invoking the rate limiter, capture if the event item has been rate limited to also
+        // remove it from the processing state eventually.
+        let mut envelope_limiter =
+            EnvelopeLimiter::new(CheckLimits::All, |item_scope, quantity| match self {
+                RateLimiter::Cached => Ok(state.rate_limits.check_with_quotas(quotas, item_scope)),
+                RateLimiter::Consistent(rl) => Ok::<_, ProcessingError>(
+                    rl.is_rate_limited(quotas, item_scope, quantity, false)?,
+                ),
+            });
+
+        // Tell the envelope limiter about the event, since it has been removed from the Envelope at
+        // this stage in processing.
+        if let Some(category) = event_category {
+            envelope_limiter.assume_event(category);
+        }
+
+        let scoping = state.managed_envelope.scoping();
+        let (enforcement, limits) = metric!(timer(RelayTimers::EventProcessingRateLimiting), {
+            envelope_limiter.compute(state.managed_envelope.envelope_mut(), &scoping)?
+        });
+        let event_active = enforcement.is_event_active();
+
+        // Use the same rate limits as used for the envelope on the metrics.
+        // Those rate limits should not be checked for expiry or similar to ensure a consistent
+        // limiting of envelope items and metrics.
+        state
+            .extracted_metrics
+            .apply_enforcement(&enforcement, matches!(self, Self::Consistent(_)));
+        enforcement.apply_with_outcomes(&mut state.managed_envelope);
+
+        if event_active {
+            state.remove_event();
+            debug_assert!(state.envelope().is_empty());
+            debug_assert!(!state.has_event());
+        }
+
+        Ok(limits)
+    }
+}
+
 fn encode_payload(body: &Bytes, http_encoding: HttpEncoding) -> Result<Bytes, std::io::Error> {
     let envelope_body: Vec<u8> = match http_encoding {
         HttpEncoding::Identity => return Ok(body.clone()),
@@ -3464,6 +3605,7 @@ mod tests {
         let message = ProcessEnvelope {
             envelope,
             project_info: Arc::new(project_info),
+            rate_limits: Default::default(),
             sampling_project_info: None,
             reservoir_counters: ReservoirCounters::default(),
         };
@@ -3526,6 +3668,7 @@ mod tests {
         let process_message = ProcessEnvelope {
             envelope: managed_envelope,
             project_info: Arc::new(ProjectInfo::default()),
+            rate_limits: Default::default(),
             sampling_project_info: None,
             reservoir_counters: ReservoirCounters::default(),
         };
@@ -3731,10 +3874,12 @@ mod tests {
             (BucketSource::Internal, None),
         ] {
             let message = ProcessProjectMetrics {
-                data: MetricData::Raw(vec![item.clone()]),
-                project_state: ProjectState::Pending,
-                rate_limits: Default::default(),
-                project_key,
+                data: smallvec![ProcessProjectData {
+                    project_key,
+                    project_state: ProjectState::Pending,
+                    rate_limits: Default::default(),
+                    data: MetricData::Raw(vec![item.clone()]),
+                }],
                 source,
                 start_time,
                 sent_at: Some(Utc::now()),
@@ -3805,23 +3950,12 @@ mod tests {
         processor.handle_process_batched_metrics(&mut token, message);
 
         let value = project_cache_rx.recv().await.unwrap();
-        let ProjectCache::ProcessMetrics(pm1) = value else {
-            panic!()
-        };
-        let value = project_cache_rx.recv().await.unwrap();
-        let ProjectCache::ProcessMetrics(pm2) = value else {
+        let ProjectCache::ProcessMetrics(pm) = value else {
             panic!()
         };
 
-        let mut messages = vec![pm1, pm2];
-        messages.sort_by_key(|pm| pm.project_key);
-
-        let actual = messages
-            .into_iter()
-            .map(|pm| (pm.project_key, pm.data, pm.source))
-            .collect::<Vec<_>>();
-
-        assert_debug_snapshot!(actual, @r###"
+        assert_eq!(pm.source, BucketSource::Internal);
+        assert_debug_snapshot!(pm.data, @r###"
         [
             (
                 ProjectKey("11111111111111111111111111111111"),
@@ -3849,7 +3983,6 @@ mod tests {
                         },
                     ],
                 ),
-                Internal,
             ),
             (
                 ProjectKey("22222222222222222222222222222222"),
@@ -3875,9 +4008,10 @@ mod tests {
                         },
                     ],
                 ),
-                Internal,
             ),
         ]
         "###);
+
+        assert!(project_cache_rx.try_recv().is_err());
     }
 }

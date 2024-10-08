@@ -7,6 +7,8 @@ import uuid
 from datetime import UTC, datetime, timedelta, timezone
 from time import sleep
 
+from sentry_relay.consts import DataCategory
+
 from .asserts import time_within_delta
 from .consts import (
     TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
@@ -860,6 +862,7 @@ def test_processing_quota_transaction_indexing(
     relay_with_processing,
     metrics_consumer,
     transactions_consumer,
+    outcomes_consumer,
     extraction_version,
 ):
     relay = relay_with_processing(
@@ -876,6 +879,7 @@ def test_processing_quota_transaction_indexing(
 
     metrics_consumer = metrics_consumer()
     tx_consumer = transactions_consumer()
+    outcomes_consumer = outcomes_consumer()
 
     project_id = 42
     projectconfig = mini_sentry.add_full_project_config(project_id)
@@ -907,20 +911,29 @@ def test_processing_quota_transaction_indexing(
     relay.send_event(project_id, make_transaction({"message": "1st tx"}))
     event, _ = tx_consumer.get_event()
     assert event["logentry"]["formatted"] == "1st tx"
-    buckets = list(metrics_consumer.get_metrics())
-    assert len(buckets) > 0
+    assert len(list(metrics_consumer.get_metrics())) > 0
 
     relay.send_event(project_id, make_transaction({"message": "2nd tx"}))
-    tx_consumer.assert_empty()
-    buckets = list(metrics_consumer.get_metrics())
-    assert len(buckets) > 0
+    assert len(list(metrics_consumer.get_metrics())) > 0
+    outcomes_consumer.assert_rate_limited(
+        "get_lost", categories=[DataCategory.TRANSACTION_INDEXED], ignore_other=True
+    )
 
     relay.send_event(project_id, make_transaction({"message": "3rd tx"}))
-    tx_consumer.assert_empty()
+    outcomes_consumer.assert_rate_limited(
+        "get_lost",
+        categories=[DataCategory.TRANSACTION, DataCategory.TRANSACTION_INDEXED],
+        ignore_other=True,
+    )
 
     with pytest.raises(HTTPError) as exc_info:
         relay.send_event(project_id, make_transaction({"message": "4nd tx"}))
     assert exc_info.value.response.status_code == 429, "Expected a 429 status code"
+    outcomes_consumer.assert_rate_limited(
+        "get_lost",
+        categories=[DataCategory.TRANSACTION, DataCategory.TRANSACTION_INDEXED],
+        ignore_other=True,
+    )
 
 
 def test_events_buffered_before_auth(relay, mini_sentry):
