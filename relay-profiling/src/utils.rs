@@ -50,7 +50,7 @@ pub fn string_is_null_or_empty(s: &Option<String>) -> bool {
     s.as_deref().map_or(true, |s| s.is_empty())
 }
 
-pub fn default_client_sdk(platform: &str) -> ClientSdk {
+pub fn default_client_sdk(platform: &str) -> Option<ClientSdk> {
     let sdk_name = match platform {
         "android" => "sentry.java.android",
         "cocoa" => "sentry.cocoa",
@@ -62,10 +62,10 @@ pub fn default_client_sdk(platform: &str) -> ClientSdk {
         "python" => "sentry.python",
         "ruby" => "sentry.ruby",
         "rust" => "sentry.rust",
-        _ => "unknown",
+        _ => return None,
     };
-    ClientSdk {
+    Some(ClientSdk {
         name: sdk_name.into(),
-        version: "unknown".into(),
-    }
+        version: "".into(),
+    })
 }

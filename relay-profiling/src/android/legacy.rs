@@ -249,7 +249,7 @@ pub fn parse_android_profile(
             name: name.to_owned(),
             version: version.to_owned(),
         }),
-        _ => Some(default_client_sdk(profile.metadata.platform.as_str())),
+        _ => default_client_sdk(profile.metadata.platform.as_str()),
     };
     profile.metadata.transaction_metadata = transaction_metadata;
     profile.metadata.transaction_tags = transaction_tags;

@@ -72,7 +72,7 @@ impl ProfileChunk {
         let platform = self.metadata.platform.as_str();
 
         if self.metadata.client_sdk.is_none() {
-            self.metadata.client_sdk = Some(default_client_sdk(platform));
+            self.metadata.client_sdk = default_client_sdk(platform);
         }
 
         self.profile.normalize(platform)

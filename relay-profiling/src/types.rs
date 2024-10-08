@@ -12,5 +12,7 @@ pub struct DebugMeta {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ClientSdk {
     pub name: String,
+
+    #[serde(default, skip_serializing_if = "String::is_empty")]
     pub version: String,
 }
