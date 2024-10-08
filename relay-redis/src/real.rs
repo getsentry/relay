@@ -121,7 +121,6 @@ impl ConnectionLike for ConnectionInner<'_> {
         })
         .into_iter();
 
-        let error_message = "sending cmds tos the secondary Redis instance failed";
         let Some(Ok(primary_result)) = results.next() else {
             relay_log::error!("sending cmds to primary Redis instance failed");
             return Err(io::Error::new(
