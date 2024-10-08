@@ -102,7 +102,7 @@ def assert_not_enough_memory(relay, mini_sentry, expected_comparison):
     assert False, f"Not all errors represented: {errors}"
 
 
-def test_readiness_not_enough_memory_bytes(mini_sentry, relay, i):
+def test_readiness_not_enough_memory_bytes(mini_sentry, relay):
     relay = relay(
         mini_sentry,
         {"relay": {"mode": "proxy"}, "health": {"max_memory_bytes": 42}},
@@ -112,7 +112,7 @@ def test_readiness_not_enough_memory_bytes(mini_sentry, relay, i):
     assert_not_enough_memory(relay, mini_sentry, ">= 42")
 
 
-def test_readiness_not_enough_memory_percent(mini_sentry, relay, i):
+def test_readiness_not_enough_memory_percent(mini_sentry, relay):
     relay = relay(
         mini_sentry,
         {"relay": {"mode": "proxy"}, "health": {"max_memory_percent": 0.01}},
