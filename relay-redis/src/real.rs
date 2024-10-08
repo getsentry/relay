@@ -25,9 +25,13 @@ pub enum RedisError {
     Redis(#[source] redis::RedisError),
 }
 
-struct Connections<'a> {
-    primary: &'a mut (dyn ConnectionLike + Send),
-    secondaries: Vec<&'a mut (dyn ConnectionLike + Send)>,
+fn log_secondary<T>(result: redis::RedisResult<T>) {
+    if let Err(error) = result {
+        relay_log::error!(
+            error = &error as &dyn Error,
+            "sending cmds to the secondary Redis instance failed",
+        );
+    }
 }
 
 enum ConnectionInner<'a> {
@@ -39,56 +43,21 @@ enum ConnectionInner<'a> {
     Single(&'a mut redis::Connection),
 }
 
-impl ConnectionInner<'_> {
-    fn get_connections(&mut self) -> Connections<'_> {
-        match self {
-            ConnectionInner::Cluster(con) => Connections {
-                primary: con as &mut (dyn ConnectionLike + Send),
-                secondaries: vec![],
-            },
-            ConnectionInner::MultiWrite {
-                primary: primary_connection,
-                secondaries: secondary_connections,
-            } => {
-                let mut connections = primary_connection.get_connections();
-
-                for secondary_connection in secondary_connections.iter_mut() {
-                    let secondary_connections = secondary_connection.get_connections();
-                    connections.secondaries.push(secondary_connections.primary);
-                    connections
-                        .secondaries
-                        .extend(secondary_connections.secondaries);
-                }
-
-                connections
-            }
-            ConnectionInner::Single(con) => Connections {
-                primary: con as &mut (dyn ConnectionLike + Send),
-                secondaries: vec![],
-            },
-        }
-    }
-}
-
 impl ConnectionLike for ConnectionInner<'_> {
     fn req_packed_command(&mut self, cmd: &[u8]) -> redis::RedisResult<redis::Value> {
-        let primary_result = thread::scope(|s| {
-            let connections = self.get_connections();
-            for connection in connections.secondaries {
-                s.spawn(move || {
-                    if let Err(error) = connection.req_packed_command(cmd) {
-                        relay_log::error!(
-                            error = &error as &dyn Error,
-                            "sending cmds to the secondary Redis instance failed",
-                        );
-                    }
-                });
-            }
-
-            connections.primary.req_packed_command(cmd)
-        });
-
-        primary_result
+        match self {
+            ConnectionInner::Cluster(con) => con.req_packed_command(cmd),
+            ConnectionInner::Single(con) => con.req_packed_command(cmd),
+            ConnectionInner::MultiWrite {
+                primary,
+                secondaries,
+            } => thread::scope(|s| {
+                for connection in secondaries {
+                    s.spawn(move || log_secondary(connection.req_packed_command(cmd)));
+                }
+                primary.req_packed_command(cmd)
+            }),
+        }
     }
 
     fn req_packed_commands(
@@ -97,23 +66,21 @@ impl ConnectionLike for ConnectionInner<'_> {
         offset: usize,
         count: usize,
     ) -> redis::RedisResult<Vec<redis::Value>> {
-        let primary_result = thread::scope(|s| {
-            let connections = self.get_connections();
-            for connection in connections.secondaries {
-                s.spawn(move || {
-                    if let Err(error) = connection.req_packed_commands(cmd, offset, count) {
-                        relay_log::error!(
-                            error = &error as &dyn Error,
-                            "sending cmds to the secondary Redis instance failed",
-                        );
-                    }
-                });
-            }
-
-            connections.primary.req_packed_commands(cmd, offset, count)
-        });
-
-        primary_result
+        match self {
+            ConnectionInner::Cluster(con) => con.req_packed_commands(cmd, offset, count),
+            ConnectionInner::Single(con) => con.req_packed_commands(cmd, offset, count),
+            ConnectionInner::MultiWrite {
+                primary,
+                secondaries,
+            } => thread::scope(|s| {
+                for connection in secondaries {
+                    s.spawn(move || {
+                        log_secondary(connection.req_packed_commands(cmd, offset, count))
+                    });
+                }
+                primary.req_packed_commands(cmd, offset, count)
+            }),
+        }
     }
 
     fn get_db(&self) -> i64 {
