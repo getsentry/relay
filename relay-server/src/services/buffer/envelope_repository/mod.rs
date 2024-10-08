@@ -5,7 +5,7 @@ use crate::{Envelope, MemoryChecker};
 use hashbrown::HashSet;
 use relay_config::Config;
 
-pub mod memory;
+mod memory;
 pub mod sqlite;
 
 /// State of the initialization of the [`EnvelopeRepository`].
@@ -53,7 +53,7 @@ impl EnvelopeRepository {
     /// Initializes the [`EnvelopeRepository`] and returns an [`InitializationState`].
     pub async fn initialize(&mut self) -> InitializationState {
         match self {
-            EnvelopeRepository::Memory(repository) => repository.initialize().await,
+            EnvelopeRepository::Memory(_) => InitializationState::empty(),
             EnvelopeRepository::SQLite(repository) => repository.initialize().await,
         }
     }

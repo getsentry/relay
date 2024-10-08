@@ -18,7 +18,7 @@ pub enum SqliteEnvelopeRepositoryError {
 #[derive(Debug, Default)]
 struct EnvelopeStack {
     #[allow(clippy::vec_box)]
-    envelopes: Vec<Box<Envelope>>,
+    cached_envelopes: Vec<Box<Envelope>>,
     check_disk: bool,
 }
 
@@ -95,7 +95,7 @@ impl SqliteEnvelopeRepository {
         self.envelope_stacks
             .entry(project_key_pair)
             .or_default()
-            .envelopes
+            .cached_envelopes
             .push(envelope);
 
         self.buffered_envelopes_size += 1;
@@ -111,7 +111,13 @@ impl SqliteEnvelopeRepository {
         &mut self,
         project_key_pair: ProjectKeyPair,
     ) -> Result<Option<&Envelope>, SqliteEnvelopeRepositoryError> {
-        if self.memory_empty(project_key_pair) && self.should_check_disk(project_key_pair) {
+        // If we have no data for the project key pair, we can safely assume we don't have envelopes
+        // for this pair anywhere.
+        let Some(envelope_stack) = self.envelope_stacks.get(&project_key_pair) else {
+            return Ok(None);
+        };
+
+        if envelope_stack.cached_envelopes.is_empty() && envelope_stack.check_disk {
             let envelopes = self.unspool_from_disk(project_key_pair, 1).await?;
             // If we have no envelopes in the buffer and no on disk, we can be safe removing the entry
             // in the buffer.
@@ -124,14 +130,14 @@ impl SqliteEnvelopeRepository {
             self.envelope_stacks
                 .entry(project_key_pair)
                 .or_default()
-                .envelopes
+                .cached_envelopes
                 .extend(envelopes);
         }
 
         Ok(self
             .envelope_stacks
             .get(&project_key_pair)
-            .and_then(|e| e.envelopes.last().map(Box::as_ref)))
+            .and_then(|e| e.cached_envelopes.last().map(Box::as_ref)))
     }
 
     /// Pops and returns the next envelope for the given project key pair.
@@ -144,7 +150,7 @@ impl SqliteEnvelopeRepository {
         let envelope = self
             .envelope_stacks
             .get_mut(&project_key_pair)
-            .and_then(|envelopes| envelopes.envelopes.pop());
+            .and_then(|envelopes| envelopes.cached_envelopes.pop());
         if let Some(envelope) = envelope {
             // We only decrement the counter when removing data from the in memory buffer.
             self.buffered_envelopes_size -= 1;
@@ -178,7 +184,7 @@ impl SqliteEnvelopeRepository {
 
             for (_, envelope_stack) in self.envelope_stacks.iter_mut() {
                 envelope_stack.check_disk = true;
-                for envelope in envelope_stack.envelopes.drain(..) {
+                for envelope in envelope_stack.cached_envelopes.drain(..) {
                     if envelopes.len() >= self.disk_batch_size {
                         Self::flush_many(&mut self.envelope_store, envelopes).await;
                         envelopes = Vec::with_capacity(self.disk_batch_size);
@@ -227,36 +233,21 @@ impl SqliteEnvelopeRepository {
         }
     }
 
-    /// Returns `true` if there are no [`Envelope`]s for the given [`ProjectKeyPair`], false
-    /// otherwise.
-    fn memory_empty(&self, project_key_pair: ProjectKeyPair) -> bool {
-        self.envelope_stacks
-            .get(&project_key_pair)
-            .map_or(true, |e| e.envelopes.is_empty())
-    }
-
     /// Determines if the number of buffered envelopes is above the spool threshold.
     fn above_spool_threshold(&self) -> bool {
         self.buffered_envelopes_size >= self.disk_batch_size as u64
     }
 
-    /// Spools envelopes to disk, evenly distributing across all project key pairs.
-    ///
-    /// This method attempts to spool `self.disk_batch_size` envelopes to disk, taking an equal
-    /// number from each group of envelopes (represented by different project key pairs) in the
-    /// `self.envelopes` HashMap.
-    ///
-    /// This approach ensures a balanced spooling across all project key pairs, preventing any
-    /// single group from monopolizing the disk storage.
+    /// Spools all buffered envelopes to disk.
     async fn spool_to_disk(&mut self) -> Result<(), SqliteEnvelopeRepositoryError> {
         let mut envelopes_to_spool = Vec::with_capacity(self.disk_batch_size);
 
         for envelope_stack in self.envelope_stacks.values_mut() {
-            envelopes_to_spool.append(&mut envelope_stack.envelopes);
+            envelopes_to_spool.append(&mut envelope_stack.cached_envelopes);
             envelope_stack.check_disk = true;
             relay_statsd::metric!(
                 histogram(RelayHistograms::BufferInMemoryEnvelopesPerKeyPair) =
-                    envelope_stack.envelopes.len() as u64
+                    envelope_stack.cached_envelopes.len() as u64
             );
         }
         if envelopes_to_spool.is_empty() {

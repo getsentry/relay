@@ -141,13 +141,13 @@ impl EnvelopeBuffer {
                 return Ok(None);
             };
 
-            let Some(envelope) = self.envelope_repository.pop(project_key_pair).await? else {
-                // If we have no data from the envelope repository, we remove this project key pair
-                // from the priority queue to free some memory up.
-                relay_statsd::metric!(counter(RelayCounters::BufferEnvelopeStacksPopped) += 1);
-                self.remove(project_key_pair);
-                return Ok(None);
-            };
+            // There must be an envelope when popping, since we assume that `peek` is called before
+            // the call to `pop` and no concurrent access is performed in the meanwhile.
+            let envelope = self
+                .envelope_repository
+                .pop(project_key_pair)
+                .await?
+                .expect("pop returned no envelope");
 
             let next_received_at = self
                 .envelope_repository
@@ -156,6 +156,7 @@ impl EnvelopeBuffer {
                 .map(|next_envelope| next_envelope.meta().start_time().into());
             match next_received_at {
                 None => {
+                    relay_statsd::metric!(counter(RelayCounters::BufferEnvelopeStacksPopped) += 1);
                     self.remove(project_key_pair);
                 }
                 Some(next_received_at) => {

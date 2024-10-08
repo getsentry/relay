@@ -1,5 +1,4 @@
 use crate::services::buffer::common::ProjectKeyPair;
-use crate::services::buffer::envelope_repository::InitializationState;
 use crate::{Envelope, MemoryChecker};
 use hashbrown::HashMap;
 use std::convert::Infallible;
@@ -19,11 +18,6 @@ impl MemoryEnvelopeRepository {
             envelopes: HashMap::new(),
             memory_checker,
         }
-    }
-
-    /// Initializes the repository, returning an empty initialization state.
-    pub async fn initialize(&self) -> InitializationState {
-        InitializationState::empty()
     }
 
     /// Pushes an envelope to the repository for the given project key pair.
