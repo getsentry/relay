@@ -1,10 +1,11 @@
-use r2d2::{Builder, ManageConnection, Pool, PooledConnection};
-pub use redis;
-use redis::ConnectionLike;
 use std::error::Error;
 use std::io::ErrorKind;
 use std::time::Duration;
 use std::{fmt, io, thread};
+
+use r2d2::{Builder, ManageConnection, Pool, PooledConnection};
+pub use redis;
+use redis::ConnectionLike;
 use thiserror::Error;
 
 use crate::config::RedisConfigOptions;
@@ -34,7 +35,7 @@ enum ConnectionInner<'a> {
     Single(&'a mut redis::Connection),
 }
 
-impl<'a> ConnectionInner<'a> {
+impl ConnectionInner<'_> {
     fn get_connections(&mut self) -> Vec<&mut (dyn ConnectionLike + Send)> {
         match self {
             ConnectionInner::Cluster(con) => vec![con as &mut (dyn ConnectionLike + Send)],
