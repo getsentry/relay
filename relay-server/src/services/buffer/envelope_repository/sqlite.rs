@@ -176,28 +176,16 @@ impl SqliteEnvelopeRepository {
     }
 
     /// Flushes all remaining envelopes to disk.
-    ///
-    /// This method is typically called during shutdown to ensure all envelopes are persisted.
     pub async fn flush(&mut self) -> bool {
         relay_statsd::metric!(timer(RelayTimers::BufferFlush), {
-            let mut envelopes = Vec::with_capacity(self.disk_batch_size);
-
-            for (_, envelope_stack) in self.envelope_stacks.iter_mut() {
-                envelope_stack.check_disk = true;
-                for envelope in envelope_stack.cached_envelopes.drain(..) {
-                    if envelopes.len() >= self.disk_batch_size {
-                        Self::flush_many(&mut self.envelope_store, envelopes).await;
-                        envelopes = Vec::with_capacity(self.disk_batch_size);
-                    }
-
-                    envelopes.push(envelope);
+            for batch in self.get_envelope_batches() {
+                if let Err(error) = self.insert_envelope_batch(batch).await {
+                    relay_log::error!(
+                        error = &error as &dyn Error,
+                        "failed to flush envelopes, some might be lost",
+                    );
                 }
             }
-
-            if !envelopes.is_empty() {
-                Self::flush_many(&mut self.envelope_store, envelopes).await;
-            }
-
             self.buffered_envelopes_size = 0;
         });
 
@@ -240,37 +228,9 @@ impl SqliteEnvelopeRepository {
 
     /// Spools all buffered envelopes to disk.
     async fn spool_to_disk(&mut self) -> Result<(), SqliteEnvelopeRepositoryError> {
-        let mut envelopes_to_spool = Vec::with_capacity(self.disk_batch_size);
-
-        for envelope_stack in self.envelope_stacks.values_mut() {
-            envelopes_to_spool.append(&mut envelope_stack.cached_envelopes);
-            envelope_stack.check_disk = true;
-            relay_statsd::metric!(
-                histogram(RelayHistograms::BufferInMemoryEnvelopesPerKeyPair) =
-                    envelope_stack.cached_envelopes.len() as u64
-            );
+        for batch in self.get_envelope_batches() {
+            self.insert_envelope_batch(batch).await?;
         }
-        if envelopes_to_spool.is_empty() {
-            return Ok(());
-        }
-
-        self.buffered_envelopes_size -= envelopes_to_spool.len() as u64;
-
-        relay_statsd::metric!(
-            counter(RelayCounters::BufferSpooledEnvelopes) += envelopes_to_spool.len() as u64
-        );
-
-        // Convert envelopes into a format which simplifies insertion in the store.
-        let envelopes = envelopes_to_spool
-            .iter()
-            .filter_map(|e| e.as_ref().try_into().ok());
-        relay_statsd::metric!(timer(RelayTimers::BufferSpool), {
-            self.envelope_store
-                .insert_many(envelopes)
-                .await
-                .map_err(SqliteEnvelopeRepositoryError::EnvelopeStoreError)?;
-        });
-
         Ok(())
     }
 
@@ -322,24 +282,51 @@ impl SqliteEnvelopeRepository {
         }
     }
 
-    /// Flushes multiple envelopes to the envelope store.
-    ///
-    /// If an error occurs during flushing, it logs the error but continues execution.
+    /// Returns batches of envelopes of size `self.disk_batch_size`.
     #[allow(clippy::vec_box)]
-    async fn flush_many(envelope_store: &mut SqliteEnvelopeStore, envelopes: Vec<Box<Envelope>>) {
-        if let Err(error) = envelope_store
-            .insert_many(
-                envelopes
-                    .into_iter()
-                    .filter_map(|e| e.as_ref().try_into().ok()),
-            )
-            .await
-        {
-            relay_log::error!(
-                error = &error as &dyn Error,
-                "failed to flush envelopes, some might be lost",
+    fn get_envelope_batches(&mut self) -> Vec<Vec<Box<Envelope>>> {
+        let mut all_envelopes = Vec::new();
+
+        for envelope_stack in self.envelope_stacks.values_mut() {
+            envelope_stack.check_disk = true;
+            all_envelopes.append(&mut envelope_stack.cached_envelopes);
+            relay_statsd::metric!(
+                histogram(RelayHistograms::BufferInMemoryEnvelopesPerKeyPair) =
+                    envelope_stack.cached_envelopes.len() as u64
             );
         }
+
+        all_envelopes
+            .chunks(self.disk_batch_size)
+            .map(|chunk| chunk.to_vec())
+            .collect()
+    }
+
+    /// Inserts a batch of envelopes into the envelope store.
+    #[allow(clippy::vec_box)]
+    async fn insert_envelope_batch(
+        &mut self,
+        batch: Vec<Box<Envelope>>,
+    ) -> Result<(), SqliteEnvelopeRepositoryError> {
+        if batch.is_empty() {
+            return Ok(());
+        }
+
+        self.buffered_envelopes_size -= batch.len() as u64;
+
+        relay_statsd::metric!(counter(RelayCounters::BufferSpooledEnvelopes) += batch.len() as u64);
+
+        // Convert envelopes into a format which simplifies insertion in the store.
+        let envelopes = batch.iter().filter_map(|e| e.as_ref().try_into().ok());
+
+        relay_statsd::metric!(timer(RelayTimers::BufferSpool), {
+            self.envelope_store
+                .insert_many(envelopes)
+                .await
+                .map_err(SqliteEnvelopeRepositoryError::EnvelopeStoreError)?;
+        });
+
+        Ok(())
     }
 }
 
