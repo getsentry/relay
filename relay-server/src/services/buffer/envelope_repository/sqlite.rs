@@ -113,8 +113,10 @@ impl SqliteEnvelopeRepository {
     ) -> Result<Option<&Envelope>, SqliteEnvelopeRepositoryError> {
         if self.memory_empty(project_key_pair) && self.should_check_disk(project_key_pair) {
             let envelopes = self.unspool_from_disk(project_key_pair, 1).await?;
-            debug_assert!(envelopes.is_empty());
+            // If we have no envelopes in the buffer and no on disk, we can be safe removing the entry
+            // in the buffer.
             if envelopes.is_empty() {
+                self.envelope_stacks.remove(&project_key_pair);
                 return Ok(None);
             }
 
