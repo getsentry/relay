@@ -27,7 +27,7 @@ pub struct EnvelopeBuffer {
     priority_queue: PriorityQueue<ProjectKeyPair, Priority>,
     /// A lookup table to find all project key pairs for a given project.
     project_to_pairs: HashMap<ProjectKey, BTreeSet<ProjectKeyPair>>,
-    /// Provider of envelopes that can provide envelopes via different implementations.
+    /// Repository of envelopes that can provide envelopes via different implementations.
     envelope_repository: EnvelopeRepository,
     /// The total count of envelopes that the buffer is working with.
     ///
@@ -88,8 +88,8 @@ impl EnvelopeBuffer {
     pub async fn initialize(&mut self) {
         relay_statsd::metric!(timer(RelayTimers::BufferInitialization), {
             let initialization_state = match &mut self.envelope_repository {
-                EnvelopeRepository::Memory(provider) => provider.initialize().await,
-                EnvelopeRepository::SQLite(provider) => provider.initialize().await,
+                EnvelopeRepository::Memory(repository) => repository.initialize().await,
+                EnvelopeRepository::SQLite(repository) => repository.initialize().await,
             };
             self.load_project_key_pairs(initialization_state.project_key_pairs)
                 .await;
@@ -244,8 +244,8 @@ impl EnvelopeBuffer {
     /// otherwise.
     pub fn has_capacity(&self) -> bool {
         match &self.envelope_repository {
-            EnvelopeRepository::Memory(provider) => provider.has_store_capacity(),
-            EnvelopeRepository::SQLite(provider) => provider.has_store_capacity(),
+            EnvelopeRepository::Memory(repository) => repository.has_store_capacity(),
+            EnvelopeRepository::SQLite(repository) => repository.has_store_capacity(),
         }
     }
 
@@ -256,8 +256,8 @@ impl EnvelopeBuffer {
     /// [`EnvelopeBuffer`] after flushing is performed.
     pub async fn flush(&mut self) -> bool {
         match &mut self.envelope_repository {
-            EnvelopeRepository::Memory(provider) => provider.flush().await,
-            EnvelopeRepository::SQLite(provider) => provider.flush().await,
+            EnvelopeRepository::Memory(repository) => repository.flush().await,
+            EnvelopeRepository::SQLite(repository) => repository.flush().await,
         }
     }
 
@@ -319,7 +319,7 @@ impl EnvelopeBuffer {
         let total_count = timeout(Duration::from_secs(1), async {
             match &self.envelope_repository {
                 EnvelopeRepository::Memory(_) => 0,
-                EnvelopeRepository::SQLite(provider) => provider.store_total_count().await,
+                EnvelopeRepository::SQLite(repository) => repository.store_total_count().await,
             }
         })
         .await;

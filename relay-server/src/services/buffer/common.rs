@@ -12,7 +12,7 @@ pub enum EnvelopeBufferError {
     SqliteStore(#[from] SqliteEnvelopeStoreError),
 
     #[error("sqlite")]
-    SqliteProvider(#[from] SqliteEnvelopeRepositoryError),
+    SqliteRepository(#[from] SqliteEnvelopeRepositoryError),
 
     #[error("failed to push envelope to the buffer")]
     PushFailed,
