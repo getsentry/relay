@@ -638,24 +638,59 @@ impl ProcessingExtractedMetrics {
     /// This is used to apply rate limits which have been enforced on sampled items of an envelope
     /// to also consistently apply to the metrics extracted from these items.
     #[cfg(feature = "processing")]
-    fn apply_enforcement(&mut self, enforcement: &Enforcement) {
-        for (namespace, limit) in [
-            (MetricNamespace::Transactions, &enforcement.event),
-            (MetricNamespace::Spans, &enforcement.spans),
+    fn apply_enforcement(&mut self, enforcement: &Enforcement, enforced_consistently: bool) {
+        // Metric namespaces which need to be dropped.
+        let mut drop_namespaces: SmallVec<[_; 2]> = smallvec![];
+        // Metrics belonging to this metric namespace need to have the `extracted_from_indexed`
+        // flag reset to `false`.
+        let mut reset_extracted_from_indexed: SmallVec<[_; 2]> = smallvec![];
+
+        for (namespace, limit, indexed) in [
+            (
+                MetricNamespace::Transactions,
+                &enforcement.event,
+                &enforcement.event_indexed,
+            ),
+            (
+                MetricNamespace::Spans,
+                &enforcement.spans,
+                &enforcement.spans_indexed,
+            ),
         ] {
             if limit.is_active() {
-                relay_log::trace!(
-                    "dropping {namespace} metrics, due to enforced limit on envelope"
-                );
-                self.retain(|bucket| bucket.name.try_namespace() != Some(namespace));
+                drop_namespaces.push(namespace);
+            } else if indexed.is_active() && !enforced_consistently {
+                // If the enforcment was not computed by consistently checking the limits,
+                // the quota for the metrics has not yet been incremented.
+                // In this case we have a dropped indexed payload but a metric which still needs to
+                // be accounted for, make sure the metric will still be rate limited.
+                reset_extracted_from_indexed.push(namespace);
             }
+        }
+
+        if !drop_namespaces.is_empty() || !reset_extracted_from_indexed.is_empty() {
+            self.retain_mut(|bucket| {
+                let Some(namespace) = bucket.name.try_namespace() else {
+                    return true;
+                };
+
+                if drop_namespaces.contains(&namespace) {
+                    return false;
+                }
+
+                if reset_extracted_from_indexed.contains(&namespace) {
+                    bucket.metadata.extracted_from_indexed = false;
+                }
+
+                true
+            });
         }
     }
 
     #[cfg(feature = "processing")]
-    fn retain(&mut self, mut f: impl FnMut(&Bucket) -> bool) {
-        self.metrics.project_metrics.retain(&mut f);
-        self.metrics.sampling_metrics.retain(&mut f);
+    fn retain_mut(&mut self, mut f: impl FnMut(&mut Bucket) -> bool) {
+        self.metrics.project_metrics.retain_mut(&mut f);
+        self.metrics.sampling_metrics.retain_mut(&mut f);
     }
 }
 
@@ -2942,7 +2977,9 @@ impl<'a> RateLimiter<'a> {
         // Use the same rate limits as used for the envelope on the metrics.
         // Those rate limits should not be checked for expiry or similar to ensure a consistent
         // limiting of envelope items and metrics.
-        state.extracted_metrics.apply_enforcement(&enforcement);
+        state
+            .extracted_metrics
+            .apply_enforcement(&enforcement, matches!(self, Self::Consistent(_)));
         enforcement.apply_with_outcomes(&mut state.managed_envelope);
 
         if event_active {
