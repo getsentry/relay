@@ -2,6 +2,7 @@
 Test the health check endpoints
 """
 
+import queue
 import time
 import tempfile
 import os
@@ -81,15 +82,18 @@ def test_readiness_proxy(mini_sentry, relay):
     assert response.status_code == 200
 
 
-def assert_not_enough_memory(relay, mini_sentry):
+def assert_not_enough_memory(relay, mini_sentry, expected_comparison):
     response = wait_get(relay, "/api/relay/healthcheck/ready/")
     assert response.status_code == 503
     errors = ""
     for _ in range(10):
-        errors += f"{mini_sentry.test_failures.get(timeout=1)}\n"
+        try:
+            errors += f"{mini_sentry.test_failures.get(timeout=1)}\n"
+        except queue.Empty:
+            break
         if (
             "Not enough memory" in errors
-            and ">= 42" in errors
+            and expected_comparison in errors
             and "Health check probe 'system memory'" in errors
             and "Health check probe 'spool health'" in errors
         ):
@@ -106,7 +110,7 @@ def test_readiness_not_enough_memory_bytes(mini_sentry, relay, i):
         wait_health_check=False,
     )
 
-    assert_not_enough_memory(relay, mini_sentry)
+    assert_not_enough_memory(relay, mini_sentry, ">= 42")
 
 
 @pytest.mark.parametrize("i", range(10))  # remove before merge
@@ -117,7 +121,7 @@ def test_readiness_not_enough_memory_percent(mini_sentry, relay, i):
         wait_health_check=False,
     )
 
-    assert_not_enough_memory(relay, mini_sentry)
+    assert_not_enough_memory(relay, mini_sentry, ">= 1.00%")
 
 
 def test_readiness_depends_on_aggregator_being_full(mini_sentry, relay):
