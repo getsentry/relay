@@ -2193,6 +2193,14 @@ impl EnvelopeProcessorService {
             sent_at,
         } = message;
 
+        /// Custom struct to optimize deserialization.
+        ///
+        /// Equivalent to deserializing to `HashMap<ProjectKey, Vec<Bucket>>` and then transforming
+        /// to `SmallVec<[(ProjectKey, MetricData); _]>` in a separate step.
+        ///
+        /// But implemented with a custom deserializer to rminimize iterations over the parsed data
+        /// (to compute feature weights) as well as minimizing allocations for contained items by
+        /// deserializing directly into the proper smallvec.
         struct Buckets {
             data: SmallVec<[(ProjectKey, MetricData); 1]>,
             feature_weights: FeatureWeights,
