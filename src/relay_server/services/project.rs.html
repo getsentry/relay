@@ -834,25 +834,6 @@
 <a href="#834" id="834">834</a>
 <a href="#835" id="835">835</a>
 <a href="#836" id="836">836</a>
-<a href="#837" id="837">837</a>
-<a href="#838" id="838">838</a>
-<a href="#839" id="839">839</a>
-<a href="#840" id="840">840</a>
-<a href="#841" id="841">841</a>
-<a href="#842" id="842">842</a>
-<a href="#843" id="843">843</a>
-<a href="#844" id="844">844</a>
-<a href="#845" id="845">845</a>
-<a href="#846" id="846">846</a>
-<a href="#847" id="847">847</a>
-<a href="#848" id="848">848</a>
-<a href="#849" id="849">849</a>
-<a href="#850" id="850">850</a>
-<a href="#851" id="851">851</a>
-<a href="#852" id="852">852</a>
-<a href="#853" id="853">853</a>
-<a href="#854" id="854">854</a>
-<a href="#855" id="855">855</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
@@ -870,11 +851,9 @@
 <span class="kw">use </span><span class="kw">crate</span>::envelope::ItemType;
 <span class="kw">use </span><span class="kw">crate</span>::services::metrics::{Aggregator, MergeBuckets};
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome};
-<span class="kw">use </span><span class="kw">crate</span>::services::processor::{EncodeMetricMeta, EnvelopeProcessor, ProcessProjectMetrics};
+<span class="kw">use </span><span class="kw">crate</span>::services::processor::{EncodeMetricMeta, EnvelopeProcessor};
 <span class="kw">use </span><span class="kw">crate</span>::services::project::state::ExpiryState;
-<span class="kw">use </span><span class="kw">crate</span>::services::project_cache::{
-    CheckedEnvelope, ProcessMetrics, ProjectCache, RequestUpdate,
-};
+<span class="kw">use </span><span class="kw">crate</span>::services::project_cache::{CheckedEnvelope, ProjectCache, RequestUpdate};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{Enforcement, SeqCount};
 
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
@@ -1019,23 +998,6 @@
         <span class="self">self</span>.last_updated_at = Instant::now();
     }
 
-    <span class="doccomment">/// Collects internal project state and assembles a [`ProcessProjectMetrics`] message.
-    </span><span class="kw">pub fn </span>process_metrics(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: ProcessMetrics) -&gt; ProcessProjectMetrics {
-        <span class="kw">let </span>project_state = <span class="self">self</span>.current_state();
-        <span class="kw">let </span>rate_limits = <span class="self">self</span>.rate_limits.current_limits().clone();
-
-        ProcessProjectMetrics {
-            project_state,
-            rate_limits,
-
-            data: message.data,
-            project_key: message.project_key,
-            source: message.source,
-            start_time: message.start_time.into(),
-            sent_at: message.sent_at,
-        }
-    }
-
     <span class="doccomment">/// Returns a list of buckets back to the aggregator.
     ///
     /// This is used to return flushed buckets back to the aggregator if the project has not been
@@ -1147,7 +1109,7 @@
     /// needs to be upgraded with the `no_cache` flag to ensure a more recent update.
     </span><span class="kw">fn </span>fetch_state(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        project_cache: Addr&lt;ProjectCache&gt;,
+        project_cache: <span class="kw-2">&amp;</span>Addr&lt;ProjectCache&gt;,
         no_cache: bool,
     ) -&gt; <span class="kw-2">&amp;mut </span>StateChannel {
         <span class="comment">// If there is a running request and we do not need to upgrade it to no_cache, or if the
@@ -1177,7 +1139,7 @@
 
     <span class="kw">fn </span>get_or_fetch_state(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        project_cache: Addr&lt;ProjectCache&gt;,
+        project_cache: <span class="kw-2">&amp;</span>Addr&lt;ProjectCache&gt;,
         <span class="kw-2">mut </span>no_cache: bool,
     ) -&gt; GetOrFetch&lt;<span class="lifetime">'_</span>&gt; {
         <span class="comment">// count number of times we are looking for the project state
@@ -1229,7 +1191,7 @@
     /// To wait for a valid state instead, use [`get_state`](Self::get_state).
     </span><span class="kw">pub fn </span>get_cached_state(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        project_cache: Addr&lt;ProjectCache&gt;,
+        project_cache: <span class="kw-2">&amp;</span>Addr&lt;ProjectCache&gt;,
         no_cache: bool,
     ) -&gt; ProjectState {
         <span class="kw">match </span><span class="self">self</span>.get_or_fetch_state(project_cache, no_cache) {
@@ -1248,7 +1210,7 @@
     /// are in the [grace period](Config::project_grace_period).
     </span><span class="kw">pub fn </span>get_state(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        project_cache: Addr&lt;ProjectCache&gt;,
+        project_cache: <span class="kw-2">&amp;</span>Addr&lt;ProjectCache&gt;,
         sender: ProjectSender,
         no_cache: bool,
     ) {
@@ -1273,7 +1235,7 @@
     /// point. Therefore, this method is useful to trigger an update early if it is already clear
     /// that the project state will be needed soon. To retrieve an updated state, use
     /// [`Project::get_state`] instead.
-    </span><span class="kw">pub fn </span>prefetch(<span class="kw-2">&amp;mut </span><span class="self">self</span>, project_cache: Addr&lt;ProjectCache&gt;, no_cache: bool) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>prefetch(<span class="kw-2">&amp;mut </span><span class="self">self</span>, project_cache: <span class="kw-2">&amp;</span>Addr&lt;ProjectCache&gt;, no_cache: bool) -&gt; <span class="kw-2">&amp;mut </span><span class="self">Self </span>{
         <span class="self">self</span>.get_cached_state(project_cache, no_cache);
         <span class="self">self
     </span>}
@@ -1599,7 +1561,7 @@
             <span class="kw-2">&amp;</span>envelope_processor,
             <span class="bool-val">false</span>,
         );
-        project.fetch_state(addr, <span class="bool-val">false</span>);
+        project.fetch_state(<span class="kw-2">&amp;</span>addr, <span class="bool-val">false</span>);
     }
 
     <span class="kw">fn </span>create_project(config: <span class="prelude-ty">Option</span>&lt;serde_json::Value&gt;) -&gt; Project {

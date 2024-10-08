@@ -3881,6 +3881,21 @@
 <a href="#3881" id="3881">3881</a>
 <a href="#3882" id="3882">3882</a>
 <a href="#3883" id="3883">3883</a>
+<a href="#3884" id="3884">3884</a>
+<a href="#3885" id="3885">3885</a>
+<a href="#3886" id="3886">3886</a>
+<a href="#3887" id="3887">3887</a>
+<a href="#3888" id="3888">3888</a>
+<a href="#3889" id="3889">3889</a>
+<a href="#3890" id="3890">3890</a>
+<a href="#3891" id="3891">3891</a>
+<a href="#3892" id="3892">3892</a>
+<a href="#3893" id="3893">3893</a>
+<a href="#3894" id="3894">3894</a>
+<a href="#3895" id="3895">3895</a>
+<a href="#3896" id="3896">3896</a>
+<a href="#3897" id="3897">3897</a>
+<a href="#3898" id="3898">3898</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -4734,6 +4749,21 @@
 /// the Envelope specifies the [`sent_at`](Envelope::sent_at) header.
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>ProcessProjectMetrics {
+    <span class="kw">pub </span>data: SmallVec&lt;[ProcessProjectData; <span class="number">1</span>]&gt;,
+    <span class="doccomment">/// Whether to keep or reset the metric metadata.
+    </span><span class="kw">pub </span>source: BucketSource,
+    <span class="doccomment">/// The instant at which the request was received.
+    </span><span class="kw">pub </span>start_time: Instant,
+    <span class="doccomment">/// The value of the Envelope's [`sent_at`](Envelope::sent_at) header for clock drift
+    /// correction.
+    </span><span class="kw">pub </span>sent_at: <span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;,
+}
+
+<span class="doccomment">/// Raw metric data associated with project data.
+</span><span class="attr">#[derive(Debug)]
+</span><span class="kw">pub struct </span>ProcessProjectData {
+    <span class="doccomment">/// The target project.
+    </span><span class="kw">pub </span>project_key: ProjectKey,
     <span class="doccomment">/// The project state the metrics belong to.
     ///
     /// The project state can be pending, in which case cached rate limits
@@ -4742,18 +4772,8 @@
     </span><span class="kw">pub </span>project_state: ProjectState,
     <span class="doccomment">/// Currently active cached rate limits for this project.
     </span><span class="kw">pub </span>rate_limits: RateLimits,
-
-    <span class="doccomment">/// A list of metric items.
+    <span class="doccomment">/// The metric data.
     </span><span class="kw">pub </span>data: MetricData,
-    <span class="doccomment">/// The target project.
-    </span><span class="kw">pub </span>project_key: ProjectKey,
-    <span class="doccomment">/// Whether to keep or reset the metric metadata.
-    </span><span class="kw">pub </span>source: BucketSource,
-    <span class="doccomment">/// The instant at which the request was received.
-    </span><span class="kw">pub </span>start_time: Instant,
-    <span class="doccomment">/// The value of the Envelope's [`sent_at`](Envelope::sent_at) header for clock drift
-    /// correction.
-    </span><span class="kw">pub </span>sent_at: <span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;,
 }
 
 <span class="doccomment">/// Raw unparsed metric data.
@@ -5981,10 +6001,7 @@
 
     <span class="kw">fn </span>handle_process_project_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>, cogs: <span class="kw-2">&amp;mut </span>Token, message: ProcessProjectMetrics) {
         <span class="kw">let </span>ProcessProjectMetrics {
-            project_state,
-            rate_limits,
             data,
-            project_key,
             start_time,
             sent_at,
             source,
@@ -5992,49 +6009,57 @@
 
         <span class="kw">let </span>received_timestamp = UnixTimestamp::from_instant(start_time);
 
-        <span class="kw">let </span><span class="kw-2">mut </span>buckets = data.into_buckets(received_timestamp);
-        <span class="kw">if </span>buckets.is_empty() {
-            <span class="kw">return</span>;
-        };
-        cogs.update(relay_metrics::cogs::BySize(<span class="kw-2">&amp;</span>buckets));
+        <span class="kw">for </span>ProcessProjectData {
+            project_key,
+            project_state,
+            rate_limits,
+            data,
+        } <span class="kw">in </span>data
+        {
+            <span class="kw">let </span><span class="kw-2">mut </span>buckets = data.into_buckets(received_timestamp);
+            <span class="kw">if </span>buckets.is_empty() {
+                <span class="kw">return</span>;
+            };
+            cogs.update(relay_metrics::cogs::BySize(<span class="kw-2">&amp;</span>buckets));
 
-        <span class="kw">let </span>received = relay_common::time::instant_to_date_time(start_time);
-        <span class="kw">let </span>clock_drift_processor =
-            ClockDriftProcessor::new(sent_at, received).at_least(MINIMUM_CLOCK_DRIFT);
+            <span class="kw">let </span>received = relay_common::time::instant_to_date_time(start_time);
+            <span class="kw">let </span>clock_drift_processor =
+                ClockDriftProcessor::new(sent_at, received).at_least(MINIMUM_CLOCK_DRIFT);
 
-        buckets.retain_mut(|bucket| {
-            <span class="kw">if let </span><span class="prelude-val">Err</span>(error) = relay_metrics::normalize_bucket(bucket) {
-                <span class="macro">relay_log::debug!</span>(error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">"dropping bucket {bucket:?}"</span>);
-                <span class="kw">return </span><span class="bool-val">false</span>;
-            }
+            buckets.retain_mut(|bucket| {
+                <span class="kw">if let </span><span class="prelude-val">Err</span>(error) = relay_metrics::normalize_bucket(bucket) {
+                    <span class="macro">relay_log::debug!</span>(error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">"dropping bucket {bucket:?}"</span>);
+                    <span class="kw">return </span><span class="bool-val">false</span>;
+                }
 
-            <span class="kw">if </span>!<span class="self">self</span>::metrics::is_valid_namespace(bucket, source) {
-                <span class="kw">return </span><span class="bool-val">false</span>;
-            }
+                <span class="kw">if </span>!<span class="self">self</span>::metrics::is_valid_namespace(bucket, source) {
+                    <span class="kw">return </span><span class="bool-val">false</span>;
+                }
 
-            clock_drift_processor.process_timestamp(<span class="kw-2">&amp;mut </span>bucket.timestamp);
+                clock_drift_processor.process_timestamp(<span class="kw-2">&amp;mut </span>bucket.timestamp);
 
-            <span class="kw">if </span>!<span class="macro">matches!</span>(source, BucketSource::Internal) {
-                bucket.metadata = BucketMetadata::new(received_timestamp);
-            }
+                <span class="kw">if </span>!<span class="macro">matches!</span>(source, BucketSource::Internal) {
+                    bucket.metadata = BucketMetadata::new(received_timestamp);
+                }
 
-            <span class="bool-val">true
-        </span>});
+                <span class="bool-val">true
+            </span>});
 
-        <span class="comment">// Best effort check to filter and rate limit buckets, if there is no project state
-        // available at the current time, we will check again after flushing.
-        </span><span class="kw">let </span>buckets = <span class="kw">match </span>project_state.enabled() {
-            <span class="prelude-val">Some</span>(project_info) =&gt; {
-                <span class="self">self</span>.check_buckets(project_key, <span class="kw-2">&amp;</span>project_info, <span class="kw-2">&amp;</span>rate_limits, buckets)
-            }
-            <span class="prelude-val">None </span>=&gt; buckets,
-        };
+            <span class="comment">// Best effort check to filter and rate limit buckets, if there is no project state
+            // available at the current time, we will check again after flushing.
+            </span><span class="kw">let </span>buckets = <span class="kw">match </span>project_state.enabled() {
+                <span class="prelude-val">Some</span>(project_info) =&gt; {
+                    <span class="self">self</span>.check_buckets(project_key, <span class="kw-2">&amp;</span>project_info, <span class="kw-2">&amp;</span>rate_limits, buckets)
+                }
+                <span class="prelude-val">None </span>=&gt; buckets,
+            };
 
-        <span class="macro">relay_log::trace!</span>(<span class="string">"merging metric buckets into the aggregator"</span>);
-        <span class="self">self</span>.inner
-            .addrs
-            .aggregator
-            .send(MergeBuckets::new(project_key, buckets));
+            <span class="macro">relay_log::trace!</span>(<span class="string">"merging metric buckets into the aggregator"</span>);
+            <span class="self">self</span>.inner
+                .addrs
+                .aggregator
+                .send(MergeBuckets::new(project_key, buckets));
+        }
     }
 
     <span class="kw">fn </span>handle_process_batched_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>, cogs: <span class="kw-2">&amp;mut </span>Token, message: ProcessBatchedMetrics) {
@@ -6067,8 +6092,7 @@
             feature_weights = feature_weights.merge(relay_metrics::cogs::BySize(<span class="kw-2">&amp;</span>buckets).into());
 
             <span class="self">self</span>.inner.addrs.project_cache.send(ProcessMetrics {
-                data: MetricData::Parsed(buckets),
-                project_key,
+                data: <span class="macro">smallvec!</span>[(project_key, MetricData::Parsed(buckets))],
                 source,
                 start_time: start_time.into(),
                 sent_at,
@@ -7614,10 +7638,12 @@
             (BucketSource::Internal, <span class="prelude-val">None</span>),
         ] {
             <span class="kw">let </span>message = ProcessProjectMetrics {
-                data: MetricData::Raw(<span class="macro">vec!</span>[item.clone()]),
-                project_state: ProjectState::Pending,
-                rate_limits: Default::default(),
-                project_key,
+                data: <span class="macro">smallvec!</span>[ProcessProjectData {
+                    project_key,
+                    project_state: ProjectState::Pending,
+                    rate_limits: Default::default(),
+                    data: MetricData::Raw(<span class="macro">vec!</span>[item.clone()]),
+                }],
                 source,
                 start_time,
                 sent_at: <span class="prelude-val">Some</span>(Utc::now()),
@@ -7697,11 +7723,15 @@
         };
 
         <span class="kw">let </span><span class="kw-2">mut </span>messages = <span class="macro">vec!</span>[pm1, pm2];
-        messages.sort_by_key(|pm| pm.project_key);
+        messages.sort_by_key(|pm| pm.data[<span class="number">0</span>].<span class="number">0</span>);
 
         <span class="kw">let </span>actual = messages
             .into_iter()
-            .map(|pm| (pm.project_key, pm.data, pm.source))
+            .map(|<span class="kw-2">mut </span>pm| {
+                <span class="macro">assert_eq!</span>(pm.data.len(), <span class="number">1</span>);
+                <span class="kw">let </span>(project_key, data) = pm.data.pop().unwrap();
+                (project_key, data, pm.source)
+            })
             .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
 
         <span class="macro">assert_debug_snapshot!</span>(actual, @<span class="string">r###"
