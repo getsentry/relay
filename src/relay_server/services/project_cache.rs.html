@@ -3249,14 +3249,14 @@
                             broker.handle_periodic_unspool()
                         })
                     }
-                    <span class="prelude-val">Some</span>(message) = envelopes_rx.recv() =&gt; {
-                        <span class="macro">metric!</span>(timer(RelayTimers::ProjectCacheTaskDuration), task = <span class="string">"handle_envelope"</span>, {
-                            broker.handle_envelope(message)
-                        })
-                    }
                     <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; {
                         <span class="macro">metric!</span>(timer(RelayTimers::ProjectCacheTaskDuration), task = <span class="string">"handle_message"</span>, {
                             broker.handle_message(message)
+                        })
+                    }
+                    <span class="prelude-val">Some</span>(message) = envelopes_rx.recv() =&gt; {
+                        <span class="macro">metric!</span>(timer(RelayTimers::ProjectCacheTaskDuration), task = <span class="string">"handle_envelope"</span>, {
+                            broker.handle_envelope(message)
                         })
                     }
                     <span class="kw">else </span>=&gt; <span class="kw">break</span>,
