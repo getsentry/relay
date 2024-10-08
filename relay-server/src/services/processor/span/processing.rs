@@ -762,6 +762,7 @@ mod tests {
     };
     use relay_event_schema::protocol::{Contexts, Event, Span};
     use relay_protocol::get_value;
+    use relay_quotas::RateLimits;
     use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator};
     use relay_system::Addr;
 
@@ -821,6 +822,7 @@ mod tests {
             extracted_metrics: ProcessingExtractedMetrics::new(),
             config: Arc::new(Config::default()),
             project_info,
+            rate_limits: RateLimits::default(),
             sampling_project_info: None,
             project_id: ProjectId::new(42),
             managed_envelope: managed_envelope.try_into().unwrap(),

@@ -49,6 +49,7 @@ mod tests {
             "*/health",
             "*/healthz",
             "*/ping",
+            "*/up",
         ]
         .map(|val| val.to_string())
         .to_vec();
@@ -88,6 +89,8 @@ mod tests {
             "123/health",
             "123/healthz",
             "123/ping",
+            "/up",
+            "123/up",
         ];
 
         for name in transaction_names {
@@ -119,6 +122,7 @@ mod tests {
             "delivery",
             "notready",
             "already",
+            "/upload",
         ];
         let config = _get_config();
 

@@ -23,6 +23,7 @@ pub fn backtrace_enabled() -> bool {
 /// Prefer to use [`relay_log::error`](crate::error) over this function whenever possible. This
 /// function is intended to be used during startup, where initializing the logger may fail or when
 /// errors need to be logged before the logger has been initialized.
+#[allow(clippy::print_stderr, reason = "necessary for early logging")]
 pub fn ensure_error<E: AsRef<dyn Error>>(error: E) {
     if tracing::event_enabled!(Level::ERROR) {
         crate::error!(error = error.as_ref());

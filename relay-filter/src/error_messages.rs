@@ -142,13 +142,6 @@ mod tests {
 
         for config in &configs[..] {
             for &case in &cases[..] {
-                // Useful output to debug which testcase fails. Hidden if the test passes.
-                println!(
-                    "------------------------------------------------------------------------"
-                );
-                println!("Config: {config:?}");
-                println!("Case: {case:?}");
-
                 let (exc_type, exc_value, logentry_formatted, should_ingest) = case;
                 let event = Event {
                     exceptions: Annotated::new(Values::new(vec![Annotated::new(Exception {
