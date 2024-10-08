@@ -1,7 +1,6 @@
 use std::error::Error;
-use std::io::ErrorKind;
 use std::time::Duration;
-use std::{fmt, io, thread};
+use std::{fmt, thread};
 
 use r2d2::{Builder, ManageConnection, Pool, PooledConnection};
 pub use redis;
