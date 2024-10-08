@@ -7,7 +7,6 @@ import time
 import tempfile
 import os
 
-import pytest
 from requests import HTTPError
 
 
