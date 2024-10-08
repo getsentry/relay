@@ -16,7 +16,8 @@ use crate::error::ProfileError;
 use crate::measurements::LegacyMeasurement;
 use crate::sample::{DebugMeta, Frame, ThreadMetadata, Version};
 use crate::transaction_metadata::TransactionMetadata;
-use crate::utils::{deserialize_number_from_string, string_is_null_or_empty};
+use crate::types::ClientSdk;
+use crate::utils::{default_client_sdk, deserialize_number_from_string, string_is_null_or_empty};
 use crate::MAX_PROFILE_DURATION;
 
 const MAX_PROFILE_DURATION_NS: u64 = MAX_PROFILE_DURATION.as_nanos() as u64;
@@ -261,12 +262,6 @@ pub struct ProfileMetadata {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ClientSdk {
-    name: String,
-    version: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ProfilingEvent {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     measurements: Option<HashMap<String, LegacyMeasurement>>,
@@ -371,7 +366,7 @@ pub fn parse_sample_profile(
             name: name.to_owned(),
             version: version.to_owned(),
         }),
-        _ => None,
+        _ => Some(default_client_sdk(profile.metadata.platform.as_str())),
     };
     profile.metadata.transaction_metadata = transaction_metadata;
     profile.metadata.transaction_tags = transaction_tags;

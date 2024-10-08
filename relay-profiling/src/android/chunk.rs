@@ -27,16 +27,15 @@ pub struct Metadata {
     chunk_id: EventId,
     profiler_id: EventId,
 
+    client_sdk: ClientSdk,
+
     #[serde(default, skip_serializing_if = "String::is_empty")]
     environment: String,
-
     platform: String,
     release: String,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     debug_meta: Option<DebugMeta>,
-
-    client_sdk: ClientSdk,
 
     #[serde(default)]
     duration_ns: u64,

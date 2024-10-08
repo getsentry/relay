@@ -19,6 +19,8 @@ use relay_metrics::FiniteF64;
 use crate::error::ProfileError;
 use crate::measurements::ChunkMeasurement;
 use crate::sample::{DebugMeta, Frame, ThreadMetadata, Version};
+use crate::types::ClientSdk;
+use crate::utils::default_client_sdk;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ProfileMetadata {
@@ -40,12 +42,6 @@ pub struct ProfileMetadata {
 
     /// Hard-coded string containing "2" to indicate the format version.
     pub version: Version,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ClientSdk {
-    name: String,
-    version: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -73,7 +69,13 @@ pub struct ProfileChunk {
 
 impl ProfileChunk {
     pub fn normalize(&mut self) -> Result<(), ProfileError> {
-        self.profile.normalize(self.metadata.platform.as_str())
+        let platform = self.metadata.platform.as_str();
+
+        if self.metadata.client_sdk.is_none() {
+            self.metadata.client_sdk = Some(default_client_sdk(platform));
+        }
+
+        self.profile.normalize(platform)
     }
 }
 

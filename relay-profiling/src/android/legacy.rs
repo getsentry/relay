@@ -18,7 +18,7 @@ use crate::measurements::LegacyMeasurement;
 use crate::sample::v1::SampleProfile;
 use crate::transaction_metadata::TransactionMetadata;
 use crate::types::{ClientSdk, DebugMeta};
-use crate::utils::{deserialize_number_from_string, is_zero};
+use crate::utils::{default_client_sdk, deserialize_number_from_string, is_zero};
 use crate::{ProfileError, MAX_PROFILE_DURATION};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -245,7 +245,7 @@ pub fn parse_android_profile(
             name: name.to_owned(),
             version: version.to_owned(),
         }),
-        _ => None,
+        _ => Some(default_client_sdk(profile.metadata.platform.as_str())),
     };
     profile.metadata.transaction_metadata = transaction_metadata;
     profile.metadata.transaction_tags = transaction_tags;
