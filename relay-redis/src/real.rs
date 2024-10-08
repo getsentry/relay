@@ -86,7 +86,7 @@ impl ConnectionLike for ConnectionInner<'_> {
                     if let Err(error) = result {
                         relay_log::error!(
                             error = &error as &dyn Error,
-                            "sending cmds to the secondary Redis instance failed",
+                            "sending cmd to the secondary Redis instance failed",
                         );
                     }
                 }
@@ -105,27 +105,49 @@ impl ConnectionLike for ConnectionInner<'_> {
         offset: usize,
         count: usize,
     ) -> redis::RedisResult<Vec<redis::Value>> {
-        match self {
-            ConnectionInner::Cluster(con) => con.req_packed_commands(cmd, offset, count),
-            ConnectionInner::MultiWrite {
-                primary: primary_connection,
-                secondaries: secondary_connections,
-            } => {
-                let primary_result = primary_connection.req_packed_commands(cmd, offset, count);
-                for secondary_connection in secondary_connections.iter_mut() {
-                    if let Err(error) = secondary_connection.req_packed_commands(cmd, offset, count)
-                    {
+        let mut results = thread::scope(|s| {
+            let handles: Vec<_> = self
+                .get_connections()
+                .into_iter()
+                .map(|connection| {
+                    s.spawn(move || connection.req_packed_commands(cmd, offset, count))
+                })
+                .collect();
+
+            handles
+                .into_iter()
+                .map(|handle| handle.join())
+                .collect::<Vec<_>>()
+        })
+        .into_iter();
+
+        let error_message = "sending cmds tos the secondary Redis instance failed";
+        let Some(Ok(primary_result)) = results.next() else {
+            relay_log::error!("sending cmds to primary Redis instance failed");
+            return Err(io::Error::new(
+                ErrorKind::Other,
+                "failed to send cmds to primary Redis instance",
+            )
+            .into());
+        };
+
+        for result in results {
+            match result {
+                Ok(result) => {
+                    if let Err(error) = result {
                         relay_log::error!(
                             error = &error as &dyn Error,
-                            "sending cmds to the secondary Redis instance failed",
+                            "sending cmds tos the secondary Redis instance failed",
                         );
                     }
                 }
-
-                primary_result
+                Err(_) => {
+                    relay_log::error!("sending cmds to secondary Redis instance failed");
+                }
             }
-            ConnectionInner::Single(con) => con.req_packed_commands(cmd, offset, count),
         }
+
+        primary_result
     }
 
     fn get_db(&self) -> i64 {
