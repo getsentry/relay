@@ -2,9 +2,9 @@ use r2d2::{Builder, ManageConnection, Pool, PooledConnection};
 pub use redis;
 use redis::ConnectionLike;
 use std::error::Error;
-use std::thread::{Scope, ScopedJoinHandle};
+use std::thread::Scope;
 use std::time::Duration;
-use std::{fmt, io, thread};
+use std::{fmt, thread};
 use thiserror::Error;
 
 use crate::config::RedisConfigOptions;
