@@ -3388,9 +3388,37 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.action": "COUNT",
+            "span.category": "db",
             "span.op": "db.sql.query",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
+            extracted_from_indexed: false,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/exclusive_time_light@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "COUNT",
+            "span.category": "db",
+            "span.op": "db.sql.query",
         },
         metadata: BucketMetadata {
             merges: 1,
@@ -3413,9 +3441,37 @@ expression: metrics
         ),
         tags: {
             "environment": "fake_environment",
+            "span.action": "COUNT",
+            "span.category": "db",
             "span.op": "db.sql.query",
             "transaction": "gEt /api/:version/users/",
+            "transaction.method": "POST",
             "transaction.op": "myop",
+        },
+        metadata: BucketMetadata {
+            merges: 1,
+            received_at: Some(
+                UnixTimestamp(0),
+            ),
+            extracted_from_indexed: false,
+        },
+    },
+    Bucket {
+        timestamp: UnixTimestamp(1597976302),
+        width: 0,
+        name: MetricName(
+            "d:spans/duration_light@millisecond",
+        ),
+        value: Distribution(
+            [
+                2000.0,
+            ],
+        ),
+        tags: {
+            "environment": "fake_environment",
+            "span.action": "COUNT",
+            "span.category": "db",
+            "span.op": "db.sql.query",
         },
         metadata: BucketMetadata {
             merges: 1,
