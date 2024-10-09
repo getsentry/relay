@@ -141,8 +141,8 @@ impl EnvelopeBuffer {
                 return Ok(None);
             };
 
-            // There must be an envelope when popping, since we assume that `peek` is called before
-            // the call to `pop` and no concurrent access is performed in the meanwhile.
+            // There must be an envelope when popping, since we call `peek` in the statement above
+            // and no concurrent access is performed in the meanwhile.
             let envelope = self
                 .envelope_repository
                 .pop(project_key_pair)
