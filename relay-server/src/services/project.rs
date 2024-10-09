@@ -15,9 +15,11 @@ use tokio::time::Instant;
 use crate::envelope::ItemType;
 use crate::services::metrics::{Aggregator, MergeBuckets};
 use crate::services::outcome::{DiscardReason, Outcome};
-use crate::services::processor::{EncodeMetricMeta, EnvelopeProcessor};
+use crate::services::processor::{EncodeMetricMeta, EnvelopeProcessor, ProcessProjectMetrics};
 use crate::services::project::state::ExpiryState;
-use crate::services::project_cache::{CheckedEnvelope, ProjectCache, RequestUpdate};
+use crate::services::project_cache::{
+    CheckedEnvelope, ProcessMetrics, ProjectCache, RequestUpdate,
+};
 use crate::utils::{Enforcement, SeqCount};
 
 use crate::statsd::RelayCounters;
@@ -162,6 +164,23 @@ impl Project {
         self.last_updated_at = Instant::now();
     }
 
+    /// Collects internal project state and assembles a [`ProcessProjectMetrics`] message.
+    pub fn process_metrics(&mut self, message: ProcessMetrics) -> ProcessProjectMetrics {
+        let project_state = self.current_state();
+        let rate_limits = self.rate_limits.current_limits().clone();
+
+        ProcessProjectMetrics {
+            project_state,
+            rate_limits,
+
+            data: message.data,
+            project_key: message.project_key,
+            source: message.source,
+            start_time: message.start_time.into(),
+            sent_at: message.sent_at,
+        }
+    }
+
     /// Returns a list of buckets back to the aggregator.
     ///
     /// This is used to return flushed buckets back to the aggregator if the project has not been
@@ -273,7 +292,7 @@ impl Project {
     /// needs to be upgraded with the `no_cache` flag to ensure a more recent update.
     fn fetch_state(
         &mut self,
-        project_cache: &Addr<ProjectCache>,
+        project_cache: Addr<ProjectCache>,
         no_cache: bool,
     ) -> &mut StateChannel {
         // If there is a running request and we do not need to upgrade it to no_cache, or if the
@@ -303,7 +322,7 @@ impl Project {
 
     fn get_or_fetch_state(
         &mut self,
-        project_cache: &Addr<ProjectCache>,
+        project_cache: Addr<ProjectCache>,
         mut no_cache: bool,
     ) -> GetOrFetch<'_> {
         // count number of times we are looking for the project state
@@ -355,7 +374,7 @@ impl Project {
     /// To wait for a valid state instead, use [`get_state`](Self::get_state).
     pub fn get_cached_state(
         &mut self,
-        project_cache: &Addr<ProjectCache>,
+        project_cache: Addr<ProjectCache>,
         no_cache: bool,
     ) -> ProjectState {
         match self.get_or_fetch_state(project_cache, no_cache) {
@@ -374,7 +393,7 @@ impl Project {
     /// are in the [grace period](Config::project_grace_period).
     pub fn get_state(
         &mut self,
-        project_cache: &Addr<ProjectCache>,
+        project_cache: Addr<ProjectCache>,
         sender: ProjectSender,
         no_cache: bool,
     ) {
@@ -399,7 +418,7 @@ impl Project {
     /// point. Therefore, this method is useful to trigger an update early if it is already clear
     /// that the project state will be needed soon. To retrieve an updated state, use
     /// [`Project::get_state`] instead.
-    pub fn prefetch(&mut self, project_cache: &Addr<ProjectCache>, no_cache: bool) -> &mut Self {
+    pub fn prefetch(&mut self, project_cache: Addr<ProjectCache>, no_cache: bool) -> &mut Self {
         self.get_cached_state(project_cache, no_cache);
         self
     }
@@ -725,7 +744,7 @@ mod tests {
             &envelope_processor,
             false,
         );
-        project.fetch_state(&addr, false);
+        project.fetch_state(addr, false);
     }
 
     fn create_project(config: Option<serde_json::Value>) -> Project {

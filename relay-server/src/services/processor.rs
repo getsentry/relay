@@ -896,21 +896,6 @@ pub struct ProcessEnvelope {
 /// the Envelope specifies the [`sent_at`](Envelope::sent_at) header.
 #[derive(Debug)]
 pub struct ProcessProjectMetrics {
-    pub data: SmallVec<[ProcessProjectData; 1]>,
-    /// Whether to keep or reset the metric metadata.
-    pub source: BucketSource,
-    /// The instant at which the request was received.
-    pub start_time: Instant,
-    /// The value of the Envelope's [`sent_at`](Envelope::sent_at) header for clock drift
-    /// correction.
-    pub sent_at: Option<DateTime<Utc>>,
-}
-
-/// Raw metric data associated with project data.
-#[derive(Debug)]
-pub struct ProcessProjectData {
-    /// The target project.
-    pub project_key: ProjectKey,
     /// The project state the metrics belong to.
     ///
     /// The project state can be pending, in which case cached rate limits
@@ -919,8 +904,18 @@ pub struct ProcessProjectData {
     pub project_state: ProjectState,
     /// Currently active cached rate limits for this project.
     pub rate_limits: RateLimits,
-    /// The metric data.
+
+    /// A list of metric items.
     pub data: MetricData,
+    /// The target project.
+    pub project_key: ProjectKey,
+    /// Whether to keep or reset the metric metadata.
+    pub source: BucketSource,
+    /// The instant at which the request was received.
+    pub start_time: Instant,
+    /// The value of the Envelope's [`sent_at`](Envelope::sent_at) header for clock drift
+    /// correction.
+    pub sent_at: Option<DateTime<Utc>>,
 }
 
 /// Raw unparsed metric data.
@@ -2124,7 +2119,10 @@ impl EnvelopeProcessorService {
 
     fn handle_process_project_metrics(&self, cogs: &mut Token, message: ProcessProjectMetrics) {
         let ProcessProjectMetrics {
+            project_state,
+            rate_limits,
             data,
+            project_key,
             start_time,
             sent_at,
             source,
@@ -2132,57 +2130,49 @@ impl EnvelopeProcessorService {
 
         let received_timestamp = UnixTimestamp::from_instant(start_time);
 
-        for ProcessProjectData {
-            project_key,
-            project_state,
-            rate_limits,
-            data,
-        } in data
-        {
-            let mut buckets = data.into_buckets(received_timestamp);
-            if buckets.is_empty() {
-                return;
-            };
-            cogs.update(relay_metrics::cogs::BySize(&buckets));
+        let mut buckets = data.into_buckets(received_timestamp);
+        if buckets.is_empty() {
+            return;
+        };
+        cogs.update(relay_metrics::cogs::BySize(&buckets));
 
-            let received = relay_common::time::instant_to_date_time(start_time);
-            let clock_drift_processor =
-                ClockDriftProcessor::new(sent_at, received).at_least(MINIMUM_CLOCK_DRIFT);
+        let received = relay_common::time::instant_to_date_time(start_time);
+        let clock_drift_processor =
+            ClockDriftProcessor::new(sent_at, received).at_least(MINIMUM_CLOCK_DRIFT);
 
-            buckets.retain_mut(|bucket| {
-                if let Err(error) = relay_metrics::normalize_bucket(bucket) {
-                    relay_log::debug!(error = &error as &dyn Error, "dropping bucket {bucket:?}");
-                    return false;
-                }
+        buckets.retain_mut(|bucket| {
+            if let Err(error) = relay_metrics::normalize_bucket(bucket) {
+                relay_log::debug!(error = &error as &dyn Error, "dropping bucket {bucket:?}");
+                return false;
+            }
 
-                if !self::metrics::is_valid_namespace(bucket, source) {
-                    return false;
-                }
+            if !self::metrics::is_valid_namespace(bucket, source) {
+                return false;
+            }
 
-                clock_drift_processor.process_timestamp(&mut bucket.timestamp);
+            clock_drift_processor.process_timestamp(&mut bucket.timestamp);
 
-                if !matches!(source, BucketSource::Internal) {
-                    bucket.metadata = BucketMetadata::new(received_timestamp);
-                }
+            if !matches!(source, BucketSource::Internal) {
+                bucket.metadata = BucketMetadata::new(received_timestamp);
+            }
 
-                true
-            });
+            true
+        });
 
-            // Best effort check to filter and rate limit buckets, if there is no project state
-            // available at the current time, we will check again after flushing.
-            let buckets = match project_state.enabled() {
-                Some(project_info) => {
-                    self.check_buckets(project_key, &project_info, &rate_limits, buckets)
-                }
-                None => buckets,
-            };
+        // Best effort check to filter and rate limit buckets, if there is no project state
+        // available at the current time, we will check again after flushing.
+        let buckets = match project_state.enabled() {
+            Some(project_info) => {
+                self.check_buckets(project_key, &project_info, &rate_limits, buckets)
+            }
+            None => buckets,
+        };
 
-            relay_log::trace!("merging metric buckets into the aggregator");
-            self.inner
-                .addrs
-                .aggregator
-                .send(MergeBuckets::new(project_key, buckets));
-        }
+        relay_log::trace!("merging metric buckets into the aggregator");
+        self.inner
+            .addrs
+            .aggregator
+            .send(MergeBuckets::new(project_key, buckets));
     }
 
     fn handle_process_batched_metrics(&self, cogs: &mut Token, message: ProcessBatchedMetrics) {
@@ -2193,66 +2183,12 @@ impl EnvelopeProcessorService {
             sent_at,
         } = message;
 
-        /// Custom struct to optimize deserialization.
-        ///
-        /// Equivalent to deserializing to `HashMap<ProjectKey, Vec<Bucket>>` and then transforming
-        /// to `SmallVec<[(ProjectKey, MetricData); _]>` in a separate step.
-        ///
-        /// But implemented with a custom deserializer to rminimize iterations over the parsed data
-        /// (to compute feature weights) as well as minimizing allocations for contained items by
-        /// deserializing directly into the proper smallvec.
-        struct Buckets {
-            data: SmallVec<[(ProjectKey, MetricData); 1]>,
-            feature_weights: FeatureWeights,
-        }
-
-        impl<'de> serde::Deserialize<'de> for Buckets {
-            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-            where
-                D: serde::Deserializer<'de>,
-            {
-                struct Visitor;
-
-                impl<'de> serde::de::Visitor<'de> for Visitor {
-                    type Value = Buckets;
-
-                    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-                        formatter.write_str("a mapping of project key to list of buckets")
-                    }
-
-                    fn visit_map<A>(self, mut map: A) -> Result<Self::Value, A::Error>
-                    where
-                        A: serde::de::MapAccess<'de>,
-                    {
-                        let mut data = smallvec![];
-                        let mut feature_weights = FeatureWeights::none();
-
-                        while let Some((project_key, buckets)) = map.next_entry::<_, Vec<_>>()? {
-                            feature_weights =
-                                feature_weights.merge(relay_metrics::cogs::BySize(&buckets).into());
-                            data.push((project_key, MetricData::Parsed(buckets)));
-                        }
-
-                        Ok(Buckets {
-                            data,
-                            feature_weights,
-                        })
-                    }
-                }
-
-                deserializer.deserialize_map(Visitor)
-            }
-        }
-
         #[derive(serde::Deserialize)]
         struct Wrapper {
-            buckets: Buckets,
+            buckets: HashMap<ProjectKey, Vec<Bucket>>,
         }
 
-        let Buckets {
-            data,
-            feature_weights,
-        } = match serde_json::from_slice(&payload) {
+        let buckets = match serde_json::from_slice(&payload) {
             Ok(Wrapper { buckets }) => buckets,
             Err(error) => {
                 relay_log::debug!(
@@ -2264,14 +2200,22 @@ impl EnvelopeProcessorService {
             }
         };
 
-        cogs.update(feature_weights);
+        let mut feature_weights = FeatureWeights::none();
+        for (project_key, buckets) in buckets {
+            feature_weights = feature_weights.merge(relay_metrics::cogs::BySize(&buckets).into());
 
-        self.inner.addrs.project_cache.send(ProcessMetrics {
-            data,
-            source,
-            start_time: start_time.into(),
-            sent_at,
-        });
+            self.inner.addrs.project_cache.send(ProcessMetrics {
+                data: MetricData::Parsed(buckets),
+                project_key,
+                source,
+                start_time: start_time.into(),
+                sent_at,
+            });
+        }
+
+        if !feature_weights.is_empty() {
+            cogs.update(feature_weights);
+        }
     }
 
     fn handle_process_metric_meta(&self, message: ProcessMetricMeta) {
@@ -3874,12 +3818,10 @@ mod tests {
             (BucketSource::Internal, None),
         ] {
             let message = ProcessProjectMetrics {
-                data: smallvec![ProcessProjectData {
-                    project_key,
-                    project_state: ProjectState::Pending,
-                    rate_limits: Default::default(),
-                    data: MetricData::Raw(vec![item.clone()]),
-                }],
+                data: MetricData::Raw(vec![item.clone()]),
+                project_state: ProjectState::Pending,
+                rate_limits: Default::default(),
+                project_key,
                 source,
                 start_time,
                 sent_at: Some(Utc::now()),
@@ -3950,12 +3892,23 @@ mod tests {
         processor.handle_process_batched_metrics(&mut token, message);
 
         let value = project_cache_rx.recv().await.unwrap();
-        let ProjectCache::ProcessMetrics(pm) = value else {
+        let ProjectCache::ProcessMetrics(pm1) = value else {
+            panic!()
+        };
+        let value = project_cache_rx.recv().await.unwrap();
+        let ProjectCache::ProcessMetrics(pm2) = value else {
             panic!()
         };
 
-        assert_eq!(pm.source, BucketSource::Internal);
-        assert_debug_snapshot!(pm.data, @r###"
+        let mut messages = vec![pm1, pm2];
+        messages.sort_by_key(|pm| pm.project_key);
+
+        let actual = messages
+            .into_iter()
+            .map(|pm| (pm.project_key, pm.data, pm.source))
+            .collect::<Vec<_>>();
+
+        assert_debug_snapshot!(actual, @r###"
         [
             (
                 ProjectKey("11111111111111111111111111111111"),
@@ -3983,6 +3936,7 @@ mod tests {
                         },
                     ],
                 ),
+                Internal,
             ),
             (
                 ProjectKey("22222222222222222222222222222222"),
@@ -4008,10 +3962,9 @@ mod tests {
                         },
                     ],
                 ),
+                Internal,
             ),
         ]
         "###);
-
-        assert!(project_cache_rx.try_recv().is_err());
     }
 }

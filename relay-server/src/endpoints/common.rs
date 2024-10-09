@@ -7,7 +7,6 @@ use relay_event_schema::protocol::{EventId, EventType};
 use relay_quotas::RateLimits;
 use relay_statsd::metric;
 use serde::Deserialize;
-use smallvec::smallvec;
 
 use crate::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, Items};
 use crate::service::ServiceState;
@@ -276,12 +275,10 @@ fn queue_envelope(
         if !metric_items.is_empty() {
             relay_log::trace!("sending metrics into processing queue");
             state.project_cache().send(ProcessMetrics {
-                data: smallvec![(
-                    envelope.meta().public_key(),
-                    MetricData::Raw(metric_items.into_vec())
-                )],
+                data: MetricData::Raw(metric_items.into_vec()),
                 start_time: envelope.meta().start_time().into(),
                 sent_at: envelope.sent_at(),
+                project_key: envelope.meta().public_key(),
                 source: envelope.meta().into(),
             });
         }
