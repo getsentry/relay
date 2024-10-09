@@ -968,6 +968,10 @@
 <a href="#968" id="968">968</a>
 <a href="#969" id="969">969</a>
 <a href="#970" id="970">970</a>
+<a href="#971" id="971">971</a>
+<a href="#972" id="972">972</a>
+<a href="#973" id="973">973</a>
+<a href="#974" id="974">974</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 <span class="attr">#[cfg(doc)]
 </span><span class="kw">use </span>tokio::runtime::RuntimeMetrics;
@@ -1151,6 +1155,8 @@
     <span class="doccomment">/// Number of envelopes in the backpressure buffer between the envelope buffer
     /// and the project cache.
     </span>BufferBackpressureEnvelopesCount,
+    <span class="doccomment">/// Number of envelopes in the buffer per key pair of projects.
+    </span>BufferInMemoryEnvelopesPerKeyPair,
     <span class="doccomment">/// The number of batches emitted per partition.
     </span>BatchesPerPartition,
     <span class="doccomment">/// The number of buckets in a batch emitted.
@@ -1278,6 +1284,9 @@
             RelayHistograms::BufferEnvelopesCount =&gt; <span class="string">"buffer.envelopes_count"</span>,
             RelayHistograms::BufferBackpressureEnvelopesCount =&gt; {
                 <span class="string">"buffer.backpressure_envelopes_count"
+            </span>}
+            RelayHistograms::BufferInMemoryEnvelopesPerKeyPair =&gt; {
+                <span class="string">"buffer.in_memory_envelopes_per_key_pair"
             </span>}
             RelayHistograms::ProjectStatePending =&gt; <span class="string">"project_state.pending"</span>,
             RelayHistograms::ProjectStateAttempts =&gt; <span class="string">"project_state.attempts"</span>,
@@ -1506,8 +1515,8 @@
     </span>BufferPeek,
     <span class="doccomment">/// Timing in milliseconds for the time it takes for the buffer to pop.
     </span>BufferPop,
-    <span class="doccomment">/// Timing in milliseconds for the time it takes for the buffer to drain its envelopes.
-    </span>BufferDrain,
+    <span class="doccomment">/// Timing in milliseconds for the time it takes for the buffer to flush its envelopes.
+    </span>BufferFlush,
 }
 
 <span class="kw">impl </span>TimerMetric <span class="kw">for </span>RelayTimers {
@@ -1555,7 +1564,7 @@
             RelayTimers::BufferPush =&gt; <span class="string">"buffer.push.duration"</span>,
             RelayTimers::BufferPeek =&gt; <span class="string">"buffer.peek.duration"</span>,
             RelayTimers::BufferPop =&gt; <span class="string">"buffer.pop.duration"</span>,
-            RelayTimers::BufferDrain =&gt; <span class="string">"buffer.drain.duration"</span>,
+            RelayTimers::BufferFlush =&gt; <span class="string">"buffer.flush.duration"</span>,
         }
     }
 }
@@ -1606,8 +1615,7 @@
     /// This happens when the envelope buffer falsely assumes that the envelope's projects are loaded
     /// in the cache and sends the envelope onward, even though the project cache cannot handle it.
     </span>BufferEnvelopesReturned,
-    <span class="doccomment">/// Number of times an envelope stack is popped from the priority queue of stacks in the
-    /// envelope buffer.
+    <span class="doccomment">/// Number of times a project key pair is popped from the envelope provider.
     </span>BufferEnvelopeStacksPopped,
     <span class="doccomment">/// Number of times an envelope from the buffer is trying to be popped.
     </span>BufferTryPop,
