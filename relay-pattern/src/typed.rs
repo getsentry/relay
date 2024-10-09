@@ -180,7 +180,9 @@ impl<C: PatternConfig> FromIterator<String> for TypedPatterns<C> {
     fn from_iter<T: IntoIterator<Item = String>>(iter: T) -> Self {
         let mut builder = Self::builder();
         for pattern in iter.into_iter() {
-            let _ = builder.add(pattern);
+            let _err = builder.add(pattern);
+            #[cfg(debug_assertions)]
+            _err.expect("all patterns should be valid patterns");
         }
         builder.build()
     }
@@ -248,7 +250,9 @@ impl<'de, C: PatternConfig> serde::Deserialize<'de> for TypedPatterns<C> {
 
                 while let Some(item) = seq.next_element()? {
                     // Ignore invalid patterns as documented.
-                    let _ = builder.add(item);
+                    let _err = builder.add(item);
+                    #[cfg(debug_assertions)]
+                    _err.expect("all patterns should be valid patterns");
                 }
 
                 Ok(builder.build())
@@ -398,7 +402,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "serde")]
+    #[cfg(all(feature = "serde", not(debug_assertions)))]
     fn test_patterns_deserialize_err() {
         let r: TypedPatterns<CaseInsensitive> =
             serde_json::from_str(r#"["[invalid","foobar"]"#).unwrap();
