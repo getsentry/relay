@@ -924,6 +924,7 @@ def test_processing_quota_transaction_indexing(
         "get_lost",
         categories=[DataCategory.TRANSACTION, DataCategory.TRANSACTION_INDEXED],
         ignore_other=True,
+        timeout=3,
     )
 
     with pytest.raises(HTTPError) as exc_info:
@@ -933,6 +934,7 @@ def test_processing_quota_transaction_indexing(
         "get_lost",
         categories=[DataCategory.TRANSACTION, DataCategory.TRANSACTION_INDEXED],
         ignore_other=True,
+        timeout=3,
     )
 
 
