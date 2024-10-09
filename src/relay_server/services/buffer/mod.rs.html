@@ -764,6 +764,8 @@
 <a href="#764" id="764">764</a>
 <a href="#765" id="765">765</a>
 <a href="#766" id="766">766</a>
+<a href="#767" id="767">767</a>
+<a href="#768" id="768">768</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Types for buffering envelopes.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -795,21 +797,21 @@
 <span class="kw">use </span><span class="kw">crate</span>::MemoryChecker;
 <span class="kw">use </span><span class="kw">crate</span>::MemoryStat;
 
+<span class="kw">pub use </span>envelope_buffer::EnvelopeBufferError;
 <span class="comment">// pub for benchmarks
-</span><span class="kw">pub use </span>common::{EnvelopeBufferError, ProjectKeyPair};
+</span><span class="kw">pub use </span>envelope_buffer::PolymorphicEnvelopeBuffer;
 <span class="comment">// pub for benchmarks
-</span><span class="kw">pub use </span>envelope_buffer::EnvelopeBuffer <span class="kw">as </span>EnvelopeBufferImpl;
+</span><span class="kw">pub use </span>envelope_stack::sqlite::SqliteEnvelopeStack;
 <span class="comment">// pub for benchmarks
-</span><span class="kw">pub use </span>envelope_repository::sqlite::SqliteEnvelopeRepository;
-<span class="comment">// pub for benchmarks
-</span><span class="kw">pub use </span>envelope_repository::EnvelopeRepository;
+</span><span class="kw">pub use </span>envelope_stack::EnvelopeStack;
 <span class="comment">// pub for benchmarks
 </span><span class="kw">pub use </span>envelope_store::sqlite::SqliteEnvelopeStore;
 
 <span class="kw">mod </span>common;
 <span class="kw">mod </span>envelope_buffer;
-<span class="kw">mod </span>envelope_repository;
+<span class="kw">mod </span>envelope_stack;
 <span class="kw">mod </span>envelope_store;
+<span class="kw">mod </span>stack_provider;
 <span class="kw">mod </span>testutils;
 
 <span class="doccomment">/// Message interface for [`EnvelopeBufferService`].
@@ -921,7 +923,7 @@
     <span class="doccomment">/// Wait for the configured amount of time and make sure the project cache is ready to receive.
     </span><span class="kw">async fn </span>ready_to_pop(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        buffer: <span class="kw-2">&amp;</span>EnvelopeBufferImpl,
+        buffer: <span class="kw-2">&amp;</span>PolymorphicEnvelopeBuffer,
         dequeue: bool,
     ) -&gt; <span class="prelude-ty">Option</span>&lt;Permit&lt;DequeuedEnvelope&gt;&gt; {
         <span class="macro">relay_statsd::metric!</span>(
@@ -960,7 +962,7 @@
     /// - We should not pop from disk into memory when relay's overall memory capacity
     ///   has been reached.
     /// - We need a valid global config to unspool.
-    </span><span class="kw">async fn </span>system_ready(<span class="kw-2">&amp;</span><span class="self">self</span>, buffer: <span class="kw-2">&amp;</span>EnvelopeBufferImpl, dequeue: bool) {
+    </span><span class="kw">async fn </span>system_ready(<span class="kw-2">&amp;</span><span class="self">self</span>, buffer: <span class="kw-2">&amp;</span>PolymorphicEnvelopeBuffer, dequeue: bool) {
         <span class="kw">loop </span>{
             <span class="comment">// We should not unspool from external storage if memory capacity has been reached.
             // But if buffer storage is in memory, unspooling can reduce memory usage.
@@ -982,7 +984,7 @@
     <span class="doccomment">/// Tries to pop an envelope for a ready project.
     </span><span class="kw">async fn </span>try_pop&lt;<span class="lifetime">'a</span>&gt;(
         config: <span class="kw-2">&amp;</span>Config,
-        buffer: <span class="kw-2">&amp;mut </span>EnvelopeBufferImpl,
+        buffer: <span class="kw-2">&amp;mut </span>PolymorphicEnvelopeBuffer,
         services: <span class="kw-2">&amp;</span>Services,
         envelopes_tx_permit: Permit&lt;<span class="lifetime">'a</span>, DequeuedEnvelope&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Duration, EnvelopeBufferError&gt; {
@@ -1070,7 +1072,7 @@
         managed_envelope.reject(Outcome::Invalid(DiscardReason::Timestamp));
     }
 
-    <span class="kw">async fn </span>handle_message(buffer: <span class="kw-2">&amp;mut </span>EnvelopeBufferImpl, message: EnvelopeBuffer) {
+    <span class="kw">async fn </span>handle_message(buffer: <span class="kw-2">&amp;mut </span>PolymorphicEnvelopeBuffer, message: EnvelopeBuffer) {
         <span class="kw">match </span>message {
             EnvelopeBuffer::Push(envelope) =&gt; {
                 <span class="comment">// NOTE: This function assumes that a project state update for the relevant
@@ -1099,12 +1101,12 @@
         };
     }
 
-    <span class="kw">async fn </span>handle_shutdown(buffer: <span class="kw-2">&amp;mut </span>EnvelopeBufferImpl, message: Shutdown) -&gt; bool {
+    <span class="kw">async fn </span>handle_shutdown(buffer: <span class="kw-2">&amp;mut </span>PolymorphicEnvelopeBuffer, message: Shutdown) -&gt; bool {
         <span class="comment">// We gracefully shut down only if the shutdown has a timeout.
         </span><span class="kw">if let </span><span class="prelude-val">Some</span>(shutdown_timeout) = message.timeout {
             <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService: shutting down gracefully"</span>);
 
-            <span class="kw">let </span>shutdown_result = timeout(shutdown_timeout, buffer.flush()).<span class="kw">await</span>;
+            <span class="kw">let </span>shutdown_result = timeout(shutdown_timeout, buffer.shutdown()).<span class="kw">await</span>;
             <span class="kw">match </span>shutdown_result {
                 <span class="prelude-val">Ok</span>(shutdown_result) =&gt; {
                     <span class="kw">return </span>shutdown_result;
@@ -1121,7 +1123,7 @@
         <span class="bool-val">false
     </span>}
 
-    <span class="kw">async fn </span>push(buffer: <span class="kw-2">&amp;mut </span>EnvelopeBufferImpl, envelope: Box&lt;Envelope&gt;) {
+    <span class="kw">async fn </span>push(buffer: <span class="kw-2">&amp;mut </span>PolymorphicEnvelopeBuffer, envelope: Box&lt;Envelope&gt;) {
         <span class="kw">if let </span><span class="prelude-val">Err</span>(e) = buffer.push(envelope).<span class="kw">await </span>{
             <span class="macro">relay_log::error!</span>(
                 error = <span class="kw-2">&amp;</span>e <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
@@ -1130,7 +1132,7 @@
         }
     }
 
-    <span class="kw">fn </span>update_observable_state(<span class="kw-2">&amp;</span><span class="self">self</span>, buffer: <span class="kw-2">&amp;mut </span>EnvelopeBufferImpl) {
+    <span class="kw">fn </span>update_observable_state(<span class="kw-2">&amp;</span><span class="self">self</span>, buffer: <span class="kw-2">&amp;mut </span>PolymorphicEnvelopeBuffer) {
         <span class="self">self</span>.has_capacity
             .store(buffer.has_capacity(), Ordering::Relaxed);
     }
@@ -1149,7 +1151,7 @@
         <span class="kw">let </span>dequeue1 = dequeue.clone();
 
         tokio::spawn(<span class="kw">async move </span>{
-            <span class="kw">let </span>buffer = EnvelopeBufferImpl::from_config(<span class="kw-2">&amp;</span>config, memory_checker).<span class="kw">await</span>;
+            <span class="kw">let </span>buffer = PolymorphicEnvelopeBuffer::from_config(<span class="kw-2">&amp;</span>config, memory_checker).<span class="kw">await</span>;
 
             <span class="kw">let </span><span class="kw-2">mut </span>buffer = <span class="kw">match </span>buffer {
                 <span class="prelude-val">Ok</span>(buffer) =&gt; buffer,
@@ -1176,23 +1178,11 @@
 
                 <span class="kw">let </span><span class="kw-2">mut </span>sleep = Duration::MAX;
                 <span class="macro">tokio::select!</span> {
-                    biased;
-
-                    shutdown = shutdown.notified() =&gt; {
-                        <span class="comment">// In case the shutdown was handled, we break out of the loop signaling that
-                        // there is no need to process anymore envelopes.
-                        </span><span class="kw">if </span><span class="self">Self</span>::handle_shutdown(<span class="kw-2">&amp;mut </span>buffer, shutdown).<span class="kw">await </span>{
-                            <span class="kw">break</span>;
-                        }
-                    }
-                    <span class="prelude-val">Ok</span>(()) = global_config_rx.changed() =&gt; {
-                        sleep = Duration::ZERO;
-                    }
-                    <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; {
-                        <span class="self">Self</span>::handle_message(<span class="kw-2">&amp;mut </span>buffer, message).<span class="kw">await</span>;
-                        sleep = Duration::ZERO;
-                    }
-                    <span class="prelude-val">Some</span>(permit) = <span class="self">self</span>.ready_to_pop(<span class="kw-2">&amp;</span>buffer, dequeue.load(Ordering::Relaxed)) =&gt; {
+                    <span class="comment">// NOTE: we do not select a bias here.
+                    // On the one hand, we might want to prioritize dequeuing over enqueuing
+                    // so we do not exceed the buffer capacity by starving the dequeue.
+                    // on the other hand, prioritizing old messages violates the LIFO design.
+                    </span><span class="prelude-val">Some</span>(permit) = <span class="self">self</span>.ready_to_pop(<span class="kw-2">&amp;</span>buffer, dequeue.load(Ordering::Relaxed)) =&gt; {
                         <span class="kw">match </span><span class="self">Self</span>::try_pop(<span class="kw-2">&amp;</span>config, <span class="kw-2">&amp;mut </span>buffer, <span class="kw-2">&amp;</span>services, permit).<span class="kw">await </span>{
                             <span class="prelude-val">Ok</span>(new_sleep) =&gt; {
                                 sleep = new_sleep;
@@ -1204,6 +1194,20 @@
                             </span>);
                             }
                         }
+                    }
+                    <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; {
+                        <span class="self">Self</span>::handle_message(<span class="kw-2">&amp;mut </span>buffer, message).<span class="kw">await</span>;
+                        sleep = Duration::ZERO;
+                    }
+                    shutdown = shutdown.notified() =&gt; {
+                        <span class="comment">// In case the shutdown was handled, we break out of the loop signaling that
+                        // there is no need to process anymore envelopes.
+                        </span><span class="kw">if </span><span class="self">Self</span>::handle_shutdown(<span class="kw-2">&amp;mut </span>buffer, shutdown).<span class="kw">await </span>{
+                            <span class="kw">break</span>;
+                        }
+                    }
+                    <span class="prelude-val">Ok</span>(()) = global_config_rx.changed() =&gt; {
+                        sleep = Duration::ZERO;
                     }
                     <span class="kw">else </span>=&gt; <span class="kw">break</span>,
                 }
