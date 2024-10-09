@@ -2,7 +2,7 @@ use r2d2::{Builder, ManageConnection, Pool, PooledConnection};
 pub use redis;
 use redis::ConnectionLike;
 use std::error::Error;
-use std::thread::ScopedJoinHandle;
+use std::thread::{Scope, ScopedJoinHandle};
 use std::time::Duration;
 use std::{fmt, io, thread};
 use thiserror::Error;
@@ -34,7 +34,13 @@ fn log_secondary_redis_error<T>(result: redis::RedisResult<T>) {
     }
 }
 
-fn log_secondary_thread_error<T>(result: io::Result<T>) {
+fn spawn_secondary_thread<'scope, 'env: 'scope, T>(
+    scope: &'scope Scope<'scope, 'env>,
+    block: impl FnOnce() -> redis::RedisResult<T> + Send + 'scope,
+) {
+    let result = thread::Builder::new().spawn_scoped(scope, move || {
+        log_secondary_redis_error(block());
+    });
     if let Err(error) = result {
         relay_log::error!(
             error = &error as &dyn Error,
@@ -62,10 +68,7 @@ impl ConnectionLike for ConnectionInner<'_> {
                 secondaries,
             } => thread::scope(|s| {
                 for connection in secondaries {
-                    let result = thread::Builder::new().spawn_scoped(s, move || {
-                        log_secondary_redis_error(connection.req_packed_command(cmd));
-                    });
-                    log_secondary_thread_error(result);
+                    spawn_secondary_thread(s, || connection.req_packed_command(cmd))
                 }
                 primary.req_packed_command(cmd)
             }),
@@ -86,12 +89,7 @@ impl ConnectionLike for ConnectionInner<'_> {
                 secondaries,
             } => thread::scope(|s| {
                 for connection in secondaries {
-                    let result = thread::Builder::new().spawn_scoped(s, move || {
-                        log_secondary_redis_error(
-                            connection.req_packed_commands(cmd, offset, count),
-                        );
-                    });
-                    log_secondary_thread_error(result);
+                    spawn_secondary_thread(s, || connection.req_packed_commands(cmd, offset, count))
                 }
                 primary.req_packed_commands(cmd, offset, count)
             }),
