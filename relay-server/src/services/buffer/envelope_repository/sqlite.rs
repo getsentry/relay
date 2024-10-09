@@ -1,7 +1,7 @@
 use crate::services::buffer::common::ProjectKeyPair;
 use crate::services::buffer::envelope_repository::InitializationState;
 use crate::services::buffer::envelope_store::sqlite::SqliteEnvelopeStoreError;
-use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
+use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::{Envelope, SqliteEnvelopeStore};
 use hashbrown::{HashMap, HashSet};
 use relay_config::Config;
@@ -99,6 +99,9 @@ impl SqliteEnvelopeRepository {
             .push(envelope);
 
         self.cached_envelopes_size += 1;
+        relay_statsd::metric!(
+            gauge(RelayGauges::BufferCachedEnvelopes) = self.cached_envelopes_size
+        );
 
         Ok(())
     }
@@ -127,6 +130,9 @@ impl SqliteEnvelopeRepository {
             }
 
             self.cached_envelopes_size += envelopes.len() as u64;
+            relay_statsd::metric!(
+                gauge(RelayGauges::BufferCachedEnvelopes) = self.cached_envelopes_size
+            );
             self.envelope_stacks
                 .entry(project_key_pair)
                 .or_default()
@@ -154,6 +160,9 @@ impl SqliteEnvelopeRepository {
         if let Some(envelope) = envelope {
             // We only decrement the counter when removing data from the in memory buffer.
             self.cached_envelopes_size -= 1;
+            relay_statsd::metric!(
+                gauge(RelayGauges::BufferCachedEnvelopes) = self.cached_envelopes_size
+            );
             return Ok(Some(envelope));
         }
 
@@ -296,6 +305,9 @@ impl SqliteEnvelopeRepository {
         let envelope_iter = self.envelope_stacks.values_mut().flat_map(|e| {
             e.check_disk = true;
             self.cached_envelopes_size -= e.cached_envelopes.len() as u64;
+            relay_statsd::metric!(
+                gauge(RelayGauges::BufferCachedEnvelopes) = self.cached_envelopes_size
+            );
             relay_statsd::metric!(
                 histogram(RelayHistograms::BufferInMemoryEnvelopesPerKeyPair) =
                     e.cached_envelopes.len() as u64
