@@ -410,22 +410,10 @@ impl Service for EnvelopeBufferService {
 
                 let mut sleep = Duration::MAX;
                 tokio::select! {
-                    biased;
-
-                    shutdown = shutdown.notified() => {
-                        // In case the shutdown was handled, we break out of the loop signaling that
-                        // there is no need to process anymore envelopes.
-                        if Self::handle_shutdown(&mut buffer, shutdown).await {
-                            break;
-                        }
-                    }
-                    Ok(()) = global_config_rx.changed() => {
-                        sleep = Duration::ZERO;
-                    }
-                    Some(message) = rx.recv() => {
-                        Self::handle_message(&mut buffer, message).await;
-                        sleep = Duration::ZERO;
-                    }
+                    // NOTE: we do not select a bias here.
+                    // On the one hand, we might want to prioritize dequeuing over enqueuing
+                    // so we do not exceed the buffer capacity by starving the dequeue.
+                    // on the other hand, prioritizing old messages violates the LIFO design.
                     Some(permit) = self.ready_to_pop(&buffer, dequeue.load(Ordering::Relaxed)) => {
                         match Self::try_pop(&config, &mut buffer, &services, permit).await {
                             Ok(new_sleep) => {
@@ -438,6 +426,20 @@ impl Service for EnvelopeBufferService {
                             );
                             }
                         }
+                    }
+                    Some(message) = rx.recv() => {
+                        Self::handle_message(&mut buffer, message).await;
+                        sleep = Duration::ZERO;
+                    }
+                    shutdown = shutdown.notified() => {
+                        // In case the shutdown was handled, we break out of the loop signaling that
+                        // there is no need to process anymore envelopes.
+                        if Self::handle_shutdown(&mut buffer, shutdown).await {
+                            break;
+                        }
+                    }
+                    Ok(()) = global_config_rx.changed() => {
+                        sleep = Duration::ZERO;
                     }
                     else => break,
                 }
