@@ -22,7 +22,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use relay_common::glob3::GlobPatterns;
     use relay_event_schema::protocol::{Event, LenientString, Span, SpanData};
     use relay_protocol::Annotated;
 
@@ -73,9 +72,7 @@ mod tests {
             let span = get_span_for_release(release);
 
             let config = ReleasesFilterConfig {
-                releases: GlobPatterns::new(
-                    blocked_releases.iter().map(|&r| r.to_string()).collect(),
-                ),
+                releases: blocked_releases.iter().map(|&r| r.to_owned()).collect(),
             };
 
             let actual = should_filter(&event, &config) != Ok(());
