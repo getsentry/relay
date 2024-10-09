@@ -183,6 +183,8 @@ pub enum RelayHistograms {
     BufferBackpressureEnvelopesCount,
     /// Number of envelopes in the buffer per key pair of projects.
     BufferInMemoryEnvelopesPerKeyPair,
+    /// Number of cached envelopes in the buffer.
+    BufferCachedEnvelopes,
     /// The number of batches emitted per partition.
     BatchesPerPartition,
     /// The number of buckets in a batch emitted.
@@ -314,6 +316,7 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::BufferInMemoryEnvelopesPerKeyPair => {
                 "buffer.in_memory_envelopes_per_key_pair"
             }
+            RelayHistograms::BufferCachedEnvelopes => "buffer.cached_envelopes",
             RelayHistograms::ProjectStatePending => "project_state.pending",
             RelayHistograms::ProjectStateAttempts => "project_state.attempts",
             RelayHistograms::ProjectStateRequestBatchSize => "project_state.request.batch_size",
