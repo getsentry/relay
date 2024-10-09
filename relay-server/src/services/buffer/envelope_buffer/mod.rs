@@ -86,8 +86,7 @@ impl EnvelopeBuffer {
 
     /// Pushes an envelope to the [`EnvelopeRepository`] and updates the priority queue accordingly.
     pub async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), EnvelopeBufferError> {
-        relay_statsd::metric!(counter(RelayCounters::BufferEnvelopesWritten) += 1);
-        relay_statsd::metric!(timer(RelayTimers::BufferPush), {
+        let result = relay_statsd::metric!(timer(RelayTimers::BufferPush), {
             let received_at = envelope.meta().start_time().into();
             let project_key_pair = ProjectKeyPair::from_envelope(&envelope);
 
@@ -110,7 +109,9 @@ impl EnvelopeBuffer {
             self.track_total_count();
 
             Ok(())
-        })
+        });
+        relay_statsd::metric!(counter(RelayCounters::BufferEnvelopesWritten) += 1);
+        result
     }
 
     /// Returns a reference to the next-in-line envelope, if one exists.
@@ -137,8 +138,7 @@ impl EnvelopeBuffer {
     /// The priority of the [`ProjectKeyPair`] is updated with the next envelope's received_at
     /// time.
     pub async fn pop(&mut self) -> Result<Option<Box<Envelope>>, EnvelopeBufferError> {
-        relay_statsd::metric!(counter(RelayCounters::BufferEnvelopesRead) += 1);
-        relay_statsd::metric!(timer(RelayTimers::BufferPop), {
+        let result = relay_statsd::metric!(timer(RelayTimers::BufferPop), {
             let Some((&project_key_pair, _)) = self.priority_queue.peek() else {
                 return Ok(None);
             };
@@ -176,7 +176,9 @@ impl EnvelopeBuffer {
             self.track_total_count();
 
             Ok(Some(envelope))
-        })
+        });
+        relay_statsd::metric!(counter(RelayCounters::BufferEnvelopesRead) += 1);
+        result
     }
 
     /// Re-prioritizes all [`ProjectKeyPair`]s that involve the given project key by setting it to
