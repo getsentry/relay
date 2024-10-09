@@ -181,8 +181,6 @@ pub enum RelayHistograms {
     /// Number of envelopes in the backpressure buffer between the envelope buffer
     /// and the project cache.
     BufferBackpressureEnvelopesCount,
-    /// Number of envelopes in the buffer per key pair of projects.
-    BufferInMemoryEnvelopesPerKeyPair,
     /// The number of batches emitted per partition.
     BatchesPerPartition,
     /// The number of buckets in a batch emitted.
@@ -310,9 +308,6 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::BufferEnvelopesCount => "buffer.envelopes_count",
             RelayHistograms::BufferBackpressureEnvelopesCount => {
                 "buffer.backpressure_envelopes_count"
-            }
-            RelayHistograms::BufferInMemoryEnvelopesPerKeyPair => {
-                "buffer.in_memory_envelopes_per_key_pair"
             }
             RelayHistograms::ProjectStatePending => "project_state.pending",
             RelayHistograms::ProjectStateAttempts => "project_state.attempts",
@@ -541,8 +536,8 @@ pub enum RelayTimers {
     BufferPeek,
     /// Timing in milliseconds for the time it takes for the buffer to pop.
     BufferPop,
-    /// Timing in milliseconds for the time it takes for the buffer to flush its envelopes.
-    BufferFlush,
+    /// Timing in milliseconds for the time it takes for the buffer to drain its envelopes.
+    BufferDrain,
 }
 
 impl TimerMetric for RelayTimers {
@@ -590,7 +585,7 @@ impl TimerMetric for RelayTimers {
             RelayTimers::BufferPush => "buffer.push.duration",
             RelayTimers::BufferPeek => "buffer.peek.duration",
             RelayTimers::BufferPop => "buffer.pop.duration",
-            RelayTimers::BufferFlush => "buffer.flush.duration",
+            RelayTimers::BufferDrain => "buffer.drain.duration",
         }
     }
 }
@@ -641,7 +636,8 @@ pub enum RelayCounters {
     /// This happens when the envelope buffer falsely assumes that the envelope's projects are loaded
     /// in the cache and sends the envelope onward, even though the project cache cannot handle it.
     BufferEnvelopesReturned,
-    /// Number of times a project key pair is popped from the envelope provider.
+    /// Number of times an envelope stack is popped from the priority queue of stacks in the
+    /// envelope buffer.
     BufferEnvelopeStacksPopped,
     /// Number of times an envelope from the buffer is trying to be popped.
     BufferTryPop,
