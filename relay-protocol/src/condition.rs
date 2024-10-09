@@ -2,7 +2,7 @@
 //!
 //! The root type is [`RuleCondition`].
 
-use relay_pattern::{CaseInsensitive, TypedPatterns};
+use relay_pattern::TypedPatterns;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -163,7 +163,7 @@ pub struct GlobCondition {
     /// A list of glob patterns to check.
     ///
     /// Note that this cannot be a single value, it must be a list of values.
-    pub value: TypedPatterns<CaseInsensitive>,
+    pub value: TypedPatterns,
 }
 
 impl GlobCondition {
