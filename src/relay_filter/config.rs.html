@@ -796,7 +796,7 @@
 <span class="kw">use </span>std::str::FromStr;
 
 <span class="kw">use </span>indexmap::IndexMap;
-<span class="kw">use </span>relay_common::glob3::GlobPatterns;
+<span class="kw">use </span>relay_pattern::{CaseInsensitive, TypedPatterns};
 <span class="kw">use </span>relay_protocol::RuleCondition;
 <span class="kw">use </span>serde::ser::SerializeSeq;
 <span class="kw">use </span>serde::{de, Deserialize, Serialize, Serializer};
@@ -961,7 +961,7 @@
 </span><span class="attr">#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>ErrorMessagesFilterConfig {
     <span class="doccomment">/// List of error message patterns that will be filtered.
-    </span><span class="kw">pub </span>patterns: GlobPatterns,
+    </span><span class="kw">pub </span>patterns: TypedPatterns&lt;CaseInsensitive&gt;,
 }
 
 <span class="doccomment">/// Configuration for transaction name filter.
@@ -969,7 +969,7 @@
 #[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>IgnoreTransactionsFilterConfig {
     <span class="doccomment">/// List of patterns for ignored transactions that should be filtered.
-    </span><span class="kw">pub </span>patterns: GlobPatterns,
+    </span><span class="kw">pub </span>patterns: TypedPatterns&lt;CaseInsensitive&gt;,
     <span class="doccomment">/// True if the filter is enabled
     </span><span class="attr">#[serde(default)]
     </span><span class="kw">pub </span>is_enabled: bool,
@@ -993,7 +993,7 @@
 </span><span class="attr">#[derive(Clone, Debug, Default, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>ReleasesFilterConfig {
     <span class="doccomment">/// List of release names that will be filtered.
-    </span><span class="kw">pub </span>releases: GlobPatterns,
+    </span><span class="kw">pub </span>releases: TypedPatterns&lt;CaseInsensitive&gt;,
 }
 
 <span class="kw">impl </span>ReleasesFilterConfig {
@@ -1420,7 +1420,7 @@
                 disallowed_sources: <span class="macro">vec!</span>[<span class="string">"https://*"</span>.to_string()],
             },
             error_messages: ErrorMessagesFilterConfig {
-                patterns: GlobPatterns::new(<span class="macro">vec!</span>[<span class="string">"Panic"</span>.to_string()]),
+                patterns: TypedPatterns::from([<span class="string">"Panic"</span>.to_owned()]),
             },
             legacy_browsers: LegacyBrowsersFilterConfig {
                 is_enabled: <span class="bool-val">false</span>,
@@ -1431,16 +1431,16 @@
             },
             localhost: FilterConfig { is_enabled: <span class="bool-val">true </span>},
             releases: ReleasesFilterConfig {
-                releases: GlobPatterns::new(<span class="macro">vec!</span>[<span class="string">"1.2.3"</span>.to_string()]),
+                releases: TypedPatterns::from([<span class="string">"1.2.3"</span>.to_owned()]),
             },
             ignore_transactions: IgnoreTransactionsFilterConfig {
-                patterns: GlobPatterns::new(<span class="macro">vec!</span>[<span class="string">"*health*"</span>.to_string()]),
+                patterns: TypedPatterns::from([<span class="string">"*health*"</span>.to_owned()]),
                 is_enabled: <span class="bool-val">true</span>,
             },
             generic: GenericFiltersConfig {
                 version: <span class="number">1</span>,
                 filters: <span class="macro">vec!</span>[GenericFilterConfig {
-                    id: <span class="string">"hydrationError"</span>.to_string(),
+                    id: <span class="string">"hydrationError"</span>.to_owned(),
                     is_enabled: <span class="bool-val">true</span>,
                     condition: <span class="prelude-val">Some</span>(RuleCondition::eq(<span class="string">"event.exceptions"</span>, <span class="string">"HydrationError"</span>)),
                 }]

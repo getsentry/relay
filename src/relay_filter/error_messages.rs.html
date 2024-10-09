@@ -223,6 +223,7 @@
 <a href="#223" id="223">223</a>
 <a href="#224" id="224">224</a>
 <a href="#225" id="225">225</a>
+<a href="#226" id="226">226</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Implements event filtering based on the error message
 //!
 //! Specific values in the error message or in the exception values can be used to
@@ -230,12 +231,12 @@
 
 </span><span class="kw">use </span>std::borrow::Cow;
 
-<span class="kw">use </span>relay_common::glob3::GlobPatterns;
+<span class="kw">use </span>relay_pattern::Patterns;
 
 <span class="kw">use crate</span>::{ErrorMessagesFilterConfig, FilterStatKey, Filterable};
 
 <span class="doccomment">/// Checks events by patterns in their error messages.
-</span><span class="kw">fn </span>matches&lt;F: Filterable&gt;(item: <span class="kw-2">&amp;</span>F, patterns: <span class="kw-2">&amp;</span>GlobPatterns) -&gt; bool {
+</span><span class="kw">fn </span>matches&lt;F: Filterable&gt;(item: <span class="kw-2">&amp;</span>F, patterns: <span class="kw-2">&amp;</span>Patterns) -&gt; bool {
     <span class="kw">if let </span><span class="prelude-val">Some</span>(logentry) = item.logentry() {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(message) = logentry.formatted.value() {
             <span class="kw">if </span>patterns.is_match(message.as_ref()) {
@@ -284,6 +285,7 @@
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>relay_event_schema::protocol::{Event, Exception, LogEntry, Values};
+    <span class="kw">use </span>relay_pattern::TypedPatterns;
     <span class="kw">use </span>relay_protocol::Annotated;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
@@ -293,19 +295,19 @@
         <span class="kw">let </span>configs = <span class="kw-2">&amp;</span>[
             <span class="comment">// with globs
             </span>ErrorMessagesFilterConfig {
-                patterns: GlobPatterns::new(<span class="macro">vec!</span>[
-                    <span class="string">"filteredexception*"</span>.to_string(),
-                    <span class="string">"*this is a filtered exception."</span>.to_string(),
-                    <span class="string">""</span>.to_string(),
-                    <span class="string">"this is"</span>.to_string(),
+                patterns: TypedPatterns::from([
+                    <span class="string">"filteredexception*"</span>.to_owned(),
+                    <span class="string">"*this is a filtered exception."</span>.to_owned(),
+                    <span class="string">""</span>.to_owned(),
+                    <span class="string">"this is"</span>.to_owned(),
                 ]),
             },
             <span class="comment">// without globs
             </span>ErrorMessagesFilterConfig {
-                patterns: GlobPatterns::new(<span class="macro">vec!</span>[
-                    <span class="string">"filteredexception: this is a filtered exception."</span>.to_string(),
-                    <span class="string">"filteredexception"</span>.to_string(),
-                    <span class="string">"this is a filtered exception."</span>.to_string(),
+                patterns: TypedPatterns::from([
+                    <span class="string">"filteredexception: this is a filtered exception."</span>.to_owned(),
+                    <span class="string">"filteredexception"</span>.to_owned(),
+                    <span class="string">"this is a filtered exception."</span>.to_owned(),
                 ]),
             },
         ];
@@ -398,7 +400,7 @@
         <span class="kw">let </span>pattern =
             <span class="string">"*https://reactjs.org/docs/error-decoder.html?invariant={418,419,422,423,425}*"</span>;
         <span class="kw">let </span>config = ErrorMessagesFilterConfig {
-            patterns: GlobPatterns::new(<span class="macro">vec!</span>[pattern.to_string()]),
+            patterns: TypedPatterns::from([pattern.to_owned()]),
         };
 
         <span class="kw">let </span>event = Annotated::&lt;Event&gt;::from_json(
@@ -426,7 +428,7 @@
         ];
 
         <span class="kw">let </span>config = ErrorMessagesFilterConfig {
-            patterns: GlobPatterns::new(<span class="macro">vec!</span>[
+            patterns: TypedPatterns::from([
                 <span class="string">"ChunkLoadError: Loading chunk *"</span>.to_owned(),
                 <span class="string">"*Uncaught *: ChunkLoadError: Loading chunk *"</span>.to_owned(),
             ]),

@@ -253,15 +253,16 @@
 <a href="#253" id="253">253</a>
 <a href="#254" id="254">254</a>
 <a href="#255" id="255">255</a>
+<a href="#256" id="256">256</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Implements event filtering based on whether the endpoint called is a healthcheck endpoint.
 //!
 //! If this filter is enabled transactions from healthcheck endpoints will be filtered out.
 
-</span><span class="kw">use </span>relay_common::glob3::GlobPatterns;
+</span><span class="kw">use </span>relay_pattern::Patterns;
 
 <span class="kw">use crate</span>::{FilterStatKey, Filterable, IgnoreTransactionsFilterConfig};
 
-<span class="kw">fn </span>matches(transaction: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;, patterns: <span class="kw-2">&amp;</span>GlobPatterns) -&gt; bool {
+<span class="kw">fn </span>matches(transaction: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;, patterns: <span class="kw-2">&amp;</span>Patterns) -&gt; bool {
     transaction.map_or(<span class="bool-val">false</span>, |transaction| patterns.is_match(transaction))
 }
 
@@ -284,6 +285,7 @@
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>relay_event_schema::protocol::{Event, EventType};
+    <span class="kw">use </span>relay_pattern::TypedPatterns;
     <span class="kw">use </span>relay_protocol::Annotated;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
@@ -310,7 +312,7 @@
         .to_vec();
 
         IgnoreTransactionsFilterConfig {
-            patterns: GlobPatterns::new(patterns_raw),
+            patterns: TypedPatterns::from(patterns_raw),
             is_enabled: <span class="bool-val">true</span>,
         }
     }
@@ -435,7 +437,7 @@
         <span class="kw">let </span>filter_result = should_filter(
             <span class="kw-2">&amp;</span>event,
             <span class="kw-2">&amp;</span>IgnoreTransactionsFilterConfig {
-                patterns: GlobPatterns::new(<span class="macro">vec!</span>[]),
+                patterns: TypedPatterns::default(),
                 is_enabled: <span class="bool-val">true</span>,
             },
         );

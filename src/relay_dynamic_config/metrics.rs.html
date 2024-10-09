@@ -817,6 +817,9 @@
 <a href="#817" id="817">817</a>
 <a href="#818" id="818">818</a>
 <a href="#819" id="819">819</a>
+<a href="#820" id="820">820</a>
+<a href="#821" id="821">821</a>
+<a href="#822" id="822">822</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic configuration for metrics extraction from sessions and transactions.
 
 </span><span class="kw">use </span>core::fmt;
@@ -827,8 +830,8 @@
 <span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_cardinality::CardinalityLimit;
 <span class="kw">use </span>relay_common::glob2::LazyGlob;
-<span class="kw">use </span>relay_common::glob3::GlobPatterns;
 <span class="kw">use </span>relay_common::impl_str_serde;
+<span class="kw">use </span>relay_pattern::{Patterns, TypedPatterns};
 <span class="kw">use </span>relay_protocol::RuleCondition;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
@@ -842,8 +845,8 @@
     </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"Vec::is_empty"</span>)]
     </span><span class="kw">pub </span>cardinality_limits: Vec&lt;CardinalityLimit&gt;,
     <span class="doccomment">/// List of patterns for blocking metrics based on their name.
-    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"GlobPatterns::is_empty"</span>)]
-    </span><span class="kw">pub </span>denied_names: GlobPatterns,
+    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"Patterns::is_empty"</span>)]
+    </span><span class="kw">pub </span>denied_names: TypedPatterns,
     <span class="doccomment">/// Configuration for removing tags from a bucket.
     ///
     /// Note that removing tags does not drop the overall metric bucket.
@@ -862,11 +865,14 @@
 
 <span class="doccomment">/// Configuration for removing tags matching the `tag` pattern on metrics whose name matches the `name` pattern.
 </span><span class="attr">#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
 </span><span class="kw">pub struct </span>TagBlock {
     <span class="doccomment">/// Name of metric of which we want to remove certain tags.
-    </span><span class="kw">pub </span>name: GlobPatterns,
+    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"Patterns::is_empty"</span>)]
+    </span><span class="kw">pub </span>name: TypedPatterns,
     <span class="doccomment">/// Pattern to match keys of tags that we want to remove.
-    </span><span class="kw">pub </span>tags: GlobPatterns,
+    </span><span class="attr">#[serde(skip_serializing_if = <span class="string">"Patterns::is_empty"</span>)]
+    </span><span class="kw">pub </span>tags: TypedPatterns,
 }
 
 <span class="doccomment">/// Rule defining when a target tag should be set on a metric.

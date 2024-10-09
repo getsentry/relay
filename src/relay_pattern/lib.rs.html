@@ -1846,6 +1846,13 @@
 <a href="#1846" id="1846">1846</a>
 <a href="#1847" id="1847">1847</a>
 <a href="#1848" id="1848">1848</a>
+<a href="#1849" id="1849">1849</a>
+<a href="#1850" id="1850">1850</a>
+<a href="#1851" id="1851">1851</a>
+<a href="#1852" id="1852">1852</a>
+<a href="#1853" id="1853">1853</a>
+<a href="#1854" id="1854">1854</a>
+<a href="#1855" id="1855">1855</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! A glob like pattern used throught Relay and its APIs.
 //!
 //! # Behaviour
@@ -2014,6 +2021,13 @@
         <span class="self">self</span>.strategies
             .iter()
             .any(|s| s.is_match(haystack, <span class="self">self</span>.options))
+    }
+
+    <span class="doccomment">/// Returns `true` if this instance contains no patterns.
+    ///
+    /// An empty [`Patterns`] never matches any input.
+    </span><span class="kw">pub fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.strategies.is_empty()
     }
 }
 

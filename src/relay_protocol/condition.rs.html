@@ -1347,7 +1347,7 @@
 //!
 //! The root type is [`RuleCondition`].
 
-</span><span class="kw">use </span>relay_common::glob3::GlobPatterns;
+</span><span class="kw">use </span>relay_pattern::{CaseInsensitive, TypedPatterns};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>serde_json::Value;
 
@@ -1508,7 +1508,7 @@
     <span class="doccomment">/// A list of glob patterns to check.
     ///
     /// Note that this cannot be a single value, it must be a list of values.
-    </span><span class="kw">pub </span>value: GlobPatterns,
+    </span><span class="kw">pub </span>value: TypedPatterns&lt;CaseInsensitive&gt;,
 }
 
 <span class="kw">impl </span>GlobCondition {
@@ -1516,7 +1516,7 @@
     </span><span class="kw">pub fn </span>new(field: <span class="kw">impl </span>Into&lt;String&gt;, value: <span class="kw">impl </span>IntoStrings) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             name: field.into(),
-            value: GlobPatterns::new(value.into_strings()),
+            value: TypedPatterns::from(value.into_strings()),
         }
     }
 

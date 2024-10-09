@@ -246,7 +246,6 @@
 <a href="#246" id="246">246</a>
 <a href="#247" id="247">247</a>
 <a href="#248" id="248">248</a>
-<a href="#249" id="249">249</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_dynamic_config::{ErrorBoundary, Feature, Metrics};
 <span class="kw">use </span>relay_filter::FilterStatKey;
 <span class="kw">use </span>relay_metrics::{Bucket, MetricNamespace};
@@ -293,7 +292,7 @@
             };
 
             <span class="kw">if let </span>ErrorBoundary::Ok(<span class="kw-2">ref </span>metric_config) = project_info.config.metrics {
-                <span class="kw">if </span>metric_config.denied_names.is_match(<span class="kw-2">&amp;*</span>bucket.name) {
+                <span class="kw">if </span>metric_config.denied_names.is_match(<span class="kw-2">&amp;</span>bucket.name) {
                     <span class="macro">relay_log::trace!</span>(mri = <span class="kw-2">&amp;*</span>bucket.name, <span class="string">"dropping metrics due to block list"</span>);
                     denied_buckets.push(bucket);
                     <span class="kw">return </span><span class="prelude-val">None</span>;
@@ -340,7 +339,7 @@
 <span class="doccomment">/// Removes tags based on user configured deny list.
 </span><span class="kw">fn </span>remove_matching_bucket_tags(metric_config: <span class="kw-2">&amp;</span>Metrics, bucket: <span class="kw-2">&amp;mut </span>Bucket) {
     <span class="kw">for </span>tag_block <span class="kw">in </span><span class="kw-2">&amp;</span>metric_config.denied_tags {
-        <span class="kw">if </span>tag_block.name.is_match(<span class="kw-2">&amp;*</span>bucket.name) {
+        <span class="kw">if </span>tag_block.name.is_match(<span class="kw-2">&amp;</span>bucket.name) {
             bucket
                 .tags
                 .retain(|tag_key, <span class="kw">_</span>| !tag_block.tags.is_match(tag_key));
@@ -353,7 +352,6 @@
     <span class="kw">use </span>std::collections::BTreeMap;
 
     <span class="kw">use </span>relay_base_schema::project::{ProjectId, ProjectKey};
-    <span class="kw">use </span>relay_common::glob3::GlobPatterns;
     <span class="kw">use </span>relay_dynamic_config::TagBlock;
     <span class="kw">use </span>relay_metrics::{BucketValue, UnixTimestamp};
     <span class="kw">use </span>relay_system::Addr;
@@ -390,9 +388,9 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_remove_tags() {
         <span class="kw">let </span><span class="kw-2">mut </span>tags = BTreeMap::default();
-        tags.insert(<span class="string">"foobazbar"</span>.to_string(), <span class="string">"val"</span>.to_string());
-        tags.insert(<span class="string">"foobaz"</span>.to_string(), <span class="string">"val"</span>.to_string());
-        tags.insert(<span class="string">"bazbar"</span>.to_string(), <span class="string">"val"</span>.to_string());
+        tags.insert(<span class="string">"foobazbar"</span>.to_owned(), <span class="string">"val"</span>.to_owned());
+        tags.insert(<span class="string">"foobaz"</span>.to_owned(), <span class="string">"val"</span>.to_owned());
+        tags.insert(<span class="string">"bazbar"</span>.to_owned(), <span class="string">"val"</span>.to_owned());
 
         <span class="kw">let </span><span class="kw-2">mut </span>bucket = get_test_bucket(<span class="string">"foobar"</span>, tags);
 
@@ -400,8 +398,8 @@
 
         <span class="kw">let </span>metric_config = Metrics {
             denied_tags: <span class="macro">vec!</span>[TagBlock {
-                name: GlobPatterns::new(<span class="macro">vec!</span>[<span class="string">"foobar"</span>.to_string()]),
-                tags: GlobPatterns::new(<span class="macro">vec!</span>[tag_block_pattern.to_string()]),
+                name: <span class="string">"foobar"</span>.to_owned().into(),
+                tags: tag_block_pattern.to_owned().into(),
             }],
             ..Default::default()
         };
