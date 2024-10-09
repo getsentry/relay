@@ -2,7 +2,7 @@
 //!
 //! The root type is [`RuleCondition`].
 
-use relay_common::glob3::GlobPatterns;
+use relay_pattern::{CaseInsensitive, TypedPatterns};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -163,7 +163,7 @@ pub struct GlobCondition {
     /// A list of glob patterns to check.
     ///
     /// Note that this cannot be a single value, it must be a list of values.
-    pub value: GlobPatterns,
+    pub value: TypedPatterns<CaseInsensitive>,
 }
 
 impl GlobCondition {
@@ -171,7 +171,7 @@ impl GlobCondition {
     pub fn new(field: impl Into<String>, value: impl IntoStrings) -> Self {
         Self {
             name: field.into(),
-            value: GlobPatterns::new(value.into_strings()),
+            value: TypedPatterns::from(value.into_strings()),
         }
     }
 
