@@ -435,6 +435,10 @@
 <a href="#435" id="435">435</a>
 <a href="#436" id="436">436</a>
 <a href="#437" id="437">437</a>
+<a href="#438" id="438">438</a>
+<a href="#439" id="439">439</a>
+<a href="#440" id="440">440</a>
+<a href="#441" id="441">441</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>core::fmt;
 <span class="kw">use </span>std::fmt::Debug;
 <span class="kw">use </span>std::marker::PhantomData;
@@ -617,7 +621,9 @@
     <span class="kw">fn </span>from_iter&lt;T: IntoIterator&lt;Item = String&gt;&gt;(iter: T) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>builder = <span class="self">Self</span>::builder();
         <span class="kw">for </span>pattern <span class="kw">in </span>iter.into_iter() {
-            <span class="kw">let _ </span>= builder.add(pattern);
+            <span class="kw">let </span>_err = builder.add(pattern);
+            <span class="attr">#[cfg(debug_assertions)]
+            </span>_err.expect(<span class="string">"all patterns should be valid patterns"</span>);
         }
         builder.build()
     }
@@ -685,7 +691,9 @@
 
                 <span class="kw">while let </span><span class="prelude-val">Some</span>(item) = seq.next_element()<span class="question-mark">? </span>{
                     <span class="comment">// Ignore invalid patterns as documented.
-                    </span><span class="kw">let _ </span>= builder.add(item);
+                    </span><span class="kw">let </span>_err = builder.add(item);
+                    <span class="attr">#[cfg(debug_assertions)]
+                    </span>_err.expect(<span class="string">"all patterns should be valid patterns"</span>);
                 }
 
                 <span class="prelude-val">Ok</span>(builder.build())
@@ -835,7 +843,7 @@
     }
 
     <span class="attr">#[test]
-    #[cfg(feature = <span class="string">"serde"</span>)]
+    #[cfg(all(feature = <span class="string">"serde"</span>, not(debug_assertions)))]
     </span><span class="kw">fn </span>test_patterns_deserialize_err() {
         <span class="kw">let </span>r: TypedPatterns&lt;CaseInsensitive&gt; =
             serde_json::from_str(<span class="string">r#"["[invalid","foobar"]"#</span>).unwrap();

@@ -1105,7 +1105,7 @@
 </span><span class="kw">const </span>APP_START_ROOT_SPAN_DESCRIPTIONS: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str] = <span class="kw-2">&amp;</span>[<span class="string">"Cold Start"</span>, <span class="string">"Warm Start"</span>];
 
 <span class="doccomment">/// A list of patterns found in MongoDB queries.
-</span><span class="kw">const </span>MONGODB_QUERIES: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str] = <span class="kw-2">&amp;</span>[<span class="string">"*\"$*"</span>, <span class="string">"{*"</span>, <span class="string">"*({*"</span>, <span class="string">"*[{*"</span>];
+</span><span class="kw">const </span>MONGODB_QUERIES: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str] = <span class="kw-2">&amp;</span>[<span class="string">"*\"$*"</span>, <span class="string">r"\{*"</span>, <span class="string">r"*(\{*"</span>, <span class="string">r"*\[\{*"</span>];
 
 <span class="doccomment">/// A list of patterns for resource span ops we'd like to ingest.
 </span><span class="kw">const </span>RESOURCE_SPAN_OPS: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>str] = <span class="kw-2">&amp;</span>[<span class="string">"resource.script"</span>, <span class="string">"resource.css"</span>, <span class="string">"resource.img"</span>];
@@ -1198,7 +1198,7 @@
     <span class="kw">let </span>is_db = RuleCondition::eq(<span class="string">"span.sentry_tags.category"</span>, <span class="string">"db"</span>)
         &amp; !RuleCondition::glob(<span class="string">"span.op"</span>, DISABLED_DATABASES)
         <span class="comment">// MongoDB queries are only allowed when `span.system` is set to `mongodb`.
-        </span>&amp; (RuleCondition::eq(<span class="string">"span.system"</span>, <span class="string">"mongodb"</span>)
+        </span>&amp; (RuleCondition::eq(<span class="string">"span.data.db\\.system"</span>, <span class="string">"mongodb"</span>)
             | !RuleCondition::glob(<span class="string">"span.description"</span>, MONGODB_QUERIES));
     <span class="kw">let </span>is_resource = RuleCondition::glob(<span class="string">"span.op"</span>, RESOURCE_SPAN_OPS);
 
