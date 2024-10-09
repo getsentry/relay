@@ -4,6 +4,8 @@ use std::str::FromStr;
 use serde::{de, Deserialize};
 use serde_json::{Map, Value};
 
+use crate::types::ClientSdk;
+
 pub fn is_zero(n: &u64) -> bool {
     *n == 0
 }
@@ -46,4 +48,24 @@ where
 
 pub fn string_is_null_or_empty(s: &Option<String>) -> bool {
     s.as_deref().map_or(true, |s| s.is_empty())
+}
+
+pub fn default_client_sdk(platform: &str) -> Option<ClientSdk> {
+    let sdk_name = match platform {
+        "android" => "sentry.java.android",
+        "cocoa" => "sentry.cocoa",
+        "csharp" => "sentry.dotnet",
+        "go" => "sentry.go",
+        "javascript" => "sentry.javascript",
+        "node" => "sentry.javascript.node",
+        "php" => "sentry.php",
+        "python" => "sentry.python",
+        "ruby" => "sentry.ruby",
+        "rust" => "sentry.rust",
+        _ => return None,
+    };
+    Some(ClientSdk {
+        name: sdk_name.into(),
+        version: "".into(),
+    })
 }
