@@ -32,6 +32,8 @@ pub enum RelayGauges {
     BufferStackCount,
     /// The used disk for the buffer.
     BufferDiskUsed,
+    /// Number of cached envelopes in the buffer.
+    BufferCachedEnvelopes,
     /// The currently used memory by the entire system.
     ///
     /// Relay uses the same value for its memory health check.
@@ -58,6 +60,7 @@ impl GaugeMetric for RelayGauges {
             RelayGauges::BufferPeriodicUnspool => "buffer.unspool.periodic",
             RelayGauges::BufferStackCount => "buffer.stack_count",
             RelayGauges::BufferDiskUsed => "buffer.disk_used",
+            RelayGauges::BufferCachedEnvelopes => "buffer.cached_envelopes",
             RelayGauges::SystemMemoryUsed => "health.system_memory.used",
             RelayGauges::SystemMemoryTotal => "health.system_memory.total",
             #[cfg(feature = "processing")]
@@ -183,8 +186,6 @@ pub enum RelayHistograms {
     BufferBackpressureEnvelopesCount,
     /// Number of envelopes in the buffer per key pair of projects.
     BufferInMemoryEnvelopesPerKeyPair,
-    /// Number of cached envelopes in the buffer.
-    BufferCachedEnvelopes,
     /// The number of batches emitted per partition.
     BatchesPerPartition,
     /// The number of buckets in a batch emitted.
@@ -316,7 +317,6 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::BufferInMemoryEnvelopesPerKeyPair => {
                 "buffer.in_memory_envelopes_per_key_pair"
             }
-            RelayHistograms::BufferCachedEnvelopes => "buffer.cached_envelopes",
             RelayHistograms::ProjectStatePending => "project_state.pending",
             RelayHistograms::ProjectStateAttempts => "project_state.attempts",
             RelayHistograms::ProjectStateRequestBatchSize => "project_state.request.batch_size",
