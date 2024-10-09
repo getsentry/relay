@@ -24,7 +24,7 @@ const MOBILE_OPS: &[&str] = &[
 const APP_START_ROOT_SPAN_DESCRIPTIONS: &[&str] = &["Cold Start", "Warm Start"];
 
 /// A list of patterns found in MongoDB queries.
-const MONGODB_QUERIES: &[&str] = &["*\"$*", "{*", "*({*", "*[{*"];
+const MONGODB_QUERIES: &[&str] = &["*\"$*", r"\{*", r"*(\{*", r"*\[\{*"];
 
 /// A list of patterns for resource span ops we'd like to ingest.
 const RESOURCE_SPAN_OPS: &[&str] = &["resource.script", "resource.css", "resource.img"];
