@@ -1,6 +1,7 @@
 //! Types for buffering envelopes.
 
 use std::error::Error;
+use std::future::Future;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
@@ -8,7 +9,10 @@ use std::time::Duration;
 
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
-use relay_system::{Addr, FromMessage, Interface, NoResponse, Receiver, Service};
+use relay_system::{
+    Addr, FromMessage, Interface, LoopError, NoResponse, Receiver, Service, ServiceMessage,
+    ServiceNew,
+};
 use relay_system::{Controller, Shutdown};
 use tokio::sync::mpsc::Permit;
 use tokio::sync::{mpsc, watch};
@@ -463,6 +467,17 @@ impl Service for EnvelopeBufferService {
                 relay_log::info!("SIGUSR1 receive, dequeue={}", deq);
             }
         });
+    }
+}
+
+impl ServiceNew for EnvelopeBufferService {
+    type Interface = ();
+
+    async fn loop_iter(
+        &mut self,
+        message: ServiceMessage<Self::Interface>,
+    ) -> Result<(), LoopError> {
+        Ok(())
     }
 }
 
