@@ -764,8 +764,6 @@
 <a href="#764" id="764">764</a>
 <a href="#765" id="765">765</a>
 <a href="#766" id="766">766</a>
-<a href="#767" id="767">767</a>
-<a href="#768" id="768">768</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Types for buffering envelopes.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -1178,11 +1176,23 @@
 
                 <span class="kw">let </span><span class="kw-2">mut </span>sleep = Duration::MAX;
                 <span class="macro">tokio::select!</span> {
-                    <span class="comment">// NOTE: we do not select a bias here.
-                    // On the one hand, we might want to prioritize dequeuing over enqueuing
-                    // so we do not exceed the buffer capacity by starving the dequeue.
-                    // on the other hand, prioritizing old messages violates the LIFO design.
-                    </span><span class="prelude-val">Some</span>(permit) = <span class="self">self</span>.ready_to_pop(<span class="kw-2">&amp;</span>buffer, dequeue.load(Ordering::Relaxed)) =&gt; {
+                    biased;
+
+                    shutdown = shutdown.notified() =&gt; {
+                        <span class="comment">// In case the shutdown was handled, we break out of the loop signaling that
+                        // there is no need to process anymore envelopes.
+                        </span><span class="kw">if </span><span class="self">Self</span>::handle_shutdown(<span class="kw-2">&amp;mut </span>buffer, shutdown).<span class="kw">await </span>{
+                            <span class="kw">break</span>;
+                        }
+                    }
+                    <span class="prelude-val">Ok</span>(()) = global_config_rx.changed() =&gt; {
+                        sleep = Duration::ZERO;
+                    }
+                    <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; {
+                        <span class="self">Self</span>::handle_message(<span class="kw-2">&amp;mut </span>buffer, message).<span class="kw">await</span>;
+                        sleep = Duration::ZERO;
+                    }
+                    <span class="prelude-val">Some</span>(permit) = <span class="self">self</span>.ready_to_pop(<span class="kw-2">&amp;</span>buffer, dequeue.load(Ordering::Relaxed)) =&gt; {
                         <span class="kw">match </span><span class="self">Self</span>::try_pop(<span class="kw-2">&amp;</span>config, <span class="kw-2">&amp;mut </span>buffer, <span class="kw-2">&amp;</span>services, permit).<span class="kw">await </span>{
                             <span class="prelude-val">Ok</span>(new_sleep) =&gt; {
                                 sleep = new_sleep;
@@ -1194,20 +1204,6 @@
                             </span>);
                             }
                         }
-                    }
-                    <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; {
-                        <span class="self">Self</span>::handle_message(<span class="kw-2">&amp;mut </span>buffer, message).<span class="kw">await</span>;
-                        sleep = Duration::ZERO;
-                    }
-                    shutdown = shutdown.notified() =&gt; {
-                        <span class="comment">// In case the shutdown was handled, we break out of the loop signaling that
-                        // there is no need to process anymore envelopes.
-                        </span><span class="kw">if </span><span class="self">Self</span>::handle_shutdown(<span class="kw-2">&amp;mut </span>buffer, shutdown).<span class="kw">await </span>{
-                            <span class="kw">break</span>;
-                        }
-                    }
-                    <span class="prelude-val">Ok</span>(()) = global_config_rx.changed() =&gt; {
-                        sleep = Duration::ZERO;
                     }
                     <span class="kw">else </span>=&gt; <span class="kw">break</span>,
                 }
