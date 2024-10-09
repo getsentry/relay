@@ -7,8 +7,7 @@ use crate::extractors::RequestMeta;
 use crate::services::buffer::{EnvelopeBuffer, EnvelopeBufferError};
 use crate::services::global_config;
 use crate::services::processor::{
-    EncodeMetrics, EnvelopeProcessor, MetricData, ProcessEnvelope, ProcessProjectData,
-    ProcessProjectMetrics, ProcessingGroup, ProjectMetrics,
+    EncodeMetrics, EnvelopeProcessor, MetricData, ProcessEnvelope, ProcessingGroup, ProjectMetrics,
 };
 use crate::services::project::state::UpstreamProjectState;
 use crate::Envelope;
@@ -23,7 +22,6 @@ use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, Sender, Service};
-use smallvec::SmallVec;
 #[cfg(feature = "processing")]
 use tokio::sync::Semaphore;
 use tokio::sync::{mpsc, watch};
@@ -212,11 +210,13 @@ impl From<&RequestMeta> for BucketSource {
 /// Starts the processing flow for received metrics.
 ///
 /// Enriches the raw data with projcet information and forwards
-/// the metrics using [`ProcessProjectMetrics`].
+/// the metrics using [`ProcessProjectMetrics`](crate::services::processor::ProcessProjectMetrics).
 #[derive(Debug)]
 pub struct ProcessMetrics {
-    /// Project associated metrics.
-    pub data: SmallVec<[(ProjectKey, MetricData); 1]>,
+    /// A list of metric items.
+    pub data: MetricData,
+    /// The target project.
+    pub project_key: ProjectKey,
     /// Whether to keep or reset the metric metadata.
     pub source: BucketSource,
     /// The instant at which the request was received.
@@ -795,13 +795,13 @@ impl ProjectCacheBroker {
         let project_cache = self.services.project_cache.clone();
         let project = self.get_or_create_project(project_key);
 
-        project.get_state(&project_cache, sender, no_cache);
+        project.get_state(project_cache, sender, no_cache);
     }
 
     fn handle_get_cached(&mut self, message: GetCachedProjectState) -> ProjectState {
         let project_cache = self.services.project_cache.clone();
         self.get_or_create_project(message.project_key)
-            .get_cached_state(&project_cache, false)
+            .get_cached_state(project_cache, false)
     }
 
     fn handle_check_envelope(
@@ -814,7 +814,7 @@ impl ProjectCacheBroker {
         if let Some(sampling_key) = context.envelope().sampling_key() {
             if sampling_key != project_key {
                 let sampling_project = self.get_or_create_project(sampling_key);
-                sampling_project.prefetch(&project_cache, false);
+                sampling_project.prefetch(project_cache.clone(), false);
             }
         }
         let project = self.get_or_create_project(project_key);
@@ -822,7 +822,7 @@ impl ProjectCacheBroker {
         // Preload the project cache so that it arrives a little earlier in processing. However,
         // do not pass `no_cache`. In case the project is rate limited, we do not want to force
         // a full reload. Fetching must not block the store request.
-        project.prefetch(&project_cache, false);
+        project.prefetch(project_cache, false);
 
         project.check_envelope(context)
     }
@@ -838,14 +838,14 @@ impl ProjectCacheBroker {
             );
 
             let mut project = Project::new(project_key, self.config.clone());
-            project.prefetch(&self.services.project_cache, false);
+            project.prefetch(self.services.project_cache.clone(), false);
             self.projects.insert(project_key, project);
             self.enqueue(key, managed_envelope);
             return;
         };
 
         let project_cache = self.services.project_cache.clone();
-        let project_info = match project.get_cached_state(&project_cache, false) {
+        let project_info = match project.get_cached_state(project_cache.clone(), false) {
             ProjectState::Enabled(info) => info,
             ProjectState::Disabled => {
                 managed_envelope.reject(Outcome::Invalid(DiscardReason::ProjectId));
@@ -880,7 +880,7 @@ impl ProjectCacheBroker {
                 .envelope()
                 .sampling_key()
                 .and_then(|key| self.projects.get_mut(&key))
-                .and_then(|p| p.get_cached_state(&project_cache, false).enabled())
+                .and_then(|p| p.get_cached_state(project_cache, false).enabled())
                 .filter(|state| state.organization_id == project_info.organization_id);
 
             let process = ProcessEnvelope {
@@ -920,7 +920,8 @@ impl ProjectCacheBroker {
         let own_key = envelope.meta().public_key();
         let project = self.get_or_create_project(own_key);
 
-        let project_state = project.get_cached_state(&project_cache, envelope.meta().no_cache());
+        let project_state =
+            project.get_cached_state(project_cache.clone(), envelope.meta().no_cache());
 
         let project_state = match project_state {
             ProjectState::Enabled(state) => Some(state),
@@ -937,7 +938,7 @@ impl ProjectCacheBroker {
         let sampling_state = if let Some(sampling_key) = sampling_key {
             let state = self
                 .get_or_create_project(sampling_key)
-                .get_cached_state(&project_cache, envelope.meta().no_cache());
+                .get_cached_state(project_cache, envelope.meta().no_cache());
             match state {
                 ProjectState::Enabled(state) => Some(state),
                 ProjectState::Disabled => {
@@ -981,34 +982,12 @@ impl ProjectCacheBroker {
     fn handle_process_metrics(&mut self, message: ProcessMetrics) {
         let project_cache = self.services.project_cache.clone();
 
-        let data = message
-            .data
-            .into_iter()
-            .map(|(project_key, data)| {
-                let project = self
-                    .get_or_create_project(project_key)
-                    .prefetch(&project_cache, false);
+        let message = self
+            .get_or_create_project(message.project_key)
+            .prefetch(project_cache, false)
+            .process_metrics(message);
 
-                let project_state = project.current_state();
-                let rate_limits = project.current_rate_limits().clone();
-
-                ProcessProjectData {
-                    project_key,
-                    project_state,
-                    rate_limits,
-                    data,
-                }
-            })
-            .collect();
-
-        self.services
-            .envelope_processor
-            .send(ProcessProjectMetrics {
-                data,
-                source: message.source,
-                start_time: message.start_time.into(),
-                sent_at: message.sent_at,
-            });
+        self.services.envelope_processor.send(message);
     }
 
     fn handle_add_metric_meta(&mut self, message: AddMetricMeta) {
@@ -1031,7 +1010,7 @@ impl ProjectCacheBroker {
                 ProjectState::Pending => {
                     no_project += 1;
                     // Schedule an update for the project just in case.
-                    project.prefetch(&project_cache, false);
+                    project.prefetch(project_cache.clone(), false);
                     project.return_buckets(&aggregator, buckets);
                     continue;
                 }
@@ -1094,10 +1073,10 @@ impl ProjectCacheBroker {
             let spool_v1 = self.spool_v1.as_mut().expect("no V1 spool configured");
             spool_v1.index.insert(key);
             self.get_or_create_project(key.own_key)
-                .prefetch(&project_cache, false);
+                .prefetch(project_cache.clone(), false);
             if key.own_key != key.sampling_key {
                 self.get_or_create_project(key.sampling_key)
-                    .prefetch(&project_cache, false);
+                    .prefetch(project_cache.clone(), false);
             }
         }
     }
@@ -1112,7 +1091,7 @@ impl ProjectCacheBroker {
 
         let own_key = envelope.meta().public_key();
         let project = self.get_or_create_project(own_key);
-        let project_state = project.get_cached_state(&services.project_cache, false);
+        let project_state = project.get_cached_state(services.project_cache.clone(), false);
 
         // Check if project config is enabled.
         let project_info = match project_state {
@@ -1138,7 +1117,7 @@ impl ProjectCacheBroker {
             (
                 sampling_key,
                 self.get_or_create_project(sampling_key)
-                    .get_cached_state(&services.project_cache, false),
+                    .get_cached_state(services.project_cache, false),
             )
         }) {
             Some((_, ProjectState::Enabled(info))) => {
@@ -1202,7 +1181,7 @@ impl ProjectCacheBroker {
         }
 
         let no_cache = false;
-        project.prefetch(&project_cache, no_cache);
+        project.prefetch(project_cache, no_cache);
     }
 
     /// Returns backoff timeout for an unspool attempt.
@@ -1234,7 +1213,7 @@ impl ProjectCacheBroker {
                 // Returns `Some` if the project is cached otherwise None and also triggers refresh
                 // in background.
                 !project
-                    .get_cached_state(&self.services.project_cache.clone(), false)
+                    .get_cached_state(self.services.project_cache.clone(), false)
                     .is_pending()
             })
         })
