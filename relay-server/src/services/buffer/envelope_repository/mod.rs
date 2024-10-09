@@ -110,6 +110,22 @@ impl EnvelopeRepository {
         }
     }
 
+    /// Returns `true` when there is space to store more [`Envelope`]s, `false` otherwise.
+    pub fn has_store_capacity(&self) -> bool {
+        match self {
+            EnvelopeRepository::Memory(repository) => repository.has_store_capacity(),
+            EnvelopeRepository::SQLite(repository) => repository.has_store_capacity(),
+        }
+    }
+
+    /// Returns the total count of [`Envelope`]s in the store.
+    pub async fn store_total_count(&self) -> u64 {
+        match self {
+            EnvelopeRepository::Memory(repository) => repository.store_total_count(),
+            EnvelopeRepository::SQLite(repository) => repository.store_total_count().await,
+        }
+    }
+
     /// Returns the string representation of the [`EnvelopeRepository`]'s strategy.
     pub fn name(&self) -> &'static str {
         match self {

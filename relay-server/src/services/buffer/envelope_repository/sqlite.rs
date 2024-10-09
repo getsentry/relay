@@ -31,7 +31,7 @@ struct EnvelopeStack {
 pub struct SqliteEnvelopeRepository {
     envelope_stacks: HashMap<ProjectKeyPair, EnvelopeStack>,
     envelope_store: SqliteEnvelopeStore,
-    buffered_envelopes_size: u64,
+    cached_envelopes_size: u64,
     disk_batch_size: usize,
     max_disk_size: usize,
 }
@@ -43,7 +43,7 @@ impl SqliteEnvelopeRepository {
         Ok(Self {
             envelope_stacks: HashMap::new(),
             envelope_store,
-            buffered_envelopes_size: 0,
+            cached_envelopes_size: 0,
             disk_batch_size: config.spool_envelopes_stack_disk_batch_size(),
             max_disk_size: config.spool_envelopes_max_disk_size(),
         })
@@ -54,7 +54,7 @@ impl SqliteEnvelopeRepository {
         Self {
             envelope_stacks: HashMap::new(),
             envelope_store,
-            buffered_envelopes_size: 0,
+            cached_envelopes_size: 0,
             disk_batch_size: config.spool_envelopes_stack_disk_batch_size(),
             max_disk_size: config.spool_envelopes_max_disk_size(),
         }
@@ -98,7 +98,7 @@ impl SqliteEnvelopeRepository {
             .cached_envelopes
             .push(envelope);
 
-        self.buffered_envelopes_size += 1;
+        self.cached_envelopes_size += 1;
 
         Ok(())
     }
@@ -126,7 +126,7 @@ impl SqliteEnvelopeRepository {
                 return Ok(None);
             }
 
-            self.buffered_envelopes_size += envelopes.len() as u64;
+            self.cached_envelopes_size += envelopes.len() as u64;
             self.envelope_stacks
                 .entry(project_key_pair)
                 .or_default()
@@ -153,7 +153,7 @@ impl SqliteEnvelopeRepository {
             .and_then(|envelopes| envelopes.cached_envelopes.pop());
         if let Some(envelope) = envelope {
             // We only decrement the counter when removing data from the in memory buffer.
-            self.buffered_envelopes_size -= 1;
+            self.cached_envelopes_size -= 1;
             return Ok(Some(envelope));
         }
 
@@ -178,8 +178,10 @@ impl SqliteEnvelopeRepository {
     /// Flushes all remaining envelopes to disk.
     pub async fn flush(&mut self) -> bool {
         relay_statsd::metric!(timer(RelayTimers::BufferFlush), {
+            let envelope_store = self.envelope_store.clone();
             for batch in self.get_envelope_batches() {
-                if let Err(error) = self.insert_envelope_batch(batch).await {
+                if let Err(error) = Self::insert_envelope_batch(envelope_store.clone(), batch).await
+                {
                     relay_log::error!(
                         error = &error as &dyn Error,
                         "failed to flush envelopes, some might be lost",
@@ -222,18 +224,19 @@ impl SqliteEnvelopeRepository {
 
     /// Determines if the number of buffered envelopes is above the spool threshold.
     fn above_spool_threshold(&self) -> bool {
-        self.buffered_envelopes_size >= self.disk_batch_size as u64
+        self.cached_envelopes_size >= self.disk_batch_size as u64
     }
 
     /// Spools all buffered envelopes to disk.
     async fn spool_to_disk(&mut self) -> Result<(), SqliteEnvelopeRepositoryError> {
-        let batches = self.get_envelope_batches();
-        // We should have only one batch here, since we spool when we reach the batch size.
-        debug_assert!(batches.len() == 1);
-
-        for batch in batches {
-            self.insert_envelope_batch(batch).await?;
+        let envelope_store = self.envelope_store.clone();
+        let mut processed_batches = 0;
+        for batch in self.get_envelope_batches() {
+            Self::insert_envelope_batch(envelope_store.clone(), batch).await?;
+            processed_batches += 1;
         }
+        // We should have only one batch here, since we spool when we reach the batch size.
+        debug_assert!(processed_batches == 1);
 
         Ok(())
     }
@@ -288,31 +291,29 @@ impl SqliteEnvelopeRepository {
 
     /// Returns batches of envelopes of size `self.disk_batch_size`.
     #[allow(clippy::vec_box)]
-    fn get_envelope_batches(&mut self) -> Vec<Vec<Box<Envelope>>> {
-        let mut all_envelopes = Vec::new();
-
-        for envelope_stack in self.envelope_stacks.values_mut() {
-            // When we remove envelopes from the buffer, we assume we now have data on disk.
-            envelope_stack.check_disk = true;
-            self.buffered_envelopes_size -= envelope_stack.cached_envelopes.len() as u64;
-            all_envelopes.append(&mut envelope_stack.cached_envelopes);
-
+    fn get_envelope_batches(&mut self) -> impl Iterator<Item = Vec<Box<Envelope>>> + '_ {
+        // Create a flat iterator over all the envelopes
+        let envelope_iter = self.envelope_stacks.values_mut().flat_map(|e| {
+            e.check_disk = true;
+            self.cached_envelopes_size -= e.cached_envelopes.len() as u64;
             relay_statsd::metric!(
                 histogram(RelayHistograms::BufferInMemoryEnvelopesPerKeyPair) =
-                    envelope_stack.cached_envelopes.len() as u64
+                    e.cached_envelopes.len() as u64
             );
-        }
+            e.cached_envelopes.drain(..)
+        });
 
-        all_envelopes
-            .chunks(self.disk_batch_size)
-            .map(|chunk| chunk.to_vec())
-            .collect()
+        // Wrap this flat iterator with a custom chunking logic
+        ChunkedIterator {
+            inner: envelope_iter,
+            chunk_size: self.disk_batch_size,
+        }
     }
 
     /// Inserts a batch of envelopes into the envelope store.
     #[allow(clippy::vec_box)]
     async fn insert_envelope_batch(
-        &mut self,
+        mut envelope_store: SqliteEnvelopeStore,
         batch: Vec<Box<Envelope>>,
     ) -> Result<(), SqliteEnvelopeRepositoryError> {
         if batch.is_empty() {
@@ -325,13 +326,48 @@ impl SqliteEnvelopeRepository {
         let envelopes = batch.iter().filter_map(|e| e.as_ref().try_into().ok());
 
         relay_statsd::metric!(timer(RelayTimers::BufferSpool), {
-            self.envelope_store
+            envelope_store
                 .insert_many(envelopes)
                 .await
                 .map_err(SqliteEnvelopeRepositoryError::EnvelopeStoreError)?;
         });
 
         Ok(())
+    }
+}
+
+struct ChunkedIterator<I>
+where
+    I: Iterator<Item = Box<Envelope>>,
+{
+    inner: I,
+    chunk_size: usize,
+}
+
+impl<I> Iterator for ChunkedIterator<I>
+where
+    I: Iterator<Item = Box<Envelope>>,
+{
+    type Item = Vec<Box<Envelope>>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut batch = Vec::with_capacity(self.chunk_size);
+
+        // Fill up the batch with up to `chunk_size` envelopes
+        for _ in 0..self.chunk_size {
+            if let Some(envelope) = self.inner.next() {
+                batch.push(envelope);
+            } else {
+                break; // Stop when there are no more items
+            }
+        }
+
+        // Return `None` if no more batches are available
+        if batch.is_empty() {
+            None
+        } else {
+            Some(batch)
+        }
     }
 }
 
@@ -355,7 +391,7 @@ mod tests {
         SqliteEnvelopeRepository {
             envelope_stacks: HashMap::new(),
             envelope_store,
-            buffered_envelopes_size: 0,
+            cached_envelopes_size: 0,
             disk_batch_size,
             max_disk_size,
         }
@@ -494,7 +530,7 @@ mod tests {
         }
 
         // Check that we have 5 envelopes in memory (1 batch of 3)
-        assert_eq!(repository.buffered_envelopes_size, 5);
+        assert_eq!(repository.cached_envelopes_size, 5);
         assert_eq!(repository.store_total_count().await, 10);
 
         // Pop all envelopes
@@ -508,7 +544,7 @@ mod tests {
 
         // Ensure the repository is now empty
         assert!(repository.pop(project_key_pair).await.unwrap().is_none());
-        assert_eq!(repository.buffered_envelopes_size, 0);
+        assert_eq!(repository.cached_envelopes_size, 0);
         assert_eq!(repository.store_total_count().await, 0);
     }
 

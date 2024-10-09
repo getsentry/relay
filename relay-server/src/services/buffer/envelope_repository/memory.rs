@@ -67,4 +67,9 @@ impl MemoryEnvelopeRepository {
     pub fn has_store_capacity(&self) -> bool {
         self.memory_checker.check_memory().has_capacity()
     }
+
+    /// Retrieves the total count of envelopes in the store.
+    pub fn store_total_count(&self) -> u64 {
+        self.envelopes.values().map(|e| e.len() as u64).sum()
+    }
 }

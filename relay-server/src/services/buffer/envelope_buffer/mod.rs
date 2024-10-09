@@ -231,10 +231,7 @@ impl EnvelopeBuffer {
     /// Returns `true` if the underlying storage has the capacity to store more envelopes, false
     /// otherwise.
     pub fn has_capacity(&self) -> bool {
-        match &self.envelope_repository {
-            EnvelopeRepository::Memory(repository) => repository.has_store_capacity(),
-            EnvelopeRepository::SQLite(repository) => repository.has_store_capacity(),
-        }
+        self.envelope_repository.has_store_capacity()
     }
 
     /// Flushes the envelope buffer.
@@ -301,12 +298,10 @@ impl EnvelopeBuffer {
     /// will process, besides the count of elements that will be added and removed during its
     /// lifecycle
     async fn load_store_total_count(&mut self) {
-        let total_count = timeout(Duration::from_secs(1), async {
-            match &self.envelope_repository {
-                EnvelopeRepository::Memory(_) => 0,
-                EnvelopeRepository::SQLite(repository) => repository.store_total_count().await,
-            }
-        })
+        let total_count = timeout(
+            Duration::from_secs(1),
+            self.envelope_repository.store_total_count(),
+        )
         .await;
         match total_count {
             Ok(total_count) => {
