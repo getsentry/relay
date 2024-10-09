@@ -1698,6 +1698,7 @@ mod tests {
 
     #[ignore] // Slow. Should probably be a criterion benchmark.
     #[tokio::test]
+    #[allow(clippy::print_stdout, reason = "benchmark test")]
     async fn compare_counts() {
         let path = std::env::temp_dir().join(Uuid::new_v4().to_string());
         let options = SqliteConnectOptions::new()

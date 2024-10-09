@@ -817,6 +817,7 @@ mod tests {
     /// exchanged authentication structures.
     /// It follows test_registration but instead of asserting it prints the strings
     #[test]
+    #[allow(clippy::print_stdout, reason = "helper test to generate output")]
     fn test_generate_strings_for_test_auth_py() {
         let max_age = Duration::minutes(15);
         println!("Generating test data for test_auth.py...");

@@ -2,6 +2,7 @@
 Test the health check endpoints
 """
 
+import queue
 import time
 import tempfile
 import os
@@ -80,6 +81,26 @@ def test_readiness_proxy(mini_sentry, relay):
     assert response.status_code == 200
 
 
+def assert_not_enough_memory(relay, mini_sentry, expected_comparison):
+    response = wait_get(relay, "/api/relay/healthcheck/ready/")
+    assert response.status_code == 503
+    errors = ""
+    for _ in range(100):
+        try:
+            errors += f"{mini_sentry.test_failures.get(timeout=10)}\n"
+        except queue.Empty:
+            break
+        if (
+            "Not enough memory" in errors
+            and expected_comparison in errors
+            and "Health check probe 'system memory'" in errors
+            and "Health check probe 'spool health'" in errors
+        ):
+            return
+
+    assert False, f"Not all errors represented: {errors}"
+
+
 def test_readiness_not_enough_memory_bytes(mini_sentry, relay):
     relay = relay(
         mini_sentry,
@@ -87,14 +108,7 @@ def test_readiness_not_enough_memory_bytes(mini_sentry, relay):
         wait_health_check=False,
     )
 
-    response = wait_get(relay, "/api/relay/healthcheck/ready/")
-    error = str(mini_sentry.test_failures.get(timeout=2))
-    assert "Not enough memory" in error and ">= 42" in error
-    error = str(mini_sentry.test_failures.get(timeout=1))
-    assert "Health check probe 'system memory'" in error
-    error = str(mini_sentry.test_failures.get(timeout=1))
-    assert "Health check probe 'spool health'" in error
-    assert response.status_code == 503
+    assert_not_enough_memory(relay, mini_sentry, ">= 42")
 
 
 def test_readiness_not_enough_memory_percent(mini_sentry, relay):
@@ -103,15 +117,8 @@ def test_readiness_not_enough_memory_percent(mini_sentry, relay):
         {"relay": {"mode": "proxy"}, "health": {"max_memory_percent": 0.01}},
         wait_health_check=False,
     )
-    response = wait_get(relay, "/api/relay/healthcheck/ready/")
 
-    error = str(mini_sentry.test_failures.get(timeout=2))
-    assert "Not enough memory" in error and ">= 1.00%" in error
-    error = str(mini_sentry.test_failures.get(timeout=1))
-    assert "Health check probe 'system memory'" in error
-    error = str(mini_sentry.test_failures.get(timeout=1))
-    assert "Health check probe 'spool health'" in error
-    assert response.status_code == 503
+    assert_not_enough_memory(relay, mini_sentry, ">= 1.00%")
 
 
 def test_readiness_depends_on_aggregator_being_full(mini_sentry, relay):
@@ -181,7 +188,7 @@ def test_readiness_disk_spool(mini_sentry, relay):
 
     # Second sent event can trigger error on the relay size, since the spool is full now.
     for _ in range(20):
-        # It takes ~10 events to make SQLlite use more pages.
+        # It takes ~10 events to make SQLite use more pages.
         try:
             relay.send_event(project_key)
         except HTTPError as e:
