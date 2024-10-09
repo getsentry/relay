@@ -1,10 +1,10 @@
-use std::error::Error;
-use std::time::Duration;
-use std::{fmt, thread};
-
 use r2d2::{Builder, ManageConnection, Pool, PooledConnection};
 pub use redis;
 use redis::ConnectionLike;
+use std::error::Error;
+use std::thread::ScopedJoinHandle;
+use std::time::Duration;
+use std::{fmt, io, thread};
 use thiserror::Error;
 
 use crate::config::RedisConfigOptions;
@@ -25,11 +25,20 @@ pub enum RedisError {
     Redis(#[source] redis::RedisError),
 }
 
-fn log_secondary<T>(result: redis::RedisResult<T>) {
+fn log_secondary_redis_error<T>(result: redis::RedisResult<T>) {
     if let Err(error) = result {
         relay_log::error!(
             error = &error as &dyn Error,
             "sending cmds to the secondary Redis instance failed",
+        );
+    }
+}
+
+fn log_secondary_thread_error<T>(result: io::Result<T>) {
+    if let Err(error) = result {
+        relay_log::error!(
+            error = &error as &dyn Error,
+            "spawning the thread for the secondary Redis connection failed",
         );
     }
 }
@@ -53,7 +62,10 @@ impl ConnectionLike for ConnectionInner<'_> {
                 secondaries,
             } => thread::scope(|s| {
                 for connection in secondaries {
-                    s.spawn(move || log_secondary(connection.req_packed_command(cmd)));
+                    let result = thread::Builder::new().spawn_scoped(s, move || {
+                        log_secondary_redis_error(connection.req_packed_command(cmd));
+                    });
+                    log_secondary_thread_error(result);
                 }
                 primary.req_packed_command(cmd)
             }),
@@ -74,9 +86,12 @@ impl ConnectionLike for ConnectionInner<'_> {
                 secondaries,
             } => thread::scope(|s| {
                 for connection in secondaries {
-                    s.spawn(move || {
-                        log_secondary(connection.req_packed_commands(cmd, offset, count))
+                    let result = thread::Builder::new().spawn_scoped(s, move || {
+                        log_secondary_redis_error(
+                            connection.req_packed_commands(cmd, offset, count),
+                        );
                     });
+                    log_secondary_thread_error(result);
                 }
                 primary.req_packed_commands(cmd, offset, count)
             }),
