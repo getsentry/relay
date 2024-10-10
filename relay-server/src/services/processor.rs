@@ -608,29 +608,37 @@ impl ProcessingExtractedMetrics {
     }
 
     /// Extends the contained project metrics.
-    pub fn extend_project_metrics(
+    pub fn extend_project_metrics<I>(
         &mut self,
-        mut buckets: Vec<Bucket>,
+        buckets: I,
         sampling_decision: Option<SamplingDecision>,
-    ) {
-        for bucket in &mut buckets {
-            bucket.metadata.extracted_from_indexed =
-                sampling_decision == Some(SamplingDecision::Keep);
-        }
-        self.metrics.project_metrics.extend(buckets);
+    ) where
+        I: IntoIterator<Item = Bucket>,
+    {
+        self.metrics
+            .project_metrics
+            .extend(buckets.into_iter().map(|mut bucket| {
+                bucket.metadata.extracted_from_indexed =
+                    sampling_decision == Some(SamplingDecision::Keep);
+                bucket
+            }));
     }
 
     /// Extends the contained sampling metrics.
-    pub fn extend_sampling_metrics(
+    pub fn extend_sampling_metrics<I>(
         &mut self,
-        mut buckets: Vec<Bucket>,
+        buckets: I,
         sampling_decision: Option<SamplingDecision>,
-    ) {
-        for bucket in &mut buckets {
-            bucket.metadata.extracted_from_indexed =
-                sampling_decision == Some(SamplingDecision::Keep);
-        }
-        self.metrics.sampling_metrics.extend(buckets);
+    ) where
+        I: IntoIterator<Item = Bucket>,
+    {
+        self.metrics
+            .sampling_metrics
+            .extend(buckets.into_iter().map(|mut bucket| {
+                bucket.metadata.extracted_from_indexed =
+                    sampling_decision == Some(SamplingDecision::Keep);
+                bucket
+            }));
     }
 
     /// Applies rate limits to the contained metrics.
@@ -1450,6 +1458,7 @@ impl EnvelopeProcessorService {
             event,
             state.spans_extracted,
             combined_config,
+            sampling_decision,
             self.inner
                 .config
                 .aggregator_config_for(MetricNamespace::Spans)
@@ -1460,7 +1469,7 @@ impl EnvelopeProcessorService {
 
         state
             .extracted_metrics
-            .extend_project_metrics(metrics, Some(sampling_decision));
+            .extend(metrics, Some(sampling_decision));
 
         if !state.project_info.has_feature(Feature::DiscardTransaction) {
             let transaction_from_dsc = state
