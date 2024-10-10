@@ -98,7 +98,7 @@ fn is_low_cardinality(source: &TransactionSource) -> bool {
 /// Decide whether we want to keep the transaction name.
 /// High-cardinality sources are excluded to protect our metrics infrastructure.
 /// Note that this will produce a discrepancy between metrics and raw transaction data.
-fn get_transaction_name(event: &Event) -> Option<String> {
+pub fn get_transaction_name(event: &Event) -> Option<String> {
     let original = event.transaction.value()?;
 
     let source = event
