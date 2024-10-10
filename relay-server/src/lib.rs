@@ -266,12 +266,17 @@ mod services;
 mod statsd;
 mod utils;
 
-pub use self::envelope::Envelope; // pub for benchmarks
+// pub for benchmarks
+pub use self::envelope::Envelope;
+// pub for benchmarks
 pub use self::services::buffer::{
-    EnvelopeStack, PolymorphicEnvelopeBuffer, SqliteEnvelopeStack, SqliteEnvelopeStore,
-}; // pub for benchmarks
+    EnvelopeBufferImpl, EnvelopeRepository, ProjectKeyPair, SqliteEnvelopeRepository,
+    SqliteEnvelopeStore,
+};
+// pub for benchmarks
 pub use self::services::spooler::spool_utils;
-pub use self::utils::{MemoryChecker, MemoryStat}; // pub for benchmarks
+// pub for benchmarks
+pub use self::utils::{MemoryChecker, MemoryStat};
 
 #[cfg(test)]
 mod testutils;
@@ -288,7 +293,7 @@ use crate::services::server::HttpServer;
 ///
 /// This effectively boots the entire server application. It blocks the current thread until a
 /// shutdown signal is received or a fatal error happens. Behavior of the server is determined by
-/// the `config` passed into this funciton.
+/// the `config` passed into this function.
 pub fn run(config: Config) -> anyhow::Result<()> {
     let config = Arc::new(config);
     relay_log::info!("relay server starting");
