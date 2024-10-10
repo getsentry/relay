@@ -1274,7 +1274,12 @@ mod tests {
     fn no_feature_flags_enabled() {
         let metrics = extract_span_metrics([]);
         assert!(metrics.project_metrics.is_empty());
-        assert!(metrics.sampling_metrics.is_empty());
+
+        assert_eq!(metrics.sampling_metrics.len(), 1);
+        assert_eq!(
+            metrics.sampling_metrics[0].name.as_ref(),
+            "c:spans/count_per_root_project@none"
+        );
     }
 
     #[test]
@@ -1287,7 +1292,7 @@ mod tests {
     #[test]
     fn only_common() {
         let metrics = extract_span_metrics([Feature::ExtractCommonSpanMetricsFromEvent]);
-        insta::assert_debug_snapshot!(metrics);
+        insta::assert_debug_snapshot!(metrics.project_metrics);
     }
 
     #[test]
@@ -1303,7 +1308,7 @@ mod tests {
             Feature::ExtractCommonSpanMetricsFromEvent,
             Feature::ExtractAddonsSpanMetricsFromEvent,
         ]);
-        insta::assert_debug_snapshot!(metrics);
+        insta::assert_debug_snapshot!(metrics.project_metrics);
     }
 
     const MOBILE_EVENT: &str = r#"
@@ -1481,7 +1486,7 @@ mod tests {
             200,
             None,
         );
-        insta::assert_debug_snapshot!((&event.value().unwrap().spans, metrics));
+        insta::assert_debug_snapshot!((&event.value().unwrap().spans, metrics.project_metrics));
     }
 
     #[test]
