@@ -323,7 +323,9 @@ impl SqliteEnvelopeRepository {
         relay_statsd::metric!(counter(RelayCounters::BufferSpooledEnvelopes) += batch.len() as u64);
 
         // Convert envelopes into a format which simplifies insertion in the store.
-        let envelopes = batch.iter().filter_map(|e| e.as_ref().try_into().ok());
+        let envelopes = relay_statsd::metric!(timer(RelayTimers::BufferEnvelopesSerialization), {
+            batch.iter().filter_map(|e| e.as_ref().try_into().ok())
+        });
 
         relay_statsd::metric!(timer(RelayTimers::BufferSpool), {
             envelope_store
