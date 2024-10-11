@@ -5,12 +5,12 @@
 
 use std::borrow::Cow;
 
-use relay_common::glob3::GlobPatterns;
+use relay_pattern::Patterns;
 
 use crate::{ErrorMessagesFilterConfig, FilterStatKey, Filterable};
 
 /// Checks events by patterns in their error messages.
-fn matches<F: Filterable>(item: &F, patterns: &GlobPatterns) -> bool {
+fn matches<F: Filterable>(item: &F, patterns: &Patterns) -> bool {
     if let Some(logentry) = item.logentry() {
         if let Some(message) = logentry.formatted.value() {
             if patterns.is_match(message.as_ref()) {
@@ -59,6 +59,7 @@ pub fn should_filter<F: Filterable>(
 #[cfg(test)]
 mod tests {
     use relay_event_schema::protocol::{Event, Exception, LogEntry, Values};
+    use relay_pattern::TypedPatterns;
     use relay_protocol::Annotated;
 
     use super::*;
@@ -68,19 +69,19 @@ mod tests {
         let configs = &[
             // with globs
             ErrorMessagesFilterConfig {
-                patterns: GlobPatterns::new(vec![
-                    "filteredexception*".to_string(),
-                    "*this is a filtered exception.".to_string(),
-                    "".to_string(),
-                    "this is".to_string(),
+                patterns: TypedPatterns::from([
+                    "filteredexception*".to_owned(),
+                    "*this is a filtered exception.".to_owned(),
+                    "".to_owned(),
+                    "this is".to_owned(),
                 ]),
             },
             // without globs
             ErrorMessagesFilterConfig {
-                patterns: GlobPatterns::new(vec![
-                    "filteredexception: this is a filtered exception.".to_string(),
-                    "filteredexception".to_string(),
-                    "this is a filtered exception.".to_string(),
+                patterns: TypedPatterns::from([
+                    "filteredexception: this is a filtered exception.".to_owned(),
+                    "filteredexception".to_owned(),
+                    "this is a filtered exception.".to_owned(),
                 ]),
             },
         ];
@@ -173,7 +174,7 @@ mod tests {
         let pattern =
             "*https://reactjs.org/docs/error-decoder.html?invariant={418,419,422,423,425}*";
         let config = ErrorMessagesFilterConfig {
-            patterns: GlobPatterns::new(vec![pattern.to_string()]),
+            patterns: TypedPatterns::from([pattern.to_owned()]),
         };
 
         let event = Annotated::<Event>::from_json(
@@ -201,7 +202,7 @@ mod tests {
         ];
 
         let config = ErrorMessagesFilterConfig {
-            patterns: GlobPatterns::new(vec![
+            patterns: TypedPatterns::from([
                 "ChunkLoadError: Loading chunk *".to_owned(),
                 "*Uncaught *: ChunkLoadError: Loading chunk *".to_owned(),
             ]),

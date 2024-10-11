@@ -24,6 +24,7 @@ relay-common = { workspace = true }
 relay-event-normalization = { workspace = true }
 relay-filter = { workspace = true }
 relay-log = { workspace = true }
+relay-pattern = { workspace = true }
 relay-pii = { workspace = true }
 relay-protocol = { workspace = true }
 relay-quotas = { workspace = true }

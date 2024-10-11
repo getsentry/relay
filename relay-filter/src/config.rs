@@ -8,7 +8,7 @@ use std::ops::Deref;
 use std::str::FromStr;
 
 use indexmap::IndexMap;
-use relay_common::glob3::GlobPatterns;
+use relay_pattern::{CaseInsensitive, TypedPatterns};
 use relay_protocol::RuleCondition;
 use serde::ser::SerializeSeq;
 use serde::{de, Deserialize, Serialize, Serializer};
@@ -173,7 +173,7 @@ impl CspFilterConfig {
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ErrorMessagesFilterConfig {
     /// List of error message patterns that will be filtered.
-    pub patterns: GlobPatterns,
+    pub patterns: TypedPatterns<CaseInsensitive>,
 }
 
 /// Configuration for transaction name filter.
@@ -181,7 +181,7 @@ pub struct ErrorMessagesFilterConfig {
 #[serde(rename_all = "camelCase")]
 pub struct IgnoreTransactionsFilterConfig {
     /// List of patterns for ignored transactions that should be filtered.
-    pub patterns: GlobPatterns,
+    pub patterns: TypedPatterns<CaseInsensitive>,
     /// True if the filter is enabled
     #[serde(default)]
     pub is_enabled: bool,
@@ -205,7 +205,7 @@ impl ErrorMessagesFilterConfig {
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct ReleasesFilterConfig {
     /// List of release names that will be filtered.
-    pub releases: GlobPatterns,
+    pub releases: TypedPatterns<CaseInsensitive>,
 }
 
 impl ReleasesFilterConfig {
@@ -632,7 +632,7 @@ mod tests {
                 disallowed_sources: vec!["https://*".to_string()],
             },
             error_messages: ErrorMessagesFilterConfig {
-                patterns: GlobPatterns::new(vec!["Panic".to_string()]),
+                patterns: TypedPatterns::from(["Panic".to_owned()]),
             },
             legacy_browsers: LegacyBrowsersFilterConfig {
                 is_enabled: false,
@@ -643,16 +643,16 @@ mod tests {
             },
             localhost: FilterConfig { is_enabled: true },
             releases: ReleasesFilterConfig {
-                releases: GlobPatterns::new(vec!["1.2.3".to_string()]),
+                releases: TypedPatterns::from(["1.2.3".to_owned()]),
             },
             ignore_transactions: IgnoreTransactionsFilterConfig {
-                patterns: GlobPatterns::new(vec!["*health*".to_string()]),
+                patterns: TypedPatterns::from(["*health*".to_owned()]),
                 is_enabled: true,
             },
             generic: GenericFiltersConfig {
                 version: 1,
                 filters: vec![GenericFilterConfig {
-                    id: "hydrationError".to_string(),
+                    id: "hydrationError".to_owned(),
                     is_enabled: true,
                     condition: Some(RuleCondition::eq("event.exceptions", "HydrationError")),
                 }]

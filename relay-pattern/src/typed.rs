@@ -1,3 +1,5 @@
+use core::fmt;
+use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::ops::Deref;
 
@@ -48,6 +50,7 @@ impl PatternConfig for CaseInsensitive {
 /// let pattern = MetricPattern::new("[cd]:foo/bar").unwrap();
 /// assert!(pattern.is_match("c:foo/bar"));
 /// ```
+#[derive(Debug)]
 pub struct TypedPattern<C = DefaultPatternConfig> {
     pattern: Pattern,
     _phantom: PhantomData<C>,
@@ -122,7 +125,6 @@ impl<C> Deref for TypedPattern<C> {
 /// [`Patterns`] with a compile time configured [`PatternConfig`].
 pub struct TypedPatterns<C = DefaultPatternConfig> {
     patterns: Patterns,
-    #[cfg(feature = "serde")]
     raw: Vec<String>,
     _phantom: PhantomData<C>,
 }
@@ -138,6 +140,87 @@ impl<C: PatternConfig> TypedPatterns<C> {
             raw: Vec::new(),
             _phantom: PhantomData,
         }
+    }
+}
+
+impl<C: PatternConfig> Default for TypedPatterns<C> {
+    fn default() -> Self {
+        Self::builder().build()
+    }
+}
+
+impl<C> PartialEq for TypedPatterns<C> {
+    fn eq(&self, other: &Self) -> bool {
+        self.raw.eq(&other.raw)
+    }
+}
+
+impl<C: PatternConfig> From<String> for TypedPatterns<C> {
+    fn from(value: String) -> Self {
+        [value].into_iter().collect()
+    }
+}
+
+impl<C: PatternConfig> From<Vec<String>> for TypedPatterns<C> {
+    fn from(value: Vec<String>) -> Self {
+        value.into_iter().collect()
+    }
+}
+
+impl<C: PatternConfig, const N: usize> From<[String; N]> for TypedPatterns<C> {
+    fn from(value: [String; N]) -> Self {
+        value.into_iter().collect()
+    }
+}
+
+/// Creates [`Patterns`] from an iterator of strings.
+///
+/// Invalid patterns are ignored.
+impl<C: PatternConfig> FromIterator<String> for TypedPatterns<C> {
+    fn from_iter<T: IntoIterator<Item = String>>(iter: T) -> Self {
+        let mut builder = Self::builder();
+        for pattern in iter.into_iter() {
+            let _err = builder.add(pattern);
+            #[cfg(debug_assertions)]
+            _err.expect("all patterns should be valid patterns");
+        }
+        builder.build()
+    }
+}
+
+impl<C> From<TypedPatterns<C>> for Patterns {
+    fn from(value: TypedPatterns<C>) -> Self {
+        value.patterns
+    }
+}
+
+impl<C> AsRef<Patterns> for TypedPatterns<C> {
+    fn as_ref(&self) -> &Patterns {
+        &self.patterns
+    }
+}
+
+impl<C> Deref for TypedPatterns<C> {
+    type Target = Patterns;
+
+    fn deref(&self) -> &Self::Target {
+        &self.patterns
+    }
+}
+
+impl<C> Clone for TypedPatterns<C> {
+    fn clone(&self) -> Self {
+        Self {
+            patterns: self.patterns.clone(),
+            raw: self.raw.clone(),
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<C> fmt::Debug for TypedPatterns<C> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.raw.fmt(f)
     }
 }
 
@@ -167,7 +250,9 @@ impl<'de, C: PatternConfig> serde::Deserialize<'de> for TypedPatterns<C> {
 
                 while let Some(item) = seq.next_element()? {
                     // Ignore invalid patterns as documented.
-                    let _ = builder.add(item);
+                    let _err = builder.add(item);
+                    #[cfg(debug_assertions)]
+                    _err.expect("all patterns should be valid patterns");
                 }
 
                 Ok(builder.build())
@@ -188,29 +273,8 @@ impl<C> serde::Serialize for TypedPatterns<C> {
     }
 }
 
-impl<C> From<TypedPatterns<C>> for Patterns {
-    fn from(value: TypedPatterns<C>) -> Self {
-        value.patterns
-    }
-}
-
-impl<C> AsRef<Patterns> for TypedPatterns<C> {
-    fn as_ref(&self) -> &Patterns {
-        &self.patterns
-    }
-}
-
-impl<C> Deref for TypedPatterns<C> {
-    type Target = Patterns;
-
-    fn deref(&self) -> &Self::Target {
-        &self.patterns
-    }
-}
-
 pub struct TypedPatternsBuilder<C> {
     builder: PatternsBuilderConfigured,
-    #[cfg(feature = "serde")]
     raw: Vec<String>,
     _phantom: PhantomData<C>,
 }
@@ -219,7 +283,6 @@ impl<C: PatternConfig> TypedPatternsBuilder<C> {
     /// Adds a pattern to the builder.
     pub fn add(&mut self, pattern: String) -> Result<&mut Self, Error> {
         self.builder.add(&pattern)?;
-        #[cfg(feature = "serde")]
         self.raw.push(pattern);
         Ok(self)
     }
@@ -228,7 +291,6 @@ impl<C: PatternConfig> TypedPatternsBuilder<C> {
     pub fn build(self) -> TypedPatterns<C> {
         TypedPatterns {
             patterns: self.builder.build(),
-            #[cfg(feature = "serde")]
             raw: self.raw,
             _phantom: PhantomData,
         }
@@ -238,7 +300,6 @@ impl<C: PatternConfig> TypedPatternsBuilder<C> {
     pub fn take(&mut self) -> TypedPatterns<C> {
         TypedPatterns {
             patterns: self.builder.take(),
-            #[cfg(feature = "serde")]
             raw: std::mem::take(&mut self.raw),
             _phantom: PhantomData,
         }
@@ -341,7 +402,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "serde")]
+    #[cfg(all(feature = "serde", not(debug_assertions)))]
     fn test_patterns_deserialize_err() {
         let r: TypedPatterns<CaseInsensitive> =
             serde_json::from_str(r#"["[invalid","foobar"]"#).unwrap();

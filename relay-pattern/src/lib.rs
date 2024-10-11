@@ -167,6 +167,13 @@ impl Patterns {
             .iter()
             .any(|s| s.is_match(haystack, self.options))
     }
+
+    /// Returns `true` if this instance contains no patterns.
+    ///
+    /// An empty [`Patterns`] never matches any input.
+    pub fn is_empty(&self) -> bool {
+        self.strategies.is_empty()
+    }
 }
 
 /// A builder for a [`Pattern`].

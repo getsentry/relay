@@ -24,7 +24,7 @@ const MOBILE_OPS: &[&str] = &[
 const APP_START_ROOT_SPAN_DESCRIPTIONS: &[&str] = &["Cold Start", "Warm Start"];
 
 /// A list of patterns found in MongoDB queries.
-const MONGODB_QUERIES: &[&str] = &["*\"$*", "{*", "*({*", "*[{*"];
+const MONGODB_QUERIES: &[&str] = &["*\"$*", r"\{*", r"*(\{*", r"*\[\{*"];
 
 /// A list of patterns for resource span ops we'd like to ingest.
 const RESOURCE_SPAN_OPS: &[&str] = &["resource.script", "resource.css", "resource.img"];
@@ -117,7 +117,7 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
     let is_db = RuleCondition::eq("span.sentry_tags.category", "db")
         & !RuleCondition::glob("span.op", DISABLED_DATABASES)
         // MongoDB queries are only allowed when `span.system` is set to `mongodb`.
-        & (RuleCondition::eq("span.system", "mongodb")
+        & (RuleCondition::eq("span.data.db\\.system", "mongodb")
             | !RuleCondition::glob("span.description", MONGODB_QUERIES));
     let is_resource = RuleCondition::glob("span.op", RESOURCE_SPAN_OPS);
 
