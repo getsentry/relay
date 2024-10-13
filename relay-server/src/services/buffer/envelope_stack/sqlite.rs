@@ -375,7 +375,7 @@ mod tests {
         );
 
         // We pop 4 envelopes.
-        for envelope in envelopes.iter().rev() {
+        for envelope in envelopes.clone()[0..4].iter().rev() {
             let popped_envelope = stack.pop().await.unwrap().unwrap();
             assert_eq!(
                 popped_envelope.event_id().unwrap(),
