@@ -280,6 +280,7 @@ where
                 prio.received_at = received_at;
             });
 
+        dbg!(self.priority_queue.len());
         self.total_count.fetch_add(1, AtomicOrdering::SeqCst);
         self.track_total_count();
 
@@ -309,14 +310,18 @@ where
     /// The priority of the envelope's stack is updated with the next envelope's received_at
     /// time. If the stack is empty after popping, it is removed from the priority queue.
     pub async fn pop(&mut self) -> Result<Option<Box<Envelope>>, EnvelopeBufferError> {
-        let Some((QueueItem { key, value: stack }, _)) = self.priority_queue.peek_mut() else {
-            return Ok(None);
-        };
-        let project_key_pair = *key;
-        let Some(envelope) = stack.pop().await? else {
-            relay_statsd::metric!(counter(RelayCounters::BufferEnvelopeStacksPopped) += 1);
-            self.pop_stack(project_key_pair);
-            return Ok(None);
+        // Pop empty stacks until we got a full one:
+        let (project_key_pair, envelope) = loop {
+            let Some((QueueItem { key, value: stack }, _)) = self.priority_queue.peek_mut() else {
+                // The priority queue is empty.
+                return Ok(None);
+            };
+            let project_key_pair = *key;
+
+            match stack.pop().await? {
+                Some(envelope) => break (project_key_pair, envelope),
+                None => self.pop_stack(project_key_pair),
+            }
         };
 
         self.priority_queue
@@ -329,6 +334,8 @@ where
         // initialization.
         self.total_count.fetch_sub(1, AtomicOrdering::SeqCst);
         self.track_total_count();
+
+        dbg!(self.priority_queue.len());
 
         Ok(Some(envelope))
     }
@@ -437,6 +444,7 @@ where
 
     /// Pops an [`EnvelopeStack`] with the supplied [`EnvelopeBufferError`].
     fn pop_stack(&mut self, project_key_pair: ProjectKeyPair) {
+        relay_statsd::metric!(counter(RelayCounters::BufferEnvelopeStacksPopped) += 1);
         for project_key in project_key_pair.iter() {
             self.stacks_by_project
                 .get_mut(&project_key)
@@ -691,7 +699,6 @@ mod tests {
             project_key1,
             project_key1,
             project_key1,
-            project_key1,
             project_key2,
             project_key2,
         ] {
@@ -723,25 +730,17 @@ mod tests {
         // After popping, project 1 is on top again:
         assert_eq!(pop_project_key(&mut buffer).await, project_key1);
 
-        // // Mark project 1 as ready (still on top):
-        // buffer.mark_ready(&project_key1, true);
-        // assert_eq!(pop_project_key(&mut buffer).await, project_key1);
+        // Mark project 1 as ready (still on top):
+        buffer.mark_ready(&project_key1, true);
+        assert_eq!(pop_project_key(&mut buffer).await, project_key1);
 
-        // // Mark project 2 as ready as well (now on top because most recent):
-        // buffer.mark_ready(&project_key2, true);
-        // assert_eq!(pop_project_key(&mut buffer).await, project_key2);
-        // assert_eq!(
-        //     buffer.pop().await.unwrap().unwrap().meta().public_key(),
-        //     project_key2
-        // );
+        // Mark project 2 as ready as well (now on top because most recent):
+        buffer.mark_ready(&project_key2, true);
+        assert_eq!(pop_project_key(&mut buffer).await, project_key2);
 
-        // // Pop last element:
-        // assert_eq!(
-        //     buffer.pop().await.unwrap().unwrap().meta().public_key(),
-        //     project_key1
-        // );
-        // assert!(buffer.pop().await.unwrap().is_none());
-        // assert!(buffer.peek().is_none());
+        // The buffer is now empty:
+        assert!(buffer.pop().await.unwrap().is_none());
+        assert!(buffer.peek().is_none());
     }
 
     #[tokio::test]
