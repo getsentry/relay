@@ -7,13 +7,13 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::time::Duration;
 
+use crate::statsd::SystemGauges;
+use crate::Controller;
 use futures::future::Shared;
 use futures::FutureExt;
 use tokio::runtime::Runtime;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::MissedTickBehavior;
-
-use crate::statsd::SystemGauges;
 
 /// Interval for recording backlog metrics on service channels.
 const BACKLOG_INTERVAL: Duration = Duration::from_secs(1);
@@ -1020,6 +1020,62 @@ pub trait Service: Sized {
     ///
     /// This is used for internal diagnostics and uses the fully qualified type name of the service
     /// implementor by default.
+    fn name() -> &'static str {
+        std::any::type_name::<Self>()
+    }
+}
+
+pub enum SystemMessage {
+    Shutdown(Option<Duration>),
+}
+
+pub enum ServiceMessage<M: Interface> {
+    System(SystemMessage),
+    User(M),
+}
+
+pub enum LoopError {
+    Expected,
+    Critical,
+}
+
+pub trait ServiceNew: Sized + Send + 'static {
+    type Interface: Interface;
+
+    fn setup(&mut self);
+
+    fn loop_iter(
+        &mut self,
+        message: ServiceMessage<Self::Interface>,
+    ) -> impl Future<Output = Result<(), LoopError>> + Send;
+
+    fn start(mut self) -> Addr<Self::Interface> {
+        let (addr, mut rx) = channel(Self::name());
+
+        tokio::spawn(async move {
+            let mut shutdown = Controller::shutdown_handle();
+
+            loop {
+                tokio::select! {
+                    Some(message) = rx.recv() => {
+                        let _ = self.loop_iter(ServiceMessage::User(message)).await;
+                    }
+                    shutdown = shutdown.notified() => {
+                        let _ = self.loop_iter(ServiceMessage::System(SystemMessage::Shutdown(shutdown.timeout))).await;
+                    }
+                    else => break
+                }
+            }
+        });
+
+        addr
+    }
+
+    fn start_in(self, runtime: &Runtime) -> Addr<Self::Interface> {
+        let _guard = runtime.enter();
+        self.start()
+    }
+
     fn name() -> &'static str {
         std::any::type_name::<Self>()
     }
