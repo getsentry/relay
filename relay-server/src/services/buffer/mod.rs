@@ -221,7 +221,7 @@ impl EnvelopeBufferService {
         services: &Services,
         envelopes_tx_permit: Permit<'a, DequeuedEnvelope>,
     ) -> Result<Duration, EnvelopeBufferError> {
-        let sleep = match buffer.peek().await {
+        let sleep = match buffer.peek() {
             None => {
                 relay_statsd::metric!(
                     counter(RelayCounters::BufferTryPop) += 1,
@@ -242,6 +242,7 @@ impl EnvelopeBufferService {
                         peek_result = "expired"
                     );
                     if let Some(envelope) = buffer.pop().await? {
+                        debug_assert_eq!(envelope.meta().start_time(), received_at.into_std());
                         Self::drop_expired(envelope, services);
                     }
 
