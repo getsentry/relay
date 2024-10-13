@@ -24,5 +24,6 @@
   "[markdown]": {
     "editor.rulers": [80],
     "editor.tabSize": 2
-  }
+  },
+  "makefile.configureOnOpen": false
 }

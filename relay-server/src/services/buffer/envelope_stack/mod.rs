@@ -14,9 +14,6 @@ pub trait EnvelopeStack: Send + std::fmt::Debug {
     /// Pushes an [`Envelope`] on top of the stack.
     fn push(&mut self, envelope: Box<Envelope>) -> impl Future<Output = Result<(), Self::Error>>;
 
-    /// Peeks the [`Envelope`] on top of the stack.
-    fn peek(&mut self) -> impl Future<Output = Result<Option<&Envelope>, Self::Error>>;
-
     /// Pops the [`Envelope`] on top of the stack.
     fn pop(&mut self) -> impl Future<Output = Result<Option<Box<Envelope>>, Self::Error>>;
 
