@@ -280,7 +280,6 @@ where
                 prio.received_at = received_at;
             });
 
-        dbg!(self.priority_queue.len());
         self.total_count.fetch_add(1, AtomicOrdering::SeqCst);
         self.track_total_count();
 
@@ -334,8 +333,6 @@ where
         // initialization.
         self.total_count.fetch_sub(1, AtomicOrdering::SeqCst);
         self.track_total_count();
-
-        dbg!(self.priority_queue.len());
 
         Ok(Some(envelope))
     }
@@ -770,113 +767,65 @@ mod tests {
         assert!(buffer.pop().await.unwrap().is_none());
     }
 
-    // #[tokio::test]
-    // async fn test_sampling_projects() {
-    //     let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(mock_memory_checker());
+    #[tokio::test]
+    async fn test_sampling_projects() {
+        let mut buffer = EnvelopeBuffer::<MemoryStackProvider>::new(mock_memory_checker());
 
-    //     let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
-    //     let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fef").unwrap();
+        let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
+        let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fef").unwrap();
 
-    //     let envelope1 = new_envelope(project_key1, None, None);
-    //     let instant1 = envelope1.meta().start_time();
-    //     buffer.push(envelope1).await.unwrap();
+        let envelope1 = new_envelope(project_key1, None, None);
+        let instant1: tokio::time::Instant = envelope1.meta().start_time().into();
+        buffer.push(envelope1).await.unwrap();
 
-    //     let envelope2 = new_envelope(project_key2, None, None);
-    //     let instant2 = envelope2.meta().start_time();
-    //     buffer.push(envelope2).await.unwrap();
+        let envelope2 = new_envelope(project_key2, None, None);
+        let instant2: tokio::time::Instant = envelope2.meta().start_time().into();
+        buffer.push(envelope2).await.unwrap();
 
-    //     let envelope3 = new_envelope(project_key1, Some(project_key2), None);
-    //     let instant3 = envelope3.meta().start_time();
-    //     buffer.push(envelope3).await.unwrap();
+        let envelope3 = new_envelope(project_key1, Some(project_key2), None);
+        let instant3: tokio::time::Instant = envelope3.meta().start_time().into();
+        buffer.push(envelope3).await.unwrap();
 
-    //     buffer.mark_ready(&project_key1, false);
-    //     buffer.mark_ready(&project_key2, false);
+        buffer.mark_ready(&project_key1, false);
+        buffer.mark_ready(&project_key2, false);
 
-    //     // Nothing is ready, instant1 is on top:
-    //     assert_eq!(
-    //         buffer
-    //             .peek()
-    //             .await
-    //             .unwrap()
-    //             .envelope()
-    //             .unwrap()
-    //             .meta()
-    //             .start_time(),
-    //         instant1
-    //     );
+        // Nothing is ready, instant1 is on top:
+        assert_eq!(buffer.peek().unwrap().received_at, instant1);
 
-    //     // Mark project 2 ready, gets on top:
-    //     buffer.mark_ready(&project_key2, true);
-    //     assert_eq!(
-    //         buffer
-    //             .peek()
-    //             .await
-    //             .unwrap()
-    //             .envelope()
-    //             .unwrap()
-    //             .meta()
-    //             .start_time(),
-    //         instant2
-    //     );
+        // Mark project 2 ready, gets on top:
+        buffer.mark_ready(&project_key2, true);
+        assert_eq!(buffer.peek().unwrap().received_at, instant2);
 
-    //     // Revert
-    //     buffer.mark_ready(&project_key2, false);
-    //     assert_eq!(
-    //         buffer
-    //             .peek()
-    //             .await
-    //             .unwrap()
-    //             .envelope()
-    //             .unwrap()
-    //             .meta()
-    //             .start_time(),
-    //         instant1
-    //     );
+        // Revert
+        buffer.mark_ready(&project_key2, false);
+        assert_eq!(buffer.peek().unwrap().received_at, instant1);
 
-    //     // Project 1 ready:
-    //     buffer.mark_ready(&project_key1, true);
-    //     assert_eq!(
-    //         buffer
-    //             .peek()
-    //             .await
-    //             .unwrap()
-    //             .envelope()
-    //             .unwrap()
-    //             .meta()
-    //             .start_time(),
-    //         instant1
-    //     );
+        // Project 1 ready:
+        buffer.mark_ready(&project_key1, true);
+        assert_eq!(buffer.peek().unwrap().received_at, instant1);
 
-    //     // when both projects are ready, event no 3 ends up on top:
-    //     buffer.mark_ready(&project_key2, true);
-    //     assert_eq!(
-    //         buffer.pop().await.unwrap().unwrap().meta().start_time(),
-    //         instant3
-    //     );
-    //     assert_eq!(
-    //         buffer
-    //             .peek()
-    //             .await
-    //             .unwrap()
-    //             .envelope()
-    //             .unwrap()
-    //             .meta()
-    //             .start_time(),
-    //         instant2
-    //     );
+        // when both projects are ready, event no 3 ends up on top:
+        buffer.mark_ready(&project_key2, true);
+        assert_eq!(
+            buffer.pop().await.unwrap().unwrap().meta().start_time(),
+            instant3.into_std()
+        );
 
-    //     buffer.mark_ready(&project_key2, false);
-    //     assert_eq!(
-    //         buffer.pop().await.unwrap().unwrap().meta().start_time(),
-    //         instant1
-    //     );
-    //     assert_eq!(
-    //         buffer.pop().await.unwrap().unwrap().meta().start_time(),
-    //         instant2
-    //     );
+        // The timestamp of the last removed item stays on top:
+        assert_eq!(buffer.peek().unwrap().received_at, instant3);
 
-    //     assert!(buffer.pop().await.unwrap().is_none());
-    // }
+        buffer.mark_ready(&project_key2, false);
+        assert_eq!(
+            buffer.pop().await.unwrap().unwrap().meta().start_time(),
+            instant1.into_std()
+        );
+        assert_eq!(
+            buffer.pop().await.unwrap().unwrap().meta().start_time(),
+            instant2.into_std()
+        );
+
+        assert!(buffer.pop().await.unwrap().is_none());
+    }
 
     #[tokio::test]
     async fn test_project_keys_distinct() {
