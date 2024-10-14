@@ -730,7 +730,8 @@ pub enum HttpEncoding {
     /// These structures are defined in [RFC 1950](https://datatracker.ietf.org/doc/html/rfc1950)
     /// and [RFC 1951](https://datatracker.ietf.org/doc/html/rfc1951).
     Deflate,
-    /// A format using the [Lempel-Ziv coding](https://en.wikipedia.org/wiki/LZ77_and_LZ78#LZ77), with a 32-bit CRC.
+    /// A format using the [Lempel-Ziv coding](https://en.wikipedia.org/wiki/LZ77_and_LZ78#LZ77)
+    /// (LZ77), with a 32-bit CRC.
     ///
     /// This is the original format of the UNIX gzip program. The HTTP/1.1 standard also recommends
     /// that the servers supporting this content-encoding should recognize `x-gzip` as an alias, for
@@ -2661,7 +2662,7 @@ impl Default for Config {
 mod tests {
     use super::*;
 
-    /// Regression test for renaming the envelope buffer size.
+    /// Regression test for renaming the envelope buffer flags.
     #[test]
     fn test_event_buffer_size() {
         let yaml = r###"
