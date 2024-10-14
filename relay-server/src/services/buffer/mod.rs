@@ -172,6 +172,7 @@ impl EnvelopeBufferService {
         );
 
         if self.sleep > Duration::ZERO {
+            dbg!(self.sleep);
             tokio::time::sleep(self.sleep).await;
         }
 
@@ -465,6 +466,7 @@ mod tests {
 
     use relay_dynamic_config::GlobalConfig;
     use relay_quotas::DataCategory;
+    use sqlx::Connection;
     use tokio::sync::mpsc;
     use uuid::Uuid;
 
@@ -649,6 +651,71 @@ mod tests {
             .meta_mut()
             .set_start_time(Instant::now() - 2 * config.spool_envelopes_max_age());
         addr.send(EnvelopeBuffer::Push(envelope));
+
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        assert_eq!(envelopes_rx.len(), 0);
+        assert_eq!(project_cache_rx.len(), 0);
+
+        let outcome = outcome_aggregator_rx.try_recv().unwrap();
+        assert_eq!(outcome.category, DataCategory::TransactionIndexed);
+        assert_eq!(outcome.quantity, 1);
+    }
+
+    #[tokio::test]
+    async fn old_envelope_from_disk_is_dropped() {
+        relay_log::init_test!();
+
+        let tmp = tempfile::TempDir::new().unwrap();
+        let path = tmp.path().join("envelopes.db");
+
+        let buffer_service = || {
+            envelope_buffer_service(
+                Some(serde_json::json!({
+                    "spool": {
+                        "envelopes": {
+                            "version": "experimental",
+                            "path": path,
+                        }
+                    }
+                })),
+                global_config::Status::Ready(Arc::new(GlobalConfig::default())),
+            )
+        };
+
+        // Initialize once to migrate the database:
+        buffer_service().service.start();
+
+        tokio::time::sleep(Duration::from_millis(1000)).await;
+
+        // Write an envelope to the db
+        let envelope = new_envelope(false, "foo");
+        let mut db = sqlx::SqliteConnection::connect(path.to_str().unwrap())
+            .await
+            .unwrap();
+        let query = sqlx::query("INSERT INTO envelopes (received_at, own_key, sampling_key, envelope) VALUES ($1, $2, $3, $4);")
+            .bind(0i64) // oldest envelope ever
+            .bind(envelope.meta().public_key().to_string())
+            .bind(envelope.meta().public_key().to_string())
+            .bind(envelope.to_vec().unwrap());
+        query.execute(&mut db).await.unwrap();
+
+        // Initialize again to read from db:
+        let EnvelopeBufferServiceResult {
+            service,
+            envelopes_rx,
+            project_cache_rx,
+            mut outcome_aggregator_rx,
+            global_tx,
+        } = buffer_service();
+
+        // let config = service.config.clone();
+        let _addr = service.start();
+        global_tx
+            .send(global_config::Status::Ready(Arc::new(
+                GlobalConfig::default(),
+            )))
+            .unwrap();
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
