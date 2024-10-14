@@ -383,13 +383,22 @@
 <a href="#383" id="383">383</a>
 <a href="#384" id="384">384</a>
 <a href="#385" id="385">385</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::error::Error;
-<span class="kw">use </span>std::fmt;
-<span class="kw">use </span>std::time::Duration;
-
-<span class="kw">use </span>r2d2::{Builder, ManageConnection, Pool, PooledConnection};
+<a href="#386" id="386">386</a>
+<a href="#387" id="387">387</a>
+<a href="#388" id="388">388</a>
+<a href="#389" id="389">389</a>
+<a href="#390" id="390">390</a>
+<a href="#391" id="391">391</a>
+<a href="#392" id="392">392</a>
+<a href="#393" id="393">393</a>
+<a href="#394" id="394">394</a>
+</pre></div><pre class="rust"><code><span class="kw">use </span>r2d2::{Builder, ManageConnection, Pool, PooledConnection};
 <span class="kw">pub use </span>redis;
 <span class="kw">use </span>redis::ConnectionLike;
+<span class="kw">use </span>std::error::Error;
+<span class="kw">use </span>std::thread::Scope;
+<span class="kw">use </span>std::time::Duration;
+<span class="kw">use </span>std::{fmt, thread};
 <span class="kw">use </span>thiserror::Error;
 
 <span class="kw">use </span><span class="kw">crate</span>::config::RedisConfigOptions;
@@ -410,6 +419,30 @@
     </span>Redis(<span class="attr">#[source] </span>redis::RedisError),
 }
 
+<span class="kw">fn </span>log_secondary_redis_error&lt;T&gt;(result: redis::RedisResult&lt;T&gt;) {
+    <span class="kw">if let </span><span class="prelude-val">Err</span>(error) = result {
+        <span class="macro">relay_log::error!</span>(
+            error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
+            <span class="string">"sending cmds to the secondary Redis instance failed"</span>,
+        );
+    }
+}
+
+<span class="kw">fn </span>spawn_secondary_thread&lt;<span class="lifetime">'scope</span>, <span class="lifetime">'env</span>: <span class="lifetime">'scope</span>, T&gt;(
+    scope: <span class="kw-2">&amp;</span><span class="lifetime">'scope </span>Scope&lt;<span class="lifetime">'scope</span>, <span class="lifetime">'env</span>&gt;,
+    block: <span class="kw">impl </span>FnOnce() -&gt; redis::RedisResult&lt;T&gt; + Send + <span class="lifetime">'scope</span>,
+) {
+    <span class="kw">let </span>result = thread::Builder::new().spawn_scoped(scope, <span class="kw">move </span>|| {
+        log_secondary_redis_error(block());
+    });
+    <span class="kw">if let </span><span class="prelude-val">Err</span>(error) = result {
+        <span class="macro">relay_log::error!</span>(
+            error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
+            <span class="string">"spawning the thread for the secondary Redis connection failed"</span>,
+        );
+    }
+}
+
 <span class="kw">enum </span>ConnectionInner&lt;<span class="lifetime">'a</span>&gt; {
     Cluster(<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>redis::cluster::ClusterConnection),
     MultiWrite {
@@ -422,24 +455,17 @@
 <span class="kw">impl </span>ConnectionLike <span class="kw">for </span>ConnectionInner&lt;<span class="lifetime">'_</span>&gt; {
     <span class="kw">fn </span>req_packed_command(<span class="kw-2">&amp;mut </span><span class="self">self</span>, cmd: <span class="kw-2">&amp;</span>[u8]) -&gt; redis::RedisResult&lt;redis::Value&gt; {
         <span class="kw">match </span><span class="self">self </span>{
-            ConnectionInner::Cluster(<span class="kw-2">ref mut </span>con) =&gt; con.req_packed_command(cmd),
+            ConnectionInner::Cluster(con) =&gt; con.req_packed_command(cmd),
+            ConnectionInner::Single(con) =&gt; con.req_packed_command(cmd),
             ConnectionInner::MultiWrite {
-                primary: primary_connection,
-                secondaries: secondary_connections,
-            } =&gt; {
-                <span class="kw">let </span>primary_result = primary_connection.req_packed_command(cmd);
-                <span class="kw">for </span>secondary_connection <span class="kw">in </span>secondary_connections.iter_mut() {
-                    <span class="kw">if let </span><span class="prelude-val">Err</span>(error) = secondary_connection.req_packed_command(cmd) {
-                        <span class="macro">relay_log::error!</span>(
-                            error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-                            <span class="string">"sending cmd to the secondary Redis instance failed"</span>,
-                        );
-                    }
+                primary,
+                secondaries,
+            } =&gt; thread::scope(|s| {
+                <span class="kw">for </span>connection <span class="kw">in </span>secondaries {
+                    spawn_secondary_thread(s, || connection.req_packed_command(cmd))
                 }
-
-                primary_result
-            }
-            ConnectionInner::Single(<span class="kw-2">ref mut </span>con) =&gt; con.req_packed_command(cmd),
+                primary.req_packed_command(cmd)
+            }),
         }
     }
 
@@ -450,58 +476,50 @@
         count: usize,
     ) -&gt; redis::RedisResult&lt;Vec&lt;redis::Value&gt;&gt; {
         <span class="kw">match </span><span class="self">self </span>{
-            ConnectionInner::Cluster(<span class="kw-2">ref mut </span>con) =&gt; con.req_packed_commands(cmd, offset, count),
+            ConnectionInner::Cluster(con) =&gt; con.req_packed_commands(cmd, offset, count),
+            ConnectionInner::Single(con) =&gt; con.req_packed_commands(cmd, offset, count),
             ConnectionInner::MultiWrite {
-                primary: primary_connection,
-                secondaries: secondary_connections,
-            } =&gt; {
-                <span class="kw">let </span>primary_result = primary_connection.req_packed_commands(cmd, offset, count);
-                <span class="kw">for </span>secondary_connection <span class="kw">in </span>secondary_connections.iter_mut() {
-                    <span class="kw">if let </span><span class="prelude-val">Err</span>(error) = secondary_connection.req_packed_commands(cmd, offset, count)
-                    {
-                        <span class="macro">relay_log::error!</span>(
-                            error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-                            <span class="string">"sending cmds to the secondary Redis instance failed"</span>,
-                        );
-                    }
+                primary,
+                secondaries,
+            } =&gt; thread::scope(|s| {
+                <span class="kw">for </span>connection <span class="kw">in </span>secondaries {
+                    spawn_secondary_thread(s, || connection.req_packed_commands(cmd, offset, count))
                 }
-
-                primary_result
-            }
-            ConnectionInner::Single(<span class="kw-2">ref mut </span>con) =&gt; con.req_packed_commands(cmd, offset, count),
+                primary.req_packed_commands(cmd, offset, count)
+            }),
         }
     }
 
     <span class="kw">fn </span>get_db(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; i64 {
         <span class="kw">match </span><span class="self">self </span>{
-            ConnectionInner::Cluster(<span class="kw-2">ref </span>con) =&gt; con.get_db(),
+            ConnectionInner::Cluster(con) =&gt; con.get_db(),
             ConnectionInner::MultiWrite {
                 primary: primary_connection,
                 ..
             } =&gt; primary_connection.get_db(),
-            ConnectionInner::Single(<span class="kw-2">ref </span>con) =&gt; con.get_db(),
+            ConnectionInner::Single(con) =&gt; con.get_db(),
         }
     }
 
     <span class="kw">fn </span>check_connection(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; bool {
         <span class="kw">match </span><span class="self">self </span>{
-            ConnectionInner::Cluster(<span class="kw-2">ref mut </span>con) =&gt; con.check_connection(),
+            ConnectionInner::Cluster(con) =&gt; con.check_connection(),
             ConnectionInner::MultiWrite {
                 primary: primary_connection,
                 ..
             } =&gt; primary_connection.check_connection(),
-            ConnectionInner::Single(<span class="kw-2">ref mut </span>con) =&gt; con.check_connection(),
+            ConnectionInner::Single(con) =&gt; con.check_connection(),
         }
     }
 
     <span class="kw">fn </span>is_open(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="kw">match </span><span class="self">self </span>{
-            ConnectionInner::Cluster(<span class="kw-2">ref </span>con) =&gt; con.is_open(),
+            ConnectionInner::Cluster(con) =&gt; con.is_open(),
             ConnectionInner::MultiWrite {
                 primary: primary_connection,
                 ..
             } =&gt; primary_connection.is_open(),
-            ConnectionInner::Single(<span class="kw-2">ref </span>con) =&gt; con.is_open(),
+            ConnectionInner::Single(con) =&gt; con.is_open(),
         }
     }
 }
