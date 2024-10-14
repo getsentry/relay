@@ -10,14 +10,17 @@ use std::time::Duration;
 
 use hashbrown::HashSet;
 use relay_base_schema::project::ProjectKey;
-use relay_config::Config;
+use relay_config::{Config, EnvelopeBufferStrategy};
 use tokio::time::{timeout, Instant};
 
 use crate::envelope::Envelope;
 use crate::services::buffer::common::ProjectKeyPair;
+use crate::services::buffer::envelope_stack::file_backed::FileBackedEnvelopeStackError;
 use crate::services::buffer::envelope_stack::sqlite::SqliteEnvelopeStackError;
 use crate::services::buffer::envelope_stack::EnvelopeStack;
 use crate::services::buffer::envelope_store::sqlite::SqliteEnvelopeStoreError;
+use crate::services::buffer::files_manager::FilesManagerError;
+use crate::services::buffer::stack_provider::file_backed::FileBackedStackProvider;
 use crate::services::buffer::stack_provider::memory::MemoryStackProvider;
 use crate::services::buffer::stack_provider::sqlite::SqliteStackProvider;
 use crate::services::buffer::stack_provider::{StackCreationType, StackProvider};
@@ -38,6 +41,8 @@ pub enum PolymorphicEnvelopeBuffer {
     InMemory(EnvelopeBuffer<MemoryStackProvider>),
     /// An enveloper buffer that uses sqlite envelopes stacks.
     Sqlite(EnvelopeBuffer<SqliteStackProvider>),
+    /// An envelope buffer that uses file-based envelope stacks.
+    FileBacked(EnvelopeBuffer<FileBackedStackProvider>),
 }
 
 impl PolymorphicEnvelopeBuffer {
@@ -46,6 +51,7 @@ impl PolymorphicEnvelopeBuffer {
         match self {
             PolymorphicEnvelopeBuffer::InMemory(_) => true,
             PolymorphicEnvelopeBuffer::Sqlite(_) => false,
+            PolymorphicEnvelopeBuffer::FileBacked(_) => false,
         }
     }
 
@@ -55,14 +61,28 @@ impl PolymorphicEnvelopeBuffer {
         config: &Config,
         memory_checker: MemoryChecker,
     ) -> Result<Self, EnvelopeBufferError> {
-        let buffer = if config.spool_envelopes_path().is_some() {
-            relay_log::trace!("PolymorphicEnvelopeBuffer: initializing sqlite envelope buffer");
-            let buffer = EnvelopeBuffer::<SqliteStackProvider>::new(config).await?;
-            Self::Sqlite(buffer)
-        } else {
-            relay_log::trace!("PolymorphicEnvelopeBuffer: initializing memory envelope buffer");
-            let buffer = EnvelopeBuffer::<MemoryStackProvider>::new(memory_checker);
-            Self::InMemory(buffer)
+        let buffer = match (
+            config.spool_envelope_buffer_strategy(),
+            config.spool_envelopes_path(),
+        ) {
+            (EnvelopeBufferStrategy::Memory, _) => {
+                relay_log::trace!("PolymorphicEnvelopeBuffer: initializing memory envelope buffer");
+                let buffer = EnvelopeBuffer::<MemoryStackProvider>::new(memory_checker);
+                Self::InMemory(buffer)
+            }
+            (EnvelopeBufferStrategy::Sqlite, Some(_)) => {
+                relay_log::trace!("PolymorphicEnvelopeBuffer: initializing sqlite envelope buffer");
+                let buffer = EnvelopeBuffer::<SqliteStackProvider>::new(config).await?;
+                Self::Sqlite(buffer)
+            }
+            (EnvelopeBufferStrategy::FileBacked, Some(_)) => {
+                relay_log::trace!(
+                    "PolymorphicEnvelopeBuffer: initializing file backed envelope buffer"
+                );
+                let buffer = EnvelopeBuffer::<FileBackedStackProvider>::new(config).await?;
+                Self::FileBacked(buffer)
+            }
+            _ => return Err(EnvelopeBufferError::SetupFailed),
         };
 
         Ok(buffer)
@@ -71,8 +91,9 @@ impl PolymorphicEnvelopeBuffer {
     /// Initializes the envelope buffer.
     pub async fn initialize(&mut self) {
         match self {
-            PolymorphicEnvelopeBuffer::InMemory(buffer) => buffer.initialize().await,
-            PolymorphicEnvelopeBuffer::Sqlite(buffer) => buffer.initialize().await,
+            Self::InMemory(buffer) => buffer.initialize().await,
+            Self::Sqlite(buffer) => buffer.initialize().await,
+            Self::FileBacked(buffer) => buffer.initialize().await,
         }
     }
 
@@ -82,6 +103,7 @@ impl PolymorphicEnvelopeBuffer {
             match self {
                 Self::Sqlite(buffer) => buffer.push(envelope).await,
                 Self::InMemory(buffer) => buffer.push(envelope).await,
+                Self::FileBacked(buffer) => buffer.push(envelope).await,
             }?;
         });
         relay_statsd::metric!(counter(RelayCounters::BufferEnvelopesWritten) += 1);
@@ -94,6 +116,7 @@ impl PolymorphicEnvelopeBuffer {
             match self {
                 Self::Sqlite(buffer) => buffer.peek().await,
                 Self::InMemory(buffer) => buffer.peek().await,
+                Self::FileBacked(buffer) => buffer.peek().await,
             }
         })
     }
@@ -104,6 +127,7 @@ impl PolymorphicEnvelopeBuffer {
             match self {
                 Self::Sqlite(buffer) => buffer.pop().await,
                 Self::InMemory(buffer) => buffer.pop().await,
+                Self::FileBacked(buffer) => buffer.pop().await,
             }?
         });
         relay_statsd::metric!(counter(RelayCounters::BufferEnvelopesRead) += 1);
@@ -118,6 +142,7 @@ impl PolymorphicEnvelopeBuffer {
         match self {
             Self::Sqlite(buffer) => buffer.mark_ready(project, is_ready),
             Self::InMemory(buffer) => buffer.mark_ready(project, is_ready),
+            Self::FileBacked(buffer) => buffer.mark_ready(project, is_ready),
         }
     }
 
@@ -130,6 +155,7 @@ impl PolymorphicEnvelopeBuffer {
         match self {
             Self::Sqlite(buffer) => buffer.mark_seen(project_key_pair, next_fetch),
             Self::InMemory(buffer) => buffer.mark_seen(project_key_pair, next_fetch),
+            Self::FileBacked(buffer) => buffer.mark_seen(project_key_pair, next_fetch),
         }
     }
 
@@ -138,6 +164,7 @@ impl PolymorphicEnvelopeBuffer {
         match self {
             Self::Sqlite(buffer) => buffer.has_capacity(),
             Self::InMemory(buffer) => buffer.has_capacity(),
+            Self::FileBacked(buffer) => buffer.has_capacity(),
         }
     }
 
@@ -159,14 +186,23 @@ impl PolymorphicEnvelopeBuffer {
 /// Error that occurs while interacting with the envelope buffer.
 #[derive(Debug, thiserror::Error)]
 pub enum EnvelopeBufferError {
-    #[error("sqlite")]
+    #[error("an error occurred in the sqlite envelope store")]
     SqliteStore(#[from] SqliteEnvelopeStoreError),
 
-    #[error("sqlite")]
+    #[error("an error occurred in the sqlite envelope stack")]
     SqliteStack(#[from] SqliteEnvelopeStackError),
+
+    #[error["an error occurred in the files manager"]]
+    FilesManager(#[from] FilesManagerError),
+
+    #[error["an error occurred in the file backed stack"]]
+    FileBackedStack(#[from] FileBackedEnvelopeStackError),
 
     #[error("failed to push envelope to the buffer")]
     PushFailed,
+
+    #[error("failed to setup the envelope buffer")]
+    SetupFailed,
 }
 
 impl From<Infallible> for EnvelopeBufferError {
@@ -217,7 +253,6 @@ impl EnvelopeBuffer<MemoryStackProvider> {
     }
 }
 
-#[allow(dead_code)]
 impl EnvelopeBuffer<SqliteStackProvider> {
     /// Creates an empty sqlite-based buffer.
     pub async fn new(config: &Config) -> Result<Self, EnvelopeBufferError> {
@@ -225,6 +260,19 @@ impl EnvelopeBuffer<SqliteStackProvider> {
             stacks_by_project: Default::default(),
             priority_queue: Default::default(),
             stack_provider: SqliteStackProvider::new(config).await?,
+            total_count: Arc::new(AtomicI64::new(0)),
+            total_count_initialized: false,
+        })
+    }
+}
+
+impl EnvelopeBuffer<FileBackedStackProvider> {
+    /// Creates an empty file backed buffer.
+    pub async fn new(config: &Config) -> Result<Self, EnvelopeBufferError> {
+        Ok(Self {
+            stacks_by_project: Default::default(),
+            priority_queue: Default::default(),
+            stack_provider: FileBackedStackProvider::new(config).await?,
             total_count: Arc::new(AtomicI64::new(0)),
             total_count_initialized: false,
         })

@@ -1,4 +1,5 @@
 use std::error::Error;
+use std::io;
 use std::path::Path;
 use std::pin::pin;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -69,25 +70,25 @@ pub enum SqliteEnvelopeStoreError {
     SqlxSetupFailed(sqlx::Error),
 
     #[error("failed to create the spool file: {0}")]
-    FileSetupError(std::io::Error),
+    FileSetup(io::Error),
 
     #[error("failed to write to disk: {0}")]
-    WriteError(sqlx::Error),
+    Write(sqlx::Error),
 
     #[error("failed to read from disk: {0}")]
-    FetchError(sqlx::Error),
+    Fetch(sqlx::Error),
 
     #[error("no file path for the spool was provided")]
     NoFilePath,
 
     #[error("failed to migrate the database: {0}")]
-    MigrationError(MigrateError),
+    Migration(#[from] MigrateError),
 
     #[error("failed to extract the envelope from the database")]
-    EnvelopeExtractionError,
+    EnvelopeExtraction,
 
     #[error("failed to extract a project key from the database")]
-    ProjectKeyExtractionError(#[from] ParseProjectKeyError),
+    ProjectKeyExtraction(ParseProjectKeyError),
 
     #[error("failed to get database file size: {0}")]
     FileSizeReadFailed(sqlx::Error),
@@ -268,10 +269,7 @@ impl SqliteEnvelopeStore {
             .await
             .map_err(SqliteEnvelopeStoreError::SqlxSetupFailed)?;
 
-        sqlx::migrate!("../migrations")
-            .run(&db)
-            .await
-            .map_err(SqliteEnvelopeStoreError::MigrationError)?;
+        sqlx::migrate!("../migrations").run(&db).await?;
 
         Ok(())
     }
@@ -288,7 +286,7 @@ impl SqliteEnvelopeStore {
                 .recursive(true)
                 .create(&parent)
                 .await
-                .map_err(SqliteEnvelopeStoreError::FileSetupError)?;
+                .map_err(SqliteEnvelopeStoreError::FileSetup)?;
         }
 
         Ok(())
@@ -309,7 +307,7 @@ impl SqliteEnvelopeStore {
                 "failed to spool envelopes to disk",
             );
 
-            return Err(SqliteEnvelopeStoreError::WriteError(err));
+            return Err(SqliteEnvelopeStoreError::Write(err));
         }
 
         Ok(())
@@ -365,7 +363,7 @@ impl SqliteEnvelopeStore {
         // fine with just logging the failure and not failing completely.
         if extracted_envelopes.is_empty() {
             if let Some(db_error) = db_error {
-                return Err(SqliteEnvelopeStoreError::FetchError(db_error));
+                return Err(SqliteEnvelopeStoreError::Fetch(db_error));
             }
         }
 
@@ -386,7 +384,7 @@ impl SqliteEnvelopeStore {
         let project_key_pairs = build_get_project_key_pairs()
             .fetch_all(&self.db)
             .await
-            .map_err(SqliteEnvelopeStoreError::FetchError)?;
+            .map_err(SqliteEnvelopeStoreError::Fetch)?;
 
         let project_key_pairs = project_key_pairs
             .into_iter()
@@ -407,7 +405,7 @@ impl SqliteEnvelopeStore {
         let row = build_count_all()
             .fetch_one(&self.db)
             .await
-            .map_err(SqliteEnvelopeStoreError::FetchError)?;
+            .map_err(SqliteEnvelopeStoreError::Fetch)?;
 
         let total_count: i64 = row.get(0);
         Ok(total_count as u64)
@@ -418,14 +416,14 @@ impl SqliteEnvelopeStore {
 fn extract_envelope(row: SqliteRow) -> Result<Box<Envelope>, SqliteEnvelopeStoreError> {
     let envelope_row: Vec<u8> = row
         .try_get("envelope")
-        .map_err(SqliteEnvelopeStoreError::FetchError)?;
+        .map_err(SqliteEnvelopeStoreError::Fetch)?;
     let envelope_bytes = bytes::Bytes::from(envelope_row);
     let mut envelope = Envelope::parse_bytes(envelope_bytes)
-        .map_err(|_| SqliteEnvelopeStoreError::EnvelopeExtractionError)?;
+        .map_err(|_| SqliteEnvelopeStoreError::EnvelopeExtraction)?;
 
     let received_at: i64 = row
         .try_get("received_at")
-        .map_err(SqliteEnvelopeStoreError::FetchError)?;
+        .map_err(SqliteEnvelopeStoreError::Fetch)?;
     let start_time = StartTime::from_timestamp_millis(received_at as u64);
 
     envelope.set_start_time(start_time.into_inner());
@@ -437,15 +435,15 @@ fn extract_envelope(row: SqliteRow) -> Result<Box<Envelope>, SqliteEnvelopeStore
 fn extract_project_key_pair(row: SqliteRow) -> Result<ProjectKeyPair, SqliteEnvelopeStoreError> {
     let own_key = row
         .try_get("own_key")
-        .map_err(SqliteEnvelopeStoreError::FetchError)
+        .map_err(SqliteEnvelopeStoreError::Fetch)
         .and_then(|key| {
-            ProjectKey::parse(key).map_err(SqliteEnvelopeStoreError::ProjectKeyExtractionError)
+            ProjectKey::parse(key).map_err(SqliteEnvelopeStoreError::ProjectKeyExtraction)
         });
     let sampling_key = row
         .try_get("sampling_key")
-        .map_err(SqliteEnvelopeStoreError::FetchError)
+        .map_err(SqliteEnvelopeStoreError::Fetch)
         .and_then(|key| {
-            ProjectKey::parse(key).map_err(SqliteEnvelopeStoreError::ProjectKeyExtractionError)
+            ProjectKey::parse(key).map_err(SqliteEnvelopeStoreError::ProjectKeyExtraction)
         });
 
     match (own_key, sampling_key) {

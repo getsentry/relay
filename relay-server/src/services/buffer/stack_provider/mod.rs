@@ -3,6 +3,7 @@ use crate::EnvelopeStack;
 use hashbrown::HashSet;
 use std::future::Future;
 
+pub mod file_backed;
 pub mod memory;
 pub mod sqlite;
 

@@ -43,6 +43,7 @@ mod common;
 mod envelope_buffer;
 mod envelope_stack;
 mod envelope_store;
+mod files_manager;
 mod stack_provider;
 mod testutils;
 

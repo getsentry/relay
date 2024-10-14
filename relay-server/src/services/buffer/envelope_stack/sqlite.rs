@@ -15,7 +15,7 @@ use crate::statsd::{RelayCounters, RelayTimers};
 #[derive(Debug, thiserror::Error)]
 pub enum SqliteEnvelopeStackError {
     #[error("an error occurred in the envelope store: {0}")]
-    EnvelopeStoreError(#[from] SqliteEnvelopeStoreError),
+    EnvelopeStore(#[from] SqliteEnvelopeStoreError),
 }
 
 #[derive(Debug)]
@@ -106,10 +106,7 @@ impl SqliteEnvelopeStack {
         // to have a database corruption during runtime, and we were to put the values back into
         // the buffer we will end up with an infinite cycle.
         relay_statsd::metric!(timer(RelayTimers::BufferSpool), {
-            self.envelope_store
-                .insert_many(envelopes)
-                .await
-                .map_err(SqliteEnvelopeStackError::EnvelopeStoreError)?;
+            self.envelope_store.insert_many(envelopes).await?;
         });
 
         // If we successfully spooled to disk, we know that data should be there.
@@ -133,8 +130,7 @@ impl SqliteEnvelopeStack {
                     self.sampling_key,
                     self.batch_size.get() as i64,
                 )
-                .await
-                .map_err(SqliteEnvelopeStackError::EnvelopeStoreError)?
+                .await?
         });
 
         if envelopes.is_empty() {
@@ -294,7 +290,7 @@ mod tests {
         let envelope = mock_envelope(Instant::now());
         assert!(matches!(
             stack.push(envelope).await,
-            Err(SqliteEnvelopeStackError::EnvelopeStoreError(_))
+            Err(SqliteEnvelopeStackError::EnvelopeStore(_))
         ));
 
         // The stack now contains the last of the 3 elements that were added. If we add a new one
@@ -338,7 +334,7 @@ mod tests {
         // We pop with an invalid db.
         assert!(matches!(
             stack.pop().await,
-            Err(SqliteEnvelopeStackError::EnvelopeStoreError(_))
+            Err(SqliteEnvelopeStackError::EnvelopeStore(_))
         ));
     }
 
