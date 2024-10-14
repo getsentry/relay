@@ -68,8 +68,18 @@ impl FileBackedEnvelopeStack {
         // Get the file size
         let file_size = file.metadata().await?.len();
 
-        if file_size < ENVELOPE_SIZE_FIELD_BYTES {
+        // If the file is empty, delete it and return None
+        if file_size == 0 {
+            envelope_store.remove_file(&self.project_key_pair).await?;
             return Ok(None);
+        }
+
+        // Check if file is corrupted or incomplete
+        if file_size < ENVELOPE_SIZE_FIELD_BYTES {
+            self.truncate_file(file, 0).await?;
+            return Err(FileBackedEnvelopeStackError::Corruption(
+                "the envelope size field is not in the file".to_string(),
+            ));
         }
 
         // Read the size of the last envelope
@@ -83,12 +93,12 @@ impl FileBackedEnvelopeStack {
         if file_size < envelope_size + ENVELOPE_SIZE_FIELD_BYTES {
             self.truncate_file(file, 0).await?;
             return Err(FileBackedEnvelopeStackError::Corruption(
-                "File size is smaller than expected envelope size".to_string(),
+                "the file size is smaller than expected envelope size".to_string(),
             ));
         }
 
         // Read the envelope data
-        let mut envelope_buf = Vec::with_capacity(envelope_size as usize);
+        let mut envelope_buf = vec![0; envelope_size as usize];
         file.seek(SeekFrom::End(
             -((envelope_size + ENVELOPE_SIZE_FIELD_BYTES) as i64),
         ))
@@ -103,7 +113,7 @@ impl FileBackedEnvelopeStack {
                 self.truncate_file(file, file_size - envelope_size - ENVELOPE_SIZE_FIELD_BYTES)
                     .await?;
                 return Err(FileBackedEnvelopeStackError::Corruption(format!(
-                    "Failed to deserialize envelope: {}",
+                    "failed to deserialize envelope: {}",
                     e
                 )));
             }
@@ -129,13 +139,11 @@ impl FileBackedEnvelopeStack {
         // Serialize envelope
         let envelope_bytes = envelope.to_vec()?;
 
-        // Compute total size
-        let size = envelope_bytes.len();
-
         // Construct buffer to write
-        let mut buffer = Vec::with_capacity(size + (ENVELOPE_SIZE_FIELD_BYTES as usize));
+        let envelope_size = envelope_bytes.len();
+        let mut buffer = Vec::with_capacity(envelope_size + (ENVELOPE_SIZE_FIELD_BYTES as usize));
         buffer.extend_from_slice(&envelope_bytes);
-        buffer.extend_from_slice(&size.to_le_bytes());
+        buffer.extend_from_slice(&envelope_size.to_le_bytes());
 
         // Write data
         file.seek(SeekFrom::End(0)).await?;
@@ -153,7 +161,7 @@ impl FileBackedEnvelopeStack {
         file.set_len(new_size).await.map_err(|e| {
             FileBackedEnvelopeStackError::Io(io::Error::new(
                 io::ErrorKind::Other,
-                format!("Failed to truncate file: {}", e),
+                format!("failed to truncate file: {}", e),
             ))
         })
     }
@@ -184,5 +192,187 @@ impl EnvelopeStack for FileBackedEnvelopeStack {
     fn flush(self) -> Vec<Box<Envelope>> {
         // Since data is already on disk, no action needed
         vec![]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::services::buffer::common::ProjectKeyPair;
+    use crate::services::buffer::envelope_store::file_backed::FileBackedEnvelopeStore;
+    use crate::services::buffer::testutils::utils::mock_envelopes;
+    use relay_base_schema::project::ProjectKey;
+    use relay_config::Config;
+    use std::sync::Arc;
+    use uuid::Uuid;
+
+    fn mock_config(path: &str, max_opened_files: usize) -> Arc<Config> {
+        Config::from_json_value(serde_json::json!({
+            "spool": {
+                "envelopes": {
+                    "path": path,
+                    "max_opened_files": max_opened_files
+                }
+            }
+        }))
+        .unwrap()
+        .into()
+    }
+
+    async fn setup_envelope_store(max_opened_files: usize) -> Arc<Mutex<FileBackedEnvelopeStore>> {
+        let path = std::env::temp_dir()
+            .join(Uuid::new_v4().to_string())
+            .into_os_string()
+            .into_string()
+            .unwrap();
+        let config = mock_config(&path, max_opened_files);
+        Arc::new(Mutex::new(
+            FileBackedEnvelopeStore::new(&config).await.unwrap(),
+        ))
+    }
+
+    #[tokio::test]
+    async fn test_push_and_pop() {
+        let envelope_store = setup_envelope_store(10).await;
+        let project_key_pair = ProjectKeyPair {
+            own_key: ProjectKey::parse("c04ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            sampling_key: ProjectKey::parse("c04ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+        };
+        let mut stack = FileBackedEnvelopeStack::new(project_key_pair, envelope_store);
+
+        let envelopes = mock_envelopes(5);
+
+        // Push envelopes
+        for envelope in &envelopes {
+            stack.push(envelope.clone()).await.unwrap();
+        }
+
+        // Pop envelopes and verify
+        for i in (0..5).rev() {
+            let popped = stack.pop().await.unwrap().unwrap();
+            assert_eq!(popped.event_id(), envelopes[i].event_id());
+        }
+
+        // Verify stack is empty
+        assert!(stack.pop().await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn test_malformed_data() {
+        let envelope_store = setup_envelope_store(10).await;
+        let project_key_pair = ProjectKeyPair {
+            own_key: ProjectKey::parse("c04ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            sampling_key: ProjectKey::parse("c04ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+        };
+        let mut stack = FileBackedEnvelopeStack::new(project_key_pair, envelope_store.clone());
+
+        // Write malformed data directly to the file
+        {
+            let mut store = envelope_store.lock().await;
+            let file = store
+                .get_envelopes_file(stack.project_key_pair)
+                .await
+                .unwrap();
+            file.set_len(0).await.unwrap(); // Clear the file
+            file.write_all(b"malformed data").await.unwrap();
+        }
+
+        // Attempt to pop from the stack with malformed data
+        match stack.pop().await {
+            Err(FileBackedEnvelopeStackError::Corruption(_)) => {}
+            _ => panic!("Expected a Corruption error"),
+        }
+
+        // Verify the file is truncated
+        {
+            let mut store = envelope_store.lock().await;
+            let file = store
+                .get_envelopes_file(stack.project_key_pair)
+                .await
+                .unwrap();
+            assert_eq!(file.metadata().await.unwrap().len(), 0);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_incomplete_envelope() {
+        let envelope_store = setup_envelope_store(10).await;
+        let project_key_pair = ProjectKeyPair {
+            own_key: ProjectKey::parse("c04ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            sampling_key: ProjectKey::parse("c04ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+        };
+        let mut stack = FileBackedEnvelopeStack::new(project_key_pair, envelope_store.clone());
+
+        // Write incomplete envelope data directly to the file
+        {
+            let mut store = envelope_store.lock().await;
+            let file = store
+                .get_envelopes_file(stack.project_key_pair)
+                .await
+                .unwrap();
+            file.set_len(0).await.unwrap(); // Clear the file
+            file.write_all(&[0u8; 4]).await.unwrap(); // Write less than ENVELOPE_SIZE_FIELD_BYTES
+        }
+
+        // Attempt to pop from the stack with incomplete data
+        assert!(stack.pop().await.unwrap().is_none());
+
+        // Verify the file is truncated
+        {
+            let mut store = envelope_store.lock().await;
+            let file = store
+                .get_envelopes_file(stack.project_key_pair)
+                .await
+                .unwrap();
+            assert_eq!(file.metadata().await.unwrap().len(), 0);
+        }
+    }
+
+    // Add this new test
+    #[tokio::test]
+    async fn test_empty_file_removal() {
+        let envelope_store = setup_envelope_store(10).await;
+        let project_key_pair = ProjectKeyPair {
+            own_key: ProjectKey::parse("c04ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            sampling_key: ProjectKey::parse("c04ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+        };
+        let mut stack = FileBackedEnvelopeStack::new(project_key_pair, envelope_store.clone());
+
+        // Create and push an envelope
+        let envelope = mock_envelopes(1)[0].clone();
+
+        // Push the envelope
+        stack.push(envelope.clone()).await.unwrap();
+
+        // Pop the envelope, which should leave the file empty
+        let popped_envelope = stack.pop().await.unwrap();
+        assert!(popped_envelope.is_some());
+        assert_eq!(
+            popped_envelope.unwrap().event_id().unwrap(),
+            envelope.event_id().unwrap()
+        );
+
+        // Check that the file still exists after the first pop
+        {
+            let mut store = envelope_store.lock().await;
+            let result = store.get_envelopes_file(stack.project_key_pair).await;
+            assert!(
+                result.is_ok(),
+                "Expected file to still exist after first pop"
+            );
+        }
+
+        // Attempt to pop from the now empty stack
+        assert!(stack.pop().await.unwrap().is_none());
+
+        // Verify the file is removed after the second pop by making sure there are no files
+        {
+            let store = envelope_store.lock().await;
+            let project_key_pairs = store.list_project_key_pairs().await.unwrap();
+            assert!(
+                project_key_pairs.is_empty(),
+                "Expected file to be removed after second pop, but it still exists"
+            );
+        }
     }
 }

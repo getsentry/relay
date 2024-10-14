@@ -4,7 +4,7 @@ use relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
 use relay_config::Config;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
-use tokio::fs::{read_dir, DirBuilder, File, OpenOptions};
+use tokio::fs::{read_dir, remove_file, DirBuilder, File, OpenOptions};
 use tokio::io;
 
 const FILE_EXTENSION: &str = "spool";
@@ -93,14 +93,31 @@ impl FileBackedEnvelopeStore {
         Ok(project_key_pairs)
     }
 
+    /// Removes the file associated with the given project key pair from disk and drops it from the cache.
+    pub async fn remove_file(
+        &mut self,
+        project_key_pair: &ProjectKeyPair,
+    ) -> Result<(), FileBackedEnvelopeStoreError> {
+        // Remove from cache if present
+        self.cache.remove(project_key_pair);
+
+        // Construct the file path
+        let filename = Self::filename(project_key_pair);
+        let filepath = self.base_path.join(filename);
+
+        // Remove the file from disk
+        match remove_file(&filepath).await {
+            Ok(_) => Ok(()),
+            Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
+            Err(e) => Err(FileBackedEnvelopeStoreError::FileError(e)),
+        }
+    }
+
     async fn load_or_create_file(
         base_path: PathBuf,
-        key_pair: &ProjectKeyPair,
+        project_key_pair: &ProjectKeyPair,
     ) -> Result<File, FileBackedEnvelopeStoreError> {
-        let filename = format!(
-            "{}-{}.{}",
-            key_pair.own_key, key_pair.sampling_key, FILE_EXTENSION
-        );
+        let filename = Self::filename(project_key_pair);
 
         let filepath = base_path.join(filename);
         Self::create_spool_directory(&filepath).await?;
@@ -157,6 +174,13 @@ impl FileBackedEnvelopeStore {
             self.cache.remove(&lru_project_key_pair);
         }
     }
+
+    fn filename(project_key_pair: &ProjectKeyPair) -> String {
+        format!(
+            "{}-{}.{}",
+            project_key_pair.own_key, project_key_pair.sampling_key, FILE_EXTENSION
+        )
+    }
 }
 
 #[cfg(test)]
@@ -179,7 +203,7 @@ mod tests {
         .into()
     }
 
-    async fn setup_store(max_opened_files: usize) -> FileBackedEnvelopeStore {
+    async fn setup_envelope_store(max_opened_files: usize) -> FileBackedEnvelopeStore {
         let path = std::env::temp_dir()
             .join(Uuid::new_v4().to_string())
             .into_os_string()
@@ -191,7 +215,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_evict_load() {
-        let mut store = setup_store(5).await;
+        let mut store = setup_envelope_store(5).await;
         let project_key_pair = ProjectKeyPair {
             own_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             sampling_key: ProjectKey::parse("b94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -225,7 +249,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_project_key_pairs() {
-        let mut store = setup_store(5).await;
+        let mut store = setup_envelope_store(5).await;
         let project_key_pair1 = ProjectKeyPair {
             own_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             sampling_key: ProjectKey::parse("b94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -248,7 +272,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cache_eviction() {
-        let mut store = setup_store(5).await;
+        let mut store = setup_envelope_store(5).await;
 
         // Create 6 files (max_size is 5)
         for i in 0..6 {
@@ -270,5 +294,34 @@ mod tests {
             sampling_key: ProjectKey::parse("c04ae32be2584e0bbd7a4cbb95971fee").unwrap(),
         };
         assert!(!store.cache.contains_key(&first_key_pair));
+    }
+
+    #[tokio::test]
+    async fn test_remove_file() {
+        let mut store = setup_envelope_store(5).await;
+        let project_key_pair = ProjectKeyPair {
+            own_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            sampling_key: ProjectKey::parse("b94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+        };
+
+        // Create the file
+        store.get_envelopes_file(project_key_pair).await.unwrap();
+
+        // Verify the file exists
+        assert!(store.cache.contains_key(&project_key_pair));
+        let file_path = store
+            .base_path
+            .join(FileBackedEnvelopeStore::filename(&project_key_pair));
+        assert!(file_path.exists());
+
+        // Remove the file
+        store.remove_file(&project_key_pair).await.unwrap();
+
+        // Verify the file no longer exists in cache or on disk
+        assert!(!store.cache.contains_key(&project_key_pair));
+        assert!(!file_path.exists());
+
+        // Removing a non-existent file should not error
+        store.remove_file(&project_key_pair).await.unwrap();
     }
 }
