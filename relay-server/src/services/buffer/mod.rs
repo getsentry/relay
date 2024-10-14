@@ -172,7 +172,6 @@ impl EnvelopeBufferService {
         );
 
         if self.sleep > Duration::ZERO {
-            dbg!(self.sleep);
             tokio::time::sleep(self.sleep).await;
         }
 
@@ -243,7 +242,6 @@ impl EnvelopeBufferService {
                         peek_result = "expired"
                     );
                     if let Some(envelope) = buffer.pop().await? {
-                        debug_assert_eq!(envelope.meta().start_time(), received_at.into_std());
                         Self::drop_expired(envelope, services);
                     }
 
@@ -254,7 +252,14 @@ impl EnvelopeBufferService {
                         peek_result = "ready"
                     );
                     if let Some(envelope) = buffer.pop().await? {
-                        envelopes_tx_permit.send(DequeuedEnvelope(envelope));
+                        // The cached `received_at` time on the queue might be newer than
+                        // the actual timestamp of the envelope, so check again here.
+                        if envelope.meta().start_time().elapsed() > config.spool_envelopes_max_age()
+                        {
+                            Self::drop_expired(envelope, services);
+                        } else {
+                            envelopes_tx_permit.send(DequeuedEnvelope(envelope));
+                        }
                     }
 
                     Duration::ZERO // try next pop immediately
