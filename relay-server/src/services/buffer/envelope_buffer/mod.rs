@@ -18,8 +18,8 @@ use crate::services::buffer::common::ProjectKeyPair;
 use crate::services::buffer::envelope_stack::file_backed::FileBackedEnvelopeStackError;
 use crate::services::buffer::envelope_stack::sqlite::SqliteEnvelopeStackError;
 use crate::services::buffer::envelope_stack::EnvelopeStack;
+use crate::services::buffer::envelope_store::file_backed::FileBackedEnvelopeStoreError;
 use crate::services::buffer::envelope_store::sqlite::SqliteEnvelopeStoreError;
-use crate::services::buffer::files_manager::FilesManagerError;
 use crate::services::buffer::stack_provider::file_backed::FileBackedStackProvider;
 use crate::services::buffer::stack_provider::memory::MemoryStackProvider;
 use crate::services::buffer::stack_provider::sqlite::SqliteStackProvider;
@@ -65,11 +65,6 @@ impl PolymorphicEnvelopeBuffer {
             config.spool_envelope_buffer_strategy(),
             config.spool_envelopes_path(),
         ) {
-            (EnvelopeBufferStrategy::Memory, _) => {
-                relay_log::trace!("PolymorphicEnvelopeBuffer: initializing memory envelope buffer");
-                let buffer = EnvelopeBuffer::<MemoryStackProvider>::new(memory_checker);
-                Self::InMemory(buffer)
-            }
             (EnvelopeBufferStrategy::Sqlite, Some(_)) => {
                 relay_log::trace!("PolymorphicEnvelopeBuffer: initializing sqlite envelope buffer");
                 let buffer = EnvelopeBuffer::<SqliteStackProvider>::new(config).await?;
@@ -82,7 +77,11 @@ impl PolymorphicEnvelopeBuffer {
                 let buffer = EnvelopeBuffer::<FileBackedStackProvider>::new(config).await?;
                 Self::FileBacked(buffer)
             }
-            _ => return Err(EnvelopeBufferError::SetupFailed),
+            _ => {
+                relay_log::trace!("PolymorphicEnvelopeBuffer: initializing memory envelope buffer");
+                let buffer = EnvelopeBuffer::<MemoryStackProvider>::new(memory_checker);
+                Self::InMemory(buffer)
+            }
         };
 
         Ok(buffer)
@@ -192,17 +191,14 @@ pub enum EnvelopeBufferError {
     #[error("an error occurred in the sqlite envelope stack")]
     SqliteStack(#[from] SqliteEnvelopeStackError),
 
-    #[error["an error occurred in the files manager"]]
-    FilesManager(#[from] FilesManagerError),
+    #[error["an error occurred in the file backed store"]]
+    FileBackedStore(#[from] FileBackedEnvelopeStoreError),
 
     #[error["an error occurred in the file backed stack"]]
     FileBackedStack(#[from] FileBackedEnvelopeStackError),
 
     #[error("failed to push envelope to the buffer")]
     PushFailed,
-
-    #[error("failed to setup the envelope buffer")]
-    SetupFailed,
 }
 
 impl From<Infallible> for EnvelopeBufferError {
@@ -366,7 +362,7 @@ where
             return Ok(None);
         };
         let project_key_pair = *key;
-        let envelope = stack.pop().await.unwrap().expect("found an empty stack");
+        let envelope = stack.pop().await?.expect("found an empty stack");
 
         let next_received_at = stack
             .peek()

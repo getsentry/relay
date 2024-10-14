@@ -9,9 +9,9 @@ use tokio::io;
 
 const FILE_EXTENSION: &str = "spool";
 
-/// An error returned when doing an operation on [`FilesManager`].
+/// An error returned when doing an operation on [`FileBackedEnvelopeStore`].
 #[derive(Debug, thiserror::Error)]
-pub enum FilesManagerError {
+pub enum FileBackedEnvelopeStoreError {
     #[error("failed work with a file: {0}")]
     FileError(#[from] io::Error),
 
@@ -26,7 +26,7 @@ pub enum FilesManagerError {
 }
 
 #[derive(Debug)]
-pub struct FilesManager {
+pub struct FileBackedEnvelopeStore {
     base_path: PathBuf,
     max_opened_files: usize,
     cache: HashMap<ProjectKeyPair, CacheEntry>,
@@ -38,24 +38,24 @@ struct CacheEntry {
     last_access: Instant,
 }
 
-impl FilesManager {
-    pub async fn new(config: &Config) -> Result<Self, FilesManagerError> {
+impl FileBackedEnvelopeStore {
+    pub async fn new(config: &Config) -> Result<Self, FileBackedEnvelopeStoreError> {
         // If no path is provided, we can't do disk spooling.
         let Some(base_path) = config.spool_envelopes_path() else {
-            return Err(FilesManagerError::NoFilePath);
+            return Err(FileBackedEnvelopeStoreError::NoFilePath);
         };
 
-        Ok(FilesManager {
+        Ok(FileBackedEnvelopeStore {
             base_path,
             max_opened_files: config.spool_envelopes_max_opened_files(),
             cache: HashMap::new(),
         })
     }
 
-    pub async fn get_file(
+    pub async fn get_envelopes_file(
         &mut self,
         project_key_pair: ProjectKeyPair,
-    ) -> Result<&mut File, FilesManagerError> {
+    ) -> Result<&mut File, FileBackedEnvelopeStoreError> {
         if !self.cache.contains_key(&project_key_pair) {
             let file = Self::load_or_create_file(self.base_path.clone(), &project_key_pair).await?;
             self.insert_into_cache(project_key_pair, file);
@@ -71,7 +71,7 @@ impl FilesManager {
 
     pub async fn list_project_key_pairs(
         &self,
-    ) -> Result<HashSet<ProjectKeyPair>, FilesManagerError> {
+    ) -> Result<HashSet<ProjectKeyPair>, FileBackedEnvelopeStoreError> {
         let mut project_key_pairs = HashSet::new();
 
         let mut dir = read_dir(&self.base_path).await?;
@@ -96,7 +96,7 @@ impl FilesManager {
     async fn load_or_create_file(
         base_path: PathBuf,
         key_pair: &ProjectKeyPair,
-    ) -> Result<File, FilesManagerError> {
+    ) -> Result<File, FileBackedEnvelopeStoreError> {
         let filename = format!(
             "{}-{}.{}",
             key_pair.own_key, key_pair.sampling_key, FILE_EXTENSION
@@ -112,11 +112,11 @@ impl FilesManager {
             .append(true)
             .open(filepath)
             .await
-            .map_err(FilesManagerError::FileError)
+            .map_err(FileBackedEnvelopeStoreError::FileError)
     }
 
     /// Creates the directories for the spool file.
-    async fn create_spool_directory(path: &Path) -> Result<(), FilesManagerError> {
+    async fn create_spool_directory(path: &Path) -> Result<(), FileBackedEnvelopeStoreError> {
         let Some(parent) = path.parent() else {
             return Ok(());
         };
@@ -127,7 +127,7 @@ impl FilesManager {
                 .recursive(true)
                 .create(&parent)
                 .await
-                .map_err(FilesManagerError::FileSetupError)?;
+                .map_err(FileBackedEnvelopeStoreError::FileSetupError)?;
         }
 
         Ok(())
@@ -179,29 +179,27 @@ mod tests {
         .into()
     }
 
-    async fn setup_files_manager(max_opened_files: usize) -> FilesManager {
+    async fn setup_store(max_opened_files: usize) -> FileBackedEnvelopeStore {
         let path = std::env::temp_dir()
             .join(Uuid::new_v4().to_string())
             .into_os_string()
             .into_string()
             .unwrap();
         let config = mock_config(&path, max_opened_files);
-        FilesManager::new(&config)
-            .await
-            .expect("Failed to create FilesManager")
+        FileBackedEnvelopeStore::new(&config).await.unwrap()
     }
 
     #[tokio::test]
     async fn test_create_evict_load() {
-        let mut files_manager = setup_files_manager(5).await;
+        let mut store = setup_store(5).await;
         let project_key_pair = ProjectKeyPair {
             own_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             sampling_key: ProjectKey::parse("b94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
         };
 
         // First call should create the file
-        let file_ino = files_manager
-            .get_file(project_key_pair)
+        let file_ino = store
+            .get_envelopes_file(project_key_pair)
             .await
             .unwrap()
             .metadata()
@@ -210,12 +208,12 @@ mod tests {
             .ino();
 
         // We evict the file to see if re-opening gives the same ino.
-        files_manager.evict_lru();
-        assert!(files_manager.cache.is_empty());
+        store.evict_lru();
+        assert!(store.cache.is_empty());
 
         // Second call should load the file from disk since it was evicted
-        let cached_file_ino = files_manager
-            .get_file(project_key_pair)
+        let cached_file_ino = store
+            .get_envelopes_file(project_key_pair)
             .await
             .unwrap()
             .metadata()
@@ -227,7 +225,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_project_key_pairs() {
-        let mut files_manager = setup_files_manager(5).await;
+        let mut store = setup_store(5).await;
         let project_key_pair1 = ProjectKeyPair {
             own_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             sampling_key: ProjectKey::parse("b94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -238,11 +236,11 @@ mod tests {
         };
 
         // Create two files
-        files_manager.get_file(project_key_pair1).await.unwrap();
-        files_manager.get_file(project_key_pair2).await.unwrap();
+        store.get_envelopes_file(project_key_pair1).await.unwrap();
+        store.get_envelopes_file(project_key_pair2).await.unwrap();
 
         // List project key pairs
-        let key_pairs = files_manager.list_project_key_pairs().await.unwrap();
+        let key_pairs = store.list_project_key_pairs().await.unwrap();
         assert_eq!(key_pairs.len(), 2);
         assert!(key_pairs.contains(&project_key_pair1));
         assert!(key_pairs.contains(&project_key_pair2));
@@ -250,7 +248,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cache_eviction() {
-        let mut files_manager = setup_files_manager(5).await;
+        let mut store = setup_store(5).await;
 
         // Create 6 files (max_size is 5)
         for i in 0..6 {
@@ -260,17 +258,17 @@ mod tests {
                 sampling_key: ProjectKey::parse(&format!("c{}4ae32be2584e0bbd7a4cbb95971fee", i))
                     .unwrap(),
             };
-            files_manager.get_file(project_key_pair).await.unwrap();
+            store.get_envelopes_file(project_key_pair).await.unwrap();
         }
 
         // Check that the cache size is still 5
-        assert_eq!(files_manager.cache.len(), 5);
+        assert_eq!(store.cache.len(), 5);
 
         // The first file should have been evicted
         let first_key_pair = ProjectKeyPair {
             own_key: ProjectKey::parse("c04ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             sampling_key: ProjectKey::parse("c04ae32be2584e0bbd7a4cbb95971fee").unwrap(),
         };
-        assert!(!files_manager.cache.contains_key(&first_key_pair));
+        assert!(!store.cache.contains_key(&first_key_pair));
     }
 }

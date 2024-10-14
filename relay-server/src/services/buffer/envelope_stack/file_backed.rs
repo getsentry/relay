@@ -1,7 +1,9 @@
 use crate::envelope::{Envelope, EnvelopeError};
 use crate::services::buffer::common::ProjectKeyPair;
 use crate::services::buffer::envelope_stack::EnvelopeStack;
-use crate::services::buffer::files_manager::{FilesManager, FilesManagerError};
+use crate::services::buffer::envelope_store::file_backed::{
+    FileBackedEnvelopeStore, FileBackedEnvelopeStoreError,
+};
 use crate::statsd::RelayTimers;
 use std::io;
 use std::io::SeekFrom;
@@ -20,8 +22,11 @@ pub enum FileBackedEnvelopeStackError {
     #[error("failed to work with envelope: {0}")]
     Envelope(#[from] EnvelopeError),
 
-    #[error("failed to get file from FilesManager: {0}")]
-    FilesManager(#[from] FilesManagerError),
+    #[error("failed to get file from the store: {0}")]
+    EnvelopeStore(#[from] FileBackedEnvelopeStoreError),
+
+    #[error("file corruption detected: {0}")]
+    Corruption(String),
 }
 
 /// An envelope stack that writes and reads envelopes to and from disk files.
@@ -37,14 +42,17 @@ pub enum FileBackedEnvelopeStackError {
 #[derive(Debug)]
 pub struct FileBackedEnvelopeStack {
     project_key_pair: ProjectKeyPair,
-    files_manager: Arc<Mutex<FilesManager>>,
+    envelope_store: Arc<Mutex<FileBackedEnvelopeStore>>,
 }
 
 impl FileBackedEnvelopeStack {
-    pub fn new(project_key_pair: ProjectKeyPair, files_manager: Arc<Mutex<FilesManager>>) -> Self {
+    pub fn new(
+        project_key_pair: ProjectKeyPair,
+        envelope_store: Arc<Mutex<FileBackedEnvelopeStore>>,
+    ) -> Self {
         Self {
             project_key_pair,
-            files_manager,
+            envelope_store,
         }
     }
 
@@ -52,11 +60,14 @@ impl FileBackedEnvelopeStack {
     async fn read_and_remove_last_envelope(
         &mut self,
     ) -> Result<Option<Box<Envelope>>, FileBackedEnvelopeStackError> {
-        let mut files_manager = self.files_manager.lock().await;
-        let file = files_manager.get_file(self.project_key_pair).await?;
+        let mut envelope_store = self.envelope_store.lock().await;
+        let file = envelope_store
+            .get_envelopes_file(self.project_key_pair)
+            .await?;
 
         // Get the file size
         let file_size = file.metadata().await?.len();
+
         if file_size < ENVELOPE_SIZE_FIELD_BYTES {
             return Ok(None);
         }
@@ -67,9 +78,13 @@ impl FileBackedEnvelopeStack {
             .await?;
         file.read_exact(&mut envelope_size_buf).await?;
         let envelope_size = u64::from_le_bytes(envelope_size_buf);
+
+        // Check if file is corrupted or incomplete
         if file_size < envelope_size + ENVELOPE_SIZE_FIELD_BYTES {
-            // File is corrupted or incomplete
-            return Ok(None);
+            self.truncate_file(file, 0).await?;
+            return Err(FileBackedEnvelopeStackError::Corruption(
+                "File size is smaller than expected envelope size".to_string(),
+            ));
         }
 
         // Read the envelope data
@@ -81,12 +96,22 @@ impl FileBackedEnvelopeStack {
         file.read_exact(&mut envelope_buf).await?;
 
         // Deserialize envelope
-        let envelope = Envelope::parse_bytes(envelope_buf.into())
-            .map_err(FileBackedEnvelopeStackError::Envelope)?;
+        let envelope = match Envelope::parse_bytes(envelope_buf.into()) {
+            Ok(env) => env,
+            Err(e) => {
+                // Envelope deserialization failed, truncate the file
+                self.truncate_file(file, file_size - envelope_size - ENVELOPE_SIZE_FIELD_BYTES)
+                    .await?;
+                return Err(FileBackedEnvelopeStackError::Corruption(format!(
+                    "Failed to deserialize envelope: {}",
+                    e
+                )));
+            }
+        };
 
         // Truncate the file to remove the envelope
-        let new_size = file_size - envelope_size - ENVELOPE_SIZE_FIELD_BYTES;
-        file.set_len(new_size).await?;
+        self.truncate_file(file, file_size - envelope_size - ENVELOPE_SIZE_FIELD_BYTES)
+            .await?;
 
         Ok(Some(envelope))
     }
@@ -96,8 +121,10 @@ impl FileBackedEnvelopeStack {
         &mut self,
         envelope: &Envelope,
     ) -> Result<(), FileBackedEnvelopeStackError> {
-        let mut files_manager = self.files_manager.lock().await;
-        let file = files_manager.get_file(self.project_key_pair).await?;
+        let mut envelope_store = self.envelope_store.lock().await;
+        let file = envelope_store
+            .get_envelopes_file(self.project_key_pair)
+            .await?;
 
         // Serialize envelope
         let envelope_bytes = envelope.to_vec()?;
@@ -115,6 +142,20 @@ impl FileBackedEnvelopeStack {
         file.write_all(&buffer).await?;
 
         Ok(())
+    }
+
+    /// Helper method to truncate the file to a given size
+    async fn truncate_file(
+        &self,
+        file: &tokio::fs::File,
+        new_size: u64,
+    ) -> Result<(), FileBackedEnvelopeStackError> {
+        file.set_len(new_size).await.map_err(|e| {
+            FileBackedEnvelopeStackError::Io(io::Error::new(
+                io::ErrorKind::Other,
+                format!("Failed to truncate file: {}", e),
+            ))
+        })
     }
 }
 
@@ -136,11 +177,7 @@ impl EnvelopeStack for FileBackedEnvelopeStack {
 
     async fn pop(&mut self) -> Result<Option<Box<Envelope>>, Self::Error> {
         relay_statsd::metric!(timer(RelayTimers::BufferPop), {
-            if let Some(envelope) = self.read_and_remove_last_envelope().await? {
-                Ok(Some(envelope))
-            } else {
-                Ok(None)
-            }
+            self.read_and_remove_last_envelope().await
         })
     }
 

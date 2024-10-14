@@ -61,7 +61,13 @@ def test_graceful_shutdown_with_sqlite_buffer(mini_sentry, relay):
         mini_sentry,
         {
             "limits": {"shutdown_timeout": 2},
-            "spool": {"envelopes": {"version": "experimental", "path": db_file_path}},
+            "spool": {
+                "envelopes": {
+                    "version": "experimental",
+                    "path": db_file_path,
+                    "buffer_strategy": "file_backed",
+                }
+            },
         },
     )
 
