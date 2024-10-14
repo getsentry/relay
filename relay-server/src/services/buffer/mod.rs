@@ -470,6 +470,7 @@ mod tests {
     use std::time::{Duration, Instant};
 
     use relay_dynamic_config::GlobalConfig;
+    use relay_metrics::UnixTimestamp;
     use relay_quotas::DataCategory;
     use sqlx::Connection;
     use tokio::sync::mpsc;
@@ -681,6 +682,7 @@ mod tests {
                         "envelopes": {
                             "version": "experimental",
                             "path": path,
+                            "max_envelope_delay_secs": 1,
                         }
                     }
                 })),
@@ -689,7 +691,9 @@ mod tests {
         };
 
         // Initialize once to migrate the database:
-        buffer_service().service.start();
+        let service = buffer_service().service;
+        let config = service.config.clone();
+        service.start();
 
         tokio::time::sleep(Duration::from_millis(1000)).await;
 
@@ -698,8 +702,12 @@ mod tests {
         let mut db = sqlx::SqliteConnection::connect(path.to_str().unwrap())
             .await
             .unwrap();
+
+        let received_at =
+            UnixTimestamp::now().as_datetime().unwrap() - 2 * config.spool_envelopes_max_age();
+
         let query = sqlx::query("INSERT INTO envelopes (received_at, own_key, sampling_key, envelope) VALUES ($1, $2, $3, $4);")
-            .bind(0i64) // oldest envelope ever
+            .bind(received_at.timestamp_millis())
             .bind(envelope.meta().public_key().to_string())
             .bind(envelope.meta().public_key().to_string())
             .bind(envelope.to_vec().unwrap());
@@ -714,7 +722,6 @@ mod tests {
             global_tx,
         } = buffer_service();
 
-        // let config = service.config.clone();
         let _addr = service.start();
         global_tx
             .send(global_config::Status::Ready(Arc::new(
