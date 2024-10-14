@@ -30,10 +30,11 @@ use crate::utils::MemoryChecker;
 
 /// Polymorphic envelope buffering interface.
 ///
-/// TPeek::NotReady { field1: stack_key, field2: _ }isk-based or memory-based,
+/// The underlying buffer can either be disk-based or memory-based,
 /// depending on the given configuration.
 ///
-/// NOTE: This is implemented as an enum because a trait object withPeek::NotReady { field1: _, field2: _ }/// object safe.
+/// NOTE: This is implemented as an enum because a trait object with async methods would not be
+/// object safe.
 #[derive(Debug)]
 #[allow(private_interfaces)]
 pub enum PolymorphicEnvelopeBuffer {
