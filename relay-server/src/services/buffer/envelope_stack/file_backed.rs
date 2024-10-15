@@ -13,7 +13,7 @@ use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 use tokio::sync::Mutex;
 
 /// The version of the envelope stack file format.
-const VERSION: u8 = 1;
+const CURRENT_FILE_VERSION: u8 = 1;
 
 /// The size of the version field in bytes.
 const VERSION_FIELD_BYTES: u64 = 1;
@@ -121,7 +121,7 @@ async fn seek_truncate(
 ) -> Result<bool, FileBackedEnvelopeStackError> {
     match file.seek(SeekFrom::End(-(from_end as i64))).await {
         Ok(_) => Ok(true),
-        Err(error) if error.kind() == io::ErrorKind::UnexpectedEof => {
+        Err(error) if error.kind() == io::ErrorKind::InvalidInput => {
             relay_log::error!(error = &error as &dyn Error, "failed to truncate file",);
             truncate_file(file, 0).await?;
             Ok(false)
@@ -138,9 +138,8 @@ async fn advance(file: &mut File, offset: u64) -> io::Result<()> {
 
 /// Asserts that the file read from the file is supported.
 async fn assert_version(file: &mut File) -> Result<(), FileBackedEnvelopeStackError> {
-    let mut version = [0u8; VERSION_FIELD_BYTES as usize];
-    file.read_exact(&mut version).await?;
-    if version[0] != VERSION {
+    let version = file.read_u8().await?;
+    if version != CURRENT_FILE_VERSION {
         return Err(FileBackedEnvelopeStackError::InvalidVersion);
     }
 
@@ -271,18 +270,24 @@ pub async fn append_envelope(
     // Serialize the envelope.
     // TODO: Measure serialization time.
     let envelope_bytes = envelope.to_vec()?;
+    if envelope_bytes.is_empty() {
+        return Ok(());
+    }
 
     // TODO: Measure write time.
+    // We position at the end of the file.
     file.seek(SeekFrom::End(0)).await?;
+
     // 1. Envelope payload
     file.write_all(&envelope_bytes).await?;
     // 2. Version number of the entry
-    file.write_u8(VERSION).await?;
+    file.write_u8(CURRENT_FILE_VERSION).await?;
     // 3. Total count of envelope until this point
     file.write_u32_le(total_count + 1).await?;
     // 4. The size of the envelope in bytes
     file.write_u64_le(envelope_bytes.len() as u64).await?;
 
+    // We flush to disk to make sure all data is flushed from the buffer.
     file.flush().await?;
 
     Ok(())
@@ -418,7 +423,10 @@ mod tests {
             .unwrap();
         file.read_exact(&mut version_buf).await.unwrap();
 
-        assert_eq!(version_buf[0], VERSION, "Version field mismatch");
+        assert_eq!(
+            version_buf[0], CURRENT_FILE_VERSION,
+            "Version field mismatch"
+        );
     }
 
     #[tokio::test]
@@ -460,7 +468,7 @@ mod tests {
         let total_count = u32::from_le_bytes(total_count_buf);
         let envelope_size = u64::from_le_bytes(envelope_size_buf);
 
-        assert_eq!(version, VERSION, "Version mismatch");
+        assert_eq!(version, CURRENT_FILE_VERSION, "Version mismatch");
         assert_eq!(total_count, 1, "Total count mismatch");
 
         // Jump back to the start of the envelope
