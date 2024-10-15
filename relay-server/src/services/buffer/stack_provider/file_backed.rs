@@ -14,26 +14,28 @@ use std::time::Duration;
 use tokio::sync::Mutex;
 use tokio::time::timeout;
 
-/// A stack provider that manages `FileBackedEnvelopeStack` instances.
+/// A stack provider that manages [`FileBackedEnvelopeStack`] instances.
 ///
 /// This provider uses a file-backed envelope store to persist envelopes on disk.
-/// It implements the `StackProvider` trait, providing methods to initialize,
+/// It implements the [`StackProvider`] trait, providing methods to initialize,
 /// create stacks, and manage the overall state of the envelope storage.
 #[derive(Debug)]
 pub struct FileBackedStackProvider {
     envelope_store: Arc<Mutex<FileBackedEnvelopeStore>>,
+    max_disk_size: usize,
 }
 
 impl FileBackedStackProvider {
-    /// Creates a new `FileBackedStackProvider` instance.
+    /// Creates a new [`FileBackedStackProvider`] instance.
     ///
-    /// This method initializes the underlying `FileBackedEnvelopeStore` using the provided
+    /// This method initializes the underlying [`FileBackedEnvelopeStore`] using the provided
     /// configuration.
     pub async fn new(config: &Config) -> Result<Self, FileBackedEnvelopeStoreError> {
         let envelope_store = FileBackedEnvelopeStore::new(config).await?;
 
         Ok(Self {
             envelope_store: Arc::new(Mutex::new(envelope_store)),
+            max_disk_size: config.spool_envelopes_max_disk_size(),
         })
     }
 
@@ -92,16 +94,14 @@ impl StackProvider for FileBackedStackProvider {
     }
 
     fn has_store_capacity(&self) -> bool {
-        // Implement logic to check disk capacity if needed
-        true
+        (self.envelope_store.blocking_lock().usage() as usize) < self.max_disk_size
     }
 
     fn stack_type<'a>(&self) -> &'a str {
         "file_backed"
     }
 
-    async fn flush(&mut self, _envelope_stacks: impl IntoIterator<Item = Self::Stack>) -> bool {
-        // Since data is already on disk, no action needed
-        true
+    async fn flush(&mut self, _envelope_stacks: impl IntoIterator<Item = Self::Stack>) {
+        // Since data is already on disk, no action needed.
     }
 }

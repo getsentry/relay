@@ -65,11 +65,8 @@ pub trait StackProvider: std::fmt::Debug {
     fn stack_type<'a>(&self) -> &'a str;
 
     /// Flushes the supplied [`EnvelopeStack`]s and consumes the [`StackProvider`].
-    ///
-    /// Returns `true` if the envelopes have been flushed to storage and the buffer is safe to be
-    /// dropped, `false` otherwise.
     fn flush(
         &mut self,
         envelope_stacks: impl IntoIterator<Item = Self::Stack>,
-    ) -> impl Future<Output = bool>;
+    ) -> impl Future<Output = ()>;
 }

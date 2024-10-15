@@ -167,11 +167,21 @@ impl PolymorphicEnvelopeBuffer {
     }
 
     /// Shuts down the [`PolymorphicEnvelopeBuffer`].
+    ///
+    /// Returns `true` if the envelope have been written to storage, and it's safe to drop the
+    /// buffer, `false` otherwise.
     pub async fn shutdown(&mut self) -> bool {
         match self {
-            Self::Sqlite(buffer) => buffer.flush().await,
-            Self::InMemory(buffer) => buffer.has_capacity(),
-            Self::FileBacked(buffer) => buffer.has_capacity(),
+            Self::Sqlite(buffer) => {
+                buffer.flush().await;
+                true
+            }
+            // With in-memory we don't do anything on shutdown and let the system continue until
+            // the timeout.
+            Self::InMemory(_) => false,
+            // With file-backed all the data is on disk by default so we can safely drop the
+            // buffer.
+            Self::FileBacked(_) => true,
         }
     }
 }
@@ -450,11 +460,11 @@ where
     }
 
     /// Flushes the envelope buffer.
-    pub async fn flush(&mut self) -> bool {
+    pub async fn flush(&mut self) {
         let priority_queue = mem::take(&mut self.priority_queue);
         self.stack_provider
             .flush(priority_queue.into_iter().map(|(q, _)| q.value))
-            .await
+            .await;
     }
 
     /// Pushes a new [`EnvelopeStack`] with the given [`Envelope`] inserted.

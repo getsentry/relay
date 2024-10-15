@@ -1,13 +1,18 @@
 use crate::services::buffer::common::ProjectKeyPair;
 use crate::services::buffer::envelope_stack::file_backed::get_total_count;
+use crate::statsd::RelayGauges;
 use hashbrown::HashMap;
 use relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
 use relay_config::Config;
 use std::path::{Path, PathBuf};
-use std::time::Instant;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 use tokio::fs::{read_dir, remove_file, DirBuilder, File, OpenOptions};
 use tokio::io;
+use tokio::time::sleep;
 
+/// File extension for the files that are written by Relay and used for spooling purposes.
 const FILE_EXTENSION: &str = "spool";
 
 /// An error returned when doing an operation on [`FileBackedEnvelopeStore`].
@@ -24,10 +29,14 @@ pub enum FileBackedEnvelopeStoreError {
 }
 
 /// A file-backed envelope store that manages envelope files on disk.
+///
+/// This struct provides functionality to store and manage envelopes in files on the local filesystem.
+/// It uses a caching mechanism to optimize file access and tracks the total size of the envelope files.
 #[derive(Debug)]
 pub struct FileBackedEnvelopeStore {
     base_path: PathBuf,
     files_cache: EnvelopesFilesCache,
+    folder_size_tracker: FolderSizeTracker,
 }
 
 /// A cache for managing open file handles which contain envelopes.
@@ -37,26 +46,134 @@ struct EnvelopesFilesCache {
     cache: HashMap<ProjectKeyPair, CacheEntry>,
 }
 
+/// A cache entry for a file containing envelopes.
 #[derive(Debug)]
 struct CacheEntry {
     file: File,
     last_access: Instant,
 }
 
+/// A background task that tracks the size of the folder containing all envelope files.
+#[derive(Debug, Clone)]
+struct FolderSizeTracker {
+    base_path: PathBuf,
+    last_known_size: Arc<AtomicU64>,
+    refresh_frequency: Duration,
+}
+
+impl FolderSizeTracker {
+    fn new(base_path: PathBuf, refresh_frequency: Duration) -> Self {
+        Self {
+            base_path,
+            last_known_size: Arc::new(AtomicU64::new(0)),
+            refresh_frequency,
+        }
+    }
+
+    pub async fn prepare(
+        base_path: PathBuf,
+        refresh_frequency: Duration,
+    ) -> Result<Self, FileBackedEnvelopeStoreError> {
+        let size = Self::estimate_folder_size(&base_path).await?;
+
+        let tracker = Self::new(base_path, refresh_frequency);
+        tracker.last_known_size.store(size, Ordering::Relaxed);
+        tracker.start_background_refresh();
+
+        Ok(tracker)
+    }
+
+    fn size(&self) -> u64 {
+        self.last_known_size.load(Ordering::Relaxed)
+    }
+
+    fn start_background_refresh(&self) {
+        let base_path = self.base_path.clone();
+        // We get a weak reference, to make sure that if `FolderSizeTracker` is dropped, the reference can't
+        // be upgraded, causing the loop in the tokio task to exit.
+        let last_known_size_weak = Arc::downgrade(&self.last_known_size);
+        let refresh_frequency = self.refresh_frequency;
+
+        tokio::spawn(async move {
+            loop {
+                // When our `Weak` reference can't be upgraded to an `Arc`, it means that the value
+                // is not referenced anymore by self, meaning that `FolderSizeTracker` was dropped.
+                let Some(last_known_size) = last_known_size_weak.upgrade() else {
+                    break;
+                };
+
+                match Self::estimate_folder_size(&base_path).await {
+                    Ok(size) => {
+                        let current = last_known_size.load(Ordering::Relaxed);
+                        if last_known_size
+                            .compare_exchange_weak(
+                                current,
+                                size,
+                                Ordering::Relaxed,
+                                Ordering::Relaxed,
+                            )
+                            .is_err()
+                        {
+                            relay_log::error!("failed to update the folder size asynchronously");
+                        }
+                    }
+                    Err(e) => {
+                        relay_log::error!("failed to estimate folder size: {}", e);
+                    }
+                }
+
+                sleep(refresh_frequency).await;
+            }
+        });
+    }
+
+    /// Estimates the total size of the folder containing all envelope files.
+    async fn estimate_folder_size(base_path: &Path) -> Result<u64, FileBackedEnvelopeStoreError> {
+        let mut total_size = 0;
+        let mut dir = read_dir(base_path).await?;
+
+        while let Some(entry) = dir.next_entry().await? {
+            let path = entry.path();
+            if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some(FILE_EXTENSION) {
+                if let Ok(metadata) = entry.metadata().await {
+                    total_size += metadata.len();
+                }
+            }
+        }
+
+        relay_statsd::metric!(gauge(RelayGauges::BufferDiskUsed) = total_size);
+
+        Ok(total_size)
+    }
+}
+
 impl FileBackedEnvelopeStore {
     /// Creates a new `FileBackedEnvelopeStore` instance.
+    ///
+    /// This method initializes the envelope store with the provided configuration,
+    /// setting up the base path for envelope files and initializing the folder size tracker.
     pub async fn new(config: &Config) -> Result<Self, FileBackedEnvelopeStoreError> {
         let Some(base_path) = config.spool_envelopes_path() else {
             return Err(FileBackedEnvelopeStoreError::NoFilePath);
         };
 
+        let folder_size_tracker = FolderSizeTracker::prepare(
+            base_path.clone(),
+            config.spool_disk_usage_refresh_frequency_ms(),
+        )
+        .await?;
+
         Ok(FileBackedEnvelopeStore {
-            base_path,
+            base_path: base_path.clone(),
             files_cache: EnvelopesFilesCache::new(config.spool_envelopes_max_opened_files()),
+            folder_size_tracker,
         })
     }
 
     /// Retrieves or creates an envelope file for the given project key pair.
+    ///
+    /// If the file doesn't exist, it will be created. If it exists, it will be opened.
+    /// This method uses a caching mechanism to optimize file access.
     pub async fn get_envelopes_file(
         &mut self,
         project_key_pair: ProjectKeyPair,
@@ -67,6 +184,9 @@ impl FileBackedEnvelopeStore {
     }
 
     /// Lists all project key pairs that have envelope files on disk and their total counts.
+    ///
+    /// This method scans the base directory and returns a map of project key pairs to their
+    /// respective envelope counts.
     pub async fn project_key_pairs_with_counts(
         &mut self,
     ) -> Result<HashMap<ProjectKeyPair, u32>, FileBackedEnvelopeStoreError> {
@@ -97,6 +217,8 @@ impl FileBackedEnvelopeStore {
     }
 
     /// Removes the envelope file associated with the given project key pair.
+    ///
+    /// This method removes the file both from the cache and from the disk.
     pub async fn remove_file(
         &mut self,
         project_key_pair: &ProjectKeyPair,
@@ -106,27 +228,12 @@ impl FileBackedEnvelopeStore {
             .await
     }
 
-    /// Estimates the total size of the folder containing all envelope files.
+    /// Returns the current estimated size of the folder containing all envelope files.
     ///
-    /// This method performs a single pass through the directory, summing up the sizes of all files
-    /// with the correct extension. It does not recursively scan subdirectories.
-    ///
-    /// Returns the estimated size in bytes.
-    #[allow(dead_code)]
-    pub async fn estimate_folder_size(&self) -> Result<u64, FileBackedEnvelopeStoreError> {
-        let mut total_size = 0;
-        let mut dir = read_dir(&self.base_path).await?;
-
-        while let Some(entry) = dir.next_entry().await? {
-            let path = entry.path();
-            if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some(FILE_EXTENSION) {
-                if let Ok(metadata) = entry.metadata().await {
-                    total_size += metadata.len();
-                }
-            }
-        }
-
-        Ok(total_size)
+    /// This method provides a quick way to get the total size of all envelope files
+    /// without having to scan the directory each time.
+    pub fn usage(&self) -> u64 {
+        self.folder_size_tracker.size()
     }
 }
 
@@ -406,7 +513,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_estimate_folder_size() {
+    async fn test_folder_size_tracker() {
         let mut store = setup_envelope_store(5).await;
 
         // Create some files
@@ -421,10 +528,13 @@ mod tests {
             file.set_len(1000 * (i + 1) as u64).await.unwrap(); // Set different file sizes
         }
 
-        // Estimate folder size
-        let estimated_size = store.estimate_folder_size().await.unwrap();
+        // Wait for the background task to update the folder size
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        // Check the folder size
+        let folder_size = store.usage();
 
         // The total size should be 1000 + 2000 + 3000 = 6000 bytes
-        assert_eq!(estimated_size, 6000);
+        assert_eq!(folder_size, 6000);
     }
 }
