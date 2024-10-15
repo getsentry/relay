@@ -1,7 +1,6 @@
 use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::convert::Infallible;
-use std::error::Error;
 use std::mem;
 use std::sync::atomic::AtomicI64;
 use std::sync::atomic::Ordering as AtomicOrdering;
@@ -11,7 +10,7 @@ use std::time::Duration;
 use hashbrown::HashSet;
 use relay_base_schema::project::ProjectKey;
 use relay_config::{Config, EnvelopeBufferStrategy};
-use tokio::time::{timeout, Instant};
+use tokio::time::Instant;
 
 use crate::envelope::Envelope;
 use crate::services::buffer::common::ProjectKeyPair;

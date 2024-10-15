@@ -1,4 +1,3 @@
-use hashbrown::HashMap;
 use relay_config::Config;
 use std::error::Error;
 use std::sync::Arc;

@@ -65,7 +65,7 @@ def test_graceful_shutdown_with_sqlite_buffer(mini_sentry, relay):
                 "envelopes": {
                     "version": "experimental",
                     "path": db_file_path,
-                    "buffer_strategy": "file_backed",
+                    "buffer_strategy": "sqlite",
                 }
             },
         },

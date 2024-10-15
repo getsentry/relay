@@ -625,6 +625,6 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(store.total_count().await.unwrap(), envelopes.len() as u64);
+        assert_eq!(store.total_count().await.unwrap(), envelopes.len() as u32);
     }
 }

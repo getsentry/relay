@@ -1,6 +1,6 @@
 use crate::services::buffer::common::ProjectKeyPair;
 use crate::services::buffer::envelope_stack::file_backed::get_total_count;
-use hashbrown::{HashMap, HashSet};
+use hashbrown::HashMap;
 use relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
 use relay_config::Config;
 use std::path::{Path, PathBuf};
@@ -112,6 +112,7 @@ impl FileBackedEnvelopeStore {
     /// with the correct extension. It does not recursively scan subdirectories.
     ///
     /// Returns the estimated size in bytes.
+    #[allow(dead_code)]
     pub async fn estimate_folder_size(&self) -> Result<u64, FileBackedEnvelopeStoreError> {
         let mut total_size = 0;
         let mut dir = read_dir(&self.base_path).await?;
@@ -334,12 +335,12 @@ mod tests {
 
         // Append envelopes to files
         for envelope in envelopes1 {
-            let mut file = store.get_envelopes_file(project_key_pair1).await.unwrap();
-            append_envelope(&mut file, &envelope).await.unwrap();
+            let file = store.get_envelopes_file(project_key_pair1).await.unwrap();
+            append_envelope(file, &envelope).await.unwrap();
         }
         for envelope in envelopes2 {
-            let mut file = store.get_envelopes_file(project_key_pair2).await.unwrap();
-            append_envelope(&mut file, &envelope).await.unwrap();
+            let file = store.get_envelopes_file(project_key_pair2).await.unwrap();
+            append_envelope(file, &envelope).await.unwrap();
         }
 
         // List project key pairs with counts

@@ -13,14 +13,14 @@ use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 use tokio::sync::Mutex;
 
 /// The version of the envelope stack file format.
-pub const VERSION: u8 = 1;
+const VERSION: u8 = 1;
 
 /// The size of the version field in bytes.
-pub const VERSION_FIELD_BYTES: u64 = 1;
+const VERSION_FIELD_BYTES: u64 = 1;
 /// The size of the total count field in bytes.
-pub const TOTAL_COUNT_FIELD_BYTES: u64 = 4;
+const TOTAL_COUNT_FIELD_BYTES: u64 = 4;
 /// The size of the envelope size field in bytes.
-pub const ENVELOPE_SIZE_FIELD_BYTES: u64 = 8;
+const ENVELOPE_SIZE_FIELD_BYTES: u64 = 8;
 
 /// An error returned when doing an operation on [`FileBackedEnvelopeStack`].
 #[derive(Debug, thiserror::Error)]
@@ -83,7 +83,13 @@ impl FileBackedEnvelopeStack {
             .get_envelopes_file(self.project_key_pair)
             .await?;
 
-        read_and_remove_last_envelope(file).await
+        let envelope = read_and_remove_last_envelope(file).await?;
+        // In case we didn't get any envelope back, we will remove the file.
+        if envelope.is_none() {
+            envelope_store.remove_file(&self.project_key_pair).await?;
+        }
+
+        Ok(envelope)
     }
 
     /// Appends an envelope to the file.
@@ -146,6 +152,7 @@ pub async fn get_total_count(file: &mut File) -> Result<u32, FileBackedEnvelopeS
     ))
     .await?;
     file.read_exact(&mut total_count_buf).await?;
+
     Ok(u32::from_le_bytes(total_count_buf))
 }
 
@@ -163,8 +170,7 @@ pub async fn truncate_file(file: &File, new_size: u64) -> Result<(), FileBackedE
 
 /// Reads and removes the last envelope from the file.
 ///
-/// If the file is empty when trying to read the last envelope, the file will be deleted and
-/// `None` is returned.
+/// If the file is empty when trying to read the last envelope `None` is returned.
 ///
 /// If the file is corrupted or incomplete, it will be truncated and an error will be returned.
 pub async fn read_and_remove_last_envelope(
@@ -181,6 +187,7 @@ pub async fn read_and_remove_last_envelope(
     // Check if file is corrupted or incomplete
     let header_size = VERSION_FIELD_BYTES + TOTAL_COUNT_FIELD_BYTES + ENVELOPE_SIZE_FIELD_BYTES;
 
+    // Check if the file has no header metadata
     if file_size < header_size {
         truncate_file(file, 0).await?;
         return Err(FileBackedEnvelopeStackError::Corruption(
@@ -321,10 +328,10 @@ mod tests {
         assert!(stack.pop().await.unwrap().is_none());
 
         // Verify file is deleted after last pop
-        let store = envelope_store.lock().await;
-        let project_key_pairs = store.list_project_key_pairs().await.unwrap();
+        let mut store = envelope_store.lock().await;
+        let project_key_pairs_with_counts = store.project_key_pairs_with_counts().await.unwrap();
         assert!(
-            project_key_pairs.is_empty(),
+            project_key_pairs_with_counts.is_empty(),
             "Expected file to be removed after last pop"
         );
     }
@@ -572,10 +579,11 @@ mod tests {
 
         // Verify the file is removed after the second pop by making sure there are no files
         {
-            let store = envelope_store.lock().await;
-            let project_key_pairs = store.list_project_key_pairs().await.unwrap();
+            let mut store = envelope_store.lock().await;
+            let project_key_pairs_with_counts =
+                store.project_key_pairs_with_counts().await.unwrap();
             assert!(
-                project_key_pairs.is_empty(),
+                project_key_pairs_with_counts.is_empty(),
                 "Expected file to be removed after second pop, but it still exists"
             );
         }
