@@ -38,19 +38,19 @@ pub enum FileBackedEnvelopeStackError {
     Corruption(String),
 }
 
-// TODO: add version (1 byte) + envelope count (8 bytes)
-// TODO: add disk usage check
-
 /// An envelope stack that writes and reads envelopes to and from disk files.
 ///
 /// Each `FileBackedEnvelopeStack` corresponds to a file on disk, named with the pattern
 /// `own_key-sampling_key`. The envelopes are appended to the file in a custom binary format.
 ///
-/// The format for each envelope in the file is:
+/// The file format is as follows:
+/// - `version` (1 byte)
+/// - `total_count` (4 bytes, u32 in little-endian)
+/// - `envelope_size` (8 bytes, u64 in little-endian)
 /// - `envelope_bytes` (variable length)
-/// - `size` of the envelope_bytes (8 bytes, u64 in little-endian)
 ///
-/// This allows reading the file from the end by first reading the `size`, then the `envelope_bytes`.
+/// This structure allows for efficient reading from the end of the file and
+/// updating of the total count when pushing or popping envelopes.
 #[derive(Debug)]
 pub struct FileBackedEnvelopeStack {
     project_key_pair: ProjectKeyPair,
@@ -148,7 +148,7 @@ pub async fn get_total_count(file: &mut File) -> Result<u32, FileBackedEnvelopeS
 
     let mut total_count_buf = [0u8; TOTAL_COUNT_FIELD_BYTES as usize];
     file.seek(SeekFrom::End(
-        -(VERSION_FIELD_BYTES as i64 + TOTAL_COUNT_FIELD_BYTES as i64),
+        -((VERSION_FIELD_BYTES + TOTAL_COUNT_FIELD_BYTES) as i64),
     ))
     .await?;
     file.read_exact(&mut total_count_buf).await?;
@@ -262,6 +262,7 @@ pub async fn append_envelope(
     // Write data
     file.seek(SeekFrom::End(0)).await?;
     file.write_all(&buffer).await?;
+    file.flush().await?;
 
     Ok(())
 }
@@ -524,6 +525,7 @@ mod tests {
                 .unwrap();
             file.set_len(0).await.unwrap();
             file.write_all(&[0u8; 4]).await.unwrap();
+            file.flush().await.unwrap();
         }
 
         // Attempt to pop from the stack with incomplete data
