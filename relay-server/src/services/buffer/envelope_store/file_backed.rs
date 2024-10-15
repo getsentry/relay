@@ -18,7 +18,7 @@ const FILE_EXTENSION: &str = "spool";
 const PROJECT_KEYS_DELIMITER: &str = "_";
 
 /// Generates a file name for the given project key pair.
-fn get_envelopes_file_file_name(project_key_pair: &ProjectKeyPair) -> String {
+fn get_file_name(project_key_pair: &ProjectKeyPair) -> String {
     format!(
         "{}{}{}.{}",
         project_key_pair.own_key,
@@ -94,7 +94,7 @@ impl FileBackedEnvelopeStore {
     ///
     /// If the file doesn't exist, it will be created. If it exists, it will be opened.
     /// This method uses a caching mechanism to optimize file access.
-    pub async fn get_envelopes_file(
+    pub async fn get_file(
         &mut self,
         project_key_pair: ProjectKeyPair,
     ) -> Result<&mut File, FileBackedEnvelopeStoreError> {
@@ -119,7 +119,7 @@ impl FileBackedEnvelopeStore {
             if path.is_file() {
                 if let Some(file_name) = path.file_name().and_then(|s| s.to_str()) {
                     if let Some(project_key_pair) = parse_envelopes_file_file_name(file_name) {
-                        let file = self.get_envelopes_file(project_key_pair).await?;
+                        let file = self.get_file(project_key_pair).await?;
                         let total_count = get_total_count(file).await.unwrap_or(0);
 
                         project_key_pairs.insert(project_key_pair, total_count);
@@ -181,10 +181,10 @@ impl EnvelopesFilesCache {
         project_key_pair: ProjectKeyPair,
         base_path: &Path,
     ) -> Result<&mut File, FileBackedEnvelopeStoreError> {
+        // self.cache.entry?
         if !self.cache.contains_key(&project_key_pair) {
-            let file =
-                Self::load_or_create_file(base_path.to_path_buf(), &project_key_pair).await?;
-            self.insert_into_cache(project_key_pair, file);
+            let file = Self::open_file(base_path.to_path_buf(), &project_key_pair).await?;
+            self.insert(project_key_pair, file);
         }
 
         let cache_entry = self
@@ -207,7 +207,7 @@ impl EnvelopesFilesCache {
         self.cache.remove(project_key_pair);
 
         // Construct the file path
-        let file_name = get_envelopes_file_file_name(project_key_pair);
+        let file_name = get_file_name(project_key_pair);
         let file_path = base_path.join(file_name);
 
         // Remove the file from disk
@@ -219,11 +219,11 @@ impl EnvelopesFilesCache {
     }
 
     /// Loads an existing envelope file or creates a new one if it doesn't exist.
-    async fn load_or_create_file(
+    async fn open_file(
         base_path: PathBuf,
         project_key_pair: &ProjectKeyPair,
     ) -> Result<File, FileBackedEnvelopeStoreError> {
-        let file_name = get_envelopes_file_file_name(project_key_pair);
+        let file_name = get_file_name(project_key_pair);
         let file_path = base_path.join(file_name);
 
         OpenOptions::new()
@@ -237,7 +237,7 @@ impl EnvelopesFilesCache {
     }
 
     /// Inserts a new file into the cache, evicting the least recently used entry if necessary.
-    fn insert_into_cache(&mut self, key_pair: ProjectKeyPair, file: File) {
+    fn insert(&mut self, key_pair: ProjectKeyPair, file: File) {
         if self.cache.len() >= self.max_opened_files {
             self.evict_lru();
         }
@@ -404,7 +404,7 @@ mod tests {
 
         // First call should create the file
         let file_ino = store
-            .get_envelopes_file(project_key_pair)
+            .get_file(project_key_pair)
             .await
             .unwrap()
             .metadata()
@@ -418,7 +418,7 @@ mod tests {
 
         // Second call should load the file from disk since it was evicted
         let cached_file_ino = store
-            .get_envelopes_file(project_key_pair)
+            .get_file(project_key_pair)
             .await
             .unwrap()
             .metadata()
@@ -446,11 +446,11 @@ mod tests {
 
         // Append envelopes to files
         for envelope in envelopes1 {
-            let file = store.get_envelopes_file(project_key_pair1).await.unwrap();
+            let file = store.get_file(project_key_pair1).await.unwrap();
             append_envelope(file, &envelope).await.unwrap();
         }
         for envelope in envelopes2 {
-            let file = store.get_envelopes_file(project_key_pair2).await.unwrap();
+            let file = store.get_file(project_key_pair2).await.unwrap();
             append_envelope(file, &envelope).await.unwrap();
         }
 
@@ -479,7 +479,7 @@ mod tests {
                 sampling_key: ProjectKey::parse(&format!("c{}4ae32be2584e0bbd7a4cbb95971fee", i))
                     .unwrap(),
             };
-            store.get_envelopes_file(project_key_pair).await.unwrap();
+            store.get_file(project_key_pair).await.unwrap();
         }
 
         // Check that the cache size is still 5
@@ -502,13 +502,11 @@ mod tests {
         };
 
         // Create the file
-        store.get_envelopes_file(project_key_pair).await.unwrap();
+        store.get_file(project_key_pair).await.unwrap();
 
         // Verify the file exists
         assert!(store.files_cache.cache.contains_key(&project_key_pair));
-        let file_path = store
-            .base_path
-            .join(get_envelopes_file_file_name(&project_key_pair));
+        let file_path = store.base_path.join(get_file_name(&project_key_pair));
         assert!(file_path.exists());
 
         // Remove the file
@@ -534,7 +532,7 @@ mod tests {
                 sampling_key: ProjectKey::parse(&format!("b{}4ae32be2584e0bbd7a4cbb95971fee", i))
                     .unwrap(),
             };
-            let file = store.get_envelopes_file(project_key_pair).await.unwrap();
+            let file = store.get_file(project_key_pair).await.unwrap();
             file.set_len(1000 * (i + 1) as u64).await.unwrap(); // Set different file sizes
         }
 
