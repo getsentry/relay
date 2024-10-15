@@ -21,6 +21,9 @@ const VERSION_FIELD_BYTES: u64 = 1;
 const TOTAL_COUNT_FIELD_BYTES: u64 = 4;
 /// The size of the envelope size field in bytes.
 const ENVELOPE_SIZE_FIELD_BYTES: u64 = 8;
+/// The size of the header for each envelope.
+const FILE_HEADER_SIZE_BYTES: u64 =
+    VERSION_FIELD_BYTES + TOTAL_COUNT_FIELD_BYTES + ENVELOPE_SIZE_FIELD_BYTES;
 
 /// An error returned when doing an operation on [`FileBackedEnvelopeStack`].
 #[derive(Debug, thiserror::Error)]
@@ -151,7 +154,7 @@ async fn assert_version(file: &mut File) -> Result<(), FileBackedEnvelopeStackEr
 /// If the file is empty or doesn't contain a total count field, it returns 0.
 /// If the version doesn't match the current version, it throws an error.
 pub async fn get_total_count(file: &mut File) -> Result<u32, FileBackedEnvelopeStackError> {
-    let success = seek_truncate(file, VERSION_FIELD_BYTES + TOTAL_COUNT_FIELD_BYTES).await?;
+    let success = seek_truncate(file, FILE_HEADER_SIZE_BYTES).await?;
     if !success {
         return Ok(0);
     }
@@ -199,8 +202,7 @@ pub async fn pop_envelope(
     }
 
     // We seek at the start of the header of the entry.
-    let header_size = VERSION_FIELD_BYTES + TOTAL_COUNT_FIELD_BYTES + ENVELOPE_SIZE_FIELD_BYTES;
-    let success = seek_truncate(file, header_size).await?;
+    let success = seek_truncate(file, FILE_HEADER_SIZE_BYTES).await?;
     if !success {
         return Err(FileBackedEnvelopeStackError::Corruption(
             "the envelopes file is corrupted".to_string(),
@@ -229,7 +231,7 @@ pub async fn pop_envelope(
 
     // Read the envelope data.
     let mut envelope = vec![0; envelope_size as usize];
-    let success = seek_truncate(file, envelope_size + header_size).await?;
+    let success = seek_truncate(file, envelope_size + FILE_HEADER_SIZE_BYTES).await?;
     if !success {
         return Err(FileBackedEnvelopeStackError::Corruption(
             "the envelopes file is corrupted".to_string(),
@@ -242,7 +244,7 @@ pub async fn pop_envelope(
         Ok(env) => env,
         Err(e) => {
             // Envelope deserialization failed, truncate the file.
-            truncate_file(file, file_size - envelope_size - header_size).await?;
+            truncate_file(file, file_size - envelope_size - FILE_HEADER_SIZE_BYTES).await?;
             return Err(FileBackedEnvelopeStackError::Corruption(format!(
                 "failed to deserialize envelope: {}",
                 e
@@ -251,7 +253,7 @@ pub async fn pop_envelope(
     };
 
     // Truncate the file to remove the envelope.
-    truncate_file(file, file_size - envelope_size - header_size).await?;
+    truncate_file(file, file_size - envelope_size - FILE_HEADER_SIZE_BYTES).await?;
 
     Ok(Some(envelope))
 }
