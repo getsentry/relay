@@ -40,7 +40,7 @@ pub enum FileBackedEnvelopeStackError {
 
 /// An envelope stack that writes and reads envelopes to and from disk files.
 ///
-/// Each `FileBackedEnvelopeStack` corresponds to a file on disk, named with the pattern
+/// Each [`FileBackedEnvelopeStack`] corresponds to a file on disk, named with the pattern
 /// `own_key-sampling_key`. The envelopes are appended to the file in a custom binary format.
 ///
 /// The file format is as follows:
