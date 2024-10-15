@@ -9,7 +9,7 @@ use crate::services::global_config;
 use crate::services::processor::{
     EncodeMetrics, EnvelopeProcessor, MetricData, ProcessEnvelope, ProcessingGroup, ProjectMetrics,
 };
-use crate::services::project::state::UpstreamProjectState;
+use crate::services::projects::project::state::UpstreamProjectState;
 use crate::Envelope;
 use chrono::{DateTime, Utc};
 use hashbrown::HashSet;
@@ -29,11 +29,13 @@ use tokio::time::Instant;
 
 use crate::services::metrics::{Aggregator, FlushBuckets};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::services::project::{Project, ProjectFetchState, ProjectSender, ProjectState};
-use crate::services::project_local::{LocalProjectSource, LocalProjectSourceService};
+use crate::services::projects::project::{Project, ProjectFetchState, ProjectSender, ProjectState};
+use crate::services::projects::source::local::{LocalProjectSource, LocalProjectSourceService};
 #[cfg(feature = "processing")]
-use crate::services::project_redis::RedisProjectSource;
-use crate::services::project_upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
+use crate::services::projects::source::redis::RedisProjectSource;
+use crate::services::projects::source::upstream::{
+    UpstreamProjectSource, UpstreamProjectSourceService,
+};
 use crate::services::spooler::{
     self, Buffer, BufferService, DequeueMany, Enqueue, QueueKey, RemoveMany, RestoreIndex,
     UnspooledEnvelope, BATCH_KEY_COUNT,
@@ -669,7 +671,7 @@ impl ProjectCacheBroker {
     /// Ideally, we would use `check_expiry` to determine expiry here.
     /// However, for eviction, we want to add an additional delay, such that we do not delete
     /// a project that has expired recently and for which a fetch is already underway in
-    /// [`super::project_upstream`].
+    /// [`super::source::upstream`].
     fn evict_stale_project_caches(&mut self) {
         let eviction_start = Instant::now();
         let delta = 2 * self.config.project_cache_expiry() + self.config.project_grace_period();

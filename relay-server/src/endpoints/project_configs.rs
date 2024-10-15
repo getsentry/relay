@@ -16,8 +16,10 @@ use crate::endpoints::forward;
 use crate::extractors::SignedJson;
 use crate::service::ServiceState;
 use crate::services::global_config::{self, StatusResponse};
-use crate::services::project::{LimitedParsedProjectState, ParsedProjectState, ProjectState};
-use crate::services::project_cache::{GetCachedProjectState, GetProjectState};
+use crate::services::projects::cache::{GetCachedProjectState, GetProjectState};
+use crate::services::projects::project::{
+    LimitedParsedProjectState, ParsedProjectState, ProjectState,
+};
 
 /// V2 version of this endpoint.
 ///
@@ -89,7 +91,7 @@ struct GetProjectStatesResponseWrapper {
 
 /// Request payload of the project config endpoint.
 ///
-/// This is a replica of [`GetProjectStates`](crate::services::project_upstream::GetProjectStates)
+/// This is a replica of [`GetProjectStates`](crate::services::projects::source::upstream::GetProjectStates)
 /// which allows skipping invalid project keys.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]

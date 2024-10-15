@@ -13,7 +13,7 @@
 //! be happening.
 //!
 //! The initial state is always [`InMemory`], and if the Relay can properly fetch all the
-//! [`crate::services::project::ProjectState`] it continues to use the memory as temporary spool.
+//! [`crate::services::projects::project::ProjectState`] it continues to use the memory as temporary spool.
 //!
 //! Keeping the envelopes in memory as long as we can, we ensure the fast unspool operations and
 //! fast processing times.
@@ -55,7 +55,7 @@ use crate::envelope::{Envelope, EnvelopeError};
 use crate::extractors::StartTime;
 use crate::services::outcome::TrackOutcome;
 use crate::services::processor::ProcessingGroup;
-use crate::services::project_cache::{ProjectCache, RefreshIndexCache, UpdateSpoolIndex};
+use crate::services::projects::cache::{ProjectCache, RefreshIndexCache, UpdateSpoolIndex};
 use crate::services::test_store::TestStore;
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::{ManagedEnvelope, MemoryChecker};

@@ -152,7 +152,7 @@ mod tests {
     use crate::envelope::Envelope;
     use crate::extractors::RequestMeta;
     use crate::services::processor::{ProcessEnvelope, ProcessingGroup};
-    use crate::services::project::ProjectInfo;
+    use crate::services::projects::project::ProjectInfo;
     use crate::testutils::create_test_processor;
     use crate::utils::ManagedEnvelope;
 
