@@ -9,8 +9,8 @@ use relay_system::{AsyncResponse, FromMessage, Interface, Receiver, Sender, Serv
 use tokio::sync::mpsc;
 use tokio::time::Instant;
 
-use crate::services::project::{ParsedProjectState, ProjectState};
-use crate::services::project_cache::FetchOptionalProjectState;
+use crate::services::projects::cache::FetchOptionalProjectState;
+use crate::services::projects::project::{ParsedProjectState, ProjectState};
 
 /// Service interface of the local project source.
 #[derive(Debug)]
@@ -196,7 +196,7 @@ mod tests {
     use std::str::FromStr;
 
     use super::*;
-    use crate::services::project::{ProjectInfo, PublicKeyConfig};
+    use crate::services::projects::project::{ProjectInfo, PublicKeyConfig};
 
     /// Tests that we can follow the symlinks and read the project file properly.
     #[tokio::test]
