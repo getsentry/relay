@@ -26,12 +26,15 @@ pub enum FileBackedEnvelopeStoreError {
 }
 
 /// A file-backed envelope store that manages envelope files on disk.
-///
-/// This store uses a caching mechanism to limit the number of open file handles
-/// and provides methods to interact with envelope files for different project keys.
 #[derive(Debug)]
 pub struct FileBackedEnvelopeStore {
     base_path: PathBuf,
+    files_cache: EnvelopesFilesCache,
+}
+
+/// A cache for managing open file handles which contain envelopes.
+#[derive(Debug)]
+struct EnvelopesFilesCache {
     max_opened_files: usize,
     cache: HashMap<ProjectKeyPair, CacheEntry>,
 }
@@ -44,48 +47,28 @@ struct CacheEntry {
 
 impl FileBackedEnvelopeStore {
     /// Creates a new `FileBackedEnvelopeStore` instance.
-    ///
-    /// This method initializes the store with the provided configuration,
-    /// setting up the base path for envelope files and the maximum number of
-    /// opened files to cache.
     pub async fn new(config: &Config) -> Result<Self, FileBackedEnvelopeStoreError> {
-        // If no path is provided, we can't do disk spooling.
         let Some(base_path) = config.spool_envelopes_path() else {
             return Err(FileBackedEnvelopeStoreError::NoFilePath);
         };
 
         Ok(FileBackedEnvelopeStore {
             base_path,
-            max_opened_files: config.spool_envelopes_max_opened_files(),
-            cache: HashMap::new(),
+            files_cache: EnvelopesFilesCache::new(config.spool_envelopes_max_opened_files()),
         })
     }
 
     /// Retrieves or creates an envelope file for the given project key pair.
-    ///
-    /// If the file is not in the cache, it will be loaded from disk or created
-    /// if it doesn't exist. The file is then added to the LRU cache for future access.
     pub async fn get_envelopes_file(
         &mut self,
         project_key_pair: ProjectKeyPair,
     ) -> Result<&mut File, FileBackedEnvelopeStoreError> {
-        if !self.cache.contains_key(&project_key_pair) {
-            let file = Self::load_or_create_file(self.base_path.clone(), &project_key_pair).await?;
-            self.insert_into_cache(project_key_pair, file);
-        }
-
-        let cache_entry = self
-            .cache
-            .get_mut(&project_key_pair)
-            .expect("file to be in the cache");
-
-        Ok(&mut cache_entry.file)
+        self.files_cache
+            .get_file(project_key_pair, &self.base_path)
+            .await
     }
 
     /// Lists all project key pairs that have envelope files on disk.
-    ///
-    /// This method scans the base directory and returns a set of all project
-    /// key pairs that have corresponding envelope files.
     pub async fn list_project_key_pairs(
         &self,
     ) -> Result<HashSet<ProjectKeyPair>, FileBackedEnvelopeStoreError> {
@@ -111,19 +94,56 @@ impl FileBackedEnvelopeStore {
     }
 
     /// Removes the envelope file associated with the given project key pair.
-    ///
-    /// This method removes the file from both the cache and the disk. If the
-    /// file doesn't exist, it will not return an error.
     pub async fn remove_file(
         &mut self,
         project_key_pair: &ProjectKeyPair,
     ) -> Result<(), FileBackedEnvelopeStoreError> {
-        // Remove from cache if present
+        self.files_cache
+            .remove(project_key_pair, &self.base_path)
+            .await
+    }
+}
+
+impl EnvelopesFilesCache {
+    fn new(max_opened_files: usize) -> Self {
+        EnvelopesFilesCache {
+            max_opened_files,
+            cache: HashMap::new(),
+        }
+    }
+
+    async fn get_file(
+        &mut self,
+        project_key_pair: ProjectKeyPair,
+        base_path: &Path,
+    ) -> Result<&mut File, FileBackedEnvelopeStoreError> {
+        if !self.cache.contains_key(&project_key_pair) {
+            let file =
+                Self::load_or_create_file(base_path.to_path_buf(), &project_key_pair).await?;
+            self.insert_into_cache(project_key_pair, file);
+        }
+
+        let cache_entry = self
+            .cache
+            .get_mut(&project_key_pair)
+            .expect("file to be in the cache");
+
+        cache_entry.last_access = Instant::now();
+        Ok(&mut cache_entry.file)
+    }
+
+    /// Removes the file from the cache and disk.
+    async fn remove(
+        &mut self,
+        project_key_pair: &ProjectKeyPair,
+        base_path: &Path,
+    ) -> Result<(), FileBackedEnvelopeStoreError> {
+        // Remove from cache
         self.cache.remove(project_key_pair);
 
         // Construct the file path
         let filename = Self::filename(project_key_pair);
-        let filepath = self.base_path.join(filename);
+        let filepath = base_path.join(filename);
 
         // Remove the file from disk
         match remove_file(&filepath).await {
@@ -258,8 +278,8 @@ mod tests {
             .ino();
 
         // We evict the file to see if re-opening gives the same ino.
-        store.evict_lru();
-        assert!(store.cache.is_empty());
+        store.files_cache.evict_lru();
+        assert!(store.files_cache.cache.is_empty());
 
         // Second call should load the file from disk since it was evicted
         let cached_file_ino = store
@@ -312,14 +332,14 @@ mod tests {
         }
 
         // Check that the cache size is still 5
-        assert_eq!(store.cache.len(), 5);
+        assert_eq!(store.files_cache.cache.len(), 5);
 
         // The first file should have been evicted
         let first_key_pair = ProjectKeyPair {
             own_key: ProjectKey::parse("c04ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             sampling_key: ProjectKey::parse("c04ae32be2584e0bbd7a4cbb95971fee").unwrap(),
         };
-        assert!(!store.cache.contains_key(&first_key_pair));
+        assert!(!store.files_cache.cache.contains_key(&first_key_pair));
     }
 
     #[tokio::test]
@@ -334,17 +354,17 @@ mod tests {
         store.get_envelopes_file(project_key_pair).await.unwrap();
 
         // Verify the file exists
-        assert!(store.cache.contains_key(&project_key_pair));
+        assert!(store.files_cache.cache.contains_key(&project_key_pair));
         let file_path = store
             .base_path
-            .join(FileBackedEnvelopeStore::filename(&project_key_pair));
+            .join(EnvelopesFilesCache::filename(&project_key_pair));
         assert!(file_path.exists());
 
         // Remove the file
         store.remove_file(&project_key_pair).await.unwrap();
 
         // Verify the file no longer exists in cache or on disk
-        assert!(!store.cache.contains_key(&project_key_pair));
+        assert!(!store.files_cache.cache.contains_key(&project_key_pair));
         assert!(!file_path.exists());
 
         // Removing a non-existent file should not error
