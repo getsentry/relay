@@ -259,6 +259,8 @@
 <a href="#259" id="259">259</a>
 <a href="#260" id="260">260</a>
 <a href="#261" id="261">261</a>
+<a href="#262" id="262">262</a>
+<a href="#263" id="263">263</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::sync::Arc;
 
@@ -277,8 +279,10 @@
 <span class="kw">use </span><span class="kw">crate</span>::extractors::SignedJson;
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 <span class="kw">use </span><span class="kw">crate</span>::services::global_config::{<span class="self">self</span>, StatusResponse};
-<span class="kw">use </span><span class="kw">crate</span>::services::project::{LimitedParsedProjectState, ParsedProjectState, ProjectState};
-<span class="kw">use </span><span class="kw">crate</span>::services::project_cache::{GetCachedProjectState, GetProjectState};
+<span class="kw">use </span><span class="kw">crate</span>::services::projects::cache::{GetCachedProjectState, GetProjectState};
+<span class="kw">use </span><span class="kw">crate</span>::services::projects::project::{
+    LimitedParsedProjectState, ParsedProjectState, ProjectState,
+};
 
 <span class="doccomment">/// V2 version of this endpoint.
 ///
@@ -350,7 +354,7 @@
 
 <span class="doccomment">/// Request payload of the project config endpoint.
 ///
-/// This is a replica of [`GetProjectStates`](crate::services::project_upstream::GetProjectStates)
+/// This is a replica of [`GetProjectStates`](crate::services::projects::source::upstream::GetProjectStates)
 /// which allows skipping invalid project keys.
 </span><span class="attr">#[derive(Debug, Deserialize)]
 #[serde(rename_all = <span class="string">"camelCase"</span>)]

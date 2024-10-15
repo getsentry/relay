@@ -1787,7 +1787,7 @@
 //! be happening.
 //!
 //! The initial state is always [`InMemory`], and if the Relay can properly fetch all the
-//! [`crate::services::project::ProjectState`] it continues to use the memory as temporary spool.
+//! [`crate::services::projects::project::ProjectState`] it continues to use the memory as temporary spool.
 //!
 //! Keeping the envelopes in memory as long as we can, we ensure the fast unspool operations and
 //! fast processing times.
@@ -1829,7 +1829,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::extractors::StartTime;
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::TrackOutcome;
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::ProcessingGroup;
-<span class="kw">use </span><span class="kw">crate</span>::services::project_cache::{ProjectCache, RefreshIndexCache, UpdateSpoolIndex};
+<span class="kw">use </span><span class="kw">crate</span>::services::projects::cache::{ProjectCache, RefreshIndexCache, UpdateSpoolIndex};
 <span class="kw">use </span><span class="kw">crate</span>::services::test_store::TestStore;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{ManagedEnvelope, MemoryChecker};

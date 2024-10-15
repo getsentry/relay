@@ -4042,10 +4042,10 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::metrics::{Aggregator, MergeBuckets};
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::event::FiltersStatus;
-<span class="kw">use </span><span class="kw">crate</span>::services::project::{ProjectInfo, ProjectState};
-<span class="kw">use </span><span class="kw">crate</span>::services::project_cache::{
+<span class="kw">use </span><span class="kw">crate</span>::services::projects::cache::{
     AddMetricMeta, BucketSource, ProcessMetrics, ProjectCache, UpdateRateLimits,
 };
+<span class="kw">use </span><span class="kw">crate</span>::services::projects::project::{ProjectInfo, ProjectState};
 <span class="kw">use </span><span class="kw">crate</span>::services::test_store::{Capture, TestStore};
 <span class="kw">use </span><span class="kw">crate</span>::services::upstream::{
     SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,

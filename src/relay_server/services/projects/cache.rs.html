@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/services/project_cache.rs`."><title>project_cache.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-c5d6553a23f1e5a6.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.81.0 (eeb90cda1 2024-09-04)" data-channel="1.81.0" data-search-js="search-d234aafac6c221dd.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-d2fab2bf619172d3.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/services/projects/cache.rs`."><title>cache.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-c5d6553a23f1e5a6.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.81.0 (eeb90cda1 2024-09-04)" data-channel="1.81.0" data-search-js="search-d234aafac6c221dd.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-d2fab2bf619172d3.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1771,6 +1771,8 @@
 <a href="#1771" id="1771">1771</a>
 <a href="#1772" id="1772">1772</a>
 <a href="#1773" id="1773">1773</a>
+<a href="#1774" id="1774">1774</a>
+<a href="#1775" id="1775">1775</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
@@ -1782,7 +1784,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{
     EncodeMetrics, EnvelopeProcessor, MetricData, ProcessEnvelope, ProcessingGroup, ProjectMetrics,
 };
-<span class="kw">use </span><span class="kw">crate</span>::services::project::state::UpstreamProjectState;
+<span class="kw">use </span><span class="kw">crate</span>::services::projects::project::state::UpstreamProjectState;
 <span class="kw">use </span><span class="kw">crate</span>::Envelope;
 <span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>hashbrown::HashSet;
@@ -1802,11 +1804,13 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::services::metrics::{Aggregator, FlushBuckets};
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome, TrackOutcome};
-<span class="kw">use </span><span class="kw">crate</span>::services::project::{Project, ProjectFetchState, ProjectSender, ProjectState};
-<span class="kw">use </span><span class="kw">crate</span>::services::project_local::{LocalProjectSource, LocalProjectSourceService};
+<span class="kw">use </span><span class="kw">crate</span>::services::projects::project::{Project, ProjectFetchState, ProjectSender, ProjectState};
+<span class="kw">use </span><span class="kw">crate</span>::services::projects::source::local::{LocalProjectSource, LocalProjectSourceService};
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-</span><span class="kw">use </span><span class="kw">crate</span>::services::project_redis::RedisProjectSource;
-<span class="kw">use </span><span class="kw">crate</span>::services::project_upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
+</span><span class="kw">use </span><span class="kw">crate</span>::services::projects::source::redis::RedisProjectSource;
+<span class="kw">use </span><span class="kw">crate</span>::services::projects::source::upstream::{
+    UpstreamProjectSource, UpstreamProjectSourceService,
+};
 <span class="kw">use </span><span class="kw">crate</span>::services::spooler::{
     <span class="self">self</span>, Buffer, BufferService, DequeueMany, Enqueue, QueueKey, RemoveMany, RestoreIndex,
     UnspooledEnvelope, BATCH_KEY_COUNT,
@@ -2442,7 +2446,7 @@
     /// Ideally, we would use `check_expiry` to determine expiry here.
     /// However, for eviction, we want to add an additional delay, such that we do not delete
     /// a project that has expired recently and for which a fetch is already underway in
-    /// [`super::project_upstream`].
+    /// [`super::source::upstream`].
     </span><span class="kw">fn </span>evict_stale_project_caches(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
         <span class="kw">let </span>eviction_start = Instant::now();
         <span class="kw">let </span>delta = <span class="number">2 </span>* <span class="self">self</span>.config.project_cache_expiry() + <span class="self">self</span>.config.project_grace_period();
