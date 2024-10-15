@@ -39,9 +39,6 @@ impl FileBackedStackProvider {
 impl StackProvider for FileBackedStackProvider {
     type Stack = FileBackedEnvelopeStack;
 
-    /// Initializes the stack provider by loading existing project key pairs from the file system.
-    ///
-    /// If the initialization fails, it logs an error and returns an empty initialization state.
     async fn initialize(&self) -> InitializationState {
         let project_key_pairs_with_counts = self
             .envelope_store
@@ -67,10 +64,6 @@ impl StackProvider for FileBackedStackProvider {
         }
     }
 
-    /// Creates a new `FileBackedEnvelopeStack` for the given project key pair.
-    ///
-    /// This method ignores the `stack_creation_type` parameter as the file-backed
-    /// implementation doesn't distinguish between creation types.
     fn create_stack(
         &self,
         _stack_creation_type: StackCreationType,
@@ -79,34 +72,22 @@ impl StackProvider for FileBackedStackProvider {
         FileBackedEnvelopeStack::new(project_key_pair, self.envelope_store.clone())
     }
 
-    /// Checks if there's available capacity in the store.
-    ///
-    /// This implementation always returns true, assuming unlimited disk capacity.
-    /// It can be extended to check actual disk capacity if needed.
     fn has_store_capacity(&self) -> bool {
         // Implement logic to check disk capacity if needed
         true
     }
 
-    /// Returns the total count of envelopes in the store.
-    ///
-    /// This implementation always returns 0. It can be extended to provide an
-    /// actual count if needed.
     async fn store_total_count(&self) -> u32 {
         // Optionally implement this to count total envelopes
         0
     }
 
-    /// Returns the type of the stack as a string.
     fn stack_type<'a>(&self) -> &'a str {
         "file_backed"
     }
 
-    /// Flushes the given envelope stacks.
-    ///
-    /// This method is a no-op for file-backed stacks, as the data is already
-    /// persisted on disk.
-    async fn flush(&mut self, _envelope_stacks: impl IntoIterator<Item = Self::Stack>) {
+    async fn flush(&mut self, _envelope_stacks: impl IntoIterator<Item = Self::Stack>) -> bool {
         // Since data is already on disk, no action needed
+        true
     }
 }

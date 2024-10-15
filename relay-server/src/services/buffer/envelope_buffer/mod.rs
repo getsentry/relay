@@ -168,16 +168,11 @@ impl PolymorphicEnvelopeBuffer {
 
     /// Shuts down the [`PolymorphicEnvelopeBuffer`].
     pub async fn shutdown(&mut self) -> bool {
-        // Currently, we want to flush the buffer only for disk, since the in memory implementation
-        // tries to not do anything and pop as many elements as possible within the shutdown
-        // timeout.
-        let Self::Sqlite(buffer) = self else {
-            relay_log::trace!("PolymorphicEnvelopeBuffer: shutdown procedure not needed");
-            return false;
-        };
-        buffer.flush().await;
-
-        true
+        match self {
+            Self::Sqlite(buffer) => buffer.flush().await,
+            Self::InMemory(buffer) => buffer.has_capacity(),
+            Self::FileBacked(buffer) => buffer.has_capacity(),
+        }
     }
 }
 
@@ -455,11 +450,11 @@ where
     }
 
     /// Flushes the envelope buffer.
-    pub async fn flush(&mut self) {
+    pub async fn flush(&mut self) -> bool {
         let priority_queue = mem::take(&mut self.priority_queue);
         self.stack_provider
             .flush(priority_queue.into_iter().map(|(q, _)| q.value))
-            .await;
+            .await
     }
 
     /// Pushes a new [`EnvelopeStack`] with the given [`Envelope`] inserted.

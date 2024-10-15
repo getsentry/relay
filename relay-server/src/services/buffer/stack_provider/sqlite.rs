@@ -121,7 +121,7 @@ impl StackProvider for SqliteStackProvider {
         "sqlite"
     }
 
-    async fn flush(&mut self, envelope_stacks: impl IntoIterator<Item = Self::Stack>) {
+    async fn flush(&mut self, envelope_stacks: impl IntoIterator<Item = Self::Stack>) -> bool {
         relay_log::trace!("Flushing sqlite envelope buffer");
 
         relay_statsd::metric!(timer(RelayTimers::BufferDrain), {
@@ -141,6 +141,8 @@ impl StackProvider for SqliteStackProvider {
                 self.drain_many(envelopes).await;
             }
         });
+
+        true
     }
 }
 
