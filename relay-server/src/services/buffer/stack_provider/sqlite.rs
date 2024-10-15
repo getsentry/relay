@@ -1,6 +1,7 @@
-use std::error::Error;
-
 use relay_config::Config;
+use std::error::Error;
+use std::time::Duration;
+use tokio::time::timeout;
 
 use crate::services::buffer::common::ProjectKeyPair;
 use crate::services::buffer::envelope_store::sqlite::{
@@ -54,6 +55,28 @@ impl SqliteStackProvider {
         }
     }
 
+    /// Retrieves the total count of envelopes from the SQLite envelope store.
+    ///
+    /// This method attempts to fetch the total count of envelopes from the underlying
+    /// SQLite envelope store. It uses a timeout mechanism to ensure the operation
+    /// doesn't hang indefinitely.
+    async fn store_total_count(&self) -> u32 {
+        match timeout(Duration::from_secs(1), self.envelope_store.total_count()).await {
+            Ok(Ok(store_total_count)) => store_total_count,
+            Ok(Err(error)) => {
+                relay_log::error!(
+                    error = &error as &dyn Error,
+                    "failed to get the total count of envelopes for the SQLite envelope store"
+                );
+                0
+            }
+            Err(_) => {
+                relay_log::error!("timed out while getting the total count of envelopes for the SQLite envelope store");
+                0
+            }
+        }
+    }
+
     /// Returns `true` when there might be data residing on disk, `false` otherwise.
     fn assume_data_on_disk(stack_creation_type: StackCreationType) -> bool {
         matches!(stack_creation_type, StackCreationType::Initialization)
@@ -65,7 +88,7 @@ impl StackProvider for SqliteStackProvider {
 
     async fn initialize(&self) -> InitializationState {
         let project_key_pairs = self.envelope_store.project_key_pairs().await;
-        let store_total_count = self.store_total_count_bounded().await;
+        let store_total_count = self.store_total_count().await;
 
         match project_key_pairs {
             Ok(project_key_pairs) => InitializationState::new(project_key_pairs, store_total_count),
@@ -101,20 +124,6 @@ impl StackProvider for SqliteStackProvider {
 
     fn has_store_capacity(&self) -> bool {
         (self.envelope_store.usage() as usize) < self.max_disk_size
-    }
-
-    async fn store_total_count(&self) -> u32 {
-        self.envelope_store
-            .total_count()
-            .await
-            .unwrap_or_else(|error| {
-                relay_log::error!(
-                    error = &error as &dyn Error,
-                    "failed to get the total count of envelopes for the sqlite envelope store",
-                );
-                // In case we have an error, we default to communicating a total count of 0.
-                0
-            })
     }
 
     fn stack_type<'a>(&self) -> &'a str {

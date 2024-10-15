@@ -64,26 +64,6 @@ pub trait StackProvider: std::fmt::Debug {
     /// stacks or items to the stacks.
     fn has_store_capacity(&self) -> bool;
 
-    /// Returns the total count of the store used by this [`StackProvider`] and bounds the maximum
-    /// time for execution.
-    async fn store_total_count_bounded(&self) -> u32 {
-        let store_total_count = timeout(Duration::from_secs(1), async {
-            self.store_total_count().await
-        })
-        .await;
-
-        store_total_count.unwrap_or_else(|error| {
-            relay_log::error!(
-                error = &error as &dyn Error,
-                "failed to load the total envelope count of the store",
-            );
-            0
-        })
-    }
-
-    /// Returns the total count of the store used by this [`StackProvider`].
-    fn store_total_count(&self) -> impl Future<Output = u32>;
-
     /// Returns the string representation of the stack type offered by this [`StackProvider`].
     fn stack_type<'a>(&self) -> &'a str;
 

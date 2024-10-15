@@ -1,8 +1,3 @@
-use relay_config::Config;
-use std::error::Error;
-use std::sync::Arc;
-use tokio::sync::Mutex;
-
 use crate::services::buffer::common::ProjectKeyPair;
 use crate::services::buffer::envelope_stack::file_backed::FileBackedEnvelopeStack;
 use crate::services::buffer::envelope_store::file_backed::{
@@ -11,6 +6,13 @@ use crate::services::buffer::envelope_store::file_backed::{
 use crate::services::buffer::stack_provider::{
     InitializationState, StackCreationType, StackProvider,
 };
+use hashbrown::HashMap;
+use relay_config::Config;
+use std::error::Error;
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::sync::Mutex;
+use tokio::time::timeout;
 
 /// A stack provider that manages `FileBackedEnvelopeStack` instances.
 ///
@@ -34,34 +36,51 @@ impl FileBackedStackProvider {
             envelope_store: Arc::new(Mutex::new(envelope_store)),
         })
     }
+
+    /// Retrieves a mapping of project key pairs to their envelope counts from the file-backed envelope store.
+    ///
+    /// This method attempts to fetch the project key pairs and their associated envelope counts
+    /// from the underlying file-backed envelope store. It uses a timeout mechanism to ensure
+    /// the operation doesn't hang indefinitely.
+    ///
+    /// The timeout period is set to 1 second to prevent long-running operations from blocking
+    /// the system.
+    async fn project_key_pairs_with_counts(&self) -> HashMap<ProjectKeyPair, u32> {
+        match timeout(
+            Duration::from_secs(1),
+            self.envelope_store
+                .lock()
+                .await
+                .project_key_pairs_with_counts(),
+        )
+        .await
+        {
+            Ok(Ok(project_key_pairs_with_counts)) => project_key_pairs_with_counts,
+            Ok(Err(error)) => {
+                relay_log::error!(
+                    error = &error as &dyn Error,
+                    "Failed to retrieve project key pairs and envelope counts from the file-backed envelope store"
+                );
+                HashMap::new()
+            }
+            Err(_) => {
+                relay_log::error!("Operation timed out while fetching project key pairs and envelope counts from the file-backed envelope store");
+                HashMap::new()
+            }
+        }
+    }
 }
 
 impl StackProvider for FileBackedStackProvider {
     type Stack = FileBackedEnvelopeStack;
 
     async fn initialize(&self) -> InitializationState {
-        let project_key_pairs_with_counts = self
-            .envelope_store
-            .lock()
-            .await
-            .project_key_pairs_with_counts()
-            .await;
+        let project_key_pairs_with_counts = self.project_key_pairs_with_counts().await;
 
-        match project_key_pairs_with_counts {
-            Ok(project_key_pairs_with_counts) => {
-                let project_key_pairs = project_key_pairs_with_counts.keys().copied().collect();
-                let store_total_count = project_key_pairs_with_counts.values().copied().sum();
+        let project_key_pairs = project_key_pairs_with_counts.keys().copied().collect();
+        let store_total_count = project_key_pairs_with_counts.values().copied().sum();
 
-                InitializationState::new(project_key_pairs, store_total_count)
-            }
-            Err(error) => {
-                relay_log::error!(
-                    error = &error as &dyn Error,
-                    "failed to load project key pairs and envelope counts from the file system",
-                );
-                InitializationState::empty()
-            }
-        }
+        InitializationState::new(project_key_pairs, store_total_count)
     }
 
     fn create_stack(
@@ -75,11 +94,6 @@ impl StackProvider for FileBackedStackProvider {
     fn has_store_capacity(&self) -> bool {
         // Implement logic to check disk capacity if needed
         true
-    }
-
-    async fn store_total_count(&self) -> u32 {
-        // Optionally implement this to count total envelopes
-        0
     }
 
     fn stack_type<'a>(&self) -> &'a str {
