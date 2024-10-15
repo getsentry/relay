@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
+use std::convert::Infallible;
 use std::error::Error;
 use std::sync::Arc;
 use std::time::Duration;
@@ -491,12 +492,11 @@ impl ProjectSource {
         project_key: ProjectKey,
         no_cache: bool,
         cached_state: ProjectFetchState,
-    ) -> Result<ProjectFetchState, ()> {
+    ) -> Result<ProjectFetchState, ProjectSourceError> {
         let state_opt = self
             .local_source
             .send(FetchOptionalProjectState { project_key })
-            .await
-            .map_err(|_| ())?;
+            .await?;
 
         if let Some(state) = state_opt {
             return Ok(ProjectFetchState::new(state));
@@ -514,12 +514,11 @@ impl ProjectSource {
         if let Some(redis_source) = self.redis_source {
             let current_revision = current_revision.clone();
 
-            let redis_permit = self.redis_semaphore.acquire().await.map_err(|_| ())?;
+            let redis_permit = self.redis_semaphore.acquire().await?;
             let state_fetch_result = tokio::task::spawn_blocking(move || {
                 redis_source.get_config_if_changed(project_key, current_revision.as_deref())
             })
-            .await
-            .map_err(|_| ())?;
+            .await?;
             drop(redis_permit);
 
             match state_fetch_result {
@@ -551,13 +550,28 @@ impl ProjectSource {
                 current_revision,
                 no_cache,
             })
-            .await
-            .map_err(|_| ())?;
+            .await?;
 
         match state {
             UpstreamProjectState::New(state) => Ok(ProjectFetchState::new(state.sanitized())),
             UpstreamProjectState::NotModified => Ok(ProjectFetchState::refresh(cached_state)),
         }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum ProjectSourceError {
+    #[error("redis permit error {0}")]
+    RedisPermit(#[from] tokio::sync::AcquireError),
+    #[error("redis join error {0}")]
+    RedisJoin(#[from] tokio::task::JoinError),
+    #[error("upstream error {0}")]
+    Upstream(#[from] relay_system::SendError),
+}
+
+impl From<Infallible> for ProjectSourceError {
+    fn from(value: Infallible) -> Self {
+        match value {}
     }
 }
 
@@ -775,7 +789,13 @@ impl ProjectCacheBroker {
             let state = source
                 .fetch(project_key, no_cache, cached_state)
                 .await
-                .unwrap_or_else(|()| ProjectFetchState::disabled());
+                .unwrap_or_else(|e| {
+                    relay_log::error!(
+                        error = &e as &dyn Error,
+                        "Failed to fetch project from source"
+                    );
+                    ProjectFetchState::pending()
+                });
 
             let message = UpdateProjectState {
                 project_key,
