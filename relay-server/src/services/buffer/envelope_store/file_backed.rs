@@ -539,7 +539,7 @@ mod tests {
         }
 
         // Wait for the background task to update the folder size
-        tokio::time::sleep(Duration::from_millis(200)).await;
+        sleep(Duration::from_millis(200)).await;
 
         // Check the folder size
         let folder_size = store.usage();
