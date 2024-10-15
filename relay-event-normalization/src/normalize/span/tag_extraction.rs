@@ -35,6 +35,7 @@ pub enum SpanTagKey {
     Release,
     User,
     UserID,
+    UserIP,
     UserUsername,
     UserEmail,
     Environment,
@@ -100,6 +101,7 @@ impl SpanTagKey {
             SpanTagKey::Release => "release",
             SpanTagKey::User => "user",
             SpanTagKey::UserID => "user.id",
+            SpanTagKey::UserIP => "user.ip",
             SpanTagKey::UserUsername => "user.username",
             SpanTagKey::UserEmail => "user.email",
             SpanTagKey::UserCountryCode => "user.geo.country_code",
@@ -299,6 +301,9 @@ fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
         }
         if let Some(user_id) = user.id.value() {
             tags.insert(SpanTagKey::UserID, user_id.as_str().to_owned());
+        }
+        if let Some(user_ip) = user.ip_address.value() {
+            tags.insert(SpanTagKey::UserIP, user_ip.as_str().to_owned());
         }
         if let Some(user_username) = user.username.value() {
             tags.insert(SpanTagKey::UserUsername, user_username.as_str().to_owned());
@@ -2647,6 +2652,7 @@ LIMIT 1
                 },
                 "user": {
                     "id": "1",
+                    "ip_address": "127.0.0.1",
                     "email": "admin@sentry.io",
                     "username": "admin",
                     "geo": {
@@ -2680,6 +2686,7 @@ LIMIT 1
 
         assert_eq!(get_value!(span.sentry_tags["user"]!), "id:1");
         assert_eq!(get_value!(span.sentry_tags["user.id"]!), "1");
+        assert_eq!(get_value!(span.sentry_tags["user.ip"]!), "127.0.0.1");
         assert_eq!(get_value!(span.sentry_tags["user.username"]!), "admin");
         assert_eq!(
             get_value!(span.sentry_tags["user.email"]!),
