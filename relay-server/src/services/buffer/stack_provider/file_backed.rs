@@ -1,3 +1,4 @@
+use hashbrown::HashMap;
 use relay_config::Config;
 use std::error::Error;
 use std::sync::Arc;
@@ -43,19 +44,24 @@ impl StackProvider for FileBackedStackProvider {
     ///
     /// If the initialization fails, it logs an error and returns an empty initialization state.
     async fn initialize(&self) -> InitializationState {
-        let project_key_pairs_result = self
+        let project_key_pairs_with_counts = self
             .envelope_store
             .lock()
             .await
-            .list_project_key_pairs()
+            .project_key_pairs_with_counts()
             .await;
 
-        match project_key_pairs_result {
-            Ok(project_key_pairs) => InitializationState { project_key_pairs },
+        match project_key_pairs_with_counts {
+            Ok(project_key_pairs_with_counts) => {
+                let project_key_pairs = project_key_pairs_with_counts.keys().copied().collect();
+                let store_total_count = project_key_pairs_with_counts.values().copied().sum();
+
+                InitializationState::new(project_key_pairs, store_total_count)
+            }
             Err(error) => {
                 relay_log::error!(
                     error = &error as &dyn Error,
-                    "failed to load project key pairs from the file system",
+                    "failed to load project key pairs and envelope counts from the file system",
                 );
                 InitializationState::empty()
             }
@@ -87,7 +93,7 @@ impl StackProvider for FileBackedStackProvider {
     ///
     /// This implementation always returns 0. It can be extended to provide an
     /// actual count if needed.
-    async fn store_total_count(&self) -> u64 {
+    async fn store_total_count(&self) -> u32 {
         // Optionally implement this to count total envelopes
         0
     }

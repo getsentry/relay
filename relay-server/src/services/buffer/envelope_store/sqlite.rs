@@ -401,14 +401,14 @@ impl SqliteEnvelopeStore {
     }
 
     /// Returns the total count of envelopes stored in the database.
-    pub async fn total_count(&self) -> Result<u64, SqliteEnvelopeStoreError> {
+    pub async fn total_count(&self) -> Result<u32, SqliteEnvelopeStoreError> {
         let row = build_count_all()
             .fetch_one(&self.db)
             .await
             .map_err(SqliteEnvelopeStoreError::Fetch)?;
 
         let total_count: i64 = row.get(0);
-        Ok(total_count as u64)
+        Ok(total_count as u32)
     }
 }
 

@@ -1,4 +1,5 @@
 use crate::services::buffer::common::ProjectKeyPair;
+use crate::services::buffer::envelope_stack::file_backed::get_total_count;
 use hashbrown::{HashMap, HashSet};
 use relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
 use relay_config::Config;
@@ -14,9 +15,6 @@ const FILE_EXTENSION: &str = "spool";
 pub enum FileBackedEnvelopeStoreError {
     #[error("failed work with a file: {0}")]
     FileError(#[from] io::Error),
-
-    #[error("failed to create the spool file: {0}")]
-    FileSetupError(io::Error),
 
     #[error("no file path for the spool was provided")]
     NoFilePath,
@@ -68,11 +66,11 @@ impl FileBackedEnvelopeStore {
             .await
     }
 
-    /// Lists all project key pairs that have envelope files on disk.
-    pub async fn list_project_key_pairs(
-        &self,
-    ) -> Result<HashSet<ProjectKeyPair>, FileBackedEnvelopeStoreError> {
-        let mut project_key_pairs = HashSet::new();
+    /// Lists all project key pairs that have envelope files on disk and their total counts.
+    pub async fn project_key_pairs_with_counts(
+        &mut self,
+    ) -> Result<HashMap<ProjectKeyPair, u32>, FileBackedEnvelopeStoreError> {
+        let mut project_key_pairs = HashMap::new();
 
         let mut dir = read_dir(&self.base_path).await?;
         while let Some(entry) = dir.next_entry().await? {
@@ -81,10 +79,15 @@ impl FileBackedEnvelopeStore {
             if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some(FILE_EXTENSION) {
                 if let Some(file_name) = path.file_stem().and_then(|s| s.to_str()) {
                     if let Some((own_key, sampling_key)) = file_name.split_once('-') {
-                        project_key_pairs.insert(ProjectKeyPair {
+                        let project_key_pair = ProjectKeyPair {
                             own_key: ProjectKey::parse(own_key)?,
                             sampling_key: ProjectKey::parse(sampling_key)?,
-                        });
+                        };
+
+                        let file = self.get_envelopes_file(project_key_pair).await?;
+                        let total_count = get_total_count(file).await.unwrap_or(0);
+
+                        project_key_pairs.insert(project_key_pair, total_count);
                     }
                 }
             }
@@ -203,11 +206,7 @@ impl EnvelopesFilesCache {
 
         if !parent.as_os_str().is_empty() && !parent.exists() {
             relay_log::debug!("creating directory for spooling file: {}", parent.display());
-            DirBuilder::new()
-                .recursive(true)
-                .create(&parent)
-                .await
-                .map_err(FileBackedEnvelopeStoreError::FileSetupError)?;
+            DirBuilder::new().recursive(true).create(&parent).await?;
         }
 
         Ok(())
@@ -252,6 +251,8 @@ impl EnvelopesFilesCache {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::services::buffer::envelope_stack::file_backed::append_envelope;
+    use crate::services::buffer::testutils::utils::mock_envelopes;
     #[cfg(unix)]
     use std::os::unix::fs::MetadataExt;
     use std::sync::Arc;
@@ -327,15 +328,25 @@ mod tests {
             sampling_key: ProjectKey::parse("d94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
         };
 
-        // Create two files
-        store.get_envelopes_file(project_key_pair1).await.unwrap();
-        store.get_envelopes_file(project_key_pair2).await.unwrap();
+        // Create mock envelopes
+        let envelopes1 = mock_envelopes(2);
+        let envelopes2 = mock_envelopes(3);
 
-        // List project key pairs
-        let key_pairs = store.list_project_key_pairs().await.unwrap();
-        assert_eq!(key_pairs.len(), 2);
-        assert!(key_pairs.contains(&project_key_pair1));
-        assert!(key_pairs.contains(&project_key_pair2));
+        // Append envelopes to files
+        for envelope in envelopes1 {
+            let mut file = store.get_envelopes_file(project_key_pair1).await.unwrap();
+            append_envelope(&mut file, &envelope).await.unwrap();
+        }
+        for envelope in envelopes2 {
+            let mut file = store.get_envelopes_file(project_key_pair2).await.unwrap();
+            append_envelope(&mut file, &envelope).await.unwrap();
+        }
+
+        // List project key pairs with counts
+        let key_pairs_with_counts = store.project_key_pairs_with_counts().await.unwrap();
+        assert_eq!(key_pairs_with_counts.len(), 2);
+        assert_eq!(key_pairs_with_counts.get(&project_key_pair1), Some(&2));
+        assert_eq!(key_pairs_with_counts.get(&project_key_pair2), Some(&3));
     }
 
     #[tokio::test]

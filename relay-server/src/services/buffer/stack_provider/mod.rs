@@ -16,12 +16,12 @@ pub mod sqlite;
 #[derive(Debug)]
 pub struct InitializationState {
     pub project_key_pairs: HashSet<ProjectKeyPair>,
-    pub store_total_count: u64,
+    pub store_total_count: u32,
 }
 
 impl InitializationState {
     /// Create a new [`InitializationState`].
-    pub fn new(project_key_pairs: HashSet<ProjectKeyPair>, store_total_count: u64) -> Self {
+    pub fn new(project_key_pairs: HashSet<ProjectKeyPair>, store_total_count: u32) -> Self {
         Self {
             project_key_pairs,
             store_total_count,
@@ -66,7 +66,7 @@ pub trait StackProvider: std::fmt::Debug {
 
     /// Returns the total count of the store used by this [`StackProvider`] and bounds the maximum
     /// time for execution.
-    async fn store_total_count_bounded(&self) -> u64 {
+    async fn store_total_count_bounded(&self) -> u32 {
         let store_total_count = timeout(Duration::from_secs(1), async {
             self.store_total_count().await
         })
@@ -82,7 +82,7 @@ pub trait StackProvider: std::fmt::Debug {
     }
 
     /// Returns the total count of the store used by this [`StackProvider`].
-    fn store_total_count(&self) -> impl Future<Output = u64>;
+    fn store_total_count(&self) -> impl Future<Output = u32>;
 
     /// Returns the string representation of the stack type offered by this [`StackProvider`].
     fn stack_type<'a>(&self) -> &'a str;

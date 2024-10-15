@@ -72,7 +72,7 @@ impl StackProvider for SqliteStackProvider {
             Err(error) => {
                 relay_log::error!(
                     error = &error as &dyn Error,
-                    "failed to initialize the sqlite stack provider"
+                    "failed to load project key pairs and envelope counts from sqlite"
                 );
                 InitializationState::empty()
             }
@@ -103,7 +103,7 @@ impl StackProvider for SqliteStackProvider {
         (self.envelope_store.usage() as usize) < self.max_disk_size
     }
 
-    async fn store_total_count(&self) -> u64 {
+    async fn store_total_count(&self) -> u32 {
         self.envelope_store
             .total_count()
             .await

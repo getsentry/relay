@@ -13,17 +13,14 @@ use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 use tokio::sync::Mutex;
 
 /// The version of the envelope stack file format.
-const VERSION: u8 = 1;
+pub const VERSION: u8 = 1;
 
 /// The size of the version field in bytes.
-const VERSION_FIELD_BYTES: u64 = 1;
+pub const VERSION_FIELD_BYTES: u64 = 1;
 /// The size of the total count field in bytes.
-const TOTAL_COUNT_FIELD_BYTES: u64 = 4;
+pub const TOTAL_COUNT_FIELD_BYTES: u64 = 4;
 /// The size of the envelope size field in bytes.
-///
-/// This field is by the reader to determine the size of the envelope before reading the envelope
-/// itself.
-const ENVELOPE_SIZE_FIELD_BYTES: u64 = 8;
+pub const ENVELOPE_SIZE_FIELD_BYTES: u64 = 8;
 
 /// An error returned when doing an operation on [`FileBackedEnvelopeStack`].
 #[derive(Debug, thiserror::Error)]
@@ -86,64 +83,7 @@ impl FileBackedEnvelopeStack {
             .get_envelopes_file(self.project_key_pair)
             .await?;
 
-        // Get the file size
-        let file_size = file.metadata().await?.len();
-
-        // If the file is empty, delete it and return None
-        if file_size == 0 {
-            envelope_store.remove_file(&self.project_key_pair).await?;
-            return Ok(None);
-        }
-
-        // Check if file is corrupted or incomplete
-        let header_size = VERSION_FIELD_BYTES + TOTAL_COUNT_FIELD_BYTES + ENVELOPE_SIZE_FIELD_BYTES;
-
-        if file_size < header_size {
-            self.truncate_file(file, 0).await?;
-            return Err(FileBackedEnvelopeStackError::Corruption(
-                "the file is smaller than the minimum required size".to_string(),
-            ));
-        }
-
-        // Skip version and total count fields, then read the envelope size
-        let mut envelope_size_buf = [0u8; ENVELOPE_SIZE_FIELD_BYTES as usize];
-        file.seek(SeekFrom::End(-(header_size as i64))).await?;
-        file.read_exact(&mut envelope_size_buf).await?;
-        let envelope_size = u64::from_le_bytes(envelope_size_buf);
-
-        // Check if file is corrupted or incomplete
-        if file_size < envelope_size + header_size {
-            self.truncate_file(file, 0).await?;
-            return Err(FileBackedEnvelopeStackError::Corruption(
-                "the file size is smaller than expected envelope size".to_string(),
-            ));
-        }
-
-        // Read the envelope data
-        let mut envelope_buf = vec![0; envelope_size as usize];
-        file.seek(SeekFrom::End(-((envelope_size + header_size) as i64)))
-            .await?;
-        file.read_exact(&mut envelope_buf).await?;
-
-        // Deserialize envelope
-        let envelope = match Envelope::parse_bytes(envelope_buf.into()) {
-            Ok(env) => env,
-            Err(e) => {
-                // Envelope deserialization failed, truncate the file
-                self.truncate_file(file, file_size - envelope_size - header_size)
-                    .await?;
-                return Err(FileBackedEnvelopeStackError::Corruption(format!(
-                    "failed to deserialize envelope: {}",
-                    e
-                )));
-            }
-        };
-
-        // Truncate the file to remove the envelope
-        self.truncate_file(file, file_size - envelope_size - header_size)
-            .await?;
-
-        Ok(Some(envelope))
+        read_and_remove_last_envelope(file).await
     }
 
     /// Appends an envelope to the file.
@@ -159,63 +99,7 @@ impl FileBackedEnvelopeStack {
             .get_envelopes_file(self.project_key_pair)
             .await?;
 
-        // Get the current total count
-        let total_count = self.get_total_count(file).await?;
-
-        // Serialize envelope
-        let envelope_bytes = envelope.to_vec()?;
-
-        // Construct buffer to write
-        let envelope_size = envelope_bytes.len();
-        let mut buffer = Vec::with_capacity(
-            envelope_size
-                + (VERSION_FIELD_BYTES + TOTAL_COUNT_FIELD_BYTES + ENVELOPE_SIZE_FIELD_BYTES)
-                    as usize,
-        );
-        buffer.extend_from_slice(&envelope_bytes);
-        buffer.extend_from_slice(&envelope_size.to_le_bytes());
-        buffer.extend_from_slice(&(total_count + 1).to_le_bytes());
-        buffer.push(VERSION);
-
-        // Write data
-        file.seek(SeekFrom::End(0)).await?;
-        file.write_all(&buffer).await?;
-
-        Ok(())
-    }
-
-    /// Helper method to get the total count from the file.
-    ///
-    /// If the file is empty or doesn't contain a total count field, it returns 0.
-    async fn get_total_count(&self, file: &mut File) -> Result<u32, FileBackedEnvelopeStackError> {
-        let file_size = file.metadata().await?.len();
-        if file_size < VERSION_FIELD_BYTES + TOTAL_COUNT_FIELD_BYTES {
-            return Ok(0);
-        }
-
-        let mut total_count_buf = [0u8; TOTAL_COUNT_FIELD_BYTES as usize];
-        file.seek(SeekFrom::End(
-            -(VERSION_FIELD_BYTES as i64 + TOTAL_COUNT_FIELD_BYTES as i64),
-        ))
-        .await?;
-        file.read_exact(&mut total_count_buf).await?;
-        Ok(u32::from_le_bytes(total_count_buf))
-    }
-
-    /// Helper method to truncate the file to a given size.
-    ///
-    /// This is used to remove corrupted or incomplete data from the file.
-    async fn truncate_file(
-        &self,
-        file: &File,
-        new_size: u64,
-    ) -> Result<(), FileBackedEnvelopeStackError> {
-        file.set_len(new_size).await.map_err(|e| {
-            FileBackedEnvelopeStackError::Io(io::Error::new(
-                io::ErrorKind::Other,
-                format!("failed to truncate file: {}", e),
-            ))
-        })
+        append_envelope(file, envelope).await
     }
 }
 
@@ -245,6 +129,134 @@ impl EnvelopeStack for FileBackedEnvelopeStack {
         // Since data is already on disk, no action needed
         vec![]
     }
+}
+
+/// Helper method to get the total count from the file.
+///
+/// If the file is empty or doesn't contain a total count field, it returns 0.
+pub async fn get_total_count(file: &mut File) -> Result<u32, FileBackedEnvelopeStackError> {
+    let file_size = file.metadata().await?.len();
+    if file_size < VERSION_FIELD_BYTES + TOTAL_COUNT_FIELD_BYTES {
+        return Ok(0);
+    }
+
+    let mut total_count_buf = [0u8; TOTAL_COUNT_FIELD_BYTES as usize];
+    file.seek(SeekFrom::End(
+        -(VERSION_FIELD_BYTES as i64 + TOTAL_COUNT_FIELD_BYTES as i64),
+    ))
+    .await?;
+    file.read_exact(&mut total_count_buf).await?;
+    Ok(u32::from_le_bytes(total_count_buf))
+}
+
+/// Helper method to truncate the file to a given size.
+///
+/// This is used to remove corrupted or incomplete data from the file.
+pub async fn truncate_file(file: &File, new_size: u64) -> Result<(), FileBackedEnvelopeStackError> {
+    file.set_len(new_size).await.map_err(|e| {
+        FileBackedEnvelopeStackError::Io(io::Error::new(
+            io::ErrorKind::Other,
+            format!("failed to truncate file: {}", e),
+        ))
+    })
+}
+
+/// Reads and removes the last envelope from the file.
+///
+/// If the file is empty when trying to read the last envelope, the file will be deleted and
+/// `None` is returned.
+///
+/// If the file is corrupted or incomplete, it will be truncated and an error will be returned.
+pub async fn read_and_remove_last_envelope(
+    file: &mut File,
+) -> Result<Option<Box<Envelope>>, FileBackedEnvelopeStackError> {
+    // Get the file size
+    let file_size = file.metadata().await?.len();
+
+    // If the file is empty, return None
+    if file_size == 0 {
+        return Ok(None);
+    }
+
+    // Check if file is corrupted or incomplete
+    let header_size = VERSION_FIELD_BYTES + TOTAL_COUNT_FIELD_BYTES + ENVELOPE_SIZE_FIELD_BYTES;
+
+    if file_size < header_size {
+        truncate_file(file, 0).await?;
+        return Err(FileBackedEnvelopeStackError::Corruption(
+            "the file is smaller than the minimum required size".to_string(),
+        ));
+    }
+
+    // Skip version and total count fields, then read the envelope size
+    let mut envelope_size_buf = [0u8; ENVELOPE_SIZE_FIELD_BYTES as usize];
+    file.seek(SeekFrom::End(-(header_size as i64))).await?;
+    file.read_exact(&mut envelope_size_buf).await?;
+    let envelope_size = u64::from_le_bytes(envelope_size_buf);
+
+    // Check if file is corrupted or incomplete
+    if file_size < envelope_size + header_size {
+        truncate_file(file, 0).await?;
+        return Err(FileBackedEnvelopeStackError::Corruption(
+            "the file size is smaller than expected envelope size".to_string(),
+        ));
+    }
+
+    // Read the envelope data
+    let mut envelope_buf = vec![0; envelope_size as usize];
+    file.seek(SeekFrom::End(-((envelope_size + header_size) as i64)))
+        .await?;
+    file.read_exact(&mut envelope_buf).await?;
+
+    // Deserialize envelope
+    let envelope = match Envelope::parse_bytes(envelope_buf.into()) {
+        Ok(env) => env,
+        Err(e) => {
+            // Envelope deserialization failed, truncate the file
+            truncate_file(file, file_size - envelope_size - header_size).await?;
+            return Err(FileBackedEnvelopeStackError::Corruption(format!(
+                "failed to deserialize envelope: {}",
+                e
+            )));
+        }
+    };
+
+    // Truncate the file to remove the envelope
+    truncate_file(file, file_size - envelope_size - header_size).await?;
+
+    Ok(Some(envelope))
+}
+
+/// Appends an envelope to the file.
+///
+/// The envelope is serialized and written to the end of the file along with its size,
+/// total count, and version.
+pub async fn append_envelope(
+    file: &mut File,
+    envelope: &Envelope,
+) -> Result<(), FileBackedEnvelopeStackError> {
+    // Get the current total count
+    let total_count = get_total_count(file).await?;
+
+    // Serialize envelope
+    let envelope_bytes = envelope.to_vec()?;
+
+    // Construct buffer to write
+    let envelope_size = envelope_bytes.len();
+    let mut buffer = Vec::with_capacity(
+        envelope_size
+            + (VERSION_FIELD_BYTES + TOTAL_COUNT_FIELD_BYTES + ENVELOPE_SIZE_FIELD_BYTES) as usize,
+    );
+    buffer.extend_from_slice(&envelope_bytes);
+    buffer.extend_from_slice(&envelope_size.to_le_bytes());
+    buffer.extend_from_slice(&(total_count + 1).to_le_bytes());
+    buffer.push(VERSION);
+
+    // Write data
+    file.seek(SeekFrom::End(0)).await?;
+    file.write_all(&buffer).await?;
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -337,7 +349,7 @@ mod tests {
                 .get_envelopes_file(stack.project_key_pair)
                 .await
                 .unwrap();
-            let total_count = stack.get_total_count(file).await.unwrap();
+            let total_count = get_total_count(file).await.unwrap();
             assert_eq!(
                 total_count,
                 (i + 1) as u32,
@@ -354,7 +366,7 @@ mod tests {
                 .get_envelopes_file(stack.project_key_pair)
                 .await
                 .unwrap();
-            let total_count = stack.get_total_count(file).await.unwrap();
+            let total_count = get_total_count(file).await.unwrap();
             assert_eq!(total_count, i as u32, "Total count mismatch after pop");
         }
     }
