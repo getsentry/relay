@@ -252,7 +252,7 @@ mod tests {
     use crate::services::processor::{
         ProcessEnvelope, ProcessingExtractedMetrics, ProcessingGroup, SpanGroup,
     };
-    use crate::services::project::ProjectInfo;
+    use crate::services::projects::project::ProjectInfo;
     use crate::testutils::{
         self, create_test_processor, new_envelope, state_with_rule_and_condition,
     };

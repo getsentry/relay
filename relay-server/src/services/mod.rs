@@ -7,7 +7,7 @@
 //! and dispatches the graceful shutdown signal. Internally, it creates several other services
 //! comprising the service state:
 //!
-//!  - [`ProjectCache`](project_cache::ProjectCache): A cache that serves queries for project
+//!  - [`ProjectCache`](projects::cache::ProjectCache): A cache that serves queries for project
 //!    configurations. Its requests are debounced and batched based on a configured interval (100ms
 //!    by default). Also, missing projects are cached for some time.
 //!  - [`EnvelopeProcessor`](processor::EnvelopeProcessor): A worker pool for CPU-intensive tasks.
@@ -35,10 +35,7 @@ pub mod metrics;
 pub mod outcome;
 pub mod outcome_aggregator;
 pub mod processor;
-pub mod project;
-pub mod project_cache;
-pub mod project_local;
-pub mod project_upstream;
+pub mod projects;
 pub mod relays;
 pub mod server;
 pub mod spooler;
@@ -46,7 +43,5 @@ pub mod stats;
 pub mod test_store;
 pub mod upstream;
 
-#[cfg(feature = "processing")]
-pub mod project_redis;
 #[cfg(feature = "processing")]
 pub mod store;
