@@ -11,6 +11,7 @@
 - Report invalid spans with appropriate outcome reason. ([#4051](https://github.com/getsentry/relay/pull/4051))
 - Use the duration reported by the profiler instead of the transaction. ([#4058](https://github.com/getsentry/relay/pull/4058))
 - Incorrect pattern matches involving adjacent any and wildcard matchers. ([#4072](https://github.com/getsentry/relay/pull/4072))
+- Accept incoming requests even if there was an error fetching their project config. ([4140](https://github.com/getsentry/relay/pull/4140))
 
 **Features:**
 
