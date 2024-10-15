@@ -794,9 +794,12 @@ impl ProjectCacheBroker {
                 .unwrap_or_else(|e| {
                     relay_log::error!(
                         error = &e as &dyn Error,
+                        tags.project_key = %project_key,
                         "Failed to fetch project from source"
                     );
-                    ProjectFetchState::pending()
+                    // TODO: change this to ProjectFetchState::pending() once we consider it safe to do so.
+                    // see https://github.com/getsentry/relay/pull/4140.
+                    ProjectFetchState::disabled()
                 });
 
             let message = UpdateProjectState {
