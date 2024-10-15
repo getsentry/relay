@@ -25,6 +25,10 @@ pub enum FileBackedEnvelopeStoreError {
     ProjectKeyParseError(#[from] ParseProjectKeyError),
 }
 
+/// A file-backed envelope store that manages envelope files on disk.
+///
+/// This store uses a caching mechanism to limit the number of open file handles
+/// and provides methods to interact with envelope files for different project keys.
 #[derive(Debug)]
 pub struct FileBackedEnvelopeStore {
     base_path: PathBuf,
@@ -39,6 +43,11 @@ struct CacheEntry {
 }
 
 impl FileBackedEnvelopeStore {
+    /// Creates a new `FileBackedEnvelopeStore` instance.
+    ///
+    /// This method initializes the store with the provided configuration,
+    /// setting up the base path for envelope files and the maximum number of
+    /// opened files to cache.
     pub async fn new(config: &Config) -> Result<Self, FileBackedEnvelopeStoreError> {
         // If no path is provided, we can't do disk spooling.
         let Some(base_path) = config.spool_envelopes_path() else {
@@ -52,6 +61,10 @@ impl FileBackedEnvelopeStore {
         })
     }
 
+    /// Retrieves or creates an envelope file for the given project key pair.
+    ///
+    /// If the file is not in the cache, it will be loaded from disk or created
+    /// if it doesn't exist. The file is then added to the LRU cache for future access.
     pub async fn get_envelopes_file(
         &mut self,
         project_key_pair: ProjectKeyPair,
@@ -69,6 +82,10 @@ impl FileBackedEnvelopeStore {
         Ok(&mut cache_entry.file)
     }
 
+    /// Lists all project key pairs that have envelope files on disk.
+    ///
+    /// This method scans the base directory and returns a set of all project
+    /// key pairs that have corresponding envelope files.
     pub async fn list_project_key_pairs(
         &self,
     ) -> Result<HashSet<ProjectKeyPair>, FileBackedEnvelopeStoreError> {
@@ -93,7 +110,10 @@ impl FileBackedEnvelopeStore {
         Ok(project_key_pairs)
     }
 
-    /// Removes the file associated with the given project key pair from disk and drops it from the cache.
+    /// Removes the envelope file associated with the given project key pair.
+    ///
+    /// This method removes the file from both the cache and the disk. If the
+    /// file doesn't exist, it will not return an error.
     pub async fn remove_file(
         &mut self,
         project_key_pair: &ProjectKeyPair,
@@ -113,6 +133,7 @@ impl FileBackedEnvelopeStore {
         }
     }
 
+    /// Loads an existing envelope file or creates a new one if it doesn't exist.
     async fn load_or_create_file(
         base_path: PathBuf,
         project_key_pair: &ProjectKeyPair,
@@ -132,7 +153,7 @@ impl FileBackedEnvelopeStore {
             .map_err(FileBackedEnvelopeStoreError::FileError)
     }
 
-    /// Creates the directories for the spool file.
+    /// Creates the directory structure for the spool file if it doesn't exist.
     async fn create_spool_directory(path: &Path) -> Result<(), FileBackedEnvelopeStoreError> {
         let Some(parent) = path.parent() else {
             return Ok(());
@@ -150,6 +171,7 @@ impl FileBackedEnvelopeStore {
         Ok(())
     }
 
+    /// Inserts a new file into the cache, evicting the least recently used entry if necessary.
     fn insert_into_cache(&mut self, key_pair: ProjectKeyPair, file: File) {
         if self.cache.len() >= self.max_opened_files {
             self.evict_lru();
@@ -164,6 +186,7 @@ impl FileBackedEnvelopeStore {
         );
     }
 
+    /// Evicts the least recently used entry from the cache.
     fn evict_lru(&mut self) {
         if let Some(lru_project_key_pair) = self
             .cache
@@ -175,6 +198,7 @@ impl FileBackedEnvelopeStore {
         }
     }
 
+    /// Generates a filename for the given project key pair.
     fn filename(project_key_pair: &ProjectKeyPair) -> String {
         format!(
             "{}-{}.{}",

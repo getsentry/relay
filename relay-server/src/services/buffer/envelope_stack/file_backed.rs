@@ -8,9 +8,21 @@ use crate::statsd::RelayTimers;
 use std::io;
 use std::io::SeekFrom;
 use std::sync::Arc;
+use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 use tokio::sync::Mutex;
 
+/// The version of the envelope stack file format.
+const VERSION: u8 = 1;
+
+/// The size of the version field in bytes.
+const VERSION_FIELD_BYTES: u64 = 1;
+/// The size of the total count field in bytes.
+const TOTAL_COUNT_FIELD_BYTES: u64 = 4;
+/// The size of the envelope size field in bytes.
+///
+/// This field is by the reader to determine the size of the envelope before reading the envelope
+/// itself.
 const ENVELOPE_SIZE_FIELD_BYTES: u64 = 8;
 
 /// An error returned when doing an operation on [`FileBackedEnvelopeStack`].
@@ -29,6 +41,9 @@ pub enum FileBackedEnvelopeStackError {
     Corruption(String),
 }
 
+// TODO: add version (1 byte) + envelope count (8 bytes)
+// TODO: add disk usage check
+
 /// An envelope stack that writes and reads envelopes to and from disk files.
 ///
 /// Each `FileBackedEnvelopeStack` corresponds to a file on disk, named with the pattern
@@ -46,6 +61,7 @@ pub struct FileBackedEnvelopeStack {
 }
 
 impl FileBackedEnvelopeStack {
+    /// Creates a new `FileBackedEnvelopeStack` instance.
     pub fn new(
         project_key_pair: ProjectKeyPair,
         envelope_store: Arc<Mutex<FileBackedEnvelopeStore>>,
@@ -57,6 +73,11 @@ impl FileBackedEnvelopeStack {
     }
 
     /// Reads and removes the last envelope from the file.
+    ///
+    /// If the file is empty when trying to read the last envelope, the file will be deleted and
+    /// `None` is returned.
+    ///
+    /// If the file is corrupted or incomplete, it will be truncated and an error will be returned.
     async fn read_and_remove_last_envelope(
         &mut self,
     ) -> Result<Option<Box<Envelope>>, FileBackedEnvelopeStackError> {
@@ -75,22 +96,23 @@ impl FileBackedEnvelopeStack {
         }
 
         // Check if file is corrupted or incomplete
-        if file_size < ENVELOPE_SIZE_FIELD_BYTES {
+        let header_size = VERSION_FIELD_BYTES + TOTAL_COUNT_FIELD_BYTES + ENVELOPE_SIZE_FIELD_BYTES;
+
+        if file_size < header_size {
             self.truncate_file(file, 0).await?;
             return Err(FileBackedEnvelopeStackError::Corruption(
-                "the envelope size field is not in the file".to_string(),
+                "the file is smaller than the minimum required size".to_string(),
             ));
         }
 
-        // Read the size of the last envelope
+        // Skip version and total count fields, then read the envelope size
         let mut envelope_size_buf = [0u8; ENVELOPE_SIZE_FIELD_BYTES as usize];
-        file.seek(SeekFrom::End(-(ENVELOPE_SIZE_FIELD_BYTES as i64)))
-            .await?;
+        file.seek(SeekFrom::End(-(header_size as i64))).await?;
         file.read_exact(&mut envelope_size_buf).await?;
         let envelope_size = u64::from_le_bytes(envelope_size_buf);
 
         // Check if file is corrupted or incomplete
-        if file_size < envelope_size + ENVELOPE_SIZE_FIELD_BYTES {
+        if file_size < envelope_size + header_size {
             self.truncate_file(file, 0).await?;
             return Err(FileBackedEnvelopeStackError::Corruption(
                 "the file size is smaller than expected envelope size".to_string(),
@@ -99,10 +121,8 @@ impl FileBackedEnvelopeStack {
 
         // Read the envelope data
         let mut envelope_buf = vec![0; envelope_size as usize];
-        file.seek(SeekFrom::End(
-            -((envelope_size + ENVELOPE_SIZE_FIELD_BYTES) as i64),
-        ))
-        .await?;
+        file.seek(SeekFrom::End(-((envelope_size + header_size) as i64)))
+            .await?;
         file.read_exact(&mut envelope_buf).await?;
 
         // Deserialize envelope
@@ -110,7 +130,7 @@ impl FileBackedEnvelopeStack {
             Ok(env) => env,
             Err(e) => {
                 // Envelope deserialization failed, truncate the file
-                self.truncate_file(file, file_size - envelope_size - ENVELOPE_SIZE_FIELD_BYTES)
+                self.truncate_file(file, file_size - envelope_size - header_size)
                     .await?;
                 return Err(FileBackedEnvelopeStackError::Corruption(format!(
                     "failed to deserialize envelope: {}",
@@ -120,13 +140,16 @@ impl FileBackedEnvelopeStack {
         };
 
         // Truncate the file to remove the envelope
-        self.truncate_file(file, file_size - envelope_size - ENVELOPE_SIZE_FIELD_BYTES)
+        self.truncate_file(file, file_size - envelope_size - header_size)
             .await?;
 
         Ok(Some(envelope))
     }
 
     /// Appends an envelope to the file.
+    ///
+    /// The envelope is serialized and written to the end of the file along with its size,
+    /// total count, and version.
     async fn append_envelope(
         &mut self,
         envelope: &Envelope,
@@ -136,14 +159,23 @@ impl FileBackedEnvelopeStack {
             .get_envelopes_file(self.project_key_pair)
             .await?;
 
+        // Get the current total count
+        let total_count = self.get_total_count(file).await?;
+
         // Serialize envelope
         let envelope_bytes = envelope.to_vec()?;
 
         // Construct buffer to write
         let envelope_size = envelope_bytes.len();
-        let mut buffer = Vec::with_capacity(envelope_size + (ENVELOPE_SIZE_FIELD_BYTES as usize));
+        let mut buffer = Vec::with_capacity(
+            envelope_size
+                + (VERSION_FIELD_BYTES + TOTAL_COUNT_FIELD_BYTES + ENVELOPE_SIZE_FIELD_BYTES)
+                    as usize,
+        );
         buffer.extend_from_slice(&envelope_bytes);
         buffer.extend_from_slice(&envelope_size.to_le_bytes());
+        buffer.extend_from_slice(&(total_count + 1).to_le_bytes());
+        buffer.push(VERSION);
 
         // Write data
         file.seek(SeekFrom::End(0)).await?;
@@ -152,10 +184,30 @@ impl FileBackedEnvelopeStack {
         Ok(())
     }
 
-    /// Helper method to truncate the file to a given size
+    /// Helper method to get the total count from the file.
+    ///
+    /// If the file is empty or doesn't contain a total count field, it returns 0.
+    async fn get_total_count(&self, file: &mut File) -> Result<u32, FileBackedEnvelopeStackError> {
+        let file_size = file.metadata().await?.len();
+        if file_size < VERSION_FIELD_BYTES + TOTAL_COUNT_FIELD_BYTES {
+            return Ok(0);
+        }
+
+        let mut total_count_buf = [0u8; TOTAL_COUNT_FIELD_BYTES as usize];
+        file.seek(SeekFrom::End(
+            -(VERSION_FIELD_BYTES as i64 + TOTAL_COUNT_FIELD_BYTES as i64),
+        ))
+        .await?;
+        file.read_exact(&mut total_count_buf).await?;
+        Ok(u32::from_le_bytes(total_count_buf))
+    }
+
+    /// Helper method to truncate the file to a given size.
+    ///
+    /// This is used to remove corrupted or incomplete data from the file.
     async fn truncate_file(
         &self,
-        file: &tokio::fs::File,
+        file: &File,
         new_size: u64,
     ) -> Result<(), FileBackedEnvelopeStackError> {
         file.set_len(new_size).await.map_err(|e| {
@@ -238,7 +290,7 @@ mod tests {
             own_key: ProjectKey::parse("c04ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             sampling_key: ProjectKey::parse("c04ae32be2584e0bbd7a4cbb95971fee").unwrap(),
         };
-        let mut stack = FileBackedEnvelopeStack::new(project_key_pair, envelope_store);
+        let mut stack = FileBackedEnvelopeStack::new(project_key_pair, envelope_store.clone());
 
         let envelopes = mock_envelopes(5);
 
@@ -255,6 +307,147 @@ mod tests {
 
         // Verify stack is empty
         assert!(stack.pop().await.unwrap().is_none());
+
+        // Verify file is deleted after last pop
+        let store = envelope_store.lock().await;
+        let project_key_pairs = store.list_project_key_pairs().await.unwrap();
+        assert!(
+            project_key_pairs.is_empty(),
+            "Expected file to be removed after last pop"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_total_count_increment() {
+        let envelope_store = setup_envelope_store(10).await;
+        let project_key_pair = ProjectKeyPair {
+            own_key: ProjectKey::parse("c04ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            sampling_key: ProjectKey::parse("c04ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+        };
+        let mut stack = FileBackedEnvelopeStack::new(project_key_pair, envelope_store.clone());
+
+        let envelopes = mock_envelopes(3);
+
+        // Push envelopes and verify total count
+        for (i, envelope) in envelopes.iter().enumerate() {
+            stack.push(envelope.clone()).await.unwrap();
+
+            let mut store = envelope_store.lock().await;
+            let file = store
+                .get_envelopes_file(stack.project_key_pair)
+                .await
+                .unwrap();
+            let total_count = stack.get_total_count(file).await.unwrap();
+            assert_eq!(
+                total_count,
+                (i + 1) as u32,
+                "Total count mismatch after push"
+            );
+        }
+
+        // Pop envelopes and verify total count
+        for i in (0..3).rev() {
+            stack.pop().await.unwrap();
+
+            let mut store = envelope_store.lock().await;
+            let file = store
+                .get_envelopes_file(stack.project_key_pair)
+                .await
+                .unwrap();
+            let total_count = stack.get_total_count(file).await.unwrap();
+            assert_eq!(total_count, i as u32, "Total count mismatch after pop");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_version_field() {
+        let envelope_store = setup_envelope_store(10).await;
+        let project_key_pair = ProjectKeyPair {
+            own_key: ProjectKey::parse("c04ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            sampling_key: ProjectKey::parse("c04ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+        };
+        let mut stack = FileBackedEnvelopeStack::new(project_key_pair, envelope_store.clone());
+
+        let envelope = mock_envelopes(1)[0].clone();
+
+        // Push an envelope
+        stack.push(envelope).await.unwrap();
+
+        // Verify version field
+        let mut store = envelope_store.lock().await;
+        let file = store
+            .get_envelopes_file(stack.project_key_pair)
+            .await
+            .unwrap();
+
+        let mut version_buf = [0u8; VERSION_FIELD_BYTES as usize];
+        file.seek(SeekFrom::End(-(VERSION_FIELD_BYTES as i64)))
+            .await
+            .unwrap();
+        file.read_exact(&mut version_buf).await.unwrap();
+
+        assert_eq!(version_buf[0], VERSION, "Version field mismatch");
+    }
+
+    #[tokio::test]
+    async fn test_file_structure() {
+        let envelope_store = setup_envelope_store(10).await;
+        let project_key_pair = ProjectKeyPair {
+            own_key: ProjectKey::parse("c04ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            sampling_key: ProjectKey::parse("c04ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+        };
+        let mut stack = FileBackedEnvelopeStack::new(project_key_pair, envelope_store.clone());
+
+        let envelope = mock_envelopes(1)[0].clone();
+
+        // Push an envelope
+        stack.push(envelope.clone()).await.unwrap();
+
+        // Verify file structure
+        let mut store = envelope_store.lock().await;
+        let file = store
+            .get_envelopes_file(stack.project_key_pair)
+            .await
+            .unwrap();
+        let file_size = file.metadata().await.unwrap().len();
+
+        // Read fields from the end of the file
+        file.seek(SeekFrom::End(-(VERSION_FIELD_BYTES as i64)))
+            .await
+            .unwrap();
+        let mut version_buf = [0u8; VERSION_FIELD_BYTES as usize];
+        file.read_exact(&mut version_buf).await.unwrap();
+
+        file.seek(SeekFrom::End(
+            -((VERSION_FIELD_BYTES + TOTAL_COUNT_FIELD_BYTES) as i64),
+        ))
+        .await
+        .unwrap();
+        let mut total_count_buf = [0u8; TOTAL_COUNT_FIELD_BYTES as usize];
+        file.read_exact(&mut total_count_buf).await.unwrap();
+
+        file.seek(SeekFrom::End(
+            -((VERSION_FIELD_BYTES + TOTAL_COUNT_FIELD_BYTES + ENVELOPE_SIZE_FIELD_BYTES) as i64),
+        ))
+        .await
+        .unwrap();
+        let mut envelope_size_buf = [0u8; ENVELOPE_SIZE_FIELD_BYTES as usize];
+        file.read_exact(&mut envelope_size_buf).await.unwrap();
+
+        let version = version_buf[0];
+        let total_count = u32::from_le_bytes(total_count_buf);
+        let envelope_size = u64::from_le_bytes(envelope_size_buf);
+
+        assert_eq!(version, VERSION, "Version mismatch");
+        assert_eq!(total_count, 1, "Total count mismatch");
+        assert_eq!(
+            file_size,
+            envelope_size
+                + VERSION_FIELD_BYTES
+                + TOTAL_COUNT_FIELD_BYTES
+                + ENVELOPE_SIZE_FIELD_BYTES,
+            "File size mismatch"
+        );
     }
 
     #[tokio::test]
@@ -310,12 +503,12 @@ mod tests {
                 .get_envelopes_file(stack.project_key_pair)
                 .await
                 .unwrap();
-            file.set_len(0).await.unwrap(); // Clear the file
-            file.write_all(&[0u8; 4]).await.unwrap(); // Write less than ENVELOPE_SIZE_FIELD_BYTES
+            file.set_len(0).await.unwrap();
+            file.write_all(&[0u8; 4]).await.unwrap();
         }
 
         // Attempt to pop from the stack with incomplete data
-        assert!(stack.pop().await.unwrap().is_none());
+        assert!(stack.pop().await.is_err());
 
         // Verify the file is truncated
         {
