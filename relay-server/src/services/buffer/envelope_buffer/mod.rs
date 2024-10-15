@@ -284,9 +284,18 @@ where
     pub async fn initialize(&mut self) {
         relay_statsd::metric!(timer(RelayTimers::BufferInitialization), {
             let initialization_state = self.stack_provider.initialize().await;
+
+            // We load the stacks given the supplied project key pairs.
             self.load_stacks(initialization_state.project_key_pairs)
                 .await;
-            self.load_store_total_count().await;
+
+            // We initialize the total count for the store.
+            self.total_count.store(
+                initialization_state.store_total_count as i64,
+                AtomicOrdering::SeqCst,
+            );
+            self.total_count_initialized = true;
+            self.track_total_count();
         });
     }
 
@@ -515,33 +524,6 @@ where
                 .await
                 .expect("Pushing an empty stack raised an error");
         }
-    }
-
-    /// Loads the total count from the store if it takes less than a specified duration.
-    ///
-    /// The total count returned by the store is related to the count of elements that the buffer
-    /// will process, besides the count of elements that will be added and removed during its
-    /// lifecycle
-    async fn load_store_total_count(&mut self) {
-        let total_count = timeout(Duration::from_secs(1), async {
-            self.stack_provider.store_total_count().await
-        })
-        .await;
-        match total_count {
-            Ok(total_count) => {
-                self.total_count
-                    .store(total_count as i64, AtomicOrdering::SeqCst);
-                self.total_count_initialized = true;
-            }
-            Err(error) => {
-                self.total_count_initialized = false;
-                relay_log::error!(
-                    error = &error as &dyn Error,
-                    "failed to load the total envelope count of the store",
-                );
-            }
-        };
-        self.track_total_count();
     }
 
     /// Emits a metric to track the total count of envelopes that are in the envelope buffer.

@@ -1,7 +1,10 @@
 use crate::services::buffer::common::ProjectKeyPair;
 use crate::EnvelopeStack;
 use hashbrown::HashSet;
+use std::error::Error;
 use std::future::Future;
+use std::time::Duration;
+use tokio::time::timeout;
 
 pub mod file_backed;
 pub mod memory;
@@ -13,18 +16,23 @@ pub mod sqlite;
 #[derive(Debug)]
 pub struct InitializationState {
     pub project_key_pairs: HashSet<ProjectKeyPair>,
+    pub store_total_count: u64,
 }
 
 impl InitializationState {
     /// Create a new [`InitializationState`].
-    pub fn new(project_key_pairs: HashSet<ProjectKeyPair>) -> Self {
-        Self { project_key_pairs }
+    pub fn new(project_key_pairs: HashSet<ProjectKeyPair>, store_total_count: u64) -> Self {
+        Self {
+            project_key_pairs,
+            store_total_count,
+        }
     }
 
     /// Creates a new empty [`InitializationState`].
     pub fn empty() -> Self {
         Self {
             project_key_pairs: HashSet::new(),
+            store_total_count: 0,
         }
     }
 }
@@ -55,6 +63,23 @@ pub trait StackProvider: std::fmt::Debug {
     /// Returns `true` if the store used by this [`StackProvider`] has space to add new
     /// stacks or items to the stacks.
     fn has_store_capacity(&self) -> bool;
+
+    /// Returns the total count of the store used by this [`StackProvider`] and bounds the maximum
+    /// time for execution.
+    async fn store_total_count_bounded(&self) -> u64 {
+        let store_total_count = timeout(Duration::from_secs(1), async {
+            self.store_total_count().await
+        })
+        .await;
+
+        store_total_count.unwrap_or_else(|error| {
+            relay_log::error!(
+                error = &error as &dyn Error,
+                "failed to load the total envelope count of the store",
+            );
+            0
+        })
+    }
 
     /// Returns the total count of the store used by this [`StackProvider`].
     fn store_total_count(&self) -> impl Future<Output = u64>;

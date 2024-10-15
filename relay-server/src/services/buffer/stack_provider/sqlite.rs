@@ -64,8 +64,11 @@ impl StackProvider for SqliteStackProvider {
     type Stack = SqliteEnvelopeStack;
 
     async fn initialize(&self) -> InitializationState {
-        match self.envelope_store.project_key_pairs().await {
-            Ok(project_key_pairs) => InitializationState::new(project_key_pairs),
+        let project_key_pairs = self.envelope_store.project_key_pairs().await;
+        let store_total_count = self.store_total_count_bounded().await;
+
+        match project_key_pairs {
+            Ok(project_key_pairs) => InitializationState::new(project_key_pairs, store_total_count),
             Err(error) => {
                 relay_log::error!(
                     error = &error as &dyn Error,

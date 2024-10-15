@@ -102,6 +102,28 @@ impl FileBackedEnvelopeStore {
             .remove(project_key_pair, &self.base_path)
             .await
     }
+
+    /// Estimates the total size of the folder containing all envelope files.
+    ///
+    /// This method performs a single pass through the directory, summing up the sizes of all files
+    /// with the correct extension. It does not recursively scan subdirectories.
+    ///
+    /// Returns the estimated size in bytes.
+    pub async fn estimate_folder_size(&self) -> Result<u64, FileBackedEnvelopeStoreError> {
+        let mut total_size = 0;
+        let mut dir = read_dir(&self.base_path).await?;
+
+        while let Some(entry) = dir.next_entry().await? {
+            let path = entry.path();
+            if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some(FILE_EXTENSION) {
+                if let Ok(metadata) = entry.metadata().await {
+                    total_size += metadata.len();
+                }
+            }
+        }
+
+        Ok(total_size)
+    }
 }
 
 impl EnvelopesFilesCache {
@@ -369,5 +391,28 @@ mod tests {
 
         // Removing a non-existent file should not error
         store.remove_file(&project_key_pair).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_estimate_folder_size() {
+        let mut store = setup_envelope_store(5).await;
+
+        // Create some files
+        for i in 0..3 {
+            let project_key_pair = ProjectKeyPair {
+                own_key: ProjectKey::parse(&format!("a{}4ae32be2584e0bbd7a4cbb95971fee", i))
+                    .unwrap(),
+                sampling_key: ProjectKey::parse(&format!("b{}4ae32be2584e0bbd7a4cbb95971fee", i))
+                    .unwrap(),
+            };
+            let file = store.get_envelopes_file(project_key_pair).await.unwrap();
+            file.set_len(1000 * (i + 1) as u64).await.unwrap(); // Set different file sizes
+        }
+
+        // Estimate folder size
+        let estimated_size = store.estimate_folder_size().await.unwrap();
+
+        // The total size should be 1000 + 2000 + 3000 = 6000 bytes
+        assert_eq!(estimated_size, 6000);
     }
 }

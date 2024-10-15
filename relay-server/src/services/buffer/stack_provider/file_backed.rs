@@ -49,6 +49,7 @@ impl StackProvider for FileBackedStackProvider {
             .await
             .list_project_key_pairs()
             .await;
+
         match project_key_pairs_result {
             Ok(project_key_pairs) => InitializationState { project_key_pairs },
             Err(error) => {
