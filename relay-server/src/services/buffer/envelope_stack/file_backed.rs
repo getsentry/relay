@@ -488,6 +488,7 @@ mod tests {
                 .unwrap();
             file.set_len(0).await.unwrap(); // Clear the file
             file.write_all(b"malformed data").await.unwrap();
+            file.flush().await.unwrap();
         }
 
         // Attempt to pop from the stack with malformed data
@@ -542,7 +543,6 @@ mod tests {
         }
     }
 
-    // Add this new test
     #[tokio::test]
     async fn test_empty_file_removal() {
         let envelope_store = setup_envelope_store(10).await;
