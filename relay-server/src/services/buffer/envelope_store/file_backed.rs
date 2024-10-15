@@ -210,7 +210,8 @@ impl FileBackedEnvelopeStore {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::os::unix::prelude::MetadataExt;
+    #[cfg(unix)]
+    use std::os::unix::fs::MetadataExt;
     use std::sync::Arc;
     use uuid::Uuid;
 
@@ -238,6 +239,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[cfg(unix)]
     async fn test_create_evict_load() {
         let mut store = setup_envelope_store(5).await;
         let project_key_pair = ProjectKeyPair {

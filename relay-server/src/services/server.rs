@@ -28,6 +28,12 @@ use crate::statsd::RelayCounters;
 
 /// Set the number of keep-alive retransmissions to be carried out before declaring that remote end
 /// is not available.
+#[cfg(not(any(
+    target_os = "openbsd",
+    target_os = "redox",
+    target_os = "solaris",
+    target_os = "windows"
+)))]
 const KEEPALIVE_RETRIES: u32 = 5;
 
 /// Set a timeout for reading client request headers. If a client does not transmit the entire

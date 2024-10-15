@@ -380,7 +380,8 @@ impl Service for EnvelopeBufferService {
         let services = self.services.clone();
 
         let dequeue = Arc::<AtomicBool>::new(true.into());
-        let dequeue1 = dequeue.clone();
+        #[cfg(unix)]
+        let unix_dequeue = dequeue.clone();
 
         tokio::spawn(async move {
             let buffer = PolymorphicEnvelopeBuffer::from_config(&config, memory_checker).await;
@@ -458,8 +459,8 @@ impl Service for EnvelopeBufferService {
                 return;
             };
             while let Some(()) = signal.recv().await {
-                let deq = !dequeue1.load(Ordering::Relaxed);
-                dequeue1.store(deq, Ordering::Relaxed);
+                let deq = !unix_dequeue.load(Ordering::Relaxed);
+                unix_dequeue.store(deq, Ordering::Relaxed);
                 relay_log::info!("SIGUSR1 receive, dequeue={}", deq);
             }
         });
@@ -603,6 +604,7 @@ mod tests {
                 "spool": {
                     "envelopes": {
                         "version": "experimental",
+                        "buffer_strategy": "file_backed",
                         "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
                     }
                 },
