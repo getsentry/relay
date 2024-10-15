@@ -157,12 +157,13 @@ impl PolymorphicEnvelopeBuffer {
         }
     }
 
-    /// Returns `true` whether the buffer has capacity to accept new [`Envelope`]s.
-    pub fn has_capacity(&self) -> bool {
+    /// Returns `true` whether the buffer has capacity to accept new [`Envelope`]s, `false`
+    /// otherwise.
+    pub async fn has_capacity(&self) -> bool {
         match self {
-            Self::Sqlite(buffer) => buffer.has_capacity(),
-            Self::InMemory(buffer) => buffer.has_capacity(),
-            Self::FileBacked(buffer) => buffer.has_capacity(),
+            Self::Sqlite(buffer) => buffer.has_capacity().await,
+            Self::InMemory(buffer) => buffer.has_capacity().await,
+            Self::FileBacked(buffer) => buffer.has_capacity().await,
         }
     }
 
@@ -455,8 +456,8 @@ where
     }
 
     /// Returns `true` if the underlying storage has the capacity to store more envelopes.
-    pub fn has_capacity(&self) -> bool {
-        self.stack_provider.has_store_capacity()
+    pub async fn has_capacity(&self) -> bool {
+        self.stack_provider.has_store_capacity().await
     }
 
     /// Flushes the envelope buffer.

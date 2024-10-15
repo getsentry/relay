@@ -126,8 +126,7 @@ impl DiskUsage {
         Ok(disk_usage)
     }
 
-    /// Returns the disk usage and asynchronously updates it in case a `refresh_frequency_ms`
-    /// elapsed.
+    /// Returns the last known disk usage.
     fn usage(&self) -> u64 {
         self.last_known_usage.load(Ordering::Relaxed)
     }

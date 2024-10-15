@@ -93,8 +93,8 @@ impl StackProvider for FileBackedStackProvider {
         FileBackedEnvelopeStack::new(project_key_pair, self.envelope_store.clone())
     }
 
-    fn has_store_capacity(&self) -> bool {
-        (self.envelope_store.blocking_lock().usage() as usize) < self.max_disk_size
+    async fn has_store_capacity(&self) -> bool {
+        (self.envelope_store.lock().await.usage() as usize) < self.max_disk_size
     }
 
     fn stack_type<'a>(&self) -> &'a str {

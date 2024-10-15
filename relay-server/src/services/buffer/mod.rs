@@ -364,9 +364,9 @@ impl EnvelopeBufferService {
         }
     }
 
-    fn update_observable_state(&self, buffer: &mut PolymorphicEnvelopeBuffer) {
+    async fn update_observable_state(&self, buffer: &mut PolymorphicEnvelopeBuffer) {
         self.has_capacity
-            .store(buffer.has_capacity(), Ordering::Relaxed);
+            .store(buffer.has_capacity().await, Ordering::Relaxed);
     }
 }
 
@@ -446,7 +446,7 @@ impl Service for EnvelopeBufferService {
                 }
 
                 self.sleep = sleep;
-                self.update_observable_state(&mut buffer);
+                self.update_observable_state(&mut buffer).await;
             }
 
             relay_log::info!("EnvelopeBufferService: stopping");

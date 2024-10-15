@@ -122,7 +122,7 @@ impl StackProvider for SqliteStackProvider {
         )
     }
 
-    fn has_store_capacity(&self) -> bool {
+    async fn has_store_capacity(&self) -> bool {
         (self.envelope_store.usage() as usize) < self.max_disk_size
     }
 

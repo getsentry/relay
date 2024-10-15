@@ -94,6 +94,61 @@ def test_graceful_shutdown_with_sqlite_buffer(mini_sentry, relay):
     conn.close()
 
 
+def test_graceful_shutdown_with_file_backed_buffer(mini_sentry, relay):
+    from time import sleep
+    import os
+
+    # Create a temporary directory for the envelope files
+    envelope_files_folder = os.path.join(tempfile.mkdtemp())
+
+    get_project_config_original = mini_sentry.app.view_functions["get_project_config"]
+
+    @mini_sentry.app.endpoint("get_project_config")
+    def get_project_config():
+        sleep(1)  # Causes the process to wait for one second before shutting down
+        return get_project_config_original()
+
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
+
+    relay = relay(
+        mini_sentry,
+        {
+            "limits": {"shutdown_timeout": 2},
+            "spool": {
+                "envelopes": {
+                    "version": "experimental",
+                    "path": envelope_files_folder,
+                    "buffer_strategy": "file_backed",
+                }
+            },
+        },
+    )
+
+    n = 10
+    for i in range(n):
+        relay.send_event(project_id)
+
+    relay.shutdown(sig=signal.SIGTERM)
+
+    # Validate that files were written to disk
+    files_in_folder = os.listdir(envelope_files_folder)
+    assert len(files_in_folder) > 0, f"No files were written to {envelope_files_folder}"
+
+    # Check if the files have the expected .spool extension
+    spool_files = [f for f in files_in_folder if f.endswith(".spool")]
+    assert (
+        len(spool_files) > 0
+    ), f"No .spool files were found in {envelope_files_folder}"
+
+    # Optionally, you can check the content of the files or their sizes
+    for spool_file in spool_files:
+        file_path = os.path.join(envelope_files_folder, spool_file)
+        assert os.path.getsize(file_path) > 0, f"File {spool_file} is empty"
+
+    print(f"Found {len(spool_files)} .spool files in {envelope_files_folder}")
+
+
 @pytest.mark.skip("Flaky test")
 def test_forced_shutdown(mini_sentry, relay):
     from time import sleep

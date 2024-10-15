@@ -30,7 +30,7 @@ impl StackProvider for MemoryStackProvider {
         MemoryEnvelopeStack::new()
     }
 
-    fn has_store_capacity(&self) -> bool {
+    async fn has_store_capacity(&self) -> bool {
         self.memory_checker.check_memory().has_capacity()
     }
 

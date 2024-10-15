@@ -59,7 +59,7 @@ pub trait StackProvider: std::fmt::Debug {
 
     /// Returns `true` if the store used by this [`StackProvider`] has space to add new
     /// stacks or items to the stacks.
-    fn has_store_capacity(&self) -> bool;
+    fn has_store_capacity(&self) -> impl Future<Output = bool>;
 
     /// Returns the string representation of the stack type offered by this [`StackProvider`].
     fn stack_type<'a>(&self) -> &'a str;

@@ -63,114 +63,6 @@ pub struct FileBackedEnvelopeStore {
     folder_size_tracker: FolderSizeTracker,
 }
 
-/// A cache for managing open file handles which contain envelopes.
-#[derive(Debug)]
-struct EnvelopesFilesCache {
-    max_opened_files: usize,
-    cache: HashMap<ProjectKeyPair, CacheEntry>,
-}
-
-/// A cache entry for a file containing envelopes.
-#[derive(Debug)]
-struct CacheEntry {
-    file: File,
-    last_access: Instant,
-}
-
-/// A background task that tracks the size of the folder containing all envelope files.
-#[derive(Debug, Clone)]
-struct FolderSizeTracker {
-    base_path: PathBuf,
-    last_known_size: Arc<AtomicU64>,
-    refresh_frequency: Duration,
-}
-
-impl FolderSizeTracker {
-    fn new(base_path: PathBuf, refresh_frequency: Duration) -> Self {
-        Self {
-            base_path,
-            last_known_size: Arc::new(AtomicU64::new(0)),
-            refresh_frequency,
-        }
-    }
-
-    pub async fn prepare(
-        base_path: PathBuf,
-        refresh_frequency: Duration,
-    ) -> Result<Self, FileBackedEnvelopeStoreError> {
-        let size = Self::estimate_folder_size(&base_path).await?;
-
-        let tracker = Self::new(base_path, refresh_frequency);
-        tracker.last_known_size.store(size, Ordering::Relaxed);
-        tracker.start_background_refresh();
-
-        Ok(tracker)
-    }
-
-    fn size(&self) -> u64 {
-        self.last_known_size.load(Ordering::Relaxed)
-    }
-
-    fn start_background_refresh(&self) {
-        let base_path = self.base_path.clone();
-        // We get a weak reference, to make sure that if `FolderSizeTracker` is dropped, the reference can't
-        // be upgraded, causing the loop in the tokio task to exit.
-        let last_known_size_weak = Arc::downgrade(&self.last_known_size);
-        let refresh_frequency = self.refresh_frequency;
-
-        tokio::spawn(async move {
-            loop {
-                // When our `Weak` reference can't be upgraded to an `Arc`, it means that the value
-                // is not referenced anymore by self, meaning that `FolderSizeTracker` was dropped.
-                let Some(last_known_size) = last_known_size_weak.upgrade() else {
-                    break;
-                };
-
-                match Self::estimate_folder_size(&base_path).await {
-                    Ok(size) => {
-                        let current = last_known_size.load(Ordering::Relaxed);
-                        if last_known_size
-                            .compare_exchange_weak(
-                                current,
-                                size,
-                                Ordering::Relaxed,
-                                Ordering::Relaxed,
-                            )
-                            .is_err()
-                        {
-                            relay_log::error!("failed to update the folder size asynchronously");
-                        }
-                    }
-                    Err(e) => {
-                        relay_log::error!("failed to estimate folder size: {}", e);
-                    }
-                }
-
-                sleep(refresh_frequency).await;
-            }
-        });
-    }
-
-    /// Estimates the total size of the folder containing all envelope files.
-    async fn estimate_folder_size(base_path: &Path) -> Result<u64, FileBackedEnvelopeStoreError> {
-        let mut total_size = 0;
-        let mut dir = read_dir(base_path).await?;
-
-        while let Some(entry) = dir.next_entry().await? {
-            let path = entry.path();
-            if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some(FILE_EXTENSION) {
-                if let Ok(metadata) = entry.metadata().await {
-                    total_size += metadata.len();
-                }
-            }
-        }
-
-        relay_statsd::metric!(gauge(RelayGauges::BufferDiskUsed) = total_size);
-
-        Ok(total_size)
-    }
-}
-
 impl FileBackedEnvelopeStore {
     /// Creates a new `FileBackedEnvelopeStore` instance.
     ///
@@ -260,7 +152,22 @@ impl FileBackedEnvelopeStore {
     }
 }
 
+/// A cache for managing open file handles which contain envelopes.
+#[derive(Debug)]
+struct EnvelopesFilesCache {
+    max_opened_files: usize,
+    cache: HashMap<ProjectKeyPair, CacheEntry>,
+}
+
+/// A cache entry for a file containing envelopes.
+#[derive(Debug)]
+struct CacheEntry {
+    file: File,
+    last_access: Instant,
+}
+
 impl EnvelopesFilesCache {
+    /// Creates a new instance of [`EnvelopesFilesCache`].
     fn new(max_opened_files: usize) -> Self {
         EnvelopesFilesCache {
             max_opened_files,
@@ -354,6 +261,102 @@ impl EnvelopesFilesCache {
         {
             self.cache.remove(&lru_project_key_pair);
         }
+    }
+}
+
+/// A background task that tracks the size of the folder containing all envelope files.
+#[derive(Debug, Clone)]
+struct FolderSizeTracker {
+    base_path: PathBuf,
+    last_known_size: Arc<AtomicU64>,
+    refresh_frequency: Duration,
+}
+
+impl FolderSizeTracker {
+    fn new(base_path: PathBuf, refresh_frequency: Duration) -> Self {
+        Self {
+            base_path,
+            last_known_size: Arc::new(AtomicU64::new(0)),
+            refresh_frequency,
+        }
+    }
+
+    pub async fn prepare(
+        base_path: PathBuf,
+        refresh_frequency: Duration,
+    ) -> Result<Self, FileBackedEnvelopeStoreError> {
+        let size = Self::estimate_folder_size(&base_path).await?;
+
+        let tracker = Self::new(base_path, refresh_frequency);
+        tracker.last_known_size.store(size, Ordering::Relaxed);
+        tracker.start_background_refresh();
+
+        Ok(tracker)
+    }
+
+    /// Returns the last known folder size.
+    fn size(&self) -> u64 {
+        self.last_known_size.load(Ordering::Relaxed)
+    }
+
+    /// Starts a background tokio task to update the folder usage.
+    fn start_background_refresh(&self) {
+        let base_path = self.base_path.clone();
+        // We get a weak reference, to make sure that if `FolderSizeTracker` is dropped, the reference can't
+        // be upgraded, causing the loop in the tokio task to exit.
+        let last_known_size_weak = Arc::downgrade(&self.last_known_size);
+        let refresh_frequency = self.refresh_frequency;
+
+        tokio::spawn(async move {
+            loop {
+                // When our `Weak` reference can't be upgraded to an `Arc`, it means that the value
+                // is not referenced anymore by self, meaning that `FolderSizeTracker` was dropped.
+                let Some(last_known_size) = last_known_size_weak.upgrade() else {
+                    break;
+                };
+
+                match Self::estimate_folder_size(&base_path).await {
+                    Ok(size) => {
+                        let current = last_known_size.load(Ordering::Relaxed);
+                        if last_known_size
+                            .compare_exchange_weak(
+                                current,
+                                size,
+                                Ordering::Relaxed,
+                                Ordering::Relaxed,
+                            )
+                            .is_err()
+                        {
+                            relay_log::error!("failed to update the folder size asynchronously");
+                        }
+                    }
+                    Err(e) => {
+                        relay_log::error!("failed to estimate folder size: {}", e);
+                    }
+                }
+
+                sleep(refresh_frequency).await;
+            }
+        });
+    }
+
+    /// Estimates the total size of the folder containing all envelope files.
+    async fn estimate_folder_size(base_path: &Path) -> Result<u64, FileBackedEnvelopeStoreError> {
+        let mut total_size = 0;
+        let mut dir = read_dir(base_path).await?;
+
+        while let Some(entry) = dir.next_entry().await? {
+            let path = entry.path();
+            if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some(FILE_EXTENSION) {
+                if let Ok(metadata) = entry.metadata().await {
+                    total_size += metadata.len();
+                }
+            }
+        }
+
+        relay_statsd::metric!(gauge(RelayGauges::BufferDiskUsed) = total_size);
+
+        Ok(total_size)
     }
 }
 
