@@ -22,7 +22,7 @@ pub enum ProjectState {
     Disabled,
     /// A project to which one of the following conditions apply:
     /// - The project has not yet been fetched.
-    /// - The upstream returned "pending" for this project (see [`crate::services::project_upstream`]).
+    /// - The upstream returned "pending" for this project (see [`crate::services::projects::source::upstream`]).
     /// - The upstream returned an unparsable project so we have to try again.
     /// - The project has expired and must be treated as "has not been fetched".
     Pending,
@@ -95,7 +95,7 @@ pub struct ParsedProjectState {
     /// Project info.
     ///
     /// This contains no information when `disabled` is `true`, except for
-    /// public keys in static project configs (see [`crate::services::project_local`]).
+    /// public keys in static project configs (see [`crate::services::projects::source::local`]).
     #[serde(flatten)]
     pub info: ProjectInfo,
 }
@@ -109,7 +109,7 @@ pub struct LimitedParsedProjectState {
     /// Limited project info for external Relays.
     ///
     /// This contains no information when `disabled` is `true`, except for
-    /// public keys in static project configs (see [`crate::services::project_local`]).
+    /// public keys in static project configs (see [`crate::services::projects::source::local`]).
     #[serde(with = "LimitedProjectInfo")]
     #[serde(flatten)]
     pub info: ProjectInfo,

@@ -5,8 +5,8 @@ use tokio::time::Instant;
 use relay_config::Config;
 use relay_dynamic_config::ProjectConfig;
 
-use crate::services::project::state::info::ProjectInfo;
-use crate::services::project::ProjectState;
+use crate::services::projects::project::state::info::ProjectInfo;
+use crate::services::projects::project::ProjectState;
 
 /// Hides a cached project state and only exposes it if it has not expired.
 #[derive(Clone, Debug)]
@@ -65,7 +65,7 @@ impl ProjectFetchState {
 
     /// Create a config that immediately counts as expired.
     ///
-    /// This is what [`Project`](crate::services::project::Project) initializes itself with.
+    /// This is what [`Project`](crate::services::projects::project::Project) initializes itself with.
     pub fn expired() -> Self {
         Self {
             // Make sure the state immediately qualifies as expired:

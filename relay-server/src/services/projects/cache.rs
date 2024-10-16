@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
+use std::convert::Infallible;
 use std::error::Error;
 use std::sync::Arc;
 use std::time::Duration;
@@ -9,7 +10,7 @@ use crate::services::global_config;
 use crate::services::processor::{
     EncodeMetrics, EnvelopeProcessor, MetricData, ProcessEnvelope, ProcessingGroup, ProjectMetrics,
 };
-use crate::services::project::state::UpstreamProjectState;
+use crate::services::projects::project::state::UpstreamProjectState;
 use crate::Envelope;
 use chrono::{DateTime, Utc};
 use hashbrown::HashSet;
@@ -29,11 +30,13 @@ use tokio::time::Instant;
 
 use crate::services::metrics::{Aggregator, FlushBuckets};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::services::project::{Project, ProjectFetchState, ProjectSender, ProjectState};
-use crate::services::project_local::{LocalProjectSource, LocalProjectSourceService};
+use crate::services::projects::project::{Project, ProjectFetchState, ProjectSender, ProjectState};
+use crate::services::projects::source::local::{LocalProjectSource, LocalProjectSourceService};
 #[cfg(feature = "processing")]
-use crate::services::project_redis::RedisProjectSource;
-use crate::services::project_upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
+use crate::services::projects::source::redis::RedisProjectSource;
+use crate::services::projects::source::upstream::{
+    UpstreamProjectSource, UpstreamProjectSourceService,
+};
 use crate::services::spooler::{
     self, Buffer, BufferService, DequeueMany, Enqueue, QueueKey, RemoveMany, RestoreIndex,
     UnspooledEnvelope, BATCH_KEY_COUNT,
@@ -491,12 +494,11 @@ impl ProjectSource {
         project_key: ProjectKey,
         no_cache: bool,
         cached_state: ProjectFetchState,
-    ) -> Result<ProjectFetchState, ()> {
+    ) -> Result<ProjectFetchState, ProjectSourceError> {
         let state_opt = self
             .local_source
             .send(FetchOptionalProjectState { project_key })
-            .await
-            .map_err(|_| ())?;
+            .await?;
 
         if let Some(state) = state_opt {
             return Ok(ProjectFetchState::new(state));
@@ -514,12 +516,11 @@ impl ProjectSource {
         if let Some(redis_source) = self.redis_source {
             let current_revision = current_revision.clone();
 
-            let redis_permit = self.redis_semaphore.acquire().await.map_err(|_| ())?;
+            let redis_permit = self.redis_semaphore.acquire().await?;
             let state_fetch_result = tokio::task::spawn_blocking(move || {
                 redis_source.get_config_if_changed(project_key, current_revision.as_deref())
             })
-            .await
-            .map_err(|_| ())?;
+            .await?;
             drop(redis_permit);
 
             match state_fetch_result {
@@ -551,13 +552,28 @@ impl ProjectSource {
                 current_revision,
                 no_cache,
             })
-            .await
-            .map_err(|_| ())?;
+            .await?;
 
         match state {
             UpstreamProjectState::New(state) => Ok(ProjectFetchState::new(state.sanitized())),
             UpstreamProjectState::NotModified => Ok(ProjectFetchState::refresh(cached_state)),
         }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+enum ProjectSourceError {
+    #[error("redis permit error {0}")]
+    RedisPermit(#[from] tokio::sync::AcquireError),
+    #[error("redis join error {0}")]
+    RedisJoin(#[from] tokio::task::JoinError),
+    #[error("upstream error {0}")]
+    Upstream(#[from] relay_system::SendError),
+}
+
+impl From<Infallible> for ProjectSourceError {
+    fn from(value: Infallible) -> Self {
+        match value {}
     }
 }
 
@@ -669,7 +685,7 @@ impl ProjectCacheBroker {
     /// Ideally, we would use `check_expiry` to determine expiry here.
     /// However, for eviction, we want to add an additional delay, such that we do not delete
     /// a project that has expired recently and for which a fetch is already underway in
-    /// [`super::project_upstream`].
+    /// [`super::source::upstream`].
     fn evict_stale_project_caches(&mut self) {
         let eviction_start = Instant::now();
         let delta = 2 * self.config.project_cache_expiry() + self.config.project_grace_period();
@@ -775,7 +791,16 @@ impl ProjectCacheBroker {
             let state = source
                 .fetch(project_key, no_cache, cached_state)
                 .await
-                .unwrap_or_else(|()| ProjectFetchState::disabled());
+                .unwrap_or_else(|e| {
+                    relay_log::error!(
+                        error = &e as &dyn Error,
+                        tags.project_key = %project_key,
+                        "Failed to fetch project from source"
+                    );
+                    // TODO: change this to ProjectFetchState::pending() once we consider it safe to do so.
+                    // see https://github.com/getsentry/relay/pull/4140.
+                    ProjectFetchState::disabled()
+                });
 
             let message = UpdateProjectState {
                 project_key,

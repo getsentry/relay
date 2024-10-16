@@ -13,7 +13,7 @@ use crate::service::ServiceState;
 use crate::services::buffer::EnvelopeBuffer;
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{MetricData, ProcessMetricMeta, ProcessingGroup};
-use crate::services::project_cache::{CheckEnvelope, ProcessMetrics, ValidateEnvelope};
+use crate::services::projects::cache::{CheckEnvelope, ProcessMetrics, ValidateEnvelope};
 use crate::statsd::{RelayCounters, RelayHistograms};
 use crate::utils::{self, ApiErrorResponse, FormDataIter, ManagedEnvelope};
 

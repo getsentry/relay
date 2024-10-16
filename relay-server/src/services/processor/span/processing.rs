@@ -768,7 +768,7 @@ mod tests {
 
     use crate::envelope::Envelope;
     use crate::services::processor::{ProcessingExtractedMetrics, ProcessingGroup};
-    use crate::services::project::ProjectInfo;
+    use crate::services::projects::project::ProjectInfo;
     use crate::utils::ManagedEnvelope;
 
     use super::*;
