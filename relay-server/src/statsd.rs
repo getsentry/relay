@@ -540,6 +540,13 @@ pub enum RelayTimers {
     BufferDrain,
     /// Timing in milliseconds for the time it takes for the envelopes to be serialized.
     BufferEnvelopesSerialization,
+    /// Timing in milliseconds for the time it takes for the envelope to be serialized.
+    BufferEnvelopeSerialization,
+    /// Timing in milliseconds for the time it takes to write an envelope to a file.
+    BufferEnvelopeFileWriting,
+    /// Timing in milliseconds for the time it takes for the total count of envelopes to be read
+    /// from a file.
+    BufferTotalCountReading,
 }
 
 impl TimerMetric for RelayTimers {

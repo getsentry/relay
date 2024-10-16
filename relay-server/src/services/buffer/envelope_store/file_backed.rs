@@ -2,6 +2,7 @@ use crate::services::buffer::common::ProjectKeyPair;
 use crate::services::buffer::envelope_stack::file_backed::get_total_count;
 use crate::statsd::RelayGauges;
 use hashbrown::HashMap;
+use priority_queue::PriorityQueue;
 use relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
 use relay_config::Config;
 use std::path::{Path, PathBuf};
@@ -156,14 +157,57 @@ impl FileBackedEnvelopeStore {
 #[derive(Debug)]
 struct EnvelopesFilesCache {
     max_opened_files: usize,
-    cache: HashMap<ProjectKeyPair, CacheEntry>,
+    cache: PriorityQueue<CacheEntry, CachePriority>,
 }
 
 /// A cache entry for a file containing envelopes.
 #[derive(Debug)]
 struct CacheEntry {
+    project_key_pair: ProjectKeyPair,
     file: File,
-    last_access: Instant,
+}
+
+impl std::borrow::Borrow<ProjectKeyPair> for CacheEntry {
+    fn borrow(&self) -> &ProjectKeyPair {
+        &self.project_key_pair
+    }
+}
+
+impl PartialEq for CacheEntry {
+    fn eq(&self, other: &Self) -> bool {
+        self.project_key_pair == other.project_key_pair
+    }
+}
+
+impl Eq for CacheEntry {}
+
+impl std::hash::Hash for CacheEntry {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.project_key_pair.hash(state);
+    }
+}
+
+/// The priority of the cache entry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct CachePriority(Instant);
+
+impl CachePriority {
+    fn new() -> Self {
+        Self(Instant::now())
+    }
+}
+
+impl Ord for CachePriority {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        // We want the oldest instants first.
+        other.0.cmp(&self.0)
+    }
+}
+
+impl PartialOrd for CachePriority {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 impl EnvelopesFilesCache {
@@ -171,7 +215,7 @@ impl EnvelopesFilesCache {
     fn new(max_opened_files: usize) -> Self {
         EnvelopesFilesCache {
             max_opened_files,
-            cache: HashMap::new(),
+            cache: PriorityQueue::new(),
         }
     }
 
@@ -181,20 +225,17 @@ impl EnvelopesFilesCache {
         project_key_pair: ProjectKeyPair,
         base_path: &Path,
     ) -> Result<&mut File, FileBackedEnvelopeStoreError> {
-        // self.cache.entry?
-        if !self.cache.contains_key(&project_key_pair) {
+        if self.cache.get_mut(&project_key_pair).is_none() {
             let file = Self::open_file(base_path.to_path_buf(), &project_key_pair).await?;
             self.insert(project_key_pair, file);
         }
 
-        let cache_entry = self
-            .cache
-            .get_mut(&project_key_pair)
-            .expect("file to be in the cache");
+        // We update the priority of the entry with the current timestamp.
+        self.cache
+            .change_priority(&project_key_pair, CachePriority::new());
 
-        cache_entry.last_access = Instant::now();
-
-        Ok(&mut cache_entry.file)
+        let (entry, _) = self.cache.get_mut(&project_key_pair).unwrap();
+        Ok(&mut entry.file)
     }
 
     /// Removes the file from the cache and disk.
@@ -237,30 +278,24 @@ impl EnvelopesFilesCache {
     }
 
     /// Inserts a new file into the cache, evicting the least recently used entry if necessary.
-    fn insert(&mut self, key_pair: ProjectKeyPair, file: File) {
+    fn insert(&mut self, project_key_pair: ProjectKeyPair, file: File) {
         if self.cache.len() >= self.max_opened_files {
             self.evict_lru();
         }
 
-        self.cache.insert(
-            key_pair,
+        self.cache.push(
             CacheEntry {
+                project_key_pair,
                 file,
-                last_access: Instant::now(),
             },
+            CachePriority(Instant::now()),
         );
     }
 
     /// Evicts the least recently used entry from the cache.
     fn evict_lru(&mut self) {
-        if let Some(lru_project_key_pair) = self
-            .cache
-            .iter()
-            .min_by_key(|(_, entry)| entry.last_access)
-            .map(|(&key, _)| key)
-        {
-            self.cache.remove(&lru_project_key_pair);
-        }
+        // The top element of the queue is the element with the smallest `last_access` timestamp.
+        self.cache.pop();
     }
 }
 
@@ -490,7 +525,7 @@ mod tests {
             own_key: ProjectKey::parse("c04ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             sampling_key: ProjectKey::parse("c04ae32be2584e0bbd7a4cbb95971fee").unwrap(),
         };
-        assert!(!store.files_cache.cache.contains_key(&first_key_pair));
+        assert!(store.files_cache.cache.get_mut(&first_key_pair).is_none());
     }
 
     #[tokio::test]
@@ -505,7 +540,7 @@ mod tests {
         store.get_file(project_key_pair).await.unwrap();
 
         // Verify the file exists
-        assert!(store.files_cache.cache.contains_key(&project_key_pair));
+        assert!(store.files_cache.cache.get_mut(&project_key_pair).is_some());
         let file_path = store.base_path.join(get_file_name(&project_key_pair));
         assert!(file_path.exists());
 
@@ -513,7 +548,7 @@ mod tests {
         store.remove_file(&project_key_pair).await.unwrap();
 
         // Verify the file no longer exists in cache or on disk
-        assert!(!store.files_cache.cache.contains_key(&project_key_pair));
+        assert!(!store.files_cache.cache.get_mut(&project_key_pair).is_some());
         assert!(!file_path.exists());
 
         // Removing a non-existent file should not error

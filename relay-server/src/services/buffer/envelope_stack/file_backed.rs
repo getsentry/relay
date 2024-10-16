@@ -4,6 +4,7 @@ use crate::services::buffer::envelope_stack::EnvelopeStack;
 use crate::services::buffer::envelope_store::file_backed::{
     FileBackedEnvelopeStore, FileBackedEnvelopeStoreError,
 };
+use crate::statsd::{RelayCounters, RelayTimers};
 use std::error::Error;
 use std::io;
 use std::io::SeekFrom;
@@ -86,7 +87,14 @@ impl EnvelopeStack for FileBackedEnvelopeStack {
     async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), Self::Error> {
         let mut envelope_store = self.envelope_store.lock().await;
         let file = envelope_store.get_file(self.project_key_pair).await?;
-        append_envelope(file, &envelope).await
+
+        relay_statsd::metric!(timer(RelayTimers::BufferSpool), {
+            append_envelope(file, &envelope).await?;
+        });
+
+        relay_statsd::metric!(counter(RelayCounters::BufferSpooledEnvelopes) += 1);
+
+        Ok(())
     }
 
     async fn peek(&mut self) -> Result<Option<&Envelope>, Self::Error> {
@@ -98,12 +106,19 @@ impl EnvelopeStack for FileBackedEnvelopeStack {
     async fn pop(&mut self) -> Result<Option<Box<Envelope>>, Self::Error> {
         let mut envelope_store = self.envelope_store.lock().await;
         let file = envelope_store.get_file(self.project_key_pair).await?;
-        let envelope = pop_envelope(file).await?;
 
-        // TODO: move cleanup to LRU cache so we can keep the file alive?
+        let envelope = relay_statsd::metric!(timer(RelayTimers::BufferUnspool), {
+            pop_envelope(file).await
+        })?;
+
         if envelope.is_none() {
+            // TODO: we might want to investigate in the future if it's better to let the envelope
+            //  store deal with file deletion.
             envelope_store.remove_file(&self.project_key_pair).await?;
+        } else {
+            relay_statsd::metric!(counter(RelayCounters::BufferUnspooledEnvelopes) += 1);
         }
+
         Ok(envelope)
     }
 
@@ -154,18 +169,20 @@ async fn assert_version(file: &mut File) -> Result<(), FileBackedEnvelopeStackEr
 /// If the file is empty or doesn't contain a total count field, it returns 0.
 /// If the version doesn't match the current version, it throws an error.
 pub async fn get_total_count(file: &mut File) -> Result<u32, FileBackedEnvelopeStackError> {
-    let success = seek_truncate(file, FILE_HEADER_SIZE_BYTES).await?;
-    if !success {
-        return Ok(0);
-    }
+    relay_statsd::metric!(timer(RelayTimers::BufferTotalCountReading), {
+        let success = seek_truncate(file, FILE_HEADER_SIZE_BYTES).await?;
+        if !success {
+            return Ok(0);
+        }
 
-    // We read the version and make sure it's correct.
-    assert_version(file).await?;
+        // We read the version and make sure it's correct.
+        assert_version(file).await?;
 
-    // We read the total count.
-    let total_count = file.read_u32_le().await?;
+        // We read the total count.
+        let total_count = file.read_u32_le().await?;
 
-    Ok(total_count)
+        Ok(total_count)
+    })
 }
 
 /// Helper method to truncate the file to a given size.
@@ -188,11 +205,6 @@ pub async fn truncate_file(file: &File, new_size: u64) -> Result<(), FileBackedE
 pub async fn pop_envelope(
     file: &mut File,
 ) -> Result<Option<Box<Envelope>>, FileBackedEnvelopeStackError> {
-    // TODO: metrics for read and deserialize times
-    // TODO: don't use vector
-    // TODO: make seek helper method read a generic number of bytes
-    // TODO: don't check metadata
-
     // Get the file size
     let file_size = file.metadata().await?.len();
 
@@ -270,27 +282,29 @@ pub async fn append_envelope(
     let total_count = get_total_count(file).await?;
 
     // Serialize the envelope.
-    // TODO: Measure serialization time.
-    let envelope_bytes = envelope.to_vec()?;
+    let envelope_bytes = relay_statsd::metric!(timer(RelayTimers::BufferEnvelopeSerialization), {
+        envelope.to_vec()?
+    });
     if envelope_bytes.is_empty() {
         return Ok(());
     }
 
-    // TODO: Measure write time.
-    // We position at the end of the file.
-    file.seek(SeekFrom::End(0)).await?;
+    relay_statsd::metric!(timer(RelayTimers::BufferEnvelopeFileWriting), {
+        // We position at the end of the file.
+        file.seek(SeekFrom::End(0)).await?;
 
-    // 1. Envelope payload
-    file.write_all(&envelope_bytes).await?;
-    // 2. Version number of the entry
-    file.write_u8(CURRENT_FILE_VERSION).await?;
-    // 3. Total count of envelope until this point
-    file.write_u32_le(total_count + 1).await?;
-    // 4. The size of the envelope in bytes
-    file.write_u64_le(envelope_bytes.len() as u64).await?;
+        // 1. Envelope payload
+        file.write_all(&envelope_bytes).await?;
+        // 2. Version number of the entry
+        file.write_u8(CURRENT_FILE_VERSION).await?;
+        // 3. Total count of envelope until this point
+        file.write_u32_le(total_count + 1).await?;
+        // 4. The size of the envelope in bytes
+        file.write_u64_le(envelope_bytes.len() as u64).await?;
 
-    // We flush to disk to make sure all data is flushed from the buffer.
-    file.flush().await?;
+        // We flush to disk to make sure all data is flushed from the buffer.
+        file.flush().await?;
+    });
 
     Ok(())
 }
@@ -420,7 +434,7 @@ mod tests {
         let file = store.get_file(stack.project_key_pair).await.unwrap();
 
         let mut version_buf = [0u8; VERSION_FIELD_BYTES as usize];
-        file.seek(SeekFrom::End(-(VERSION_FIELD_BYTES as i64)))
+        file.seek(SeekFrom::End(-(FILE_HEADER_SIZE_BYTES as i64)))
             .await
             .unwrap();
         file.read_exact(&mut version_buf).await.unwrap();
@@ -503,7 +517,7 @@ mod tests {
             let mut store = envelope_store.lock().await;
             let file = store.get_file(stack.project_key_pair).await.unwrap();
             file.set_len(0).await.unwrap(); // Clear the file
-            file.write_all(b"malformed data").await.unwrap();
+            file.write_all(b"abc").await.unwrap();
             file.flush().await.unwrap();
         }
 
