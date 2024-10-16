@@ -75,7 +75,7 @@ impl PolymorphicEnvelopeBuffer {
             }
             (EnvelopeBufferStrategy::FileBacked, Some(_)) => {
                 relay_log::trace!(
-                    "PolymorphicEnvelopeBuffer: initializing file backed envelope buffer"
+                    "PolymorphicEnvelopeBuffer: initializing file-backed envelope buffer"
                 );
                 let buffer = EnvelopeBuffer::<FileBackedStackProvider>::new(config).await?;
                 Self::FileBacked(buffer)
