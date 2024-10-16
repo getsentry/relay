@@ -482,6 +482,20 @@
 <a href="#482" id="482">482</a>
 <a href="#483" id="483">483</a>
 <a href="#484" id="484">484</a>
+<a href="#485" id="485">485</a>
+<a href="#486" id="486">486</a>
+<a href="#487" id="487">487</a>
+<a href="#488" id="488">488</a>
+<a href="#489" id="489">489</a>
+<a href="#490" id="490">490</a>
+<a href="#491" id="491">491</a>
+<a href="#492" id="492">492</a>
+<a href="#493" id="493">493</a>
+<a href="#494" id="494">494</a>
+<a href="#495" id="495">495</a>
+<a href="#496" id="496">496</a>
+<a href="#497" id="497">497</a>
+<a href="#498" id="498">498</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::VecDeque;
 <span class="kw">use </span>std::fmt::Debug;
 <span class="kw">use </span>std::num::NonZeroUsize;
@@ -680,6 +694,20 @@
         <span class="prelude-val">Ok</span>(())
     }
 
+    <span class="kw">async fn </span>peek(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Envelope&gt;, <span class="self">Self</span>::Error&gt; {
+        <span class="kw">if </span><span class="self">self</span>.below_unspool_threshold() &amp;&amp; <span class="self">self</span>.check_disk {
+            <span class="self">self</span>.unspool_from_disk().<span class="kw">await</span><span class="question-mark">?
+        </span>}
+
+        <span class="kw">let </span>last = <span class="self">self
+            </span>.batches_buffer
+            .back()
+            .and_then(|last_batch| last_batch.last())
+            .map(|last_batch| last_batch.as_ref());
+
+        <span class="prelude-val">Ok</span>(last)
+    }
+
     <span class="kw">async fn </span>pop(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;Box&lt;Envelope&gt;&gt;, <span class="self">Self</span>::Error&gt; {
         <span class="kw">if </span><span class="self">self</span>.below_unspool_threshold() &amp;&amp; <span class="self">self</span>.check_disk {
             <span class="macro">relay_log::trace!</span>(<span class="string">"Unspool from disk"</span>);
@@ -851,15 +879,15 @@
         }
         <span class="macro">assert_eq!</span>(stack.batches_buffer_size, <span class="number">5</span>);
 
-        <span class="comment">// We pop the top element.
-        </span><span class="kw">let </span>envelope = stack.pop().<span class="kw">await</span>.unwrap().unwrap();
+        <span class="comment">// We peek the top element.
+        </span><span class="kw">let </span>peeked_envelope = stack.peek().<span class="kw">await</span>.unwrap().unwrap();
         <span class="macro">assert_eq!</span>(
-            envelope.event_id().unwrap(),
+            peeked_envelope.event_id().unwrap(),
             envelopes.clone()[<span class="number">4</span>].event_id().unwrap()
         );
 
-        <span class="comment">// We pop 4 envelopes.
-        </span><span class="kw">for </span>envelope <span class="kw">in </span>envelopes.clone()[<span class="number">0</span>..<span class="number">4</span>].iter().rev() {
+        <span class="comment">// We pop 5 envelopes.
+        </span><span class="kw">for </span>envelope <span class="kw">in </span>envelopes.iter().rev() {
             <span class="kw">let </span>popped_envelope = stack.pop().<span class="kw">await</span>.unwrap().unwrap();
             <span class="macro">assert_eq!</span>(
                 popped_envelope.event_id().unwrap(),
@@ -890,15 +918,15 @@
         <span class="macro">assert_eq!</span>(stack.batches_buffer_size, <span class="number">10</span>);
 
         <span class="comment">// We peek the top element.
-        </span><span class="kw">let </span>popped_envelope = stack.pop().<span class="kw">await</span>.unwrap().unwrap();
+        </span><span class="kw">let </span>peeked_envelope = stack.peek().<span class="kw">await</span>.unwrap().unwrap();
         <span class="macro">assert_eq!</span>(
-            popped_envelope.event_id().unwrap(),
+            peeked_envelope.event_id().unwrap(),
             envelopes.clone()[<span class="number">14</span>].event_id().unwrap()
         );
 
-        <span class="comment">// We pop 9 envelopes, and we expect that the last 10 are in memory, since the first 5
+        <span class="comment">// We pop 10 envelopes, and we expect that the last 10 are in memory, since the first 5
         // should have been spooled to disk.
-        </span><span class="kw">for </span>envelope <span class="kw">in </span>envelopes[<span class="number">5</span>..<span class="number">14</span>].iter().rev() {
+        </span><span class="kw">for </span>envelope <span class="kw">in </span>envelopes[<span class="number">5</span>..<span class="number">15</span>].iter().rev() {
             <span class="kw">let </span>popped_envelope = stack.pop().<span class="kw">await</span>.unwrap().unwrap();
             <span class="macro">assert_eq!</span>(
                 popped_envelope.event_id().unwrap(),
@@ -908,13 +936,13 @@
         <span class="macro">assert_eq!</span>(stack.batches_buffer_size, <span class="number">0</span>);
 
         <span class="comment">// We peek the top element, which since the buffer is empty should result in a disk load.
-        </span><span class="kw">let </span>popped_envelope = stack.pop().<span class="kw">await</span>.unwrap().unwrap();
+        </span><span class="kw">let </span>peeked_envelope = stack.peek().<span class="kw">await</span>.unwrap().unwrap();
         <span class="macro">assert_eq!</span>(
-            popped_envelope.event_id().unwrap(),
+            peeked_envelope.event_id().unwrap(),
             envelopes.clone()[<span class="number">4</span>].event_id().unwrap()
         );
 
-        <span class="comment">// We insert a new envelope, to test the load from disk happening during `pop()` gives
+        <span class="comment">// We insert a new envelope, to test the load from disk happening during `peek()` gives
         // priority to this envelope in the stack.
         </span><span class="kw">let </span>envelope = mock_envelope(Instant::now());
         <span class="macro">assert!</span>(stack.push(envelope.clone()).<span class="kw">await</span>.is_ok());
@@ -926,9 +954,9 @@
             envelope.event_id().unwrap()
         );
 
-        <span class="comment">// We pop 4 envelopes, which should not result in a disk load since `pop()` already should
+        <span class="comment">// We pop 5 envelopes, which should not result in a disk load since `peek()` already should
         // have caused it.
-        </span><span class="kw">for </span>envelope <span class="kw">in </span>envelopes[<span class="number">0</span>..<span class="number">4</span>].iter().rev() {
+        </span><span class="kw">for </span>envelope <span class="kw">in </span>envelopes[<span class="number">0</span>..<span class="number">5</span>].iter().rev() {
             <span class="kw">let </span>popped_envelope = stack.pop().<span class="kw">await</span>.unwrap().unwrap();
             <span class="macro">assert_eq!</span>(
                 popped_envelope.event_id().unwrap(),
