@@ -31,6 +31,7 @@
 - Allowlist the SentryUptimeBot user-agent. ([#4068](https://github.com/getsentry/relay/pull/4068))
 - Feature flags of graduated features are now hard-coded in Relay so they can be removed from Sentry. ([#4076](https://github.com/getsentry/relay/pull/4076), [#4080](https://github.com/getsentry/relay/pull/4080))
 - Add parallelization in Redis commands. ([#4118](https://github.com/getsentry/relay/pull/4118))
+- Extract user ip for spans. ([#4144](https://github.com/getsentry/relay/pull/4144))
 
 ## 24.9.0
 
