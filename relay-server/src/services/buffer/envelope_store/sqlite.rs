@@ -526,7 +526,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_insert_and_delete_envelopes() {
-        let db = setup_db(true).await;
+        let (db, _temp_file) = setup_db(true).await;
         let mut envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
 
         let own_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
@@ -563,7 +563,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_insert_and_get_project_keys_pairs() {
-        let db = setup_db(true).await;
+        let (db, _temp_file) = setup_db(true).await;
         let mut envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
 
         let own_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
@@ -588,7 +588,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_estimate_disk_usage() {
-        let db = setup_db(true).await;
+        let (db, _temp_file) = setup_db(true).await;
         let mut store = SqliteEnvelopeStore::new(db.clone(), Duration::from_millis(1));
         let disk_usage = DiskUsage::prepare(db, Duration::from_millis(1))
             .await
@@ -615,7 +615,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_total_count() {
-        let db = setup_db(true).await;
+        let (db, _temp_file) = setup_db(true).await;
         let mut store = SqliteEnvelopeStore::new(db.clone(), Duration::from_millis(1));
 
         let envelopes = mock_envelopes(10);

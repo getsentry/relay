@@ -658,6 +658,7 @@ mod tests {
     use relay_sampling::DynamicSamplingContext;
     use std::str::FromStr;
     use std::sync::Arc;
+    use tempfile::TempDir;
     use uuid::Uuid;
 
     use crate::envelope::{Item, ItemType};
@@ -1039,11 +1040,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_initialize_buffer() {
-        let path = std::env::temp_dir()
-            .join(Uuid::new_v4().to_string())
-            .into_os_string()
-            .into_string()
-            .unwrap();
+        let temp_dir = TempDir::new().unwrap();
+        let path = temp_dir.path().to_str().unwrap().to_string();
         let config = mock_config(&path);
         let mut store = SqliteEnvelopeStore::prepare(&config).await.unwrap();
         let mut buffer = EnvelopeBuffer::<SqliteStackProvider>::new(&config)

@@ -250,7 +250,7 @@ mod tests {
     #[tokio::test]
     #[should_panic]
     async fn test_push_with_mismatching_project_keys() {
-        let db = setup_db(false).await;
+        let (db, _temp_file) = setup_db(false).await;
         let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store,
@@ -267,7 +267,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_push_when_db_is_not_valid() {
-        let db = setup_db(false).await;
+        let (db, _temp_file) = setup_db(false).await;
         let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store,
@@ -320,7 +320,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_pop_when_db_is_not_valid() {
-        let db = setup_db(false).await;
+        let (db, _temp_file) = setup_db(false).await;
         let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store,
@@ -340,7 +340,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_pop_when_stack_is_empty() {
-        let db = setup_db(true).await;
+        let (db, _temp_file) = setup_db(true).await;
         let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store,
@@ -358,7 +358,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_push_below_threshold_and_pop() {
-        let db = setup_db(true).await;
+        let (db, _temp_file) = setup_db(true).await;
         let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store,
@@ -396,7 +396,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_push_above_threshold_and_pop() {
-        let db = setup_db(true).await;
+        let (db, _temp_file) = setup_db(true).await;
         let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store,
@@ -466,7 +466,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_drain() {
-        let db = setup_db(true).await;
+        let (db, _temp_file) = setup_db(true).await;
         let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store.clone(),

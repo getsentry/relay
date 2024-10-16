@@ -403,7 +403,7 @@ mod tests {
     #[cfg(unix)]
     use std::os::unix::fs::MetadataExt;
     use std::sync::Arc;
-    use uuid::Uuid;
+    use tempfile::TempDir;
 
     fn mock_config(path: &str, max_opened_files: usize) -> Arc<Config> {
         Config::from_json_value(serde_json::json!({
@@ -418,20 +418,19 @@ mod tests {
         .into()
     }
 
-    async fn setup_envelope_store(max_opened_files: usize) -> FileBackedEnvelopeStore {
-        let path = std::env::temp_dir()
-            .join(Uuid::new_v4().to_string())
-            .into_os_string()
-            .into_string()
-            .unwrap();
+    async fn setup_envelope_store(max_opened_files: usize) -> (FileBackedEnvelopeStore, TempDir) {
+        let temp_dir = TempDir::new().unwrap();
+        let path = temp_dir.path().to_str().unwrap().to_string();
         let config = mock_config(&path, max_opened_files);
-        FileBackedEnvelopeStore::new(&config).await.unwrap()
+        let store = FileBackedEnvelopeStore::new(&config).await.unwrap();
+        // We return the tmp directory since we want to drop it only after the test finishes.
+        (store, temp_dir)
     }
 
     #[tokio::test]
     #[cfg(unix)]
     async fn test_create_evict_load() {
-        let mut store = setup_envelope_store(5).await;
+        let (mut store, _temp_dir) = setup_envelope_store(5).await;
         let project_key_pair = ProjectKeyPair {
             own_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             sampling_key: ProjectKey::parse("b94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -465,7 +464,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_project_key_pairs() {
-        let mut store = setup_envelope_store(5).await;
+        let (mut store, _temp_dir) = setup_envelope_store(5).await;
         let project_key_pair1 = ProjectKeyPair {
             own_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             sampling_key: ProjectKey::parse("b94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -504,7 +503,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cache_eviction() {
-        let mut store = setup_envelope_store(5).await;
+        let (mut store, _temp_dir) = setup_envelope_store(5).await;
 
         // Create 6 files (max_size is 5)
         for i in 0..6 {
@@ -530,7 +529,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_remove_file() {
-        let mut store = setup_envelope_store(5).await;
+        let (mut store, _temp_dir) = setup_envelope_store(5).await;
         let project_key_pair = ProjectKeyPair {
             own_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             sampling_key: ProjectKey::parse("b94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -557,7 +556,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_folder_size_tracker() {
-        let mut store = setup_envelope_store(5).await;
+        let (mut store, _temp_dir) = setup_envelope_store(5).await;
 
         // Create some files
         for i in 0..3 {

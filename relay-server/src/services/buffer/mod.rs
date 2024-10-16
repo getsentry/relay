@@ -469,12 +469,11 @@ impl Service for EnvelopeBufferService {
 
 #[cfg(test)]
 mod tests {
-    use std::time::{Duration, Instant};
-
     use relay_dynamic_config::GlobalConfig;
     use relay_quotas::DataCategory;
+    use std::time::{Duration, Instant};
+    use tempfile::TempDir;
     use tokio::sync::mpsc;
-    use uuid::Uuid;
 
     use crate::testutils::new_envelope;
     use crate::MemoryStat;
@@ -593,6 +592,8 @@ mod tests {
     async fn pop_requires_memory_capacity() {
         tokio::time::pause();
 
+        let temp_dir = TempDir::new().unwrap();
+        let path = temp_dir.path().to_str().unwrap().to_string();
         let EnvelopeBufferServiceResult {
             service,
             envelopes_rx,
@@ -605,7 +606,7 @@ mod tests {
                     "envelopes": {
                         "version": "experimental",
                         "buffer_strategy": "file_backed",
-                        "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
+                        "path": path,
                     }
                 },
                 "health": {

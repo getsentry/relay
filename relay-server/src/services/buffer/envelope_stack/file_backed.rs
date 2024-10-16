@@ -318,7 +318,7 @@ mod tests {
     use relay_base_schema::project::ProjectKey;
     use relay_config::Config;
     use std::sync::Arc;
-    use uuid::Uuid;
+    use tempfile::TempDir;
 
     fn mock_config(path: &str, max_opened_files: usize) -> Arc<Config> {
         Config::from_json_value(serde_json::json!({
@@ -333,21 +333,21 @@ mod tests {
         .into()
     }
 
-    async fn setup_envelope_store(max_opened_files: usize) -> Arc<Mutex<FileBackedEnvelopeStore>> {
-        let path = std::env::temp_dir()
-            .join(Uuid::new_v4().to_string())
-            .into_os_string()
-            .into_string()
-            .unwrap();
+    async fn setup_envelope_store(
+        max_opened_files: usize,
+    ) -> (Arc<Mutex<FileBackedEnvelopeStore>>, TempDir) {
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        let path = temp_dir.path().to_str().unwrap().to_string();
         let config = mock_config(&path, max_opened_files);
-        Arc::new(Mutex::new(
+        let store = Arc::new(Mutex::new(
             FileBackedEnvelopeStore::new(&config).await.unwrap(),
-        ))
+        ));
+        (store, temp_dir)
     }
 
     #[tokio::test]
     async fn test_push_and_pop() {
-        let envelope_store = setup_envelope_store(10).await;
+        let (envelope_store, _temp_dir) = setup_envelope_store(10).await;
         let project_key_pair = ProjectKeyPair {
             own_key: ProjectKey::parse("c04ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             sampling_key: ProjectKey::parse("c04ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -381,7 +381,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_total_count_increment() {
-        let envelope_store = setup_envelope_store(10).await;
+        let (envelope_store, _temp_dir) = setup_envelope_store(10).await;
         let project_key_pair = ProjectKeyPair {
             own_key: ProjectKey::parse("c04ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             sampling_key: ProjectKey::parse("c04ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -417,7 +417,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_version_field() {
-        let envelope_store = setup_envelope_store(10).await;
+        let (envelope_store, _temp_dir) = setup_envelope_store(10).await;
         let project_key_pair = ProjectKeyPair {
             own_key: ProjectKey::parse("c04ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             sampling_key: ProjectKey::parse("c04ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -447,7 +447,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_file_structure() {
-        let envelope_store = setup_envelope_store(10).await;
+        let (envelope_store, _temp_dir) = setup_envelope_store(10).await;
         let project_key_pair = ProjectKeyPair {
             own_key: ProjectKey::parse("c04ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             sampling_key: ProjectKey::parse("c04ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -505,7 +505,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_malformed_data() {
-        let envelope_store = setup_envelope_store(10).await;
+        let (envelope_store, _temp_dir) = setup_envelope_store(10).await;
         let project_key_pair = ProjectKeyPair {
             own_key: ProjectKey::parse("c04ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             sampling_key: ProjectKey::parse("c04ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -537,7 +537,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_incomplete_envelope() {
-        let envelope_store = setup_envelope_store(10).await;
+        let (envelope_store, _temp_dir) = setup_envelope_store(10).await;
         let project_key_pair = ProjectKeyPair {
             own_key: ProjectKey::parse("c04ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             sampling_key: ProjectKey::parse("c04ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -566,7 +566,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_empty_file_removal() {
-        let envelope_store = setup_envelope_store(10).await;
+        let (envelope_store, _temp_dir) = setup_envelope_store(10).await;
         let project_key_pair = ProjectKeyPair {
             own_key: ProjectKey::parse("c04ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             sampling_key: ProjectKey::parse("c04ae32be2584e0bbd7a4cbb95971fee").unwrap(),

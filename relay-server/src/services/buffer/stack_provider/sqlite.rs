@@ -155,11 +155,10 @@ impl StackProvider for SqliteStackProvider {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
     use relay_base_schema::project::ProjectKey;
     use relay_config::Config;
-    use uuid::Uuid;
+    use std::sync::Arc;
+    use tempfile::TempDir;
 
     use crate::services::buffer::common::ProjectKeyPair;
     use crate::services::buffer::stack_provider::sqlite::SqliteStackProvider;
@@ -167,14 +166,16 @@ mod tests {
     use crate::services::buffer::testutils::utils::mock_envelopes;
     use crate::EnvelopeStack;
 
-    fn mock_config() -> Arc<Config> {
-        let path = std::env::temp_dir()
-            .join(Uuid::new_v4().to_string())
-            .into_os_string()
-            .into_string()
-            .unwrap();
+    fn mock_config() -> (Arc<Config>, TempDir) {
+        let temp_dir = TempDir::new().unwrap();
+        let path = temp_dir
+            .path()
+            .join("buffer.db")
+            .to_str()
+            .unwrap()
+            .to_string();
 
-        Config::from_json_value(serde_json::json!({
+        let config = Config::from_json_value(serde_json::json!({
             "spool": {
                 "envelopes": {
                     "path": path,
@@ -184,12 +185,14 @@ mod tests {
             }
         }))
         .unwrap()
-        .into()
+        .into();
+
+        (config, temp_dir)
     }
 
     #[tokio::test]
     async fn test_flush() {
-        let config = mock_config();
+        let (config, _temp_dir) = mock_config();
         let mut stack_provider = SqliteStackProvider::new(&config).await.unwrap();
 
         let own_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
