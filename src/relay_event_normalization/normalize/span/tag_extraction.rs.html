@@ -2842,6 +2842,13 @@
 <a href="#2842" id="2842">2842</a>
 <a href="#2843" id="2843">2843</a>
 <a href="#2844" id="2844">2844</a>
+<a href="#2845" id="2845">2845</a>
+<a href="#2846" id="2846">2846</a>
+<a href="#2847" id="2847">2847</a>
+<a href="#2848" id="2848">2848</a>
+<a href="#2849" id="2849">2849</a>
+<a href="#2850" id="2850">2850</a>
+<a href="#2851" id="2851">2851</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Logic for persisting items into `span.sentry_tags` and `span.measurements` fields.
 //! These are then used for metrics extraction.
 </span><span class="kw">use </span>std::borrow::Cow;
@@ -2879,6 +2886,7 @@
     </span>Release,
     User,
     UserID,
+    UserIP,
     UserUsername,
     UserEmail,
     Environment,
@@ -2944,6 +2952,7 @@
             SpanTagKey::Release =&gt; <span class="string">"release"</span>,
             SpanTagKey::User =&gt; <span class="string">"user"</span>,
             SpanTagKey::UserID =&gt; <span class="string">"user.id"</span>,
+            SpanTagKey::UserIP =&gt; <span class="string">"user.ip"</span>,
             SpanTagKey::UserUsername =&gt; <span class="string">"user.username"</span>,
             SpanTagKey::UserEmail =&gt; <span class="string">"user.email"</span>,
             SpanTagKey::UserCountryCode =&gt; <span class="string">"user.geo.country_code"</span>,
@@ -3143,6 +3152,9 @@
         }
         <span class="kw">if let </span><span class="prelude-val">Some</span>(user_id) = user.id.value() {
             tags.insert(SpanTagKey::UserID, user_id.as_str().to_owned());
+        }
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(user_ip) = user.ip_address.value() {
+            tags.insert(SpanTagKey::UserIP, user_ip.as_str().to_owned());
         }
         <span class="kw">if let </span><span class="prelude-val">Some</span>(user_username) = user.username.value() {
             tags.insert(SpanTagKey::UserUsername, user_username.as_str().to_owned());
@@ -5491,6 +5503,7 @@ LIMIT 1
                 },
                 "user": {
                     "id": "1",
+                    "ip_address": "127.0.0.1",
                     "email": "admin@sentry.io",
                     "username": "admin",
                     "geo": {
@@ -5524,6 +5537,7 @@ LIMIT 1
 
         <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.sentry_tags[<span class="string">"user"</span>]!), <span class="string">"id:1"</span>);
         <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.sentry_tags[<span class="string">"user.id"</span>]!), <span class="string">"1"</span>);
+        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.sentry_tags[<span class="string">"user.ip"</span>]!), <span class="string">"127.0.0.1"</span>);
         <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.sentry_tags[<span class="string">"user.username"</span>]!), <span class="string">"admin"</span>);
         <span class="macro">assert_eq!</span>(
             <span class="macro">get_value!</span>(span.sentry_tags[<span class="string">"user.email"</span>]!),
