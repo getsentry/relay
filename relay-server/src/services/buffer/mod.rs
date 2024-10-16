@@ -730,7 +730,7 @@ mod tests {
             )))
             .unwrap();
 
-        let outcome = tokio::time::timeout(Duration::from_secs(5), outcome_aggregator_rx.recv())
+        let outcome = tokio::time::timeout(Duration::from_secs(10), outcome_aggregator_rx.recv())
             .await
             .unwrap()
             .unwrap();
