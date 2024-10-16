@@ -16,7 +16,6 @@ use url::Url;
 use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
 use crate::services::outcome::DiscardReason;
-use crate::services::projects::project::PublicKeyConfig;
 
 /// Information about an enabled project.
 ///
@@ -247,4 +246,16 @@ impl ProjectInfo {
     pub fn has_feature(&self, feature: Feature) -> bool {
         self.config.features.has(feature)
     }
+}
+
+/// Represents a public key received from the projectconfig endpoint.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PublicKeyConfig {
+    /// Public part of key (random hash).
+    pub public_key: ProjectKey,
+
+    /// The primary key of the DSN in Sentry's main database.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub numeric_id: Option<u64>,
 }

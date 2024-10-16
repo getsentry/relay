@@ -1,5 +1,4 @@
 use std::convert::Infallible;
-use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -13,6 +12,7 @@ use crate::services::outcome::{OutcomeProducer, OutcomeProducerService, TrackOut
 use crate::services::outcome_aggregator::OutcomeAggregator;
 use crate::services::processor::{self, EnvelopeProcessor, EnvelopeProcessorService};
 use crate::services::projects::cache::{ProjectCache, ProjectCacheService, Services};
+use crate::services::projects::cache2::ProjectCacheHandle;
 use crate::services::relays::{RelayCache, RelayCacheService};
 use crate::services::stats::RelayStats;
 #[cfg(feature = "processing")]
@@ -52,7 +52,7 @@ pub enum ServiceError {
     Redis,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Registry {
     pub aggregator: Addr<Aggregator>,
     pub health_check: Addr<HealthCheck>,
@@ -65,18 +65,8 @@ pub struct Registry {
     pub project_cache: Addr<ProjectCache>,
     pub upstream_relay: Addr<UpstreamRelay>,
     pub envelope_buffer: Option<ObservableEnvelopeBuffer>,
-}
 
-impl fmt::Debug for Registry {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Registry")
-            .field("aggregator", &self.aggregator)
-            .field("health_check", &self.health_check)
-            .field("outcome_producer", &self.outcome_producer)
-            .field("outcome_aggregator", &self.outcome_aggregator)
-            .field("processor", &format_args!("Addr<Processor>"))
-            .finish()
-    }
+    pub project_cache_handle: ProjectCacheHandle,
 }
 
 /// Constructs a tokio [`Runtime`] configured for running [services](relay_system::Service).
@@ -144,6 +134,7 @@ fn create_store_pool(config: &Config) -> Result<ThreadPool> {
 struct StateInner {
     config: Arc<Config>,
     memory_checker: MemoryChecker,
+
     registry: Registry,
 }
 
@@ -355,6 +346,11 @@ impl ServiceState {
     /// Returns the address of the [`ProjectCache`] service.
     pub fn project_cache(&self) -> &Addr<ProjectCache> {
         &self.inner.registry.project_cache
+    }
+
+    /// Returns a [`ProjectCacheHandle`].
+    pub fn project_cache_handle(&self) -> &ProjectCacheHandle {
+        &self.inner.registry.project_cache_handle
     }
 
     /// Returns the address of the [`RelayCache`] service.

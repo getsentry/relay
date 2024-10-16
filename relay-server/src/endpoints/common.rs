@@ -12,8 +12,8 @@ use crate::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, I
 use crate::service::ServiceState;
 use crate::services::buffer::EnvelopeBuffer;
 use crate::services::outcome::{DiscardReason, Outcome};
-use crate::services::processor::{MetricData, ProcessingGroup};
-use crate::services::projects::cache::{CheckEnvelope, ProcessMetrics, ValidateEnvelope};
+use crate::services::processor::{MetricData, ProcessMetrics, ProcessingGroup};
+use crate::services::projects::cache::ValidateEnvelope;
 use crate::statsd::{RelayCounters, RelayHistograms};
 use crate::utils::{self, ApiErrorResponse, FormDataIter, ManagedEnvelope};
 
@@ -274,7 +274,7 @@ fn queue_envelope(
 
         if !metric_items.is_empty() {
             relay_log::trace!("sending metrics into processing queue");
-            state.project_cache().send(ProcessMetrics {
+            state.processor().send(ProcessMetrics {
                 data: MetricData::Raw(metric_items.into_vec()),
                 start_time: envelope.meta().start_time().into(),
                 sent_at: envelope.sent_at(),
@@ -367,10 +367,9 @@ pub async fn handle_envelope(
     }
 
     let checked = state
-        .project_cache()
-        .send(CheckEnvelope::new(managed_envelope))
-        .await
-        .map_err(|_| BadStoreRequest::ScheduleFailed)?
+        .project_cache_handle()
+        .get(managed_envelope.scoping().project_key)
+        .check_envelope(managed_envelope)
         .map_err(BadStoreRequest::EventRejected)?;
 
     let Some(mut managed_envelope) = checked.envelope else {

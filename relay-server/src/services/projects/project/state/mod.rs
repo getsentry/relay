@@ -9,11 +9,11 @@ use relay_quotas::Scoping;
 mod fetch_state;
 mod info;
 
-pub use self::fetch_state::{ExpiryState, ProjectFetchState};
+pub use self::fetch_state::ProjectFetchState;
 pub use self::info::{LimitedProjectInfo, ProjectInfo};
 
 /// Representation of a project's current state.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub enum ProjectState {
     /// A valid project that is not disabled.
     Enabled(Arc<ProjectInfo>),
@@ -25,6 +25,7 @@ pub enum ProjectState {
     /// - The upstream returned "pending" for this project (see [`crate::services::projects::source::upstream`]).
     /// - The upstream returned an unparsable project so we have to try again.
     /// - The project has expired and must be treated as "has not been fetched".
+    #[default]
     Pending,
 }
 

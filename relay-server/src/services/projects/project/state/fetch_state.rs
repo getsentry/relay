@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use tokio::time::Instant;
 
-use relay_config::Config;
 use relay_dynamic_config::ProjectConfig;
 
 use crate::services::projects::project::state::info::ProjectInfo;
@@ -88,47 +87,6 @@ impl ProjectFetchState {
         matches!(self.state, ProjectState::Pending)
     }
 
-    /// Returns information about the expiry of a project state.
-    ///
-    /// If no detailed information is needed, use [`Self::current_state`] instead.
-    pub fn expiry_state(&self, config: &Config) -> ExpiryState {
-        match self.check_expiry(config) {
-            Expiry::Updated => ExpiryState::Updated(&self.state),
-            Expiry::Stale => ExpiryState::Stale(&self.state),
-            Expiry::Expired => ExpiryState::Expired,
-        }
-    }
-
-    /// Returns the current project state, if it has not yet expired.
-    pub fn current_state(&self, config: &Config) -> ProjectState {
-        match self.expiry_state(config) {
-            ExpiryState::Updated(state) | ExpiryState::Stale(state) => state.clone(),
-            ExpiryState::Expired => ProjectState::Pending,
-        }
-    }
-
-    /// Returns whether this state is outdated and needs to be refetched.
-    fn check_expiry(&self, config: &Config) -> Expiry {
-        let Some(last_fetch) = self.last_fetch else {
-            return Expiry::Expired;
-        };
-        let expiry = match &self.state {
-            ProjectState::Enabled(info) if info.project_id.is_some() => {
-                config.project_cache_expiry()
-            }
-            _ => config.cache_miss_expiry(),
-        };
-
-        let elapsed = last_fetch.elapsed();
-        if elapsed >= expiry + config.project_grace_period() {
-            Expiry::Expired
-        } else if elapsed >= expiry {
-            Expiry::Stale
-        } else {
-            Expiry::Updated
-        }
-    }
-
     /// Returns the revision of the contained project state.
     ///
     /// See: [`ProjectState::revision`].
@@ -137,26 +95,8 @@ impl ProjectFetchState {
     }
 }
 
-/// Wrapper for a project state, with expiry information.
-#[derive(Clone, Copy, Debug)]
-pub enum ExpiryState<'a> {
-    /// An up-to-date project state. See [`Expiry::Updated`].
-    Updated(&'a ProjectState),
-    /// A stale project state that can still be used. See [`Expiry::Stale`].
-    Stale(&'a ProjectState),
-    /// An expired project state that should not be used. See [`Expiry::Expired`].
-    Expired,
-}
-
-/// The expiry status of a project state. Return value of [`ProjectFetchState::check_expiry`].
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-enum Expiry {
-    /// The project state is perfectly up to date.
-    Updated,
-    /// The project state is outdated but events depending on this project state can still be
-    /// processed. The state should be refreshed in the background though.
-    Stale,
-    /// The project state is completely outdated and events need to be buffered up until the new
-    /// state has been fetched.
-    Expired,
+impl From<ProjectFetchState> for ProjectState {
+    fn from(value: ProjectFetchState) -> Self {
+        value.state
+    }
 }
