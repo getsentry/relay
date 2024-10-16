@@ -15,7 +15,6 @@ use tokio::sync::{mpsc, watch};
 use tokio::time::{timeout, Instant};
 
 use crate::envelope::Envelope;
-use crate::services::buffer::common::ProjectKeyPair;
 use crate::services::buffer::envelope_buffer::Peek;
 use crate::services::global_config;
 use crate::services::outcome::DiscardReason;
@@ -221,8 +220,8 @@ impl EnvelopeBufferService {
         services: &Services,
         envelopes_tx_permit: Permit<'a, DequeuedEnvelope>,
     ) -> Result<Duration, EnvelopeBufferError> {
-        let sleep = match buffer.peek() {
-            None => {
+        let sleep = match buffer.peek().await? {
+            Peek::Empty => {
                 relay_statsd::metric!(
                     counter(RelayCounters::BufferTryPop) += 1,
                     peek_result = "empty"
@@ -230,67 +229,69 @@ impl EnvelopeBufferService {
 
                 Duration::MAX // wait for reset by `handle_message`.
             }
-            Some(Peek {
-                project_key_pair,
-                received_at,
-                ready,
-                next_project_fetch,
-            }) => {
-                if received_at.elapsed() > config.spool_envelopes_max_age() {
-                    relay_statsd::metric!(
-                        counter(RelayCounters::BufferTryPop) += 1,
-                        peek_result = "expired"
-                    );
-                    if let Some(envelope) = buffer.pop().await? {
-                        Self::drop_expired(envelope, services);
-                    }
+            Peek::Ready(envelope) | Peek::NotReady(.., envelope)
+                if Self::expired(config, envelope) =>
+            {
+                let envelope = buffer
+                    .pop()
+                    .await?
+                    .expect("Element disappeared despite exclusive excess");
 
-                    Duration::ZERO // try next pop immediately
-                } else if ready {
-                    relay_statsd::metric!(
-                        counter(RelayCounters::BufferTryPop) += 1,
-                        peek_result = "ready"
-                    );
-                    if let Some(envelope) = buffer.pop().await? {
-                        // The cached `received_at` time on the queue might be newer than
-                        // the actual timestamp of the envelope, so check again here.
-                        if envelope.meta().start_time().elapsed() > config.spool_envelopes_max_age()
-                        {
-                            Self::drop_expired(envelope, services);
-                        } else {
-                            envelopes_tx_permit.send(DequeuedEnvelope(envelope));
-                        }
-                    }
+                Self::drop_expired(envelope, services);
 
-                    Duration::ZERO // try next pop immediately
-                } else {
-                    let ProjectKeyPair {
-                        own_key,
-                        sampling_key,
-                    } = project_key_pair;
-                    relay_statsd::metric!(
-                        counter(RelayCounters::BufferTryPop) += 1,
-                        peek_result = "not_ready"
-                    );
-                    if Instant::now() >= next_project_fetch {
-                        relay_log::trace!("EnvelopeBufferService: requesting project(s) update");
+                Duration::ZERO // try next pop immediately
+            }
+            Peek::Ready(_) => {
+                relay_log::trace!("EnvelopeBufferService: popping envelope");
+                relay_statsd::metric!(
+                    counter(RelayCounters::BufferTryPop) += 1,
+                    peek_result = "ready"
+                );
+                let envelope = buffer
+                    .pop()
+                    .await?
+                    .expect("Element disappeared despite exclusive excess");
+                envelopes_tx_permit.send(DequeuedEnvelope(envelope));
 
-                        services.project_cache.send(UpdateProject(own_key));
-                        if sampling_key != own_key {
+                Duration::ZERO // try next pop immediately
+            }
+            Peek::NotReady(stack_key, next_project_fetch, envelope) => {
+                relay_log::trace!("EnvelopeBufferService: project(s) of envelope not ready");
+                relay_statsd::metric!(
+                    counter(RelayCounters::BufferTryPop) += 1,
+                    peek_result = "not_ready"
+                );
+
+                // We want to fetch the configs again, only if some time passed between the last
+                // peek of this not ready project key pair and the current peek. This is done to
+                // avoid flooding the project cache with `UpdateProject` messages.
+                if Instant::now() >= next_project_fetch {
+                    relay_log::trace!("EnvelopeBufferService: requesting project(s) update");
+                    let own_key = envelope.meta().public_key();
+
+                    services.project_cache.send(UpdateProject(own_key));
+                    match envelope.sampling_key() {
+                        None => {}
+                        Some(sampling_key) if sampling_key == own_key => {} // already sent.
+                        Some(sampling_key) => {
                             services.project_cache.send(UpdateProject(sampling_key));
                         }
-
-                        // Deprioritize the stack to prevent head-of-line blocking and update the next fetch
-                        // time.
-                        buffer.mark_seen(&project_key_pair, DEFAULT_SLEEP);
                     }
 
-                    DEFAULT_SLEEP // wait and prioritize handling new messages.
+                    // Deprioritize the stack to prevent head-of-line blocking and update the next fetch
+                    // time.
+                    buffer.mark_seen(&stack_key, DEFAULT_SLEEP);
                 }
+
+                DEFAULT_SLEEP // wait and prioritize handling new messages.
             }
         };
 
         Ok(sleep)
+    }
+
+    fn expired(config: &Config, envelope: &Envelope) -> bool {
+        envelope.meta().start_time().elapsed() > config.spool_envelopes_max_age()
     }
 
     fn drop_expired(envelope: Box<Envelope>, services: &Services) {
@@ -470,9 +471,7 @@ mod tests {
     use std::time::{Duration, Instant};
 
     use relay_dynamic_config::GlobalConfig;
-    use relay_metrics::UnixTimestamp;
     use relay_quotas::DataCategory;
-    use sqlx::Connection;
     use tokio::sync::mpsc;
     use uuid::Uuid;
 
@@ -657,77 +656,6 @@ mod tests {
             .meta_mut()
             .set_start_time(Instant::now() - 2 * config.spool_envelopes_max_age());
         addr.send(EnvelopeBuffer::Push(envelope));
-
-        tokio::time::sleep(Duration::from_millis(100)).await;
-
-        assert_eq!(envelopes_rx.len(), 0);
-        assert_eq!(project_cache_rx.len(), 0);
-
-        let outcome = outcome_aggregator_rx.try_recv().unwrap();
-        assert_eq!(outcome.category, DataCategory::TransactionIndexed);
-        assert_eq!(outcome.quantity, 1);
-    }
-
-    #[tokio::test]
-    async fn old_envelope_from_disk_is_dropped() {
-        relay_log::init_test!();
-
-        let tmp = tempfile::TempDir::new().unwrap();
-        let path = tmp.path().join("envelopes.db");
-
-        let buffer_service = || {
-            envelope_buffer_service(
-                Some(serde_json::json!({
-                    "spool": {
-                        "envelopes": {
-                            "version": "experimental",
-                            "path": path,
-                            "max_envelope_delay_secs": 1,
-                        }
-                    }
-                })),
-                global_config::Status::Ready(Arc::new(GlobalConfig::default())),
-            )
-        };
-
-        // Initialize once to migrate the database:
-        let service = buffer_service().service;
-        let config = service.config.clone();
-        service.start();
-
-        tokio::time::sleep(Duration::from_millis(1000)).await;
-
-        // Write an envelope to the db
-        let envelope = new_envelope(false, "foo");
-        let mut db = sqlx::SqliteConnection::connect(path.to_str().unwrap())
-            .await
-            .unwrap();
-
-        let received_at =
-            UnixTimestamp::now().as_datetime().unwrap() - 2 * config.spool_envelopes_max_age();
-
-        let query = sqlx::query("INSERT INTO envelopes (received_at, own_key, sampling_key, envelope) VALUES ($1, $2, $3, $4);")
-            .bind(received_at.timestamp_millis())
-            .bind(envelope.meta().public_key().to_string())
-            .bind(envelope.meta().public_key().to_string())
-            .bind(envelope.to_vec().unwrap());
-        query.execute(&mut db).await.unwrap();
-
-        // Initialize again to read from db:
-        let EnvelopeBufferServiceResult {
-            service,
-            envelopes_rx,
-            project_cache_rx,
-            mut outcome_aggregator_rx,
-            global_tx,
-        } = buffer_service();
-
-        let _addr = service.start();
-        global_tx
-            .send(global_config::Status::Ready(Arc::new(
-                GlobalConfig::default(),
-            )))
-            .unwrap();
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
