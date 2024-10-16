@@ -1041,7 +1041,12 @@ mod tests {
     #[tokio::test]
     async fn test_initialize_buffer() {
         let temp_dir = TempDir::new().unwrap();
-        let path = temp_dir.path().to_str().unwrap().to_string();
+        let path = temp_dir
+            .path()
+            .join("buffer.db")
+            .to_str()
+            .unwrap()
+            .to_string();
         let config = mock_config(&path);
         let mut store = SqliteEnvelopeStore::prepare(&config).await.unwrap();
         let mut buffer = EnvelopeBuffer::<SqliteStackProvider>::new(&config)
