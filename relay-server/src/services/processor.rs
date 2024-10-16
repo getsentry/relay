@@ -1701,10 +1701,6 @@ impl EnvelopeProcessorService {
         let profile_id = profile::filter(state);
         profile::transfer_id(state, profile_id);
 
-        if_processing!(self.inner.config, {
-            attachment::create_placeholders(state);
-        });
-
         event::finalize(state, &self.inner.config)?;
         self.normalize_event(state)?;
 
