@@ -98,6 +98,9 @@ def test_graceful_shutdown_with_file_backed_buffer(mini_sentry, relay):
     from time import sleep
     import os
 
+    # The errors thrown by Relay are expected in this code path
+    mini_sentry.fail_on_relay_error = False
+
     # Create a temporary directory for the envelope files
     envelope_files_folder = os.path.join(tempfile.mkdtemp())
 

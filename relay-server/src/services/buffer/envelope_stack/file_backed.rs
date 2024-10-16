@@ -14,9 +14,10 @@ use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 use tokio::sync::Mutex;
 
+/// Set of all error kinds that are allowed when dealing with a file.
 static ALLOWED_ERROR_KINDS: LazyLock<HashSet<io::ErrorKind>> = LazyLock::new(|| {
     let mut error_kinds = HashSet::new();
-    error_kinds.insert(io::ErrorKind::InvalidData);
+    error_kinds.insert(io::ErrorKind::InvalidInput);
     #[cfg(windows)]
     error_kinds.insert(io::ErrorKind::Uncategorized);
 
@@ -79,7 +80,7 @@ pub struct FileBackedEnvelopeStack {
 }
 
 impl FileBackedEnvelopeStack {
-    /// Creates a new `FileBackedEnvelopeStack` instance.
+    /// Creates a new [`FileBackedEnvelopeStack`] instance.
     pub fn new(
         project_key_pair: ProjectKeyPair,
         envelope_store: Arc<Mutex<FileBackedEnvelopeStore>>,
@@ -150,7 +151,7 @@ async fn seek_truncate(
     match file.seek(SeekFrom::End(-(from_end as i64))).await {
         Ok(_) => Ok(true),
         Err(error) if ALLOWED_ERROR_KINDS.contains(&error.kind()) => {
-            relay_log::error!(error = &error as &dyn Error, "failed to truncate file",);
+            relay_log::error!(error = &error as &dyn Error, "failed to seek the file",);
             truncate_file(file, 0).await?;
             Ok(false)
         }
