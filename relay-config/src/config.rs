@@ -922,6 +922,11 @@ fn spool_max_backpressure_memory_percent() -> f32 {
     0.9
 }
 
+/// Default for max opened files, 100000.
+fn spool_envelopes_max_opened_files() -> usize {
+    100000
+}
+
 /// Persistent buffering configuration for incoming envelopes.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EnvelopeSpool {
@@ -979,9 +984,15 @@ pub struct EnvelopeSpool {
     /// Defaults to 90% (5% less than max memory).
     #[serde(default = "spool_max_backpressure_memory_percent")]
     max_backpressure_memory_percent: f32,
+    /// Maximum number of opened files for the envelope spool.
+    #[serde(default = "spool_envelopes_max_opened_files")]
+    max_opened_files: usize,
     /// Version of the spooler.
     #[serde(default)]
     version: EnvelopeSpoolVersion,
+    /// The strategy to use for envelope buffering.
+    #[serde(default)]
+    buffer_strategy: EnvelopeBufferStrategy,
 }
 
 /// Version of the envelope buffering mechanism.
@@ -1002,6 +1013,20 @@ pub enum EnvelopeSpoolVersion {
     V2,
 }
 
+/// The strategy to use for envelope buffering.
+#[derive(Debug, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EnvelopeBufferStrategy {
+    /// Use an in-memory buffer for envelopes.
+    #[default]
+    Memory,
+    /// Use a SQLite database for envelope buffering.
+    Sqlite,
+    #[cfg(not(windows))]
+    /// Use a file-backed system for envelope buffering.
+    FileBacked,
+}
+
 impl Default for EnvelopeSpool {
     fn default() -> Self {
         Self {
@@ -1017,7 +1042,9 @@ impl Default for EnvelopeSpool {
             disk_usage_refresh_frequency_ms: spool_disk_usage_refresh_frequency_ms(),
             max_backpressure_envelopes: spool_max_backpressure_envelopes(),
             max_backpressure_memory_percent: spool_max_backpressure_memory_percent(),
+            max_opened_files: spool_envelopes_max_opened_files(),
             version: EnvelopeSpoolVersion::default(),
+            buffer_strategy: EnvelopeBufferStrategy::default(),
         }
     }
 }
@@ -2241,6 +2268,16 @@ impl Config {
     /// Returns the relative memory usage up to which the disk buffer will unspool envelopes.
     pub fn spool_max_backpressure_memory_percent(&self) -> f32 {
         self.values.spool.envelopes.max_backpressure_memory_percent
+    }
+
+    /// Returns the maximum number of opened files for the envelope spool.
+    pub fn spool_envelopes_max_opened_files(&self) -> usize {
+        self.values.spool.envelopes.max_opened_files
+    }
+
+    /// Returns the envelope buffer strategy.
+    pub fn spool_envelope_buffer_strategy(&self) -> &EnvelopeBufferStrategy {
+        &self.values.spool.envelopes.buffer_strategy
     }
 
     /// Returns the maximum size of an event payload in bytes.

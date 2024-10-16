@@ -8,6 +8,7 @@ pub mod utils {
     use relay_sampling::DynamicSamplingContext;
     use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
     use sqlx::{Pool, Sqlite};
+    use tempfile::TempDir;
     use tokio::fs::DirBuilder;
     use uuid::Uuid;
 
@@ -16,8 +17,9 @@ pub mod utils {
     use crate::Envelope;
 
     /// Sets up a temporary SQLite database for testing purposes.
-    pub async fn setup_db(run_migrations: bool) -> Pool<Sqlite> {
-        let path = std::env::temp_dir().join(Uuid::new_v4().to_string());
+    pub async fn setup_db(run_migrations: bool) -> (Pool<Sqlite>, TempDir) {
+        let temp_dir = TempDir::new().unwrap();
+        let path = temp_dir.path().join("buffer.db").to_path_buf();
 
         if let Some(parent) = path.parent() {
             if !parent.as_os_str().is_empty() && !parent.exists() {
@@ -44,7 +46,7 @@ pub mod utils {
             sqlx::migrate!("../migrations").run(&db).await.unwrap();
         }
 
-        db
+        (db, temp_dir)
     }
 
     pub fn request_meta() -> RequestMeta {

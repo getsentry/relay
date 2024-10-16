@@ -1,6 +1,7 @@
-use std::error::Error;
-
 use relay_config::Config;
+use std::error::Error;
+use std::time::Duration;
+use tokio::time::timeout;
 
 use crate::services::buffer::common::ProjectKeyPair;
 use crate::services::buffer::envelope_store::sqlite::{
@@ -54,6 +55,28 @@ impl SqliteStackProvider {
         }
     }
 
+    /// Retrieves the total count of envelopes from the SQLite envelope store.
+    ///
+    /// This method attempts to fetch the total count of envelopes from the underlying
+    /// SQLite envelope store. It uses a timeout mechanism to ensure the operation
+    /// doesn't hang indefinitely.
+    async fn store_total_count(&self) -> u32 {
+        match timeout(Duration::from_secs(1), self.envelope_store.total_count()).await {
+            Ok(Ok(store_total_count)) => store_total_count,
+            Ok(Err(error)) => {
+                relay_log::error!(
+                    error = &error as &dyn Error,
+                    "failed to get the total count of envelopes for the SQLite envelope store"
+                );
+                0
+            }
+            Err(_) => {
+                relay_log::error!("timed out while getting the total count of envelopes for the SQLite envelope store");
+                0
+            }
+        }
+    }
+
     /// Returns `true` when there might be data residing on disk, `false` otherwise.
     fn assume_data_on_disk(stack_creation_type: StackCreationType) -> bool {
         matches!(stack_creation_type, StackCreationType::Initialization)
@@ -64,12 +87,15 @@ impl StackProvider for SqliteStackProvider {
     type Stack = SqliteEnvelopeStack;
 
     async fn initialize(&self) -> InitializationState {
-        match self.envelope_store.project_key_pairs().await {
-            Ok(project_key_pairs) => InitializationState::new(project_key_pairs),
+        let project_key_pairs = self.envelope_store.project_key_pairs().await;
+        let store_total_count = self.store_total_count().await;
+
+        match project_key_pairs {
+            Ok(project_key_pairs) => InitializationState::new(project_key_pairs, store_total_count),
             Err(error) => {
                 relay_log::error!(
                     error = &error as &dyn Error,
-                    "failed to initialize the sqlite stack provider"
+                    "failed to load project key pairs and envelope counts from sqlite"
                 );
                 InitializationState::empty()
             }
@@ -96,22 +122,8 @@ impl StackProvider for SqliteStackProvider {
         )
     }
 
-    fn has_store_capacity(&self) -> bool {
+    async fn has_store_capacity(&self) -> bool {
         (self.envelope_store.usage() as usize) < self.max_disk_size
-    }
-
-    async fn store_total_count(&self) -> u64 {
-        self.envelope_store
-            .total_count()
-            .await
-            .unwrap_or_else(|error| {
-                relay_log::error!(
-                    error = &error as &dyn Error,
-                    "failed to get the total count of envelopes for the sqlite envelope store",
-                );
-                // In case we have an error, we default to communicating a total count of 0.
-                0
-            })
     }
 
     fn stack_type<'a>(&self) -> &'a str {
@@ -143,11 +155,10 @@ impl StackProvider for SqliteStackProvider {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
     use relay_base_schema::project::ProjectKey;
     use relay_config::Config;
-    use uuid::Uuid;
+    use std::sync::Arc;
+    use tempfile::TempDir;
 
     use crate::services::buffer::common::ProjectKeyPair;
     use crate::services::buffer::stack_provider::sqlite::SqliteStackProvider;
@@ -155,14 +166,16 @@ mod tests {
     use crate::services::buffer::testutils::utils::mock_envelopes;
     use crate::EnvelopeStack;
 
-    fn mock_config() -> Arc<Config> {
-        let path = std::env::temp_dir()
-            .join(Uuid::new_v4().to_string())
-            .into_os_string()
-            .into_string()
-            .unwrap();
+    fn mock_config() -> (Arc<Config>, TempDir) {
+        let temp_dir = TempDir::new().unwrap();
+        let path = temp_dir
+            .path()
+            .join("buffer.db")
+            .to_str()
+            .unwrap()
+            .to_string();
 
-        Config::from_json_value(serde_json::json!({
+        let config = Config::from_json_value(serde_json::json!({
             "spool": {
                 "envelopes": {
                     "path": path,
@@ -172,12 +185,14 @@ mod tests {
             }
         }))
         .unwrap()
-        .into()
+        .into();
+
+        (config, temp_dir)
     }
 
     #[tokio::test]
     async fn test_flush() {
-        let config = mock_config();
+        let (config, _temp_dir) = mock_config();
         let mut stack_provider = SqliteStackProvider::new(&config).await.unwrap();
 
         let own_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();

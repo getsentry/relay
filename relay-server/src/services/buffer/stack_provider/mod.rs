@@ -3,6 +3,8 @@ use crate::EnvelopeStack;
 use hashbrown::HashSet;
 use std::future::Future;
 
+#[cfg(not(windows))]
+pub mod file_backed;
 pub mod memory;
 pub mod sqlite;
 
@@ -12,18 +14,23 @@ pub mod sqlite;
 #[derive(Debug)]
 pub struct InitializationState {
     pub project_key_pairs: HashSet<ProjectKeyPair>,
+    pub store_total_count: u32,
 }
 
 impl InitializationState {
     /// Create a new [`InitializationState`].
-    pub fn new(project_key_pairs: HashSet<ProjectKeyPair>) -> Self {
-        Self { project_key_pairs }
+    pub fn new(project_key_pairs: HashSet<ProjectKeyPair>, store_total_count: u32) -> Self {
+        Self {
+            project_key_pairs,
+            store_total_count,
+        }
     }
 
     /// Creates a new empty [`InitializationState`].
     pub fn empty() -> Self {
         Self {
             project_key_pairs: HashSet::new(),
+            store_total_count: 0,
         }
     }
 }
@@ -53,10 +60,7 @@ pub trait StackProvider: std::fmt::Debug {
 
     /// Returns `true` if the store used by this [`StackProvider`] has space to add new
     /// stacks or items to the stacks.
-    fn has_store_capacity(&self) -> bool;
-
-    /// Returns the total count of the store used by this [`StackProvider`].
-    fn store_total_count(&self) -> impl Future<Output = u64>;
+    fn has_store_capacity(&self) -> impl Future<Output = bool>;
 
     /// Returns the string representation of the stack type offered by this [`StackProvider`].
     fn stack_type<'a>(&self) -> &'a str;

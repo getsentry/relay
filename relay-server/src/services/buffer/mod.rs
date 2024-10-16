@@ -200,6 +200,7 @@ impl EnvelopeBufferService {
             // We should not unspool from external storage if memory capacity has been reached.
             // But if buffer storage is in memory, unspooling can reduce memory usage.
             let memory_ready = buffer.is_memory() || self.memory_ready();
+
             let global_config_ready = self.global_config_rx.borrow().is_ready();
 
             if memory_ready && global_config_ready && dequeue {
@@ -356,16 +357,13 @@ impl EnvelopeBufferService {
 
     async fn push(buffer: &mut PolymorphicEnvelopeBuffer, envelope: Box<Envelope>) {
         if let Err(e) = buffer.push(envelope).await {
-            relay_log::error!(
-                error = &e as &dyn std::error::Error,
-                "failed to push envelope"
-            );
+            relay_log::error!(error = &e as &dyn Error, "failed to push envelope");
         }
     }
 
-    fn update_observable_state(&self, buffer: &mut PolymorphicEnvelopeBuffer) {
+    async fn update_observable_state(&self, buffer: &mut PolymorphicEnvelopeBuffer) {
         self.has_capacity
-            .store(buffer.has_capacity(), Ordering::Relaxed);
+            .store(buffer.has_capacity().await, Ordering::Relaxed);
     }
 }
 
@@ -379,7 +377,8 @@ impl Service for EnvelopeBufferService {
         let services = self.services.clone();
 
         let dequeue = Arc::<AtomicBool>::new(true.into());
-        let dequeue1 = dequeue.clone();
+        #[cfg(unix)]
+        let unix_dequeue = dequeue.clone();
 
         tokio::spawn(async move {
             let buffer = PolymorphicEnvelopeBuffer::from_config(&config, memory_checker).await;
@@ -388,7 +387,7 @@ impl Service for EnvelopeBufferService {
                 Ok(buffer) => buffer,
                 Err(error) => {
                     relay_log::error!(
-                        error = &error as &dyn std::error::Error,
+                        error = &error as &dyn Error,
                         "failed to start the envelope buffer service",
                     );
                     std::process::exit(1);
@@ -420,7 +419,7 @@ impl Service for EnvelopeBufferService {
                             }
                             Err(error) => {
                                 relay_log::error!(
-                                error = &error as &dyn std::error::Error,
+                                error = &error as &dyn Error,
                                 "failed to pop envelope"
                             );
                             }
@@ -444,7 +443,7 @@ impl Service for EnvelopeBufferService {
                 }
 
                 self.sleep = sleep;
-                self.update_observable_state(&mut buffer);
+                self.update_observable_state(&mut buffer).await;
             }
 
             relay_log::info!("EnvelopeBufferService: stopping");
@@ -457,8 +456,8 @@ impl Service for EnvelopeBufferService {
                 return;
             };
             while let Some(()) = signal.recv().await {
-                let deq = !dequeue1.load(Ordering::Relaxed);
-                dequeue1.store(deq, Ordering::Relaxed);
+                let deq = !unix_dequeue.load(Ordering::Relaxed);
+                unix_dequeue.store(deq, Ordering::Relaxed);
                 relay_log::info!("SIGUSR1 receive, dequeue={}", deq);
             }
         });
@@ -467,14 +466,14 @@ impl Service for EnvelopeBufferService {
 
 #[cfg(test)]
 mod tests {
-    use std::time::{Duration, Instant};
-
     use relay_dynamic_config::GlobalConfig;
     use relay_metrics::UnixTimestamp;
     use relay_quotas::DataCategory;
     use sqlx::Connection;
+    use std::time::{Duration, Instant};
+    use tempfile::TempDir;
+
     use tokio::sync::mpsc;
-    use uuid::Uuid;
 
     use crate::testutils::new_envelope;
     use crate::MemoryStat;
@@ -589,9 +588,13 @@ mod tests {
         assert_eq!(project_cache_rx.len(), 0);
     }
 
+    #[cfg(not(windows))]
     #[tokio::test]
     async fn pop_requires_memory_capacity() {
         tokio::time::pause();
+
+        let temp_dir = TempDir::new().unwrap();
+        let path = temp_dir.path().to_str().unwrap().to_string();
 
         let EnvelopeBufferServiceResult {
             service,
@@ -604,11 +607,10 @@ mod tests {
                 "spool": {
                     "envelopes": {
                         "version": "experimental",
-                        "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
+                        "path": path,
+                        "buffer_strategy": "file_backed",
+                        "max_backpressure_memory_percent": 0.0
                     }
-                },
-                "health": {
-                    "max_memory_bytes": 0,
                 }
             })),
             global_config::Status::Ready(Arc::new(GlobalConfig::default())),
@@ -672,7 +674,7 @@ mod tests {
     async fn old_envelope_from_disk_is_dropped() {
         relay_log::init_test!();
 
-        let tmp = tempfile::TempDir::new().unwrap();
+        let tmp = TempDir::new().unwrap();
         let path = tmp.path().join("envelopes.db");
 
         let buffer_service = || {
@@ -682,6 +684,7 @@ mod tests {
                         "envelopes": {
                             "version": "experimental",
                             "path": path,
+                            "buffer_strategy": "sqlite",
                             "max_envelope_delay_secs": 1,
                         }
                     }
