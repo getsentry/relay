@@ -55,13 +55,15 @@ pub mod utils {
         RequestMeta::new(dsn)
     }
 
-    pub fn mock_envelope(instant: Instant) -> Box<Envelope> {
+    pub fn mock_envelope(instant: Instant, sampling_key: Option<ProjectKey>) -> Box<Envelope> {
         let event_id = EventId::new();
         let mut envelope = Envelope::from_request(Some(event_id), request_meta());
 
+        let public_key =
+            sampling_key.unwrap_or(ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap());
         let dsc = DynamicSamplingContext {
             trace_id: Uuid::new_v4(),
-            public_key: ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
+            public_key,
             release: Some("1.1.1".to_string()),
             user: Default::default(),
             replay_id: None,
@@ -84,7 +86,23 @@ pub mod utils {
     pub fn mock_envelopes(count: usize) -> Vec<Box<Envelope>> {
         let instant = Instant::now();
         (0..count)
-            .map(|i| mock_envelope(instant - Duration::from_secs((count - i) as u64)))
+            .map(|i| mock_envelope(instant - Duration::from_secs((count - i) as u64), None))
+            .collect()
+    }
+
+    #[allow(clippy::vec_box)]
+    pub fn mock_envelopes_for_project(
+        count: usize,
+        sampling_key: ProjectKey,
+    ) -> Vec<Box<Envelope>> {
+        let instant = Instant::now();
+        (0..count)
+            .map(|i| {
+                mock_envelope(
+                    instant - Duration::from_secs((count - i) as u64),
+                    Some(sampling_key),
+                )
+            })
             .collect()
     }
 }

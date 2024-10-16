@@ -11,8 +11,8 @@ use tokio::runtime::Runtime;
 
 use relay_base_schema::project::ProjectKey;
 use relay_server::{
-    Envelope, EnvelopeStack, MemoryChecker, MemoryStat, PolymorphicEnvelopeBuffer,
-    SqliteEnvelopeStack, SqliteEnvelopeStore,
+    Envelope, EnvelopeBufferImpl, MemoryChecker, MemoryStat, ProjectKeyPair,
+    SqliteEnvelopeRepository, SqliteEnvelopeStore,
 };
 
 fn setup_db(path: &PathBuf) -> Pool<Sqlite> {
@@ -70,7 +70,7 @@ fn mock_envelope_with_project_key(project_key: &ProjectKey, size: &str) -> Box<E
     envelope
 }
 
-fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
+fn benchmark_sqlite_envelope_repository(c: &mut Criterion) {
     let temp_dir = TempDir::new().unwrap();
     let db_path = temp_dir.path().join("test.db");
     let db = setup_db(&db_path);
@@ -80,6 +80,11 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
 
     let mut group = c.benchmark_group("sqlite_envelope_stack");
     group.measurement_time(Duration::from_secs(60));
+
+    let project_key_pair = ProjectKeyPair::new(
+        ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
+        ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
+    );
 
     let disk_batch_size = 1000;
     for size in [1_000, 10_000, 100_000].iter() {
@@ -97,13 +102,17 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
                                 reset_db(db.clone()).await;
                             });
 
-                            let stack = SqliteEnvelopeStack::new(
+                            let config: Arc<Config> = Config::from_json_value(serde_json::json!({
+                                "spool": {
+                                    "disk_batch_size": disk_batch_size
+                                }
+                            }))
+                            .unwrap()
+                            .into();
+
+                            let stack = SqliteEnvelopeRepository::new_with_store(
+                                &config,
                                 envelope_store.clone(),
-                                disk_batch_size,
-                                2,
-                                ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
-                                ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
-                                true,
                             );
 
                             let mut envelopes = Vec::with_capacity(size);
@@ -116,7 +125,7 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
                         |(mut stack, envelopes)| {
                             runtime.block_on(async {
                                 for envelope in envelopes {
-                                    stack.push(envelope).await.unwrap();
+                                    stack.push(project_key_pair, envelope).await.unwrap();
                                 }
                             });
                         },
@@ -134,19 +143,24 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
                             runtime.block_on(async {
                                 reset_db(db.clone()).await;
 
-                                let mut stack = SqliteEnvelopeStack::new(
+                                let config: Arc<Config> =
+                                    Config::from_json_value(serde_json::json!({
+                                        "spool": {
+                                            "disk_batch_size": disk_batch_size
+                                        }
+                                    }))
+                                    .unwrap()
+                                    .into();
+
+                                let mut stack = SqliteEnvelopeRepository::new_with_store(
+                                    &config,
                                     envelope_store.clone(),
-                                    disk_batch_size,
-                                    2,
-                                    ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
-                                    ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
-                                    true,
                                 );
 
                                 // Pre-fill the stack
                                 for _ in 0..size {
                                     let envelope = mock_envelope(envelope_size);
-                                    stack.push(envelope).await.unwrap();
+                                    stack.push(project_key_pair, envelope).await.unwrap();
                                 }
 
                                 stack
@@ -156,7 +170,7 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
                             runtime.block_on(async {
                                 // Benchmark popping
                                 for _ in 0..size {
-                                    stack.pop().await.unwrap();
+                                    stack.pop(project_key_pair).await.unwrap();
                                 }
                             });
                         },
@@ -175,13 +189,17 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
                                 reset_db(db.clone()).await;
                             });
 
-                            let stack = SqliteEnvelopeStack::new(
+                            let config: Arc<Config> = Config::from_json_value(serde_json::json!({
+                                "spool": {
+                                    "disk_batch_size": disk_batch_size
+                                }
+                            }))
+                            .unwrap()
+                            .into();
+
+                            let stack = SqliteEnvelopeRepository::new_with_store(
+                                &config,
                                 envelope_store.clone(),
-                                disk_batch_size,
-                                2,
-                                ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
-                                ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
-                                true,
                             );
 
                             // Pre-generate envelopes
@@ -196,12 +214,12 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
                                 for _ in 0..size {
                                     if rand::random::<bool>() {
                                         if let Some(envelope) = envelope_iter.next() {
-                                            stack.push(envelope).await.unwrap();
+                                            stack.push(project_key_pair, envelope).await.unwrap();
                                         }
-                                    } else if stack.pop().await.is_err() {
+                                    } else if stack.pop(project_key_pair).await.is_err() {
                                         // If pop fails (empty stack), push instead
                                         if let Some(envelope) = envelope_iter.next() {
-                                            stack.push(envelope).await.unwrap();
+                                            stack.push(project_key_pair, envelope).await.unwrap();
                                         }
                                     }
                                 }
@@ -262,7 +280,7 @@ fn benchmark_envelope_buffer(c: &mut Criterion) {
             |envelopes| {
                 runtime.block_on(async {
                     let mut buffer =
-                        PolymorphicEnvelopeBuffer::from_config(&config, memory_checker.clone())
+                        EnvelopeBufferImpl::from_config(&config, memory_checker.clone())
                             .await
                             .unwrap();
                     for envelope in envelopes.into_iter() {
@@ -294,7 +312,7 @@ fn benchmark_envelope_buffer(c: &mut Criterion) {
             |envelopes| {
                 runtime.block_on(async {
                     let mut buffer =
-                        PolymorphicEnvelopeBuffer::from_config(&config, memory_checker.clone())
+                        EnvelopeBufferImpl::from_config(&config, memory_checker.clone())
                             .await
                             .unwrap();
                     let n = envelopes.len();
@@ -317,6 +335,6 @@ fn benchmark_envelope_buffer(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(sqlite, benchmark_sqlite_envelope_stack);
+criterion_group!(sqlite, benchmark_sqlite_envelope_repository);
 criterion_group!(buffer, benchmark_envelope_buffer);
 criterion_main!(sqlite, buffer);
