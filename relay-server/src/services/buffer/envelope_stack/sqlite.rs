@@ -196,6 +196,20 @@ impl EnvelopeStack for SqliteEnvelopeStack {
         Ok(())
     }
 
+    async fn peek(&mut self) -> Result<Option<&Envelope>, Self::Error> {
+        if self.below_unspool_threshold() && self.check_disk {
+            self.unspool_from_disk().await?
+        }
+
+        let last = self
+            .batches_buffer
+            .back()
+            .and_then(|last_batch| last_batch.last())
+            .map(|last_batch| last_batch.as_ref());
+
+        Ok(last)
+    }
+
     async fn pop(&mut self) -> Result<Option<Box<Envelope>>, Self::Error> {
         if self.below_unspool_threshold() && self.check_disk {
             relay_log::trace!("Unspool from disk");
@@ -367,15 +381,15 @@ mod tests {
         }
         assert_eq!(stack.batches_buffer_size, 5);
 
-        // We pop the top element.
-        let envelope = stack.pop().await.unwrap().unwrap();
+        // We peek the top element.
+        let peeked_envelope = stack.peek().await.unwrap().unwrap();
         assert_eq!(
-            envelope.event_id().unwrap(),
+            peeked_envelope.event_id().unwrap(),
             envelopes.clone()[4].event_id().unwrap()
         );
 
-        // We pop 4 envelopes.
-        for envelope in envelopes.clone()[0..4].iter().rev() {
+        // We pop 5 envelopes.
+        for envelope in envelopes.iter().rev() {
             let popped_envelope = stack.pop().await.unwrap().unwrap();
             assert_eq!(
                 popped_envelope.event_id().unwrap(),
@@ -406,15 +420,15 @@ mod tests {
         assert_eq!(stack.batches_buffer_size, 10);
 
         // We peek the top element.
-        let popped_envelope = stack.pop().await.unwrap().unwrap();
+        let peeked_envelope = stack.peek().await.unwrap().unwrap();
         assert_eq!(
-            popped_envelope.event_id().unwrap(),
+            peeked_envelope.event_id().unwrap(),
             envelopes.clone()[14].event_id().unwrap()
         );
 
-        // We pop 9 envelopes, and we expect that the last 10 are in memory, since the first 5
+        // We pop 10 envelopes, and we expect that the last 10 are in memory, since the first 5
         // should have been spooled to disk.
-        for envelope in envelopes[5..14].iter().rev() {
+        for envelope in envelopes[5..15].iter().rev() {
             let popped_envelope = stack.pop().await.unwrap().unwrap();
             assert_eq!(
                 popped_envelope.event_id().unwrap(),
@@ -424,13 +438,13 @@ mod tests {
         assert_eq!(stack.batches_buffer_size, 0);
 
         // We peek the top element, which since the buffer is empty should result in a disk load.
-        let popped_envelope = stack.pop().await.unwrap().unwrap();
+        let peeked_envelope = stack.peek().await.unwrap().unwrap();
         assert_eq!(
-            popped_envelope.event_id().unwrap(),
+            peeked_envelope.event_id().unwrap(),
             envelopes.clone()[4].event_id().unwrap()
         );
 
-        // We insert a new envelope, to test the load from disk happening during `pop()` gives
+        // We insert a new envelope, to test the load from disk happening during `peek()` gives
         // priority to this envelope in the stack.
         let envelope = mock_envelope(Instant::now());
         assert!(stack.push(envelope.clone()).await.is_ok());
@@ -442,9 +456,9 @@ mod tests {
             envelope.event_id().unwrap()
         );
 
-        // We pop 4 envelopes, which should not result in a disk load since `pop()` already should
+        // We pop 5 envelopes, which should not result in a disk load since `peek()` already should
         // have caused it.
-        for envelope in envelopes[0..4].iter().rev() {
+        for envelope in envelopes[0..5].iter().rev() {
             let popped_envelope = stack.pop().await.unwrap().unwrap();
             assert_eq!(
                 popped_envelope.event_id().unwrap(),
