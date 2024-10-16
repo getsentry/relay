@@ -5,13 +5,23 @@ use crate::services::buffer::envelope_store::file_backed::{
     FileBackedEnvelopeStore, FileBackedEnvelopeStoreError,
 };
 use crate::statsd::{RelayCounters, RelayTimers};
+use hashbrown::HashSet;
 use std::error::Error;
 use std::io;
 use std::io::SeekFrom;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 use tokio::sync::Mutex;
+
+static ALLOWED_ERROR_KINDS: LazyLock<HashSet<io::ErrorKind>> = LazyLock::new(|| {
+    let mut error_kinds = HashSet::new();
+    error_kinds.insert(io::ErrorKind::InvalidData);
+    #[cfg(windows)]
+    error_kinds.insert(io::ErrorKind::Uncategorized);
+
+    error_kinds
+});
 
 /// The version of the envelope stack file format.
 const CURRENT_FILE_VERSION: u8 = 1;
@@ -139,7 +149,7 @@ async fn seek_truncate(
 ) -> Result<bool, FileBackedEnvelopeStackError> {
     match file.seek(SeekFrom::End(-(from_end as i64))).await {
         Ok(_) => Ok(true),
-        Err(error) if error.kind() == io::ErrorKind::InvalidInput => {
+        Err(error) if ALLOWED_ERROR_KINDS.contains(&error.kind()) => {
             relay_log::error!(error = &error as &dyn Error, "failed to truncate file",);
             truncate_file(file, 0).await?;
             Ok(false)
