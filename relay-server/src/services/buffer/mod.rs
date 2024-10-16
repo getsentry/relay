@@ -658,14 +658,15 @@ mod tests {
             .set_start_time(Instant::now() - 2 * config.spool_envelopes_max_age());
         addr.send(EnvelopeBuffer::Push(envelope));
 
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        let outcome = tokio::time::timeout(Duration::from_secs(5), outcome_aggregator_rx.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(outcome.category, DataCategory::TransactionIndexed);
+        assert_eq!(outcome.quantity, 1);
 
         assert_eq!(envelopes_rx.len(), 0);
         assert_eq!(project_cache_rx.len(), 0);
-
-        let outcome = outcome_aggregator_rx.try_recv().unwrap();
-        assert_eq!(outcome.category, DataCategory::TransactionIndexed);
-        assert_eq!(outcome.quantity, 1);
     }
 
     #[tokio::test]
@@ -729,14 +730,15 @@ mod tests {
             )))
             .unwrap();
 
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        let outcome = tokio::time::timeout(Duration::from_secs(5), outcome_aggregator_rx.recv())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(outcome.category, DataCategory::TransactionIndexed);
+        assert_eq!(outcome.quantity, 1);
 
         assert_eq!(envelopes_rx.len(), 0);
         assert_eq!(project_cache_rx.len(), 0);
-
-        let outcome = outcome_aggregator_rx.try_recv().unwrap();
-        assert_eq!(outcome.category, DataCategory::TransactionIndexed);
-        assert_eq!(outcome.quantity, 1);
     }
 
     #[tokio::test]
