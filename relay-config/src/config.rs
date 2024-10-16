@@ -1022,6 +1022,7 @@ pub enum EnvelopeBufferStrategy {
     Memory,
     /// Use a SQLite database for envelope buffering.
     Sqlite,
+    #[cfg(not(windows))]
     /// Use a file-backed system for envelope buffering.
     FileBacked,
 }

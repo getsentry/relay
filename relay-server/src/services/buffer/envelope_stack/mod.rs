@@ -2,6 +2,7 @@ use std::future::Future;
 
 use crate::envelope::Envelope;
 
+#[cfg(not(windows))]
 pub mod file_backed;
 pub mod memory;
 pub mod sqlite;

@@ -18,8 +18,6 @@ use tokio::sync::Mutex;
 static ALLOWED_ERROR_KINDS: LazyLock<HashSet<io::ErrorKind>> = LazyLock::new(|| {
     let mut error_kinds = HashSet::new();
     error_kinds.insert(io::ErrorKind::InvalidInput);
-    #[cfg(windows)]
-    error_kinds.insert(io::ErrorKind::Uncategorized);
 
     error_kinds
 });

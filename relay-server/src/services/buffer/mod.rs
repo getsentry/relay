@@ -588,6 +588,7 @@ mod tests {
         assert_eq!(project_cache_rx.len(), 0);
     }
 
+    #[cfg(not(windows))]
     #[tokio::test]
     async fn pop_requires_memory_capacity() {
         tokio::time::pause();
