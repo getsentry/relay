@@ -548,7 +548,7 @@ mod tests {
         store.remove_file(&project_key_pair).await.unwrap();
 
         // Verify the file no longer exists in cache or on disk
-        assert!(!store.files_cache.cache.get_mut(&project_key_pair).is_some());
+        assert!(store.files_cache.cache.get_mut(&project_key_pair).is_none());
         assert!(!file_path.exists());
 
         // Removing a non-existent file should not error

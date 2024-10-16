@@ -596,6 +596,9 @@ impl TimerMetric for RelayTimers {
             RelayTimers::BufferPop => "buffer.pop.duration",
             RelayTimers::BufferDrain => "buffer.drain.duration",
             RelayTimers::BufferEnvelopesSerialization => "buffer.envelopes_serialization",
+            RelayTimers::BufferEnvelopeSerialization => "buffer.envelope_serialization",
+            RelayTimers::BufferEnvelopeFileWriting => "buffer.envelope_file_writing",
+            RelayTimers::BufferTotalCountReading => "buffer.total_count_reading",
         }
     }
 }
