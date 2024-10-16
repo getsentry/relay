@@ -108,12 +108,6 @@ impl EnvelopeStack for FileBackedEnvelopeStack {
         Ok(())
     }
 
-    async fn peek(&mut self) -> Result<Option<&Envelope>, Self::Error> {
-        // Since we cannot return a reference to data on disk, this method isn't practical
-        // We'll need to adjust the trait to return an owned Envelope, or change the design
-        Ok(None)
-    }
-
     async fn pop(&mut self) -> Result<Option<Box<Envelope>>, Self::Error> {
         let mut envelope_store = self.envelope_store.lock().await;
         let file = envelope_store.get_file(self.project_key_pair).await?;
