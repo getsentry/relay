@@ -428,7 +428,7 @@ impl FromMessage<UpdateProject> for ProjectCache {
 ///
 /// See [`RequestUpdate`] for a description on how project states are fetched.
 #[derive(Clone, Debug)]
-struct ProjectSource {
+pub struct ProjectSource {
     config: Arc<Config>,
     local_source: Addr<LocalProjectSource>,
     upstream_source: Addr<UpstreamProjectSource>,
@@ -489,7 +489,7 @@ impl ProjectSource {
         }
     }
 
-    async fn fetch(
+    pub async fn fetch(
         self,
         project_key: ProjectKey,
         no_cache: bool,
