@@ -151,7 +151,7 @@ async fn seek_truncate(
     match file.seek(SeekFrom::End(-(from_end as i64))).await {
         Ok(_) => Ok(true),
         Err(error) if ALLOWED_ERROR_KINDS.contains(&error.kind()) => {
-            relay_log::error!(error = &error as &dyn Error, "failed to seek the file",);
+            relay_log::error!(error = &error as &dyn Error, "failed to seek the file");
             truncate_file(file, 0).await?;
             Ok(false)
         }
