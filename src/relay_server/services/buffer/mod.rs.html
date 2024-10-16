@@ -766,6 +766,78 @@
 <a href="#766" id="766">766</a>
 <a href="#767" id="767">767</a>
 <a href="#768" id="768">768</a>
+<a href="#769" id="769">769</a>
+<a href="#770" id="770">770</a>
+<a href="#771" id="771">771</a>
+<a href="#772" id="772">772</a>
+<a href="#773" id="773">773</a>
+<a href="#774" id="774">774</a>
+<a href="#775" id="775">775</a>
+<a href="#776" id="776">776</a>
+<a href="#777" id="777">777</a>
+<a href="#778" id="778">778</a>
+<a href="#779" id="779">779</a>
+<a href="#780" id="780">780</a>
+<a href="#781" id="781">781</a>
+<a href="#782" id="782">782</a>
+<a href="#783" id="783">783</a>
+<a href="#784" id="784">784</a>
+<a href="#785" id="785">785</a>
+<a href="#786" id="786">786</a>
+<a href="#787" id="787">787</a>
+<a href="#788" id="788">788</a>
+<a href="#789" id="789">789</a>
+<a href="#790" id="790">790</a>
+<a href="#791" id="791">791</a>
+<a href="#792" id="792">792</a>
+<a href="#793" id="793">793</a>
+<a href="#794" id="794">794</a>
+<a href="#795" id="795">795</a>
+<a href="#796" id="796">796</a>
+<a href="#797" id="797">797</a>
+<a href="#798" id="798">798</a>
+<a href="#799" id="799">799</a>
+<a href="#800" id="800">800</a>
+<a href="#801" id="801">801</a>
+<a href="#802" id="802">802</a>
+<a href="#803" id="803">803</a>
+<a href="#804" id="804">804</a>
+<a href="#805" id="805">805</a>
+<a href="#806" id="806">806</a>
+<a href="#807" id="807">807</a>
+<a href="#808" id="808">808</a>
+<a href="#809" id="809">809</a>
+<a href="#810" id="810">810</a>
+<a href="#811" id="811">811</a>
+<a href="#812" id="812">812</a>
+<a href="#813" id="813">813</a>
+<a href="#814" id="814">814</a>
+<a href="#815" id="815">815</a>
+<a href="#816" id="816">816</a>
+<a href="#817" id="817">817</a>
+<a href="#818" id="818">818</a>
+<a href="#819" id="819">819</a>
+<a href="#820" id="820">820</a>
+<a href="#821" id="821">821</a>
+<a href="#822" id="822">822</a>
+<a href="#823" id="823">823</a>
+<a href="#824" id="824">824</a>
+<a href="#825" id="825">825</a>
+<a href="#826" id="826">826</a>
+<a href="#827" id="827">827</a>
+<a href="#828" id="828">828</a>
+<a href="#829" id="829">829</a>
+<a href="#830" id="830">830</a>
+<a href="#831" id="831">831</a>
+<a href="#832" id="832">832</a>
+<a href="#833" id="833">833</a>
+<a href="#834" id="834">834</a>
+<a href="#835" id="835">835</a>
+<a href="#836" id="836">836</a>
+<a href="#837" id="837">837</a>
+<a href="#838" id="838">838</a>
+<a href="#839" id="839">839</a>
+<a href="#840" id="840">840</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Types for buffering envelopes.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -783,6 +855,7 @@
 <span class="kw">use </span>tokio::time::{timeout, Instant};
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::Envelope;
+<span class="kw">use </span><span class="kw">crate</span>::services::buffer::common::ProjectKeyPair;
 <span class="kw">use </span><span class="kw">crate</span>::services::buffer::envelope_buffer::Peek;
 <span class="kw">use </span><span class="kw">crate</span>::services::global_config;
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::DiscardReason;
@@ -988,8 +1061,8 @@
         services: <span class="kw-2">&amp;</span>Services,
         envelopes_tx_permit: Permit&lt;<span class="lifetime">'a</span>, DequeuedEnvelope&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Duration, EnvelopeBufferError&gt; {
-        <span class="kw">let </span>sleep = <span class="kw">match </span>buffer.peek().<span class="kw">await</span><span class="question-mark">? </span>{
-            Peek::Empty =&gt; {
+        <span class="kw">let </span>sleep = <span class="kw">match </span>buffer.peek() {
+            <span class="prelude-val">None </span>=&gt; {
                 <span class="macro">relay_statsd::metric!</span>(
                     counter(RelayCounters::BufferTryPop) += <span class="number">1</span>,
                     peek_result = <span class="string">"empty"
@@ -997,69 +1070,67 @@
 
                 Duration::MAX <span class="comment">// wait for reset by `handle_message`.
             </span>}
-            Peek::Ready(envelope) | Peek::NotReady(.., envelope)
-                <span class="kw">if </span><span class="self">Self</span>::expired(config, envelope) =&gt;
-            {
-                <span class="kw">let </span>envelope = buffer
-                    .pop()
-                    .<span class="kw">await</span><span class="question-mark">?
-                    </span>.expect(<span class="string">"Element disappeared despite exclusive excess"</span>);
+            <span class="prelude-val">Some</span>(Peek {
+                project_key_pair,
+                received_at,
+                ready,
+                next_project_fetch,
+            }) =&gt; {
+                <span class="kw">if </span>received_at.elapsed() &gt; config.spool_envelopes_max_age() {
+                    <span class="macro">relay_statsd::metric!</span>(
+                        counter(RelayCounters::BufferTryPop) += <span class="number">1</span>,
+                        peek_result = <span class="string">"expired"
+                    </span>);
+                    <span class="kw">if let </span><span class="prelude-val">Some</span>(envelope) = buffer.pop().<span class="kw">await</span><span class="question-mark">? </span>{
+                        <span class="self">Self</span>::drop_expired(envelope, services);
+                    }
 
-                <span class="self">Self</span>::drop_expired(envelope, services);
-
-                Duration::ZERO <span class="comment">// try next pop immediately
-            </span>}
-            Peek::Ready(<span class="kw">_</span>) =&gt; {
-                <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService: popping envelope"</span>);
-                <span class="macro">relay_statsd::metric!</span>(
-                    counter(RelayCounters::BufferTryPop) += <span class="number">1</span>,
-                    peek_result = <span class="string">"ready"
-                </span>);
-                <span class="kw">let </span>envelope = buffer
-                    .pop()
-                    .<span class="kw">await</span><span class="question-mark">?
-                    </span>.expect(<span class="string">"Element disappeared despite exclusive excess"</span>);
-                envelopes_tx_permit.send(DequeuedEnvelope(envelope));
-
-                Duration::ZERO <span class="comment">// try next pop immediately
-            </span>}
-            Peek::NotReady(stack_key, next_project_fetch, envelope) =&gt; {
-                <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService: project(s) of envelope not ready"</span>);
-                <span class="macro">relay_statsd::metric!</span>(
-                    counter(RelayCounters::BufferTryPop) += <span class="number">1</span>,
-                    peek_result = <span class="string">"not_ready"
-                </span>);
-
-                <span class="comment">// We want to fetch the configs again, only if some time passed between the last
-                // peek of this not ready project key pair and the current peek. This is done to
-                // avoid flooding the project cache with `UpdateProject` messages.
-                </span><span class="kw">if </span>Instant::now() &gt;= next_project_fetch {
-                    <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService: requesting project(s) update"</span>);
-                    <span class="kw">let </span>own_key = envelope.meta().public_key();
-
-                    services.project_cache.send(UpdateProject(own_key));
-                    <span class="kw">match </span>envelope.sampling_key() {
-                        <span class="prelude-val">None </span>=&gt; {}
-                        <span class="prelude-val">Some</span>(sampling_key) <span class="kw">if </span>sampling_key == own_key =&gt; {} <span class="comment">// already sent.
-                        </span><span class="prelude-val">Some</span>(sampling_key) =&gt; {
-                            services.project_cache.send(UpdateProject(sampling_key));
+                    Duration::ZERO <span class="comment">// try next pop immediately
+                </span>} <span class="kw">else if </span>ready {
+                    <span class="macro">relay_statsd::metric!</span>(
+                        counter(RelayCounters::BufferTryPop) += <span class="number">1</span>,
+                        peek_result = <span class="string">"ready"
+                    </span>);
+                    <span class="kw">if let </span><span class="prelude-val">Some</span>(envelope) = buffer.pop().<span class="kw">await</span><span class="question-mark">? </span>{
+                        <span class="comment">// The cached `received_at` time on the queue might be newer than
+                        // the actual timestamp of the envelope, so check again here.
+                        </span><span class="kw">if </span>envelope.meta().start_time().elapsed() &gt; config.spool_envelopes_max_age()
+                        {
+                            <span class="self">Self</span>::drop_expired(envelope, services);
+                        } <span class="kw">else </span>{
+                            envelopes_tx_permit.send(DequeuedEnvelope(envelope));
                         }
                     }
 
-                    <span class="comment">// Deprioritize the stack to prevent head-of-line blocking and update the next fetch
-                    // time.
-                    </span>buffer.mark_seen(<span class="kw-2">&amp;</span>stack_key, DEFAULT_SLEEP);
-                }
+                    Duration::ZERO <span class="comment">// try next pop immediately
+                </span>} <span class="kw">else </span>{
+                    <span class="kw">let </span>ProjectKeyPair {
+                        own_key,
+                        sampling_key,
+                    } = project_key_pair;
+                    <span class="macro">relay_statsd::metric!</span>(
+                        counter(RelayCounters::BufferTryPop) += <span class="number">1</span>,
+                        peek_result = <span class="string">"not_ready"
+                    </span>);
+                    <span class="kw">if </span>Instant::now() &gt;= next_project_fetch {
+                        <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService: requesting project(s) update"</span>);
 
-                DEFAULT_SLEEP <span class="comment">// wait and prioritize handling new messages.
-            </span>}
+                        services.project_cache.send(UpdateProject(own_key));
+                        <span class="kw">if </span>sampling_key != own_key {
+                            services.project_cache.send(UpdateProject(sampling_key));
+                        }
+
+                        <span class="comment">// Deprioritize the stack to prevent head-of-line blocking and update the next fetch
+                        // time.
+                        </span>buffer.mark_seen(<span class="kw-2">&amp;</span>project_key_pair, DEFAULT_SLEEP);
+                    }
+
+                    DEFAULT_SLEEP <span class="comment">// wait and prioritize handling new messages.
+                </span>}
+            }
         };
 
         <span class="prelude-val">Ok</span>(sleep)
-    }
-
-    <span class="kw">fn </span>expired(config: <span class="kw-2">&amp;</span>Config, envelope: <span class="kw-2">&amp;</span>Envelope) -&gt; bool {
-        envelope.meta().start_time().elapsed() &gt; config.spool_envelopes_max_age()
     }
 
     <span class="kw">fn </span>drop_expired(envelope: Box&lt;Envelope&gt;, services: <span class="kw-2">&amp;</span>Services) {
@@ -1239,7 +1310,9 @@
     <span class="kw">use </span>std::time::{Duration, Instant};
 
     <span class="kw">use </span>relay_dynamic_config::GlobalConfig;
+    <span class="kw">use </span>relay_metrics::UnixTimestamp;
     <span class="kw">use </span>relay_quotas::DataCategory;
+    <span class="kw">use </span>sqlx::Connection;
     <span class="kw">use </span>tokio::sync::mpsc;
     <span class="kw">use </span>uuid::Uuid;
 
@@ -1424,6 +1497,77 @@
             .meta_mut()
             .set_start_time(Instant::now() - <span class="number">2 </span>* config.spool_envelopes_max_age());
         addr.send(EnvelopeBuffer::Push(envelope));
+
+        tokio::time::sleep(Duration::from_millis(<span class="number">100</span>)).<span class="kw">await</span>;
+
+        <span class="macro">assert_eq!</span>(envelopes_rx.len(), <span class="number">0</span>);
+        <span class="macro">assert_eq!</span>(project_cache_rx.len(), <span class="number">0</span>);
+
+        <span class="kw">let </span>outcome = outcome_aggregator_rx.try_recv().unwrap();
+        <span class="macro">assert_eq!</span>(outcome.category, DataCategory::TransactionIndexed);
+        <span class="macro">assert_eq!</span>(outcome.quantity, <span class="number">1</span>);
+    }
+
+    <span class="attr">#[tokio::test]
+    </span><span class="kw">async fn </span>old_envelope_from_disk_is_dropped() {
+        <span class="macro">relay_log::init_test!</span>();
+
+        <span class="kw">let </span>tmp = tempfile::TempDir::new().unwrap();
+        <span class="kw">let </span>path = tmp.path().join(<span class="string">"envelopes.db"</span>);
+
+        <span class="kw">let </span>buffer_service = || {
+            envelope_buffer_service(
+                <span class="prelude-val">Some</span>(<span class="macro">serde_json::json!</span>({
+                    <span class="string">"spool"</span>: {
+                        <span class="string">"envelopes"</span>: {
+                            <span class="string">"version"</span>: <span class="string">"experimental"</span>,
+                            <span class="string">"path"</span>: path,
+                            <span class="string">"max_envelope_delay_secs"</span>: <span class="number">1</span>,
+                        }
+                    }
+                })),
+                global_config::Status::Ready(Arc::new(GlobalConfig::default())),
+            )
+        };
+
+        <span class="comment">// Initialize once to migrate the database:
+        </span><span class="kw">let </span>service = buffer_service().service;
+        <span class="kw">let </span>config = service.config.clone();
+        service.start();
+
+        tokio::time::sleep(Duration::from_millis(<span class="number">1000</span>)).<span class="kw">await</span>;
+
+        <span class="comment">// Write an envelope to the db
+        </span><span class="kw">let </span>envelope = new_envelope(<span class="bool-val">false</span>, <span class="string">"foo"</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>db = sqlx::SqliteConnection::connect(path.to_str().unwrap())
+            .<span class="kw">await
+            </span>.unwrap();
+
+        <span class="kw">let </span>received_at =
+            UnixTimestamp::now().as_datetime().unwrap() - <span class="number">2 </span>* config.spool_envelopes_max_age();
+
+        <span class="kw">let </span>query = sqlx::query(<span class="string">"INSERT INTO envelopes (received_at, own_key, sampling_key, envelope) VALUES ($1, $2, $3, $4);"</span>)
+            .bind(received_at.timestamp_millis())
+            .bind(envelope.meta().public_key().to_string())
+            .bind(envelope.meta().public_key().to_string())
+            .bind(envelope.to_vec().unwrap());
+        query.execute(<span class="kw-2">&amp;mut </span>db).<span class="kw">await</span>.unwrap();
+
+        <span class="comment">// Initialize again to read from db:
+        </span><span class="kw">let </span>EnvelopeBufferServiceResult {
+            service,
+            envelopes_rx,
+            project_cache_rx,
+            <span class="kw-2">mut </span>outcome_aggregator_rx,
+            global_tx,
+        } = buffer_service();
+
+        <span class="kw">let </span>_addr = service.start();
+        global_tx
+            .send(global_config::Status::Ready(Arc::new(
+                GlobalConfig::default(),
+            )))
+            .unwrap();
 
         tokio::time::sleep(Duration::from_millis(<span class="number">100</span>)).<span class="kw">await</span>;
 
