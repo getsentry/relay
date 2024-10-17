@@ -3669,6 +3669,7 @@ dependencies = [
 name = "relay-quotas"
 version = "24.9.0"
 dependencies = [
+ "arc-swap",
  "hashbrown",
  "insta",
  "itertools 0.13.0",

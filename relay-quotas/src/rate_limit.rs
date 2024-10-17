@@ -402,7 +402,7 @@ impl<'a> IntoIterator for &'a RateLimits {
 ///
 /// The data structure makes sure no expired rate limits are enforced.
 #[derive(Debug, Default)]
-pub struct CachedRateLimits(RateLimits);
+pub struct CachedRateLimits(ArcSwap<RateLimits>);
 
 impl CachedRateLimits {
     /// Creates a new, empty instance without any rate limits enforced.

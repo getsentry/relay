@@ -5,7 +5,7 @@ use relay_config::Config;
 use tokio::sync::mpsc;
 
 use crate::services::projects::cache::ProjectSource;
-use crate::services::projects::cache2::state::{CompletedFetch, Fetch};
+use crate::services::projects::cache2::state::{CompletedFetch, Fetch, Missing};
 use crate::services::projects::project::{ProjectFetchState, ProjectState};
 
 pub enum ProjectCache {
@@ -22,8 +22,16 @@ impl relay_system::FromMessage<Self> for ProjectCache {
     }
 }
 
+impl relay_system::FromMessage<Missing> for ProjectCache {
+    type Response = relay_system::NoResponse;
+
+    fn from_message(message: Missing, _: ()) -> Self {
+        Self::Fetch(message.project_key)
+    }
+}
+
 pub struct ProjectCacheService {
-    inner: super::state::Inner,
+    inner: super::state::ProjectStore,
     source: ProjectSource,
     config: Arc<Config>,
 
