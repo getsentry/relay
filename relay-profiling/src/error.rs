@@ -30,6 +30,8 @@ pub enum ProfileError {
     TooManyProfiles,
     #[error("duration is too long")]
     DurationIsTooLong,
+    #[error("duration is zero")]
+    DurationIsZero,
 }
 
 impl ProfileError {
