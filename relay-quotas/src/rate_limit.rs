@@ -415,7 +415,7 @@ impl CachedRateLimits {
     /// Adds a limit to this collection.
     ///
     /// See also: [`RateLimits::add`].
-    pub fn add(&mut self, limit: RateLimit) {
+    pub fn add(&self, limit: RateLimit) {
         self.0.rcu(|current| {
             let mut current = current.as_ref().clone();
             current.add(limit.clone());
@@ -426,7 +426,7 @@ impl CachedRateLimits {
     /// Merges more rate limits into this instance.
     ///
     /// See also: [`RateLimits::merge`].
-    pub fn merge(&mut self, limits: RateLimits) {
+    pub fn merge(&self, limits: RateLimits) {
         self.0.rcu(|current| {
             let mut current = current.as_ref().clone();
             for limit in limits.clone() {
@@ -444,9 +444,20 @@ impl CachedRateLimits {
 
         let mut current = self.0.load();
         while current.iter().any(|rl| rl.retry_after.expired_at(now)) {
-            let mut new = current.as_ref().clone();
-            new.clean_expired();
-            current = self.0.compare_and_swap(current, Arc::new(new));
+            let new = {
+                let mut new = current.as_ref().clone();
+                new.clean_expired();
+                Arc::new(new)
+            };
+
+            let prev = self.0.compare_and_swap(&*current, Arc::clone(&new));
+
+            // If there was a swap, we know `new` is now stored and the most recent value.
+            if Arc::ptr_eq(&current, &prev) {
+                return new;
+            }
+
+            current = prev;
         }
 
         arc_swap::Guard::into_inner(current)

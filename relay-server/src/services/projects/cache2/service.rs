@@ -5,7 +5,7 @@ use relay_config::Config;
 use tokio::sync::mpsc;
 
 use crate::services::projects::cache::ProjectSource;
-use crate::services::projects::cache2::state::{CompletedFetch, Fetch, Missing};
+use crate::services::projects::cache2::state::{CompletedFetch, Fetch};
 use crate::services::projects::project::{ProjectFetchState, ProjectState};
 
 pub enum ProjectCache {
@@ -22,16 +22,8 @@ impl relay_system::FromMessage<Self> for ProjectCache {
     }
 }
 
-impl relay_system::FromMessage<Missing> for ProjectCache {
-    type Response = relay_system::NoResponse;
-
-    fn from_message(message: Missing, _: ()) -> Self {
-        Self::Fetch(message.project_key)
-    }
-}
-
 pub struct ProjectCacheService {
-    inner: super::state::ProjectStore,
+    store: super::state::ProjectStore,
     source: ProjectSource,
     config: Arc<Config>,
 
@@ -70,19 +62,23 @@ impl ProjectCacheService {
 
 impl ProjectCacheService {
     fn handle_fetch(&mut self, project_key: ProjectKey) {
-        if let Some(fetch) = self.inner.try_begin_fetch(project_key, &self.config) {
+        if let Some(fetch) = self.store.try_begin_fetch(project_key, &self.config) {
             self.schedule_fetch(fetch);
         }
     }
 
     fn handle_project_update(&mut self, fetch: CompletedFetch) {
-        if let Some(fetch) = self.inner.complete_fetch(fetch, &self.config) {
+        if let Some(fetch) = self.store.complete_fetch(fetch, &self.config) {
             relay_log::trace!(
                 project_key = fetch.project_key().as_str(),
                 "re-scheduling project fetch: {fetch:?}"
             );
             self.schedule_fetch(fetch);
         }
+    }
+
+    fn handle_evict_stale_projects(&mut self) {
+        self.store.evict_stale_projects(&self.config);
     }
 
     fn handle(&mut self, message: ProjectCache) {
@@ -97,6 +93,8 @@ impl relay_system::Service for ProjectCacheService {
 
     fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
         tokio::spawn(async move {
+            let mut eviction_ticker = tokio::time::interval(self.config.cache_eviction_interval());
+
             loop {
                 tokio::select! {
                     biased;
@@ -106,6 +104,9 @@ impl relay_system::Service for ProjectCacheService {
                     },
                     Some(message) = rx.recv() => {
                         self.handle(message);
+                    },
+                    _ = eviction_ticker.tick() => {
+                        self.handle_evict_stale_projects()
                     }
                 }
             }

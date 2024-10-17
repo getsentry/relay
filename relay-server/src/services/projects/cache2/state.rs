@@ -6,6 +6,7 @@ use arc_swap::ArcSwap;
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
 use relay_quotas::{CachedRateLimits, RateLimits};
+use relay_sampling::evaluation::ReservoirCounters;
 
 use crate::services::projects::cache2::ProjectCache;
 use crate::services::projects::project::ProjectState;
@@ -27,27 +28,18 @@ pub struct ProjectStore {
 }
 
 impl ProjectStore {
-    pub fn get_or_create(&mut self, project_key: ProjectKey, config: &Config) -> ProjectRef<'_> {
-        #[cfg(debug_assertions)]
-        if self.private.contains_key(&project_key) {
-            // We have exclusive access to the private part, there are no concurrent deletions
-            // hence when if we have a private state there must always be a shared state as well.
-            debug_assert!(self.shared.projects.pin().contains_key(&project_key));
-        }
+    pub fn get(&mut self, project_key: ProjectKey) -> Option<ProjectRef<'_>> {
+        let private = self.private.get_mut(&project_key)?;
+        let shared = self.shared.projects.pin().get(&project_key).cloned();
+        debug_assert!(
+            shared.is_some(),
+            "there must be a shared project if private state exists"
+        );
 
-        let private = self
-            .private
-            .entry(project_key)
-            .or_insert_with(|| PrivateProjectState::new(project_key, config));
-
-        let shared = self
-            .shared
-            .projects
-            .pin()
-            .get_or_insert_with(project_key, Default::default)
-            .clone();
-
-        ProjectRef { private, shared }
+        Some(ProjectRef {
+            private,
+            shared: shared?,
+        })
     }
 
     // pub fn try_create(&mut self, project_key: ProjectKey, config: &Config) -> Option<ProjectRef<'_>> {
@@ -93,6 +85,70 @@ impl ProjectStore {
         // the completed fetch is pending.
         project.try_begin_fetch(config)
     }
+
+    pub fn evict_stale_projects(&mut self, config: &Config) -> usize {
+        let eviction_start = Instant::now();
+        let delta = 2 * config.project_cache_expiry() + config.project_grace_period();
+
+        // TODO: what do we do with forever fetching projects, do we fail eventually?
+        let expired = self.private.extract_if(|_, private| {
+            if private.has_fetch_in_progress() {
+                return false;
+            }
+
+            // Invariant: if there is no last successful fetch,
+            // there must be a fetch currently in progress.
+            debug_assert!(private.last_non_pending_fetch.is_some());
+
+            private
+                .last_non_pending_fetch
+                .map_or(true, |ts| ts + delta <= eviction_start)
+        });
+
+        let mut evicted = 0;
+
+        let shared = self.shared.projects.pin();
+        for (project_key, _) in expired {
+            let _removed = shared.remove(&project_key);
+            debug_assert!(
+                _removed.is_some(),
+                "an expired project must exist in the shared state"
+            );
+
+            evicted += 1;
+
+            // TODO: garbage disposal? Do we still need that, we shouldn't have a problem with
+            // timings anymore.
+
+            // TODO: on eviction for spool event?
+        }
+        drop(shared);
+
+        evicted
+    }
+
+    fn get_or_create(&mut self, project_key: ProjectKey, config: &Config) -> ProjectRef<'_> {
+        #[cfg(debug_assertions)]
+        if self.private.contains_key(&project_key) {
+            // We have exclusive access to the private part, there are no concurrent deletions
+            // hence when if we have a private state there must always be a shared state as well.
+            debug_assert!(self.shared.projects.pin().contains_key(&project_key));
+        }
+
+        let private = self
+            .private
+            .entry(project_key)
+            .or_insert_with(|| PrivateProjectState::new(project_key, config));
+
+        let shared = self
+            .shared
+            .projects
+            .pin()
+            .get_or_insert_with(project_key, Default::default)
+            .clone();
+
+        ProjectRef { private, shared }
+    }
 }
 
 pub struct ProjectRef<'a> {
@@ -101,7 +157,11 @@ pub struct ProjectRef<'a> {
 }
 
 impl ProjectRef<'_> {
-    pub fn try_begin_fetch(&mut self, config: &Config) -> Option<Fetch> {
+    pub fn merge_rate_limits(&mut self, rate_limits: RateLimits) {
+        self.shared.merge_rate_limits(rate_limits)
+    }
+
+    fn try_begin_fetch(&mut self, config: &Config) -> Option<Fetch> {
         self.private.try_begin_fetch(config)
     }
 
@@ -162,7 +222,7 @@ impl fmt::Debug for Shared {
     }
 }
 
-#[must_use = "a missing value must be used to trigger a fetch"]
+#[must_use = "a missing project must be fetched"]
 pub struct Missing {
     project_key: ProjectKey,
     shared_project: SharedProject,
@@ -179,11 +239,19 @@ pub struct SharedProject(Arc<SharedProjectStateInner>);
 
 impl SharedProject {
     pub fn project_state(&self) -> &ProjectState {
-        &self.0.as_ref().state
+        &self.0.state
     }
 
-    pub fn current_rate_limits(&self) -> Arc<RateLimits> {
-        self.0.as_ref().rate_limits.current_limits()
+    pub fn cached_rate_limits(&self) -> &CachedRateLimits {
+        // TODO: exposing cached rate limits may be a bad idea, this allows mutation
+        // and caching of rate limits for pending projects, which may or may not be fine.
+        //
+        // Read only access is easily achievable if we return only the current rate limits.
+        &self.0.rate_limits
+    }
+
+    pub fn reservoir_counters(&self) -> &ReservoirCounters {
+        &self.0.reservoir_counters
     }
 }
 
@@ -192,10 +260,34 @@ struct SharedProjectState(Arc<ArcSwap<SharedProjectStateInner>>);
 
 impl SharedProjectState {
     fn set_project_state(&self, state: ProjectState) {
-        self.0.rcu(move |stored| SharedProjectStateInner {
+        let prev = self.0.rcu(|stored| SharedProjectStateInner {
             state: state.clone(),
             rate_limits: Arc::clone(&stored.rate_limits),
+            reservoir_counters: Arc::clone(&stored.reservoir_counters),
         });
+
+        // Try clean expired reservoir counters.
+        //
+        // We do it after the `rcu`, to not re-run this more often than necessary.
+        if let Some(state) = state.enabled() {
+            let config = state.config.sampling.as_ref();
+            if let Some(config) = config.and_then(|eb| eb.as_ref().ok()) {
+                // We can safely use previous here, the `rcu` just replaced the state, the
+                // reservoir counters did not change.
+                //
+                // `try_lock` to not potentially block, it's a best effort cleanup.
+                //
+                // TODO: Remove the lock, we already have interior mutability with the `ArcSwap`
+                // and the counters themselves can be atomics.
+                if let Ok(mut counters) = prev.reservoir_counters.try_lock() {
+                    counters.retain(|key, _| config.rules.iter().any(|rule| rule.id == *key));
+                }
+            }
+        }
+    }
+
+    fn merge_rate_limits(&self, rate_limits: RateLimits) {
+        self.0.load().rate_limits.merge(rate_limits)
     }
 
     fn to_shared_project(&self) -> SharedProject {
@@ -207,21 +299,11 @@ impl SharedProjectState {
 ///
 /// All fields must be cheap to clone and are ideally just a single `Arc`.
 /// Partial updates to [`SharedProjectState`], are performed using `rcu` cloning all fields.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct SharedProjectStateInner {
     state: ProjectState,
-    // TODO: these should possibly have their own inner ArcSwap to make dropping expired limits
-    // possible without mutable access.
     rate_limits: Arc<CachedRateLimits>,
-}
-
-impl Default for SharedProjectStateInner {
-    fn default() -> Self {
-        Self {
-            state: ProjectState::Pending,
-            rate_limits: Default::default(),
-        }
-    }
+    reservoir_counters: ReservoirCounters,
 }
 
 struct PrivateProjectState {
@@ -243,6 +325,10 @@ impl PrivateProjectState {
             next_fetch_attempt: None,
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
         }
+    }
+
+    fn has_fetch_in_progress(&self) -> bool {
+        self.current_fetch.is_some()
     }
 
     fn try_begin_fetch(&mut self, config: &Config) -> Option<Fetch> {

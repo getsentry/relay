@@ -161,11 +161,11 @@ impl Project {
     }
 
     /// Collects internal project state and assembles a [`ProcessProjectMetrics`] message.
-    pub fn process_metrics(&mut self, message: ProcessMetrics) -> ProcessProjectMetrics {
+    pub fn process_metrics(&mut self, message: ProcessMetrics) -> ProcessMetrics {
         let project_state = self.current_state();
         let rate_limits = self.rate_limits.current_limits().clone();
 
-        ProcessProjectMetrics {
+        ProcessMetrics {
             project_state,
             rate_limits,
 
