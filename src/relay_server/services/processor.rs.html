@@ -3964,10 +3964,6 @@
 <a href="#3964" id="3964">3964</a>
 <a href="#3965" id="3965">3965</a>
 <a href="#3966" id="3966">3966</a>
-<a href="#3967" id="3967">3967</a>
-<a href="#3968" id="3968">3968</a>
-<a href="#3969" id="3969">3969</a>
-<a href="#3970" id="3970">3970</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -5670,10 +5666,6 @@
 
         <span class="kw">let </span>profile_id = profile::filter(state);
         profile::transfer_id(state, profile_id);
-
-        <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
-            attachment::create_placeholders(state);
-        });
 
         event::finalize(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
         <span class="self">self</span>.normalize_event(state)<span class="question-mark">?</span>;

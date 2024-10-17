@@ -109,7 +109,7 @@
 
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">use </span>{
-    <span class="kw">crate</span>::services::processor::EventProcessing, <span class="kw">crate</span>::utils, relay_event_schema::protocol::Event,
+    <span class="kw">crate</span>::services::processor::ErrorGroup, <span class="kw">crate</span>::utils, relay_event_schema::protocol::Event,
     relay_protocol::Annotated,
 };
 
@@ -120,7 +120,7 @@
 ///
 /// If the event payload was empty before, it is created.
 </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-</span><span class="kw">pub fn </span>create_placeholders&lt;G: EventProcessing&gt;(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;) {
+</span><span class="kw">pub fn </span>create_placeholders(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;ErrorGroup&gt;) {
     <span class="kw">let </span>envelope = state.managed_envelope.envelope();
     <span class="kw">let </span>minidump_attachment =
         envelope.get_item_by(|item| item.attachment_type() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>AttachmentType::Minidump));
