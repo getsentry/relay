@@ -1,11 +1,10 @@
-use std::sync::Arc;
-
-use relay_base_schema::project::ProjectKey;
-
-mod refresh;
 mod handle;
+mod refresh;
 mod service;
 mod state;
+
+pub use self::handle::ProjectCacheHandle;
+pub use self::service::{ProjectCache, ProjectCacheService};
 
 // pub struct ProjectCacheService {
 //     inner: Inner,

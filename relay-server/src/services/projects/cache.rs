@@ -10,6 +10,7 @@ use crate::services::global_config;
 use crate::services::processor::{
     EncodeMetrics, EnvelopeProcessor, MetricData, ProcessEnvelope, ProcessingGroup, ProjectMetrics,
 };
+use crate::services::projects::cache2::ProjectCacheHandle;
 use crate::services::projects::project::state::UpstreamProjectState;
 use crate::Envelope;
 use chrono::{DateTime, Utc};
@@ -592,7 +593,8 @@ struct ProjectCacheBroker {
     memory_checker: MemoryChecker,
     services: Services,
     // Need hashbrown because extract_if is not stable in std yet.
-    projects: hashbrown::HashMap<ProjectKey, Project>,
+    // projects: hashbrown::HashMap<ProjectKey, Project>,
+    projects: ProjectCacheHandle,
     /// Utility for disposing of expired project data in a background thread.
     garbage_disposal: GarbageDisposal<ProjectGarbage>,
     /// Source for fetching project states from the upstream or from disk.
@@ -668,53 +670,53 @@ impl ProjectCacheBroker {
     /// a project that has expired recently and for which a fetch is already underway in
     /// [`super::source::upstream`].
     fn evict_stale_project_caches(&mut self) {
-        let eviction_start = Instant::now();
-        let delta = 2 * self.config.project_cache_expiry() + self.config.project_grace_period();
-
-        let expired = self
-            .projects
-            .extract_if(|_, entry| entry.last_updated_at() + delta <= eviction_start);
-
-        // Defer dropping the projects to a dedicated thread:
-        let mut count = 0;
-        for (project_key, project) in expired {
-            if let Some(spool_v1) = self.spool_v1.as_mut() {
-                let keys = spool_v1
-                    .index
-                    .extract_if(|key| key.own_key == project_key || key.sampling_key == project_key)
-                    .collect::<BTreeSet<_>>();
-
-                if !keys.is_empty() {
-                    spool_v1.buffer.send(RemoveMany::new(project_key, keys))
-                }
-            }
-
-            self.garbage_disposal.dispose(project);
-            count += 1;
-        }
-        metric!(counter(RelayCounters::EvictingStaleProjectCaches) += count);
-
-        // Log garbage queue size:
-        let queue_size = self.garbage_disposal.queue_size() as f64;
-        metric!(gauge(RelayGauges::ProjectCacheGarbageQueueSize) = queue_size);
-
-        metric!(timer(RelayTimers::ProjectStateEvictionDuration) = eviction_start.elapsed());
-    }
-
-    fn get_or_create_project(&mut self, project_key: ProjectKey) -> &mut Project {
-        metric!(histogram(RelayHistograms::ProjectStateCacheSize) = self.projects.len() as u64);
-
-        let config = self.config.clone();
-
-        self.projects
-            .entry(project_key)
-            .and_modify(|_| {
-                metric!(counter(RelayCounters::ProjectCacheHit) += 1);
-            })
-            .or_insert_with(move || {
-                metric!(counter(RelayCounters::ProjectCacheMiss) += 1);
-                Project::new(project_key, config)
-            })
+        //     let eviction_start = Instant::now();
+        //     let delta = 2 * self.config.project_cache_expiry() + self.config.project_grace_period();
+        //
+        //     let expired = self
+        //         .projects
+        //         .extract_if(|_, entry| entry.last_updated_at() + delta <= eviction_start);
+        //
+        //     // Defer dropping the projects to a dedicated thread:
+        //     let mut count = 0;
+        //     for (project_key, project) in expired {
+        //         if let Some(spool_v1) = self.spool_v1.as_mut() {
+        //             let keys = spool_v1
+        //                 .index
+        //                 .extract_if(|key| key.own_key == project_key || key.sampling_key == project_key)
+        //                 .collect::<BTreeSet<_>>();
+        //
+        //             if !keys.is_empty() {
+        //                 spool_v1.buffer.send(RemoveMany::new(project_key, keys))
+        //             }
+        //         }
+        //
+        //         self.garbage_disposal.dispose(project);
+        //         count += 1;
+        //     }
+        //     metric!(counter(RelayCounters::EvictingStaleProjectCaches) += count);
+        //
+        //     // Log garbage queue size:
+        //     let queue_size = self.garbage_disposal.queue_size() as f64;
+        //     metric!(gauge(RelayGauges::ProjectCacheGarbageQueueSize) = queue_size);
+        //
+        //     metric!(timer(RelayTimers::ProjectStateEvictionDuration) = eviction_start.elapsed());
+        // }
+        //
+        // fn get_or_create_project(&mut self, project_key: ProjectKey) -> &mut Project {
+        //     metric!(histogram(RelayHistograms::ProjectStateCacheSize) = self.projects.len() as u64);
+        //
+        //     let config = self.config.clone();
+        //
+        //     self.projects
+        //         .entry(project_key)
+        //         .and_modify(|_| {
+        //             metric!(counter(RelayCounters::ProjectCacheHit) += 1);
+        //         })
+        //         .or_insert_with(move || {
+        //             metric!(counter(RelayCounters::ProjectCacheMiss) += 1);
+        //             Project::new(project_key, config)
+        //         })
     }
 
     /// Updates the [`Project`] with received [`ProjectState`].
@@ -834,21 +836,9 @@ impl ProjectCacheBroker {
     fn handle_processing(&mut self, key: QueueKey, mut managed_envelope: ManagedEnvelope) {
         let project_key = managed_envelope.envelope().meta().public_key();
 
-        let Some(project) = self.projects.get_mut(&project_key) else {
-            relay_log::error!(
-                tags.project_key = %project_key,
-                "project could not be found in the cache",
-            );
+        let project = self.projects.get(project_key);
 
-            let mut project = Project::new(project_key, self.config.clone());
-            project.prefetch(self.services.project_cache.clone(), false);
-            self.projects.insert(project_key, project);
-            self.enqueue(key, managed_envelope);
-            return;
-        };
-
-        let project_cache = self.services.project_cache.clone();
-        let project_info = match project.get_cached_state(project_cache.clone(), false) {
+        let project_info = match project.state() {
             ProjectState::Enabled(info) => info,
             ProjectState::Disabled => {
                 managed_envelope.reject(Outcome::Invalid(DiscardReason::ProjectId));
@@ -1429,7 +1419,7 @@ impl Service for ProjectCacheService {
             let mut broker = ProjectCacheBroker {
                 config: config.clone(),
                 memory_checker,
-                projects: hashbrown::HashMap::new(),
+                projects: todo!(),
                 garbage_disposal: GarbageDisposal::new(),
                 source: ProjectSource::start(
                     config.clone(),
@@ -1627,7 +1617,7 @@ mod tests {
             ProjectCacheBroker {
                 config: config.clone(),
                 memory_checker,
-                projects: hashbrown::HashMap::new(),
+                projects: todo!(),
                 garbage_disposal: GarbageDisposal::new(),
                 source: ProjectSource::start(config, services.upstream_relay.clone(), None),
                 services,
