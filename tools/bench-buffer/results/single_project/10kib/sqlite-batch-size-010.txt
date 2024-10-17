@@ -1,0 +1,14 @@
+Args { envelope_size_kib: 10, batch_size: 10, implementation: Sqlite, mode: Sequential, projects: 1, duration_secs: 20 }
+Write throughput: 235.82 MiB / s
+Write throughput: 293.12 MiB / s
+Write throughput: 291.29 MiB / s
+Write throughput: 292.72 MiB / s
+Write throughput: 292.97 MiB / s
+Write throughput: 278.57 MiB / s
+Write throughput: 286.45 MiB / s
+Write throughput: 257.00 MiB / s
+Write throughput: 278.85 MiB / s
+Read throughput: 483.75 MiB / s
+Read throughput: 477.82 MiB / s
+Read throughput: 482.04 MiB / s
+Read throughput: 488.47 MiB / s

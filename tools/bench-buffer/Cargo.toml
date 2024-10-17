@@ -1,0 +1,19 @@
+[package]
+name = "bench-buffer"
+version = "0.1.0"
+authors = ["Sentry <oss@sentry.io>"]
+description = "Generates documentation for metrics"
+homepage = "https://getsentry.github.io/relay/"
+repository = "https://github.com/getsentry/relay"
+edition = "2021"
+publish = false
+
+[dependencies]
+bytes = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
+rand = { workspace = true }
+relay-config = { path = "../../relay-config" }
+relay-server = { path = "../../relay-server" }
+serde_json = { workspace = true }
+tempfile = { workspace = true }
+tokio = { workspace = true }
