@@ -2,25 +2,35 @@ use core::fmt;
 use std::sync::Arc;
 
 use relay_base_schema::project::ProjectKey;
+use relay_config::Config;
 use relay_system::Addr;
 
 use super::state::Shared;
-use crate::services::projects::cache2::service::ProjectCache;
-use crate::services::projects::cache2::state::SharedProject;
+use crate::services::projects::cache2::{Project, ProjectCache};
 
 #[derive(Clone)]
 pub struct ProjectCacheHandle {
     shared: Arc<Shared>,
+    config: Arc<Config>,
     service: Addr<ProjectCache>,
 }
 
 impl ProjectCacheHandle {
     /// Returns the current project state for the `project_key`.
-    pub fn get(&self, project_key: ProjectKey) -> SharedProject {
-        match self.shared.get_or_create(project_key) {
+    pub fn get(&self, project_key: ProjectKey) -> Project<'_> {
+        // TODO: maybe we should always trigger a fetch?
+        // We need a way to continously keep projects updated while at the same time
+        // let unused projects expire.
+        let project = match self.shared.get_or_create(project_key) {
             Ok(project) => project,
             Err(missing) => missing.fetch(&self.service),
-        }
+        };
+        Project::new(project, &self.config)
+    }
+
+    pub fn fetch(&self, project_key: ProjectKey) {
+        // TODO: does this make sense?
+        self.service.send(ProjectCache::Fetch(project_key));
     }
 }
 
