@@ -182,9 +182,8 @@ impl SharedProject {
         &self.0.as_ref().state
     }
 
-    pub fn current_rate_limits(&self) -> RateLimits {
-        let rate_limits = self.0.as_ref().rate_limits.clone(); // TODO
-        rate_limits.current()
+    pub fn current_rate_limits(&self) -> Arc<RateLimits> {
+        self.0.as_ref().rate_limits.current_limits()
     }
 }
 
@@ -195,7 +194,7 @@ impl SharedProjectState {
     fn set_project_state(&self, state: ProjectState) {
         self.0.rcu(move |stored| SharedProjectStateInner {
             state: state.clone(),
-            rate_limits: stored.rate_limits.clone(),
+            rate_limits: Arc::clone(&stored.rate_limits),
         });
     }
 
@@ -213,7 +212,7 @@ struct SharedProjectStateInner {
     state: ProjectState,
     // TODO: these should possibly have their own inner ArcSwap to make dropping expired limits
     // possible without mutable access.
-    rate_limits: CachedRateLimits,
+    rate_limits: Arc<CachedRateLimits>,
 }
 
 impl Default for SharedProjectStateInner {

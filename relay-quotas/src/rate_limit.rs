@@ -1,7 +1,9 @@
 use std::fmt;
 use std::str::FromStr;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use arc_swap::ArcSwap;
 use relay_base_schema::metrics::MetricNamespace;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use smallvec::SmallVec;
@@ -414,24 +416,40 @@ impl CachedRateLimits {
     ///
     /// See also: [`RateLimits::add`].
     pub fn add(&mut self, limit: RateLimit) {
-        self.0.add(limit);
+        self.0.rcu(|current| {
+            let mut current = current.as_ref().clone();
+            current.add(limit.clone());
+            current
+        });
     }
 
     /// Merges more rate limits into this instance.
     ///
     /// See also: [`RateLimits::merge`].
-    pub fn merge(&mut self, rate_limits: RateLimits) {
-        for limit in rate_limits {
-            self.add(limit)
-        }
+    pub fn merge(&mut self, limits: RateLimits) {
+        self.0.rcu(|current| {
+            let mut current = current.as_ref().clone();
+            for limit in limits.clone() {
+                current.add(limit)
+            }
+            current
+        });
     }
 
     /// Returns a reference to the contained rate limits.
     ///
     /// This call gurantuess that at the time of call no returned rate limit is expired.
-    pub fn current_limits(&mut self) -> &RateLimits {
-        self.0.clean_expired();
-        &self.0
+    pub fn current_limits(&self) -> Arc<RateLimits> {
+        let now = Instant::now();
+
+        let mut current = self.0.load();
+        while current.iter().any(|rl| rl.retry_after.expired_at(now)) {
+            let mut new = current.as_ref().clone();
+            new.clean_expired();
+            current = self.0.compare_and_swap(current, Arc::new(new));
+        }
+
+        arc_swap::Guard::into_inner(current)
     }
 }
 
