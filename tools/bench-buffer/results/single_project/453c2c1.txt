@@ -1,0 +1,21 @@
+Args { envelope_size_kib: 10, batch_size: 1, implementation: Files, mode: Sequential, projects: 1, duration_secs: 20 }
+Write throughput: 194.51 MiB / s
+Write throughput: 202.08 MiB / s
+Write throughput: 202.23 MiB / s
+Write throughput: 210.04 MiB / s
+Write throughput: 210.67 MiB / s
+Write throughput: 211.86 MiB / s
+Write throughput: 212.08 MiB / s
+Write throughput: 209.63 MiB / s
+Write throughput: 197.00 MiB / s
+Read throughput: 128.75 MiB / s
+Read throughput: 128.45 MiB / s
+Read throughput: 128.95 MiB / s
+Read throughput: 126.90 MiB / s
+Read throughput: 130.09 MiB / s
+Read throughput: 128.91 MiB / s
+Read throughput: 129.45 MiB / s
+Read throughput: 126.73 MiB / s
+Read throughput: 130.14 MiB / s
+Cleaning up temporary files...
+Done...

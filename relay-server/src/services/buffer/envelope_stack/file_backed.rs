@@ -151,30 +151,13 @@ async fn seek_truncate(
     }
 }
 
-/// Advances the position file by `offset`.
-async fn advance(file: &mut File, offset: u64) -> io::Result<()> {
-    file.seek(SeekFrom::Current(offset as i64)).await?;
-    Ok(())
-}
-
-/// Asserts that the file read from the file is supported.
-async fn assert_version(file: &mut File) -> Result<(), FileBackedEnvelopeStackError> {
-    let version = file.read_u8().await?;
-    if version != CURRENT_FILE_VERSION {
-        return Err(FileBackedEnvelopeStackError::InvalidVersion);
-    }
-
-    Ok(())
-}
-
 #[derive(Debug)]
-struct Header {
-    version: u8,
-    total_count: u32,
-    envelope_size: u64,
+pub struct Header {
+    pub total_count: u32,
+    pub envelope_size: u64,
 }
 
-async fn read_header(file: &mut File) -> Result<Option<Header>, FileBackedEnvelopeStackError> {
+pub async fn read_header(file: &mut File) -> Result<Option<Header>, FileBackedEnvelopeStackError> {
     relay_statsd::metric!(timer(RelayTimers::BufferTotalCountReading), {
         let success = seek_truncate(file, FILE_HEADER_SIZE_BYTES).await?;
         if !success {
@@ -192,31 +175,9 @@ async fn read_header(file: &mut File) -> Result<Option<Header>, FileBackedEnvelo
         }
 
         Ok(Some(Header {
-            version,
             total_count,
             envelope_size,
         }))
-    })
-}
-
-/// Helper method to get the total count from the file.
-///
-/// If the file is empty or doesn't contain a total count field, it returns 0.
-/// If the version doesn't match the current version, it throws an error.
-pub async fn get_total_count(file: &mut File) -> Result<u32, FileBackedEnvelopeStackError> {
-    relay_statsd::metric!(timer(RelayTimers::BufferTotalCountReading), {
-        let success = seek_truncate(file, FILE_HEADER_SIZE_BYTES).await?;
-        if !success {
-            return Ok(0);
-        }
-
-        // We read the version and make sure it's correct.
-        assert_version(file).await?;
-
-        // We read the total count.
-        let total_count = file.read_u32_le().await?;
-
-        Ok(total_count)
     })
 }
 
@@ -240,36 +201,13 @@ pub async fn truncate_file(file: &File, new_size: u64) -> Result<(), FileBackedE
 pub async fn pop_envelope(
     file: &mut File,
 ) -> Result<Option<Box<Envelope>>, FileBackedEnvelopeStackError> {
-    // Get the file size
-    let file_size = file.metadata().await?.len();
-
-    // If the file is empty, return None
-    if file_size == 0 {
+    let Some(header) = read_header(file).await? else {
         return Ok(None);
-    }
-
-    // We seek at the start of the header of the entry.
-    let success = seek_truncate(file, FILE_HEADER_SIZE_BYTES).await?;
-    if !success {
-        return Err(FileBackedEnvelopeStackError::Corruption(
-            "the envelopes file is corrupted".to_string(),
-        ));
-    }
-
-    // We read the version and make sure it's correct.
-    assert_version(file).await?;
-
-    // We skip the total count field.
-    advance(file, TOTAL_COUNT_FIELD_BYTES).await?;
-
-    // We read the envelope size.
-    let mut envelope_size = [0u8; ENVELOPE_SIZE_FIELD_BYTES as usize];
-    file.read_exact(&mut envelope_size).await?;
-    let envelope_size = u64::from_le_bytes(envelope_size);
+    };
 
     // We check if the envelope size is too big, if so, we assume that the file is corrupted.
     // TODO: replace with actual 2 * envelope max size.
-    if envelope_size > 1000000000 {
+    if header.envelope_size > 1000000000 {
         truncate_file(file, 0).await?;
         return Err(FileBackedEnvelopeStackError::Corruption(
             "encountered an envelope size which was too big".to_string(),
@@ -277,30 +215,29 @@ pub async fn pop_envelope(
     }
 
     // Read the envelope data.
-    let mut envelope = vec![0; envelope_size as usize];
-    let success = seek_truncate(file, envelope_size + FILE_HEADER_SIZE_BYTES).await?;
+    let mut envelope = vec![0; header.envelope_size as usize];
+    let success = seek_truncate(file, header.envelope_size + FILE_HEADER_SIZE_BYTES).await?;
     if !success {
         return Err(FileBackedEnvelopeStackError::Corruption(
             "the envelopes file is corrupted".to_string(),
         ));
     }
-    file.read_exact(&mut envelope).await?;
+    let start_of_envelope = file.stream_position().await?;
+    let mut reader = tokio::io::BufReader::new(file);
+    reader.read_exact(&mut envelope).await?;
 
+    truncate_file(reader.into_inner(), start_of_envelope).await?;
     // Deserialize the envelope.
     let envelope = match Envelope::parse_bytes(envelope.into()) {
         Ok(env) => env,
         Err(e) => {
-            // Envelope deserialization failed, truncate the file.
-            truncate_file(file, file_size - envelope_size - FILE_HEADER_SIZE_BYTES).await?;
+            // Envelope deserialization failed.
             return Err(FileBackedEnvelopeStackError::Corruption(format!(
                 "failed to deserialize envelope: {}",
                 e
             )));
         }
     };
-
-    // Truncate the file to remove the envelope.
-    truncate_file(file, file_size - envelope_size - FILE_HEADER_SIZE_BYTES).await?;
 
     Ok(Some(envelope))
 }
@@ -329,7 +266,7 @@ pub async fn append_envelope(
     relay_statsd::metric!(timer(RelayTimers::BufferEnvelopeFileWriting), {
         // We position at the end of the file.
 
-        file.seek(SeekFrom::End(0)).await?;
+        // file.seek(SeekFrom::End(0)).await?;
 
         let mut writer = tokio::io::BufWriter::new(file);
         // 1. Envelope payload
@@ -435,7 +372,10 @@ mod tests {
 
             let mut store = envelope_store.lock().await;
             let file = store.get_file(stack.project_key_pair).await.unwrap();
-            let total_count = get_total_count(file).await.unwrap();
+            let total_count = read_header(file)
+                .await
+                .unwrap()
+                .map_or(0, |h| h.total_count);
             assert_eq!(
                 total_count,
                 (i + 1) as u32,
@@ -449,7 +389,10 @@ mod tests {
 
             let mut store = envelope_store.lock().await;
             let file = store.get_file(stack.project_key_pair).await.unwrap();
-            let total_count = get_total_count(file).await.unwrap();
+            let total_count = read_header(file)
+                .await
+                .unwrap()
+                .map_or(0, |h| h.total_count);
             assert_eq!(total_count, i as u32, "Total count mismatch after pop");
         }
     }

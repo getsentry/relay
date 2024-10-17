@@ -1,5 +1,5 @@
 use crate::services::buffer::common::ProjectKeyPair;
-use crate::services::buffer::envelope_stack::file_backed::get_total_count;
+use crate::services::buffer::envelope_stack::file_backed::read_header;
 use crate::statsd::RelayGauges;
 use hashbrown::HashMap;
 use priority_queue::PriorityQueue;
@@ -121,7 +121,10 @@ impl FileBackedEnvelopeStore {
                 if let Some(file_name) = path.file_name().and_then(|s| s.to_str()) {
                     if let Some(project_key_pair) = parse_envelopes_file_file_name(file_name) {
                         let file = self.get_file(project_key_pair).await?;
-                        let total_count = get_total_count(file).await.unwrap_or(0);
+                        let total_count = read_header(file)
+                            .await
+                            .unwrap()
+                            .map_or(0, |h| h.total_count);
 
                         project_key_pairs.insert(project_key_pair, total_count);
                     }
