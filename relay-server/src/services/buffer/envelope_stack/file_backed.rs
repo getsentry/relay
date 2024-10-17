@@ -167,6 +167,38 @@ async fn assert_version(file: &mut File) -> Result<(), FileBackedEnvelopeStackEr
     Ok(())
 }
 
+#[derive(Debug)]
+struct Header {
+    version: u8,
+    total_count: u32,
+    envelope_size: u64,
+}
+
+async fn read_header(file: &mut File) -> Result<Option<Header>, FileBackedEnvelopeStackError> {
+    relay_statsd::metric!(timer(RelayTimers::BufferTotalCountReading), {
+        let success = seek_truncate(file, FILE_HEADER_SIZE_BYTES).await?;
+        if !success {
+            return Ok(None);
+        }
+
+        let mut reader = tokio::io::BufReader::new(file);
+
+        let version = reader.read_u8().await?;
+        let total_count = reader.read_u32_le().await?;
+        let envelope_size = reader.read_u64_le().await?;
+
+        if version != CURRENT_FILE_VERSION {
+            return Err(FileBackedEnvelopeStackError::InvalidVersion);
+        }
+
+        Ok(Some(Header {
+            version,
+            total_count,
+            envelope_size,
+        }))
+    })
+}
+
 /// Helper method to get the total count from the file.
 ///
 /// If the file is empty or doesn't contain a total count field, it returns 0.
@@ -282,7 +314,9 @@ pub async fn append_envelope(
     envelope: &Envelope,
 ) -> Result<(), FileBackedEnvelopeStackError> {
     // Get the current total count.
-    let total_count = get_total_count(file).await?;
+    let header = read_header(file).await?;
+
+    let total_count = header.map_or(0, |h| h.total_count);
 
     // Serialize the envelope.
     let envelope_bytes = relay_statsd::metric!(timer(RelayTimers::BufferEnvelopeSerialization), {
@@ -294,19 +328,21 @@ pub async fn append_envelope(
 
     relay_statsd::metric!(timer(RelayTimers::BufferEnvelopeFileWriting), {
         // We position at the end of the file.
+
         file.seek(SeekFrom::End(0)).await?;
 
+        let mut writer = tokio::io::BufWriter::new(file);
         // 1. Envelope payload
-        file.write_all(&envelope_bytes).await?;
+        writer.write_all(&envelope_bytes).await?;
         // 2. Version number of the entry
-        file.write_u8(CURRENT_FILE_VERSION).await?;
+        writer.write_u8(CURRENT_FILE_VERSION).await?;
         // 3. Total count of envelope until this point
-        file.write_u32_le(total_count + 1).await?;
+        writer.write_u32_le(total_count + 1).await?;
         // 4. The size of the envelope in bytes
-        file.write_u64_le(envelope_bytes.len() as u64).await?;
+        writer.write_u64_le(envelope_bytes.len() as u64).await?;
 
         // We flush to disk to make sure all data is flushed from the buffer.
-        file.flush().await?;
+        writer.flush().await?;
     });
 
     Ok(())
