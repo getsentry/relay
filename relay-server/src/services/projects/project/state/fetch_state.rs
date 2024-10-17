@@ -137,6 +137,12 @@ impl ProjectFetchState {
     }
 }
 
+impl From<ProjectFetchState> for ProjectState {
+    fn from(value: ProjectFetchState) -> Self {
+        value.state
+    }
+}
+
 /// Wrapper for a project state, with expiry information.
 #[derive(Clone, Copy, Debug)]
 pub enum ExpiryState<'a> {
