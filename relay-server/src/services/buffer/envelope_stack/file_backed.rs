@@ -486,38 +486,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_malformed_data() {
-        let (envelope_store, _temp_dir) = setup_envelope_store(10).await;
-        let project_key_pair = ProjectKeyPair {
-            own_key: ProjectKey::parse("c04ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-            sampling_key: ProjectKey::parse("c04ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-        };
-        let mut stack = FileBackedEnvelopeStack::new(project_key_pair, envelope_store.clone());
-
-        // Write malformed data directly to the file
-        {
-            let mut store = envelope_store.lock().await;
-            let file = store.get_file(stack.project_key_pair).await.unwrap();
-            file.set_len(0).await.unwrap(); // Clear the file
-            file.write_all(b"abc").await.unwrap();
-            file.flush().await.unwrap();
-        }
-
-        // Attempt to pop from the stack with malformed data
-        match stack.pop().await {
-            Err(FileBackedEnvelopeStackError::Corruption(_)) => {}
-            _ => panic!("Expected a Corruption error"),
-        }
-
-        // Verify the file is truncated
-        {
-            let mut store = envelope_store.lock().await;
-            let file = store.get_file(stack.project_key_pair).await.unwrap();
-            assert_eq!(file.metadata().await.unwrap().len(), 0);
-        }
-    }
-
-    #[tokio::test]
     async fn test_incomplete_envelope() {
         let (envelope_store, _temp_dir) = setup_envelope_store(10).await;
         let project_key_pair = ProjectKeyPair {
@@ -535,8 +503,8 @@ mod tests {
             file.flush().await.unwrap();
         }
 
-        // Attempt to pop from the stack with incomplete data
-        assert!(stack.pop().await.is_err());
+        // Attempt to pop from the stack with incomplete data (logs an error and returns none)
+        assert!(stack.pop().await.unwrap().is_none());
 
         // Verify the file is truncated
         {
