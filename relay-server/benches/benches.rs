@@ -1,6 +1,12 @@
 use bytes::Bytes;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
+use relay_server::{
+    Envelope, EnvelopeStack, FileBackedEnvelopeStack, FileBackedEnvelopeStore, MemoryChecker,
+    MemoryStat, PolymorphicEnvelopeBuffer, ProjectKeyPair, SqliteEnvelopeStack,
+    SqliteEnvelopeStore,
+};
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
 use sqlx::{Pool, Sqlite};
 use std::path::PathBuf;
@@ -8,12 +14,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tempfile::TempDir;
 use tokio::runtime::Runtime;
-
-use relay_base_schema::project::ProjectKey;
-use relay_server::{
-    Envelope, EnvelopeStack, MemoryChecker, MemoryStat, PolymorphicEnvelopeBuffer,
-    SqliteEnvelopeStack, SqliteEnvelopeStore,
-};
+use tokio::sync::Mutex;
 
 fn setup_db(path: &PathBuf) -> Pool<Sqlite> {
     let options = SqliteConnectOptions::new()
@@ -317,6 +318,174 @@ fn benchmark_envelope_buffer(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(sqlite, benchmark_sqlite_envelope_stack);
-criterion_group!(buffer, benchmark_envelope_buffer);
-criterion_main!(sqlite, buffer);
+fn benchmark_file_backed_envelope_stack(c: &mut Criterion) {
+    let runtime = Runtime::new().unwrap();
+
+    let temp_dir = TempDir::new().unwrap();
+    let path = temp_dir.path().to_str().unwrap().to_string();
+
+    let config: Arc<Config> = Config::from_json_value(serde_json::json!({
+        "spool": {
+            "envelopes": {
+                "path": path
+            }
+        }
+    }))
+    .unwrap()
+    .into();
+
+    let envelope_store = runtime.block_on(async {
+        Arc::new(Mutex::new(
+            FileBackedEnvelopeStore::new(&config).await.unwrap(),
+        ))
+    });
+
+    let mut group = c.benchmark_group("file_backed_envelope_stack");
+    group.measurement_time(Duration::from_secs(60));
+
+    for size in [1_000, 10_000, 100_000].iter() {
+        for envelope_size in &["small", "medium", "big", "huge"] {
+            group.throughput(Throughput::Elements(*size as u64));
+
+            // Benchmark push operations
+            group.bench_with_input(
+                BenchmarkId::new(format!("push_{}", envelope_size), size),
+                size,
+                |b, &size| {
+                    b.iter_with_setup(
+                        || {
+                            runtime.block_on(async {
+                                // Clear the store
+                                std::fs::remove_dir_all(&path).unwrap();
+                                std::fs::create_dir_all(&path).unwrap();
+                            });
+
+                            let stack = FileBackedEnvelopeStack::new(
+                                ProjectKeyPair::new(
+                                    ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
+                                    ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
+                                ),
+                                envelope_store.clone(),
+                            );
+
+                            let mut envelopes = Vec::with_capacity(size);
+                            for _ in 0..size {
+                                envelopes.push(mock_envelope(envelope_size));
+                            }
+
+                            (stack, envelopes)
+                        },
+                        |(mut stack, envelopes)| {
+                            runtime.block_on(async {
+                                for envelope in envelopes {
+                                    stack.push(envelope).await.unwrap();
+                                }
+                            });
+                        },
+                    );
+                },
+            );
+
+            // Benchmark pop operations
+            group.bench_with_input(
+                BenchmarkId::new(format!("pop_{}", envelope_size), size),
+                size,
+                |b, &size| {
+                    b.iter_with_setup(
+                        || {
+                            runtime.block_on(async {
+                                // Clear the store
+                                std::fs::remove_dir_all(&path).unwrap();
+                                std::fs::create_dir_all(&path).unwrap();
+
+                                let mut stack = FileBackedEnvelopeStack::new(
+                                    ProjectKeyPair::new(
+                                        ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b")
+                                            .unwrap(),
+                                        ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b")
+                                            .unwrap(),
+                                    ),
+                                    envelope_store.clone(),
+                                );
+
+                                // Pre-fill the stack
+                                for _ in 0..size {
+                                    let envelope = mock_envelope(envelope_size);
+                                    stack.push(envelope).await.unwrap();
+                                }
+
+                                stack
+                            })
+                        },
+                        |mut stack| {
+                            runtime.block_on(async {
+                                // Benchmark popping
+                                for _ in 0..size {
+                                    stack.pop().await.unwrap();
+                                }
+                            });
+                        },
+                    );
+                },
+            );
+
+            // Benchmark mixed push and pop operations
+            group.bench_with_input(
+                BenchmarkId::new(format!("mixed_{}", envelope_size), size),
+                size,
+                |b, &size| {
+                    b.iter_with_setup(
+                        || {
+                            runtime.block_on(async {
+                                // Clear the store
+                                std::fs::remove_dir_all(&path).unwrap();
+                                std::fs::create_dir_all(&path).unwrap();
+                            });
+
+                            let stack = FileBackedEnvelopeStack::new(
+                                ProjectKeyPair::new(
+                                    ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
+                                    ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
+                                ),
+                                envelope_store.clone(),
+                            );
+
+                            // Pre-generate envelopes
+                            let envelopes: Vec<Box<Envelope>> =
+                                (0..size).map(|_| mock_envelope(envelope_size)).collect();
+
+                            (stack, envelopes)
+                        },
+                        |(mut stack, envelopes)| {
+                            runtime.block_on(async {
+                                let mut envelope_iter = envelopes.into_iter();
+                                for _ in 0..size {
+                                    if rand::random::<bool>() {
+                                        if let Some(envelope) = envelope_iter.next() {
+                                            stack.push(envelope).await.unwrap();
+                                        }
+                                    } else if stack.pop().await.is_err() {
+                                        // If pop fails (empty stack), push instead
+                                        if let Some(envelope) = envelope_iter.next() {
+                                            stack.push(envelope).await.unwrap();
+                                        }
+                                    }
+                                }
+                            });
+                        },
+                    );
+                },
+            );
+        }
+    }
+
+    group.finish();
+}
+
+criterion_group!(
+    benches,
+    benchmark_sqlite_envelope_stack,
+    benchmark_file_backed_envelope_stack,
+    benchmark_envelope_buffer
+);
+criterion_main!(benches);
