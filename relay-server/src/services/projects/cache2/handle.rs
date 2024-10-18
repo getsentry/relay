@@ -21,6 +21,8 @@ impl ProjectCacheHandle {
         // TODO: maybe we should always trigger a fetch?
         // We need a way to continously keep projects updated while at the same time
         // let unused projects expire.
+        // TODO: trigger prefetch for the sampling projects, maybe take a resolver trait which can
+        // also resolve the sampling project and fetch? Or do it explicit.
         let project = match self.shared.get_or_create(project_key) {
             Ok(project) => project,
             Err(missing) => missing.fetch(&self.service),

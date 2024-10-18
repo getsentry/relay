@@ -82,11 +82,16 @@ impl ProjectCacheService {
             return;
         }
 
+        // TODO: should there just be a broadcast channel for events?
         self.buffer.send(EnvelopeBuffer::Ready(project_key));
+
+        // TODO: notify spool (prevous merge_state)
     }
 
     fn handle_evict_stale_projects(&mut self) {
         self.store.evict_stale_projects(&self.config);
+
+        // TODO: notify spool (previous evict_stale_project_caches)
     }
 
     fn handle(&mut self, message: ProjectCache) {
