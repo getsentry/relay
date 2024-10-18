@@ -18,7 +18,7 @@ use relay_base_schema::project::ProjectKey;
 #[cfg(feature = "processing")]
 use relay_config::RedisConfigRef;
 use relay_config::{Config, RelayMode};
-use relay_metrics::{Bucket, MetricMeta};
+use relay_metrics::Bucket;
 use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
 use relay_statsd::metric;
@@ -229,15 +229,6 @@ pub struct ProcessMetrics {
     pub sent_at: Option<DateTime<Utc>>,
 }
 
-/// Add metric metadata to the aggregator.
-#[derive(Debug)]
-pub struct AddMetricMeta {
-    /// The project key.
-    pub project_key: ProjectKey,
-    /// The metadata.
-    pub meta: MetricMeta,
-}
-
 /// Updates the buffer index for [`ProjectKey`] with the [`QueueKey`] keys.
 ///
 /// This message is sent from the project buffer in case of the error while fetching the data from
@@ -296,7 +287,6 @@ pub enum ProjectCache {
     ValidateEnvelope(ValidateEnvelope),
     UpdateRateLimits(UpdateRateLimits),
     ProcessMetrics(ProcessMetrics),
-    AddMetricMeta(AddMetricMeta),
     FlushBuckets(FlushBuckets),
     UpdateSpoolIndex(UpdateSpoolIndex),
     RefreshIndexCache(RefreshIndexCache),
@@ -313,7 +303,6 @@ impl ProjectCache {
             Self::ValidateEnvelope(_) => "ValidateEnvelope",
             Self::UpdateRateLimits(_) => "UpdateRateLimits",
             Self::ProcessMetrics(_) => "ProcessMetrics",
-            Self::AddMetricMeta(_) => "AddMetricMeta",
             Self::FlushBuckets(_) => "FlushBuckets",
             Self::UpdateSpoolIndex(_) => "UpdateSpoolIndex",
             Self::RefreshIndexCache(_) => "RefreshIndexCache",
@@ -396,14 +385,6 @@ impl FromMessage<ProcessMetrics> for ProjectCache {
 
     fn from_message(message: ProcessMetrics, _: ()) -> Self {
         Self::ProcessMetrics(message)
-    }
-}
-
-impl FromMessage<AddMetricMeta> for ProjectCache {
-    type Response = relay_system::NoResponse;
-
-    fn from_message(message: AddMetricMeta, _: ()) -> Self {
-        Self::AddMetricMeta(message)
     }
 }
 
@@ -748,14 +729,11 @@ impl ProjectCacheBroker {
         } = message;
 
         let project_cache = self.services.project_cache.clone();
-        let envelope_processor = self.services.envelope_processor.clone();
 
-        let old_state = self.get_or_create_project(project_key).update_state(
-            &project_cache,
-            state,
-            &envelope_processor,
-            no_cache,
-        );
+        let old_state =
+            self.get_or_create_project(project_key)
+                .update_state(&project_cache, state, no_cache);
+
         if let Some(old_state) = old_state {
             self.garbage_disposal.dispose(old_state);
         }
@@ -1013,13 +991,6 @@ impl ProjectCacheBroker {
             .process_metrics(message);
 
         self.services.envelope_processor.send(message);
-    }
-
-    fn handle_add_metric_meta(&mut self, message: AddMetricMeta) {
-        let envelope_processor = self.services.envelope_processor.clone();
-
-        self.get_or_create_project(message.project_key)
-            .add_metric_meta(message.meta, envelope_processor);
     }
 
     fn handle_flush_buckets(&mut self, message: FlushBuckets) {
@@ -1318,7 +1289,6 @@ impl ProjectCacheBroker {
                     }
                     ProjectCache::UpdateRateLimits(message) => self.handle_rate_limits(message),
                     ProjectCache::ProcessMetrics(message) => self.handle_process_metrics(message),
-                    ProjectCache::AddMetricMeta(message) => self.handle_add_metric_meta(message),
                     ProjectCache::FlushBuckets(message) => self.handle_flush_buckets(message),
                     ProjectCache::UpdateSpoolIndex(message) => self.handle_buffer_index(message),
                     ProjectCache::RefreshIndexCache(message) => {
