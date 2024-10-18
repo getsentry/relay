@@ -1,6 +1,5 @@
 mod handle;
 mod project;
-mod refresh;
 mod service;
 mod state;
 

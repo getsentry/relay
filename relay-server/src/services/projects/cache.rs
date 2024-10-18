@@ -29,7 +29,7 @@ use tokio::sync::{mpsc, watch};
 
 use crate::services::metrics::{Aggregator, FlushBuckets, MergeBuckets};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::services::projects::project::{Project, ProjectFetchState, ProjectState};
+use crate::services::projects::project::{ProjectFetchState, ProjectState};
 use crate::services::projects::source::local::{LocalProjectSource, LocalProjectSourceService};
 #[cfg(feature = "processing")]
 use crate::services::projects::source::redis::RedisProjectSource;
@@ -1064,15 +1064,8 @@ impl FetchOptionalProjectState {
 #[derive(Debug)]
 #[allow(dead_code)] // Fields are never read, only used for discarding/dropping data.
 enum ProjectGarbage {
-    Project(Project),
     ProjectFetchState(ProjectFetchState),
     Metrics(Vec<Bucket>),
-}
-
-impl From<Project> for ProjectGarbage {
-    fn from(value: Project) -> Self {
-        Self::Project(value)
-    }
 }
 
 impl From<ProjectFetchState> for ProjectGarbage {
