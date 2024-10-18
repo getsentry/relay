@@ -5,6 +5,7 @@ use hashbrown::HashMap;
 use priority_queue::PriorityQueue;
 use relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
 use relay_config::Config;
+use std::error::Error;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -135,18 +136,6 @@ impl FileBackedEnvelopeStore {
         Ok(project_key_pairs)
     }
 
-    /// Removes the envelope file associated with the given project key pair.
-    ///
-    /// This method removes the file both from the cache and from the disk.
-    pub async fn remove_file(
-        &mut self,
-        project_key_pair: &ProjectKeyPair,
-    ) -> Result<(), FileBackedEnvelopeStoreError> {
-        self.files_cache
-            .remove(project_key_pair, &self.base_path)
-            .await
-    }
-
     /// Returns the current estimated size of the folder containing all envelope files.
     ///
     /// This method provides a quick way to get the total size of all envelope files
@@ -163,11 +152,33 @@ struct EnvelopesFilesCache {
     cache: PriorityQueue<CacheEntry, CachePriority>,
 }
 
+/// New-type that wraps a file and deletes it in case before getting dropped it is empty.
+#[derive(Debug)]
+struct NonEmptyFile(PathBuf, File);
+
+impl NonEmptyFile {
+    async fn remove_if_empty(self) -> Result<(), FileBackedEnvelopeStoreError> {
+        if let Ok(metadata) = self.1.metadata().await {
+            if metadata.len() > 0 {
+                return Ok(());
+            }
+
+            return match remove_file(self.0).await {
+                Ok(_) => Ok(()),
+                Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
+                Err(e) => Err(FileBackedEnvelopeStoreError::FileError(e)),
+            };
+        }
+
+        Ok(())
+    }
+}
+
 /// A cache entry for a file containing envelopes.
 #[derive(Debug)]
 struct CacheEntry {
     project_key_pair: ProjectKeyPair,
-    file: File,
+    file: NonEmptyFile,
 }
 
 impl std::borrow::Borrow<ProjectKeyPair> for CacheEntry {
@@ -230,7 +241,7 @@ impl EnvelopesFilesCache {
     ) -> Result<&mut File, FileBackedEnvelopeStoreError> {
         if self.cache.get_mut(&project_key_pair).is_none() {
             let file = Self::open_file(base_path.to_path_buf(), &project_key_pair).await?;
-            self.insert(project_key_pair, file);
+            self.insert(project_key_pair, file).await;
         }
 
         // We update the priority of the entry with the current timestamp.
@@ -238,52 +249,33 @@ impl EnvelopesFilesCache {
             .change_priority(&project_key_pair, CachePriority::new());
 
         let (entry, _) = self.cache.get_mut(&project_key_pair).unwrap();
-        Ok(&mut entry.file)
-    }
-
-    /// Removes the file from the cache and disk.
-    async fn remove(
-        &mut self,
-        project_key_pair: &ProjectKeyPair,
-        base_path: &Path,
-    ) -> Result<(), FileBackedEnvelopeStoreError> {
-        // Remove from cache
-        self.cache.remove(project_key_pair);
-
-        // Construct the file path
-        let file_name = get_file_name(project_key_pair);
-        let file_path = base_path.join(file_name);
-
-        // Remove the file from disk
-        match remove_file(&file_path).await {
-            Ok(_) => Ok(()),
-            Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
-            Err(e) => Err(FileBackedEnvelopeStoreError::FileError(e)),
-        }
+        Ok(&mut entry.file.1)
     }
 
     /// Loads an existing envelope file or creates a new one if it doesn't exist.
     async fn open_file(
         base_path: PathBuf,
         project_key_pair: &ProjectKeyPair,
-    ) -> Result<File, FileBackedEnvelopeStoreError> {
+    ) -> Result<NonEmptyFile, FileBackedEnvelopeStoreError> {
         let file_name = get_file_name(project_key_pair);
         let file_path = base_path.join(file_name);
 
-        OpenOptions::new()
+        let file = OpenOptions::new()
             .read(true)
             .write(true)
             .create(true)
             .append(true)
-            .open(file_path)
+            .open(file_path.clone())
             .await
-            .map_err(FileBackedEnvelopeStoreError::FileError)
+            .map_err(FileBackedEnvelopeStoreError::FileError)?;
+
+        Ok(NonEmptyFile(file_path, file))
     }
 
     /// Inserts a new file into the cache, evicting the least recently used entry if necessary.
-    fn insert(&mut self, project_key_pair: ProjectKeyPair, file: File) {
+    async fn insert(&mut self, project_key_pair: ProjectKeyPair, file: NonEmptyFile) {
         if self.cache.len() >= self.max_open_files {
-            self.evict_lru();
+            self.evict_lru().await;
         }
 
         self.cache.push(
@@ -296,9 +288,16 @@ impl EnvelopesFilesCache {
     }
 
     /// Evicts the least recently used entry from the cache.
-    fn evict_lru(&mut self) {
+    async fn evict_lru(&mut self) {
         // The top element of the queue is the element with the smallest `last_access` timestamp.
-        self.cache.pop();
+        if let Some((entry, _)) = self.cache.pop() {
+            if let Err(error) = entry.file.remove_if_empty().await {
+                relay_log::error!(
+                    error = &error as &dyn Error,
+                    "failed to remove the envelopes file",
+                );
+            }
+        }
     }
 }
 
@@ -432,14 +431,14 @@ mod tests {
 
     #[tokio::test]
     #[cfg(unix)]
-    async fn test_create_evict_load() {
+    async fn test_create_remove_load() {
         let (mut store, _temp_dir) = setup_envelope_store(5).await;
         let project_key_pair = ProjectKeyPair {
             own_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             sampling_key: ProjectKey::parse("b94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
         };
 
-        // First call should create the file
+        // First call should create the file.
         let file_ino = store
             .get_file(project_key_pair)
             .await
@@ -449,11 +448,13 @@ mod tests {
             .unwrap()
             .ino();
 
-        // We evict the file to see if re-opening gives the same ino.
-        store.files_cache.evict_lru();
+        // We remove the file from the cache.
+        store.files_cache.cache.pop();
+
+        // We expect no files to be in cache.
         assert!(store.files_cache.cache.is_empty());
 
-        // Second call should load the file from disk since it was evicted
+        // Second call should load the same file from disk and populate the cache.
         let cached_file_ino = store
             .get_file(project_key_pair)
             .await
@@ -463,6 +464,46 @@ mod tests {
             .unwrap()
             .ino();
         assert_eq!(file_ino, cached_file_ino);
+    }
+
+    #[tokio::test]
+    #[cfg(unix)]
+    async fn test_create_evict_load() {
+        let (mut store, _temp_dir) = setup_envelope_store(5).await;
+        let project_key_pair = ProjectKeyPair {
+            own_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+            sampling_key: ProjectKey::parse("b94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
+        };
+
+        // First call should create the file.
+        let file_ino = store
+            .get_file(project_key_pair)
+            .await
+            .unwrap()
+            .metadata()
+            .await
+            .unwrap()
+            .ino();
+
+        // We evict the file.
+        store.files_cache.evict_lru().await;
+
+        // We expect no files to be in cache and that the file has been deleted from disk because
+        // it's empty.
+        assert!(store.files_cache.cache.is_empty());
+        let file_path = store.base_path.join(get_file_name(&project_key_pair));
+        assert!(!file_path.exists());
+
+        // Second call should create and return a new file.
+        let cached_file_ino = store
+            .get_file(project_key_pair)
+            .await
+            .unwrap()
+            .metadata()
+            .await
+            .unwrap()
+            .ino();
+        assert_ne!(file_ino, cached_file_ino);
     }
 
     #[tokio::test]
@@ -528,33 +569,6 @@ mod tests {
             sampling_key: ProjectKey::parse("c04ae32be2584e0bbd7a4cbb95971fee").unwrap(),
         };
         assert!(store.files_cache.cache.get_mut(&first_key_pair).is_none());
-    }
-
-    #[tokio::test]
-    async fn test_remove_file() {
-        let (mut store, _temp_dir) = setup_envelope_store(5).await;
-        let project_key_pair = ProjectKeyPair {
-            own_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-            sampling_key: ProjectKey::parse("b94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-        };
-
-        // Create the file
-        store.get_file(project_key_pair).await.unwrap();
-
-        // Verify the file exists
-        assert!(store.files_cache.cache.get_mut(&project_key_pair).is_some());
-        let file_path = store.base_path.join(get_file_name(&project_key_pair));
-        assert!(file_path.exists());
-
-        // Remove the file
-        store.remove_file(&project_key_pair).await.unwrap();
-
-        // Verify the file no longer exists in cache or on disk
-        assert!(store.files_cache.cache.get_mut(&project_key_pair).is_none());
-        assert!(!file_path.exists());
-
-        // Removing a non-existent file should not error
-        store.remove_file(&project_key_pair).await.unwrap();
     }
 
     #[tokio::test]

@@ -4,7 +4,7 @@ use crate::services::buffer::envelope_stack::EnvelopeStack;
 use crate::services::buffer::envelope_store::file_backed::{
     FileBackedEnvelopeStore, FileBackedEnvelopeStoreError,
 };
-use crate::statsd::{RelayCounters, RelayTimers};
+use crate::statsd::RelayTimers;
 use hashbrown::HashSet;
 use std::error::Error;
 use std::io;
@@ -15,7 +15,7 @@ use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
 use tokio::sync::Mutex;
 
 /// Set of all error kinds that are allowed when dealing with a file.
-static ALLOWED_ERROR_KINDS: LazyLock<HashSet<io::ErrorKind>> = LazyLock::new(|| {
+static OUT_OF_BOUND_ERRORS: LazyLock<HashSet<io::ErrorKind>> = LazyLock::new(|| {
     let mut error_kinds = HashSet::new();
     error_kinds.insert(io::ErrorKind::InvalidInput);
 
@@ -122,7 +122,7 @@ impl EnvelopeStack for FileBackedEnvelopeStack {
 
 /// Helper method to seek and truncate the file.
 ///
-/// If the file is corrupted or incomplete, it will be truncated and an error will be returned.
+/// If the file is corrupted or incomplete, it will be truncated and an error will be logged.
 ///
 /// Returns `true` if the file was seeked successfully, `false` if truncation happened.
 async fn seek_truncate(
@@ -131,7 +131,7 @@ async fn seek_truncate(
 ) -> Result<bool, FileBackedEnvelopeStackError> {
     match file.seek(SeekFrom::End(-(from_end as i64))).await {
         Ok(_) => Ok(true),
-        Err(error) if ALLOWED_ERROR_KINDS.contains(&error.kind()) => {
+        Err(error) if OUT_OF_BOUND_ERRORS.contains(&error.kind()) => {
             relay_log::error!(error = &error as &dyn Error, "failed to seek the file");
             truncate_file(file, 0).await?;
             Ok(false)
@@ -174,12 +174,9 @@ pub async fn read_header(file: &mut File) -> Result<Option<Header>, FileBackedEn
 ///
 /// This is used to remove corrupted or incomplete data from the file.
 pub async fn truncate_file(file: &File, new_size: u64) -> Result<(), FileBackedEnvelopeStackError> {
-    file.set_len(new_size).await.map_err(|e| {
-        FileBackedEnvelopeStackError::Io(io::Error::new(
-            io::ErrorKind::Other,
-            format!("failed to truncate file: {}", e),
-        ))
-    })
+    file.set_len(new_size).await?;
+
+    Ok(())
 }
 
 /// Reads and removes the last envelope from the file.
