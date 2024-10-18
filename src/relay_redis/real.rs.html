@@ -384,14 +384,6 @@
 <a href="#384" id="384">384</a>
 <a href="#385" id="385">385</a>
 <a href="#386" id="386">386</a>
-<a href="#387" id="387">387</a>
-<a href="#388" id="388">388</a>
-<a href="#389" id="389">389</a>
-<a href="#390" id="390">390</a>
-<a href="#391" id="391">391</a>
-<a href="#392" id="392">392</a>
-<a href="#393" id="393">393</a>
-<a href="#394" id="394">394</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>r2d2::{Builder, ManageConnection, Pool, PooledConnection};
 <span class="kw">pub use </span>redis;
 <span class="kw">use </span>redis::ConnectionLike;
@@ -588,7 +580,7 @@
     <span class="doccomment">/// Recursively computes the [`ConnectionInner`] from a [`PooledClient`].
     </span><span class="kw">fn </span>connection_inner(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;ConnectionInner&lt;<span class="lifetime">'_</span>&gt;, RedisError&gt; {
         <span class="kw">let </span>inner = <span class="kw">match </span><span class="self">self </span>{
-            PooledClient::Cluster(<span class="kw-2">ref mut </span>connection, opts) =&gt; {
+            PooledClient::Cluster(connection, opts) =&gt; {
                 connection
                     .set_read_timeout(<span class="prelude-val">Some</span>(Duration::from_secs(opts.read_timeout)))
                     .map_err(RedisError::Redis)<span class="question-mark">?</span>;
@@ -614,7 +606,7 @@
                     secondaries: secondary_connections,
                 }
             }
-            PooledClient::Single(<span class="kw-2">ref mut </span>connection, opts) =&gt; {
+            PooledClient::Single(connection, opts) =&gt; {
                 connection
                     .set_read_timeout(<span class="prelude-val">Some</span>(Duration::from_secs(opts.read_timeout)))
                     .map_err(RedisError::Redis)<span class="question-mark">?</span>;
@@ -689,7 +681,9 @@
 
     <span class="doccomment">/// Creates a [`RedisPool`] in single-node configuration.
     </span><span class="kw">pub fn </span>single(server: <span class="kw-2">&amp;</span>str, opts: RedisConfigOptions) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, RedisError&gt; {
-        <span class="kw">let </span>pool = <span class="self">Self</span>::client_pool(server, <span class="kw-2">&amp;</span>opts)<span class="question-mark">?</span>;
+        <span class="kw">let </span>pool = <span class="self">Self</span>::base_pool_builder(<span class="kw-2">&amp;</span>opts)
+            .build(redis::Client::open(server).map_err(RedisError::Redis)<span class="question-mark">?</span>)
+            .map_err(RedisError::Pool)<span class="question-mark">?</span>;
 
         <span class="prelude-val">Ok</span>(RedisPool::Single(pool, opts))
     }
@@ -697,7 +691,7 @@
     <span class="doccomment">/// Returns a pooled connection to a client.
     </span><span class="kw">pub fn </span>client(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;PooledClient, RedisError&gt; {
         <span class="kw">let </span>pool = <span class="kw">match </span><span class="self">self </span>{
-            RedisPool::Cluster(<span class="kw-2">ref </span>pool, opts) =&gt; PooledClient::Cluster(
+            RedisPool::Cluster(pool, opts) =&gt; PooledClient::Cluster(
                 Box::new(pool.get().map_err(RedisError::Pool)<span class="question-mark">?</span>),
                 opts.clone(),
             ),
@@ -717,7 +711,7 @@
                     secondaries: secondary_clients,
                 }
             }
-            RedisPool::Single(<span class="kw-2">ref </span>pool, opts) =&gt; PooledClient::Single(
+            RedisPool::Single(pool, opts) =&gt; PooledClient::Single(
                 Box::new(pool.get().map_err(RedisError::Pool)<span class="question-mark">?</span>),
                 opts.clone(),
             ),
@@ -733,16 +727,6 @@
             connections,
             idle_connections,
         }
-    }
-
-    <span class="doccomment">/// Returns a [`Pool`] with a [`redis::Client`].
-    </span><span class="kw">fn </span>client_pool(
-        server: <span class="kw-2">&amp;</span>str,
-        opts: <span class="kw-2">&amp;</span>RedisConfigOptions,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;Pool&lt;redis::Client&gt;, RedisError&gt; {
-        <span class="self">Self</span>::base_pool_builder(opts)
-            .build(redis::Client::open(server).map_err(RedisError::Redis)<span class="question-mark">?</span>)
-            .map_err(RedisError::Pool)
     }
 
     <span class="doccomment">/// Returns the base builder for the pool with the options applied.
