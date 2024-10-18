@@ -288,6 +288,10 @@ pub enum ProjectCache {
     ValidateEnvelope(ValidateEnvelope),
     // UpdateRateLimits(UpdateRateLimits),
     // ProcessMetrics(ProcessMetrics),
+<<<<<<< HEAD
+=======
+    // AddMetricMeta(AddMetricMeta),
+>>>>>>> da6fbcc87 (pre rm metric meta rebase)
     FlushBuckets(FlushBuckets),
     UpdateSpoolIndex(UpdateSpoolIndex),
     RefreshIndexCache(RefreshIndexCache),
@@ -975,6 +979,16 @@ impl ProjectCacheBroker {
     //     self.services.envelope_processor.send(message);
     // }
 
+<<<<<<< HEAD
+=======
+    // fn handle_add_metric_meta(&mut self, message: AddMetricMeta) {
+    //     let envelope_processor = self.services.envelope_processor.clone();
+    //
+    //     self.get_or_create_project(message.project_key)
+    //         .add_metric_meta(message.meta, envelope_processor);
+    // }
+
+>>>>>>> da6fbcc87 (pre rm metric meta rebase)
     fn handle_flush_buckets(&mut self, message: FlushBuckets) {
         let aggregator = self.services.aggregator.clone();
 
@@ -1179,15 +1193,9 @@ impl ProjectCacheBroker {
     /// Which includes the own key and the sampling key for the project.
     /// Note: this function will trigger [`ProjectState`] refresh if it's already expired.
     fn is_state_cached(&mut self, key: &QueueKey) -> bool {
-        key.unique_keys().iter().all(|key| {
-            self.projects.get_mut(key).is_some_and(|project| {
-                // Returns `Some` if the project is cached otherwise None and also triggers refresh
-                // in background.
-                !project
-                    .get_cached_state(self.services.project_cache.clone(), false)
-                    .is_pending()
-            })
-        })
+        key.unique_keys()
+            .iter()
+            .all(|key| !self.projects.get(*key).project_state().is_pending())
     }
 
     /// Iterates the buffer index and tries to unspool the envelopes for projects with a valid
@@ -1264,6 +1272,10 @@ impl ProjectCacheBroker {
                     }
                     // ProjectCache::UpdateRateLimits(message) => self.handle_rate_limits(message),
                     // ProjectCache::ProcessMetrics(message) => self.handle_process_metrics(message),
+<<<<<<< HEAD
+=======
+                    // ProjectCache::AddMetricMeta(message) => self.handle_add_metric_meta(message),
+>>>>>>> da6fbcc87 (pre rm metric meta rebase)
                     ProjectCache::FlushBuckets(message) => self.handle_flush_buckets(message),
                     ProjectCache::UpdateSpoolIndex(message) => self.handle_buffer_index(message),
                     ProjectCache::RefreshIndexCache(message) => {

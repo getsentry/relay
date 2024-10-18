@@ -21,8 +21,9 @@ use crate::services::outcome::DiscardReason;
 use crate::services::outcome::Outcome;
 use crate::services::outcome::TrackOutcome;
 use crate::services::processor::ProcessingGroup;
-use crate::services::projects::cache::{DequeuedEnvelope, ProjectCache, UpdateProject};
+use crate::services::projects::cache::DequeuedEnvelope;
 
+use crate::services::projects::cache2::ProjectCacheHandle;
 use crate::services::test_store::TestStore;
 use crate::statsd::{RelayCounters, RelayHistograms};
 use crate::utils::ManagedEnvelope;
@@ -100,7 +101,7 @@ pub struct Services {
     /// Bounded channel used exclusively to handle backpressure when sending envelopes to the
     /// project cache.
     pub envelopes_tx: mpsc::Sender<DequeuedEnvelope>,
-    pub project_cache: Addr<ProjectCache>,
+    pub project_cache_handle: ProjectCacheHandle,
     pub outcome_aggregator: Addr<TrackOutcome>,
     pub test_store: Addr<TestStore>,
 }
@@ -269,12 +270,13 @@ impl EnvelopeBufferService {
                     relay_log::trace!("EnvelopeBufferService: requesting project(s) update");
                     let own_key = envelope.meta().public_key();
 
+                    services.project_cache_handle.fetch(own_key);
                     services.project_cache.send(UpdateProject(own_key));
                     match envelope.sampling_key() {
                         None => {}
                         Some(sampling_key) if sampling_key == own_key => {} // already sent.
                         Some(sampling_key) => {
-                            services.project_cache.send(UpdateProject(sampling_key));
+                            services.project_cache_handle.fetch(sampling_key);
                         }
                     }
 

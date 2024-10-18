@@ -170,8 +170,8 @@ impl ProjectRef<'_> {
 
         // Keep the old state around if the current fetch is pending.
         // It may still be useful to callers.
-        if !fetch.state.is_pending() {
-            self.shared.set_project_state(fetch.state);
+        if !fetch.project_state.is_pending() {
+            self.shared.set_project_state(fetch.project_state);
         }
     }
 }
@@ -370,7 +370,7 @@ impl PrivateProjectState {
     }
 
     fn complete_fetch(&mut self, fetch: &CompletedFetch) {
-        if fetch.state.is_pending() {
+        if fetch.project_state.is_pending() {
             self.next_fetch_attempt = Instant::now().checked_add(self.backoff.next_backoff());
         } else {
             debug_assert!(
@@ -437,18 +437,22 @@ impl Fetch {
     pub fn complete(self, state: ProjectState) -> CompletedFetch {
         CompletedFetch {
             project_key: self.project_key,
-            state,
+            project_state: state,
         }
     }
 }
 
 pub struct CompletedFetch {
     project_key: ProjectKey,
-    state: ProjectState,
+    project_state: ProjectState,
 }
 
 impl CompletedFetch {
-    fn project_key(&self) -> ProjectKey {
+    pub fn project_key(&self) -> ProjectKey {
         self.project_key
+    }
+
+    pub fn project_state(&self) -> &ProjectState {
+        &self.project_state
     }
 }

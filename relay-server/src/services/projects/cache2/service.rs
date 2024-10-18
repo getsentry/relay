@@ -4,6 +4,7 @@ use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
 use tokio::sync::mpsc;
 
+use crate::services::buffer::EnvelopeBuffer;
 use crate::services::projects::cache::ProjectSource;
 use crate::services::projects::cache2::state::{CompletedFetch, Fetch};
 use crate::services::projects::project::{ProjectFetchState, ProjectState};
@@ -26,6 +27,8 @@ pub struct ProjectCacheService {
     store: super::state::ProjectStore,
     source: ProjectSource,
     config: Arc<Config>,
+
+    buffer: relay_system::Addr<EnvelopeBuffer>,
 
     project_update_rx: mpsc::UnboundedReceiver<CompletedFetch>,
     project_update_tx: mpsc::UnboundedSender<CompletedFetch>,
@@ -68,13 +71,18 @@ impl ProjectCacheService {
     }
 
     fn handle_project_update(&mut self, fetch: CompletedFetch) {
+        let project_key = fetch.project_key();
+
         if let Some(fetch) = self.store.complete_fetch(fetch, &self.config) {
             relay_log::trace!(
                 project_key = fetch.project_key().as_str(),
                 "re-scheduling project fetch: {fetch:?}"
             );
             self.schedule_fetch(fetch);
+            return;
         }
+
+        self.buffer.send(EnvelopeBuffer::Ready(project_key));
     }
 
     fn handle_evict_stale_projects(&mut self) {
