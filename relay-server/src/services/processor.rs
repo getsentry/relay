@@ -71,9 +71,8 @@ use crate::services::global_config::GlobalConfigHandle;
 use crate::services::metrics::{Aggregator, MergeBuckets};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::event::FiltersStatus;
-use crate::services::projects::cache::{
-    BucketSource, ProcessMetrics, ProjectCache, UpdateRateLimits,
-};
+use crate::services::projects::cache::{BucketSource, ProjectCache};
+use crate::services::projects::cache2::ProjectCacheHandle;
 use crate::services::projects::project::{ProjectInfo, ProjectState};
 use crate::services::test_store::{Capture, TestStore};
 use crate::services::upstream::{
@@ -875,7 +874,7 @@ pub struct ProcessEnvelope {
     /// The project info.
     pub project_info: Arc<ProjectInfo>,
     /// Currently active cached rate limits for this project.
-    pub rate_limits: RateLimits,
+    pub rate_limits: Arc<RateLimits>,
     /// Root sampling project info.
     pub sampling_project_info: Option<Arc<ProjectInfo>>,
     /// Sampling reservoir counters.
@@ -894,16 +893,7 @@ pub struct ProcessEnvelope {
 /// Additionally, processing applies clock drift correction using the system clock of this Relay, if
 /// the Envelope specifies the [`sent_at`](Envelope::sent_at) header.
 #[derive(Debug)]
-pub struct ProcessProjectMetrics {
-    /// The project state the metrics belong to.
-    ///
-    /// The project state can be pending, in which case cached rate limits
-    /// and other project specific operations are skipped and executed once
-    /// the project state becomes available.
-    pub project_state: ProjectState,
-    /// Currently active cached rate limits for this project.
-    pub rate_limits: RateLimits,
-
+pub struct ProcessMetrics {
     /// A list of metric items.
     pub data: MetricData,
     /// The target project.
@@ -999,7 +989,7 @@ pub struct ProjectMetrics {
     /// Project info for extracting quotas.
     pub project_info: Arc<ProjectInfo>,
     /// Currently cached rate limits.
-    pub rate_limits: RateLimits,
+    pub rate_limits: Arc<RateLimits>,
 }
 
 /// Encodes metrics into an envelope ready to be sent upstream.
@@ -1028,7 +1018,7 @@ pub struct SubmitClientReports {
 #[derive(Debug)]
 pub enum EnvelopeProcessor {
     ProcessEnvelope(Box<ProcessEnvelope>),
-    ProcessProjectMetrics(Box<ProcessProjectMetrics>),
+    ProcessProjectMetrics(Box<ProcessMetrics>),
     ProcessBatchedMetrics(Box<ProcessBatchedMetrics>),
     EncodeMetrics(Box<EncodeMetrics>),
     SubmitEnvelope(Box<SubmitEnvelope>),
@@ -1059,10 +1049,10 @@ impl FromMessage<ProcessEnvelope> for EnvelopeProcessor {
     }
 }
 
-impl FromMessage<ProcessProjectMetrics> for EnvelopeProcessor {
+impl FromMessage<ProcessMetrics> for EnvelopeProcessor {
     type Response = NoResponse;
 
-    fn from_message(message: ProcessProjectMetrics, _: ()) -> Self {
+    fn from_message(message: ProcessMetrics, _: ()) -> Self {
         Self::ProcessProjectMetrics(Box::new(message))
     }
 }
@@ -1136,6 +1126,7 @@ struct InnerProcessor {
     workers: WorkerGroup,
     config: Arc<Config>,
     global_config: GlobalConfigHandle,
+    project_cache_handle: ProjectCacheHandle,
     cogs: Cogs,
     #[cfg(feature = "processing")]
     quotas_pool: Option<RedisPool>,
@@ -1318,10 +1309,11 @@ impl EnvelopeProcessorService {
 
         // Update cached rate limits with the freshly computed ones.
         if !limits.is_empty() {
-            self.inner.addrs.project_cache.send(UpdateRateLimits::new(
-                state.managed_envelope.scoping().project_key,
-                limits,
-            ));
+            self.inner
+                .project_cache_handle
+                .get(state.managed_envelope.scoping().project_key)
+                .rate_limits()
+                .merge(limits);
         }
 
         Ok(())
@@ -2064,10 +2056,8 @@ impl EnvelopeProcessorService {
         }
     }
 
-    fn handle_process_project_metrics(&self, cogs: &mut Token, message: ProcessProjectMetrics) {
-        let ProcessProjectMetrics {
-            project_state,
-            rate_limits,
+    fn handle_process_metrics(&self, cogs: &mut Token, message: ProcessMetrics) {
+        let ProcessMetrics {
             data,
             project_key,
             start_time,
@@ -2106,13 +2096,16 @@ impl EnvelopeProcessorService {
             true
         });
 
+        let project = self.inner.project_cache_handle.get(project_key);
+
         // Best effort check to filter and rate limit buckets, if there is no project state
         // available at the current time, we will check again after flushing.
-        let buckets = match project_state.enabled() {
-            Some(project_info) => {
+        let buckets = match project.project_state() {
+            ProjectState::Enabled(project_info) => {
+                let rate_limits = project.cached_rate_limits();
                 self.check_buckets(project_key, &project_info, &rate_limits, buckets)
             }
-            None => buckets,
+            _ => buckets,
         };
 
         relay_log::trace!("merging metric buckets into the aggregator");
@@ -2147,21 +2140,17 @@ impl EnvelopeProcessorService {
             }
         };
 
-        let mut feature_weights = FeatureWeights::none();
         for (project_key, buckets) in buckets {
-            feature_weights = feature_weights.merge(relay_metrics::cogs::BySize(&buckets).into());
-
-            self.inner.addrs.project_cache.send(ProcessMetrics {
-                data: MetricData::Parsed(buckets),
-                project_key,
-                source,
-                start_time: start_time.into(),
-                sent_at,
-            });
-        }
-
-        if !feature_weights.is_empty() {
-            cogs.update(feature_weights);
+            self.handle_process_metrics(
+                cogs,
+                ProcessMetrics {
+                    data: MetricData::Parsed(buckets),
+                    project_key,
+                    source,
+                    start_time: start_time.into(),
+                    sent_at,
+                },
+            )
         }
     }
 
@@ -2362,10 +2351,11 @@ impl EnvelopeProcessorService {
                     Outcome::RateLimited(reason_code),
                 );
 
-                self.inner.addrs.project_cache.send(UpdateRateLimits::new(
-                    item_scoping.scoping.project_key,
-                    limits,
-                ));
+                self.inner
+                    .project_cache_handle
+                    .get(item_scoping.scoping.project_key)
+                    .rate_limits()
+                    .merge(limits);
             }
         }
 
@@ -2440,9 +2430,10 @@ impl EnvelopeProcessorService {
                 if was_enforced {
                     // Update the rate limits in the project cache.
                     self.inner
-                        .addrs
-                        .project_cache
-                        .send(UpdateRateLimits::new(scoping.project_key, rate_limits));
+                        .project_cache_handle
+                        .get(scoping.project_key)
+                        .rate_limits()
+                        .merge(rate_limits);
                 }
             }
         }
@@ -2742,7 +2733,7 @@ impl EnvelopeProcessorService {
             match message {
                 EnvelopeProcessor::ProcessEnvelope(m) => self.handle_process_envelope(*m),
                 EnvelopeProcessor::ProcessProjectMetrics(m) => {
-                    self.handle_process_project_metrics(&mut cogs, *m)
+                    self.handle_process_metrics(&mut cogs, *m)
                 }
                 EnvelopeProcessor::ProcessBatchedMetrics(m) => {
                     self.handle_process_batched_metrics(&mut cogs, *m)
@@ -2888,7 +2879,7 @@ pub struct SendEnvelope {
     envelope: TypedEnvelope<Processed>,
     body: Bytes,
     http_encoding: HttpEncoding,
-    project_cache: Addr<ProjectCache>,
+    project_cache_handle: ProjectCacheHandle,
 }
 
 impl UpstreamRequest for SendEnvelope {
@@ -2940,10 +2931,10 @@ impl UpstreamRequest for SendEnvelope {
                     self.envelope.accept();
 
                     if let UpstreamRequestError::RateLimited(limits) = error {
-                        self.project_cache.send(UpdateRateLimits::new(
-                            scoping.project_key,
-                            limits.scope(&scoping),
-                        ));
+                        self.project_cache_handle
+                            .get(scoping.project_key)
+                            .rate_limits()
+                            .merge(limits.scope(&scoping));
                     }
                 }
                 Err(error) => {
@@ -3683,7 +3674,7 @@ mod tests {
             ),
             (BucketSource::Internal, None),
         ] {
-            let message = ProcessProjectMetrics {
+            let message = ProcessMetrics {
                 data: MetricData::Raw(vec![item.clone()]),
                 project_state: ProjectState::Pending,
                 rate_limits: Default::default(),
@@ -3692,7 +3683,7 @@ mod tests {
                 start_time,
                 sent_at: Some(Utc::now()),
             };
-            processor.handle_process_project_metrics(&mut token, message);
+            processor.handle_process_metrics(&mut token, message);
 
             let value = aggregator_rx.recv().await.unwrap();
             let Aggregator::MergeBuckets(merge_buckets) = value else {

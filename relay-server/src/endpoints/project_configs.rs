@@ -106,8 +106,6 @@ struct GetProjectStatesRequest {
     #[serde(default)]
     full_config: bool,
     #[serde(default)]
-    no_cache: bool,
-    #[serde(default)]
     global: bool,
 }
 
@@ -139,30 +137,9 @@ fn into_valid_keys(
 
 async fn inner(
     state: ServiceState,
-    Query(version): Query<VersionQuery>,
     body: SignedJson<GetProjectStatesRequest>,
 ) -> Result<impl IntoResponse, ServiceUnavailable> {
     let SignedJson { inner, relay } = body;
-    let project_cache = &state.project_cache().clone();
-
-    let no_cache = inner.no_cache;
-    let keys_len = inner.public_keys.len();
-
-    let mut futures: FuturesUnordered<_> = into_valid_keys(inner.public_keys, inner.revisions)
-        .map(|(project_key, revision)| async move {
-            let state_result = if version.version >= ENDPOINT_V3 && !no_cache {
-                project_cache
-                    .send(GetCachedProjectState::new(project_key))
-                    .await
-            } else {
-                project_cache
-                    .send(GetProjectState::new(project_key).no_cache(no_cache))
-                    .await
-            };
-
-            (project_key, revision, state_result)
-        })
-        .collect();
 
     let (global, global_status) = if inner.global {
         match state.global_config().send(global_config::Get).await? {
@@ -178,12 +155,15 @@ async fn inner(
         (None, None)
     };
 
+    let keys_len = inner.public_keys.len();
     let mut pending = Vec::with_capacity(keys_len);
     let mut unchanged = Vec::with_capacity(keys_len);
     let mut configs = HashMap::with_capacity(keys_len);
 
-    while let Some((project_key, revision, state_result)) = futures.next().await {
-        let project_info = match state_result? {
+    for (project_key, revision) in into_valid_keys(inner.public_keys, inner.revisions) {
+        let project = state.project_cache_handle().get(project_key);
+
+        let project_info = match project.project_state() {
             ProjectState::Enabled(info) => info,
             ProjectState::Disabled => {
                 // Don't insert project config. Downstream Relay will consider it disabled.
