@@ -5,9 +5,9 @@ use relay_config::Config;
 use tokio::sync::mpsc;
 
 use crate::services::buffer::EnvelopeBuffer;
-use crate::services::projects::cache::ProjectSource;
 use crate::services::projects::cache2::state::{CompletedFetch, Fetch};
 use crate::services::projects::project::{ProjectFetchState, ProjectState};
+use crate::services::projects::source::ProjectSource;
 
 pub enum ProjectCache {
     Fetch(ProjectKey),
