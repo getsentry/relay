@@ -208,6 +208,7 @@ pub enum RedisConfigRef<'a> {
 }
 
 /// Helper struct bundling connections and options for the various Redis pools.
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug)]
 pub enum RedisPoolConfigs<'a> {
     /// Use one pool for everything.
