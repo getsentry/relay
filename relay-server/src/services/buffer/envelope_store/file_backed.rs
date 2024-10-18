@@ -86,7 +86,7 @@ impl FileBackedEnvelopeStore {
 
         Ok(FileBackedEnvelopeStore {
             base_path: base_path.clone(),
-            files_cache: EnvelopesFilesCache::new(config.spool_envelopes_max_opened_files()),
+            files_cache: EnvelopesFilesCache::new(config.spool_envelopes_max_open_files()),
             folder_size_tracker,
         })
     }
@@ -159,7 +159,7 @@ impl FileBackedEnvelopeStore {
 /// A cache for managing open file handles which contain envelopes.
 #[derive(Debug)]
 struct EnvelopesFilesCache {
-    max_opened_files: usize,
+    max_open_files: usize,
     cache: PriorityQueue<CacheEntry, CachePriority>,
 }
 
@@ -215,9 +215,9 @@ impl PartialOrd for CachePriority {
 
 impl EnvelopesFilesCache {
     /// Creates a new instance of [`EnvelopesFilesCache`].
-    fn new(max_opened_files: usize) -> Self {
+    fn new(max_open_files: usize) -> Self {
         EnvelopesFilesCache {
-            max_opened_files,
+            max_open_files,
             cache: PriorityQueue::new(),
         }
     }
@@ -282,7 +282,7 @@ impl EnvelopesFilesCache {
 
     /// Inserts a new file into the cache, evicting the least recently used entry if necessary.
     fn insert(&mut self, project_key_pair: ProjectKeyPair, file: File) {
-        if self.cache.len() >= self.max_opened_files {
+        if self.cache.len() >= self.max_open_files {
             self.evict_lru();
         }
 
@@ -408,12 +408,12 @@ mod tests {
     use std::sync::Arc;
     use tempfile::TempDir;
 
-    fn mock_config(path: &str, max_opened_files: usize) -> Arc<Config> {
+    fn mock_config(path: &str, max_open_files: usize) -> Arc<Config> {
         Config::from_json_value(serde_json::json!({
             "spool": {
                 "envelopes": {
                     "path": path,
-                    "max_opened_files": max_opened_files
+                    "max_open_files": max_open_files
                 }
             }
         }))
@@ -421,10 +421,10 @@ mod tests {
         .into()
     }
 
-    async fn setup_envelope_store(max_opened_files: usize) -> (FileBackedEnvelopeStore, TempDir) {
+    async fn setup_envelope_store(max_open_files: usize) -> (FileBackedEnvelopeStore, TempDir) {
         let temp_dir = TempDir::new().unwrap();
         let path = temp_dir.path().to_str().unwrap().to_string();
-        let config = mock_config(&path, max_opened_files);
+        let config = mock_config(&path, max_open_files);
         let store = FileBackedEnvelopeStore::new(&config).await.unwrap();
         // We return the tmp directory since we want to drop it only after the test finishes.
         (store, temp_dir)

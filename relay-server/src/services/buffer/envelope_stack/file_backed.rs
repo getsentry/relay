@@ -296,12 +296,12 @@ mod tests {
     use std::sync::Arc;
     use tempfile::TempDir;
 
-    fn mock_config(path: &str, max_opened_files: usize) -> Arc<Config> {
+    fn mock_config(path: &str, max_open_files: usize) -> Arc<Config> {
         Config::from_json_value(serde_json::json!({
             "spool": {
                 "envelopes": {
                     "path": path,
-                    "max_opened_files": max_opened_files
+                    "max_open_files": max_open_files
                 }
             }
         }))
@@ -310,11 +310,11 @@ mod tests {
     }
 
     async fn setup_envelope_store(
-        max_opened_files: usize,
+        max_open_files: usize,
     ) -> (Arc<Mutex<FileBackedEnvelopeStore>>, TempDir) {
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
         let path = temp_dir.path().to_str().unwrap().to_string();
-        let config = mock_config(&path, max_opened_files);
+        let config = mock_config(&path, max_open_files);
         let store = Arc::new(Mutex::new(
             FileBackedEnvelopeStore::new(&config).await.unwrap(),
         ));
