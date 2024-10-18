@@ -9,8 +9,8 @@ use relay_system::{AsyncResponse, FromMessage, Interface, Receiver, Sender, Serv
 use tokio::sync::mpsc;
 use tokio::time::Instant;
 
-use crate::services::projects::cache::FetchOptionalProjectState;
 use crate::services::projects::project::{ParsedProjectState, ProjectState};
+use crate::services::projects::source::FetchOptionalProjectState;
 
 /// Service interface of the local project source.
 #[derive(Debug)]
