@@ -96,7 +96,7 @@ pub fn process(
             }
             ItemType::ReplayRecording => {
                 let replay_recording =
-                    handle_replay_recording_item(item.payload(), scrubber.as_mut(), config)?;
+                    handle_replay_recording_item(item.payload(), scrubber.as_mut(), &rpc)?;
                 item.set_payload(ContentType::OctetStream, replay_recording);
             }
             ItemType::ReplayVideo => {
