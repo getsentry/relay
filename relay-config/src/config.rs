@@ -922,9 +922,10 @@ fn spool_max_backpressure_memory_percent() -> f32 {
     0.9
 }
 
-/// Default for max opened files, 100000.
+/// Default for the maximum number of files containing envelopes that can be opened at the same
+/// time.
 fn spool_envelopes_max_open_files() -> usize {
-    100000
+    512
 }
 
 /// Persistent buffering configuration for incoming envelopes.
@@ -1025,6 +1026,18 @@ pub enum EnvelopeBufferStrategy {
     #[cfg(not(windows))]
     /// Use a file-backed system for envelope buffering.
     FileBacked,
+}
+
+impl EnvelopeBufferStrategy {
+    /// Return `true` whether the [`EnvelopeBufferStrategy`] requires a path to be specified,
+    /// `false` otherwise.
+    pub fn requires_path(&self) -> bool {
+        match self {
+            EnvelopeBufferStrategy::Memory => false,
+            EnvelopeBufferStrategy::Sqlite => true,
+            EnvelopeBufferStrategy::FileBacked => true,
+        }
+    }
 }
 
 impl Default for EnvelopeSpool {

@@ -23,7 +23,7 @@ static ALLOWED_ERROR_KINDS: LazyLock<HashSet<io::ErrorKind>> = LazyLock::new(|| 
 });
 
 /// The version of the envelope stack file format.
-const CURRENT_FILE_VERSION: u8 = 1;
+const CURRENT_VERSION: u8 = 1;
 
 /// The size of the version field in bytes.
 const VERSION_FIELD_BYTES: u64 = 1;
@@ -32,8 +32,7 @@ const TOTAL_COUNT_FIELD_BYTES: u64 = 4;
 /// The size of the envelope size field in bytes.
 const ENVELOPE_SIZE_FIELD_BYTES: u64 = 8;
 /// The size of the header for each envelope.
-const FILE_HEADER_SIZE_BYTES: u64 =
-    VERSION_FIELD_BYTES + TOTAL_COUNT_FIELD_BYTES + ENVELOPE_SIZE_FIELD_BYTES;
+const HEADER_BYTES: u64 = VERSION_FIELD_BYTES + TOTAL_COUNT_FIELD_BYTES + ENVELOPE_SIZE_FIELD_BYTES;
 
 /// An error returned when doing an operation on [`FileBackedEnvelopeStack`].
 #[derive(Debug, thiserror::Error)]
@@ -57,13 +56,13 @@ pub enum FileBackedEnvelopeStackError {
 /// An envelope stack that writes and reads envelopes to and from disk files.
 ///
 /// Each [`FileBackedEnvelopeStack`] corresponds to a file on disk, named with the pattern
-/// `own_key-sampling_key`. The envelopes are appended to the file in a custom binary format.
+/// `own_key-sampling_key`. The envelopes are pushed to the file in a custom binary format.
 ///
 /// The file format is as follows (from start to end):
-/// - `envelope_bytes` (variable length)
-/// - `version` (1 byte)
-/// - `total_count` (4 bytes, u32 in little-endian)
-/// - `envelope_size` (8 bytes, u64 in little-endian)
+/// - `envelope_bytes` (variable length): The serialized envelope.
+/// - `version` (1 byte): The version of the file entry.
+/// - `total_count` (4 bytes, u32 in little-endian): The number of entries in this file, including the current one.
+/// - `envelope_size` (8 bytes, u64 in little-endian): The size of the serialized envelopes in bytes.
 ///
 /// The rationale behind this layout is that we seek to the version and read to the right to get
 /// all the required metadata and not read more that it's needed. Then, once we know the size of
@@ -98,10 +97,8 @@ impl EnvelopeStack for FileBackedEnvelopeStack {
         let file = envelope_store.get_file(self.project_key_pair).await?;
 
         relay_statsd::metric!(timer(RelayTimers::BufferSpool), {
-            append_envelope(file, &envelope).await?;
+            push_envelope(file, &envelope).await?;
         });
-
-        relay_statsd::metric!(counter(RelayCounters::BufferSpooledEnvelopes) += 1);
 
         Ok(())
     }
@@ -113,14 +110,6 @@ impl EnvelopeStack for FileBackedEnvelopeStack {
         let envelope = relay_statsd::metric!(timer(RelayTimers::BufferUnspool), {
             pop_envelope(file).await
         })?;
-
-        if envelope.is_none() {
-            // TODO: we might want to investigate in the future if it's better to let the envelope
-            //  store deal with file deletion.
-            envelope_store.remove_file(&self.project_key_pair).await?;
-        } else {
-            relay_statsd::metric!(counter(RelayCounters::BufferUnspooledEnvelopes) += 1);
-        }
 
         Ok(envelope)
     }
@@ -159,7 +148,7 @@ pub struct Header {
 
 pub async fn read_header(file: &mut File) -> Result<Option<Header>, FileBackedEnvelopeStackError> {
     relay_statsd::metric!(timer(RelayTimers::BufferTotalCountReading), {
-        let success = seek_truncate(file, FILE_HEADER_SIZE_BYTES).await?;
+        let success = seek_truncate(file, HEADER_BYTES).await?;
         if !success {
             return Ok(None);
         }
@@ -170,7 +159,7 @@ pub async fn read_header(file: &mut File) -> Result<Option<Header>, FileBackedEn
         let total_count = reader.read_u32_le().await?;
         let envelope_size = reader.read_u64_le().await?;
 
-        if version != CURRENT_FILE_VERSION {
+        if version != CURRENT_VERSION {
             return Err(FileBackedEnvelopeStackError::InvalidVersion);
         }
 
@@ -216,7 +205,7 @@ pub async fn pop_envelope(
 
     // Read the envelope data.
     let mut envelope = vec![0; header.envelope_size as usize];
-    let success = seek_truncate(file, header.envelope_size + FILE_HEADER_SIZE_BYTES).await?;
+    let success = seek_truncate(file, header.envelope_size + HEADER_BYTES).await?;
     if !success {
         return Err(FileBackedEnvelopeStackError::Corruption(
             "the envelopes file is corrupted".to_string(),
@@ -242,11 +231,11 @@ pub async fn pop_envelope(
     Ok(Some(envelope))
 }
 
-/// Appends an envelope to the file.
+/// Pushes an envelope to the file.
 ///
 /// The envelope is serialized and written to the end of the file along with its size,
 /// total count, and version.
-pub async fn append_envelope(
+pub async fn push_envelope(
     file: &mut File,
     envelope: &Envelope,
 ) -> Result<(), FileBackedEnvelopeStackError> {
@@ -272,7 +261,7 @@ pub async fn append_envelope(
         // 1. Envelope payload
         writer.write_all(&envelope_bytes).await?;
         // 2. Version number of the entry
-        writer.write_u8(CURRENT_FILE_VERSION).await?;
+        writer.write_u8(CURRENT_VERSION).await?;
         // 3. Total count of envelope until this point
         writer.write_u32_le(total_count + 1).await?;
         // 4. The size of the envelope in bytes
@@ -416,15 +405,12 @@ mod tests {
         let file = store.get_file(stack.project_key_pair).await.unwrap();
 
         let mut version_buf = [0u8; VERSION_FIELD_BYTES as usize];
-        file.seek(SeekFrom::End(-(FILE_HEADER_SIZE_BYTES as i64)))
+        file.seek(SeekFrom::End(-(HEADER_BYTES as i64)))
             .await
             .unwrap();
         file.read_exact(&mut version_buf).await.unwrap();
 
-        assert_eq!(
-            version_buf[0], CURRENT_FILE_VERSION,
-            "Version field mismatch"
-        );
+        assert_eq!(version_buf[0], CURRENT_VERSION, "Version field mismatch");
     }
 
     #[tokio::test]
@@ -466,7 +452,7 @@ mod tests {
         let total_count = u32::from_le_bytes(total_count_buf);
         let envelope_size = u64::from_le_bytes(envelope_size_buf);
 
-        assert_eq!(version, CURRENT_FILE_VERSION, "Version mismatch");
+        assert_eq!(version, CURRENT_VERSION, "Version mismatch");
         assert_eq!(total_count, 1, "Total count mismatch");
 
         // Jump back to the start of the envelope

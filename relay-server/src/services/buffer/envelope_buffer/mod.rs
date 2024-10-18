@@ -87,6 +87,12 @@ impl PolymorphicEnvelopeBuffer {
                 Self::FileBacked(buffer)
             }
             _ => {
+                if config.spool_envelope_buffer_strategy().requires_path()
+                    && config.spool_envelopes_path().is_none()
+                {
+                    relay_log::warn!("PolymorphicEnvelopeBuffer: a buffer strategy that requires a path was configured but the path was not supplied, defaulting to memory");
+                }
+
                 relay_log::trace!("PolymorphicEnvelopeBuffer: initializing memory envelope buffer");
                 let buffer = EnvelopeBuffer::<MemoryStackProvider>::new(memory_checker);
                 Self::InMemory(buffer)

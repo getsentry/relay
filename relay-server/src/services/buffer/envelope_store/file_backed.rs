@@ -401,7 +401,7 @@ impl FolderSizeTracker {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::services::buffer::envelope_stack::file_backed::append_envelope;
+    use crate::services::buffer::envelope_stack::file_backed::push_envelope;
     use crate::services::buffer::testutils::utils::mock_envelopes;
     #[cfg(unix)]
     use std::os::unix::fs::MetadataExt;
@@ -484,11 +484,11 @@ mod tests {
         // Append envelopes to files
         for envelope in envelopes1 {
             let file = store.get_file(project_key_pair1).await.unwrap();
-            append_envelope(file, &envelope).await.unwrap();
+            push_envelope(file, &envelope).await.unwrap();
         }
         for envelope in envelopes2 {
             let file = store.get_file(project_key_pair2).await.unwrap();
-            append_envelope(file, &envelope).await.unwrap();
+            push_envelope(file, &envelope).await.unwrap();
         }
 
         // List project key pairs with counts
