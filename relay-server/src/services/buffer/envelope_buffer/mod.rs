@@ -78,6 +78,11 @@ impl PolymorphicEnvelopeBuffer {
 
     /// Adds an envelope to the buffer.
     pub async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), EnvelopeBufferError> {
+        relay_statsd::metric!(
+            histogram(RelayHistograms::BufferEnvelopeBodySize) =
+                envelope.items().map(Item::len).sum()
+        );
+
         relay_statsd::metric!(timer(RelayTimers::BufferPush), {
             match self {
                 Self::Sqlite(buffer) => buffer.push(envelope).await,
