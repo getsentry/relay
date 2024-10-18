@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use hashbrown::HashSet;
 use relay_base_schema::project::ProjectKey;
-use relay_config::{Config, EnvelopeBufferStrategy};
+use relay_config::{Config, EnvelopeBufferStrategy, EnvelopeSpoolPath};
 use tokio::time::Instant;
 
 use crate::envelope::Envelope;
@@ -69,34 +69,28 @@ impl PolymorphicEnvelopeBuffer {
         config: &Config,
         memory_checker: MemoryChecker,
     ) -> Result<Self, EnvelopeBufferError> {
-        let buffer = match (
-            config.spool_envelope_buffer_strategy(),
-            config.spool_envelopes_path(),
-        ) {
-            (EnvelopeBufferStrategy::Sqlite, Some(_)) => {
-                relay_log::trace!("PolymorphicEnvelopeBuffer: initializing sqlite envelope buffer");
-                let buffer = EnvelopeBuffer::<SqliteStackProvider>::new(config).await?;
-                Self::Sqlite(buffer)
-            }
-            #[cfg(not(windows))]
-            (EnvelopeBufferStrategy::FileBacked, Some(_)) => {
-                relay_log::trace!(
-                    "PolymorphicEnvelopeBuffer: initializing file-backed envelope buffer"
-                );
-                let buffer = EnvelopeBuffer::<FileBackedStackProvider>::new(config).await?;
-                Self::FileBacked(buffer)
-            }
-            _ => {
-                if config.spool_envelope_buffer_strategy().requires_path()
-                    && config.spool_envelopes_path().is_none()
-                {
-                    relay_log::warn!("PolymorphicEnvelopeBuffer: a buffer strategy that requires a path was configured but the path was not supplied, defaulting to memory");
+        let buffer = if let Some(envelope_spool_path) = config.spool_envelopes_path() {
+            match envelope_spool_path {
+                EnvelopeSpoolPath::Sqlite { .. } => {
+                    relay_log::trace!(
+                        "PolymorphicEnvelopeBuffer: initializing sqlite envelope buffer"
+                    );
+                    let buffer = EnvelopeBuffer::<SqliteStackProvider>::new(config).await?;
+                    Self::Sqlite(buffer)
                 }
-
-                relay_log::trace!("PolymorphicEnvelopeBuffer: initializing memory envelope buffer");
-                let buffer = EnvelopeBuffer::<MemoryStackProvider>::new(memory_checker);
-                Self::InMemory(buffer)
+                #[cfg(not(windows))]
+                EnvelopeSpoolPath::FileBacked { .. } => {
+                    relay_log::trace!(
+                        "PolymorphicEnvelopeBuffer: initializing file-backed envelope buffer"
+                    );
+                    let buffer = EnvelopeBuffer::<FileBackedStackProvider>::new(config).await?;
+                    Self::FileBacked(buffer)
+                }
             }
+        } else {
+            relay_log::trace!("PolymorphicEnvelopeBuffer: initializing memory envelope buffer");
+            let buffer = EnvelopeBuffer::<MemoryStackProvider>::new(memory_checker);
+            Self::InMemory(buffer)
         };
 
         Ok(buffer)

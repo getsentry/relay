@@ -931,10 +931,9 @@ fn spool_envelopes_max_open_files() -> usize {
 /// Persistent buffering configuration for incoming envelopes.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EnvelopeSpool {
-    /// The path to the persistent spool file.
-    ///
-    /// If set, this will enable the buffering for incoming envelopes.
-    path: Option<PathBuf>,
+    /// The path and type for envelope buffering.
+    #[serde(flatten)]
+    path: Option<EnvelopeSpoolPath>,
     /// Maximum number of connections, which will be maintained by the pool.
     #[serde(default = "spool_envelopes_max_connections")]
     max_connections: u32,
@@ -991,9 +990,6 @@ pub struct EnvelopeSpool {
     /// Version of the spooler.
     #[serde(default)]
     version: EnvelopeSpoolVersion,
-    /// The strategy to use for envelope buffering.
-    #[serde(default)]
-    buffer_strategy: EnvelopeBufferStrategy,
 }
 
 /// Version of the envelope buffering mechanism.
@@ -1014,30 +1010,49 @@ pub enum EnvelopeSpoolVersion {
     V2,
 }
 
-/// The strategy to use for envelope buffering.
-#[derive(Debug, Default, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum EnvelopeBufferStrategy {
-    /// Use an in-memory buffer for envelopes.
-    #[default]
-    Memory,
+/// The path and type for envelope buffering.
+#[derive(Debug, Deserialize, Serialize)]
+pub enum EnvelopeSpoolPath {
     /// Use a SQLite database for envelope buffering.
-    Sqlite,
+    Sqlite {
+        /// File in which the database will be read/written.
+        path: PathBuf,
+        /// SQLite strategy field used because tagged enums with optional type are not supported.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        path_strategy: Option<SqliteType>,
+    },
     #[cfg(not(windows))]
     /// Use a file-backed system for envelope buffering.
-    FileBacked,
+    FileBacked {
+        /// Folder in which the files will be read/written.
+        path: PathBuf,
+        /// FileBacked strategy field used because tagged enums with optional type are not
+        /// supported.
+        path_strategy: FileBackedType,
+    },
 }
 
-impl EnvelopeBufferStrategy {
-    /// Return `true` whether the [`EnvelopeBufferStrategy`] requires a path to be specified,
-    /// `false` otherwise.
-    pub fn requires_path(&self) -> bool {
+impl EnvelopeSpoolPath {
+    /// Returns the path of the [`EnvelopeSpoolPath`].
+    pub fn path(&self) -> PathBuf {
         match self {
-            EnvelopeBufferStrategy::Memory => false,
-            EnvelopeBufferStrategy::Sqlite => true,
-            EnvelopeBufferStrategy::FileBacked => true,
+            EnvelopeSpoolPath::Sqlite { path, .. } => path.to_owned(),
+            #[cfg(not(windows))]
+            EnvelopeSpoolPath::FileBacked { path, .. } => path.to_owned(),
         }
     }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SqliteType {
+    Sqlite,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FileBackedType {
+    FileBacked,
 }
 
 impl Default for EnvelopeSpool {
@@ -1057,7 +1072,6 @@ impl Default for EnvelopeSpool {
             max_backpressure_memory_percent: spool_max_backpressure_memory_percent(),
             max_open_files: spool_envelopes_max_open_files(),
             version: EnvelopeSpoolVersion::default(),
-            buffer_strategy: EnvelopeBufferStrategy::default(),
         }
     }
 }
@@ -1081,33 +1095,33 @@ struct Cache {
     /// being fetched. This is added on top of `project_expiry` and `miss_expiry`. Default is 0.
     project_grace_period: u32,
     /// The cache timeout for downstream relay info (public keys) in seconds.
-    relay_expiry: u32,
+    relay_expiry: u32, // 1 hour
     /// Unused cache timeout for envelopes.
     ///
     /// The envelope buffer is instead controlled by `envelope_buffer_size`, which controls the
     /// maximum number of envelopes in the buffer. A time based configuration may be re-introduced
     /// at a later point.
     #[serde(alias = "event_expiry")]
-    envelope_expiry: u32,
+    envelope_expiry: u32, // 10 minutes
     /// The maximum amount of envelopes to queue before dropping them.
     #[serde(alias = "event_buffer_size")]
     envelope_buffer_size: u32,
     /// The cache timeout for non-existing entries.
-    miss_expiry: u32,
+    miss_expiry: u32, // 1 minute
     /// The buffer timeout for batched project config queries before sending them upstream in ms.
-    batch_interval: u32,
+    batch_interval: u32, // 100ms
     /// The buffer timeout for batched queries of downstream relays in ms. Defaults to 100ms.
-    downstream_relays_batch_interval: u32,
+    downstream_relays_batch_interval: u32, // 100ms
     /// The maximum number of project configs to fetch from Sentry at once. Defaults to 500.
     ///
     /// `cache.batch_interval` controls how quickly batches are sent, this controls the batch size.
     batch_size: usize,
     /// Interval for watching local cache override files in seconds.
-    file_interval: u32,
+    file_interval: u32, // 10 seconds
     /// Interval for evicting outdated project configs from memory.
-    eviction_interval: u32,
+    eviction_interval: u32, // 60 seconds
     /// Interval for fetching new global configs from the upstream, in seconds.
-    global_config_fetch_interval: u32,
+    global_config_fetch_interval: u32, // 10 seconds
 }
 
 impl Default for Cache {
@@ -2208,14 +2222,9 @@ impl Config {
         Duration::from_secs(self.values.cache.global_config_fetch_interval.into())
     }
 
-    /// Returns the path of the buffer file if the `cache.persistent_envelope_buffer.path` is configured.
-    pub fn spool_envelopes_path(&self) -> Option<PathBuf> {
-        self.values
-            .spool
-            .envelopes
-            .path
-            .as_ref()
-            .map(|path| path.to_owned())
+    /// Returns the path of the buffer file if the envelope spool path is configured.
+    pub fn spool_envelopes_path(&self) -> Option<&EnvelopeSpoolPath> {
+        self.values.spool.envelopes.path.as_ref()
     }
 
     /// Maximum number of connections to create to buffer file.
@@ -2286,11 +2295,6 @@ impl Config {
     /// Returns the maximum number of opened files for the envelope spool.
     pub fn spool_envelopes_max_open_files(&self) -> usize {
         self.values.spool.envelopes.max_open_files
-    }
-
-    /// Returns the envelope buffer strategy.
-    pub fn spool_envelope_buffer_strategy(&self) -> &EnvelopeBufferStrategy {
-        &self.values.spool.envelopes.buffer_strategy
     }
 
     /// Returns the maximum size of an event payload in bytes.
@@ -2372,11 +2376,6 @@ impl Config {
     /// Returns the maximum payload size for chunks
     pub fn max_api_chunk_upload_size(&self) -> usize {
         self.values.limits.max_api_chunk_upload_size.as_bytes()
-    }
-
-    /// Returns the maximum payload size for a profile
-    pub fn max_profile_size(&self) -> usize {
-        self.values.limits.max_profile_size.as_bytes()
     }
 
     /// Returns the maximum payload size for a compressed replay.

@@ -14,7 +14,7 @@ use crate::Envelope;
 use futures::stream::StreamExt;
 use hashbrown::HashSet;
 use relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
-use relay_config::Config;
+use relay_config::{Config, EnvelopeSpoolPath};
 use sqlx::migrate::MigrateError;
 use sqlx::query::Query;
 use sqlx::sqlite::{
@@ -203,7 +203,7 @@ impl SqliteEnvelopeStore {
     /// the folders where data will be stored.
     pub async fn prepare(config: &Config) -> Result<SqliteEnvelopeStore, SqliteEnvelopeStoreError> {
         // If no path is provided, we can't do disk spooling.
-        let Some(path) = config.spool_envelopes_path() else {
+        let Some(path) = config.spool_envelopes_path().map(EnvelopeSpoolPath::path) else {
             return Err(SqliteEnvelopeStoreError::NoFilePath);
         };
 

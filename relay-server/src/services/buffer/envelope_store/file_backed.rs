@@ -4,7 +4,7 @@ use crate::statsd::{RelayCounters, RelayGauges};
 use hashbrown::HashMap;
 use priority_queue::PriorityQueue;
 use relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
-use relay_config::Config;
+use relay_config::{Config, EnvelopeSpoolPath};
 use std::error::Error;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -72,7 +72,7 @@ impl FileBackedEnvelopeStore {
     /// setting up the base path for envelope files and initializing the folder size tracker.
     /// It also creates the spool directory if it doesn't exist.
     pub async fn new(config: &Config) -> Result<Self, FileBackedEnvelopeStoreError> {
-        let Some(base_path) = config.spool_envelopes_path() else {
+        let Some(base_path) = config.spool_envelopes_path().map(EnvelopeSpoolPath::path) else {
             return Err(FileBackedEnvelopeStoreError::NoFilePath);
         };
 
@@ -152,11 +152,12 @@ struct EnvelopesFilesCache {
     cache: PriorityQueue<CacheEntry, CachePriority>,
 }
 
-/// New-type that wraps a file and deletes it in case before getting dropped it is empty.
+/// New-type that wraps a file with its path information.
 #[derive(Debug)]
-struct NonEmptyFile(PathBuf, File);
+struct IndexedFile(PathBuf, File);
 
-impl NonEmptyFile {
+impl IndexedFile {
+    /// Consumes the [`IndexedFile`] and deletes it if it's empty.
     async fn remove_if_empty(self) -> Result<(), FileBackedEnvelopeStoreError> {
         if let Ok(metadata) = self.1.metadata().await {
             if metadata.len() > 0 {
@@ -178,7 +179,7 @@ impl NonEmptyFile {
 #[derive(Debug)]
 struct CacheEntry {
     project_key_pair: ProjectKeyPair,
-    file: NonEmptyFile,
+    file: IndexedFile,
 }
 
 impl std::borrow::Borrow<ProjectKeyPair> for CacheEntry {
@@ -256,7 +257,7 @@ impl EnvelopesFilesCache {
     async fn open_file(
         base_path: PathBuf,
         project_key_pair: &ProjectKeyPair,
-    ) -> Result<NonEmptyFile, FileBackedEnvelopeStoreError> {
+    ) -> Result<IndexedFile, FileBackedEnvelopeStoreError> {
         let file_name = get_file_name(project_key_pair);
         let file_path = base_path.join(file_name);
 
@@ -269,11 +270,11 @@ impl EnvelopesFilesCache {
             .await
             .map_err(FileBackedEnvelopeStoreError::FileError)?;
 
-        Ok(NonEmptyFile(file_path, file))
+        Ok(IndexedFile(file_path, file))
     }
 
     /// Inserts a new file into the cache, evicting the least recently used entry if necessary.
-    async fn insert(&mut self, project_key_pair: ProjectKeyPair, file: NonEmptyFile) {
+    async fn insert(&mut self, project_key_pair: ProjectKeyPair, file: IndexedFile) {
         if self.cache.len() >= self.max_open_files {
             self.evict_lru().await;
         }
@@ -287,7 +288,7 @@ impl EnvelopesFilesCache {
         );
     }
 
-    /// Evicts the least recently used entry from the cache.
+    /// Evicts the least recently used entry from the cache and removes the file if empty.
     async fn evict_lru(&mut self) {
         // The top element of the queue is the element with the smallest `last_access` timestamp.
         if let Some((entry, _)) = self.cache.pop() {
