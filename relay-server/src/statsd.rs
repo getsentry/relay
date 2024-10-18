@@ -733,11 +733,6 @@ pub enum RelayCounters {
     /// Failure can happen, for example, when there's a network error. Refer to
     /// [`UpstreamRequestError`](crate::services::upstream::UpstreamRequestError) for all cases.
     ProjectUpstreamFailed,
-    /// Number of full metric data flushes.
-    ///
-    /// A full flush takes all contained items of the aggregator and flushes them upstream,
-    /// at best this happens once per freshly loaded project.
-    ProjectStateFlushAllMetricMeta,
     /// Number of Relay server starts.
     ///
     /// This can be used to track unwanted restarts due to crashes or termination.
@@ -822,8 +817,6 @@ pub enum RelayCounters {
     EvictingStaleProjectCaches,
     /// Number of times that parsing a metrics bucket item from an envelope failed.
     MetricBucketsParsingFailed,
-    /// Number of times that parsing a metric meta item from an envelope failed.
-    MetricMetaParsingFailed,
     /// Count extraction of transaction names. Tag with the decision to drop / replace / use original.
     MetricsTransactionNameExtracted,
     /// Number of Events with an OpenTelemetry Context
@@ -882,7 +875,6 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ProjectStateGet => "project_state.get",
             RelayCounters::ProjectStateRequest => "project_state.request",
             RelayCounters::ProjectStateNoCache => "project_state.no_cache",
-            RelayCounters::ProjectStateFlushAllMetricMeta => "project_state.flush_all_metric_meta",
             #[cfg(feature = "processing")]
             RelayCounters::ProjectStateRedis => "project_state.redis.requests",
             RelayCounters::ProjectUpstreamCompleted => "project_upstream.completed",
@@ -899,7 +891,6 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ResponsesStatusCodes => "responses.status_codes",
             RelayCounters::EvictingStaleProjectCaches => "project_cache.eviction",
             RelayCounters::MetricBucketsParsingFailed => "metrics.buckets.parsing_failed",
-            RelayCounters::MetricMetaParsingFailed => "metrics.meta.parsing_failed",
             RelayCounters::MetricsTransactionNameExtracted => "metrics.transaction_name",
             RelayCounters::OpenTelemetryEvent => "event.opentelemetry",
             RelayCounters::GlobalConfigFetched => "global_config.fetch",

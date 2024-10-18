@@ -70,7 +70,6 @@
 
 pub mod aggregator;
 pub mod cogs;
-pub mod meta;
 
 mod bucket;
 mod finite;
@@ -80,8 +79,5 @@ mod view;
 
 pub use bucket::*;
 pub use finite::*;
-#[cfg(feature = "redis")]
-pub use meta::RedisMetricMetaStore;
-pub use meta::{MetaAggregator, MetricMeta};
 pub use protocol::*;
 pub use view::*;

@@ -40,15 +40,6 @@ pub enum MetricCounters {
     ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
     ///  - `namespace`: The namespace of the metric.
     MergeMiss,
-
-    /// Incremented every time the meta aggregator emitted an update that needs to be stored or
-    /// sent upstream.
-    MetaAggregatorUpdate,
-    /// Incremnted for every metric meta item added to the metric meta aggregator.
-    MetaAggregatorItems,
-    /// Incremented every time a redis key is updated to store or update metadata.
-    #[cfg(feature = "redis")]
-    MetaRedisUpdate,
 }
 
 impl CounterMetric for MetricCounters {
@@ -56,10 +47,6 @@ impl CounterMetric for MetricCounters {
         match *self {
             Self::MergeHit => "metrics.buckets.merge.hit",
             Self::MergeMiss => "metrics.buckets.merge.miss",
-            Self::MetaAggregatorUpdate => "metrics.meta.agg.update",
-            Self::MetaAggregatorItems => "metrics.meta.agg.items",
-            #[cfg(feature = "redis")]
-            Self::MetaRedisUpdate => "metrics.meta.redis.update",
         }
     }
 }
