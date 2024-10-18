@@ -194,7 +194,7 @@ impl PooledClient {
     /// Recursively computes the [`ConnectionInner`] from a [`PooledClient`].
     fn connection_inner(&mut self) -> Result<ConnectionInner<'_>, RedisError> {
         let inner = match self {
-            PooledClient::Cluster(ref mut connection, opts) => {
+            PooledClient::Cluster(connection, opts) => {
                 connection
                     .set_read_timeout(Some(Duration::from_secs(opts.read_timeout)))
                     .map_err(RedisError::Redis)?;
@@ -220,7 +220,7 @@ impl PooledClient {
                     secondaries: secondary_connections,
                 }
             }
-            PooledClient::Single(ref mut connection, opts) => {
+            PooledClient::Single(connection, opts) => {
                 connection
                     .set_read_timeout(Some(Duration::from_secs(opts.read_timeout)))
                     .map_err(RedisError::Redis)?;
@@ -295,7 +295,9 @@ impl RedisPool {
 
     /// Creates a [`RedisPool`] in single-node configuration.
     pub fn single(server: &str, opts: RedisConfigOptions) -> Result<Self, RedisError> {
-        let pool = Self::client_pool(server, &opts)?;
+        let pool = Self::base_pool_builder(&opts)
+            .build(redis::Client::open(server).map_err(RedisError::Redis)?)
+            .map_err(RedisError::Pool)?;
 
         Ok(RedisPool::Single(pool, opts))
     }
@@ -303,7 +305,7 @@ impl RedisPool {
     /// Returns a pooled connection to a client.
     pub fn client(&self) -> Result<PooledClient, RedisError> {
         let pool = match self {
-            RedisPool::Cluster(ref pool, opts) => PooledClient::Cluster(
+            RedisPool::Cluster(pool, opts) => PooledClient::Cluster(
                 Box::new(pool.get().map_err(RedisError::Pool)?),
                 opts.clone(),
             ),
@@ -323,7 +325,7 @@ impl RedisPool {
                     secondaries: secondary_clients,
                 }
             }
-            RedisPool::Single(ref pool, opts) => PooledClient::Single(
+            RedisPool::Single(pool, opts) => PooledClient::Single(
                 Box::new(pool.get().map_err(RedisError::Pool)?),
                 opts.clone(),
             ),
@@ -339,16 +341,6 @@ impl RedisPool {
             connections,
             idle_connections,
         }
-    }
-
-    /// Returns a [`Pool`] with a [`redis::Client`].
-    fn client_pool(
-        server: &str,
-        opts: &RedisConfigOptions,
-    ) -> Result<Pool<redis::Client>, RedisError> {
-        Self::base_pool_builder(opts)
-            .build(redis::Client::open(server).map_err(RedisError::Redis)?)
-            .map_err(RedisError::Pool)
     }
 
     /// Returns the base builder for the pool with the options applied.
