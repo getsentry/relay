@@ -759,10 +759,10 @@
 <span class="kw">use </span>tokio::sync::mpsc;
 <span class="kw">use </span>tokio::time::Instant;
 
-<span class="kw">use </span><span class="kw">crate</span>::services::projects::cache::FetchProjectState;
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::project::state::UpstreamProjectState;
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ParsedProjectState;
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectState;
+<span class="kw">use </span><span class="kw">crate</span>::services::projects::source::FetchProjectState;
 <span class="kw">use </span><span class="kw">crate</span>::services::upstream::{
     Method, RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError,
 };

@@ -292,8 +292,8 @@
 <span class="kw">use </span>tokio::sync::mpsc;
 <span class="kw">use </span>tokio::time::Instant;
 
-<span class="kw">use </span><span class="kw">crate</span>::services::projects::cache::FetchOptionalProjectState;
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::project::{ParsedProjectState, ProjectState};
+<span class="kw">use </span><span class="kw">crate</span>::services::projects::source::FetchOptionalProjectState;
 
 <span class="doccomment">/// Service interface of the local project source.
 </span><span class="attr">#[derive(Debug)]
