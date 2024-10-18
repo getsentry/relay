@@ -15,7 +15,6 @@ use tokio::sync::{mpsc, watch};
 use tokio::time::{timeout, Instant};
 
 use crate::envelope::Envelope;
-use crate::services::buffer::common::ProjectKeyPair;
 use crate::services::buffer::envelope_buffer::Peek;
 use crate::services::global_config;
 use crate::services::outcome::DiscardReason;
@@ -36,9 +35,17 @@ pub use envelope_buffer::PolymorphicEnvelopeBuffer;
 // pub for benchmarks
 pub use envelope_stack::sqlite::SqliteEnvelopeStack;
 // pub for benchmarks
+#[cfg(not(windows))]
+pub use envelope_stack::file_backed::FileBackedEnvelopeStack;
+// pub for benchmarks
 pub use envelope_stack::EnvelopeStack;
 // pub for benchmarks
 pub use envelope_store::sqlite::SqliteEnvelopeStore;
+// pub for benchmarks
+#[cfg(not(windows))]
+pub use envelope_store::file_backed::FileBackedEnvelopeStore;
+// pub for benchmarks
+pub use common::ProjectKeyPair;
 
 mod common;
 mod envelope_buffer;
