@@ -520,7 +520,7 @@
 </span><span class="kw">pub struct </span>Panic(String);
 
 <span class="kw">impl </span>Panic {
-    <span class="kw">fn </span>new(info: <span class="kw-2">&amp;</span>panic::PanicInfo) -&gt; <span class="self">Self </span>{
+    <span class="kw">fn </span>new(info: <span class="kw-2">&amp;</span>panic::PanicHookInfo) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>thread = thread::current();
         <span class="kw">let </span>thread = thread.name().unwrap_or(<span class="string">"unnamed"</span>);
 

@@ -808,6 +808,7 @@
 <a href="#808" id="808">808</a>
 <a href="#809" id="809">809</a>
 <a href="#810" id="810">810</a>
+<a href="#811" id="811">811</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_redis::RedisConfigOptions;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
@@ -1018,7 +1019,8 @@
 }
 
 <span class="doccomment">/// Helper struct bundling connections and options for the various Redis pools.
-</span><span class="attr">#[derive(Clone, Debug)]
+</span><span class="attr">#[allow(clippy::large_enum_variant)]
+#[derive(Clone, Debug)]
 </span><span class="kw">pub enum </span>RedisPoolConfigs&lt;<span class="lifetime">'a</span>&gt; {
     <span class="doccomment">/// Use one pool for everything.
     </span>Unified(RedisConfigRef&lt;<span class="lifetime">'a</span>&gt;),
