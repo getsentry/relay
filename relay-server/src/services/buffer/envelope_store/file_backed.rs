@@ -1,6 +1,6 @@
 use crate::services::buffer::common::ProjectKeyPair;
 use crate::services::buffer::envelope_stack::file_backed::read_header;
-use crate::statsd::RelayGauges;
+use crate::statsd::{RelayCounters, RelayGauges};
 use hashbrown::HashMap;
 use priority_queue::PriorityQueue;
 use relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
@@ -296,6 +296,8 @@ impl EnvelopesFilesCache {
                     error = &error as &dyn Error,
                     "failed to remove the envelopes file",
                 );
+            } else {
+                relay_statsd::metric!(counter(RelayCounters::BufferRemovedEnvelopesFile) += 1);
             }
         }
     }

@@ -660,6 +660,9 @@ pub enum RelayCounters {
     BufferSpooledEnvelopes,
     /// Number of envelopes unspooled from disk.
     BufferUnspooledEnvelopes,
+    /// Number of times a file containing envelopes is removed.
+    #[cfg(not(windows))]
+    BufferRemovedEnvelopesFile,
     ///
     /// Number of outcomes and reasons for rejected Envelopes.
     ///
@@ -882,6 +885,8 @@ impl CounterMetric for RelayCounters {
             RelayCounters::BufferReadyToPop => "buffer.ready_to_pop",
             RelayCounters::BufferSpooledEnvelopes => "buffer.spooled_envelopes",
             RelayCounters::BufferUnspooledEnvelopes => "buffer.unspooled_envelopes",
+            #[cfg(not(windows))]
+            RelayCounters::BufferRemovedEnvelopesFile => "buffer.removed_envelopes_file",
             RelayCounters::Outcomes => "events.outcomes",
             RelayCounters::ProjectStateGet => "project_state.get",
             RelayCounters::ProjectStateRequest => "project_state.request",
