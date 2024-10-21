@@ -181,6 +181,11 @@ pub enum RelayHistograms {
     /// Number of envelopes in the backpressure buffer between the envelope buffer
     /// and the project cache.
     BufferBackpressureEnvelopesCount,
+    /// The amount of bytes in the item payloads of an envelope pushed to the envelope buffer.
+    ///
+    /// This is not quite the same as the actual size of a serialized envelope, because it ignores
+    /// the envelope header and item headers.
+    BufferEnvelopeBodySize,
     /// The number of batches emitted per partition.
     BatchesPerPartition,
     /// The number of buckets in a batch emitted.
@@ -309,6 +314,7 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::BufferBackpressureEnvelopesCount => {
                 "buffer.backpressure_envelopes_count"
             }
+            RelayHistograms::BufferEnvelopeBodySize => "buffer.envelope_body_size",
             RelayHistograms::ProjectStatePending => "project_state.pending",
             RelayHistograms::ProjectStateAttempts => "project_state.attempts",
             RelayHistograms::ProjectStateRequestBatchSize => "project_state.request.batch_size",
@@ -538,6 +544,8 @@ pub enum RelayTimers {
     BufferPop,
     /// Timing in milliseconds for the time it takes for the buffer to drain its envelopes.
     BufferDrain,
+    /// Timing in milliseconds for the time it takes for the envelopes to be serialized.
+    BufferEnvelopesSerialization,
 }
 
 impl TimerMetric for RelayTimers {
@@ -586,6 +594,7 @@ impl TimerMetric for RelayTimers {
             RelayTimers::BufferPeek => "buffer.peek.duration",
             RelayTimers::BufferPop => "buffer.pop.duration",
             RelayTimers::BufferDrain => "buffer.drain.duration",
+            RelayTimers::BufferEnvelopesSerialization => "buffer.envelopes_serialization",
         }
     }
 }

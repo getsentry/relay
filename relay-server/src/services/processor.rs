@@ -72,10 +72,10 @@ use crate::services::global_config::GlobalConfigHandle;
 use crate::services::metrics::{Aggregator, MergeBuckets};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::event::FiltersStatus;
-use crate::services::project::{ProjectInfo, ProjectState};
-use crate::services::project_cache::{
+use crate::services::projects::cache::{
     AddMetricMeta, BucketSource, ProcessMetrics, ProjectCache, UpdateRateLimits,
 };
+use crate::services::projects::project::{ProjectInfo, ProjectState};
 use crate::services::test_store::{Capture, TestStore};
 use crate::services::upstream::{
     SendRequest, UpstreamRelay, UpstreamRequest, UpstreamRequestError,
@@ -1709,10 +1709,6 @@ impl EnvelopeProcessorService {
 
         let profile_id = profile::filter(state);
         profile::transfer_id(state, profile_id);
-
-        if_processing!(self.inner.config, {
-            attachment::create_placeholders(state);
-        });
 
         event::finalize(state, &self.inner.config)?;
         self.normalize_event(state)?;

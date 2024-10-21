@@ -274,7 +274,7 @@ mod tests {
     use crate::extractors::RequestMeta;
     use crate::services::outcome::RuleCategory;
     use crate::services::processor::{ProcessEnvelope, ProcessingGroup};
-    use crate::services::project::ProjectInfo;
+    use crate::services::projects::project::ProjectInfo;
     use crate::testutils::{self, create_test_processor};
     use crate::utils::ManagedEnvelope;
 

@@ -208,6 +208,7 @@ pub enum RedisConfigRef<'a> {
 }
 
 /// Helper struct bundling connections and options for the various Redis pools.
+#[allow(clippy::large_enum_variant)]
 #[derive(Clone, Debug)]
 pub enum RedisPoolConfigs<'a> {
     /// Use one pool for everything.
@@ -232,7 +233,7 @@ fn build_redis_config_options(
     let max_connections = options.max_connections.unwrap_or(default_connections);
     let min_idle = options
         .min_idle
-        .unwrap_or_else(|| max_connections.div_ceil(crate::redis::DEFAULT_MIN_IDLE_RATIO));
+        .unwrap_or_else(|| max_connections.div_ceil(DEFAULT_MIN_IDLE_RATIO));
 
     RedisConfigOptions {
         max_connections,
@@ -253,7 +254,6 @@ pub(super) fn create_redis_pool(
         RedisConfig::Cluster {
             cluster_nodes,
             options,
-            ..
         } => RedisConfigRef::Cluster {
             cluster_nodes,
             options: build_redis_config_options(options, default_connections),
@@ -280,10 +280,8 @@ pub(super) fn create_redis_pool(
 pub(super) fn create_redis_pools(configs: &RedisConfigs, cpu_concurrency: u32) -> RedisPoolConfigs {
     // Default `max_connections` for the `project_configs` pool.
     // In a unified config, this is used for all pools.
-    let project_configs_default_connections = std::cmp::max(
-        cpu_concurrency * 2,
-        crate::redis::DEFAULT_MIN_MAX_CONNECTIONS,
-    );
+    let project_configs_default_connections =
+        std::cmp::max(cpu_concurrency * 2, DEFAULT_MIN_MAX_CONNECTIONS);
 
     match configs {
         RedisConfigs::Unified(cfg) => {
