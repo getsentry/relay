@@ -250,7 +250,7 @@
     <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span><span class="kw">pub </span>environment: <span class="prelude-ty">Option</span>&lt;String&gt;,
     <span class="kw">pub </span>platform: String,
-    <span class="kw">pub </span>release: String,
+    <span class="kw">pub </span>release: <span class="prelude-ty">Option</span>&lt;String&gt;,
 
     <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span><span class="kw">pub </span>client_sdk: <span class="prelude-ty">Option</span>&lt;ClientSdk&gt;,
