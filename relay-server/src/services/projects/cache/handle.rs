@@ -1,4 +1,4 @@
-use core::fmt;
+use std::fmt;
 use std::sync::Arc;
 
 use relay_base_schema::project::ProjectKey;
@@ -7,15 +7,15 @@ use relay_system::Addr;
 use tokio::sync::broadcast;
 
 use super::state::Shared;
-use crate::services::projects::cache2::service::ProjectEvent;
-use crate::services::projects::cache2::{Project, ProjectCache};
+use crate::services::projects::cache::service::ProjectEvent;
+use crate::services::projects::cache::{Project, ProjectCache};
 
 #[derive(Clone)]
 pub struct ProjectCacheHandle {
-    shared: Arc<Shared>,
-    config: Arc<Config>,
-    service: Addr<ProjectCache>,
-    project_events: broadcast::Sender<ProjectEvent>,
+    pub(super) shared: Arc<Shared>,
+    pub(super) config: Arc<Config>,
+    pub(super) service: Addr<ProjectCache>,
+    pub(super) project_events: broadcast::Sender<ProjectEvent>,
 }
 
 impl ProjectCacheHandle {

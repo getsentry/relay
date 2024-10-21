@@ -137,7 +137,7 @@ pub fn create_test_processor(config: Config) -> EnvelopeProcessorService {
         redis_pools,
         processor::Addrs {
             outcome_aggregator,
-            project_cache,
+            legacy_project_cache: project_cache,
             upstream_relay,
             test_store,
             #[cfg(feature = "processing")]

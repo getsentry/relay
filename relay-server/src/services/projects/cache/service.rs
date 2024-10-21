@@ -2,13 +2,25 @@ use std::sync::Arc;
 
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
+use relay_system::Service;
 use tokio::sync::{broadcast, mpsc};
 
-use crate::services::buffer::EnvelopeBuffer;
-use crate::services::projects::cache2::state::{CompletedFetch, Fetch};
+use crate::services::projects::cache::handle::ProjectCacheHandle;
+use crate::services::projects::cache::state::{CompletedFetch, Fetch, ProjectStore};
 use crate::services::projects::project::{ProjectFetchState, ProjectState};
 use crate::services::projects::source::ProjectSource;
 
+/// Size of the broadcast channel for project events.
+///
+/// This is set to a value which theoretically should never be reachable,
+/// the number of events is approximately bounded by the amount of projects
+/// receiving events.
+///
+/// It is set to such a large amount because receivers of events currently
+/// do not deal with lags in the channel gracefuly.
+const PROJECT_EVENTS_CHANNEL_SIZE: usize = 512_000;
+
+#[derive(Debug)]
 pub enum ProjectCache {
     Fetch(ProjectKey),
 }
@@ -23,17 +35,16 @@ impl relay_system::FromMessage<Self> for ProjectCache {
     }
 }
 
+#[derive(Debug, Copy, Clone)]
 pub enum ProjectEvent {
     Ready(ProjectKey),
     Evicted(ProjectKey),
 }
 
 pub struct ProjectCacheService {
-    store: super::state::ProjectStore,
+    store: ProjectStore,
     source: ProjectSource,
     config: Arc<Config>,
-
-    buffer: relay_system::Addr<EnvelopeBuffer>,
 
     project_update_rx: mpsc::UnboundedReceiver<CompletedFetch>,
     project_update_tx: mpsc::UnboundedSender<CompletedFetch>,
@@ -42,6 +53,35 @@ pub struct ProjectCacheService {
 }
 
 impl ProjectCacheService {
+    pub fn new(config: Arc<Config>, source: ProjectSource) -> Self {
+        let (project_update_tx, project_update_rx) = mpsc::unbounded_channel();
+        let project_events_tx = broadcast::channel(256_000).0;
+
+        Self {
+            store: ProjectStore::default(),
+            source,
+            config,
+            project_update_rx,
+            project_update_tx,
+            project_events_tx,
+        }
+    }
+
+    pub fn start(self) -> (relay_system::Addr<ProjectCache>, ProjectCacheHandle) {
+        let (addr, addr_rx) = relay_system::channel(Self::name());
+
+        let handle = ProjectCacheHandle {
+            shared: self.store.shared(),
+            config: Arc::clone(&self.config),
+            service: addr.clone(),
+            project_events: self.project_events_tx.clone(),
+        };
+
+        self.spawn_handler(addr_rx);
+
+        (addr, handle)
+    }
+
     fn schedule_fetch(&self, fetch: Fetch) {
         let source = self.source.clone();
         let project_updates = self.project_update_tx.clone();
@@ -70,6 +110,7 @@ impl ProjectCacheService {
     }
 }
 
+/// All [`ProjectCacheService`] message handlers.
 impl ProjectCacheService {
     fn handle_fetch(&mut self, project_key: ProjectKey) {
         if let Some(fetch) = self.store.try_begin_fetch(project_key, &self.config) {
@@ -89,20 +130,23 @@ impl ProjectCacheService {
             return;
         }
 
-        self.project_events_tx
+        // TODO: no-ops from revision checks should not end up here
+        let _ = self
+            .project_events_tx
             .send(ProjectEvent::Ready(project_key));
     }
 
     fn handle_evict_stale_projects(&mut self) {
         let on_evict = |project_key| {
-            self.project_events_tx
+            let _ = self
+                .project_events_tx
                 .send(ProjectEvent::Evicted(project_key));
         };
 
         self.store.evict_stale_projects(&self.config, on_evict);
     }
 
-    fn handle(&mut self, message: ProjectCache) {
+    fn handle_message(&mut self, message: ProjectCache) {
         match message {
             ProjectCache::Fetch(project_key) => self.handle_fetch(project_key),
         }
@@ -124,7 +168,7 @@ impl relay_system::Service for ProjectCacheService {
                         self.handle_project_update(update)
                     },
                     Some(message) = rx.recv() => {
-                        self.handle(message);
+                        self.handle_message(message);
                     },
                     _ = eviction_ticker.tick() => {
                         self.handle_evict_stale_projects()

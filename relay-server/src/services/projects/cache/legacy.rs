@@ -3,19 +3,17 @@ use std::error::Error;
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::extractors::RequestMeta;
 use crate::services::buffer::{EnvelopeBuffer, EnvelopeBufferError};
 use crate::services::global_config;
 use crate::services::processor::{
     EncodeMetrics, EnvelopeProcessor, ProcessEnvelope, ProcessingGroup, ProjectMetrics,
 };
-use crate::services::projects::cache2::{CheckedEnvelope, ProjectCacheHandle, ProjectEvent};
+use crate::services::projects::cache::{CheckedEnvelope, ProjectCacheHandle, ProjectEvent};
 use crate::Envelope;
 use hashbrown::HashSet;
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
 use relay_metrics::Bucket;
-use relay_redis::RedisPool;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, Service};
 use tokio::sync::{mpsc, watch};
@@ -28,7 +26,6 @@ use crate::services::spooler::{
     UnspooledEnvelope, BATCH_KEY_COUNT,
 };
 use crate::services::test_store::TestStore;
-use crate::services::upstream::UpstreamRelay;
 
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::{GarbageDisposal, ManagedEnvelope, MemoryChecker, RetryBackoff, SleepHandle};
@@ -52,32 +49,6 @@ pub struct ValidateEnvelope {
 impl ValidateEnvelope {
     pub fn new(envelope: ManagedEnvelope) -> Self {
         Self { envelope }
-    }
-}
-
-/// Source information where a metric bucket originates from.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub enum BucketSource {
-    /// The metric bucket originated from an internal Relay use case.
-    ///
-    /// The metric bucket originates either from within the same Relay
-    /// or was accepted coming from another Relay which is registered as
-    /// an internal Relay via Relay's configuration.
-    Internal,
-    /// The bucket source originated from an untrusted source.
-    ///
-    /// Managed Relays sending extracted metrics are considered external,
-    /// it's a project use case but it comes from an untrusted source.
-    External,
-}
-
-impl From<&RequestMeta> for BucketSource {
-    fn from(value: &RequestMeta) -> Self {
-        if value.is_from_internal_relay() {
-            Self::Internal
-        } else {
-            Self::External
-        }
     }
 }
 
@@ -105,12 +76,6 @@ pub struct RefreshIndexCache(pub HashSet<QueueKey>);
 /// Handle an envelope that was popped from the envelope buffer.
 #[derive(Debug)]
 pub struct DequeuedEnvelope(pub Box<Envelope>);
-
-/// A request to update a project, typically sent by the envelope buffer.
-///
-/// This message is similar to [`GetProjectState`], except it has no `no_cache` option
-/// and it does not send a response, but sends a signal back to the buffer instead.
-pub struct UpdateProject(pub ProjectKey);
 
 /// A cache for [`ProjectState`]s.
 ///
@@ -189,7 +154,6 @@ pub struct Services {
     pub outcome_aggregator: Addr<TrackOutcome>,
     pub project_cache: Addr<ProjectCache>,
     pub test_store: Addr<TestStore>,
-    pub upstream_relay: Addr<UpstreamRelay>,
 }
 
 /// Main broker of the [`ProjectCacheService`].
@@ -704,12 +668,11 @@ impl ProjectCacheBroker {
 pub struct ProjectCacheService {
     config: Arc<Config>,
     memory_checker: MemoryChecker,
-    project_cache: ProjectCacheHandle,
+    project_cache_handle: ProjectCacheHandle,
     services: Services,
     global_config_rx: watch::Receiver<global_config::Status>,
     /// Bounded channel used exclusively to receive envelopes from the envelope buffer.
     envelopes_rx: mpsc::Receiver<DequeuedEnvelope>,
-    redis: Option<RedisPool>,
 }
 
 impl ProjectCacheService {
@@ -717,20 +680,18 @@ impl ProjectCacheService {
     pub fn new(
         config: Arc<Config>,
         memory_checker: MemoryChecker,
-        project_cache: ProjectCacheHandle,
+        project_cache_handle: ProjectCacheHandle,
         services: Services,
         global_config_rx: watch::Receiver<global_config::Status>,
         envelopes_rx: mpsc::Receiver<DequeuedEnvelope>,
-        redis: Option<RedisPool>,
     ) -> Self {
         Self {
             config,
             memory_checker,
-            project_cache,
+            project_cache_handle,
             services,
             global_config_rx,
             envelopes_rx,
-            redis,
         }
     }
 }
@@ -742,13 +703,12 @@ impl Service for ProjectCacheService {
         let Self {
             config,
             memory_checker,
-            project_cache,
+            project_cache_handle,
             services,
             mut global_config_rx,
             mut envelopes_rx,
-            redis,
         } = self;
-        let project_events = project_cache.events();
+        let project_events = project_cache_handle.events();
         let project_cache = services.project_cache.clone();
         let outcome_aggregator = services.outcome_aggregator.clone();
         let test_store = services.test_store.clone();
@@ -833,7 +793,7 @@ impl Service for ProjectCacheService {
                             }
                         })
                     },
-                    project_event = project_events.recv() => {
+                    Ok(project_event) = project_events.recv() => {
                         metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "handle_project_event", {
                             broker.handle_project_event(project_event);
                         })
@@ -907,7 +867,6 @@ mod tests {
         let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
         let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
         let (test_store, _) = mock_service("test_store", (), |&mut (), _| {});
-        let (upstream_relay, _) = mock_service("upstream_relay", (), |&mut (), _| {});
 
         Services {
             envelope_buffer: None,
@@ -916,7 +875,6 @@ mod tests {
             project_cache,
             outcome_aggregator,
             test_store,
-            upstream_relay,
         }
     }
 

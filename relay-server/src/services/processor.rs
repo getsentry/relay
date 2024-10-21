@@ -71,8 +71,7 @@ use crate::services::global_config::GlobalConfigHandle;
 use crate::services::metrics::{Aggregator, MergeBuckets};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::event::FiltersStatus;
-use crate::services::projects::cache::{BucketSource, ProjectCache};
-use crate::services::projects::cache2::ProjectCacheHandle;
+use crate::services::projects::cache::{legacy, ProjectCacheHandle};
 use crate::services::projects::project::{ProjectInfo, ProjectState};
 use crate::services::test_store::{Capture, TestStore};
 use crate::services::upstream::{
@@ -757,7 +756,7 @@ struct ProcessEnvelopeState<'a, Group> {
 
     /// Currently active cached rate limits of the project this envelope belongs to.
     #[cfg_attr(not(feature = "processing"), expect(dead_code))]
-    rate_limits: RateLimits,
+    rate_limits: Arc<RateLimits>,
 
     /// The config of this Relay instance.
     config: Arc<Config>,
@@ -981,6 +980,32 @@ pub struct ProcessBatchedMetrics {
     pub sent_at: Option<DateTime<Utc>>,
 }
 
+/// Source information where a metric bucket originates from.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum BucketSource {
+    /// The metric bucket originated from an internal Relay use case.
+    ///
+    /// The metric bucket originates either from within the same Relay
+    /// or was accepted coming from another Relay which is registered as
+    /// an internal Relay via Relay's configuration.
+    Internal,
+    /// The bucket source originated from an untrusted source.
+    ///
+    /// Managed Relays sending extracted metrics are considered external,
+    /// it's a project use case but it comes from an untrusted source.
+    External,
+}
+
+impl From<&RequestMeta> for BucketSource {
+    fn from(value: &RequestMeta) -> Self {
+        if value.is_from_internal_relay() {
+            Self::Internal
+        } else {
+            Self::External
+        }
+    }
+}
+
 /// Metric buckets with additional project.
 #[derive(Debug, Clone)]
 pub struct ProjectMetrics {
@@ -1099,7 +1124,7 @@ pub struct EnvelopeProcessorService {
 
 /// Contains the addresses of services that the processor publishes to.
 pub struct Addrs {
-    pub project_cache: Addr<ProjectCache>,
+    pub legacy_project_cache: Addr<legacy::ProjectCache>,
     pub outcome_aggregator: Addr<TrackOutcome>,
     pub upstream_relay: Addr<UpstreamRelay>,
     pub test_store: Addr<TestStore>,
@@ -1111,7 +1136,7 @@ pub struct Addrs {
 impl Default for Addrs {
     fn default() -> Self {
         Addrs {
-            project_cache: Addr::dummy(),
+            legacy_project_cache: Addr::dummy(),
             outcome_aggregator: Addr::dummy(),
             upstream_relay: Addr::dummy(),
             test_store: Addr::dummy(),
@@ -1126,7 +1151,7 @@ struct InnerProcessor {
     workers: WorkerGroup,
     config: Arc<Config>,
     global_config: GlobalConfigHandle,
-    project_cache_handle: ProjectCacheHandle,
+    project_cache: ProjectCacheHandle,
     cogs: Cogs,
     #[cfg(feature = "processing")]
     quotas_pool: Option<RedisPool>,
@@ -1145,6 +1170,7 @@ impl EnvelopeProcessorService {
         pool: ThreadPool,
         config: Arc<Config>,
         global_config: GlobalConfigHandle,
+        project_cache: ProjectCacheHandle,
         cogs: Cogs,
         #[cfg(feature = "processing")] redis: Option<RedisPools>,
         addrs: Addrs,
@@ -1173,6 +1199,7 @@ impl EnvelopeProcessorService {
         let inner = InnerProcessor {
             workers: WorkerGroup::new(pool),
             global_config,
+            project_cache,
             cogs,
             #[cfg(feature = "processing")]
             quotas_pool: quotas.clone(),
@@ -1238,7 +1265,7 @@ impl EnvelopeProcessorService {
         mut managed_envelope: TypedEnvelope<G>,
         project_id: ProjectId,
         project_info: Arc<ProjectInfo>,
-        rate_limits: RateLimits,
+        rate_limits: Arc<RateLimits>,
         sampling_project_info: Option<Arc<ProjectInfo>>,
         reservoir_counters: Arc<Mutex<BTreeMap<RuleId, i64>>>,
     ) -> ProcessEnvelopeState<G> {
@@ -1310,7 +1337,7 @@ impl EnvelopeProcessorService {
         // Update cached rate limits with the freshly computed ones.
         if !limits.is_empty() {
             self.inner
-                .project_cache_handle
+                .project_cache
                 .get(state.managed_envelope.scoping().project_key)
                 .rate_limits()
                 .merge(limits);
@@ -1838,7 +1865,7 @@ impl EnvelopeProcessorService {
         mut managed_envelope: ManagedEnvelope,
         project_id: ProjectId,
         project_info: Arc<ProjectInfo>,
-        rate_limits: RateLimits,
+        rate_limits: Arc<RateLimits>,
         sampling_project_info: Option<Arc<ProjectInfo>>,
         reservoir_counters: Arc<Mutex<BTreeMap<RuleId, i64>>>,
     ) -> Result<ProcessingStateResult, ProcessingError> {
@@ -2096,13 +2123,13 @@ impl EnvelopeProcessorService {
             true
         });
 
-        let project = self.inner.project_cache_handle.get(project_key);
+        let project = self.inner.project_cache.get(project_key);
 
         // Best effort check to filter and rate limit buckets, if there is no project state
         // available at the current time, we will check again after flushing.
         let buckets = match project.project_state() {
             ProjectState::Enabled(project_info) => {
-                let rate_limits = project.cached_rate_limits();
+                let rate_limits = project.rate_limits().current_limits();
                 self.check_buckets(project_key, &project_info, &rate_limits, buckets)
             }
             _ => buckets,
@@ -2198,7 +2225,7 @@ impl EnvelopeProcessorService {
                         envelope,
                         body,
                         http_encoding,
-                        project_cache: self.inner.addrs.project_cache.clone(),
+                        project_cache: self.inner.project_cache.clone(),
                     }));
             }
             Err(error) => {
@@ -2352,7 +2379,7 @@ impl EnvelopeProcessorService {
                 );
 
                 self.inner
-                    .project_cache_handle
+                    .project_cache
                     .get(item_scoping.scoping.project_key)
                     .rate_limits()
                     .merge(limits);
@@ -2430,7 +2457,7 @@ impl EnvelopeProcessorService {
                 if was_enforced {
                     // Update the rate limits in the project cache.
                     self.inner
-                        .project_cache_handle
+                        .project_cache
                         .get(scoping.project_key)
                         .rate_limits()
                         .merge(rate_limits);
@@ -2879,7 +2906,7 @@ pub struct SendEnvelope {
     envelope: TypedEnvelope<Processed>,
     body: Bytes,
     http_encoding: HttpEncoding,
-    project_cache_handle: ProjectCacheHandle,
+    project_cache: ProjectCacheHandle,
 }
 
 impl UpstreamRequest for SendEnvelope {
@@ -2931,7 +2958,7 @@ impl UpstreamRequest for SendEnvelope {
                     self.envelope.accept();
 
                     if let UpstreamRequestError::RateLimited(limits) = error {
-                        self.project_cache_handle
+                        self.project_cache
                             .get(scoping.project_key)
                             .rate_limits()
                             .merge(limits.scope(&scoping));
@@ -3705,7 +3732,7 @@ mod tests {
         let processor = create_test_processor_with_addrs(
             config,
             Addrs {
-                project_cache,
+                legacy_project_cache,
                 ..Default::default()
             },
         );
@@ -3749,11 +3776,11 @@ mod tests {
         processor.handle_process_batched_metrics(&mut token, message);
 
         let value = project_cache_rx.recv().await.unwrap();
-        let ProjectCache::ProcessMetrics(pm1) = value else {
+        let legacy::ProjectCache::ProcessMetrics(pm1) = value else {
             panic!()
         };
         let value = project_cache_rx.recv().await.unwrap();
-        let ProjectCache::ProcessMetrics(pm2) = value else {
+        let legacy::ProjectCache::ProcessMetrics(pm2) = value else {
             panic!()
         };
 

@@ -7,7 +7,7 @@ use relay_sampling::evaluation::ReservoirCounters;
 
 use crate::envelope::ItemType;
 use crate::services::outcome::{DiscardReason, Outcome};
-use crate::services::projects::cache2::state::SharedProject;
+use crate::services::projects::cache::state::SharedProject;
 use crate::services::projects::project::ProjectState;
 use crate::utils::{CheckLimits, Enforcement, EnvelopeLimiter, ManagedEnvelope};
 

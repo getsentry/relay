@@ -21,10 +21,7 @@ use crate::services::outcome::DiscardReason;
 use crate::services::outcome::Outcome;
 use crate::services::outcome::TrackOutcome;
 use crate::services::processor::ProcessingGroup;
-use crate::services::projects::cache::DequeuedEnvelope;
-
-use crate::services::projects::cache2::ProjectCacheHandle;
-use crate::services::projects::cache2::ProjectEvent;
+use crate::services::projects::cache::{legacy, ProjectCacheHandle, ProjectEvent};
 use crate::services::test_store::TestStore;
 use crate::statsd::{RelayCounters, RelayHistograms};
 use crate::utils::ManagedEnvelope;
@@ -101,7 +98,7 @@ impl ObservableEnvelopeBuffer {
 pub struct Services {
     /// Bounded channel used exclusively to handle backpressure when sending envelopes to the
     /// project cache.
-    pub envelopes_tx: mpsc::Sender<DequeuedEnvelope>,
+    pub envelopes_tx: mpsc::Sender<legacy::DequeuedEnvelope>,
     pub project_cache_handle: ProjectCacheHandle,
     pub outcome_aggregator: Addr<TrackOutcome>,
     pub test_store: Addr<TestStore>,
@@ -159,7 +156,7 @@ impl EnvelopeBufferService {
         &mut self,
         buffer: &PolymorphicEnvelopeBuffer,
         dequeue: bool,
-    ) -> Option<Permit<DequeuedEnvelope>> {
+    ) -> Option<Permit<legacy::DequeuedEnvelope>> {
         relay_statsd::metric!(
             counter(RelayCounters::BufferReadyToPop) += 1,
             status = "checking"
@@ -220,7 +217,7 @@ impl EnvelopeBufferService {
         config: &Config,
         buffer: &mut PolymorphicEnvelopeBuffer,
         services: &Services,
-        envelopes_tx_permit: Permit<'a, DequeuedEnvelope>,
+        envelopes_tx_permit: Permit<'a, legacy::DequeuedEnvelope>,
     ) -> Result<Duration, EnvelopeBufferError> {
         let sleep = match buffer.peek().await? {
             Peek::Empty => {
@@ -253,7 +250,7 @@ impl EnvelopeBufferService {
                     .pop()
                     .await?
                     .expect("Element disappeared despite exclusive excess");
-                envelopes_tx_permit.send(DequeuedEnvelope(envelope));
+                envelopes_tx_permit.send(legacy::DequeuedEnvelope(envelope));
 
                 Duration::ZERO // try next pop immediately
             }
@@ -430,7 +427,7 @@ impl Service for EnvelopeBufferService {
                             }
                         }
                     }
-                    ProjectEvent::Ready(project_key) = project_events.recv() => {
+                    Ok(ProjectEvent::Ready(project_key)) = project_events.recv() => {
                         Self::handle_message(&mut buffer, EnvelopeBuffer::Ready(project_key)).await;
                         sleep = Duration::ZERO;
                     }
@@ -490,8 +487,8 @@ mod tests {
     struct EnvelopeBufferServiceResult {
         service: EnvelopeBufferService,
         global_tx: watch::Sender<global_config::Status>,
-        envelopes_rx: mpsc::Receiver<DequeuedEnvelope>,
-        project_cache_rx: mpsc::UnboundedReceiver<ProjectCache>,
+        envelopes_rx: mpsc::Receiver<legacy::DequeuedEnvelope>,
+        project_cache_rx: mpsc::UnboundedReceiver<legacy::ProjectCache>,
         outcome_aggregator_rx: mpsc::UnboundedReceiver<TrackOutcome>,
     }
 

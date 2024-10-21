@@ -11,8 +11,10 @@ use crate::services::metrics::{Aggregator, RouterService};
 use crate::services::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
 use crate::services::outcome_aggregator::OutcomeAggregator;
 use crate::services::processor::{self, EnvelopeProcessor, EnvelopeProcessorService};
-use crate::services::projects::cache::{ProjectCache, ProjectCacheService, Services};
-use crate::services::projects::cache2::ProjectCacheHandle;
+use crate::services::projects::cache::{
+    legacy, ProjectCache, ProjectCacheHandle, ProjectCacheService,
+};
+use crate::services::projects::source::ProjectSource;
 use crate::services::relays::{RelayCache, RelayCacheService};
 use crate::services::stats::RelayStats;
 #[cfg(feature = "processing")]
@@ -62,6 +64,7 @@ pub struct Registry {
     pub test_store: Addr<TestStore>,
     pub relay_cache: Addr<RelayCache>,
     pub global_config: Addr<GlobalConfigManager>,
+    pub legacy_project_cache: Addr<legacy::ProjectCache>,
     pub project_cache: Addr<ProjectCache>,
     pub upstream_relay: Addr<UpstreamRelay>,
     pub envelope_buffer: Option<ObservableEnvelopeBuffer>,
@@ -189,12 +192,23 @@ impl ServiceState {
         // service fail if the service is not running.
         let global_config = global_config.start();
 
-        let (project_cache, project_cache_rx) = channel(ProjectCacheService::name());
+        let (legacy_project_cache, legacy_project_cache_rx) =
+            channel(legacy::ProjectCacheService::name());
+
+        let project_source = ProjectSource::start(
+            Arc::clone(&config),
+            upstream_relay.clone(),
+            redis_pools
+                .as_ref()
+                .map(|pools| pools.project_configs.clone()),
+        );
+        let (project_cache, project_cache_handle) =
+            ProjectCacheService::new(Arc::clone(&config), project_source).start();
 
         let aggregator = RouterService::new(
             config.default_aggregator_config().clone(),
             config.secondary_aggregator_configs().clone(),
-            Some(project_cache.clone().recipient()),
+            Some(legacy_project_cache.clone().recipient()),
         );
         let aggregator_handle = aggregator.handle();
         let aggregator = aggregator.start();
@@ -229,11 +243,12 @@ impl ServiceState {
             create_processor_pool(&config)?,
             config.clone(),
             global_config_handle,
+            project_cache_handle.clone(),
             cogs,
             #[cfg(feature = "processing")]
             redis_pools.clone(),
             processor::Addrs {
-                project_cache: project_cache.clone(),
+                legacy_project_cache: legacy_project_cache.clone(),
                 outcome_aggregator: outcome_aggregator.clone(),
                 upstream_relay: upstream_relay.clone(),
                 test_store: test_store.clone(),
@@ -252,7 +267,7 @@ impl ServiceState {
             global_config_rx.clone(),
             buffer::Services {
                 envelopes_tx,
-                project_cache: project_cache.clone(),
+                project_cache_handle: project_cache_handle.clone(),
                 outcome_aggregator: outcome_aggregator.clone(),
                 test_store: test_store.clone(),
             },
@@ -260,27 +275,24 @@ impl ServiceState {
         .map(|b| b.start_observable());
 
         // Keep all the services in one context.
-        let project_cache_services = Services {
+        let project_cache_services = legacy::Services {
             envelope_buffer: envelope_buffer.as_ref().map(ObservableEnvelopeBuffer::addr),
             aggregator: aggregator.clone(),
             envelope_processor: processor.clone(),
             outcome_aggregator: outcome_aggregator.clone(),
-            project_cache: project_cache.clone(),
+            project_cache: legacy_project_cache.clone(),
             test_store: test_store.clone(),
-            upstream_relay: upstream_relay.clone(),
         };
 
-        ProjectCacheService::new(
+        legacy::ProjectCacheService::new(
             config.clone(),
             MemoryChecker::new(memory_stat.clone(), config.clone()),
+            project_cache_handle.clone(),
             project_cache_services,
             global_config_rx,
             envelopes_rx,
-            redis_pools
-                .as_ref()
-                .map(|pools| pools.project_configs.clone()),
         )
-        .spawn_handler(project_cache_rx);
+        .spawn_handler(legacy_project_cache_rx);
 
         let health_check = HealthCheckService::new(
             config.clone(),
@@ -310,7 +322,9 @@ impl ServiceState {
             test_store,
             relay_cache,
             global_config,
+            legacy_project_cache,
             project_cache,
+            project_cache_handle,
             upstream_relay,
             envelope_buffer,
         };
@@ -343,9 +357,9 @@ impl ServiceState {
         self.inner.registry.envelope_buffer.as_ref()
     }
 
-    /// Returns the address of the [`ProjectCache`] service.
-    pub fn project_cache(&self) -> &Addr<ProjectCache> {
-        &self.inner.registry.project_cache
+    /// Returns the address of the [`legacy::ProjectCache`] service.
+    pub fn legacy_project_cache(&self) -> &Addr<legacy::ProjectCache> {
+        &self.inner.registry.legacy_project_cache
     }
 
     /// Returns a [`ProjectCacheHandle`].

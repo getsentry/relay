@@ -8,7 +8,7 @@ use relay_config::Config;
 use relay_quotas::{CachedRateLimits, RateLimits};
 use relay_sampling::evaluation::ReservoirCounters;
 
-use crate::services::projects::cache2::ProjectCache;
+use crate::services::projects::cache::ProjectCache;
 use crate::services::projects::project::ProjectState;
 use crate::utils::RetryBackoff;
 
@@ -22,12 +22,17 @@ use crate::utils::RetryBackoff;
 /// a fetch to create the private state when [`Missing`] is returned.
 /// This gurnatuees that eventually the project state is populated, but for a undetermined,
 /// time it is possible that shared state exists without the respective private state.
+#[derive(Default)]
 pub struct ProjectStore {
     shared: Arc<Shared>,
     private: hashbrown::HashMap<ProjectKey, PrivateProjectState>,
 }
 
 impl ProjectStore {
+    pub fn shared(&self) -> Arc<Shared> {
+        Arc::clone(&self.shared)
+    }
+
     pub fn get(&mut self, project_key: ProjectKey) -> Option<ProjectRef<'_>> {
         let private = self.private.get_mut(&project_key)?;
         let shared = self.shared.projects.pin().get(&project_key).cloned();
@@ -155,6 +160,7 @@ impl ProjectRef<'_> {
     }
 }
 
+#[derive(Default)]
 pub struct Shared {
     projects: papaya::HashMap<ProjectKey, SharedProjectState>,
 }
