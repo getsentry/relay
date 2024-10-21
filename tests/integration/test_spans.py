@@ -169,8 +169,8 @@ def test_span_extraction(
 @pytest.mark.parametrize(
     "sample_rate,expected_spans,expected_metrics",
     [
-        (None, 2, 6),
-        (1.0, 2, 6),
+        (None, 2, 7),
+        (1.0, 2, 7),
         (0.0, 0, 0),
     ],
 )
@@ -1066,7 +1066,7 @@ def test_rate_limit_consistent_extracted(
     assert len(spans) == 2
     assert summarize_outcomes() == {(16, 0): 2}  # SpanIndexed, Accepted
     # A limit only for span_indexed does not affect extracted metrics
-    metrics = metrics_consumer.get_metrics(n=10)
+    metrics = metrics_consumer.get_metrics(n=11)
     span_count = sum(
         [m[0]["value"] for m in metrics if m[0]["name"] == "c:spans/usage@none"]
     )
