@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Bug Fixes:**
+
+- Profile chunk release is optional. ([#4155](https://github.com/getsentry/relay/pull/4155))
+
 ## 24.10.0
 
 **Breaking Changes:**
@@ -11,7 +17,6 @@
 - Report invalid spans with appropriate outcome reason. ([#4051](https://github.com/getsentry/relay/pull/4051))
 - Use the duration reported by the profiler instead of the transaction. ([#4058](https://github.com/getsentry/relay/pull/4058))
 - Incorrect pattern matches involving adjacent any and wildcard matchers. ([#4072](https://github.com/getsentry/relay/pull/4072))
-- Profile chunk release is optional. ([#4155](https://github.com/getsentry/relay/pull/4155))
 
 **Features:**
 
