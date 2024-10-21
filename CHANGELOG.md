@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Bug Fixes:**
+
+- Allow profile chunks without release. ([#4155](https://github.com/getsentry/relay/pull/4155))
+
 ## 24.10.0
 
 **Breaking Changes:**
