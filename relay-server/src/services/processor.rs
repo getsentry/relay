@@ -1454,9 +1454,13 @@ impl EnvelopeProcessorService {
             return Ok(());
         }
 
+        // If spans were already extracted for an event, we rely on span processing to extract metrics.
+        let extract_spans = !state.spans_extracted
+            && state.project_info.config.features.produces_spans()
+            && sample(global.options.span_extraction_sample_rate.unwrap_or(1.0));
+
         let metrics = crate::metrics_extraction::event::extract_metrics(
             event,
-            state.spans_extracted,
             combined_config,
             sampling_decision,
             self.inner
@@ -1464,7 +1468,7 @@ impl EnvelopeProcessorService {
                 .aggregator_config_for(MetricNamespace::Spans)
                 .aggregator
                 .max_tag_value_length,
-            global.options.span_extraction_sample_rate,
+            extract_spans,
         );
 
         state

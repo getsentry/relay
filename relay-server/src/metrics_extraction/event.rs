@@ -13,7 +13,6 @@ use crate::metrics_extraction::transactions::ExtractedMetrics;
 use crate::metrics_extraction::{metrics_summary, transactions};
 use crate::services::processor::extract_transaction_span;
 use crate::statsd::RelayTimers;
-use crate::utils::sample;
 
 impl Extractable for Event {
     fn category(&self) -> DataCategory {
@@ -53,19 +52,17 @@ impl Extractable for Span {
 /// If this is a transaction event with spans, metrics will also be extracted from the spans.
 pub fn extract_metrics(
     event: &mut Event,
-    spans_extracted: bool,
     config: CombinedMetricExtractionConfig<'_>,
     sampling_decision: SamplingDecision,
     max_tag_value_size: usize,
-    span_extraction_sample_rate: Option<f32>,
+    extract_spans: bool,
 ) -> ExtractedMetrics {
     let mut metrics = ExtractedMetrics {
         project_metrics: generic::extract_metrics(event, config),
         sampling_metrics: Vec::new(),
     };
 
-    // If spans were already extracted for an event, we rely on span processing to extract metrics.
-    if !spans_extracted && sample(span_extraction_sample_rate.unwrap_or(1.0)) {
+    if extract_spans {
         extract_span_metrics_for_event(
             event,
             config,
@@ -113,12 +110,18 @@ fn extract_span_metrics_for_event(
             }
         }
 
+        // This function assumes it is only called when span metrics should be extracted, hence we
+        // extract the span root counter unconditionally.
         let transaction = transactions::get_transaction_name(event);
         let bucket = create_span_root_counter(event, transaction, span_count, sampling_decision);
         output.sampling_metrics.extend(bucket);
     });
 }
 
+/// Creates the metric `c:spans/count_per_root_project@none`.
+///
+/// This metric counts the number of spans per root project of the trace. This is used for dynamic
+/// sampling biases to compute weights of projects including all spans in the trace.
 pub fn create_span_root_counter<T: Extractable>(
     instance: &T,
     transaction: Option<String>,
@@ -1262,11 +1265,10 @@ mod tests {
 
         extract_metrics(
             event.value_mut().as_mut().unwrap(),
-            false,
             combined_config(features, None).combined(),
             SamplingDecision::Keep,
             200,
-            None,
+            true,
         )
     }
 
@@ -1480,11 +1482,10 @@ mod tests {
 
         let metrics = extract_metrics(
             event.value_mut().as_mut().unwrap(),
-            false,
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent], None).combined(),
             SamplingDecision::Keep,
             200,
-            None,
+            true,
         );
         insta::assert_debug_snapshot!((&event.value().unwrap().spans, metrics.project_metrics));
     }
@@ -1538,11 +1539,10 @@ mod tests {
 
         let metrics = extract_metrics(
             event.value_mut().as_mut().unwrap(),
-            false,
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent], None).combined(),
             SamplingDecision::Keep,
             200,
-            None,
+            true,
         );
 
         // When transaction.op:ui.load and mobile:true, HTTP spans still get both
@@ -1573,11 +1573,10 @@ mod tests {
 
         let metrics = extract_metrics(
             event.value_mut().as_mut().unwrap(),
-            false,
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent], None).combined(),
             SamplingDecision::Keep,
             200,
-            None,
+            true,
         );
 
         let usage_metrics = metrics
@@ -1838,11 +1837,10 @@ mod tests {
 
         let metrics = extract_metrics(
             event.value_mut().as_mut().unwrap(),
-            false,
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent], None).combined(),
             SamplingDecision::Keep,
             200,
-            None,
+            true,
         )
         .project_metrics;
 
@@ -1983,11 +1981,10 @@ mod tests {
 
         let _ = extract_metrics(
             event.value_mut().as_mut().unwrap(),
-            false,
             config,
             SamplingDecision::Keep,
             200,
-            None,
+            true,
         );
 
         insta::assert_debug_snapshot!(&event.value().unwrap()._metrics_summary);
