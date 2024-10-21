@@ -33,7 +33,7 @@ pub struct ProfileMetadata {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub environment: Option<String>,
     pub platform: String,
-    pub release: String,
+    pub release: Option<String>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub client_sdk: Option<ClientSdk>,
