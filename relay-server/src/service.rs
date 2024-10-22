@@ -7,13 +7,11 @@ use crate::services::buffer::{self, EnvelopeBufferService, ObservableEnvelopeBuf
 use crate::services::cogs::{CogsService, CogsServiceRecorder};
 use crate::services::global_config::{GlobalConfigManager, GlobalConfigService};
 use crate::services::health_check::{HealthCheck, HealthCheckService};
-use crate::services::metrics::{Aggregator, RouterService};
+use crate::services::metrics::RouterService;
 use crate::services::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
 use crate::services::outcome_aggregator::OutcomeAggregator;
 use crate::services::processor::{self, EnvelopeProcessor, EnvelopeProcessorService};
-use crate::services::projects::cache::{
-    legacy, ProjectCache, ProjectCacheHandle, ProjectCacheService,
-};
+use crate::services::projects::cache::{legacy, ProjectCacheHandle, ProjectCacheService};
 use crate::services::projects::source::ProjectSource;
 use crate::services::relays::{RelayCache, RelayCacheService};
 use crate::services::stats::RelayStats;
@@ -56,7 +54,6 @@ pub enum ServiceError {
 
 #[derive(Clone, Debug)]
 pub struct Registry {
-    pub aggregator: Addr<Aggregator>,
     pub health_check: Addr<HealthCheck>,
     pub outcome_producer: Addr<OutcomeProducer>,
     pub outcome_aggregator: Addr<TrackOutcome>,
@@ -65,7 +62,6 @@ pub struct Registry {
     pub relay_cache: Addr<RelayCache>,
     pub global_config: Addr<GlobalConfigManager>,
     pub legacy_project_cache: Addr<legacy::ProjectCache>,
-    pub project_cache: Addr<ProjectCache>,
     pub upstream_relay: Addr<UpstreamRelay>,
     pub envelope_buffer: Option<ObservableEnvelopeBuffer>,
 
@@ -202,7 +198,7 @@ impl ServiceState {
                 .as_ref()
                 .map(|pools| pools.project_configs.clone()),
         );
-        let (project_cache, project_cache_handle) =
+        let project_cache_handle =
             ProjectCacheService::new(Arc::clone(&config), project_source).start();
 
         let aggregator = RouterService::new(
@@ -248,7 +244,6 @@ impl ServiceState {
             #[cfg(feature = "processing")]
             redis_pools.clone(),
             processor::Addrs {
-                legacy_project_cache: legacy_project_cache.clone(),
                 outcome_aggregator: outcome_aggregator.clone(),
                 upstream_relay: upstream_relay.clone(),
                 test_store: test_store.clone(),
@@ -314,7 +309,6 @@ impl ServiceState {
         let relay_cache = RelayCacheService::new(config.clone(), upstream_relay.clone()).start();
 
         let registry = Registry {
-            aggregator,
             processor,
             health_check,
             outcome_producer,
@@ -323,7 +317,6 @@ impl ServiceState {
             relay_cache,
             global_config,
             legacy_project_cache,
-            project_cache,
             project_cache_handle,
             upstream_relay,
             envelope_buffer,

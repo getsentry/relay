@@ -157,7 +157,6 @@ impl QueueKey {
 /// It's sent in response to [`DequeueMany`] message from the [`ProjectCache`].
 #[derive(Debug)]
 pub struct UnspooledEnvelope {
-    pub key: QueueKey,
     pub managed_envelope: ManagedEnvelope,
 }
 
@@ -376,7 +375,6 @@ impl InMemory {
                 self.envelope_count = self.envelope_count.saturating_sub(1);
                 sender
                     .send(UnspooledEnvelope {
-                        key,
                         managed_envelope: envelope,
                     })
                     .ok();
@@ -586,14 +584,9 @@ impl OnDisk {
                 };
 
                 match self.extract_envelope(envelope, services) {
-                    Ok((key, managed_envelopes)) => {
+                    Ok((_, managed_envelopes)) => {
                         for managed_envelope in managed_envelopes {
-                            sender
-                                .send(UnspooledEnvelope {
-                                    key,
-                                    managed_envelope,
-                                })
-                                .ok();
+                            sender.send(UnspooledEnvelope { managed_envelope }).ok();
                         }
                     }
                     Err(err) => relay_log::error!(
@@ -1436,10 +1429,7 @@ mod tests {
                 sender: tx.clone(),
             });
 
-            let UnspooledEnvelope {
-                key: _,
-                managed_envelope,
-            } = rx.recv().await.unwrap();
+            let UnspooledEnvelope { managed_envelope } = rx.recv().await.unwrap();
             let start_time_received = managed_envelope.envelope().meta().start_time();
 
             // Check if the original start time elapsed to the same second as the restored one.

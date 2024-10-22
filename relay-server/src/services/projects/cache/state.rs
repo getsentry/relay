@@ -2,15 +2,16 @@ use std::fmt;
 use std::sync::Arc;
 use std::time::Instant;
 
-use arc_swap::access::Access;
 use arc_swap::ArcSwap;
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
 use relay_quotas::CachedRateLimits;
 use relay_sampling::evaluation::ReservoirCounters;
+use relay_statsd::metric;
 
 use crate::services::projects::project::{ProjectState, Revision};
 use crate::services::projects::source::SourceProjectState;
+use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::RetryBackoff;
 
 /// The backing storage for a project cache.
@@ -105,6 +106,18 @@ impl ProjectStore {
         }
         drop(shared);
 
+        metric!(
+            histogram(RelayHistograms::ProjectStateCacheSize) = self.shared.projects.len() as u64,
+            storage = "shared"
+        );
+        metric!(
+            histogram(RelayHistograms::ProjectStateCacheSize) = self.private.len() as u64,
+            storage = "private"
+        );
+        // TODO: this can be replaced with a service level timing metric
+        metric!(timer(RelayTimers::ProjectStateEvictionDuration) = eviction_start.elapsed());
+        metric!(counter(RelayCounters::EvictingStaleProjectCaches) += evicted as u64);
+
         evicted
     }
 
@@ -125,7 +138,13 @@ impl ProjectStore {
         let private = self
             .private
             .entry(project_key)
-            .or_insert_with(|| PrivateProjectState::new(project_key, config));
+            .and_modify(|_| {
+                metric!(counter(RelayCounters::ProjectCacheHit) += 1);
+            })
+            .or_insert_with(|| {
+                metric!(counter(RelayCounters::ProjectCacheMiss) += 1);
+                PrivateProjectState::new(project_key, config)
+            });
 
         let shared = self
             .shared
@@ -280,14 +299,6 @@ impl CompletedFetch {
     /// Returns the [`ProjectKey`] of the project which was fetched.
     pub fn project_key(&self) -> ProjectKey {
         self.project_key
-    }
-
-    /// Returns a reference to the fetched [`ProjectState`].
-    pub fn project_state(&self) -> Option<&ProjectState> {
-        match &self.state {
-            SourceProjectState::New(state) => Some(state),
-            SourceProjectState::NotModified => None,
-        }
     }
 
     /// Returns `true` if the fetch completed with a pending status.

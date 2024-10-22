@@ -71,7 +71,7 @@ use crate::services::global_config::GlobalConfigHandle;
 use crate::services::metrics::{Aggregator, MergeBuckets};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::event::FiltersStatus;
-use crate::services::projects::cache::{legacy, ProjectCacheHandle};
+use crate::services::projects::cache::ProjectCacheHandle;
 use crate::services::projects::project::{ProjectInfo, ProjectState};
 use crate::services::test_store::{Capture, TestStore};
 use crate::services::upstream::{
@@ -1124,7 +1124,6 @@ pub struct EnvelopeProcessorService {
 
 /// Contains the addresses of services that the processor publishes to.
 pub struct Addrs {
-    pub legacy_project_cache: Addr<legacy::ProjectCache>,
     pub outcome_aggregator: Addr<TrackOutcome>,
     pub upstream_relay: Addr<UpstreamRelay>,
     pub test_store: Addr<TestStore>,
@@ -1136,7 +1135,6 @@ pub struct Addrs {
 impl Default for Addrs {
     fn default() -> Self {
         Addrs {
-            legacy_project_cache: Addr::dummy(),
             outcome_aggregator: Addr::dummy(),
             upstream_relay: Addr::dummy(),
             test_store: Addr::dummy(),
@@ -1166,6 +1164,7 @@ struct InnerProcessor {
 
 impl EnvelopeProcessorService {
     /// Creates a multi-threaded envelope processor.
+    #[cfg_attr(feature = "processing", expect(clippy::too_many_arguments))]
     pub fn new(
         pool: ThreadPool,
         config: Arc<Config>,
@@ -2130,7 +2129,7 @@ impl EnvelopeProcessorService {
         let buckets = match project.project_state() {
             ProjectState::Enabled(project_info) => {
                 let rate_limits = project.rate_limits().current_limits();
-                self.check_buckets(project_key, &project_info, &rate_limits, buckets)
+                self.check_buckets(project_key, project_info, &rate_limits, buckets)
             }
             _ => buckets,
         };
@@ -2174,7 +2173,7 @@ impl EnvelopeProcessorService {
                     data: MetricData::Parsed(buckets),
                     project_key,
                     source,
-                    start_time: start_time.into(),
+                    start_time,
                     sent_at,
                 },
             )
@@ -3732,7 +3731,6 @@ mod tests {
         let processor = create_test_processor_with_addrs(
             config,
             Addrs {
-                legacy_project_cache,
                 ..Default::default()
             },
         );

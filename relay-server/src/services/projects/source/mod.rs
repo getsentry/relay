@@ -90,6 +90,9 @@ impl ProjectSource {
         }
     }
 
+    /// Fetches a project with `project_key` from the configured sources.
+    ///
+    /// Returns a fully sanitized project.
     pub async fn fetch(
         self,
         project_key: ProjectKey,

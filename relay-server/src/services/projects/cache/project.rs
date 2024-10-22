@@ -50,7 +50,7 @@ impl<'a> Project<'a> {
         mut envelope: ManagedEnvelope,
     ) -> Result<CheckedEnvelope, DiscardReason> {
         let state = match self.project_state() {
-            ProjectState::Enabled(state) => Some(Arc::clone(&state)),
+            ProjectState::Enabled(state) => Some(Arc::clone(state)),
             ProjectState::Disabled => {
                 // TODO(jjbayer): We should refactor this function to either return a Result or
                 // handle envelope rejections internally, but not both.
@@ -66,7 +66,7 @@ impl<'a> Project<'a> {
             scoping = state.scope_request(envelope.envelope().meta());
             envelope.scope(scoping);
 
-            if let Err(reason) = state.check_envelope(envelope.envelope(), &self.config) {
+            if let Err(reason) = state.check_envelope(envelope.envelope(), self.config) {
                 envelope.reject(Outcome::Invalid(reason));
                 return Err(reason);
             }

@@ -8,7 +8,7 @@ use relay_quotas::Scoping;
 
 mod info;
 
-pub use self::info::{LimitedProjectInfo, ProjectInfo, PublicKeyConfig, Revision};
+pub use self::info::{LimitedProjectInfo, ProjectInfo, Revision};
 
 /// Representation of a project's current state.
 #[derive(Clone, Debug, Default)]

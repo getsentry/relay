@@ -124,7 +124,7 @@ fn into_valid_keys(
     }
     let revisions = revisions
         .into_iter()
-        .chain(std::iter::repeat_with(|| Revision::default()));
+        .chain(std::iter::repeat_with(Revision::default));
 
     std::iter::zip(public_keys, revisions).filter_map(|(public_key, revision)| {
         // Skip unparsable public keys.

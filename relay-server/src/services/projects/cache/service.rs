@@ -2,13 +2,15 @@ use std::sync::Arc;
 
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
+use relay_statsd::metric;
 use relay_system::Service;
 use tokio::sync::{broadcast, mpsc};
 
 use crate::services::projects::cache::handle::ProjectCacheHandle;
 use crate::services::projects::cache::state::{CompletedFetch, Fetch, ProjectStore};
 use crate::services::projects::project::ProjectState;
-use crate::services::projects::source::{ProjectSource, SourceProjectState};
+use crate::services::projects::source::ProjectSource;
+use crate::statsd::RelayTimers;
 
 /// Size of the broadcast channel for project events.
 ///
@@ -29,6 +31,14 @@ pub enum ProjectCache {
     /// from the cache. Fetches for an already cached project ensure the project
     /// is always up to date and not evicted.
     Fetch(ProjectKey),
+}
+
+impl ProjectCache {
+    fn variant(&self) -> &'static str {
+        match self {
+            Self::Fetch(_) => "fetch",
+        }
+    }
 }
 
 impl relay_system::Interface for ProjectCache {}
@@ -77,21 +87,20 @@ impl ProjectCacheService {
 
     /// Consumes and starts a [`ProjectCacheService`].
     ///
-    /// Returns a [`relay_system::Addr`] to communicate with the cache and a [`ProjectCacheHandle`]
-    /// to access the cache concurrently.
-    pub fn start(self) -> (relay_system::Addr<ProjectCache>, ProjectCacheHandle) {
+    /// Returns a [`ProjectCacheHandle`] to access the cache concurrently.
+    pub fn start(self) -> ProjectCacheHandle {
         let (addr, addr_rx) = relay_system::channel(Self::name());
 
         let handle = ProjectCacheHandle {
             shared: self.store.shared(),
             config: Arc::clone(&self.config),
-            service: addr.clone(),
+            service: addr,
             project_events: self.project_events_tx.clone(),
         };
 
         self.spawn_handler(addr_rx);
 
-        (addr, handle)
+        handle
     }
 
     /// Schedules a new [`Fetch`] and delivers the result to the [`Self::project_update_tx`] channel.
@@ -169,6 +178,17 @@ impl relay_system::Service for ProjectCacheService {
     type Interface = ProjectCache;
 
     fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+        macro_rules! timed {
+            ($task:expr, $body:expr) => {{
+                let task_name = $task;
+                metric!(
+                    timer(RelayTimers::ProjectCacheTaskDuration),
+                    task = task_name,
+                    { $body }
+                )
+            }};
+        }
+
         tokio::spawn(async move {
             let mut eviction_ticker = tokio::time::interval(self.config.cache_eviction_interval());
 
@@ -176,15 +196,18 @@ impl relay_system::Service for ProjectCacheService {
                 tokio::select! {
                     biased;
 
-                    Some(update) = self.project_update_rx.recv() => {
+                    Some(update) = self.project_update_rx.recv() => timed!(
+                        "project_update",
                         self.handle_project_update(update)
-                    },
-                    Some(message) = rx.recv() => {
-                        self.handle_message(message);
-                    },
-                    _ = eviction_ticker.tick() => {
+                    ),
+                    Some(message) = rx.recv() => timed!(
+                        message.variant(),
+                        self.handle_message(message)
+                    ),
+                    _ = eviction_ticker.tick() => timed!(
+                        "evict_stale_projects",
                         self.handle_evict_stale_projects()
-                    }
+                    ),
                 }
             }
         });

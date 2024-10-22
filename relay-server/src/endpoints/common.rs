@@ -40,9 +40,6 @@ impl IntoResponse for ServiceUnavailable {
 /// Error type for all store-like requests.
 #[derive(Debug, thiserror::Error)]
 pub enum BadStoreRequest {
-    #[error("could not schedule event processing")]
-    ScheduleFailed,
-
     #[error("empty request body")]
     EmptyBody,
 
@@ -113,7 +110,7 @@ impl IntoResponse for BadStoreRequest {
 
                 (StatusCode::TOO_MANY_REQUESTS, headers, body).into_response()
             }
-            BadStoreRequest::ScheduleFailed | BadStoreRequest::QueueFailed => {
+            BadStoreRequest::QueueFailed => {
                 // These errors indicate that something's wrong with our service system, most likely
                 // mailbox congestion or a faulty shutdown. Indicate an unavailable service to the
                 // client. It might retry event submission at a later time.
@@ -276,7 +273,7 @@ fn queue_envelope(
             relay_log::trace!("sending metrics into processing queue");
             state.processor().send(ProcessMetrics {
                 data: MetricData::Raw(metric_items.into_vec()),
-                start_time: envelope.meta().start_time().into(),
+                start_time: envelope.meta().start_time(),
                 sent_at: envelope.sent_at(),
                 project_key: envelope.meta().public_key(),
                 source: envelope.meta().into(),

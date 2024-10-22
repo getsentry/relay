@@ -13,7 +13,6 @@ use crate::Envelope;
 use hashbrown::HashSet;
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
-use relay_metrics::Bucket;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, Service};
 use tokio::sync::{mpsc, watch};
@@ -27,8 +26,8 @@ use crate::services::spooler::{
 };
 use crate::services::test_store::TestStore;
 
-use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
-use crate::utils::{GarbageDisposal, ManagedEnvelope, MemoryChecker, RetryBackoff, SleepHandle};
+use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
+use crate::utils::{ManagedEnvelope, MemoryChecker, RetryBackoff, SleepHandle};
 
 /// Validates the envelope against project configuration and rate limits.
 ///
@@ -166,8 +165,6 @@ struct ProjectCacheBroker {
     memory_checker: MemoryChecker,
     services: Services,
     projects: ProjectCacheHandle,
-    /// Utility for disposing of expired project data in a background thread.
-    garbage_disposal: GarbageDisposal<ProjectGarbage>,
 
     /// Handle to schedule periodic unspooling of buffered envelopes (spool V1).
     spool_v1_unspool_handle: SleepHandle,
@@ -297,7 +294,7 @@ impl ProjectCacheBroker {
 
             let process = ProcessEnvelope {
                 envelope: managed_envelope,
-                project_info: Arc::clone(&project_info),
+                project_info: Arc::clone(project_info),
                 rate_limits,
                 sampling_project_info,
                 reservoir_counters,
@@ -346,7 +343,7 @@ impl ProjectCacheBroker {
         let sampling_info = if let Some(sampling_key) = sampling_key {
             let sampling_project = self.projects.get(sampling_key);
             match sampling_project.project_state() {
-                ProjectState::Enabled(info) => Some(Arc::clone(&info)),
+                ProjectState::Enabled(info) => Some(Arc::clone(info)),
                 ProjectState::Disabled => {
                     relay_log::trace!("Sampling state is disabled ({sampling_key})");
                     // We accept events even if its root project has been disabled.
@@ -402,7 +399,6 @@ impl ProjectCacheBroker {
                     // Ideally we log outcomes for the metrics here, but currently for metric
                     // outcomes we need a valid scoping, which we cannot construct for disabled
                     // projects.
-                    self.garbage_disposal.dispose(buckets);
                     continue;
                 }
                 ProjectState::Enabled(project_info) => project_info,
@@ -630,7 +626,7 @@ impl ProjectCacheBroker {
     fn handle_message(&mut self, message: ProjectCache) {
         let ty = message.variant();
         metric!(
-            timer(RelayTimers::ProjectCacheMessageDuration),
+            timer(RelayTimers::LegacyProjectCacheMessageDuration),
             message = ty,
             {
                 match message {
@@ -772,7 +768,6 @@ impl Service for ProjectCacheService {
                 config: config.clone(),
                 memory_checker,
                 projects: project_cache_handle,
-                garbage_disposal: GarbageDisposal::new(),
                 services,
                 spool_v1_unspool_handle: SleepHandle::idle(),
                 spool_v1,
@@ -784,7 +779,7 @@ impl Service for ProjectCacheService {
                     biased;
 
                     Ok(()) = global_config_rx.changed() => {
-                        metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "update_global_config", {
+                        metric!(timer(RelayTimers::LegacyProjectCacheTaskDuration), task = "update_global_config", {
                             match global_config_rx.borrow().clone() {
                                 global_config::Status::Ready(_) => broker.set_global_config_ready(),
                                 // The watch should only be updated if it gets a new value.
@@ -794,29 +789,29 @@ impl Service for ProjectCacheService {
                         })
                     },
                     Ok(project_event) = project_events.recv() => {
-                        metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "handle_project_event", {
+                        metric!(timer(RelayTimers::LegacyProjectCacheTaskDuration), task = "handle_project_event", {
                             broker.handle_project_event(project_event);
                         })
                     }
                     // Buffer will not dequeue the envelopes from the spool if there is not enough
                     // permits in `BufferGuard` available. Currently this is 50%.
-                    Some(UnspooledEnvelope { managed_envelope, key }) = buffer_rx.recv() => {
-                        metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "handle_processing", {
+                    Some(UnspooledEnvelope { managed_envelope, .. }) = buffer_rx.recv() => {
+                        metric!(timer(RelayTimers::LegacyProjectCacheTaskDuration), task = "handle_processing", {
                             broker.handle_processing(managed_envelope)
                         })
                     },
                     () = &mut broker.spool_v1_unspool_handle => {
-                        metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "periodic_unspool", {
+                        metric!(timer(RelayTimers::LegacyProjectCacheTaskDuration), task = "periodic_unspool", {
                             broker.handle_periodic_unspool()
                         })
                     }
                     Some(message) = rx.recv() => {
-                        metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "handle_message", {
+                        metric!(timer(RelayTimers::LegacyProjectCacheTaskDuration), task = "handle_message", {
                             broker.handle_message(message)
                         })
                     }
                     Some(message) = envelopes_rx.recv() => {
-                        metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "handle_envelope", {
+                        metric!(timer(RelayTimers::LegacyProjectCacheTaskDuration), task = "handle_envelope", {
                             broker.handle_envelope(message)
                         })
                     }
@@ -826,19 +821,6 @@ impl Service for ProjectCacheService {
 
             relay_log::info!("project cache stopped");
         });
-    }
-}
-
-/// Sum type for all objects which need to be discareded through the [`GarbageDisposal`].
-#[derive(Debug)]
-#[allow(dead_code)] // Fields are never read, only used for discarding/dropping data.
-enum ProjectGarbage {
-    Metrics(Vec<Bucket>),
-}
-
-impl From<Vec<Bucket>> for ProjectGarbage {
-    fn from(value: Vec<Bucket>) -> Self {
-        Self::Metrics(value)
     }
 }
 
@@ -912,7 +894,6 @@ mod tests {
                 config: config.clone(),
                 memory_checker,
                 projects: todo!(),
-                garbage_disposal: GarbageDisposal::new(),
                 services,
                 spool_v1_unspool_handle: SleepHandle::idle(),
                 spool_v1: Some(SpoolV1 {
