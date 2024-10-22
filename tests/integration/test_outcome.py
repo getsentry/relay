@@ -7,6 +7,7 @@ from copy import deepcopy
 from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 from queue import Empty
+
 from .consts import (
     TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
     TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
@@ -2160,3 +2161,85 @@ def test_replay_outcomes_item_failed(
     }
     expected["timestamp"] = outcomes[0]["timestamp"]
     assert outcomes[0] == expected
+
+
+@pytest.mark.parametrize("sampling_decision", ["keep"])
+def test_extracted_from_indexed_in_usage_metric(
+    mini_sentry,
+    relay_with_processing,
+    metrics_consumer,
+    transactions_consumer,
+    sampling_decision,
+):
+    """
+    Test that the usage metric has the `extracted_from_indexed` field set correctly
+    based on whether a transaction is kept or dropped by dynamic sampling.
+    """
+    metrics_consumer = metrics_consumer()
+    transactions_consumer = transactions_consumer()
+
+    project_id = 42
+
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["transactionMetrics"] = {
+        "version": TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
+    }
+
+    # Configure dynamic sampling
+    ds = project_config["config"].setdefault("sampling", {})
+    ds.setdefault("version", 2)
+    ds.setdefault("rules", []).append(
+        {
+            "samplingValue": {
+                "type": "sampleRate",
+                "value": 1.0 if sampling_decision == "keep" else 0.0,
+            },
+            "type": "trace",
+            "condition": {"op": "and", "inner": []},
+            "id": 1,
+        }
+    )
+
+    # Send a transaction
+    transaction = {
+        "event_id": uuid.uuid4().hex,
+        "type": "transaction",
+        "transaction": "test_transaction",
+        "start_timestamp": datetime.now(UTC).timestamp() - 5,
+        "timestamp": datetime.now(UTC).timestamp(),
+        "contexts": {
+            "trace": {
+                "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                "span_id": "cccccccccccccccc",
+                "type": "trace",
+            }
+        },
+        "spans": [],
+    }
+
+    relay = relay_with_processing()
+    relay.send_event(project_id, transaction)
+
+    # Check if the transaction was kept or dropped
+    if sampling_decision == "keep":
+        transactions_consumer.get_event()
+    else:
+        with pytest.raises(Empty):
+            transactions_consumer.get_event(timeout=2)
+
+    # Get the metrics and find the usage metric
+    metrics = metrics_consumer.get_metrics()
+    usage_metric = next(
+        (m for m, _ in metrics if m["name"] == "c:transactions/usage@none"), None
+    )
+
+    assert usage_metric is not None, "Usage metric not found"
+
+    if sampling_decision == "keep":
+        assert (
+            usage_metric["tags"].get("extracted_from_indexed") == "true"
+        ), "extracted_from_indexed should be true for kept transactions"
+    else:
+        assert (
+            "extracted_from_indexed" not in usage_metric["tags"]
+        ), "extracted_from_indexed should not be present for dropped transactions"

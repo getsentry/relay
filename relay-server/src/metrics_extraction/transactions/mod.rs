@@ -391,6 +391,10 @@ impl TransactionExtractor<'_> {
             TransactionMetric::Usage {
                 tags: UsageTags {
                     has_profile: self.has_profile,
+                    extracted_from_indexed: matches!(
+                        self.sampling_decision,
+                        SamplingDecision::Keep
+                    ),
                 },
             }
             .into_metric(timestamp),
@@ -2305,5 +2309,67 @@ mod tests {
             },
         ]
         "###);
+    }
+
+    #[test]
+    fn test_extracted_from_indexed() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:00+0100",
+            "start_timestamp": "2021-04-26T07:59:01+0100",
+            "transaction": "test_transaction",
+            "contexts": {
+                "trace": {
+                    "status": "ok"
+                }
+            }
+        }
+        "#;
+
+        let event = Annotated::from_json(json).unwrap();
+        let config = TransactionMetricsConfig::default();
+
+        // Test with SamplingDecision::Keep
+        let extractor_keep = TransactionExtractor {
+            config: &config,
+            generic_config: None,
+            transaction_from_dsc: Some("test_transaction"),
+            sampling_decision: SamplingDecision::Keep,
+            has_profile: false,
+        };
+
+        let extracted_keep = extractor_keep.extract(event.value().unwrap()).unwrap();
+
+        // Test with SamplingDecision::Ignore
+        let extractor_ignore = TransactionExtractor {
+            config: &config,
+            generic_config: None,
+            transaction_from_dsc: Some("test_transaction"),
+            sampling_decision: SamplingDecision::Drop,
+            has_profile: false,
+        };
+
+        let extract_drop = extractor_ignore.extract(event.value().unwrap()).unwrap();
+
+        // Assert that the usage metric in extracted_keep has extracted_from_indexed set to true
+        let usage_metric_keep = extracted_keep.project_metrics.first().unwrap();
+        assert_eq!(
+            usage_metric_keep
+                .tags
+                .get("extracted_from_indexed")
+                .unwrap(),
+            "true",
+            "extracted_from_indexed should be true for usage metric with Keep decision"
+        );
+
+        // Assert that the usage metric in extract_drop has extracted_from_indexed set to false
+        let usage_metric_drop = extract_drop.project_metrics.first().unwrap();
+        assert!(
+            !usage_metric_drop
+                .tags
+                .contains_key("extracted_from_indexed"),
+            "extracted_from_indexed shouldn't be set for usage metric with Drop decision"
+        );
     }
 }
