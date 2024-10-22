@@ -2296,7 +2296,7 @@ def test_extracted_from_indexed_tag_with_transaction(
             ), "extracted_from_indexed should not be present for dropped spans"
 
 
-@pytest.mark.parametrize("sampling_decision", ["drop"])
+@pytest.mark.parametrize("sampling_decision", ["keep", "drop"])
 def test_extracted_from_indexed_tag_with_standalone_spans(
     mini_sentry,
     relay_with_processing,
@@ -2312,6 +2312,7 @@ def test_extracted_from_indexed_tag_with_standalone_spans(
     spans_consumer = spans_consumer()
 
     project_id = 42
+    sampling_project_id = 43
 
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["transactionMetrics"] = {
@@ -2327,8 +2328,10 @@ def test_extracted_from_indexed_tag_with_standalone_spans(
         ]
     )
 
-    # Configure dynamic sampling
-    ds = project_config["config"].setdefault("sampling", {})
+    # Configure dynamic sampling for the sampling project
+    sampling_config = mini_sentry.add_full_project_config(sampling_project_id)
+    sampling_public_key = sampling_config["publicKeys"][0]["publicKey"]
+    ds = sampling_config["config"].setdefault("sampling", {})
     ds.setdefault("version", 2)
     ds.setdefault("rules", []).append(
         {
@@ -2346,6 +2349,8 @@ def test_extracted_from_indexed_tag_with_standalone_spans(
     duration = timedelta(milliseconds=500)
     start = end - duration
 
+    trace_id = "ff62a8b040f340bda5d830223def1d81"
+
     # Create standalone spans
     spans = [
         {
@@ -2358,7 +2363,7 @@ def test_extracted_from_indexed_tag_with_standalone_spans(
             "status": "success",
             "timestamp": end.isoformat(),
             "exclusive_time": 1000.0,
-            "trace_id": "ff62a8b040f340bda5d830223def1d81",
+            "trace_id": trace_id,
         },
         {
             "description": "GET /api/0/projects/?member=1",
@@ -2370,7 +2375,7 @@ def test_extracted_from_indexed_tag_with_standalone_spans(
             "status": "success",
             "timestamp": end.isoformat(),
             "exclusive_time": 1000.0,
-            "trace_id": "ff62a8b040f340bda5d830223def1d81",
+            "trace_id": trace_id,
         },
     ]
 
@@ -2383,10 +2388,18 @@ def test_extracted_from_indexed_tag_with_standalone_spans(
 
     relay = relay_with_processing(config)
 
-    # Send standalone spans
+    # Create an envelope with a trace context
     envelope = Envelope()
     for span in spans:
         envelope.add_item(Item(payload=PayloadRef(json=span), type="span"))
+
+    # Add trace information to the envelope
+    envelope.headers["trace"] = {
+        "public_key": sampling_public_key,
+        "trace_id": trace_id,
+        "segment_name": "GET /api/0/",
+    }
+
     relay.send_envelope(project_id, envelope)
 
     # Check if the spans were kept or dropped
