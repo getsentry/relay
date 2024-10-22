@@ -8,7 +8,7 @@
 
 **Internal:**
 
-- Emit `extracted_from_indexed` tag for the `c:transactions/usage@none` metric. ([#4158](https://github.com/getsentry/relay/pull/4158))
+- Emit `extracted_from_indexed` tag for the usage metrics. ([#4158](https://github.com/getsentry/relay/pull/4158))
 
 ## 24.10.0
 
