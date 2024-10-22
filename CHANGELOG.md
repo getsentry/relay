@@ -6,6 +6,10 @@
 
 - Allow profile chunks without release. ([#4155](https://github.com/getsentry/relay/pull/4155))
 
+**Internal:**
+
+- Emit `extracted_from_indexed` tag for the `c:transactions/usage@none` metric. ([#4158](https://github.com/getsentry/relay/pull/4158))
+
 ## 24.10.0
 
 **Breaking Changes:**
