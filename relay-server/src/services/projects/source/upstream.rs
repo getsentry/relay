@@ -18,10 +18,8 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tokio::time::Instant;
 
-use crate::services::projects::project::state::UpstreamProjectState;
-use crate::services::projects::project::ParsedProjectState;
-use crate::services::projects::project::ProjectState;
-use crate::services::projects::source::FetchProjectState;
+use crate::services::projects::project::{ParsedProjectState, ProjectState};
+use crate::services::projects::source::{FetchProjectState, UpstreamProjectState};
 use crate::services::upstream::{
     Method, RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError,
 };

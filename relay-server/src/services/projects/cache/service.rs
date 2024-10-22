@@ -7,7 +7,7 @@ use tokio::sync::{broadcast, mpsc};
 
 use crate::services::projects::cache::handle::ProjectCacheHandle;
 use crate::services::projects::cache::state::{CompletedFetch, Fetch, ProjectStore};
-use crate::services::projects::project::{ProjectFetchState, ProjectState};
+use crate::services::projects::project::ProjectState;
 use crate::services::projects::source::ProjectSource;
 
 /// Size of the broadcast channel for project events.
@@ -20,8 +20,14 @@ use crate::services::projects::source::ProjectSource;
 /// do not deal with lags in the channel gracefuly.
 const PROJECT_EVENTS_CHANNEL_SIZE: usize = 512_000;
 
+/// A cache for projects, which allows concurrent access to the cached projects.
 #[derive(Debug)]
 pub enum ProjectCache {
+    /// Schedules another fetch or update for the specified project.
+    ///
+    /// A project which is not fetched will eventually expire and be evicted
+    /// from the cache. Fetches for an already cached project ensure the project
+    /// is always up to date and not evicted.
     Fetch(ProjectKey),
 }
 
@@ -41,6 +47,7 @@ pub enum ProjectEvent {
     Evicted(ProjectKey),
 }
 
+/// A service implementing the [`ProjectCache`] interface.
 pub struct ProjectCacheService {
     store: ProjectStore,
     source: ProjectSource,
@@ -53,9 +60,10 @@ pub struct ProjectCacheService {
 }
 
 impl ProjectCacheService {
+    /// Creates a new [`ProjectCacheService`].
     pub fn new(config: Arc<Config>, source: ProjectSource) -> Self {
         let (project_update_tx, project_update_rx) = mpsc::unbounded_channel();
-        let project_events_tx = broadcast::channel(256_000).0;
+        let project_events_tx = broadcast::channel(PROJECT_EVENTS_CHANNEL_SIZE).0;
 
         Self {
             store: ProjectStore::default(),
@@ -67,6 +75,10 @@ impl ProjectCacheService {
         }
     }
 
+    /// Consumes and starts a [`ProjectCacheService`].
+    ///
+    /// Returns a [`relay_system::Addr`] to communicate with the cache and a [`ProjectCacheHandle`]
+    /// to access the cache concurrently.
     pub fn start(self) -> (relay_system::Addr<ProjectCache>, ProjectCacheHandle) {
         let (addr, addr_rx) = relay_system::channel(Self::name());
 
@@ -82,6 +94,7 @@ impl ProjectCacheService {
         (addr, handle)
     }
 
+    /// Schedules a new [`Fetch`] and delivers the result to the [`Self::project_update_tx`] channel.
     fn schedule_fetch(&self, fetch: Fetch) {
         let source = self.source.clone();
         let project_updates = self.project_update_tx.clone();
@@ -91,7 +104,7 @@ impl ProjectCacheService {
 
             // TODO: cached state for delta fetches, maybe this should just be a revision?
             let state = match source
-                .fetch(fetch.project_key(), false, ProjectFetchState::pending())
+                .fetch(fetch.project_key(), false, ProjectState::Pending)
                 .await
             {
                 // TODO: verify if the sanitized here is correct
@@ -105,7 +118,7 @@ impl ProjectCacheService {
                 }
             };
 
-            project_updates.send(fetch.complete(state));
+            let _ = project_updates.send(fetch.complete(state));
         });
     }
 }

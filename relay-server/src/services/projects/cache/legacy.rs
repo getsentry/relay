@@ -20,7 +20,7 @@ use tokio::sync::{mpsc, watch};
 
 use crate::services::metrics::{Aggregator, FlushBuckets, MergeBuckets};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::services::projects::project::{ProjectFetchState, ProjectState};
+use crate::services::projects::project::ProjectState;
 use crate::services::spooler::{
     self, Buffer, BufferService, DequeueMany, Enqueue, QueueKey, RemoveMany, RestoreIndex,
     UnspooledEnvelope, BATCH_KEY_COUNT,
@@ -253,7 +253,7 @@ impl ProjectCacheBroker {
     }
 
     /// Handles the processing of the provided envelope.
-    fn handle_processing(&mut self, key: QueueKey, mut managed_envelope: ManagedEnvelope) {
+    fn handle_processing(&mut self, mut managed_envelope: ManagedEnvelope) {
         let project_key = managed_envelope.envelope().meta().public_key();
 
         let project = self.projects.get(project_key);
@@ -373,7 +373,7 @@ impl ProjectCacheBroker {
         {
             // TODO: Add ready project infos to the processing message.
             relay_log::trace!("Sending envelope to processor");
-            return self.handle_processing(key, managed_envelope);
+            return self.handle_processing(managed_envelope);
         }
 
         relay_log::trace!("Enqueueing envelope");
@@ -708,7 +708,7 @@ impl Service for ProjectCacheService {
             mut global_config_rx,
             mut envelopes_rx,
         } = self;
-        let project_events = project_cache_handle.events();
+        let mut project_events = project_cache_handle.events();
         let project_cache = services.project_cache.clone();
         let outcome_aggregator = services.outcome_aggregator.clone();
         let test_store = services.test_store.clone();
@@ -771,7 +771,7 @@ impl Service for ProjectCacheService {
             let mut broker = ProjectCacheBroker {
                 config: config.clone(),
                 memory_checker,
-                projects: todo!(),
+                projects: project_cache_handle,
                 garbage_disposal: GarbageDisposal::new(),
                 services,
                 spool_v1_unspool_handle: SleepHandle::idle(),
@@ -802,7 +802,7 @@ impl Service for ProjectCacheService {
                     // permits in `BufferGuard` available. Currently this is 50%.
                     Some(UnspooledEnvelope { managed_envelope, key }) = buffer_rx.recv() => {
                         metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "handle_processing", {
-                            broker.handle_processing(key, managed_envelope)
+                            broker.handle_processing(managed_envelope)
                         })
                     },
                     () = &mut broker.spool_v1_unspool_handle => {
@@ -833,14 +833,7 @@ impl Service for ProjectCacheService {
 #[derive(Debug)]
 #[allow(dead_code)] // Fields are never read, only used for discarding/dropping data.
 enum ProjectGarbage {
-    ProjectFetchState(ProjectFetchState),
     Metrics(Vec<Bucket>),
-}
-
-impl From<ProjectFetchState> for ProjectGarbage {
-    fn from(value: ProjectFetchState) -> Self {
-        Self::ProjectFetchState(value)
-    }
 }
 
 impl From<Vec<Bucket>> for ProjectGarbage {
@@ -1037,7 +1030,7 @@ mod tests {
 
         // Since there is no project we should not process anything but create a project and spool
         // the envelope.
-        broker.handle_processing(key, envelope);
+        broker.handle_processing(envelope);
 
         // Assert that we have a new project and also added an index.
         assert!(!broker

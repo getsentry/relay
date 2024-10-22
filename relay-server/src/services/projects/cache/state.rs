@@ -5,10 +5,9 @@ use std::time::Instant;
 use arc_swap::ArcSwap;
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
-use relay_quotas::{CachedRateLimits, RateLimits};
+use relay_quotas::CachedRateLimits;
 use relay_sampling::evaluation::ReservoirCounters;
 
-use crate::services::projects::cache::ProjectCache;
 use crate::services::projects::project::ProjectState;
 use crate::utils::RetryBackoff;
 
@@ -24,34 +23,32 @@ use crate::utils::RetryBackoff;
 /// time it is possible that shared state exists without the respective private state.
 #[derive(Default)]
 pub struct ProjectStore {
+    /// The shared state, which can be accessed concurrently.
     shared: Arc<Shared>,
+    /// The private, mutably exclusve state, used to maintain the project state.
     private: hashbrown::HashMap<ProjectKey, PrivateProjectState>,
 }
 
 impl ProjectStore {
+    /// Retrieves a [`Shared`] handle which can be freely shared with multiple consumers.
     pub fn shared(&self) -> Arc<Shared> {
         Arc::clone(&self.shared)
     }
 
-    pub fn get(&mut self, project_key: ProjectKey) -> Option<ProjectRef<'_>> {
-        let private = self.private.get_mut(&project_key)?;
-        let shared = self.shared.projects.pin().get(&project_key).cloned();
-        debug_assert!(
-            shared.is_some(),
-            "there must be a shared project if private state exists"
-        );
-
-        Some(ProjectRef {
-            private,
-            shared: shared?,
-        })
-    }
-
+    /// Tries to begin a new fetch for the passed `project_key`.
+    ///
+    /// Returns `None` if no fetch is necessary or there is already a fetch ongoing.
+    /// A returned [`Fetch`] must be scheduled and completed with [`Fetch::complete`] and
+    /// [`Self::complete_fetch`].
     pub fn try_begin_fetch(&mut self, project_key: ProjectKey, config: &Config) -> Option<Fetch> {
         self.get_or_create(project_key, config)
             .try_begin_fetch(config)
     }
 
+    /// Completes a [`CompletedFetch`] started with [`Self::try_begin_fetch`].
+    ///
+    /// Returns a new [`Fetch`] if another fetch must be scheduled. This happens when the fetched
+    /// [`ProjectState`] is still pending or already deemed expired.
     #[must_use = "an incomplete fetch must be retried"]
     pub fn complete_fetch(&mut self, fetch: CompletedFetch, config: &Config) -> Option<Fetch> {
         // TODO: what if in the meantime the state expired and was evicted?
@@ -67,26 +64,24 @@ impl ProjectStore {
         project.try_begin_fetch(config)
     }
 
+    /// Evicts all stale, expired projects from the cache.
+    ///
+    /// Evicted projects are passed to the `on_evict` callback. Returns the total amount of evicted
+    /// projects.
     pub fn evict_stale_projects<F>(&mut self, config: &Config, mut on_evict: F) -> usize
     where
         F: FnMut(ProjectKey),
     {
         let eviction_start = Instant::now();
-        let delta = 2 * config.project_cache_expiry() + config.project_grace_period();
 
-        // TODO: what do we do with forever fetching projects, do we fail eventually?
         let expired = self.private.extract_if(|_, private| {
-            if private.has_fetch_in_progress() {
-                return false;
-            }
-
-            // Invariant: if there is no last successful fetch,
-            // there must be a fetch currently in progress.
-            debug_assert!(private.last_non_pending_fetch.is_some());
-
-            private
-                .last_non_pending_fetch
-                .map_or(true, |ts| ts + delta <= eviction_start)
+            // We only evict projects which have fully expired and are not currently being fetched.
+            //
+            // This relies on the fact that a project should never remain in the `pending` state
+            // for long and is either always being fetched or successfully fetched.
+            private.last_fetch().map_or(false, |ts| {
+                ts.check_expiry(eviction_start, config).is_expired()
+            })
         });
 
         let mut evicted = 0;
@@ -111,11 +106,17 @@ impl ProjectStore {
         evicted
     }
 
+    /// Get a reference to the current project or create a new project.
+    ///
+    /// For internal use only, a created project must always be fetched immeditately.
     fn get_or_create(&mut self, project_key: ProjectKey, config: &Config) -> ProjectRef<'_> {
         #[cfg(debug_assertions)]
         if self.private.contains_key(&project_key) {
             // We have exclusive access to the private part, there are no concurrent deletions
             // hence when if we have a private state there must always be a shared state as well.
+            //
+            // The opposite is not true, the shared state may have been created concurrently
+            // through the shared access.
             debug_assert!(self.shared.projects.pin().contains_key(&project_key));
         }
 
@@ -135,18 +136,79 @@ impl ProjectStore {
     }
 }
 
-pub struct ProjectRef<'a> {
+/// The shared and concurrently accessible handle to the project cache.
+#[derive(Default)]
+pub struct Shared {
+    projects: papaya::HashMap<ProjectKey, SharedProjectState>,
+}
+
+impl Shared {
+    /// Returns the existing project state or creates a new one.
+    ///
+    /// The caller must ensure that the project cache is instructed to
+    /// [`super::ProjectCache::Fetch`] the retrieved project.
+    pub fn get_or_create(&self, project_key: ProjectKey) -> SharedProject {
+        // TODO: do we need to check for expiry here?
+        // TODO: if yes, we need to include the timestamp in the shared project state.
+        // TODO: grace periods?
+
+        // The fast path, we expect the project to exist.
+        let projects = self.projects.pin();
+        if let Some(project) = projects.get(&project_key) {
+            return project.to_shared_project();
+        }
+
+        // The slow path, try to attempt to insert, somebody else may have been faster, but that's okay.
+        match projects.try_insert(project_key, Default::default()) {
+            Ok(inserted) => inserted.to_shared_project(),
+            Err(occupied) => occupied.current.to_shared_project(),
+        }
+    }
+}
+
+impl fmt::Debug for Shared {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Shared")
+            .field("num_projects", &self.projects.len())
+            .finish()
+    }
+}
+
+/// A single project from the [`Shared`] project cache.
+pub struct SharedProject(Arc<SharedProjectStateInner>);
+
+impl SharedProject {
+    /// Returns a reference to the contained [`ProjectState`].
+    pub fn project_state(&self) -> &ProjectState {
+        &self.0.state
+    }
+
+    /// Returns a reference to the contained [`CachedRateLimits`].
+    pub fn cached_rate_limits(&self) -> &CachedRateLimits {
+        // Exposing cached rate limits may be a bad idea, this allows mutation
+        // and caching of rate limits for pending projects, which may or may not be fine.
+        // Although, for now this is fine.
+        //
+        // Read only access is easily achievable if we return only the current rate limits.
+        &self.0.rate_limits
+    }
+
+    /// Returns a reference to the contained [`ReservoirCounters`].
+    pub fn reservoir_counters(&self) -> &ReservoirCounters {
+        &self.0.reservoir_counters
+    }
+}
+
+/// Reference to a full project wrapping shared and private state.
+struct ProjectRef<'a> {
     shared: SharedProjectState,
     private: &'a mut PrivateProjectState,
 }
 
 impl ProjectRef<'_> {
-    pub fn merge_rate_limits(&mut self, rate_limits: RateLimits) {
-        self.shared.merge_rate_limits(rate_limits)
-    }
-
     fn try_begin_fetch(&mut self, config: &Config) -> Option<Fetch> {
-        self.private.try_begin_fetch(config)
+        let now = Instant::now();
+        self.private.try_begin_fetch(now, config)
     }
 
     fn complete_fetch(&mut self, fetch: CompletedFetch) {
@@ -160,90 +222,67 @@ impl ProjectRef<'_> {
     }
 }
 
-#[derive(Default)]
-pub struct Shared {
-    projects: papaya::HashMap<ProjectKey, SharedProjectState>,
-}
-
-impl Shared {
-    // pub fn get(&self, project_key: ProjectKey) -> Option<ProjectState> {
-    //     self.projects
-    //         .pin()
-    //         .get(&project_key)
-    //         .map(|v| v.state.load().as_ref().clone())
-    // }
-
-    /// Returns the existing project state or creates a new one and returns `Err([`Missing`])`.
-    ///
-    /// The returned [`Missing`] value must be used to trigger a fetch for this project
-    /// or it will stay pending forever.
-    pub fn get_or_create(&self, project_key: ProjectKey) -> Result<SharedProject, Missing> {
-        // TODO: do we need to check for expiry here?
-        // TODO: if yes, we need to include the timestamp in the shared project state.
-        // TODO: grace periods?
-
-        // The fast path, we expect the project to exist.
-        let projects = self.projects.pin();
-        if let Some(project) = projects.get(&project_key) {
-            return Ok(project.to_shared_project());
-        }
-
-        // The slow path, try to attempt to insert, somebody else may have been faster, but that's okay.
-        match projects.try_insert(project_key, Default::default()) {
-            Ok(inserted) => Err(Missing {
-                project_key,
-                shared_project: inserted.to_shared_project(),
-            }),
-            Err(occupied) => Ok(occupied.current.to_shared_project()),
-        }
-    }
-}
-
-impl fmt::Debug for Shared {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Shared")
-            .field("num_projects", &self.projects.len())
-            .finish()
-    }
-}
-
-#[must_use = "a missing project must be fetched"]
-pub struct Missing {
+/// A [`Fetch`] token.
+///
+/// When returned it must be executed and completed using [`Self::complete`].
+#[must_use = "a fetch must be executed"]
+#[derive(Debug)]
+pub struct Fetch {
     project_key: ProjectKey,
-    shared_project: SharedProject,
+    when: Instant,
 }
 
-impl Missing {
-    pub fn fetch(self, project_cache: &relay_system::Addr<ProjectCache>) -> SharedProject {
-        project_cache.send(ProjectCache::Fetch(self.project_key));
-        self.shared_project
+impl Fetch {
+    /// Returns the [`ProjectKey`] of the project to fetch.
+    pub fn project_key(&self) -> ProjectKey {
+        self.project_key
+    }
+
+    /// Returns when the the fetch for the project should be scheduled.
+    ///
+    /// This can be now (as soon as possible) or a alter point in time, if the project is currently
+    /// in a backoff.
+    pub fn when(&self) -> Instant {
+        self.when
+    }
+
+    /// Completes the fetch with a result and returns a [`CompletedFetch`].
+    pub fn complete(self, state: ProjectState) -> CompletedFetch {
+        CompletedFetch {
+            project_key: self.project_key,
+            project_state: state,
+        }
     }
 }
 
-pub struct SharedProject(Arc<SharedProjectStateInner>);
+/// The result of an executed [`Fetch`].
+#[must_use = "a completed fetch must be acted upon"]
+#[derive(Debug)]
+pub struct CompletedFetch {
+    project_key: ProjectKey,
+    project_state: ProjectState,
+}
 
-impl SharedProject {
+impl CompletedFetch {
+    /// Returns the [`ProjectKey`] of the project which was fetched.
+    pub fn project_key(&self) -> ProjectKey {
+        self.project_key
+    }
+
+    /// Returns a reference to the fetched [`ProjectState`].
     pub fn project_state(&self) -> &ProjectState {
-        &self.0.state
-    }
-
-    pub fn cached_rate_limits(&self) -> &CachedRateLimits {
-        // TODO: exposing cached rate limits may be a bad idea, this allows mutation
-        // and caching of rate limits for pending projects, which may or may not be fine.
-        //
-        // Read only access is easily achievable if we return only the current rate limits.
-        &self.0.rate_limits
-    }
-
-    pub fn reservoir_counters(&self) -> &ReservoirCounters {
-        &self.0.reservoir_counters
+        &self.project_state
     }
 }
 
+/// The state of a project contained in the [`Shared`] project cache.
+///
+/// This state is interior mutable and allows updates to the project.
 #[derive(Debug, Default, Clone)]
 struct SharedProjectState(Arc<ArcSwap<SharedProjectStateInner>>);
 
 impl SharedProjectState {
+    /// Updates the project state.
     fn set_project_state(&self, state: ProjectState) {
         let prev = self.0.rcu(|stored| SharedProjectStateInner {
             state: state.clone(),
@@ -271,10 +310,7 @@ impl SharedProjectState {
         }
     }
 
-    fn merge_rate_limits(&self, rate_limits: RateLimits) {
-        self.0.load().rate_limits.merge(rate_limits)
-    }
-
+    /// Transforms this interior mutable handle to an immutable [`SharedProject`].
     fn to_shared_project(&self) -> SharedProject {
         SharedProject(self.0.as_ref().load_full())
     }
@@ -291,13 +327,39 @@ struct SharedProjectStateInner {
     reservoir_counters: ReservoirCounters,
 }
 
+/// Current fetch state for a project.
+#[derive(Debug)]
+enum FetchState {
+    /// There is a fetch currently in progress.
+    InProgress,
+    /// A successful fetch is pending.
+    ///
+    /// This state is essentially only the initial state, a project
+    /// for the most part should always have a fetch in progress or be
+    /// in the non-pending state.
+    Pending {
+        /// Time when the next fetch should be attempted.
+        ///
+        /// `None` means soon as possible.
+        next_fetch_attempt: Option<Instant>,
+    },
+    /// There was a successful non-pending fetch,
+    NonPending {
+        /// Time when the fetch was completed.
+        last_fetch: LastFetch,
+    },
+}
+
+/// Contains all mutable state necessary to maintain the project cache.
 struct PrivateProjectState {
+    /// Project key this state belongs to.
     project_key: ProjectKey,
-    current_fetch: Option<()>,
 
-    last_non_pending_fetch: Option<Instant>,
-
-    next_fetch_attempt: Option<Instant>,
+    /// The current fetch state.
+    state: FetchState,
+    /// The current backoff used for calculating the next fetch attempt.
+    ///
+    /// The backoff is reset after a successful, non-pending fetch.
     backoff: RetryBackoff,
 }
 
@@ -305,41 +367,50 @@ impl PrivateProjectState {
     fn new(project_key: ProjectKey, config: &Config) -> Self {
         Self {
             project_key,
-            current_fetch: None,
-            last_non_pending_fetch: None,
-            next_fetch_attempt: None,
+            state: FetchState::Pending {
+                next_fetch_attempt: None,
+            },
             backoff: RetryBackoff::new(config.http_max_retry_interval()),
         }
     }
 
-    fn has_fetch_in_progress(&self) -> bool {
-        self.current_fetch.is_some()
+    /// Returns the [`LastFetch`] if there is currently no fetch in progress and the project
+    /// was fetched successfully before.
+    fn last_fetch(&self) -> Option<LastFetch> {
+        match &self.state {
+            FetchState::NonPending { last_fetch } => Some(*last_fetch),
+            _ => None,
+        }
     }
 
-    fn try_begin_fetch(&mut self, config: &Config) -> Option<Fetch> {
-        if self.current_fetch.is_some() {
-            // Already a fetch in progress.
-            relay_log::trace!(
-                project_key = self.project_key.as_str(),
-                "project fetch skipped, fetch in progress"
-            );
-            return None;
-        }
-
-        if matches!(self.check_expiry(config), Expiry::Updated) {
-            // The current state is up to date, no need to start another fetch.
-            relay_log::trace!(
-                project_key = self.project_key.as_str(),
-                "project fetch skipped, already up to date"
-            );
-            return None;
-        }
+    fn try_begin_fetch(&mut self, now: Instant, config: &Config) -> Option<Fetch> {
+        let when = match &self.state {
+            FetchState::InProgress {} => {
+                relay_log::trace!(
+                    project_key = self.project_key.as_str(),
+                    "project fetch skipped, fetch in progress"
+                );
+                return None;
+            }
+            FetchState::Pending { next_fetch_attempt } => {
+                // Schedule a new fetch, even if there is a backoff, it will just be sleeping for a while.
+                next_fetch_attempt.unwrap_or(now)
+            }
+            FetchState::NonPending { last_fetch } => {
+                if last_fetch.check_expiry(now, config).is_updated() {
+                    // The current state is up to date, no need to start another fetch.
+                    relay_log::trace!(
+                        project_key = self.project_key.as_str(),
+                        "project fetch skipped, already up to date"
+                    );
+                    return None;
+                }
+                now
+            }
+        };
 
         // Mark a current fetch in progress.
-        self.current_fetch.insert(());
-
-        // Schedule a new fetch, even if there is a backoff, it will just be sleeping for a while.
-        let when = self.next_fetch_attempt.take().unwrap_or_else(Instant::now);
+        self.state = FetchState::InProgress {};
 
         relay_log::debug!(
             project_key = &self.project_key.as_str(),
@@ -355,32 +426,33 @@ impl PrivateProjectState {
     }
 
     fn complete_fetch(&mut self, fetch: &CompletedFetch) {
-        if fetch.project_state.is_pending() {
-            self.next_fetch_attempt = Instant::now().checked_add(self.backoff.next_backoff());
-        } else {
-            debug_assert!(
-                self.next_fetch_attempt.is_none(),
-                "the scheduled fetch should have cleared the next attempt"
-            );
-            self.next_fetch_attempt = None;
-            self.backoff.reset();
-            self.last_non_pending_fetch = Some(Instant::now());
-        }
-
-        let _current_fetch = self.current_fetch.take();
         debug_assert!(
-            _current_fetch.is_some(),
+            matches!(self.state, FetchState::InProgress),
             "fetch completed while there was no current fetch registered"
         );
+
+        if fetch.project_state.is_pending() {
+            self.state = FetchState::Pending {
+                next_fetch_attempt: Instant::now().checked_add(self.backoff.next_backoff()),
+            };
+        } else {
+            self.backoff.reset();
+            self.state = FetchState::NonPending {
+                last_fetch: LastFetch(Instant::now()),
+            };
+        }
     }
+}
 
-    fn check_expiry(&self, config: &Config) -> Expiry {
-        let Some(last_fetch) = self.last_non_pending_fetch else {
-            return Expiry::Expired;
-        };
+/// New type containing the last successful fetch time as an [`Instant`].
+#[derive(Debug, Copy, Clone)]
+struct LastFetch(Instant);
 
+impl LastFetch {
+    /// Returns the [`Expiry`] of the last fetch in relation to `now`.
+    fn check_expiry(&self, now: Instant, config: &Config) -> Expiry {
         let expiry = config.project_cache_expiry();
-        let elapsed = last_fetch.elapsed();
+        let elapsed = now.saturating_duration_since(self.0);
 
         if elapsed >= expiry + config.project_grace_period() {
             Expiry::Expired
@@ -392,6 +464,7 @@ impl PrivateProjectState {
     }
 }
 
+/// Expiry state of a project.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 enum Expiry {
     /// The project state is perfectly up to date.
@@ -404,40 +477,14 @@ enum Expiry {
     Expired,
 }
 
-#[derive(Debug)]
-pub struct Fetch {
-    project_key: ProjectKey,
-    when: Instant,
-}
-
-impl Fetch {
-    pub fn project_key(&self) -> ProjectKey {
-        self.project_key
+impl Expiry {
+    /// Returns `true` if the project is uo to date and does not need to be fetched.
+    fn is_updated(&self) -> bool {
+        matches!(self, Self::Updated)
     }
 
-    pub fn when(&self) -> Instant {
-        self.when
-    }
-
-    pub fn complete(self, state: ProjectState) -> CompletedFetch {
-        CompletedFetch {
-            project_key: self.project_key,
-            project_state: state,
-        }
-    }
-}
-
-pub struct CompletedFetch {
-    project_key: ProjectKey,
-    project_state: ProjectState,
-}
-
-impl CompletedFetch {
-    pub fn project_key(&self) -> ProjectKey {
-        self.project_key
-    }
-
-    pub fn project_state(&self) -> &ProjectState {
-        &self.project_state
+    /// Returns `true` if the project is expired and can be evicted.
+    fn is_expired(&self) -> bool {
+        matches!(self, Self::Expired)
     }
 }

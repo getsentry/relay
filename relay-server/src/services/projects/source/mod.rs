@@ -15,8 +15,7 @@ pub mod local;
 pub mod redis;
 pub mod upstream;
 
-use crate::services::projects::project::state::UpstreamProjectState;
-use crate::services::projects::project::ProjectFetchState;
+use crate::services::projects::project::ProjectState;
 use crate::services::upstream::UpstreamRelay;
 
 use self::local::{LocalProjectSource, LocalProjectSourceService};
@@ -95,21 +94,21 @@ impl ProjectSource {
         self,
         project_key: ProjectKey,
         no_cache: bool,
-        cached_state: ProjectFetchState,
-    ) -> Result<ProjectFetchState, ProjectSourceError> {
+        cached_state: ProjectState,
+    ) -> Result<ProjectState, ProjectSourceError> {
         let state_opt = self
             .local_source
             .send(FetchOptionalProjectState { project_key })
             .await?;
 
         if let Some(state) = state_opt {
-            return Ok(ProjectFetchState::new(state));
+            return Ok(state);
         }
 
         match self.config.relay_mode() {
-            RelayMode::Proxy => return Ok(ProjectFetchState::allowed()),
-            RelayMode::Static => return Ok(ProjectFetchState::disabled()),
-            RelayMode::Capture => return Ok(ProjectFetchState::allowed()),
+            RelayMode::Proxy => return Ok(ProjectState::new_allowed()),
+            RelayMode::Static => return Ok(ProjectState::Disabled),
+            RelayMode::Capture => return Ok(ProjectState::new_allowed()),
             RelayMode::Managed => (), // Proceed with loading the config from redis or upstream
         }
 
@@ -130,14 +129,12 @@ impl ProjectSource {
                 Ok(UpstreamProjectState::New(state)) => {
                     let state = state.sanitized();
                     if !state.is_pending() {
-                        return Ok(ProjectFetchState::new(state));
+                        return Ok(state);
                     }
                 }
                 // Redis reported that we're holding an up-to-date version of the state already,
                 // refresh the state and return the old cached state again.
-                Ok(UpstreamProjectState::NotModified) => {
-                    return Ok(ProjectFetchState::refresh(cached_state))
-                }
+                Ok(UpstreamProjectState::NotModified) => return Ok(cached_state),
                 Err(error) => {
                     relay_log::error!(
                         error = &error as &dyn std::error::Error,
@@ -157,8 +154,8 @@ impl ProjectSource {
             .await?;
 
         match state {
-            UpstreamProjectState::New(state) => Ok(ProjectFetchState::new(state.sanitized())),
-            UpstreamProjectState::NotModified => Ok(ProjectFetchState::refresh(cached_state)),
+            UpstreamProjectState::New(state) => Ok(state.sanitized()),
+            UpstreamProjectState::NotModified => Ok(cached_state),
         }
     }
 }
@@ -207,4 +204,14 @@ impl FetchOptionalProjectState {
     pub fn project_key(&self) -> ProjectKey {
         self.project_key
     }
+}
+
+/// Response indicating whether a project state needs to be updated
+/// or the upstream does not have a newer version.
+#[derive(Debug, Clone)]
+pub enum UpstreamProjectState {
+    /// The upstream sent a [`ProjectState`].
+    New(ProjectState),
+    /// The upstream indicated that there is no newer version of the state available.
+    NotModified,
 }
