@@ -2276,6 +2276,7 @@ def test_extracted_from_indexed_tag_with_transaction(
     span_usage_metrics = [m for m, _ in metrics if m["name"] == "c:spans/usage@none"]
 
     assert transaction_usage_metric is not None, "Transaction usage metric not found"
+    # 1 span usage for the transaction, 1 aggregated span usage for the 2 spans
     assert len(span_usage_metrics) == 2, "Expected 2 span usage metrics"
 
     if sampling_decision == "keep":
@@ -2413,6 +2414,7 @@ def test_extracted_from_indexed_tag_with_standalone_spans(
     metrics = metrics_consumer.get_metrics()
     span_usage_metrics = [m for m, _ in metrics if m["name"] == "c:spans/usage@none"]
 
+    # 1 aggregated span usage for the 2 spans
     assert len(span_usage_metrics) == 1, "Expected 1 span usage metric"
     span_metric = span_usage_metrics[0]
 
@@ -2514,6 +2516,7 @@ def test_extracted_from_indexed_tag_with_rate_limited_transaction(
     span_usage_metrics = [m for m, _ in metrics if m["name"] == "c:spans/usage@none"]
 
     assert transaction_usage_metric is not None, "Transaction usage metric not found"
+    # 1 span usage for the transaction, 1 span usage for the 1 span
     assert len(span_usage_metrics) == 2, "Expected 2 span usage metrics"
 
     assert (

@@ -1129,7 +1129,7 @@ def test_transaction_metrics_extraction_processing_relays(
     if expect_metrics_extraction:
         metrics = metrics_by_name(metrics_consumer, 4, timeout=3)
         metric_usage = metrics["c:transactions/usage@none"]
-        assert metric_usage["tags"] == {}
+        assert metric_usage["tags"] == {"extracted_from_indexed": "true"}
         assert metric_usage["value"] == 1.0
         metric_duration = metrics["d:transactions/duration@millisecond"]
         assert (
