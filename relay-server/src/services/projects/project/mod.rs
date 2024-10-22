@@ -8,7 +8,7 @@ use relay_quotas::Scoping;
 
 mod info;
 
-pub use self::info::{LimitedProjectInfo, ProjectInfo};
+pub use self::info::{LimitedProjectInfo, ProjectInfo, PublicKeyConfig, Revision};
 
 /// Representation of a project's current state.
 #[derive(Clone, Debug, Default)]
@@ -35,7 +35,7 @@ impl ProjectState {
         Self::Enabled(Arc::new(ProjectInfo {
             project_id: None,
             last_change: None,
-            rev: None,
+            rev: Default::default(),
             public_keys: Default::default(),
             slug: None,
             config: Default::default(),
@@ -46,35 +46,32 @@ impl ProjectState {
     /// Runs a post-deserialization step to normalize the project config (e.g. legacy fields).
     pub fn sanitized(self) -> Self {
         match self {
-            ProjectState::Enabled(state) => {
-                ProjectState::Enabled(Arc::new(state.as_ref().clone().sanitized()))
-            }
-            ProjectState::Disabled => ProjectState::Disabled,
-            ProjectState::Pending => ProjectState::Pending,
+            Self::Enabled(state) => Self::Enabled(Arc::new(state.as_ref().clone().sanitized())),
+            Self::Disabled => Self::Disabled,
+            Self::Pending => Self::Pending,
         }
     }
 
     /// Whether or not this state is pending.
     pub fn is_pending(&self) -> bool {
-        matches!(self, ProjectState::Pending)
+        matches!(self, Self::Pending)
     }
 
     /// Utility function that returns the project config if enabled.
     pub fn enabled(self) -> Option<Arc<ProjectInfo>> {
         match self {
-            ProjectState::Enabled(info) => Some(info),
-            ProjectState::Disabled | ProjectState::Pending => None,
+            Self::Enabled(info) => Some(info),
+            Self::Disabled | Self::Pending => None,
         }
     }
 
     /// Returns the revision of the contained project info.
     ///
     /// `None` if the revision is missing or not available.
-    pub fn revision(&self) -> Option<&str> {
+    pub fn revision(&self) -> Revision {
         match &self {
-            ProjectState::Enabled(info) => info.rev.as_deref(),
-            ProjectState::Disabled => None,
-            ProjectState::Pending => None,
+            Self::Enabled(info) => info.rev.clone(),
+            Self::Disabled | Self::Pending => Revision::default(),
         }
     }
 
@@ -94,8 +91,8 @@ impl From<ParsedProjectState> for ProjectState {
     fn from(value: ParsedProjectState) -> Self {
         let ParsedProjectState { disabled, info } = value;
         match disabled {
-            true => ProjectState::Disabled,
-            false => ProjectState::Enabled(Arc::new(info)),
+            true => Self::Disabled,
+            false => Self::Enabled(Arc::new(info)),
         }
     }
 }

@@ -18,8 +18,9 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
 use tokio::time::Instant;
 
+use crate::services::projects::project::Revision;
 use crate::services::projects::project::{ParsedProjectState, ProjectState};
-use crate::services::projects::source::{FetchProjectState, UpstreamProjectState};
+use crate::services::projects::source::{FetchProjectState, SourceProjectState};
 use crate::services::upstream::{
     Method, RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError,
 };
@@ -39,7 +40,7 @@ pub struct GetProjectStates {
     ///
     /// The revisions are mapped by index to the project key,
     /// this is a separate field to keep the API compatible.
-    revisions: Vec<Option<String>>,
+    revisions: Vec<Revision>,
     /// If `true` the upstream should return a full configuration.
     ///
     /// Upstreams will ignore this for non-internal Relays.
@@ -97,10 +98,10 @@ impl UpstreamQuery for GetProjectStates {
 #[derive(Debug)]
 struct ProjectStateChannel {
     // Main broadcast channel.
-    channel: BroadcastChannel<UpstreamProjectState>,
+    channel: BroadcastChannel<SourceProjectState>,
     // Additional broadcast channels tracked from merge operations.
-    merged: Vec<BroadcastChannel<UpstreamProjectState>>,
-    revision: Option<String>,
+    merged: Vec<BroadcastChannel<SourceProjectState>>,
+    revision: Revision,
     deadline: Instant,
     no_cache: bool,
     attempts: u64,
@@ -112,8 +113,8 @@ struct ProjectStateChannel {
 
 impl ProjectStateChannel {
     pub fn new(
-        sender: BroadcastSender<UpstreamProjectState>,
-        revision: Option<String>,
+        sender: BroadcastSender<SourceProjectState>,
+        revision: Revision,
         timeout: Duration,
         no_cache: bool,
     ) -> Self {
@@ -140,18 +141,14 @@ impl ProjectStateChannel {
     /// If the new revision is different from the contained revision this clears the revision.
     /// To not have multiple fetches per revision per batch, we need to find a common denominator
     /// for requests with different revisions, which is always to fetch the full project config.
-    pub fn attach(
-        &mut self,
-        sender: BroadcastSender<UpstreamProjectState>,
-        revision: Option<String>,
-    ) {
+    pub fn attach(&mut self, sender: BroadcastSender<SourceProjectState>, revision: Revision) {
         self.channel.attach(sender);
         if self.revision != revision {
-            self.revision = None;
+            self.revision = Revision::default();
         }
     }
 
-    pub fn send(self, state: UpstreamProjectState) {
+    pub fn send(self, state: SourceProjectState) {
         for channel in self.merged {
             channel.send(state.clone());
         }
@@ -177,7 +174,7 @@ impl ProjectStateChannel {
         self.merged.push(channel);
         self.merged.extend(merged);
         if self.revision != revision {
-            self.revision = None;
+            self.revision = Revision::default();
         }
         self.deadline = self.deadline.max(deadline);
         self.no_cache |= no_cache;
@@ -196,16 +193,16 @@ type ProjectStateChannels = HashMap<ProjectKey, ProjectStateChannel>;
 /// Internally it maintains the buffer queue of the incoming requests, which got scheduled to fetch the
 /// state and takes care of the backoff in case there is a problem with the requests.
 #[derive(Debug)]
-pub struct UpstreamProjectSource(FetchProjectState, BroadcastSender<UpstreamProjectState>);
+pub struct UpstreamProjectSource(FetchProjectState, BroadcastSender<SourceProjectState>);
 
 impl Interface for UpstreamProjectSource {}
 
 impl FromMessage<FetchProjectState> for UpstreamProjectSource {
-    type Response = BroadcastResponse<UpstreamProjectState>;
+    type Response = BroadcastResponse<SourceProjectState>;
 
     fn from_message(
         message: FetchProjectState,
-        sender: BroadcastSender<UpstreamProjectState>,
+        sender: BroadcastSender<SourceProjectState>,
     ) -> Self {
         Self(message, sender)
     }
@@ -465,7 +462,7 @@ impl UpstreamProjectSourceService {
                         let mut result = "ok";
                         let state = if response.unchanged.contains(&key) {
                             result = "ok_unchanged";
-                            UpstreamProjectState::NotModified
+                            SourceProjectState::NotModified
                         } else {
                             let state = response
                                 .configs
@@ -483,7 +480,7 @@ impl UpstreamProjectSourceService {
                                 ErrorBoundary::Ok(Some(state)) => state.into(),
                             };
 
-                            UpstreamProjectState::New(state)
+                            SourceProjectState::New(state)
                         };
 
                         metric!(
@@ -730,8 +727,8 @@ mod tests {
             .await;
 
         let (response1, response2) = futures::future::join(response1, response2).await;
-        assert!(matches!(response1, Ok(UpstreamProjectState::NotModified)));
-        assert!(matches!(response2, Ok(UpstreamProjectState::NotModified)));
+        assert!(matches!(response1, Ok(SourceProjectState::NotModified)));
+        assert!(matches!(response2, Ok(SourceProjectState::NotModified)));
 
         // No more messages to upstream expected.
         assert!(upstream_rx.try_recv().is_err());

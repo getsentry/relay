@@ -2,13 +2,15 @@ use std::fmt;
 use std::sync::Arc;
 use std::time::Instant;
 
+use arc_swap::access::Access;
 use arc_swap::ArcSwap;
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
 use relay_quotas::CachedRateLimits;
 use relay_sampling::evaluation::ReservoirCounters;
 
-use crate::services::projects::project::ProjectState;
+use crate::services::projects::project::{ProjectState, Revision};
+use crate::services::projects::source::SourceProjectState;
 use crate::utils::RetryBackoff;
 
 /// The backing storage for a project cache.
@@ -208,7 +210,9 @@ struct ProjectRef<'a> {
 impl ProjectRef<'_> {
     fn try_begin_fetch(&mut self, config: &Config) -> Option<Fetch> {
         let now = Instant::now();
-        self.private.try_begin_fetch(now, config)
+        self.private
+            .try_begin_fetch(now, config)
+            .map(|fetch| fetch.with_revision(self.shared.revision()))
     }
 
     fn complete_fetch(&mut self, fetch: CompletedFetch) {
@@ -216,8 +220,11 @@ impl ProjectRef<'_> {
 
         // Keep the old state around if the current fetch is pending.
         // It may still be useful to callers.
-        if !fetch.project_state.is_pending() {
-            self.shared.set_project_state(fetch.project_state);
+        match fetch.state {
+            SourceProjectState::New(state) if !state.is_pending() => {
+                self.shared.set_project_state(state);
+            }
+            _ => {}
         }
     }
 }
@@ -230,6 +237,7 @@ impl ProjectRef<'_> {
 pub struct Fetch {
     project_key: ProjectKey,
     when: Instant,
+    revision: Revision,
 }
 
 impl Fetch {
@@ -247,11 +255,16 @@ impl Fetch {
     }
 
     /// Completes the fetch with a result and returns a [`CompletedFetch`].
-    pub fn complete(self, state: ProjectState) -> CompletedFetch {
+    pub fn complete(self, state: SourceProjectState) -> CompletedFetch {
         CompletedFetch {
             project_key: self.project_key,
-            project_state: state,
+            state,
         }
+    }
+
+    fn with_revision(mut self, revision: Revision) -> Self {
+        self.revision = revision;
+        self
     }
 }
 
@@ -260,7 +273,7 @@ impl Fetch {
 #[derive(Debug)]
 pub struct CompletedFetch {
     project_key: ProjectKey,
-    project_state: ProjectState,
+    state: SourceProjectState,
 }
 
 impl CompletedFetch {
@@ -270,8 +283,19 @@ impl CompletedFetch {
     }
 
     /// Returns a reference to the fetched [`ProjectState`].
-    pub fn project_state(&self) -> &ProjectState {
-        &self.project_state
+    pub fn project_state(&self) -> Option<&ProjectState> {
+        match &self.state {
+            SourceProjectState::New(state) => Some(state),
+            SourceProjectState::NotModified => None,
+        }
+    }
+
+    /// Returns `true` if the fetch completed with a pending status.
+    fn is_pending(&self) -> bool {
+        match &self.state {
+            SourceProjectState::New(state) => state.is_pending(),
+            SourceProjectState::NotModified => false,
+        }
     }
 }
 
@@ -308,6 +332,11 @@ impl SharedProjectState {
                 }
             }
         }
+    }
+
+    /// Extracts and clones the revision from the contained project state.
+    fn revision(&self) -> Revision {
+        self.0.as_ref().load().state.revision().clone()
     }
 
     /// Transforms this interior mutable handle to an immutable [`SharedProject`].
@@ -422,6 +451,7 @@ impl PrivateProjectState {
         Some(Fetch {
             project_key: self.project_key,
             when,
+            revision: Revision::default(),
         })
     }
 
@@ -431,7 +461,7 @@ impl PrivateProjectState {
             "fetch completed while there was no current fetch registered"
         );
 
-        if fetch.project_state.is_pending() {
+        if fetch.is_pending() {
             self.state = FetchState::Pending {
                 next_fetch_attempt: Instant::now().checked_add(self.backoff.next_backoff()),
             };

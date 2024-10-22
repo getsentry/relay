@@ -8,7 +8,7 @@ use tokio::sync::{broadcast, mpsc};
 use crate::services::projects::cache::handle::ProjectCacheHandle;
 use crate::services::projects::cache::state::{CompletedFetch, Fetch, ProjectStore};
 use crate::services::projects::project::ProjectState;
-use crate::services::projects::source::ProjectSource;
+use crate::services::projects::source::{ProjectSource, SourceProjectState};
 
 /// Size of the broadcast channel for project events.
 ///
@@ -104,17 +104,17 @@ impl ProjectCacheService {
 
             // TODO: cached state for delta fetches, maybe this should just be a revision?
             let state = match source
-                .fetch(fetch.project_key(), false, ProjectState::Pending)
+                .fetch(fetch.project_key(), false, Default::default())
                 .await
             {
-                // TODO: verify if the sanitized here is correct
-                Ok(state) => state.sanitized().into(),
+                Ok(result) => result,
                 Err(err) => {
                     relay_log::error!(
                         error = &err as &dyn std::error::Error,
                         "failed to fetch project state for {fetch:?}"
                     );
-                    ProjectState::Pending
+                    // Fallback to a pending project on error, we will retry.
+                    ProjectState::Pending.into()
                 }
             };
 
@@ -143,7 +143,6 @@ impl ProjectCacheService {
             return;
         }
 
-        // TODO: no-ops from revision checks should not end up here
         let _ = self
             .project_events_tx
             .send(ProjectEvent::Ready(project_key));

@@ -15,7 +15,7 @@ use crate::extractors::SignedJson;
 use crate::service::ServiceState;
 use crate::services::global_config::{self, StatusResponse};
 use crate::services::projects::project::{
-    LimitedParsedProjectState, ParsedProjectState, ProjectState,
+    LimitedParsedProjectState, ParsedProjectState, ProjectState, Revision,
 };
 
 /// V2 version of this endpoint.
@@ -99,7 +99,7 @@ struct GetProjectStatesRequest {
     ///
     /// This length of this list if specified must be the same length
     /// as [`Self::public_keys`], the items are asssociated by index.
-    revisions: Option<ErrorBoundary<Vec<Option<String>>>>,
+    revisions: Option<ErrorBoundary<Vec<Revision>>>,
     #[serde(default)]
     full_config: bool,
     #[serde(default)]
@@ -108,8 +108,8 @@ struct GetProjectStatesRequest {
 
 fn into_valid_keys(
     public_keys: Vec<ErrorBoundary<ProjectKey>>,
-    revisions: Option<ErrorBoundary<Vec<Option<String>>>>,
-) -> impl Iterator<Item = (ProjectKey, Option<String>)> {
+    revisions: Option<ErrorBoundary<Vec<Revision>>>,
+) -> impl Iterator<Item = (ProjectKey, Revision)> {
     let mut revisions = revisions.and_then(|e| e.ok()).unwrap_or_default();
     if !revisions.is_empty() && revisions.len() != public_keys.len() {
         // The downstream sent us a different amount of revisions than project keys,
@@ -122,7 +122,9 @@ fn into_valid_keys(
         );
         revisions.clear();
     }
-    let revisions = revisions.into_iter().chain(std::iter::repeat(None));
+    let revisions = revisions
+        .into_iter()
+        .chain(std::iter::repeat_with(|| Revision::default()));
 
     std::iter::zip(public_keys, revisions).filter_map(|(public_key, revision)| {
         // Skip unparsable public keys.
@@ -173,7 +175,7 @@ async fn inner(
         };
 
         // Only ever omit responses when there was a valid revision in the first place.
-        if revision.is_some() && project_info.rev == revision {
+        if project_info.rev == revision {
             unchanged.push(project_key);
             continue;
         }
