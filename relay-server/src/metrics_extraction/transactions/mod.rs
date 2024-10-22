@@ -863,7 +863,9 @@ mod tests {
                 value: Counter(
                     1.0,
                 ),
-                tags: {},
+                tags: {
+                    "extracted_from_indexed": "true",
+                },
                 metadata: BucketMetadata {
                     merges: 1,
                     received_at: Some(
@@ -1086,7 +1088,9 @@ mod tests {
                 value: Counter(
                     1.0,
                 ),
-                tags: {},
+                tags: {
+                    "extracted_from_indexed": "true",
+                },
                 metadata: BucketMetadata {
                     merges: 1,
                     received_at: Some(
@@ -1238,7 +1242,9 @@ mod tests {
                 value: Counter(
                     1.0,
                 ),
-                tags: {},
+                tags: {
+                    "extracted_from_indexed": "true",
+                },
                 metadata: BucketMetadata {
                     merges: 1,
                     received_at: Some(
@@ -1487,7 +1493,9 @@ mod tests {
                 value: Counter(
                     1.0,
                 ),
-                tags: {},
+                tags: {
+                    "extracted_from_indexed": "true",
+                },
                 metadata: BucketMetadata {
                     merges: 1,
                     received_at: Some(
@@ -1686,7 +1694,9 @@ mod tests {
                 value: Counter(
                     1.0,
                 ),
-                tags: {},
+                tags: {
+                    "extracted_from_indexed": "true",
+                },
                 metadata: BucketMetadata {
                     merges: 1,
                     received_at: Some(
@@ -2255,7 +2265,9 @@ mod tests {
                 value: Counter(
                     1.0,
                 ),
-                tags: {},
+                tags: {
+                    "extracted_from_indexed": "true",
+                },
                 metadata: BucketMetadata {
                     merges: 1,
                     received_at: Some(
