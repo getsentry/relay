@@ -10,6 +10,7 @@ use chrono::{DateTime, Utc};
 use rand::distributions::Uniform;
 use rand::Rng;
 use rand_pcg::Pcg32;
+#[cfg(feature = "redis")]
 use relay_base_schema::organization::OrganizationId;
 use relay_protocol::Getter;
 #[cfg(feature = "redis")]
