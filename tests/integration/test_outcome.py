@@ -2164,7 +2164,7 @@ def test_replay_outcomes_item_failed(
 
 
 @pytest.mark.parametrize("sampling_decision", ["keep", "drop"])
-def test_extracted_from_indexed_in_usage_metric(
+def test_extracted_from_indexed_tag_with_transaction(
     mini_sentry,
     relay_with_processing,
     metrics_consumer,
@@ -2173,7 +2173,7 @@ def test_extracted_from_indexed_in_usage_metric(
 ):
     """
     Test that the usage metric has the `extracted_from_indexed` field set correctly
-    based on whether a transaction is kept or dropped by dynamic sampling.
+    based on whether a transaction and its spans are kept or dropped by dynamic sampling.
     """
     metrics_consumer = metrics_consumer()
     transactions_consumer = transactions_consumer()
@@ -2184,6 +2184,14 @@ def test_extracted_from_indexed_in_usage_metric(
     project_config["config"]["transactionMetrics"] = {
         "version": TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
     }
+
+    # Add these feature flags to enable span extraction
+    project_config["config"].setdefault("features", []).extend(
+        [
+            "projects:span-metrics-extraction",
+            "organizations:indexed-spans-extraction",
+        ]
+    )
 
     # Configure dynamic sampling
     ds = project_config["config"].setdefault("sampling", {})
@@ -2200,7 +2208,11 @@ def test_extracted_from_indexed_in_usage_metric(
         }
     )
 
-    # Send a transaction
+    end = datetime.now(timezone.utc) - timedelta(seconds=1)
+    duration = timedelta(milliseconds=500)
+    start = end - duration
+
+    # Modify the transaction to include nested spans
     transaction = {
         "event_id": uuid.uuid4().hex,
         "type": "transaction",
@@ -2214,7 +2226,30 @@ def test_extracted_from_indexed_in_usage_metric(
                 "type": "trace",
             }
         },
-        "spans": [],
+        "spans": [
+            {
+                "description": "GET /api/0/organizations/?member=1",
+                "op": "http",
+                "origin": "manual",
+                "parent_span_id": "aaaaaaaaaaaaaaaa",
+                "span_id": "bbbbbbbbbbbbbbbb",
+                "start_timestamp": start.isoformat(),
+                "status": "success",
+                "timestamp": end.isoformat(),
+                "trace_id": "ff62a8b040f340bda5d830223def1d81",
+            },
+            {
+                "description": "GET /api/0/projects/?member=1",
+                "op": "http",
+                "origin": "manual",
+                "parent_span_id": "aaaaaaaaaaaaaaaa",
+                "span_id": "cccccccccccccccc",
+                "start_timestamp": start.isoformat(),
+                "status": "success",
+                "timestamp": end.isoformat(),
+                "trace_id": "ff62a8b040f340bda5d830223def1d81",
+            },
+        ],
     }
 
     config = {
@@ -2233,19 +2268,148 @@ def test_extracted_from_indexed_in_usage_metric(
     else:
         transactions_consumer.assert_empty()
 
-    # Get the metrics and find the usage metric
+    # Modify the metric assertion to check for multiple span metrics
     metrics = metrics_consumer.get_metrics()
-    usage_metric = next(
+    transaction_usage_metric = next(
         (m for m, _ in metrics if m["name"] == "c:transactions/usage@none"), None
     )
+    span_usage_metrics = [m for m, _ in metrics if m["name"] == "c:spans/usage@none"]
 
-    assert usage_metric is not None, "Usage metric not found"
+    assert transaction_usage_metric is not None, "Transaction usage metric not found"
+    assert len(span_usage_metrics) == 2, "Expected 2 span usage metrics"
 
     if sampling_decision == "keep":
         assert (
-            usage_metric["tags"].get("extracted_from_indexed") == "true"
+            transaction_usage_metric["tags"].get("extracted_from_indexed") == "true"
         ), "extracted_from_indexed should be true for kept transactions"
+        for span_metric in span_usage_metrics:
+            assert (
+                span_metric["tags"].get("extracted_from_indexed") == "true"
+            ), "extracted_from_indexed should be true for kept spans"
     else:
         assert (
-            "extracted_from_indexed" not in usage_metric["tags"]
+            "extracted_from_indexed" not in transaction_usage_metric["tags"]
         ), "extracted_from_indexed should not be present for dropped transactions"
+        for span_metric in span_usage_metrics:
+            assert (
+                "extracted_from_indexed" not in span_metric["tags"]
+            ), "extracted_from_indexed should not be present for dropped spans"
+
+
+@pytest.mark.parametrize("sampling_decision", ["drop"])
+def test_extracted_from_indexed_tag_with_standalone_spans(
+    mini_sentry,
+    relay_with_processing,
+    metrics_consumer,
+    spans_consumer,
+    sampling_decision,
+):
+    """
+    Test that the usage metric has the `extracted_from_indexed` field set correctly
+    for standalone spans based on whether they are kept or dropped by dynamic sampling.
+    """
+    metrics_consumer = metrics_consumer()
+    spans_consumer = spans_consumer()
+
+    project_id = 42
+
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["transactionMetrics"] = {
+        "version": TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
+    }
+
+    # Add these feature flags to enable span extraction
+    project_config["config"].setdefault("features", []).extend(
+        [
+            "projects:span-metrics-extraction",
+            "organizations:indexed-spans-extraction",
+            "organizations:standalone-span-ingestion",
+        ]
+    )
+
+    # Configure dynamic sampling
+    ds = project_config["config"].setdefault("sampling", {})
+    ds.setdefault("version", 2)
+    ds.setdefault("rules", []).append(
+        {
+            "samplingValue": {
+                "type": "sampleRate",
+                "value": 1.0 if sampling_decision == "keep" else 0.0,
+            },
+            "type": "trace",
+            "condition": {"op": "and", "inner": []},
+            "id": 1,
+        }
+    )
+
+    end = datetime.now(timezone.utc) - timedelta(seconds=1)
+    duration = timedelta(milliseconds=500)
+    start = end - duration
+
+    # Create standalone spans
+    spans = [
+        {
+            "description": "GET /api/0/organizations/?member=1",
+            "op": "http",
+            "origin": "manual",
+            "parent_span_id": "aaaaaaaaaaaaaaaa",
+            "span_id": "bbbbbbbbbbbbbbbb",
+            "start_timestamp": start.isoformat(),
+            "status": "success",
+            "timestamp": end.isoformat(),
+            "exclusive_time": 1000.0,
+            "trace_id": "ff62a8b040f340bda5d830223def1d81",
+        },
+        {
+            "description": "GET /api/0/projects/?member=1",
+            "op": "http",
+            "origin": "manual",
+            "parent_span_id": "aaaaaaaaaaaaaaaa",
+            "span_id": "cccccccccccccccc",
+            "start_timestamp": start.isoformat(),
+            "status": "success",
+            "timestamp": end.isoformat(),
+            "exclusive_time": 1000.0,
+            "trace_id": "ff62a8b040f340bda5d830223def1d81",
+        },
+    ]
+
+    config = {
+        "aggregator": {
+            "bucket_interval": 1,
+            "initial_delay": 0,
+        }
+    }
+
+    relay = relay_with_processing(config)
+
+    # Send standalone spans
+    envelope = Envelope()
+    for span in spans:
+        envelope.add_item(Item(payload=PayloadRef(json=span), type="span"))
+    relay.send_envelope(project_id, envelope)
+
+    # Check if the spans were kept or dropped
+    if sampling_decision == "keep":
+        received_spans = spans_consumer.get_spans(timeout=2, n=2)
+        assert len(received_spans) == 2, "Expected 2 spans to be kept"
+    else:
+        spans_consumer.assert_empty()
+
+    # Check the metrics
+    metrics = metrics_consumer.get_metrics()
+    span_usage_metrics = [m for m, _ in metrics if m["name"] == "c:spans/usage@none"]
+
+    assert len(span_usage_metrics) == 1, "Expected 1 span usage metric"
+    span_metric = span_usage_metrics[0]
+
+    assert span_metric["value"] == 2.0, "Expected span usage metric value to be 2.0"
+
+    if sampling_decision == "keep":
+        assert (
+            span_metric["tags"].get("extracted_from_indexed") == "true"
+        ), "extracted_from_indexed should be true for kept standalone spans"
+    else:
+        assert (
+            "extracted_from_indexed" not in span_metric["tags"]
+        ), "extracted_from_indexed should not be present for dropped standalone spans"

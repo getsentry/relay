@@ -30,7 +30,9 @@ use relay_event_schema::protocol::{
     ClientReport, Event, EventId, EventType, IpAddr, Metrics, NetworkReportError,
 };
 use relay_filter::FilterStatKey;
-use relay_metrics::{Bucket, BucketMetadata, BucketView, BucketsView, MetricMeta, MetricNamespace};
+use relay_metrics::{
+    Bucket, BucketInspector, BucketMetadata, BucketView, BucketsView, MetricMeta, MetricNamespace,
+};
 use relay_pii::PiiConfigError;
 use relay_profiling::ProfileId;
 use relay_protocol::Annotated;
@@ -607,30 +609,48 @@ impl ProcessingExtractedMetrics {
         self.extend_sampling_metrics(extracted.sampling_metrics, sampling_decision);
     }
 
+    fn extend_metrics(
+        &mut self,
+        buckets: Vec<Bucket>,
+        sampling_decision: Option<SamplingDecision>,
+        is_project: bool,
+    ) {
+        for mut bucket in buckets {
+            let is_kept = sampling_decision == Some(SamplingDecision::Keep);
+            bucket.metadata.extracted_from_indexed = is_kept;
+            // In case the indexed payload is kept and this metric is a usage metric, we want to tag
+            // it, so that we can use the tag in the consumers to correctly count the indexed
+            // payloads (e.g., transactions and spans).
+            if is_kept && BucketInspector(&bucket).is_usage_metric() {
+                bucket
+                    .tags
+                    .entry("extracted_from_indexed".to_owned())
+                    .or_insert("true".to_owned());
+            }
+            if is_project {
+                self.metrics.project_metrics.push(bucket);
+            } else {
+                self.metrics.sampling_metrics.push(bucket);
+            }
+        }
+    }
+
     /// Extends the contained project metrics.
     pub fn extend_project_metrics(
         &mut self,
-        mut buckets: Vec<Bucket>,
+        buckets: Vec<Bucket>,
         sampling_decision: Option<SamplingDecision>,
     ) {
-        for bucket in &mut buckets {
-            bucket.metadata.extracted_from_indexed =
-                sampling_decision == Some(SamplingDecision::Keep);
-        }
-        self.metrics.project_metrics.extend(buckets);
+        self.extend_metrics(buckets, sampling_decision, true);
     }
 
     /// Extends the contained sampling metrics.
     pub fn extend_sampling_metrics(
         &mut self,
-        mut buckets: Vec<Bucket>,
+        buckets: Vec<Bucket>,
         sampling_decision: Option<SamplingDecision>,
     ) {
-        for bucket in &mut buckets {
-            bucket.metadata.extracted_from_indexed =
-                sampling_decision == Some(SamplingDecision::Keep);
-        }
-        self.metrics.sampling_metrics.extend(buckets);
+        self.extend_metrics(buckets, sampling_decision, false);
     }
 
     /// Applies rate limits to the contained metrics.
@@ -660,7 +680,7 @@ impl ProcessingExtractedMetrics {
             if limit.is_active() {
                 drop_namespaces.push(namespace);
             } else if indexed.is_active() && !enforced_consistently {
-                // If the enforcment was not computed by consistently checking the limits,
+                // If the enforcement was not computed by consistently checking the limits,
                 // the quota for the metrics has not yet been incremented.
                 // In this case we have a dropped indexed payload but a metric which still needs to
                 // be accounted for, make sure the metric will still be rate limited.
@@ -680,6 +700,12 @@ impl ProcessingExtractedMetrics {
 
                 if reset_extracted_from_indexed.contains(&namespace) {
                     bucket.metadata.extracted_from_indexed = false;
+                    // If this metric is a usage metric, and we dropped the indexed payload due to
+                    // rate limiting, we want to remove the tag, so that the amount of
+                    // transactions/spans can still be counted correctly.
+                    if BucketInspector(bucket).is_usage_metric() {
+                        bucket.tags.remove("extracted_from_indexed");
+                    }
                 }
 
                 true
