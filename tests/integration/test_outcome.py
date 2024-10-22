@@ -2163,7 +2163,7 @@ def test_replay_outcomes_item_failed(
     assert outcomes[0] == expected
 
 
-@pytest.mark.parametrize("sampling_decision", ["keep"])
+@pytest.mark.parametrize("sampling_decision", ["keep", "drop"])
 def test_extracted_from_indexed_in_usage_metric(
     mini_sentry,
     relay_with_processing,
@@ -2217,15 +2217,21 @@ def test_extracted_from_indexed_in_usage_metric(
         "spans": [],
     }
 
-    relay = relay_with_processing()
+    config = {
+        "aggregator": {
+            "bucket_interval": 1,
+            "initial_delay": 0,
+        }
+    }
+
+    relay = relay_with_processing(config)
     relay.send_event(project_id, transaction)
 
     # Check if the transaction was kept or dropped
     if sampling_decision == "keep":
         transactions_consumer.get_event()
     else:
-        with pytest.raises(Empty):
-            transactions_consumer.get_event(timeout=2)
+        transactions_consumer.assert_empty()
 
     # Get the metrics and find the usage metric
     metrics = metrics_consumer.get_metrics()
