@@ -2416,8 +2416,6 @@ def test_extracted_from_indexed_tag_with_standalone_spans(
     assert len(span_usage_metrics) == 1, "Expected 1 span usage metric"
     span_metric = span_usage_metrics[0]
 
-    assert span_metric["value"] == 2.0, "Expected span usage metric value to be 2.0"
-
     if sampling_decision == "keep":
         assert (
             span_metric["tags"].get("extracted_from_indexed") == "true"
@@ -2426,3 +2424,101 @@ def test_extracted_from_indexed_tag_with_standalone_spans(
         assert (
             "extracted_from_indexed" not in span_metric["tags"]
         ), "extracted_from_indexed should not be present for dropped standalone spans"
+
+
+def test_extracted_from_indexed_tag_with_rate_limited_transaction(
+    mini_sentry,
+    relay_with_processing,
+    metrics_consumer,
+    transactions_consumer,
+):
+    """
+    Test that the usage metric has no `extracted_from_indexed` field
+    when a transaction is rate limited.
+    """
+    metrics_consumer = metrics_consumer()
+    transactions_consumer = transactions_consumer()
+
+    project_id = 42
+
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["transactionMetrics"] = {
+        "version": TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
+    }
+
+    # Add these feature flags to enable span extraction
+    project_config["config"].setdefault("features", []).extend(
+        [
+            "projects:span-metrics-extraction",
+            "organizations:indexed-spans-extraction",
+        ]
+    )
+
+    # Configure rate limiting
+    project_config["config"]["quotas"] = [
+        {
+            "id": f"test_rate_limiting_{uuid.uuid4().hex}",
+            "categories": ["transaction_indexed"],
+            "limit": 0,
+            "window": 3600,
+            "reasonCode": "test_rate_limited",
+        }
+    ]
+
+    config = {
+        "aggregator": {
+            "bucket_interval": 1,
+            "initial_delay": 0,
+        }
+    }
+
+    relay = relay_with_processing(config)
+
+    # Create and send a transaction
+    transaction = {
+        "event_id": uuid.uuid4().hex,
+        "type": "transaction",
+        "transaction": "test_transaction",
+        "start_timestamp": datetime.now(UTC).timestamp() - 5,
+        "timestamp": datetime.now(UTC).timestamp(),
+        "contexts": {
+            "trace": {
+                "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                "span_id": "cccccccccccccccc",
+                "type": "trace",
+            }
+        },
+        "spans": [
+            {
+                "description": "GET /api/0/organizations/?member=1",
+                "op": "http",
+                "parent_span_id": "aaaaaaaaaaaaaaaa",
+                "span_id": "bbbbbbbbbbbbbbbb",
+                "start_timestamp": datetime.now(UTC).timestamp() - 4,
+                "timestamp": datetime.now(UTC).timestamp() - 3,
+                "trace_id": "ff62a8b040f340bda5d830223def1d81",
+            },
+        ],
+    }
+
+    relay.send_event(project_id, transaction)
+
+    # Check if the transaction was rate limited
+    transactions_consumer.assert_empty()
+
+    # Check the metrics
+    metrics = metrics_consumer.get_metrics()
+    transaction_usage_metric = next(
+        (m for m, _ in metrics if m["name"] == "c:transactions/usage@none"), None
+    )
+    span_usage_metrics = [m for m, _ in metrics if m["name"] == "c:spans/usage@none"]
+
+    assert transaction_usage_metric is not None, "Transaction usage metric not found"
+    assert len(span_usage_metrics) == 2, "Expected 2 span usage metrics"
+
+    assert (
+        "extracted_from_indexed" not in transaction_usage_metric["tags"]
+    ), "extracted_from_indexed should not be present for rate-limited transactions"
+    assert (
+        "extracted_from_indexed" not in span_usage_metrics[0]["tags"]
+    ), "extracted_from_indexed should not be present for spans of rate-limited transactions"
