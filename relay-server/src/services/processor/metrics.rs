@@ -103,6 +103,7 @@ fn remove_matching_bucket_tags(metric_config: &Metrics, bucket: &mut Bucket) {
 mod tests {
     use std::collections::BTreeMap;
 
+    use relay_base_schema::organization::OrganizationId;
     use relay_base_schema::project::{ProjectId, ProjectKey};
     use relay_dynamic_config::TagBlock;
     use relay_metrics::{BucketValue, UnixTimestamp};
@@ -186,7 +187,7 @@ mod tests {
             &metric_outcomes,
             &project_info,
             Scoping {
-                organization_id: 42,
+                organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(43),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
@@ -223,7 +224,7 @@ mod tests {
             &metric_outcomes,
             &ProjectInfo::default(),
             Scoping {
-                organization_id: 42,
+                organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(43),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),

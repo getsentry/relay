@@ -2567,7 +2567,7 @@ impl EnvelopeProcessorService {
         if !limits.exceeded_limits().is_empty() && sample(error_sample_rate) {
             for limit in limits.exceeded_limits() {
                 relay_log::error!(
-                    tags.organization_id = scoping.organization_id,
+                    tags.organization_id = scoping.organization_id.value(),
                     tags.limit_id = limit.id,
                     tags.passive = limit.passive,
                     "Cardinality Limit"
@@ -3389,8 +3389,10 @@ mod tests {
     #[cfg(feature = "processing")]
     #[tokio::test]
     async fn test_ratelimit_per_batch() {
-        let rate_limited_org = 1;
-        let not_ratelimited_org = 2;
+        use relay_base_schema::organization::OrganizationId;
+
+        let rate_limited_org = OrganizationId::new(1);
+        let not_ratelimited_org = OrganizationId::new(2);
 
         let message = {
             let project_info = {
@@ -3427,7 +3429,7 @@ mod tests {
                 project_info,
             };
 
-            let scoping_by_org_id = |org_id: u64| Scoping {
+            let scoping_by_org_id = |org_id: OrganizationId| Scoping {
                 organization_id: org_id,
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -3464,7 +3466,7 @@ mod tests {
         };
 
         let (store, handle) = {
-            let f = |org_ids: &mut Vec<u64>, msg: Store| {
+            let f = |org_ids: &mut Vec<OrganizationId>, msg: Store| {
                 let org_id = match msg {
                     Store::Metrics(x) => x.scoping.organization_id,
                     _ => panic!("received envelope when expecting only metrics"),

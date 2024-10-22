@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::sync::{Arc, OnceLock};
 
+use relay_base_schema::organization::OrganizationId;
 #[cfg(feature = "processing")]
 use relay_cardinality::{CardinalityLimit, CardinalityReport};
 use relay_config::Config;
@@ -111,14 +112,14 @@ impl MetricStats {
         self.config.metric_stats_enabled() && self.is_rolled_out(scoping.organization_id)
     }
 
-    fn is_rolled_out(&self, organization_id: u64) -> bool {
+    fn is_rolled_out(&self, organization_id: OrganizationId) -> bool {
         let rate = self
             .global_config
             .current()
             .options
             .metric_stats_rollout_rate;
 
-        is_rolled_out(organization_id, rate)
+        is_rolled_out(organization_id.value(), rate)
     }
 
     fn to_volume_metric(&self, bucket: impl TrackableBucket, outcome: &Outcome) -> Option<Bucket> {
@@ -245,7 +246,7 @@ mod tests {
 
     fn scoping() -> Scoping {
         Scoping {
-            organization_id: 42,
+            organization_id: OrganizationId::new(42),
             project_id: ProjectId::new(21),
             project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             key_id: Some(17),

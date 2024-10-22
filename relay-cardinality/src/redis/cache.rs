@@ -197,11 +197,12 @@ impl ScopedCache {
 #[cfg(test)]
 mod tests {
     use relay_base_schema::metrics::{MetricName, MetricNamespace};
+    use relay_base_schema::organization::OrganizationId;
     use relay_base_schema::project::ProjectId;
 
     use crate::limiter::{Entry, EntryId};
     use crate::redis::quota::PartialQuotaScoping;
-    use crate::{CardinalityLimit, CardinalityScope, OrganizationId, Scoping, SlidingWindow};
+    use crate::{CardinalityLimit, CardinalityScope, Scoping, SlidingWindow};
 
     use super::*;
 
@@ -238,7 +239,7 @@ mod tests {
             window_seconds: 100,
             granularity_seconds: 10,
         };
-        let scope = build_scoping(1, window);
+        let scope = build_scoping(OrganizationId::new(1), window);
         let now = UnixTimestamp::now();
         let future = now + Duration::from_secs(window.granularity_seconds + 1);
 
@@ -298,8 +299,8 @@ mod tests {
             window_seconds: 100,
             granularity_seconds: 10,
         };
-        let scope1 = build_scoping(1, window);
-        let scope2 = build_scoping(2, window);
+        let scope1 = build_scoping(OrganizationId::new(1), window);
+        let scope2 = build_scoping(OrganizationId::new(2), window);
 
         let now = UnixTimestamp::now();
 
@@ -336,8 +337,8 @@ mod tests {
             window_seconds: vacuum_interval.as_secs() * 10,
             granularity_seconds: vacuum_interval.as_secs() * 2,
         };
-        let scope1 = build_scoping(1, window);
-        let scope2 = build_scoping(2, window);
+        let scope1 = build_scoping(OrganizationId::new(1), window);
+        let scope2 = build_scoping(OrganizationId::new(2), window);
 
         let now = UnixTimestamp::now();
         let in_interval = now + Duration::from_secs(vacuum_interval.as_secs() - 1);

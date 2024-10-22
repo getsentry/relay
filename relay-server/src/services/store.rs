@@ -2,6 +2,7 @@
 //! The service uses Kafka topics to forward data to Sentry
 
 use anyhow::Context;
+use relay_base_schema::organization::OrganizationId;
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::error::Error;
@@ -432,7 +433,7 @@ impl StoreService {
 
     fn create_metric_message<'a>(
         &self,
-        organization_id: u64,
+        organization_id: OrganizationId,
         project_id: ProjectId,
         encoder: &'a mut BucketEncoder,
         namespace: MetricNamespace,
@@ -682,7 +683,7 @@ impl StoreService {
 
     fn produce_profile(
         &self,
-        organization_id: u64,
+        organization_id: OrganizationId,
         project_id: ProjectId,
         key_id: Option<u64>,
         start_time: Instant,
@@ -887,7 +888,7 @@ impl StoreService {
         span.duration_ms =
             ((span.end_timestamp_precise - span.start_timestamp_precise) * 1e3) as u32;
         span.event_id = event_id;
-        span.organization_id = scoping.organization_id;
+        span.organization_id = scoping.organization_id.value();
         span.project_id = scoping.project_id.value();
         span.retention_days = retention_days;
         span.start_timestamp_ms = (span.start_timestamp_precise * 1e3) as u64;
@@ -1023,7 +1024,7 @@ impl StoreService {
 
     fn produce_profile_chunk(
         &self,
-        organization_id: u64,
+        organization_id: OrganizationId,
         project_id: ProjectId,
         start_time: Instant,
         retention_days: u16,
@@ -1185,7 +1186,7 @@ struct AttachmentKafkaMessage {
 struct ReplayRecordingNotChunkedKafkaMessage<'a> {
     replay_id: EventId,
     key_id: Option<u64>,
-    org_id: u64,
+    org_id: OrganizationId,
     project_id: ProjectId,
     received: u64,
     retention_days: u16,
@@ -1214,7 +1215,7 @@ struct UserReportKafkaMessage {
 
 #[derive(Clone, Debug, Serialize)]
 struct MetricKafkaMessage<'a> {
-    org_id: u64,
+    org_id: OrganizationId,
     project_id: ProjectId,
     name: &'a MetricName,
     #[serde(flatten)]
@@ -1260,7 +1261,7 @@ impl<'a> MetricValue<'a> {
 
 #[derive(Clone, Debug, Serialize)]
 struct ProfileKafkaMessage {
-    organization_id: u64,
+    organization_id: OrganizationId,
     project_id: ProjectId,
     key_id: Option<u64>,
     received: u64,
@@ -1418,7 +1419,7 @@ struct MetricsSummaryKafkaMessage<'a> {
 
 #[derive(Clone, Debug, Serialize)]
 struct ProfileChunkKafkaMessage {
-    organization_id: u64,
+    organization_id: OrganizationId,
     project_id: ProjectId,
     received: u64,
     retention_days: u16,
