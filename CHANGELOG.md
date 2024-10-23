@@ -5,6 +5,7 @@
 **Bug Fixes:**
 
 - Allow profile chunks without release. ([#4155](https://github.com/getsentry/relay/pull/4155))
+- Add validation for timestamps sent from the future. ([#4163](https://github.com/getsentry/relay/pull/4163))
 
 **Internal:**
 
