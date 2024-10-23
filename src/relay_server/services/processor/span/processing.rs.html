@@ -1255,6 +1255,27 @@
 <a href="#1255" id="1255">1255</a>
 <a href="#1256" id="1256">1256</a>
 <a href="#1257" id="1257">1257</a>
+<a href="#1258" id="1258">1258</a>
+<a href="#1259" id="1259">1259</a>
+<a href="#1260" id="1260">1260</a>
+<a href="#1261" id="1261">1261</a>
+<a href="#1262" id="1262">1262</a>
+<a href="#1263" id="1263">1263</a>
+<a href="#1264" id="1264">1264</a>
+<a href="#1265" id="1265">1265</a>
+<a href="#1266" id="1266">1266</a>
+<a href="#1267" id="1267">1267</a>
+<a href="#1268" id="1268">1268</a>
+<a href="#1269" id="1269">1269</a>
+<a href="#1270" id="1270">1270</a>
+<a href="#1271" id="1271">1271</a>
+<a href="#1272" id="1272">1272</a>
+<a href="#1273" id="1273">1273</a>
+<a href="#1274" id="1274">1274</a>
+<a href="#1275" id="1275">1275</a>
+<a href="#1276" id="1276">1276</a>
+<a href="#1277" id="1277">1277</a>
+<a href="#1278" id="1278">1278</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -1290,7 +1311,7 @@
 <span class="kw">use </span>thiserror::Error;
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Item, ItemType};
-<span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::metrics_summary;
+<span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::{event, metrics_summary};
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome};
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::span::extract_transaction_span;
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{
@@ -1328,8 +1349,9 @@
 
     <span class="kw">let </span>client_ip = state.managed_envelope.envelope().meta().client_addr();
     <span class="kw">let </span>filter_settings = <span class="kw-2">&amp;</span>state.project_info.config.filter_settings;
+    <span class="kw">let </span>sampling_decision = sampling_result.decision();
 
-    <span class="kw">let </span><span class="kw-2">mut </span>dynamic_sampling_dropped_spans = <span class="number">0</span>;
+    <span class="kw">let </span><span class="kw-2">mut </span>span_count = <span class="number">0</span>;
     state.managed_envelope.retain_items(|item| {
         <span class="kw">let </span><span class="kw-2">mut </span>annotated_span = <span class="kw">match </span>item.ty() {
             ItemType::OtelSpan =&gt; <span class="kw">match </span>serde_json::from_slice::&lt;OtelSpan&gt;(<span class="kw-2">&amp;</span>item.payload()) {
@@ -1361,6 +1383,8 @@
         };
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(span) = annotated_span.value() {
+            span_count += <span class="number">1</span>;
+
             <span class="kw">if let </span><span class="prelude-val">Err</span>(filter_stat_key) = relay_filter::should_filter(
                 span,
                 client_ip,
@@ -1393,13 +1417,25 @@
 
             state
                 .extracted_metrics
-                .extend_project_metrics(metrics, <span class="prelude-val">Some</span>(sampling_result.decision()));
+                .extend_project_metrics(metrics, <span class="prelude-val">Some</span>(sampling_decision));
+
+            <span class="kw">if </span>state.project_info.config.features.produces_spans() {
+                <span class="kw">let </span>transaction = span
+                    .data
+                    .value()
+                    .and_then(|d| d.segment_name.value())
+                    .cloned();
+                <span class="kw">let </span>bucket =
+                    event::create_span_root_counter(span, transaction, <span class="number">1</span>, sampling_decision);
+                state
+                    .extracted_metrics
+                    .extend_sampling_metrics(bucket, <span class="prelude-val">Some</span>(sampling_decision));
+            }
+
             item.set_metrics_extracted(<span class="bool-val">true</span>);
         }
 
-        <span class="kw">if </span>sampling_result.decision().is_drop() {
-            <span class="macro">relay_log::trace!</span>(<span class="string">"Dropping span because of sampling rule {sampling_result:?}"</span>);
-            dynamic_sampling_dropped_spans += <span class="number">1</span>;
+        <span class="kw">if </span>sampling_decision.is_drop() {
             <span class="comment">// Drop silently and not with an outcome, we only want to emit an outcome for the
             // indexed category if the span was dropped by dynamic sampling.
             // Dropping through the envelope will emit for both categories.
@@ -1460,12 +1496,18 @@
         ItemAction::Keep
     });
 
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(outcome) = sampling_result.into_dropped_outcome() {
-        state.managed_envelope.track_outcome(
-            outcome,
-            DataCategory::SpanIndexed,
-            dynamic_sampling_dropped_spans,
+    <span class="kw">if </span>sampling_decision.is_drop() {
+        <span class="macro">relay_log::trace!</span>(
+            span_count,
+            <span class="question-mark">?</span>sampling_result,
+            <span class="string">"Dropped spans because of sampling rule"</span>,
         );
+    }
+
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(outcome) = sampling_result.into_dropped_outcome() {
+        state
+            .managed_envelope
+            .track_outcome(outcome, DataCategory::SpanIndexed, span_count);
     }
 }
 

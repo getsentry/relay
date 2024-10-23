@@ -1923,18 +1923,94 @@
 <a href="#1923" id="1923">1923</a>
 <a href="#1924" id="1924">1924</a>
 <a href="#1925" id="1925">1925</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::time::UnixTimestamp;
+<a href="#1926" id="1926">1926</a>
+<a href="#1927" id="1927">1927</a>
+<a href="#1928" id="1928">1928</a>
+<a href="#1929" id="1929">1929</a>
+<a href="#1930" id="1930">1930</a>
+<a href="#1931" id="1931">1931</a>
+<a href="#1932" id="1932">1932</a>
+<a href="#1933" id="1933">1933</a>
+<a href="#1934" id="1934">1934</a>
+<a href="#1935" id="1935">1935</a>
+<a href="#1936" id="1936">1936</a>
+<a href="#1937" id="1937">1937</a>
+<a href="#1938" id="1938">1938</a>
+<a href="#1939" id="1939">1939</a>
+<a href="#1940" id="1940">1940</a>
+<a href="#1941" id="1941">1941</a>
+<a href="#1942" id="1942">1942</a>
+<a href="#1943" id="1943">1943</a>
+<a href="#1944" id="1944">1944</a>
+<a href="#1945" id="1945">1945</a>
+<a href="#1946" id="1946">1946</a>
+<a href="#1947" id="1947">1947</a>
+<a href="#1948" id="1948">1948</a>
+<a href="#1949" id="1949">1949</a>
+<a href="#1950" id="1950">1950</a>
+<a href="#1951" id="1951">1951</a>
+<a href="#1952" id="1952">1952</a>
+<a href="#1953" id="1953">1953</a>
+<a href="#1954" id="1954">1954</a>
+<a href="#1955" id="1955">1955</a>
+<a href="#1956" id="1956">1956</a>
+<a href="#1957" id="1957">1957</a>
+<a href="#1958" id="1958">1958</a>
+<a href="#1959" id="1959">1959</a>
+<a href="#1960" id="1960">1960</a>
+<a href="#1961" id="1961">1961</a>
+<a href="#1962" id="1962">1962</a>
+<a href="#1963" id="1963">1963</a>
+<a href="#1964" id="1964">1964</a>
+<a href="#1965" id="1965">1965</a>
+<a href="#1966" id="1966">1966</a>
+<a href="#1967" id="1967">1967</a>
+<a href="#1968" id="1968">1968</a>
+<a href="#1969" id="1969">1969</a>
+<a href="#1970" id="1970">1970</a>
+<a href="#1971" id="1971">1971</a>
+<a href="#1972" id="1972">1972</a>
+<a href="#1973" id="1973">1973</a>
+<a href="#1974" id="1974">1974</a>
+<a href="#1975" id="1975">1975</a>
+<a href="#1976" id="1976">1976</a>
+<a href="#1977" id="1977">1977</a>
+<a href="#1978" id="1978">1978</a>
+<a href="#1979" id="1979">1979</a>
+<a href="#1980" id="1980">1980</a>
+<a href="#1981" id="1981">1981</a>
+<a href="#1982" id="1982">1982</a>
+<a href="#1983" id="1983">1983</a>
+<a href="#1984" id="1984">1984</a>
+<a href="#1985" id="1985">1985</a>
+<a href="#1986" id="1986">1986</a>
+<a href="#1987" id="1987">1987</a>
+<a href="#1988" id="1988">1988</a>
+<a href="#1989" id="1989">1989</a>
+<a href="#1990" id="1990">1990</a>
+<a href="#1991" id="1991">1991</a>
+<a href="#1992" id="1992">1992</a>
+<a href="#1993" id="1993">1993</a>
+<a href="#1994" id="1994">1994</a>
+<a href="#1995" id="1995">1995</a>
+<a href="#1996" id="1996">1996</a>
+<a href="#1997" id="1997">1997</a>
+<a href="#1998" id="1998">1998</a>
+</pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
+
+<span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_dynamic_config::CombinedMetricExtractionConfig;
 <span class="kw">use </span>relay_event_normalization::span::description::ScrubMongoDescription;
 <span class="kw">use </span>relay_event_schema::protocol::{Event, Span};
-<span class="kw">use </span>relay_metrics::Bucket;
+<span class="kw">use </span>relay_metrics::{Bucket, BucketMetadata, BucketValue};
 <span class="kw">use </span>relay_quotas::DataCategory;
+<span class="kw">use </span>relay_sampling::evaluation::SamplingDecision;
 
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::generic::{<span class="self">self</span>, Extractable};
-<span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::metrics_summary;
+<span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::ExtractedMetrics;
+<span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::{metrics_summary, transactions};
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::extract_transaction_span;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayTimers;
-<span class="kw">use </span><span class="kw">crate</span>::utils::sample;
 
 <span class="kw">impl </span>Extractable <span class="kw">for </span>Event {
     <span class="kw">fn </span>category(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; DataCategory {
@@ -1974,15 +2050,24 @@
 /// If this is a transaction event with spans, metrics will also be extracted from the spans.
 </span><span class="kw">pub fn </span>extract_metrics(
     event: <span class="kw-2">&amp;mut </span>Event,
-    spans_extracted: bool,
     config: CombinedMetricExtractionConfig&lt;<span class="lifetime">'_</span>&gt;,
+    sampling_decision: SamplingDecision,
     max_tag_value_size: usize,
-    span_extraction_sample_rate: <span class="prelude-ty">Option</span>&lt;f32&gt;,
-) -&gt; Vec&lt;Bucket&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>metrics = generic::extract_metrics(event, config);
-    <span class="comment">// If spans were already extracted for an event, we rely on span processing to extract metrics.
-    </span><span class="kw">if </span>!spans_extracted &amp;&amp; sample(span_extraction_sample_rate.unwrap_or(<span class="number">1.0</span>)) {
-        extract_span_metrics_for_event(event, config, max_tag_value_size, <span class="kw-2">&amp;mut </span>metrics);
+    extract_spans: bool,
+) -&gt; ExtractedMetrics {
+    <span class="kw">let </span><span class="kw-2">mut </span>metrics = ExtractedMetrics {
+        project_metrics: generic::extract_metrics(event, config),
+        sampling_metrics: Vec::new(),
+    };
+
+    <span class="kw">if </span>extract_spans {
+        extract_span_metrics_for_event(
+            event,
+            config,
+            sampling_decision,
+            max_tag_value_size,
+            <span class="kw-2">&amp;mut </span>metrics,
+        );
     }
 
     metrics
@@ -1991,10 +2076,13 @@
 <span class="kw">fn </span>extract_span_metrics_for_event(
     event: <span class="kw-2">&amp;mut </span>Event,
     config: CombinedMetricExtractionConfig&lt;<span class="lifetime">'_</span>&gt;,
+    sampling_decision: SamplingDecision,
     max_tag_value_size: usize,
-    output: <span class="kw-2">&amp;mut </span>Vec&lt;Bucket&gt;,
+    output: <span class="kw-2">&amp;mut </span>ExtractedMetrics,
 ) {
     <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
+        <span class="kw">let </span><span class="kw-2">mut </span>span_count = <span class="number">0</span>;
+
         <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction_span) = extract_transaction_span(
             event,
             max_tag_value_size,
@@ -2004,7 +2092,8 @@
             <span class="kw">let </span>(metrics, metrics_summary) =
                 metrics_summary::extract_and_summarize_metrics(<span class="kw-2">&amp;</span>transaction_span, config);
             metrics_summary.apply_on(<span class="kw-2">&amp;mut </span>event._metrics_summary);
-            output.extend(metrics);
+            output.project_metrics.extend(metrics);
+            span_count += <span class="number">1</span>;
         }
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(spans) = event.spans.value_mut() {
@@ -2013,11 +2102,58 @@
                     <span class="kw">let </span>(metrics, metrics_summary) =
                         metrics_summary::extract_and_summarize_metrics(span, config);
                     metrics_summary.apply_on(<span class="kw-2">&amp;mut </span>span._metrics_summary);
-                    output.extend(metrics);
+                    output.project_metrics.extend(metrics);
+                    span_count += <span class="number">1</span>;
                 }
             }
         }
+
+        <span class="comment">// This function assumes it is only called when span metrics should be extracted, hence we
+        // extract the span root counter unconditionally.
+        </span><span class="kw">let </span>transaction = transactions::get_transaction_name(event);
+        <span class="kw">let </span>bucket = create_span_root_counter(event, transaction, span_count, sampling_decision);
+        output.sampling_metrics.extend(bucket);
     });
+}
+
+<span class="doccomment">/// Creates the metric `c:spans/count_per_root_project@none`.
+///
+/// This metric counts the number of spans per root project of the trace. This is used for dynamic
+/// sampling biases to compute weights of projects including all spans in the trace.
+</span><span class="kw">pub fn </span>create_span_root_counter&lt;T: Extractable&gt;(
+    instance: <span class="kw-2">&amp;</span>T,
+    transaction: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    span_count: u32,
+    sampling_decision: SamplingDecision,
+) -&gt; <span class="prelude-ty">Option</span>&lt;Bucket&gt; {
+    <span class="kw">if </span>span_count == <span class="number">0 </span>{
+        <span class="kw">return </span><span class="prelude-val">None</span>;
+    }
+
+    <span class="kw">let </span>timestamp = instance.timestamp()<span class="question-mark">?</span>;
+
+    <span class="comment">// For extracted metrics we assume the `received_at` timestamp is equivalent to the time
+    // in which the metric is extracted.
+    </span><span class="kw">let </span>received_at = <span class="kw">if </span><span class="macro">cfg!</span>(not(test)) {
+        UnixTimestamp::now()
+    } <span class="kw">else </span>{
+        UnixTimestamp::from_secs(<span class="number">0</span>)
+    };
+
+    <span class="kw">let </span><span class="kw-2">mut </span>tags = BTreeMap::new();
+    tags.insert(<span class="string">"decision"</span>.to_owned(), sampling_decision.to_string());
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction) = transaction {
+        tags.insert(<span class="string">"transaction"</span>.to_owned(), transaction);
+    }
+
+    <span class="prelude-val">Some</span>(Bucket {
+        timestamp,
+        width: <span class="number">0</span>,
+        name: <span class="string">"c:spans/count_per_root_project@none"</span>.into(),
+        value: BucketValue::counter(span_count.into()),
+        tags,
+        metadata: BucketMetadata::new(received_at),
+    })
 }
 
 <span class="attr">#[cfg(test)]
@@ -2068,7 +2204,7 @@
         OwnedConfig { global, project }
     }
 
-    <span class="kw">fn </span>extract_span_metrics(features: <span class="kw">impl </span>Into&lt;BTreeSet&lt;Feature&gt;&gt;) -&gt; Vec&lt;Bucket&gt; {
+    <span class="kw">fn </span>extract_span_metrics(features: <span class="kw">impl </span>Into&lt;BTreeSet&lt;Feature&gt;&gt;) -&gt; ExtractedMetrics {
         <span class="kw">let </span>json = <span class="string">r#"
         {
             "type": "transaction",
@@ -3127,22 +3263,28 @@
 
         extract_metrics(
             event.value_mut().as_mut().unwrap(),
-            <span class="bool-val">false</span>,
             combined_config(features, <span class="prelude-val">None</span>).combined(),
+            SamplingDecision::Keep,
             <span class="number">200</span>,
-            <span class="prelude-val">None</span>,
+            <span class="bool-val">true</span>,
         )
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>no_feature_flags_enabled() {
         <span class="kw">let </span>metrics = extract_span_metrics([]);
-        <span class="macro">assert!</span>(metrics.is_empty());
+        <span class="macro">assert!</span>(metrics.project_metrics.is_empty());
+
+        <span class="macro">assert_eq!</span>(metrics.sampling_metrics.len(), <span class="number">1</span>);
+        <span class="macro">assert_eq!</span>(
+            metrics.sampling_metrics[<span class="number">0</span>].name.as_ref(),
+            <span class="string">"c:spans/count_per_root_project@none"
+        </span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>only_indexed_spans_enabled() {
-        <span class="kw">let </span>metrics = extract_span_metrics([Feature::ExtractSpansFromEvent]);
+        <span class="kw">let </span>metrics = extract_span_metrics([Feature::ExtractSpansFromEvent]).project_metrics;
         <span class="macro">assert_eq!</span>(metrics.len(), <span class="number">75</span>);
         <span class="macro">assert!</span>(metrics.iter().all(|b| <span class="kw-2">&amp;</span>b.name == <span class="string">"c:spans/usage@none"</span>));
     }
@@ -3150,14 +3292,14 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>only_common() {
         <span class="kw">let </span>metrics = extract_span_metrics([Feature::ExtractCommonSpanMetricsFromEvent]);
-        <span class="macro">insta::assert_debug_snapshot!</span>(metrics);
+        <span class="macro">insta::assert_debug_snapshot!</span>(metrics.project_metrics);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>only_addons() {
         <span class="comment">// Nothing is extracted without the common flag:
         </span><span class="kw">let </span>metrics = extract_span_metrics([Feature::ExtractAddonsSpanMetricsFromEvent]);
-        <span class="macro">assert!</span>(metrics.is_empty());
+        <span class="macro">assert!</span>(metrics.project_metrics.is_empty());
     }
 
     <span class="attr">#[test]
@@ -3166,7 +3308,7 @@
             Feature::ExtractCommonSpanMetricsFromEvent,
             Feature::ExtractAddonsSpanMetricsFromEvent,
         ]);
-        <span class="macro">insta::assert_debug_snapshot!</span>(metrics);
+        <span class="macro">insta::assert_debug_snapshot!</span>(metrics.project_metrics);
     }
 
     <span class="kw">const </span>MOBILE_EVENT: <span class="kw-2">&amp;</span>str = <span class="string">r#"
@@ -3338,12 +3480,12 @@
 
         <span class="kw">let </span>metrics = extract_metrics(
             event.value_mut().as_mut().unwrap(),
-            <span class="bool-val">false</span>,
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent], <span class="prelude-val">None</span>).combined(),
+            SamplingDecision::Keep,
             <span class="number">200</span>,
-            <span class="prelude-val">None</span>,
+            <span class="bool-val">true</span>,
         );
-        <span class="macro">insta::assert_debug_snapshot!</span>((<span class="kw-2">&amp;</span>event.value().unwrap().spans, metrics));
+        <span class="macro">insta::assert_debug_snapshot!</span>((<span class="kw-2">&amp;</span>event.value().unwrap().spans, metrics.project_metrics));
     }
 
     <span class="attr">#[test]
@@ -3395,18 +3537,20 @@
 
         <span class="kw">let </span>metrics = extract_metrics(
             event.value_mut().as_mut().unwrap(),
-            <span class="bool-val">false</span>,
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent], <span class="prelude-val">None</span>).combined(),
+            SamplingDecision::Keep,
             <span class="number">200</span>,
-            <span class="prelude-val">None</span>,
+            <span class="bool-val">true</span>,
         );
 
         <span class="comment">// When transaction.op:ui.load and mobile:true, HTTP spans still get both
         // exclusive_time metrics:
         </span><span class="macro">assert!</span>(metrics
+            .project_metrics
             .iter()
             .any(|b| <span class="kw-2">&amp;*</span>b.name == <span class="string">"d:spans/exclusive_time@millisecond"</span>));
         <span class="macro">assert!</span>(metrics
+            .project_metrics
             .iter()
             .any(|b| <span class="kw-2">&amp;*</span>b.name == <span class="string">"d:spans/exclusive_time_light@millisecond"</span>));
     }
@@ -3427,13 +3571,14 @@
 
         <span class="kw">let </span>metrics = extract_metrics(
             event.value_mut().as_mut().unwrap(),
-            <span class="bool-val">false</span>,
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent], <span class="prelude-val">None</span>).combined(),
+            SamplingDecision::Keep,
             <span class="number">200</span>,
-            <span class="prelude-val">None</span>,
+            <span class="bool-val">true</span>,
         );
 
         <span class="kw">let </span>usage_metrics = metrics
+            .project_metrics
             .into_iter()
             .filter(|b| <span class="kw-2">&amp;*</span>b.name == <span class="string">"c:spans/usage@none"</span>)
             .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
@@ -3690,11 +3835,12 @@
 
         <span class="kw">let </span>metrics = extract_metrics(
             event.value_mut().as_mut().unwrap(),
-            <span class="bool-val">false</span>,
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent], <span class="prelude-val">None</span>).combined(),
+            SamplingDecision::Keep,
             <span class="number">200</span>,
-            <span class="prelude-val">None</span>,
-        );
+            <span class="bool-val">true</span>,
+        )
+        .project_metrics;
 
         <span class="macro">assert_eq!</span>(metrics.len(), <span class="number">5</span>);
 
@@ -3833,10 +3979,10 @@
 
         <span class="kw">let _ </span>= extract_metrics(
             event.value_mut().as_mut().unwrap(),
-            <span class="bool-val">false</span>,
             config,
+            SamplingDecision::Keep,
             <span class="number">200</span>,
-            <span class="prelude-val">None</span>,
+            <span class="bool-val">true</span>,
         );
 
         <span class="macro">insta::assert_debug_snapshot!</span>(<span class="kw-2">&amp;</span>event.value().unwrap()._metrics_summary);

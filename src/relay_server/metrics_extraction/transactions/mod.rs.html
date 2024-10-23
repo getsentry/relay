@@ -2407,7 +2407,7 @@
 <span class="doccomment">/// Decide whether we want to keep the transaction name.
 /// High-cardinality sources are excluded to protect our metrics infrastructure.
 /// Note that this will produce a discrepancy between metrics and raw transaction data.
-</span><span class="kw">fn </span>get_transaction_name(event: <span class="kw-2">&amp;</span>Event) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
+</span><span class="kw">pub fn </span>get_transaction_name(event: <span class="kw-2">&amp;</span>Event) -&gt; <span class="prelude-ty">Option</span>&lt;String&gt; {
     <span class="kw">let </span>original = event.transaction.value()<span class="question-mark">?</span>;
 
     <span class="kw">let </span>source = event

@@ -3964,6 +3964,19 @@
 <a href="#3964" id="3964">3964</a>
 <a href="#3965" id="3965">3965</a>
 <a href="#3966" id="3966">3966</a>
+<a href="#3967" id="3967">3967</a>
+<a href="#3968" id="3968">3968</a>
+<a href="#3969" id="3969">3969</a>
+<a href="#3970" id="3970">3970</a>
+<a href="#3971" id="3971">3971</a>
+<a href="#3972" id="3972">3972</a>
+<a href="#3973" id="3973">3973</a>
+<a href="#3974" id="3974">3974</a>
+<a href="#3975" id="3975">3975</a>
+<a href="#3976" id="3976">3976</a>
+<a href="#3977" id="3977">3977</a>
+<a href="#3978" id="3978">3978</a>
+<a href="#3979" id="3979">3979</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -4011,7 +4024,7 @@
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">use </span>{
     <span class="kw">crate</span>::services::store::{Store, StoreEnvelope},
-    <span class="kw">crate</span>::utils::{sample, CheckLimits, Enforcement, EnvelopeLimiter, ItemAction},
+    <span class="kw">crate</span>::utils::{CheckLimits, Enforcement, EnvelopeLimiter, ItemAction},
     itertools::Itertools,
     relay_cardinality::{
         CardinalityLimit, CardinalityLimiter, CardinalityLimitsSplit, RedisSetLimiter,
@@ -4574,29 +4587,37 @@
     }
 
     <span class="doccomment">/// Extends the contained project metrics.
-    </span><span class="kw">pub fn </span>extend_project_metrics(
+    </span><span class="kw">pub fn </span>extend_project_metrics&lt;I&gt;(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        <span class="kw-2">mut </span>buckets: Vec&lt;Bucket&gt;,
+        buckets: I,
         sampling_decision: <span class="prelude-ty">Option</span>&lt;SamplingDecision&gt;,
-    ) {
-        <span class="kw">for </span>bucket <span class="kw">in </span><span class="kw-2">&amp;mut </span>buckets {
-            bucket.metadata.extracted_from_indexed =
-                sampling_decision == <span class="prelude-val">Some</span>(SamplingDecision::Keep);
-        }
-        <span class="self">self</span>.metrics.project_metrics.extend(buckets);
+    ) <span class="kw">where
+        </span>I: IntoIterator&lt;Item = Bucket&gt;,
+    {
+        <span class="self">self</span>.metrics
+            .project_metrics
+            .extend(buckets.into_iter().map(|<span class="kw-2">mut </span>bucket| {
+                bucket.metadata.extracted_from_indexed =
+                    sampling_decision == <span class="prelude-val">Some</span>(SamplingDecision::Keep);
+                bucket
+            }));
     }
 
     <span class="doccomment">/// Extends the contained sampling metrics.
-    </span><span class="kw">pub fn </span>extend_sampling_metrics(
+    </span><span class="kw">pub fn </span>extend_sampling_metrics&lt;I&gt;(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        <span class="kw-2">mut </span>buckets: Vec&lt;Bucket&gt;,
+        buckets: I,
         sampling_decision: <span class="prelude-ty">Option</span>&lt;SamplingDecision&gt;,
-    ) {
-        <span class="kw">for </span>bucket <span class="kw">in </span><span class="kw-2">&amp;mut </span>buckets {
-            bucket.metadata.extracted_from_indexed =
-                sampling_decision == <span class="prelude-val">Some</span>(SamplingDecision::Keep);
-        }
-        <span class="self">self</span>.metrics.sampling_metrics.extend(buckets);
+    ) <span class="kw">where
+        </span>I: IntoIterator&lt;Item = Bucket&gt;,
+    {
+        <span class="self">self</span>.metrics
+            .sampling_metrics
+            .extend(buckets.into_iter().map(|<span class="kw-2">mut </span>bucket| {
+                bucket.metadata.extracted_from_indexed =
+                    sampling_decision == <span class="prelude-val">Some</span>(SamplingDecision::Keep);
+                bucket
+            }));
     }
 
     <span class="doccomment">/// Applies rate limits to the contained metrics.
@@ -5412,21 +5433,26 @@
             <span class="kw">return </span><span class="prelude-val">Ok</span>(());
         }
 
+        <span class="comment">// If spans were already extracted for an event, we rely on span processing to extract metrics.
+        </span><span class="kw">let </span>extract_spans = !state.spans_extracted
+            &amp;&amp; state.project_info.config.features.produces_spans()
+            &amp;&amp; utils::sample(global.options.span_extraction_sample_rate.unwrap_or(<span class="number">1.0</span>));
+
         <span class="kw">let </span>metrics = <span class="kw">crate</span>::metrics_extraction::event::extract_metrics(
             event,
-            state.spans_extracted,
             combined_config,
+            sampling_decision,
             <span class="self">self</span>.inner
                 .config
                 .aggregator_config_for(MetricNamespace::Spans)
                 .aggregator
                 .max_tag_value_length,
-            global.options.span_extraction_sample_rate,
+            extract_spans,
         );
 
         state
             .extracted_metrics
-            .extend_project_metrics(metrics, <span class="prelude-val">Some</span>(sampling_decision));
+            .extend(metrics, <span class="prelude-val">Some</span>(sampling_decision));
 
         <span class="kw">if </span>!state.project_info.has_feature(Feature::DiscardTransaction) {
             <span class="kw">let </span>transaction_from_dsc = state
@@ -6530,7 +6556,7 @@
         };
 
         <span class="kw">let </span>error_sample_rate = global_config.options.cardinality_limiter_error_sample_rate;
-        <span class="kw">if </span>!limits.exceeded_limits().is_empty() &amp;&amp; sample(error_sample_rate) {
+        <span class="kw">if </span>!limits.exceeded_limits().is_empty() &amp;&amp; utils::sample(error_sample_rate) {
             <span class="kw">for </span>limit <span class="kw">in </span>limits.exceeded_limits() {
                 <span class="macro">relay_log::error!</span>(
                     tags.organization_id = scoping.organization_id,
