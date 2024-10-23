@@ -31,15 +31,12 @@ use crate::utils::{ManagedEnvelope, MemoryChecker, RetryBackoff, SleepHandle};
 
 /// Validates the envelope against project configuration and rate limits.
 ///
-/// This ensures internally that the project state is up to date and then runs the same checks as
-/// [`CheckEnvelope`]. Once the envelope has been validated, remaining items are forwarded to the
-/// next stage:
+/// This ensures internally that the project state is up to date .
+/// Once the envelope has been validated, remaining items are forwarded to the next stage:
 ///
 ///  - If the envelope needs dynamic sampling, and the project state is not cached or out of the
 ///    date, the envelopes is spooled and we continue when the state is fetched.
 ///  - Otherwise, the envelope is directly submitted to the [`EnvelopeProcessor`].
-///
-/// [`EnvelopeProcessor`]: crate::services::processor::EnvelopeProcessor
 #[derive(Debug)]
 pub struct ValidateEnvelope {
     envelope: ManagedEnvelope,
@@ -76,21 +73,9 @@ pub struct RefreshIndexCache(pub HashSet<QueueKey>);
 #[derive(Debug)]
 pub struct DequeuedEnvelope(pub Box<Envelope>);
 
-/// A cache for [`ProjectState`]s.
+/// The legacy project cache.
 ///
-/// The project maintains information about organizations, projects, and project keys along with
-/// settings required to ingest traffic to Sentry. Internally, it tries to keep information
-/// up-to-date and automatically retires unused old data.
-///
-/// To retrieve information from the cache, use [`GetProjectState`] for guaranteed up-to-date
-/// information, or [`GetCachedProjectState`] for immediately available but potentially older
-/// information.
-///
-/// There are also higher-level operations, such as [`CheckEnvelope`] and [`ValidateEnvelope`] that
-/// inspect contents of envelopes for ingestion, as well as [`ProcessMetrics`] to aggregate metrics
-/// associated with a project.
-///
-/// See the enumerated variants for a full list of available messages for this service.
+/// It manages spool v1 and some remaining messages which handle project state.
 #[derive(Debug)]
 pub enum ProjectCache {
     ValidateEnvelope(ValidateEnvelope),
@@ -893,7 +878,7 @@ mod tests {
             ProjectCacheBroker {
                 config: config.clone(),
                 memory_checker,
-                projects: todo!(),
+                projects: ProjectCacheHandle::for_test(),
                 services,
                 spool_v1_unspool_handle: SleepHandle::idle(),
                 spool_v1: Some(SpoolV1 {
@@ -916,9 +901,10 @@ mod tests {
         let (buffer_tx, mut buffer_rx) = mpsc::unbounded_channel();
         let (mut broker, _buffer_svc) =
             project_cache_broker_setup(services.clone(), buffer_tx).await;
+        let projects = broker.projects.clone();
+        let mut project_events = projects.events();
 
         broker.global_config = GlobalConfigStatus::Ready;
-        let (tx_update, mut rx_update) = mpsc::unbounded_channel();
         let (tx_assert, mut rx_assert) = mpsc::unbounded_channel();
 
         let dsn1 = "111d836b15bb49d7bbf99e64295d995b";
@@ -945,11 +931,12 @@ mod tests {
         tokio::task::spawn(async move {
             loop {
                 select! {
-
+                    Ok(project_event) = project_events.recv() => {
+                        broker.handle_project_event(project_event);
+                    }
                     Some(assert) = rx_assert.recv() => {
                         assert_eq!(broker.spool_v1.as_ref().unwrap().index.len(), assert);
                     },
-                    Some(update) = rx_update.recv() => broker.merge_state(update),
                     () = &mut broker.spool_v1_unspool_handle => broker.handle_periodic_unspool(),
                 }
             }
@@ -958,13 +945,11 @@ mod tests {
         // Before updating any project states.
         tx_assert.send(2).unwrap();
 
-        let update_dsn1_project_state = UpdateProjectState {
-            project_key: ProjectKey::parse(dsn1).unwrap(),
-            state: ProjectFetchState::allowed(),
-            no_cache: false,
-        };
+        projects.test_set_project_state(
+            ProjectKey::parse(dsn1).unwrap(),
+            ProjectState::new_allowed(),
+        );
 
-        tx_update.send(update_dsn1_project_state).unwrap();
         assert!(buffer_rx.recv().await.is_some());
         // One of the project should be unspooled.
         tx_assert.send(1).unwrap();
@@ -972,61 +957,15 @@ mod tests {
         // Schedule some work...
         tokio::time::sleep(Duration::from_secs(2)).await;
 
-        let update_dsn2_project_state = UpdateProjectState {
-            project_key: ProjectKey::parse(dsn2).unwrap(),
-            state: ProjectFetchState::allowed(),
-            no_cache: false,
-        };
+        projects.test_set_project_state(
+            ProjectKey::parse(dsn2).unwrap(),
+            ProjectState::new_allowed(),
+        );
 
-        tx_update.send(update_dsn2_project_state).unwrap();
         assert!(buffer_rx.recv().await.is_some());
         // The last project should be unspooled.
         tx_assert.send(0).unwrap();
         // Make sure the last assert is tested.
         tokio::time::sleep(Duration::from_millis(100)).await;
-    }
-
-    #[tokio::test]
-    async fn handle_processing_without_project() {
-        let services = mocked_services();
-        let (buffer_tx, mut buffer_rx) = mpsc::unbounded_channel();
-        let (mut broker, buffer_svc) =
-            project_cache_broker_setup(services.clone(), buffer_tx.clone()).await;
-
-        let dsn = "111d836b15bb49d7bbf99e64295d995b";
-        let project_key = ProjectKey::parse(dsn).unwrap();
-        let key = QueueKey {
-            own_key: project_key,
-            sampling_key: project_key,
-        };
-        let envelope = ManagedEnvelope::new(
-            empty_envelope_with_dsn(dsn),
-            services.outcome_aggregator.clone(),
-            services.test_store.clone(),
-            ProcessingGroup::Ungrouped,
-        );
-
-        // Index and projects are empty.
-        assert!(broker.spool_v1.as_mut().unwrap().index.is_empty());
-
-        // Since there is no project we should not process anything but create a project and spool
-        // the envelope.
-        broker.handle_processing(envelope);
-
-        // Assert that we have a new project and also added an index.
-        assert!(!broker
-            .projects
-            .get(project_key)
-            .project_state()
-            .is_pending());
-        assert!(broker.spool_v1.as_mut().unwrap().index.contains(&key));
-
-        // Check is we actually spooled anything.
-        buffer_svc.send(DequeueMany::new([key].into(), buffer_tx.clone()));
-        let UnspooledEnvelope {
-            managed_envelope, ..
-        } = buffer_rx.recv().await.unwrap();
-
-        assert_eq!(key, QueueKey::from_envelope(managed_envelope.envelope()));
     }
 }

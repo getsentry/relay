@@ -692,7 +692,7 @@ mod tests {
 
         let mut response1 = service.send(FetchProjectState {
             project_key,
-            current_revision: Some("123".to_owned()),
+            current_revision: "123".into(),
             no_cache: false,
         });
 
@@ -703,7 +703,7 @@ mod tests {
         // request, after responding to the first inflight request.
         let mut response2 = service.send(FetchProjectState {
             project_key,
-            current_revision: None,
+            current_revision: Revision::default(),
             no_cache: false,
         });
 

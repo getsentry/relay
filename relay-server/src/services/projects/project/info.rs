@@ -188,9 +188,6 @@ impl ProjectInfo {
     /// This scoping amends `RequestMeta::get_partial_scoping` by adding organization and key info.
     /// The processor must fetch the full scoping before attempting to rate limit with partial
     /// scoping.
-    ///
-    /// To get the own scoping of this ProjectKey without amending request information, use
-    /// [`Project::scoping`](crate::services::projects::project::Project::scoping) instead.
     pub fn scope_request(&self, meta: &RequestMeta) -> Scoping {
         let mut scoping = meta.get_partial_scoping();
 
@@ -289,5 +286,11 @@ impl PartialEq for Revision {
             (_, None) => false,
             (Some(left), Some(right)) => left == right,
         }
+    }
+}
+
+impl From<&str> for Revision {
+    fn from(value: &str) -> Self {
+        Self(Some(value.into()))
     }
 }

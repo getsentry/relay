@@ -1149,7 +1149,7 @@ mod tests {
 
     #[test]
     fn test_cached_rate_limits_expired() {
-        let mut cached = CachedRateLimits::new();
+        let cached = CachedRateLimits::new();
 
         // Active error limit
         cached.add(RateLimit {

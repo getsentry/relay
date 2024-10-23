@@ -230,7 +230,7 @@ fn is_outdated(Query(query): Query<VersionQuery>) -> bool {
 
 /// Returns `true` if the `?version` query parameter is compatible with this implementation.
 fn is_compatible(Query(query): Query<VersionQuery>) -> bool {
-    query.version >= ENDPOINT_V3 && query.version <= ENDPOINT_V3
+    query.version == ENDPOINT_V3
 }
 
 /// Endpoint handler for the project configs endpoint.

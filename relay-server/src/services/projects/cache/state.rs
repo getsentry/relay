@@ -21,7 +21,7 @@ use crate::utils::RetryBackoff;
 ///
 /// [`Shared`] can be extended through [`Shared::get_or_create`], in which case
 /// the private state is missing. Users of [`Shared::get_or_create`] *must* trigger
-/// a fetch to create the private state when [`Missing`] is returned.
+/// a fetch to create the private state and keep it updated.
 /// This gurnatuees that eventually the project state is populated, but for a undetermined,
 /// time it is possible that shared state exists without the respective private state.
 #[derive(Default)]
@@ -181,6 +181,24 @@ impl Shared {
     }
 }
 
+/// TEST ONLY bypass to make the project cache mockable.
+#[cfg(test)]
+impl Shared {
+    /// Updates the project state for a project.
+    ///
+    /// TEST ONLY!
+    pub fn test_set_project_state(&self, project_key: ProjectKey, state: ProjectState) {
+        self.projects
+            .pin()
+            .get_or_insert_with(project_key, Default::default)
+            .set_project_state(state);
+    }
+
+    pub fn test_has_project_created(&self, project_key: ProjectKey) -> bool {
+        self.projects.pin().contains_key(&project_key)
+    }
+}
+
 impl fmt::Debug for Shared {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Shared")
@@ -211,6 +229,18 @@ impl SharedProject {
     /// Returns a reference to the contained [`ReservoirCounters`].
     pub fn reservoir_counters(&self) -> &ReservoirCounters {
         &self.0.reservoir_counters
+    }
+}
+
+/// TEST ONLY bypass to make the project cache mockable.
+#[cfg(test)]
+impl SharedProject {
+    /// Creates a new [`SharedProject`] for testing only.
+    pub fn for_test(state: ProjectState) -> Self {
+        Self(Arc::new(SharedProjectStateInner {
+            state,
+            ..Default::default()
+        }))
     }
 }
 
@@ -266,6 +296,14 @@ impl Fetch {
     /// in a backoff.
     pub fn when(&self) -> Instant {
         self.when
+    }
+
+    /// Returns the revisions of the currently cached project.
+    ///
+    /// If the upstream indicates it does not have a different version of this project
+    /// we do not need to update the local state.
+    pub fn revision(&self) -> Revision {
+        self.revision.clone()
     }
 
     /// Completes the fetch with a result and returns a [`CompletedFetch`].

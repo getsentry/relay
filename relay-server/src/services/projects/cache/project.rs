@@ -34,17 +34,15 @@ impl<'a> Project<'a> {
         self.shared.reservoir_counters()
     }
 
-    /// Runs the checks on incoming envelopes.
+    /// Checks the envelope against project configuration and rate limits.
     ///
-    /// See, [`crate::services::projects::cache::CheckEnvelope`] for more information
+    /// When `fetched`, then the project state is ensured to be up to date. When `cached`, an outdated
+    /// project state may be used, or otherwise the envelope is passed through unaltered.
     ///
-    /// * checks the rate limits
-    /// * validates the envelope meta in `check_request` - determines whether the given request
-    ///   should be accepted or discarded
-    ///
-    /// IMPORTANT: If the [`ProjectState`] is invalid, the `check_request` will be skipped and only
-    /// rate limits will be validated. This function **must not** be called in the main processing
-    /// pipeline.
+    /// To check the envelope, this runs:
+    ///  - Validate origins and public keys
+    ///  - Quotas with a limit of `0`
+    ///  - Cached rate limits
     pub fn check_envelope(
         &self,
         mut envelope: ManagedEnvelope,
@@ -178,114 +176,32 @@ mod tests {
     use crate::envelope::{ContentType, Envelope, Item};
     use crate::extractors::RequestMeta;
     use crate::services::processor::ProcessingGroup;
-    use relay_base_schema::project::ProjectId;
+    use crate::services::projects::project::{ProjectInfo, PublicKeyConfig};
+    use relay_base_schema::project::{ProjectId, ProjectKey};
     use relay_event_schema::protocol::EventId;
-    use relay_test::mock_service;
     use serde_json::json;
-    use smallvec::SmallVec;
+    use smallvec::smallvec;
 
     use super::*;
 
-    #[test]
-    fn get_state_expired() {
-        for expiry in [9999, 0] {
-            let config = Arc::new(
-                Config::from_json_value(json!(
-                    {
-                        "cache": {
-                            "project_expiry": expiry,
-                            "project_grace_period": 0,
-                            "eviction_interval": 9999 // do not evict
-                        }
-                    }
-                ))
-                .unwrap(),
-            );
-
-            // Initialize project with a state
-            let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-            let project_info = ProjectInfo {
-                project_id: Some(ProjectId::new(123)),
-                ..Default::default()
-            };
-            let mut project = Project::new(project_key, config.clone());
-            project.state = ProjectFetchState::enabled(project_info);
-
-            if expiry > 0 {
-                // With long expiry, should get a state
-                assert!(matches!(project.current_state(), ProjectState::Enabled(_)));
-            } else {
-                // With 0 expiry, project should expire immediately. No state can be set.
-                assert!(matches!(project.current_state(), ProjectState::Pending));
-            }
-        }
-    }
-
-    #[tokio::test]
-    async fn test_stale_cache() {
-        let (addr, _) = mock_service("project_cache", (), |&mut (), _| {});
-
-        let config = Arc::new(
-            Config::from_json_value(json!(
-                {
-                    "cache": {
-                        "project_expiry": 100,
-                        "project_grace_period": 0,
-                        "eviction_interval": 9999 // do not evict
-                    }
-                }
-            ))
-            .unwrap(),
-        );
-
-        let channel = StateChannel::new();
-
-        // Initialize project with a state.
-        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-        let mut project = Project::new(project_key, config);
-        project.state_channel = Some(channel);
-        project.state = ProjectFetchState::allowed();
-
-        assert!(project.next_fetch_attempt.is_none());
-        // Try to update project with errored project state.
-        project.update_state(&addr, ProjectFetchState::pending(), false);
-        // Since we got invalid project state we still keep the old one meaning there
-        // still must be the project id set.
-        assert!(matches!(project.current_state(), ProjectState::Enabled(_)));
-        assert!(project.next_fetch_attempt.is_some());
-
-        // This tests that we actually initiate the backoff and the backoff mechanism works:
-        // * first call to `update_state` with invalid ProjectState starts the backoff, but since
-        //   it's the first attemt, we get Duration of 0.
-        // * second call to `update_state` here will bumpt the `next_backoff` Duration to somehing
-        //   like ~ 1s
-        // * and now, by calling `fetch_state` we test that it's a noop, since if backoff is active
-        //   we should never fetch
-        // * without backoff it would just panic, not able to call the ProjectCache service
-        let channel = StateChannel::new();
-        project.state_channel = Some(channel);
-        project.update_state(&addr, ProjectFetchState::pending(), false);
-        project.fetch_state(addr, false);
-    }
-
-    fn create_project(config: Option<serde_json::Value>) -> Project {
-        let project_key = ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap();
-        let mut project = Project::new(project_key, Arc::new(Config::default()));
+    fn create_project(config: &Config, data: Option<serde_json::Value>) -> Project<'_> {
         let mut project_info = ProjectInfo {
             project_id: Some(ProjectId::new(42)),
             ..Default::default()
         };
-        let mut public_keys = SmallVec::new();
-        public_keys.push(PublicKeyConfig {
-            public_key: project_key,
+        project_info.public_keys = smallvec![PublicKeyConfig {
+            public_key: ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
             numeric_id: None,
-        });
-        project_info.public_keys = public_keys;
-        if let Some(config) = config {
-            project_info.config = serde_json::from_value(config).unwrap();
+        }];
+
+        if let Some(data) = data {
+            project_info.config = serde_json::from_value(data).unwrap();
         }
-        project.state = ProjectFetchState::enabled(project_info);
-        project
+
+        Project::new(
+            SharedProject::for_test(ProjectState::Enabled(project_info.into())),
+            config,
+        )
     }
 
     fn request_meta() -> RequestMeta {
@@ -298,18 +214,22 @@ mod tests {
 
     #[test]
     fn test_track_nested_spans_outcomes() {
-        let mut project = create_project(Some(json!({
-            "features": [
-                "organizations:indexed-spans-extraction"
-            ],
-            "quotas": [{
-               "id": "foo",
-               "categories": ["transaction"],
-               "window": 3600,
-               "limit": 0,
-               "reasonCode": "foo",
-           }]
-        })));
+        let config = Default::default();
+        let project = create_project(
+            &config,
+            Some(json!({
+                "features": [
+                    "organizations:indexed-spans-extraction"
+                ],
+                "quotas": [{
+                   "id": "foo",
+                   "categories": ["transaction"],
+                   "window": 3600,
+                   "limit": 0,
+                   "reasonCode": "foo",
+               }]
+            })),
+        );
 
         let mut envelope = Envelope::from_request(Some(EventId::new()), request_meta());
 
@@ -347,8 +267,8 @@ mod tests {
 
         envelope.add_item(transaction);
 
-        let (outcome_aggregator, mut outcome_aggregator_rx) = Addr::custom();
-        let (test_store, _) = Addr::custom();
+        let (outcome_aggregator, mut outcome_aggregator_rx) = relay_system::Addr::custom();
+        let (test_store, _) = relay_system::Addr::custom();
 
         let managed_envelope = ManagedEnvelope::new(
             envelope,
@@ -357,7 +277,7 @@ mod tests {
             ProcessingGroup::Transaction,
         );
 
-        let _ = project.check_envelope(managed_envelope);
+        project.check_envelope(managed_envelope).unwrap();
         drop(outcome_aggregator);
 
         let expected = [

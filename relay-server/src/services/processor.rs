@@ -3702,8 +3702,6 @@ mod tests {
         ] {
             let message = ProcessMetrics {
                 data: MetricData::Raw(vec![item.clone()]),
-                project_state: ProjectState::Pending,
-                rate_limits: Default::default(),
                 project_key,
                 source,
                 start_time,
@@ -3727,10 +3725,11 @@ mod tests {
         let start_time = Instant::now();
         let config = Config::default();
 
-        let (project_cache, mut project_cache_rx) = Addr::custom();
+        let (aggregator, mut aggregator_rx) = Addr::custom();
         let processor = create_test_processor_with_addrs(
             config,
             Addrs {
+                aggregator,
                 ..Default::default()
             },
         );
@@ -3773,78 +3772,72 @@ mod tests {
         };
         processor.handle_process_batched_metrics(&mut token, message);
 
-        let value = project_cache_rx.recv().await.unwrap();
-        let legacy::ProjectCache::ProcessMetrics(pm1) = value else {
+        let value = aggregator_rx.recv().await.unwrap();
+        let Aggregator::MergeBuckets(mb1) = value else {
             panic!()
         };
-        let value = project_cache_rx.recv().await.unwrap();
-        let legacy::ProjectCache::ProcessMetrics(pm2) = value else {
+        let value = aggregator_rx.recv().await.unwrap();
+        let Aggregator::MergeBuckets(mb2) = value else {
             panic!()
         };
 
-        let mut messages = vec![pm1, pm2];
+        let mut messages = vec![mb1, mb2];
         messages.sort_by_key(|pm| pm.project_key);
 
         let actual = messages
             .into_iter()
-            .map(|pm| (pm.project_key, pm.data, pm.source))
+            .map(|pm| (pm.project_key, pm.buckets))
             .collect::<Vec<_>>();
 
         assert_debug_snapshot!(actual, @r###"
         [
             (
                 ProjectKey("11111111111111111111111111111111"),
-                Parsed(
-                    [
-                        Bucket {
-                            timestamp: UnixTimestamp(1615889440),
-                            width: 0,
-                            name: MetricName(
-                                "d:custom/endpoint.response_time@millisecond",
-                            ),
-                            value: Distribution(
-                                [
-                                    68.0,
-                                ],
-                            ),
-                            tags: {
-                                "route": "user_index",
-                            },
-                            metadata: BucketMetadata {
-                                merges: 1,
-                                received_at: None,
-                                extracted_from_indexed: false,
-                            },
+                [
+                    Bucket {
+                        timestamp: UnixTimestamp(1615889440),
+                        width: 0,
+                        name: MetricName(
+                            "d:custom/endpoint.response_time@millisecond",
+                        ),
+                        value: Distribution(
+                            [
+                                68.0,
+                            ],
+                        ),
+                        tags: {
+                            "route": "user_index",
                         },
-                    ],
-                ),
-                Internal,
+                        metadata: BucketMetadata {
+                            merges: 1,
+                            received_at: None,
+                            extracted_from_indexed: false,
+                        },
+                    },
+                ],
             ),
             (
                 ProjectKey("22222222222222222222222222222222"),
-                Parsed(
-                    [
-                        Bucket {
-                            timestamp: UnixTimestamp(1615889440),
-                            width: 0,
-                            name: MetricName(
-                                "d:custom/endpoint.cache_rate@none",
-                            ),
-                            value: Distribution(
-                                [
-                                    36.0,
-                                ],
-                            ),
-                            tags: {},
-                            metadata: BucketMetadata {
-                                merges: 1,
-                                received_at: None,
-                                extracted_from_indexed: false,
-                            },
+                [
+                    Bucket {
+                        timestamp: UnixTimestamp(1615889440),
+                        width: 0,
+                        name: MetricName(
+                            "d:custom/endpoint.cache_rate@none",
+                        ),
+                        value: Distribution(
+                            [
+                                36.0,
+                            ],
+                        ),
+                        tags: {},
+                        metadata: BucketMetadata {
+                            merges: 1,
+                            received_at: None,
+                            extracted_from_indexed: false,
                         },
-                    ],
-                ),
-                Internal,
+                    },
+                ],
             ),
         ]
         "###);

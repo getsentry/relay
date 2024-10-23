@@ -113,7 +113,7 @@ impl ProjectCacheService {
 
             // TODO: cached state for delta fetches, maybe this should just be a revision?
             let state = match source
-                .fetch(fetch.project_key(), false, Default::default())
+                .fetch(fetch.project_key(), false, fetch.revision())
                 .await
             {
                 Ok(result) => result,
