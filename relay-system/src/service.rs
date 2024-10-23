@@ -5,7 +5,7 @@ use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use futures::future::Shared;
 use futures::FutureExt;
@@ -13,7 +13,7 @@ use tokio::runtime::Runtime;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::MissedTickBehavior;
 
-use crate::statsd::{SystemGauges, SystemTimers};
+use crate::statsd::{SystemCounters, SystemGauges};
 
 /// Interval for recording backlog metrics on service channels.
 const BACKLOG_INTERVAL: Duration = Duration::from_secs(1);
@@ -839,26 +839,27 @@ impl<I: Interface> Receiver<I> {
     /// not yet been closed, this method will sleep until a message is sent or
     /// the channel is closed.
     pub async fn recv(&mut self) -> Option<I> {
-        let next_message =
-            relay_statsd::metric!(timer(SystemTimers::ServiceIdleTime), service = self.name, {
-                loop {
-                    tokio::select! {
-                        biased;
+        let start = Instant::now();
+        let next_message = loop {
+            tokio::select! {
+                biased;
 
-                        _ = self.interval.tick() => {
-                            let backlog = self.queue_size.load(Ordering::Relaxed);
-                            relay_statsd::metric!(
-                                gauge(SystemGauges::ServiceBackPressure) = backlog,
-                                service = self.name
-                            );
-                        },
-                        message = self.rx.recv() => {
-                            self.queue_size.fetch_sub(1, Ordering::SeqCst);
-                            break message;
-                        },
-                    }
-                }
-            });
+                _ = self.interval.tick() => {
+                    let backlog = self.queue_size.load(Ordering::Relaxed);
+                    relay_statsd::metric!(
+                        gauge(SystemGauges::ServiceBackPressure) = backlog,
+                        service = self.name
+                    );
+                },
+                message = self.rx.recv() => {
+                    self.queue_size.fetch_sub(1, Ordering::SeqCst);
+                    break message;
+                },
+            }
+        };
+        relay_statsd::metric!(
+            counter(SystemCounters::ServiceIdleTime) += start.elapsed().as_nanos() as u64
+        );
         next_message
     }
 }
