@@ -22,7 +22,7 @@ use sqlx::sqlite::{
 };
 use sqlx::{Pool, QueryBuilder, Row, Sqlite};
 use tokio::fs::DirBuilder;
-use tokio::time::sleep;
+use tokio::time::{sleep, Instant};
 
 /// Struct that contains all the fields of an [`Envelope`] that are mapped to the database columns.
 pub struct InsertEnvelope {
@@ -184,10 +184,23 @@ impl DiskUsage {
 ///
 /// The goal of this struct is to hide away all the complexity of dealing with the database for
 /// reading and writing envelopes.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct SqliteEnvelopeStore {
     db: Pool<Sqlite>,
     disk_usage: DiskUsage,
+    transaction: Option<sqlx::Transaction<'static, sqlx::Sqlite>>,
+    last_commit: Instant,
+}
+
+impl Clone for SqliteEnvelopeStore {
+    fn clone(&self) -> Self {
+        Self {
+            db: self.db.clone(),
+            disk_usage: self.disk_usage.clone(),
+            transaction: None, // TODO
+            last_commit: self.last_commit,
+        }
+    }
 }
 
 impl SqliteEnvelopeStore {
@@ -196,6 +209,8 @@ impl SqliteEnvelopeStore {
         Self {
             db: db.clone(),
             disk_usage: DiskUsage::new(db, refresh_frequency),
+            transaction: None,
+            last_commit: Instant::now(),
         }
     }
 
@@ -248,6 +263,8 @@ impl SqliteEnvelopeStore {
             db: db.clone(),
             disk_usage: DiskUsage::prepare(db, config.spool_disk_usage_refresh_frequency_ms())
                 .await?,
+            transaction: None,
+            last_commit: Instant::now(),
         })
     }
 
@@ -299,9 +316,14 @@ impl SqliteEnvelopeStore {
         &mut self,
         envelopes: impl IntoIterator<Item = InsertEnvelope>,
     ) -> Result<(), SqliteEnvelopeStoreError> {
+        if self.transaction.is_none() {
+            self.transaction = Some(self.db.begin().await.unwrap());
+        }
+
+        let txn = self.transaction.as_mut().unwrap();
         if let Err(err) = build_insert_many_envelopes(envelopes.into_iter())
             .build()
-            .execute(&self.db)
+            .execute(&mut **txn)
             .await
         {
             relay_log::error!(
@@ -310,6 +332,14 @@ impl SqliteEnvelopeStore {
             );
 
             return Err(SqliteEnvelopeStoreError::WriteError(err));
+        }
+
+        let now = Instant::now();
+        if (now - self.last_commit) > Duration::from_millis(1000) {
+            if let Some(transaction) = self.transaction.take() {
+                transaction.commit().await.unwrap();
+            }
+            self.last_commit = now;
         }
 
         Ok(())
