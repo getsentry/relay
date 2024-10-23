@@ -31,6 +31,7 @@
 - Add user geo information to Replays. ([#4088](https://github.com/getsentry/relay/pull/4088))
 - Configurable span.op inference. ([#4056](https://github.com/getsentry/relay/pull/4056))
 - Enable support for zstd `Content-Encoding`. ([#4089](https://github.com/getsentry/relay/pull/4089))
+- Accept profile chunks from Android. ([#4104](https://github.com/getsentry/relay/pull/4104))
 - Add support for creating User from LoginId in Unreal Crash Context. ([#4093](https://github.com/getsentry/relay/pull/4093))
 - Add multi-write Redis client. ([#4064](https://github.com/getsentry/relay/pull/4064))
 

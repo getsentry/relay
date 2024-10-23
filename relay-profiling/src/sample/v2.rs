@@ -17,8 +17,10 @@ use relay_event_schema::protocol::EventId;
 use relay_metrics::FiniteF64;
 
 use crate::error::ProfileError;
-use crate::measurements::Measurement;
+use crate::measurements::ChunkMeasurement;
 use crate::sample::{DebugMeta, Frame, ThreadMetadata, Version};
+use crate::types::ClientSdk;
+use crate::utils::default_client_sdk;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ProfileMetadata {
@@ -43,12 +45,6 @@ pub struct ProfileMetadata {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct ClientSdk {
-    name: String,
-    version: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
 pub struct Sample {
     /// Unix timestamp in seconds with millisecond precision when the sample
     /// was captured.
@@ -63,7 +59,7 @@ pub struct Sample {
 pub struct ProfileChunk {
     // `measurements` contains CPU/memory measurements we do during the capture of the chunk.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub measurements: BTreeMap<String, Measurement>,
+    pub measurements: BTreeMap<String, ChunkMeasurement>,
     /// This struct contains all the metadata related to the chunk but all fields are expected to
     /// be at the top-level of the object.
     #[serde(flatten)]
@@ -73,7 +69,13 @@ pub struct ProfileChunk {
 
 impl ProfileChunk {
     pub fn normalize(&mut self) -> Result<(), ProfileError> {
-        self.profile.normalize(self.metadata.platform.as_str())
+        let platform = self.metadata.platform.as_str();
+
+        if self.metadata.client_sdk.is_none() {
+            self.metadata.client_sdk = default_client_sdk(platform);
+        }
+
+        self.profile.normalize(platform)
     }
 }
 
