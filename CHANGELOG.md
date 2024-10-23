@@ -6,6 +6,10 @@
 
 - Allow profile chunks without release. ([#4155](https://github.com/getsentry/relay/pull/4155))
 
+**Internal:**
+
+- Add a metric that counts span volume in the root project for dynamic sampling (`c:spans/count_per_root_project@none`) ([#4134](https://github.com/getsentry/relay/pull/4134))
+
 ## 24.10.0
 
 **Breaking Changes:**
