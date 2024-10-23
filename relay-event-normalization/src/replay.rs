@@ -86,7 +86,7 @@ pub fn validate(replay: &Replay) -> Result<(), ReplayError> {
         .value()
         .map_or(false, |v| v.into_inner() > Utc::now())
     {
-        return Err(ReplayError::InvalidPayload("xyz".to_string()));
+        return Err(ReplayError::DateInTheFuture);
     }
 
     Ok(())
