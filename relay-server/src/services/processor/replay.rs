@@ -96,7 +96,7 @@ pub fn process(
             }
             ItemType::ReplayRecording => {
                 let replay_recording =
-                    handle_replay_recording_item(item.payload(), scrubber.as_mut())?;
+                    handle_replay_recording_item(item.payload(), scrubber.as_mut(), &rpc)?;
                 item.set_payload(ContentType::OctetStream, replay_recording);
             }
             ItemType::ReplayVideo => {
@@ -241,6 +241,7 @@ fn process_replay_event(
 fn handle_replay_recording_item(
     payload: Bytes,
     scrubber: Option<&mut RecordingScrubber>,
+    config: &ReplayProcessingConfig<'_>,
 ) -> Result<Bytes, ProcessingError> {
     // XXX: Processing is there just for data scrubbing. Skip the entire expensive
     // processing step if we do not need to scrub.
@@ -259,7 +260,16 @@ fn handle_replay_recording_item(
         scrubber.process_recording(&payload)
     })
     .map(Into::into)
-    .map_err(|_| ProcessingError::InvalidReplay(DiscardReason::InvalidReplayRecordingEvent))
+    .map_err(|error| {
+        relay_log::error!(
+            error = &error as &dyn Error,
+            event_id = ?config.event_id,
+            project_id = config.project_id.map(|v| v.value()),
+            organization_id = config.organization_id,
+            "invalid replay recording"
+        );
+        ProcessingError::InvalidReplay(DiscardReason::InvalidReplayRecordingEvent)
+    })
 }
 
 // Replay Video Processing
@@ -287,7 +297,7 @@ fn handle_replay_video_item(
     let replay_event = handle_replay_event_item(replay_event, config)?;
 
     // Process as a replay-recording envelope item.
-    let replay_recording = handle_replay_recording_item(replay_recording, scrubber)?;
+    let replay_recording = handle_replay_recording_item(replay_recording, scrubber, config)?;
 
     // Verify the replay-video payload is not empty.
     if replay_video.is_empty() {
