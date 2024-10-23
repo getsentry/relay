@@ -271,14 +271,17 @@ where
                 relay_statsd::metric!(
                     histogram(RelayHistograms::BufferEnvelopeSize) = serialized.len() as u64
                 );
-                if let Ok(encoded) =
-                    relay_statsd::metric!(timer(RelayTimers::BufferEnvelopeCompression), {
-                        zstd::encode_all(serialized.as_slice(), 1) // lowest compression level
-                    })
-                {
+                let compression_level = (self.push_count % 3) as i32 + 1; // 1 = lowest, 3 = default
+                let tag = compression_level.to_string();
+                if let Ok(encoded) = relay_statsd::metric!(
+                    timer(RelayTimers::BufferEnvelopeCompression),
+                    compression_level = &tag,
+                    { zstd::encode_all(serialized.as_slice(), compression_level) }
+                ) {
                     relay_statsd::metric!(
                         histogram(RelayHistograms::BufferEnvelopeSizeCompressed) =
-                            encoded.len() as u64
+                            encoded.len() as u64,
+                        compression_level = &tag
                     );
                 }
             }
