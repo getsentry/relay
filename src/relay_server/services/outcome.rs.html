@@ -1068,6 +1068,10 @@
 <a href="#1068" id="1068">1068</a>
 <a href="#1069" id="1069">1069</a>
 <a href="#1070" id="1070">1070</a>
+<a href="#1071" id="1071">1071</a>
+<a href="#1072" id="1072">1072</a>
+<a href="#1073" id="1073">1073</a>
+<a href="#1074" id="1074">1074</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that tracks outcomes.
 //!
 //! Outcomes describe the final "fate" of an envelope item. As such, for every item exactly one
@@ -1520,6 +1524,9 @@
     InvalidReplayRecordingEvent,
     InvalidReplayVideoEvent,
 
+    <span class="doccomment">/// (Relay) The event's timestamp was too far in the future.
+    </span>DateInTheFuture,
+
     <span class="doccomment">/// (Relay) Profiling related discard reasons
     </span>Profiling(<span class="kw-2">&amp;</span><span class="lifetime">'static </span>str),
 
@@ -1573,6 +1580,7 @@
             DiscardReason::Profiling(reason) =&gt; reason,
             DiscardReason::InvalidSpan =&gt; <span class="string">"invalid_span"</span>,
             DiscardReason::FeatureDisabled(<span class="kw">_</span>) =&gt; <span class="string">"feature_disabled"</span>,
+            DiscardReason::DateInTheFuture =&gt; <span class="string">"date_in_the_future"</span>,
         }
     }
 }

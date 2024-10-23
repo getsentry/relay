@@ -328,6 +328,9 @@
 <a href="#328" id="328">328</a>
 <a href="#329" id="329">329</a>
 <a href="#330" id="330">330</a>
+<a href="#331" id="331">331</a>
+<a href="#332" id="332">332</a>
+<a href="#333" id="333">333</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Replay related processor code.
 </span><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::net::IpAddr;
@@ -519,6 +522,9 @@
                 }
                 ReplayError::InvalidPayload(<span class="kw">_</span>) =&gt; {
                     ProcessingError::InvalidReplay(DiscardReason::InvalidReplayEvent)
+                }
+                ReplayError::DateInTheFuture =&gt; {
+                    ProcessingError::InvalidReplay(DiscardReason::DateInTheFuture)
                 }
             })
         }
