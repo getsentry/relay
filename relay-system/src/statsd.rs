@@ -38,7 +38,7 @@ pub enum SystemCounters {
 impl CounterMetric for SystemCounters {
     fn name(&self) -> &'static str {
         match self {
-            Self::ServiceIdleTime => "service.idle_time",
+            Self::ServiceIdleTime => "service.idle_time_nanos",
         }
     }
 }
