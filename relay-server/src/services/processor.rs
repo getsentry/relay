@@ -612,14 +612,14 @@ impl ProcessingExtractedMetrics {
 
     /// Extends the [`ProcessingExtractedMetrics`].
     fn extend_metrics(
-        config: &Config,
+        processing_enabled: bool,
         existing_buckets: &mut Vec<Bucket>,
         buckets: Vec<Bucket>,
         sampling_decision: Option<SamplingDecision>,
     ) {
         // If we are not a processing Relay, we don't want to add any metadata or tags because
         // metrics are not extracted from indexed payloads in non-processing Relays.
-        if !config.processing_enabled() {
+        if !processing_enabled {
             existing_buckets.extend(buckets);
             return;
         }
@@ -645,7 +645,7 @@ impl ProcessingExtractedMetrics {
         sampling_decision: Option<SamplingDecision>,
     ) {
         Self::extend_metrics(
-            &self.config,
+            self.config.processing_enabled(),
             &mut self.metrics.project_metrics,
             buckets,
             sampling_decision,
@@ -659,7 +659,7 @@ impl ProcessingExtractedMetrics {
         sampling_decision: Option<SamplingDecision>,
     ) {
         Self::extend_metrics(
-            &self.config,
+            self.config.processing_enabled(),
             &mut self.metrics.sampling_metrics,
             buckets,
             sampling_decision,
