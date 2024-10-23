@@ -318,6 +318,16 @@
 <a href="#318" id="318">318</a>
 <a href="#319" id="319">319</a>
 <a href="#320" id="320">320</a>
+<a href="#321" id="321">321</a>
+<a href="#322" id="322">322</a>
+<a href="#323" id="323">323</a>
+<a href="#324" id="324">324</a>
+<a href="#325" id="325">325</a>
+<a href="#326" id="326">326</a>
+<a href="#327" id="327">327</a>
+<a href="#328" id="328">328</a>
+<a href="#329" id="329">329</a>
+<a href="#330" id="330">330</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Replay related processor code.
 </span><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::net::IpAddr;
@@ -416,7 +426,7 @@
             }
             ItemType::ReplayRecording =&gt; {
                 <span class="kw">let </span>replay_recording =
-                    handle_replay_recording_item(item.payload(), scrubber.as_mut())<span class="question-mark">?</span>;
+                    handle_replay_recording_item(item.payload(), scrubber.as_mut(), <span class="kw-2">&amp;</span>rpc)<span class="question-mark">?</span>;
                 item.set_payload(ContentType::OctetStream, replay_recording);
             }
             ItemType::ReplayVideo =&gt; {
@@ -561,6 +571,7 @@
 </span><span class="kw">fn </span>handle_replay_recording_item(
     payload: Bytes,
     scrubber: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;mut </span>RecordingScrubber&gt;,
+    config: <span class="kw-2">&amp;</span>ReplayProcessingConfig&lt;<span class="lifetime">'_</span>&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;Bytes, ProcessingError&gt; {
     <span class="comment">// XXX: Processing is there just for data scrubbing. Skip the entire expensive
     // processing step if we do not need to scrub.
@@ -579,7 +590,16 @@
         scrubber.process_recording(<span class="kw-2">&amp;</span>payload)
     })
     .map(Into::into)
-    .map_err(|<span class="kw">_</span>| ProcessingError::InvalidReplay(DiscardReason::InvalidReplayRecordingEvent))
+    .map_err(|error| {
+        <span class="macro">relay_log::error!</span>(
+            error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
+            event_id = <span class="question-mark">?</span>config.event_id,
+            project_id = config.project_id.map(|v| v.value()),
+            organization_id = config.organization_id,
+            <span class="string">"invalid replay recording"
+        </span>);
+        ProcessingError::InvalidReplay(DiscardReason::InvalidReplayRecordingEvent)
+    })
 }
 
 <span class="comment">// Replay Video Processing
@@ -607,7 +627,7 @@
     </span><span class="kw">let </span>replay_event = handle_replay_event_item(replay_event, config)<span class="question-mark">?</span>;
 
     <span class="comment">// Process as a replay-recording envelope item.
-    </span><span class="kw">let </span>replay_recording = handle_replay_recording_item(replay_recording, scrubber)<span class="question-mark">?</span>;
+    </span><span class="kw">let </span>replay_recording = handle_replay_recording_item(replay_recording, scrubber, config)<span class="question-mark">?</span>;
 
     <span class="comment">// Verify the replay-video payload is not empty.
     </span><span class="kw">if </span>replay_video.is_empty() {
