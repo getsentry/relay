@@ -32,7 +32,7 @@
 - Feature flags of graduated features are now hard-coded in Relay so they can be removed from Sentry. ([#4076](https://github.com/getsentry/relay/pull/4076), [#4080](https://github.com/getsentry/relay/pull/4080))
 - Add parallelization in Redis commands. ([#4118](https://github.com/getsentry/relay/pull/4118))
 - Extract user ip for spans. ([#4144](https://github.com/getsentry/relay/pull/4144))
-- Replace u64 with OrganizationId new-type struct for organization id. ([#4159](https://github.com/getsentry/relay/pull/4159))
+- Replace u64 with `OrganizationId` new-type struct for organization id. ([#4159](https://github.com/getsentry/relay/pull/4159))
 
 ## 24.9.0
 
