@@ -1,5 +1,6 @@
 //! Validation and normalization of [`Replay`] events.
 
+use chrono::Utc;
 use std::net::IpAddr as StdIpAddr;
 
 use relay_event_schema::processor::{self, ProcessingState, Processor};
@@ -35,6 +36,10 @@ pub enum ReplayError {
     /// This erorr is usually returned when the PII configuration fails to parse.
     #[error("failed to scrub PII: {0}")]
     CouldNotScrub(String),
+
+    /// Date in the future.
+    #[error("date was from the future")]
+    DateInTheFuture,
 }
 
 /// Checks if the Replay event is structurally valid.
@@ -74,6 +79,14 @@ pub fn validate(replay: &Replay) -> Result<(), ReplayError> {
         return Err(ReplayError::InvalidPayload(
             "Invalid trace-id specified.".to_string(),
         ));
+    }
+
+    if replay
+        .timestamp
+        .value()
+        .map_or(false, |v| v.into_inner() > Utc::now())
+    {
+        return Err(ReplayError::InvalidPayload("xyz".to_string()));
     }
 
     Ok(())
