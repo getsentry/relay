@@ -9,7 +9,6 @@ use std::time::{Duration, Instant};
 enum Impl {
     Memory,
     Sqlite,
-    Files,
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
@@ -47,12 +46,10 @@ async fn main() {
                 "envelopes": {
                     "buffer_strategy": match args.implementation {
                         Impl::Memory => "memory",
-                        Impl::Files => "file_backed",
                         Impl::Sqlite => "sqlite",
                     },
                     "path": match args.implementation {
                         Impl::Memory => None,
-                        Impl::Files => Some(dir.path().to_owned()),
                         Impl::Sqlite => Some(dir.path().join("envelopes.db")),
                     },
                     "disk_batch_size": args.batch_size,
