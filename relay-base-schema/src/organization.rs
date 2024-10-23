@@ -3,7 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 
-/// The unique identifier of a Sentry organization
+/// The unique identifier of a Sentry organization.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub struct OrganizationId(u64);
 
@@ -11,10 +11,10 @@ impl OrganizationId {
     /// Creates a new organization ID from its numeric value
     #[inline]
     pub fn new(id: u64) -> Self {
-        OrganizationId(id)
+        Self(id)
     }
 
-    /// returns the numeric value of the organization ID
+    /// Returns the numeric value of the organization ID.
     pub fn value(self) -> u64 {
         self.0
     }
