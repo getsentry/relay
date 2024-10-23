@@ -116,44 +116,40 @@
 <a href="#116" id="116">116</a>
 <a href="#117" id="117">117</a>
 <a href="#118" id="118">118</a>
-<a href="#119" id="119">119</a>
-<a href="#120" id="120">120</a>
-<a href="#121" id="121">121</a>
-<a href="#122" id="122">122</a>
-<a href="#123" id="123">123</a>
-<a href="#124" id="124">124</a>
-<a href="#125" id="125">125</a>
-<a href="#126" id="126">126</a>
-<a href="#127" id="127">127</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="kw">use </span><span class="kw">crate</span>::utils::deserialize_number_from_string;
 
 <span class="attr">#[derive(Debug, Serialize, Deserialize, Clone)]
-</span><span class="kw">pub struct </span>Measurement {
+</span><span class="kw">pub struct </span>LegacyMeasurement {
     unit: MeasurementUnit,
-    values: Vec&lt;MeasurementValue&gt;,
+    values: Vec&lt;LegacyMeasurementValue&gt;,
 }
 
 <span class="attr">#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(untagged)]
-</span><span class="kw">pub enum </span>MeasurementValue {
-    Default {
-        <span class="comment">// nanoseconds elapsed since the start of the profile
-        </span><span class="attr">#[serde(deserialize_with = <span class="string">"deserialize_number_from_string"</span>)]
-        </span>elapsed_since_start_ns: u64,
+</span><span class="kw">pub struct </span>ChunkMeasurement {
+    unit: MeasurementUnit,
+    values: Vec&lt;ChunkMeasurementValue&gt;,
+}
 
-        <span class="comment">// Android 6.8.0 sends a string instead of a float64 so we need to accept both
-        </span><span class="attr">#[serde(deserialize_with = <span class="string">"deserialize_number_from_string"</span>)]
-        </span>value: f64,
-    },
-    SampleV2 {
-        <span class="comment">// UNIX timestamp in seconds as a float
-        </span>timestamp: f64,
+<span class="attr">#[derive(Debug, Serialize, Deserialize, Clone)]
+</span><span class="kw">pub struct </span>LegacyMeasurementValue {
+    <span class="comment">// nanoseconds elapsed since the start of the profile
+    </span><span class="attr">#[serde(deserialize_with = <span class="string">"deserialize_number_from_string"</span>)]
+    </span>elapsed_since_start_ns: u64,
 
-        <span class="attr">#[serde(deserialize_with = <span class="string">"deserialize_number_from_string"</span>)]
-        </span>value: f64,
-    },
+    <span class="comment">// Android 6.8.0 sends a string instead of a float64 so we need to accept both
+    </span><span class="attr">#[serde(deserialize_with = <span class="string">"deserialize_number_from_string"</span>)]
+    </span>value: f64,
+}
+
+<span class="attr">#[derive(Debug, Serialize, Deserialize, Clone)]
+</span><span class="kw">pub struct </span>ChunkMeasurementValue {
+    <span class="comment">// UNIX timestamp in seconds as a float
+    </span>timestamp: f64,
+
+    <span class="attr">#[serde(deserialize_with = <span class="string">"deserialize_number_from_string"</span>)]
+    </span>value: f64,
 }
 
 <span class="attr">#[derive(Clone, Debug, Serialize, Deserialize)]
@@ -171,12 +167,12 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use super</span>::{ChunkMeasurementValue, LegacyMeasurementValue};
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_roundtrip() {
         <span class="kw">let </span>raw_value = <span class="string">r#"{"elapsed_since_start_ns":1234567890,"value":1234.56789}"#</span>;
-        <span class="kw">let </span>parsed_value = serde_json::from_str::&lt;MeasurementValue&gt;(raw_value);
+        <span class="kw">let </span>parsed_value = serde_json::from_str::&lt;LegacyMeasurementValue&gt;(raw_value);
         <span class="macro">assert!</span>(parsed_value.is_ok());
         <span class="kw">let </span>value = parsed_value.unwrap();
         <span class="kw">let </span>encoded_value = serde_json::to_string(<span class="kw-2">&amp;</span>value).unwrap();
@@ -186,70 +182,56 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_value_as_float() {
         <span class="kw">let </span>measurement_json = <span class="string">r#"{"elapsed_since_start_ns":1234567890,"value":1234.56789}"#</span>;
-        <span class="kw">let </span>measurement = serde_json::from_str::&lt;MeasurementValue&gt;(measurement_json);
+        <span class="kw">let </span>measurement = serde_json::from_str::&lt;LegacyMeasurementValue&gt;(measurement_json);
         <span class="macro">assert!</span>(measurement.is_ok());
-        <span class="kw">match </span>measurement.unwrap() {
-            MeasurementValue::Default { value, .. } =&gt; <span class="macro">assert_eq!</span>(value, <span class="number">1234.56789</span>),
-            <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">"measurement wasn't properly decoded"</span>),
-        }
+        <span class="macro">assert_eq!</span>(measurement.unwrap().value, <span class="number">1234.56789</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_value_as_string() {
         <span class="kw">let </span>measurement_json = <span class="string">r#"{"elapsed_since_start_ns":1234567890,"value":"1234.56789"}"#</span>;
-        <span class="kw">let </span>measurement = serde_json::from_str::&lt;MeasurementValue&gt;(measurement_json);
+        <span class="kw">let </span>measurement = serde_json::from_str::&lt;LegacyMeasurementValue&gt;(measurement_json);
         <span class="macro">assert!</span>(measurement.is_ok());
-        <span class="kw">match </span>measurement.unwrap() {
-            MeasurementValue::Default { value, .. } =&gt; <span class="macro">assert_eq!</span>(value, <span class="number">1234.56789</span>),
-            <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">"measurement wasn't properly decoded"</span>),
-        }
+        <span class="macro">assert_eq!</span>(measurement.unwrap().value, <span class="number">1234.56789</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_value_as_string_scientific_notation() {
         <span class="kw">let </span>measurement_json = <span class="string">r#"{"elapsed_since_start_ns":1234567890,"value":"1e3"}"#</span>;
-        <span class="kw">let </span>measurement = serde_json::from_str::&lt;MeasurementValue&gt;(measurement_json);
+        <span class="kw">let </span>measurement = serde_json::from_str::&lt;LegacyMeasurementValue&gt;(measurement_json);
         <span class="macro">assert!</span>(measurement.is_ok());
-        <span class="kw">match </span>measurement.unwrap() {
-            MeasurementValue::Default { value, .. } =&gt; <span class="macro">assert_eq!</span>(value, <span class="number">1e3f64</span>),
-            <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">"measurement wasn't properly decoded"</span>),
-        }
+        <span class="macro">assert_eq!</span>(measurement.unwrap().value, <span class="number">1e3f64</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_value_as_string_infinity() {
         <span class="kw">let </span>measurement_json = <span class="string">r#"{"elapsed_since_start_ns":1234567890,"value":"+Infinity"}"#</span>;
-        <span class="kw">let </span>measurement = serde_json::from_str::&lt;MeasurementValue&gt;(measurement_json);
+        <span class="kw">let </span>measurement = serde_json::from_str::&lt;LegacyMeasurementValue&gt;(measurement_json);
         <span class="macro">assert!</span>(measurement.is_ok());
-        <span class="kw">match </span>measurement.unwrap() {
-            MeasurementValue::Default { value, .. } =&gt; <span class="macro">assert_eq!</span>(value, f64::INFINITY),
-            <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">"measurement wasn't properly decoded"</span>),
-        }
+        <span class="macro">assert_eq!</span>(measurement.unwrap().value, f64::INFINITY);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_value_as_float_scientific_notation() {
         <span class="kw">let </span>measurement_json = <span class="string">r#"{"elapsed_since_start_ns":1234567890,"value":1e3}"#</span>;
-        <span class="kw">let </span>measurement = serde_json::from_str::&lt;MeasurementValue&gt;(measurement_json);
+        <span class="kw">let </span>measurement = serde_json::from_str::&lt;LegacyMeasurementValue&gt;(measurement_json);
         <span class="macro">assert!</span>(measurement.is_ok());
-        <span class="kw">match </span>measurement.unwrap() {
-            MeasurementValue::Default { value, .. } =&gt; <span class="macro">assert_eq!</span>(value, <span class="number">1e3f64</span>),
-            <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">"measurement wasn't properly decoded"</span>),
-        }
+        <span class="macro">assert_eq!</span>(measurement.unwrap().value, <span class="number">1e3f64</span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_value_as_float_infinity() {
         <span class="kw">let </span>measurement_json = <span class="string">r#"{"elapsed_since_start_ns":1234567890,"value":+Infinity}"#</span>;
-        <span class="kw">let </span>measurement = serde_json::from_str::&lt;MeasurementValue&gt;(measurement_json);
+        <span class="kw">let </span>measurement = serde_json::from_str::&lt;LegacyMeasurementValue&gt;(measurement_json);
         <span class="macro">assert!</span>(measurement.is_err());
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_with_timestamp_only() {
         <span class="kw">let </span>measurement_json = <span class="string">r#"{"timestamp":1717161756.408,"value":10.3}"#</span>;
-        <span class="kw">let </span>measurement = serde_json::from_str::&lt;MeasurementValue&gt;(measurement_json);
+        <span class="kw">let </span>measurement = serde_json::from_str::&lt;ChunkMeasurementValue&gt;(measurement_json);
         <span class="macro">assert!</span>(measurement.is_ok());
+        <span class="macro">assert_eq!</span>(measurement.unwrap().value, <span class="number">10.3</span>);
     }
 }
 </code></pre></div></section></main></body></html>

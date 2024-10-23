@@ -260,6 +260,7 @@
 <a href="#260" id="260">260</a>
 <a href="#261" id="261">261</a>
 <a href="#262" id="262">262</a>
+<a href="#263" id="263">263</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Profiling protocol and processing for Sentry.
 //!
 //! Profiles are captured during the life of a transaction on Sentry clients and sent to Relay for
@@ -322,6 +323,7 @@
 <span class="kw">mod </span>outcomes;
 <span class="kw">mod </span>sample;
 <span class="kw">mod </span>transaction_metadata;
+<span class="kw">mod </span>types;
 <span class="kw">mod </span>utils;
 
 <span class="kw">const </span>MAX_PROFILE_DURATION: Duration = Duration::from_secs(<span class="number">30</span>);
@@ -379,7 +381,8 @@
         <span class="kw">_ </span>=&gt; <span class="kw">match </span>profile.platform.as_str() {
             <span class="string">"android" </span>=&gt; {
                 <span class="kw">let </span>d = <span class="kw-2">&amp;mut </span>Deserializer::from_slice(payload);
-                <span class="kw">let _</span>: android::ProfileMetadata = <span class="kw">match </span>serde_path_to_error::deserialize(d) {
+                <span class="kw">let _</span>: android::legacy::ProfileMetadata = <span class="kw">match </span>serde_path_to_error::deserialize(d)
+                {
                     <span class="prelude-val">Ok</span>(profile) =&gt; profile,
                     <span class="prelude-val">Err</span>(err) =&gt; {
                         <span class="macro">relay_log::debug!</span>(
@@ -418,16 +421,14 @@
     };
     <span class="kw">let </span>transaction_metadata = extract_transaction_metadata(event);
     <span class="kw">let </span>transaction_tags = extract_transaction_tags(event);
-    <span class="kw">let </span>processed_payload = <span class="kw">match </span>profile.version {
-        sample::Version::V1 =&gt; {
+    <span class="kw">let </span>processed_payload = <span class="kw">match </span>(profile.platform.as_str(), profile.version) {
+        (<span class="kw">_</span>, sample::Version::V1) =&gt; {
             sample::v1::parse_sample_profile(payload, transaction_metadata, transaction_tags)
         }
-        <span class="kw">_ </span>=&gt; <span class="kw">match </span>profile.platform.as_str() {
-            <span class="string">"android" </span>=&gt; {
-                android::parse_android_profile(payload, transaction_metadata, transaction_tags)
-            }
-            <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::PlatformNotSupported),
-        },
+        (<span class="string">"android"</span>, <span class="kw">_</span>) =&gt; {
+            android::legacy::parse_android_profile(payload, transaction_metadata, transaction_tags)
+        }
+        (<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::PlatformNotSupported),
     };
     <span class="kw">match </span>processed_payload {
         <span class="prelude-val">Ok</span>(payload) =&gt; <span class="prelude-val">Ok</span>((profile.event_id, payload)),
@@ -474,13 +475,14 @@
             <span class="kw">return </span><span class="prelude-val">Err</span>(ProfileError::InvalidJson(err));
         }
     };
-    <span class="kw">match </span>profile.version {
-        sample::Version::V2 =&gt; {
+    <span class="kw">match </span>(profile.platform.as_str(), profile.version) {
+        (<span class="string">"android"</span>, <span class="kw">_</span>) =&gt; android::chunk::parse(payload),
+        (<span class="kw">_</span>, sample::Version::V2) =&gt; {
             <span class="kw">let </span><span class="kw-2">mut </span>profile = sample::v2::parse(payload)<span class="question-mark">?</span>;
             profile.normalize()<span class="question-mark">?</span>;
             serde_json::to_vec(<span class="kw-2">&amp;</span>profile).map_err(|<span class="kw">_</span>| ProfileError::CannotSerializePayload)
         }
-        <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(ProfileError::PlatformNotSupported),
+        (<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(ProfileError::PlatformNotSupported),
     }
 }
 
@@ -518,7 +520,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_expand_profile_without_version() {
-        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">"../tests/fixtures/android/roundtrip.json"</span>);
+        <span class="kw">let </span>payload = <span class="macro">include_bytes!</span>(<span class="string">"../tests/fixtures/android/legacy/roundtrip.json"</span>);
         <span class="macro">assert!</span>(expand_profile(payload, <span class="kw-2">&amp;</span>Event::default()).is_ok());
     }
 }
