@@ -2164,7 +2164,7 @@ def test_replay_outcomes_item_failed(
 
 
 @pytest.mark.parametrize("sampling_decision", ["keep", "drop"])
-def test_extracted_from_indexed_tag_with_transaction(
+def test_indexed_tag_with_transaction(
     mini_sentry,
     relay_with_processing,
     metrics_consumer,
@@ -2172,7 +2172,7 @@ def test_extracted_from_indexed_tag_with_transaction(
     sampling_decision,
 ):
     """
-    Test that the usage metric has the `extracted_from_indexed` field set correctly
+    Test that the usage metric has the `indexed` field set correctly
     based on whether a transaction and its spans are kept or dropped by dynamic sampling.
     """
     metrics_consumer = metrics_consumer()
@@ -2281,24 +2281,24 @@ def test_extracted_from_indexed_tag_with_transaction(
 
     if sampling_decision == "keep":
         assert (
-            transaction_usage_metric["tags"].get("extracted_from_indexed") == "true"
-        ), "extracted_from_indexed should be true for kept transactions"
+            transaction_usage_metric["tags"].get("indexed") == "true"
+        ), "indexed should be true for kept transactions"
         for span_metric in span_usage_metrics:
             assert (
-                span_metric["tags"].get("extracted_from_indexed") == "true"
-            ), "extracted_from_indexed should be true for kept spans"
+                span_metric["tags"].get("indexed") == "true"
+            ), "indexed should be true for kept spans"
     else:
         assert (
-            "extracted_from_indexed" not in transaction_usage_metric["tags"]
-        ), "extracted_from_indexed should not be present for dropped transactions"
+            "indexed" not in transaction_usage_metric["tags"]
+        ), "indexed should not be present for dropped transactions"
         for span_metric in span_usage_metrics:
             assert (
-                "extracted_from_indexed" not in span_metric["tags"]
-            ), "extracted_from_indexed should not be present for dropped spans"
+                "indexed" not in span_metric["tags"]
+            ), "indexed should not be present for dropped spans"
 
 
 @pytest.mark.parametrize("sampling_decision", ["keep", "drop"])
-def test_extracted_from_indexed_tag_with_standalone_spans(
+def test_indexed_tag_with_standalone_spans(
     mini_sentry,
     relay_with_processing,
     metrics_consumer,
@@ -2306,7 +2306,7 @@ def test_extracted_from_indexed_tag_with_standalone_spans(
     sampling_decision,
 ):
     """
-    Test that the usage metric has the `extracted_from_indexed` field set correctly
+    Test that the usage metric has the `indexed` field set correctly
     for standalone spans based on whether they are kept or dropped by dynamic sampling.
     """
     metrics_consumer = metrics_consumer()
@@ -2420,22 +2420,22 @@ def test_extracted_from_indexed_tag_with_standalone_spans(
 
     if sampling_decision == "keep":
         assert (
-            span_metric["tags"].get("extracted_from_indexed") == "true"
-        ), "extracted_from_indexed should be true for kept standalone spans"
+            span_metric["tags"].get("indexed") == "true"
+        ), "indexed should be true for kept standalone spans"
     else:
         assert (
-            "extracted_from_indexed" not in span_metric["tags"]
-        ), "extracted_from_indexed should not be present for dropped standalone spans"
+            "indexed" not in span_metric["tags"]
+        ), "indexed should not be present for dropped standalone spans"
 
 
-def test_extracted_from_indexed_tag_with_rate_limited_transaction(
+def test_indexed_tag_with_rate_limited_transaction(
     mini_sentry,
     relay_with_processing,
     metrics_consumer,
     transactions_consumer,
 ):
     """
-    Test that the usage metric has no `extracted_from_indexed` field
+    Test that the usage metric has no `indexed` field
     when a transaction is rate limited.
     """
     metrics_consumer = metrics_consumer()
@@ -2520,8 +2520,8 @@ def test_extracted_from_indexed_tag_with_rate_limited_transaction(
     assert len(span_usage_metrics) == 2, "Expected 2 span usage metrics"
 
     assert (
-        "extracted_from_indexed" not in transaction_usage_metric["tags"]
-    ), "extracted_from_indexed should not be present for rate-limited transactions"
+        "indexed" not in transaction_usage_metric["tags"]
+    ), "indexed should not be present for rate-limited transactions"
     assert (
-        "extracted_from_indexed" not in span_usage_metrics[0]["tags"]
-    ), "extracted_from_indexed should not be present for spans of rate-limited transactions"
+        "indexed" not in span_usage_metrics[0]["tags"]
+    ), "indexed should not be present for spans of rate-limited transactions"

@@ -30,9 +30,7 @@ use relay_event_schema::protocol::{
     ClientReport, Event, EventId, EventType, IpAddr, Metrics, NetworkReportError,
 };
 use relay_filter::FilterStatKey;
-use relay_metrics::{
-    Bucket, BucketInspector, BucketMetadata, BucketView, BucketsView, MetricMeta, MetricNamespace,
-};
+use relay_metrics::{Bucket, BucketMetadata, BucketView, BucketsView, MetricMeta, MetricNamespace};
 use relay_pii::PiiConfigError;
 use relay_profiling::ProfileId;
 use relay_protocol::Annotated;
@@ -46,6 +44,7 @@ use smallvec::{smallvec, SmallVec};
 
 #[cfg(feature = "processing")]
 use {
+    crate::metrics::{add_indexed_tag, remove_indexed_tag},
     crate::services::store::{Store, StoreEnvelope},
     crate::utils::{sample, CheckLimits, Enforcement, EnvelopeLimiter, ItemAction},
     itertools::Itertools,
@@ -589,12 +588,14 @@ type ExtractedEvent = (Annotated<Event>, usize);
 /// with the dynamic sampling decision.
 #[derive(Debug)]
 pub struct ProcessingExtractedMetrics {
+    config: Arc<Config>,
     metrics: ExtractedMetrics,
 }
 
 impl ProcessingExtractedMetrics {
-    pub fn new() -> Self {
+    pub fn new(config: Arc<Config>) -> Self {
         Self {
+            config,
             metrics: ExtractedMetrics::default(),
         }
     }
@@ -609,29 +610,31 @@ impl ProcessingExtractedMetrics {
         self.extend_sampling_metrics(extracted.sampling_metrics, sampling_decision);
     }
 
+    /// Extends the [`ProcessingExtractedMetrics`].
     fn extend_metrics(
-        &mut self,
+        config: &Config,
+        existing_buckets: &mut Vec<Bucket>,
         buckets: Vec<Bucket>,
         sampling_decision: Option<SamplingDecision>,
-        is_project: bool,
     ) {
+        // If we are not a processing Relay, we don't want to add any metadata or tags because
+        // metrics are not extracted from indexed payloads in non-processing Relays.
+        if !config.processing_enabled() {
+            existing_buckets.extend(buckets);
+            return;
+        }
+
         for mut bucket in buckets {
             let is_kept = sampling_decision == Some(SamplingDecision::Keep);
             bucket.metadata.extracted_from_indexed = is_kept;
             // In case the indexed payload is kept and this metric is a usage metric, we want to tag
             // it, so that we can use the tag in the consumers to correctly count the indexed
-            // payloads (e.g., transactions and spans).
-            if is_kept && BucketInspector(&bucket).is_usage_metric() {
-                bucket
-                    .tags
-                    .entry("extracted_from_indexed".to_owned())
-                    .or_insert("true".to_owned());
+            // payloads.
+            #[cfg(feature = "processing")]
+            if is_kept {
+                add_indexed_tag(&mut bucket);
             }
-            if is_project {
-                self.metrics.project_metrics.push(bucket);
-            } else {
-                self.metrics.sampling_metrics.push(bucket);
-            }
+            existing_buckets.push(bucket);
         }
     }
 
@@ -641,7 +644,12 @@ impl ProcessingExtractedMetrics {
         buckets: Vec<Bucket>,
         sampling_decision: Option<SamplingDecision>,
     ) {
-        self.extend_metrics(buckets, sampling_decision, true);
+        Self::extend_metrics(
+            &self.config,
+            &mut self.metrics.project_metrics,
+            buckets,
+            sampling_decision,
+        );
     }
 
     /// Extends the contained sampling metrics.
@@ -650,7 +658,12 @@ impl ProcessingExtractedMetrics {
         buckets: Vec<Bucket>,
         sampling_decision: Option<SamplingDecision>,
     ) {
-        self.extend_metrics(buckets, sampling_decision, false);
+        Self::extend_metrics(
+            &self.config,
+            &mut self.metrics.sampling_metrics,
+            buckets,
+            sampling_decision,
+        );
     }
 
     /// Applies rate limits to the contained metrics.
@@ -701,11 +714,9 @@ impl ProcessingExtractedMetrics {
                 if reset_extracted_from_indexed.contains(&namespace) {
                     bucket.metadata.extracted_from_indexed = false;
                     // If this metric is a usage metric, and we dropped the indexed payload due to
-                    // rate limiting, we want to remove the tag, so that the amount of
+                    // rate limiting, we want to remove the indexed tag, so that the amount of
                     // transactions/spans can still be counted correctly.
-                    if BucketInspector(bucket).is_usage_metric() {
-                        bucket.tags.remove("extracted_from_indexed");
-                    }
+                    remove_indexed_tag(bucket);
                 }
 
                 true
@@ -1354,7 +1365,7 @@ impl EnvelopeProcessorService {
             reservoir.set_redis(org_id, quotas_pool);
         }
 
-        let extracted_metrics = ProcessingExtractedMetrics::new();
+        let extracted_metrics = ProcessingExtractedMetrics::new(config.clone());
 
         ProcessEnvelopeState {
             event: Annotated::empty(),

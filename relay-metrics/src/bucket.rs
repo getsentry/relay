@@ -739,20 +739,6 @@ impl CardinalityItem for Bucket {
     }
 }
 
-/// Utility that can wrap a bucket and inspect its contents.
-pub struct BucketInspector<'a>(pub &'a Bucket);
-
-impl<'a> BucketInspector<'a> {
-    /// Returns `true` whether the contained [`Bucket`] is a usage metric.
-    ///
-    /// A usage metric is a special type of metric which is extracted by Relay for every transaction
-    /// and span, and it's used for billing purposes. It's the successor of `transaction.duration`.
-    pub fn is_usage_metric(&self) -> bool {
-        self.0.name.name_eq("c:transactions/usage@none")
-            || self.0.name.name_eq("c:spans/usage@none")
-    }
-}
-
 /// Relay internal metadata for a metric bucket.
 #[derive(Clone, Copy, Debug, PartialEq, Deserialize, Serialize)]
 pub struct BucketMetadata {
