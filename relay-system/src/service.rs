@@ -13,7 +13,7 @@ use tokio::runtime::Runtime;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::MissedTickBehavior;
 
-use crate::statsd::SystemGauges;
+use crate::statsd::{SystemGauges, SystemTimers};
 
 /// Interval for recording backlog metrics on service channels.
 const BACKLOG_INTERVAL: Duration = Duration::from_secs(1);
@@ -839,23 +839,27 @@ impl<I: Interface> Receiver<I> {
     /// not yet been closed, this method will sleep until a message is sent or
     /// the channel is closed.
     pub async fn recv(&mut self) -> Option<I> {
-        loop {
-            tokio::select! {
-                biased;
+        let next_message =
+            relay_statsd::metric!(timer(SystemTimers::ServiceIdleTime), service = self.name, {
+                loop {
+                    tokio::select! {
+                        biased;
 
-                _ = self.interval.tick() => {
-                    let backlog = self.queue_size.load(Ordering::Relaxed);
-                    relay_statsd::metric!(
-                        gauge(SystemGauges::ServiceBackPressure) = backlog,
-                        service = self.name
-                    );
-                },
-                message = self.rx.recv() => {
-                    self.queue_size.fetch_sub(1, Ordering::SeqCst);
-                    return message;
-                },
-            }
-        }
+                        _ = self.interval.tick() => {
+                            let backlog = self.queue_size.load(Ordering::Relaxed);
+                            relay_statsd::metric!(
+                                gauge(SystemGauges::ServiceBackPressure) = backlog,
+                                service = self.name
+                            );
+                        },
+                        message = self.rx.recv() => {
+                            self.queue_size.fetch_sub(1, Ordering::SeqCst);
+                            break message;
+                        },
+                    }
+                }
+            });
+        next_message
     }
 }
 
