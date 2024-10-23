@@ -1,15 +1,18 @@
+use std::collections::BTreeMap;
+
 use relay_common::time::UnixTimestamp;
 use relay_dynamic_config::CombinedMetricExtractionConfig;
 use relay_event_normalization::span::description::ScrubMongoDescription;
 use relay_event_schema::protocol::{Event, Span};
-use relay_metrics::Bucket;
+use relay_metrics::{Bucket, BucketMetadata, BucketValue};
 use relay_quotas::DataCategory;
+use relay_sampling::evaluation::SamplingDecision;
 
 use crate::metrics_extraction::generic::{self, Extractable};
-use crate::metrics_extraction::metrics_summary;
+use crate::metrics_extraction::transactions::ExtractedMetrics;
+use crate::metrics_extraction::{metrics_summary, transactions};
 use crate::services::processor::extract_transaction_span;
 use crate::statsd::RelayTimers;
-use crate::utils::sample;
 
 impl Extractable for Event {
     fn category(&self) -> DataCategory {
@@ -49,15 +52,24 @@ impl Extractable for Span {
 /// If this is a transaction event with spans, metrics will also be extracted from the spans.
 pub fn extract_metrics(
     event: &mut Event,
-    spans_extracted: bool,
     config: CombinedMetricExtractionConfig<'_>,
+    sampling_decision: SamplingDecision,
     max_tag_value_size: usize,
-    span_extraction_sample_rate: Option<f32>,
-) -> Vec<Bucket> {
-    let mut metrics = generic::extract_metrics(event, config);
-    // If spans were already extracted for an event, we rely on span processing to extract metrics.
-    if !spans_extracted && sample(span_extraction_sample_rate.unwrap_or(1.0)) {
-        extract_span_metrics_for_event(event, config, max_tag_value_size, &mut metrics);
+    extract_spans: bool,
+) -> ExtractedMetrics {
+    let mut metrics = ExtractedMetrics {
+        project_metrics: generic::extract_metrics(event, config),
+        sampling_metrics: Vec::new(),
+    };
+
+    if extract_spans {
+        extract_span_metrics_for_event(
+            event,
+            config,
+            sampling_decision,
+            max_tag_value_size,
+            &mut metrics,
+        );
     }
 
     metrics
@@ -66,10 +78,13 @@ pub fn extract_metrics(
 fn extract_span_metrics_for_event(
     event: &mut Event,
     config: CombinedMetricExtractionConfig<'_>,
+    sampling_decision: SamplingDecision,
     max_tag_value_size: usize,
-    output: &mut Vec<Bucket>,
+    output: &mut ExtractedMetrics,
 ) {
     relay_statsd::metric!(timer(RelayTimers::EventProcessingSpanMetricsExtraction), {
+        let mut span_count = 0;
+
         if let Some(transaction_span) = extract_transaction_span(
             event,
             max_tag_value_size,
@@ -79,7 +94,8 @@ fn extract_span_metrics_for_event(
             let (metrics, metrics_summary) =
                 metrics_summary::extract_and_summarize_metrics(&transaction_span, config);
             metrics_summary.apply_on(&mut event._metrics_summary);
-            output.extend(metrics);
+            output.project_metrics.extend(metrics);
+            span_count += 1;
         }
 
         if let Some(spans) = event.spans.value_mut() {
@@ -88,11 +104,58 @@ fn extract_span_metrics_for_event(
                     let (metrics, metrics_summary) =
                         metrics_summary::extract_and_summarize_metrics(span, config);
                     metrics_summary.apply_on(&mut span._metrics_summary);
-                    output.extend(metrics);
+                    output.project_metrics.extend(metrics);
+                    span_count += 1;
                 }
             }
         }
+
+        // This function assumes it is only called when span metrics should be extracted, hence we
+        // extract the span root counter unconditionally.
+        let transaction = transactions::get_transaction_name(event);
+        let bucket = create_span_root_counter(event, transaction, span_count, sampling_decision);
+        output.sampling_metrics.extend(bucket);
     });
+}
+
+/// Creates the metric `c:spans/count_per_root_project@none`.
+///
+/// This metric counts the number of spans per root project of the trace. This is used for dynamic
+/// sampling biases to compute weights of projects including all spans in the trace.
+pub fn create_span_root_counter<T: Extractable>(
+    instance: &T,
+    transaction: Option<String>,
+    span_count: u32,
+    sampling_decision: SamplingDecision,
+) -> Option<Bucket> {
+    if span_count == 0 {
+        return None;
+    }
+
+    let timestamp = instance.timestamp()?;
+
+    // For extracted metrics we assume the `received_at` timestamp is equivalent to the time
+    // in which the metric is extracted.
+    let received_at = if cfg!(not(test)) {
+        UnixTimestamp::now()
+    } else {
+        UnixTimestamp::from_secs(0)
+    };
+
+    let mut tags = BTreeMap::new();
+    tags.insert("decision".to_owned(), sampling_decision.to_string());
+    if let Some(transaction) = transaction {
+        tags.insert("transaction".to_owned(), transaction);
+    }
+
+    Some(Bucket {
+        timestamp,
+        width: 0,
+        name: "c:spans/count_per_root_project@none".into(),
+        value: BucketValue::counter(span_count.into()),
+        tags,
+        metadata: BucketMetadata::new(received_at),
+    })
 }
 
 #[cfg(test)]
@@ -143,7 +206,7 @@ mod tests {
         OwnedConfig { global, project }
     }
 
-    fn extract_span_metrics(features: impl Into<BTreeSet<Feature>>) -> Vec<Bucket> {
+    fn extract_span_metrics(features: impl Into<BTreeSet<Feature>>) -> ExtractedMetrics {
         let json = r#"
         {
             "type": "transaction",
@@ -1202,22 +1265,28 @@ mod tests {
 
         extract_metrics(
             event.value_mut().as_mut().unwrap(),
-            false,
             combined_config(features, None).combined(),
+            SamplingDecision::Keep,
             200,
-            None,
+            true,
         )
     }
 
     #[test]
     fn no_feature_flags_enabled() {
         let metrics = extract_span_metrics([]);
-        assert!(metrics.is_empty());
+        assert!(metrics.project_metrics.is_empty());
+
+        assert_eq!(metrics.sampling_metrics.len(), 1);
+        assert_eq!(
+            metrics.sampling_metrics[0].name.as_ref(),
+            "c:spans/count_per_root_project@none"
+        );
     }
 
     #[test]
     fn only_indexed_spans_enabled() {
-        let metrics = extract_span_metrics([Feature::ExtractSpansFromEvent]);
+        let metrics = extract_span_metrics([Feature::ExtractSpansFromEvent]).project_metrics;
         assert_eq!(metrics.len(), 75);
         assert!(metrics.iter().all(|b| &b.name == "c:spans/usage@none"));
     }
@@ -1225,14 +1294,14 @@ mod tests {
     #[test]
     fn only_common() {
         let metrics = extract_span_metrics([Feature::ExtractCommonSpanMetricsFromEvent]);
-        insta::assert_debug_snapshot!(metrics);
+        insta::assert_debug_snapshot!(metrics.project_metrics);
     }
 
     #[test]
     fn only_addons() {
         // Nothing is extracted without the common flag:
         let metrics = extract_span_metrics([Feature::ExtractAddonsSpanMetricsFromEvent]);
-        assert!(metrics.is_empty());
+        assert!(metrics.project_metrics.is_empty());
     }
 
     #[test]
@@ -1241,7 +1310,7 @@ mod tests {
             Feature::ExtractCommonSpanMetricsFromEvent,
             Feature::ExtractAddonsSpanMetricsFromEvent,
         ]);
-        insta::assert_debug_snapshot!(metrics);
+        insta::assert_debug_snapshot!(metrics.project_metrics);
     }
 
     const MOBILE_EVENT: &str = r#"
@@ -1413,12 +1482,12 @@ mod tests {
 
         let metrics = extract_metrics(
             event.value_mut().as_mut().unwrap(),
-            false,
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent], None).combined(),
+            SamplingDecision::Keep,
             200,
-            None,
+            true,
         );
-        insta::assert_debug_snapshot!((&event.value().unwrap().spans, metrics));
+        insta::assert_debug_snapshot!((&event.value().unwrap().spans, metrics.project_metrics));
     }
 
     #[test]
@@ -1470,18 +1539,20 @@ mod tests {
 
         let metrics = extract_metrics(
             event.value_mut().as_mut().unwrap(),
-            false,
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent], None).combined(),
+            SamplingDecision::Keep,
             200,
-            None,
+            true,
         );
 
         // When transaction.op:ui.load and mobile:true, HTTP spans still get both
         // exclusive_time metrics:
         assert!(metrics
+            .project_metrics
             .iter()
             .any(|b| &*b.name == "d:spans/exclusive_time@millisecond"));
         assert!(metrics
+            .project_metrics
             .iter()
             .any(|b| &*b.name == "d:spans/exclusive_time_light@millisecond"));
     }
@@ -1502,13 +1573,14 @@ mod tests {
 
         let metrics = extract_metrics(
             event.value_mut().as_mut().unwrap(),
-            false,
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent], None).combined(),
+            SamplingDecision::Keep,
             200,
-            None,
+            true,
         );
 
         let usage_metrics = metrics
+            .project_metrics
             .into_iter()
             .filter(|b| &*b.name == "c:spans/usage@none")
             .collect::<Vec<_>>();
@@ -1765,11 +1837,12 @@ mod tests {
 
         let metrics = extract_metrics(
             event.value_mut().as_mut().unwrap(),
-            false,
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent], None).combined(),
+            SamplingDecision::Keep,
             200,
-            None,
-        );
+            true,
+        )
+        .project_metrics;
 
         assert_eq!(metrics.len(), 5);
 
@@ -1908,10 +1981,10 @@ mod tests {
 
         let _ = extract_metrics(
             event.value_mut().as_mut().unwrap(),
-            false,
             config,
+            SamplingDecision::Keep,
             200,
-            None,
+            true,
         );
 
         insta::assert_debug_snapshot!(&event.value().unwrap()._metrics_summary);
