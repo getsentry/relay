@@ -119,11 +119,14 @@ impl ProjectCacheService {
                 Ok(result) => result,
                 Err(err) => {
                     relay_log::error!(
+                        tags.project_key = fetch.project_key().as_str(),
                         error = &err as &dyn std::error::Error,
-                        "failed to fetch project state for {fetch:?}"
+                        "failed to fetch project from source: {fetch:?}"
                     );
-                    // Fallback to a pending project on error, we will retry.
-                    ProjectState::Pending.into()
+
+                    // TODO: change this to ProjectState::Pending once we consider it safe to do so.
+                    // see https://github.com/getsentry/relay/pull/4140.
+                    ProjectState::Disabled.into()
                 }
             };
 

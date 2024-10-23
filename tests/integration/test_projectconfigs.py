@@ -12,6 +12,42 @@ from sentry_relay.auth import PublicKey, SecretKey, generate_key_pair
 RelayInfo = namedtuple("RelayInfo", ["id", "public_key", "secret_key", "internal"])
 
 
+def request_config(
+    relay, packed, signature, *, version="3", relay_id=None, headers=None
+):
+    return relay.post(
+        f"/api/0/relays/projectconfigs/?version={version}",
+        data=packed,
+        headers={
+            "X-Sentry-Relay-Id": relay_id or relay.relay_id,
+            "X-Sentry-Relay-Signature": signature,
+        }
+        | (headers or {}),
+    )
+
+
+def get_response(relay, packed, signature, *, version="3", relay_id=None, headers=None):
+    data = None
+    deadline = time.monotonic() + 15
+    while time.monotonic() <= deadline:
+        response = request_config(
+            relay,
+            packed,
+            signature,
+            version=version,
+            relay_id=relay_id,
+            headers=headers,
+        )
+        assert response.ok
+        data = response.json()
+        print(data)
+        if data["configs"] or data.get("global") or data.get("unchanged"):
+            return data, response
+        time.sleep(0.01)
+
+    assert False, "Relay did still not receive a project config from minisentry"
+
+
 @pytest.mark.parametrize(
     "caller, projects",
     [
@@ -84,16 +120,9 @@ def test_dynamic_relays(mini_sentry, relay, caller, projects):
 
     packed, signature = caller.secret_key.pack(request)
 
-    resp = relay1.post(
-        "/api/0/relays/projectconfigs/?version=2",
-        data=packed,
-        headers={"X-Sentry-Relay-Id": caller.id, "X-Sentry-Relay-Signature": signature},
-    )
-
-    assert resp.ok
+    data, _ = get_response(relay1, packed, signature, relay_id=caller.id)
 
     # test that it returns valid data
-    data = resp.json()
     for p in public_keys:
         assert data["configs"][p] is not None
 
@@ -104,14 +133,7 @@ def test_invalid_json(mini_sentry, relay):
     body = {}  # missing the required `publicKeys` field
     packed, signature = SecretKey.parse(relay.secret_key).pack(body)
 
-    response = relay.post(
-        "/api/0/relays/projectconfigs/?version=2",
-        data=packed,
-        headers={
-            "X-Sentry-Relay-Id": relay.relay_id,
-            "X-Sentry-Relay-Signature": signature,
-        },
-    )
+    response = request_config(relay, packed, signature)
 
     assert response.status_code == 400  # Bad Request
     assert "JSON" in response.text
@@ -121,7 +143,7 @@ def test_invalid_signature(mini_sentry, relay):
     relay = relay(mini_sentry)
 
     response = relay.post(
-        "/api/0/relays/projectconfigs/?version=2",
+        "/api/0/relays/projectconfigs/?version=3",
         data='{"publicKeys":[]}',
         headers={
             "X-Sentry-Relay-Id": relay.relay_id,
@@ -148,17 +170,9 @@ def test_broken_projectkey(mini_sentry, relay):
     }
     packed, signature = SecretKey.parse(relay.secret_key).pack(body)
 
-    response = relay.post(
-        "/api/0/relays/projectconfigs/?version=2",
-        data=packed,
-        headers={
-            "X-Sentry-Relay-Id": relay.relay_id,
-            "X-Sentry-Relay-Signature": signature,
-        },
-    )
+    data, _ = get_response(relay, packed, signature)
 
-    assert response.ok
-    assert public_key in response.json()["configs"]
+    assert public_key in data["configs"]
 
 
 def test_pending_projects(mini_sentry, relay):
@@ -172,61 +186,15 @@ def test_pending_projects(mini_sentry, relay):
     body = {"publicKeys": [public_key]}
     packed, signature = SecretKey.parse(relay.secret_key).pack(body)
 
-    def request_config():
-        return relay.post(
-            "/api/0/relays/projectconfigs/?version=3",
-            data=packed,
-            headers={
-                "X-Sentry-Relay-Id": relay.relay_id,
-                "X-Sentry-Relay-Signature": signature,
-            },
-        )
-
-    response = request_config()
-
+    response = request_config(relay, packed, signature)
     assert response.ok
     data = response.json()
     assert public_key in data["pending"]
     assert public_key not in data["configs"]
 
-    deadline = time.monotonic() + 15
-    while time.monotonic() <= deadline:
-        response = request_config()
-        assert response.ok
-        data = response.json()
-        if data["configs"]:
-            break
-    else:
-        assert False, "Relay did still not receive a project config from minisentry"
+    data, _ = get_response(relay, packed, signature)
     assert public_key in data["configs"]
     assert data.get("pending") is None
-
-
-def request_config(relay, packed, signature, version: str):
-    return relay.post(
-        f"/api/0/relays/projectconfigs/?version={version}",
-        data=packed,
-        headers={
-            "X-Sentry-Relay-Id": relay.relay_id,
-            "X-Sentry-Relay-Signature": signature,
-        },
-    )
-
-
-def get_response(relay, packed, signature, version="3"):
-    data = None
-    deadline = time.monotonic() + 15
-    while time.monotonic() <= deadline:
-        # send 1 r/s
-        time.sleep(1)
-        response = request_config(relay, packed, signature, version)
-        assert response.ok
-        data = response.json()
-        if data["configs"]:
-            break
-    else:
-        print("Relay did still not receive a project config from minisentry")
-    return data
 
 
 def test_unparsable_project_config(mini_sentry, relay):
@@ -284,7 +252,7 @@ def test_unparsable_project_config(mini_sentry, relay):
     assert_clear_test_failures()
 
     # The state should be fixed and updated by now, since we keep re-trying to fetch new one all the time.
-    data = get_response(relay, packed, signature)
+    data, _ = get_response(relay, packed, signature)
     assert data["configs"][public_key]["projectId"] == project_key
     assert not data["configs"][public_key]["disabled"]
     time.sleep(1)
@@ -323,7 +291,7 @@ def test_cached_project_config(mini_sentry, relay):
 
     body = {"publicKeys": [public_key]}
     packed, signature = SecretKey.parse(relay.secret_key).pack(body)
-    data = get_response(relay, packed, signature)
+    data, _ = get_response(relay, packed, signature)
     assert data["configs"][public_key]["projectId"] == project_key
     assert not data["configs"][public_key]["disabled"]
 
@@ -333,7 +301,7 @@ def test_cached_project_config(mini_sentry, relay):
 
     # Give it a bit time for update to go through.
     time.sleep(1)
-    data = get_response(relay, packed, signature)
+    data, _ = get_response(relay, packed, signature)
 
     assert data["configs"][public_key]["projectId"] == project_key
     assert not data["configs"][public_key]["disabled"]
@@ -370,7 +338,7 @@ def test_get_global_config(mini_sentry, relay):
 
     body = {"publicKeys": [], "global": True}
     packed, signature = SecretKey.parse(relay.secret_key).pack(body)
-    data = get_response(relay, packed, signature, version="3")
+    data, _ = get_response(relay, packed, signature, version="3")
 
     global_extraction_config = data["global"].pop("metricExtraction")
     assert "span_metrics_common" in global_extraction_config["groups"]
@@ -386,19 +354,11 @@ def test_compression(mini_sentry, relay):
     body = {"publicKeys": [public_key]}
     packed, signature = SecretKey.parse(relay.secret_key).pack(body)
 
-    response = relay.post(
-        "/api/0/relays/projectconfigs/?version=2",
-        data=packed,
-        headers={
-            "Accept-Encoding": "gzip",
-            "X-Sentry-Relay-Id": relay.relay_id,
-            "X-Sentry-Relay-Signature": signature,
-        },
+    data, response = get_response(
+        relay, packed, signature, headers={"Accept-Encoding": "gzip"}
     )
-
-    assert response.ok
     assert response.headers["content-encoding"] == "gzip"
-    assert public_key in response.json()["configs"]
+    assert public_key in data["configs"]
 
 
 def test_unchanged_projects(mini_sentry, relay):
@@ -410,32 +370,14 @@ def test_unchanged_projects(mini_sentry, relay):
     body = {"publicKeys": [public_key], "revisions": ["123"]}
     packed, signature = SecretKey.parse(relay.secret_key).pack(body)
 
-    def request_config():
-        return relay.post(
-            "/api/0/relays/projectconfigs/?version=3",
-            data=packed,
-            headers={
-                "X-Sentry-Relay-Id": relay.relay_id,
-                "X-Sentry-Relay-Signature": signature,
-            },
-        )
-
-    response = request_config()
+    response = request_config(relay, packed, signature)
 
     assert response.ok
     data = response.json()
     assert public_key in data["pending"]
     assert public_key not in data.get("unchanged", [])
 
-    deadline = time.monotonic() + 15
-    while time.monotonic() <= deadline:
-        response = request_config()
-        assert response.ok
-        data = response.json()
-        if data.get("unchanged"):
-            break
-    else:
-        assert False, "Relay did still not receive a project config from minisentry"
+    data, response = get_response(relay, packed, signature)
 
     assert public_key in data["unchanged"]
     assert public_key not in data["configs"]

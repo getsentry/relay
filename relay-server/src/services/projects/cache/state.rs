@@ -96,11 +96,9 @@ impl ProjectStore {
                 _removed.is_some(),
                 "an expired project must exist in the shared state"
             );
+            relay_log::trace!(tags.project_key = project_key.as_str(), "project evicted");
 
             evicted += 1;
-
-            // TODO: garbage disposal? Do we still need that, we shouldn't have a problem with
-            // timings anymore.
 
             on_evict(project_key);
         }
@@ -169,10 +167,6 @@ impl Shared {
     /// The caller must ensure that the project cache is instructed to
     /// [`super::ProjectCache::Fetch`] the retrieved project.
     pub fn get_or_create(&self, project_key: ProjectKey) -> SharedProject {
-        // TODO: do we need to check for expiry here?
-        // TODO: if yes, we need to include the timestamp in the shared project state.
-        // TODO: grace periods?
-
         // The fast path, we expect the project to exist.
         let projects = self.projects.pin();
         if let Some(project) = projects.get(&project_key) {
@@ -235,7 +229,8 @@ impl ProjectRef<'_> {
     }
 
     fn complete_fetch(&mut self, fetch: CompletedFetch) {
-        self.private.complete_fetch(&fetch);
+        let now = Instant::now();
+        self.private.complete_fetch(&fetch, now);
 
         // Keep the old state around if the current fetch is pending.
         // It may still be useful to callers.
@@ -427,7 +422,7 @@ impl PrivateProjectState {
         let when = match &self.state {
             FetchState::InProgress {} => {
                 relay_log::trace!(
-                    project_key = self.project_key.as_str(),
+                    tags.project_key = self.project_key.as_str(),
                     "project fetch skipped, fetch in progress"
                 );
                 return None;
@@ -440,7 +435,7 @@ impl PrivateProjectState {
                 if last_fetch.check_expiry(now, config).is_updated() {
                     // The current state is up to date, no need to start another fetch.
                     relay_log::trace!(
-                        project_key = self.project_key.as_str(),
+                        tags.project_key = self.project_key.as_str(),
                         "project fetch skipped, already up to date"
                     );
                     return None;
@@ -452,8 +447,8 @@ impl PrivateProjectState {
         // Mark a current fetch in progress.
         self.state = FetchState::InProgress {};
 
-        relay_log::debug!(
-            project_key = &self.project_key.as_str(),
+        relay_log::trace!(
+            tags.project_key = &self.project_key.as_str(),
             attempts = self.backoff.attempt() + 1,
             "project state fetch scheduled in {:?}",
             when.saturating_duration_since(Instant::now()),
@@ -466,7 +461,7 @@ impl PrivateProjectState {
         })
     }
 
-    fn complete_fetch(&mut self, fetch: &CompletedFetch) {
+    fn complete_fetch(&mut self, fetch: &CompletedFetch, now: Instant) {
         debug_assert!(
             matches!(self.state, FetchState::InProgress),
             "fetch completed while there was no current fetch registered"
@@ -474,12 +469,20 @@ impl PrivateProjectState {
 
         if fetch.is_pending() {
             self.state = FetchState::Pending {
-                next_fetch_attempt: Instant::now().checked_add(self.backoff.next_backoff()),
+                next_fetch_attempt: now.checked_add(self.backoff.next_backoff()),
             };
+            relay_log::trace!(
+                tags.project_key = &self.project_key.as_str(),
+                "project state fetch completed but still pending"
+            );
         } else {
+            relay_log::trace!(
+                tags.project_key = &self.project_key.as_str(),
+                "project state fetch completed with non-pending config"
+            );
             self.backoff.reset();
             self.state = FetchState::NonPending {
-                last_fetch: LastFetch(Instant::now()),
+                last_fetch: LastFetch(now),
             };
         }
     }
