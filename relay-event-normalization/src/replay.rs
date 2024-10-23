@@ -184,7 +184,7 @@ fn normalize_type(replay: &mut Replay) {
 mod tests {
     use std::net::{IpAddr, Ipv4Addr};
 
-    use chrono::{TimeZone, Utc};
+    use chrono::{Duration, TimeZone, Utc};
     use insta::assert_json_snapshot;
     use relay_protocol::{assert_annotated_snapshot, get_value, SerializableAnnotated};
     use uuid::Uuid;
@@ -448,6 +448,40 @@ mod tests {
 }"#;
 
         let mut replay = Annotated::<Replay>::from_json(json).unwrap();
+        let validation_result = validate(replay.value_mut().as_mut().unwrap());
+        assert!(validation_result.is_err());
+    }
+
+    #[test]
+    fn test_future_timestamp_validation() {
+        let future_time = Utc::now() + Duration::hours(1);
+        let json = format!(
+            r#"{{
+  "event_id": "52df9022835246eeb317dbd739ccd059",
+  "replay_id": "52df9022835246eeb317dbd739ccd059",
+  "segment_id": 0,
+  "replay_type": "session",
+  "error_sample_rate": 0.5,
+  "session_sample_rate": 0.5,
+  "timestamp": {},
+  "replay_start_timestamp": 946684800.0,
+  "urls": ["localhost:9000"],
+  "error_ids": ["test"],
+  "trace_ids": [],
+  "platform": "myplatform",
+  "release": "myrelease",
+  "dist": "mydist",
+  "environment": "myenv",
+  "tags": [
+    [
+      "tag",
+      "value"
+    ]
+  ]
+}}"#,
+            future_time.timestamp()
+        );
+        let mut replay = Annotated::<Replay>::from_json(&json).unwrap();
         let validation_result = validate(replay.value_mut().as_mut().unwrap());
         assert!(validation_result.is_err());
     }
