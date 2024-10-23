@@ -261,7 +261,7 @@ fn handle_replay_recording_item(
     })
     .map(Into::into)
     .map_err(|error| {
-        relay_log::warn!(
+        relay_log::error!(
             error = &error as &dyn Error,
             event_id = ?config.event_id,
             project_id = config.project_id.map(|v| v.value()),
