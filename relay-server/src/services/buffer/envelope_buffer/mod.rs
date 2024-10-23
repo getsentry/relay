@@ -208,6 +208,9 @@ struct EnvelopeBuffer<P: StackProvider> {
     /// This boolean is just used for tagging the metric that tracks the total count of envelopes
     /// in the buffer.
     total_count_initialized: bool,
+
+    /// Temporary field used to track compression gains.
+    push_count: usize,
 }
 
 impl EnvelopeBuffer<MemoryStackProvider> {
@@ -219,6 +222,7 @@ impl EnvelopeBuffer<MemoryStackProvider> {
             stack_provider: MemoryStackProvider::new(memory_checker),
             total_count: Arc::new(AtomicI64::new(0)),
             total_count_initialized: false,
+            push_count: 0,
         }
     }
 }
@@ -233,6 +237,7 @@ impl EnvelopeBuffer<SqliteStackProvider> {
             stack_provider: SqliteStackProvider::new(config).await?,
             total_count: Arc::new(AtomicI64::new(0)),
             total_count_initialized: false,
+            push_count: 0,
         })
     }
 }
@@ -258,6 +263,27 @@ where
     /// The priority of the stack is updated with the envelope's received_at time.
     pub async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), EnvelopeBufferError> {
         let received_at = envelope.meta().start_time().into();
+
+        // Temporary metric to verify compression gains
+        self.push_count += 1;
+        if 0 == (self.push_count % 100) {
+            if let Ok(serialized) = envelope.to_vec() {
+                relay_statsd::metric!(
+                    histogram(RelayHistograms::BufferEnvelopeSize) = serialized.len() as u64
+                );
+                if let Ok(encoded) =
+                    relay_statsd::metric!(timer(RelayTimers::BufferEnvelopeCompression), {
+                        zstd::encode_all(serialized.as_slice(), 1) // lowest compression level
+                    })
+                {
+                    relay_statsd::metric!(
+                        histogram(RelayHistograms::BufferEnvelopeSizeCompressed) =
+                            encoded.len() as u64
+                    );
+                }
+            }
+        }
+
         let project_key_pair = ProjectKeyPair::from_envelope(&envelope);
         if let Some((
             QueueItem {
@@ -283,7 +309,6 @@ where
                 prio.received_at = received_at;
             });
 
-        self.total_count.fetch_add(1, AtomicOrdering::SeqCst);
         self.track_total_count();
 
         Ok(())
