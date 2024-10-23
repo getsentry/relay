@@ -886,7 +886,7 @@ def test_transaction_metrics(
         "name": "c:transactions/usage@none",
         "type": "c",
         "value": 2.0,
-        "tags": {"extracted_from_indexed": "true"},
+        "tags": {} if discard_data else {"extracted_from_indexed": "true"},
     }
 
     metrics["d:transactions/measurements.foo@none"]["value"].sort()
