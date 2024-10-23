@@ -46,7 +46,7 @@ use smallvec::{smallvec, SmallVec};
 use {
     crate::metrics::{add_indexed_tag, remove_indexed_tag},
     crate::services::store::{Store, StoreEnvelope},
-    crate::utils::{sample, CheckLimits, Enforcement, EnvelopeLimiter, ItemAction},
+    crate::utils::{CheckLimits, Enforcement, EnvelopeLimiter, ItemAction},
     itertools::Itertools,
     relay_cardinality::{
         CardinalityLimit, CardinalityLimiter, CardinalityLimitsSplit, RedisSetLimiter,
@@ -611,12 +611,14 @@ impl ProcessingExtractedMetrics {
     }
 
     /// Extends the [`ProcessingExtractedMetrics`].
-    fn extend_metrics(
+    fn extend_metrics<I>(
         processing_enabled: bool,
         existing_buckets: &mut Vec<Bucket>,
-        buckets: Vec<Bucket>,
+        buckets: I,
         sampling_decision: Option<SamplingDecision>,
-    ) {
+    ) where
+        I: IntoIterator<Item = Bucket>,
+    {
         // If we are not a processing Relay, we don't want to add any metadata or tags because
         // metrics are not extracted from indexed payloads in non-processing Relays.
         if !processing_enabled {
@@ -639,11 +641,13 @@ impl ProcessingExtractedMetrics {
     }
 
     /// Extends the contained project metrics.
-    pub fn extend_project_metrics(
+    pub fn extend_project_metrics<I>(
         &mut self,
-        buckets: Vec<Bucket>,
+        buckets: I,
         sampling_decision: Option<SamplingDecision>,
-    ) {
+    ) where
+        I: IntoIterator<Item = Bucket>,
+    {
         Self::extend_metrics(
             self.config.processing_enabled(),
             &mut self.metrics.project_metrics,
@@ -653,11 +657,13 @@ impl ProcessingExtractedMetrics {
     }
 
     /// Extends the contained sampling metrics.
-    pub fn extend_sampling_metrics(
+    pub fn extend_sampling_metrics<I>(
         &mut self,
-        buckets: Vec<Bucket>,
+        buckets: I,
         sampling_decision: Option<SamplingDecision>,
-    ) {
+    ) where
+        I: IntoIterator<Item = Bucket>,
+    {
         Self::extend_metrics(
             self.config.processing_enabled(),
             &mut self.metrics.sampling_metrics,
@@ -713,10 +719,6 @@ impl ProcessingExtractedMetrics {
 
                 if reset_extracted_from_indexed.contains(&namespace) {
                     bucket.metadata.extracted_from_indexed = false;
-                    // If this metric is a usage metric, and we dropped the indexed payload due to
-                    // rate limiting, we want to remove the indexed tag, so that the amount of
-                    // transactions/spans can still be counted correctly.
-                    remove_indexed_tag(bucket);
                 }
 
                 true
@@ -1483,21 +1485,26 @@ impl EnvelopeProcessorService {
             return Ok(());
         }
 
+        // If spans were already extracted for an event, we rely on span processing to extract metrics.
+        let extract_spans = !state.spans_extracted
+            && state.project_info.config.features.produces_spans()
+            && utils::sample(global.options.span_extraction_sample_rate.unwrap_or(1.0));
+
         let metrics = crate::metrics_extraction::event::extract_metrics(
             event,
-            state.spans_extracted,
             combined_config,
+            sampling_decision,
             self.inner
                 .config
                 .aggregator_config_for(MetricNamespace::Spans)
                 .aggregator
                 .max_tag_value_length,
-            global.options.span_extraction_sample_rate,
+            extract_spans,
         );
 
         state
             .extracted_metrics
-            .extend_project_metrics(metrics, Some(sampling_decision));
+            .extend(metrics, Some(sampling_decision));
 
         if !state.project_info.has_feature(Feature::DiscardTransaction) {
             let transaction_from_dsc = state
@@ -2601,7 +2608,7 @@ impl EnvelopeProcessorService {
         };
 
         let error_sample_rate = global_config.options.cardinality_limiter_error_sample_rate;
-        if !limits.exceeded_limits().is_empty() && sample(error_sample_rate) {
+        if !limits.exceeded_limits().is_empty() && utils::sample(error_sample_rate) {
             for limit in limits.exceeded_limits() {
                 relay_log::error!(
                     tags.organization_id = scoping.organization_id,
