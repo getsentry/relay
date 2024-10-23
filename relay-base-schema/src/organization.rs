@@ -25,3 +25,23 @@ impl std::fmt::Display for OrganizationId {
         write!(f, "{}", self.value())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_deserialize() {
+        let json = r#"[42]"#;
+        let ids: Vec<OrganizationId> =
+            serde_json::from_str(json).expect("deserialize organization ids");
+        assert_eq!(ids, vec![OrganizationId::new(42)]);
+    }
+
+    #[test]
+    fn test_serialize() {
+        let ids = vec![OrganizationId::new(42)];
+        let json = serde_json::to_string(&ids).expect("serialize organization ids");
+        assert_eq!(json, r#"[42]"#);
+    }
+}
