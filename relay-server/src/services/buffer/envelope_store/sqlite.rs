@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use crate::envelope::EnvelopeError;
 use crate::extractors::StartTime;
 use crate::services::buffer::common::ProjectKeyPair;
-use crate::statsd::RelayGauges;
+use crate::statsd::{RelayGauges, RelayTimers};
 use crate::Envelope;
 use bytes::Bytes;
 use futures::stream::StreamExt;
@@ -25,6 +25,8 @@ use sqlx::{Pool, QueryBuilder, Row, Sqlite};
 use tokio::fs::DirBuilder;
 use tokio::time::sleep;
 
+const ZSTD_MAGIC_WORD: &[u8] = &[40, 181, 47, 253];
+
 /// Struct that contains all the fields of an [`Envelope`] that are mapped to the database columns.
 #[derive(Clone, Debug)]
 pub struct InsertEnvelope {
@@ -34,7 +36,18 @@ pub struct InsertEnvelope {
     encoded_envelope: Vec<u8>,
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum InsertEnvelopeError {
+    #[error("envelope conversion error: {0}")]
+    Envelope(#[from] EnvelopeError),
+    #[error("compression error: {0}")]
+    Zstd(#[from] std::io::Error),
+}
+
 impl InsertEnvelope {
+    // TODO: explain why 1
+    const COMPRESSION_LEVEL: i32 = 1;
+
     pub fn len(&self) -> usize {
         self.encoded_envelope.len()
     }
@@ -45,15 +58,20 @@ impl InsertEnvelope {
 }
 
 impl TryFrom<InsertEnvelope> for Box<Envelope> {
-    type Error = EnvelopeError;
+    type Error = InsertEnvelopeError;
 
     fn try_from(value: InsertEnvelope) -> Result<Self, Self::Error> {
         let InsertEnvelope {
             received_at,
             own_key,
             sampling_key,
-            encoded_envelope,
+            mut encoded_envelope,
         } = value;
+
+        if encoded_envelope.starts_with(ZSTD_MAGIC_WORD) {
+            encoded_envelope = zstd::decode_all(encoded_envelope.as_slice())?;
+        }
+
         let mut envelope = Envelope::parse_bytes(Bytes::from(encoded_envelope))?;
         debug_assert_eq!(envelope.meta().public_key(), own_key);
         debug_assert!(envelope
@@ -67,25 +85,21 @@ impl TryFrom<InsertEnvelope> for Box<Envelope> {
 }
 
 impl<'a> TryFrom<&'a Envelope> for InsertEnvelope {
-    type Error = EnvelopeError;
+    type Error = InsertEnvelopeError;
 
     fn try_from(value: &'a Envelope) -> Result<Self, Self::Error> {
         let own_key = value.meta().public_key();
         let sampling_key = value.sampling_key().unwrap_or(own_key);
 
-        let encoded_envelope = match value.to_vec() {
-            Ok(encoded_envelope) => encoded_envelope,
-            Err(err) => {
-                relay_log::error!(
-                    error = &err as &dyn Error,
-                    own_key = own_key.to_string(),
-                    sampling_key = sampling_key.to_string(),
-                    "failed to serialize envelope",
-                );
+        let serialized_envelope = value.to_vec()?;
 
-                return Err(err);
-            }
-        };
+        let encoded_envelope =
+            relay_statsd::metric!(timer(RelayTimers::BufferEnvelopeCompression), {
+                zstd::encode_all(serialized_envelope.as_slice(), Self::COMPRESSION_LEVEL)?
+            });
+
+        // dbg!(encoded_envelope.len());
+        // dbg!(serialized_envelope.len());
 
         Ok(InsertEnvelope {
             received_at: value.received_at().timestamp_millis(),

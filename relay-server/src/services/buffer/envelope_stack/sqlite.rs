@@ -4,20 +4,20 @@ use std::num::NonZeroUsize;
 use relay_base_schema::project::ProjectKey;
 use tokio::time::Instant;
 
-use crate::envelope::{Envelope, EnvelopeError};
+use crate::envelope::Envelope;
 use crate::services::buffer::envelope_stack::EnvelopeStack;
 use crate::services::buffer::envelope_store::sqlite::{
-    InsertEnvelope, SqliteEnvelopeStore, SqliteEnvelopeStoreError,
+    InsertEnvelope, InsertEnvelopeError, SqliteEnvelopeStore, SqliteEnvelopeStoreError,
 };
 use crate::statsd::{RelayCounters, RelayTimers};
 
 /// An error returned when doing an operation on [`SqliteEnvelopeStack`].
 #[derive(Debug, thiserror::Error)]
 pub enum SqliteEnvelopeStackError {
-    #[error("an error occurred in the envelope store: {0}")]
+    #[error("envelope store error: {0}")]
     EnvelopeStoreError(#[from] SqliteEnvelopeStoreError),
-    #[error("an error occurred while converting envelopes: {0}")]
-    Envelope(#[from] EnvelopeError),
+    #[error("envelope encode error: {0}")]
+    Envelope(#[from] InsertEnvelopeError),
 }
 
 #[derive(Debug)]

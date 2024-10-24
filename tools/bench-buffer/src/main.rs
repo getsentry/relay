@@ -199,14 +199,17 @@ async fn run_interleaved(
 
 fn mock_envelope(payload_size: usize, project_count: usize) -> Box<Envelope> {
     let project_key = (rand::random::<f64>() * project_count as f64) as u128;
+    let payload = (0..payload_size)
+        .map(|i| (i % 256) as u8)
+        .collect::<Vec<_>>();
     let bytes = Bytes::from(format!(
             "\
              {{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://{:032x}:@sentry.io/42\"}}\n\
              {{\"type\":\"attachment\"}}\n\
-             {}\n\
+             {:?}\n\
              ",
             project_key,
-            "X".repeat(payload_size)
+            payload
         ));
 
     let mut envelope = Envelope::parse_bytes(bytes).unwrap();
