@@ -22,6 +22,11 @@ WORKDIR /work
 
 EXPOSE 3000
 
+# Copy tools
+COPY $TARGETPLATFORM/bench-buffer /bin/bench-buffer
+RUN chmod +x /bin/bench-buffer
+
+# Copy main executable
 COPY $TARGETPLATFORM/relay /bin/relay
 RUN chmod +x /bin/relay
 COPY $TARGETPLATFORM/relay-debug.zip /opt/relay-debug.zip
