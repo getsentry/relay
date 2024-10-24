@@ -1,5 +1,6 @@
 use bytes::Bytes;
 use clap::{Parser, ValueEnum};
+use rand::RngCore;
 use relay_config::Config;
 use relay_server::{Envelope, MemoryChecker, MemoryStat, PolymorphicEnvelopeBuffer};
 use std::sync::Arc;
@@ -199,9 +200,9 @@ async fn run_interleaved(
 
 fn mock_envelope(payload_size: usize, project_count: usize) -> Box<Envelope> {
     let project_key = (rand::random::<f64>() * project_count as f64) as u128;
-    let payload = (0..payload_size)
-        .map(|i| (i % 256) as u8)
-        .collect::<Vec<_>>();
+    let mut rng = rand::thread_rng();
+    let mut bytes = [0u8].repeat(payload_size);
+    rng.fill_bytes(bytes.as_mut_slice());
     let bytes = Bytes::from(format!(
             "\
              {{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://{:032x}:@sentry.io/42\"}}\n\
@@ -209,7 +210,7 @@ fn mock_envelope(payload_size: usize, project_count: usize) -> Box<Envelope> {
              {:?}\n\
              ",
             project_key,
-            payload
+            bytes
         ));
 
     let mut envelope = Envelope::parse_bytes(bytes).unwrap();

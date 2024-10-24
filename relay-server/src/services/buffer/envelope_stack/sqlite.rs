@@ -115,7 +115,7 @@ impl SqliteEnvelopeStack {
                 .delete_many(
                     self.own_key,
                     self.sampling_key,
-                    1, // TODO
+                    10, // TODO
                 )
                 .await
                 .map_err(SqliteEnvelopeStackError::EnvelopeStoreError)?
