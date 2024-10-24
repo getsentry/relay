@@ -3608,7 +3608,9 @@ dependencies = [
  "insta",
  "itertools 0.13.0",
  "relay-base-schema",
+ "relay-dynamic-config",
  "relay-event-schema",
+ "relay-filter",
  "relay-log",
  "relay-metrics",
  "relay-protocol",
@@ -3616,6 +3618,7 @@ dependencies = [
  "serde_json",
  "serde_path_to_error",
  "thiserror",
+ "url",
 ]
 
 [[package]]

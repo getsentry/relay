@@ -40,10 +40,15 @@
 //! Relay will forward those profiles encoded with `msgpack` after unpacking them if needed and push a message on Kafka.
 
 use std::error::Error;
+use std::net::IpAddr;
 use std::time::Duration;
+use url::Url;
 
 use relay_base_schema::project::ProjectId;
-use relay_event_schema::protocol::{Event, EventId};
+use relay_dynamic_config::GlobalConfig;
+use relay_event_schema::protocol::{Csp, Event, EventId, Exception, LogEntry, Values};
+use relay_filter::{Filterable, ProjectFiltersConfig};
+use relay_protocol::{Getter, Val};
 use serde::Deserialize;
 use serde_json::Deserializer;
 
@@ -75,8 +80,58 @@ struct MinimalProfile {
     #[serde(alias = "profile_id", alias = "chunk_id")]
     event_id: ProfileId,
     platform: String,
+    release: Option<String>,
     #[serde(default)]
     version: sample::Version,
+}
+
+impl Filterable for MinimalProfile {
+    fn csp(&self) -> Option<&Csp> {
+        None
+    }
+
+    fn exceptions(&self) -> Option<&Values<Exception>> {
+        None
+    }
+
+    fn ip_addr(&self) -> Option<&str> {
+        None
+    }
+
+    fn logentry(&self) -> Option<&LogEntry> {
+        None
+    }
+
+    fn release(&self) -> Option<&str> {
+        self.release
+            .as_ref()
+            .and_then(|release| Some(release.as_str().into()))
+    }
+
+    fn transaction(&self) -> Option<&str> {
+        None
+    }
+
+    fn url(&self) -> Option<Url> {
+        None
+    }
+
+    fn user_agent(&self) -> Option<&str> {
+        None
+    }
+}
+
+impl Getter for MinimalProfile {
+    fn get_value(&self, path: &str) -> Option<Val<'_>> {
+        match path.strip_prefix("event.")? {
+            "release" => self
+                .release
+                .as_ref()
+                .and_then(|release| Some(release.as_str().into())),
+            "platform" => Some(self.platform.as_str().into()),
+            _ => None,
+        }
+    }
 }
 
 fn minimal_profile_from_json(
@@ -139,7 +194,13 @@ pub fn parse_metadata(payload: &[u8], project_id: ProjectId) -> Result<ProfileId
     Ok(profile.event_id)
 }
 
-pub fn expand_profile(payload: &[u8], event: &Event) -> Result<(ProfileId, Vec<u8>), ProfileError> {
+pub fn expand_profile(
+    payload: &[u8],
+    event: &Event,
+    client_ip: Option<IpAddr>,
+    filter_settings: &ProjectFiltersConfig,
+    global_config: &GlobalConfig,
+) -> Result<(ProfileId, Vec<u8>), ProfileError> {
     let profile = match minimal_profile_from_json(payload) {
         Ok(profile) => profile,
         Err(err) => {
@@ -156,6 +217,16 @@ pub fn expand_profile(payload: &[u8], event: &Event) -> Result<(ProfileId, Vec<u
             return Err(ProfileError::InvalidJson(err));
         }
     };
+
+    if let Err(filter_stat_key) = relay_filter::should_filter(
+        &profile,
+        client_ip,
+        filter_settings,
+        global_config.filters(),
+    ) {
+        return Err(ProfileError::Filtered(filter_stat_key));
+    }
+
     let transaction_metadata = extract_transaction_metadata(event);
     let transaction_tags = extract_transaction_tags(event);
     let processed_payload = match (profile.platform.as_str(), profile.version) {
@@ -200,7 +271,12 @@ pub fn expand_profile(payload: &[u8], event: &Event) -> Result<(ProfileId, Vec<u
     }
 }
 
-pub fn expand_profile_chunk(payload: &[u8]) -> Result<Vec<u8>, ProfileError> {
+pub fn expand_profile_chunk(
+    payload: &[u8],
+    client_ip: Option<IpAddr>,
+    filter_settings: &ProjectFiltersConfig,
+    global_config: &GlobalConfig,
+) -> Result<Vec<u8>, ProfileError> {
     let profile = match minimal_profile_from_json(payload) {
         Ok(profile) => profile,
         Err(err) => {
@@ -212,6 +288,16 @@ pub fn expand_profile_chunk(payload: &[u8]) -> Result<Vec<u8>, ProfileError> {
             return Err(ProfileError::InvalidJson(err));
         }
     };
+
+    if let Err(filter_stat_key) = relay_filter::should_filter(
+        &profile,
+        client_ip,
+        filter_settings,
+        global_config.filters(),
+    ) {
+        return Err(ProfileError::Filtered(filter_stat_key));
+    }
+
     match (profile.platform.as_str(), profile.version) {
         ("android", _) => android::chunk::parse(payload),
         (_, sample::Version::V2) => {
