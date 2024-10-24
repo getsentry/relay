@@ -1,5 +1,7 @@
 use std::convert::Infallible;
 
+use tokio::time::Instant;
+
 use crate::Envelope;
 
 use super::EnvelopeStack;
@@ -21,8 +23,8 @@ impl EnvelopeStack for MemoryEnvelopeStack {
         Ok(())
     }
 
-    async fn peek(&mut self) -> Result<Option<&Envelope>, Self::Error> {
-        Ok(self.0.last().map(Box::as_ref))
+    async fn peek(&mut self) -> Result<Option<Instant>, Self::Error> {
+        Ok(self.0.last().map(|e| e.meta().start_time().into()))
     }
 
     async fn pop(&mut self) -> Result<Option<Box<Envelope>>, Self::Error> {

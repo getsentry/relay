@@ -3,6 +3,7 @@ use std::fmt::Debug;
 use std::num::NonZeroUsize;
 
 use relay_base_schema::project::ProjectKey;
+use tokio::time::Instant;
 
 use crate::envelope::Envelope;
 use crate::services::buffer::envelope_stack::EnvelopeStack;
@@ -196,7 +197,7 @@ impl EnvelopeStack for SqliteEnvelopeStack {
         Ok(())
     }
 
-    async fn peek(&mut self) -> Result<Option<&Envelope>, Self::Error> {
+    async fn peek(&mut self) -> Result<Option<Instant>, Self::Error> {
         if self.below_unspool_threshold() && self.check_disk {
             self.unspool_from_disk().await?
         }
@@ -205,7 +206,7 @@ impl EnvelopeStack for SqliteEnvelopeStack {
             .batches_buffer
             .back()
             .and_then(|last_batch| last_batch.last())
-            .map(|last_batch| last_batch.as_ref());
+            .map(|last_batch| last_batch.meta().start_time().into());
 
         Ok(last)
     }

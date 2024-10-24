@@ -324,7 +324,7 @@ where
     pub async fn peek(&mut self) -> Result<Peek, EnvelopeBufferError> {
         let Some((
             QueueItem {
-                key: stack_key,
+                key: project_key_pair,
                 value: stack,
             },
             Priority {
@@ -341,8 +341,12 @@ where
 
         Ok(match (stack.peek().await?, ready) {
             (None, _) => Peek::Empty,
-            (Some(envelope), true) => Peek::Ready(envelope),
-            (Some(envelope), false) => Peek::NotReady(*stack_key, *next_project_fetch, envelope),
+            (Some(last_received_at), true) => Peek::Ready { last_received_at },
+            (Some(last_received_at), false) => Peek::NotReady {
+                project_key_pair: *project_key_pair,
+                next_project_fetch: *next_project_fetch,
+                last_received_at,
+            },
         })
     }
 
@@ -357,20 +361,17 @@ where
         let project_key_pair = *key;
         let envelope = stack.pop().await.unwrap().expect("found an empty stack");
 
-        let next_received_at = stack
-            .peek()
-            .await?
-            .map(|next_envelope| next_envelope.meta().start_time().into());
+        let last_received_at = stack.peek().await?;
 
-        match next_received_at {
+        match last_received_at {
             None => {
                 relay_statsd::metric!(counter(RelayCounters::BufferEnvelopeStacksPopped) += 1);
                 self.pop_stack(project_key_pair);
             }
-            Some(next_received_at) => {
+            Some(last_received_at) => {
                 self.priority_queue
                     .change_priority_by(&project_key_pair, |prio| {
-                        prio.received_at = next_received_at;
+                        prio.received_at = last_received_at;
                     });
             }
         }
@@ -553,10 +554,16 @@ where
 }
 
 /// Contains a reference to the first element in the buffer, together with its stack's ready state.
-pub enum Peek<'a> {
+pub enum Peek {
     Empty,
-    Ready(&'a Envelope),
-    NotReady(ProjectKeyPair, Instant, &'a Envelope),
+    Ready {
+        last_received_at: Instant, // TODO: use DateTime<Utc> instead
+    },
+    NotReady {
+        project_key_pair: ProjectKeyPair,
+        next_project_fetch: Instant,
+        last_received_at: Instant,
+    },
 }
 
 #[derive(Debug)]
@@ -675,16 +682,9 @@ mod tests {
 
     use super::*;
 
-    impl Peek<'_> {
+    impl Peek {
         fn is_empty(&self) -> bool {
             matches!(self, Peek::Empty)
-        }
-
-        fn envelope(&self) -> Option<&Envelope> {
-            match self {
-                Peek::Empty => None,
-                Peek::Ready(envelope) | Peek::NotReady(_, _, envelope) => Some(envelope),
-            }
         }
     }
 
