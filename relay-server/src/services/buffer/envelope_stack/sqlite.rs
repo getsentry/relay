@@ -64,7 +64,7 @@ impl SqliteEnvelopeStack {
 
     /// Threshold above which the [`SqliteEnvelopeStack`] will spool data from the `buffer` to disk.
     fn above_spool_threshold(&self) -> bool {
-        self.batch.iter().map(InsertEnvelope::len).sum::<usize>() > self.max_batch_bytes.get()
+        self.batch.iter().map(|e| e.len()).sum::<usize>() > self.max_batch_bytes.get()
     }
 
     /// Spools to disk up to `disk_batch_size` envelopes from the `buffer`.
@@ -153,7 +153,10 @@ impl EnvelopeStack for SqliteEnvelopeStack {
             self.spool_to_disk().await?;
         }
 
-        let encoded_envelope = InsertEnvelope::try_from(envelope.as_ref())?;
+        let encoded_envelope =
+            relay_statsd::metric!(timer(RelayTimers::BufferEnvelopesSerialization), {
+                InsertEnvelope::try_from(envelope.as_ref())?
+            });
         self.batch.push(encoded_envelope);
 
         Ok(())
@@ -225,7 +228,7 @@ mod tests {
         let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store,
-            2,
+            471 * 4 - 1,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
@@ -246,27 +249,17 @@ mod tests {
             Err(SqliteEnvelopeStackError::EnvelopeStoreError(_))
         ));
 
-        // The stack now contains the last of the 3 elements that were added. If we add a new one
+        // The stack now contains the last of the 1 elements that were added. If we add a new one
         // we will end up with 2.
         let envelope = mock_envelope(Instant::now());
         assert!(stack.push(envelope.clone()).await.is_ok());
-        assert_eq!(stack.batch.len(), 3);
+        assert_eq!(stack.batch.len(), 1);
 
         // We pop the remaining elements, expecting the last added envelope to be on top.
         let popped_envelope_1 = stack.pop().await.unwrap().unwrap();
-        let popped_envelope_2 = stack.pop().await.unwrap().unwrap();
-        let popped_envelope_3 = stack.pop().await.unwrap().unwrap();
         assert_eq!(
             popped_envelope_1.event_id().unwrap(),
             envelope.event_id().unwrap()
-        );
-        assert_eq!(
-            popped_envelope_2.event_id().unwrap(),
-            envelopes.clone()[3].event_id().unwrap()
-        );
-        assert_eq!(
-            popped_envelope_3.event_id().unwrap(),
-            envelopes.clone()[2].event_id().unwrap()
         );
         assert_eq!(stack.batch.len(), 0);
     }
@@ -313,7 +306,7 @@ mod tests {
         let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store,
-            2,
+            9999,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
@@ -329,7 +322,9 @@ mod tests {
 
         // We peek the top element.
         let peeked = stack.peek().await.unwrap().unwrap();
-        assert_eq!(peeked, envelopes.clone()[4].meta().start_time().into());
+        assert!(
+            peeked.into_std() - envelopes.clone()[4].meta().start_time() < Duration::from_millis(1)
+        );
 
         // We pop 5 envelopes.
         for envelope in envelopes.iter().rev() {
@@ -339,6 +334,8 @@ mod tests {
                 envelope.event_id().unwrap()
             );
         }
+
+        assert_eq!(stack.batch.len(), 0);
     }
 
     #[tokio::test]
@@ -347,27 +344,27 @@ mod tests {
         let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store,
-            2,
+            5 * 471 - 1,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
         );
 
-        let envelopes = mock_envelopes(15);
+        let envelopes = mock_envelopes(7);
 
-        // We push 15 envelopes.
+        // We push 7 envelopes.
         for envelope in envelopes.clone() {
             assert!(stack.push(envelope).await.is_ok());
         }
-        assert_eq!(stack.batch.len(), 10);
+        assert_eq!(stack.batch.len(), 2);
 
         // We peek the top element.
         let peeked = stack.peek().await.unwrap().unwrap();
-        assert_eq!(peeked, envelopes[14].meta().start_time().into());
+        assert!(peeked.into_std() - envelopes[6].meta().start_time() < Duration::from_millis(1));
 
-        // We pop 10 envelopes, and we expect that the last 10 are in memory, since the first 5
+        // We pop envelopes, and we expect that the last 10 are in memory, since the first 5
         // should have been spooled to disk.
-        for envelope in envelopes[5..15].iter().rev() {
+        for envelope in envelopes[5..7].iter().rev() {
             let popped_envelope = stack.pop().await.unwrap().unwrap();
             assert_eq!(
                 popped_envelope.event_id().unwrap(),
@@ -410,7 +407,7 @@ mod tests {
         let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store.clone(),
-            5,
+            4710,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,

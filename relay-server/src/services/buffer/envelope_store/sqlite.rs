@@ -54,15 +54,13 @@ impl TryFrom<InsertEnvelope> for Box<Envelope> {
             sampling_key,
             encoded_envelope,
         } = value;
-        let envelope = Envelope::parse_bytes(Bytes::from(encoded_envelope))?;
-        debug_assert_eq!(
-            envelope.meta().start_time(),
-            StartTime::from_timestamp_millis(received_at as u64).into_inner()
-        );
+        let mut envelope = Envelope::parse_bytes(Bytes::from(encoded_envelope))?;
         debug_assert_eq!(envelope.meta().public_key(), own_key);
         debug_assert!(envelope
             .sampling_key()
             .map_or(true, |key| key == sampling_key));
+
+        envelope.set_start_time(StartTime::from_timestamp_millis(received_at as u64).into_inner());
 
         Ok(envelope)
     }
@@ -594,9 +592,9 @@ mod tests {
             .unwrap();
         assert_eq!(extracted_envelopes.len(), 5);
         for (i, extracted_envelope) in extracted_envelopes.iter().enumerate().take(5) {
-            assert_eq!(
-                extracted_envelope.received_at(),
-                envelopes[5..][i].meta().start_time()
+            assert!(
+                extracted_envelope.received_at() - envelopes[5..][i].meta().start_time()
+                    < Duration::from_millis(1)
             );
         }
 
@@ -608,9 +606,9 @@ mod tests {
             .unwrap();
         assert_eq!(extracted_envelopes.len(), 5);
         for (i, extracted_envelope) in extracted_envelopes.iter().enumerate().take(5) {
-            assert_eq!(
-                extracted_envelope.received_at(),
-                envelopes[0..5][i].meta().start_time()
+            assert!(
+                extracted_envelope.received_at() - envelopes[..5][i].meta().start_time()
+                    < Duration::from_millis(1)
             );
         }
     }
