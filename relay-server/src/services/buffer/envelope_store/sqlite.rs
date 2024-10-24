@@ -10,6 +10,7 @@ use crate::extractors::StartTime;
 use crate::services::buffer::common::ProjectKeyPair;
 use crate::statsd::RelayGauges;
 use crate::Envelope;
+use bytes::Bytes;
 use futures::stream::StreamExt;
 use hashbrown::HashSet;
 use relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
@@ -25,11 +26,42 @@ use tokio::fs::DirBuilder;
 use tokio::time::sleep;
 
 /// Struct that contains all the fields of an [`Envelope`] that are mapped to the database columns.
+#[derive(Clone, Debug)]
 pub struct InsertEnvelope {
     received_at: i64,
     own_key: ProjectKey,
     sampling_key: ProjectKey,
     encoded_envelope: Vec<u8>,
+}
+
+impl InsertEnvelope {
+    pub fn len(&self) -> usize {
+        self.encoded_envelope.len()
+    }
+}
+
+impl<'a> TryFrom<InsertEnvelope> for Box<Envelope> {
+    type Error = EnvelopeError;
+
+    fn try_from(value: InsertEnvelope) -> Result<Self, Self::Error> {
+        let InsertEnvelope {
+            received_at,
+            own_key,
+            sampling_key,
+            encoded_envelope,
+        } = value;
+        let envelope = Envelope::parse_bytes(Bytes::from(encoded_envelope))?;
+        debug_assert_eq!(
+            envelope.meta().start_time(),
+            StartTime::from_timestamp_millis(received_at as u64).into_inner()
+        );
+        debug_assert_eq!(envelope.meta().public_key(), own_key);
+        debug_assert!(envelope
+            .sampling_key()
+            .map_or(true, |key| key == sampling_key));
+
+        Ok(envelope)
+    }
 }
 
 impl<'a> TryFrom<&'a Envelope> for InsertEnvelope {
@@ -321,7 +353,7 @@ impl SqliteEnvelopeStore {
         own_key: ProjectKey,
         sampling_key: ProjectKey,
         limit: i64,
-    ) -> Result<Vec<Box<Envelope>>, SqliteEnvelopeStoreError> {
+    ) -> Result<Vec<InsertEnvelope>, SqliteEnvelopeStoreError> {
         let envelopes = build_delete_and_fetch_many_envelopes(own_key, sampling_key, limit)
             .fetch(&self.db)
             .peekable();
@@ -415,22 +447,31 @@ impl SqliteEnvelopeStore {
 }
 
 /// Deserializes an [`Envelope`] from a database row.
-fn extract_envelope(row: SqliteRow) -> Result<Box<Envelope>, SqliteEnvelopeStoreError> {
-    let envelope_row: Vec<u8> = row
+fn extract_envelope(
+    own_key: ProjectKey,
+    sampling_key: ProjectKey,
+    row: SqliteRow,
+) -> Result<InsertEnvelope, SqliteEnvelopeStoreError> {
+    let encoded_envelope: Vec<u8> = row
         .try_get("envelope")
         .map_err(SqliteEnvelopeStoreError::FetchError)?;
-    let envelope_bytes = bytes::Bytes::from(envelope_row);
-    let mut envelope = Envelope::parse_bytes(envelope_bytes)
-        .map_err(|_| SqliteEnvelopeStoreError::EnvelopeExtractionError)?;
+    // let envelope_bytes = bytes::Bytes::from(envelope_row);
+    // let mut envelope = Envelope::parse_bytes(envelope_bytes)
+    //     .map_err(|_| SqliteEnvelopeStoreError::EnvelopeExtractionError)?;
 
     let received_at: i64 = row
         .try_get("received_at")
         .map_err(SqliteEnvelopeStoreError::FetchError)?;
-    let start_time = StartTime::from_timestamp_millis(received_at as u64);
+    // let start_time = StartTime::from_timestamp_millis(received_at as u64);
 
-    envelope.set_start_time(start_time.into_inner());
+    // envelope.set_start_time(start_time.into_inner());
 
-    Ok(envelope)
+    Ok(InsertEnvelope {
+        received_at,
+        own_key,
+        sampling_key,
+        encoded_envelope,
+    })
 }
 
 /// Deserializes a pair of [`ProjectKey`] from the database.
