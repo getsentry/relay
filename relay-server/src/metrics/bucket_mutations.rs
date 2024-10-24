@@ -10,7 +10,7 @@ const INDEXED_TAG_NAME: &str = "indexed";
 /// or span. This means that the metric is used by consumers to know how many transactions or spans
 /// were received by the system (before dynamic sampling).
 fn is_usage_metric(bucket: &Bucket) -> bool {
-    bucket.name.name_eq("c:transactions/usage@none") || bucket.name.name_eq("c:spans/usage@none")
+    &bucket.name == "c:transactions/usage@none" || &bucket.name == "c:spans/usage@none"
 }
 
 /// Adds an "indexed=true" tag to usage metrics.

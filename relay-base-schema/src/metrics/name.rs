@@ -94,11 +94,6 @@ impl MetricName {
             .into_iter()
             .find(|namespace| maybe_namespace == namespace.as_str())
     }
-
-    /// Returns a reference to the `str` inside the [`MetricName`].
-    pub fn name_eq(&self, other: &str) -> bool {
-        *self.0 == *other
-    }
 }
 
 impl PartialEq<str> for MetricName {

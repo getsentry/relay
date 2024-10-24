@@ -719,6 +719,7 @@ impl ProcessingExtractedMetrics {
 
                 if reset_extracted_from_indexed.contains(&namespace) {
                     bucket.metadata.extracted_from_indexed = false;
+                    remove_indexed_tag(bucket);
                 }
 
                 true
