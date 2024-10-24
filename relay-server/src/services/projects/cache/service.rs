@@ -109,7 +109,7 @@ impl ProjectCacheService {
         let project_updates = self.project_update_tx.clone();
 
         tokio::spawn(async move {
-            tokio::time::sleep_until(fetch.when().into()).await;
+            tokio::time::sleep_until(fetch.when()).await;
 
             // TODO: cached state for delta fetches, maybe this should just be a revision?
             let state = match source

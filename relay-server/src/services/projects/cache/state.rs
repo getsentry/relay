@@ -1,6 +1,6 @@
 use std::fmt;
 use std::sync::Arc;
-use std::time::Instant;
+use tokio::time::Instant;
 
 use arc_swap::ArcSwap;
 use relay_base_schema::project::ProjectKey;
@@ -54,9 +54,8 @@ impl ProjectStore {
     /// [`ProjectState`] is still pending or already deemed expired.
     #[must_use = "an incomplete fetch must be retried"]
     pub fn complete_fetch(&mut self, fetch: CompletedFetch, config: &Config) -> Option<Fetch> {
-        // TODO: what if in the meantime the state expired and was evicted?
-        // Should eviction be possible for states that are currently in progress, I don't think so.
-        // Maybe need to discard outdated fetches (for evicted projects)?
+        // Eviction is not possible for projects which are currently being fetched.
+        // Hence if there was a started fetch, the project state must always exist at this stage.
         debug_assert!(self.shared.projects.pin().get(&fetch.project_key).is_some());
         debug_assert!(self.private.get(&fetch.project_key).is_some());
 
@@ -568,5 +567,207 @@ impl Expiry {
     /// Returns `true` if the project is expired and can be evicted.
     fn is_expired(&self) -> bool {
         matches!(self, Self::Expired)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use super::*;
+
+    fn collect_evicted(store: &mut ProjectStore, config: &Config) -> Vec<ProjectKey> {
+        let mut evicted = Vec::new();
+        let num_evicted = store.evict_stale_projects(config, |pk| evicted.push(pk));
+        assert_eq!(evicted.len(), num_evicted);
+        evicted
+    }
+
+    macro_rules! assert_state {
+        ($store:ident, $project_key:ident, $state:pat) => {
+            assert!(matches!(
+                $store.shared().get_or_create($project_key).project_state(),
+                $state
+            ));
+        };
+    }
+
+    #[test]
+    fn test_store_fetch() {
+        let project_key = ProjectKey::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
+        let mut store = ProjectStore::default();
+        let config = Default::default();
+
+        let fetch = store.try_begin_fetch(project_key, &config).unwrap();
+        assert_eq!(fetch.project_key(), project_key);
+        assert!(fetch.when() < Instant::now());
+        assert_eq!(fetch.revision().as_str(), None);
+        assert_state!(store, project_key, ProjectState::Pending);
+
+        // Fetch already in progress, nothing to do.
+        assert!(store.try_begin_fetch(project_key, &config).is_none());
+
+        // A pending fetch should trigger a new fetch immediately.
+        let fetch = fetch.complete(ProjectState::Pending.into());
+        let fetch = store.complete_fetch(fetch, &config).unwrap();
+        assert_eq!(fetch.project_key(), project_key);
+        // First backoff is still immediately.
+        assert!(fetch.when() < Instant::now());
+        assert_eq!(fetch.revision().as_str(), None);
+        assert_state!(store, project_key, ProjectState::Pending);
+
+        // Pending again.
+        let fetch = fetch.complete(ProjectState::Pending.into());
+        let fetch = store.complete_fetch(fetch, &config).unwrap();
+        assert_eq!(fetch.project_key(), project_key);
+        // This time it needs to be in the future (backoff).
+        assert!(fetch.when() > Instant::now());
+        assert_eq!(fetch.revision().as_str(), None);
+        assert_state!(store, project_key, ProjectState::Pending);
+
+        // Now complete with disabled.
+        let fetch = fetch.complete(ProjectState::Disabled.into());
+        assert!(store.complete_fetch(fetch, &config).is_none());
+        assert_state!(store, project_key, ProjectState::Disabled);
+
+        // A new fetch is not yet necessary.
+        assert!(store.try_begin_fetch(project_key, &config).is_none());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_store_fetch_pending_does_not_replace_state() {
+        let project_key = ProjectKey::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
+        let mut store = ProjectStore::default();
+        let config = Config::from_json_value(serde_json::json!({
+            "cache": {
+                "project_expiry": 5,
+                "project_grace_period": 5,
+            }
+        }))
+        .unwrap();
+
+        let fetch = store.try_begin_fetch(project_key, &config).unwrap();
+        let fetch = fetch.complete(ProjectState::Disabled.into());
+        assert!(store.complete_fetch(fetch, &config).is_none());
+        assert_state!(store, project_key, ProjectState::Disabled);
+
+        tokio::time::advance(Duration::from_secs(6)).await;
+
+        let fetch = store.try_begin_fetch(project_key, &config).unwrap();
+        let fetch = fetch.complete(ProjectState::Pending.into());
+        // We're returned a new fetch, because the current one completed pending.
+        let fetch = store.complete_fetch(fetch, &config).unwrap();
+        // The old cached state is still available and not replaced.
+        assert_state!(store, project_key, ProjectState::Disabled);
+
+        let fetch = fetch.complete(ProjectState::new_allowed().into());
+        assert!(store.complete_fetch(fetch, &config).is_none());
+        assert_state!(store, project_key, ProjectState::Enabled(_));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_store_evict_projects() {
+        let project_key1 = ProjectKey::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
+        let project_key2 = ProjectKey::parse("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb").unwrap();
+        let mut store = ProjectStore::default();
+        let config = Config::from_json_value(serde_json::json!({
+            "cache": {
+                "project_expiry": 5,
+                "project_grace_period": 0,
+            }
+        }))
+        .unwrap();
+
+        let fetch = store.try_begin_fetch(project_key1, &config).unwrap();
+        let fetch = fetch.complete(ProjectState::Disabled.into());
+        assert!(store.complete_fetch(fetch, &config).is_none());
+
+        assert_eq!(collect_evicted(&mut store, &config), Vec::new());
+        assert_state!(store, project_key1, ProjectState::Disabled);
+
+        // 3 seconds is not enough to expire any project.
+        tokio::time::advance(Duration::from_secs(3)).await;
+
+        assert_eq!(collect_evicted(&mut store, &config), Vec::new());
+        assert_state!(store, project_key1, ProjectState::Disabled);
+
+        let fetch = store.try_begin_fetch(project_key2, &config).unwrap();
+        let fetch = fetch.complete(ProjectState::Disabled.into());
+        assert!(store.complete_fetch(fetch, &config).is_none());
+
+        // A total of 6 seconds should expire the first project.
+        tokio::time::advance(Duration::from_secs(3)).await;
+
+        assert_eq!(collect_evicted(&mut store, &config), vec![project_key1]);
+        assert_state!(store, project_key1, ProjectState::Pending);
+        assert_state!(store, project_key2, ProjectState::Disabled);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_store_evict_projects_pending_not_expired() {
+        let project_key1 = ProjectKey::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
+        let project_key2 = ProjectKey::parse("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb").unwrap();
+        let mut store = ProjectStore::default();
+        let config = Config::from_json_value(serde_json::json!({
+            "cache": {
+                "project_expiry": 5,
+                "project_grace_period": 0,
+            }
+        }))
+        .unwrap();
+
+        let fetch = store.try_begin_fetch(project_key1, &config).unwrap();
+        // Create a new project in a pending state, but never fetch it, this should also never expire.
+        store.shared().get_or_create(project_key2);
+
+        tokio::time::advance(Duration::from_secs(6)).await;
+
+        // No evictions, project is pending.
+        assert_eq!(collect_evicted(&mut store, &config), Vec::new());
+
+        // Complete the project.
+        let fetch = fetch.complete(ProjectState::Disabled.into());
+        assert!(store.complete_fetch(fetch, &config).is_none());
+
+        // Still should not be evicted, because we do have 5 seconds to expire since completion.
+        assert_eq!(collect_evicted(&mut store, &config), Vec::new());
+        tokio::time::advance(Duration::from_secs(4)).await;
+        assert_eq!(collect_evicted(&mut store, &config), Vec::new());
+        assert_state!(store, project_key1, ProjectState::Disabled);
+
+        // Just enough to expire the project.
+        tokio::time::advance(Duration::from_millis(1001)).await;
+        assert_eq!(collect_evicted(&mut store, &config), vec![project_key1]);
+        assert_state!(store, project_key1, ProjectState::Pending);
+        assert_state!(store, project_key2, ProjectState::Pending);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_store_evict_projects_stale() {
+        let project_key = ProjectKey::parse("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").unwrap();
+        let mut store = ProjectStore::default();
+        let config = Config::from_json_value(serde_json::json!({
+            "cache": {
+                "project_expiry": 5,
+                "project_grace_period": 5,
+            }
+        }))
+        .unwrap();
+
+        let fetch = store.try_begin_fetch(project_key, &config).unwrap();
+        let fetch = fetch.complete(ProjectState::Disabled.into());
+        assert!(store.complete_fetch(fetch, &config).is_none());
+
+        // This is in the grace period, but not yet expired.
+        tokio::time::advance(Duration::from_millis(9500)).await;
+
+        assert_eq!(collect_evicted(&mut store, &config), Vec::new());
+        assert_state!(store, project_key, ProjectState::Disabled);
+
+        // Now it's expired.
+        tokio::time::advance(Duration::from_secs(1)).await;
+
+        assert_eq!(collect_evicted(&mut store, &config), vec![project_key]);
+        assert_state!(store, project_key, ProjectState::Pending);
     }
 }
