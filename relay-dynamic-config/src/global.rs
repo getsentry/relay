@@ -200,6 +200,18 @@ pub struct Options {
     )]
     pub http_span_allowed_hosts: Vec<String>,
 
+    /// `true` if the new counting strategy for accepted payloads is enabled.
+    ///
+    /// The new strategy affects how consumers emit accepted outcomes but there is an edge case for
+    /// spans since they are not consumed by Sentry consumers and rather directly ingested by Snuba,
+    /// thus this requires Relay to emit accepted outcomes.
+    #[serde(
+        rename = "consumers.use_new_counting_strategy",
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "is_default"
+    )]
+    pub use_new_counting_strategy: bool,
+
     /// Deprecated, still forwarded for older downstream Relays.
     #[doc(hidden)]
     #[serde(
