@@ -436,7 +436,7 @@ mod tests {
             ProcessEnvelopeState::<TransactionGroup> {
                 event: Annotated::from(event),
                 metrics: Default::default(),
-                extracted_metrics: ProcessingExtractedMetrics::new(config.clone()),
+                extracted_metrics: ProcessingExtractedMetrics::new(),
                 config: config.clone(),
                 project_info,
                 rate_limits: Default::default(),
@@ -703,14 +703,13 @@ mod tests {
             r#"{"dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","trace":{"trace_id":"89143b0763095bd9c9955e8175d1fb23","public_key":"e12d836b15bb49d7bbf99e64295d995b"}}"#,
         );
         let envelope = Envelope::parse_bytes(bytes).unwrap();
-        let config = Arc::new(Config::default());
         let mut state = ProcessEnvelopeState::<G> {
             event: Annotated::new(Event::default()),
             event_metrics_extracted: false,
             spans_extracted: false,
             metrics: Default::default(),
-            extracted_metrics: ProcessingExtractedMetrics::new(config.clone()),
-            config,
+            extracted_metrics: ProcessingExtractedMetrics::new(),
+            config: Arc::new(Config::default()),
             project_info,
             rate_limits: Default::default(),
             sampling_project_info: {
