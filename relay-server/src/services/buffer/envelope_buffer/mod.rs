@@ -553,7 +553,7 @@ where
     }
 }
 
-/// Contains a reference to the first element in the buffer, together with its stack's ready state.
+/// Contains the state of the first element in the buffer.
 pub enum Peek {
     Empty,
     Ready {
