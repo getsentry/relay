@@ -913,15 +913,28 @@ impl StoreService {
             },
         )?;
 
-        self.outcome_aggregator.send(TrackOutcome {
-            category: DataCategory::SpanIndexed,
-            event_id: None,
-            outcome: Outcome::Accepted,
-            quantity: 1,
-            remote_addr: None,
-            scoping,
-            timestamp: instant_to_date_time(start_time),
-        });
+        let mut categories = vec![DataCategory::SpanIndexed];
+        let global_config = self.global_config.current();
+        // In case we are using the new counting strategy, we want to emit the `Span` data category
+        // here. This is done because the billing consumer using the new counting strategy will not
+        // emit the `Span` outcome for the span usage metric in case it has an indexed payload,
+        // since it will delegate the counting to this function where the indexed payload is
+        // produced.
+        if global_config.options.use_new_counting_strategy {
+            categories.push(DataCategory::Span);
+        }
+
+        for category in categories {
+            self.outcome_aggregator.send(TrackOutcome {
+                category,
+                event_id: None,
+                outcome: Outcome::Accepted,
+                quantity: 1,
+                remote_addr: None,
+                scoping,
+                timestamp: instant_to_date_time(start_time),
+            });
+        }
 
         Ok(())
     }
