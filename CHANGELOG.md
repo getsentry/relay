@@ -7,6 +7,10 @@
 - Allow profile chunks without release. ([#4155](https://github.com/getsentry/relay/pull/4155))
 - Add validation for timestamps sent from the future. ([#4163](https://github.com/getsentry/relay/pull/4163))
 
+**Features:**
+
+- Support inbound filters for profiles. ([#4176](https://github.com/getsentry/relay/pull/4176))
+
 **Internal:**
 
 - Add a metric that counts span volume in the root project for dynamic sampling (`c:spans/count_per_root_project@none`). ([#4134](https://github.com/getsentry/relay/pull/4134))
