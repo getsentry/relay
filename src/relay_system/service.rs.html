@@ -1113,6 +1113,18 @@
 <a href="#1113" id="1113">1113</a>
 <a href="#1114" id="1114">1114</a>
 <a href="#1115" id="1115">1115</a>
+<a href="#1116" id="1116">1116</a>
+<a href="#1117" id="1117">1117</a>
+<a href="#1118" id="1118">1118</a>
+<a href="#1119" id="1119">1119</a>
+<a href="#1120" id="1120">1120</a>
+<a href="#1121" id="1121">1121</a>
+<a href="#1122" id="1122">1122</a>
+<a href="#1123" id="1123">1123</a>
+<a href="#1124" id="1124">1124</a>
+<a href="#1125" id="1125">1125</a>
+<a href="#1126" id="1126">1126</a>
+<a href="#1127" id="1127">1127</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::future::Future;
 <span class="kw">use </span>std::marker::PhantomData;
@@ -1120,7 +1132,7 @@
 <span class="kw">use </span>std::sync::atomic::{AtomicU64, Ordering};
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::task::{Context, Poll};
-<span class="kw">use </span>std::time::Duration;
+<span class="kw">use </span>std::time::{Duration, Instant};
 
 <span class="kw">use </span>futures::future::Shared;
 <span class="kw">use </span>futures::FutureExt;
@@ -1128,7 +1140,7 @@
 <span class="kw">use </span>tokio::sync::{mpsc, oneshot};
 <span class="kw">use </span>tokio::time::MissedTickBehavior;
 
-<span class="kw">use </span><span class="kw">crate</span>::statsd::SystemGauges;
+<span class="kw">use </span><span class="kw">crate</span>::statsd::{SystemCounters, SystemGauges};
 
 <span class="doccomment">/// Interval for recording backlog metrics on service channels.
 </span><span class="kw">const </span>BACKLOG_INTERVAL: Duration = Duration::from_secs(<span class="number">1</span>);
@@ -1954,7 +1966,8 @@
     /// not yet been closed, this method will sleep until a message is sent or
     /// the channel is closed.
     </span><span class="kw">pub async fn </span>recv(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;I&gt; {
-        <span class="kw">loop </span>{
+        <span class="kw">let </span>start = Instant::now();
+        <span class="kw">let </span>next_message = <span class="kw">loop </span>{
             <span class="macro">tokio::select!</span> {
                 biased;
 
@@ -1967,10 +1980,14 @@
                 },
                 message = <span class="self">self</span>.rx.recv() =&gt; {
                     <span class="self">self</span>.queue_size.fetch_sub(<span class="number">1</span>, Ordering::SeqCst);
-                    <span class="kw">return </span>message;
+                    <span class="kw">break </span>message;
                 },
             }
-        }
+        };
+        <span class="macro">relay_statsd::metric!</span>(
+            counter(SystemCounters::ServiceIdleTime) += start.elapsed().as_nanos() <span class="kw">as </span>u64
+        );
+        next_message
     }
 }
 
@@ -2174,6 +2191,13 @@
         </span>}
     }
 
+    <span class="kw">fn </span>skip_idle_time(captures: Vec&lt;String&gt;) -&gt; Vec&lt;String&gt; {
+        captures
+            .into_iter()
+            .filter(|c| !c.starts_with(<span class="string">"service.idle_time_nanos:"</span>))
+            .collect()
+    }
+
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_backpressure_metrics() {
         <span class="kw">let </span>rt = tokio::runtime::Builder::new_current_thread()
@@ -2207,7 +2231,7 @@
             })
         });
 
-        <span class="macro">assert!</span>(captures.is_empty());
+        <span class="macro">assert!</span>(skip_idle_time(captures).is_empty());
 
         <span class="comment">// Advance to 6.5 * INTERVAL. The service should pull the first message immediately, another
         // message every 2 INTERVALS. The messages are fully handled after 6 INTERVALS, but we
@@ -2219,7 +2243,7 @@
         });
 
         <span class="macro">assert_eq!</span>(
-            captures,
+            skip_idle_time(captures),
             [
                 <span class="string">"service.back_pressure:2|g|#service:mock"</span>, <span class="comment">// 2 * INTERVAL
                 </span><span class="string">"service.back_pressure:1|g|#service:mock"</span>, <span class="comment">// 4 * INTERVAL
