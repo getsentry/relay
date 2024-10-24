@@ -1308,15 +1308,13 @@ def test_profile_outcomes(
     ]
     # All usage metrics are tagged with `has_profile` irrespectively of the sampling decision.
     assert all(metric["tags"]["has_profile"] == "true" for metric in metrics)
-    # Only usage metrics from kept transactions are tagged with `indexed`.
-    assert (
-        len(
-            list(
-                metric for metric in metrics if metric["tags"].get("indexed") == "true"
-            )
-        )
-        == 1
+    # The usage metrics of dropped transactions should have the `indexed` tag. In this test we expect to drop only
+    # one of the two transactions.
+    indexed_metrics = list(
+        metric for metric in metrics if metric["tags"].get("indexed") == "true"
     )
+    assert len(indexed_metrics) == 1
+    # We have two separate transactions so their total count should amount to 2.
     assert sum(metric["value"] for metric in metrics) == 2
 
     assert outcomes == expected_outcomes, outcomes
