@@ -147,8 +147,13 @@ pub fn process(
                     .value()
                     .and_then(|d| d.segment_name.value())
                     .cloned();
-                let bucket =
-                    event::create_span_root_counter(span, transaction, 1, sampling_decision);
+                let bucket = event::create_span_root_counter(
+                    span,
+                    transaction,
+                    1,
+                    sampling_decision,
+                    state.project_id,
+                );
                 state
                     .extracted_metrics
                     .extend_sampling_metrics(bucket, Some(sampling_decision));
