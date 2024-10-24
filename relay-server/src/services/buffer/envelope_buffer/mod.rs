@@ -268,22 +268,25 @@ where
         self.push_count += 1;
         if 0 == (self.push_count % 100) {
             if let Ok(serialized) = envelope.to_vec() {
-                relay_statsd::metric!(
-                    histogram(RelayHistograms::BufferEnvelopeSize) = serialized.len() as u64
-                );
                 let compression_level = (self.push_count % 3) as i32 + 1; // 1 = lowest, 3 = default
-                let tag = compression_level.to_string();
-                if let Ok(encoded) = relay_statsd::metric!(
-                    timer(RelayTimers::BufferEnvelopeCompression),
-                    compression_level = &tag,
-                    { zstd::encode_all(serialized.as_slice(), compression_level) }
-                ) {
+                tokio::spawn(async move {
                     relay_statsd::metric!(
-                        histogram(RelayHistograms::BufferEnvelopeSizeCompressed) =
-                            encoded.len() as u64,
-                        compression_level = &tag
+                        histogram(RelayHistograms::BufferEnvelopeSize) = serialized.len() as u64
                     );
-                }
+
+                    let tag = compression_level.to_string();
+                    if let Ok(encoded) = relay_statsd::metric!(
+                        timer(RelayTimers::BufferEnvelopeCompression),
+                        compression_level = &tag,
+                        { zstd::encode_all(serialized.as_slice(), compression_level) }
+                    ) {
+                        relay_statsd::metric!(
+                            histogram(RelayHistograms::BufferEnvelopeSizeCompressed) =
+                                encoded.len() as u64,
+                            compression_level = &tag
+                        );
+                    }
+                });
             }
         }
 
