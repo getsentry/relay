@@ -1463,6 +1463,7 @@ impl EnvelopeProcessorService {
             event,
             combined_config,
             sampling_decision,
+            state.project_id,
             self.inner
                 .config
                 .aggregator_config_for(MetricNamespace::Spans)
@@ -1487,6 +1488,7 @@ impl EnvelopeProcessorService {
                 generic_config: Some(combined_config),
                 transaction_from_dsc,
                 sampling_decision,
+                target_project_id: state.project_id,
                 has_profile: profile_id.is_some(),
             };
 
