@@ -15,9 +15,8 @@ use crate::{Envelope, EnvelopeStack, SqliteEnvelopeStack};
 #[derive(Debug)]
 pub struct SqliteStackProvider {
     envelope_store: SqliteEnvelopeStore,
-    disk_batch_size: usize,
+    max_batch_bytes: usize,
     max_disk_size: usize,
-    drain_batch_size: usize,
 }
 
 #[warn(dead_code)]
@@ -27,9 +26,8 @@ impl SqliteStackProvider {
         let envelope_store = SqliteEnvelopeStore::prepare(config).await?;
         Ok(Self {
             envelope_store,
-            disk_batch_size: config.spool_envelopes_stack_disk_batch_size(),
+            max_batch_bytes: config.spool_envelopes_max_batch_bytes(),
             max_disk_size: config.spool_envelopes_max_disk_size(),
-            drain_batch_size: config.spool_envelopes_stack_disk_batch_size(),
         })
     }
 
@@ -81,7 +79,7 @@ impl StackProvider for SqliteStackProvider {
     ) -> Self::Stack {
         SqliteEnvelopeStack::new(
             self.envelope_store.clone(),
-            self.disk_batch_size,
+            self.max_batch_bytes,
             project_key_pair.own_key,
             project_key_pair.sampling_key,
             // We want to check the disk by default if we are creating the stack for the first time,
@@ -119,12 +117,13 @@ impl StackProvider for SqliteStackProvider {
         relay_log::trace!("Flushing sqlite envelope buffer");
 
         relay_statsd::metric!(timer(RelayTimers::BufferDrain), {
-            let mut envelopes = Vec::with_capacity(self.drain_batch_size);
+            let batch_size = 1000;
+            let mut envelopes = Vec::with_capacity(batch_size);
             for envelope_stack in envelope_stacks {
                 for envelope in envelope_stack.flush() {
-                    if envelopes.len() >= self.drain_batch_size {
+                    if envelopes.len() >= batch_size {
                         self.drain_many(envelopes).await;
-                        envelopes = Vec::with_capacity(self.drain_batch_size);
+                        envelopes = Vec::with_capacity(batch_size);
                     }
 
                     envelopes.push(envelope);

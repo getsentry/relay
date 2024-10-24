@@ -893,14 +893,8 @@ fn spool_envelopes_unspool_interval() -> u64 {
     100
 }
 
-/// Default batch size for the stack.
-fn spool_envelopes_stack_disk_batch_size() -> usize {
-    200
-}
-
-/// Default maximum number of batches for the stack.
-fn spool_envelopes_stack_max_batches() -> usize {
-    2
+fn spool_envelopes_max_batch_bytes() -> ByteSize {
+    ByteSize::kibibytes(10)
 }
 
 fn spool_envelopes_max_envelope_delay_secs() -> u64 {
@@ -948,13 +942,11 @@ pub struct EnvelopeSpool {
     /// The interval in milliseconds to trigger unspool.
     #[serde(default = "spool_envelopes_unspool_interval")]
     unspool_interval: u64,
-    /// Number of elements of the envelope stack that are flushed to disk.
-    #[serde(default = "spool_envelopes_stack_disk_batch_size")]
-    disk_batch_size: usize,
-    /// Number of batches of size [`Self::disk_batch_size`] that need to be accumulated before
-    /// flushing one batch to disk.
-    #[serde(default = "spool_envelopes_stack_max_batches")]
-    max_batches: usize,
+    /// Number of encoded envelope bytes that are spooled to disk at once.
+    ///
+    /// Defaults to 10 KiB.
+    #[serde(default = "spool_envelopes_max_batch_bytes")]
+    max_batch_bytes: ByteSize,
     /// Maximum time between receiving the envelope and processing it.
     ///
     /// When envelopes spend too much time in the buffer (e.g. because their project cannot be loaded),
@@ -1011,8 +1003,7 @@ impl Default for EnvelopeSpool {
             max_disk_size: spool_envelopes_max_disk_size(),
             max_memory_size: spool_envelopes_max_memory_size(),
             unspool_interval: spool_envelopes_unspool_interval(), // 100ms
-            disk_batch_size: spool_envelopes_stack_disk_batch_size(),
-            max_batches: spool_envelopes_stack_max_batches(),
+            max_batch_bytes: spool_envelopes_max_batch_bytes(),
             max_envelope_delay_secs: spool_envelopes_max_envelope_delay_secs(),
             disk_usage_refresh_frequency_ms: spool_disk_usage_refresh_frequency_ms(),
             max_backpressure_envelopes: spool_max_backpressure_envelopes(),
@@ -2205,14 +2196,8 @@ impl Config {
 
     /// Number of batches of size `stack_disk_batch_size` that need to be accumulated before
     /// flushing one batch to disk.
-    pub fn spool_envelopes_stack_disk_batch_size(&self) -> usize {
-        self.values.spool.envelopes.disk_batch_size
-    }
-
-    /// Number of batches of size `stack_disk_batch_size` that need to be accumulated before
-    /// flushing one batch to disk.
-    pub fn spool_envelopes_stack_max_batches(&self) -> usize {
-        self.values.spool.envelopes.max_batches
+    pub fn spool_envelopes_max_batch_bytes(&self) -> usize {
+        self.values.spool.envelopes.max_batch_bytes.as_bytes()
     }
 
     /// Returns `true` if version 2 of the spooling mechanism is used.
