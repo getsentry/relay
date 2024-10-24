@@ -3,7 +3,7 @@ use std::path::Path;
 use std::pin::pin;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::envelope::EnvelopeError;
 use crate::extractors::StartTime;
@@ -38,9 +38,13 @@ impl InsertEnvelope {
     pub fn len(&self) -> usize {
         self.encoded_envelope.len()
     }
+
+    pub fn received_at(&self) -> Instant {
+        StartTime::from_timestamp_millis(self.received_at as u64).into_inner()
+    }
 }
 
-impl<'a> TryFrom<InsertEnvelope> for Box<Envelope> {
+impl TryFrom<InsertEnvelope> for Box<Envelope> {
     type Error = EnvelopeError;
 
     fn try_from(value: InsertEnvelope) -> Result<Self, Self::Error> {
@@ -379,7 +383,7 @@ impl SqliteEnvelopeStore {
                 }
             };
 
-            match extract_envelope(envelope) {
+            match extract_envelope(own_key, sampling_key, envelope) {
                 Ok(envelope) => {
                     extracted_envelopes.push(envelope);
                 }
@@ -405,7 +409,7 @@ impl SqliteEnvelopeStore {
         //
         // Unfortunately we have to do this because SQLite `DELETE` with `RETURNING` doesn't
         // return deleted rows in a specific order.
-        extracted_envelopes.sort_by_key(|a| a.meta().start_time());
+        extracted_envelopes.sort_by_key(|a| a.received_at);
 
         Ok(extracted_envelopes)
     }
@@ -462,7 +466,7 @@ fn extract_envelope(
     let received_at: i64 = row
         .try_get("received_at")
         .map_err(SqliteEnvelopeStoreError::FetchError)?;
-    // let start_time = StartTime::from_timestamp_millis(received_at as u64);
+    // let start_time = StartTime::from_timestamp_millis(received_at as u64); .. TODO
 
     // envelope.set_start_time(start_time.into_inner());
 
@@ -590,7 +594,10 @@ mod tests {
             .unwrap();
         assert_eq!(extracted_envelopes.len(), 5);
         for (i, extracted_envelope) in extracted_envelopes.iter().enumerate().take(5) {
-            assert_eq!(extracted_envelope.event_id(), envelopes[5..][i].event_id());
+            assert_eq!(
+                extracted_envelope.received_at(),
+                envelopes[5..][i].meta().start_time()
+            );
         }
 
         // We check that if we load more than the envelopes stored on disk, we still get back at
@@ -601,7 +608,10 @@ mod tests {
             .unwrap();
         assert_eq!(extracted_envelopes.len(), 5);
         for (i, extracted_envelope) in extracted_envelopes.iter().enumerate().take(5) {
-            assert_eq!(extracted_envelope.event_id(), envelopes[0..5][i].event_id());
+            assert_eq!(
+                extracted_envelope.received_at(),
+                envelopes[0..5][i].meta().start_time()
+            );
         }
     }
 

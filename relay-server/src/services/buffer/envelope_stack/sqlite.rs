@@ -2,6 +2,7 @@ use std::fmt::Debug;
 use std::num::NonZeroUsize;
 
 use relay_base_schema::project::ProjectKey;
+use tokio::time::Instant;
 
 use crate::envelope::{Envelope, EnvelopeError};
 use crate::services::buffer::envelope_stack::EnvelopeStack;
@@ -158,18 +159,15 @@ impl EnvelopeStack for SqliteEnvelopeStack {
         Ok(())
     }
 
-    async fn peek(&mut self) -> Result<Option<&Envelope>, Self::Error> {
+    async fn peek(&mut self) -> Result<Option<Instant>, Self::Error> {
         if self.batch.is_empty() && self.check_disk {
             self.unspool_from_disk().await?
         }
 
-        // FIXME: inefficient peek
-        let Some(envelope) = self.batch.last().cloned() else {
+        let Some(envelope) = self.batch.last() else {
             return Ok(None);
         };
-        let envelope: Box<Envelope> = envelope.try_into()?;
-
-        Ok(Some(envelope.as_ref()))
+        Ok(Some(envelope.received_at().into()))
     }
 
     async fn pop(&mut self) -> Result<Option<Box<Envelope>>, Self::Error> {
@@ -189,7 +187,7 @@ impl EnvelopeStack for SqliteEnvelopeStack {
     fn flush(self) -> Vec<Box<Envelope>> {
         self.batch
             .into_iter()
-            .map(InsertEnvelope::try_into)
+            .filter_map(|e| e.try_into().ok())
             .collect()
     }
 }
@@ -210,7 +208,7 @@ mod tests {
         let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store,
-            2,
+            // 2,
             2,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("c25ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
@@ -252,7 +250,7 @@ mod tests {
         // we will end up with 2.
         let envelope = mock_envelope(Instant::now());
         assert!(stack.push(envelope.clone()).await.is_ok());
-        assert_eq!(stack.batches_buffer_size, 3);
+        assert_eq!(stack.batch.len(), 3);
 
         // We pop the remaining elements, expecting the last added envelope to be on top.
         let popped_envelope_1 = stack.pop().await.unwrap().unwrap();
@@ -270,7 +268,7 @@ mod tests {
             popped_envelope_3.event_id().unwrap(),
             envelopes.clone()[2].event_id().unwrap()
         );
-        assert_eq!(stack.batches_buffer_size, 0);
+        assert_eq!(stack.batch.len(), 0);
     }
 
     #[tokio::test]
@@ -327,14 +325,11 @@ mod tests {
         for envelope in envelopes.clone() {
             assert!(stack.push(envelope).await.is_ok());
         }
-        assert_eq!(stack.batches_buffer_size, 5);
+        assert_eq!(stack.batch.len(), 5);
 
         // We peek the top element.
-        let peeked_envelope = stack.peek().await.unwrap().unwrap();
-        assert_eq!(
-            peeked_envelope.event_id().unwrap(),
-            envelopes.clone()[4].event_id().unwrap()
-        );
+        let peeked = stack.peek().await.unwrap().unwrap();
+        assert_eq!(peeked, envelopes.clone()[4].meta().start_time().into());
 
         // We pop 5 envelopes.
         for envelope in envelopes.iter().rev() {
@@ -364,14 +359,11 @@ mod tests {
         for envelope in envelopes.clone() {
             assert!(stack.push(envelope).await.is_ok());
         }
-        assert_eq!(stack.batches_buffer_size, 10);
+        assert_eq!(stack.batch.len(), 10);
 
         // We peek the top element.
-        let peeked_envelope = stack.peek().await.unwrap().unwrap();
-        assert_eq!(
-            peeked_envelope.event_id().unwrap(),
-            envelopes.clone()[14].event_id().unwrap()
-        );
+        let peeked = stack.peek().await.unwrap().unwrap();
+        assert_eq!(peeked, envelopes[14].meta().start_time().into());
 
         // We pop 10 envelopes, and we expect that the last 10 are in memory, since the first 5
         // should have been spooled to disk.
@@ -382,14 +374,11 @@ mod tests {
                 envelope.event_id().unwrap()
             );
         }
-        assert_eq!(stack.batches_buffer_size, 0);
+        assert_eq!(stack.batch.len(), 0);
 
         // We peek the top element, which since the buffer is empty should result in a disk load.
-        let peeked_envelope = stack.peek().await.unwrap().unwrap();
-        assert_eq!(
-            peeked_envelope.event_id().unwrap(),
-            envelopes.clone()[4].event_id().unwrap()
-        );
+        let peeked = stack.peek().await.unwrap().unwrap();
+        assert!(peeked.into_std() - envelopes[4].meta().start_time() < Duration::from_millis(1));
 
         // We insert a new envelope, to test the load from disk happening during `peek()` gives
         // priority to this envelope in the stack.
@@ -412,7 +401,7 @@ mod tests {
                 envelope.event_id().unwrap()
             );
         }
-        assert_eq!(stack.batches_buffer_size, 0);
+        assert_eq!(stack.batch.len(), 0);
     }
 
     #[tokio::test]
@@ -422,7 +411,6 @@ mod tests {
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store.clone(),
             5,
-            1,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
@@ -434,7 +422,7 @@ mod tests {
         for envelope in envelopes.clone() {
             assert!(stack.push(envelope).await.is_ok());
         }
-        assert_eq!(stack.batches_buffer_size, 5);
+        assert_eq!(stack.batch.len(), 5);
         assert_eq!(envelope_store.total_count().await.unwrap(), 0);
 
         // We drain the stack and make sure nothing was spooled to disk.
