@@ -7,6 +7,7 @@ from copy import deepcopy
 from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
 from queue import Empty
+
 from .consts import (
     TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
     TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
@@ -1305,7 +1306,15 @@ def test_profile_outcomes(
         for m, _ in metrics_consumer.get_metrics()
         if m["name"] == "c:transactions/usage@none"
     ]
+    # All usage metrics are tagged with `has_profile` irrespectively of the sampling decision.
     assert all(metric["tags"]["has_profile"] == "true" for metric in metrics)
+    # The usage metrics of dropped transactions should have the `indexed` tag. In this test we expect to drop only
+    # one of the two transactions.
+    indexed_metrics = list(
+        metric for metric in metrics if metric["tags"].get("indexed") == "true"
+    )
+    assert len(indexed_metrics) == 1
+    # We have two separate transactions so their total count should amount to 2.
     assert sum(metric["value"] for metric in metrics) == 2
 
     assert outcomes == expected_outcomes, outcomes
@@ -2160,3 +2169,173 @@ def test_replay_outcomes_item_failed(
     }
     expected["timestamp"] = outcomes[0]["timestamp"]
     assert outcomes[0] == expected
+
+
+@pytest.mark.parametrize("sampling_decision", ["keep", "drop"])
+def test_indexed_tag_with_standalone_spans(
+    mini_sentry,
+    relay_with_processing,
+    metrics_consumer,
+    spans_consumer,
+    sampling_decision,
+):
+    """
+    Test that the usage metric has the `indexed` field set correctly
+    for standalone spans based on whether they are kept or dropped by dynamic sampling.
+    """
+    metrics_consumer = metrics_consumer()
+    spans_consumer = spans_consumer()
+
+    project_id = 42
+    sampling_project_id = 43
+
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["transactionMetrics"] = {
+        "version": TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
+    }
+
+    # Add these feature flags to enable span extraction
+    project_config["config"].setdefault("features", []).extend(
+        [
+            "projects:span-metrics-extraction",
+            "organizations:indexed-spans-extraction",
+            "organizations:standalone-span-ingestion",
+        ]
+    )
+
+    # Configure dynamic sampling for the sampling project
+    sampling_config = mini_sentry.add_full_project_config(sampling_project_id)
+    sampling_public_key = sampling_config["publicKeys"][0]["publicKey"]
+    ds = sampling_config["config"].setdefault("sampling", {})
+    ds.setdefault("version", 2)
+    ds.setdefault("rules", []).append(
+        {
+            "samplingValue": {
+                "type": "sampleRate",
+                "value": 1.0 if sampling_decision == "keep" else 0.0,
+            },
+            "type": "trace",
+            "condition": {"op": "and", "inner": []},
+            "id": 1,
+        }
+    )
+
+    trace_id = "ff62a8b040f340bda5d830223def1d81"
+
+    config = {
+        "aggregator": {
+            "bucket_interval": 1,
+            "initial_delay": 0,
+        }
+    }
+
+    relay = relay_with_processing(config)
+
+    # Create an envelope with a trace context
+    envelope = Envelope()
+    envelope.add_item(Item(payload=PayloadRef(json=_get_span_payload()), type="span"))
+
+    # Add trace information to the envelope
+    envelope.headers["trace"] = {
+        "public_key": sampling_public_key,
+        "trace_id": trace_id,
+        "segment_name": "GET /api/0/",
+    }
+
+    relay.send_envelope(project_id, envelope)
+
+    # Check if the spans were kept or dropped
+    if sampling_decision == "keep":
+        received_spans = spans_consumer.get_spans(timeout=2, n=1)
+        assert len(received_spans) == 1, "Expected 1 span to be kept"
+    else:
+        spans_consumer.assert_empty()
+
+    # Check the metrics
+    metrics = metrics_consumer.get_metrics()
+    span_usage_metrics = [m for m, _ in metrics if m["name"] == "c:spans/usage@none"]
+
+    # 1 aggregated span usage for the 1 span
+    assert len(span_usage_metrics) == 1, "Expected 1 span usage metric"
+    span_metric = span_usage_metrics[0]
+
+    if sampling_decision == "keep":
+        assert (
+            span_metric["tags"].get("indexed") == "true"
+        ), "indexed should be true for kept standalone spans"
+    else:
+        assert (
+            "indexed" not in span_metric["tags"]
+        ), "indexed should not be present for dropped standalone spans"
+
+
+def test_indexed_tag_with_rate_limited_transaction(
+    mini_sentry,
+    relay_with_processing,
+    metrics_consumer,
+    transactions_consumer,
+):
+    """
+    Test that the usage metric has no `indexed` field
+    when a transaction is rate limited.
+    """
+    metrics_consumer = metrics_consumer()
+    transactions_consumer = transactions_consumer()
+
+    project_id = 42
+
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["transactionMetrics"] = {
+        "version": TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
+    }
+
+    # Add these feature flags to enable span extraction
+    project_config["config"].setdefault("features", []).extend(
+        [
+            "projects:span-metrics-extraction",
+            "organizations:indexed-spans-extraction",
+        ]
+    )
+
+    # Configure rate limiting
+    project_config["config"]["quotas"] = [
+        {
+            "id": f"test_rate_limiting_{uuid.uuid4().hex}",
+            "categories": ["transaction_indexed"],
+            "limit": 0,
+            "window": 3600,
+            "reasonCode": "test_rate_limited",
+        }
+    ]
+
+    config = {
+        "aggregator": {
+            "bucket_interval": 1,
+            "initial_delay": 0,
+        }
+    }
+
+    relay = relay_with_processing(config)
+
+    relay.send_event(project_id, _get_event_payload("transaction"))
+
+    # Check if the transaction was rate limited
+    transactions_consumer.assert_empty()
+
+    # Check the metrics
+    metrics = metrics_consumer.get_metrics()
+    transaction_usage_metric = next(
+        (m for m, _ in metrics if m["name"] == "c:transactions/usage@none"), None
+    )
+    span_usage_metrics = [m for m, _ in metrics if m["name"] == "c:spans/usage@none"]
+
+    assert transaction_usage_metric is not None, "Transaction usage metric not found"
+    # 1 span usage for the transaction, 1 span usage for the 1 span
+    assert len(span_usage_metrics) == 2, "Expected 2 span usage metrics"
+
+    assert (
+        "indexed" not in transaction_usage_metric["tags"]
+    ), "indexed should not be present for rate-limited transactions"
+    assert (
+        "indexed" not in span_usage_metrics[0]["tags"]
+    ), "indexed should not be present for spans of rate-limited transactions"

@@ -842,11 +842,12 @@ mod tests {
             ProcessingGroup::Transaction,
         );
 
+        let config = Arc::new(Config::default());
         ProcessEnvelopeState {
             event: Annotated::from(event),
             metrics: Default::default(),
-            extracted_metrics: ProcessingExtractedMetrics::new(),
-            config: Arc::new(Config::default()),
+            extracted_metrics: ProcessingExtractedMetrics::new(config.clone()),
+            config,
             project_info,
             rate_limits: RateLimits::default(),
             sampling_project_info: None,
