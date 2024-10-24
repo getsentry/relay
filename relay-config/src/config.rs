@@ -2203,7 +2203,7 @@ impl Config {
     /// Returns `true` if version 2 of the spooling mechanism is used.
     pub fn spool_v2(&self) -> bool {
         matches!(
-            self.values.spool.envelopes.version,
+            &self.values.spool.envelopes.version,
             EnvelopeSpoolVersion::V2
         )
     }
