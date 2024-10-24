@@ -135,7 +135,7 @@ pub struct TraceContext {
     pub sampled: Annotated<bool>,
 
     /// Data of the trace's root span.
-    #[metastructure(pii = "maybe", skip_serialization = "empty")]
+    #[metastructure(pii = "maybe", skip_serialization = "null")]
     pub data: Annotated<SpanData>,
 
     /// Additional arbitrary fields for forwards compatibility.
