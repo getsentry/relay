@@ -1,11 +1,12 @@
 use chrono::{DateTime, Utc};
+use relay_base_schema::organization::OrganizationId;
 
 use crate::config::RuleId;
 
 pub struct ReservoirRuleKey(String);
 
 impl ReservoirRuleKey {
-    pub fn new(org_id: u64, rule_id: RuleId) -> Self {
+    pub fn new(org_id: OrganizationId, rule_id: RuleId) -> Self {
         Self(format!("reservoir:{}:{}", org_id, rule_id))
     }
 

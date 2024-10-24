@@ -2,6 +2,7 @@ use std::fmt;
 use std::str::FromStr;
 
 use relay_base_schema::metrics::MetricNamespace;
+use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use serde::{Deserialize, Serialize};
 use smallvec::SmallVec;
@@ -15,7 +16,7 @@ pub use relay_base_schema::data_category::DataCategory;
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Scoping {
     /// The organization id.
-    pub organization_id: u64,
+    pub organization_id: OrganizationId,
 
     /// The project id.
     pub project_id: ProjectId,
@@ -129,7 +130,7 @@ impl ItemScoping<'_> {
     pub fn scope_id(&self, scope: QuotaScope) -> Option<u64> {
         match scope {
             QuotaScope::Global => None,
-            QuotaScope::Organization => Some(self.organization_id),
+            QuotaScope::Organization => Some(self.organization_id.value()),
             QuotaScope::Project => Some(self.project_id.value()),
             QuotaScope::Key => self.key_id,
             QuotaScope::Unknown => None,
@@ -726,7 +727,7 @@ mod tests {
         assert!(quota.matches(ItemScoping {
             category: DataCategory::Error,
             scoping: &Scoping {
-                organization_id: 42,
+                organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
@@ -751,7 +752,7 @@ mod tests {
         assert!(!quota.matches(ItemScoping {
             category: DataCategory::Error,
             scoping: &Scoping {
-                organization_id: 42,
+                organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
@@ -776,7 +777,7 @@ mod tests {
         assert!(quota.matches(ItemScoping {
             category: DataCategory::Error,
             scoping: &Scoping {
-                organization_id: 42,
+                organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
@@ -787,7 +788,7 @@ mod tests {
         assert!(!quota.matches(ItemScoping {
             category: DataCategory::Transaction,
             scoping: &Scoping {
-                organization_id: 42,
+                organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
@@ -812,7 +813,7 @@ mod tests {
         assert!(!quota.matches(ItemScoping {
             category: DataCategory::Error,
             scoping: &Scoping {
-                organization_id: 42,
+                organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
@@ -837,7 +838,7 @@ mod tests {
         assert!(quota.matches(ItemScoping {
             category: DataCategory::Error,
             scoping: &Scoping {
-                organization_id: 42,
+                organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
@@ -848,7 +849,7 @@ mod tests {
         assert!(!quota.matches(ItemScoping {
             category: DataCategory::Error,
             scoping: &Scoping {
-                organization_id: 0,
+                organization_id: OrganizationId::new(0),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
@@ -873,7 +874,7 @@ mod tests {
         assert!(quota.matches(ItemScoping {
             category: DataCategory::Error,
             scoping: &Scoping {
-                organization_id: 42,
+                organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
@@ -884,7 +885,7 @@ mod tests {
         assert!(!quota.matches(ItemScoping {
             category: DataCategory::Error,
             scoping: &Scoping {
-                organization_id: 42,
+                organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(0),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
@@ -909,7 +910,7 @@ mod tests {
         assert!(quota.matches(ItemScoping {
             category: DataCategory::Error,
             scoping: &Scoping {
-                organization_id: 42,
+                organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(17),
@@ -920,7 +921,7 @@ mod tests {
         assert!(!quota.matches(ItemScoping {
             category: DataCategory::Error,
             scoping: &Scoping {
-                organization_id: 42,
+                organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(0),
@@ -931,7 +932,7 @@ mod tests {
         assert!(!quota.matches(ItemScoping {
             category: DataCategory::Error,
             scoping: &Scoping {
-                organization_id: 42,
+                organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,

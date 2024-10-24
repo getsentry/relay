@@ -262,6 +262,7 @@ mod tests {
     use std::sync::atomic::AtomicU64;
 
     use relay_base_schema::metrics::{MetricName, MetricNamespace::*, MetricType};
+    use relay_base_schema::organization::OrganizationId;
     use relay_base_schema::project::ProjectId;
     use relay_redis::{redis, RedisConfigOptions};
 
@@ -293,7 +294,9 @@ mod tests {
         static ORGS: AtomicU64 = AtomicU64::new(100);
 
         let scoping = Scoping {
-            organization_id: ORGS.fetch_add(1, std::sync::atomic::Ordering::SeqCst),
+            organization_id: OrganizationId::new(
+                ORGS.fetch_add(1, std::sync::atomic::Ordering::SeqCst),
+            ),
             project_id: ProjectId::new(1),
         };
 
@@ -593,12 +596,12 @@ mod tests {
         let granularity_seconds = 10_000;
 
         let scoping1 = Scoping {
-            organization_id: granularity_seconds,
+            organization_id: OrganizationId::new(granularity_seconds),
             project_id: ProjectId::new(1),
         };
         let scoping2 = Scoping {
             // Time shift relative to `scoping1` should be half the granularity.
-            organization_id: granularity_seconds / 2,
+            organization_id: OrganizationId::new(granularity_seconds / 2),
             project_id: ProjectId::new(1),
         };
 

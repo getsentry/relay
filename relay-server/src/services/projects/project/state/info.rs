@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 
+use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 #[cfg(feature = "processing")]
 use relay_cardinality::CardinalityLimit;
@@ -48,7 +49,7 @@ pub struct ProjectInfo {
     pub config: ProjectConfig,
     /// The organization id.
     #[serde(default)]
-    pub organization_id: Option<u64>,
+    pub organization_id: Option<OrganizationId>,
 }
 
 /// Controls how we serialize a ProjectState for an external Relay
@@ -62,7 +63,7 @@ pub struct LimitedProjectInfo {
     pub slug: Option<String>,
     #[serde(with = "LimitedProjectConfig")]
     pub config: ProjectConfig,
-    pub organization_id: Option<u64>,
+    pub organization_id: Option<OrganizationId>,
 }
 
 impl ProjectInfo {
@@ -76,7 +77,7 @@ impl ProjectInfo {
     /// Returns `Some` if the project contains a project identifier otherwise `None`.
     pub fn scoping(&self, project_key: ProjectKey) -> Option<Scoping> {
         Some(Scoping {
-            organization_id: self.organization_id.unwrap_or(0),
+            organization_id: self.organization_id.unwrap_or(OrganizationId::new(0)),
             project_id: self.project_id?,
             project_key,
             key_id: self
@@ -218,7 +219,7 @@ impl ProjectInfo {
         //  3. An organization id is available and can be matched against rate limits. In this
         //     project, all organizations will match automatically, unless the organization id
         //     has changed since the last fetch.
-        scoping.organization_id = self.organization_id.unwrap_or(0);
+        scoping.organization_id = self.organization_id.unwrap_or(OrganizationId::new(0));
 
         scoping
     }

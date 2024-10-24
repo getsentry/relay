@@ -26,6 +26,3 @@ pub use self::window::SlidingWindow;
 /// Redis Set based cardinality limiter.
 #[cfg(feature = "redis")]
 pub type CardinalityLimiter = self::limiter::CardinalityLimiter<RedisSetLimiter>;
-
-/// Internal alias for better readability.
-type OrganizationId = u64;

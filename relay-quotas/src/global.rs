@@ -245,6 +245,7 @@ mod tests {
     use super::*;
 
     use relay_base_schema::data_category::DataCategory;
+    use relay_base_schema::organization::OrganizationId;
     use relay_base_schema::project::{ProjectId, ProjectKey};
     use relay_common::time::UnixTimestamp;
     use relay_redis::{RedisConfigOptions, RedisPool};
@@ -273,7 +274,7 @@ mod tests {
 
     fn build_scoping() -> Scoping {
         Scoping {
-            organization_id: 69420,
+            organization_id: OrganizationId::new(69420),
             project_id: ProjectId::new(42),
             project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             key_id: Some(4711),

@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use hash32::{FnvHasher, Hasher as _};
+use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
 use relay_redis::{RedisError, RedisPool};
@@ -23,7 +24,7 @@ impl RedisMetricMetaStore {
     /// Stores metric metadata in Redis.
     pub fn store(
         &self,
-        organization_id: u64,
+        organization_id: OrganizationId,
         project_id: ProjectId,
         meta: MetricMeta,
     ) -> Result<(), RedisError> {
@@ -67,7 +68,7 @@ impl RedisMetricMetaStore {
 
     fn build_redis_key(
         &self,
-        organization_id: u64,
+        organization_id: OrganizationId,
         project_id: ProjectId,
         timestamp: UnixTimestamp,
         mri: &MetricResourceIdentifier<'_>,
@@ -113,7 +114,7 @@ mod tests {
     fn test_store() {
         let store = build_store();
 
-        let organization_id = 1000;
+        let organization_id = OrganizationId::new(1000);
         let project_id = ProjectId::new(2);
         let mri = MetricResourceIdentifier::parse("c:foo").unwrap();
 

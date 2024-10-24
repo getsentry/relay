@@ -162,10 +162,10 @@ impl<'a> Drop for LimitState<'a> {
             passive = passive,
         );
 
-        let organization_id = self.scoping.organization_id as i64;
+        let organization_id = self.scoping.organization_id;
         let status = if self.rejections > 0 { "limited" } else { "ok" };
         metric!(
-            set(CardinalityLimiterSets::Organizations) = organization_id,
+            set(CardinalityLimiterSets::Organizations) = organization_id.value() as i64,
             id = &self.cardinality_limit.id,
             passive = passive,
             status = status,

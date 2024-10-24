@@ -10,6 +10,7 @@
 **Internal:**
 
 - Add a metric that counts span volume in the root project for dynamic sampling (`c:spans/count_per_root_project@none`) ([#4134](https://github.com/getsentry/relay/pull/4134))
+- Replace u64 with `OrganizationId` new-type struct for organization id. ([#4159](https://github.com/getsentry/relay/pull/4159))
 
 ## 24.10.0
 

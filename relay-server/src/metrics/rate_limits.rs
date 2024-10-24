@@ -266,6 +266,7 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
 
 #[cfg(test)]
 mod tests {
+    use relay_base_schema::organization::OrganizationId;
     use relay_base_schema::project::{ProjectId, ProjectKey};
     use relay_metrics::{BucketMetadata, BucketValue};
     use relay_quotas::QuotaScope;
@@ -300,7 +301,7 @@ mod tests {
             metrics,
             quotas,
             Scoping {
-                organization_id: 1,
+                organization_id: OrganizationId::new(1),
                 project_id: ProjectId::new(1),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,

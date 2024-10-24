@@ -3,13 +3,14 @@ use std::fmt::{self, Write};
 use std::hash::Hash;
 
 use relay_base_schema::metrics::{MetricName, MetricNamespace, MetricType};
+use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
 
 use crate::limiter::Entry;
 use crate::redis::{KEY_PREFIX, KEY_VERSION};
 use crate::window::Slot;
-use crate::{CardinalityLimit, CardinalityScope, OrganizationId, Scoping, SlidingWindow};
+use crate::{CardinalityLimit, CardinalityScope, Scoping, SlidingWindow};
 
 /// A quota scoping extracted from a [`CardinalityLimit`] and a [`Scoping`].
 ///
@@ -70,7 +71,7 @@ impl PartialQuotaScoping {
     fn shifted(&self, timestamp: UnixTimestamp) -> UnixTimestamp {
         let shift = self
             .organization_id
-            .map(|o| o % self.window.granularity_seconds)
+            .map(|o| o.value() % self.window.granularity_seconds)
             .unwrap_or(0);
 
         UnixTimestamp::from_secs(timestamp.as_secs() + shift)
@@ -119,7 +120,7 @@ impl QuotaScoping {
 
     /// Turns the scoping into a Redis key for the passed slot.
     pub fn to_redis_key(&self, slot: Slot) -> String {
-        let organization_id = self.organization_id.unwrap_or(0);
+        let organization_id = self.organization_id.unwrap_or(OrganizationId::new(0));
         let project_id = self.project_id.map(|p| p.value()).unwrap_or(0);
         let namespace = self.namespace.map(|ns| ns.as_str()).unwrap_or("");
         let metric_type = DisplayOptMinus(self.metric_type);
