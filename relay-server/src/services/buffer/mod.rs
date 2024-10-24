@@ -690,6 +690,7 @@ mod tests {
         let project_key = envelope.meta().public_key();
 
         addr.send(EnvelopeBuffer::Push(envelope.clone()));
+        tokio::time::sleep(Duration::from_secs(2)).await;
 
         let message = tokio::time::timeout(Duration::from_secs(3), envelopes_rx.recv());
         let Some(legacy::DequeuedEnvelope(envelope)) = message.await.unwrap() else {
