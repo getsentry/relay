@@ -1,5 +1,5 @@
 //! Profile chunks processor code.
-use relay_dynamic_config::Feature;
+use relay_dynamic_config::{Feature, GlobalConfig};
 
 use crate::envelope::ItemType;
 use crate::services::processor::ProcessEnvelopeState;
@@ -24,14 +24,27 @@ pub fn filter<G>(state: &mut ProcessEnvelopeState<G>) {
 
 /// Processes profile chunks.
 #[cfg(feature = "processing")]
-pub fn process(state: &mut ProcessEnvelopeState<ProfileChunkGroup>, config: &Config) {
+pub fn process(
+    state: &mut ProcessEnvelopeState<ProfileChunkGroup>,
+    global_config: &GlobalConfig,
+    config: &Config,
+) {
+    let client_ip = state.managed_envelope.envelope().meta().client_addr();
+    let filter_settings = &state.project_info.config.filter_settings;
+
     let continuous_profiling_enabled = state.project_info.has_feature(Feature::ContinuousProfiling);
     state.managed_envelope.retain_items(|item| match item.ty() {
         ItemType::ProfileChunk => {
             if !continuous_profiling_enabled {
                 return ItemAction::DropSilently;
             }
-            match relay_profiling::expand_profile_chunk(&item.payload()) {
+
+            match relay_profiling::expand_profile_chunk(
+                &item.payload(),
+                client_ip,
+                filter_settings,
+                global_config,
+            ) {
                 Ok(payload) => {
                     if payload.len() <= config.max_profile_size() {
                         item.set_payload(ContentType::Json, payload);
@@ -43,6 +56,9 @@ pub fn process(state: &mut ProcessEnvelopeState<ProfileChunkGroup>, config: &Con
                             ),
                         )))
                     }
+                }
+                Err(relay_profiling::ProfileError::Filtered(filter_stat_key)) => {
+                    ItemAction::Drop(Outcome::Filtered(filter_stat_key))
                 }
                 Err(err) => ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
                     relay_profiling::discard_reason(err),

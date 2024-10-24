@@ -1,10 +1,12 @@
 //! Profiles related processor code.
+use std::net::IpAddr;
 
-use relay_dynamic_config::Feature;
+use relay_dynamic_config::{Feature, GlobalConfig};
 
 use relay_base_schema::events::EventType;
 use relay_config::Config;
 use relay_event_schema::protocol::{Contexts, Event, ProfileContext};
+use relay_filter::ProjectFiltersConfig;
 use relay_profiling::{ProfileError, ProfileId};
 use relay_protocol::Annotated;
 
@@ -88,7 +90,13 @@ pub fn transfer_id(
 }
 
 /// Processes profiles and set the profile ID in the profile context on the transaction if successful.
-pub fn process(state: &mut ProcessEnvelopeState<TransactionGroup>) -> Option<ProfileId> {
+pub fn process(
+    state: &mut ProcessEnvelopeState<TransactionGroup>,
+    global_config: &GlobalConfig,
+) -> Option<ProfileId> {
+    let client_ip = state.managed_envelope.envelope().meta().client_addr();
+    let filter_settings = &state.project_info.config.filter_settings;
+
     let profiling_enabled = state.project_info.has_feature(Feature::Profiling);
     let mut profile_id = None;
 
@@ -104,7 +112,14 @@ pub fn process(state: &mut ProcessEnvelopeState<TransactionGroup>) -> Option<Pro
                 return ItemAction::DropSilently;
             };
 
-            match expand_profile(item, event, &state.config) {
+            match expand_profile(
+                item,
+                event,
+                &state.config,
+                client_ip,
+                filter_settings,
+                global_config,
+            ) {
                 Ok(id) => {
                     profile_id = Some(id);
                     ItemAction::Keep
@@ -119,8 +134,21 @@ pub fn process(state: &mut ProcessEnvelopeState<TransactionGroup>) -> Option<Pro
 }
 
 /// Transfers transaction metadata to profile and check its size.
-fn expand_profile(item: &mut Item, event: &Event, config: &Config) -> Result<ProfileId, Outcome> {
-    match relay_profiling::expand_profile(&item.payload(), event) {
+fn expand_profile(
+    item: &mut Item,
+    event: &Event,
+    config: &Config,
+    client_ip: Option<IpAddr>,
+    filter_settings: &ProjectFiltersConfig,
+    global_config: &GlobalConfig,
+) -> Result<ProfileId, Outcome> {
+    match relay_profiling::expand_profile(
+        &item.payload(),
+        event,
+        client_ip,
+        filter_settings,
+        global_config,
+    ) {
         Ok((id, payload)) => {
             if payload.len() <= config.max_profile_size() {
                 item.set_payload(ContentType::Json, payload);
