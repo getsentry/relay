@@ -22,14 +22,17 @@ impl<'a> Project<'a> {
         Self { shared, config }
     }
 
+    /// Returns a reference to the currently cached project state.
     pub fn project_state(&self) -> &ProjectState {
         self.shared.project_state()
     }
 
+    /// Returns a reference to the currently cached rate limits.
     pub fn rate_limits(&self) -> &CachedRateLimits {
         self.shared.cached_rate_limits()
     }
 
+    /// Returns a reference to the currently reservoir counters.
     pub fn reservoir_counters(&self) -> &ReservoirCounters {
         self.shared.reservoir_counters()
     }

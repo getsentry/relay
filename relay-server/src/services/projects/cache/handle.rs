@@ -10,6 +10,10 @@ use super::state::Shared;
 use crate::services::projects::cache::service::ProjectEvent;
 use crate::services::projects::cache::{Project, ProjectCache};
 
+/// A synchronous handle to the [`ProjectCache`].
+///
+/// The handle allows lock free access to cached projects. It also acts as an interface
+/// to the [`ProjectCacheService`](super::ProjectCacheService).
 #[derive(Clone)]
 pub struct ProjectCacheHandle {
     pub(super) shared: Arc<Shared>,
@@ -56,6 +60,9 @@ mod test {
     use crate::services::projects::project::ProjectState;
 
     impl ProjectCacheHandle {
+        /// Creates a new [`ProjectCacheHandle`] for testing only.
+        ///
+        /// A project cache handle created this way does not require a service to function.
         pub fn for_test() -> Self {
             Self {
                 shared: Default::default(),
@@ -65,6 +72,9 @@ mod test {
             }
         }
 
+        /// Sets the project state for a project.
+        ///
+        /// This can be used to emulate a project cache update in tests.
         pub fn test_set_project_state(&self, project_key: ProjectKey, state: ProjectState) {
             let is_pending = state.is_pending();
             self.shared.test_set_project_state(project_key, state);
@@ -75,10 +85,16 @@ mod test {
             }
         }
 
+        /// Returns `true` if there is a project created for this `project_key`.
+        ///
+        /// A project is automatically created on access via [`Self::get`].
         pub fn test_has_project_created(&self, project_key: ProjectKey) -> bool {
             self.shared.test_has_project_created(project_key)
         }
 
+        /// The amount of fetches triggered for projects.
+        ///
+        /// A fetch is triggered for both [`Self::get`] and [`Self::fetch`].
         pub fn test_num_fetches(&self) -> u64 {
             self.service.len()
         }

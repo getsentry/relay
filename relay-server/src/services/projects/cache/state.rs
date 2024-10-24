@@ -193,6 +193,7 @@ impl Shared {
             .set_project_state(state);
     }
 
+    /// Returns `true` if there exists a shared state for the passed `project_key`.
     pub fn test_has_project_created(&self, project_key: ProjectKey) -> bool {
         self.projects.pin().contains_key(&project_key)
     }
