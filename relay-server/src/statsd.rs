@@ -7,8 +7,6 @@ pub enum RelayGauges {
     /// The state of Relay with respect to the upstream connection.
     /// Possible values are `0` for normal operations and `1` for a network outage.
     NetworkOutage,
-    /// The number of items currently in the garbage disposal queue.
-    ProjectCacheGarbageQueueSize,
     /// The number of envelopes waiting for project states in memory.
     ///
     /// This number is always <= `EnvelopeQueueSize`.
@@ -52,7 +50,6 @@ impl GaugeMetric for RelayGauges {
     fn name(&self) -> &'static str {
         match self {
             RelayGauges::NetworkOutage => "upstream.network_outage",
-            RelayGauges::ProjectCacheGarbageQueueSize => "project_cache.garbage.queue_size",
             RelayGauges::BufferEnvelopesMemoryCount => "buffer.envelopes_mem_count",
             RelayGauges::BufferEnvelopesDiskCount => "buffer.envelopes_disk_count",
             RelayGauges::BufferPeriodicUnspool => "buffer.unspool.periodic",
@@ -481,25 +478,30 @@ pub enum RelayTimers {
     ///
     ///  - `message`: The type of message that was processed.
     ProcessMessageDuration,
-    /// Timing in milliseconds for handling a project cache message.
+    /// Timing in milliseconds for processing a task in the project cache service.
+    ///
+    /// This metric is tagged with:
+    /// - `task`: The type of the task the project cache does.
+    ProjectCacheTaskDuration,
+    /// Timing in milliseconds for handling a legacy project cache message.
     ///
     /// This metric is tagged with:
     ///  - `message`: The type of message that was processed.
-    ProjectCacheMessageDuration,
+    LegacyProjectCacheMessageDuration,
+    /// Timing in milliseconds for processing a task in the legacy project cache service.
+    ///
+    /// A task is a unit of work the service does. Each branch of the
+    /// `tokio::select` is a different task type.
+    ///
+    /// This metric is tagged with:
+    /// - `task`: The type of the task the project cache does.
+    LegacyProjectCacheTaskDuration,
     /// Timing in milliseconds for processing a message in the buffer service.
     ///
     /// This metric is tagged with:
     ///
     ///  - `message`: The type of message that was processed.
     BufferMessageProcessDuration,
-    /// Timing in milliseconds for processing a task in the project cache service.
-    ///
-    /// A task is a unit of work the service does. Each branch of the
-    /// `tokio::select` is a different task type.
-    ///
-    /// This metric is tagged with:
-    /// - `task`: The type of the task the processor does.
-    ProjectCacheTaskDuration,
     /// Timing in milliseconds for handling and responding to a health check request.
     ///
     /// This metric is tagged with:
@@ -577,9 +579,12 @@ impl TimerMetric for RelayTimers {
             RelayTimers::ReplayRecordingProcessing => "replay.recording.process",
             RelayTimers::GlobalConfigRequestDuration => "global_config.requests.duration",
             RelayTimers::ProcessMessageDuration => "processor.message.duration",
-            RelayTimers::ProjectCacheMessageDuration => "project_cache.message.duration",
             RelayTimers::BufferMessageProcessDuration => "buffer.message.duration",
             RelayTimers::ProjectCacheTaskDuration => "project_cache.task.duration",
+            RelayTimers::LegacyProjectCacheMessageDuration => {
+                "legacy_project_cache.message.duration"
+            }
+            RelayTimers::LegacyProjectCacheTaskDuration => "legacy_project_cache.task.duration",
             RelayTimers::HealthCheckDuration => "health.message.duration",
             #[cfg(feature = "processing")]
             RelayTimers::RateLimitBucketsDuration => "processor.rate_limit_buckets",
@@ -674,15 +679,6 @@ pub enum RelayCounters {
     ///  - `invalid`: Data was considered invalid and could not be recovered. The reason indicates
     ///    the validation that failed.
     Outcomes,
-    /// Number of times a project state is looked up from the cache.
-    ///
-    /// This includes lookups for both cached and new projects. As part of this, updates for
-    /// outdated or expired project caches are triggered.
-    ///
-    /// Related metrics:
-    ///  - `project_cache.hit`: For successful cache lookups, even for outdated projects.
-    ///  - `project_cache.miss`: For failed lookups resulting in an update.
-    ProjectStateGet,
     /// Number of project state HTTP requests.
     ///
     /// Relay updates projects in batches. Every update cycle, Relay requests
@@ -692,15 +688,6 @@ pub enum RelayCounters {
     /// Note that after an update loop has completed, there may be more projects pending updates.
     /// This is indicated by `project_state.pending`.
     ProjectStateRequest,
-    /// Number of times a project config was requested with `.no-cache`.
-    ///
-    /// This effectively counts the number of envelopes or events that have been sent with a
-    /// corresponding DSN. Actual queries to the upstream may still be deduplicated for these
-    /// project state requests.
-    ///
-    /// A maximum of 1 such requests per second is allowed per project key. This metric counts only
-    /// permitted requests.
-    ProjectStateNoCache,
     /// Number of times a project state is requested from the central Redis cache.
     ///
     /// This metric is tagged with:
@@ -872,9 +859,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::BufferSpooledEnvelopes => "buffer.spooled_envelopes",
             RelayCounters::BufferUnspooledEnvelopes => "buffer.unspooled_envelopes",
             RelayCounters::Outcomes => "events.outcomes",
-            RelayCounters::ProjectStateGet => "project_state.get",
             RelayCounters::ProjectStateRequest => "project_state.request",
-            RelayCounters::ProjectStateNoCache => "project_state.no_cache",
             #[cfg(feature = "processing")]
             RelayCounters::ProjectStateRedis => "project_state.redis.requests",
             RelayCounters::ProjectUpstreamCompleted => "project_upstream.completed",

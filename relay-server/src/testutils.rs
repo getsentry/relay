@@ -20,6 +20,7 @@ use crate::service::create_redis_pools;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::TrackOutcome;
 use crate::services::processor::{self, EnvelopeProcessorService};
+use crate::services::projects::cache::ProjectCacheHandle;
 use crate::services::projects::project::ProjectInfo;
 use crate::services::test_store::TestStore;
 use crate::utils::{ThreadPool, ThreadPoolBuilder};
@@ -117,7 +118,6 @@ pub fn empty_envelope_with_dsn(dsn: &str) -> Box<Envelope> {
 
 pub fn create_test_processor(config: Config) -> EnvelopeProcessorService {
     let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
-    let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
     let (aggregator, _) = mock_service("aggregator", (), |&mut (), _| {});
     let (upstream_relay, _) = mock_service("upstream_relay", (), |&mut (), _| {});
     let (test_store, _) = mock_service("test_store", (), |&mut (), _| {});
@@ -132,12 +132,12 @@ pub fn create_test_processor(config: Config) -> EnvelopeProcessorService {
         create_processor_pool(),
         Arc::clone(&config),
         GlobalConfigHandle::fixed(Default::default()),
+        ProjectCacheHandle::for_test(),
         Cogs::noop(),
         #[cfg(feature = "processing")]
         redis_pools,
         processor::Addrs {
             outcome_aggregator,
-            project_cache,
             upstream_relay,
             test_store,
             #[cfg(feature = "processing")]
@@ -162,6 +162,7 @@ pub fn create_test_processor_with_addrs(
         create_processor_pool(),
         Arc::clone(&config),
         GlobalConfigHandle::fixed(Default::default()),
+        ProjectCacheHandle::for_test(),
         Cogs::noop(),
         #[cfg(feature = "processing")]
         redis_pools,

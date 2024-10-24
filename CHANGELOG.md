@@ -5,6 +5,7 @@
 **Breaking Changes**:
 
 - Removes support for metric meta envelope items. ([#4152](https://github.com/getsentry/relay/pull/4152))
+- Removes support for the project cache endpoint version 2 and before. ([#4147](https://github.com/getsentry/relay/pull/4147))
 
 ## 24.10.0
 

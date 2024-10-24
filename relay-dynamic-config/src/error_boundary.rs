@@ -42,6 +42,14 @@ impl<T> ErrorBoundary<T> {
         }
     }
 
+    /// Converts from `ErrorBoundary<T>` to `ErrorBoundary<&T>`.
+    pub fn as_ref(&self) -> ErrorBoundary<&T> {
+        match self {
+            Self::Ok(t) => ErrorBoundary::Ok(t),
+            Self::Err(e) => ErrorBoundary::Err(Arc::clone(e)),
+        }
+    }
+
     /// Returns the contained [`Ok`] value or computes it from a closure.
     #[inline]
     pub fn unwrap_or_else<F>(self, op: F) -> T
