@@ -243,7 +243,7 @@ impl EnvelopeBufferService {
 
                 Duration::ZERO // try next pop immediately
             }
-            Peek::Ready { last_received_at } => {
+            Peek::Ready { .. } => {
                 relay_log::trace!("EnvelopeBufferService: popping envelope");
                 relay_statsd::metric!(
                     counter(RelayCounters::BufferTryPop) += 1,
