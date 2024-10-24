@@ -506,7 +506,7 @@ pub struct SpanData {
         additional_properties,
         pii = "true",
         retain = "true",
-        skip_serialization = "empty"
+        skip_serialization = "null"
     )]
     pub other: Object<Value>,
 }
