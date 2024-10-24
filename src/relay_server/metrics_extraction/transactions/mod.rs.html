@@ -2307,9 +2307,27 @@
 <a href="#2307" id="2307">2307</a>
 <a href="#2308" id="2308">2308</a>
 <a href="#2309" id="2309">2309</a>
+<a href="#2310" id="2310">2310</a>
+<a href="#2311" id="2311">2311</a>
+<a href="#2312" id="2312">2312</a>
+<a href="#2313" id="2313">2313</a>
+<a href="#2314" id="2314">2314</a>
+<a href="#2315" id="2315">2315</a>
+<a href="#2316" id="2316">2316</a>
+<a href="#2317" id="2317">2317</a>
+<a href="#2318" id="2318">2318</a>
+<a href="#2319" id="2319">2319</a>
+<a href="#2320" id="2320">2320</a>
+<a href="#2321" id="2321">2321</a>
+<a href="#2322" id="2322">2322</a>
+<a href="#2323" id="2323">2323</a>
+<a href="#2324" id="2324">2324</a>
+<a href="#2325" id="2325">2325</a>
+<a href="#2326" id="2326">2326</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 
 <span class="kw">use </span>relay_base_schema::events::EventType;
+<span class="kw">use </span>relay_base_schema::project::ProjectId;
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_dynamic_config::{CombinedMetricExtractionConfig, TransactionMetricsConfig};
 <span class="kw">use </span>relay_event_normalization::span::country_subregion::Subregion;
@@ -2564,6 +2582,7 @@
     <span class="kw">pub </span>generic_config: <span class="prelude-ty">Option</span>&lt;CombinedMetricExtractionConfig&lt;<span class="lifetime">'a</span>&gt;&gt;,
     <span class="kw">pub </span>transaction_from_dsc: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str&gt;,
     <span class="kw">pub </span>sampling_decision: SamplingDecision,
+    <span class="kw">pub </span>target_project_id: ProjectId,
     <span class="kw">pub </span>has_profile: bool,
 }
 
@@ -2743,6 +2762,7 @@
 
             TransactionCPRTags {
                 decision: <span class="self">self</span>.sampling_decision.to_string(),
+                target_project_id: <span class="self">self</span>.target_project_id,
                 universal_tags,
             }
         };
@@ -2924,6 +2944,7 @@
             generic_config: <span class="prelude-val">None</span>,
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_decision: SamplingDecision::Keep,
+            target_project_id: ProjectId::new(<span class="number">4711</span>),
             has_profile: <span class="bool-val">false</span>,
         };
 
@@ -3303,6 +3324,7 @@
             generic_config: <span class="prelude-val">None</span>,
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_decision: SamplingDecision::Keep,
+            target_project_id: ProjectId::new(<span class="number">4711</span>),
             has_profile: <span class="bool-val">false</span>,
         };
 
@@ -3478,6 +3500,7 @@
             generic_config: <span class="prelude-val">None</span>,
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_decision: SamplingDecision::Keep,
+            target_project_id: ProjectId::new(<span class="number">4711</span>),
             has_profile: <span class="bool-val">false</span>,
         };
 
@@ -3629,6 +3652,7 @@
             generic_config: <span class="prelude-val">None</span>,
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_decision: SamplingDecision::Keep,
+            target_project_id: ProjectId::new(<span class="number">4711</span>),
             has_profile: <span class="bool-val">false</span>,
         };
 
@@ -3704,6 +3728,7 @@
             generic_config: <span class="prelude-val">None</span>,
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_decision: SamplingDecision::Keep,
+            target_project_id: ProjectId::new(<span class="number">4711</span>),
             has_profile: <span class="bool-val">false</span>,
         };
 
@@ -3869,6 +3894,7 @@
             generic_config: <span class="prelude-val">None</span>,
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_decision: SamplingDecision::Keep,
+            target_project_id: ProjectId::new(<span class="number">4711</span>),
             has_profile: <span class="bool-val">false</span>,
         };
 
@@ -3908,6 +3934,7 @@
             generic_config: <span class="prelude-val">None</span>,
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_decision: SamplingDecision::Keep,
+            target_project_id: ProjectId::new(<span class="number">4711</span>),
             has_profile: <span class="bool-val">false</span>,
         };
 
@@ -3976,6 +4003,7 @@
             generic_config: <span class="prelude-val">None</span>,
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_decision: SamplingDecision::Keep,
+            target_project_id: ProjectId::new(<span class="number">4711</span>),
             has_profile: <span class="bool-val">false</span>,
         };
 
@@ -4082,6 +4110,7 @@
             generic_config: <span class="prelude-val">None</span>,
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_decision: SamplingDecision::Keep,
+            target_project_id: ProjectId::new(<span class="number">4711</span>),
             has_profile: <span class="bool-val">false</span>,
         };
 
@@ -4115,6 +4144,7 @@
             generic_config: <span class="prelude-val">None</span>,
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_decision: SamplingDecision::Keep,
+            target_project_id: ProjectId::new(<span class="number">4711</span>),
             has_profile: <span class="bool-val">false</span>,
         };
 
@@ -4152,6 +4182,7 @@
             generic_config: <span class="prelude-val">None</span>,
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"root_transaction"</span>),
             sampling_decision: SamplingDecision::Keep,
+            target_project_id: ProjectId::new(<span class="number">4711</span>),
             has_profile: <span class="bool-val">false</span>,
         };
 
@@ -4169,6 +4200,7 @@
                 ),
                 tags: {
                     "decision": "keep",
+                    "target_project_id": "4711",
                     "transaction": "root_transaction",
                 },
                 metadata: BucketMetadata {
@@ -4421,6 +4453,7 @@
             generic_config: <span class="prelude-val">None</span>,
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_decision: SamplingDecision::Keep,
+            target_project_id: ProjectId::new(<span class="number">4711</span>),
             has_profile: <span class="bool-val">false</span>,
         };
 
@@ -4522,6 +4555,7 @@
             generic_config: <span class="prelude-val">Some</span>(combined_config),
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_decision: SamplingDecision::Keep,
+            target_project_id: ProjectId::new(<span class="number">4711</span>),
             has_profile: <span class="bool-val">false</span>,
         };
 

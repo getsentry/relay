@@ -1277,6 +1277,11 @@
 <a href="#1277" id="1277">1277</a>
 <a href="#1278" id="1278">1278</a>
 <a href="#1279" id="1279">1279</a>
+<a href="#1280" id="1280">1280</a>
+<a href="#1281" id="1281">1281</a>
+<a href="#1282" id="1282">1282</a>
+<a href="#1283" id="1283">1283</a>
+<a href="#1284" id="1284">1284</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -1426,8 +1431,13 @@
                     .value()
                     .and_then(|d| d.segment_name.value())
                     .cloned();
-                <span class="kw">let </span>bucket =
-                    event::create_span_root_counter(span, transaction, <span class="number">1</span>, sampling_decision);
+                <span class="kw">let </span>bucket = event::create_span_root_counter(
+                    span,
+                    transaction,
+                    <span class="number">1</span>,
+                    sampling_decision,
+                    state.project_id,
+                );
                 state
                     .extracted_metrics
                     .extend_sampling_metrics(bucket, <span class="prelude-val">Some</span>(sampling_decision));

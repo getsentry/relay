@@ -1996,8 +1996,30 @@
 <a href="#1996" id="1996">1996</a>
 <a href="#1997" id="1997">1997</a>
 <a href="#1998" id="1998">1998</a>
+<a href="#1999" id="1999">1999</a>
+<a href="#2000" id="2000">2000</a>
+<a href="#2001" id="2001">2001</a>
+<a href="#2002" id="2002">2002</a>
+<a href="#2003" id="2003">2003</a>
+<a href="#2004" id="2004">2004</a>
+<a href="#2005" id="2005">2005</a>
+<a href="#2006" id="2006">2006</a>
+<a href="#2007" id="2007">2007</a>
+<a href="#2008" id="2008">2008</a>
+<a href="#2009" id="2009">2009</a>
+<a href="#2010" id="2010">2010</a>
+<a href="#2011" id="2011">2011</a>
+<a href="#2012" id="2012">2012</a>
+<a href="#2013" id="2013">2013</a>
+<a href="#2014" id="2014">2014</a>
+<a href="#2015" id="2015">2015</a>
+<a href="#2016" id="2016">2016</a>
+<a href="#2017" id="2017">2017</a>
+<a href="#2018" id="2018">2018</a>
+<a href="#2019" id="2019">2019</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
+<span class="kw">use </span>relay_base_schema::project::ProjectId;
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_dynamic_config::CombinedMetricExtractionConfig;
 <span class="kw">use </span>relay_event_normalization::span::description::ScrubMongoDescription;
@@ -2052,6 +2074,7 @@
     event: <span class="kw-2">&amp;mut </span>Event,
     config: CombinedMetricExtractionConfig&lt;<span class="lifetime">'_</span>&gt;,
     sampling_decision: SamplingDecision,
+    target_project_id: ProjectId,
     max_tag_value_size: usize,
     extract_spans: bool,
 ) -&gt; ExtractedMetrics {
@@ -2065,6 +2088,7 @@
             event,
             config,
             sampling_decision,
+            target_project_id,
             max_tag_value_size,
             <span class="kw-2">&amp;mut </span>metrics,
         );
@@ -2077,6 +2101,7 @@
     event: <span class="kw-2">&amp;mut </span>Event,
     config: CombinedMetricExtractionConfig&lt;<span class="lifetime">'_</span>&gt;,
     sampling_decision: SamplingDecision,
+    target_project_id: ProjectId,
     max_tag_value_size: usize,
     output: <span class="kw-2">&amp;mut </span>ExtractedMetrics,
 ) {
@@ -2111,7 +2136,13 @@
         <span class="comment">// This function assumes it is only called when span metrics should be extracted, hence we
         // extract the span root counter unconditionally.
         </span><span class="kw">let </span>transaction = transactions::get_transaction_name(event);
-        <span class="kw">let </span>bucket = create_span_root_counter(event, transaction, span_count, sampling_decision);
+        <span class="kw">let </span>bucket = create_span_root_counter(
+            event,
+            transaction,
+            span_count,
+            sampling_decision,
+            target_project_id,
+        );
         output.sampling_metrics.extend(bucket);
     });
 }
@@ -2125,6 +2156,7 @@
     transaction: <span class="prelude-ty">Option</span>&lt;String&gt;,
     span_count: u32,
     sampling_decision: SamplingDecision,
+    target_project_id: ProjectId,
 ) -&gt; <span class="prelude-ty">Option</span>&lt;Bucket&gt; {
     <span class="kw">if </span>span_count == <span class="number">0 </span>{
         <span class="kw">return </span><span class="prelude-val">None</span>;
@@ -2142,6 +2174,10 @@
 
     <span class="kw">let </span><span class="kw-2">mut </span>tags = BTreeMap::new();
     tags.insert(<span class="string">"decision"</span>.to_owned(), sampling_decision.to_string());
+    tags.insert(
+        <span class="string">"target_project_id"</span>.to_owned(),
+        target_project_id.to_string(),
+    );
     <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction) = transaction {
         tags.insert(<span class="string">"transaction"</span>.to_owned(), transaction);
     }
@@ -3265,6 +3301,7 @@
             event.value_mut().as_mut().unwrap(),
             combined_config(features, <span class="prelude-val">None</span>).combined(),
             SamplingDecision::Keep,
+            ProjectId::new(<span class="number">4711</span>),
             <span class="number">200</span>,
             <span class="bool-val">true</span>,
         )
@@ -3482,6 +3519,7 @@
             event.value_mut().as_mut().unwrap(),
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent], <span class="prelude-val">None</span>).combined(),
             SamplingDecision::Keep,
+            ProjectId::new(<span class="number">4711</span>),
             <span class="number">200</span>,
             <span class="bool-val">true</span>,
         );
@@ -3539,6 +3577,7 @@
             event.value_mut().as_mut().unwrap(),
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent], <span class="prelude-val">None</span>).combined(),
             SamplingDecision::Keep,
+            ProjectId::new(<span class="number">4711</span>),
             <span class="number">200</span>,
             <span class="bool-val">true</span>,
         );
@@ -3573,6 +3612,7 @@
             event.value_mut().as_mut().unwrap(),
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent], <span class="prelude-val">None</span>).combined(),
             SamplingDecision::Keep,
+            ProjectId::new(<span class="number">4711</span>),
             <span class="number">200</span>,
             <span class="bool-val">true</span>,
         );
@@ -3837,6 +3877,7 @@
             event.value_mut().as_mut().unwrap(),
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent], <span class="prelude-val">None</span>).combined(),
             SamplingDecision::Keep,
+            ProjectId::new(<span class="number">4711</span>),
             <span class="number">200</span>,
             <span class="bool-val">true</span>,
         )
@@ -3981,6 +4022,7 @@
             event.value_mut().as_mut().unwrap(),
             config,
             SamplingDecision::Keep,
+            ProjectId::new(<span class="number">4711</span>),
             <span class="number">200</span>,
             <span class="bool-val">true</span>,
         );
