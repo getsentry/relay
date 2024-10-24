@@ -111,6 +111,13 @@ async fn load_local_states(
 
         // Keep a separate project state per key.
         let keys = std::mem::take(&mut state.info.public_keys);
+        if keys.is_empty() {
+            relay_log::warn!(
+                ?path,
+                "skipping file, project config is missing public keys"
+            );
+        }
+
         for key in keys {
             let mut state = state.clone();
             state.info.public_keys = smallvec::smallvec![key.clone()];
