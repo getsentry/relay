@@ -281,6 +281,13 @@
 <a href="#281" id="281">281</a>
 <a href="#282" id="282">282</a>
 <a href="#283" id="283">283</a>
+<a href="#284" id="284">284</a>
+<a href="#285" id="285">285</a>
+<a href="#286" id="286">286</a>
+<a href="#287" id="287">287</a>
+<a href="#288" id="288">288</a>
+<a href="#289" id="289">289</a>
+<a href="#290" id="290">290</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::ffi::OsStr;
 <span class="kw">use </span>std::path::Path;
@@ -394,6 +401,13 @@
 
         <span class="comment">// Keep a separate project state per key.
         </span><span class="kw">let </span>keys = std::mem::take(<span class="kw-2">&amp;mut </span>state.info.public_keys);
+        <span class="kw">if </span>keys.is_empty() {
+            <span class="macro">relay_log::warn!</span>(
+                <span class="question-mark">?</span>path,
+                <span class="string">"skipping file, project config is missing public keys"
+            </span>);
+        }
+
         <span class="kw">for </span>key <span class="kw">in </span>keys {
             <span class="kw">let </span><span class="kw-2">mut </span>state = state.clone();
             state.info.public_keys = <span class="macro">smallvec::smallvec!</span>[key.clone()];
