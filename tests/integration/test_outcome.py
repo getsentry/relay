@@ -1306,7 +1306,17 @@ def test_profile_outcomes(
         for m, _ in metrics_consumer.get_metrics()
         if m["name"] == "c:transactions/usage@none"
     ]
+    # All usage metrics are tagged with `has_profile` irrespectively of the sampling decision.
     assert all(metric["tags"]["has_profile"] == "true" for metric in metrics)
+    # Only usage metrics from kept transactions are tagged with `indexed`.
+    assert (
+        len(
+            list(
+                metric for metric in metrics if metric["tags"].get("indexed") == "true"
+            )
+        )
+        == 1
+    )
     assert sum(metric["value"] for metric in metrics) == 2
 
     assert outcomes == expected_outcomes, outcomes
@@ -2164,140 +2174,6 @@ def test_replay_outcomes_item_failed(
 
 
 @pytest.mark.parametrize("sampling_decision", ["keep", "drop"])
-def test_indexed_tag_with_transaction(
-    mini_sentry,
-    relay_with_processing,
-    metrics_consumer,
-    transactions_consumer,
-    sampling_decision,
-):
-    """
-    Test that the usage metric has the `indexed` field set correctly
-    based on whether a transaction and its spans are kept or dropped by dynamic sampling.
-    """
-    metrics_consumer = metrics_consumer()
-    transactions_consumer = transactions_consumer()
-
-    project_id = 42
-
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
-    }
-
-    # Add these feature flags to enable span extraction
-    project_config["config"].setdefault("features", []).extend(
-        [
-            "projects:span-metrics-extraction",
-            "organizations:indexed-spans-extraction",
-        ]
-    )
-
-    # Configure dynamic sampling
-    ds = project_config["config"].setdefault("sampling", {})
-    ds.setdefault("version", 2)
-    ds.setdefault("rules", []).append(
-        {
-            "samplingValue": {
-                "type": "sampleRate",
-                "value": 1.0 if sampling_decision == "keep" else 0.0,
-            },
-            "type": "trace",
-            "condition": {"op": "and", "inner": []},
-            "id": 1,
-        }
-    )
-
-    end = datetime.now(timezone.utc) - timedelta(seconds=1)
-    duration = timedelta(milliseconds=500)
-    start = end - duration
-
-    # Modify the transaction to include nested spans
-    transaction = {
-        "event_id": uuid.uuid4().hex,
-        "type": "transaction",
-        "transaction": "test_transaction",
-        "start_timestamp": datetime.now(UTC).timestamp() - 5,
-        "timestamp": datetime.now(UTC).timestamp(),
-        "contexts": {
-            "trace": {
-                "trace_id": "ff62a8b040f340bda5d830223def1d81",
-                "span_id": "cccccccccccccccc",
-                "type": "trace",
-            }
-        },
-        "spans": [
-            {
-                "description": "GET /api/0/organizations/?member=1",
-                "op": "http",
-                "origin": "manual",
-                "parent_span_id": "aaaaaaaaaaaaaaaa",
-                "span_id": "bbbbbbbbbbbbbbbb",
-                "start_timestamp": start.isoformat(),
-                "status": "success",
-                "timestamp": end.isoformat(),
-                "trace_id": "ff62a8b040f340bda5d830223def1d81",
-            },
-            {
-                "description": "GET /api/0/projects/?member=1",
-                "op": "http",
-                "origin": "manual",
-                "parent_span_id": "aaaaaaaaaaaaaaaa",
-                "span_id": "cccccccccccccccc",
-                "start_timestamp": start.isoformat(),
-                "status": "success",
-                "timestamp": end.isoformat(),
-                "trace_id": "ff62a8b040f340bda5d830223def1d81",
-            },
-        ],
-    }
-
-    config = {
-        "aggregator": {
-            "bucket_interval": 1,
-            "initial_delay": 0,
-        }
-    }
-
-    relay = relay_with_processing(config)
-    relay.send_event(project_id, transaction)
-
-    # Check if the transaction was kept or dropped
-    if sampling_decision == "keep":
-        transactions_consumer.get_event()
-    else:
-        transactions_consumer.assert_empty()
-
-    # Modify the metric assertion to check for multiple span metrics
-    metrics = metrics_consumer.get_metrics()
-    transaction_usage_metric = next(
-        (m for m, _ in metrics if m["name"] == "c:transactions/usage@none"), None
-    )
-    span_usage_metrics = [m for m, _ in metrics if m["name"] == "c:spans/usage@none"]
-
-    assert transaction_usage_metric is not None, "Transaction usage metric not found"
-    # 1 span usage for the transaction, 1 aggregated span usage for the 2 spans
-    assert len(span_usage_metrics) == 2, "Expected 2 span usage metrics"
-
-    if sampling_decision == "keep":
-        assert (
-            transaction_usage_metric["tags"].get("indexed") == "true"
-        ), "indexed should be true for kept transactions"
-        for span_metric in span_usage_metrics:
-            assert (
-                span_metric["tags"].get("indexed") == "true"
-            ), "indexed should be true for kept spans"
-    else:
-        assert (
-            "indexed" not in transaction_usage_metric["tags"]
-        ), "indexed should not be present for dropped transactions"
-        for span_metric in span_usage_metrics:
-            assert (
-                "indexed" not in span_metric["tags"]
-            ), "indexed should not be present for dropped spans"
-
-
-@pytest.mark.parametrize("sampling_decision", ["keep", "drop"])
 def test_indexed_tag_with_standalone_spans(
     mini_sentry,
     relay_with_processing,
@@ -2346,39 +2222,7 @@ def test_indexed_tag_with_standalone_spans(
         }
     )
 
-    end = datetime.now(timezone.utc) - timedelta(seconds=1)
-    duration = timedelta(milliseconds=500)
-    start = end - duration
-
     trace_id = "ff62a8b040f340bda5d830223def1d81"
-
-    # Create standalone spans
-    spans = [
-        {
-            "description": "GET /api/0/organizations/?member=1",
-            "op": "http",
-            "origin": "manual",
-            "parent_span_id": "aaaaaaaaaaaaaaaa",
-            "span_id": "bbbbbbbbbbbbbbbb",
-            "start_timestamp": start.isoformat(),
-            "status": "success",
-            "timestamp": end.isoformat(),
-            "exclusive_time": 1000.0,
-            "trace_id": trace_id,
-        },
-        {
-            "description": "GET /api/0/projects/?member=1",
-            "op": "http",
-            "origin": "manual",
-            "parent_span_id": "aaaaaaaaaaaaaaaa",
-            "span_id": "cccccccccccccccc",
-            "start_timestamp": start.isoformat(),
-            "status": "success",
-            "timestamp": end.isoformat(),
-            "exclusive_time": 1000.0,
-            "trace_id": trace_id,
-        },
-    ]
 
     config = {
         "aggregator": {
@@ -2391,8 +2235,7 @@ def test_indexed_tag_with_standalone_spans(
 
     # Create an envelope with a trace context
     envelope = Envelope()
-    for span in spans:
-        envelope.add_item(Item(payload=PayloadRef(json=span), type="span"))
+    envelope.add_item(Item(payload=PayloadRef(json=_get_span_payload()), type="span"))
 
     # Add trace information to the envelope
     envelope.headers["trace"] = {
@@ -2405,8 +2248,8 @@ def test_indexed_tag_with_standalone_spans(
 
     # Check if the spans were kept or dropped
     if sampling_decision == "keep":
-        received_spans = spans_consumer.get_spans(timeout=2, n=2)
-        assert len(received_spans) == 2, "Expected 2 spans to be kept"
+        received_spans = spans_consumer.get_spans(timeout=2, n=1)
+        assert len(received_spans) == 1, "Expected 1 span to be kept"
     else:
         spans_consumer.assert_empty()
 
@@ -2414,7 +2257,7 @@ def test_indexed_tag_with_standalone_spans(
     metrics = metrics_consumer.get_metrics()
     span_usage_metrics = [m for m, _ in metrics if m["name"] == "c:spans/usage@none"]
 
-    # 1 aggregated span usage for the 2 spans
+    # 1 aggregated span usage for the 1 span
     assert len(span_usage_metrics) == 1, "Expected 1 span usage metric"
     span_metric = span_usage_metrics[0]
 
@@ -2476,34 +2319,7 @@ def test_indexed_tag_with_rate_limited_transaction(
 
     relay = relay_with_processing(config)
 
-    # Create and send a transaction
-    transaction = {
-        "event_id": uuid.uuid4().hex,
-        "type": "transaction",
-        "transaction": "test_transaction",
-        "start_timestamp": datetime.now(UTC).timestamp() - 5,
-        "timestamp": datetime.now(UTC).timestamp(),
-        "contexts": {
-            "trace": {
-                "trace_id": "ff62a8b040f340bda5d830223def1d81",
-                "span_id": "cccccccccccccccc",
-                "type": "trace",
-            }
-        },
-        "spans": [
-            {
-                "description": "GET /api/0/organizations/?member=1",
-                "op": "http",
-                "parent_span_id": "aaaaaaaaaaaaaaaa",
-                "span_id": "bbbbbbbbbbbbbbbb",
-                "start_timestamp": datetime.now(UTC).timestamp() - 4,
-                "timestamp": datetime.now(UTC).timestamp() - 3,
-                "trace_id": "ff62a8b040f340bda5d830223def1d81",
-            },
-        ],
-    }
-
-    relay.send_event(project_id, transaction)
+    relay.send_event(project_id, _get_event_payload("transaction"))
 
     # Check if the transaction was rate limited
     transactions_consumer.assert_empty()
