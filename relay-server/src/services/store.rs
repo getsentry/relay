@@ -6,13 +6,12 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::error::Error;
 use std::sync::Arc;
-use std::time::Instant;
 
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use relay_base_schema::data_category::DataCategory;
 use relay_base_schema::project::ProjectId;
-use relay_common::time::{instant_to_date_time, UnixTimestamp};
+use relay_common::time::UnixTimestamp;
 use relay_config::Config;
 use relay_event_schema::protocol::{EventId, VALID_PLATFORMS};
 

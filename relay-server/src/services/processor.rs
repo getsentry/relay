@@ -57,6 +57,7 @@ use {
     relay_redis::{RedisPool, RedisPools},
     std::iter::Chain,
     std::slice::Iter,
+    std::time::Instant,
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
