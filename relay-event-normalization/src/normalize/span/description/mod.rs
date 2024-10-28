@@ -1571,10 +1571,10 @@ mod tests {
 
     mongodb_scrubbing_test!(
         mongodb_max_depth,
-        r#"{"insert": "coll", "documents": [{"foo": {"bar": {"baz": "quux"}}}]}"#,
-        "insert",
+        r#"{"update": "coll", "updates": {"q": {"_id": "1"}, "u": {"$set": {"foo": {"bar": {"baz": "quux"}}}}}}"#,
+        "update",
         "coll",
-        r#"{"documents":[{"foo":{"bar":"?"}}],"insert":"coll"}"#
+        r#"{"update":"coll","updates":{"q":{"_id":"?"},"u":{"$set":{"foo":"?"}}}}"#
     );
 
     mongodb_scrubbing_test!(
