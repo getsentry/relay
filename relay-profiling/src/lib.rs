@@ -103,7 +103,7 @@ impl Filterable for MinimalProfile {
     }
 
     fn release(&self) -> Option<&str> {
-        self.release.as_ref().map(|release| release.as_str())
+        self.release.as_deref()
     }
 
     fn transaction(&self) -> Option<&str> {
@@ -122,7 +122,7 @@ impl Filterable for MinimalProfile {
 impl Getter for MinimalProfile {
     fn get_value(&self, path: &str) -> Option<Val<'_>> {
         match path.strip_prefix("event.")? {
-            "release" => self.release.as_ref().map(|release| release.as_str().into()),
+            "release" => self.release.as_deref().map(|release| release.into()),
             "platform" => Some(self.platform.as_str().into()),
             _ => None,
         }
