@@ -197,7 +197,8 @@ mod tests {
         "tok": "test"
       },
       "custom_field": "something"
-    }
+    },
+    "custom_field_empty": ""
   },
   "other": "value",
   "type": "trace"
@@ -222,15 +223,15 @@ mod tests {
                         );
                         map
                     }),
-                    other: {
-                        let mut map = Object::new();
-                        map.insert(
-                            "custom_field".into(),
-                            Annotated::new(Value::String("something".into())),
-                        );
-                        map
-                    },
+                    other: Object::from([(
+                        "custom_field".into(),
+                        Annotated::new(Value::String("something".into())),
+                    )]),
                 }),
+                other: Object::from([(
+                    "custom_field_empty".into(),
+                    Annotated::new(Value::String("".into())),
+                )]),
                 ..Default::default()
             }),
             other: {

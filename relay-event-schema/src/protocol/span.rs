@@ -931,4 +931,18 @@ mod tests {
         assert_eq!(data.get_value("code\\.namespace"), Some(Val::String("ns")));
         assert_eq!(data.get_value("unknown"), None);
     }
+
+    #[test]
+    fn test_span_data_empty_field() {
+        let span = r#"{
+            "data": {
+                "custom_field_empty": ""
+            }
+        }"#;
+        let span: Annotated<Span> = Annotated::from_json(span).unwrap();
+        assert_eq!(
+            span.to_json().unwrap(),
+            r#"{"data":{"custom_field_empty":""}}"#
+        );
+    }
 }
