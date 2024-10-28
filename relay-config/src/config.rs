@@ -977,7 +977,7 @@ pub struct EnvelopeSpool {
     /// This value should be lower than [`Health::max_memory_percent`] to prevent flip-flopping.
     ///
     /// Warning: this threshold can cause the buffer service to deadlock when the buffer itself
-    /// is using too much memory (influenced by [`Self::max_batches`] and [`Self::disk_batch_size`]).
+    /// is using too much memory (influenced by [`Self::read_batch_size`] and [`Self::write_batch_bytes`]).
     ///
     /// Defaults to 90% (5% less than max memory).
     #[serde(default = "spool_max_backpressure_memory_percent")]

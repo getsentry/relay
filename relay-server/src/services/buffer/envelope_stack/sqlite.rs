@@ -226,6 +226,8 @@ mod tests {
         let _ = stack.push(envelope).await;
     }
 
+    const COMPRESSED_ENVELOPE_SIZE: usize = 313;
+
     #[tokio::test]
     async fn test_push_when_db_is_not_valid() {
         let db = setup_db(false).await;
@@ -233,7 +235,7 @@ mod tests {
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store,
             10,
-            471 * 4 - 1,
+            COMPRESSED_ENVELOPE_SIZE * 4 - 1,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
@@ -353,7 +355,7 @@ mod tests {
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store,
             10,
-            5 * 471 - 1,
+            5 * COMPRESSED_ENVELOPE_SIZE - 1,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
@@ -365,13 +367,13 @@ mod tests {
         for envelope in envelopes.clone() {
             assert!(stack.push(envelope).await.is_ok());
         }
-        assert_eq!(stack.batch.len(), 2);
+        assert_eq!(stack.batch.len(), 2); // five have been pushed to disk.
 
         // We peek the top element.
         let peeked = stack.peek().await.unwrap().unwrap();
         assert!(peeked.into_std() - envelopes[6].meta().start_time() < Duration::from_millis(1));
 
-        // We pop envelopes, and we expect that the last 10 are in memory, since the first 5
+        // We pop envelopes, and we expect that the last 2 are in memory, since the first 5
         // should have been spooled to disk.
         for envelope in envelopes[5..7].iter().rev() {
             let popped_envelope = stack.pop().await.unwrap().unwrap();
@@ -417,7 +419,7 @@ mod tests {
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store.clone(),
             10,
-            4710,
+            10 * COMPRESSED_ENVELOPE_SIZE,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,

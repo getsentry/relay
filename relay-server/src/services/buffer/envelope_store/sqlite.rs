@@ -97,10 +97,6 @@ impl<'a> TryFrom<&'a Envelope> for InsertEnvelope {
             relay_statsd::metric!(timer(RelayTimers::BufferEnvelopeCompression), {
                 zstd::encode_all(serialized_envelope.as_slice(), Self::COMPRESSION_LEVEL)?
             });
-
-        // dbg!(encoded_envelope.len());
-        // dbg!(serialized_envelope.len());
-
         Ok(InsertEnvelope {
             received_at: value.received_at().timestamp_millis(),
             own_key,
