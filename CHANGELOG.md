@@ -10,7 +10,7 @@
 
 **Features:**
 
-- Retain empty strings in `span.data` and `event.contexts.trace.data`. ([#4174](https://github.com/getsentry/relay/pull/4174))
+- Retain empty string values in `span.data` and `event.contexts.trace.data`. ([#4174](https://github.com/getsentry/relay/pull/4174))
 
 **Internal:**
 
