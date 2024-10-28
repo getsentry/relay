@@ -99,6 +99,7 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
 
                             let stack = SqliteEnvelopeStack::new(
                                 envelope_store.clone(),
+                                10,
                                 disk_batch_size,
                                 ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
                                 ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
@@ -135,6 +136,7 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
 
                                 let mut stack = SqliteEnvelopeStack::new(
                                     envelope_store.clone(),
+                                    10,
                                     disk_batch_size,
                                     ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
                                     ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
@@ -175,6 +177,7 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
 
                             let stack = SqliteEnvelopeStack::new(
                                 envelope_store.clone(),
+                                10,
                                 disk_batch_size,
                                 ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
                                 ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),

@@ -28,8 +28,10 @@ pub enum SqliteEnvelopeStackError {
 pub struct SqliteEnvelopeStack {
     /// Shared SQLite database pool which will be used to read and write from disk.
     envelope_store: SqliteEnvelopeStore,
+    /// Maximum number of envelopes to read from disk at once.
+    read_batch_size: NonZeroUsize,
     /// Maximum number of bytes in the in-memory cache before we write to disk.
-    max_batch_bytes: NonZeroUsize,
+    write_batch_bytes: NonZeroUsize,
     /// The project key of the project to which all the envelopes belong.
     own_key: ProjectKey,
     /// The project key of the root project of the trace to which all the envelopes belong.
@@ -46,15 +48,17 @@ impl SqliteEnvelopeStack {
     /// Creates a new empty [`SqliteEnvelopeStack`].
     pub fn new(
         envelope_store: SqliteEnvelopeStore,
-        max_batch_bytes: usize,
+        read_batch_size: usize,
+        write_batch_bytes: usize,
         own_key: ProjectKey,
         sampling_key: ProjectKey,
         check_disk: bool,
     ) -> Self {
         Self {
             envelope_store,
-            max_batch_bytes: NonZeroUsize::new(max_batch_bytes)
-                .expect("the spool threshold must be > 0"),
+            read_batch_size: NonZeroUsize::new(read_batch_size).expect("batch size should be > 0"),
+            write_batch_bytes: NonZeroUsize::new(write_batch_bytes)
+                .expect("batch bytes should be > 0"),
             own_key,
             sampling_key,
             batch: vec![],
@@ -64,7 +68,7 @@ impl SqliteEnvelopeStack {
 
     /// Threshold above which the [`SqliteEnvelopeStack`] will spool data from the `buffer` to disk.
     fn above_spool_threshold(&self) -> bool {
-        self.batch.iter().map(|e| e.len()).sum::<usize>() > self.max_batch_bytes.get()
+        self.batch.iter().map(|e| e.len()).sum::<usize>() > self.write_batch_bytes.get()
     }
 
     /// Spools to disk up to `disk_batch_size` envelopes from the `buffer`.
@@ -115,7 +119,7 @@ impl SqliteEnvelopeStack {
                 .delete_many(
                     self.own_key,
                     self.sampling_key,
-                    10, // TODO
+                    self.read_batch_size.get() as i64,
                 )
                 .await
                 .map_err(SqliteEnvelopeStackError::EnvelopeStoreError)?
@@ -211,7 +215,7 @@ mod tests {
         let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store,
-            // 2,
+            10,
             2,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("c25ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
@@ -228,6 +232,7 @@ mod tests {
         let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store,
+            10,
             471 * 4 - 1,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
@@ -270,6 +275,7 @@ mod tests {
         let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store,
+            10,
             2,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
@@ -289,6 +295,7 @@ mod tests {
         let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store,
+            10,
             2,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
@@ -306,6 +313,7 @@ mod tests {
         let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store,
+            10,
             9999,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
@@ -344,6 +352,7 @@ mod tests {
         let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store,
+            10,
             5 * 471 - 1,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
@@ -407,6 +416,7 @@ mod tests {
         let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store.clone(),
+            10,
             4710,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
