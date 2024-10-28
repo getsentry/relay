@@ -345,10 +345,12 @@ pub async fn handle_envelope(
     state: &ServiceState,
     envelope: Box<Envelope>,
 ) -> Result<Option<EventId>, BadStoreRequest> {
+    let client_name = envelope.meta().client_name().unwrap_or("unknown");
     for item in envelope.items() {
         metric!(
             histogram(RelayHistograms::EnvelopeItemSize) = item.payload().len() as u64,
-            item_type = item.ty().name()
+            item_type = item.ty().name(),
+            client_name = client_name
         )
     }
 
