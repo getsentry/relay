@@ -195,11 +195,11 @@ mod sample_rate_as_string {
             formatter.write_str("a string or a float")
         }
 
-        fn visit_borrowed_str<E>(self, v: &'de str) -> Result<Self::Value, E>
+        fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E>
         where
             E: serde::de::Error,
         {
-            Ok(StringOrFloat::String(Cow::Borrowed(v)))
+            Ok(StringOrFloat::Float(v))
         }
 
         fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
@@ -209,18 +209,18 @@ mod sample_rate_as_string {
             Ok(StringOrFloat::String(Cow::Owned(v.to_owned())))
         }
 
+        fn visit_borrowed_str<E>(self, v: &'de str) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(StringOrFloat::String(Cow::Borrowed(v)))
+        }
+
         fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
         where
             E: serde::de::Error,
         {
             Ok(StringOrFloat::String(Cow::Owned(v)))
-        }
-
-        fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E>
-        where
-            E: serde::de::Error,
-        {
-            Ok(StringOrFloat::Float(v))
         }
     }
 
