@@ -10,6 +10,7 @@
 **Internal:**
 
 - Add a metric that counts span volume in the root project for dynamic sampling (`c:spans/count_per_root_project@none`) ([#4134](https://github.com/getsentry/relay/pull/4134))
+- Add client SDK name to envelope metrics. ([#4183](https://github.com/getsentry/relay/pull/4183))
 
 ## 24.10.0
 
