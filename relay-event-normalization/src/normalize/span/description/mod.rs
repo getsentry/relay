@@ -607,9 +607,8 @@ fn scrub_mongodb_visit_node(value: &mut Value, recursion_limit: usize) {
             }
         }
         Value::Array(arr) => {
-            for value in arr.iter_mut() {
-                scrub_mongodb_visit_node(value, recursion_limit - 1);
-            }
+            arr.clear();
+            arr.push(Value::String("...".to_owned()));
         }
         Value::String(str) => {
             str.clear();
@@ -1584,5 +1583,13 @@ mod tests {
         "find",
         "documents001",
         r#"{"find":"documents{%s}","showRecordId":"?"}"#
+    );
+
+    mongodb_scrubbing_test!(
+        mongodb_query_with_array,
+        r#"{"insert": "documents", "documents": [{"foo": "bar"}, {"baz": "quux"}, {"qux": "quuz"}]}"#,
+        "insert",
+        "documents",
+        r#"{"documents":["..."],"insert":"documents"}"#
     );
 }
