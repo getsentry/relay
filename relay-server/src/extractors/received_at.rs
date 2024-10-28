@@ -22,8 +22,7 @@ impl ReceivedAt {
 
     /// Returns the [`ReceivedAt`] corresponding to provided timestamp.
     pub fn from_timestamp_millis(timestamp: i64) -> Self {
-        let datetime =
-            DateTime::<Utc>::from_timestamp_millis(timestamp).unwrap_or_else(|| Utc::now());
+        let datetime = DateTime::<Utc>::from_timestamp_millis(timestamp).unwrap_or_else(Utc::now);
 
         Self(datetime)
     }

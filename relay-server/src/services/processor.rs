@@ -2191,7 +2191,7 @@ impl EnvelopeProcessorService {
         let ProcessBatchedMetrics {
             payload,
             source,
-            received_at: start_time,
+            received_at,
             sent_at,
         } = message;
 
@@ -2220,7 +2220,7 @@ impl EnvelopeProcessorService {
                 data: MetricData::Parsed(buckets),
                 project_key,
                 source,
-                received_at: start_time.into(),
+                received_at,
                 sent_at,
             });
         }
