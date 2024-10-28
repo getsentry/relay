@@ -996,12 +996,12 @@ pub enum BucketSource {
     External,
 }
 
-impl From<&RequestMeta> for BucketSource {
-    fn from(value: &RequestMeta) -> Self {
-        if value.is_from_internal_relay() {
-            Self::Internal
-        } else {
-            Self::External
+impl BucketSource {
+    /// Infers the bucket source from [`RequestMeta::is_from_internal_relay`].
+    pub fn from_meta(meta: &RequestMeta) -> Self {
+        match meta.is_from_internal_relay() {
+            true => Self::Internal,
+            false => Self::External,
         }
     }
 }

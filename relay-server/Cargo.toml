@@ -29,6 +29,7 @@ processing = [
 workspace = true
 
 [dependencies]
+ahash = { workspace = true }
 anyhow = { workspace = true }
 serde_path_to_error = { workspace = true }
 axum = { workspace = true, features = ["macros", "matched-path", "tracing"] }

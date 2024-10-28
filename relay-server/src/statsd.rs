@@ -386,8 +386,6 @@ pub enum RelayTimers {
     /// Total time in milliseconds an envelope spends in Relay from the time it is received until it
     /// finishes processing and has been submitted to the upstream.
     EnvelopeTotalTime,
-    /// Total time in milliseconds spent evicting outdated and unused projects happens.
-    ProjectStateEvictionDuration,
     /// Total time in milliseconds spent fetching queued project configuration updates requests to
     /// resolve.
     ///
@@ -566,7 +564,6 @@ impl TimerMetric for RelayTimers {
             RelayTimers::EnvelopeWaitTime => "event.wait_time",
             RelayTimers::EnvelopeProcessingTime => "event.processing_time",
             RelayTimers::EnvelopeTotalTime => "event.total_time",
-            RelayTimers::ProjectStateEvictionDuration => "project_state.eviction.duration",
             RelayTimers::ProjectStateRequestDuration => "project_state.request.duration",
             #[cfg(feature = "processing")]
             RelayTimers::ProjectStateDecompression => "project_state.decompression",

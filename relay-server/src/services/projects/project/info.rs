@@ -264,7 +264,7 @@ pub struct PublicKeyConfig {
 /// A revision can be missing, a missing revision never compares equal
 /// to any other revision.
 ///
-/// Revisions are internally reference counted and cheap the create.
+/// Revisions are internally reference counted and cheap to create.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 #[serde(transparent)]
 pub struct Revision(Option<Arc<str>>);

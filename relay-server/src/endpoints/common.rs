@@ -12,7 +12,7 @@ use crate::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, I
 use crate::service::ServiceState;
 use crate::services::buffer::EnvelopeBuffer;
 use crate::services::outcome::{DiscardReason, Outcome};
-use crate::services::processor::{MetricData, ProcessMetrics, ProcessingGroup};
+use crate::services::processor::{BucketSource, MetricData, ProcessMetrics, ProcessingGroup};
 use crate::services::projects::cache::legacy::ValidateEnvelope;
 use crate::statsd::{RelayCounters, RelayHistograms};
 use crate::utils::{self, ApiErrorResponse, FormDataIter, ManagedEnvelope};
@@ -276,7 +276,7 @@ fn queue_envelope(
                 start_time: envelope.meta().start_time(),
                 sent_at: envelope.sent_at(),
                 project_key: envelope.meta().public_key(),
-                source: envelope.meta().into(),
+                source: BucketSource::from_meta(envelope.meta()),
             });
         }
     }

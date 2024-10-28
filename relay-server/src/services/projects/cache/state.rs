@@ -11,24 +11,24 @@ use relay_statsd::metric;
 
 use crate::services::projects::project::{ProjectState, Revision};
 use crate::services::projects::source::SourceProjectState;
-use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
+use crate::statsd::{RelayCounters, RelayHistograms};
 use crate::utils::RetryBackoff;
 
 /// The backing storage for a project cache.
 ///
-/// Exposes the only interface to delete from [`Shared`], gurnatueed by
+/// Exposes the only interface to delete from [`Shared`], guaranteed by
 /// requiring exclusive/mutable access to [`ProjectStore`].
 ///
 /// [`Shared`] can be extended through [`Shared::get_or_create`], in which case
 /// the private state is missing. Users of [`Shared::get_or_create`] *must* trigger
 /// a fetch to create the private state and keep it updated.
-/// This gurnatuees that eventually the project state is populated, but for a undetermined,
+/// This guarantees that eventually the project state is populated, but for a undetermined,
 /// time it is possible that shared state exists without the respective private state.
 #[derive(Default)]
 pub struct ProjectStore {
     /// The shared state, which can be accessed concurrently.
     shared: Arc<Shared>,
-    /// The private, mutably exclusve state, used to maintain the project state.
+    /// The private, mutably exclusive state, used to maintain the project state.
     private: hashbrown::HashMap<ProjectKey, PrivateProjectState>,
 }
 
@@ -111,8 +111,6 @@ impl ProjectStore {
             histogram(RelayHistograms::ProjectStateCacheSize) = self.private.len() as u64,
             storage = "private"
         );
-        // TODO: this can be replaced with a service level timing metric
-        metric!(timer(RelayTimers::ProjectStateEvictionDuration) = eviction_start.elapsed());
         metric!(counter(RelayCounters::EvictingStaleProjectCaches) += evicted as u64);
 
         evicted
@@ -120,12 +118,12 @@ impl ProjectStore {
 
     /// Get a reference to the current project or create a new project.
     ///
-    /// For internal use only, a created project must always be fetched immeditately.
+    /// For internal use only, a created project must always be fetched immediately.
     fn get_or_create(&mut self, project_key: ProjectKey, config: &Config) -> ProjectRef<'_> {
         #[cfg(debug_assertions)]
         if self.private.contains_key(&project_key) {
             // We have exclusive access to the private part, there are no concurrent deletions
-            // hence when if we have a private state there must always be a shared state as well.
+            // hence if we have a private state there must always be a shared state as well.
             //
             // The opposite is not true, the shared state may have been created concurrently
             // through the shared access.
@@ -157,7 +155,7 @@ impl ProjectStore {
 /// The shared and concurrently accessible handle to the project cache.
 #[derive(Default)]
 pub struct Shared {
-    projects: papaya::HashMap<ProjectKey, SharedProjectState>,
+    projects: papaya::HashMap<ProjectKey, SharedProjectState, ahash::RandomState>,
 }
 
 impl Shared {
@@ -290,9 +288,9 @@ impl Fetch {
         self.project_key
     }
 
-    /// Returns when the the fetch for the project should be scheduled.
+    /// Returns when the fetch for the project should be scheduled.
     ///
-    /// This can be now (as soon as possible) or a alter point in time, if the project is currently
+    /// This can be now (as soon as possible) or a later point in time, if the project is currently
     /// in a backoff.
     pub fn when(&self) -> Instant {
         self.when
@@ -416,8 +414,8 @@ enum FetchState {
         /// `None` means soon as possible.
         next_fetch_attempt: Option<Instant>,
     },
-    /// There was a successful non-pending fetch,
-    NonPending {
+    /// There was a successful non-pending fetch.
+    Complete {
         /// Time when the fetch was completed.
         last_fetch: LastFetch,
     },
@@ -451,7 +449,7 @@ impl PrivateProjectState {
     /// was fetched successfully before.
     fn last_fetch(&self) -> Option<LastFetch> {
         match &self.state {
-            FetchState::NonPending { last_fetch } => Some(*last_fetch),
+            FetchState::Complete { last_fetch } => Some(*last_fetch),
             _ => None,
         }
     }
@@ -469,7 +467,7 @@ impl PrivateProjectState {
                 // Schedule a new fetch, even if there is a backoff, it will just be sleeping for a while.
                 next_fetch_attempt.unwrap_or(now)
             }
-            FetchState::NonPending { last_fetch } => {
+            FetchState::Complete { last_fetch } => {
                 if last_fetch.check_expiry(now, config).is_updated() {
                     // The current state is up to date, no need to start another fetch.
                     relay_log::trace!(
@@ -519,7 +517,7 @@ impl PrivateProjectState {
                 "project state fetch completed with non-pending config"
             );
             self.backoff.reset();
-            self.state = FetchState::NonPending {
+            self.state = FetchState::Complete {
                 last_fetch: LastFetch(now),
             };
         }
@@ -541,7 +539,7 @@ impl LastFetch {
         } else if elapsed >= expiry {
             Expiry::Stale
         } else {
-            Expiry::Updated
+            Expiry::Fresh
         }
     }
 }
@@ -550,7 +548,7 @@ impl LastFetch {
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
 enum Expiry {
     /// The project state is perfectly up to date.
-    Updated,
+    Fresh,
     /// The project state is outdated but events depending on this project state can still be
     /// processed. The state should be refreshed in the background though.
     Stale,
@@ -560,9 +558,9 @@ enum Expiry {
 }
 
 impl Expiry {
-    /// Returns `true` if the project is uo to date and does not need to be fetched.
+    /// Returns `true` if the project is up-to-date and does not need to be fetched.
     fn is_updated(&self) -> bool {
-        matches!(self, Self::Updated)
+        matches!(self, Self::Fresh)
     }
 
     /// Returns `true` if the project is expired and can be evicted.

@@ -19,7 +19,7 @@ use crate::statsd::RelayTimers;
 /// receiving events.
 ///
 /// It is set to such a large amount because receivers of events currently
-/// do not deal with lags in the channel gracefuly.
+/// do not deal with lags in the channel gracefully.
 const PROJECT_EVENTS_CHANNEL_SIZE: usize = 512_000;
 
 /// A cache for projects, which allows concurrent access to the cached projects.
@@ -51,9 +51,12 @@ impl relay_system::FromMessage<Self> for ProjectCache {
     }
 }
 
+/// Project life-cycle events produced by the project cache.
 #[derive(Debug, Copy, Clone)]
 pub enum ProjectEvent {
+    /// A project was successfully fetched and is now ready to use.
     Ready(ProjectKey),
+    /// A project expired from the cache and was evicted.
     Evicted(ProjectKey),
 }
 
