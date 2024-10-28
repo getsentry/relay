@@ -2551,8 +2551,6 @@ impl EnvelopeProcessorService {
         limits: &[CardinalityLimit],
         buckets: Vec<Bucket>,
     ) -> Vec<Bucket> {
-        use relay_log::sentry::User;
-
         let global_config = self.inner.global_config.current();
         let cardinality_limiter_mode = global_config.options.cardinality_limiter_mode;
 
@@ -2586,7 +2584,7 @@ impl EnvelopeProcessorService {
                 relay_log::with_scope(
                     |scope| {
                         // Set the organization as user so we can alert on distinct org_ids.
-                        scope.set_user(Some(User {
+                        scope.set_user(Some(relay_log::sentry::User {
                             id: Some(scoping.organization_id.to_string()),
                             ..Default::default()
                         }));
