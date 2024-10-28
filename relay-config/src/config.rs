@@ -895,7 +895,7 @@ fn spool_envelopes_unspool_interval() -> u64 {
 
 /// Default number of envelope to read from disk at once.
 fn spool_envelopes_read_batch_size() -> usize {
-    10
+    200
 }
 
 /// Default number of encoded envelope bytes to cache before writing to disk.

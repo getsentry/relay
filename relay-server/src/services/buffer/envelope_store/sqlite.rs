@@ -467,16 +467,10 @@ fn extract_envelope(
     let encoded_envelope: Vec<u8> = row
         .try_get("envelope")
         .map_err(SqliteEnvelopeStoreError::FetchError)?;
-    // let envelope_bytes = bytes::Bytes::from(envelope_row);
-    // let mut envelope = Envelope::parse_bytes(envelope_bytes)
-    //     .map_err(|_| SqliteEnvelopeStoreError::EnvelopeExtractionError)?;
 
     let received_at: i64 = row
         .try_get("received_at")
         .map_err(SqliteEnvelopeStoreError::FetchError)?;
-    // let start_time = StartTime::from_timestamp_millis(received_at as u64); .. TODO
-
-    // envelope.set_start_time(start_time.into_inner());
 
     Ok(InsertEnvelope {
         received_at,

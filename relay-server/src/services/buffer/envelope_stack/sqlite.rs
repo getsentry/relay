@@ -80,14 +80,6 @@ impl SqliteEnvelopeStack {
         let batch = std::mem::take(&mut self.batch);
         relay_statsd::metric!(counter(RelayCounters::BufferSpooledEnvelopes) += batch.len() as u64);
 
-        // TODO: log serialization metric
-
-        // // We convert envelopes into a format which simplifies insertion in the store. If an
-        // // envelope can't be serialized, we will not insert it.
-        // let envelopes = relay_statsd::metric!(timer(RelayTimers::BufferEnvelopesSerialization), {
-        //     envelopes.iter().filter_map(|e| e.as_ref().try_into().ok())
-        // });
-
         // When early return here, we are acknowledging that the elements that we popped from
         // the buffer are lost in case of failure. We are doing this on purposes, since if we were
         // to have a database corruption during runtime, and we were to put the values back into
