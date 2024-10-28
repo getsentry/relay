@@ -24,6 +24,7 @@
 
 mod controller;
 mod service;
+mod service2;
 mod statsd;
 
 pub use self::controller::*;
