@@ -744,6 +744,7 @@ impl OnDisk {
         managed_envelope: ManagedEnvelope,
     ) -> Result<(), BufferError> {
         let received_at = managed_envelope.received_at().timestamp_millis();
+        println!("RECEIVED AT INSERT {:?}", received_at);
         sql::insert(
             key,
             managed_envelope.into_envelope().to_vec().unwrap(),
@@ -1418,7 +1419,7 @@ mod tests {
             };
 
             let envelope = empty_managed_envelope();
-            let start_time_sent = envelope.received_at();
+            let received_at_sent = envelope.received_at();
             addr.send(Enqueue {
                 key,
                 value: envelope,
@@ -1441,13 +1442,13 @@ mod tests {
                 key: _,
                 managed_envelope,
             } = rx.recv().await.unwrap();
-            let start_time_received = managed_envelope.received_at();
+            let received_at_received = managed_envelope.received_at();
 
             // Check if the original start time elapsed to the same second as the restored one.
-            //
-            // Using `.as_secs_f64()` to get the nanos fraction as well and then round it up to get
-            // similar number of seconds if one of the instants runs forward a bit.
-            assert_eq!(start_time_received, start_time_sent);
+            assert_eq!(
+                received_at_received.timestamp_millis(),
+                received_at_sent.timestamp_millis()
+            );
         }
     }
 
