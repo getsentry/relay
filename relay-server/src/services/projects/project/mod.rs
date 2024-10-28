@@ -16,19 +16,19 @@ use crate::envelope::ItemType;
 use crate::services::metrics::{Aggregator, MergeBuckets};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{EncodeMetricMeta, EnvelopeProcessor, ProcessProjectMetrics};
-use crate::services::project::state::ExpiryState;
-use crate::services::project_cache::{
+use crate::services::projects::cache::{
     CheckedEnvelope, ProcessMetrics, ProjectCache, RequestUpdate,
 };
 use crate::utils::{Enforcement, SeqCount};
 
 use crate::statsd::RelayCounters;
-use crate::utils::{EnvelopeLimiter, ManagedEnvelope, RetryBackoff};
+use crate::utils::{CheckLimits, EnvelopeLimiter, ManagedEnvelope, RetryBackoff};
 
 pub mod state;
 
 pub use state::{
-    LimitedParsedProjectState, ParsedProjectState, ProjectFetchState, ProjectInfo, ProjectState,
+    ExpiryState, LimitedParsedProjectState, ParsedProjectState, ProjectFetchState, ProjectInfo,
+    ProjectState,
 };
 
 /// Sender type for messages that respond with project states.
@@ -433,7 +433,7 @@ impl Project {
     /// `no_cache` should be passed from the requesting call. Updates with `no_cache` will always
     /// take precedence.
     ///
-    /// [`ValidateEnvelope`]: crate::services::project_cache::ValidateEnvelope
+    /// [`ValidateEnvelope`]: crate::services::projects::cache::ValidateEnvelope
     pub fn update_state(
         &mut self,
         project_cache: &Addr<ProjectCache>,
@@ -515,7 +515,7 @@ impl Project {
 
     /// Runs the checks on incoming envelopes.
     ///
-    /// See, [`crate::services::project_cache::CheckEnvelope`] for more information
+    /// See, [`crate::services::projects::cache::CheckEnvelope`] for more information
     ///
     /// * checks the rate limits
     /// * validates the envelope meta in `check_request` - determines whether the given request
@@ -553,7 +553,7 @@ impl Project {
         let current_limits = self.rate_limits.current_limits();
 
         let quotas = state.as_deref().map(|s| s.get_quotas()).unwrap_or(&[]);
-        let envelope_limiter = EnvelopeLimiter::new(|item_scoping, _| {
+        let envelope_limiter = EnvelopeLimiter::new(CheckLimits::NonIndexed, |item_scoping, _| {
             Ok(current_limits.check_with_quotas(quotas, item_scoping))
         });
 

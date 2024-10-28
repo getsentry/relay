@@ -5,8 +5,8 @@ use relay_quotas::Scoping;
 
 use crate::metrics::MetricOutcomes;
 use crate::services::outcome::Outcome;
-use crate::services::project::ProjectInfo;
-use crate::services::project_cache::BucketSource;
+use crate::services::projects::cache::BucketSource;
+use crate::services::projects::project::ProjectInfo;
 
 /// Checks if the namespace of the passed bucket is valid.
 ///
@@ -44,7 +44,7 @@ pub fn apply_project_info(
             };
 
             if let ErrorBoundary::Ok(ref metric_config) = project_info.config.metrics {
-                if metric_config.denied_names.is_match(&*bucket.name) {
+                if metric_config.denied_names.is_match(&bucket.name) {
                     relay_log::trace!(mri = &*bucket.name, "dropping metrics due to block list");
                     denied_buckets.push(bucket);
                     return None;
@@ -91,7 +91,7 @@ fn is_metric_namespace_valid(state: &ProjectInfo, namespace: MetricNamespace) ->
 /// Removes tags based on user configured deny list.
 fn remove_matching_bucket_tags(metric_config: &Metrics, bucket: &mut Bucket) {
     for tag_block in &metric_config.denied_tags {
-        if tag_block.name.is_match(&*bucket.name) {
+        if tag_block.name.is_match(&bucket.name) {
             bucket
                 .tags
                 .retain(|tag_key, _| !tag_block.tags.is_match(tag_key));
@@ -104,7 +104,6 @@ mod tests {
     use std::collections::BTreeMap;
 
     use relay_base_schema::project::{ProjectId, ProjectKey};
-    use relay_common::glob3::GlobPatterns;
     use relay_dynamic_config::TagBlock;
     use relay_metrics::{BucketValue, UnixTimestamp};
     use relay_system::Addr;
@@ -141,9 +140,9 @@ mod tests {
     #[test]
     fn test_remove_tags() {
         let mut tags = BTreeMap::default();
-        tags.insert("foobazbar".to_string(), "val".to_string());
-        tags.insert("foobaz".to_string(), "val".to_string());
-        tags.insert("bazbar".to_string(), "val".to_string());
+        tags.insert("foobazbar".to_owned(), "val".to_owned());
+        tags.insert("foobaz".to_owned(), "val".to_owned());
+        tags.insert("bazbar".to_owned(), "val".to_owned());
 
         let mut bucket = get_test_bucket("foobar", tags);
 
@@ -151,8 +150,8 @@ mod tests {
 
         let metric_config = Metrics {
             denied_tags: vec![TagBlock {
-                name: GlobPatterns::new(vec!["foobar".to_string()]),
-                tags: GlobPatterns::new(vec![tag_block_pattern.to_string()]),
+                name: "foobar".to_owned().into(),
+                tags: tag_block_pattern.to_owned().into(),
             }],
             ..Default::default()
         };

@@ -20,7 +20,7 @@ redis==4.5.4
 requests==2.32.2
 sentry_sdk==2.10.0
 setuptools==70.0.0
-werkzeug==3.0.1
+werkzeug==3.0.5
 zstandard==0.18.0
 
 # typing things

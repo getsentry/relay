@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use crate::extractors::{SignedBytes, StartTime};
 use crate::service::ServiceState;
 use crate::services::processor::ProcessBatchedMetrics;
-use crate::services::project_cache::BucketSource;
+use crate::services::projects::cache::BucketSource;
 
 #[derive(Debug, Serialize, Deserialize)]
 struct SendMetricsResponse {}

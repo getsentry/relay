@@ -252,7 +252,7 @@ mod tests {
     use crate::services::processor::{
         ProcessEnvelope, ProcessingExtractedMetrics, ProcessingGroup, SpanGroup,
     };
-    use crate::services::project::ProjectInfo;
+    use crate::services::projects::project::ProjectInfo;
     use crate::testutils::{
         self, create_test_processor, new_envelope, state_with_rule_and_condition,
     };
@@ -298,6 +298,7 @@ mod tests {
         let message = ProcessEnvelope {
             envelope: ManagedEnvelope::new(envelope, outcome_aggregator, test_store, group),
             project_info: Arc::new(ProjectInfo::default()),
+            rate_limits: Default::default(),
             sampling_project_info,
             reservoir_counters: ReservoirCounters::default(),
         };
@@ -438,6 +439,7 @@ mod tests {
                 extracted_metrics: ProcessingExtractedMetrics::new(),
                 config: config.clone(),
                 project_info,
+                rate_limits: Default::default(),
                 sampling_project_info: None,
                 project_id: ProjectId::new(42),
                 managed_envelope: ManagedEnvelope::new(
@@ -709,6 +711,7 @@ mod tests {
             extracted_metrics: ProcessingExtractedMetrics::new(),
             config: Arc::new(Config::default()),
             project_info,
+            rate_limits: Default::default(),
             sampling_project_info: {
                 let mut state = ProjectInfo::default();
                 state.config.metric_extraction =

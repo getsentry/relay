@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+**Bug Fixes:**
+
+- Allow profile chunks without release. ([#4155](https://github.com/getsentry/relay/pull/4155))
+- Add validation for timestamps sent from the future. ([#4163](https://github.com/getsentry/relay/pull/4163))
+
+**Internal:**
+
+- Add a metric that counts span volume in the root project for dynamic sampling (`c:spans/count_per_root_project@none`). ([#4134](https://github.com/getsentry/relay/pull/4134))
+- Add a tag `target_project_id` to both root project metrics for dynamic sampling (`c:transactions/count_per_root_project@none` and `c:spans/count_per_root_project@none`) which shows the flow trace traffic from root to target projects. ([#4170](https://github.com/getsentry/relay/pull/4170))
+
+## 24.10.0
+
 **Breaking Changes:**
 
 - Only allow processing enabled in managed mode. ([#4087](https://github.com/getsentry/relay/pull/4087))
@@ -20,6 +32,7 @@
 - Add user geo information to Replays. ([#4088](https://github.com/getsentry/relay/pull/4088))
 - Configurable span.op inference. ([#4056](https://github.com/getsentry/relay/pull/4056))
 - Enable support for zstd `Content-Encoding`. ([#4089](https://github.com/getsentry/relay/pull/4089))
+- Accept profile chunks from Android. ([#4104](https://github.com/getsentry/relay/pull/4104))
 - Add support for creating User from LoginId in Unreal Crash Context. ([#4093](https://github.com/getsentry/relay/pull/4093))
 - Add multi-write Redis client. ([#4064](https://github.com/getsentry/relay/pull/4064))
 
@@ -30,6 +43,8 @@
 - Use custom wildcard matching instead of regular expressions. ([#4073](https://github.com/getsentry/relay/pull/4073))
 - Allowlist the SentryUptimeBot user-agent. ([#4068](https://github.com/getsentry/relay/pull/4068))
 - Feature flags of graduated features are now hard-coded in Relay so they can be removed from Sentry. ([#4076](https://github.com/getsentry/relay/pull/4076), [#4080](https://github.com/getsentry/relay/pull/4080))
+- Add parallelization in Redis commands. ([#4118](https://github.com/getsentry/relay/pull/4118))
+- Extract user ip for spans. ([#4144](https://github.com/getsentry/relay/pull/4144))
 
 ## 24.9.0
 

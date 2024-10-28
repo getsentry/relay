@@ -231,7 +231,7 @@ pub fn take_last_error() -> Option<anyhow::Error> {
 pub struct Panic(String);
 
 impl Panic {
-    fn new(info: &panic::PanicInfo) -> Self {
+    fn new(info: &panic::PanicHookInfo) -> Self {
         let thread = thread::current();
         let thread = thread.name().unwrap_or("unnamed");
 

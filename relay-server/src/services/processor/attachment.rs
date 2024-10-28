@@ -12,7 +12,7 @@ use crate::statsd::RelayTimers;
 
 #[cfg(feature = "processing")]
 use {
-    crate::services::processor::EventProcessing, crate::utils, relay_event_schema::protocol::Event,
+    crate::services::processor::ErrorGroup, crate::utils, relay_event_schema::protocol::Event,
     relay_protocol::Annotated,
 };
 
@@ -23,7 +23,7 @@ use {
 ///
 /// If the event payload was empty before, it is created.
 #[cfg(feature = "processing")]
-pub fn create_placeholders<G: EventProcessing>(state: &mut ProcessEnvelopeState<G>) {
+pub fn create_placeholders(state: &mut ProcessEnvelopeState<ErrorGroup>) {
     let envelope = state.managed_envelope.envelope();
     let minidump_attachment =
         envelope.get_item_by(|item| item.attachment_type() == Some(&AttachmentType::Minidump));

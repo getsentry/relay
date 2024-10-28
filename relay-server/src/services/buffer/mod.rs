@@ -25,7 +25,7 @@ use crate::services::outcome::DiscardReason;
 use crate::services::outcome::Outcome;
 use crate::services::outcome::TrackOutcome;
 use crate::services::processor::ProcessingGroup;
-use crate::services::project_cache::{DequeuedEnvelope, ProjectCache, UpdateProject};
+use crate::services::projects::cache::{DequeuedEnvelope, ProjectCache, UpdateProject};
 
 use crate::services::test_store::TestStore;
 use crate::statsd::{RelayCounters, RelayHistograms};

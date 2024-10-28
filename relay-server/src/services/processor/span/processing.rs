@@ -33,7 +33,7 @@ use relay_spans::otel_trace::Span as OtelSpan;
 use thiserror::Error;
 
 use crate::envelope::{ContentType, Item, ItemType};
-use crate::metrics_extraction::metrics_summary;
+use crate::metrics_extraction::{event, metrics_summary};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::span::extract_transaction_span;
 use crate::services::processor::{
@@ -71,8 +71,9 @@ pub fn process(
 
     let client_ip = state.managed_envelope.envelope().meta().client_addr();
     let filter_settings = &state.project_info.config.filter_settings;
+    let sampling_decision = sampling_result.decision();
 
-    let mut dynamic_sampling_dropped_spans = 0;
+    let mut span_count = 0;
     state.managed_envelope.retain_items(|item| {
         let mut annotated_span = match item.ty() {
             ItemType::OtelSpan => match serde_json::from_slice::<OtelSpan>(&item.payload()) {
@@ -104,6 +105,8 @@ pub fn process(
         };
 
         if let Some(span) = annotated_span.value() {
+            span_count += 1;
+
             if let Err(filter_stat_key) = relay_filter::should_filter(
                 span,
                 client_ip,
@@ -136,13 +139,30 @@ pub fn process(
 
             state
                 .extracted_metrics
-                .extend_project_metrics(metrics, Some(sampling_result.decision()));
+                .extend_project_metrics(metrics, Some(sampling_decision));
+
+            if state.project_info.config.features.produces_spans() {
+                let transaction = span
+                    .data
+                    .value()
+                    .and_then(|d| d.segment_name.value())
+                    .cloned();
+                let bucket = event::create_span_root_counter(
+                    span,
+                    transaction,
+                    1,
+                    sampling_decision,
+                    state.project_id,
+                );
+                state
+                    .extracted_metrics
+                    .extend_sampling_metrics(bucket, Some(sampling_decision));
+            }
+
             item.set_metrics_extracted(true);
         }
 
-        if sampling_result.decision().is_drop() {
-            relay_log::trace!("Dropping span because of sampling rule {sampling_result:?}");
-            dynamic_sampling_dropped_spans += 1;
+        if sampling_decision.is_drop() {
             // Drop silently and not with an outcome, we only want to emit an outcome for the
             // indexed category if the span was dropped by dynamic sampling.
             // Dropping through the envelope will emit for both categories.
@@ -203,12 +223,18 @@ pub fn process(
         ItemAction::Keep
     });
 
-    if let Some(outcome) = sampling_result.into_dropped_outcome() {
-        state.managed_envelope.track_outcome(
-            outcome,
-            DataCategory::SpanIndexed,
-            dynamic_sampling_dropped_spans,
+    if sampling_decision.is_drop() {
+        relay_log::trace!(
+            span_count,
+            ?sampling_result,
+            "Dropped spans because of sampling rule",
         );
+    }
+
+    if let Some(outcome) = sampling_result.into_dropped_outcome() {
+        state
+            .managed_envelope
+            .track_outcome(outcome, DataCategory::SpanIndexed, span_count);
     }
 }
 
@@ -762,12 +788,13 @@ mod tests {
     };
     use relay_event_schema::protocol::{Contexts, Event, Span};
     use relay_protocol::get_value;
+    use relay_quotas::RateLimits;
     use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator};
     use relay_system::Addr;
 
     use crate::envelope::Envelope;
     use crate::services::processor::{ProcessingExtractedMetrics, ProcessingGroup};
-    use crate::services::project::ProjectInfo;
+    use crate::services::projects::project::ProjectInfo;
     use crate::utils::ManagedEnvelope;
 
     use super::*;
@@ -821,6 +848,7 @@ mod tests {
             extracted_metrics: ProcessingExtractedMetrics::new(),
             config: Arc::new(Config::default()),
             project_info,
+            rate_limits: RateLimits::default(),
             sampling_project_info: None,
             project_id: ProjectId::new(42),
             managed_envelope: managed_envelope.try_into().unwrap(),
