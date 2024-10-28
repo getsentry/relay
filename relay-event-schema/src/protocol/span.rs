@@ -506,7 +506,7 @@ pub struct SpanData {
         additional_properties,
         pii = "true",
         retain = "true",
-        skip_serialization = "null"
+        skip_serialization = "null" // applies to child elements
     )]
     pub other: Object<Value>,
 }
@@ -933,7 +933,18 @@ mod tests {
     }
 
     #[test]
-    fn test_span_data_empty_field() {
+    fn test_span_data_empty_well_known_field() {
+        let span = r#"{
+            "data": {
+                "lcp.url": ""
+            }
+        }"#;
+        let span: Annotated<Span> = Annotated::from_json(span).unwrap();
+        assert_eq!(span.to_json().unwrap(), r#"{"data":{"lcp.url":""}}"#);
+    }
+
+    #[test]
+    fn test_span_data_empty_custom_field() {
         let span = r#"{
             "data": {
                 "custom_field_empty": ""
@@ -944,5 +955,14 @@ mod tests {
             span.to_json().unwrap(),
             r#"{"data":{"custom_field_empty":""}}"#
         );
+    }
+
+    #[test]
+    fn test_span_data_completely_empty() {
+        let span = r#"{
+            "data": {}
+        }"#;
+        let span: Annotated<Span> = Annotated::from_json(span).unwrap();
+        assert_eq!(span.to_json().unwrap(), r#"{"data":{}}"#);
     }
 }
