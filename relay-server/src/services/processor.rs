@@ -2581,11 +2581,22 @@ impl EnvelopeProcessorService {
         let error_sample_rate = global_config.options.cardinality_limiter_error_sample_rate;
         if !limits.exceeded_limits().is_empty() && utils::sample(error_sample_rate) {
             for limit in limits.exceeded_limits() {
-                relay_log::error!(
-                    tags.organization_id = scoping.organization_id,
-                    tags.limit_id = limit.id,
-                    tags.passive = limit.passive,
-                    "Cardinality Limit"
+                relay_log::with_scope(
+                    |scope| {
+                        // Set the organization as user so we can alert on distinct org_ids.
+                        scope.set_user(Some(User {
+                            id: Some(scoping.organization_id.to_string()),
+                            ..Default::default()
+                        }));
+                    },
+                    || {
+                        relay_log::error!(
+                            tags.organization_id = scoping.organization_id,
+                            tags.limit_id = limit.id,
+                            tags.passive = limit.passive,
+                            "Cardinality Limit"
+                        );
+                    },
                 );
             }
         }
