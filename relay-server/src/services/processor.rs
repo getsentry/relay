@@ -2551,6 +2551,8 @@ impl EnvelopeProcessorService {
         limits: &[CardinalityLimit],
         buckets: Vec<Bucket>,
     ) -> Vec<Bucket> {
+        use relay_log::sentry::User;
+
         let global_config = self.inner.global_config.current();
         let cardinality_limiter_mode = global_config.options.cardinality_limiter_mode;
 
