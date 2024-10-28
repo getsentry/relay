@@ -23,7 +23,8 @@ struct Args {
     #[arg(long)]
     envelope_size_kib: usize,
     #[arg(long)]
-    batch_size_kib: usize,
+    write_batch_kib: usize,
+    read_batch_size: usize,
     #[arg(long)]
     implementation: Impl,
     #[arg(long)]
@@ -53,7 +54,8 @@ async fn main() {
                         Impl::Memory => None,
                         Impl::Sqlite => Some(dir.path().join("envelopes.db")),
                     },
-                    "max_batch_bytes": args.batch_size_kib * 1024,
+                    "write_batch_bytes": args.write_batch_kib * 1024,
+                    "read_batch_size": args.read_batch_size,
                 }
             }
         }))
