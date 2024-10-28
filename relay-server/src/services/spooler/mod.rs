@@ -744,7 +744,6 @@ impl OnDisk {
         managed_envelope: ManagedEnvelope,
     ) -> Result<(), BufferError> {
         let received_at = managed_envelope.received_at().timestamp_millis();
-        println!("RECEIVED AT INSERT {:?}", received_at);
         sql::insert(
             key,
             managed_envelope.into_envelope().to_vec().unwrap(),
