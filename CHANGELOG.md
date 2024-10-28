@@ -11,6 +11,7 @@
 
 - Add a metric that counts span volume in the root project for dynamic sampling (`c:spans/count_per_root_project@none`) ([#4134](https://github.com/getsentry/relay/pull/4134))
 - Emit `indexed` tag for the usage metrics. ([#4158](https://github.com/getsentry/relay/pull/4158))
+- Allow `sample_rate` to be float type when deserializing `DynamicSamplingContext`. ([#4181](https://github.com/getsentry/relay/pull/4181)) 
 
 ## 24.10.0
 
