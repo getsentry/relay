@@ -1,5 +1,4 @@
 use std::convert::Infallible;
-use std::time::Duration;
 
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
@@ -40,7 +39,7 @@ where
     async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
         let Extension(start_time) = Extension::from_request_parts(parts, state)
             .await
-            .expect("StartTime middleware is not configured");
+            .expect("ReceivedAt middleware is not configured");
 
         Ok(start_time)
     }
@@ -49,6 +48,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::Duration;
 
     #[test]
     fn start_time_from_timestamp() {
