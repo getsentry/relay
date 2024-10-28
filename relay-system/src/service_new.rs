@@ -193,7 +193,7 @@ where
 /// # Implementation Example
 ///
 /// ```rust
-/// # use relay_system::service_new::{Service2, State, MessageRequest, MessageResponse, InnerMessage, HandlingError};
+/// # use relay_system::service_new::{ServiceNew, State, MessageRequest, MessageResponse, InnerMessage, HandlingError};
 /// # #[derive(Debug)]
 /// # enum MyRequest { DoSomething }
 /// # impl MessageRequest for MyRequest {}
@@ -209,7 +209,7 @@ where
 /// # }
 /// struct MyService;
 ///
-/// impl Service2 for MyService {
+/// impl ServiceNew for MyService {
 ///     type MessageRequest = MyRequest;
 ///     type MessageResponse = MyResponse;
 ///     type State = MyState;
@@ -229,7 +229,7 @@ where
 ///     }
 /// }
 /// ```
-pub trait Service2: Sized + Send + 'static {
+pub trait ServiceNew: Sized + Send + 'static {
     type MessageRequest: MessageRequest;
 
     type MessageResponse: MessageResponse;
@@ -338,7 +338,7 @@ impl CounterService {
     }
 }
 
-impl Service2 for CounterService {
+impl ServiceNew for CounterService {
     type MessageRequest = CounterRequest;
 
     type MessageResponse = CounterResponse;
