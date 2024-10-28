@@ -145,16 +145,17 @@ mod sample_rate_as_string {
 
     use serde::{Deserialize, Serialize};
 
-    #[derive(Debug, Clone)]
-    enum StringOrFloat<'a> {
-        String(Cow<'a, str>),
-        Float(f64),
-    }
-
     pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<f64>, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
+        #[derive(Debug, Clone, Deserialize)]
+        #[serde(untagged)]
+        enum StringOrFloat<'a> {
+            String(Cow<'a, str>),
+            Float(f64),
+        }
+
         let value = match Option::<StringOrFloat>::deserialize(deserializer)? {
             Some(value) => value,
             None => return Ok(None),
@@ -183,53 +184,6 @@ mod sample_rate_as_string {
                 .map_err(|e| serde::ser::Error::custom(e.to_string()))?
                 .serialize(serializer),
             None => value.serialize(serializer),
-        }
-    }
-
-    struct StringOrFloatVisitor;
-
-    impl<'de> serde::de::Visitor<'de> for StringOrFloatVisitor {
-        type Value = StringOrFloat<'de>;
-
-        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-            formatter.write_str("a string or a float")
-        }
-
-        fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E>
-        where
-            E: serde::de::Error,
-        {
-            Ok(StringOrFloat::Float(v))
-        }
-
-        fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-        where
-            E: serde::de::Error,
-        {
-            Ok(StringOrFloat::String(Cow::Owned(v.to_owned())))
-        }
-
-        fn visit_borrowed_str<E>(self, v: &'de str) -> Result<Self::Value, E>
-        where
-            E: serde::de::Error,
-        {
-            Ok(StringOrFloat::String(Cow::Borrowed(v)))
-        }
-
-        fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
-        where
-            E: serde::de::Error,
-        {
-            Ok(StringOrFloat::String(Cow::Owned(v)))
-        }
-    }
-
-    impl<'de> Deserialize<'de> for StringOrFloat<'de> {
-        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where
-            D: serde::Deserializer<'de>,
-        {
-            deserializer.deserialize_any(StringOrFloatVisitor)
         }
     }
 }
