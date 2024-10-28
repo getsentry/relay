@@ -145,17 +145,27 @@ mod sample_rate_as_string {
 
     use serde::{Deserialize, Serialize};
 
+    #[derive(Debug, Clone)]
+    enum StringOrFloat<'a> {
+        String(Cow<'a, str>),
+        Float(f64),
+    }
+
     pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<f64>, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
-        let value = match Option::<Cow<'_, str>>::deserialize(deserializer)? {
+        let value = match Option::<StringOrFloat>::deserialize(deserializer)? {
             Some(value) => value,
             None => return Ok(None),
         };
 
-        let parsed_value =
-            serde_json::from_str(&value).map_err(|e| serde::de::Error::custom(e.to_string()))?;
+        let parsed_value = match value {
+            StringOrFloat::Float(f) => f,
+            StringOrFloat::String(s) => {
+                serde_json::from_str(&s).map_err(|e| serde::de::Error::custom(e.to_string()))?
+            }
+        };
 
         if parsed_value < 0.0 {
             return Err(serde::de::Error::custom("sample rate cannot be negative"));
@@ -173,6 +183,53 @@ mod sample_rate_as_string {
                 .map_err(|e| serde::ser::Error::custom(e.to_string()))?
                 .serialize(serializer),
             None => value.serialize(serializer),
+        }
+    }
+
+    struct StringOrFloatVisitor;
+
+    impl<'de> serde::de::Visitor<'de> for StringOrFloatVisitor {
+        type Value = StringOrFloat<'de>;
+
+        fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            formatter.write_str("a string or a float")
+        }
+
+        fn visit_borrowed_str<E>(self, v: &'de str) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(StringOrFloat::String(Cow::Borrowed(v)))
+        }
+
+        fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(StringOrFloat::String(Cow::Owned(v.to_owned())))
+        }
+
+        fn visit_string<E>(self, v: String) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(StringOrFloat::String(Cow::Owned(v)))
+        }
+
+        fn visit_f64<E>(self, v: f64) -> Result<Self::Value, E>
+        where
+            E: serde::de::Error,
+        {
+            Ok(StringOrFloat::Float(v))
+        }
+    }
+
+    impl<'de> Deserialize<'de> for StringOrFloat<'de> {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: serde::Deserializer<'de>,
+        {
+            deserializer.deserialize_any(StringOrFloatVisitor)
         }
     }
 }
@@ -387,7 +444,45 @@ mod tests {
             "sample_rate": 0.1
         }
         "#;
-        serde_json::from_str::<DynamicSamplingContext>(json).unwrap_err();
+        let dsc = serde_json::from_str::<DynamicSamplingContext>(json).expect("sample rate float");
+        insta::assert_ron_snapshot!(dsc, @r#"
+            {
+              "trace_id": "00000000-0000-0000-0000-000000000000",
+              "public_key": "abd0f232775f45feab79864e580d160b",
+              "release": None,
+              "environment": None,
+              "transaction": None,
+              "sample_rate": "0.1",
+              "user_id": "hello",
+              "replay_id": None,
+            }
+        "#);
+    }
+
+    #[test]
+    fn test_parse_sample_rate_integer() {
+        let json = r#"
+            {
+                "trace_id": "00000000-0000-0000-0000-000000000000",
+                "public_key": "abd0f232775f45feab79864e580d160b",
+                "user_id": "hello",
+                "sample_rate": "1"
+            }
+        "#;
+        let dsc =
+            serde_json::from_str::<DynamicSamplingContext>(json).expect("sample rate integer");
+        insta::assert_ron_snapshot!(dsc, @r#"
+            {
+              "trace_id": "00000000-0000-0000-0000-000000000000",
+              "public_key": "abd0f232775f45feab79864e580d160b",
+              "release": None,
+              "environment": None,
+              "transaction": None,
+              "sample_rate": "1.0",
+              "user_id": "hello",
+              "replay_id": None,
+            }
+        "#);
     }
 
     #[test]
