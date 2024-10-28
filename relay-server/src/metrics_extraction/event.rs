@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
 use relay_dynamic_config::CombinedMetricExtractionConfig;
 use relay_event_normalization::span::description::ScrubMongoDescription;
@@ -54,6 +55,7 @@ pub fn extract_metrics(
     event: &mut Event,
     config: CombinedMetricExtractionConfig<'_>,
     sampling_decision: SamplingDecision,
+    target_project_id: ProjectId,
     max_tag_value_size: usize,
     extract_spans: bool,
 ) -> ExtractedMetrics {
@@ -67,6 +69,7 @@ pub fn extract_metrics(
             event,
             config,
             sampling_decision,
+            target_project_id,
             max_tag_value_size,
             &mut metrics,
         );
@@ -79,6 +82,7 @@ fn extract_span_metrics_for_event(
     event: &mut Event,
     config: CombinedMetricExtractionConfig<'_>,
     sampling_decision: SamplingDecision,
+    target_project_id: ProjectId,
     max_tag_value_size: usize,
     output: &mut ExtractedMetrics,
 ) {
@@ -113,7 +117,13 @@ fn extract_span_metrics_for_event(
         // This function assumes it is only called when span metrics should be extracted, hence we
         // extract the span root counter unconditionally.
         let transaction = transactions::get_transaction_name(event);
-        let bucket = create_span_root_counter(event, transaction, span_count, sampling_decision);
+        let bucket = create_span_root_counter(
+            event,
+            transaction,
+            span_count,
+            sampling_decision,
+            target_project_id,
+        );
         output.sampling_metrics.extend(bucket);
     });
 }
@@ -127,6 +137,7 @@ pub fn create_span_root_counter<T: Extractable>(
     transaction: Option<String>,
     span_count: u32,
     sampling_decision: SamplingDecision,
+    target_project_id: ProjectId,
 ) -> Option<Bucket> {
     if span_count == 0 {
         return None;
@@ -144,6 +155,10 @@ pub fn create_span_root_counter<T: Extractable>(
 
     let mut tags = BTreeMap::new();
     tags.insert("decision".to_owned(), sampling_decision.to_string());
+    tags.insert(
+        "target_project_id".to_owned(),
+        target_project_id.to_string(),
+    );
     if let Some(transaction) = transaction {
         tags.insert("transaction".to_owned(), transaction);
     }
@@ -1267,6 +1282,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             combined_config(features, None).combined(),
             SamplingDecision::Keep,
+            ProjectId::new(4711),
             200,
             true,
         )
@@ -1484,6 +1500,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent], None).combined(),
             SamplingDecision::Keep,
+            ProjectId::new(4711),
             200,
             true,
         );
@@ -1541,6 +1558,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent], None).combined(),
             SamplingDecision::Keep,
+            ProjectId::new(4711),
             200,
             true,
         );
@@ -1575,6 +1593,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent], None).combined(),
             SamplingDecision::Keep,
+            ProjectId::new(4711),
             200,
             true,
         );
@@ -1839,6 +1858,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             combined_config([Feature::ExtractCommonSpanMetricsFromEvent], None).combined(),
             SamplingDecision::Keep,
+            ProjectId::new(4711),
             200,
             true,
         )
@@ -1983,6 +2003,7 @@ mod tests {
             event.value_mut().as_mut().unwrap(),
             config,
             SamplingDecision::Keep,
+            ProjectId::new(4711),
             200,
             true,
         );

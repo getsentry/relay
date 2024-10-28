@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use relay_base_schema::events::EventType;
+use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
 use relay_dynamic_config::{CombinedMetricExtractionConfig, TransactionMetricsConfig};
 use relay_event_normalization::span::country_subregion::Subregion;
@@ -255,6 +256,7 @@ pub struct TransactionExtractor<'a> {
     pub generic_config: Option<CombinedMetricExtractionConfig<'a>>,
     pub transaction_from_dsc: Option<&'a str>,
     pub sampling_decision: SamplingDecision,
+    pub target_project_id: ProjectId,
     pub has_profile: bool,
 }
 
@@ -434,6 +436,7 @@ impl TransactionExtractor<'_> {
 
             TransactionCPRTags {
                 decision: self.sampling_decision.to_string(),
+                target_project_id: self.target_project_id,
                 universal_tags,
             }
         };
@@ -615,6 +618,7 @@ mod tests {
             generic_config: None,
             transaction_from_dsc: Some("test_transaction"),
             sampling_decision: SamplingDecision::Keep,
+            target_project_id: ProjectId::new(4711),
             has_profile: false,
         };
 
@@ -994,6 +998,7 @@ mod tests {
             generic_config: None,
             transaction_from_dsc: Some("test_transaction"),
             sampling_decision: SamplingDecision::Keep,
+            target_project_id: ProjectId::new(4711),
             has_profile: false,
         };
 
@@ -1169,6 +1174,7 @@ mod tests {
             generic_config: None,
             transaction_from_dsc: Some("test_transaction"),
             sampling_decision: SamplingDecision::Keep,
+            target_project_id: ProjectId::new(4711),
             has_profile: false,
         };
 
@@ -1320,6 +1326,7 @@ mod tests {
             generic_config: None,
             transaction_from_dsc: Some("test_transaction"),
             sampling_decision: SamplingDecision::Keep,
+            target_project_id: ProjectId::new(4711),
             has_profile: false,
         };
 
@@ -1395,6 +1402,7 @@ mod tests {
             generic_config: None,
             transaction_from_dsc: Some("test_transaction"),
             sampling_decision: SamplingDecision::Keep,
+            target_project_id: ProjectId::new(4711),
             has_profile: false,
         };
 
@@ -1560,6 +1568,7 @@ mod tests {
             generic_config: None,
             transaction_from_dsc: Some("test_transaction"),
             sampling_decision: SamplingDecision::Keep,
+            target_project_id: ProjectId::new(4711),
             has_profile: false,
         };
 
@@ -1599,6 +1608,7 @@ mod tests {
             generic_config: None,
             transaction_from_dsc: Some("test_transaction"),
             sampling_decision: SamplingDecision::Keep,
+            target_project_id: ProjectId::new(4711),
             has_profile: false,
         };
 
@@ -1667,6 +1677,7 @@ mod tests {
             generic_config: None,
             transaction_from_dsc: Some("test_transaction"),
             sampling_decision: SamplingDecision::Keep,
+            target_project_id: ProjectId::new(4711),
             has_profile: false,
         };
 
@@ -1773,6 +1784,7 @@ mod tests {
             generic_config: None,
             transaction_from_dsc: Some("test_transaction"),
             sampling_decision: SamplingDecision::Keep,
+            target_project_id: ProjectId::new(4711),
             has_profile: false,
         };
 
@@ -1806,6 +1818,7 @@ mod tests {
             generic_config: None,
             transaction_from_dsc: Some("test_transaction"),
             sampling_decision: SamplingDecision::Keep,
+            target_project_id: ProjectId::new(4711),
             has_profile: false,
         };
 
@@ -1843,6 +1856,7 @@ mod tests {
             generic_config: None,
             transaction_from_dsc: Some("root_transaction"),
             sampling_decision: SamplingDecision::Keep,
+            target_project_id: ProjectId::new(4711),
             has_profile: false,
         };
 
@@ -1860,6 +1874,7 @@ mod tests {
                 ),
                 tags: {
                     "decision": "keep",
+                    "target_project_id": "4711",
                     "transaction": "root_transaction",
                 },
                 metadata: BucketMetadata {
@@ -2112,6 +2127,7 @@ mod tests {
             generic_config: None,
             transaction_from_dsc: Some("test_transaction"),
             sampling_decision: SamplingDecision::Keep,
+            target_project_id: ProjectId::new(4711),
             has_profile: false,
         };
 
@@ -2213,6 +2229,7 @@ mod tests {
             generic_config: Some(combined_config),
             transaction_from_dsc: Some("test_transaction"),
             sampling_decision: SamplingDecision::Keep,
+            target_project_id: ProjectId::new(4711),
             has_profile: false,
         };
 
