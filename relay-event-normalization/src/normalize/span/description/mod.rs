@@ -573,6 +573,9 @@ fn scrub_mongodb_query(query: &str, command: &str, collection: &str) -> Option<S
 
     let root = query.as_object_mut()?;
 
+    // Buffers are unnecessary noise so the entire key-value pair should be removed
+    root.remove("buffer");
+
     for value in root.values_mut() {
         scrub_mongodb_visit_node(value, 3);
     }
@@ -1588,6 +1591,14 @@ mod tests {
     mongodb_scrubbing_test!(
         mongodb_query_with_array,
         r#"{"insert": "documents", "documents": [{"foo": "bar"}, {"baz": "quux"}, {"qux": "quuz"}]}"#,
+        "insert",
+        "documents",
+        r#"{"documents":["..."],"insert":"documents"}"#
+    );
+
+    mongodb_scrubbing_test!(
+        mongodb_query_with_buffer,
+        r#"{"insert": "documents", "buffer": {"0": "a", "1": "b", "2": "c"}, "documents": [{"foo": "bar"}]}"#,
         "insert",
         "documents",
         r#"{"documents":["..."],"insert":"documents"}"#
