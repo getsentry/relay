@@ -1,10 +1,12 @@
 use crate::{channel, Addr, Controller, Interface};
 use std::future::Future;
+use std::pin::Pin;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
+use std::task::{Context, Poll};
 use std::time::Duration;
 use tokio::runtime::Runtime;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{mpsc, oneshot, RwLock};
 
 // Message is constructed
 // Message is sent and wrapped with a channel that accepts a response
@@ -15,7 +17,13 @@ pub trait MessageRequest: Send + std::fmt::Debug {}
 
 pub trait MessageResponse: Send + std::fmt::Debug {}
 
-pub trait State: Send + std::fmt::Debug + 'static {}
+pub trait State: Send + std::fmt::Debug + 'static {
+    type Public: Send + std::fmt::Debug + 'static;
+
+    type Private: Send + std::fmt::Debug + 'static;
+
+    fn split(self) -> (Self::Public, Self::Private);
+}
 
 pub enum SystemMessage {
     Shutdown(Option<Duration>),
@@ -37,13 +45,7 @@ pub enum LoopError {
 enum ActorMessage<REQ, RES> {
     NoResponse(REQ),
     WithResponse(REQ, oneshot::Sender<RES>),
-}
-
-impl<REQ, RES> ActorMessage<REQ, RES>
-where
-    REQ: MessageRequest,
-    RES: MessageResponse,
-{
+    Barrier(oneshot::Sender<()>),
 }
 
 pub struct Addr2<REQ, RES> {
@@ -73,6 +75,14 @@ where
         self.tx.send(ActorMessage::NoResponse(message)).unwrap()
     }
 
+    pub fn barrier(&mut self) -> ActorResponse<()> {
+        let (tx, rx) = oneshot::channel();
+
+        self.tx.send(ActorMessage::Barrier(tx)).unwrap();
+
+        ActorResponse { rx }
+    }
+
     pub fn request(&mut self, message: REQ) -> ActorResponse<RES> {
         let (tx, rx) = oneshot::channel();
 
@@ -86,6 +96,14 @@ where
 
 pub struct ActorResponse<RES> {
     rx: oneshot::Receiver<RES>,
+}
+
+impl<RES> Future for ActorResponse<RES> {
+    type Output = RES;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        Pin::new(&mut self.rx).poll(cx).map(Result::unwrap)
+    }
 }
 
 pub struct Receiver2<REQ, RES> {
@@ -110,15 +128,22 @@ pub trait Service2: Sized + Send + 'static {
 
     type State: State;
 
-    fn setup(&mut self);
+    fn initialize_state(self) -> Self::State;
 
-    fn loop_iter(
-        &mut self,
+    fn handle(
+        state: &mut <Self::State as State>::Private,
         message: ServiceMessage<Self::MessageRequest>,
     ) -> impl Future<Output = Result<Option<Self::MessageResponse>, LoopError>> + Send;
 
-    fn start(mut self) -> Addr2<Self::MessageRequest, Self::MessageResponse> {
+    fn start(
+        self,
+    ) -> (
+        <Self::State as State>::Public,
+        Addr2<Self::MessageRequest, Self::MessageResponse>,
+    ) {
         let (addr, mut rx) = Addr2::<Self::MessageRequest, Self::MessageResponse>::new();
+
+        let (public_state, mut private_state) = self.initialize_state().split();
 
         tokio::spawn(async move {
             let mut shutdown = Controller::shutdown_handle();
@@ -128,33 +153,148 @@ pub trait Service2: Sized + Send + 'static {
                     Some(actor_message) = rx.recv() => {
                         match actor_message {
                             ActorMessage::NoResponse(message) => {
-                                let _ = self.loop_iter(ServiceMessage::User(message)).await;
+                                let _ = Self::handle(&mut private_state, ServiceMessage::User(message)).await;
                             },
                             ActorMessage::WithResponse(message, tx) => {
-                                let result = self.loop_iter(ServiceMessage::User(message)).await;
+                                let result = Self::handle(&mut private_state, ServiceMessage::User(message)).await;
                                 if let Ok(Some(response)) = result {
                                     tx.send(response).unwrap();
                                 }
                             }
+                            ActorMessage::Barrier(tx) => {
+                                tx.send(()).unwrap();
+                            }
                         }
                     }
                     shutdown = shutdown.notified() => {
-                        let _ = self.loop_iter(ServiceMessage::System(SystemMessage::Shutdown(shutdown.timeout))).await;
+                        let _ = Self::handle(&mut private_state, ServiceMessage::System(SystemMessage::Shutdown(shutdown.timeout))).await;
                     }
                     else => break
                 }
             }
         });
 
-        addr
+        (public_state, addr)
     }
 
-    fn start_in(self, runtime: &Runtime) -> Addr2<Self::MessageRequest, Self::MessageResponse> {
+    fn start_in(
+        self,
+        runtime: &Runtime,
+    ) -> (
+        <Self::State as State>::Public,
+        Addr2<Self::MessageRequest, Self::MessageResponse>,
+    ) {
         let _guard = runtime.enter();
         self.start()
     }
 
     fn name() -> &'static str {
         std::any::type_name::<Self>()
+    }
+}
+
+/// Example usages
+
+#[derive(Debug)]
+pub enum CounterRequest {
+    Increment,
+    GetCount,
+}
+
+impl MessageRequest for CounterRequest {}
+
+#[derive(Debug)]
+pub enum CounterResponse {
+    Count(u64),
+}
+
+impl MessageResponse for CounterResponse {}
+
+#[derive(Debug)]
+pub struct InnerCounterState {
+    count: u64,
+}
+
+#[derive(Debug, Clone)]
+pub struct CounterState(Arc<RwLock<InnerCounterState>>);
+
+impl State for CounterState {
+    type Public = CounterState;
+    type Private = CounterState;
+
+    fn split(self) -> (Self::Public, Self::Private) {
+        (self.clone(), self)
+    }
+}
+
+pub struct CounterService {}
+
+impl CounterService {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl Service2 for CounterService {
+    type MessageRequest = CounterRequest;
+
+    type MessageResponse = CounterResponse;
+
+    type State = CounterState;
+
+    fn initialize_state(self) -> Self::State {
+        CounterState(Arc::new(RwLock::new(InnerCounterState { count: 0 })))
+    }
+
+    async fn handle(
+        state: &mut CounterState,
+        message: ServiceMessage<Self::MessageRequest>,
+    ) -> Result<Option<Self::MessageResponse>, LoopError> {
+        match message {
+            ServiceMessage::User(req) => match req {
+                CounterRequest::Increment => {
+                    state.0.write().await.count += 1;
+                    Ok(None)
+                }
+                CounterRequest::GetCount => {
+                    Ok(Some(CounterResponse::Count(state.0.read().await.count)))
+                }
+            },
+            ServiceMessage::System(_) => {
+                // Handle shutdown gracefully
+                Ok(None)
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_counter_service_basic() {
+        // Create and start the service
+        let service = CounterService::new();
+        let (state, mut addr) = service.start();
+
+        // Test increment
+        addr.send(CounterRequest::Increment);
+        addr.send(CounterRequest::Increment);
+
+        // Test get count
+        let response = addr.request(CounterRequest::GetCount).await;
+        let CounterResponse::Count(count) = response;
+
+        assert_eq!(count, 2, "counter should have value 2 after two increments");
+
+        addr.send(CounterRequest::Increment);
+        addr.barrier().await;
+
+        assert_eq!(
+            state.0.read().await.count,
+            3,
+            "state counter should have value 3 after three increments"
+        );
     }
 }
