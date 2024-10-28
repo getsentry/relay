@@ -210,6 +210,6 @@ fn mock_envelope(payload_size: usize, project_count: usize) -> Box<Envelope> {
         ));
 
     let mut envelope = Envelope::parse_bytes(bytes).unwrap();
-    envelope.set_start_time(Instant::now());
+    envelope.set_received_at(Instant::now());
     envelope
 }

@@ -244,9 +244,9 @@ impl EnvelopeStack for SqliteEnvelopeStack {
 
 #[cfg(test)]
 mod tests {
-    use std::time::{Duration, Instant};
-
+    use chrono::Utc;
     use relay_base_schema::project::ProjectKey;
+    use std::time::Duration;
 
     use super::*;
     use crate::services::buffer::testutils::utils::{mock_envelope, mock_envelopes, setup_db};
@@ -265,7 +265,7 @@ mod tests {
             true,
         );
 
-        let envelope = mock_envelope(Instant::now());
+        let envelope = mock_envelope(Utc::now());
         let _ = stack.push(envelope).await;
     }
 
@@ -291,7 +291,7 @@ mod tests {
 
         // We push 1 more envelope which results in spooling, which fails because of a database
         // problem.
-        let envelope = mock_envelope(Instant::now());
+        let envelope = mock_envelope(Utc::now());
         assert!(matches!(
             stack.push(envelope).await,
             Err(SqliteEnvelopeStackError::EnvelopeStoreError(_))
@@ -299,7 +299,7 @@ mod tests {
 
         // The stack now contains the last of the 3 elements that were added. If we add a new one
         // we will end up with 2.
-        let envelope = mock_envelope(Instant::now());
+        let envelope = mock_envelope(Utc::now());
         assert!(stack.push(envelope.clone()).await.is_ok());
         assert_eq!(stack.batches_buffer_size, 3);
 
@@ -446,7 +446,7 @@ mod tests {
 
         // We insert a new envelope, to test the load from disk happening during `peek()` gives
         // priority to this envelope in the stack.
-        let envelope = mock_envelope(Instant::now());
+        let envelope = mock_envelope(Utc::now());
         assert!(stack.push(envelope.clone()).await.is_ok());
 
         // We pop and expect the newly inserted element.

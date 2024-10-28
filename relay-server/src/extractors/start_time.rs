@@ -1,48 +1,37 @@
 use std::convert::Infallible;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
 use axum::Extension;
+use chrono::{DateTime, Utc};
 
 /// The time at which the request started.
 #[derive(Clone, Copy, Debug)]
-pub struct StartTime(Instant);
+pub struct ReceivedAt(DateTime<Utc>);
 
-impl StartTime {
+impl ReceivedAt {
     pub fn now() -> Self {
-        Self(Instant::now())
+        Self(Utc::now())
     }
 
     /// Returns the `Instant` of this start time.
     #[inline]
-    pub fn into_inner(self) -> Instant {
+    pub fn into_inner(self) -> DateTime<Utc> {
         self.0
     }
 
-    /// Returns the [`StartTime`] corresponding to provided timestamp.
-    pub fn from_timestamp_millis(timestamp: u64) -> Self {
-        let ts = Duration::from_millis(timestamp);
+    /// Returns the [`ReceivedAt`] corresponding to provided timestamp.
+    pub fn from_timestamp_millis(timestamp: i64) -> Self {
+        let datetime =
+            DateTime::<Utc>::from_timestamp_millis(timestamp).unwrap_or_else(|| Utc::now());
 
-        let elapsed = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap_or_default()
-            .checked_sub(ts)
-            .unwrap_or_default();
-
-        let start_time = Instant::now()
-            // Subtract the elapsed time from the current `Instant` to get the timestamp
-            // of the start time.
-            .checked_sub(elapsed)
-            // If we fail to get the `Instant` from the timestamp, we fallback to `now()`.
-            .unwrap_or_else(Instant::now);
-
-        Self(start_time)
+        Self(datetime)
     }
 }
 
 #[axum::async_trait]
-impl<S> FromRequestParts<S> for StartTime
+impl<S> FromRequestParts<S> for ReceivedAt
 where
     S: Send + Sync,
 {
@@ -64,13 +53,14 @@ mod tests {
     #[test]
     fn start_time_from_timestamp() {
         let elapsed = Duration::from_secs(10);
-        let now = Instant::now();
-        let system_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap() - elapsed;
-        let start_time =
-            StartTime::from_timestamp_millis(system_time.as_millis() as u64).into_inner();
+        let now = Utc::now();
+        let past = now - chrono::Duration::from_std(elapsed).unwrap();
+        let start_time = ReceivedAt::from_timestamp_millis(past.timestamp_millis()).into_inner();
 
-        // Check that the difference between the now and generated start_time is about 10s.
-        assert!((now - start_time) < elapsed + Duration::from_millis(50));
-        assert!((now - start_time) > elapsed - Duration::from_millis(50));
+        // Check that the difference between the now and generated start_time is about 10s
+        let diff = now - start_time;
+        let diff_duration = diff.to_std().unwrap();
+        assert!(diff_duration < elapsed + Duration::from_millis(50));
+        assert!(diff_duration > elapsed - Duration::from_millis(50));
     }
 }

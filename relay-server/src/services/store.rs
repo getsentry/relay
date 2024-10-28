@@ -9,6 +9,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use bytes::Bytes;
+use chrono::{DateTime, Utc};
 use relay_base_schema::data_category::DataCategory;
 use relay_base_schema::project::ProjectId;
 use relay_common::time::{instant_to_date_time, UnixTimestamp};
@@ -172,7 +173,7 @@ impl StoreService {
         let scoping = managed.scoping();
         let envelope = managed.take_envelope();
 
-        match self.store_envelope(envelope, managed.start_time(), scoping) {
+        match self.store_envelope(envelope, managed.received_at(), scoping) {
             Ok(()) => managed.accept(),
             Err(error) => {
                 managed.reject(Outcome::Invalid(DiscardReason::Internal));
@@ -188,7 +189,7 @@ impl StoreService {
     fn store_envelope(
         &self,
         mut envelope: Box<Envelope>,
-        start_time: Instant,
+        received_at: DateTime<Utc>,
         scoping: Scoping,
     ) -> Result<(), StoreError> {
         let retention = envelope.retention();
@@ -234,7 +235,7 @@ impl StoreService {
                     self.produce_user_report(
                         event_id.ok_or(StoreError::NoEventId)?,
                         scoping.project_id,
-                        start_time,
+                        received_at,
                         item,
                     )?;
                 }
@@ -243,7 +244,7 @@ impl StoreService {
                     self.produce_user_report_v2(
                         event_id.ok_or(StoreError::NoEventId)?,
                         scoping.project_id,
-                        start_time,
+                        received_at,
                         item,
                         remote_addr,
                     )?;
@@ -252,7 +253,7 @@ impl StoreService {
                     scoping.organization_id,
                     scoping.project_id,
                     scoping.key_id,
-                    start_time,
+                    received_at,
                     retention,
                     item,
                 )?,
@@ -261,7 +262,7 @@ impl StoreService {
                         event_id,
                         scoping,
                         item.payload(),
-                        start_time,
+                        received_at,
                         retention,
                     )?;
                 }
@@ -276,22 +277,22 @@ impl StoreService {
                     self.produce_replay_event(
                         event_id.ok_or(StoreError::NoEventId)?,
                         scoping.project_id,
-                        start_time,
+                        received_at,
                         retention,
                         &item.payload(),
                     )?;
                 }
                 ItemType::CheckIn => {
                     let client = envelope.meta().client();
-                    self.produce_check_in(scoping.project_id, start_time, client, retention, item)?
+                    self.produce_check_in(scoping.project_id, received_at, client, retention, item)?
                 }
                 ItemType::Span => {
-                    self.produce_span(scoping, start_time, event_id, retention, item)?
+                    self.produce_span(scoping, received_at, event_id, retention, item)?
                 }
                 ItemType::ProfileChunk => self.produce_profile_chunk(
                     scoping.organization_id,
                     scoping.project_id,
-                    start_time,
+                    received_at,
                     retention,
                     item,
                 )?,
@@ -347,7 +348,7 @@ impl StoreService {
                 &recording.payload(),
                 replay_event.as_deref(),
                 None,
-                start_time,
+                received_at,
                 retention,
             )?;
         }
@@ -361,7 +362,7 @@ impl StoreService {
                 topic,
                 KafkaMessage::Event(EventKafkaMessage {
                     payload: event_item.payload(),
-                    start_time: UnixTimestamp::from_instant(start_time).as_secs(),
+                    start_time: received_at.timestamp() as u64,
                     event_id,
                     project_id,
                     remote_addr,
@@ -615,14 +616,14 @@ impl StoreService {
         &self,
         event_id: EventId,
         project_id: ProjectId,
-        start_time: Instant,
+        received_at: DateTime<Utc>,
         item: &Item,
     ) -> Result<(), StoreError> {
         let message = KafkaMessage::UserReport(UserReportKafkaMessage {
             project_id,
             event_id,
             payload: item.payload(),
-            start_time: UnixTimestamp::from_instant(start_time).as_secs(),
+            start_time: received_at.timestamp() as u64,
         });
 
         self.produce(KafkaTopic::Attachments, message)
@@ -632,7 +633,7 @@ impl StoreService {
         &self,
         event_id: EventId,
         project_id: ProjectId,
-        start_time: Instant,
+        received_at: DateTime<Utc>,
         item: &Item,
         remote_addr: Option<String>,
     ) -> Result<(), StoreError> {
@@ -640,7 +641,7 @@ impl StoreService {
             project_id,
             event_id,
             payload: item.payload(),
-            start_time: UnixTimestamp::from_instant(start_time).as_secs(),
+            start_time: received_at.timestamp() as u64,
             remote_addr,
             attachments: vec![],
         });
@@ -685,7 +686,7 @@ impl StoreService {
         organization_id: u64,
         project_id: ProjectId,
         key_id: Option<u64>,
-        start_time: Instant,
+        received_at: DateTime<Utc>,
         retention_days: u16,
         item: &Item,
     ) -> Result<(), StoreError> {
@@ -693,7 +694,7 @@ impl StoreService {
             organization_id,
             project_id,
             key_id,
-            received: UnixTimestamp::from_instant(start_time).as_secs(),
+            received: received_at.timestamp() as u64,
             retention_days,
             headers: BTreeMap::from([(
                 "sampled".to_string(),
@@ -709,7 +710,7 @@ impl StoreService {
         &self,
         replay_id: EventId,
         project_id: ProjectId,
-        start_time: Instant,
+        received_at: DateTime<Utc>,
         retention_days: u16,
         payload: &[u8],
     ) -> Result<(), StoreError> {
@@ -717,7 +718,7 @@ impl StoreService {
             replay_id,
             project_id,
             retention_days,
-            start_time: UnixTimestamp::from_instant(start_time).as_secs(),
+            start_time: received_at.timestamp() as u64,
             payload,
         };
         self.produce(KafkaTopic::ReplayEvents, KafkaMessage::ReplayEvent(message))?;
@@ -732,7 +733,7 @@ impl StoreService {
         payload: &[u8],
         replay_event: Option<&[u8]>,
         replay_video: Option<&[u8]>,
-        start_time: Instant,
+        received_at: DateTime<Utc>,
         retention: u16,
     ) -> Result<(), StoreError> {
         // Maximum number of bytes accepted by the consumer.
@@ -755,7 +756,7 @@ impl StoreService {
                 quantity: 1,
                 remote_addr: None,
                 scoping,
-                timestamp: instant_to_date_time(start_time),
+                timestamp: received_at,
             });
             return Ok(());
         }
@@ -766,7 +767,7 @@ impl StoreService {
                 project_id: scoping.project_id,
                 key_id: scoping.key_id,
                 org_id: scoping.organization_id,
-                received: UnixTimestamp::from_instant(start_time).as_secs(),
+                received: received_at.timestamp() as u64,
                 retention_days: retention,
                 payload,
                 replay_event,
@@ -783,7 +784,7 @@ impl StoreService {
         event_id: Option<EventId>,
         scoping: Scoping,
         payload: Bytes,
-        start_time: Instant,
+        received_at: DateTime<Utc>,
         retention: u16,
     ) -> Result<(), StoreError> {
         #[derive(Deserialize)]
@@ -806,7 +807,7 @@ impl StoreService {
                 quantity: 1,
                 remote_addr: None,
                 scoping,
-                timestamp: instant_to_date_time(start_time),
+                timestamp: received_at,
             });
             return Ok(());
         };
@@ -814,7 +815,7 @@ impl StoreService {
         self.produce_replay_event(
             event_id.ok_or(StoreError::NoEventId)?,
             scoping.project_id,
-            start_time,
+            received_at,
             retention,
             replay_event,
         )?;
@@ -825,7 +826,7 @@ impl StoreService {
             replay_recording,
             Some(replay_event),
             Some(replay_video),
-            start_time,
+            received_at,
             retention,
         )
     }
@@ -833,7 +834,7 @@ impl StoreService {
     fn produce_check_in(
         &self,
         project_id: ProjectId,
-        start_time: Instant,
+        received_at: DateTime<Utc>,
         client: Option<&str>,
         retention_days: u16,
         item: &Item,
@@ -842,7 +843,7 @@ impl StoreService {
             message_type: CheckInMessageType::CheckIn,
             project_id,
             retention_days,
-            start_time: UnixTimestamp::from_instant(start_time).as_secs(),
+            start_time: received_at.timestamp() as u64,
             sdk: client.map(str::to_owned),
             payload: item.payload(),
             routing_key_hint: item.routing_hint(),
@@ -856,7 +857,7 @@ impl StoreService {
     fn produce_span(
         &self,
         scoping: Scoping,
-        start_time: Instant,
+        received_at: DateTime<Utc>,
         event_id: Option<EventId>,
         retention_days: u16,
         item: &Item,
@@ -878,7 +879,7 @@ impl StoreService {
                     quantity: 1,
                     remote_addr: None,
                     scoping,
-                    timestamp: instant_to_date_time(start_time),
+                    timestamp: received_at,
                 });
                 return Ok(());
             }
@@ -920,7 +921,7 @@ impl StoreService {
             quantity: 1,
             remote_addr: None,
             scoping,
-            timestamp: instant_to_date_time(start_time),
+            timestamp: received_at,
         });
 
         Ok(())
@@ -1025,14 +1026,14 @@ impl StoreService {
         &self,
         organization_id: u64,
         project_id: ProjectId,
-        start_time: Instant,
+        received_at: DateTime<Utc>,
         retention_days: u16,
         item: &Item,
     ) -> Result<(), StoreError> {
         let message = ProfileChunkKafkaMessage {
             organization_id,
             project_id,
-            received: UnixTimestamp::from_instant(start_time).as_secs(),
+            received: received_at.timestamp() as u64,
             retention_days,
             payload: item.payload(),
         };

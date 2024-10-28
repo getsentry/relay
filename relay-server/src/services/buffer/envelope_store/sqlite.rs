@@ -1,12 +1,5 @@
-use std::error::Error;
-use std::path::Path;
-use std::pin::pin;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
-use std::time::Duration;
-
 use crate::envelope::EnvelopeError;
-use crate::extractors::StartTime;
+use crate::extractors::ReceivedAt;
 use crate::services::buffer::common::ProjectKeyPair;
 use crate::statsd::RelayGauges;
 use crate::Envelope;
@@ -21,6 +14,12 @@ use sqlx::sqlite::{
     SqliteRow, SqliteSynchronous,
 };
 use sqlx::{Pool, QueryBuilder, Row, Sqlite};
+use std::error::Error;
+use std::path::Path;
+use std::pin::pin;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+use std::time::Duration;
 use tokio::fs::DirBuilder;
 use tokio::time::sleep;
 
@@ -373,7 +372,7 @@ impl SqliteEnvelopeStore {
         //
         // Unfortunately we have to do this because SQLite `DELETE` with `RETURNING` doesn't
         // return deleted rows in a specific order.
-        extracted_envelopes.sort_by_key(|a| a.meta().start_time());
+        extracted_envelopes.sort_by_key(|a| a.meta().received_at());
 
         Ok(extracted_envelopes)
     }
@@ -426,9 +425,9 @@ fn extract_envelope(row: SqliteRow) -> Result<Box<Envelope>, SqliteEnvelopeStore
     let received_at: i64 = row
         .try_get("received_at")
         .map_err(SqliteEnvelopeStoreError::FetchError)?;
-    let start_time = StartTime::from_timestamp_millis(received_at as u64);
 
-    envelope.set_start_time(start_time.into_inner());
+    let received_at = ReceivedAt::from_timestamp_millis(received_at);
+    envelope.set_received_at(received_at.into_inner());
 
     Ok(envelope)
 }

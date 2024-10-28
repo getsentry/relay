@@ -66,7 +66,7 @@ fn mock_envelope_with_project_key(project_key: &ProjectKey, size: &str) -> Box<E
     ));
 
     let mut envelope = Envelope::parse_bytes(bytes).unwrap();
-    envelope.set_start_time(Instant::now());
+    envelope.set_received_at(Instant::now());
     envelope
 }
 

@@ -52,7 +52,7 @@ use tokio::fs::DirBuilder;
 use tokio::sync::mpsc;
 
 use crate::envelope::{Envelope, EnvelopeError};
-use crate::extractors::StartTime;
+use crate::extractors::ReceivedAt;
 use crate::services::outcome::TrackOutcome;
 use crate::services::processor::ProcessingGroup;
 use crate::services::projects::cache::{ProjectCache, RefreshIndexCache, UpdateSpoolIndex};
@@ -494,7 +494,7 @@ impl OnDisk {
         let received_at: i64 = row
             .try_get("received_at")
             .map_err(BufferError::FetchFailed)?;
-        let start_time = StartTime::from_timestamp_millis(received_at as u64);
+        let received_at = ReceivedAt::from_timestamp_millis(received_at);
         let own_key: &str = row.try_get("own_key").map_err(BufferError::FetchFailed)?;
         let sampling_key: &str = row
             .try_get("sampling_key")
@@ -505,7 +505,7 @@ impl OnDisk {
                 .map_err(BufferError::ParseProjectKeyFailed)?,
         };
 
-        envelope.set_start_time(start_time.into_inner());
+        envelope.set_received_at(received_at.into_inner());
 
         let envelopes: Result<Vec<_>, BufferError> = ProcessingGroup::split_envelope(*envelope)
             .into_iter()
@@ -1320,6 +1320,7 @@ impl Drop for BufferService {
 
 #[cfg(test)]
 mod tests {
+    use chrono::Utc;
     use insta::assert_debug_snapshot;
     use rand::Rng;
     use relay_test::mock_service;
@@ -1417,7 +1418,7 @@ mod tests {
             };
 
             let envelope = empty_managed_envelope();
-            let start_time_sent = envelope.start_time();
+            let start_time_sent = envelope.received_at();
             addr.send(Enqueue {
                 key,
                 value: envelope,
@@ -1440,16 +1441,13 @@ mod tests {
                 key: _,
                 managed_envelope,
             } = rx.recv().await.unwrap();
-            let start_time_received = managed_envelope.envelope().meta().start_time();
+            let start_time_received = managed_envelope.received_at();
 
             // Check if the original start time elapsed to the same second as the restored one.
             //
             // Using `.as_secs_f64()` to get the nanos fraction as well and then round it up to get
             // similar number of seconds if one of the instants runs forward a bit.
-            assert_eq!(
-                start_time_received.elapsed().as_secs_f64().round(),
-                start_time_sent.elapsed().as_secs_f64().round()
-            );
+            assert_eq!(start_time_received, start_time_sent);
         }
     }
 
@@ -1595,7 +1593,7 @@ mod tests {
                 .await
                 .unwrap();
 
-        let now = chrono::Utc::now().timestamp_millis();
+        let now = Utc::now().timestamp_millis();
         let result = sqlx::query(&format!(
             r#"INSERT INTO
                     envelopes (received_at, own_key, sampling_key, envelope)

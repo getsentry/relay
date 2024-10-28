@@ -2,7 +2,7 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use serde::{Deserialize, Serialize};
 
-use crate::extractors::{SignedBytes, StartTime};
+use crate::extractors::{ReceivedAt, SignedBytes};
 use crate::service::ServiceState;
 use crate::services::processor::ProcessBatchedMetrics;
 use crate::services::projects::cache::BucketSource;
@@ -12,7 +12,7 @@ struct SendMetricsResponse {}
 
 pub async fn handle(
     state: ServiceState,
-    start_time: StartTime,
+    received_at: ReceivedAt,
     body: SignedBytes,
 ) -> impl IntoResponse {
     if !body.relay.internal {
@@ -22,7 +22,7 @@ pub async fn handle(
     state.processor().send(ProcessBatchedMetrics {
         payload: body.body,
         source: BucketSource::Internal,
-        start_time: start_time.into_inner(),
+        received_at: received_at.into_inner(),
         sent_at: None,
     });
 

@@ -291,7 +291,7 @@ impl EnvelopeBufferService {
     }
 
     fn expired(config: &Config, envelope: &Envelope) -> bool {
-        envelope.meta().start_time().elapsed() > config.spool_envelopes_max_age()
+        envelope.elapsed() > config.spool_envelopes_max_age()
     }
 
     fn drop_expired(envelope: Box<Envelope>, services: &Services) {
@@ -468,10 +468,10 @@ impl Service for EnvelopeBufferService {
 
 #[cfg(test)]
 mod tests {
-    use std::time::{Duration, Instant};
-
+    use chrono::Utc;
     use relay_dynamic_config::GlobalConfig;
     use relay_quotas::DataCategory;
+    use std::time::Duration;
     use tokio::sync::mpsc;
     use uuid::Uuid;
 
@@ -652,9 +652,10 @@ mod tests {
         let addr = service.start();
 
         let mut envelope = new_envelope(false, "foo");
-        envelope
-            .meta_mut()
-            .set_start_time(Instant::now() - 2 * config.spool_envelopes_max_age());
+        envelope.meta_mut().set_received_at(
+            Utc::now()
+                - chrono::Duration::seconds(2 * config.spool_envelopes_max_age().as_secs() as i64),
+        );
         addr.send(EnvelopeBuffer::Push(envelope));
 
         tokio::time::sleep(Duration::from_millis(100)).await;

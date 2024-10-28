@@ -2,7 +2,6 @@ use std::convert::Infallible;
 use std::fmt;
 use std::net::{IpAddr, SocketAddr};
 use std::str::FromStr;
-use std::time::Instant;
 
 use axum::extract::rejection::PathRejection;
 use axum::extract::{ConnectInfo, FromRequestParts, Path};
@@ -11,6 +10,7 @@ use axum::http::request::Parts;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::RequestPartsExt;
+use chrono::{DateTime, Utc};
 use data_encoding::BASE64;
 use relay_auth::RelayId;
 use relay_base_schema::project::{ParseProjectKeyError, ProjectId, ProjectKey};
@@ -21,7 +21,7 @@ use relay_quotas::Scoping;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::extractors::{ForwardedFor, StartTime};
+use crate::extractors::{ForwardedFor, ReceivedAt};
 use crate::service::ServiceState;
 use crate::statsd::RelayCounters;
 use crate::utils::ApiErrorResponse;
@@ -227,8 +227,8 @@ pub struct RequestMeta<D = PartialDsn> {
     /// The time at which the request started.
     ///
     /// NOTE: This is internal-only and not exposed to Envelope headers.
-    #[serde(skip, default = "Instant::now")]
-    start_time: Instant,
+    #[serde(skip, default = "Utc::now")]
+    received_at: DateTime<Utc>,
 
     /// Whether the request is coming from an statically configured internal Relay.
     ///
@@ -303,13 +303,13 @@ impl<D> RequestMeta<D> {
     }
 
     /// The time at which the request started.
-    pub fn start_time(&self) -> Instant {
-        self.start_time
+    pub fn received_at(&self) -> DateTime<Utc> {
+        self.received_at
     }
 
-    /// Sets the start time for this [`RequestMeta`] on the current envelope.
-    pub fn set_start_time(&mut self, start_time: Instant) {
-        self.start_time = start_time
+    /// Sets the received at for this [`RequestMeta`] on the current envelope.
+    pub fn set_received_at(&mut self, received_at: DateTime<Utc>) {
+        self.received_at = received_at
     }
 
     /// Whether the request is coming from a statically configured internal Relay.
@@ -340,7 +340,7 @@ impl RequestMeta {
             forwarded_for: "".to_string(),
             user_agent: Some(crate::constants::SERVER.to_owned()),
             no_cache: false,
-            start_time: Instant::now(),
+            received_at: Utc::now(),
             client_hints: ClientHints::default(),
             from_internal_relay: false,
         }
@@ -502,7 +502,7 @@ impl FromRequestParts<ServiceState> for PartialMeta {
                 .into_inner(),
             user_agent: ua.user_agent,
             no_cache: false,
-            start_time: StartTime::from_request_parts(parts, state)
+            received_at: ReceivedAt::from_request_parts(parts, state)
                 .await?
                 .into_inner(),
             client_hints: ua.client_hints,
@@ -667,7 +667,7 @@ impl FromRequestParts<ServiceState> for RequestMeta {
             forwarded_for: partial_meta.forwarded_for,
             user_agent: partial_meta.user_agent,
             no_cache: key_flags.contains(&"no-cache"),
-            start_time: partial_meta.start_time,
+            received_at: partial_meta.received_at,
             client_hints: partial_meta.client_hints,
             from_internal_relay: partial_meta.from_internal_relay,
         })
@@ -690,7 +690,7 @@ mod tests {
                 forwarded_for: String::new(),
                 user_agent: Some("sentry/agent".to_string()),
                 no_cache: false,
-                start_time: Instant::now(),
+                received_at: Utc::now(),
                 client_hints: ClientHints::default(),
                 from_internal_relay: false,
             }
@@ -727,7 +727,7 @@ mod tests {
             forwarded_for: "8.8.8.8".to_string(),
             user_agent: Some("0x8000".to_string()),
             no_cache: false,
-            start_time: Instant::now(),
+            received_at: Utc::now(),
             client_hints: ClientHints {
                 sec_ch_ua_platform: Some("macOS".to_owned()),
                 sec_ch_ua_platform_version: Some("13.1.0".to_owned()),
@@ -739,7 +739,7 @@ mod tests {
             },
             from_internal_relay: false,
         };
-        deserialized.start_time = reqmeta.start_time;
+        deserialized.received_at = reqmeta.received_at;
         assert_eq!(deserialized, reqmeta);
     }
 }

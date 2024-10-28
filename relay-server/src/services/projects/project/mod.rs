@@ -176,7 +176,7 @@ impl Project {
             data: message.data,
             project_key: message.project_key,
             source: message.source,
-            start_time: message.start_time.into(),
+            received_at: message.received_at,
             sent_at: message.sent_at,
         }
     }

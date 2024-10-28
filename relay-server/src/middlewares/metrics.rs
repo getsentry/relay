@@ -2,16 +2,19 @@ use axum::extract::{MatchedPath, Request};
 use axum::middleware::Next;
 use axum::response::Response;
 use axum::RequestExt;
+use std::time::Instant;
 
-use crate::extractors::StartTime;
+use crate::extractors::ReceivedAt;
 use crate::statsd::{RelayCounters, RelayTimers};
 
 /// A middleware that logs web request timings as statsd metrics.
 ///
 /// Use this with [`axum::middleware::from_fn`].
 pub async fn metrics(mut request: Request, next: Next) -> Response {
-    let start_time = StartTime::now();
-    request.extensions_mut().insert(start_time);
+    let request_start = Instant::now();
+
+    let received_at = ReceivedAt::now();
+    request.extensions_mut().insert(received_at);
 
     let matched_path = request.extract_parts::<MatchedPath>().await;
     let route = matched_path.as_ref().map_or("unknown", |m| m.as_str());
@@ -26,7 +29,7 @@ pub async fn metrics(mut request: Request, next: Next) -> Response {
     let response = next.run(request).await;
 
     relay_statsd::metric!(
-        timer(RelayTimers::RequestsDuration) = start_time.into_inner().elapsed(),
+        timer(RelayTimers::RequestsDuration) = request_start.elapsed(),
         route = route,
         method = method.as_str(),
     );
