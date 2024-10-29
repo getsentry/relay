@@ -453,19 +453,27 @@ def android_profile_chunk_envelope(release):
 @pytest.mark.parametrize(
     ["envelope", "data_category"],
     [
-        # pytest.param(sample_profile_v1_envelope, DataCategory.PROFILE, id="profile v1"),
-        # pytest.param(sample_profile_v2_envelope, DataCategory.PROFILE_CHUNK, id="profile v2"),
+        pytest.param(sample_profile_v1_envelope, DataCategory.PROFILE, id="profile v1"),
+        pytest.param(
+            sample_profile_v2_envelope, DataCategory.PROFILE_CHUNK, id="profile v2"
+        ),
         pytest.param(
             android_profile_legacy_envelope, DataCategory.PROFILE, id="android legacy"
         ),
-        # pytest.param(android_profile_chunk_envelope, DataCategory.PROFILE_CHUNK, id="android chunk"),
+        pytest.param(
+            android_profile_chunk_envelope,
+            DataCategory.PROFILE_CHUNK,
+            id="android chunk",
+        ),
     ],
 )
 @pytest.mark.parametrize(
     ["filter_config", "should_filter"],
     [
         pytest.param({}, False, id="profile accepted"),
-        # pytest.param({"releases": {"releases": ["foobar@1.0"]}}, True, id="profile filtered"),
+        pytest.param(
+            {"releases": {"releases": ["foobar@1.0"]}}, True, id="profile filtered"
+        ),
     ],
 )
 def test_filters_are_applied_to_profiles(
