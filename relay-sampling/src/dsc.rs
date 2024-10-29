@@ -152,7 +152,7 @@ mod sample_rate_as_string {
         #[derive(Debug, Clone, Deserialize)]
         #[serde(untagged)]
         enum StringOrFloat<'a> {
-            String(Cow<'a, str>),
+            String(#[serde(borrow)] Cow<'a, str>),
             Float(f64),
         }
 
@@ -164,7 +164,7 @@ mod sample_rate_as_string {
         let parsed_value = match value {
             StringOrFloat::Float(f) => f,
             StringOrFloat::String(s) => {
-                serde_json::from_str(&s).map_err(|e| serde::de::Error::custom(e.to_string()))?
+                serde_json::from_str(&s).map_err(serde::de::Error::custom)?
             }
         };
 
@@ -398,7 +398,7 @@ mod tests {
             "sample_rate": 0.1
         }
         "#;
-        let dsc = serde_json::from_str::<DynamicSamplingContext>(json).expect("sample rate float");
+        let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
         insta::assert_ron_snapshot!(dsc, @r#"
             {
               "trace_id": "00000000-0000-0000-0000-000000000000",
@@ -423,8 +423,7 @@ mod tests {
                 "sample_rate": "1"
             }
         "#;
-        let dsc =
-            serde_json::from_str::<DynamicSamplingContext>(json).expect("sample rate integer");
+        let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
         insta::assert_ron_snapshot!(dsc, @r#"
             {
               "trace_id": "00000000-0000-0000-0000-000000000000",
