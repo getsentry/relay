@@ -920,7 +920,7 @@ pub struct ProcessProjectMetrics {
     pub project_key: ProjectKey,
     /// Whether to keep or reset the metric metadata.
     pub source: BucketSource,
-    /// The instant at which the request was received.
+    /// The wall clock time at which the request was received.
     pub received_at: DateTime<Utc>,
     /// The value of the Envelope's [`sent_at`](Envelope::sent_at) header for clock drift
     /// correction.
@@ -995,9 +995,9 @@ pub struct ProcessBatchedMetrics {
     pub payload: Bytes,
     /// Whether to keep or reset the metric metadata.
     pub source: BucketSource,
-    /// The instant at which the request was received.
+    /// The wall clock time at which the request was received.
     pub received_at: DateTime<Utc>,
-    /// The instant at which the request was received.
+    /// The wall clock time at which the request was received.
     pub sent_at: Option<DateTime<Utc>>,
 }
 

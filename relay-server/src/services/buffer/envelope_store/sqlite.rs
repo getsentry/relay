@@ -1,8 +1,10 @@
-use crate::envelope::EnvelopeError;
-use crate::extractors::ReceivedAt;
-use crate::services::buffer::common::ProjectKeyPair;
-use crate::statsd::RelayGauges;
-use crate::Envelope;
+use std::error::Error;
+use std::path::Path;
+use std::pin::pin;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+use std::time::Duration;
+
 use futures::stream::StreamExt;
 use hashbrown::HashSet;
 use relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
@@ -14,14 +16,14 @@ use sqlx::sqlite::{
     SqliteRow, SqliteSynchronous,
 };
 use sqlx::{Pool, QueryBuilder, Row, Sqlite};
-use std::error::Error;
-use std::path::Path;
-use std::pin::pin;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
-use std::time::Duration;
 use tokio::fs::DirBuilder;
 use tokio::time::sleep;
+
+use crate::envelope::EnvelopeError;
+use crate::extractors::ReceivedAt;
+use crate::services::buffer::common::ProjectKeyPair;
+use crate::statsd::RelayGauges;
+use crate::Envelope;
 
 /// Struct that contains all the fields of an [`Envelope`] that are mapped to the database columns.
 pub struct InsertEnvelope {

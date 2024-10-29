@@ -1,13 +1,14 @@
 //! Envelope context type and helpers to ensure outcomes.
 
-use chrono::{DateTime, Utc};
-use relay_quotas::{DataCategory, Scoping};
-use relay_system::Addr;
 use std::fmt::{Debug, Display};
 use std::marker::PhantomData;
 use std::mem::size_of;
 use std::ops::{Deref, DerefMut};
 use std::time::Duration;
+
+use chrono::{DateTime, Utc};
+use relay_quotas::{DataCategory, Scoping};
+use relay_system::Addr;
 
 use crate::envelope::{Envelope, Item};
 use crate::extractors::RequestMeta;

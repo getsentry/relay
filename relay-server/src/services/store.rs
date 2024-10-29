@@ -361,7 +361,7 @@ impl StoreService {
                 topic,
                 KafkaMessage::Event(EventKafkaMessage {
                     payload: event_item.payload(),
-                    start_time: received_at.timestamp() as u64,
+                    start_time: safe_timestamp(received_at),
                     event_id,
                     project_id,
                     remote_addr,
@@ -621,8 +621,8 @@ impl StoreService {
         let message = KafkaMessage::UserReport(UserReportKafkaMessage {
             project_id,
             event_id,
+            start_time: safe_timestamp(received_at),
             payload: item.payload(),
-            start_time: received_at.timestamp() as u64,
         });
 
         self.produce(KafkaTopic::Attachments, message)
@@ -640,7 +640,7 @@ impl StoreService {
             project_id,
             event_id,
             payload: item.payload(),
-            start_time: received_at.timestamp() as u64,
+            start_time: safe_timestamp(received_at),
             remote_addr,
             attachments: vec![],
         });
@@ -693,7 +693,7 @@ impl StoreService {
             organization_id,
             project_id,
             key_id,
-            received: received_at.timestamp() as u64,
+            received: safe_timestamp(received_at),
             retention_days,
             headers: BTreeMap::from([(
                 "sampled".to_string(),
@@ -717,7 +717,7 @@ impl StoreService {
             replay_id,
             project_id,
             retention_days,
-            start_time: received_at.timestamp() as u64,
+            start_time: safe_timestamp(received_at),
             payload,
         };
         self.produce(KafkaTopic::ReplayEvents, KafkaMessage::ReplayEvent(message))?;
@@ -766,7 +766,7 @@ impl StoreService {
                 project_id: scoping.project_id,
                 key_id: scoping.key_id,
                 org_id: scoping.organization_id,
-                received: received_at.timestamp() as u64,
+                received: safe_timestamp(received_at),
                 retention_days: retention,
                 payload,
                 replay_event,
@@ -842,7 +842,7 @@ impl StoreService {
             message_type: CheckInMessageType::CheckIn,
             project_id,
             retention_days,
-            start_time: received_at.timestamp() as u64,
+            start_time: safe_timestamp(received_at),
             sdk: client.map(str::to_owned),
             payload: item.payload(),
             routing_key_hint: item.routing_hint(),
@@ -1032,7 +1032,7 @@ impl StoreService {
         let message = ProfileChunkKafkaMessage {
             organization_id,
             project_id,
-            received: received_at.timestamp() as u64,
+            received: safe_timestamp(received_at),
             retention_days,
             payload: item.payload(),
         };
@@ -1573,6 +1573,19 @@ fn bool_to_str(value: bool) -> &'static str {
     } else {
         "false"
     }
+}
+
+/// Returns a safe timestamp for Kafka.
+///
+/// Kafka expects timestamps to be in UTC and in seconds since epoch.
+fn safe_timestamp(timestamp: DateTime<Utc>) -> u64 {
+    let ts = timestamp.timestamp();
+    if ts >= 0 {
+        return ts as u64;
+    }
+
+    // We assume this call can't return < 0.
+    Utc::now().timestamp() as u64
 }
 
 #[cfg(test)]

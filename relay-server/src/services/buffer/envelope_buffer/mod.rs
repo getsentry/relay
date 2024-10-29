@@ -1,3 +1,19 @@
+use std::cmp::Ordering;
+use std::collections::BTreeSet;
+use std::convert::Infallible;
+use std::error::Error;
+use std::mem;
+use std::sync::atomic::AtomicI64;
+use std::sync::atomic::Ordering as AtomicOrdering;
+use std::sync::Arc;
+use std::time::Duration;
+
+use chrono::{DateTime, Utc};
+use hashbrown::HashSet;
+use relay_base_schema::project::ProjectKey;
+use relay_config::Config;
+use tokio::time::{timeout, Instant};
+
 use crate::envelope::Envelope;
 use crate::envelope::Item;
 use crate::services::buffer::common::ProjectKeyPair;
@@ -9,20 +25,6 @@ use crate::services::buffer::stack_provider::sqlite::SqliteStackProvider;
 use crate::services::buffer::stack_provider::{StackCreationType, StackProvider};
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::MemoryChecker;
-use chrono::{DateTime, Utc};
-use hashbrown::HashSet;
-use relay_base_schema::project::ProjectKey;
-use relay_config::Config;
-use std::cmp::Ordering;
-use std::collections::BTreeSet;
-use std::convert::Infallible;
-use std::error::Error;
-use std::mem;
-use std::sync::atomic::AtomicI64;
-use std::sync::atomic::Ordering as AtomicOrdering;
-use std::sync::Arc;
-use std::time::Duration;
-use tokio::time::{timeout, Instant};
 
 /// Polymorphic envelope buffering interface.
 ///
