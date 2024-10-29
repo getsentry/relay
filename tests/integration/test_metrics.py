@@ -886,7 +886,7 @@ def test_transaction_metrics(
         "name": "c:transactions/usage@none",
         "type": "c",
         "value": 2.0,
-        "tags": {} if discard_data else {"indexed": "true"},
+        "tags": {},
     }
 
     metrics["d:transactions/measurements.foo@none"]["value"].sort()
@@ -919,6 +919,7 @@ def test_transaction_metrics(
         "retention_days": 90,
         "tags": {
             "decision": "drop" if discard_data else "keep",
+            "target_project_id": "42",
             "transaction": "transaction_which_starts_trace",
         },
         "name": "c:transactions/count_per_root_project@none",
@@ -989,7 +990,7 @@ def test_transaction_metrics_count_per_root_project(
         "org_id": 1,
         "project_id": 41,
         "retention_days": 90,
-        "tags": {"decision": "keep", "transaction": "test"},
+        "tags": {"decision": "keep", "target_project_id": "42", "transaction": "test"},
         "name": "c:transactions/count_per_root_project@none",
         "type": "c",
         "value": 1.0,
@@ -1000,7 +1001,7 @@ def test_transaction_metrics_count_per_root_project(
         "org_id": 1,
         "project_id": 42,
         "retention_days": 90,
-        "tags": {"decision": "keep"},
+        "tags": {"decision": "keep", "target_project_id": "42"},
         "name": "c:transactions/count_per_root_project@none",
         "type": "c",
         "value": 2.0,
@@ -1129,7 +1130,7 @@ def test_transaction_metrics_extraction_processing_relays(
     if expect_metrics_extraction:
         metrics = metrics_by_name(metrics_consumer, 4, timeout=3)
         metric_usage = metrics["c:transactions/usage@none"]
-        assert metric_usage["tags"] == {"indexed": "true"}
+        assert metric_usage["tags"] == {}
         assert metric_usage["value"] == 1.0
         metric_duration = metrics["d:transactions/duration@millisecond"]
         assert (

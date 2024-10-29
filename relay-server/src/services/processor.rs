@@ -44,7 +44,6 @@ use smallvec::{smallvec, SmallVec};
 
 #[cfg(feature = "processing")]
 use {
-    crate::metrics::{add_indexed_tag, remove_indexed_tag},
     crate::services::store::{Store, StoreEnvelope},
     crate::utils::{CheckLimits, Enforcement, EnvelopeLimiter, ItemAction},
     itertools::Itertools,
@@ -588,14 +587,12 @@ type ExtractedEvent = (Annotated<Event>, usize);
 /// with the dynamic sampling decision.
 #[derive(Debug)]
 pub struct ProcessingExtractedMetrics {
-    config: Arc<Config>,
     metrics: ExtractedMetrics,
 }
 
 impl ProcessingExtractedMetrics {
-    pub fn new(config: Arc<Config>) -> Self {
+    pub fn new() -> Self {
         Self {
-            config,
             metrics: ExtractedMetrics::default(),
         }
     }
@@ -610,36 +607,6 @@ impl ProcessingExtractedMetrics {
         self.extend_sampling_metrics(extracted.sampling_metrics, sampling_decision);
     }
 
-    /// Extends the [`ProcessingExtractedMetrics`].
-    fn extend_metrics<I>(
-        processing_enabled: bool,
-        existing_buckets: &mut Vec<Bucket>,
-        buckets: I,
-        sampling_decision: Option<SamplingDecision>,
-    ) where
-        I: IntoIterator<Item = Bucket>,
-    {
-        // If we are not a processing Relay, we don't want to add any metadata or tags because
-        // metrics are not extracted from indexed payloads in non-processing Relays.
-        if !processing_enabled {
-            existing_buckets.extend(buckets);
-            return;
-        }
-
-        for mut bucket in buckets {
-            let is_kept = sampling_decision == Some(SamplingDecision::Keep);
-            bucket.metadata.extracted_from_indexed = is_kept;
-            // In case the indexed payload is kept and this metric is a usage metric, we want to tag
-            // it, so that we can use the tag in the consumers to correctly count the indexed
-            // payloads.
-            #[cfg(feature = "processing")]
-            if is_kept {
-                add_indexed_tag(&mut bucket);
-            }
-            existing_buckets.push(bucket);
-        }
-    }
-
     /// Extends the contained project metrics.
     pub fn extend_project_metrics<I>(
         &mut self,
@@ -648,12 +615,13 @@ impl ProcessingExtractedMetrics {
     ) where
         I: IntoIterator<Item = Bucket>,
     {
-        Self::extend_metrics(
-            self.config.processing_enabled(),
-            &mut self.metrics.project_metrics,
-            buckets,
-            sampling_decision,
-        );
+        self.metrics
+            .project_metrics
+            .extend(buckets.into_iter().map(|mut bucket| {
+                bucket.metadata.extracted_from_indexed =
+                    sampling_decision == Some(SamplingDecision::Keep);
+                bucket
+            }));
     }
 
     /// Extends the contained sampling metrics.
@@ -664,12 +632,13 @@ impl ProcessingExtractedMetrics {
     ) where
         I: IntoIterator<Item = Bucket>,
     {
-        Self::extend_metrics(
-            self.config.processing_enabled(),
-            &mut self.metrics.sampling_metrics,
-            buckets,
-            sampling_decision,
-        );
+        self.metrics
+            .sampling_metrics
+            .extend(buckets.into_iter().map(|mut bucket| {
+                bucket.metadata.extracted_from_indexed =
+                    sampling_decision == Some(SamplingDecision::Keep);
+                bucket
+            }));
     }
 
     /// Applies rate limits to the contained metrics.
@@ -699,7 +668,7 @@ impl ProcessingExtractedMetrics {
             if limit.is_active() {
                 drop_namespaces.push(namespace);
             } else if indexed.is_active() && !enforced_consistently {
-                // If the enforcement was not computed by consistently checking the limits,
+                // If the enforcment was not computed by consistently checking the limits,
                 // the quota for the metrics has not yet been incremented.
                 // In this case we have a dropped indexed payload but a metric which still needs to
                 // be accounted for, make sure the metric will still be rate limited.
@@ -719,7 +688,6 @@ impl ProcessingExtractedMetrics {
 
                 if reset_extracted_from_indexed.contains(&namespace) {
                     bucket.metadata.extracted_from_indexed = false;
-                    remove_indexed_tag(bucket);
                 }
 
                 true
@@ -1368,7 +1336,7 @@ impl EnvelopeProcessorService {
             reservoir.set_redis(org_id, quotas_pool);
         }
 
-        let extracted_metrics = ProcessingExtractedMetrics::new(config.clone());
+        let extracted_metrics = ProcessingExtractedMetrics::new();
 
         ProcessEnvelopeState {
             event: Annotated::empty(),
@@ -1495,6 +1463,7 @@ impl EnvelopeProcessorService {
             event,
             combined_config,
             sampling_decision,
+            state.project_id,
             self.inner
                 .config
                 .aggregator_config_for(MetricNamespace::Spans)
@@ -1519,6 +1488,7 @@ impl EnvelopeProcessorService {
                 generic_config: Some(combined_config),
                 transaction_from_dsc,
                 sampling_decision,
+                target_project_id: state.project_id,
                 has_profile: profile_id.is_some(),
             };
 

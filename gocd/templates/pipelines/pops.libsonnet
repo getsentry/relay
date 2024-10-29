@@ -11,6 +11,8 @@ local canary_region_pops = {
     'us-pop-regional-2',
     'us-pop-regional-3',
     'us-pop-regional-4',
+    'us-pop-1',
+    'us-pop-2',
   ],
 };
 
@@ -24,6 +26,8 @@ local region_pops = {
     'us-pop-regional-2',
     'us-pop-regional-3',
     'us-pop-regional-4',
+    'us-pop-1',
+    'us-pop-2',
   ],
   s4s: [],
 };

@@ -13,8 +13,8 @@
 
 **Internal**
 
-- Add a metric that counts span volume in the root project for dynamic sampling (`c:spans/count_per_root_project@none`) ([#4134](https://github.com/getsentry/relay/pull/4134))
-- Emit `indexed` tag for the usage metrics. ([#4158](https://github.com/getsentry/relay/pull/4158))
+- Add a metric that counts span volume in the root project for dynamic sampling (`c:spans/count_per_root_project@none`). ([#4134](https://github.com/getsentry/relay/pull/4134))
+- Add a tag `target_project_id` to both root project metrics for dynamic sampling (`c:transactions/count_per_root_project@none` and `c:spans/count_per_root_project@none`) which shows the flow trace traffic from root to target projects. ([#4170](https://github.com/getsentry/relay/pull/4170))
 
 ## 24.10.0
 
