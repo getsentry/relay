@@ -7,7 +7,7 @@ use chrono::Duration as SignedDuration;
 use relay_auth::RelayVersion;
 use relay_base_schema::events::EventType;
 use relay_config::Config;
-use relay_dynamic_config::{Feature, GlobalConfig};
+use relay_dynamic_config::GlobalConfig;
 use relay_event_normalization::{nel, ClockDriftProcessor};
 use relay_event_schema::processor::{self, ProcessingState};
 use relay_event_schema::protocol::{
@@ -94,11 +94,6 @@ pub fn extract<G: EventProcessing>(
         })
     } else if let Some(item) = user_report_v2_item {
         relay_log::trace!("processing user_report_v2");
-        let project_state = &state.project_state;
-        let user_report_v2_ingest = project_state.has_feature(Feature::UserReportV2Ingest);
-        if !user_report_v2_ingest {
-            return Err(ProcessingError::NoEventPayload);
-        }
         event_from_json_payload(item, Some(EventType::UserReportV2))?
     } else if let Some(item) = raw_security_item {
         relay_log::trace!("processing security report");
@@ -289,7 +284,7 @@ pub fn filter<G: EventProcessing>(
     };
 
     let client_ip = state.managed_envelope.envelope().meta().client_addr();
-    let filter_settings = &state.project_state.config.filter_settings;
+    let filter_settings = &state.project_info.config.filter_settings;
 
     metric!(timer(RelayTimers::EventProcessingFiltering), {
         relay_filter::should_filter(event, client_ip, filter_settings, global_config.filters())
@@ -308,7 +303,7 @@ pub fn filter<G: EventProcessing>(
     let supported_generic_filters = global_config.filters.is_ok()
         && relay_filter::are_generic_filters_supported(
             global_config.filters().map(|f| f.version),
-            state.project_state.config.filter_settings.generic.version,
+            state.project_info.config.filter_settings.generic.version,
         );
     if supported_generic_filters {
         Ok(FiltersStatus::Ok)
@@ -324,7 +319,7 @@ pub fn scrub<G: EventProcessing>(
     state: &mut ProcessEnvelopeState<G>,
 ) -> Result<(), ProcessingError> {
     let event = &mut state.event;
-    let config = &state.project_state.config;
+    let config = &state.project_info.config;
 
     if config.datascrubbing_settings.scrub_data {
         if let Some(event) = event.value_mut() {

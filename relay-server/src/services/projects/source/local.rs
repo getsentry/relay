@@ -9,8 +9,8 @@ use relay_system::{AsyncResponse, FromMessage, Interface, Receiver, Sender, Serv
 use tokio::sync::mpsc;
 use tokio::time::Instant;
 
-use crate::services::project::{ParsedProjectState, ProjectState};
-use crate::services::project_cache::FetchOptionalProjectState;
+use crate::services::projects::project::{ParsedProjectState, ProjectState};
+use crate::services::projects::source::FetchOptionalProjectState;
 
 /// Service interface of the local project source.
 #[derive(Debug)]
@@ -111,6 +111,13 @@ async fn load_local_states(
 
         // Keep a separate project state per key.
         let keys = std::mem::take(&mut state.info.public_keys);
+        if keys.is_empty() {
+            relay_log::warn!(
+                ?path,
+                "skipping file, project config is missing public keys"
+            );
+        }
+
         for key in keys {
             let mut state = state.clone();
             state.info.public_keys = smallvec::smallvec![key.clone()];
@@ -196,7 +203,7 @@ mod tests {
     use std::str::FromStr;
 
     use super::*;
-    use crate::services::project::{ProjectInfo, PublicKeyConfig};
+    use crate::services::projects::project::{ProjectInfo, PublicKeyConfig};
 
     /// Tests that we can follow the symlinks and read the project file properly.
     #[tokio::test]

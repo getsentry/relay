@@ -260,15 +260,18 @@ def test_unparsable_project_config(mini_sentry, relay):
 
     def assert_clear_test_failures():
         try:
-            assert {str(e) for _, e in mini_sentry.test_failures} == {
+            assert {str(e) for _, e in mini_sentry.current_test_failures()} == {
                 f"Relay sent us event: error fetching project state {public_key}: invalid type: integer `99`, expected a string",
             }
         finally:
-            mini_sentry.test_failures.clear()
+            mini_sentry.clear_test_failures()
 
     # Event is not propagated, relay logs an error:
     relay.send_event(project_key)
     assert mini_sentry.captured_events.empty()
+
+    # Wait a bit before fixing the project config to make sure Relay had time to fetch the broken one.
+    time.sleep(1)
 
     # Fix the config.
     config = mini_sentry.project_configs[project_key]
@@ -343,11 +346,11 @@ def test_cached_project_config(mini_sentry, relay):
     try:
         relay.send_event(project_key)
         time.sleep(0.5)
-        assert {str(e) for _, e in mini_sentry.test_failures} == {
+        assert {str(e) for _, e in mini_sentry.current_test_failures()} == {
             f"Relay sent us event: error fetching project state {public_key}: invalid type: integer `99`, expected a string",
         }
     finally:
-        mini_sentry.test_failures.clear()
+        mini_sentry.clear_test_failures()
 
 
 def test_get_global_config(mini_sentry, relay):

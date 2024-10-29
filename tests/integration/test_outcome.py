@@ -16,6 +16,7 @@ import pytest
 import requests
 from requests.exceptions import HTTPError
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
+from sentry_relay.consts import DataCategory
 from .asserts import time_within_delta
 
 from .test_metrics import metrics_by_name
@@ -253,7 +254,7 @@ def _send_event(relay, project_id=42, event_type="error", event_id=None, trace_i
     return event_id
 
 
-@pytest.mark.parametrize("event_type", ["transaction"])
+@pytest.mark.parametrize("event_type", ["error", "transaction"])
 def test_outcomes_non_processing(relay, mini_sentry, event_type):
     """
     Test basic outcome functionality.
@@ -267,7 +268,14 @@ def test_outcomes_non_processing(relay, mini_sentry, event_type):
 
     _send_event(relay, event_type=event_type)
 
-    expected_categories = [2, 9] if event_type == "transaction" else [1]  # Error
+    expected_categories = (
+        [
+            DataCategory.TRANSACTION,
+            DataCategory.TRANSACTION_INDEXED,
+        ]
+        if event_type == "transaction"
+        else [DataCategory.ERROR]
+    )
 
     outcomes = []
     for _ in expected_categories:
@@ -771,6 +779,7 @@ def test_outcomes_rate_limit(
             "reasonCode": reason_code,
         }
     ]
+
     project_config["config"]["features"] = ["organizations:user-feedback-ingest"]
 
     outcomes_consumer = outcomes_consumer()
@@ -1633,10 +1642,16 @@ def test_profile_outcomes_rate_limited(
     outcomes = outcomes_consumer.get_outcomes()
     outcomes.sort(key=lambda o: sorted(o.items()))
 
-    expected_categories = [6, 11]  # Profile, ProfileIndexed
+    expected_categories = [
+        DataCategory.PROFILE,
+        DataCategory.PROFILE_INDEXED,
+    ]  # Profile, ProfileIndexed
     if quota_category == "transaction":
         # Transaction got rate limited as well:
-        expected_categories += [2, 9]  # Transaction, TransactionIndexed
+        expected_categories += [
+            DataCategory.TRANSACTION,
+            DataCategory.TRANSACTION_INDEXED,
+        ]  # Transaction, TransactionIndexed
     expected_categories.sort()
 
     expected_outcomes = [
@@ -1948,10 +1963,10 @@ def test_span_outcomes_invalid(
             "timestamp": time_within_delta(),
         }
         for (category, reason) in [
-            (2, "invalid_transaction"),
-            (9, "invalid_transaction"),
-            (12, "internal"),
-            (16, "internal"),
+            (DataCategory.TRANSACTION, "invalid_transaction"),
+            (DataCategory.TRANSACTION_INDEXED, "invalid_transaction"),
+            (DataCategory.SPAN, "invalid_span"),
+            (DataCategory.SPAN_INDEXED, "invalid_span"),
         ]
     ]
 

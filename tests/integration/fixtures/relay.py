@@ -1,5 +1,6 @@
 import json
 import os
+from queue import Queue
 import sys
 import uuid
 import signal
@@ -211,11 +212,11 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
             relay.wait_relay_health_check()
 
             # Filter out health check failures, which can happen during startup
-            mini_sentry.test_failures = [
-                f
-                for f in mini_sentry.test_failures
-                if "Health check probe" not in str(f)
-            ]
+            filtered_test_failures = Queue()
+            for f in mini_sentry.current_test_failures():
+                if "Health check probe" not in str(f):
+                    filtered_test_failures.put(f)
+            mini_sentry.test_failures = filtered_test_failures
 
         return relay
 

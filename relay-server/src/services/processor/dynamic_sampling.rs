@@ -39,7 +39,7 @@ use crate::utils::{self, SamplingResult};
 ///
 /// If there is no transaction event in the envelope, this function will do nothing.
 pub fn ensure_dsc(state: &mut ProcessEnvelopeState<TransactionGroup>) {
-    if state.envelope().dsc().is_some() && state.sampling_project_state.is_some() {
+    if state.envelope().dsc().is_some() && state.sampling_project_info.is_some() {
         return;
     }
 
@@ -48,13 +48,13 @@ pub fn ensure_dsc(state: &mut ProcessEnvelopeState<TransactionGroup>) {
     let Some(event) = state.event.value() else {
         return;
     };
-    let Some(key_config) = state.project_state.get_public_key_config() else {
+    let Some(key_config) = state.project_info.get_public_key_config() else {
         return;
     };
 
     if let Some(dsc) = utils::dsc_from_event(key_config.public_key, event) {
         state.envelope_mut().set_dsc(dsc);
-        state.sampling_project_state = Some(state.project_state.clone());
+        state.sampling_project_info = Some(state.project_info.clone());
     }
 }
 
@@ -63,16 +63,16 @@ pub fn run<Group>(state: &mut ProcessEnvelopeState<Group>) -> SamplingResult
 where
     Group: Sampling,
 {
-    if !Group::supports_sampling(&state.project_state) {
+    if !Group::supports_sampling(&state.project_info) {
         return SamplingResult::Pending;
     }
 
-    let sampling_config = match state.project_state.config.sampling {
+    let sampling_config = match state.project_info.config.sampling {
         Some(ErrorBoundary::Ok(ref config)) if !config.unsupported() => Some(config),
         _ => None,
     };
 
-    let root_state = state.sampling_project_state.as_ref();
+    let root_state = state.sampling_project_info.as_ref();
     let root_config = match root_state.and_then(|s| s.config.sampling.as_ref()) {
         Some(ErrorBoundary::Ok(ref config)) if !config.unsupported() => Some(config),
         _ => None,
@@ -196,7 +196,7 @@ pub fn tag_error_with_sampling_decision<G: EventProcessing>(
         return;
     };
 
-    let root_state = state.sampling_project_state.as_ref();
+    let root_state = state.sampling_project_info.as_ref();
     let sampling_config = match root_state.and_then(|s| s.config.sampling.as_ref()) {
         Some(ErrorBoundary::Ok(ref config)) => config,
         _ => return,
@@ -252,7 +252,7 @@ mod tests {
     use crate::services::processor::{
         ProcessEnvelope, ProcessingExtractedMetrics, ProcessingGroup, SpanGroup,
     };
-    use crate::services::project::ProjectInfo;
+    use crate::services::projects::project::ProjectInfo;
     use crate::testutils::{
         self, create_test_processor, new_envelope, state_with_rule_and_condition,
     };
@@ -298,6 +298,7 @@ mod tests {
         let message = ProcessEnvelope {
             envelope: ManagedEnvelope::new(envelope, outcome_aggregator, test_store, group),
             project_info: Arc::new(ProjectInfo::default()),
+            rate_limits: Default::default(),
             sampling_project_info,
             reservoir_counters: ReservoirCounters::default(),
         };
@@ -414,14 +415,14 @@ mod tests {
                 ..Event::default()
             };
 
-            let mut project_state = state_with_rule_and_condition(
+            let mut project_info = state_with_rule_and_condition(
                 Some(0.0),
                 RuleType::Transaction,
                 RuleCondition::all(),
             );
 
             if let Some(version) = version {
-                project_state.config.transaction_metrics =
+                project_info.config.transaction_metrics =
                     ErrorBoundary::Ok(relay_dynamic_config::TransactionMetricsConfig {
                         version,
                         ..Default::default()
@@ -429,7 +430,7 @@ mod tests {
                     .into();
             }
 
-            let project_state = Arc::new(project_state);
+            let project_info = Arc::new(project_info);
             let envelope = new_envelope(false, "foo");
 
             ProcessEnvelopeState::<TransactionGroup> {
@@ -437,8 +438,9 @@ mod tests {
                 metrics: Default::default(),
                 extracted_metrics: ProcessingExtractedMetrics::new(),
                 config: config.clone(),
-                project_state,
-                sampling_project_state: None,
+                project_info,
+                rate_limits: Default::default(),
+                sampling_project_info: None,
                 project_id: ProjectId::new(42),
                 managed_envelope: ManagedEnvelope::new(
                     envelope,
@@ -708,8 +710,9 @@ mod tests {
             metrics: Default::default(),
             extracted_metrics: ProcessingExtractedMetrics::new(),
             config: Arc::new(Config::default()),
-            project_state: project_info,
-            sampling_project_state: {
+            project_info,
+            rate_limits: Default::default(),
+            sampling_project_info: {
                 let mut state = ProjectInfo::default();
                 state.config.metric_extraction =
                     ErrorBoundary::Ok(MetricExtractionConfig::default());

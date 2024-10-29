@@ -1,6 +1,6 @@
 use relay_redis::{
     redis::{self, FromRedisValue, Script},
-    Connection,
+    Connection, RedisScripts,
 };
 
 use crate::Result;
@@ -94,14 +94,14 @@ impl FromRedisValue for CardinalityScriptResult {
 }
 
 /// Abstraction over the `cardinality.lua` lua Redis script.
-pub struct CardinalityScript(Script);
+pub struct CardinalityScript(&'static Script);
 
 impl CardinalityScript {
     /// Loads the script.
     ///
     /// This is somewhat costly and shouldn't be done often.
     pub fn load() -> Self {
-        Self(Script::new(include_str!("cardinality.lua")))
+        Self(RedisScripts::load_cardinality())
     }
 
     /// Creates a new pipeline to batch multiple script invocations.

@@ -21,7 +21,7 @@ use crate::services::outcome::DiscardReason;
 use crate::services::outcome::Outcome;
 use crate::services::outcome::TrackOutcome;
 use crate::services::processor::ProcessingGroup;
-use crate::services::project_cache::{DequeuedEnvelope, ProjectCache, UpdateProject};
+use crate::services::projects::cache::{DequeuedEnvelope, ProjectCache, UpdateProject};
 
 use crate::services::test_store::TestStore;
 use crate::statsd::{RelayCounters, RelayHistograms};
@@ -220,11 +220,8 @@ impl EnvelopeBufferService {
         services: &Services,
         envelopes_tx_permit: Permit<'a, DequeuedEnvelope>,
     ) -> Result<Duration, EnvelopeBufferError> {
-        relay_log::trace!("EnvelopeBufferService: peeking the buffer");
-
         let sleep = match buffer.peek().await? {
             Peek::Empty => {
-                relay_log::trace!("EnvelopeBufferService: peek returned empty");
                 relay_statsd::metric!(
                     counter(RelayCounters::BufferTryPop) += 1,
                     peek_result = "empty"
@@ -403,11 +400,7 @@ impl Service for EnvelopeBufferService {
             let mut shutdown = Controller::shutdown_handle();
 
             relay_log::info!("EnvelopeBufferService: starting");
-            let mut iteration = 0;
             loop {
-                iteration += 1;
-                relay_log::trace!("EnvelopeBufferService: loop iteration {iteration}");
-
                 let used_capacity = self.services.envelopes_tx.max_capacity()
                     - self.services.envelopes_tx.capacity();
                 relay_statsd::metric!(
@@ -446,7 +439,6 @@ impl Service for EnvelopeBufferService {
                         }
                     }
                     Ok(()) = global_config_rx.changed() => {
-                        relay_log::trace!("EnvelopeBufferService: received global config");
                         sleep = Duration::ZERO;
                     }
                     else => break,

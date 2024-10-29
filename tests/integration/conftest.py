@@ -256,3 +256,8 @@ def pytest_runtest_call(item):
 @pytest.fixture
 def redis_client():
     return redis.Redis(host="127.0.0.1", port=6379, db=0)
+
+
+@pytest.fixture
+def secondary_redis_client():
+    return redis.Redis(host="127.0.0.1", port=6380, db=0)

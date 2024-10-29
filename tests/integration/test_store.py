@@ -7,6 +7,8 @@ import uuid
 from datetime import UTC, datetime, timedelta, timezone
 from time import sleep
 
+from sentry_relay.consts import DataCategory
+
 from .asserts import time_within_delta
 from .consts import (
     TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
@@ -193,7 +195,7 @@ def test_store_static_config(mini_sentry, relay):
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
     sleep(1)  # Regression test: Relay tried to issue a request for 0 states
-    if mini_sentry.test_failures:
+    if not mini_sentry.test_failures.empty():
         raise AssertionError(
             f"Exceptions happened in mini_sentry: {mini_sentry.format_failures()}"
         )
@@ -230,7 +232,7 @@ def test_store_with_low_memory(mini_sentry, relay):
         pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
 
         found_queue_error = False
-        for _, error in mini_sentry.test_failures:
+        for _, error in mini_sentry.current_test_failures():
             assert isinstance(error, AssertionError)
             if "failed to queue envelope" in str(error):
                 found_queue_error = True
@@ -238,7 +240,7 @@ def test_store_with_low_memory(mini_sentry, relay):
 
         assert found_queue_error
     finally:
-        mini_sentry.test_failures.clear()
+        mini_sentry.clear_test_failures()
 
 
 def test_store_max_concurrent_requests(mini_sentry, relay):
@@ -860,6 +862,7 @@ def test_processing_quota_transaction_indexing(
     relay_with_processing,
     metrics_consumer,
     transactions_consumer,
+    outcomes_consumer,
     extraction_version,
 ):
     relay = relay_with_processing(
@@ -876,6 +879,7 @@ def test_processing_quota_transaction_indexing(
 
     metrics_consumer = metrics_consumer()
     tx_consumer = transactions_consumer()
+    outcomes_consumer = outcomes_consumer()
 
     project_id = 42
     projectconfig = mini_sentry.add_full_project_config(project_id)
@@ -907,20 +911,31 @@ def test_processing_quota_transaction_indexing(
     relay.send_event(project_id, make_transaction({"message": "1st tx"}))
     event, _ = tx_consumer.get_event()
     assert event["logentry"]["formatted"] == "1st tx"
-    buckets = list(metrics_consumer.get_metrics())
-    assert len(buckets) > 0
+    assert len(list(metrics_consumer.get_metrics())) > 0
 
     relay.send_event(project_id, make_transaction({"message": "2nd tx"}))
-    tx_consumer.assert_empty()
-    buckets = list(metrics_consumer.get_metrics())
-    assert len(buckets) > 0
+    assert len(list(metrics_consumer.get_metrics())) > 0
+    outcomes_consumer.assert_rate_limited(
+        "get_lost", categories=[DataCategory.TRANSACTION_INDEXED], ignore_other=True
+    )
 
     relay.send_event(project_id, make_transaction({"message": "3rd tx"}))
-    tx_consumer.assert_empty()
+    outcomes_consumer.assert_rate_limited(
+        "get_lost",
+        categories=[DataCategory.TRANSACTION, DataCategory.TRANSACTION_INDEXED],
+        ignore_other=True,
+        timeout=3,
+    )
 
     with pytest.raises(HTTPError) as exc_info:
         relay.send_event(project_id, make_transaction({"message": "4nd tx"}))
     assert exc_info.value.response.status_code == 429, "Expected a 429 status code"
+    outcomes_consumer.assert_rate_limited(
+        "get_lost",
+        categories=[DataCategory.TRANSACTION, DataCategory.TRANSACTION_INDEXED],
+        ignore_other=True,
+        timeout=3,
+    )
 
 
 def test_events_buffered_before_auth(relay, mini_sentry):
@@ -954,7 +969,7 @@ def test_events_buffered_before_auth(relay, mini_sentry):
         assert event["logentry"] == {"formatted": "Hello, World!"}
     finally:
         # Relay reports authentication errors, which is fine.
-        mini_sentry.test_failures.clear()
+        mini_sentry.clear_test_failures()
 
 
 def test_events_are_retried(relay, mini_sentry):
@@ -1181,7 +1196,7 @@ def test_re_auth_failure(relay, mini_sentry):
     evt.clear()
     assert evt.wait(2)
     # clear authentication errors accumulated until now
-    mini_sentry.test_failures.clear()
+    mini_sentry.clear_test_failures()
     # check that we have had some auth that succeeded
     auth_count_3 = counter[0]
     assert auth_count_2 < auth_count_3
@@ -1250,7 +1265,7 @@ def test_permanent_rejection(relay, mini_sentry):
     # to be sure verify that we have only been called once (after failing)
     assert counter[1] == 1
     # clear authentication errors accumulated until now
-    mini_sentry.test_failures.clear()
+    mini_sentry.clear_test_failures()
 
 
 def test_buffer_events_during_outage(relay, mini_sentry):
@@ -1308,20 +1323,29 @@ def test_buffer_events_during_outage(relay, mini_sentry):
     assert event["logentry"] == {"formatted": "123"}
 
 
-def test_store_invalid_gzip(mini_sentry, relay_chain):
-    relay = relay_chain(min_relay_version="21.6.0")
+def test_store_content_encodings(mini_sentry, relay):
+    relay = relay(mini_sentry)
     project_id = 42
     mini_sentry.add_basic_project_config(project_id)
 
-    headers = {
-        "Content-Encoding": "gzip",
-        "X-Sentry-Auth": relay.get_auth_header(project_id),
-    }
-
     url = "/api/%s/store/" % project_id
 
+    # All of the supported content encodings should generate a 400 error.
+    # An unknown/unsupported encoding generates a 415 (not supported).
+    for content_encoding in ["gzip", "br", "zstd", "deflate"]:
+        headers = {
+            "Content-Encoding": content_encoding,
+            "X-Sentry-Auth": relay.get_auth_header(project_id),
+        }
+        response = relay.post(url, headers=headers)
+        assert response.status_code == 400, content_encoding
+
+    headers = {
+        "Content-Encoding": "this-does-not-exist",
+        "X-Sentry-Auth": relay.get_auth_header(project_id),
+    }
     response = relay.post(url, headers=headers)
-    assert response.status_code == 400
+    assert response.status_code == 415
 
 
 def test_store_project_move(mini_sentry, relay):

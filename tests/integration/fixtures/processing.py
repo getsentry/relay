@@ -7,6 +7,8 @@ import os
 import confluent_kafka as kafka
 from copy import deepcopy
 
+from sentry_relay.consts import DataCategory
+
 
 @pytest.fixture
 def get_topic_name():
@@ -30,18 +32,21 @@ def processing_config(get_topic_name):
         bootstrap_servers = os.environ.get("KAFKA_BOOTSTRAP_SERVER", "127.0.0.1:9092")
 
         options = deepcopy(options)  # avoid lateral effects
-
         if options is None:
             options = {}
+
         if options.get("processing") is None:
             options["processing"] = {}
+
         processing = options["processing"]
         processing["enabled"] = True
+
         if processing.get("kafka_config") is None:
             processing["kafka_config"] = [
                 {"name": "bootstrap.servers", "value": bootstrap_servers},
                 # {'name': 'batch.size', 'value': '0'}  # do not batch messages
             ]
+
         if processing.get("topics") is None:
             metrics_topic = get_topic_name("metrics")
             outcomes_topic = get_topic_name("outcomes")
@@ -62,12 +67,13 @@ def processing_config(get_topic_name):
                 "feedback": get_topic_name("feedback"),
             }
 
-        if not processing.get("redis"):
+        if processing.get("redis") is None:
             processing["redis"] = "redis://127.0.0.1"
 
-        processing["projectconfig_cache_prefix"] = (
-            f"relay-test-relayconfig-{uuid.uuid4()}"
-        )
+        if processing.get("projectconfig_cache_prefix") is None:
+            processing["projectconfig_cache_prefix"] = (
+                f"relay-test-relayconfig-{uuid.uuid4()}"
+            )
 
         return options
 
@@ -220,27 +226,9 @@ class ConsumerBase:
 
 
 def category_value(category):
-    if category == "default":
-        return 0
-    if category == "error":
-        return 1
-    if category == "transaction":
-        return 2
-    if category == "security":
-        return 3
-    if category == "attachment":
-        return 4
-    if category == "session":
-        return 5
-    if category == "transaction_processed":
-        return 8
-    if category == "transaction_indexed":
-        return 9
-    if category == "user_report_v2":
-        return 14
-    if category == "metric_bucket":
-        return 15
-    assert False, "invalid category"
+    if isinstance(category, DataCategory):
+        return category
+    return DataCategory.parse(category)
 
 
 class OutcomesConsumer(ConsumerBase):
@@ -257,7 +245,13 @@ class OutcomesConsumer(ConsumerBase):
         return outcomes[0]
 
     def assert_rate_limited(
-        self, reason, key_id=None, categories=None, quantity=None, timeout=1
+        self,
+        reason,
+        key_id=None,
+        categories=None,
+        quantity=None,
+        timeout=1,
+        ignore_other=False,
     ):
         if categories is None:
             outcome = self.get_outcome(timeout=timeout)
@@ -267,6 +261,8 @@ class OutcomesConsumer(ConsumerBase):
             outcomes = self.get_outcomes(timeout=timeout)
             expected = {category_value(category) for category in categories}
             actual = {outcome["category"] for outcome in outcomes}
+            if ignore_other:
+                actual = actual & set(categories)
             assert actual == expected, (actual, expected)
 
         for outcome in outcomes:

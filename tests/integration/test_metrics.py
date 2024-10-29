@@ -7,7 +7,6 @@ import json
 import signal
 import time
 import queue
-from itertools import chain
 from .consts import (
     TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
     TRANSACTION_EXTRACT_MAX_SUPPORTED_VERSION,
@@ -864,7 +863,7 @@ def test_transaction_metrics(
         assert_transaction()
         assert_transaction()
 
-    metrics = metrics_by_name(metrics_consumer, count=10, timeout=6)
+    metrics = metrics_by_name(metrics_consumer, count=11, timeout=6)
 
     timestamp = int(timestamp.timestamp())
     common = {
@@ -920,6 +919,7 @@ def test_transaction_metrics(
         "retention_days": 90,
         "tags": {
             "decision": "drop" if discard_data else "keep",
+            "target_project_id": "42",
             "transaction": "transaction_which_starts_trace",
         },
         "name": "c:transactions/count_per_root_project@none",
@@ -990,7 +990,7 @@ def test_transaction_metrics_count_per_root_project(
         "org_id": 1,
         "project_id": 41,
         "retention_days": 90,
-        "tags": {"decision": "keep", "transaction": "test"},
+        "tags": {"decision": "keep", "target_project_id": "42", "transaction": "test"},
         "name": "c:transactions/count_per_root_project@none",
         "type": "c",
         "value": 1.0,
@@ -1001,7 +1001,7 @@ def test_transaction_metrics_count_per_root_project(
         "org_id": 1,
         "project_id": 42,
         "retention_days": 90,
-        "tags": {"decision": "keep"},
+        "tags": {"decision": "keep", "target_project_id": "42"},
         "name": "c:transactions/count_per_root_project@none",
         "type": "c",
         "value": 2.0,
@@ -1183,7 +1183,7 @@ def test_transaction_metrics_not_extracted_on_unsupported_version(
     tx_consumer.assert_empty()
 
     if unsupported_version < TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION:
-        error = str(mini_sentry.test_failures.pop(0))
+        error = str(mini_sentry.test_failures.get_nowait())
         assert "Processing Relay outdated" in error
 
     metrics_consumer.assert_empty()
@@ -1207,11 +1207,11 @@ def test_no_transaction_metrics_when_filtered(mini_sentry, relay):
     relay = relay(mini_sentry, options=TEST_CONFIG)
     relay.send_transaction(project_id, tx)
 
-    # The only two envelopes received should be outcomes for Transaction and TransactionIndexed:
-    reports = [mini_sentry.get_client_report(), mini_sentry.get_client_report()]
-    filtered_events = list(
-        chain.from_iterable(report["filtered_events"] for report in reports)
-    )
+    # The only envelopes received should be outcomes for Transaction{,Indexed}:
+    reports = [mini_sentry.get_client_report() for _ in range(2)]
+    filtered_events = [
+        outcome for report in reports for outcome in report["filtered_events"]
+    ]
     filtered_events.sort(key=lambda x: x["category"])
 
     assert filtered_events == [
@@ -1219,7 +1219,7 @@ def test_no_transaction_metrics_when_filtered(mini_sentry, relay):
         {"reason": "release-version", "category": "transaction_indexed", "quantity": 1},
     ]
 
-    assert mini_sentry.captured_events.qsize() == 0
+    assert mini_sentry.captured_events.empty()
 
 
 def test_transaction_name_too_long(
@@ -1461,11 +1461,12 @@ def test_span_metrics(
         for metric, headers in metrics
         if metric["name"].startswith("spans", 2)
     ]
-    assert len(span_metrics) == 7
+    assert len(span_metrics) == 8
     for metric, headers in span_metrics:
         assert headers == [("namespace", b"spans")]
         if metric["name"] in (
             "c:spans/usage@none",
+            "c:spans/count_per_root_project@none",
             "d:spans/duration@millisecond",
             "d:spans/duration_light@millisecond",
         ):
@@ -1546,7 +1547,7 @@ def test_mongodb_span_metrics_not_extracted_without_feature(
         for metric, headers in metrics
         if metric["name"].startswith("spans", 2)
     ]
-    assert len(span_metrics) == 7
+    assert len(span_metrics) == 8
 
     for metric, headers in span_metrics:
         assert headers == [("namespace", b"spans")]
@@ -1630,12 +1631,13 @@ def test_mongodb_span_metrics_extracted_with_feature(
         for metric, headers in metrics
         if metric["name"].startswith("spans", 2)
     ]
-    assert len(span_metrics) == 7
+    assert len(span_metrics) == 8
 
     for metric, headers in span_metrics:
         assert headers == [("namespace", b"spans")]
         if metric["name"] in (
             "c:spans/usage@none",
+            "c:spans/count_per_root_project@none",
             "d:spans/duration@millisecond",
             "d:spans/duration_light@millisecond",
         ):

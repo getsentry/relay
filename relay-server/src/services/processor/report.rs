@@ -132,7 +132,7 @@ pub fn process_client_reports(
     }
 
     let retention_days = state
-        .project_state
+        .project_info
         .config()
         .event_retention
         .unwrap_or(DEFAULT_EVENT_RETENTION);
@@ -274,7 +274,7 @@ mod tests {
     use crate::extractors::RequestMeta;
     use crate::services::outcome::RuleCategory;
     use crate::services::processor::{ProcessEnvelope, ProcessingGroup};
-    use crate::services::project::ProjectInfo;
+    use crate::services::projects::project::ProjectInfo;
     use crate::testutils::{self, create_test_processor};
     use crate::utils::ManagedEnvelope;
 
@@ -325,6 +325,7 @@ mod tests {
         let message = ProcessEnvelope {
             envelope,
             project_info: Arc::new(ProjectInfo::default()),
+            rate_limits: Default::default(),
             sampling_project_info: None,
             reservoir_counters: ReservoirCounters::default(),
         };
@@ -379,6 +380,7 @@ mod tests {
         let message = ProcessEnvelope {
             envelope,
             project_info: Arc::new(ProjectInfo::default()),
+            rate_limits: Default::default(),
             sampling_project_info: None,
             reservoir_counters: ReservoirCounters::default(),
         };
@@ -441,6 +443,7 @@ mod tests {
         let message = ProcessEnvelope {
             envelope,
             project_info: Arc::new(ProjectInfo::default()),
+            rate_limits: Default::default(),
             sampling_project_info: None,
             reservoir_counters: ReservoirCounters::default(),
         };
@@ -481,6 +484,7 @@ mod tests {
         let message = ProcessEnvelope {
             envelope,
             project_info: Arc::new(ProjectInfo::default()),
+            rate_limits: Default::default(),
             sampling_project_info: None,
             reservoir_counters: ReservoirCounters::default(),
         };
@@ -529,6 +533,7 @@ mod tests {
         let message = ProcessEnvelope {
             envelope,
             project_info: Arc::new(ProjectInfo::default()),
+            rate_limits: Default::default(),
             sampling_project_info: None,
             reservoir_counters: ReservoirCounters::default(),
         };

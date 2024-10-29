@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fmt::Display;
 
+use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
 use relay_metrics::{
     Bucket, BucketMetadata, BucketValue, DistributionType, DurationUnit, MetricNamespace,
@@ -193,6 +194,7 @@ impl From<TransactionMeasurementTags> for BTreeMap<String, String> {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TransactionCPRTags {
     pub decision: String,
+    pub target_project_id: ProjectId,
     pub universal_tags: CommonTags,
 }
 
@@ -200,6 +202,10 @@ impl From<TransactionCPRTags> for BTreeMap<String, String> {
     fn from(value: TransactionCPRTags) -> Self {
         let mut map: BTreeMap<String, String> = value.universal_tags.into();
         map.insert("decision".to_string(), value.decision);
+        map.insert(
+            "target_project_id".to_string(),
+            value.target_project_id.to_string(),
+        );
         map
     }
 }

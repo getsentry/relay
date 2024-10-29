@@ -16,7 +16,7 @@ use url::Url;
 use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
 use crate::services::outcome::DiscardReason;
-use crate::services::project::PublicKeyConfig;
+use crate::services::projects::project::PublicKeyConfig;
 
 /// Information about an enabled project.
 ///
@@ -189,7 +189,7 @@ impl ProjectInfo {
     /// scoping.
     ///
     /// To get the own scoping of this ProjectKey without amending request information, use
-    /// [`Project::scoping`](crate::services::project::Project::scoping) instead.
+    /// [`Project::scoping`](crate::services::projects::project::Project::scoping) instead.
     pub fn scope_request(&self, meta: &RequestMeta) -> Scoping {
         let mut scoping = meta.get_partial_scoping();
 
@@ -239,7 +239,7 @@ impl ProjectInfo {
 
     /// Validates data in this project state and removes values that are partially invalid.
     pub fn sanitized(mut self) -> Self {
-        self.config.sanitized();
+        self.config.sanitize();
         self
     }
 

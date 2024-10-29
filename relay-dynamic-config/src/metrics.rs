@@ -8,8 +8,8 @@ use std::str::FromStr;
 use relay_base_schema::data_category::DataCategory;
 use relay_cardinality::CardinalityLimit;
 use relay_common::glob2::LazyGlob;
-use relay_common::glob3::GlobPatterns;
 use relay_common::impl_str_serde;
+use relay_pattern::{Patterns, TypedPatterns};
 use relay_protocol::RuleCondition;
 use serde::{Deserialize, Serialize};
 
@@ -23,8 +23,8 @@ pub struct Metrics {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub cardinality_limits: Vec<CardinalityLimit>,
     /// List of patterns for blocking metrics based on their name.
-    #[serde(skip_serializing_if = "GlobPatterns::is_empty")]
-    pub denied_names: GlobPatterns,
+    #[serde(skip_serializing_if = "Patterns::is_empty")]
+    pub denied_names: TypedPatterns,
     /// Configuration for removing tags from a bucket.
     ///
     /// Note that removing tags does not drop the overall metric bucket.
@@ -43,11 +43,14 @@ impl Metrics {
 
 /// Configuration for removing tags matching the `tag` pattern on metrics whose name matches the `name` pattern.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
 pub struct TagBlock {
     /// Name of metric of which we want to remove certain tags.
-    pub name: GlobPatterns,
+    #[serde(skip_serializing_if = "Patterns::is_empty")]
+    pub name: TypedPatterns,
     /// Pattern to match keys of tags that we want to remove.
-    pub tags: GlobPatterns,
+    #[serde(skip_serializing_if = "Patterns::is_empty")]
+    pub tags: TypedPatterns,
 }
 
 /// Rule defining when a target tag should be set on a metric.

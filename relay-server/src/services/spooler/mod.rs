@@ -13,7 +13,7 @@
 //! be happening.
 //!
 //! The initial state is always [`InMemory`], and if the Relay can properly fetch all the
-//! [`crate::services::project::ProjectState`] it continues to use the memory as temporary spool.
+//! [`crate::services::projects::project::ProjectState`] it continues to use the memory as temporary spool.
 //!
 //! Keeping the envelopes in memory as long as we can, we ensure the fast unspool operations and
 //! fast processing times.
@@ -55,7 +55,7 @@ use crate::envelope::{Envelope, EnvelopeError};
 use crate::extractors::StartTime;
 use crate::services::outcome::TrackOutcome;
 use crate::services::processor::ProcessingGroup;
-use crate::services::project_cache::{ProjectCache, RefreshIndexCache, UpdateSpoolIndex};
+use crate::services::projects::cache::{ProjectCache, RefreshIndexCache, UpdateSpoolIndex};
 use crate::services::test_store::TestStore;
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::{ManagedEnvelope, MemoryChecker};
@@ -1322,7 +1322,6 @@ impl Drop for BufferService {
 mod tests {
     use insta::assert_debug_snapshot;
     use rand::Rng;
-    use relay_system::AsyncResponse;
     use relay_test::mock_service;
     use sqlx::ConnectOptions;
     use std::str::FromStr;
@@ -1330,7 +1329,6 @@ mod tests {
     use std::time::{Duration, Instant};
     use uuid::Uuid;
 
-    use crate::services::project_cache::SpoolHealth;
     use crate::testutils::empty_envelope;
     use crate::utils::MemoryStat;
 
@@ -1564,107 +1562,6 @@ mod tests {
         "###);
     }
 
-    pub enum TestHealth {
-        SpoolHealth(Sender<bool>),
-    }
-
-    impl Interface for TestHealth {}
-
-    impl FromMessage<SpoolHealth> for TestHealth {
-        type Response = AsyncResponse<bool>;
-
-        fn from_message(_message: SpoolHealth, sender: Sender<bool>) -> Self {
-            Self::SpoolHealth(sender)
-        }
-    }
-
-    pub struct TestHealthService {
-        buffer: Addr<Buffer>,
-    }
-
-    impl TestHealthService {
-        fn new(buffer: Addr<Buffer>) -> Self {
-            Self { buffer }
-        }
-    }
-
-    impl Service for TestHealthService {
-        type Interface = TestHealth;
-
-        fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
-            tokio::spawn(async move {
-                loop {
-                    tokio::select! {
-                        Some(TestHealth::SpoolHealth(sender)) = rx.recv() => self.buffer.send(Health(sender)),
-                        else => break,
-                    }
-                }
-            });
-        }
-    }
-
-    #[tokio::test]
-    async fn health_check_fails() {
-        relay_log::init_test!();
-
-        let config: Arc<_> = Config::from_json_value(serde_json::json!({
-            "spool": {
-                "envelopes": {
-                    "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
-                    "max_memory_size": 0, // 0 bytes, to force to spool to disk all the envelopes.
-                    "max_disk_size": 0,
-                },
-                "health": {
-                    "max_memory_percent": 0.0
-                }
-            }
-        }))
-        .unwrap()
-        .into();
-        let memory_checker = MemoryChecker::new(MemoryStat::default(), config.clone());
-
-        let buffer = BufferService::create(memory_checker, services(), config)
-            .await
-            .unwrap();
-
-        let addr = buffer.start();
-
-        let health_service = TestHealthService::new(addr.clone()).start();
-        let healthy = health_service.send(SpoolHealth).await.unwrap();
-        assert!(!healthy);
-    }
-
-    #[tokio::test]
-    async fn health_check_succeeds() {
-        relay_log::init_test!();
-
-        let config: Arc<_> = Config::from_json_value(serde_json::json!({
-            "spool": {
-                "envelopes": {
-                    "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
-                    "max_memory_size": 0, // 0 bytes, to force to spool to disk all the envelopes.
-                    "max_disk_size": "100KB",
-                },
-                "health": {
-                    "max_memory_percent": 1.0
-                }
-            }
-        }))
-        .unwrap()
-        .into();
-        let memory_checker = MemoryChecker::new(MemoryStat::default(), config.clone());
-
-        let buffer = BufferService::create(memory_checker, services(), config)
-            .await
-            .unwrap();
-
-        let addr = buffer.start();
-
-        let health_service = TestHealthService::new(addr.clone()).start();
-        let healthy = health_service.send(SpoolHealth).await.unwrap();
-        assert!(healthy);
-    }
-
     #[tokio::test]
     async fn index_restore() {
         relay_log::init_test!();
@@ -1801,6 +1698,7 @@ mod tests {
 
     #[ignore] // Slow. Should probably be a criterion benchmark.
     #[tokio::test]
+    #[allow(clippy::print_stdout, reason = "benchmark test")]
     async fn compare_counts() {
         let path = std::env::temp_dir().join(Uuid::new_v4().to_string());
         let options = SqliteConnectOptions::new()

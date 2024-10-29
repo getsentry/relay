@@ -3,17 +3,6 @@ use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::{Context, Result};
-use axum::extract::FromRequestParts;
-use axum::http::request::Parts;
-use rayon::ThreadPool;
-use relay_cogs::Cogs;
-use relay_config::{Config, RedisConnection, RedisPoolConfigs};
-use relay_redis::{RedisConfigOptions, RedisError, RedisPool, RedisPools};
-use relay_system::{channel, Addr, Service};
-use tokio::runtime::Runtime;
-use tokio::sync::mpsc;
-
 use crate::metrics::{MetricOutcomes, MetricStats};
 use crate::services::buffer::{self, EnvelopeBufferService, ObservableEnvelopeBuffer};
 use crate::services::cogs::{CogsService, CogsServiceRecorder};
@@ -23,7 +12,7 @@ use crate::services::metrics::{Aggregator, RouterService};
 use crate::services::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
 use crate::services::outcome_aggregator::OutcomeAggregator;
 use crate::services::processor::{self, EnvelopeProcessor, EnvelopeProcessorService};
-use crate::services::project_cache::{ProjectCache, ProjectCacheService, Services};
+use crate::services::projects::cache::{ProjectCache, ProjectCacheService, Services};
 use crate::services::relays::{RelayCache, RelayCacheService};
 use crate::services::stats::RelayStats;
 #[cfg(feature = "processing")]
@@ -31,6 +20,20 @@ use crate::services::store::StoreService;
 use crate::services::test_store::{TestStore, TestStoreService};
 use crate::services::upstream::{UpstreamRelay, UpstreamRelayService};
 use crate::utils::{MemoryChecker, MemoryStat};
+use anyhow::{Context, Result};
+use axum::extract::FromRequestParts;
+use axum::http::request::Parts;
+use rayon::ThreadPool;
+use relay_cogs::Cogs;
+use relay_config::{Config, RedisConfigRef, RedisPoolConfigs};
+#[cfg(feature = "processing")]
+use relay_redis::redis::Script;
+#[cfg(feature = "processing")]
+use relay_redis::{PooledClient, RedisScripts};
+use relay_redis::{RedisError, RedisPool, RedisPools};
+use relay_system::{channel, Addr, Service};
+use tokio::runtime::Runtime;
+use tokio::sync::mpsc;
 
 /// Indicates the type of failure of the server.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, thiserror::Error)]
@@ -163,6 +166,15 @@ impl ServiceState {
             .transpose()
             .context(ServiceError::Redis)?;
 
+        // If we have Redis configured, we want to initialize all the scripts by loading them in
+        // the scripts cache if not present. Our custom ConnectionLike implementation relies on this
+        // initialization to work properly since it assumes that scripts are loaded across all Redis
+        // instances.
+        #[cfg(feature = "processing")]
+        if let Some(redis_pools) = &redis_pools {
+            initialize_redis_scripts_for_pools(redis_pools).context(ServiceError::Redis)?;
+        }
+
         // We create an instance of `MemoryStat` which can be supplied composed with any arbitrary
         // configuration object down the line.
         let memory_stat = MemoryStat::new(config.memory_stat_refresh_frequency_ms());
@@ -284,7 +296,7 @@ impl ServiceState {
             MemoryChecker::new(memory_stat.clone(), config.clone()),
             aggregator_handle,
             upstream_relay.clone(),
-            project_cache.clone(),
+            envelope_buffer.clone(),
         )
         .start();
 
@@ -386,14 +398,22 @@ impl ServiceState {
     }
 }
 
-fn create_redis_pool(
-    (connection, options): (&RedisConnection, RedisConfigOptions),
-) -> Result<RedisPool, RedisError> {
-    match connection {
-        RedisConnection::Cluster(servers) => {
-            RedisPool::cluster(servers.iter().map(|s| s.as_str()), options)
+fn create_redis_pool(redis_config: RedisConfigRef) -> Result<RedisPool, RedisError> {
+    match redis_config {
+        RedisConfigRef::Cluster {
+            cluster_nodes,
+            options,
+        } => RedisPool::cluster(cluster_nodes.iter().map(|s| s.as_str()), options),
+        RedisConfigRef::MultiWrite { configs } => {
+            let mut configs = configs.into_iter();
+            let primary = create_redis_pool(configs.next().ok_or(RedisError::Configuration)?)?;
+            let secondaries = configs
+                .map(|s| create_redis_pool(s).map_err(|_| RedisError::Configuration))
+                .collect::<Result<Vec<_>, _>>()?;
+
+            RedisPool::multi_write(primary, secondaries)
         }
-        RedisConnection::Single(server) => RedisPool::single(server, options),
+        RedisConfigRef::Single { server, options } => RedisPool::single(server, options),
     }
 }
 
@@ -433,6 +453,42 @@ pub fn create_redis_pools(configs: RedisPoolConfigs) -> Result<RedisPools, Redis
             })
         }
     }
+}
+
+#[cfg(feature = "processing")]
+fn initialize_redis_scripts_for_pools(redis_pools: &RedisPools) -> Result<(), RedisError> {
+    let project_configs = redis_pools.project_configs.client()?;
+    let cardinality = redis_pools.cardinality.client()?;
+    let quotas = redis_pools.quotas.client()?;
+    let misc = redis_pools.misc.client()?;
+
+    let scripts = RedisScripts::all();
+
+    let pools = [project_configs, cardinality, quotas, misc];
+    for pool in pools {
+        initialize_redis_scripts(pool, &scripts)?;
+    }
+
+    Ok(())
+}
+
+#[cfg(feature = "processing")]
+fn initialize_redis_scripts(
+    mut pooled_client: PooledClient,
+    scripts: &[&Script; 3],
+) -> Result<(), RedisError> {
+    let mut connection = pooled_client.connection()?;
+
+    for script in scripts {
+        // We load on all instances without checking if the script is already in cache because of a
+        // limitation in the connection implementation.
+        script
+            .prepare_invoke()
+            .load(&mut connection)
+            .map_err(RedisError::Redis)?;
+    }
+
+    Ok(())
 }
 
 #[axum::async_trait]

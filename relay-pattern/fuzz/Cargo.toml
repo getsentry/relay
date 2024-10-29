@@ -1,0 +1,26 @@
+[package]
+name = "relay-pattern-fuzz"
+version = "24.10.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+relay-pattern = { path = ".." }
+
+[[bin]]
+name = "is_match_case_sensitive"
+path = "fuzz_targets/is_match_case_sensitive.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "is_match_case_insensitive"
+path = "fuzz_targets/is_match_case_insensitive.rs"
+test = false
+doc = false
+bench = false

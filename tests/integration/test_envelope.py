@@ -465,12 +465,12 @@ def test_buffer_envelopes_without_global_config(
 
         include_global = True
         # Clear errors because we log error when we request global config yet we dont receive it.
-        assert len(mini_sentry.test_failures) > 0
-        assert {str(e) for _, e in mini_sentry.test_failures} == {
+        assert not mini_sentry.test_failures.empty()
+        assert {str(e) for _, e in mini_sentry.current_test_failures()} == {
             "Relay sent us event: global config missing in upstream response"
         }
     finally:
-        mini_sentry.test_failures.clear()
+        mini_sentry.clear_test_failures()
 
     envelopes = []
     # Check that we received exactly {envelope_qty} envelopes.

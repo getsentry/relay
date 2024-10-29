@@ -14,6 +14,7 @@ use relay_config::Config;
 use tokio::time::{timeout, Instant};
 
 use crate::envelope::Envelope;
+use crate::envelope::Item;
 use crate::services::buffer::common::ProjectKeyPair;
 use crate::services::buffer::envelope_stack::sqlite::SqliteEnvelopeStackError;
 use crate::services::buffer::envelope_stack::EnvelopeStack;
@@ -78,6 +79,11 @@ impl PolymorphicEnvelopeBuffer {
 
     /// Adds an envelope to the buffer.
     pub async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), EnvelopeBufferError> {
+        relay_statsd::metric!(
+            histogram(RelayHistograms::BufferEnvelopeBodySize) =
+                envelope.items().map(Item::len).sum::<usize>() as u64
+        );
+
         relay_statsd::metric!(timer(RelayTimers::BufferPush), {
             match self {
                 Self::Sqlite(buffer) => buffer.push(envelope).await,
@@ -202,6 +208,9 @@ struct EnvelopeBuffer<P: StackProvider> {
     /// This boolean is just used for tagging the metric that tracks the total count of envelopes
     /// in the buffer.
     total_count_initialized: bool,
+
+    /// Temporary field used to track compression gains.
+    push_count: usize,
 }
 
 impl EnvelopeBuffer<MemoryStackProvider> {
@@ -213,6 +222,7 @@ impl EnvelopeBuffer<MemoryStackProvider> {
             stack_provider: MemoryStackProvider::new(memory_checker),
             total_count: Arc::new(AtomicI64::new(0)),
             total_count_initialized: false,
+            push_count: 0,
         }
     }
 }
@@ -227,6 +237,7 @@ impl EnvelopeBuffer<SqliteStackProvider> {
             stack_provider: SqliteStackProvider::new(config).await?,
             total_count: Arc::new(AtomicI64::new(0)),
             total_count_initialized: false,
+            push_count: 0,
         })
     }
 }
@@ -252,6 +263,33 @@ where
     /// The priority of the stack is updated with the envelope's received_at time.
     pub async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), EnvelopeBufferError> {
         let received_at = envelope.meta().start_time().into();
+
+        // Temporary metric to verify compression gains
+        self.push_count += 1;
+        if 0 == (self.push_count % 100) {
+            if let Ok(serialized) = envelope.to_vec() {
+                let compression_level = (self.push_count % 3) as i32 + 1; // 1 = lowest, 3 = default
+                tokio::spawn(async move {
+                    relay_statsd::metric!(
+                        histogram(RelayHistograms::BufferEnvelopeSize) = serialized.len() as u64
+                    );
+
+                    let tag = compression_level.to_string();
+                    if let Ok(encoded) = relay_statsd::metric!(
+                        timer(RelayTimers::BufferEnvelopeCompression),
+                        compression_level = &tag,
+                        { zstd::encode_all(serialized.as_slice(), compression_level) }
+                    ) {
+                        relay_statsd::metric!(
+                            histogram(RelayHistograms::BufferEnvelopeSizeCompressed) =
+                                encoded.len() as u64,
+                            compression_level = &tag
+                        );
+                    }
+                });
+            }
+        }
+
         let project_key_pair = ProjectKeyPair::from_envelope(&envelope);
         if let Some((
             QueueItem {
@@ -277,7 +315,6 @@ where
                 prio.received_at = received_at;
             });
 
-        self.total_count.fetch_add(1, AtomicOrdering::SeqCst);
         self.track_total_count();
 
         Ok(())

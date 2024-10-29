@@ -20,7 +20,7 @@ use crate::service::create_redis_pools;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::TrackOutcome;
 use crate::services::processor::{self, EnvelopeProcessorService};
-use crate::services::project::ProjectInfo;
+use crate::services::projects::project::ProjectInfo;
 use crate::services::test_store::TestStore;
 use crate::utils::{ThreadPool, ThreadPoolBuilder};
 

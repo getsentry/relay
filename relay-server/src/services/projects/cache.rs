@@ -9,29 +9,23 @@ use crate::services::global_config;
 use crate::services::processor::{
     EncodeMetrics, EnvelopeProcessor, MetricData, ProcessEnvelope, ProcessingGroup, ProjectMetrics,
 };
-use crate::services::project::state::UpstreamProjectState;
 use crate::Envelope;
 use chrono::{DateTime, Utc};
 use hashbrown::HashSet;
 use relay_base_schema::project::ProjectKey;
-use relay_config::{Config, RelayMode};
+use relay_config::Config;
 use relay_metrics::{Bucket, MetricMeta};
 use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, Sender, Service};
-#[cfg(feature = "processing")]
-use tokio::sync::Semaphore;
 use tokio::sync::{mpsc, watch};
 use tokio::time::Instant;
 
 use crate::services::metrics::{Aggregator, FlushBuckets};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
-use crate::services::project::{Project, ProjectFetchState, ProjectSender, ProjectState};
-use crate::services::project_local::{LocalProjectSource, LocalProjectSourceService};
-#[cfg(feature = "processing")]
-use crate::services::project_redis::RedisProjectSource;
-use crate::services::project_upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
+use crate::services::projects::project::{Project, ProjectFetchState, ProjectSender, ProjectState};
+use crate::services::projects::source::ProjectSource;
 use crate::services::spooler::{
     self, Buffer, BufferService, DequeueMany, Enqueue, QueueKey, RemoveMany, RestoreIndex,
     UnspooledEnvelope, BATCH_KEY_COUNT,
@@ -243,10 +237,6 @@ impl UpdateSpoolIndex {
     }
 }
 
-/// Checks the status of underlying buffer spool.
-#[derive(Debug)]
-pub struct SpoolHealth;
-
 /// The current envelopes index fetched from the underlying buffer spool.
 ///
 /// This index will be received only once shortly after startup and will trigger refresh for the
@@ -294,7 +284,6 @@ pub enum ProjectCache {
     AddMetricMeta(AddMetricMeta),
     FlushBuckets(FlushBuckets),
     UpdateSpoolIndex(UpdateSpoolIndex),
-    SpoolHealth(Sender<bool>),
     RefreshIndexCache(RefreshIndexCache),
     UpdateProject(ProjectKey),
 }
@@ -312,7 +301,6 @@ impl ProjectCache {
             Self::AddMetricMeta(_) => "AddMetricMeta",
             Self::FlushBuckets(_) => "FlushBuckets",
             Self::UpdateSpoolIndex(_) => "UpdateSpoolIndex",
-            Self::SpoolHealth(_) => "SpoolHealth",
             Self::RefreshIndexCache(_) => "RefreshIndexCache",
             Self::UpdateProject(_) => "UpdateProject",
         }
@@ -412,147 +400,12 @@ impl FromMessage<FlushBuckets> for ProjectCache {
     }
 }
 
-impl FromMessage<SpoolHealth> for ProjectCache {
-    type Response = relay_system::AsyncResponse<bool>;
-
-    fn from_message(_message: SpoolHealth, sender: Sender<bool>) -> Self {
-        Self::SpoolHealth(sender)
-    }
-}
-
 impl FromMessage<UpdateProject> for ProjectCache {
     type Response = relay_system::NoResponse;
 
     fn from_message(message: UpdateProject, _: ()) -> Self {
         let UpdateProject(project_key) = message;
         Self::UpdateProject(project_key)
-    }
-}
-
-/// Helper type that contains all configured sources for project cache fetching.
-///
-/// See [`RequestUpdate`] for a description on how project states are fetched.
-#[derive(Clone, Debug)]
-struct ProjectSource {
-    config: Arc<Config>,
-    local_source: Addr<LocalProjectSource>,
-    upstream_source: Addr<UpstreamProjectSource>,
-    #[cfg(feature = "processing")]
-    redis_source: Option<RedisProjectSource>,
-    #[cfg(feature = "processing")]
-    redis_semaphore: Arc<Semaphore>,
-}
-
-impl ProjectSource {
-    /// Starts all project source services in the current runtime.
-    pub fn start(
-        config: Arc<Config>,
-        upstream_relay: Addr<UpstreamRelay>,
-        _redis: Option<RedisPool>,
-    ) -> Self {
-        let local_source = LocalProjectSourceService::new(config.clone()).start();
-        let upstream_source =
-            UpstreamProjectSourceService::new(config.clone(), upstream_relay).start();
-
-        #[cfg(feature = "processing")]
-        let redis_maxconns = config.redis().map(|configs| {
-            let opts = match configs {
-                relay_config::RedisPoolConfigs::Unified((_, opts)) => opts,
-                relay_config::RedisPoolConfigs::Individual {
-                    project_configs: (_, opts),
-                    ..
-                } => opts,
-            };
-            opts.max_connections
-        });
-        #[cfg(feature = "processing")]
-        let redis_source = _redis.map(|pool| RedisProjectSource::new(config.clone(), pool));
-
-        Self {
-            config,
-            local_source,
-            upstream_source,
-            #[cfg(feature = "processing")]
-            redis_source,
-            #[cfg(feature = "processing")]
-            redis_semaphore: Arc::new(Semaphore::new(
-                redis_maxconns.unwrap_or(10).try_into().unwrap(),
-            )),
-        }
-    }
-
-    async fn fetch(
-        self,
-        project_key: ProjectKey,
-        no_cache: bool,
-        cached_state: ProjectFetchState,
-    ) -> Result<ProjectFetchState, ()> {
-        let state_opt = self
-            .local_source
-            .send(FetchOptionalProjectState { project_key })
-            .await
-            .map_err(|_| ())?;
-
-        if let Some(state) = state_opt {
-            return Ok(ProjectFetchState::new(state));
-        }
-
-        match self.config.relay_mode() {
-            RelayMode::Proxy => return Ok(ProjectFetchState::allowed()),
-            RelayMode::Static => return Ok(ProjectFetchState::disabled()),
-            RelayMode::Capture => return Ok(ProjectFetchState::allowed()),
-            RelayMode::Managed => (), // Proceed with loading the config from redis or upstream
-        }
-
-        let current_revision = cached_state.revision().map(String::from);
-        #[cfg(feature = "processing")]
-        if let Some(redis_source) = self.redis_source {
-            let current_revision = current_revision.clone();
-
-            let redis_permit = self.redis_semaphore.acquire().await.map_err(|_| ())?;
-            let state_fetch_result = tokio::task::spawn_blocking(move || {
-                redis_source.get_config_if_changed(project_key, current_revision.as_deref())
-            })
-            .await
-            .map_err(|_| ())?;
-            drop(redis_permit);
-
-            match state_fetch_result {
-                // New state fetched from Redis, possibly pending.
-                Ok(UpstreamProjectState::New(state)) => {
-                    let state = state.sanitized();
-                    if !state.is_pending() {
-                        return Ok(ProjectFetchState::new(state));
-                    }
-                }
-                // Redis reported that we're holding an up-to-date version of the state already,
-                // refresh the state and return the old cached state again.
-                Ok(UpstreamProjectState::NotModified) => {
-                    return Ok(ProjectFetchState::refresh(cached_state))
-                }
-                Err(error) => {
-                    relay_log::error!(
-                        error = &error as &dyn Error,
-                        "failed to fetch project from Redis",
-                    );
-                }
-            };
-        };
-
-        let state = self
-            .upstream_source
-            .send(FetchProjectState {
-                project_key,
-                current_revision,
-                no_cache,
-            })
-            .await
-            .map_err(|_| ())?;
-
-        match state {
-            UpstreamProjectState::New(state) => Ok(ProjectFetchState::new(state.sanitized())),
-            UpstreamProjectState::NotModified => Ok(ProjectFetchState::refresh(cached_state)),
-        }
     }
 }
 
@@ -664,7 +517,7 @@ impl ProjectCacheBroker {
     /// Ideally, we would use `check_expiry` to determine expiry here.
     /// However, for eviction, we want to add an additional delay, such that we do not delete
     /// a project that has expired recently and for which a fetch is already underway in
-    /// [`super::project_upstream`].
+    /// [`super::source::upstream`].
     fn evict_stale_project_caches(&mut self) {
         let eviction_start = Instant::now();
         let delta = 2 * self.config.project_cache_expiry() + self.config.project_grace_period();
@@ -770,7 +623,16 @@ impl ProjectCacheBroker {
             let state = source
                 .fetch(project_key, no_cache, cached_state)
                 .await
-                .unwrap_or_else(|()| ProjectFetchState::disabled());
+                .unwrap_or_else(|e| {
+                    relay_log::error!(
+                        error = &e as &dyn Error,
+                        tags.project_key = %project_key,
+                        "Failed to fetch project from source"
+                    );
+                    // TODO: change this to ProjectFetchState::pending() once we consider it safe to do so.
+                    // see https://github.com/getsentry/relay/pull/4140.
+                    ProjectFetchState::disabled()
+                });
 
             let message = UpdateProjectState {
                 project_key,
@@ -867,6 +729,8 @@ impl ProjectCacheBroker {
             ..
         }) = project.check_envelope(managed_envelope)
         {
+            let rate_limits = project.current_rate_limits().clone();
+
             let reservoir_counters = project.reservoir_counters();
 
             let sampling_project_info = managed_envelope
@@ -879,6 +743,7 @@ impl ProjectCacheBroker {
             let process = ProcessEnvelope {
                 envelope: managed_envelope,
                 project_info,
+                rate_limits,
                 sampling_project_info,
                 reservoir_counters,
             };
@@ -1057,13 +922,6 @@ impl ProjectCacheBroker {
         spool_v1.index.extend(message.0);
     }
 
-    fn handle_spool_health(&self, sender: Sender<bool>) {
-        match &self.spool_v1 {
-            Some(spool_v1) => spool_v1.buffer.send(spooler::Health(sender)),
-            None => sender.send(true), // TODO
-        }
-    }
-
     fn handle_refresh_index_cache(&mut self, message: RefreshIndexCache) {
         let RefreshIndexCache(index) = message;
         let project_cache = self.services.project_cache.clone();
@@ -1158,6 +1016,7 @@ impl ProjectCacheBroker {
             services.envelope_processor.send(ProcessEnvelope {
                 envelope: managed_envelope,
                 project_info: project_info.clone(),
+                rate_limits: project.current_rate_limits().clone(),
                 sampling_project_info: sampling_project_info.clone(),
                 reservoir_counters,
             });
@@ -1294,7 +1153,6 @@ impl ProjectCacheBroker {
                     ProjectCache::AddMetricMeta(message) => self.handle_add_metric_meta(message),
                     ProjectCache::FlushBuckets(message) => self.handle_flush_buckets(message),
                     ProjectCache::UpdateSpoolIndex(message) => self.handle_buffer_index(message),
-                    ProjectCache::SpoolHealth(sender) => self.handle_spool_health(sender),
                     ProjectCache::RefreshIndexCache(message) => {
                         self.handle_refresh_index_cache(message)
                     }
@@ -1483,14 +1341,14 @@ impl Service for ProjectCacheService {
                             broker.handle_periodic_unspool()
                         })
                     }
-                    Some(message) = envelopes_rx.recv() => {
-                        metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "handle_envelope", {
-                            broker.handle_envelope(message)
-                        })
-                    }
                     Some(message) = rx.recv() => {
                         metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "handle_message", {
                             broker.handle_message(message)
+                        })
+                    }
+                    Some(message) = envelopes_rx.recv() => {
+                        metric!(timer(RelayTimers::ProjectCacheTaskDuration), task = "handle_envelope", {
+                            broker.handle_envelope(message)
                         })
                     }
                     else => break,
@@ -1499,36 +1357,6 @@ impl Service for ProjectCacheService {
 
             relay_log::info!("project cache stopped");
         });
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct FetchProjectState {
-    /// The public key to fetch the project by.
-    pub project_key: ProjectKey,
-
-    /// Currently cached revision if available.
-    ///
-    /// The upstream is allowed to omit full project configs
-    /// for requests for which the requester already has the most
-    /// recent revision.
-    ///
-    /// Settings this to `None` will essentially always re-fetch
-    /// the project config.
-    pub current_revision: Option<String>,
-
-    /// If true, all caches should be skipped and a fresh state should be computed.
-    pub no_cache: bool,
-}
-
-#[derive(Clone, Debug)]
-pub struct FetchOptionalProjectState {
-    project_key: ProjectKey,
-}
-
-impl FetchOptionalProjectState {
-    pub fn project_key(&self) -> ProjectKey {
-        self.project_key
     }
 }
 
