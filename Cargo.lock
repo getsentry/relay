@@ -3746,6 +3746,7 @@ dependencies = [
  "futures",
  "hashbrown",
  "http",
+ "http-body",
  "hyper-util",
  "insta",
  "itertools 0.13.0",

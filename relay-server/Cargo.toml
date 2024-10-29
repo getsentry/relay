@@ -126,6 +126,7 @@ url = { workspace = true, features = ["serde"] }
 uuid = { workspace = true, features = ["v5"] }
 zstd = { workspace = true }
 semver = { workspace = true }
+http-body = "1.0.1"
 
 [dev-dependencies]
 criterion = { workspace = true }

@@ -63,6 +63,7 @@ fn make_app(service: ServiceState) -> App {
     //  - Requests go from top to bottom
     //  - Responses go from bottom to top
     let middleware = ServiceBuilder::new()
+        .layer(axum::middleware::from_fn(middlewares::body_timing))
         .layer(axum::middleware::from_fn(middlewares::metrics))
         .layer(CatchPanicLayer::custom(middlewares::handle_panic))
         .layer(SetResponseHeaderLayer::overriding(
