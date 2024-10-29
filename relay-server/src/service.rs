@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::metrics::{MetricOutcomes, MetricStats};
-use crate::services::buffer::{self, EnvelopeBufferService, ObservableEnvelopeBuffer};
+use crate::services::buffer::{self, EnvelopeBufferPublicState, EnvelopeBufferService};
 use crate::services::cogs::{CogsService, CogsServiceRecorder};
 use crate::services::global_config::{GlobalConfigManager, GlobalConfigService};
 use crate::services::health_check::{HealthCheck, HealthCheckService};
@@ -64,7 +64,7 @@ pub struct Registry {
     pub global_config: Addr<GlobalConfigManager>,
     pub project_cache: Addr<ProjectCache>,
     pub upstream_relay: Addr<UpstreamRelay>,
-    pub envelope_buffer: Option<ObservableEnvelopeBuffer>,
+    pub envelope_buffer: Option<EnvelopeBufferPublicState>,
 }
 
 impl fmt::Debug for Registry {
@@ -270,7 +270,9 @@ impl ServiceState {
 
         // Keep all the services in one context.
         let project_cache_services = Services {
-            envelope_buffer: envelope_buffer.as_ref().map(ObservableEnvelopeBuffer::addr),
+            envelope_buffer: envelope_buffer
+                .as_ref()
+                .map(EnvelopeBufferPublicState::addr),
             aggregator: aggregator.clone(),
             envelope_processor: processor.clone(),
             outcome_aggregator: outcome_aggregator.clone(),
@@ -348,7 +350,7 @@ impl ServiceState {
     }
 
     /// Returns the V2 envelope buffer, if present.
-    pub fn envelope_buffer(&self) -> Option<&ObservableEnvelopeBuffer> {
+    pub fn envelope_buffer(&self) -> Option<&EnvelopeBufferPublicState> {
         self.inner.registry.envelope_buffer.as_ref()
     }
 

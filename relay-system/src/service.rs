@@ -7,13 +7,13 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 
+use crate::statsd::{SystemCounters, SystemGauges};
+use crate::{Controller, ShutdownHandle};
 use futures::future::Shared;
 use futures::FutureExt;
 use tokio::runtime::Runtime;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::MissedTickBehavior;
-
-use crate::statsd::{SystemCounters, SystemGauges};
 
 /// Interval for recording backlog metrics on service channels.
 const BACKLOG_INTERVAL: Duration = Duration::from_secs(1);
@@ -899,6 +899,10 @@ pub fn channel<I: Interface>(name: &'static str) -> (Addr<I>, Receiver<I>) {
     (addr, receiver)
 }
 
+pub trait State {}
+
+impl State for () {}
+
 /// An asynchronous unit responding to messages.
 ///
 /// Services receive messages conforming to some [`Interface`] through an [`Addr`] and handle them
@@ -1002,21 +1006,32 @@ pub trait Service: Sized {
     /// can be handled by this service.
     type Interface: Interface;
 
+    /// TBD
+    type PublicState: State;
+
+    /// TBD
+    fn pre_spawn(&self) -> Self::PublicState;
+
     /// Spawns a task to handle service messages.
     ///
     /// Receives an inbound channel for all messages sent through the service's [`Addr`]. Note
     /// that this function is synchronous, so that this needs to spawn a task internally.
-    fn spawn_handler(self, rx: Receiver<Self::Interface>);
+    fn spawn_handler(self, rx: Receiver<Self::Interface>, shutdown: ShutdownHandle);
 
     /// Starts the service in the current runtime and returns an address for it.
-    fn start(self) -> Addr<Self::Interface> {
+    fn start(self) -> (Self::PublicState, Addr<Self::Interface>) {
         let (addr, rx) = channel(Self::name());
-        self.spawn_handler(rx);
-        addr
+        let shutdown = Controller::shutdown_handle();
+
+        let public_state = self.pre_spawn();
+
+        self.spawn_handler(rx, shutdown);
+
+        (public_state, addr)
     }
 
     /// Starts the service in the given runtime and returns an address for it.
-    fn start_in(self, runtime: &Runtime) -> Addr<Self::Interface> {
+    fn start_in(self, runtime: &Runtime) -> (Self::PublicState, Addr<Self::Interface>) {
         let _guard = runtime.enter();
         self.start()
     }

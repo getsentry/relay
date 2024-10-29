@@ -6,7 +6,7 @@ use std::future::Future;
 use tokio::sync::watch;
 use tokio::time::{timeout, Instant};
 
-use crate::services::buffer::ObservableEnvelopeBuffer;
+use crate::services::buffer::EnvelopeBufferPublicState;
 use crate::services::metrics::RouterHandle;
 use crate::services::upstream::{IsAuthenticated, UpstreamRelay};
 use crate::statsd::RelayTimers;
@@ -86,7 +86,7 @@ pub struct HealthCheckService {
     memory_checker: MemoryChecker,
     aggregator: RouterHandle,
     upstream_relay: Addr<UpstreamRelay>,
-    envelope_buffer: Option<ObservableEnvelopeBuffer>, // make non-optional once V1 has been removed
+    envelope_buffer: Option<EnvelopeBufferPublicState>, // make non-optional once V1 has been removed
 }
 
 impl HealthCheckService {
@@ -98,7 +98,7 @@ impl HealthCheckService {
         memory_checker: MemoryChecker,
         aggregator: RouterHandle,
         upstream_relay: Addr<UpstreamRelay>,
-        envelope_buffer: Option<ObservableEnvelopeBuffer>,
+        envelope_buffer: Option<EnvelopeBufferPublicState>,
     ) -> Self {
         Self {
             config,

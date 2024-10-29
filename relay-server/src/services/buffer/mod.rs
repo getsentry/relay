@@ -8,7 +8,9 @@ use std::time::Duration;
 
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
-use relay_system::{Addr, FromMessage, Interface, NoResponse, Receiver, Service};
+use relay_system::{
+    Addr, FromMessage, Interface, NoResponse, Receiver, Service, ShutdownHandle, State,
+};
 use relay_system::{Controller, Shutdown};
 use tokio::sync::mpsc::Permit;
 use tokio::sync::{mpsc, watch};
@@ -77,22 +79,18 @@ impl FromMessage<Self> for EnvelopeBuffer {
 // NOTE: This pattern of combining an Addr with some observable state could be generalized into
 // `Service` itself.
 #[derive(Debug, Clone)]
-pub struct ObservableEnvelopeBuffer {
-    addr: Addr<EnvelopeBuffer>,
+pub struct EnvelopeBufferPublicState {
     has_capacity: Arc<AtomicBool>,
 }
 
-impl ObservableEnvelopeBuffer {
-    /// Returns the address of the buffer service.
-    pub fn addr(&self) -> Addr<EnvelopeBuffer> {
-        self.addr.clone()
-    }
-
+impl EnvelopeBufferPublicState {
     /// Returns `true` if the buffer has the capacity to accept more elements.
     pub fn has_capacity(&self) -> bool {
         self.has_capacity.load(Ordering::Relaxed)
     }
 }
+
+impl State for EnvelopeBufferPublicState {}
 
 /// Services that the buffer service communicates with.
 #[derive(Clone)]
@@ -141,15 +139,6 @@ impl EnvelopeBufferService {
             has_capacity: Arc::new(AtomicBool::new(true)),
             sleep: Duration::ZERO,
         })
-    }
-
-    /// Returns both the [`Addr`] to this service, and a reference to the capacity flag.
-    pub fn start_observable(self) -> ObservableEnvelopeBuffer {
-        let has_capacity = self.has_capacity.clone();
-        ObservableEnvelopeBuffer {
-            addr: self.start(),
-            has_capacity,
-        }
     }
 
     /// Wait for the configured amount of time and make sure the project cache is ready to receive.
@@ -373,7 +362,15 @@ impl EnvelopeBufferService {
 impl Service for EnvelopeBufferService {
     type Interface = EnvelopeBuffer;
 
-    fn spawn_handler(mut self, mut rx: Receiver<Self::Interface>) {
+    type PublicState = EnvelopeBufferPublicState;
+
+    fn pre_spawn(&self) -> Self::PublicState {
+        EnvelopeBufferPublicState {
+            has_capacity: self.has_capacity.clone(),
+        }
+    }
+
+    fn spawn_handler(mut self, mut rx: Receiver<Self::Interface>, mut shutdown: ShutdownHandle) {
         let config = self.config.clone();
         let memory_checker = MemoryChecker::new(self.memory_stat.clone(), config.clone());
         let mut global_config_rx = self.global_config_rx.clone();
@@ -396,8 +393,6 @@ impl Service for EnvelopeBufferService {
                 }
             };
             buffer.initialize().await;
-
-            let mut shutdown = Controller::shutdown_handle();
 
             relay_log::info!("EnvelopeBufferService: starting");
             loop {
@@ -543,15 +538,15 @@ mod tests {
 
         service.has_capacity.store(false, Ordering::Relaxed);
 
-        let ObservableEnvelopeBuffer { addr, has_capacity } = service.start_observable();
-        assert!(!has_capacity.load(Ordering::Relaxed));
+        let (state, addr) = service.start();
+        assert!(!state.has_capacity.load(Ordering::Relaxed));
 
         let some_project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         addr.send(EnvelopeBuffer::Ready(some_project_key));
 
         tokio::time::advance(Duration::from_millis(100)).await;
 
-        assert!(has_capacity.load(Ordering::Relaxed));
+        assert!(state.has_capacity.load(Ordering::Relaxed));
     }
 
     #[tokio::test]
@@ -566,7 +561,7 @@ mod tests {
             outcome_aggregator_rx: _outcome_aggregator_rx,
         } = envelope_buffer_service(None, global_config::Status::Pending);
 
-        let addr = service.start();
+        let (_, addr) = service.start();
 
         let envelope = new_envelope(false, "foo");
         let project_key = envelope.meta().public_key();
@@ -613,7 +608,7 @@ mod tests {
             global_config::Status::Ready(Arc::new(GlobalConfig::default())),
         );
 
-        let addr = service.start();
+        let (_, addr) = service.start();
 
         let envelope = new_envelope(false, "foo");
         let project_key = envelope.meta().public_key();
@@ -649,7 +644,7 @@ mod tests {
         );
 
         let config = service.config.clone();
-        let addr = service.start();
+        let (_, addr) = service.start();
 
         let mut envelope = new_envelope(false, "foo");
         envelope
@@ -682,7 +677,7 @@ mod tests {
             global_config::Status::Ready(Arc::new(GlobalConfig::default())),
         );
 
-        let addr = service.start();
+        let (_, addr) = service.start();
 
         let envelope = new_envelope(false, "foo");
         let project_key = envelope.meta().public_key();
@@ -730,7 +725,7 @@ mod tests {
             global_config::Status::Ready(Arc::new(GlobalConfig::default())),
         );
 
-        let addr = service.start();
+        let (_, addr) = service.start();
 
         let envelope = new_envelope(false, "foo");
         let project_key = envelope.meta().public_key();
