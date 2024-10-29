@@ -52,7 +52,6 @@ use tokio::fs::DirBuilder;
 use tokio::sync::mpsc;
 
 use crate::envelope::{Envelope, EnvelopeError};
-use crate::extractors::ReceivedAt;
 use crate::services::outcome::TrackOutcome;
 use crate::services::processor::ProcessingGroup;
 use crate::services::projects::cache::{ProjectCache, RefreshIndexCache, UpdateSpoolIndex};

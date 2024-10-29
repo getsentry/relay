@@ -13,12 +13,6 @@ impl ReceivedAt {
     pub fn now() -> Self {
         Self(Utc::now())
     }
-
-    /// Returns the `Instant` of this start time.
-    #[inline]
-    pub fn into_inner(self) -> DateTime<Utc> {
-        self.0
-    }
 }
 
 #[axum::async_trait]

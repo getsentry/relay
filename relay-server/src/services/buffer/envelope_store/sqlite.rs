@@ -20,7 +20,6 @@ use tokio::fs::DirBuilder;
 use tokio::time::sleep;
 
 use crate::envelope::EnvelopeError;
-use crate::extractors::ReceivedAt;
 use crate::services::buffer::common::ProjectKeyPair;
 use crate::statsd::RelayGauges;
 use crate::Envelope;
