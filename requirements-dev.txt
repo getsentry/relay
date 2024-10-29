@@ -6,7 +6,7 @@
 black==24.3.0
 blinker==1.8.2
 click==8.1.7
-devservices==0.0.3
+devservices==0.0.4
 flake8==7.0.0
 confluent-kafka==2.1.1
 flask==3.0.3
