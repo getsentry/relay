@@ -26,9 +26,12 @@ services:
     image: us-central1-docker.pkg.dev/sentryio/relay/relay:nightly
     ports:
       - 7899:7899
-    command: ["run", "--config", "/etc/relay"],
+    command: ["run", "--config", "/etc/relay"]
     volumes:
       - ./config/relay.yml:/etc/relay/config.yml
+      - ./config/devservices-credentials.json:/etc/relay/credentials.json
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - sentry
 
