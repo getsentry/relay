@@ -1,5 +1,5 @@
 //! Profile chunks processor code.
-use relay_dynamic_config::{Feature, GlobalConfig};
+use relay_dynamic_config::Feature;
 
 use crate::envelope::ItemType;
 use crate::services::processor::ProcessEnvelopeState;
@@ -11,6 +11,7 @@ use {
     crate::services::outcome::{DiscardReason, Outcome},
     crate::services::processor::ProfileChunkGroup,
     relay_config::Config,
+    relay_dynamic_config::GlobalConfig,
 };
 
 /// Removes profile chunks from the envelope if the feature is not enabled.

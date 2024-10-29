@@ -159,6 +159,9 @@ fn expand_profile(
                 )))
             }
         }
+        Err(relay_profiling::ProfileError::Filtered(filter_stat_key)) => {
+            Err(Outcome::Filtered(filter_stat_key))
+        }
         Err(err) => Err(Outcome::Invalid(DiscardReason::Profiling(
             relay_profiling::discard_reason(err),
         ))),
