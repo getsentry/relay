@@ -374,7 +374,7 @@ impl SqliteEnvelopeStore {
         //
         // Unfortunately we have to do this because SQLite `DELETE` with `RETURNING` doesn't
         // return deleted rows in a specific order.
-        extracted_envelopes.sort_by_key(|a| a.meta().received_at());
+        extracted_envelopes.sort_by_key(|a| a.received_at());
 
         Ok(extracted_envelopes)
     }
