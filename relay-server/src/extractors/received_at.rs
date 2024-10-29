@@ -7,7 +7,7 @@ use chrono::{DateTime, Utc};
 
 /// The time at which the request started.
 #[derive(Clone, Copy, Debug)]
-pub struct ReceivedAt(DateTime<Utc>);
+pub struct ReceivedAt(pub DateTime<Utc>);
 
 impl ReceivedAt {
     pub fn now() -> Self {
@@ -18,13 +18,6 @@ impl ReceivedAt {
     #[inline]
     pub fn into_inner(self) -> DateTime<Utc> {
         self.0
-    }
-
-    /// Returns the [`ReceivedAt`] corresponding to provided timestamp.
-    pub fn from_timestamp_millis(timestamp: i64) -> Self {
-        let datetime = DateTime::<Utc>::from_timestamp_millis(timestamp).unwrap_or_else(Utc::now);
-
-        Self(datetime)
     }
 }
 
@@ -41,25 +34,5 @@ where
             .expect("ReceivedAt middleware is not configured");
 
         Ok(start_time)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::time::Duration;
-
-    #[test]
-    fn start_time_from_timestamp() {
-        let elapsed = Duration::from_secs(10);
-        let now = Utc::now();
-        let past = now - chrono::Duration::from_std(elapsed).unwrap();
-        let start_time = ReceivedAt::from_timestamp_millis(past.timestamp_millis()).into_inner();
-
-        // Check that the difference between the now and generated start_time is about 10s
-        let diff = now - start_time;
-        let diff_duration = diff.to_std().unwrap();
-        assert!(diff_duration < elapsed + Duration::from_millis(50));
-        assert!(diff_duration > elapsed - Duration::from_millis(50));
     }
 }

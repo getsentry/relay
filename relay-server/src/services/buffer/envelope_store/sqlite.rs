@@ -1,10 +1,4 @@
-use std::error::Error;
-use std::path::Path;
-use std::pin::pin;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
-use std::time::Duration;
-
+use chrono::{DateTime, Utc};
 use futures::stream::StreamExt;
 use hashbrown::HashSet;
 use relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
@@ -16,6 +10,12 @@ use sqlx::sqlite::{
     SqliteRow, SqliteSynchronous,
 };
 use sqlx::{Pool, QueryBuilder, Row, Sqlite};
+use std::error::Error;
+use std::path::Path;
+use std::pin::pin;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+use std::time::Duration;
 use tokio::fs::DirBuilder;
 use tokio::time::sleep;
 
@@ -428,8 +428,8 @@ fn extract_envelope(row: SqliteRow) -> Result<Box<Envelope>, SqliteEnvelopeStore
         .try_get("received_at")
         .map_err(SqliteEnvelopeStoreError::FetchError)?;
 
-    let received_at = ReceivedAt::from_timestamp_millis(received_at);
-    envelope.set_received_at(received_at.into_inner());
+    let received_at = DateTime::from_timestamp_millis(received_at).unwrap_or(Utc::now());
+    envelope.set_received_at(received_at);
 
     Ok(envelope)
 }

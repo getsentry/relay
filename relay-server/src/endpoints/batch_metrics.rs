@@ -12,7 +12,7 @@ struct SendMetricsResponse {}
 
 pub async fn handle(
     state: ServiceState,
-    received_at: ReceivedAt,
+    ReceivedAt(received_at): ReceivedAt,
     body: SignedBytes,
 ) -> impl IntoResponse {
     if !body.relay.internal {
@@ -22,7 +22,7 @@ pub async fn handle(
     state.processor().send(ProcessBatchedMetrics {
         payload: body.body,
         source: BucketSource::Internal,
-        received_at: received_at.into_inner(),
+        received_at,
         sent_at: None,
     });
 

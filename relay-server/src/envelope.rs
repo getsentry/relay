@@ -1226,7 +1226,7 @@ impl Envelope {
     /// Returns the time elapsed in seconds since the envelope was received by this Relay.
     ///
     /// In case the elapsed time is negative, it is assumed that no time elapsed.
-    pub fn elapsed(&self) -> Duration {
+    pub fn age(&self) -> Duration {
         (Utc::now() - self.received_at())
             .to_std()
             .unwrap_or(Duration::ZERO)

@@ -487,6 +487,8 @@ impl FromRequestParts<ServiceState> for PartialMeta {
                 .map_or(false, |ri| ri.internal);
         }
 
+        let ReceivedAt(received_at) = ReceivedAt::from_request_parts(parts, state).await?;
+
         Ok(RequestMeta {
             dsn: None,
             version: default_version(),
@@ -502,9 +504,7 @@ impl FromRequestParts<ServiceState> for PartialMeta {
                 .into_inner(),
             user_agent: ua.user_agent,
             no_cache: false,
-            received_at: ReceivedAt::from_request_parts(parts, state)
-                .await?
-                .into_inner(),
+            received_at,
             client_hints: ua.client_hints,
             from_internal_relay,
         })

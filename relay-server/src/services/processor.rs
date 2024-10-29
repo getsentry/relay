@@ -2102,7 +2102,7 @@ impl EnvelopeProcessorService {
 
     fn handle_process_envelope(&self, message: ProcessEnvelope) {
         let project_key = message.envelope.envelope().meta().public_key();
-        let wait_time = message.envelope.elapsed();
+        let wait_time = message.envelope.age();
         metric!(timer(RelayTimers::EnvelopeWaitTime) = wait_time);
 
         let group = message.envelope.group().variant();

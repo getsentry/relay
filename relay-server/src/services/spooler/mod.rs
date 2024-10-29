@@ -29,12 +29,7 @@
 //!
 //! Current on-disk spool implementation uses SQLite as a storage.
 
-use std::collections::{BTreeMap, BTreeSet};
-use std::error::Error;
-use std::path::Path;
-use std::pin::pin;
-use std::sync::Arc;
-
+use chrono::{DateTime, Utc};
 use futures::stream::{self, StreamExt};
 use hashbrown::HashSet;
 use relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
@@ -48,6 +43,11 @@ use sqlx::sqlite::{
     SqliteSynchronous,
 };
 use sqlx::{Pool, Row, Sqlite};
+use std::collections::{BTreeMap, BTreeSet};
+use std::error::Error;
+use std::path::Path;
+use std::pin::pin;
+use std::sync::Arc;
 use tokio::fs::DirBuilder;
 use tokio::sync::mpsc;
 
@@ -494,7 +494,7 @@ impl OnDisk {
         let received_at: i64 = row
             .try_get("received_at")
             .map_err(BufferError::FetchFailed)?;
-        let received_at = ReceivedAt::from_timestamp_millis(received_at);
+        let received_at = DateTime::from_timestamp_millis(received_at).unwrap_or(Utc::now());
         let own_key: &str = row.try_get("own_key").map_err(BufferError::FetchFailed)?;
         let sampling_key: &str = row
             .try_get("sampling_key")
@@ -505,7 +505,7 @@ impl OnDisk {
                 .map_err(BufferError::ParseProjectKeyFailed)?,
         };
 
-        envelope.set_received_at(received_at.into_inner());
+        envelope.set_received_at(received_at);
 
         let envelopes: Result<Vec<_>, BufferError> = ProcessingGroup::split_envelope(*envelope)
             .into_iter()

@@ -291,7 +291,7 @@ impl EnvelopeBufferService {
     }
 
     fn expired(config: &Config, envelope: &Envelope) -> bool {
-        envelope.elapsed() > config.spool_envelopes_max_age()
+        envelope.age() > config.spool_envelopes_max_age()
     }
 
     fn drop_expired(envelope: Box<Envelope>, services: &Services) {

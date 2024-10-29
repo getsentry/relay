@@ -502,14 +502,14 @@ impl ManagedEnvelope {
     /// Returns the time elapsed in seconds since the envelope was received by this Relay.
     ///
     /// In case the elapsed time is negative, it is assumed that no time elapsed.
-    pub fn elapsed(&self) -> Duration {
-        self.envelope.elapsed()
+    pub fn age(&self) -> Duration {
+        self.envelope.age()
     }
 
     /// Resets inner state to ensure there's no more logging.
     fn finish(&mut self, counter: RelayCounters, handling: Handling) {
         relay_statsd::metric!(counter(counter) += 1, handling = handling.as_str());
-        relay_statsd::metric!(timer(RelayTimers::EnvelopeTotalTime) = self.elapsed());
+        relay_statsd::metric!(timer(RelayTimers::EnvelopeTotalTime) = self.age());
 
         self.context.done = true;
     }
