@@ -45,7 +45,7 @@ use smallvec::{smallvec, SmallVec};
 #[cfg(feature = "processing")]
 use {
     crate::services::store::{Store, StoreEnvelope},
-    crate::utils::{sample, CheckLimits, Enforcement, EnvelopeLimiter, ItemAction},
+    crate::utils::{CheckLimits, Enforcement, EnvelopeLimiter, ItemAction},
     itertools::Itertools,
     relay_cardinality::{
         CardinalityLimit, CardinalityLimiter, CardinalityLimitsSplit, RedisSetLimiter,
@@ -607,29 +607,37 @@ impl ProcessingExtractedMetrics {
     }
 
     /// Extends the contained project metrics.
-    pub fn extend_project_metrics(
+    pub fn extend_project_metrics<I>(
         &mut self,
-        mut buckets: Vec<Bucket>,
+        buckets: I,
         sampling_decision: Option<SamplingDecision>,
-    ) {
-        for bucket in &mut buckets {
-            bucket.metadata.extracted_from_indexed =
-                sampling_decision == Some(SamplingDecision::Keep);
-        }
-        self.metrics.project_metrics.extend(buckets);
+    ) where
+        I: IntoIterator<Item = Bucket>,
+    {
+        self.metrics
+            .project_metrics
+            .extend(buckets.into_iter().map(|mut bucket| {
+                bucket.metadata.extracted_from_indexed =
+                    sampling_decision == Some(SamplingDecision::Keep);
+                bucket
+            }));
     }
 
     /// Extends the contained sampling metrics.
-    pub fn extend_sampling_metrics(
+    pub fn extend_sampling_metrics<I>(
         &mut self,
-        mut buckets: Vec<Bucket>,
+        buckets: I,
         sampling_decision: Option<SamplingDecision>,
-    ) {
-        for bucket in &mut buckets {
-            bucket.metadata.extracted_from_indexed =
-                sampling_decision == Some(SamplingDecision::Keep);
-        }
-        self.metrics.sampling_metrics.extend(buckets);
+    ) where
+        I: IntoIterator<Item = Bucket>,
+    {
+        self.metrics
+            .sampling_metrics
+            .extend(buckets.into_iter().map(|mut bucket| {
+                bucket.metadata.extracted_from_indexed =
+                    sampling_decision == Some(SamplingDecision::Keep);
+                bucket
+            }));
     }
 
     /// Applies rate limits to the contained metrics.
@@ -1397,21 +1405,27 @@ impl EnvelopeProcessorService {
             return Ok(());
         }
 
+        // If spans were already extracted for an event, we rely on span processing to extract metrics.
+        let extract_spans = !state.spans_extracted
+            && state.project_info.config.features.produces_spans()
+            && utils::sample(global.options.span_extraction_sample_rate.unwrap_or(1.0));
+
         let metrics = crate::metrics_extraction::event::extract_metrics(
             event,
-            state.spans_extracted,
             combined_config,
+            sampling_decision,
+            state.project_id,
             self.inner
                 .config
                 .aggregator_config_for(MetricNamespace::Spans)
                 .aggregator
                 .max_tag_value_length,
-            global.options.span_extraction_sample_rate,
+            extract_spans,
         );
 
         state
             .extracted_metrics
-            .extend_project_metrics(metrics, Some(sampling_decision));
+            .extend(metrics, Some(sampling_decision));
 
         if !state.project_info.has_feature(Feature::DiscardTransaction) {
             let transaction_from_dsc = state
@@ -1425,6 +1439,7 @@ impl EnvelopeProcessorService {
                 generic_config: Some(combined_config),
                 transaction_from_dsc,
                 sampling_decision,
+                target_project_id: state.project_id,
                 has_profile: profile_id.is_some(),
             };
 
@@ -2486,7 +2501,7 @@ impl EnvelopeProcessorService {
         };
 
         let error_sample_rate = global_config.options.cardinality_limiter_error_sample_rate;
-        if !limits.exceeded_limits().is_empty() && sample(error_sample_rate) {
+        if !limits.exceeded_limits().is_empty() && utils::sample(error_sample_rate) {
             for limit in limits.exceeded_limits() {
                 relay_log::error!(
                     tags.organization_id = scoping.organization_id,

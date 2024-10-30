@@ -270,6 +270,9 @@ def test_unparsable_project_config(mini_sentry, relay):
     relay.send_event(project_key)
     assert mini_sentry.captured_events.empty()
 
+    # Wait a bit before fixing the project config to make sure Relay had time to fetch the broken one.
+    time.sleep(1)
+
     # Fix the config.
     config = mini_sentry.project_configs[project_key]
     config["slug"] = "some-slug"
