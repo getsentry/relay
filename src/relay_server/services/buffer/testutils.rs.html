@@ -87,17 +87,15 @@
 <a href="#87" id="87">87</a>
 <a href="#88" id="88">88</a>
 <a href="#89" id="89">89</a>
-<a href="#90" id="90">90</a>
 </pre></div><pre class="rust"><code><span class="attr">#[cfg(test)]
 </span><span class="kw">pub mod </span>utils {
-    <span class="kw">use </span>std::collections::BTreeMap;
-    <span class="kw">use </span>std::time::{Duration, Instant};
-
+    <span class="kw">use </span>chrono::{DateTime, Utc};
     <span class="kw">use </span>relay_base_schema::project::ProjectKey;
     <span class="kw">use </span>relay_event_schema::protocol::EventId;
     <span class="kw">use </span>relay_sampling::DynamicSamplingContext;
     <span class="kw">use </span>sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
     <span class="kw">use </span>sqlx::{Pool, Sqlite};
+    <span class="kw">use </span>std::collections::BTreeMap;
     <span class="kw">use </span>tokio::fs::DirBuilder;
     <span class="kw">use </span>uuid::Uuid;
 
@@ -145,7 +143,7 @@
         RequestMeta::new(dsn)
     }
 
-    <span class="kw">pub fn </span>mock_envelope(instant: Instant) -&gt; Box&lt;Envelope&gt; {
+    <span class="kw">pub fn </span>mock_envelope(received_at: DateTime&lt;Utc&gt;) -&gt; Box&lt;Envelope&gt; {
         <span class="kw">let </span>event_id = EventId::new();
         <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(event_id), request_meta());
 
@@ -163,7 +161,7 @@
         };
 
         envelope.set_dsc(dsc);
-        envelope.set_start_time(instant);
+        envelope.set_received_at(received_at);
 
         envelope.add_item(Item::new(ItemType::Transaction));
 
@@ -172,9 +170,9 @@
 
     <span class="attr">#[allow(clippy::vec_box)]
     </span><span class="kw">pub fn </span>mock_envelopes(count: usize) -&gt; Vec&lt;Box&lt;Envelope&gt;&gt; {
-        <span class="kw">let </span>instant = Instant::now();
+        <span class="kw">let </span>now = Utc::now();
         (<span class="number">0</span>..count)
-            .map(|i| mock_envelope(instant - Duration::from_secs((count - i) <span class="kw">as </span>u64)))
+            .map(|i| mock_envelope(now - chrono::Duration::seconds((count - i) <span class="kw">as </span>i64)))
             .collect()
     }
 }

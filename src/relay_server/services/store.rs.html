@@ -1593,6 +1593,19 @@
 <a href="#1593" id="1593">1593</a>
 <a href="#1594" id="1594">1594</a>
 <a href="#1595" id="1595">1595</a>
+<a href="#1596" id="1596">1596</a>
+<a href="#1597" id="1597">1597</a>
+<a href="#1598" id="1598">1598</a>
+<a href="#1599" id="1599">1599</a>
+<a href="#1600" id="1600">1600</a>
+<a href="#1601" id="1601">1601</a>
+<a href="#1602" id="1602">1602</a>
+<a href="#1603" id="1603">1603</a>
+<a href="#1604" id="1604">1604</a>
+<a href="#1605" id="1605">1605</a>
+<a href="#1606" id="1606">1606</a>
+<a href="#1607" id="1607">1607</a>
+<a href="#1608" id="1608">1608</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses Kafka topics to forward data to Sentry
 
@@ -1601,12 +1614,12 @@
 <span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
-<span class="kw">use </span>std::time::Instant;
 
 <span class="kw">use </span>bytes::Bytes;
+<span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>relay_base_schema::data_category::DataCategory;
 <span class="kw">use </span>relay_base_schema::project::ProjectId;
-<span class="kw">use </span>relay_common::time::{instant_to_date_time, UnixTimestamp};
+<span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_event_schema::protocol::{EventId, VALID_PLATFORMS};
 
@@ -1767,7 +1780,7 @@
         <span class="kw">let </span>scoping = managed.scoping();
         <span class="kw">let </span>envelope = managed.take_envelope();
 
-        <span class="kw">match </span><span class="self">self</span>.store_envelope(envelope, managed.start_time(), scoping) {
+        <span class="kw">match </span><span class="self">self</span>.store_envelope(envelope, managed.received_at(), scoping) {
             <span class="prelude-val">Ok</span>(()) =&gt; managed.accept(),
             <span class="prelude-val">Err</span>(error) =&gt; {
                 managed.reject(Outcome::Invalid(DiscardReason::Internal));
@@ -1783,7 +1796,7 @@
     <span class="kw">fn </span>store_envelope(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="kw-2">mut </span>envelope: Box&lt;Envelope&gt;,
-        start_time: Instant,
+        received_at: DateTime&lt;Utc&gt;,
         scoping: Scoping,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), StoreError&gt; {
         <span class="kw">let </span>retention = envelope.retention();
@@ -1829,7 +1842,7 @@
                     <span class="self">self</span>.produce_user_report(
                         event_id.ok_or(StoreError::NoEventId)<span class="question-mark">?</span>,
                         scoping.project_id,
-                        start_time,
+                        received_at,
                         item,
                     )<span class="question-mark">?</span>;
                 }
@@ -1838,7 +1851,7 @@
                     <span class="self">self</span>.produce_user_report_v2(
                         event_id.ok_or(StoreError::NoEventId)<span class="question-mark">?</span>,
                         scoping.project_id,
-                        start_time,
+                        received_at,
                         item,
                         remote_addr,
                     )<span class="question-mark">?</span>;
@@ -1847,7 +1860,7 @@
                     scoping.organization_id,
                     scoping.project_id,
                     scoping.key_id,
-                    start_time,
+                    received_at,
                     retention,
                     item,
                 )<span class="question-mark">?</span>,
@@ -1856,7 +1869,7 @@
                         event_id,
                         scoping,
                         item.payload(),
-                        start_time,
+                        received_at,
                         retention,
                     )<span class="question-mark">?</span>;
                 }
@@ -1871,22 +1884,22 @@
                     <span class="self">self</span>.produce_replay_event(
                         event_id.ok_or(StoreError::NoEventId)<span class="question-mark">?</span>,
                         scoping.project_id,
-                        start_time,
+                        received_at,
                         retention,
                         <span class="kw-2">&amp;</span>item.payload(),
                     )<span class="question-mark">?</span>;
                 }
                 ItemType::CheckIn =&gt; {
                     <span class="kw">let </span>client = envelope.meta().client();
-                    <span class="self">self</span>.produce_check_in(scoping.project_id, start_time, client, retention, item)<span class="question-mark">?
+                    <span class="self">self</span>.produce_check_in(scoping.project_id, received_at, client, retention, item)<span class="question-mark">?
                 </span>}
                 ItemType::Span =&gt; {
-                    <span class="self">self</span>.produce_span(scoping, start_time, event_id, retention, item)<span class="question-mark">?
+                    <span class="self">self</span>.produce_span(scoping, received_at, event_id, retention, item)<span class="question-mark">?
                 </span>}
                 ItemType::ProfileChunk =&gt; <span class="self">self</span>.produce_profile_chunk(
                     scoping.organization_id,
                     scoping.project_id,
-                    start_time,
+                    received_at,
                     retention,
                     item,
                 )<span class="question-mark">?</span>,
@@ -1942,7 +1955,7 @@
                 <span class="kw-2">&amp;</span>recording.payload(),
                 replay_event.as_deref(),
                 <span class="prelude-val">None</span>,
-                start_time,
+                received_at,
                 retention,
             )<span class="question-mark">?</span>;
         }
@@ -1956,7 +1969,7 @@
                 topic,
                 KafkaMessage::Event(EventKafkaMessage {
                     payload: event_item.payload(),
-                    start_time: UnixTimestamp::from_instant(start_time).as_secs(),
+                    start_time: safe_timestamp(received_at),
                     event_id,
                     project_id,
                     remote_addr,
@@ -2210,14 +2223,14 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         event_id: EventId,
         project_id: ProjectId,
-        start_time: Instant,
+        received_at: DateTime&lt;Utc&gt;,
         item: <span class="kw-2">&amp;</span>Item,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), StoreError&gt; {
         <span class="kw">let </span>message = KafkaMessage::UserReport(UserReportKafkaMessage {
             project_id,
             event_id,
+            start_time: safe_timestamp(received_at),
             payload: item.payload(),
-            start_time: UnixTimestamp::from_instant(start_time).as_secs(),
         });
 
         <span class="self">self</span>.produce(KafkaTopic::Attachments, message)
@@ -2227,7 +2240,7 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         event_id: EventId,
         project_id: ProjectId,
-        start_time: Instant,
+        received_at: DateTime&lt;Utc&gt;,
         item: <span class="kw-2">&amp;</span>Item,
         remote_addr: <span class="prelude-ty">Option</span>&lt;String&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), StoreError&gt; {
@@ -2235,7 +2248,7 @@
             project_id,
             event_id,
             payload: item.payload(),
-            start_time: UnixTimestamp::from_instant(start_time).as_secs(),
+            start_time: safe_timestamp(received_at),
             remote_addr,
             attachments: <span class="macro">vec!</span>[],
         });
@@ -2280,7 +2293,7 @@
         organization_id: u64,
         project_id: ProjectId,
         key_id: <span class="prelude-ty">Option</span>&lt;u64&gt;,
-        start_time: Instant,
+        received_at: DateTime&lt;Utc&gt;,
         retention_days: u16,
         item: <span class="kw-2">&amp;</span>Item,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), StoreError&gt; {
@@ -2288,7 +2301,7 @@
             organization_id,
             project_id,
             key_id,
-            received: UnixTimestamp::from_instant(start_time).as_secs(),
+            received: safe_timestamp(received_at),
             retention_days,
             headers: BTreeMap::from([(
                 <span class="string">"sampled"</span>.to_string(),
@@ -2304,7 +2317,7 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         replay_id: EventId,
         project_id: ProjectId,
-        start_time: Instant,
+        received_at: DateTime&lt;Utc&gt;,
         retention_days: u16,
         payload: <span class="kw-2">&amp;</span>[u8],
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), StoreError&gt; {
@@ -2312,7 +2325,7 @@
             replay_id,
             project_id,
             retention_days,
-            start_time: UnixTimestamp::from_instant(start_time).as_secs(),
+            start_time: safe_timestamp(received_at),
             payload,
         };
         <span class="self">self</span>.produce(KafkaTopic::ReplayEvents, KafkaMessage::ReplayEvent(message))<span class="question-mark">?</span>;
@@ -2327,7 +2340,7 @@
         payload: <span class="kw-2">&amp;</span>[u8],
         replay_event: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>[u8]&gt;,
         replay_video: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>[u8]&gt;,
-        start_time: Instant,
+        received_at: DateTime&lt;Utc&gt;,
         retention: u16,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), StoreError&gt; {
         <span class="comment">// Maximum number of bytes accepted by the consumer.
@@ -2350,7 +2363,7 @@
                 quantity: <span class="number">1</span>,
                 remote_addr: <span class="prelude-val">None</span>,
                 scoping,
-                timestamp: instant_to_date_time(start_time),
+                timestamp: received_at,
             });
             <span class="kw">return </span><span class="prelude-val">Ok</span>(());
         }
@@ -2361,7 +2374,7 @@
                 project_id: scoping.project_id,
                 key_id: scoping.key_id,
                 org_id: scoping.organization_id,
-                received: UnixTimestamp::from_instant(start_time).as_secs(),
+                received: safe_timestamp(received_at),
                 retention_days: retention,
                 payload,
                 replay_event,
@@ -2378,7 +2391,7 @@
         event_id: <span class="prelude-ty">Option</span>&lt;EventId&gt;,
         scoping: Scoping,
         payload: Bytes,
-        start_time: Instant,
+        received_at: DateTime&lt;Utc&gt;,
         retention: u16,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), StoreError&gt; {
         <span class="attr">#[derive(Deserialize)]
@@ -2401,7 +2414,7 @@
                 quantity: <span class="number">1</span>,
                 remote_addr: <span class="prelude-val">None</span>,
                 scoping,
-                timestamp: instant_to_date_time(start_time),
+                timestamp: received_at,
             });
             <span class="kw">return </span><span class="prelude-val">Ok</span>(());
         };
@@ -2409,7 +2422,7 @@
         <span class="self">self</span>.produce_replay_event(
             event_id.ok_or(StoreError::NoEventId)<span class="question-mark">?</span>,
             scoping.project_id,
-            start_time,
+            received_at,
             retention,
             replay_event,
         )<span class="question-mark">?</span>;
@@ -2420,7 +2433,7 @@
             replay_recording,
             <span class="prelude-val">Some</span>(replay_event),
             <span class="prelude-val">Some</span>(replay_video),
-            start_time,
+            received_at,
             retention,
         )
     }
@@ -2428,7 +2441,7 @@
     <span class="kw">fn </span>produce_check_in(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         project_id: ProjectId,
-        start_time: Instant,
+        received_at: DateTime&lt;Utc&gt;,
         client: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;,
         retention_days: u16,
         item: <span class="kw-2">&amp;</span>Item,
@@ -2437,7 +2450,7 @@
             message_type: CheckInMessageType::CheckIn,
             project_id,
             retention_days,
-            start_time: UnixTimestamp::from_instant(start_time).as_secs(),
+            start_time: safe_timestamp(received_at),
             sdk: client.map(str::to_owned),
             payload: item.payload(),
             routing_key_hint: item.routing_hint(),
@@ -2451,7 +2464,7 @@
     <span class="kw">fn </span>produce_span(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         scoping: Scoping,
-        start_time: Instant,
+        received_at: DateTime&lt;Utc&gt;,
         event_id: <span class="prelude-ty">Option</span>&lt;EventId&gt;,
         retention_days: u16,
         item: <span class="kw-2">&amp;</span>Item,
@@ -2473,7 +2486,7 @@
                     quantity: <span class="number">1</span>,
                     remote_addr: <span class="prelude-val">None</span>,
                     scoping,
-                    timestamp: instant_to_date_time(start_time),
+                    timestamp: received_at,
                 });
                 <span class="kw">return </span><span class="prelude-val">Ok</span>(());
             }
@@ -2515,7 +2528,7 @@
             quantity: <span class="number">1</span>,
             remote_addr: <span class="prelude-val">None</span>,
             scoping,
-            timestamp: instant_to_date_time(start_time),
+            timestamp: received_at,
         });
 
         <span class="prelude-val">Ok</span>(())
@@ -2620,14 +2633,14 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         organization_id: u64,
         project_id: ProjectId,
-        start_time: Instant,
+        received_at: DateTime&lt;Utc&gt;,
         retention_days: u16,
         item: <span class="kw-2">&amp;</span>Item,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), StoreError&gt; {
         <span class="kw">let </span>message = ProfileChunkKafkaMessage {
             organization_id,
             project_id,
-            received: UnixTimestamp::from_instant(start_time).as_secs(),
+            received: safe_timestamp(received_at),
             retention_days,
             payload: item.payload(),
         };
@@ -3168,6 +3181,19 @@
     </span>} <span class="kw">else </span>{
         <span class="string">"false"
     </span>}
+}
+
+<span class="doccomment">/// Returns a safe timestamp for Kafka.
+///
+/// Kafka expects timestamps to be in UTC and in seconds since epoch.
+</span><span class="kw">fn </span>safe_timestamp(timestamp: DateTime&lt;Utc&gt;) -&gt; u64 {
+    <span class="kw">let </span>ts = timestamp.timestamp();
+    <span class="kw">if </span>ts &gt;= <span class="number">0 </span>{
+        <span class="kw">return </span>ts <span class="kw">as </span>u64;
+    }
+
+    <span class="comment">// We assume this call can't return &lt; 0.
+    </span>Utc::now().timestamp() <span class="kw">as </span>u64
 }
 
 <span class="attr">#[cfg(test)]

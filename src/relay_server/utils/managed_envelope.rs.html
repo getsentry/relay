@@ -577,7 +577,7 @@
 <span class="kw">use </span>std::marker::PhantomData;
 <span class="kw">use </span>std::mem::size_of;
 <span class="kw">use </span>std::ops::{Deref, DerefMut};
-<span class="kw">use </span>std::time::Instant;
+<span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>relay_quotas::{DataCategory, Scoping};
@@ -1065,24 +1065,24 @@
         ) * <span class="number">1000.</span>) <span class="kw">as </span>usize
     }
 
-    <span class="doccomment">/// Returns the instant at which the envelope was received at this Relay.
-    ///
-    /// This is the monotonic time equivalent to [`received_at`](Self::received_at).
-    </span><span class="kw">pub fn </span>start_time(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Instant {
-        <span class="self">self</span>.meta().start_time()
-    }
-
     <span class="doccomment">/// Returns the time at which the envelope was received at this Relay.
     ///
-    /// This is the date time equivalent to [`start_time`](Self::start_time).
+    /// This is the date time equivalent to [`start_time`](Self::received_at).
     </span><span class="kw">pub fn </span>received_at(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; DateTime&lt;Utc&gt; {
         <span class="self">self</span>.envelope.received_at()
+    }
+
+    <span class="doccomment">/// Returns the time elapsed in seconds since the envelope was received by this Relay.
+    ///
+    /// In case the elapsed time is negative, it is assumed that no time elapsed.
+    </span><span class="kw">pub fn </span>age(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
+        <span class="self">self</span>.envelope.age()
     }
 
     <span class="doccomment">/// Resets inner state to ensure there's no more logging.
     </span><span class="kw">fn </span>finish(<span class="kw-2">&amp;mut </span><span class="self">self</span>, counter: RelayCounters, handling: Handling) {
         <span class="macro">relay_statsd::metric!</span>(counter(counter) += <span class="number">1</span>, handling = handling.as_str());
-        <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::EnvelopeTotalTime) = <span class="self">self</span>.start_time().elapsed());
+        <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::EnvelopeTotalTime) = <span class="self">self</span>.age());
 
         <span class="self">self</span>.context.done = <span class="bool-val">true</span>;
     }

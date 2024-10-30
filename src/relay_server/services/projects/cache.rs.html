@@ -1807,8 +1807,8 @@
     </span><span class="kw">pub </span>project_key: ProjectKey,
     <span class="doccomment">/// Whether to keep or reset the metric metadata.
     </span><span class="kw">pub </span>source: BucketSource,
-    <span class="doccomment">/// The instant at which the request was received.
-    </span><span class="kw">pub </span>start_time: Instant,
+    <span class="doccomment">/// The wall clock time at which the request was received.
+    </span><span class="kw">pub </span>received_at: DateTime&lt;Utc&gt;,
     <span class="doccomment">/// The value of the Envelope's [`sent_at`](crate::envelope::Envelope::sent_at)
     /// header for clock drift correction.
     </span><span class="kw">pub </span>sent_at: <span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;,

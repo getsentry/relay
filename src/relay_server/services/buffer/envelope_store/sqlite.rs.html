@@ -630,18 +630,7 @@
 <a href="#630" id="630">630</a>
 <a href="#631" id="631">631</a>
 <a href="#632" id="632">632</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::error::Error;
-<span class="kw">use </span>std::path::Path;
-<span class="kw">use </span>std::pin::pin;
-<span class="kw">use </span>std::sync::atomic::{AtomicU64, Ordering};
-<span class="kw">use </span>std::sync::Arc;
-<span class="kw">use </span>std::time::Duration;
-
-<span class="kw">use </span><span class="kw">crate</span>::envelope::EnvelopeError;
-<span class="kw">use </span><span class="kw">crate</span>::extractors::StartTime;
-<span class="kw">use </span><span class="kw">crate</span>::services::buffer::common::ProjectKeyPair;
-<span class="kw">use </span><span class="kw">crate</span>::statsd::RelayGauges;
-<span class="kw">use </span><span class="kw">crate</span>::Envelope;
+</pre></div><pre class="rust"><code><span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>futures::stream::StreamExt;
 <span class="kw">use </span>hashbrown::HashSet;
 <span class="kw">use </span>relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
@@ -653,8 +642,19 @@
     SqliteRow, SqliteSynchronous,
 };
 <span class="kw">use </span>sqlx::{Pool, QueryBuilder, Row, Sqlite};
+<span class="kw">use </span>std::error::Error;
+<span class="kw">use </span>std::path::Path;
+<span class="kw">use </span>std::pin::pin;
+<span class="kw">use </span>std::sync::atomic::{AtomicU64, Ordering};
+<span class="kw">use </span>std::sync::Arc;
+<span class="kw">use </span>std::time::Duration;
 <span class="kw">use </span>tokio::fs::DirBuilder;
 <span class="kw">use </span>tokio::time::sleep;
+
+<span class="kw">use </span><span class="kw">crate</span>::envelope::EnvelopeError;
+<span class="kw">use </span><span class="kw">crate</span>::services::buffer::common::ProjectKeyPair;
+<span class="kw">use </span><span class="kw">crate</span>::statsd::RelayGauges;
+<span class="kw">use </span><span class="kw">crate</span>::Envelope;
 
 <span class="doccomment">/// Struct that contains all the fields of an [`Envelope`] that are mapped to the database columns.
 </span><span class="kw">pub struct </span>InsertEnvelope {
@@ -1005,7 +1005,7 @@
         //
         // Unfortunately we have to do this because SQLite `DELETE` with `RETURNING` doesn't
         // return deleted rows in a specific order.
-        </span>extracted_envelopes.sort_by_key(|a| a.meta().start_time());
+        </span>extracted_envelopes.sort_by_key(|a| a.received_at());
 
         <span class="prelude-val">Ok</span>(extracted_envelopes)
     }
@@ -1058,9 +1058,9 @@
     <span class="kw">let </span>received_at: i64 = row
         .try_get(<span class="string">"received_at"</span>)
         .map_err(SqliteEnvelopeStoreError::FetchError)<span class="question-mark">?</span>;
-    <span class="kw">let </span>start_time = StartTime::from_timestamp_millis(received_at <span class="kw">as </span>u64);
 
-    envelope.set_start_time(start_time.into_inner());
+    <span class="kw">let </span>received_at = DateTime::from_timestamp_millis(received_at).unwrap_or(Utc::now());
+    envelope.set_received_at(received_at);
 
     <span class="prelude-val">Ok</span>(envelope)
 }

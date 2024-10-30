@@ -1769,9 +1769,6 @@
 <a href="#1769" id="1769">1769</a>
 <a href="#1770" id="1770">1770</a>
 <a href="#1771" id="1771">1771</a>
-<a href="#1772" id="1772">1772</a>
-<a href="#1773" id="1773">1773</a>
-<a href="#1774" id="1774">1774</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the [`BufferService`], which is responsible for spooling of the incoming
 //! envelopes, either to in-memory or to persistent storage.
 //!
@@ -1803,12 +1800,7 @@
 //!
 //! Current on-disk spool implementation uses SQLite as a storage.
 
-</span><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
-<span class="kw">use </span>std::error::Error;
-<span class="kw">use </span>std::path::Path;
-<span class="kw">use </span>std::pin::pin;
-<span class="kw">use </span>std::sync::Arc;
-
+</span><span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>futures::stream::{<span class="self">self</span>, StreamExt};
 <span class="kw">use </span>hashbrown::HashSet;
 <span class="kw">use </span>relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
@@ -1822,11 +1814,15 @@
     SqliteSynchronous,
 };
 <span class="kw">use </span>sqlx::{Pool, Row, Sqlite};
+<span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
+<span class="kw">use </span>std::error::Error;
+<span class="kw">use </span>std::path::Path;
+<span class="kw">use </span>std::pin::pin;
+<span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>tokio::fs::DirBuilder;
 <span class="kw">use </span>tokio::sync::mpsc;
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{Envelope, EnvelopeError};
-<span class="kw">use </span><span class="kw">crate</span>::extractors::StartTime;
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::TrackOutcome;
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::ProcessingGroup;
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::cache::{ProjectCache, RefreshIndexCache, UpdateSpoolIndex};
@@ -2268,7 +2264,7 @@
         <span class="kw">let </span>received_at: i64 = row
             .try_get(<span class="string">"received_at"</span>)
             .map_err(BufferError::FetchFailed)<span class="question-mark">?</span>;
-        <span class="kw">let </span>start_time = StartTime::from_timestamp_millis(received_at <span class="kw">as </span>u64);
+        <span class="kw">let </span>received_at = DateTime::from_timestamp_millis(received_at).unwrap_or(Utc::now());
         <span class="kw">let </span>own_key: <span class="kw-2">&amp;</span>str = row.try_get(<span class="string">"own_key"</span>).map_err(BufferError::FetchFailed)<span class="question-mark">?</span>;
         <span class="kw">let </span>sampling_key: <span class="kw-2">&amp;</span>str = row
             .try_get(<span class="string">"sampling_key"</span>)
@@ -2279,7 +2275,7 @@
                 .map_err(BufferError::ParseProjectKeyFailed)<span class="question-mark">?</span>,
         };
 
-        envelope.set_start_time(start_time.into_inner());
+        envelope.set_received_at(received_at);
 
         <span class="kw">let </span>envelopes: <span class="prelude-ty">Result</span>&lt;Vec&lt;<span class="kw">_</span>&gt;, BufferError&gt; = ProcessingGroup::split_envelope(<span class="kw-2">*</span>envelope)
             .into_iter()
@@ -3094,6 +3090,7 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>chrono::Utc;
     <span class="kw">use </span>insta::assert_debug_snapshot;
     <span class="kw">use </span>rand::Rng;
     <span class="kw">use </span>relay_test::mock_service;
@@ -3191,7 +3188,7 @@
             };
 
             <span class="kw">let </span>envelope = empty_managed_envelope();
-            <span class="kw">let </span>start_time_sent = envelope.start_time();
+            <span class="kw">let </span>received_at_sent = envelope.received_at();
             addr.send(Enqueue {
                 key,
                 value: envelope,
@@ -3214,15 +3211,12 @@
                 key: <span class="kw">_</span>,
                 managed_envelope,
             } = rx.recv().<span class="kw">await</span>.unwrap();
-            <span class="kw">let </span>start_time_received = managed_envelope.envelope().meta().start_time();
+            <span class="kw">let </span>received_at_received = managed_envelope.received_at();
 
             <span class="comment">// Check if the original start time elapsed to the same second as the restored one.
-            //
-            // Using `.as_secs_f64()` to get the nanos fraction as well and then round it up to get
-            // similar number of seconds if one of the instants runs forward a bit.
             </span><span class="macro">assert_eq!</span>(
-                start_time_received.elapsed().as_secs_f64().round(),
-                start_time_sent.elapsed().as_secs_f64().round()
+                received_at_received.timestamp_millis(),
+                received_at_sent.timestamp_millis()
             );
         }
     }
@@ -3369,7 +3363,7 @@
                 .<span class="kw">await
                 </span>.unwrap();
 
-        <span class="kw">let </span>now = chrono::Utc::now().timestamp_millis();
+        <span class="kw">let </span>now = Utc::now().timestamp_millis();
         <span class="kw">let </span>result = sqlx::query(<span class="kw-2">&amp;</span><span class="macro">format!</span>(
             <span class="string">r#"INSERT INTO
                     envelopes (received_at, own_key, sampling_key, envelope)

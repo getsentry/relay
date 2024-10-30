@@ -32,7 +32,7 @@
 <span class="kw">use </span>axum::response::IntoResponse;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
-<span class="kw">use </span><span class="kw">crate</span>::extractors::{SignedBytes, StartTime};
+<span class="kw">use </span><span class="kw">crate</span>::extractors::{ReceivedAt, SignedBytes};
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::ProcessBatchedMetrics;
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::cache::BucketSource;
@@ -42,7 +42,7 @@
 
 <span class="kw">pub async fn </span>handle(
     state: ServiceState,
-    start_time: StartTime,
+    ReceivedAt(received_at): ReceivedAt,
     body: SignedBytes,
 ) -&gt; <span class="kw">impl </span>IntoResponse {
     <span class="kw">if </span>!body.relay.internal {
@@ -52,7 +52,7 @@
     state.processor().send(ProcessBatchedMetrics {
         payload: body.body,
         source: BucketSource::Internal,
-        start_time: start_time.into_inner(),
+        received_at,
         sent_at: <span class="prelude-val">None</span>,
     });
 

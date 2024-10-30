@@ -766,6 +766,7 @@
 <a href="#766" id="766">766</a>
 <a href="#767" id="767">767</a>
 <a href="#768" id="768">768</a>
+<a href="#769" id="769">769</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Types for buffering envelopes.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -1059,7 +1060,7 @@
     }
 
     <span class="kw">fn </span>expired(config: <span class="kw-2">&amp;</span>Config, envelope: <span class="kw-2">&amp;</span>Envelope) -&gt; bool {
-        envelope.meta().start_time().elapsed() &gt; config.spool_envelopes_max_age()
+        envelope.age() &gt; config.spool_envelopes_max_age()
     }
 
     <span class="kw">fn </span>drop_expired(envelope: Box&lt;Envelope&gt;, services: <span class="kw-2">&amp;</span>Services) {
@@ -1236,10 +1237,10 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-    <span class="kw">use </span>std::time::{Duration, Instant};
-
+    <span class="kw">use </span>chrono::Utc;
     <span class="kw">use </span>relay_dynamic_config::GlobalConfig;
     <span class="kw">use </span>relay_quotas::DataCategory;
+    <span class="kw">use </span>std::time::Duration;
     <span class="kw">use </span>tokio::sync::mpsc;
     <span class="kw">use </span>uuid::Uuid;
 
@@ -1420,9 +1421,10 @@
         <span class="kw">let </span>addr = service.start();
 
         <span class="kw">let </span><span class="kw-2">mut </span>envelope = new_envelope(<span class="bool-val">false</span>, <span class="string">"foo"</span>);
-        envelope
-            .meta_mut()
-            .set_start_time(Instant::now() - <span class="number">2 </span>* config.spool_envelopes_max_age());
+        envelope.meta_mut().set_received_at(
+            Utc::now()
+                - chrono::Duration::seconds(<span class="number">2 </span>* config.spool_envelopes_max_age().as_secs() <span class="kw">as </span>i64),
+        );
         addr.send(EnvelopeBuffer::Push(envelope));
 
         tokio::time::sleep(Duration::from_millis(<span class="number">100</span>)).<span class="kw">await</span>;

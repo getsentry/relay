@@ -747,7 +747,6 @@
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::net::{IpAddr, SocketAddr};
 <span class="kw">use </span>std::str::FromStr;
-<span class="kw">use </span>std::time::Instant;
 
 <span class="kw">use </span>axum::extract::rejection::PathRejection;
 <span class="kw">use </span>axum::extract::{ConnectInfo, FromRequestParts, Path};
@@ -756,6 +755,7 @@
 <span class="kw">use </span>axum::http::StatusCode;
 <span class="kw">use </span>axum::response::{IntoResponse, Response};
 <span class="kw">use </span>axum::RequestPartsExt;
+<span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>data_encoding::BASE64;
 <span class="kw">use </span>relay_auth::RelayId;
 <span class="kw">use </span>relay_base_schema::project::{ParseProjectKeyError, ProjectId, ProjectKey};
@@ -766,7 +766,7 @@
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>url::Url;
 
-<span class="kw">use </span><span class="kw">crate</span>::extractors::{ForwardedFor, StartTime};
+<span class="kw">use </span><span class="kw">crate</span>::extractors::{ForwardedFor, ReceivedAt};
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
 <span class="kw">use </span><span class="kw">crate</span>::utils::ApiErrorResponse;
@@ -972,8 +972,8 @@
     <span class="doccomment">/// The time at which the request started.
     ///
     /// NOTE: This is internal-only and not exposed to Envelope headers.
-    </span><span class="attr">#[serde(skip, default = <span class="string">"Instant::now"</span>)]
-    </span>start_time: Instant,
+    </span><span class="attr">#[serde(skip, default = <span class="string">"Utc::now"</span>)]
+    </span>received_at: DateTime&lt;Utc&gt;,
 
     <span class="doccomment">/// Whether the request is coming from an statically configured internal Relay.
     ///
@@ -1048,13 +1048,13 @@
     }
 
     <span class="doccomment">/// The time at which the request started.
-    </span><span class="kw">pub fn </span>start_time(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Instant {
-        <span class="self">self</span>.start_time
+    </span><span class="kw">pub fn </span>received_at(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; DateTime&lt;Utc&gt; {
+        <span class="self">self</span>.received_at
     }
 
-    <span class="doccomment">/// Sets the start time for this [`RequestMeta`] on the current envelope.
-    </span><span class="kw">pub fn </span>set_start_time(<span class="kw-2">&amp;mut </span><span class="self">self</span>, start_time: Instant) {
-        <span class="self">self</span>.start_time = start_time
+    <span class="doccomment">/// Sets the received at for this [`RequestMeta`] on the current envelope.
+    </span><span class="kw">pub fn </span>set_received_at(<span class="kw-2">&amp;mut </span><span class="self">self</span>, received_at: DateTime&lt;Utc&gt;) {
+        <span class="self">self</span>.received_at = received_at
     }
 
     <span class="doccomment">/// Whether the request is coming from a statically configured internal Relay.
@@ -1085,7 +1085,7 @@
             forwarded_for: <span class="string">""</span>.to_string(),
             user_agent: <span class="prelude-val">Some</span>(<span class="kw">crate</span>::constants::SERVER.to_owned()),
             no_cache: <span class="bool-val">false</span>,
-            start_time: Instant::now(),
+            received_at: Utc::now(),
             client_hints: ClientHints::default(),
             from_internal_relay: <span class="bool-val">false</span>,
         }
@@ -1232,6 +1232,8 @@
                 .map_or(<span class="bool-val">false</span>, |ri| ri.internal);
         }
 
+        <span class="kw">let </span>ReceivedAt(received_at) = ReceivedAt::from_request_parts(parts, state).<span class="kw">await</span><span class="question-mark">?</span>;
+
         <span class="prelude-val">Ok</span>(RequestMeta {
             dsn: <span class="prelude-val">None</span>,
             version: default_version(),
@@ -1247,9 +1249,7 @@
                 </span>.into_inner(),
             user_agent: ua.user_agent,
             no_cache: <span class="bool-val">false</span>,
-            start_time: StartTime::from_request_parts(parts, state)
-                .<span class="kw">await</span><span class="question-mark">?
-                </span>.into_inner(),
+            received_at,
             client_hints: ua.client_hints,
             from_internal_relay,
         })
@@ -1412,7 +1412,7 @@
             forwarded_for: partial_meta.forwarded_for,
             user_agent: partial_meta.user_agent,
             no_cache: key_flags.contains(<span class="kw-2">&amp;</span><span class="string">"no-cache"</span>),
-            start_time: partial_meta.start_time,
+            received_at: partial_meta.received_at,
             client_hints: partial_meta.client_hints,
             from_internal_relay: partial_meta.from_internal_relay,
         })
@@ -1435,7 +1435,7 @@
                 forwarded_for: String::new(),
                 user_agent: <span class="prelude-val">Some</span>(<span class="string">"sentry/agent"</span>.to_string()),
                 no_cache: <span class="bool-val">false</span>,
-                start_time: Instant::now(),
+                received_at: Utc::now(),
                 client_hints: ClientHints::default(),
                 from_internal_relay: <span class="bool-val">false</span>,
             }
@@ -1472,7 +1472,7 @@
             forwarded_for: <span class="string">"8.8.8.8"</span>.to_string(),
             user_agent: <span class="prelude-val">Some</span>(<span class="string">"0x8000"</span>.to_string()),
             no_cache: <span class="bool-val">false</span>,
-            start_time: Instant::now(),
+            received_at: Utc::now(),
             client_hints: ClientHints {
                 sec_ch_ua_platform: <span class="prelude-val">Some</span>(<span class="string">"macOS"</span>.to_owned()),
                 sec_ch_ua_platform_version: <span class="prelude-val">Some</span>(<span class="string">"13.1.0"</span>.to_owned()),
@@ -1484,7 +1484,7 @@
             },
             from_internal_relay: <span class="bool-val">false</span>,
         };
-        deserialized.start_time = reqmeta.start_time;
+        deserialized.received_at = reqmeta.received_at;
         <span class="macro">assert_eq!</span>(deserialized, reqmeta);
     }
 }

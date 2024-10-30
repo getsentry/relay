@@ -213,7 +213,9 @@
 <a href="#213" id="213">213</a>
 <a href="#214" id="214">214</a>
 <a href="#215" id="215">215</a>
+<a href="#216" id="216">216</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>bytes::Bytes;
+<span class="kw">use </span>chrono::Utc;
 <span class="kw">use </span>clap::{Parser, ValueEnum};
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_server::{Envelope, MemoryChecker, MemoryStat, PolymorphicEnvelopeBuffer};
@@ -425,7 +427,7 @@
         ));
 
     <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::parse_bytes(bytes).unwrap();
-    envelope.set_start_time(Instant::now());
+    envelope.set_received_at(Utc::now());
     envelope
 }
 </code></pre></div></section></main></body></html>

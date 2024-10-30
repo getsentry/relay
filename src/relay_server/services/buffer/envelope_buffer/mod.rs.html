@@ -1077,7 +1077,6 @@
 <a href="#1077" id="1077">1077</a>
 <a href="#1078" id="1078">1078</a>
 <a href="#1079" id="1079">1079</a>
-<a href="#1080" id="1080">1080</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::cmp::Ordering;
 <span class="kw">use </span>std::collections::BTreeSet;
 <span class="kw">use </span>std::convert::Infallible;
@@ -1088,6 +1087,7 @@
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
+<span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>hashbrown::HashSet;
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
 <span class="kw">use </span>relay_config::Config;
@@ -1342,7 +1342,7 @@
     /// If the envelope stack does not exist, a new stack is pushed to the priority queue.
     /// The priority of the stack is updated with the envelope's received_at time.
     </span><span class="kw">pub async fn </span>push(<span class="kw-2">&amp;mut </span><span class="self">self</span>, envelope: Box&lt;Envelope&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), EnvelopeBufferError&gt; {
-        <span class="kw">let </span>received_at = envelope.meta().start_time().into();
+        <span class="kw">let </span>received_at = envelope.meta().received_at();
 
         <span class="comment">// Temporary metric to verify compression gains
         </span><span class="self">self</span>.push_count += <span class="number">1</span>;
@@ -1440,7 +1440,7 @@
         <span class="kw">let </span>next_received_at = stack
             .peek()
             .<span class="kw">await</span><span class="question-mark">?
-            </span>.map(|next_envelope| next_envelope.meta().start_time().into());
+            </span>.map(|next_envelope| next_envelope.received_at());
 
         <span class="kw">match </span>next_received_at {
             <span class="prelude-val">None </span>=&gt; {
@@ -1534,9 +1534,7 @@
         project_key_pair: ProjectKeyPair,
         envelope: <span class="prelude-ty">Option</span>&lt;Box&lt;Envelope&gt;&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), EnvelopeBufferError&gt; {
-        <span class="kw">let </span>received_at = envelope
-            .as_ref()
-            .map_or(Instant::now(), |e| e.meta().start_time().into());
+        <span class="kw">let </span>received_at = envelope.as_ref().map_or(Utc::now(), |e| e.received_at());
 
         <span class="kw">let </span><span class="kw-2">mut </span>stack = <span class="self">self
             </span>.stack_provider
@@ -1668,12 +1666,12 @@
 <span class="attr">#[derive(Debug, Clone)]
 </span><span class="kw">struct </span>Priority {
     readiness: Readiness,
-    received_at: Instant,
+    received_at: DateTime&lt;Utc&gt;,
     next_project_fetch: Instant,
 }
 
 <span class="kw">impl </span>Priority {
-    <span class="kw">fn </span>new(received_at: Instant) -&gt; <span class="self">Self </span>{
+    <span class="kw">fn </span>new(received_at: DateTime&lt;Utc&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             readiness: Readiness::new(),
             received_at,
@@ -1903,9 +1901,9 @@
         <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fed"</span>).unwrap();
 
         <span class="kw">let </span>envelope1 = new_envelope(project_key, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>);
-        <span class="kw">let </span>instant1 = envelope1.meta().start_time();
+        <span class="kw">let </span>instant1 = envelope1.meta().received_at();
         <span class="kw">let </span>envelope2 = new_envelope(project_key, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>);
-        <span class="kw">let </span>instant2 = envelope2.meta().start_time();
+        <span class="kw">let </span>instant2 = envelope2.meta().received_at();
 
         <span class="macro">assert!</span>(instant2 &gt; instant1);
 
@@ -1913,11 +1911,11 @@
         buffer.push(envelope2).<span class="kw">await</span>.unwrap();
 
         <span class="macro">assert_eq!</span>(
-            buffer.pop().<span class="kw">await</span>.unwrap().unwrap().meta().start_time(),
+            buffer.pop().<span class="kw">await</span>.unwrap().unwrap().meta().received_at(),
             instant2
         );
         <span class="macro">assert_eq!</span>(
-            buffer.pop().<span class="kw">await</span>.unwrap().unwrap().meta().start_time(),
+            buffer.pop().<span class="kw">await</span>.unwrap().unwrap().meta().received_at(),
             instant1
         );
         <span class="macro">assert!</span>(buffer.pop().<span class="kw">await</span>.unwrap().is_none());
@@ -1931,15 +1929,15 @@
         <span class="kw">let </span>project_key2 = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fef"</span>).unwrap();
 
         <span class="kw">let </span>envelope1 = new_envelope(project_key1, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>);
-        <span class="kw">let </span>instant1 = envelope1.meta().start_time();
+        <span class="kw">let </span>instant1 = envelope1.meta().received_at();
         buffer.push(envelope1).<span class="kw">await</span>.unwrap();
 
         <span class="kw">let </span>envelope2 = new_envelope(project_key2, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>);
-        <span class="kw">let </span>instant2 = envelope2.meta().start_time();
+        <span class="kw">let </span>instant2 = envelope2.meta().received_at();
         buffer.push(envelope2).<span class="kw">await</span>.unwrap();
 
         <span class="kw">let </span>envelope3 = new_envelope(project_key1, <span class="prelude-val">Some</span>(project_key2), <span class="prelude-val">None</span>);
-        <span class="kw">let </span>instant3 = envelope3.meta().start_time();
+        <span class="kw">let </span>instant3 = envelope3.meta().received_at();
         buffer.push(envelope3).<span class="kw">await</span>.unwrap();
 
         buffer.mark_ready(<span class="kw-2">&amp;</span>project_key1, <span class="bool-val">false</span>);
@@ -1954,7 +1952,7 @@
                 .envelope()
                 .unwrap()
                 .meta()
-                .start_time(),
+                .received_at(),
             instant1
         );
 
@@ -1968,7 +1966,7 @@
                 .envelope()
                 .unwrap()
                 .meta()
-                .start_time(),
+                .received_at(),
             instant2
         );
 
@@ -1982,7 +1980,7 @@
                 .envelope()
                 .unwrap()
                 .meta()
-                .start_time(),
+                .received_at(),
             instant1
         );
 
@@ -1996,14 +1994,14 @@
                 .envelope()
                 .unwrap()
                 .meta()
-                .start_time(),
+                .received_at(),
             instant1
         );
 
         <span class="comment">// when both projects are ready, event no 3 ends up on top:
         </span>buffer.mark_ready(<span class="kw-2">&amp;</span>project_key2, <span class="bool-val">true</span>);
         <span class="macro">assert_eq!</span>(
-            buffer.pop().<span class="kw">await</span>.unwrap().unwrap().meta().start_time(),
+            buffer.pop().<span class="kw">await</span>.unwrap().unwrap().meta().received_at(),
             instant3
         );
         <span class="macro">assert_eq!</span>(
@@ -2014,17 +2012,17 @@
                 .envelope()
                 .unwrap()
                 .meta()
-                .start_time(),
+                .received_at(),
             instant2
         );
 
         buffer.mark_ready(<span class="kw-2">&amp;</span>project_key2, <span class="bool-val">false</span>);
         <span class="macro">assert_eq!</span>(
-            buffer.pop().<span class="kw">await</span>.unwrap().unwrap().meta().start_time(),
+            buffer.pop().<span class="kw">await</span>.unwrap().unwrap().meta().received_at(),
             instant1
         );
         <span class="macro">assert_eq!</span>(
-            buffer.pop().<span class="kw">await</span>.unwrap().unwrap().meta().start_time(),
+            buffer.pop().<span class="kw">await</span>.unwrap().unwrap().meta().received_at(),
             instant2
         );
 
@@ -2060,7 +2058,7 @@
                 own_project_ready: <span class="bool-val">true</span>,
                 sampling_project_ready: <span class="bool-val">true</span>,
             },
-            received_at: Instant::now(),
+            received_at: Utc::now(),
             next_project_fetch: Instant::now(),
         };
         <span class="kw">let </span><span class="kw-2">mut </span>p2 = p1.clone();

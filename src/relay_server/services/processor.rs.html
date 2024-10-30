@@ -3979,6 +3979,7 @@
 <a href="#3979" id="3979">3979</a>
 <a href="#3980" id="3980">3980</a>
 <a href="#3981" id="3981">3981</a>
+<a href="#3982" id="3982">3982</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -3987,7 +3988,7 @@
 <span class="kw">use </span>std::io::Write;
 <span class="kw">use </span>std::pin::Pin;
 <span class="kw">use </span>std::sync::{Arc, Mutex, Once};
-<span class="kw">use </span>std::time::{Duration, Instant};
+<span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span>anyhow::Context;
 <span class="kw">use </span>brotli::CompressorWriter <span class="kw">as </span>BrotliEncoder;
@@ -4038,6 +4039,7 @@
     relay_redis::{RedisPool, RedisPools},
     std::iter::Chain,
     std::slice::Iter,
+    std::time::Instant,
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
@@ -4900,8 +4902,8 @@
     </span><span class="kw">pub </span>project_key: ProjectKey,
     <span class="doccomment">/// Whether to keep or reset the metric metadata.
     </span><span class="kw">pub </span>source: BucketSource,
-    <span class="doccomment">/// The instant at which the request was received.
-    </span><span class="kw">pub </span>start_time: Instant,
+    <span class="doccomment">/// The wall clock time at which the request was received.
+    </span><span class="kw">pub </span>received_at: DateTime&lt;Utc&gt;,
     <span class="doccomment">/// The value of the Envelope's [`sent_at`](Envelope::sent_at) header for clock drift
     /// correction.
     </span><span class="kw">pub </span>sent_at: <span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;,
@@ -4975,9 +4977,9 @@
     </span><span class="kw">pub </span>payload: Bytes,
     <span class="doccomment">/// Whether to keep or reset the metric metadata.
     </span><span class="kw">pub </span>source: BucketSource,
-    <span class="doccomment">/// The instant at which the request was received.
-    </span><span class="kw">pub </span>start_time: Instant,
-    <span class="doccomment">/// The instant at which the request was received.
+    <span class="doccomment">/// The wall clock time at which the request was received.
+    </span><span class="kw">pub </span>received_at: DateTime&lt;Utc&gt;,
+    <span class="doccomment">/// The wall clock time at which the request was received.
     </span><span class="kw">pub </span>sent_at: <span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;,
 }
 
@@ -6082,7 +6084,7 @@
 
     <span class="kw">fn </span>handle_process_envelope(<span class="kw-2">&amp;</span><span class="self">self</span>, message: ProcessEnvelope) {
         <span class="kw">let </span>project_key = message.envelope.envelope().meta().public_key();
-        <span class="kw">let </span>wait_time = message.envelope.start_time().elapsed();
+        <span class="kw">let </span>wait_time = message.envelope.age();
         <span class="macro">metric!</span>(timer(RelayTimers::EnvelopeWaitTime) = wait_time);
 
         <span class="kw">let </span>group = message.envelope.group().variant();
@@ -6115,12 +6117,13 @@
             rate_limits,
             data,
             project_key,
-            start_time,
+            received_at,
             sent_at,
             source,
         } = message;
 
-        <span class="kw">let </span>received_timestamp = UnixTimestamp::from_instant(start_time);
+        <span class="kw">let </span>received_timestamp =
+            UnixTimestamp::from_datetime(received_at).unwrap_or(UnixTimestamp::now());
 
         <span class="kw">let </span><span class="kw-2">mut </span>buckets = data.into_buckets(received_timestamp);
         <span class="kw">if </span>buckets.is_empty() {
@@ -6128,9 +6131,8 @@
         };
         cogs.update(relay_metrics::cogs::BySize(<span class="kw-2">&amp;</span>buckets));
 
-        <span class="kw">let </span>received = relay_common::time::instant_to_date_time(start_time);
         <span class="kw">let </span>clock_drift_processor =
-            ClockDriftProcessor::new(sent_at, received).at_least(MINIMUM_CLOCK_DRIFT);
+            ClockDriftProcessor::new(sent_at, received_at).at_least(MINIMUM_CLOCK_DRIFT);
 
         buckets.retain_mut(|bucket| {
             <span class="kw">if let </span><span class="prelude-val">Err</span>(error) = relay_metrics::normalize_bucket(bucket) {
@@ -6171,7 +6173,7 @@
         <span class="kw">let </span>ProcessBatchedMetrics {
             payload,
             source,
-            start_time,
+            received_at,
             sent_at,
         } = message;
 
@@ -6200,7 +6202,7 @@
                 data: MetricData::Parsed(buckets),
                 project_key,
                 source,
-                start_time: start_time.into(),
+                received_at,
                 sent_at,
             });
         }
@@ -7785,7 +7787,7 @@
     </span><span class="kw">async fn </span>test_process_metrics_bucket_metadata() {
         <span class="kw">let </span><span class="kw-2">mut </span>token = Cogs::noop().timed(ResourceId::Relay, AppFeature::Unattributed);
         <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap();
-        <span class="kw">let </span>start_time = Instant::now();
+        <span class="kw">let </span>received_at = Utc::now();
         <span class="kw">let </span>config = Config::default();
 
         <span class="kw">let </span>(aggregator, <span class="kw-2">mut </span>aggregator_rx) = Addr::custom();
@@ -7805,7 +7807,7 @@
         <span class="kw">for </span>(source, expected_received_at) <span class="kw">in </span>[
             (
                 BucketSource::External,
-                <span class="prelude-val">Some</span>(UnixTimestamp::from_instant(start_time)),
+                <span class="prelude-val">Some</span>(UnixTimestamp::from_datetime(received_at).unwrap()),
             ),
             (BucketSource::Internal, <span class="prelude-val">None</span>),
         ] {
@@ -7815,7 +7817,7 @@
                 rate_limits: Default::default(),
                 project_key,
                 source,
-                start_time,
+                received_at,
                 sent_at: <span class="prelude-val">Some</span>(Utc::now()),
             };
             processor.handle_process_project_metrics(<span class="kw-2">&amp;mut </span>token, message);
@@ -7833,7 +7835,7 @@
     <span class="attr">#[tokio::test]
     </span><span class="kw">async fn </span>test_process_batched_metrics() {
         <span class="kw">let </span><span class="kw-2">mut </span>token = Cogs::noop().timed(ResourceId::Relay, AppFeature::Unattributed);
-        <span class="kw">let </span>start_time = Instant::now();
+        <span class="kw">let </span>received_at = Utc::now();
         <span class="kw">let </span>config = Config::default();
 
         <span class="kw">let </span>(project_cache, <span class="kw-2">mut </span>project_cache_rx) = Addr::custom();
@@ -7878,7 +7880,7 @@
         <span class="kw">let </span>message = ProcessBatchedMetrics {
             payload: Bytes::from(payload),
             source: BucketSource::Internal,
-            start_time,
+            received_at,
             sent_at: <span class="prelude-val">Some</span>(Utc::now()),
         };
         processor.handle_process_batched_metrics(<span class="kw-2">&amp;mut </span>token, message);
