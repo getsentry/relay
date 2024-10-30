@@ -1,11 +1,12 @@
 use bytes::Bytes;
+use chrono::Utc;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use relay_config::Config;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
 use sqlx::{Pool, Sqlite};
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tempfile::TempDir;
 use tokio::runtime::Runtime;
 
@@ -66,7 +67,7 @@ fn mock_envelope_with_project_key(project_key: &ProjectKey, size: &str) -> Box<E
     ));
 
     let mut envelope = Envelope::parse_bytes(bytes).unwrap();
-    envelope.set_start_time(Instant::now());
+    envelope.set_received_at(Utc::now());
     envelope
 }
 

@@ -3,14 +3,15 @@ use std::path::Path;
 use std::pin::pin;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use crate::envelope::EnvelopeError;
-use crate::extractors::StartTime;
+
 use crate::services::buffer::common::ProjectKeyPair;
 use crate::statsd::{RelayGauges, RelayTimers};
 use crate::Envelope;
 use bytes::Bytes;
+use chrono::{DateTime, Utc};
 use futures::stream::StreamExt;
 use hashbrown::HashSet;
 use relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
@@ -57,8 +58,8 @@ impl DatabaseEnvelope {
         self.encoded_envelope.len()
     }
 
-    pub fn received_at(&self) -> Instant {
-        StartTime::from_timestamp_millis(self.received_at as u64).into_inner()
+    pub fn received_at(&self) -> DateTime<Utc> {
+        DateTime::from_timestamp_millis(self.received_at).unwrap_or(Utc::now())
     }
 }
 
@@ -66,8 +67,9 @@ impl TryFrom<DatabaseEnvelope> for Box<Envelope> {
     type Error = InsertEnvelopeError;
 
     fn try_from(value: DatabaseEnvelope) -> Result<Self, Self::Error> {
+        let received_at = value.received_at();
         let DatabaseEnvelope {
-            received_at,
+            received_at: _,
             own_key,
             sampling_key,
             mut encoded_envelope,
@@ -85,7 +87,7 @@ impl TryFrom<DatabaseEnvelope> for Box<Envelope> {
             .sampling_key()
             .map_or(true, |key| key == sampling_key));
 
-        envelope.set_start_time(StartTime::from_timestamp_millis(received_at as u64).into_inner());
+        envelope.set_received_at(received_at);
 
         Ok(envelope)
     }
@@ -603,9 +605,9 @@ mod tests {
             .unwrap();
         assert_eq!(extracted_envelopes.len(), 5);
         for (i, extracted_envelope) in extracted_envelopes.iter().enumerate().take(5) {
-            assert!(
-                extracted_envelope.received_at() - envelopes[5..][i].meta().start_time()
-                    < Duration::from_millis(1)
+            assert_eq!(
+                extracted_envelope.received_at(),
+                envelopes[5..][i].received_at()
             );
         }
 
@@ -617,9 +619,9 @@ mod tests {
             .unwrap();
         assert_eq!(extracted_envelopes.len(), 5);
         for (i, extracted_envelope) in extracted_envelopes.iter().enumerate().take(5) {
-            assert!(
-                extracted_envelope.received_at() - envelopes[..5][i].meta().start_time()
-                    < Duration::from_millis(1)
+            assert_eq!(
+                extracted_envelope.received_at(),
+                envelopes[..5][i].received_at()
             );
         }
     }

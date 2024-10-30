@@ -1,6 +1,6 @@
 use std::convert::Infallible;
 
-use tokio::time::Instant;
+use chrono::{DateTime, Utc};
 
 use crate::Envelope;
 
@@ -23,8 +23,8 @@ impl EnvelopeStack for MemoryEnvelopeStack {
         Ok(())
     }
 
-    async fn peek(&mut self) -> Result<Option<Instant>, Self::Error> {
-        Ok(self.0.last().map(|e| e.meta().start_time().into()))
+    async fn peek(&mut self) -> Result<Option<DateTime<Utc>>, Self::Error> {
+        Ok(self.0.last().map(|e| e.meta().received_at()))
     }
 
     async fn pop(&mut self) -> Result<Option<Box<Envelope>>, Self::Error> {
