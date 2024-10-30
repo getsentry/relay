@@ -316,6 +316,7 @@ where
                 prio.received_at = received_at;
             });
 
+        self.total_count.fetch_add(1, AtomicOrdering::SeqCst);
         self.track_total_count();
 
         Ok(())
