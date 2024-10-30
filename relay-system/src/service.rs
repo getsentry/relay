@@ -1032,19 +1032,6 @@ pub trait Service: Sized {
     ///
     /// This method should be used only when the `start` method can't be used because of some
     /// cyclic dependencies between services.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// // This is not possible because of the cyclic reference.
-    /// let a_tx = A::new(b_tx).start();
-    /// let b_tx = B::new(a_tx).start();
-    ///
-    /// // This is possible with `start_with_receiver`.
-    /// let (b_tx, b_rx) = channel();
-    /// let a_tx = A::new(b_tx).start();
-    /// B::new(a_tx).start_with_receiver(b_rx);
-    /// ```
     fn start_with_receiver(self, rx: Receiver<Self::Interface>) -> Self::PublicState {
         let shutdown = Controller::shutdown_handle();
         let public_state = self.pre_spawn();
