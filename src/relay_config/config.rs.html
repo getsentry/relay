@@ -2634,6 +2634,8 @@
 <a href="#2634" id="2634">2634</a>
 <a href="#2635" id="2635">2635</a>
 <a href="#2636" id="2636">2636</a>
+<a href="#2637" id="2637">2637</a>
+<a href="#2638" id="2638">2638</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
@@ -3653,7 +3655,9 @@
     <span class="doccomment">/// The cache timeout for project configurations in seconds.
     </span>project_expiry: u32,
     <span class="doccomment">/// Continue using project state this many seconds after cache expiry while a new state is
-    /// being fetched. This is added on top of `project_expiry` and `miss_expiry`. Default is 0.
+    /// being fetched. This is added on top of `project_expiry`.
+    ///
+    /// Default is 2 minutes.
     </span>project_grace_period: u32,
     <span class="doccomment">/// The cache timeout for downstream relay info (public keys) in seconds.
     </span>relay_expiry: u32,
@@ -3689,17 +3693,17 @@
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
         Cache {
             project_request_full_config: <span class="bool-val">false</span>,
-            project_expiry: <span class="number">300</span>, <span class="comment">// 5 minutes
-            </span>project_grace_period: <span class="number">0</span>,
-            relay_expiry: <span class="number">3600</span>,   <span class="comment">// 1 hour
-            </span>envelope_expiry: <span class="number">600</span>, <span class="comment">// 10 minutes
+            project_expiry: <span class="number">300</span>,       <span class="comment">// 5 minutes
+            </span>project_grace_period: <span class="number">120</span>, <span class="comment">// 2 minutes
+            </span>relay_expiry: <span class="number">3600</span>,        <span class="comment">// 1 hour
+            </span>envelope_expiry: <span class="number">600</span>,      <span class="comment">// 10 minutes
             </span>envelope_buffer_size: <span class="number">1000</span>,
             miss_expiry: <span class="number">60</span>,                       <span class="comment">// 1 minute
             </span>batch_interval: <span class="number">100</span>,                   <span class="comment">// 100ms
             </span>downstream_relays_batch_interval: <span class="number">100</span>, <span class="comment">// 100ms
             </span>batch_size: <span class="number">500</span>,
             file_interval: <span class="number">10</span>,                <span class="comment">// 10 seconds
-            </span>eviction_interval: <span class="number">60</span>,            <span class="comment">// 60 seconds
+            </span>eviction_interval: <span class="number">15</span>,            <span class="comment">// 15 seconds
             </span>global_config_fetch_interval: <span class="number">10</span>, <span class="comment">// 10 seconds
         </span>}
     }

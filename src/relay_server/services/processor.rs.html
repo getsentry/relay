@@ -3865,6 +3865,15 @@
 <a href="#3865" id="3865">3865</a>
 <a href="#3866" id="3866">3866</a>
 <a href="#3867" id="3867">3867</a>
+<a href="#3868" id="3868">3868</a>
+<a href="#3869" id="3869">3869</a>
+<a href="#3870" id="3870">3870</a>
+<a href="#3871" id="3871">3871</a>
+<a href="#3872" id="3872">3872</a>
+<a href="#3873" id="3873">3873</a>
+<a href="#3874" id="3874">3874</a>
+<a href="#3875" id="3875">3875</a>
+<a href="#3876" id="3876">3876</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -3939,9 +3948,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::metrics::{Aggregator, MergeBuckets};
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::event::FiltersStatus;
-<span class="kw">use </span><span class="kw">crate</span>::services::projects::cache::{
-    BucketSource, ProcessMetrics, ProjectCache, UpdateRateLimits,
-};
+<span class="kw">use </span><span class="kw">crate</span>::services::projects::cache::ProjectCacheHandle;
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::project::{ProjectInfo, ProjectState};
 <span class="kw">use </span><span class="kw">crate</span>::services::test_store::{Capture, TestStore};
 <span class="kw">use </span><span class="kw">crate</span>::services::upstream::{
@@ -4634,7 +4641,7 @@
 
     <span class="doccomment">/// Currently active cached rate limits of the project this envelope belongs to.
     </span><span class="attr">#[cfg_attr(not(feature = <span class="string">"processing"</span>), expect(dead_code))]
-    </span>rate_limits: RateLimits,
+    </span>rate_limits: Arc&lt;RateLimits&gt;,
 
     <span class="doccomment">/// The config of this Relay instance.
     </span>config: Arc&lt;Config&gt;,
@@ -4751,7 +4758,7 @@
     <span class="doccomment">/// The project info.
     </span><span class="kw">pub </span>project_info: Arc&lt;ProjectInfo&gt;,
     <span class="doccomment">/// Currently active cached rate limits for this project.
-    </span><span class="kw">pub </span>rate_limits: RateLimits,
+    </span><span class="kw">pub </span>rate_limits: Arc&lt;RateLimits&gt;,
     <span class="doccomment">/// Root sampling project info.
     </span><span class="kw">pub </span>sampling_project_info: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectInfo&gt;&gt;,
     <span class="doccomment">/// Sampling reservoir counters.
@@ -4770,16 +4777,7 @@
 /// Additionally, processing applies clock drift correction using the system clock of this Relay, if
 /// the Envelope specifies the [`sent_at`](Envelope::sent_at) header.
 </span><span class="attr">#[derive(Debug)]
-</span><span class="kw">pub struct </span>ProcessProjectMetrics {
-    <span class="doccomment">/// The project state the metrics belong to.
-    ///
-    /// The project state can be pending, in which case cached rate limits
-    /// and other project specific operations are skipped and executed once
-    /// the project state becomes available.
-    </span><span class="kw">pub </span>project_state: ProjectState,
-    <span class="doccomment">/// Currently active cached rate limits for this project.
-    </span><span class="kw">pub </span>rate_limits: RateLimits,
-
+</span><span class="kw">pub struct </span>ProcessMetrics {
     <span class="doccomment">/// A list of metric items.
     </span><span class="kw">pub </span>data: MetricData,
     <span class="doccomment">/// The target project.
@@ -4867,6 +4865,32 @@
     </span><span class="kw">pub </span>sent_at: <span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;,
 }
 
+<span class="doccomment">/// Source information where a metric bucket originates from.
+</span><span class="attr">#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+</span><span class="kw">pub enum </span>BucketSource {
+    <span class="doccomment">/// The metric bucket originated from an internal Relay use case.
+    ///
+    /// The metric bucket originates either from within the same Relay
+    /// or was accepted coming from another Relay which is registered as
+    /// an internal Relay via Relay's configuration.
+    </span>Internal,
+    <span class="doccomment">/// The bucket source originated from an untrusted source.
+    ///
+    /// Managed Relays sending extracted metrics are considered external,
+    /// it's a project use case but it comes from an untrusted source.
+    </span>External,
+}
+
+<span class="kw">impl </span>BucketSource {
+    <span class="doccomment">/// Infers the bucket source from [`RequestMeta::is_from_internal_relay`].
+    </span><span class="kw">pub fn </span>from_meta(meta: <span class="kw-2">&amp;</span>RequestMeta) -&gt; <span class="self">Self </span>{
+        <span class="kw">match </span>meta.is_from_internal_relay() {
+            <span class="bool-val">true </span>=&gt; <span class="self">Self</span>::Internal,
+            <span class="bool-val">false </span>=&gt; <span class="self">Self</span>::External,
+        }
+    }
+}
+
 <span class="doccomment">/// Metric buckets with additional project.
 </span><span class="attr">#[derive(Debug, Clone)]
 </span><span class="kw">pub struct </span>ProjectMetrics {
@@ -4875,7 +4899,7 @@
     <span class="doccomment">/// Project info for extracting quotas.
     </span><span class="kw">pub </span>project_info: Arc&lt;ProjectInfo&gt;,
     <span class="doccomment">/// Currently cached rate limits.
-    </span><span class="kw">pub </span>rate_limits: RateLimits,
+    </span><span class="kw">pub </span>rate_limits: Arc&lt;RateLimits&gt;,
 }
 
 <span class="doccomment">/// Encodes metrics into an envelope ready to be sent upstream.
@@ -4904,7 +4928,7 @@
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub enum </span>EnvelopeProcessor {
     ProcessEnvelope(Box&lt;ProcessEnvelope&gt;),
-    ProcessProjectMetrics(Box&lt;ProcessProjectMetrics&gt;),
+    ProcessProjectMetrics(Box&lt;ProcessMetrics&gt;),
     ProcessBatchedMetrics(Box&lt;ProcessBatchedMetrics&gt;),
     EncodeMetrics(Box&lt;EncodeMetrics&gt;),
     SubmitEnvelope(Box&lt;SubmitEnvelope&gt;),
@@ -4935,10 +4959,10 @@
     }
 }
 
-<span class="kw">impl </span>FromMessage&lt;ProcessProjectMetrics&gt; <span class="kw">for </span>EnvelopeProcessor {
+<span class="kw">impl </span>FromMessage&lt;ProcessMetrics&gt; <span class="kw">for </span>EnvelopeProcessor {
     <span class="kw">type </span>Response = NoResponse;
 
-    <span class="kw">fn </span>from_message(message: ProcessProjectMetrics, <span class="kw">_</span>: ()) -&gt; <span class="self">Self </span>{
+    <span class="kw">fn </span>from_message(message: ProcessMetrics, <span class="kw">_</span>: ()) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::ProcessProjectMetrics(Box::new(message))
     }
 }
@@ -4985,7 +5009,6 @@
 
 <span class="doccomment">/// Contains the addresses of services that the processor publishes to.
 </span><span class="kw">pub struct </span>Addrs {
-    <span class="kw">pub </span>project_cache: Addr&lt;ProjectCache&gt;,
     <span class="kw">pub </span>outcome_aggregator: Addr&lt;TrackOutcome&gt;,
     <span class="kw">pub </span>upstream_relay: Addr&lt;UpstreamRelay&gt;,
     <span class="kw">pub </span>test_store: Addr&lt;TestStore&gt;,
@@ -4997,7 +5020,6 @@
 <span class="kw">impl </span>Default <span class="kw">for </span>Addrs {
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
         Addrs {
-            project_cache: Addr::dummy(),
             outcome_aggregator: Addr::dummy(),
             upstream_relay: Addr::dummy(),
             test_store: Addr::dummy(),
@@ -5012,6 +5034,7 @@
     workers: WorkerGroup,
     config: Arc&lt;Config&gt;,
     global_config: GlobalConfigHandle,
+    project_cache: ProjectCacheHandle,
     cogs: Cogs,
     <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>quotas_pool: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;,
@@ -5026,10 +5049,12 @@
 
 <span class="kw">impl </span>EnvelopeProcessorService {
     <span class="doccomment">/// Creates a multi-threaded envelope processor.
+    </span><span class="attr">#[cfg_attr(feature = <span class="string">"processing"</span>, expect(clippy::too_many_arguments))]
     </span><span class="kw">pub fn </span>new(
         pool: ThreadPool,
         config: Arc&lt;Config&gt;,
         global_config: GlobalConfigHandle,
+        project_cache: ProjectCacheHandle,
         cogs: Cogs,
         <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)] </span>redis: <span class="prelude-ty">Option</span>&lt;RedisPools&gt;,
         addrs: Addrs,
@@ -5058,6 +5083,7 @@
         <span class="kw">let </span>inner = InnerProcessor {
             workers: WorkerGroup::new(pool),
             global_config,
+            project_cache,
             cogs,
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>quotas_pool: quotas.clone(),
@@ -5123,7 +5149,7 @@
         <span class="kw-2">mut </span>managed_envelope: TypedEnvelope&lt;G&gt;,
         project_id: ProjectId,
         project_info: Arc&lt;ProjectInfo&gt;,
-        rate_limits: RateLimits,
+        rate_limits: Arc&lt;RateLimits&gt;,
         sampling_project_info: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectInfo&gt;&gt;,
         reservoir_counters: Arc&lt;Mutex&lt;BTreeMap&lt;RuleId, i64&gt;&gt;&gt;,
     ) -&gt; ProcessEnvelopeState&lt;G&gt; {
@@ -5194,10 +5220,11 @@
 
         <span class="comment">// Update cached rate limits with the freshly computed ones.
         </span><span class="kw">if </span>!limits.is_empty() {
-            <span class="self">self</span>.inner.addrs.project_cache.send(UpdateRateLimits::new(
-                state.managed_envelope.scoping().project_key,
-                limits,
-            ));
+            <span class="self">self</span>.inner
+                .project_cache
+                .get(state.managed_envelope.scoping().project_key)
+                .rate_limits()
+                .merge(limits);
         }
 
         <span class="prelude-val">Ok</span>(())
@@ -5733,7 +5760,7 @@
         <span class="kw-2">mut </span>managed_envelope: ManagedEnvelope,
         project_id: ProjectId,
         project_info: Arc&lt;ProjectInfo&gt;,
-        rate_limits: RateLimits,
+        rate_limits: Arc&lt;RateLimits&gt;,
         sampling_project_info: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectInfo&gt;&gt;,
         reservoir_counters: Arc&lt;Mutex&lt;BTreeMap&lt;RuleId, i64&gt;&gt;&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;ProcessingStateResult, ProcessingError&gt; {
@@ -5951,10 +5978,8 @@
         }
     }
 
-    <span class="kw">fn </span>handle_process_project_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>, cogs: <span class="kw-2">&amp;mut </span>Token, message: ProcessProjectMetrics) {
-        <span class="kw">let </span>ProcessProjectMetrics {
-            project_state,
-            rate_limits,
+    <span class="kw">fn </span>handle_process_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>, cogs: <span class="kw-2">&amp;mut </span>Token, message: ProcessMetrics) {
+        <span class="kw">let </span>ProcessMetrics {
             data,
             project_key,
             received_at,
@@ -5993,13 +6018,16 @@
             <span class="bool-val">true
         </span>});
 
+        <span class="kw">let </span>project = <span class="self">self</span>.inner.project_cache.get(project_key);
+
         <span class="comment">// Best effort check to filter and rate limit buckets, if there is no project state
         // available at the current time, we will check again after flushing.
-        </span><span class="kw">let </span>buckets = <span class="kw">match </span>project_state.enabled() {
-            <span class="prelude-val">Some</span>(project_info) =&gt; {
-                <span class="self">self</span>.check_buckets(project_key, <span class="kw-2">&amp;</span>project_info, <span class="kw-2">&amp;</span>rate_limits, buckets)
+        </span><span class="kw">let </span>buckets = <span class="kw">match </span>project.state() {
+            ProjectState::Enabled(project_info) =&gt; {
+                <span class="kw">let </span>rate_limits = project.rate_limits().current_limits();
+                <span class="self">self</span>.check_buckets(project_key, project_info, <span class="kw-2">&amp;</span>rate_limits, buckets)
             }
-            <span class="prelude-val">None </span>=&gt; buckets,
+            <span class="kw">_ </span>=&gt; buckets,
         };
 
         <span class="macro">relay_log::trace!</span>(<span class="string">"merging metric buckets into the aggregator"</span>);
@@ -6034,21 +6062,17 @@
             }
         };
 
-        <span class="kw">let </span><span class="kw-2">mut </span>feature_weights = FeatureWeights::none();
         <span class="kw">for </span>(project_key, buckets) <span class="kw">in </span>buckets {
-            feature_weights = feature_weights.merge(relay_metrics::cogs::BySize(<span class="kw-2">&amp;</span>buckets).into());
-
-            <span class="self">self</span>.inner.addrs.project_cache.send(ProcessMetrics {
-                data: MetricData::Parsed(buckets),
-                project_key,
-                source,
-                received_at,
-                sent_at,
-            });
-        }
-
-        <span class="kw">if </span>!feature_weights.is_empty() {
-            cogs.update(feature_weights);
+            <span class="self">self</span>.handle_process_metrics(
+                cogs,
+                ProcessMetrics {
+                    data: MetricData::Parsed(buckets),
+                    project_key,
+                    source,
+                    received_at,
+                    sent_at,
+                },
+            )
         }
     }
 
@@ -6096,7 +6120,7 @@
                         envelope,
                         body,
                         http_encoding,
-                        project_cache: <span class="self">self</span>.inner.addrs.project_cache.clone(),
+                        project_cache: <span class="self">self</span>.inner.project_cache.clone(),
                     }));
             }
             <span class="prelude-val">Err</span>(error) =&gt; {
@@ -6249,10 +6273,11 @@
                     Outcome::RateLimited(reason_code),
                 );
 
-                <span class="self">self</span>.inner.addrs.project_cache.send(UpdateRateLimits::new(
-                    item_scoping.scoping.project_key,
-                    limits,
-                ));
+                <span class="self">self</span>.inner
+                    .project_cache
+                    .get(item_scoping.scoping.project_key)
+                    .rate_limits()
+                    .merge(limits);
             }
         }
 
@@ -6327,9 +6352,10 @@
                 <span class="kw">if </span>was_enforced {
                     <span class="comment">// Update the rate limits in the project cache.
                     </span><span class="self">self</span>.inner
-                        .addrs
                         .project_cache
-                        .send(UpdateRateLimits::new(scoping.project_key, rate_limits));
+                        .get(scoping.project_key)
+                        .rate_limits()
+                        .merge(rate_limits);
                 }
             }
         }
@@ -6640,7 +6666,7 @@
             <span class="kw">match </span>message {
                 EnvelopeProcessor::ProcessEnvelope(m) =&gt; <span class="self">self</span>.handle_process_envelope(<span class="kw-2">*</span>m),
                 EnvelopeProcessor::ProcessProjectMetrics(m) =&gt; {
-                    <span class="self">self</span>.handle_process_project_metrics(<span class="kw-2">&amp;mut </span>cogs, <span class="kw-2">*</span>m)
+                    <span class="self">self</span>.handle_process_metrics(<span class="kw-2">&amp;mut </span>cogs, <span class="kw-2">*</span>m)
                 }
                 EnvelopeProcessor::ProcessBatchedMetrics(m) =&gt; {
                     <span class="self">self</span>.handle_process_batched_metrics(<span class="kw-2">&amp;mut </span>cogs, <span class="kw-2">*</span>m)
@@ -6786,7 +6812,7 @@
     envelope: TypedEnvelope&lt;Processed&gt;,
     body: Bytes,
     http_encoding: HttpEncoding,
-    project_cache: Addr&lt;ProjectCache&gt;,
+    project_cache: ProjectCacheHandle,
 }
 
 <span class="kw">impl </span>UpstreamRequest <span class="kw">for </span>SendEnvelope {
@@ -6838,10 +6864,10 @@
                     <span class="self">self</span>.envelope.accept();
 
                     <span class="kw">if let </span>UpstreamRequestError::RateLimited(limits) = error {
-                        <span class="self">self</span>.project_cache.send(UpdateRateLimits::new(
-                            scoping.project_key,
-                            limits.scope(<span class="kw-2">&amp;</span>scoping),
-                        ));
+                        <span class="self">self</span>.project_cache
+                            .get(scoping.project_key)
+                            .rate_limits()
+                            .merge(limits.scope(<span class="kw-2">&amp;</span>scoping));
                     }
                 }
                 <span class="prelude-val">Err</span>(error) =&gt; {
@@ -7581,16 +7607,14 @@
             ),
             (BucketSource::Internal, <span class="prelude-val">None</span>),
         ] {
-            <span class="kw">let </span>message = ProcessProjectMetrics {
+            <span class="kw">let </span>message = ProcessMetrics {
                 data: MetricData::Raw(<span class="macro">vec!</span>[item.clone()]),
-                project_state: ProjectState::Pending,
-                rate_limits: Default::default(),
                 project_key,
                 source,
                 received_at,
                 sent_at: <span class="prelude-val">Some</span>(Utc::now()),
             };
-            processor.handle_process_project_metrics(<span class="kw-2">&amp;mut </span>token, message);
+            processor.handle_process_metrics(<span class="kw-2">&amp;mut </span>token, message);
 
             <span class="kw">let </span>value = aggregator_rx.recv().<span class="kw">await</span>.unwrap();
             <span class="kw">let </span>Aggregator::MergeBuckets(merge_buckets) = value <span class="kw">else </span>{
@@ -7608,11 +7632,11 @@
         <span class="kw">let </span>received_at = Utc::now();
         <span class="kw">let </span>config = Config::default();
 
-        <span class="kw">let </span>(project_cache, <span class="kw-2">mut </span>project_cache_rx) = Addr::custom();
+        <span class="kw">let </span>(aggregator, <span class="kw-2">mut </span>aggregator_rx) = Addr::custom();
         <span class="kw">let </span>processor = create_test_processor_with_addrs(
             config,
             Addrs {
-                project_cache,
+                aggregator,
                 ..Default::default()
             },
         );
@@ -7655,78 +7679,72 @@
         };
         processor.handle_process_batched_metrics(<span class="kw-2">&amp;mut </span>token, message);
 
-        <span class="kw">let </span>value = project_cache_rx.recv().<span class="kw">await</span>.unwrap();
-        <span class="kw">let </span>ProjectCache::ProcessMetrics(pm1) = value <span class="kw">else </span>{
+        <span class="kw">let </span>value = aggregator_rx.recv().<span class="kw">await</span>.unwrap();
+        <span class="kw">let </span>Aggregator::MergeBuckets(mb1) = value <span class="kw">else </span>{
             <span class="macro">panic!</span>()
         };
-        <span class="kw">let </span>value = project_cache_rx.recv().<span class="kw">await</span>.unwrap();
-        <span class="kw">let </span>ProjectCache::ProcessMetrics(pm2) = value <span class="kw">else </span>{
+        <span class="kw">let </span>value = aggregator_rx.recv().<span class="kw">await</span>.unwrap();
+        <span class="kw">let </span>Aggregator::MergeBuckets(mb2) = value <span class="kw">else </span>{
             <span class="macro">panic!</span>()
         };
 
-        <span class="kw">let </span><span class="kw-2">mut </span>messages = <span class="macro">vec!</span>[pm1, pm2];
+        <span class="kw">let </span><span class="kw-2">mut </span>messages = <span class="macro">vec!</span>[mb1, mb2];
         messages.sort_by_key(|pm| pm.project_key);
 
         <span class="kw">let </span>actual = messages
             .into_iter()
-            .map(|pm| (pm.project_key, pm.data, pm.source))
+            .map(|pm| (pm.project_key, pm.buckets))
             .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
 
         <span class="macro">assert_debug_snapshot!</span>(actual, @<span class="string">r###"
         [
             (
                 ProjectKey("11111111111111111111111111111111"),
-                Parsed(
-                    [
-                        Bucket {
-                            timestamp: UnixTimestamp(1615889440),
-                            width: 0,
-                            name: MetricName(
-                                "d:custom/endpoint.response_time@millisecond",
-                            ),
-                            value: Distribution(
-                                [
-                                    68.0,
-                                ],
-                            ),
-                            tags: {
-                                "route": "user_index",
-                            },
-                            metadata: BucketMetadata {
-                                merges: 1,
-                                received_at: None,
-                                extracted_from_indexed: false,
-                            },
+                [
+                    Bucket {
+                        timestamp: UnixTimestamp(1615889440),
+                        width: 0,
+                        name: MetricName(
+                            "d:custom/endpoint.response_time@millisecond",
+                        ),
+                        value: Distribution(
+                            [
+                                68.0,
+                            ],
+                        ),
+                        tags: {
+                            "route": "user_index",
                         },
-                    ],
-                ),
-                Internal,
+                        metadata: BucketMetadata {
+                            merges: 1,
+                            received_at: None,
+                            extracted_from_indexed: false,
+                        },
+                    },
+                ],
             ),
             (
                 ProjectKey("22222222222222222222222222222222"),
-                Parsed(
-                    [
-                        Bucket {
-                            timestamp: UnixTimestamp(1615889440),
-                            width: 0,
-                            name: MetricName(
-                                "d:custom/endpoint.cache_rate@none",
-                            ),
-                            value: Distribution(
-                                [
-                                    36.0,
-                                ],
-                            ),
-                            tags: {},
-                            metadata: BucketMetadata {
-                                merges: 1,
-                                received_at: None,
-                                extracted_from_indexed: false,
-                            },
+                [
+                    Bucket {
+                        timestamp: UnixTimestamp(1615889440),
+                        width: 0,
+                        name: MetricName(
+                            "d:custom/endpoint.cache_rate@none",
+                        ),
+                        value: Distribution(
+                            [
+                                36.0,
+                            ],
+                        ),
+                        tags: {},
+                        metadata: BucketMetadata {
+                            merges: 1,
+                            received_at: None,
+                            extracted_from_indexed: false,
                         },
-                    ],
-                ),
-                Internal,
+                    },
+                ],
             ),
         ]
         "###</span>);
