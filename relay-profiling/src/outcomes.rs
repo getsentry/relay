@@ -16,5 +16,7 @@ pub fn discard_reason(err: ProfileError) -> &'static str {
         ProfileError::PlatformNotSupported => "profiling_platform_not_supported",
         ProfileError::TooManyProfiles => "profiling_too_many_profiles",
         ProfileError::DurationIsTooLong => "profiling_duration_is_too_long",
+        ProfileError::DurationIsZero => "profiling_duration_is_zero",
+        ProfileError::Filtered(_) => "profiling_filtered",
     }
 }

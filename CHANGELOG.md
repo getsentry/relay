@@ -7,6 +7,23 @@
 - Removes support for metric meta envelope items. ([#4152](https://github.com/getsentry/relay/pull/4152))
 - Removes support for the project cache endpoint version 2 and before. ([#4147](https://github.com/getsentry/relay/pull/4147))
 
+**Bug Fixes**
+
+- Allow profile chunks without release. ([#4155](https://github.com/getsentry/relay/pull/4155))
+- Add validation for timestamps sent from the future. ([#4163](https://github.com/getsentry/relay/pull/4163))
+
+**Features:**
+
+- Retain empty string values in `span.data` and `event.contexts.trace.data`. ([#4174](https://github.com/getsentry/relay/pull/4174))
+- Allow `sample_rate` to be float type when deserializing `DynamicSamplingContext`. ([#4181](https://github.com/getsentry/relay/pull/4181))
+- Support inbound filters for profiles. ([#4176](https://github.com/getsentry/relay/pull/4176))
+
+**Internal:**
+
+- Add a metric that counts span volume in the root project for dynamic sampling (`c:spans/count_per_root_project@none`). ([#4134](https://github.com/getsentry/relay/pull/4134))
+- Add a tag `target_project_id` to both root project metrics for dynamic sampling (`c:transactions/count_per_root_project@none` and `c:spans/count_per_root_project@none`) which shows the flow trace traffic from root to target projects. ([#4170](https://github.com/getsentry/relay/pull/4170))
+- Use `DateTime<Utc>` instead of `Instant` for tracking the received time of the `Envelope`. ([#4184](https://github.com/getsentry/relay/pull/4184))
+
 ## 24.10.0
 
 **Breaking Changes**:
@@ -27,6 +44,7 @@
 - Add user geo information to Replays. ([#4088](https://github.com/getsentry/relay/pull/4088))
 - Configurable span.op inference. ([#4056](https://github.com/getsentry/relay/pull/4056))
 - Enable support for zstd `Content-Encoding`. ([#4089](https://github.com/getsentry/relay/pull/4089))
+- Accept profile chunks from Android. ([#4104](https://github.com/getsentry/relay/pull/4104))
 - Add support for creating User from LoginId in Unreal Crash Context. ([#4093](https://github.com/getsentry/relay/pull/4093))
 - Add multi-write Redis client. ([#4064](https://github.com/getsentry/relay/pull/4064))
 

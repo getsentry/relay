@@ -819,7 +819,7 @@ def test_transaction_metrics(
         assert_transaction()
         assert_transaction()
 
-    metrics = metrics_by_name(metrics_consumer, count=10, timeout=6)
+    metrics = metrics_by_name(metrics_consumer, count=11, timeout=6)
 
     timestamp = int(timestamp.timestamp())
     common = {
@@ -875,6 +875,7 @@ def test_transaction_metrics(
         "retention_days": 90,
         "tags": {
             "decision": "drop" if discard_data else "keep",
+            "target_project_id": "42",
             "transaction": "transaction_which_starts_trace",
         },
         "name": "c:transactions/count_per_root_project@none",
@@ -945,7 +946,7 @@ def test_transaction_metrics_count_per_root_project(
         "org_id": 1,
         "project_id": 41,
         "retention_days": 90,
-        "tags": {"decision": "keep", "transaction": "test"},
+        "tags": {"decision": "keep", "target_project_id": "42", "transaction": "test"},
         "name": "c:transactions/count_per_root_project@none",
         "type": "c",
         "value": 1.0,
@@ -956,7 +957,7 @@ def test_transaction_metrics_count_per_root_project(
         "org_id": 1,
         "project_id": 42,
         "retention_days": 90,
-        "tags": {"decision": "keep"},
+        "tags": {"decision": "keep", "target_project_id": "42"},
         "name": "c:transactions/count_per_root_project@none",
         "type": "c",
         "value": 2.0,
@@ -1416,11 +1417,12 @@ def test_span_metrics(
         for metric, headers in metrics
         if metric["name"].startswith("spans", 2)
     ]
-    assert len(span_metrics) == 7
+    assert len(span_metrics) == 8
     for metric, headers in span_metrics:
         assert headers == [("namespace", b"spans")]
         if metric["name"] in (
             "c:spans/usage@none",
+            "c:spans/count_per_root_project@none",
             "d:spans/duration@millisecond",
             "d:spans/duration_light@millisecond",
         ):
@@ -1501,7 +1503,7 @@ def test_mongodb_span_metrics_not_extracted_without_feature(
         for metric, headers in metrics
         if metric["name"].startswith("spans", 2)
     ]
-    assert len(span_metrics) == 7
+    assert len(span_metrics) == 8
 
     for metric, headers in span_metrics:
         assert headers == [("namespace", b"spans")]
@@ -1585,12 +1587,13 @@ def test_mongodb_span_metrics_extracted_with_feature(
         for metric, headers in metrics
         if metric["name"].startswith("spans", 2)
     ]
-    assert len(span_metrics) == 7
+    assert len(span_metrics) == 8
 
     for metric, headers in span_metrics:
         assert headers == [("namespace", b"spans")]
         if metric["name"] in (
             "c:spans/usage@none",
+            "c:spans/count_per_root_project@none",
             "d:spans/duration@millisecond",
             "d:spans/duration_light@millisecond",
         ):

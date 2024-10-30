@@ -4,7 +4,7 @@ use std::fmt::{Debug, Display};
 use std::marker::PhantomData;
 use std::mem::size_of;
 use std::ops::{Deref, DerefMut};
-use std::time::Instant;
+use std::time::Duration;
 
 use chrono::{DateTime, Utc};
 use relay_quotas::{DataCategory, Scoping};
@@ -492,24 +492,24 @@ impl ManagedEnvelope {
         ) * 1000.) as usize
     }
 
-    /// Returns the instant at which the envelope was received at this Relay.
-    ///
-    /// This is the monotonic time equivalent to [`received_at`](Self::received_at).
-    pub fn start_time(&self) -> Instant {
-        self.meta().start_time()
-    }
-
     /// Returns the time at which the envelope was received at this Relay.
     ///
-    /// This is the date time equivalent to [`start_time`](Self::start_time).
+    /// This is the date time equivalent to [`start_time`](Self::received_at).
     pub fn received_at(&self) -> DateTime<Utc> {
         self.envelope.received_at()
+    }
+
+    /// Returns the time elapsed in seconds since the envelope was received by this Relay.
+    ///
+    /// In case the elapsed time is negative, it is assumed that no time elapsed.
+    pub fn age(&self) -> Duration {
+        self.envelope.age()
     }
 
     /// Resets inner state to ensure there's no more logging.
     fn finish(&mut self, counter: RelayCounters, handling: Handling) {
         relay_statsd::metric!(counter(counter) += 1, handling = handling.as_str());
-        relay_statsd::metric!(timer(RelayTimers::EnvelopeTotalTime) = self.start_time().elapsed());
+        relay_statsd::metric!(timer(RelayTimers::EnvelopeTotalTime) = self.age());
 
         self.context.done = true;
     }

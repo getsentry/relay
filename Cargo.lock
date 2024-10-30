@@ -399,6 +399,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8c3c1a368f70d6cf7302d78f8f7093da241fb8e8807c05cc9e51a125895a6d5b"
 
 [[package]]
+name = "bench-buffer"
+version = "0.1.0"
+dependencies = [
+ "bytes",
+ "chrono",
+ "clap",
+ "rand",
+ "relay-config",
+ "relay-server",
+ "serde_json",
+ "tempfile",
+ "tokio",
+]
+
+[[package]]
 name = "bindgen"
 version = "0.70.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3628,7 +3643,9 @@ dependencies = [
  "insta",
  "itertools 0.13.0",
  "relay-base-schema",
+ "relay-dynamic-config",
  "relay-event-schema",
+ "relay-filter",
  "relay-log",
  "relay-metrics",
  "relay-protocol",
@@ -3636,6 +3653,7 @@ dependencies = [
  "serde_json",
  "serde_path_to_error",
  "thiserror",
+ "url",
 ]
 
 [[package]]

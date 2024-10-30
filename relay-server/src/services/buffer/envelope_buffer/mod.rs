@@ -8,6 +8,7 @@ use std::sync::atomic::Ordering as AtomicOrdering;
 use std::sync::Arc;
 use std::time::Duration;
 
+use chrono::{DateTime, Utc};
 use hashbrown::HashSet;
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
@@ -208,6 +209,9 @@ struct EnvelopeBuffer<P: StackProvider> {
     /// This boolean is just used for tagging the metric that tracks the total count of envelopes
     /// in the buffer.
     total_count_initialized: bool,
+
+    /// Temporary field used to track compression gains.
+    push_count: usize,
 }
 
 impl EnvelopeBuffer<MemoryStackProvider> {
@@ -219,6 +223,7 @@ impl EnvelopeBuffer<MemoryStackProvider> {
             stack_provider: MemoryStackProvider::new(memory_checker),
             total_count: Arc::new(AtomicI64::new(0)),
             total_count_initialized: false,
+            push_count: 0,
         }
     }
 }
@@ -233,6 +238,7 @@ impl EnvelopeBuffer<SqliteStackProvider> {
             stack_provider: SqliteStackProvider::new(config).await?,
             total_count: Arc::new(AtomicI64::new(0)),
             total_count_initialized: false,
+            push_count: 0,
         })
     }
 }
@@ -257,7 +263,34 @@ where
     /// If the envelope stack does not exist, a new stack is pushed to the priority queue.
     /// The priority of the stack is updated with the envelope's received_at time.
     pub async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), EnvelopeBufferError> {
-        let received_at = envelope.meta().start_time().into();
+        let received_at = envelope.meta().received_at();
+
+        // Temporary metric to verify compression gains
+        self.push_count += 1;
+        if 0 == (self.push_count % 100) {
+            if let Ok(serialized) = envelope.to_vec() {
+                let compression_level = (self.push_count % 3) as i32 + 1; // 1 = lowest, 3 = default
+                tokio::spawn(async move {
+                    relay_statsd::metric!(
+                        histogram(RelayHistograms::BufferEnvelopeSize) = serialized.len() as u64
+                    );
+
+                    let tag = compression_level.to_string();
+                    if let Ok(encoded) = relay_statsd::metric!(
+                        timer(RelayTimers::BufferEnvelopeCompression),
+                        compression_level = &tag,
+                        { zstd::encode_all(serialized.as_slice(), compression_level) }
+                    ) {
+                        relay_statsd::metric!(
+                            histogram(RelayHistograms::BufferEnvelopeSizeCompressed) =
+                                encoded.len() as u64,
+                            compression_level = &tag
+                        );
+                    }
+                });
+            }
+        }
+
         let project_key_pair = ProjectKeyPair::from_envelope(&envelope);
         if let Some((
             QueueItem {
@@ -329,7 +362,7 @@ where
         let next_received_at = stack
             .peek()
             .await?
-            .map(|next_envelope| next_envelope.meta().start_time().into());
+            .map(|next_envelope| next_envelope.received_at());
 
         match next_received_at {
             None => {
@@ -423,9 +456,7 @@ where
         project_key_pair: ProjectKeyPair,
         envelope: Option<Box<Envelope>>,
     ) -> Result<(), EnvelopeBufferError> {
-        let received_at = envelope
-            .as_ref()
-            .map_or(Instant::now(), |e| e.meta().start_time().into());
+        let received_at = envelope.as_ref().map_or(Utc::now(), |e| e.received_at());
 
         let mut stack = self
             .stack_provider
@@ -557,12 +588,12 @@ impl<K: PartialEq, V> Eq for QueueItem<K, V> {}
 #[derive(Debug, Clone)]
 struct Priority {
     readiness: Readiness,
-    received_at: Instant,
+    received_at: DateTime<Utc>,
     next_project_fetch: Instant,
 }
 
 impl Priority {
-    fn new(received_at: Instant) -> Self {
+    fn new(received_at: DateTime<Utc>) -> Self {
         Self {
             readiness: Readiness::new(),
             received_at,
@@ -792,9 +823,9 @@ mod tests {
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
         let envelope1 = new_envelope(project_key, None, None);
-        let instant1 = envelope1.meta().start_time();
+        let instant1 = envelope1.meta().received_at();
         let envelope2 = new_envelope(project_key, None, None);
-        let instant2 = envelope2.meta().start_time();
+        let instant2 = envelope2.meta().received_at();
 
         assert!(instant2 > instant1);
 
@@ -802,11 +833,11 @@ mod tests {
         buffer.push(envelope2).await.unwrap();
 
         assert_eq!(
-            buffer.pop().await.unwrap().unwrap().meta().start_time(),
+            buffer.pop().await.unwrap().unwrap().meta().received_at(),
             instant2
         );
         assert_eq!(
-            buffer.pop().await.unwrap().unwrap().meta().start_time(),
+            buffer.pop().await.unwrap().unwrap().meta().received_at(),
             instant1
         );
         assert!(buffer.pop().await.unwrap().is_none());
@@ -820,15 +851,15 @@ mod tests {
         let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fef").unwrap();
 
         let envelope1 = new_envelope(project_key1, None, None);
-        let instant1 = envelope1.meta().start_time();
+        let instant1 = envelope1.meta().received_at();
         buffer.push(envelope1).await.unwrap();
 
         let envelope2 = new_envelope(project_key2, None, None);
-        let instant2 = envelope2.meta().start_time();
+        let instant2 = envelope2.meta().received_at();
         buffer.push(envelope2).await.unwrap();
 
         let envelope3 = new_envelope(project_key1, Some(project_key2), None);
-        let instant3 = envelope3.meta().start_time();
+        let instant3 = envelope3.meta().received_at();
         buffer.push(envelope3).await.unwrap();
 
         buffer.mark_ready(&project_key1, false);
@@ -843,7 +874,7 @@ mod tests {
                 .envelope()
                 .unwrap()
                 .meta()
-                .start_time(),
+                .received_at(),
             instant1
         );
 
@@ -857,7 +888,7 @@ mod tests {
                 .envelope()
                 .unwrap()
                 .meta()
-                .start_time(),
+                .received_at(),
             instant2
         );
 
@@ -871,7 +902,7 @@ mod tests {
                 .envelope()
                 .unwrap()
                 .meta()
-                .start_time(),
+                .received_at(),
             instant1
         );
 
@@ -885,14 +916,14 @@ mod tests {
                 .envelope()
                 .unwrap()
                 .meta()
-                .start_time(),
+                .received_at(),
             instant1
         );
 
         // when both projects are ready, event no 3 ends up on top:
         buffer.mark_ready(&project_key2, true);
         assert_eq!(
-            buffer.pop().await.unwrap().unwrap().meta().start_time(),
+            buffer.pop().await.unwrap().unwrap().meta().received_at(),
             instant3
         );
         assert_eq!(
@@ -903,17 +934,17 @@ mod tests {
                 .envelope()
                 .unwrap()
                 .meta()
-                .start_time(),
+                .received_at(),
             instant2
         );
 
         buffer.mark_ready(&project_key2, false);
         assert_eq!(
-            buffer.pop().await.unwrap().unwrap().meta().start_time(),
+            buffer.pop().await.unwrap().unwrap().meta().received_at(),
             instant1
         );
         assert_eq!(
-            buffer.pop().await.unwrap().unwrap().meta().start_time(),
+            buffer.pop().await.unwrap().unwrap().meta().received_at(),
             instant2
         );
 
@@ -949,7 +980,7 @@ mod tests {
                 own_project_ready: true,
                 sampling_project_ready: true,
             },
-            received_at: Instant::now(),
+            received_at: Utc::now(),
             next_project_fetch: Instant::now(),
         };
         let mut p2 = p1.clone();

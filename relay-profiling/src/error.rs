@@ -1,3 +1,5 @@
+use relay_filter::FilterStatKey;
+
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -30,6 +32,10 @@ pub enum ProfileError {
     TooManyProfiles,
     #[error("duration is too long")]
     DurationIsTooLong,
+    #[error("duration is zero")]
+    DurationIsZero,
+    #[error("filtered profile")]
+    Filtered(FilterStatKey),
 }
 
 impl ProfileError {

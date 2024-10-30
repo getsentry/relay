@@ -40,10 +40,15 @@
 //! Relay will forward those profiles encoded with `msgpack` after unpacking them if needed and push a message on Kafka.
 
 use std::error::Error;
+use std::net::IpAddr;
 use std::time::Duration;
+use url::Url;
 
 use relay_base_schema::project::ProjectId;
-use relay_event_schema::protocol::{Event, EventId};
+use relay_dynamic_config::GlobalConfig;
+use relay_event_schema::protocol::{Csp, Event, EventId, Exception, LogEntry, Values};
+use relay_filter::{Filterable, ProjectFiltersConfig};
+use relay_protocol::{Getter, Val};
 use serde::Deserialize;
 use serde_json::Deserializer;
 
@@ -60,6 +65,7 @@ mod native_debug_image;
 mod outcomes;
 mod sample;
 mod transaction_metadata;
+mod types;
 mod utils;
 
 const MAX_PROFILE_DURATION: Duration = Duration::from_secs(30);
@@ -74,8 +80,53 @@ struct MinimalProfile {
     #[serde(alias = "profile_id", alias = "chunk_id")]
     event_id: ProfileId,
     platform: String,
+    release: Option<String>,
     #[serde(default)]
     version: sample::Version,
+}
+
+impl Filterable for MinimalProfile {
+    fn csp(&self) -> Option<&Csp> {
+        None
+    }
+
+    fn exceptions(&self) -> Option<&Values<Exception>> {
+        None
+    }
+
+    fn ip_addr(&self) -> Option<&str> {
+        None
+    }
+
+    fn logentry(&self) -> Option<&LogEntry> {
+        None
+    }
+
+    fn release(&self) -> Option<&str> {
+        self.release.as_deref()
+    }
+
+    fn transaction(&self) -> Option<&str> {
+        None
+    }
+
+    fn url(&self) -> Option<Url> {
+        None
+    }
+
+    fn user_agent(&self) -> Option<&str> {
+        None
+    }
+}
+
+impl Getter for MinimalProfile {
+    fn get_value(&self, path: &str) -> Option<Val<'_>> {
+        match path.strip_prefix("event.")? {
+            "release" => self.release.as_deref().map(|release| release.into()),
+            "platform" => Some(self.platform.as_str().into()),
+            _ => None,
+        }
+    }
 }
 
 fn minimal_profile_from_json(
@@ -117,7 +168,8 @@ pub fn parse_metadata(payload: &[u8], project_id: ProjectId) -> Result<ProfileId
         _ => match profile.platform.as_str() {
             "android" => {
                 let d = &mut Deserializer::from_slice(payload);
-                let _: android::ProfileMetadata = match serde_path_to_error::deserialize(d) {
+                let _: android::legacy::ProfileMetadata = match serde_path_to_error::deserialize(d)
+                {
                     Ok(profile) => profile,
                     Err(err) => {
                         relay_log::debug!(
@@ -137,7 +189,13 @@ pub fn parse_metadata(payload: &[u8], project_id: ProjectId) -> Result<ProfileId
     Ok(profile.event_id)
 }
 
-pub fn expand_profile(payload: &[u8], event: &Event) -> Result<(ProfileId, Vec<u8>), ProfileError> {
+pub fn expand_profile(
+    payload: &[u8],
+    event: &Event,
+    client_ip: Option<IpAddr>,
+    filter_settings: &ProjectFiltersConfig,
+    global_config: &GlobalConfig,
+) -> Result<(ProfileId, Vec<u8>), ProfileError> {
     let profile = match minimal_profile_from_json(payload) {
         Ok(profile) => profile,
         Err(err) => {
@@ -154,18 +212,26 @@ pub fn expand_profile(payload: &[u8], event: &Event) -> Result<(ProfileId, Vec<u
             return Err(ProfileError::InvalidJson(err));
         }
     };
+
+    if let Err(filter_stat_key) = relay_filter::should_filter(
+        &profile,
+        client_ip,
+        filter_settings,
+        global_config.filters(),
+    ) {
+        return Err(ProfileError::Filtered(filter_stat_key));
+    }
+
     let transaction_metadata = extract_transaction_metadata(event);
     let transaction_tags = extract_transaction_tags(event);
-    let processed_payload = match profile.version {
-        sample::Version::V1 => {
+    let processed_payload = match (profile.platform.as_str(), profile.version) {
+        (_, sample::Version::V1) => {
             sample::v1::parse_sample_profile(payload, transaction_metadata, transaction_tags)
         }
-        _ => match profile.platform.as_str() {
-            "android" => {
-                android::parse_android_profile(payload, transaction_metadata, transaction_tags)
-            }
-            _ => return Err(ProfileError::PlatformNotSupported),
-        },
+        ("android", _) => {
+            android::legacy::parse_android_profile(payload, transaction_metadata, transaction_tags)
+        }
+        (_, _) => return Err(ProfileError::PlatformNotSupported),
     };
     match processed_payload {
         Ok(payload) => Ok((profile.event_id, payload)),
@@ -200,7 +266,12 @@ pub fn expand_profile(payload: &[u8], event: &Event) -> Result<(ProfileId, Vec<u
     }
 }
 
-pub fn expand_profile_chunk(payload: &[u8]) -> Result<Vec<u8>, ProfileError> {
+pub fn expand_profile_chunk(
+    payload: &[u8],
+    client_ip: Option<IpAddr>,
+    filter_settings: &ProjectFiltersConfig,
+    global_config: &GlobalConfig,
+) -> Result<Vec<u8>, ProfileError> {
     let profile = match minimal_profile_from_json(payload) {
         Ok(profile) => profile,
         Err(err) => {
@@ -212,13 +283,24 @@ pub fn expand_profile_chunk(payload: &[u8]) -> Result<Vec<u8>, ProfileError> {
             return Err(ProfileError::InvalidJson(err));
         }
     };
-    match profile.version {
-        sample::Version::V2 => {
+
+    if let Err(filter_stat_key) = relay_filter::should_filter(
+        &profile,
+        client_ip,
+        filter_settings,
+        global_config.filters(),
+    ) {
+        return Err(ProfileError::Filtered(filter_stat_key));
+    }
+
+    match (profile.platform.as_str(), profile.version) {
+        ("android", _) => android::chunk::parse(payload),
+        (_, sample::Version::V2) => {
             let mut profile = sample::v2::parse(payload)?;
             profile.normalize()?;
             serde_json::to_vec(&profile).map_err(|_| ProfileError::CannotSerializePayload)
         }
-        _ => Err(ProfileError::PlatformNotSupported),
+        (_, _) => Err(ProfileError::PlatformNotSupported),
     }
 }
 
@@ -245,18 +327,39 @@ mod tests {
     #[test]
     fn test_expand_profile_with_version() {
         let payload = include_bytes!("../tests/fixtures/sample/v1/valid.json");
-        assert!(expand_profile(payload, &Event::default()).is_ok());
+        assert!(expand_profile(
+            payload,
+            &Event::default(),
+            None,
+            &ProjectFiltersConfig::default(),
+            &GlobalConfig::default()
+        )
+        .is_ok());
     }
 
     #[test]
     fn test_expand_profile_with_version_and_segment_id() {
         let payload = include_bytes!("../tests/fixtures/sample/v1/segment_id.json");
-        assert!(expand_profile(payload, &Event::default()).is_ok());
+        assert!(expand_profile(
+            payload,
+            &Event::default(),
+            None,
+            &ProjectFiltersConfig::default(),
+            &GlobalConfig::default()
+        )
+        .is_ok());
     }
 
     #[test]
     fn test_expand_profile_without_version() {
-        let payload = include_bytes!("../tests/fixtures/android/roundtrip.json");
-        assert!(expand_profile(payload, &Event::default()).is_ok());
+        let payload = include_bytes!("../tests/fixtures/android/legacy/roundtrip.json");
+        assert!(expand_profile(
+            payload,
+            &Event::default(),
+            None,
+            &ProjectFiltersConfig::default(),
+            &GlobalConfig::default()
+        )
+        .is_ok());
     }
 }
