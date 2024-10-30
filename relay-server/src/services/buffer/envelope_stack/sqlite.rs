@@ -1,9 +1,8 @@
 use std::collections::VecDeque;
-use std::fmt::Debug;
 use std::num::NonZeroUsize;
 
+use chrono::{DateTime, Utc};
 use relay_base_schema::project::ProjectKey;
-use tokio::time::Instant;
 
 use crate::envelope::Envelope;
 use crate::services::buffer::envelope_stack::EnvelopeStack;
@@ -197,7 +196,7 @@ impl EnvelopeStack for SqliteEnvelopeStack {
         Ok(())
     }
 
-    async fn peek(&mut self) -> Result<Option<Instant>, Self::Error> {
+    async fn peek(&mut self) -> Result<Option<DateTime<Utc>>, Self::Error> {
         if self.below_unspool_threshold() && self.check_disk {
             self.unspool_from_disk().await?
         }
@@ -206,7 +205,7 @@ impl EnvelopeStack for SqliteEnvelopeStack {
             .batches_buffer
             .back()
             .and_then(|last_batch| last_batch.last())
-            .map(|last_batch| last_batch.meta().start_time().into());
+            .map(|last_batch| last_batch.meta().received_at());
 
         Ok(last)
     }
@@ -245,9 +244,9 @@ impl EnvelopeStack for SqliteEnvelopeStack {
 
 #[cfg(test)]
 mod tests {
-    use std::time::{Duration, Instant};
-
+    use chrono::Utc;
     use relay_base_schema::project::ProjectKey;
+    use std::time::Duration;
 
     use super::*;
     use crate::services::buffer::testutils::utils::{mock_envelope, mock_envelopes, setup_db};
@@ -266,7 +265,7 @@ mod tests {
             true,
         );
 
-        let envelope = mock_envelope(Instant::now());
+        let envelope = mock_envelope(Utc::now());
         let _ = stack.push(envelope).await;
     }
 
@@ -292,7 +291,7 @@ mod tests {
 
         // We push 1 more envelope which results in spooling, which fails because of a database
         // problem.
-        let envelope = mock_envelope(Instant::now());
+        let envelope = mock_envelope(Utc::now());
         assert!(matches!(
             stack.push(envelope).await,
             Err(SqliteEnvelopeStackError::EnvelopeStoreError(_))
@@ -300,7 +299,7 @@ mod tests {
 
         // The stack now contains the last of the 3 elements that were added. If we add a new one
         // we will end up with 2.
-        let envelope = mock_envelope(Instant::now());
+        let envelope = mock_envelope(Utc::now());
         assert!(stack.push(envelope.clone()).await.is_ok());
         assert_eq!(stack.batches_buffer_size, 3);
 
@@ -384,7 +383,7 @@ mod tests {
 
         // We peek the top element.
         let peeked = stack.peek().await.unwrap().unwrap();
-        assert_eq!(peeked, envelopes.clone()[4].meta().start_time().into());
+        assert_eq!(peeked, envelopes.clone()[4].received_at());
 
         // We pop 5 envelopes.
         for envelope in envelopes.iter().rev() {
@@ -419,7 +418,7 @@ mod tests {
 
         // We peek the top element.
         let peeked = stack.peek().await.unwrap().unwrap();
-        assert_eq!(peeked, envelopes[14].meta().start_time().into());
+        assert_eq!(peeked, envelopes[14].received_at());
 
         // We pop 10 envelopes, and we expect that the last 10 are in memory, since the first 5
         // should have been spooled to disk.
@@ -434,11 +433,11 @@ mod tests {
 
         // We peek the top element, which since the buffer is empty should result in a disk load.
         let peeked = stack.peek().await.unwrap().unwrap();
-        assert!(peeked.into_std() - envelopes[4].meta().start_time() < Duration::from_millis(1));
+        assert_eq!(peeked, envelopes[4].received_at());
 
         // We insert a new envelope, to test the load from disk happening during `peek()` gives
         // priority to this envelope in the stack.
-        let envelope = mock_envelope(Instant::now());
+        let envelope = mock_envelope(Utc::now());
         assert!(stack.push(envelope.clone()).await.is_ok());
 
         // We pop and expect the newly inserted element.

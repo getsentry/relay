@@ -11,11 +11,6 @@ pub fn instant_to_system_time(instant: Instant) -> SystemTime {
     SystemTime::now() - instant.elapsed()
 }
 
-/// Converts an `Instant` into a `DateTime`.
-pub fn instant_to_date_time(instant: Instant) -> chrono::DateTime<chrono::Utc> {
-    instant_to_system_time(instant).into()
-}
-
 /// Returns the number of milliseconds contained by this `Duration` as `f64`.
 ///
 /// The returned value does include the fractional (nanosecond) part of the duration.

@@ -6,6 +6,8 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
 
+use chrono::DateTime;
+use chrono::Utc;
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Receiver, Service};
@@ -233,7 +235,7 @@ impl EnvelopeBufferService {
             Peek::Ready { last_received_at }
             | Peek::NotReady {
                 last_received_at, ..
-            } if last_received_at.elapsed() > config.spool_envelopes_max_age() => {
+            } if is_expired(last_received_at, config) => {
                 let envelope = buffer
                     .pop()
                     .await?
@@ -371,6 +373,12 @@ impl EnvelopeBufferService {
     }
 }
 
+fn is_expired(last_received_at: DateTime<Utc>, config: &Config) -> bool {
+    (Utc::now() - last_received_at)
+        .to_std()
+        .is_ok_and(|age| age > config.spool_envelopes_max_age())
+}
+
 impl Service for EnvelopeBufferService {
     type Interface = EnvelopeBuffer;
 
@@ -469,10 +477,10 @@ impl Service for EnvelopeBufferService {
 
 #[cfg(test)]
 mod tests {
-    use std::time::{Duration, Instant};
-
+    use chrono::Utc;
     use relay_dynamic_config::GlobalConfig;
     use relay_quotas::DataCategory;
+    use std::time::Duration;
     use tokio::sync::mpsc;
     use uuid::Uuid;
 
@@ -653,9 +661,10 @@ mod tests {
         let addr = service.start();
 
         let mut envelope = new_envelope(false, "foo");
-        envelope
-            .meta_mut()
-            .set_start_time(Instant::now() - 2 * config.spool_envelopes_max_age());
+        envelope.meta_mut().set_received_at(
+            Utc::now()
+                - chrono::Duration::seconds(2 * config.spool_envelopes_max_age().as_secs() as i64),
+        );
         addr.send(EnvelopeBuffer::Push(envelope));
 
         tokio::time::sleep(Duration::from_millis(100)).await;
