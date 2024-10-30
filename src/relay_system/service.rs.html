@@ -1125,6 +1125,7 @@
 <a href="#1125" id="1125">1125</a>
 <a href="#1126" id="1126">1126</a>
 <a href="#1127" id="1127">1127</a>
+<a href="#1128" id="1128">1128</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::future::Future;
 <span class="kw">use </span>std::marker::PhantomData;
@@ -1985,7 +1986,8 @@
             }
         };
         <span class="macro">relay_statsd::metric!</span>(
-            counter(SystemCounters::ServiceIdleTime) += start.elapsed().as_nanos() <span class="kw">as </span>u64
+            counter(SystemCounters::ServiceIdleTime) += start.elapsed().as_nanos() <span class="kw">as </span>u64,
+            service = <span class="self">self</span>.name
         );
         next_message
     }
