@@ -75,3 +75,14 @@ pipelines:
                     --label-selector="service=relay,deploy_if_canary=true" \
                     --image="us-central1-docker.pkg.dev/sentryio/relay/relay:${GO_REVISION_RELAY_REPO}" \
                     --container-name="relay"
+
+            deploy_pop:
+              timeout: 1200
+              elastic_profile_id: relay-pop
+              tasks:
+                - script: |
+                    /devinfra/scripts/k8s/k8stunnel \
+                    && /devinfra/scripts/k8s/k8s-deploy.py \
+                    --label-selector="service=relay-pop,deploy_if_canary=true" \
+                    --image="us-central1-docker.pkg.dev/sentryio/relay/relay-pop:${GO_REVISION_RELAY_REPO}" \
+                    --container-name="relay"
