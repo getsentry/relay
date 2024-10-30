@@ -290,6 +290,7 @@
 <a href="#290" id="290">290</a>
 <a href="#291" id="291">291</a>
 <a href="#292" id="292">292</a>
+<a href="#293" id="293">293</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
@@ -427,7 +428,7 @@
     </span><span class="kw">pub </span>sampled: Annotated&lt;bool&gt;,
 
     <span class="doccomment">/// Data of the trace's root span.
-    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>, skip_serialization = <span class="string">"empty"</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>, skip_serialization = <span class="string">"null"</span>)]
     </span><span class="kw">pub </span>data: Annotated&lt;SpanData&gt;,
 
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
@@ -489,7 +490,8 @@
         "tok": "test"
       },
       "custom_field": "something"
-    }
+    },
+    "custom_field_empty": ""
   },
   "other": "value",
   "type": "trace"
@@ -514,15 +516,15 @@
                         );
                         map
                     }),
-                    other: {
-                        <span class="kw">let </span><span class="kw-2">mut </span>map = Object::new();
-                        map.insert(
-                            <span class="string">"custom_field"</span>.into(),
-                            Annotated::new(Value::String(<span class="string">"something"</span>.into())),
-                        );
-                        map
-                    },
+                    other: Object::from([(
+                        <span class="string">"custom_field"</span>.into(),
+                        Annotated::new(Value::String(<span class="string">"something"</span>.into())),
+                    )]),
                 }),
+                other: Object::from([(
+                    <span class="string">"custom_field_empty"</span>.into(),
+                    Annotated::new(Value::String(<span class="string">""</span>.into())),
+                )]),
                 ..Default::default()
             }),
             other: {
