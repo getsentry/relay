@@ -2126,7 +2126,7 @@ impl EnvelopeProcessorService {
 
         // Best effort check to filter and rate limit buckets, if there is no project state
         // available at the current time, we will check again after flushing.
-        let buckets = match project.project_state() {
+        let buckets = match project.state() {
             ProjectState::Enabled(project_info) => {
                 let rate_limits = project.rate_limits().current_limits();
                 self.check_buckets(project_key, project_info, &rate_limits, buckets)

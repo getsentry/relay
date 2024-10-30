@@ -8,7 +8,7 @@ use crate::services::global_config;
 use crate::services::processor::{
     EncodeMetrics, EnvelopeProcessor, ProcessEnvelope, ProcessingGroup, ProjectMetrics,
 };
-use crate::services::projects::cache::{CheckedEnvelope, ProjectCacheHandle, ProjectEvent};
+use crate::services::projects::cache::{CheckedEnvelope, ProjectCacheHandle, ProjectChange};
 use crate::Envelope;
 use hashbrown::HashSet;
 use relay_base_schema::project::ProjectKey;
@@ -227,10 +227,10 @@ impl ProjectCacheBroker {
         }
     }
 
-    fn handle_project_event(&mut self, event: ProjectEvent) {
+    fn handle_project_event(&mut self, event: ProjectChange) {
         match event {
-            ProjectEvent::Ready(_) => self.schedule_unspool(),
-            ProjectEvent::Evicted(project_key) => self.evict_project(project_key),
+            ProjectChange::Ready(_) => self.schedule_unspool(),
+            ProjectChange::Evicted(project_key) => self.evict_project(project_key),
         }
     }
 
@@ -240,7 +240,7 @@ impl ProjectCacheBroker {
 
         let project = self.projects.get(project_key);
 
-        let project_info = match project.project_state() {
+        let project_info = match project.state() {
             ProjectState::Enabled(info) => info,
             ProjectState::Disabled => {
                 managed_envelope.reject(Outcome::Invalid(DiscardReason::ProjectId));
@@ -274,7 +274,7 @@ impl ProjectCacheBroker {
                 .envelope()
                 .sampling_key()
                 .map(|key| self.projects.get(key))
-                .and_then(|p| p.project_state().clone().enabled())
+                .and_then(|p| p.state().clone().enabled())
                 .filter(|info| info.organization_id == project_info.organization_id);
 
             let process = ProcessEnvelope {
@@ -313,7 +313,7 @@ impl ProjectCacheBroker {
         let own_key = envelope.meta().public_key();
         let project = self.projects.get(own_key);
 
-        let project_state = match project.project_state() {
+        let project_state = match project.state() {
             ProjectState::Enabled(state) => Some(state),
             ProjectState::Disabled => {
                 managed_envelope.reject(Outcome::Invalid(DiscardReason::ProjectId));
@@ -327,7 +327,7 @@ impl ProjectCacheBroker {
         let mut requires_sampling_state = sampling_key.is_some();
         let sampling_info = if let Some(sampling_key) = sampling_key {
             let sampling_project = self.projects.get(sampling_key);
-            match sampling_project.project_state() {
+            match sampling_project.state() {
                 ProjectState::Enabled(info) => Some(Arc::clone(info)),
                 ProjectState::Disabled => {
                     relay_log::trace!("Sampling state is disabled ({sampling_key})");
@@ -370,7 +370,7 @@ impl ProjectCacheBroker {
         for (project_key, buckets) in message.buckets {
             let project = self.projects.get(project_key);
 
-            let project_info = match project.project_state() {
+            let project_info = match project.state() {
                 ProjectState::Pending => {
                     no_project += 1;
 
@@ -454,7 +454,7 @@ impl ProjectCacheBroker {
         let project = self.projects.get(own_key);
 
         // Check if project config is enabled.
-        let project_info = match project.project_state() {
+        let project_info = match project.state() {
             ProjectState::Enabled(info) => info,
             ProjectState::Disabled => {
                 let mut managed_envelope = ManagedEnvelope::new(
@@ -476,7 +476,7 @@ impl ProjectCacheBroker {
         let sampling_project_info = match sampling_key.map(|sampling_key| {
             (
                 sampling_key,
-                self.projects.get(sampling_key).project_state().clone(),
+                self.projects.get(sampling_key).state().clone(),
             )
         }) {
             Some((_, ProjectState::Enabled(info))) => {
@@ -551,7 +551,7 @@ impl ProjectCacheBroker {
     fn is_state_cached(&mut self, key: &QueueKey) -> bool {
         key.unique_keys()
             .iter()
-            .all(|key| !self.projects.get(*key).project_state().is_pending())
+            .all(|key| !self.projects.get(*key).state().is_pending())
     }
 
     /// Iterates the buffer index and tries to unspool the envelopes for projects with a valid
@@ -689,7 +689,7 @@ impl Service for ProjectCacheService {
             mut global_config_rx,
             mut envelopes_rx,
         } = self;
-        let mut project_events = project_cache_handle.events();
+        let mut project_events = project_cache_handle.changes();
         let project_cache = services.project_cache.clone();
         let outcome_aggregator = services.outcome_aggregator.clone();
         let test_store = services.test_store.clone();
@@ -902,7 +902,7 @@ mod tests {
         let (mut broker, _buffer_svc) =
             project_cache_broker_setup(services.clone(), buffer_tx).await;
         let projects = broker.projects.clone();
-        let mut project_events = projects.events();
+        let mut project_events = projects.changes();
 
         broker.global_config = GlobalConfigStatus::Ready;
         let (tx_assert, mut rx_assert) = mpsc::unbounded_channel();

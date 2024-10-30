@@ -7,7 +7,7 @@ use relay_system::Addr;
 use tokio::sync::broadcast;
 
 use super::state::Shared;
-use crate::services::projects::cache::service::ProjectEvent;
+use crate::services::projects::cache::service::ProjectChange;
 use crate::services::projects::cache::{Project, ProjectCache};
 
 /// A synchronous handle to the [`ProjectCache`].
@@ -19,7 +19,7 @@ pub struct ProjectCacheHandle {
     pub(super) shared: Arc<Shared>,
     pub(super) config: Arc<Config>,
     pub(super) service: Addr<ProjectCache>,
-    pub(super) project_events: broadcast::Sender<ProjectEvent>,
+    pub(super) project_changes: broadcast::Sender<ProjectChange>,
 }
 
 impl ProjectCacheHandle {
@@ -37,12 +37,12 @@ impl ProjectCacheHandle {
         self.service.send(ProjectCache::Fetch(project_key));
     }
 
-    /// Returns a subscription to all [`ProjectEvent`]'s.
+    /// Returns a subscription to all [`ProjectChange`]'s.
     ///
     /// This stream notifies the subscriber about project state changes in the project cache.
     /// Events may arrive in arbitrary order and be delivered multiple times.
-    pub fn events(&self) -> broadcast::Receiver<ProjectEvent> {
-        self.project_events.subscribe()
+    pub fn changes(&self) -> broadcast::Receiver<ProjectChange> {
+        self.project_changes.subscribe()
     }
 }
 
@@ -68,7 +68,7 @@ mod test {
                 shared: Default::default(),
                 config: Default::default(),
                 service: Addr::dummy(),
-                project_events: broadcast::channel(999_999).0,
+                project_changes: broadcast::channel(999_999).0,
             }
         }
 
@@ -79,9 +79,11 @@ mod test {
             let is_pending = state.is_pending();
             self.shared.test_set_project_state(project_key, state);
             if is_pending {
-                let _ = self.project_events.send(ProjectEvent::Evicted(project_key));
+                let _ = self
+                    .project_changes
+                    .send(ProjectChange::Evicted(project_key));
             } else {
-                let _ = self.project_events.send(ProjectEvent::Ready(project_key));
+                let _ = self.project_changes.send(ProjectChange::Ready(project_key));
             }
         }
 

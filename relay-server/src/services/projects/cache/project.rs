@@ -23,7 +23,7 @@ impl<'a> Project<'a> {
     }
 
     /// Returns a reference to the currently cached project state.
-    pub fn project_state(&self) -> &ProjectState {
+    pub fn state(&self) -> &ProjectState {
         self.shared.project_state()
     }
 
@@ -50,7 +50,7 @@ impl<'a> Project<'a> {
         &self,
         mut envelope: ManagedEnvelope,
     ) -> Result<CheckedEnvelope, DiscardReason> {
-        let state = match self.project_state() {
+        let state = match self.state() {
             ProjectState::Enabled(state) => Some(Arc::clone(state)),
             ProjectState::Disabled => {
                 // TODO(jjbayer): We should refactor this function to either return a Result or

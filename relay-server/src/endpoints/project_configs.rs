@@ -169,7 +169,7 @@ async fn inner(
     for (project_key, revision) in into_valid_keys(inner.public_keys, inner.revisions) {
         let project = state.project_cache_handle().get(project_key);
 
-        let project_info = match project.project_state() {
+        let project_info = match project.state() {
             ProjectState::Enabled(info) => info,
             ProjectState::Disabled => {
                 // Don't insert project config. Downstream Relay will consider it disabled.

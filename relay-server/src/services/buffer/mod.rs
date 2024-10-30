@@ -21,7 +21,7 @@ use crate::services::outcome::DiscardReason;
 use crate::services::outcome::Outcome;
 use crate::services::outcome::TrackOutcome;
 use crate::services::processor::ProcessingGroup;
-use crate::services::projects::cache::{legacy, ProjectCacheHandle, ProjectEvent};
+use crate::services::projects::cache::{legacy, ProjectCacheHandle, ProjectChange};
 use crate::services::test_store::TestStore;
 use crate::statsd::{RelayCounters, RelayHistograms};
 use crate::utils::ManagedEnvelope;
@@ -397,7 +397,7 @@ impl Service for EnvelopeBufferService {
             buffer.initialize().await;
 
             let mut shutdown = Controller::shutdown_handle();
-            let mut project_events = self.services.project_cache_handle.events();
+            let mut project_events = self.services.project_cache_handle.changes();
 
             relay_log::info!("EnvelopeBufferService: starting");
             loop {
@@ -427,7 +427,7 @@ impl Service for EnvelopeBufferService {
                             }
                         }
                     }
-                    Ok(ProjectEvent::Ready(project_key)) = project_events.recv() => {
+                    Ok(ProjectChange::Ready(project_key)) = project_events.recv() => {
                         Self::handle_message(&mut buffer, EnvelopeBuffer::Ready(project_key)).await;
                         sleep = Duration::ZERO;
                     }

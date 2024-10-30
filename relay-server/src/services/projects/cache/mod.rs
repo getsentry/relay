@@ -7,4 +7,4 @@ pub mod legacy;
 
 pub use self::handle::ProjectCacheHandle;
 pub use self::project::{CheckedEnvelope, Project};
-pub use self::service::{ProjectCache, ProjectCacheService, ProjectEvent};
+pub use self::service::{ProjectCache, ProjectCacheService, ProjectChange};

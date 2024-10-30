@@ -51,9 +51,9 @@ impl relay_system::FromMessage<Self> for ProjectCache {
     }
 }
 
-/// Project life-cycle events produced by the project cache.
+/// Project life-cycle changes produced by the project cache.
 #[derive(Debug, Copy, Clone)]
-pub enum ProjectEvent {
+pub enum ProjectChange {
     /// A project was successfully fetched and is now ready to use.
     Ready(ProjectKey),
     /// A project expired from the cache and was evicted.
@@ -69,7 +69,7 @@ pub struct ProjectCacheService {
     project_update_rx: mpsc::UnboundedReceiver<CompletedFetch>,
     project_update_tx: mpsc::UnboundedSender<CompletedFetch>,
 
-    project_events_tx: broadcast::Sender<ProjectEvent>,
+    project_events_tx: broadcast::Sender<ProjectChange>,
 }
 
 impl ProjectCacheService {
@@ -98,7 +98,7 @@ impl ProjectCacheService {
             shared: self.store.shared(),
             config: Arc::clone(&self.config),
             service: addr,
-            project_events: self.project_events_tx.clone(),
+            project_changes: self.project_events_tx.clone(),
         };
 
         self.spawn_handler(addr_rx);
@@ -114,7 +114,6 @@ impl ProjectCacheService {
         tokio::spawn(async move {
             tokio::time::sleep_until(fetch.when()).await;
 
-            // TODO: cached state for delta fetches, maybe this should just be a revision?
             let state = match source
                 .fetch(fetch.project_key(), false, fetch.revision())
                 .await
@@ -146,7 +145,7 @@ impl ProjectCacheService {
         }
     }
 
-    fn handle_project_update(&mut self, fetch: CompletedFetch) {
+    fn handle_completed_fetch(&mut self, fetch: CompletedFetch) {
         let project_key = fetch.project_key();
 
         if let Some(fetch) = self.store.complete_fetch(fetch, &self.config) {
@@ -160,14 +159,14 @@ impl ProjectCacheService {
 
         let _ = self
             .project_events_tx
-            .send(ProjectEvent::Ready(project_key));
+            .send(ProjectChange::Ready(project_key));
     }
 
     fn handle_evict_stale_projects(&mut self) {
         let on_evict = |project_key| {
             let _ = self
                 .project_events_tx
-                .send(ProjectEvent::Evicted(project_key));
+                .send(ProjectChange::Evicted(project_key));
         };
 
         self.store.evict_stale_projects(&self.config, on_evict);
@@ -204,7 +203,7 @@ impl relay_system::Service for ProjectCacheService {
 
                     Some(update) = self.project_update_rx.recv() => timed!(
                         "project_update",
-                        self.handle_project_update(update)
+                        self.handle_completed_fetch(update)
                     ),
                     Some(message) = rx.recv() => timed!(
                         message.variant(),

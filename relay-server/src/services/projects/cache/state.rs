@@ -468,7 +468,7 @@ impl PrivateProjectState {
                 next_fetch_attempt.unwrap_or(now)
             }
             FetchState::Complete { last_fetch } => {
-                if last_fetch.check_expiry(now, config).is_updated() {
+                if last_fetch.check_expiry(now, config).is_fresh() {
                     // The current state is up to date, no need to start another fetch.
                     relay_log::trace!(
                         tags.project_key = self.project_key.as_str(),
@@ -559,7 +559,7 @@ enum Expiry {
 
 impl Expiry {
     /// Returns `true` if the project is up-to-date and does not need to be fetched.
-    fn is_updated(&self) -> bool {
+    fn is_fresh(&self) -> bool {
         matches!(self, Self::Fresh)
     }
 
