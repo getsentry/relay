@@ -36,7 +36,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::io::{self, Write};
 use std::ops::AddAssign;
-use std::time::Instant;
+use std::time::Duration;
 use uuid::Uuid;
 
 use bytes::Bytes;
@@ -1219,10 +1219,17 @@ impl Envelope {
     }
 
     /// Returns the time at which the envelope was received at this Relay.
-    ///
-    /// This is the date time equivalent to [`start_time`](Self::start_time).
     pub fn received_at(&self) -> DateTime<Utc> {
-        relay_common::time::instant_to_date_time(self.meta().start_time())
+        self.meta().received_at()
+    }
+
+    /// Returns the time elapsed in seconds since the envelope was received by this Relay.
+    ///
+    /// In case the elapsed time is negative, it is assumed that no time elapsed.
+    pub fn age(&self) -> Duration {
+        (Utc::now() - self.received_at())
+            .to_std()
+            .unwrap_or(Duration::ZERO)
     }
 
     /// Sets the event id on the envelope.
@@ -1235,9 +1242,9 @@ impl Envelope {
         self.headers.sent_at = Some(sent_at);
     }
 
-    /// Sets the start time to the provided `Instant`.
-    pub fn set_start_time(&mut self, start_time: Instant) {
-        self.headers.meta.set_start_time(start_time)
+    /// Sets the received at to the provided `DateTime`.
+    pub fn set_received_at(&mut self, start_time: DateTime<Utc>) {
+        self.headers.meta.set_received_at(start_time)
     }
 
     /// Sets the data retention in days for items in this envelope.

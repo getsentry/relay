@@ -1,15 +1,4 @@
-use std::error::Error;
-use std::path::Path;
-use std::pin::pin;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
-use std::time::Duration;
-
-use crate::envelope::EnvelopeError;
-use crate::extractors::StartTime;
-use crate::services::buffer::common::ProjectKeyPair;
-use crate::statsd::RelayGauges;
-use crate::Envelope;
+use chrono::{DateTime, Utc};
 use futures::stream::StreamExt;
 use hashbrown::HashSet;
 use relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
@@ -21,8 +10,19 @@ use sqlx::sqlite::{
     SqliteRow, SqliteSynchronous,
 };
 use sqlx::{Pool, QueryBuilder, Row, Sqlite};
+use std::error::Error;
+use std::path::Path;
+use std::pin::pin;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+use std::time::Duration;
 use tokio::fs::DirBuilder;
 use tokio::time::sleep;
+
+use crate::envelope::EnvelopeError;
+use crate::services::buffer::common::ProjectKeyPair;
+use crate::statsd::RelayGauges;
+use crate::Envelope;
 
 /// Struct that contains all the fields of an [`Envelope`] that are mapped to the database columns.
 pub struct InsertEnvelope {
@@ -373,7 +373,7 @@ impl SqliteEnvelopeStore {
         //
         // Unfortunately we have to do this because SQLite `DELETE` with `RETURNING` doesn't
         // return deleted rows in a specific order.
-        extracted_envelopes.sort_by_key(|a| a.meta().start_time());
+        extracted_envelopes.sort_by_key(|a| a.received_at());
 
         Ok(extracted_envelopes)
     }
@@ -426,9 +426,9 @@ fn extract_envelope(row: SqliteRow) -> Result<Box<Envelope>, SqliteEnvelopeStore
     let received_at: i64 = row
         .try_get("received_at")
         .map_err(SqliteEnvelopeStoreError::FetchError)?;
-    let start_time = StartTime::from_timestamp_millis(received_at as u64);
 
-    envelope.set_start_time(start_time.into_inner());
+    let received_at = DateTime::from_timestamp_millis(received_at).unwrap_or(Utc::now());
+    envelope.set_received_at(received_at);
 
     Ok(envelope)
 }

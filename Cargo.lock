@@ -393,6 +393,7 @@ name = "bench-buffer"
 version = "0.1.0"
 dependencies = [
  "bytes",
+ "chrono",
  "clap",
  "rand",
  "relay-config",

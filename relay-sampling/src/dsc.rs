@@ -149,13 +149,24 @@ mod sample_rate_as_string {
     where
         D: serde::Deserializer<'de>,
     {
-        let value = match Option::<Cow<'_, str>>::deserialize(deserializer)? {
+        #[derive(Debug, Clone, Deserialize)]
+        #[serde(untagged)]
+        enum StringOrFloat<'a> {
+            String(#[serde(borrow)] Cow<'a, str>),
+            Float(f64),
+        }
+
+        let value = match Option::<StringOrFloat>::deserialize(deserializer)? {
             Some(value) => value,
             None => return Ok(None),
         };
 
-        let parsed_value =
-            serde_json::from_str(&value).map_err(|e| serde::de::Error::custom(e.to_string()))?;
+        let parsed_value = match value {
+            StringOrFloat::Float(f) => f,
+            StringOrFloat::String(s) => {
+                serde_json::from_str(&s).map_err(serde::de::Error::custom)?
+            }
+        };
 
         if parsed_value < 0.0 {
             return Err(serde::de::Error::custom("sample rate cannot be negative"));
@@ -387,7 +398,44 @@ mod tests {
             "sample_rate": 0.1
         }
         "#;
-        serde_json::from_str::<DynamicSamplingContext>(json).unwrap_err();
+        let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
+        insta::assert_ron_snapshot!(dsc, @r#"
+            {
+              "trace_id": "00000000-0000-0000-0000-000000000000",
+              "public_key": "abd0f232775f45feab79864e580d160b",
+              "release": None,
+              "environment": None,
+              "transaction": None,
+              "sample_rate": "0.1",
+              "user_id": "hello",
+              "replay_id": None,
+            }
+        "#);
+    }
+
+    #[test]
+    fn test_parse_sample_rate_integer() {
+        let json = r#"
+            {
+                "trace_id": "00000000-0000-0000-0000-000000000000",
+                "public_key": "abd0f232775f45feab79864e580d160b",
+                "user_id": "hello",
+                "sample_rate": "1"
+            }
+        "#;
+        let dsc = serde_json::from_str::<DynamicSamplingContext>(json).unwrap();
+        insta::assert_ron_snapshot!(dsc, @r#"
+            {
+              "trace_id": "00000000-0000-0000-0000-000000000000",
+              "public_key": "abd0f232775f45feab79864e580d160b",
+              "release": None,
+              "environment": None,
+              "transaction": None,
+              "sample_rate": "1.0",
+              "user_id": "hello",
+              "replay_id": None,
+            }
+        "#);
     }
 
     #[test]
