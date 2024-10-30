@@ -24,10 +24,10 @@ where
 pin_project_lite::pin_project! {
     struct TimedBody<B>
     where
-        B: HttpBody<Data = bytes::Bytes>,
+        B: HttpBody<Data = Bytes>,
     {
         #[pin]
-        inner: Pin<Box<B>>,
+        inner: B,
         reading_starts: Option<Instant>,
         route: String
     }
@@ -39,7 +39,7 @@ where
 {
     fn new(inner: B, route: String) -> Self {
         Self {
-            inner: Box::pin(inner),
+            inner,
             reading_starts: None,
             route,
         }
@@ -63,20 +63,18 @@ where
             *this.reading_starts = Some(Instant::now());
         }
         let poll_result = this.inner.poll_frame(cx);
-        match poll_result {
-            Poll::Ready(None) => {
-                if let Some(start_time) = this.reading_starts {
-                    let duration = start_time.elapsed();
-                    metric!(
-                        timer(RelayTimers::BodyReading) = duration,
-                        label = "body_reading_testing",
-                        route = this.route
-                    );
-                    *this.reading_starts = None;
-                }
-                Poll::Ready(None)
+        if matches!(poll_result, Poll::Ready(None) | Poll::Ready(Some(Err(_)))) {
+            if let Some(start_time) = this.reading_starts {
+                let duration = start_time.elapsed();
+
+                metric!(
+                    timer(RelayTimers::BodyReading) = duration,
+                    route = this.route
+                );
+
+                *this.reading_starts = None;
             }
-            other => other,
         }
+        poll_result
     }
 }
