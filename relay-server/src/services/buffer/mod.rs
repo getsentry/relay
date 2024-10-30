@@ -21,8 +21,7 @@ use crate::services::outcome::DiscardReason;
 use crate::services::outcome::Outcome;
 use crate::services::outcome::TrackOutcome;
 use crate::services::processor::ProcessingGroup;
-use crate::services::projects::cache::{DequeuedEnvelope, ProjectCache, UpdateProject};
-
+use crate::services::projects::cache::{legacy, ProjectCacheHandle, ProjectChange};
 use crate::services::test_store::TestStore;
 use crate::statsd::{RelayCounters, RelayHistograms};
 use crate::utils::ManagedEnvelope;
@@ -99,8 +98,8 @@ impl ObservableEnvelopeBuffer {
 pub struct Services {
     /// Bounded channel used exclusively to handle backpressure when sending envelopes to the
     /// project cache.
-    pub envelopes_tx: mpsc::Sender<DequeuedEnvelope>,
-    pub project_cache: Addr<ProjectCache>,
+    pub envelopes_tx: mpsc::Sender<legacy::DequeuedEnvelope>,
+    pub project_cache_handle: ProjectCacheHandle,
     pub outcome_aggregator: Addr<TrackOutcome>,
     pub test_store: Addr<TestStore>,
 }
@@ -157,7 +156,7 @@ impl EnvelopeBufferService {
         &mut self,
         buffer: &PolymorphicEnvelopeBuffer,
         dequeue: bool,
-    ) -> Option<Permit<DequeuedEnvelope>> {
+    ) -> Option<Permit<legacy::DequeuedEnvelope>> {
         relay_statsd::metric!(
             counter(RelayCounters::BufferReadyToPop) += 1,
             status = "checking"
@@ -218,7 +217,7 @@ impl EnvelopeBufferService {
         config: &Config,
         buffer: &mut PolymorphicEnvelopeBuffer,
         services: &Services,
-        envelopes_tx_permit: Permit<'a, DequeuedEnvelope>,
+        envelopes_tx_permit: Permit<'a, legacy::DequeuedEnvelope>,
     ) -> Result<Duration, EnvelopeBufferError> {
         let sleep = match buffer.peek().await? {
             Peek::Empty => {
@@ -251,7 +250,7 @@ impl EnvelopeBufferService {
                     .pop()
                     .await?
                     .expect("Element disappeared despite exclusive excess");
-                envelopes_tx_permit.send(DequeuedEnvelope(envelope));
+                envelopes_tx_permit.send(legacy::DequeuedEnvelope(envelope));
 
                 Duration::ZERO // try next pop immediately
             }
@@ -269,12 +268,12 @@ impl EnvelopeBufferService {
                     relay_log::trace!("EnvelopeBufferService: requesting project(s) update");
                     let own_key = envelope.meta().public_key();
 
-                    services.project_cache.send(UpdateProject(own_key));
+                    services.project_cache_handle.fetch(own_key);
                     match envelope.sampling_key() {
                         None => {}
                         Some(sampling_key) if sampling_key == own_key => {} // already sent.
                         Some(sampling_key) => {
-                            services.project_cache.send(UpdateProject(sampling_key));
+                            services.project_cache_handle.fetch(sampling_key);
                         }
                     }
 
@@ -398,6 +397,7 @@ impl Service for EnvelopeBufferService {
             buffer.initialize().await;
 
             let mut shutdown = Controller::shutdown_handle();
+            let mut project_events = self.services.project_cache_handle.changes();
 
             relay_log::info!("EnvelopeBufferService: starting");
             loop {
@@ -426,6 +426,10 @@ impl Service for EnvelopeBufferService {
                             );
                             }
                         }
+                    }
+                    Ok(ProjectChange::Ready(project_key)) = project_events.recv() => {
+                        Self::handle_message(&mut buffer, EnvelopeBuffer::Ready(project_key)).await;
+                        sleep = Duration::ZERO;
                     }
                     Some(message) = rx.recv() => {
                         Self::handle_message(&mut buffer, message).await;
@@ -483,8 +487,8 @@ mod tests {
     struct EnvelopeBufferServiceResult {
         service: EnvelopeBufferService,
         global_tx: watch::Sender<global_config::Status>,
-        envelopes_rx: mpsc::Receiver<DequeuedEnvelope>,
-        project_cache_rx: mpsc::UnboundedReceiver<ProjectCache>,
+        envelopes_rx: mpsc::Receiver<legacy::DequeuedEnvelope>,
+        project_cache_handle: ProjectCacheHandle,
         outcome_aggregator_rx: mpsc::UnboundedReceiver<TrackOutcome>,
     }
 
@@ -492,6 +496,8 @@ mod tests {
         config_json: Option<serde_json::Value>,
         global_config_status: global_config::Status,
     ) -> EnvelopeBufferServiceResult {
+        relay_log::init_test!();
+
         let config_json = config_json.unwrap_or(serde_json::json!({
             "spool": {
                 "envelopes": {
@@ -504,8 +510,8 @@ mod tests {
         let memory_stat = MemoryStat::default();
         let (global_tx, global_rx) = watch::channel(global_config_status);
         let (envelopes_tx, envelopes_rx) = mpsc::channel(5);
-        let (project_cache, project_cache_rx) = Addr::custom();
         let (outcome_aggregator, outcome_aggregator_rx) = Addr::custom();
+        let project_cache_handle = ProjectCacheHandle::for_test();
 
         let envelope_buffer_service = EnvelopeBufferService::new(
             config,
@@ -513,7 +519,7 @@ mod tests {
             global_rx,
             Services {
                 envelopes_tx,
-                project_cache,
+                project_cache_handle: project_cache_handle.clone(),
                 outcome_aggregator,
                 test_store: Addr::dummy(),
             },
@@ -524,7 +530,7 @@ mod tests {
             service: envelope_buffer_service,
             global_tx,
             envelopes_rx,
-            project_cache_rx,
+            project_cache_handle,
             outcome_aggregator_rx,
         }
     }
@@ -537,7 +543,7 @@ mod tests {
             service,
             global_tx: _global_tx,
             envelopes_rx: _envelopes_rx,
-            project_cache_rx: _project_cache_rx,
+            project_cache_handle: _project_cache_handle,
             outcome_aggregator_rx: _outcome_aggregator_rx,
         } = envelope_buffer_service(None, global_config::Status::Pending);
 
@@ -562,8 +568,8 @@ mod tests {
             service,
             global_tx,
             envelopes_rx,
-            project_cache_rx,
             outcome_aggregator_rx: _outcome_aggregator_rx,
+            ..
         } = envelope_buffer_service(None, global_config::Status::Pending);
 
         let addr = service.start();
@@ -576,7 +582,6 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(1000)).await;
 
         assert_eq!(envelopes_rx.len(), 0);
-        assert_eq!(project_cache_rx.len(), 0);
 
         global_tx.send_replace(global_config::Status::Ready(Arc::new(
             GlobalConfig::default(),
@@ -585,7 +590,6 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(1000)).await;
 
         assert_eq!(envelopes_rx.len(), 1);
-        assert_eq!(project_cache_rx.len(), 0);
     }
 
     #[tokio::test]
@@ -595,9 +599,9 @@ mod tests {
         let EnvelopeBufferServiceResult {
             service,
             envelopes_rx,
-            project_cache_rx,
             outcome_aggregator_rx: _outcome_aggregator_rx,
             global_tx: _global_tx,
+            ..
         } = envelope_buffer_service(
             Some(serde_json::json!({
                 "spool": {
@@ -623,7 +627,6 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(1000)).await;
 
         assert_eq!(envelopes_rx.len(), 0);
-        assert_eq!(project_cache_rx.len(), 0);
     }
 
     #[tokio::test]
@@ -633,7 +636,7 @@ mod tests {
         let EnvelopeBufferServiceResult {
             service,
             envelopes_rx,
-            project_cache_rx,
+            project_cache_handle: _project_cache_handle,
             mut outcome_aggregator_rx,
             global_tx: _global_tx,
         } = envelope_buffer_service(
@@ -661,7 +664,6 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(100)).await;
 
         assert_eq!(envelopes_rx.len(), 0);
-        assert_eq!(project_cache_rx.len(), 0);
 
         let outcome = outcome_aggregator_rx.try_recv().unwrap();
         assert_eq!(outcome.category, DataCategory::TransactionIndexed);
@@ -675,7 +677,7 @@ mod tests {
         let EnvelopeBufferServiceResult {
             service,
             mut envelopes_rx,
-            mut project_cache_rx,
+            project_cache_handle,
             global_tx: _global_tx,
             outcome_aggregator_rx: _outcome_aggregator_rx,
         } = envelope_buffer_service(
@@ -689,10 +691,10 @@ mod tests {
         let project_key = envelope.meta().public_key();
 
         addr.send(EnvelopeBuffer::Push(envelope.clone()));
+        tokio::time::sleep(Duration::from_secs(3)).await;
 
-        tokio::time::sleep(Duration::from_secs(1)).await;
-
-        let Some(DequeuedEnvelope(envelope)) = envelopes_rx.recv().await else {
+        let message = tokio::time::timeout(Duration::from_secs(5), envelopes_rx.recv());
+        let Some(legacy::DequeuedEnvelope(envelope)) = message.await.unwrap() else {
             panic!();
         };
 
@@ -700,20 +702,11 @@ mod tests {
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
-        assert_eq!(project_cache_rx.len(), 1);
-        let message = project_cache_rx.recv().await;
-        assert!(matches!(
-            message,
-            Some(ProjectCache::UpdateProject(key)) if key == project_key
-        ));
+        assert_eq!(project_cache_handle.test_num_fetches(), 1);
 
-        tokio::time::sleep(Duration::from_secs(1)).await;
+        tokio::time::sleep(Duration::from_millis(1300)).await;
 
-        assert_eq!(project_cache_rx.len(), 1);
-        assert!(matches!(
-            message,
-            Some(ProjectCache::UpdateProject(key)) if key == project_key
-        ))
+        assert_eq!(project_cache_handle.test_num_fetches(), 2);
     }
 
     #[tokio::test]
@@ -724,8 +717,8 @@ mod tests {
             service,
             mut envelopes_rx,
             global_tx: _global_tx,
-            project_cache_rx: _project_cache_rx,
             outcome_aggregator_rx: _outcome_aggregator_rx,
+            ..
         } = envelope_buffer_service(
             None,
             global_config::Status::Ready(Arc::new(GlobalConfig::default())),
@@ -748,7 +741,7 @@ mod tests {
         assert_eq!(
             messages
                 .iter()
-                .filter(|message| matches!(message, DequeuedEnvelope(..)))
+                .filter(|message| matches!(message, legacy::DequeuedEnvelope(..)))
                 .count(),
             5
         );
@@ -761,7 +754,7 @@ mod tests {
         assert_eq!(
             messages
                 .iter()
-                .filter(|message| matches!(message, DequeuedEnvelope(..)))
+                .filter(|message| matches!(message, legacy::DequeuedEnvelope(..)))
                 .count(),
             5
         );

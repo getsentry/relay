@@ -1,5 +1,6 @@
 use std::fmt;
 use std::str::FromStr;
+use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
 use relay_base_schema::metrics::MetricNamespace;
@@ -279,15 +280,14 @@ impl RateLimits {
     }
 
     /// Removes expired rate limits from this instance.
-    pub fn clean_expired(&mut self) {
-        let now = Instant::now();
+    pub fn clean_expired(&mut self, now: Instant) {
         self.limits
             .retain(|limit| !limit.retry_after.expired_at(now));
     }
 
     /// Checks whether any rate limits apply to the given scoping.
     ///
-    /// If no limits match, then the returned `RateLimits` instance evalutes `is_ok`. Otherwise, it
+    /// If no limits match, then the returned `RateLimits` instance evaluates `is_ok`. Otherwise, it
     /// contains rate limits that match the given scoping.
     pub fn check(&self, scoping: ItemScoping<'_>) -> Self {
         self.check_with_quotas(&[], scoping)
@@ -298,7 +298,7 @@ impl RateLimits {
     /// This is similar to `check`. Additionally, it checks for quotas with a static limit `0`, and
     /// rejects items even if there is no active rate limit in this instance.
     ///
-    /// If no limits or quotas match, then the returned `RateLimits` instance evalutes `is_ok`.
+    /// If no limits or quotas match, then the returned `RateLimits` instance evaluates `is_ok`.
     /// Otherwise, it contains rate limits that match the given scoping.
     pub fn check_with_quotas<'a>(
         &self,
@@ -339,7 +339,7 @@ impl RateLimits {
 
     /// Returns `true` if there are any limits contained.
     ///
-    /// This is equavalent to checking whether [`Self::longest`] returns `Some`
+    /// This is equivalent to checking whether [`Self::longest`] returns `Some`
     /// or [`Self::iter`] returns an iterator with at least one item.
     pub fn is_empty(&self) -> bool {
         self.limits.is_empty()
@@ -402,7 +402,7 @@ impl<'a> IntoIterator for &'a RateLimits {
 ///
 /// The data structure makes sure no expired rate limits are enforced.
 #[derive(Debug, Default)]
-pub struct CachedRateLimits(RateLimits);
+pub struct CachedRateLimits(Mutex<Arc<RateLimits>>);
 
 impl CachedRateLimits {
     /// Creates a new, empty instance without any rate limits enforced.
@@ -413,25 +413,31 @@ impl CachedRateLimits {
     /// Adds a limit to this collection.
     ///
     /// See also: [`RateLimits::add`].
-    pub fn add(&mut self, limit: RateLimit) {
-        self.0.add(limit);
+    pub fn add(&self, limit: RateLimit) {
+        let mut inner = self.0.lock().unwrap_or_else(PoisonError::into_inner);
+        let current = Arc::make_mut(&mut inner);
+        current.add(limit);
     }
 
     /// Merges more rate limits into this instance.
     ///
     /// See also: [`RateLimits::merge`].
-    pub fn merge(&mut self, rate_limits: RateLimits) {
-        for limit in rate_limits {
-            self.add(limit)
+    pub fn merge(&self, limits: RateLimits) {
+        let mut inner = self.0.lock().unwrap_or_else(PoisonError::into_inner);
+        let current = Arc::make_mut(&mut inner);
+        for limit in limits {
+            current.add(limit)
         }
     }
 
     /// Returns a reference to the contained rate limits.
     ///
-    /// This call gurantuess that at the time of call no returned rate limit is expired.
-    pub fn current_limits(&mut self) -> &RateLimits {
-        self.0.clean_expired();
-        &self.0
+    /// This call guarantees that at the time of call no returned rate limit is expired.
+    pub fn current_limits(&self) -> Arc<RateLimits> {
+        let now = Instant::now();
+        let mut inner = self.0.lock().unwrap_or_else(PoisonError::into_inner);
+        Arc::make_mut(&mut inner).clean_expired(now);
+        Arc::clone(&inner)
     }
 }
 
@@ -927,7 +933,7 @@ mod tests {
         // Sanity check before running `clean_expired`
         assert_eq!(rate_limits.iter().count(), 2);
 
-        rate_limits.clean_expired();
+        rate_limits.clean_expired(Instant::now());
 
         // Check that the expired limit has been removed
         insta::assert_ron_snapshot!(rate_limits, @r###"
@@ -1120,7 +1126,7 @@ mod tests {
 
     #[test]
     fn test_cached_rate_limits_expired() {
-        let mut cached = CachedRateLimits::new();
+        let cached = CachedRateLimits::new();
 
         // Active error limit
         cached.add(RateLimit {
