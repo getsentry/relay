@@ -366,9 +366,6 @@ impl SharedProjectState {
                 // reservoir counters did not change.
                 //
                 // `try_lock` to not potentially block, it's a best effort cleanup.
-                //
-                // TODO: Remove the lock, we already have interior mutability with the `ArcSwap`
-                // and the counters themselves can be atomics.
                 if let Ok(mut counters) = prev.reservoir_counters.try_lock() {
                     counters.retain(|key, _| config.rules.iter().any(|rule| rule.id == *key));
                 }

@@ -17,7 +17,6 @@ redis = ["dep:thiserror", "dep:relay-log", "relay-redis/impl"]
 workspace = true
 
 [dependencies]
-arc-swap = { workspace = true }
 hashbrown = { workspace = true }
 relay-base-schema = { workspace = true }
 relay-common = { workspace = true }
