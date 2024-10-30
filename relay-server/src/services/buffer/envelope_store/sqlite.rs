@@ -25,11 +25,14 @@ use sqlx::{Pool, QueryBuilder, Row, Sqlite};
 use tokio::fs::DirBuilder;
 use tokio::time::sleep;
 
+/// Fixed first 4 bytes for zstd compressed envelopes.
+///
+/// Used for backward compatibility to check whether an envelope on disk is zstd-encoded.
 const ZSTD_MAGIC_WORD: &[u8] = &[40, 181, 47, 253];
 
 /// Struct that contains all the fields of an [`Envelope`] that are mapped to the database columns.
 #[derive(Clone, Debug)]
-pub struct InsertEnvelope {
+pub struct DatabaseEnvelope {
     received_at: i64,
     own_key: ProjectKey,
     sampling_key: ProjectKey,
@@ -44,8 +47,10 @@ pub enum InsertEnvelopeError {
     Zstd(#[from] std::io::Error),
 }
 
-impl InsertEnvelope {
-    // TODO: explain why 1
+impl DatabaseEnvelope {
+    // Use the lowest level of compression.
+    //
+    // Experiments showed no big difference between 1, 2, and 3 in either run time or compression ratio.
     const COMPRESSION_LEVEL: i32 = 1;
 
     pub fn len(&self) -> usize {
@@ -57,11 +62,11 @@ impl InsertEnvelope {
     }
 }
 
-impl TryFrom<InsertEnvelope> for Box<Envelope> {
+impl TryFrom<DatabaseEnvelope> for Box<Envelope> {
     type Error = InsertEnvelopeError;
 
-    fn try_from(value: InsertEnvelope) -> Result<Self, Self::Error> {
-        let InsertEnvelope {
+    fn try_from(value: DatabaseEnvelope) -> Result<Self, Self::Error> {
+        let DatabaseEnvelope {
             received_at,
             own_key,
             sampling_key,
@@ -69,7 +74,9 @@ impl TryFrom<InsertEnvelope> for Box<Envelope> {
         } = value;
 
         if encoded_envelope.starts_with(ZSTD_MAGIC_WORD) {
-            encoded_envelope = zstd::decode_all(encoded_envelope.as_slice())?;
+            relay_statsd::metric!(timer(RelayTimers::BufferEnvelopeDecompression), {
+                encoded_envelope = zstd::decode_all(encoded_envelope.as_slice())?;
+            });
         }
 
         let mut envelope = Envelope::parse_bytes(Bytes::from(encoded_envelope))?;
@@ -84,7 +91,7 @@ impl TryFrom<InsertEnvelope> for Box<Envelope> {
     }
 }
 
-impl<'a> TryFrom<&'a Envelope> for InsertEnvelope {
+impl<'a> TryFrom<&'a Envelope> for DatabaseEnvelope {
     type Error = InsertEnvelopeError;
 
     fn try_from(value: &'a Envelope) -> Result<Self, Self::Error> {
@@ -97,7 +104,7 @@ impl<'a> TryFrom<&'a Envelope> for InsertEnvelope {
             relay_statsd::metric!(timer(RelayTimers::BufferEnvelopeCompression), {
                 zstd::encode_all(serialized_envelope.as_slice(), Self::COMPRESSION_LEVEL)?
             });
-        Ok(InsertEnvelope {
+        Ok(DatabaseEnvelope {
             received_at: value.received_at().timestamp_millis(),
             own_key,
             sampling_key,
@@ -341,7 +348,7 @@ impl SqliteEnvelopeStore {
     /// Inserts one or more envelopes into the database.
     pub async fn insert_many(
         &mut self,
-        envelopes: impl IntoIterator<Item = InsertEnvelope>,
+        envelopes: impl IntoIterator<Item = DatabaseEnvelope>,
     ) -> Result<(), SqliteEnvelopeStoreError> {
         if let Err(err) = build_insert_many_envelopes(envelopes.into_iter())
             .build()
@@ -365,7 +372,7 @@ impl SqliteEnvelopeStore {
         own_key: ProjectKey,
         sampling_key: ProjectKey,
         limit: i64,
-    ) -> Result<Vec<InsertEnvelope>, SqliteEnvelopeStoreError> {
+    ) -> Result<Vec<DatabaseEnvelope>, SqliteEnvelopeStoreError> {
         let envelopes = build_delete_and_fetch_many_envelopes(own_key, sampling_key, limit)
             .fetch(&self.db)
             .peekable();
@@ -458,12 +465,12 @@ impl SqliteEnvelopeStore {
     }
 }
 
-/// Deserializes an [`Envelope`] from a database row.
+/// Deserializes an [`EncodedEnvelope`] from a database row.
 fn extract_envelope(
     own_key: ProjectKey,
     sampling_key: ProjectKey,
     row: SqliteRow,
-) -> Result<InsertEnvelope, SqliteEnvelopeStoreError> {
+) -> Result<DatabaseEnvelope, SqliteEnvelopeStoreError> {
     let encoded_envelope: Vec<u8> = row
         .try_get("envelope")
         .map_err(SqliteEnvelopeStoreError::FetchError)?;
@@ -472,7 +479,7 @@ fn extract_envelope(
         .try_get("received_at")
         .map_err(SqliteEnvelopeStoreError::FetchError)?;
 
-    Ok(InsertEnvelope {
+    Ok(DatabaseEnvelope {
         received_at,
         own_key,
         sampling_key,
@@ -508,7 +515,7 @@ fn extract_project_key_pair(row: SqliteRow) -> Result<ProjectKeyPair, SqliteEnve
 
 /// Builds a query that inserts many [`Envelope`]s in the database.
 fn build_insert_many_envelopes<'a>(
-    envelopes: impl Iterator<Item = InsertEnvelope>,
+    envelopes: impl Iterator<Item = DatabaseEnvelope>,
 ) -> QueryBuilder<'a, Sqlite> {
     let mut builder: QueryBuilder<Sqlite> =
         QueryBuilder::new("INSERT INTO envelopes (received_at, own_key, sampling_key, envelope) ");

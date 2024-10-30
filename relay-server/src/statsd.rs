@@ -544,10 +544,12 @@ pub enum RelayTimers {
     BufferPop,
     /// Timing in milliseconds for the time it takes for the buffer to drain its envelopes.
     BufferDrain,
-    /// Timing in milliseconds for the time it takes for the envelopes to be serialized.
+    /// Timing in milliseconds for the time it takes for an envelope to be serialized.
     BufferEnvelopesSerialization,
-    /// Timing in milliseconds for the time it takes for the envelopes to be compressed.
+    /// Timing in milliseconds for the time it takes for an envelope to be compressed.
     BufferEnvelopeCompression,
+    /// Timing in milliseconds for the time it takes for an envelope to be decompressed.
+    BufferEnvelopeDecompression,
 }
 
 impl TimerMetric for RelayTimers {
@@ -598,6 +600,7 @@ impl TimerMetric for RelayTimers {
             RelayTimers::BufferDrain => "buffer.drain.duration",
             RelayTimers::BufferEnvelopesSerialization => "buffer.envelopes_serialization",
             RelayTimers::BufferEnvelopeCompression => "buffer.envelopes_compression",
+            RelayTimers::BufferEnvelopeDecompression => "buffer.envelopes_decompression",
         }
     }
 }

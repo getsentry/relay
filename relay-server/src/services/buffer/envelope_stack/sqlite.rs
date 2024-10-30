@@ -7,7 +7,7 @@ use tokio::time::Instant;
 use crate::envelope::Envelope;
 use crate::services::buffer::envelope_stack::EnvelopeStack;
 use crate::services::buffer::envelope_store::sqlite::{
-    InsertEnvelope, InsertEnvelopeError, SqliteEnvelopeStore, SqliteEnvelopeStoreError,
+    DatabaseEnvelope, InsertEnvelopeError, SqliteEnvelopeStore, SqliteEnvelopeStoreError,
 };
 use crate::statsd::{RelayCounters, RelayTimers};
 
@@ -38,7 +38,7 @@ pub struct SqliteEnvelopeStack {
     sampling_key: ProjectKey,
     /// In-memory stack containing a batch of envelopes that either have not been written to disk yet, or have been read from disk recently.
     #[allow(clippy::vec_box)]
-    batch: Vec<InsertEnvelope>,
+    batch: Vec<DatabaseEnvelope>,
     /// Boolean representing whether calls to `push()` and `peek()` check disk in case not enough
     /// elements are available in the `batches_buffer`.
     check_disk: bool,
@@ -151,7 +151,7 @@ impl EnvelopeStack for SqliteEnvelopeStack {
 
         let encoded_envelope =
             relay_statsd::metric!(timer(RelayTimers::BufferEnvelopesSerialization), {
-                InsertEnvelope::try_from(envelope.as_ref())?
+                DatabaseEnvelope::try_from(envelope.as_ref())?
             });
         self.batch.push(encoded_envelope);
 
@@ -174,7 +174,6 @@ impl EnvelopeStack for SqliteEnvelopeStack {
             self.unspool_from_disk().await?
         }
 
-        // FIXME: inefficient peek
         let Some(envelope) = self.batch.pop() else {
             return Ok(None);
         };
