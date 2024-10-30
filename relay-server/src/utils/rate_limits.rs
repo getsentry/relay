@@ -1428,6 +1428,28 @@ mod tests {
     }
 
     #[test]
+    fn test_enforce_transaction_standalone_profile_enforced() {
+        // When the transaction is sampled, the profile survives as standalone.
+        let mut envelope = envelope![Profile];
+
+        let mut mock = MockLimiter::default().deny(DataCategory::Transaction);
+        let (enforcement, _) = enforce_and_apply(&mut mock, &mut envelope, None);
+
+        assert!(enforcement.profiles.is_active());
+        mock.assert_call(DataCategory::Transaction, 1);
+
+        assert_eq!(
+            get_outcomes(enforcement),
+            vec![
+                (DataCategory::Transaction, 1),
+                (DataCategory::TransactionIndexed, 1),
+                (DataCategory::Profile, 1),
+                (DataCategory::ProfileIndexed, 1),
+            ]
+        );
+    }
+
+    #[test]
     fn test_enforce_transaction_attachment_enforced_indexing_quota() {
         let mut envelope = envelope![Transaction, Attachment];
         set_extracted(envelope.envelope_mut(), ItemType::Transaction);
