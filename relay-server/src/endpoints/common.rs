@@ -276,7 +276,7 @@ fn queue_envelope(
             relay_log::trace!("sending metrics into processing queue");
             state.project_cache().send(ProcessMetrics {
                 data: MetricData::Raw(metric_items.into_vec()),
-                start_time: envelope.meta().start_time().into(),
+                received_at: envelope.received_at(),
                 sent_at: envelope.sent_at(),
                 project_key: envelope.meta().public_key(),
                 source: envelope.meta().into(),
@@ -335,10 +335,12 @@ pub async fn handle_envelope(
     state: &ServiceState,
     envelope: Box<Envelope>,
 ) -> Result<Option<EventId>, BadStoreRequest> {
+    let client_name = envelope.meta().client_name().unwrap_or("proprietary");
     for item in envelope.items() {
         metric!(
             histogram(RelayHistograms::EnvelopeItemSize) = item.payload().len() as u64,
-            item_type = item.ty().name()
+            item_type = item.ty().name(),
+            sdk = client_name,
         )
     }
 

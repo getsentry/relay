@@ -506,7 +506,7 @@ pub struct SpanData {
         additional_properties,
         pii = "true",
         retain = "true",
-        skip_serialization = "empty"
+        skip_serialization = "null" // applies to child elements
     )]
     pub other: Object<Value>,
 }
@@ -930,5 +930,39 @@ mod tests {
         assert_eq!(data.get_value("code\\.function"), Some(Val::String("fn()")));
         assert_eq!(data.get_value("code\\.namespace"), Some(Val::String("ns")));
         assert_eq!(data.get_value("unknown"), None);
+    }
+
+    #[test]
+    fn test_span_data_empty_well_known_field() {
+        let span = r#"{
+            "data": {
+                "lcp.url": ""
+            }
+        }"#;
+        let span: Annotated<Span> = Annotated::from_json(span).unwrap();
+        assert_eq!(span.to_json().unwrap(), r#"{"data":{"lcp.url":""}}"#);
+    }
+
+    #[test]
+    fn test_span_data_empty_custom_field() {
+        let span = r#"{
+            "data": {
+                "custom_field_empty": ""
+            }
+        }"#;
+        let span: Annotated<Span> = Annotated::from_json(span).unwrap();
+        assert_eq!(
+            span.to_json().unwrap(),
+            r#"{"data":{"custom_field_empty":""}}"#
+        );
+    }
+
+    #[test]
+    fn test_span_data_completely_empty() {
+        let span = r#"{
+            "data": {}
+        }"#;
+        let span: Annotated<Span> = Annotated::from_json(span).unwrap();
+        assert_eq!(span.to_json().unwrap(), r#"{"data":{}}"#);
     }
 }
