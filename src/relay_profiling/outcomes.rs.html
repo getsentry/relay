@@ -19,6 +19,7 @@
 <a href="#19" id="19">19</a>
 <a href="#20" id="20">20</a>
 <a href="#21" id="21">21</a>
+<a href="#22" id="22">22</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::ProfileError;
 
 <span class="kw">pub fn </span>discard_reason(err: ProfileError) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
@@ -38,6 +39,7 @@
         ProfileError::TooManyProfiles =&gt; <span class="string">"profiling_too_many_profiles"</span>,
         ProfileError::DurationIsTooLong =&gt; <span class="string">"profiling_duration_is_too_long"</span>,
         ProfileError::DurationIsZero =&gt; <span class="string">"profiling_duration_is_zero"</span>,
+        ProfileError::Filtered(<span class="kw">_</span>) =&gt; <span class="string">"profiling_filtered"</span>,
     }
 }
 </code></pre></div></section></main></body></html>

@@ -52,6 +52,23 @@
 <a href="#52" id="52">52</a>
 <a href="#53" id="53">53</a>
 <a href="#54" id="54">54</a>
+<a href="#55" id="55">55</a>
+<a href="#56" id="56">56</a>
+<a href="#57" id="57">57</a>
+<a href="#58" id="58">58</a>
+<a href="#59" id="59">59</a>
+<a href="#60" id="60">60</a>
+<a href="#61" id="61">61</a>
+<a href="#62" id="62">62</a>
+<a href="#63" id="63">63</a>
+<a href="#64" id="64">64</a>
+<a href="#65" id="65">65</a>
+<a href="#66" id="66">66</a>
+<a href="#67" id="67">67</a>
+<a href="#68" id="68">68</a>
+<a href="#69" id="69">69</a>
+<a href="#70" id="70">70</a>
+<a href="#71" id="71">71</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Profile chunks processor code.
 </span><span class="kw">use </span>relay_dynamic_config::Feature;
 
@@ -65,6 +82,7 @@
     <span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome},
     <span class="kw">crate</span>::services::processor::ProfileChunkGroup,
     relay_config::Config,
+    relay_dynamic_config::GlobalConfig,
 };
 
 <span class="doccomment">/// Removes profile chunks from the envelope if the feature is not enabled.
@@ -78,14 +96,27 @@
 
 <span class="doccomment">/// Processes profile chunks.
 </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-</span><span class="kw">pub fn </span>process(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;ProfileChunkGroup&gt;, config: <span class="kw-2">&amp;</span>Config) {
+</span><span class="kw">pub fn </span>process(
+    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;ProfileChunkGroup&gt;,
+    global_config: <span class="kw-2">&amp;</span>GlobalConfig,
+    config: <span class="kw-2">&amp;</span>Config,
+) {
+    <span class="kw">let </span>client_ip = state.managed_envelope.envelope().meta().client_addr();
+    <span class="kw">let </span>filter_settings = <span class="kw-2">&amp;</span>state.project_info.config.filter_settings;
+
     <span class="kw">let </span>continuous_profiling_enabled = state.project_info.has_feature(Feature::ContinuousProfiling);
     state.managed_envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
         ItemType::ProfileChunk =&gt; {
             <span class="kw">if </span>!continuous_profiling_enabled {
                 <span class="kw">return </span>ItemAction::DropSilently;
             }
-            <span class="kw">match </span>relay_profiling::expand_profile_chunk(<span class="kw-2">&amp;</span>item.payload()) {
+
+            <span class="kw">match </span>relay_profiling::expand_profile_chunk(
+                <span class="kw-2">&amp;</span>item.payload(),
+                client_ip,
+                filter_settings,
+                global_config,
+            ) {
                 <span class="prelude-val">Ok</span>(payload) =&gt; {
                     <span class="kw">if </span>payload.len() &lt;= config.max_profile_size() {
                         item.set_payload(ContentType::Json, payload);
@@ -97,6 +128,9 @@
                             ),
                         )))
                     }
+                }
+                <span class="prelude-val">Err</span>(relay_profiling::ProfileError::Filtered(filter_stat_key)) =&gt; {
+                    ItemAction::Drop(Outcome::Filtered(filter_stat_key))
                 }
                 <span class="prelude-val">Err</span>(err) =&gt; ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
                     relay_profiling::discard_reason(err),

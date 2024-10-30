@@ -42,7 +42,13 @@
 <a href="#42" id="42">42</a>
 <a href="#43" id="43">43</a>
 <a href="#44" id="44">44</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>thiserror::Error;
+<a href="#45" id="45">45</a>
+<a href="#46" id="46">46</a>
+<a href="#47" id="47">47</a>
+<a href="#48" id="48">48</a>
+</pre></div><pre class="rust"><code><span class="kw">use </span>relay_filter::FilterStatKey;
+
+<span class="kw">use </span>thiserror::Error;
 
 <span class="attr">#[derive(Debug, Error)]
 </span><span class="kw">pub enum </span>ProfileError {
@@ -76,6 +82,8 @@
     </span>DurationIsTooLong,
     <span class="attr">#[error(<span class="string">"duration is zero"</span>)]
     </span>DurationIsZero,
+    <span class="attr">#[error(<span class="string">"filtered profile"</span>)]
+    </span>Filtered(FilterStatKey),
 }
 
 <span class="kw">impl </span>ProfileError {

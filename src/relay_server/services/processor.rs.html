@@ -3991,6 +3991,10 @@
 <a href="#3991" id="3991">3991</a>
 <a href="#3992" id="3992">3992</a>
 <a href="#3993" id="3993">3993</a>
+<a href="#3994" id="3994">3994</a>
+<a href="#3995" id="3995">3995</a>
+<a href="#3996" id="3996">3996</a>
+<a href="#3997" id="3997">3997</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -5738,7 +5742,7 @@
             <span class="comment">// Process profiles before dropping the transaction, if necessary.
             // Before metric extraction to make sure the profile count is reflected correctly.
             </span><span class="kw">let </span>profile_id = <span class="kw">match </span>keep_profiles {
-                <span class="bool-val">true </span>=&gt; profile::process(state),
+                <span class="bool-val">true </span>=&gt; profile::process(state, <span class="kw-2">&amp;</span>global_config),
                 <span class="bool-val">false </span>=&gt; profile_id,
             };
             <span class="comment">// Extract metrics here, we're about to drop the event/transaction.
@@ -5765,7 +5769,7 @@
 
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
             <span class="comment">// Process profiles before extracting metrics, to make sure they are removed if they are invalid.
-            </span><span class="kw">let </span>profile_id = profile::process(state);
+            </span><span class="kw">let </span>profile_id = profile::process(state, <span class="kw-2">&amp;</span>global_config);
             profile::transfer_id(state, profile_id);
 
             <span class="comment">// Always extract metrics in processing Relays for sampled items.
@@ -5805,7 +5809,11 @@
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
         profile_chunk::filter(state);
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
-            profile_chunk::process(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config);
+            profile_chunk::process(
+                state,
+                <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current(),
+                <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config,
+            );
         });
         <span class="prelude-val">Ok</span>(())
     }

@@ -562,13 +562,46 @@
 <a href="#562" id="562">562</a>
 <a href="#563" id="563">563</a>
 <a href="#564" id="564">564</a>
+<a href="#565" id="565">565</a>
+<a href="#566" id="566">566</a>
+<a href="#567" id="567">567</a>
+<a href="#568" id="568">568</a>
+<a href="#569" id="569">569</a>
+<a href="#570" id="570">570</a>
+<a href="#571" id="571">571</a>
+<a href="#572" id="572">572</a>
+<a href="#573" id="573">573</a>
+<a href="#574" id="574">574</a>
+<a href="#575" id="575">575</a>
+<a href="#576" id="576">576</a>
+<a href="#577" id="577">577</a>
+<a href="#578" id="578">578</a>
+<a href="#579" id="579">579</a>
+<a href="#580" id="580">580</a>
+<a href="#581" id="581">581</a>
+<a href="#582" id="582">582</a>
+<a href="#583" id="583">583</a>
+<a href="#584" id="584">584</a>
+<a href="#585" id="585">585</a>
+<a href="#586" id="586">586</a>
+<a href="#587" id="587">587</a>
+<a href="#588" id="588">588</a>
+<a href="#589" id="589">589</a>
+<a href="#590" id="590">590</a>
+<a href="#591" id="591">591</a>
+<a href="#592" id="592">592</a>
+<a href="#593" id="593">593</a>
+<a href="#594" id="594">594</a>
+<a href="#595" id="595">595</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Profiles related processor code.
+</span><span class="kw">use </span>std::net::IpAddr;
 
-</span><span class="kw">use </span>relay_dynamic_config::Feature;
+<span class="kw">use </span>relay_dynamic_config::{Feature, GlobalConfig};
 
 <span class="kw">use </span>relay_base_schema::events::EventType;
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_event_schema::protocol::{Contexts, Event, ProfileContext};
+<span class="kw">use </span>relay_filter::ProjectFiltersConfig;
 <span class="kw">use </span>relay_profiling::{ProfileError, ProfileId};
 <span class="kw">use </span>relay_protocol::Annotated;
 
@@ -652,7 +685,13 @@
 }
 
 <span class="doccomment">/// Processes profiles and set the profile ID in the profile context on the transaction if successful.
-</span><span class="kw">pub fn </span>process(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;ProfileId&gt; {
+</span><span class="kw">pub fn </span>process(
+    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;,
+    global_config: <span class="kw-2">&amp;</span>GlobalConfig,
+) -&gt; <span class="prelude-ty">Option</span>&lt;ProfileId&gt; {
+    <span class="kw">let </span>client_ip = state.managed_envelope.envelope().meta().client_addr();
+    <span class="kw">let </span>filter_settings = <span class="kw-2">&amp;</span>state.project_info.config.filter_settings;
+
     <span class="kw">let </span>profiling_enabled = state.project_info.has_feature(Feature::Profiling);
     <span class="kw">let </span><span class="kw-2">mut </span>profile_id = <span class="prelude-val">None</span>;
 
@@ -668,7 +707,14 @@
                 <span class="kw">return </span>ItemAction::DropSilently;
             };
 
-            <span class="kw">match </span>expand_profile(item, event, <span class="kw-2">&amp;</span>state.config) {
+            <span class="kw">match </span>expand_profile(
+                item,
+                event,
+                <span class="kw-2">&amp;</span>state.config,
+                client_ip,
+                filter_settings,
+                global_config,
+            ) {
                 <span class="prelude-val">Ok</span>(id) =&gt; {
                     profile_id = <span class="prelude-val">Some</span>(id);
                     ItemAction::Keep
@@ -683,8 +729,21 @@
 }
 
 <span class="doccomment">/// Transfers transaction metadata to profile and check its size.
-</span><span class="kw">fn </span>expand_profile(item: <span class="kw-2">&amp;mut </span>Item, event: <span class="kw-2">&amp;</span>Event, config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="prelude-ty">Result</span>&lt;ProfileId, Outcome&gt; {
-    <span class="kw">match </span>relay_profiling::expand_profile(<span class="kw-2">&amp;</span>item.payload(), event) {
+</span><span class="kw">fn </span>expand_profile(
+    item: <span class="kw-2">&amp;mut </span>Item,
+    event: <span class="kw-2">&amp;</span>Event,
+    config: <span class="kw-2">&amp;</span>Config,
+    client_ip: <span class="prelude-ty">Option</span>&lt;IpAddr&gt;,
+    filter_settings: <span class="kw-2">&amp;</span>ProjectFiltersConfig,
+    global_config: <span class="kw-2">&amp;</span>GlobalConfig,
+) -&gt; <span class="prelude-ty">Result</span>&lt;ProfileId, Outcome&gt; {
+    <span class="kw">match </span>relay_profiling::expand_profile(
+        <span class="kw-2">&amp;</span>item.payload(),
+        event,
+        client_ip,
+        filter_settings,
+        global_config,
+    ) {
         <span class="prelude-val">Ok</span>((id, payload)) =&gt; {
             <span class="kw">if </span>payload.len() &lt;= config.max_profile_size() {
                 item.set_payload(ContentType::Json, payload);
@@ -694,6 +753,9 @@
                     relay_profiling::discard_reason(relay_profiling::ProfileError::ExceedSizeLimit),
                 )))
             }
+        }
+        <span class="prelude-val">Err</span>(relay_profiling::ProfileError::Filtered(filter_stat_key)) =&gt; {
+            <span class="prelude-val">Err</span>(Outcome::Filtered(filter_stat_key))
         }
         <span class="prelude-val">Err</span>(err) =&gt; <span class="prelude-val">Err</span>(Outcome::Invalid(DiscardReason::Profiling(
             relay_profiling::discard_reason(err),
