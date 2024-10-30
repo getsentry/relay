@@ -7,6 +7,11 @@
 - Allow profile chunks without release. ([#4155](https://github.com/getsentry/relay/pull/4155))
 - Add validation for timestamps sent from the future. ([#4163](https://github.com/getsentry/relay/pull/4163))
 
+
+**Features:**
+
+- Retain empty string values in `span.data` and `event.contexts.trace.data`. ([#4174](https://github.com/getsentry/relay/pull/4174))
+
 **Internal:**
 
 - Add a metric that counts span volume in the root project for dynamic sampling (`c:spans/count_per_root_project@none`). ([#4134](https://github.com/getsentry/relay/pull/4134))
