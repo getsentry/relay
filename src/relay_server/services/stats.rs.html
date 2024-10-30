@@ -151,8 +151,6 @@
 <a href="#151" id="151">151</a>
 <a href="#152" id="152">152</a>
 <a href="#153" id="153">153</a>
-<a href="#154" id="154">154</a>
-<a href="#155" id="155">155</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>relay_config::{Config, RelayMode};
@@ -277,13 +275,11 @@
             project_configs,
             cardinality,
             quotas,
-            misc,
         }) = <span class="self">self</span>.redis_pools.as_ref()
         {
             <span class="self">Self</span>::redis_pool(project_configs, <span class="string">"project_configs"</span>);
             <span class="self">Self</span>::redis_pool(cardinality, <span class="string">"cardinality"</span>);
             <span class="self">Self</span>::redis_pool(quotas, <span class="string">"quotas"</span>);
-            <span class="self">Self</span>::redis_pool(misc, <span class="string">"misc"</span>);
         }
     }
 }

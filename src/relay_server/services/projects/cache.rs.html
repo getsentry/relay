@@ -1568,36 +1568,6 @@
 <a href="#1568" id="1568">1568</a>
 <a href="#1569" id="1569">1569</a>
 <a href="#1570" id="1570">1570</a>
-<a href="#1571" id="1571">1571</a>
-<a href="#1572" id="1572">1572</a>
-<a href="#1573" id="1573">1573</a>
-<a href="#1574" id="1574">1574</a>
-<a href="#1575" id="1575">1575</a>
-<a href="#1576" id="1576">1576</a>
-<a href="#1577" id="1577">1577</a>
-<a href="#1578" id="1578">1578</a>
-<a href="#1579" id="1579">1579</a>
-<a href="#1580" id="1580">1580</a>
-<a href="#1581" id="1581">1581</a>
-<a href="#1582" id="1582">1582</a>
-<a href="#1583" id="1583">1583</a>
-<a href="#1584" id="1584">1584</a>
-<a href="#1585" id="1585">1585</a>
-<a href="#1586" id="1586">1586</a>
-<a href="#1587" id="1587">1587</a>
-<a href="#1588" id="1588">1588</a>
-<a href="#1589" id="1589">1589</a>
-<a href="#1590" id="1590">1590</a>
-<a href="#1591" id="1591">1591</a>
-<a href="#1592" id="1592">1592</a>
-<a href="#1593" id="1593">1593</a>
-<a href="#1594" id="1594">1594</a>
-<a href="#1595" id="1595">1595</a>
-<a href="#1596" id="1596">1596</a>
-<a href="#1597" id="1597">1597</a>
-<a href="#1598" id="1598">1598</a>
-<a href="#1599" id="1599">1599</a>
-<a href="#1600" id="1600">1600</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
@@ -1614,7 +1584,7 @@
 <span class="kw">use </span>hashbrown::HashSet;
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
 <span class="kw">use </span>relay_config::Config;
-<span class="kw">use </span>relay_metrics::{Bucket, MetricMeta};
+<span class="kw">use </span>relay_metrics::Bucket;
 <span class="kw">use </span>relay_quotas::RateLimits;
 <span class="kw">use </span>relay_redis::RedisPool;
 <span class="kw">use </span>relay_statsd::metric;
@@ -1814,15 +1784,6 @@
     </span><span class="kw">pub </span>sent_at: <span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;,
 }
 
-<span class="doccomment">/// Add metric metadata to the aggregator.
-</span><span class="attr">#[derive(Debug)]
-</span><span class="kw">pub struct </span>AddMetricMeta {
-    <span class="doccomment">/// The project key.
-    </span><span class="kw">pub </span>project_key: ProjectKey,
-    <span class="doccomment">/// The metadata.
-    </span><span class="kw">pub </span>meta: MetricMeta,
-}
-
 <span class="doccomment">/// Updates the buffer index for [`ProjectKey`] with the [`QueueKey`] keys.
 ///
 /// This message is sent from the project buffer in case of the error while fetching the data from
@@ -1881,7 +1842,6 @@
     ValidateEnvelope(ValidateEnvelope),
     UpdateRateLimits(UpdateRateLimits),
     ProcessMetrics(ProcessMetrics),
-    AddMetricMeta(AddMetricMeta),
     FlushBuckets(FlushBuckets),
     UpdateSpoolIndex(UpdateSpoolIndex),
     RefreshIndexCache(RefreshIndexCache),
@@ -1898,7 +1858,6 @@
             <span class="self">Self</span>::ValidateEnvelope(<span class="kw">_</span>) =&gt; <span class="string">"ValidateEnvelope"</span>,
             <span class="self">Self</span>::UpdateRateLimits(<span class="kw">_</span>) =&gt; <span class="string">"UpdateRateLimits"</span>,
             <span class="self">Self</span>::ProcessMetrics(<span class="kw">_</span>) =&gt; <span class="string">"ProcessMetrics"</span>,
-            <span class="self">Self</span>::AddMetricMeta(<span class="kw">_</span>) =&gt; <span class="string">"AddMetricMeta"</span>,
             <span class="self">Self</span>::FlushBuckets(<span class="kw">_</span>) =&gt; <span class="string">"FlushBuckets"</span>,
             <span class="self">Self</span>::UpdateSpoolIndex(<span class="kw">_</span>) =&gt; <span class="string">"UpdateSpoolIndex"</span>,
             <span class="self">Self</span>::RefreshIndexCache(<span class="kw">_</span>) =&gt; <span class="string">"RefreshIndexCache"</span>,
@@ -1981,14 +1940,6 @@
 
     <span class="kw">fn </span>from_message(message: ProcessMetrics, <span class="kw">_</span>: ()) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::ProcessMetrics(message)
-    }
-}
-
-<span class="kw">impl </span>FromMessage&lt;AddMetricMeta&gt; <span class="kw">for </span>ProjectCache {
-    <span class="kw">type </span>Response = relay_system::NoResponse;
-
-    <span class="kw">fn </span>from_message(message: AddMetricMeta, <span class="kw">_</span>: ()) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::AddMetricMeta(message)
     }
 }
 
@@ -2180,14 +2131,11 @@
         } = message;
 
         <span class="kw">let </span>project_cache = <span class="self">self</span>.services.project_cache.clone();
-        <span class="kw">let </span>envelope_processor = <span class="self">self</span>.services.envelope_processor.clone();
 
-        <span class="kw">let </span>old_state = <span class="self">self</span>.get_or_create_project(project_key).update_state(
-            <span class="kw-2">&amp;</span>project_cache,
-            state,
-            <span class="kw-2">&amp;</span>envelope_processor,
-            no_cache,
-        );
+        <span class="kw">let </span>old_state =
+            <span class="self">self</span>.get_or_create_project(project_key)
+                .update_state(<span class="kw-2">&amp;</span>project_cache, state, no_cache);
+
         <span class="kw">if let </span><span class="prelude-val">Some</span>(old_state) = old_state {
             <span class="self">self</span>.garbage_disposal.dispose(old_state);
         }
@@ -2445,13 +2393,6 @@
             .process_metrics(message);
 
         <span class="self">self</span>.services.envelope_processor.send(message);
-    }
-
-    <span class="kw">fn </span>handle_add_metric_meta(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: AddMetricMeta) {
-        <span class="kw">let </span>envelope_processor = <span class="self">self</span>.services.envelope_processor.clone();
-
-        <span class="self">self</span>.get_or_create_project(message.project_key)
-            .add_metric_meta(message.meta, envelope_processor);
     }
 
     <span class="kw">fn </span>handle_flush_buckets(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: FlushBuckets) {
@@ -2750,7 +2691,6 @@
                     }
                     ProjectCache::UpdateRateLimits(message) =&gt; <span class="self">self</span>.handle_rate_limits(message),
                     ProjectCache::ProcessMetrics(message) =&gt; <span class="self">self</span>.handle_process_metrics(message),
-                    ProjectCache::AddMetricMeta(message) =&gt; <span class="self">self</span>.handle_add_metric_meta(message),
                     ProjectCache::FlushBuckets(message) =&gt; <span class="self">self</span>.handle_flush_buckets(message),
                     ProjectCache::UpdateSpoolIndex(message) =&gt; <span class="self">self</span>.handle_buffer_index(message),
                     ProjectCache::RefreshIndexCache(message) =&gt; {

@@ -494,11 +494,6 @@
 <a href="#494" id="494">494</a>
 <a href="#495" id="495">495</a>
 <a href="#496" id="496">496</a>
-<a href="#497" id="497">497</a>
-<a href="#498" id="498">498</a>
-<a href="#499" id="499">499</a>
-<a href="#500" id="500">500</a>
-<a href="#501" id="501">501</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
@@ -932,25 +927,21 @@
                 project_configs: pool.clone(),
                 cardinality: pool.clone(),
                 quotas: pool.clone(),
-                misc: pool,
             })
         }
         RedisPoolConfigs::Individual {
             project_configs,
             cardinality,
             quotas,
-            misc,
         } =&gt; {
             <span class="kw">let </span>project_configs = create_redis_pool(project_configs)<span class="question-mark">?</span>;
             <span class="kw">let </span>cardinality = create_redis_pool(cardinality)<span class="question-mark">?</span>;
             <span class="kw">let </span>quotas = create_redis_pool(quotas)<span class="question-mark">?</span>;
-            <span class="kw">let </span>misc = create_redis_pool(misc)<span class="question-mark">?</span>;
 
             <span class="prelude-val">Ok</span>(RedisPools {
                 project_configs,
                 cardinality,
                 quotas,
-                misc,
             })
         }
     }
@@ -961,11 +952,10 @@
     <span class="kw">let </span>project_configs = redis_pools.project_configs.client()<span class="question-mark">?</span>;
     <span class="kw">let </span>cardinality = redis_pools.cardinality.client()<span class="question-mark">?</span>;
     <span class="kw">let </span>quotas = redis_pools.quotas.client()<span class="question-mark">?</span>;
-    <span class="kw">let </span>misc = redis_pools.misc.client()<span class="question-mark">?</span>;
 
     <span class="kw">let </span>scripts = RedisScripts::all();
 
-    <span class="kw">let </span>pools = [project_configs, cardinality, quotas, misc];
+    <span class="kw">let </span>pools = [project_configs, cardinality, quotas];
     <span class="kw">for </span>pool <span class="kw">in </span>pools {
         initialize_redis_scripts(pool, <span class="kw-2">&amp;</span>scripts)<span class="question-mark">?</span>;
     }

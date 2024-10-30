@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["Item"],"struct":["Location","MetaAggregator","MetricMeta","RedisMetricMetaStore","StartOfDayUnixTimestamp"]};

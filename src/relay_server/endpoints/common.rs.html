@@ -472,16 +472,6 @@
 <a href="#472" id="472">472</a>
 <a href="#473" id="473">473</a>
 <a href="#474" id="474">474</a>
-<a href="#475" id="475">475</a>
-<a href="#476" id="476">476</a>
-<a href="#477" id="477">477</a>
-<a href="#478" id="478">478</a>
-<a href="#479" id="479">479</a>
-<a href="#480" id="480">480</a>
-<a href="#481" id="481">481</a>
-<a href="#482" id="482">482</a>
-<a href="#483" id="483">483</a>
-<a href="#484" id="484">484</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Common facilities for ingesting events through store-like endpoints.
 
 </span><span class="kw">use </span>axum::http::{header, StatusCode};
@@ -496,7 +486,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 <span class="kw">use </span><span class="kw">crate</span>::services::buffer::EnvelopeBuffer;
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome};
-<span class="kw">use </span><span class="kw">crate</span>::services::processor::{MetricData, ProcessMetricMeta, ProcessingGroup};
+<span class="kw">use </span><span class="kw">crate</span>::services::processor::{MetricData, ProcessingGroup};
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::cache::{CheckEnvelope, ProcessMetrics, ValidateEnvelope};
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, ApiErrorResponse, FormDataIter, ManagedEnvelope};
@@ -765,16 +755,6 @@
                 project_key: envelope.meta().public_key(),
                 source: envelope.meta().into(),
             });
-        }
-
-        <span class="comment">// Remove metric meta from the envelope and send them directly to processing.
-        </span><span class="kw">let </span>metric_meta = envelope.take_items_by(|item| <span class="macro">matches!</span>(item.ty(), ItemType::MetricMeta));
-        <span class="kw">if </span>!metric_meta.is_empty() {
-            <span class="macro">relay_log::trace!</span>(<span class="string">"sending metric meta into processing queue"</span>);
-            state.processor().send(ProcessMetricMeta {
-                items: metric_meta.into_vec(),
-                project_key: envelope.meta().public_key(),
-            })
         }
     }
 
