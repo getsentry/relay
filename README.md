@@ -37,7 +37,7 @@ for more information.
 
 ## Development
 
-To build Relay, we require the **latest stable Rust**. The crate is split into a
+To build Relay, we require the **latest stable Rust** (install via [rustup](https://rustup.rs/)). The crate is split into a
 workspace with multiple features, so when running building or running tests
 always make sure to pass the `--all` and `--all-features` flags.
 The `processing` feature additionally requires a C compiler and CMake.
@@ -75,6 +75,9 @@ Depending on the configuration, you may need to have a local instance of Sentry
 running.
 
 ```bash
+# Update rust
+rustup update
+
 # Initialize Relay for the first time
 cargo run --all-features -- config init
 
