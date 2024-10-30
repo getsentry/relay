@@ -10,7 +10,7 @@ use axum_server::accept::Accept;
 use axum_server::Handle;
 use hyper_util::rt::TokioTimer;
 use relay_config::Config;
-use relay_system::{Controller, Service, Shutdown};
+use relay_system::{Controller, Service, Shutdown, ShutdownHandle};
 use socket2::TcpKeepalive;
 use tokio::net::{TcpSocket, TcpStream};
 use tower::ServiceBuilder;
@@ -227,7 +227,15 @@ impl HttpServer {
 impl Service for HttpServer {
     type Interface = ();
 
-    fn spawn_handler(self, _rx: relay_system::Receiver<Self::Interface>) {
+    type PublicState = ();
+
+    fn pre_spawn(&self) -> Self::PublicState {}
+
+    fn spawn_handler(
+        self,
+        _rx: relay_system::Receiver<Self::Interface>,
+        _shutdown: ShutdownHandle,
+    ) {
         let Self {
             config,
             service,

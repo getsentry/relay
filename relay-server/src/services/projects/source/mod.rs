@@ -47,8 +47,8 @@ impl ProjectSource {
         upstream_relay: Addr<UpstreamRelay>,
         _redis: Option<RedisPool>,
     ) -> Self {
-        let local_source = LocalProjectSourceService::new(config.clone()).start();
-        let upstream_source =
+        let (_, local_source) = LocalProjectSourceService::new(config.clone()).start();
+        let (_, upstream_source) =
             UpstreamProjectSourceService::new(config.clone(), upstream_relay).start();
 
         #[cfg(feature = "processing")]

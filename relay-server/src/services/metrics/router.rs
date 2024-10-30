@@ -4,7 +4,7 @@
 use relay_config::aggregator::Condition;
 use relay_config::{AggregatorServiceConfig, ScopedAggregatorConfig};
 use relay_metrics::MetricNamespace;
-use relay_system::{Addr, NoResponse, Recipient, Service};
+use relay_system::{Addr, NoResponse, Recipient, Service, ShutdownHandle, State};
 
 use crate::services::metrics::{
     Aggregator, AggregatorHandle, AggregatorService, FlushBuckets, MergeBuckets,
@@ -39,8 +39,14 @@ impl RouterService {
         let default = AggregatorService::new(default_config, receiver);
         Self { default, secondary }
     }
+}
 
-    pub fn handle(&self) -> RouterHandle {
+impl Service for RouterService {
+    type Interface = Aggregator;
+
+    type PublicState = RouterHandle;
+
+    fn pre_spawn(&self) -> Self::PublicState {
         let mut handles = vec![self.default.handle()];
         for (aggregator, _) in &self.secondary {
             handles.push(aggregator.handle());
@@ -48,12 +54,12 @@ impl RouterService {
 
         RouterHandle(handles)
     }
-}
 
-impl Service for RouterService {
-    type Interface = Aggregator;
-
-    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
+    fn spawn_handler(
+        self,
+        mut rx: relay_system::Receiver<Self::Interface>,
+        _shutdown: ShutdownHandle,
+    ) {
         tokio::spawn(async move {
             let mut router = StartedRouter::start(self);
             relay_log::info!("metrics router started");
@@ -94,12 +100,12 @@ impl StartedRouter {
                     .filter(|&namespace| condition.matches(Some(namespace)))
                     .collect();
 
-                (aggregator.start(), namespaces)
+                (aggregator.start().1, namespaces)
             })
             .collect();
 
         Self {
-            default: default.start(),
+            default: default.start().1,
             secondary,
         }
     }
@@ -156,3 +162,5 @@ impl RouterHandle {
         self.0.iter().all(|ah| ah.can_accept_metrics())
     }
 }
+
+impl State for RouterHandle {}

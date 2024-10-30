@@ -18,7 +18,7 @@ use relay_config::Config;
 use relay_config::RelayMode;
 use relay_dynamic_config::GlobalConfig;
 use relay_statsd::metric;
-use relay_system::{Addr, AsyncResponse, Controller, FromMessage, Interface, Service};
+use relay_system::{Addr, AsyncResponse, FromMessage, Interface, Service, ShutdownHandle, State};
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use tokio::sync::{mpsc, watch};
@@ -172,6 +172,8 @@ impl GlobalConfigHandle {
     }
 }
 
+impl State for GlobalConfigHandle {}
+
 impl fmt::Debug for GlobalConfigHandle {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("GlobalConfigHandle")
@@ -225,14 +227,6 @@ impl GlobalConfigService {
             },
             rx,
         )
-    }
-
-    /// Creates a [`GlobalConfigHandle`] which can be used to retrieve the current state
-    /// of the global config at any time.
-    pub fn handle(&self) -> GlobalConfigHandle {
-        GlobalConfigHandle {
-            watch: self.global_config_watch.subscribe(),
-        }
     }
 
     /// Handles messages from external services.
@@ -338,10 +332,20 @@ impl GlobalConfigService {
 impl Service for GlobalConfigService {
     type Interface = GlobalConfigManager;
 
-    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
-        tokio::spawn(async move {
-            let mut shutdown_handle = Controller::shutdown_handle();
+    type PublicState = GlobalConfigHandle;
 
+    fn pre_spawn(&self) -> Self::PublicState {
+        GlobalConfigHandle {
+            watch: self.global_config_watch.subscribe(),
+        }
+    }
+
+    fn spawn_handler(
+        mut self,
+        mut rx: relay_system::Receiver<Self::Interface>,
+        mut shutdown: ShutdownHandle,
+    ) {
+        tokio::spawn(async move {
             relay_log::info!("global config service starting");
             if self.config.relay_mode() == RelayMode::Managed {
                 relay_log::info!("requesting global config from upstream");
@@ -378,7 +382,7 @@ impl Service for GlobalConfigService {
                     () = &mut self.fetch_handle => self.request_global_config(),
                     Some(result) = self.internal_rx.recv() => self.handle_result(result),
                     Some(message) = rx.recv() => self.handle_message(message),
-                    _ = shutdown_handle.notified() => self.handle_shutdown(),
+                    _ = shutdown.notified() => self.handle_shutdown(),
 
                     else => break,
                 }
@@ -419,7 +423,7 @@ mod tests {
         config.regenerate_credentials(false).unwrap();
         let fetch_interval = config.global_config_fetch_interval();
 
-        let service = GlobalConfigService::new(Arc::new(config), upstream)
+        let (_, service) = GlobalConfigService::new(Arc::new(config), upstream)
             .0
             .start();
 
@@ -450,7 +454,7 @@ mod tests {
         config.regenerate_credentials(false).unwrap();
 
         let fetch_interval = config.global_config_fetch_interval();
-        let service = GlobalConfigService::new(Arc::new(config), upstream)
+        let (_, service) = GlobalConfigService::new(Arc::new(config), upstream)
             .0
             .start();
         service.send(Get).await.unwrap();
@@ -477,7 +481,7 @@ mod tests {
 
         let fetch_interval = config.global_config_fetch_interval();
 
-        let service = GlobalConfigService::new(Arc::new(config), upstream)
+        let (_, service) = GlobalConfigService::new(Arc::new(config), upstream)
             .0
             .start();
         service.send(Get).await.unwrap();

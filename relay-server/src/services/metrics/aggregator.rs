@@ -7,7 +7,9 @@ use relay_base_schema::project::ProjectKey;
 use relay_config::AggregatorServiceConfig;
 use relay_metrics::aggregator::AggregateMetricsError;
 use relay_metrics::{aggregator, Bucket, UnixTimestamp};
-use relay_system::{Controller, FromMessage, Interface, NoResponse, Recipient, Service, Shutdown};
+use relay_system::{
+    FromMessage, Interface, NoResponse, Recipient, Service, Shutdown, ShutdownHandle,
+};
 
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 
@@ -246,10 +248,17 @@ impl AggregatorService {
 impl Service for AggregatorService {
     type Interface = Aggregator;
 
-    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+    type PublicState = ();
+
+    fn pre_spawn(&self) -> Self::PublicState {}
+
+    fn spawn_handler(
+        mut self,
+        mut rx: relay_system::Receiver<Self::Interface>,
+        mut shutdown: ShutdownHandle,
+    ) {
         tokio::spawn(async move {
             let mut ticker = tokio::time::interval(Duration::from_millis(self.flush_interval_ms));
-            let mut shutdown = Controller::shutdown_handle();
 
             // Note that currently this loop never exits and will run till the tokio runtime shuts
             // down. This is about to change with the refactoring for the shutdown process.
@@ -361,7 +370,15 @@ mod tests {
     impl Service for TestReceiver {
         type Interface = TestInterface;
 
-        fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
+        type PublicState = ();
+
+        fn pre_spawn(&self) -> Self::PublicState {}
+
+        fn spawn_handler(
+            self,
+            mut rx: relay_system::Receiver<Self::Interface>,
+            _shutdown: ShutdownHandle,
+        ) {
             tokio::spawn(async move {
                 while let Some(message) = rx.recv().await {
                     let buckets = message.0.buckets;
@@ -392,7 +409,7 @@ mod tests {
         tokio::time::pause();
 
         let receiver = TestReceiver::default();
-        let recipient = receiver.clone().start().recipient();
+        let recipient = receiver.clone().start().1.recipient();
 
         let config = AggregatorServiceConfig {
             aggregator: AggregatorConfig {
@@ -402,7 +419,7 @@ mod tests {
             },
             ..Default::default()
         };
-        let aggregator = AggregatorService::new(config, Some(recipient)).start();
+        let (_, aggregator) = AggregatorService::new(config, Some(recipient)).start();
 
         let mut bucket = some_bucket();
         bucket.timestamp = UnixTimestamp::now();

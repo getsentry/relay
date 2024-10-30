@@ -899,6 +899,7 @@ pub fn channel<I: Interface>(name: &'static str) -> (Addr<I>, Receiver<I>) {
     (addr, receiver)
 }
 
+/// A state interface for [services](`Service`).
 pub trait State {}
 
 impl State for () {}
@@ -921,7 +922,7 @@ impl State for () {}
 /// synchronous, so that this needs to spawn at least one task internally:
 ///
 /// ```no_run
-/// use relay_system::{FromMessage, Interface, NoResponse, Receiver, Service};
+/// use relay_system::{FromMessage, Interface, NoResponse, Receiver, Service, ShutdownHandle};
 ///
 /// struct MyMessage;
 ///
@@ -940,7 +941,9 @@ impl State for () {}
 /// impl Service for MyService {
 ///     type Interface = MyMessage;
 ///
-///     fn spawn_handler(self, mut rx: Receiver<Self::Interface>) {
+///     type PublicState = ();
+///
+///     fn spawn_handler(self, mut rx: Receiver<Self::Interface>, shutdown: ShutdownHandle) {
 ///         tokio::spawn(async move {
 ///             while let Some(message) = rx.recv().await {
 ///                 // handle the message
@@ -1006,10 +1009,17 @@ pub trait Service: Sized {
     /// can be handled by this service.
     type Interface: Interface;
 
-    /// TBD
+    /// The public state of this service.
+    ///
+    /// The state has to be generated in the `pre_spawn` method given the `self` reference. The goal
+    /// of having shared state is to avoid querying for state via messages with responses which can
+    /// be too slow for some use cases.
     type PublicState: State;
 
-    /// TBD
+    /// Called before the task is spawned.
+    ///
+    /// This method is meant to run all initialization code that is necessary for generating the
+    /// [`Self::PublicState`].
     fn pre_spawn(&self) -> Self::PublicState;
 
     /// Spawns a task to handle service messages.
@@ -1018,14 +1028,35 @@ pub trait Service: Sized {
     /// that this function is synchronous, so that this needs to spawn a task internally.
     fn spawn_handler(self, rx: Receiver<Self::Interface>, shutdown: ShutdownHandle);
 
+    /// Starts this service with the provided [`Receiver`].
+    ///
+    /// This method should be used only when the `start` method can't be used because of some
+    /// cyclic dependencies between services.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// // This is not possible because of the cyclic reference.
+    /// let a_tx = A::new(b_tx).start();
+    /// let b_tx = B::new(a_tx).start();
+    ///
+    /// // This is possible with `start_with_receiver`.
+    /// let (b_tx, b_rx) = channel();
+    /// let a_tx = A::new(b_tx).start();
+    /// B::new(a_tx).start_with_receiver(b_rx);
+    /// ```
+    fn start_with_receiver(self, rx: Receiver<Self::Interface>) -> Self::PublicState {
+        let shutdown = Controller::shutdown_handle();
+        let public_state = self.pre_spawn();
+        self.spawn_handler(rx, shutdown);
+
+        public_state
+    }
+
     /// Starts the service in the current runtime and returns an address for it.
     fn start(self) -> (Self::PublicState, Addr<Self::Interface>) {
         let (addr, rx) = channel(Self::name());
-        let shutdown = Controller::shutdown_handle();
-
-        let public_state = self.pre_spawn();
-
-        self.spawn_handler(rx, shutdown);
+        let public_state = self.start_with_receiver(rx);
 
         (public_state, addr)
     }
@@ -1043,11 +1074,17 @@ pub trait Service: Sized {
     fn name() -> &'static str {
         std::any::type_name::<Self>()
     }
+
+    /// Generates the [`Addr`] and [`Receiver`] channels that are used for communicating
+    fn channel() -> (Addr<Self::Interface>, Receiver<Self::Interface>) {
+        channel(Self::name())
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tokio::sync::RwLock;
 
     struct MockMessage;
 
@@ -1061,14 +1098,36 @@ mod tests {
         }
     }
 
-    struct MockService;
+    struct MockService {
+        state: MockPublicState,
+    }
+
+    impl MockService {
+        fn new() -> Self {
+            Self {
+                state: MockPublicState::default(),
+            }
+        }
+    }
+
+    #[derive(Clone, Default)]
+    struct MockPublicState(Arc<RwLock<u64>>);
+
+    impl State for MockPublicState {}
 
     impl Service for MockService {
         type Interface = MockMessage;
 
-        fn spawn_handler(self, mut rx: Receiver<Self::Interface>) {
+        type PublicState = MockPublicState;
+
+        fn pre_spawn(&self) -> Self::PublicState {
+            self.state.clone()
+        }
+
+        fn spawn_handler(self, mut rx: Receiver<Self::Interface>, _shutdown: ShutdownHandle) {
             tokio::spawn(async move {
                 while rx.recv().await.is_some() {
+                    *self.state.0.write().await += 1;
                     tokio::time::sleep(BACKLOG_INTERVAL * 2).await;
                 }
             });
@@ -1097,7 +1156,7 @@ mod tests {
         tokio::time::pause();
 
         // Mock service takes 2 * BACKLOG_INTERVAL for every message
-        let addr = MockService.start();
+        let (state, addr) = MockService::new().start();
 
         // Advance the timer by a tiny offset to trigger the first metric emission.
         let captures = relay_statsd::with_capturing_test_client(|| {
@@ -1138,5 +1197,11 @@ mod tests {
                 "service.back_pressure:0|g|#service:mock", // 6 * INTERVAL
             ]
         );
+
+        // We assert that the state changed. The reason for why we don't want to assert a specific
+        // number is that we do not have any synchronization points in this test. Technically also
+        // this assertion could be flaky, but it's highly unlikely no increment during the test's
+        // execution.
+        assert_ne!(*state.0.blocking_read(), 0);
     }
 }

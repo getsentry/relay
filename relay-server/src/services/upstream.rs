@@ -22,6 +22,7 @@ use relay_quotas::{
 };
 use relay_system::{
     AsyncResponse, FromMessage, Interface, MessageResponse, NoResponse, Sender, Service,
+    ShutdownHandle,
 };
 use reqwest::header;
 pub use reqwest::Method;
@@ -1498,7 +1499,15 @@ impl UpstreamRelayService {
 impl Service for UpstreamRelayService {
     type Interface = UpstreamRelay;
 
-    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
+    type PublicState = ();
+
+    fn pre_spawn(&self) -> Self::PublicState {}
+
+    fn spawn_handler(
+        self,
+        mut rx: relay_system::Receiver<Self::Interface>,
+        _shutdown: ShutdownHandle,
+    ) {
         let Self { config } = self;
 
         let client = SharedClient::build(config.clone());

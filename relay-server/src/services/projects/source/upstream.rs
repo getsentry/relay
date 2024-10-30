@@ -13,6 +13,7 @@ use relay_dynamic_config::ErrorBoundary;
 use relay_statsd::metric;
 use relay_system::{
     Addr, BroadcastChannel, BroadcastResponse, BroadcastSender, FromMessage, Interface, Service,
+    ShutdownHandle,
 };
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
@@ -640,7 +641,15 @@ impl UpstreamProjectSourceService {
 impl Service for UpstreamProjectSourceService {
     type Interface = UpstreamProjectSource;
 
-    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+    type PublicState = ();
+
+    fn pre_spawn(&self) -> Self::PublicState {}
+
+    fn spawn_handler(
+        mut self,
+        mut rx: relay_system::Receiver<Self::Interface>,
+        _shutdown: ShutdownHandle,
+    ) {
         tokio::spawn(async move {
             relay_log::info!("project upstream cache started");
             loop {
@@ -693,7 +702,8 @@ mod tests {
             }};
         }
 
-        let service = UpstreamProjectSourceService::new(Arc::clone(&config), upstream_addr).start();
+        let (_, service) =
+            UpstreamProjectSourceService::new(Arc::clone(&config), upstream_addr).start();
 
         let mut response1 = service.send(FetchProjectState {
             project_key,

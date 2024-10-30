@@ -18,7 +18,7 @@ use relay_metrics::{Bucket, MetricMeta};
 use relay_quotas::RateLimits;
 use relay_redis::RedisPool;
 use relay_statsd::metric;
-use relay_system::{Addr, FromMessage, Interface, Sender, Service};
+use relay_system::{Addr, FromMessage, Interface, Sender, Service, ShutdownHandle};
 use tokio::sync::{mpsc, watch};
 use tokio::time::Instant;
 
@@ -1214,7 +1214,15 @@ impl ProjectCacheService {
 impl Service for ProjectCacheService {
     type Interface = ProjectCache;
 
-    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
+    type PublicState = ();
+
+    fn pre_spawn(&self) -> Self::PublicState {}
+
+    fn spawn_handler(
+        self,
+        mut rx: relay_system::Receiver<Self::Interface>,
+        _shutdown: ShutdownHandle,
+    ) {
         let Self {
             config,
             memory_checker,
@@ -1255,7 +1263,7 @@ impl Service for ProjectCacheService {
                         project_cache,
                         test_store,
                     };
-                    let buffer = match BufferService::create(
+                    let (_, buffer) = match BufferService::create(
                         memory_checker.clone(),
                         buffer_services,
                         config.clone(),
@@ -1442,7 +1450,7 @@ mod tests {
             project_cache: services.project_cache.clone(),
             test_store: services.test_store.clone(),
         };
-        let buffer =
+        let (_, buffer) =
             match BufferService::create(memory_checker.clone(), buffer_services, config.clone())
                 .await
             {

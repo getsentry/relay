@@ -4,7 +4,7 @@ use relay_config::{Config, RelayMode};
 #[cfg(feature = "processing")]
 use relay_redis::{RedisPool, RedisPools};
 use relay_statsd::metric;
-use relay_system::{Addr, Service};
+use relay_system::{Addr, Service, ShutdownHandle};
 use tokio::time::interval;
 
 use crate::services::upstream::{IsNetworkOutage, UpstreamRelay};
@@ -136,7 +136,15 @@ impl RelayStats {
 impl Service for RelayStats {
     type Interface = ();
 
-    fn spawn_handler(self, _rx: relay_system::Receiver<Self::Interface>) {
+    type PublicState = ();
+
+    fn pre_spawn(&self) -> Self::PublicState {}
+
+    fn spawn_handler(
+        self,
+        _rx: relay_system::Receiver<Self::Interface>,
+        _shutdown: ShutdownHandle,
+    ) {
         let Some(mut ticker) = self.config.metrics_periodic_interval().map(interval) else {
             return;
         };

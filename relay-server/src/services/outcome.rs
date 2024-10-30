@@ -27,7 +27,7 @@ use relay_quotas::{DataCategory, ReasonCode, Scoping};
 use relay_sampling::config::RuleId;
 use relay_sampling::evaluation::MatchedRuleIds;
 use relay_statsd::metric;
-use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
+use relay_system::{Addr, FromMessage, Interface, NoResponse, Service, ShutdownHandle};
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "processing")]
@@ -686,7 +686,15 @@ impl HttpOutcomeProducer {
 impl Service for HttpOutcomeProducer {
     type Interface = TrackRawOutcome;
 
-    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+    type PublicState = ();
+
+    fn pre_spawn(&self) -> Self::PublicState {}
+
+    fn spawn_handler(
+        mut self,
+        mut rx: relay_system::Receiver<Self::Interface>,
+        _shutdown: ShutdownHandle,
+    ) {
         tokio::spawn(async move {
             loop {
                 tokio::select! {
@@ -779,7 +787,15 @@ impl ClientReportOutcomeProducer {
 impl Service for ClientReportOutcomeProducer {
     type Interface = TrackOutcome;
 
-    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+    type PublicState = ();
+
+    fn pre_spawn(&self) -> Self::PublicState {}
+
+    fn spawn_handler(
+        mut self,
+        mut rx: relay_system::Receiver<Self::Interface>,
+        _shutdown: ShutdownHandle,
+    ) {
         tokio::spawn(async move {
             loop {
                 tokio::select! {
@@ -983,8 +999,8 @@ impl ProducerInner {
         match self {
             #[cfg(feature = "processing")]
             ProducerInner::Kafka(inner) => OutcomeBroker::Kafka(inner),
-            ProducerInner::Http(inner) => OutcomeBroker::Http(inner.start()),
-            ProducerInner::ClientReport(inner) => OutcomeBroker::ClientReport(inner.start()),
+            ProducerInner::Http(inner) => OutcomeBroker::Http(inner.start().1),
+            ProducerInner::ClientReport(inner) => OutcomeBroker::ClientReport(inner.start().1),
             ProducerInner::Disabled => OutcomeBroker::Disabled,
         }
     }
@@ -1038,7 +1054,15 @@ impl OutcomeProducerService {
 impl Service for OutcomeProducerService {
     type Interface = OutcomeProducer;
 
-    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
+    type PublicState = ();
+
+    fn pre_spawn(&self) -> Self::PublicState {}
+
+    fn spawn_handler(
+        self,
+        mut rx: relay_system::Receiver<Self::Interface>,
+        _shutdown: ShutdownHandle,
+    ) {
         let Self { config, inner } = self;
 
         tokio::spawn(async move {

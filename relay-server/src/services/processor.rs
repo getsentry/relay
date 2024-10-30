@@ -38,7 +38,7 @@ use relay_quotas::{DataCategory, RateLimits, Scoping};
 use relay_sampling::config::RuleId;
 use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator, SamplingDecision};
 use relay_statsd::metric;
-use relay_system::{Addr, FromMessage, NoResponse, Service};
+use relay_system::{Addr, FromMessage, NoResponse, Service, ShutdownHandle};
 use reqwest::header;
 use smallvec::{smallvec, SmallVec};
 
@@ -2926,7 +2926,15 @@ impl EnvelopeProcessorService {
 impl Service for EnvelopeProcessorService {
     type Interface = EnvelopeProcessor;
 
-    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
+    type PublicState = ();
+
+    fn pre_spawn(&self) -> Self::PublicState {}
+
+    fn spawn_handler(
+        self,
+        mut rx: relay_system::Receiver<Self::Interface>,
+        _shutdown: ShutdownHandle,
+    ) {
         tokio::spawn(async move {
             while let Some(message) = rx.recv().await {
                 let service = self.clone();

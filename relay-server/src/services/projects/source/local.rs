@@ -5,7 +5,9 @@ use std::sync::Arc;
 
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_config::Config;
-use relay_system::{AsyncResponse, FromMessage, Interface, Receiver, Sender, Service};
+use relay_system::{
+    AsyncResponse, FromMessage, Interface, Receiver, Sender, Service, ShutdownHandle,
+};
 use tokio::sync::mpsc;
 use tokio::time::Instant;
 
@@ -171,7 +173,11 @@ async fn spawn_poll_local_states(
 impl Service for LocalProjectSourceService {
     type Interface = LocalProjectSource;
 
-    fn spawn_handler(mut self, mut rx: Receiver<Self::Interface>) {
+    type PublicState = ();
+
+    fn pre_spawn(&self) -> Self::PublicState {}
+
+    fn spawn_handler(mut self, mut rx: Receiver<Self::Interface>, _shutdown: ShutdownHandle) {
         // Use a channel with size 1. If the channel is full because the consumer does not
         // collect the result, the producer will block, which is acceptable.
         let (state_tx, mut state_rx) = mpsc::channel(1);

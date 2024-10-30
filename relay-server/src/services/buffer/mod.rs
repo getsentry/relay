@@ -8,10 +8,10 @@ use std::time::Duration;
 
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
+use relay_system::Shutdown;
 use relay_system::{
     Addr, FromMessage, Interface, NoResponse, Receiver, Service, ShutdownHandle, State,
 };
-use relay_system::{Controller, Shutdown};
 use tokio::sync::mpsc::Permit;
 use tokio::sync::{mpsc, watch};
 use tokio::time::{timeout, Instant};
@@ -79,18 +79,18 @@ impl FromMessage<Self> for EnvelopeBuffer {
 // NOTE: This pattern of combining an Addr with some observable state could be generalized into
 // `Service` itself.
 #[derive(Debug, Clone)]
-pub struct EnvelopeBufferPublicState {
+pub struct EnvelopeBufferState {
     has_capacity: Arc<AtomicBool>,
 }
 
-impl EnvelopeBufferPublicState {
+impl EnvelopeBufferState {
     /// Returns `true` if the buffer has the capacity to accept more elements.
     pub fn has_capacity(&self) -> bool {
         self.has_capacity.load(Ordering::Relaxed)
     }
 }
 
-impl State for EnvelopeBufferPublicState {}
+impl State for EnvelopeBufferState {}
 
 /// Services that the buffer service communicates with.
 #[derive(Clone)]
@@ -362,10 +362,10 @@ impl EnvelopeBufferService {
 impl Service for EnvelopeBufferService {
     type Interface = EnvelopeBuffer;
 
-    type PublicState = EnvelopeBufferPublicState;
+    type PublicState = EnvelopeBufferState;
 
     fn pre_spawn(&self) -> Self::PublicState {
-        EnvelopeBufferPublicState {
+        EnvelopeBufferState {
             has_capacity: self.has_capacity.clone(),
         }
     }

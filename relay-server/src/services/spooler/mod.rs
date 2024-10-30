@@ -40,7 +40,7 @@ use hashbrown::HashSet;
 use relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
 use relay_config::Config;
 use relay_statsd::metric;
-use relay_system::{Addr, Controller, FromMessage, Interface, Sender, Service};
+use relay_system::{Addr, FromMessage, Interface, Sender, Service, ShutdownHandle};
 use smallvec::{smallvec, SmallVec};
 use sqlx::migrate::MigrateError;
 use sqlx::sqlite::{
@@ -1272,10 +1272,16 @@ impl BufferService {
 impl Service for BufferService {
     type Interface = Buffer;
 
-    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
-        tokio::spawn(async move {
-            let mut shutdown = Controller::shutdown_handle();
+    type PublicState = ();
 
+    fn pre_spawn(&self) -> Self::PublicState {}
+
+    fn spawn_handler(
+        mut self,
+        mut rx: relay_system::Receiver<Self::Interface>,
+        mut shutdown: ShutdownHandle,
+    ) {
+        tokio::spawn(async move {
             loop {
                 tokio::select! {
                     biased;
@@ -1401,7 +1407,7 @@ mod tests {
         let service = BufferService::create(memory_checker, services(), config)
             .await
             .unwrap();
-        let addr = service.start();
+        let (_, addr) = service.start();
         let (tx, mut rx) = mpsc::unbounded_channel();
 
         // Test cases:
@@ -1622,7 +1628,7 @@ mod tests {
         let buffer = BufferService::create(memory_checker, services, config)
             .await
             .unwrap();
-        let addr = buffer.start();
+        let (_, addr) = buffer.start();
         addr.send(RestoreIndex);
         // Give some time to process the message
         tokio::time::sleep(Duration::from_millis(500)).await;
@@ -1667,7 +1673,7 @@ mod tests {
         let buffer = BufferService::create(memory_checker, services, config)
             .await
             .unwrap();
-        let addr = buffer.start();
+        let (_, addr) = buffer.start();
 
         let mut keys = HashSet::new();
         for _ in 1..=300 {

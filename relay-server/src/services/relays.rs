@@ -7,6 +7,7 @@ use relay_auth::{PublicKey, RelayId};
 use relay_config::{Config, RelayInfo};
 use relay_system::{
     Addr, BroadcastChannel, BroadcastResponse, BroadcastSender, FromMessage, Interface, Service,
+    ShutdownHandle,
 };
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
@@ -334,7 +335,15 @@ impl RelayCacheService {
 impl Service for RelayCacheService {
     type Interface = RelayCache;
 
-    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+    type PublicState = ();
+
+    fn pre_spawn(&self) -> Self::PublicState {}
+
+    fn spawn_handler(
+        mut self,
+        mut rx: relay_system::Receiver<Self::Interface>,
+        _shutdown: ShutdownHandle,
+    ) {
         tokio::spawn(async move {
             relay_log::info!("key cache started");
 

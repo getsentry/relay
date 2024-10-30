@@ -3,14 +3,14 @@ use std::sync::Arc;
 
 use relay_config::{Config, RelayMode};
 use relay_event_schema::protocol::EventId;
-use relay_system::{AsyncResponse, FromMessage, NoResponse, Sender};
+use relay_system::{AsyncResponse, FromMessage, NoResponse, Sender, Service, ShutdownHandle};
 
 use crate::envelope::Envelope;
 use crate::services::outcome::Outcome;
 use crate::services::processor::Processed;
 use crate::utils::TypedEnvelope;
 
-/// Either a captured envelope or an error that occured during processing.
+/// Either a captured envelope or an error that occurred during processing.
 pub type CapturedEnvelope = Result<Box<Envelope>, String>;
 
 /// Inserts an envelope or failure into internal captures.
@@ -26,7 +26,7 @@ pub struct Capture {
 impl Capture {
     /// Returns `true` if Relay is in capture mode.
     ///
-    /// The `Capture` message can still be sent and and will be ignored. This function is purely for
+    /// The `Capture` message can still be sent and will be ignored. This function is purely for
     /// optimization purposes.
     pub fn should_capture(config: &Config) -> bool {
         matches!(config.relay_mode(), RelayMode::Capture)
@@ -131,10 +131,18 @@ impl TestStoreService {
     }
 }
 
-impl relay_system::Service for TestStoreService {
+impl Service for TestStoreService {
     type Interface = TestStore;
 
-    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+    type PublicState = ();
+
+    fn pre_spawn(&self) -> Self::PublicState {}
+
+    fn spawn_handler(
+        mut self,
+        mut rx: relay_system::Receiver<Self::Interface>,
+        _shutdown: ShutdownHandle,
+    ) {
         tokio::spawn(async move {
             while let Some(message) = rx.recv().await {
                 self.handle_message(message);

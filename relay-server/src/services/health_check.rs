@@ -1,12 +1,12 @@
 use std::sync::Arc;
 
 use relay_config::Config;
-use relay_system::{Addr, AsyncResponse, Controller, FromMessage, Interface, Sender, Service};
+use relay_system::{Addr, AsyncResponse, FromMessage, Interface, Sender, Service, ShutdownHandle};
 use std::future::Future;
 use tokio::sync::watch;
 use tokio::time::{timeout, Instant};
 
-use crate::services::buffer::EnvelopeBufferPublicState;
+use crate::services::buffer::EnvelopeBufferState;
 use crate::services::metrics::RouterHandle;
 use crate::services::upstream::{IsAuthenticated, UpstreamRelay};
 use crate::statsd::RelayTimers;
@@ -86,7 +86,7 @@ pub struct HealthCheckService {
     memory_checker: MemoryChecker,
     aggregator: RouterHandle,
     upstream_relay: Addr<UpstreamRelay>,
-    envelope_buffer: Option<EnvelopeBufferPublicState>, // make non-optional once V1 has been removed
+    envelope_buffer: Option<EnvelopeBufferState>, // make non-optional once V1 has been removed
 }
 
 impl HealthCheckService {
@@ -98,7 +98,7 @@ impl HealthCheckService {
         memory_checker: MemoryChecker,
         aggregator: RouterHandle,
         upstream_relay: Addr<UpstreamRelay>,
-        envelope_buffer: Option<EnvelopeBufferPublicState>,
+        envelope_buffer: Option<EnvelopeBufferState>,
     ) -> Self {
         Self {
             config,
@@ -193,15 +193,21 @@ impl HealthCheckService {
 impl Service for HealthCheckService {
     type Interface = HealthCheck;
 
-    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+    type PublicState = ();
+
+    fn pre_spawn(&self) -> Self::PublicState {}
+
+    fn spawn_handler(
+        mut self,
+        mut rx: relay_system::Receiver<Self::Interface>,
+        shutdown: ShutdownHandle,
+    ) {
         let (update_tx, update_rx) = watch::channel(StatusUpdate::new(Status::Unhealthy));
         let check_interval = self.config.health_refresh_interval();
         // Add 10% buffer to the internal timeouts to avoid race conditions.
         let status_timeout = (check_interval + self.config.health_probe_timeout()).mul_f64(1.1);
 
         tokio::spawn(async move {
-            let shutdown = Controller::shutdown_handle();
-
             while shutdown.get().is_none() {
                 let _ = update_tx.send(StatusUpdate::new(relay_statsd::metric!(
                     timer(RelayTimers::HealthCheckDuration),
