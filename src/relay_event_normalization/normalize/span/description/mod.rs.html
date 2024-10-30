@@ -1586,6 +1586,24 @@
 <a href="#1586" id="1586">1586</a>
 <a href="#1587" id="1587">1587</a>
 <a href="#1588" id="1588">1588</a>
+<a href="#1589" id="1589">1589</a>
+<a href="#1590" id="1590">1590</a>
+<a href="#1591" id="1591">1591</a>
+<a href="#1592" id="1592">1592</a>
+<a href="#1593" id="1593">1593</a>
+<a href="#1594" id="1594">1594</a>
+<a href="#1595" id="1595">1595</a>
+<a href="#1596" id="1596">1596</a>
+<a href="#1597" id="1597">1597</a>
+<a href="#1598" id="1598">1598</a>
+<a href="#1599" id="1599">1599</a>
+<a href="#1600" id="1600">1600</a>
+<a href="#1601" id="1601">1601</a>
+<a href="#1602" id="1602">1602</a>
+<a href="#1603" id="1603">1603</a>
+<a href="#1604" id="1604">1604</a>
+<a href="#1605" id="1605">1605</a>
+<a href="#1606" id="1606">1606</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Span description scrubbing logic.
 </span><span class="kw">mod </span>resource;
 <span class="kw">mod </span>sql;
@@ -2161,6 +2179,9 @@
 
     <span class="kw">let </span>root = query.as_object_mut()<span class="question-mark">?</span>;
 
+    <span class="comment">// Buffers are unnecessary noise so the entire key-value pair should be removed
+    </span>root.remove(<span class="string">"buffer"</span>);
+
     <span class="kw">for </span>value <span class="kw">in </span>root.values_mut() {
         scrub_mongodb_visit_node(value, <span class="number">3</span>);
     }
@@ -2195,9 +2216,8 @@
             }
         }
         Value::Array(arr) =&gt; {
-            <span class="kw">for </span>value <span class="kw">in </span>arr.iter_mut() {
-                scrub_mongodb_visit_node(value, recursion_limit - <span class="number">1</span>);
-            }
+            arr.clear();
+            arr.push(Value::String(<span class="string">"..."</span>.to_owned()));
         }
         Value::String(str) =&gt; {
             str.clear();
@@ -3160,10 +3180,10 @@
 
     <span class="macro">mongodb_scrubbing_test!</span>(
         mongodb_max_depth,
-        <span class="string">r#"{"insert": "coll", "documents": [{"foo": {"bar": {"baz": "quux"}}}]}"#</span>,
-        <span class="string">"insert"</span>,
+        <span class="string">r#"{"update": "coll", "updates": {"q": {"_id": "1"}, "u": {"$set": {"foo": {"bar": {"baz": "quux"}}}}}}"#</span>,
+        <span class="string">"update"</span>,
         <span class="string">"coll"</span>,
-        <span class="string">r#"{"documents":[{"foo":{"bar":"?"}}],"insert":"coll"}"#
+        <span class="string">r#"{"update":"coll","updates":{"q":{"_id":"?"},"u":{"$set":{"foo":"?"}}}}"#
     </span>);
 
     <span class="macro">mongodb_scrubbing_test!</span>(
@@ -3172,6 +3192,22 @@
         <span class="string">"find"</span>,
         <span class="string">"documents001"</span>,
         <span class="string">r#"{"find":"documents{%s}","showRecordId":"?"}"#
+    </span>);
+
+    <span class="macro">mongodb_scrubbing_test!</span>(
+        mongodb_query_with_array,
+        <span class="string">r#"{"insert": "documents", "documents": [{"foo": "bar"}, {"baz": "quux"}, {"qux": "quuz"}]}"#</span>,
+        <span class="string">"insert"</span>,
+        <span class="string">"documents"</span>,
+        <span class="string">r#"{"documents":["..."],"insert":"documents"}"#
+    </span>);
+
+    <span class="macro">mongodb_scrubbing_test!</span>(
+        mongodb_query_with_buffer,
+        <span class="string">r#"{"insert": "documents", "buffer": {"0": "a", "1": "b", "2": "c"}, "documents": [{"foo": "bar"}]}"#</span>,
+        <span class="string">"insert"</span>,
+        <span class="string">"documents"</span>,
+        <span class="string">r#"{"documents":["..."],"insert":"documents"}"#
     </span>);
 }
 </code></pre></div></section></main></body></html>
