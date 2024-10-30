@@ -22,7 +22,7 @@ use relay_metrics::{
 };
 use relay_quotas::Scoping;
 use relay_statsd::metric;
-use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
+use relay_system::{Addr, FromMessage, Interface, NoResponse, Service, ShutdownHandle};
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
 use serde_json::Deserializer;
@@ -1044,7 +1044,15 @@ impl StoreService {
 impl Service for StoreService {
     type Interface = Store;
 
-    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
+    type PublicState = ();
+
+    fn pre_spawn(&self) -> Self::PublicState {}
+
+    fn spawn_handler(
+        self,
+        mut rx: relay_system::Receiver<Self::Interface>,
+        _shutdown: ShutdownHandle,
+    ) {
         let this = Arc::new(self);
 
         tokio::spawn(async move {
