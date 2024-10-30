@@ -5,7 +5,7 @@ use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use futures::future::Shared;
 use futures::FutureExt;
@@ -13,7 +13,7 @@ use tokio::runtime::Runtime;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::MissedTickBehavior;
 
-use crate::statsd::SystemGauges;
+use crate::statsd::{SystemCounters, SystemGauges};
 
 /// Interval for recording backlog metrics on service channels.
 const BACKLOG_INTERVAL: Duration = Duration::from_secs(1);
@@ -839,7 +839,8 @@ impl<I: Interface> Receiver<I> {
     /// not yet been closed, this method will sleep until a message is sent or
     /// the channel is closed.
     pub async fn recv(&mut self) -> Option<I> {
-        loop {
+        let start = Instant::now();
+        let next_message = loop {
             tokio::select! {
                 biased;
 
@@ -852,10 +853,15 @@ impl<I: Interface> Receiver<I> {
                 },
                 message = self.rx.recv() => {
                     self.queue_size.fetch_sub(1, Ordering::SeqCst);
-                    return message;
+                    break message;
                 },
             }
-        }
+        };
+        relay_statsd::metric!(
+            counter(SystemCounters::ServiceIdleTime) += start.elapsed().as_nanos() as u64,
+            service = self.name
+        );
+        next_message
     }
 }
 
@@ -1059,6 +1065,13 @@ mod tests {
         }
     }
 
+    fn skip_idle_time(captures: Vec<String>) -> Vec<String> {
+        captures
+            .into_iter()
+            .filter(|c| !c.starts_with("service.idle_time_nanos:"))
+            .collect()
+    }
+
     #[test]
     fn test_backpressure_metrics() {
         let rt = tokio::runtime::Builder::new_current_thread()
@@ -1092,7 +1105,7 @@ mod tests {
             })
         });
 
-        assert!(captures.is_empty());
+        assert!(skip_idle_time(captures).is_empty());
 
         // Advance to 6.5 * INTERVAL. The service should pull the first message immediately, another
         // message every 2 INTERVALS. The messages are fully handled after 6 INTERVALS, but we
@@ -1104,7 +1117,7 @@ mod tests {
         });
 
         assert_eq!(
-            captures,
+            skip_idle_time(captures),
             [
                 "service.back_pressure:2|g|#service:mock", // 2 * INTERVAL
                 "service.back_pressure:1|g|#service:mock", // 4 * INTERVAL

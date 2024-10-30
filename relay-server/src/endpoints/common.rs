@@ -276,7 +276,7 @@ fn queue_envelope(
             relay_log::trace!("sending metrics into processing queue");
             state.project_cache().send(ProcessMetrics {
                 data: MetricData::Raw(metric_items.into_vec()),
-                start_time: envelope.meta().start_time().into(),
+                received_at: envelope.received_at(),
                 sent_at: envelope.sent_at(),
                 project_key: envelope.meta().public_key(),
                 source: envelope.meta().into(),

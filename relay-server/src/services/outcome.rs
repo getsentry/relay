@@ -451,6 +451,9 @@ pub enum DiscardReason {
     InvalidReplayRecordingEvent,
     InvalidReplayVideoEvent,
 
+    /// (Relay) The event's timestamp was too far in the future.
+    DateInTheFuture,
+
     /// (Relay) Profiling related discard reasons
     Profiling(&'static str),
 
@@ -504,6 +507,7 @@ impl DiscardReason {
             DiscardReason::Profiling(reason) => reason,
             DiscardReason::InvalidSpan => "invalid_span",
             DiscardReason::FeatureDisabled(_) => "feature_disabled",
+            DiscardReason::DateInTheFuture => "date_in_the_future",
         }
     }
 }
