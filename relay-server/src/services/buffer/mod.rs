@@ -72,12 +72,8 @@ impl FromMessage<Self> for EnvelopeBuffer {
     }
 }
 
-/// Contains the services [`Addr`] and a watch channel to observe its state.
-///
-/// This allows outside observers to check the capacity without having to send a message.
-///
-// NOTE: This pattern of combining an Addr with some observable state could be generalized into
-// `Service` itself.
+/// Public state of the [`EnvelopeBufferService`] which allows to check if the service has capacity
+/// to accept new [`Envelope`]s.
 #[derive(Debug, Clone)]
 pub struct EnvelopeBufferState {
     has_capacity: Arc<AtomicBool>,
