@@ -170,7 +170,7 @@ impl EnvelopeBufferService {
             status = "system_ready"
         );
 
-        relay_log::trace!("sleep");
+        relay_log::trace!("sleep {:?}", self.sleep);
         if self.sleep > Duration::ZERO {
             tokio::time::sleep(self.sleep).await;
         }
@@ -411,6 +411,8 @@ impl Service for EnvelopeBufferService {
                     histogram(RelayHistograms::BufferBackpressureEnvelopesCount) =
                         used_capacity as u64
                 );
+
+                dbg!(shutdown.get());
 
                 let mut sleep = Duration::MAX;
                 tokio::select! {
@@ -706,7 +708,10 @@ mod tests {
         let legacy::DequeuedEnvelope(envelope) =
             tokio::time::timeout(std::time::Duration::from_secs(3), envelopes_rx.recv())
                 .await
-                .unwrap()
+                .unwrap_or_else(|_| {
+                    relay_log::warn!("PANIC");
+                    panic!("timeout elapsed");
+                })
                 .unwrap();
 
         addr.send(EnvelopeBuffer::NotReady(project_key, envelope));
