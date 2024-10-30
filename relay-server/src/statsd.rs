@@ -44,6 +44,8 @@ pub enum RelayGauges {
     /// The number of idle connections in the Redis Pool.
     #[cfg(feature = "processing")]
     RedisPoolIdleConnections,
+    /// The number of notifications in the broadcast channel of the project cache.
+    ProjectCacheNotificationChannel,
 }
 
 impl GaugeMetric for RelayGauges {
@@ -61,6 +63,9 @@ impl GaugeMetric for RelayGauges {
             RelayGauges::RedisPoolConnections => "redis.pool.connections",
             #[cfg(feature = "processing")]
             RelayGauges::RedisPoolIdleConnections => "redis.pool.idle_connections",
+            RelayGauges::ProjectCacheNotificationChannel => {
+                "project_cache.notification_channel.size"
+            }
         }
     }
 }

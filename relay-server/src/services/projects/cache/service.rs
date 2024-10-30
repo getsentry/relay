@@ -10,7 +10,7 @@ use crate::services::projects::cache::handle::ProjectCacheHandle;
 use crate::services::projects::cache::state::{CompletedFetch, Fetch, ProjectStore};
 use crate::services::projects::project::ProjectState;
 use crate::services::projects::source::ProjectSource;
-use crate::statsd::RelayTimers;
+use crate::statsd::{RelayGauges, RelayTimers};
 
 /// Size of the broadcast channel for project events.
 ///
@@ -160,6 +160,11 @@ impl ProjectCacheService {
         let _ = self
             .project_events_tx
             .send(ProjectChange::Ready(project_key));
+
+        metric!(
+            gauge(RelayGauges::ProjectCacheNotificationChannel) =
+                self.project_events_tx.len() as u64
+        );
     }
 
     fn handle_evict_stale_projects(&mut self) {
