@@ -162,6 +162,7 @@ impl EnvelopeBufferService {
             status = "checking"
         );
 
+        relay_log::trace!("system ready");
         self.system_ready(buffer, dequeue).await;
 
         relay_statsd::metric!(
@@ -169,6 +170,7 @@ impl EnvelopeBufferService {
             status = "system_ready"
         );
 
+        relay_log::trace!("sleep");
         if self.sleep > Duration::ZERO {
             tokio::time::sleep(self.sleep).await;
         }
@@ -178,6 +180,7 @@ impl EnvelopeBufferService {
             status = "slept"
         );
 
+        relay_log::trace!("permit");
         let permit = self.services.envelopes_tx.reserve().await.ok();
 
         relay_statsd::metric!(
@@ -312,6 +315,7 @@ impl EnvelopeBufferService {
                 // once buffer V1 has been removed.
                 relay_log::trace!("EnvelopeBufferService: received push message");
                 Self::push(buffer, envelope).await;
+                relay_log::trace!("pushed");
             }
             EnvelopeBuffer::NotReady(project_key, envelope) => {
                 relay_log::trace!(
@@ -415,8 +419,10 @@ impl Service for EnvelopeBufferService {
                     // so we do not exceed the buffer capacity by starving the dequeue.
                     // on the other hand, prioritizing old messages violates the LIFO design.
                     Some(permit) = self.ready_to_pop(&buffer, dequeue.load(Ordering::Relaxed)) => {
+                        relay_log::trace!("try pop");
                         match Self::try_pop(&config, &mut buffer, &services, permit).await {
                             Ok(new_sleep) => {
+                                relay_log::trace!("new sleep from try_pop {new_sleep:?}");
                                 sleep = new_sleep;
                             }
                             Err(error) => {
@@ -428,14 +434,18 @@ impl Service for EnvelopeBufferService {
                         }
                     }
                     Ok(ProjectChange::Ready(project_key)) = project_events.recv() => {
+                        relay_log::trace!("shutdown");
                         Self::handle_message(&mut buffer, EnvelopeBuffer::Ready(project_key)).await;
                         sleep = Duration::ZERO;
                     }
                     Some(message) = rx.recv() => {
+                        relay_log::trace!("handle message");
                         Self::handle_message(&mut buffer, message).await;
+                        relay_log::trace!("done handle message");
                         sleep = Duration::ZERO;
                     }
                     shutdown = shutdown.notified() => {
+                        relay_log::trace!("shutdown");
                         // In case the shutdown was handled, we break out of the loop signaling that
                         // there is no need to process anymore envelopes.
                         if Self::handle_shutdown(&mut buffer, shutdown).await {
@@ -448,6 +458,7 @@ impl Service for EnvelopeBufferService {
                     else => break,
                 }
 
+                relay_log::trace!("select end {sleep:?}");
                 self.sleep = sleep;
                 self.update_observable_state(&mut buffer);
             }
@@ -692,7 +703,11 @@ mod tests {
 
         addr.send(EnvelopeBuffer::Push(envelope.clone()));
 
-        let legacy::DequeuedEnvelope(envelope) = envelopes_rx.recv().await.unwrap();
+        let legacy::DequeuedEnvelope(envelope) =
+            tokio::time::timeout(std::time::Duration::from_secs(3), envelopes_rx.recv())
+                .await
+                .unwrap()
+                .unwrap();
 
         addr.send(EnvelopeBuffer::NotReady(project_key, envelope));
 

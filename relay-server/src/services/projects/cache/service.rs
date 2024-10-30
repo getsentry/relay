@@ -206,6 +206,10 @@ impl relay_system::Service for ProjectCacheService {
                 tokio::select! {
                     biased;
 
+                    _ = eviction_ticker.tick() => timed!(
+                        "evict_stale_projects",
+                        self.handle_evict_stale_projects()
+                    ),
                     Some(update) = self.project_update_rx.recv() => timed!(
                         "project_update",
                         self.handle_completed_fetch(update)
@@ -213,10 +217,6 @@ impl relay_system::Service for ProjectCacheService {
                     Some(message) = rx.recv() => timed!(
                         message.variant(),
                         self.handle_message(message)
-                    ),
-                    _ = eviction_ticker.tick() => timed!(
-                        "evict_stale_projects",
-                        self.handle_evict_stale_projects()
                     ),
                 }
             }
