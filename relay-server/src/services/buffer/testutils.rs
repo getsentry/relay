@@ -1,13 +1,12 @@
 #[cfg(test)]
 pub mod utils {
-    use std::collections::BTreeMap;
-    use std::time::{Duration, Instant};
-
+    use chrono::{DateTime, Utc};
     use relay_base_schema::project::ProjectKey;
     use relay_event_schema::protocol::EventId;
     use relay_sampling::DynamicSamplingContext;
     use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
     use sqlx::{Pool, Sqlite};
+    use std::collections::BTreeMap;
     use tokio::fs::DirBuilder;
     use uuid::Uuid;
 
@@ -55,7 +54,7 @@ pub mod utils {
         RequestMeta::new(dsn)
     }
 
-    pub fn mock_envelope(instant: Instant) -> Box<Envelope> {
+    pub fn mock_envelope(received_at: DateTime<Utc>) -> Box<Envelope> {
         let event_id = EventId::new();
         let mut envelope = Envelope::from_request(Some(event_id), request_meta());
 
@@ -73,7 +72,7 @@ pub mod utils {
         };
 
         envelope.set_dsc(dsc);
-        envelope.set_start_time(instant);
+        envelope.set_received_at(received_at);
 
         envelope.add_item(Item::new(ItemType::Transaction));
 
@@ -82,9 +81,9 @@ pub mod utils {
 
     #[allow(clippy::vec_box)]
     pub fn mock_envelopes(count: usize) -> Vec<Box<Envelope>> {
-        let instant = Instant::now();
+        let now = Utc::now();
         (0..count)
-            .map(|i| mock_envelope(instant - Duration::from_secs((count - i) as u64)))
+            .map(|i| mock_envelope(now - chrono::Duration::seconds((count - i) as i64)))
             .collect()
     }
 }

@@ -1,4 +1,5 @@
 use bytes::Bytes;
+use chrono::Utc;
 use clap::{Parser, ValueEnum};
 use relay_config::Config;
 use relay_server::{Envelope, MemoryChecker, MemoryStat, PolymorphicEnvelopeBuffer};
@@ -210,6 +211,6 @@ fn mock_envelope(payload_size: usize, project_count: usize) -> Box<Envelope> {
         ));
 
     let mut envelope = Envelope::parse_bytes(bytes).unwrap();
-    envelope.set_start_time(Instant::now());
+    envelope.set_received_at(Utc::now());
     envelope
 }
