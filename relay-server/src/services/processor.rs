@@ -2592,7 +2592,7 @@ impl EnvelopeProcessorService {
                     },
                     || {
                         relay_log::error!(
-                            tags.organization_id = scoping.organization_idvalue(),
+                            tags.organization_id = scoping.organization_id.value(),
                             tags.limit_id = limit.id,
                             tags.passive = limit.passive,
                             "Cardinality Limit"
