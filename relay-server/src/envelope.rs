@@ -36,7 +36,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::io::{self, Write};
 use std::ops::AddAssign;
-use std::time::Instant;
+use std::time::Duration;
 use uuid::Uuid;
 
 use bytes::Bytes;
@@ -105,8 +105,6 @@ pub enum ItemType {
     Statsd,
     /// Buckets of preaggregated metrics encoded as JSON.
     MetricBuckets,
-    /// Additional metadata for metrics
-    MetricMeta,
     /// Client internal report (eg: outcomes).
     ClientReport,
     /// Profile event payload encoded as JSON.
@@ -168,7 +166,6 @@ impl ItemType {
             Self::Sessions => "sessions",
             Self::Statsd => "statsd",
             Self::MetricBuckets => "metric_buckets",
-            Self::MetricMeta => "metric_meta",
             Self::ClientReport => "client_report",
             Self::Profile => "profile",
             Self::ReplayEvent => "replay_event",
@@ -192,10 +189,7 @@ impl ItemType {
 
     /// Returns `true` if the item is a metric type.
     pub fn is_metrics(&self) -> bool {
-        matches!(
-            self,
-            ItemType::Statsd | ItemType::MetricBuckets | ItemType::MetricMeta
-        )
+        matches!(self, ItemType::Statsd | ItemType::MetricBuckets)
     }
 }
 
@@ -224,7 +218,6 @@ impl std::str::FromStr for ItemType {
             "sessions" => Self::Sessions,
             "statsd" => Self::Statsd,
             "metric_buckets" => Self::MetricBuckets,
-            "metric_meta" => Self::MetricMeta,
             "client_report" => Self::ClientReport,
             "profile" => Self::Profile,
             "replay_event" => Self::ReplayEvent,
@@ -685,7 +678,7 @@ impl Item {
             ItemType::UnrealReport => Some(DataCategory::Error),
             ItemType::Attachment => Some(DataCategory::Attachment),
             ItemType::Session | ItemType::Sessions => None,
-            ItemType::Statsd | ItemType::MetricBuckets | ItemType::MetricMeta => None,
+            ItemType::Statsd | ItemType::MetricBuckets => None,
             ItemType::FormData => None,
             ItemType::UserReport => None,
             ItemType::UserReportV2 => Some(DataCategory::UserReportV2),
@@ -915,7 +908,6 @@ impl Item {
             | ItemType::Sessions
             | ItemType::Statsd
             | ItemType::MetricBuckets
-            | ItemType::MetricMeta
             | ItemType::ClientReport
             | ItemType::ReplayEvent
             | ItemType::ReplayRecording
@@ -952,7 +944,6 @@ impl Item {
             ItemType::Sessions => false,
             ItemType::Statsd => false,
             ItemType::MetricBuckets => false,
-            ItemType::MetricMeta => false,
             ItemType::ClientReport => false,
             ItemType::ReplayRecording => false,
             ItemType::ReplayVideo => false,
@@ -1219,10 +1210,17 @@ impl Envelope {
     }
 
     /// Returns the time at which the envelope was received at this Relay.
-    ///
-    /// This is the date time equivalent to [`start_time`](Self::start_time).
     pub fn received_at(&self) -> DateTime<Utc> {
-        relay_common::time::instant_to_date_time(self.meta().start_time())
+        self.meta().received_at()
+    }
+
+    /// Returns the time elapsed in seconds since the envelope was received by this Relay.
+    ///
+    /// In case the elapsed time is negative, it is assumed that no time elapsed.
+    pub fn age(&self) -> Duration {
+        (Utc::now() - self.received_at())
+            .to_std()
+            .unwrap_or(Duration::ZERO)
     }
 
     /// Sets the event id on the envelope.
@@ -1235,9 +1233,9 @@ impl Envelope {
         self.headers.sent_at = Some(sent_at);
     }
 
-    /// Sets the start time to the provided `Instant`.
-    pub fn set_start_time(&mut self, start_time: Instant) {
-        self.headers.meta.set_start_time(start_time)
+    /// Sets the received at to the provided `DateTime`.
+    pub fn set_received_at(&mut self, start_time: DateTime<Utc>) {
+        self.headers.meta.set_received_at(start_time)
     }
 
     /// Sets the data retention in days for items in this envelope.

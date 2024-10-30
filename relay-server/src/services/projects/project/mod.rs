@@ -4,7 +4,7 @@ use std::time::Duration;
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
 use relay_dynamic_config::{ErrorBoundary, Feature};
-use relay_metrics::{Bucket, MetaAggregator, MetricMeta};
+use relay_metrics::Bucket;
 use relay_quotas::{CachedRateLimits, DataCategory, MetricNamespaceScoping, RateLimits, Scoping};
 use relay_sampling::evaluation::ReservoirCounters;
 use relay_statsd::metric;
@@ -15,7 +15,7 @@ use tokio::time::Instant;
 use crate::envelope::ItemType;
 use crate::services::metrics::{Aggregator, MergeBuckets};
 use crate::services::outcome::{DiscardReason, Outcome};
-use crate::services::processor::{EncodeMetricMeta, EnvelopeProcessor, ProcessProjectMetrics};
+use crate::services::processor::ProcessProjectMetrics;
 use crate::services::projects::cache::{
     CheckedEnvelope, ProcessMetrics, ProjectCache, RequestUpdate,
 };
@@ -89,8 +89,6 @@ pub struct Project {
     rate_limits: CachedRateLimits,
     last_no_cache: Instant,
     reservoir_counters: ReservoirCounters,
-    metric_meta_aggregator: MetaAggregator,
-    has_pending_metric_meta: bool,
 }
 
 impl Project {
@@ -106,8 +104,6 @@ impl Project {
             rate_limits: CachedRateLimits::new(),
             last_no_cache: Instant::now(),
             reservoir_counters: Arc::default(),
-            metric_meta_aggregator: MetaAggregator::new(config.metrics_meta_locations_max()),
-            has_pending_metric_meta: false,
             config,
         }
     }
@@ -176,7 +172,7 @@ impl Project {
             data: message.data,
             project_key: message.project_key,
             source: message.source,
-            start_time: message.start_time.into(),
+            received_at: message.received_at,
             sent_at: message.sent_at,
         }
     }
@@ -192,91 +188,6 @@ impl Project {
             self.project_key,
             buckets.into_iter().collect(),
         ));
-    }
-
-    pub fn add_metric_meta(
-        &mut self,
-        meta: MetricMeta,
-        envelope_processor: Addr<EnvelopeProcessor>,
-    ) {
-        // Only track metadata if custom metrics are enabled, or we don't know yet whether they are
-        // enabled.
-        let is_enabled = match self.current_state() {
-            ProjectState::Enabled(info) => info.has_feature(Feature::CustomMetrics),
-            ProjectState::Disabled => false,
-            ProjectState::Pending => true,
-        };
-
-        if !is_enabled {
-            relay_log::trace!("metric meta not enabled for project {}", self.project_key);
-            return;
-        }
-
-        let Some(meta) = self.metric_meta_aggregator.add(self.project_key, meta) else {
-            // Nothing to do. Which means there is also no pending data.
-            relay_log::trace!("metric meta aggregator already has data, nothing to send upstream");
-            return;
-        };
-
-        let scoping = self.scoping();
-        match scoping {
-            Some(scoping) => {
-                // We can only have a scoping if we also have a state, which means at this point feature
-                // flags are already checked.
-                envelope_processor.send(EncodeMetricMeta { scoping, meta })
-            }
-            None => self.has_pending_metric_meta = true,
-        }
-    }
-
-    fn flush_metric_meta(&mut self, envelope_processor: &Addr<EnvelopeProcessor>) {
-        if !self.has_pending_metric_meta {
-            return;
-        }
-        let is_enabled = match self.current_state() {
-            ProjectState::Enabled(project_info) => project_info.has_feature(Feature::CustomMetrics),
-            ProjectState::Disabled => false,
-            ProjectState::Pending => {
-                // Cannot flush, wait for project state to be loaded.
-                return;
-            }
-        };
-
-        let Some(scoping) = self.scoping() else {
-            return;
-        };
-
-        // All relevant info has been gathered, consider us flushed.
-        self.has_pending_metric_meta = false;
-
-        if !is_enabled {
-            relay_log::debug!(
-                "clearing metric meta aggregator, because project {} does not have feature flag enabled",
-                self.project_key,
-            );
-            // Project/Org does not have the feature, forget everything.
-            self.metric_meta_aggregator.clear(self.project_key);
-            return;
-        }
-
-        // Flush the entire aggregator containing all code locations for the project.
-        //
-        // There is the rare case when this flushes items which have already been flushed before.
-        // This happens only if we temporarily lose a previously valid and loaded project state
-        // and then reveive an update for the project state.
-        // While this is a possible occurence the effect should be relatively limited,
-        // especially since the final store does de-deuplication.
-        for meta in self
-            .metric_meta_aggregator
-            .get_all_relevant(self.project_key)
-        {
-            relay_log::debug!(
-                "flushing aggregated metric meta for project {}",
-                self.project_key
-            );
-            metric!(counter(RelayCounters::ProjectStateFlushAllMetricMeta) += 1);
-            envelope_processor.send(EncodeMetricMeta { scoping, meta });
-        }
     }
 
     /// Returns `true` if backoff expired and new attempt can be triggered.
@@ -438,7 +349,6 @@ impl Project {
         &mut self,
         project_cache: &Addr<ProjectCache>,
         state: ProjectFetchState,
-        envelope_processor: &Addr<EnvelopeProcessor>,
         no_cache: bool,
     ) -> Option<ProjectFetchState> {
         // Initiate the backoff if the incoming state is invalid. Reset it otherwise.
@@ -491,7 +401,7 @@ impl Project {
         relay_log::debug!("project state {} updated", self.project_key);
         channel.inner.send(self.state.current_state(&self.config));
 
-        self.after_state_updated(envelope_processor);
+        self.after_state_updated();
 
         Some(old_state)
     }
@@ -499,8 +409,7 @@ impl Project {
     /// Called after all state validations and after the project state is updated.
     ///
     /// See also: [`Self::update_state`].
-    fn after_state_updated(&mut self, envelope_processor: &Addr<EnvelopeProcessor>) {
-        self.flush_metric_meta(envelope_processor);
+    fn after_state_updated(&mut self) {
         // Check if the new sampling config got rid of any reservoir rules we have counters for.
         self.remove_expired_reservoir_rules();
     }
@@ -692,7 +601,6 @@ mod tests {
     #[tokio::test]
     async fn test_stale_cache() {
         let (addr, _) = mock_service("project_cache", (), |&mut (), _| {});
-        let (envelope_processor, _) = mock_service("envelope_processor", (), |&mut (), _| {});
 
         let config = Arc::new(
             Config::from_json_value(json!(
@@ -717,12 +625,7 @@ mod tests {
 
         assert!(project.next_fetch_attempt.is_none());
         // Try to update project with errored project state.
-        project.update_state(
-            &addr,
-            ProjectFetchState::pending(),
-            &envelope_processor,
-            false,
-        );
+        project.update_state(&addr, ProjectFetchState::pending(), false);
         // Since we got invalid project state we still keep the old one meaning there
         // still must be the project id set.
         assert!(matches!(project.current_state(), ProjectState::Enabled(_)));
@@ -738,12 +641,7 @@ mod tests {
         // * without backoff it would just panic, not able to call the ProjectCache service
         let channel = StateChannel::new();
         project.state_channel = Some(channel);
-        project.update_state(
-            &addr,
-            ProjectFetchState::pending(),
-            &envelope_processor,
-            false,
-        );
+        project.update_state(&addr, ProjectFetchState::pending(), false);
         project.fetch_state(addr, false);
     }
 

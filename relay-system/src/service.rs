@@ -858,7 +858,8 @@ impl<I: Interface> Receiver<I> {
             }
         };
         relay_statsd::metric!(
-            counter(SystemCounters::ServiceIdleTime) += start.elapsed().as_nanos() as u64
+            counter(SystemCounters::ServiceIdleTime) += start.elapsed().as_nanos() as u64,
+            service = self.name
         );
         next_message
     }

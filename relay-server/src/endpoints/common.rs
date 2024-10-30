@@ -12,7 +12,7 @@ use crate::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, I
 use crate::service::ServiceState;
 use crate::services::buffer::EnvelopeBuffer;
 use crate::services::outcome::{DiscardReason, Outcome};
-use crate::services::processor::{MetricData, ProcessMetricMeta, ProcessingGroup};
+use crate::services::processor::{MetricData, ProcessingGroup};
 use crate::services::projects::cache::{CheckEnvelope, ProcessMetrics, ValidateEnvelope};
 use crate::statsd::{RelayCounters, RelayHistograms};
 use crate::utils::{self, ApiErrorResponse, FormDataIter, ManagedEnvelope};
@@ -276,21 +276,11 @@ fn queue_envelope(
             relay_log::trace!("sending metrics into processing queue");
             state.project_cache().send(ProcessMetrics {
                 data: MetricData::Raw(metric_items.into_vec()),
-                start_time: envelope.meta().start_time().into(),
+                received_at: envelope.received_at(),
                 sent_at: envelope.sent_at(),
                 project_key: envelope.meta().public_key(),
                 source: envelope.meta().into(),
             });
-        }
-
-        // Remove metric meta from the envelope and send them directly to processing.
-        let metric_meta = envelope.take_items_by(|item| matches!(item.ty(), ItemType::MetricMeta));
-        if !metric_meta.is_empty() {
-            relay_log::trace!("sending metric meta into processing queue");
-            state.processor().send(ProcessMetricMeta {
-                items: metric_meta.into_vec(),
-                project_key: envelope.meta().public_key(),
-            })
         }
     }
 
@@ -345,10 +335,12 @@ pub async fn handle_envelope(
     state: &ServiceState,
     envelope: Box<Envelope>,
 ) -> Result<Option<EventId>, BadStoreRequest> {
+    let client_name = envelope.meta().client_name().unwrap_or("proprietary");
     for item in envelope.items() {
         metric!(
             histogram(RelayHistograms::EnvelopeItemSize) = item.payload().len() as u64,
-            item_type = item.ty().name()
+            item_type = item.ty().name(),
+            sdk = client_name,
         )
     }
 
