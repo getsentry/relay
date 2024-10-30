@@ -4,19 +4,19 @@ x-sentry-service-config:
   service_name: relay
   dependencies:
     redis:
-      description: "Shared instance of redis used by sentry services"
+      description: Shared instance of redis used by sentry services
       remote:
         repo_name: sentry-shared-redis
         branch: main
         repo_link: git@github.com:getsentry/sentry-shared-redis.git
     kafka:
-      description: "Shared instance of kafka used by sentry services"
+      description: Shared instance of kafka used by sentry services
       remote:
         repo_name: sentry-shared-kafka
         branch: main
         repo_link: git@github.com:getsentry/sentry-shared-kafka.git
     relay:
-      description: "Service that pushes some functionality from the Sentry SDKs as well as the Sentry server into a proxy process."
+      description: Service that pushes some functionality from the Sentry SDKs as well as the Sentry server into a proxy process.
   modes:
     default: [redis, kafka]
     containerized: [redis, kafka, relay]
@@ -26,12 +26,12 @@ services:
     image: us-central1-docker.pkg.dev/sentryio/relay/relay:nightly
     ports:
       - 7899:7899
-    command: ["run", "--config", "/etc/relay"]
+    command: [run, --config, /etc/relay]
     volumes:
       - ./config/relay.yml:/etc/relay/config.yml
       - ./config/devservices-credentials.json:/etc/relay/credentials.json
     extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - host.docker.internal:host-gateway
     networks:
       - sentry
 
