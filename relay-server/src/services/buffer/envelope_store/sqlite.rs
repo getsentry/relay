@@ -467,7 +467,7 @@ impl SqliteEnvelopeStore {
     }
 }
 
-/// Deserializes an [`EncodedEnvelope`] from a database row.
+/// Deserializes an [`DatabaseEnvelope`] from a database row.
 fn extract_envelope(
     own_key: ProjectKey,
     sampling_key: ProjectKey,

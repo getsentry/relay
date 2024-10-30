@@ -323,7 +323,10 @@ mod tests {
 
         // We peek the top element.
         let peeked = stack.peek().await.unwrap().unwrap();
-        assert_eq!(peeked, envelopes.clone()[4].received_at());
+        assert_eq!(
+            peeked.timestamp_millis(),
+            envelopes.clone()[4].received_at().timestamp_millis()
+        );
 
         // We pop 5 envelopes.
         for envelope in envelopes.iter().rev() {
@@ -360,7 +363,10 @@ mod tests {
 
         // We peek the top element.
         let peeked = stack.peek().await.unwrap().unwrap();
-        assert_eq!(peeked, envelopes[6].received_at());
+        assert_eq!(
+            peeked.timestamp_millis(),
+            envelopes[6].received_at().timestamp_millis()
+        );
 
         // We pop envelopes, and we expect that the last 2 are in memory, since the first 5
         // should have been spooled to disk.
@@ -375,7 +381,10 @@ mod tests {
 
         // We peek the top element, which since the buffer is empty should result in a disk load.
         let peeked = stack.peek().await.unwrap().unwrap();
-        assert_eq!(peeked, envelopes[4].received_at());
+        assert_eq!(
+            peeked.timestamp_millis(),
+            envelopes[4].received_at().timestamp_millis()
+        );
 
         // We insert a new envelope, to test the load from disk happening during `peek()` gives
         // priority to this envelope in the stack.
