@@ -943,6 +943,8 @@ impl State for () {}
 ///
 ///     type PublicState = ();
 ///
+///     fn pre_spawn(&self) -> Self::PublicState { }
+///
 ///     fn spawn_handler(self, mut rx: Receiver<Self::Interface>, shutdown: ShutdownHandle) {
 ///         tokio::spawn(async move {
 ///             while let Some(message) = rx.recv().await {

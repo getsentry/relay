@@ -121,7 +121,7 @@ impl ShutdownHandle {
 /// ### Example
 ///
 /// ```
-/// use relay_system::{Controller, Service, Shutdown, ShutdownMode};
+/// use relay_system::{Controller, Service, Shutdown, ShutdownMode, ShutdownHandle};
 /// use std::time::Duration;
 ///
 /// struct MyService;
@@ -129,10 +129,13 @@ impl ShutdownHandle {
 /// impl Service for MyService {
 ///     type Interface = ();
 ///
-///     fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
-///         tokio::spawn(async move {
-///             let mut shutdown = Controller::shutdown_handle();
+///     type PublicState = ();
 ///
+///     fn pre_spawn(&self) -> Self::PublicState { }
+///
+///     fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>, mut shutdown: ShutdownHandle) {
+///         use relay_system::ShutdownHandle;
+/// tokio::spawn(async move {
 ///             loop {
 ///                 tokio::select! {
 ///                     shutdown = shutdown.notified() => break, // Handle shutdown here
