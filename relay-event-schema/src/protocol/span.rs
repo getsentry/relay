@@ -110,6 +110,10 @@ pub struct Span {
     #[metastructure(skip_serialization = "empty", trim = "false")]
     pub was_transaction: Annotated<bool>,
 
+    /// Tells the consumer to ingest it in the EAP
+    #[metastructure(skip_serialization = "empty", trim = "false")]
+    pub ingest_in_eap: Annotated<bool>,
+
     // TODO remove retain when the api stabilizes
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = "true", pii = "maybe", trim = "false")]

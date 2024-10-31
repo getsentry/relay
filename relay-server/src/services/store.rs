@@ -1360,6 +1360,9 @@ struct SpanKafkaMessage<'a> {
 
     #[serde(borrow, default, skip_serializing)]
     platform: Cow<'a, str>, // We only use this for logging for now
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    ingest_in_eap: Option<bool>,
 }
 
 fn none_or_empty_object(value: &Option<&RawValue>) -> bool {

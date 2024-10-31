@@ -66,6 +66,7 @@ impl From<&Event> for Span {
             _metrics_summary: _metrics_summary.clone(),
             platform: platform.clone(),
             was_transaction: true.into(),
+            ingest_in_eap: false.into(),
             other: Default::default(),
         }
     }

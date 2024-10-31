@@ -206,6 +206,16 @@ pub fn process(
             }
         };
 
+        if let Some(span) = annotated_span.value_mut() {
+            span.ingest_in_eap = Annotated::new(
+                state
+                    .project_info
+                    .config
+                    .features
+                    .has(Feature::IngestSpansInEap),
+            );
+        }
+
         // Write back:
         let mut new_item = Item::new(ItemType::Span);
         let payload = match annotated_span.to_json() {
@@ -339,7 +349,7 @@ pub fn extract_from_event(
         return;
     };
 
-    let Some(transaction_span) = extract_transaction_span(
+    let Some(mut transaction_span) = extract_transaction_span(
         event,
         state
             .config
@@ -360,6 +370,13 @@ pub fn extract_from_event(
     ) else {
         return;
     };
+
+    let ingest_in_eap = state
+        .project_info
+        .config
+        .features
+        .has(Feature::IngestSpansInEap);
+
     // Add child spans as envelope items.
     if let Some(child_spans) = event.spans.value() {
         for span in child_spans {
@@ -373,6 +390,7 @@ pub fn extract_from_event(
             new_span.received = transaction_span.received.clone();
             new_span.segment_id = transaction_span.segment_id.clone();
             new_span.platform = transaction_span.platform.clone();
+            new_span.ingest_in_eap = Annotated::new(ingest_in_eap);
 
             // If a profile is associated with the transaction, also associate it with its
             // child spans.
@@ -381,6 +399,8 @@ pub fn extract_from_event(
             add_span(new_span);
         }
     }
+
+    transaction_span.ingest_in_eap = Annotated::new(ingest_in_eap);
 
     add_span(transaction_span);
 

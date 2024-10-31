@@ -92,6 +92,11 @@ pub enum Feature {
     /// Serialized as `organizations:performance-queries-mongodb-extraction`.
     #[serde(rename = "organizations:performance-queries-mongodb-extraction")]
     ScrubMongoDbDescriptions,
+    /// Indicate if the EAP consumers should ingest a span.
+    ///
+    /// Serialized as `organizations:ingest-spans-in-eap`
+    #[serde(rename = "organizations:ingest-spans-in-eap")]
+    IngestSpansInEap,
 
     /// This feature has graduated and is hard-coded for external Relays.
     #[doc(hidden)]
