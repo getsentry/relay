@@ -1,6 +1,15 @@
 import datetime
+import json
+from pathlib import Path
 from time import sleep
+
 import pytest
+
+from sentry_relay.consts import DataCategory
+from sentry_sdk.envelope import Envelope, Item, PayloadRef
+
+
+RELAY_ROOT = Path(__file__).parent.parent.parent
 
 
 @pytest.mark.parametrize(
@@ -341,3 +350,183 @@ def test_global_filters_drop_events(
     outcomes = outcomes_consumer.get_outcomes()
     assert len(outcomes) == 1
     assert outcomes[0]["reason"] == "premature-releases"
+
+
+def profile_transaction_item():
+    now = datetime.datetime.now(datetime.UTC)
+    transaction = {
+        "type": "transaction",
+        "timestamp": now.isoformat(),
+        "start_timestamp": (now - datetime.timedelta(seconds=2)).isoformat(),
+        "spans": [
+            {
+                "op": "default",
+                "span_id": "968cff94913ebb07",
+                "segment_id": "968cff94913ebb07",
+                "start_timestamp": now.timestamp(),
+                "timestamp": now.timestamp() + 1,
+                "exclusive_time": 1000.0,
+                "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+            },
+        ],
+        "contexts": {
+            "trace": {
+                "op": "hi",
+                "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+                "span_id": "968cff94913ebb07",
+            }
+        },
+        "transaction": "hi",
+    }
+    transaction = json.dumps(transaction).encode()
+    return Item(payload=PayloadRef(bytes=transaction), type="transaction")
+
+
+def sample_profile_v1_envelope(release):
+    envelope = Envelope()
+
+    transaction_item = profile_transaction_item()
+    envelope.add_item(transaction_item)
+
+    with open(
+        RELAY_ROOT / "relay-profiling/tests/fixtures/sample/v1/valid.json", "r"
+    ) as f:
+        profile = json.loads(f.read())
+        profile["release"] = release
+    profile_item = Item(
+        payload=PayloadRef(bytes=json.dumps(profile).encode()), type="profile"
+    )
+    envelope.add_item(profile_item)
+
+    return envelope
+
+
+def sample_profile_v2_envelope(release):
+    envelope = Envelope()
+
+    with open(
+        RELAY_ROOT / "relay-profiling/tests/fixtures/sample/v2/valid.json", "r"
+    ) as f:
+        profile = json.loads(f.read())
+        profile["release"] = release
+    item = Item(
+        payload=PayloadRef(bytes=json.dumps(profile).encode()), type="profile_chunk"
+    )
+    envelope.add_item(item)
+
+    return envelope
+
+
+def android_profile_legacy_envelope(release):
+    envelope = Envelope()
+
+    transaction_item = profile_transaction_item()
+    envelope.add_item(transaction_item)
+
+    with open(
+        RELAY_ROOT / "relay-profiling/tests/fixtures/android/legacy/valid.json", "r"
+    ) as f:
+        profile = json.loads(f.read())
+        profile["release"] = release
+    item = Item(payload=PayloadRef(bytes=json.dumps(profile).encode()), type="profile")
+    envelope.add_item(item)
+
+    return envelope
+
+
+def android_profile_chunk_envelope(release):
+    envelope = Envelope()
+
+    with open(
+        RELAY_ROOT / "relay-profiling/tests/fixtures/android/chunk/valid.json", "r"
+    ) as f:
+        profile = json.loads(f.read())
+        profile["release"] = release
+    profile_item = Item(
+        payload=PayloadRef(bytes=json.dumps(profile).encode()), type="profile_chunk"
+    )
+    envelope.add_item(profile_item)
+
+    return envelope
+
+
+@pytest.mark.parametrize(
+    ["envelope", "data_category"],
+    [
+        pytest.param(sample_profile_v1_envelope, DataCategory.PROFILE, id="profile v1"),
+        pytest.param(
+            sample_profile_v2_envelope, DataCategory.PROFILE_CHUNK, id="profile v2"
+        ),
+        pytest.param(
+            android_profile_legacy_envelope, DataCategory.PROFILE, id="android legacy"
+        ),
+        pytest.param(
+            android_profile_chunk_envelope,
+            DataCategory.PROFILE_CHUNK,
+            id="android chunk",
+        ),
+    ],
+)
+@pytest.mark.parametrize(
+    ["filter_config", "should_filter"],
+    [
+        pytest.param({}, False, id="profile accepted"),
+        pytest.param(
+            {"releases": {"releases": ["foobar@1.0"]}}, True, id="profile filtered"
+        ),
+    ],
+)
+def test_filters_are_applied_to_profiles(
+    mini_sentry,
+    relay_with_processing,
+    outcomes_consumer,
+    profiles_consumer,
+    filter_config,
+    should_filter,
+    envelope,
+    data_category,
+):
+    outcomes_consumer = outcomes_consumer()
+    profiles_consumer = profiles_consumer()
+
+    relay = relay_with_processing()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"].setdefault("features", []).extend(
+        [
+            "organizations:profiling",
+            "organizations:continuous-profiling",
+        ]
+    )
+    filter_settings = project_config["config"]["filterSettings"]
+    for key in filter_config.keys():
+        filter_settings[key] = filter_config[key]
+
+    envelope = envelope("foobar@1.0")
+    relay.send_envelope(project_id, envelope)
+
+    if should_filter:
+        outcomes = []
+        for outcome in outcomes_consumer.get_outcomes():
+            if outcome["category"] == data_category:
+                outcome.pop("timestamp")
+                outcomes.append(outcome)
+
+        assert outcomes == [
+            {
+                "category": data_category,
+                "org_id": 1,
+                "project_id": 42,
+                "key_id": 123,
+                "outcome": 1,  # Filtered
+                "reason": "release-version",
+                "quantity": 1,
+            },
+        ]
+        profiles_consumer.assert_empty()
+    else:
+        profile, _ = profiles_consumer.get_profile()
+        profile = json.loads(profile["payload"])
+        assert profile["release"] == "foobar@1.0"
+        outcomes_consumer.assert_empty()

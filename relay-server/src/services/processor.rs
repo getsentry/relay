@@ -1745,7 +1745,7 @@ impl EnvelopeProcessorService {
             // Process profiles before dropping the transaction, if necessary.
             // Before metric extraction to make sure the profile count is reflected correctly.
             let profile_id = match keep_profiles {
-                true => profile::process(state),
+                true => profile::process(state, &global_config),
                 false => profile_id,
             };
             // Extract metrics here, we're about to drop the event/transaction.
@@ -1772,7 +1772,7 @@ impl EnvelopeProcessorService {
 
         if_processing!(self.inner.config, {
             // Process profiles before extracting metrics, to make sure they are removed if they are invalid.
-            let profile_id = profile::process(state);
+            let profile_id = profile::process(state, &global_config);
             profile::transfer_id(state, profile_id);
 
             // Always extract metrics in processing Relays for sampled items.
@@ -1812,7 +1812,11 @@ impl EnvelopeProcessorService {
     ) -> Result<(), ProcessingError> {
         profile_chunk::filter(state);
         if_processing!(self.inner.config, {
-            profile_chunk::process(state, &self.inner.config);
+            profile_chunk::process(
+                state,
+                &self.inner.global_config.current(),
+                &self.inner.config,
+            );
         });
         Ok(())
     }
