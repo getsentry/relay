@@ -977,6 +977,9 @@
 <a href="#977" id="977">977</a>
 <a href="#978" id="978">978</a>
 <a href="#979" id="979">979</a>
+<a href="#980" id="980">980</a>
+<a href="#981" id="981">981</a>
+<a href="#982" id="982">982</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 <span class="attr">#[cfg(doc)]
 </span><span class="kw">use </span>tokio::runtime::RuntimeMetrics;
@@ -1525,6 +1528,8 @@
     </span>BufferDrain,
     <span class="doccomment">/// Timing in milliseconds for the time it takes for the envelopes to be serialized.
     </span>BufferEnvelopesSerialization,
+    <span class="doccomment">/// Timing in milliseconds to the time it takes to read an HTTP body.
+    </span>BodyReading,
 }
 
 <span class="kw">impl </span>TimerMetric <span class="kw">for </span>RelayTimers {
@@ -1574,6 +1579,7 @@
             RelayTimers::BufferPop =&gt; <span class="string">"buffer.pop.duration"</span>,
             RelayTimers::BufferDrain =&gt; <span class="string">"buffer.drain.duration"</span>,
             RelayTimers::BufferEnvelopesSerialization =&gt; <span class="string">"buffer.envelopes_serialization"</span>,
+            RelayTimers::BodyReading =&gt; <span class="string">"body.reading.duration"</span>,
         }
     }
 }

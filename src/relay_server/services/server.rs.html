@@ -242,6 +242,7 @@
 <a href="#242" id="242">242</a>
 <a href="#243" id="243">243</a>
 <a href="#244" id="244">244</a>
+<a href="#245" id="245">245</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::io;
 <span class="kw">use </span>std::net::{SocketAddr, TcpListener};
 <span class="kw">use </span>std::sync::Arc;
@@ -264,8 +265,8 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::constants;
 <span class="kw">use </span><span class="kw">crate</span>::middlewares::{
-    <span class="self">self</span>, CatchPanicLayer, NewSentryLayer, NormalizePath, RequestDecompressionLayer,
-    SentryHttpLayer,
+    <span class="self">self</span>, BodyTimingLayer, CatchPanicLayer, NewSentryLayer, NormalizePath,
+    RequestDecompressionLayer, SentryHttpLayer,
 };
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
@@ -307,6 +308,7 @@
     //  - Requests go from top to bottom
     //  - Responses go from bottom to top
     </span><span class="kw">let </span>middleware = ServiceBuilder::new()
+        .layer(BodyTimingLayer)
         .layer(axum::middleware::from_fn(middlewares::metrics))
         .layer(CatchPanicLayer::custom(middlewares::handle_panic))
         .layer(SetResponseHeaderLayer::overriding(
