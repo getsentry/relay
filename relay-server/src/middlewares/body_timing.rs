@@ -171,6 +171,20 @@ mod tests {
     use futures::task::noop_waker_ref;
     use relay_statsd::with_capturing_test_client;
 
+    struct ErrorBody;
+
+    impl hyper::body::Body for ErrorBody {
+        type Data = bytes::Bytes;
+        type Error = <Body as HttpBody>::Error;
+
+        fn poll_frame(
+            self: Pin<&mut Self>,
+            _: &mut Context<'_>,
+        ) -> Poll<Option<Result<Frame<Self::Data>, Self::Error>>> {
+            Poll::Ready(Some(Err(axum::Error::new("error"))))
+        }
+    }
+
     #[test]
     fn test_empty_body() {
         let captures = with_capturing_test_client(|| {
@@ -214,11 +228,11 @@ mod tests {
             let waker = noop_waker_ref();
             let mut cx = Context::from_waker(waker);
 
-            let body = Body::new("long body so it will drop".to_string());
+            let body = Body::new("just calling this once".to_string());
             let mut timed_body = TimedBody::new(body, "example/route".to_string());
-            let mut pinned = Pin::new(&mut timed_body);
+            let pinned = Pin::new(&mut timed_body);
 
-            let _ = pinned.as_mut().poll_frame(&mut cx);
+            let _ = pinned.poll_frame(&mut cx);
         });
         assert_eq!(
             captures,
@@ -233,5 +247,43 @@ mod tests {
             let _ = TimedBody::new(body, "example/route".to_string());
         });
         assert_eq!(captures.len(), 0);
+    }
+
+    #[test]
+    fn test_failed_body() {
+        let captures = with_capturing_test_client(|| {
+            let waker = noop_waker_ref();
+            let mut cx = Context::from_waker(waker);
+
+            let body = Body::new(ErrorBody {});
+            let mut timed_body = TimedBody::new(body, "example/route".to_string());
+
+            let pinned = Pin::new(&mut timed_body);
+            let _ = pinned.poll_frame(&mut cx);
+        });
+        assert_eq!(
+            captures,
+            ["body.reading.duration:0|ms|#route:example/route,size:<1K,status:failed"]
+        )
+    }
+
+    #[test]
+    fn test_large_body() {
+        let captures = with_capturing_test_client(|| {
+            let waker = noop_waker_ref();
+            let mut cx = Context::from_waker(waker);
+
+            let data = (0..2000).map(|i| i as u8).collect::<Vec<u8>>();
+
+            let body = Body::from(data);
+            let mut timed_body = TimedBody::new(body, "example/route".to_string());
+
+            let mut pinned = Pin::new(&mut timed_body);
+            while let Poll::Ready(Some(Ok(_))) = pinned.as_mut().poll_frame(&mut cx) {}
+        });
+        assert_eq!(
+            captures,
+            ["body.reading.duration:0|ms|#route:example/route,size:<10K,status:completed"]
+        )
     }
 }
