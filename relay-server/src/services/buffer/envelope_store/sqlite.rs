@@ -8,7 +8,7 @@ use std::time::Duration;
 use crate::envelope::EnvelopeError;
 
 use crate::services::buffer::common::ProjectKeyPair;
-use crate::statsd::{RelayGauges, RelayTimers};
+use crate::statsd::{RelayGauges, RelayHistograms, RelayTimers};
 use crate::Envelope;
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
@@ -51,7 +51,8 @@ pub enum InsertEnvelopeError {
 impl DatabaseEnvelope {
     // Use the lowest level of compression.
     //
-    // Experiments showed no big difference between 1, 2, and 3 in either run time or compression ratio.
+    // Experiments showed that level 3 is significantly slower than level 1 while offering
+    // no significant size reduction for our use case.
     const COMPRESSION_LEVEL: i32 = 1;
 
     pub fn len(&self) -> usize {
@@ -101,11 +102,19 @@ impl<'a> TryFrom<&'a Envelope> for DatabaseEnvelope {
         let sampling_key = value.sampling_key().unwrap_or(own_key);
 
         let serialized_envelope = value.to_vec()?;
+        relay_statsd::metric!(
+            histogram(RelayHistograms::BufferEnvelopeSize) = serialized_envelope.len() as u64
+        );
 
         let encoded_envelope =
             relay_statsd::metric!(timer(RelayTimers::BufferEnvelopeCompression), {
                 zstd::encode_all(serialized_envelope.as_slice(), Self::COMPRESSION_LEVEL)?
             });
+        relay_statsd::metric!(
+            histogram(RelayHistograms::BufferEnvelopeSizeCompressed) =
+                encoded_envelope.len() as u64
+        );
+
         Ok(DatabaseEnvelope {
             received_at: value.received_at().timestamp_millis(),
             own_key,

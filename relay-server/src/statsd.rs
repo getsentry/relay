@@ -186,6 +186,10 @@ pub enum RelayHistograms {
     /// This is not quite the same as the actual size of a serialized envelope, because it ignores
     /// the envelope header and item headers.
     BufferEnvelopeBodySize,
+    /// Size of a serialized envelope pushed to the envelope buffer.
+    BufferEnvelopeSize,
+    /// Size of a compressed envelope pushed to the envelope buffer.
+    BufferEnvelopeSizeCompressed,
     /// The number of batches emitted per partition.
     BatchesPerPartition,
     /// The number of buckets in a batch emitted.
@@ -315,6 +319,8 @@ impl HistogramMetric for RelayHistograms {
                 "buffer.backpressure_envelopes_count"
             }
             RelayHistograms::BufferEnvelopeBodySize => "buffer.envelope_body_size",
+            RelayHistograms::BufferEnvelopeSize => "buffer.envelope_size",
+            RelayHistograms::BufferEnvelopeSizeCompressed => "buffer.envelope_size.compressed",
             RelayHistograms::ProjectStatePending => "project_state.pending",
             RelayHistograms::ProjectStateAttempts => "project_state.attempts",
             RelayHistograms::ProjectStateRequestBatchSize => "project_state.request.batch_size",
