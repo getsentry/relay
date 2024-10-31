@@ -1159,15 +1159,8 @@
 <a href="#1159" id="1159">1159</a>
 <a href="#1160" id="1160">1160</a>
 <a href="#1161" id="1161">1161</a>
-<a href="#1162" id="1162">1162</a>
-<a href="#1163" id="1163">1163</a>
-<a href="#1164" id="1164">1164</a>
-<a href="#1165" id="1165">1165</a>
-<a href="#1166" id="1166">1166</a>
-<a href="#1167" id="1167">1167</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
-<span class="kw">use </span>std::sync::{Arc, Mutex, PoisonError};
 <span class="kw">use </span>std::time::{Duration, Instant};
 
 <span class="kw">use </span>relay_base_schema::metrics::MetricNamespace;
@@ -1447,14 +1440,15 @@
     }
 
     <span class="doccomment">/// Removes expired rate limits from this instance.
-    </span><span class="kw">pub fn </span>clean_expired(<span class="kw-2">&amp;mut </span><span class="self">self</span>, now: Instant) {
+    </span><span class="kw">pub fn </span>clean_expired(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="kw">let </span>now = Instant::now();
         <span class="self">self</span>.limits
             .retain(|limit| !limit.retry_after.expired_at(now));
     }
 
     <span class="doccomment">/// Checks whether any rate limits apply to the given scoping.
     ///
-    /// If no limits match, then the returned `RateLimits` instance evaluates `is_ok`. Otherwise, it
+    /// If no limits match, then the returned `RateLimits` instance evalutes `is_ok`. Otherwise, it
     /// contains rate limits that match the given scoping.
     </span><span class="kw">pub fn </span>check(<span class="kw-2">&amp;</span><span class="self">self</span>, scoping: ItemScoping&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">self</span>.check_with_quotas(<span class="kw-2">&amp;</span>[], scoping)
@@ -1465,7 +1459,7 @@
     /// This is similar to `check`. Additionally, it checks for quotas with a static limit `0`, and
     /// rejects items even if there is no active rate limit in this instance.
     ///
-    /// If no limits or quotas match, then the returned `RateLimits` instance evaluates `is_ok`.
+    /// If no limits or quotas match, then the returned `RateLimits` instance evalutes `is_ok`.
     /// Otherwise, it contains rate limits that match the given scoping.
     </span><span class="kw">pub fn </span>check_with_quotas&lt;<span class="lifetime">'a</span>&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
@@ -1506,7 +1500,7 @@
 
     <span class="doccomment">/// Returns `true` if there are any limits contained.
     ///
-    /// This is equivalent to checking whether [`Self::longest`] returns `Some`
+    /// This is equavalent to checking whether [`Self::longest`] returns `Some`
     /// or [`Self::iter`] returns an iterator with at least one item.
     </span><span class="kw">pub fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="self">self</span>.limits.is_empty()
@@ -1569,7 +1563,7 @@
 ///
 /// The data structure makes sure no expired rate limits are enforced.
 </span><span class="attr">#[derive(Debug, Default)]
-</span><span class="kw">pub struct </span>CachedRateLimits(Mutex&lt;Arc&lt;RateLimits&gt;&gt;);
+</span><span class="kw">pub struct </span>CachedRateLimits(RateLimits);
 
 <span class="kw">impl </span>CachedRateLimits {
     <span class="doccomment">/// Creates a new, empty instance without any rate limits enforced.
@@ -1580,32 +1574,26 @@
     <span class="doccomment">/// Adds a limit to this collection.
     ///
     /// See also: [`RateLimits::add`].
-    </span><span class="kw">pub fn </span>add(<span class="kw-2">&amp;</span><span class="self">self</span>, limit: RateLimit) {
-        <span class="kw">let </span><span class="kw-2">mut </span>inner = <span class="self">self</span>.<span class="number">0</span>.lock().unwrap_or_else(PoisonError::into_inner);
-        <span class="kw">let </span>current = Arc::make_mut(<span class="kw-2">&amp;mut </span>inner);
-        current.add(limit);
+    </span><span class="kw">pub fn </span>add(<span class="kw-2">&amp;mut </span><span class="self">self</span>, limit: RateLimit) {
+        <span class="self">self</span>.<span class="number">0</span>.add(limit);
     }
 
     <span class="doccomment">/// Merges more rate limits into this instance.
     ///
     /// See also: [`RateLimits::merge`].
-    </span><span class="kw">pub fn </span>merge(<span class="kw-2">&amp;</span><span class="self">self</span>, limits: RateLimits) {
-        <span class="kw">let </span><span class="kw-2">mut </span>inner = <span class="self">self</span>.<span class="number">0</span>.lock().unwrap_or_else(PoisonError::into_inner);
-        <span class="kw">let </span>current = Arc::make_mut(<span class="kw-2">&amp;mut </span>inner);
-        <span class="kw">for </span>limit <span class="kw">in </span>limits {
-            current.add(limit)
+    </span><span class="kw">pub fn </span>merge(<span class="kw-2">&amp;mut </span><span class="self">self</span>, rate_limits: RateLimits) {
+        <span class="kw">for </span>limit <span class="kw">in </span>rate_limits {
+            <span class="self">self</span>.add(limit)
         }
     }
 
     <span class="doccomment">/// Returns a reference to the contained rate limits.
     ///
-    /// This call guarantees that at the time of call no returned rate limit is expired.
-    </span><span class="kw">pub fn </span>current_limits(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Arc&lt;RateLimits&gt; {
-        <span class="kw">let </span>now = Instant::now();
-        <span class="kw">let </span><span class="kw-2">mut </span>inner = <span class="self">self</span>.<span class="number">0</span>.lock().unwrap_or_else(PoisonError::into_inner);
-        Arc::make_mut(<span class="kw-2">&amp;mut </span>inner).clean_expired(now);
-        Arc::clone(<span class="kw-2">&amp;</span>inner)
-    }
+    /// This call gurantuess that at the time of call no returned rate limit is expired.
+    </span><span class="kw">pub fn </span>current_limits(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>RateLimits {
+        <span class="self">self</span>.<span class="number">0</span>.clean_expired();
+        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0
+    </span>}
 }
 
 <span class="attr">#[cfg(test)]
@@ -2100,7 +2088,7 @@
         <span class="comment">// Sanity check before running `clean_expired`
         </span><span class="macro">assert_eq!</span>(rate_limits.iter().count(), <span class="number">2</span>);
 
-        rate_limits.clean_expired(Instant::now());
+        rate_limits.clean_expired();
 
         <span class="comment">// Check that the expired limit has been removed
         </span><span class="macro">insta::assert_ron_snapshot!</span>(rate_limits, @<span class="string">r###"
@@ -2293,7 +2281,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_cached_rate_limits_expired() {
-        <span class="kw">let </span>cached = CachedRateLimits::new();
+        <span class="kw">let </span><span class="kw-2">mut </span>cached = CachedRateLimits::new();
 
         <span class="comment">// Active error limit
         </span>cached.add(RateLimit {

@@ -734,6 +734,11 @@
 <a href="#734" id="734">734</a>
 <a href="#735" id="735">735</a>
 <a href="#736" id="736">736</a>
+<a href="#737" id="737">737</a>
+<a href="#738" id="738">738</a>
+<a href="#739" id="739">739</a>
+<a href="#740" id="740">740</a>
+<a href="#741" id="741">741</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::hash_map::Entry;
 <span class="kw">use </span>std::collections::HashMap;
@@ -754,9 +759,10 @@
 <span class="kw">use </span>tokio::sync::mpsc;
 <span class="kw">use </span>tokio::time::Instant;
 
-<span class="kw">use </span><span class="kw">crate</span>::services::projects::project::Revision;
-<span class="kw">use </span><span class="kw">crate</span>::services::projects::project::{ParsedProjectState, ProjectState};
-<span class="kw">use </span><span class="kw">crate</span>::services::projects::source::{FetchProjectState, SourceProjectState};
+<span class="kw">use </span><span class="kw">crate</span>::services::projects::project::state::UpstreamProjectState;
+<span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ParsedProjectState;
+<span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectState;
+<span class="kw">use </span><span class="kw">crate</span>::services::projects::source::FetchProjectState;
 <span class="kw">use </span><span class="kw">crate</span>::services::upstream::{
     Method, RequestPriority, SendQuery, UpstreamQuery, UpstreamRelay, UpstreamRequestError,
 };
@@ -776,7 +782,7 @@
     ///
     /// The revisions are mapped by index to the project key,
     /// this is a separate field to keep the API compatible.
-    </span>revisions: Vec&lt;Revision&gt;,
+    </span>revisions: Vec&lt;<span class="prelude-ty">Option</span>&lt;String&gt;&gt;,
     <span class="doccomment">/// If `true` the upstream should return a full configuration.
     ///
     /// Upstreams will ignore this for non-internal Relays.
@@ -834,10 +840,10 @@
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">struct </span>ProjectStateChannel {
     <span class="comment">// Main broadcast channel.
-    </span>channel: BroadcastChannel&lt;SourceProjectState&gt;,
+    </span>channel: BroadcastChannel&lt;UpstreamProjectState&gt;,
     <span class="comment">// Additional broadcast channels tracked from merge operations.
-    </span>merged: Vec&lt;BroadcastChannel&lt;SourceProjectState&gt;&gt;,
-    revision: Revision,
+    </span>merged: Vec&lt;BroadcastChannel&lt;UpstreamProjectState&gt;&gt;,
+    revision: <span class="prelude-ty">Option</span>&lt;String&gt;,
     deadline: Instant,
     no_cache: bool,
     attempts: u64,
@@ -849,8 +855,8 @@
 
 <span class="kw">impl </span>ProjectStateChannel {
     <span class="kw">pub fn </span>new(
-        sender: BroadcastSender&lt;SourceProjectState&gt;,
-        revision: Revision,
+        sender: BroadcastSender&lt;UpstreamProjectState&gt;,
+        revision: <span class="prelude-ty">Option</span>&lt;String&gt;,
         timeout: Duration,
         no_cache: bool,
     ) -&gt; <span class="self">Self </span>{
@@ -877,14 +883,18 @@
     /// If the new revision is different from the contained revision this clears the revision.
     /// To not have multiple fetches per revision per batch, we need to find a common denominator
     /// for requests with different revisions, which is always to fetch the full project config.
-    </span><span class="kw">pub fn </span>attach(<span class="kw-2">&amp;mut </span><span class="self">self</span>, sender: BroadcastSender&lt;SourceProjectState&gt;, revision: Revision) {
+    </span><span class="kw">pub fn </span>attach(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        sender: BroadcastSender&lt;UpstreamProjectState&gt;,
+        revision: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    ) {
         <span class="self">self</span>.channel.attach(sender);
         <span class="kw">if </span><span class="self">self</span>.revision != revision {
-            <span class="self">self</span>.revision = Revision::default();
+            <span class="self">self</span>.revision = <span class="prelude-val">None</span>;
         }
     }
 
-    <span class="kw">pub fn </span>send(<span class="self">self</span>, state: SourceProjectState) {
+    <span class="kw">pub fn </span>send(<span class="self">self</span>, state: UpstreamProjectState) {
         <span class="kw">for </span>channel <span class="kw">in </span><span class="self">self</span>.merged {
             channel.send(state.clone());
         }
@@ -910,7 +920,7 @@
         <span class="self">self</span>.merged.push(channel);
         <span class="self">self</span>.merged.extend(merged);
         <span class="kw">if </span><span class="self">self</span>.revision != revision {
-            <span class="self">self</span>.revision = Revision::default();
+            <span class="self">self</span>.revision = <span class="prelude-val">None</span>;
         }
         <span class="self">self</span>.deadline = <span class="self">self</span>.deadline.max(deadline);
         <span class="self">self</span>.no_cache |= no_cache;
@@ -929,16 +939,16 @@
 /// Internally it maintains the buffer queue of the incoming requests, which got scheduled to fetch the
 /// state and takes care of the backoff in case there is a problem with the requests.
 </span><span class="attr">#[derive(Debug)]
-</span><span class="kw">pub struct </span>UpstreamProjectSource(FetchProjectState, BroadcastSender&lt;SourceProjectState&gt;);
+</span><span class="kw">pub struct </span>UpstreamProjectSource(FetchProjectState, BroadcastSender&lt;UpstreamProjectState&gt;);
 
 <span class="kw">impl </span>Interface <span class="kw">for </span>UpstreamProjectSource {}
 
 <span class="kw">impl </span>FromMessage&lt;FetchProjectState&gt; <span class="kw">for </span>UpstreamProjectSource {
-    <span class="kw">type </span>Response = BroadcastResponse&lt;SourceProjectState&gt;;
+    <span class="kw">type </span>Response = BroadcastResponse&lt;UpstreamProjectState&gt;;
 
     <span class="kw">fn </span>from_message(
         message: FetchProjectState,
-        sender: BroadcastSender&lt;SourceProjectState&gt;,
+        sender: BroadcastSender&lt;UpstreamProjectState&gt;,
     ) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>(message, sender)
     }
@@ -1198,7 +1208,7 @@
                         <span class="kw">let </span><span class="kw-2">mut </span>result = <span class="string">"ok"</span>;
                         <span class="kw">let </span>state = <span class="kw">if </span>response.unchanged.contains(<span class="kw-2">&amp;</span>key) {
                             result = <span class="string">"ok_unchanged"</span>;
-                            SourceProjectState::NotModified
+                            UpstreamProjectState::NotModified
                         } <span class="kw">else </span>{
                             <span class="kw">let </span>state = response
                                 .configs
@@ -1216,7 +1226,7 @@
                                 ErrorBoundary::Ok(<span class="prelude-val">Some</span>(state)) =&gt; state.into(),
                             };
 
-                            SourceProjectState::New(state)
+                            UpstreamProjectState::New(state)
                         };
 
                         <span class="macro">metric!</span>(
@@ -1428,7 +1438,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>response1 = service.send(FetchProjectState {
             project_key,
-            current_revision: <span class="string">"123"</span>.into(),
+            current_revision: <span class="prelude-val">Some</span>(<span class="string">"123"</span>.to_owned()),
             no_cache: <span class="bool-val">false</span>,
         });
 
@@ -1439,7 +1449,7 @@
         // request, after responding to the first inflight request.
         </span><span class="kw">let </span><span class="kw-2">mut </span>response2 = service.send(FetchProjectState {
             project_key,
-            current_revision: Revision::default(),
+            current_revision: <span class="prelude-val">None</span>,
             no_cache: <span class="bool-val">false</span>,
         });
 
@@ -1463,8 +1473,8 @@
             .<span class="kw">await</span>;
 
         <span class="kw">let </span>(response1, response2) = futures::future::join(response1, response2).<span class="kw">await</span>;
-        <span class="macro">assert!</span>(<span class="macro">matches!</span>(response1, <span class="prelude-val">Ok</span>(SourceProjectState::NotModified)));
-        <span class="macro">assert!</span>(<span class="macro">matches!</span>(response2, <span class="prelude-val">Ok</span>(SourceProjectState::NotModified)));
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(response1, <span class="prelude-val">Ok</span>(UpstreamProjectState::NotModified)));
+        <span class="macro">assert!</span>(<span class="macro">matches!</span>(response2, <span class="prelude-val">Ok</span>(UpstreamProjectState::NotModified)));
 
         <span class="comment">// No more messages to upstream expected.
         </span><span class="macro">assert!</span>(upstream_rx.try_recv().is_err());

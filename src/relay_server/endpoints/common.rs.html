@@ -470,6 +470,18 @@
 <a href="#470" id="470">470</a>
 <a href="#471" id="471">471</a>
 <a href="#472" id="472">472</a>
+<a href="#473" id="473">473</a>
+<a href="#474" id="474">474</a>
+<a href="#475" id="475">475</a>
+<a href="#476" id="476">476</a>
+<a href="#477" id="477">477</a>
+<a href="#478" id="478">478</a>
+<a href="#479" id="479">479</a>
+<a href="#480" id="480">480</a>
+<a href="#481" id="481">481</a>
+<a href="#482" id="482">482</a>
+<a href="#483" id="483">483</a>
+<a href="#484" id="484">484</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Common facilities for ingesting events through store-like endpoints.
 
 </span><span class="kw">use </span>axum::http::{header, StatusCode};
@@ -484,8 +496,8 @@
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 <span class="kw">use </span><span class="kw">crate</span>::services::buffer::EnvelopeBuffer;
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome};
-<span class="kw">use </span><span class="kw">crate</span>::services::processor::{BucketSource, MetricData, ProcessMetrics, ProcessingGroup};
-<span class="kw">use </span><span class="kw">crate</span>::services::projects::cache::legacy::ValidateEnvelope;
+<span class="kw">use </span><span class="kw">crate</span>::services::processor::{MetricData, ProcessMetricMeta, ProcessingGroup};
+<span class="kw">use </span><span class="kw">crate</span>::services::projects::cache::{CheckEnvelope, ProcessMetrics, ValidateEnvelope};
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, ApiErrorResponse, FormDataIter, ManagedEnvelope};
 
@@ -512,6 +524,9 @@
 <span class="doccomment">/// Error type for all store-like requests.
 </span><span class="attr">#[derive(Debug, thiserror::Error)]
 </span><span class="kw">pub enum </span>BadStoreRequest {
+    <span class="attr">#[error(<span class="string">"could not schedule event processing"</span>)]
+    </span>ScheduleFailed,
+
     <span class="attr">#[error(<span class="string">"empty request body"</span>)]
     </span>EmptyBody,
 
@@ -582,7 +597,7 @@
 
                 (StatusCode::TOO_MANY_REQUESTS, headers, body).into_response()
             }
-            BadStoreRequest::QueueFailed =&gt; {
+            BadStoreRequest::ScheduleFailed | BadStoreRequest::QueueFailed =&gt; {
                 <span class="comment">// These errors indicate that something's wrong with our service system, most likely
                 // mailbox congestion or a faulty shutdown. Indicate an unavailable service to the
                 // client. It might retry event submission at a later time.
@@ -743,13 +758,23 @@
 
         <span class="kw">if </span>!metric_items.is_empty() {
             <span class="macro">relay_log::trace!</span>(<span class="string">"sending metrics into processing queue"</span>);
-            state.processor().send(ProcessMetrics {
+            state.project_cache().send(ProcessMetrics {
                 data: MetricData::Raw(metric_items.into_vec()),
                 received_at: envelope.received_at(),
                 sent_at: envelope.sent_at(),
                 project_key: envelope.meta().public_key(),
-                source: BucketSource::from_meta(envelope.meta()),
+                source: envelope.meta().into(),
             });
+        }
+
+        <span class="comment">// Remove metric meta from the envelope and send them directly to processing.
+        </span><span class="kw">let </span>metric_meta = envelope.take_items_by(|item| <span class="macro">matches!</span>(item.ty(), ItemType::MetricMeta));
+        <span class="kw">if </span>!metric_meta.is_empty() {
+            <span class="macro">relay_log::trace!</span>(<span class="string">"sending metric meta into processing queue"</span>);
+            state.processor().send(ProcessMetricMeta {
+                items: metric_meta.into_vec(),
+                project_key: envelope.meta().public_key(),
+            })
         }
     }
 
@@ -781,9 +806,7 @@
             }
             <span class="prelude-val">None </span>=&gt; {
                 <span class="macro">relay_log::trace!</span>(<span class="string">"Sending envelope to project cache for V1 buffer"</span>);
-                state
-                    .legacy_project_cache()
-                    .send(ValidateEnvelope::new(envelope));
+                state.project_cache().send(ValidateEnvelope::new(envelope));
             }
         }
     }
@@ -840,10 +863,11 @@
     }
 
     <span class="kw">let </span>checked = state
-        .project_cache_handle()
-        .get(managed_envelope.scoping().project_key)
-        .check_envelope(managed_envelope)
-        .map_err(BadStoreRequest::EventRejected)<span class="question-mark">?</span>;
+        .project_cache()
+        .send(CheckEnvelope::new(managed_envelope))
+        .<span class="kw">await
+        </span>.map_err(|<span class="kw">_</span>| BadStoreRequest::ScheduleFailed)<span class="question-mark">?
+        </span>.map_err(BadStoreRequest::EventRejected)<span class="question-mark">?</span>;
 
     <span class="kw">let </span><span class="prelude-val">Some</span>(<span class="kw-2">mut </span>managed_envelope) = checked.envelope <span class="kw">else </span>{
         <span class="comment">// All items have been removed from the envelope.

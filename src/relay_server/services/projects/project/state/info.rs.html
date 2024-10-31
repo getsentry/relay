@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/services/projects/project/info.rs`."><title>info.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../../static.files/rustdoc-492a78a4a87dcc01.css"><meta name="rustdoc-vars" data-root-path="../../../../../" data-static-root-path="../../../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.82.0 (f6e511eec 2024-10-15)" data-channel="1.82.0" data-search-js="search-a99f1315e7cc5121.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../../../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../../../src-files.js"></script><script defer src="../../../../../static.files/main-921df33f47b8780c.js"></script><noscript><link rel="stylesheet" href="../../../../../static.files/noscript-3b12f09e550e0385.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-server/src/services/projects/project/state/info.rs`."><title>info.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../../../static.files/rustdoc-492a78a4a87dcc01.css"><meta name="rustdoc-vars" data-root-path="../../../../../../" data-static-root-path="../../../../../../static.files/" data-current-crate="relay_server" data-themes="" data-resource-suffix="" data-rustdoc-version="1.82.0 (f6e511eec 2024-10-15)" data-channel="1.82.0" data-search-js="search-a99f1315e7cc5121.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../../../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../../../../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../../../../src-files.js"></script><script defer src="../../../../../../static.files/main-921df33f47b8780c.js"></script><noscript><link rel="stylesheet" href="../../../../../../static.files/noscript-3b12f09e550e0385.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -248,55 +248,7 @@
 <a href="#248" id="248">248</a>
 <a href="#249" id="249">249</a>
 <a href="#250" id="250">250</a>
-<a href="#251" id="251">251</a>
-<a href="#252" id="252">252</a>
-<a href="#253" id="253">253</a>
-<a href="#254" id="254">254</a>
-<a href="#255" id="255">255</a>
-<a href="#256" id="256">256</a>
-<a href="#257" id="257">257</a>
-<a href="#258" id="258">258</a>
-<a href="#259" id="259">259</a>
-<a href="#260" id="260">260</a>
-<a href="#261" id="261">261</a>
-<a href="#262" id="262">262</a>
-<a href="#263" id="263">263</a>
-<a href="#264" id="264">264</a>
-<a href="#265" id="265">265</a>
-<a href="#266" id="266">266</a>
-<a href="#267" id="267">267</a>
-<a href="#268" id="268">268</a>
-<a href="#269" id="269">269</a>
-<a href="#270" id="270">270</a>
-<a href="#271" id="271">271</a>
-<a href="#272" id="272">272</a>
-<a href="#273" id="273">273</a>
-<a href="#274" id="274">274</a>
-<a href="#275" id="275">275</a>
-<a href="#276" id="276">276</a>
-<a href="#277" id="277">277</a>
-<a href="#278" id="278">278</a>
-<a href="#279" id="279">279</a>
-<a href="#280" id="280">280</a>
-<a href="#281" id="281">281</a>
-<a href="#282" id="282">282</a>
-<a href="#283" id="283">283</a>
-<a href="#284" id="284">284</a>
-<a href="#285" id="285">285</a>
-<a href="#286" id="286">286</a>
-<a href="#287" id="287">287</a>
-<a href="#288" id="288">288</a>
-<a href="#289" id="289">289</a>
-<a href="#290" id="290">290</a>
-<a href="#291" id="291">291</a>
-<a href="#292" id="292">292</a>
-<a href="#293" id="293">293</a>
-<a href="#294" id="294">294</a>
-<a href="#295" id="295">295</a>
-<a href="#296" id="296">296</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
-
-<span class="kw">use </span>chrono::{DateTime, Utc};
+</pre></div><pre class="rust"><code><span class="kw">use </span>chrono::{DateTime, Utc};
 
 <span class="kw">use </span>relay_base_schema::project::{ProjectId, ProjectKey};
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
@@ -314,6 +266,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::envelope::Envelope;
 <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::DiscardReason;
+<span class="kw">use </span><span class="kw">crate</span>::services::projects::project::PublicKeyConfig;
 
 <span class="doccomment">/// Information about an enabled project.
 ///
@@ -329,7 +282,7 @@
     /// are faked locally.
     </span><span class="kw">pub </span>last_change: <span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;,
     <span class="doccomment">/// The revision id of the project config.
-    </span><span class="kw">pub </span>rev: Revision,
+    </span><span class="kw">pub </span>rev: <span class="prelude-ty">Option</span>&lt;String&gt;,
     <span class="doccomment">/// Indicates that the project is disabled.
     /// A container of known public keys in the project.
     ///
@@ -354,7 +307,7 @@
 </span><span class="kw">pub struct </span>LimitedProjectInfo {
     <span class="kw">pub </span>project_id: <span class="prelude-ty">Option</span>&lt;ProjectId&gt;,
     <span class="kw">pub </span>last_change: <span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;,
-    <span class="kw">pub </span>rev: Revision,
+    <span class="kw">pub </span>rev: <span class="prelude-ty">Option</span>&lt;String&gt;,
     <span class="kw">pub </span>public_keys: SmallVec&lt;[PublicKeyConfig; <span class="number">1</span>]&gt;,
     <span class="kw">pub </span>slug: <span class="prelude-ty">Option</span>&lt;String&gt;,
     <span class="attr">#[serde(with = <span class="string">"LimitedProjectConfig"</span>)]
@@ -484,6 +437,9 @@
     /// This scoping amends `RequestMeta::get_partial_scoping` by adding organization and key info.
     /// The processor must fetch the full scoping before attempting to rate limit with partial
     /// scoping.
+    ///
+    /// To get the own scoping of this ProjectKey without amending request information, use
+    /// [`Project::scoping`](crate::services::projects::project::Project::scoping) instead.
     </span><span class="kw">pub fn </span>scope_request(<span class="kw-2">&amp;</span><span class="self">self</span>, meta: <span class="kw-2">&amp;</span>RequestMeta) -&gt; Scoping {
         <span class="kw">let </span><span class="kw-2">mut </span>scoping = meta.get_partial_scoping();
 
@@ -540,54 +496,6 @@
     <span class="doccomment">/// Returns `true` if the given feature is enabled for this project.
     </span><span class="kw">pub fn </span>has_feature(<span class="kw-2">&amp;</span><span class="self">self</span>, feature: Feature) -&gt; bool {
         <span class="self">self</span>.config.features.has(feature)
-    }
-}
-
-<span class="doccomment">/// Represents a public key received from the projectconfig endpoint.
-</span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = <span class="string">"camelCase"</span>)]
-</span><span class="kw">pub struct </span>PublicKeyConfig {
-    <span class="doccomment">/// Public part of key (random hash).
-    </span><span class="kw">pub </span>public_key: ProjectKey,
-
-    <span class="doccomment">/// The primary key of the DSN in Sentry's main database.
-    </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
-    </span><span class="kw">pub </span>numeric_id: <span class="prelude-ty">Option</span>&lt;u64&gt;,
-}
-
-<span class="doccomment">/// Represents a project info revision.
-///
-/// A revision can be missing, a missing revision never compares equal
-/// to any other revision.
-///
-/// Revisions are internally reference counted and cheap to create.
-</span><span class="attr">#[derive(Debug, Default, Clone, Serialize, Deserialize)]
-#[serde(transparent)]
-</span><span class="kw">pub struct </span>Revision(<span class="prelude-ty">Option</span>&lt;Arc&lt;str&gt;&gt;);
-
-<span class="kw">impl </span>Revision {
-    <span class="doccomment">/// Returns the revision as a string reference.
-    ///
-    /// `None` is a revision that does not match any other revision,
-    /// not even another revision which is represented as `None`.
-    </span><span class="kw">pub fn </span>as_str(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
-        <span class="self">self</span>.<span class="number">0</span>.as_deref()
-    }
-}
-
-<span class="kw">impl </span>PartialEq <span class="kw">for </span>Revision {
-    <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; bool {
-        <span class="kw">match </span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>, <span class="kw-2">&amp;</span>other.<span class="number">0</span>) {
-            (<span class="prelude-val">None</span>, <span class="kw">_</span>) =&gt; <span class="bool-val">false</span>,
-            (<span class="kw">_</span>, <span class="prelude-val">None</span>) =&gt; <span class="bool-val">false</span>,
-            (<span class="prelude-val">Some</span>(left), <span class="prelude-val">Some</span>(right)) =&gt; left == right,
-        }
-    }
-}
-
-<span class="kw">impl </span>From&lt;<span class="kw-2">&amp;</span>str&gt; <span class="kw">for </span>Revision {
-    <span class="kw">fn </span>from(value: <span class="kw-2">&amp;</span>str) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>(<span class="prelude-val">Some</span>(value.into()))
     }
 }
 </code></pre></div></section></main></body></html>

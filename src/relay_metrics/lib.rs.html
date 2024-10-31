@@ -81,6 +81,10 @@
 <a href="#81" id="81">81</a>
 <a href="#82" id="82">82</a>
 <a href="#83" id="83">83</a>
+<a href="#84" id="84">84</a>
+<a href="#85" id="85">85</a>
+<a href="#86" id="86">86</a>
+<a href="#87" id="87">87</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Metric protocol, aggregation and processing for Sentry.
 //!
 //! Metrics are high-volume values sent from Sentry clients, integrations, or extracted from errors
@@ -153,6 +157,7 @@
 
 </span><span class="kw">pub mod </span>aggregator;
 <span class="kw">pub mod </span>cogs;
+<span class="kw">pub mod </span>meta;
 
 <span class="kw">mod </span>bucket;
 <span class="kw">mod </span>finite;
@@ -162,6 +167,9 @@
 
 <span class="kw">pub use </span>bucket::<span class="kw-2">*</span>;
 <span class="kw">pub use </span>finite::<span class="kw-2">*</span>;
+<span class="attr">#[cfg(feature = <span class="string">"redis"</span>)]
+</span><span class="kw">pub use </span>meta::RedisMetricMetaStore;
+<span class="kw">pub use </span>meta::{MetaAggregator, MetricMeta};
 <span class="kw">pub use </span>protocol::<span class="kw-2">*</span>;
 <span class="kw">pub use </span>view::<span class="kw-2">*</span>;
 </code></pre></div></section></main></body></html>

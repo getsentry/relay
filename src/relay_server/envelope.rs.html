@@ -2137,6 +2137,15 @@
 <a href="#2137" id="2137">2137</a>
 <a href="#2138" id="2138">2138</a>
 <a href="#2139" id="2139">2139</a>
+<a href="#2140" id="2140">2140</a>
+<a href="#2141" id="2141">2141</a>
+<a href="#2142" id="2142">2142</a>
+<a href="#2143" id="2143">2143</a>
+<a href="#2144" id="2144">2144</a>
+<a href="#2145" id="2145">2145</a>
+<a href="#2146" id="2146">2146</a>
+<a href="#2147" id="2147">2147</a>
+<a href="#2148" id="2148">2148</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.
 //!
 //! Envelopes are containers for payloads related to Sentry events. Similar to multipart form data
@@ -2244,6 +2253,8 @@
     </span>Statsd,
     <span class="doccomment">/// Buckets of preaggregated metrics encoded as JSON.
     </span>MetricBuckets,
+    <span class="doccomment">/// Additional metadata for metrics
+    </span>MetricMeta,
     <span class="doccomment">/// Client internal report (eg: outcomes).
     </span>ClientReport,
     <span class="doccomment">/// Profile event payload encoded as JSON.
@@ -2305,6 +2316,7 @@
             <span class="self">Self</span>::Sessions =&gt; <span class="string">"sessions"</span>,
             <span class="self">Self</span>::Statsd =&gt; <span class="string">"statsd"</span>,
             <span class="self">Self</span>::MetricBuckets =&gt; <span class="string">"metric_buckets"</span>,
+            <span class="self">Self</span>::MetricMeta =&gt; <span class="string">"metric_meta"</span>,
             <span class="self">Self</span>::ClientReport =&gt; <span class="string">"client_report"</span>,
             <span class="self">Self</span>::Profile =&gt; <span class="string">"profile"</span>,
             <span class="self">Self</span>::ReplayEvent =&gt; <span class="string">"replay_event"</span>,
@@ -2328,7 +2340,10 @@
 
     <span class="doccomment">/// Returns `true` if the item is a metric type.
     </span><span class="kw">pub fn </span>is_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="macro">matches!</span>(<span class="self">self</span>, ItemType::Statsd | ItemType::MetricBuckets)
+        <span class="macro">matches!</span>(
+            <span class="self">self</span>,
+            ItemType::Statsd | ItemType::MetricBuckets | ItemType::MetricMeta
+        )
     }
 }
 
@@ -2357,6 +2372,7 @@
             <span class="string">"sessions" </span>=&gt; <span class="self">Self</span>::Sessions,
             <span class="string">"statsd" </span>=&gt; <span class="self">Self</span>::Statsd,
             <span class="string">"metric_buckets" </span>=&gt; <span class="self">Self</span>::MetricBuckets,
+            <span class="string">"metric_meta" </span>=&gt; <span class="self">Self</span>::MetricMeta,
             <span class="string">"client_report" </span>=&gt; <span class="self">Self</span>::ClientReport,
             <span class="string">"profile" </span>=&gt; <span class="self">Self</span>::Profile,
             <span class="string">"replay_event" </span>=&gt; <span class="self">Self</span>::ReplayEvent,
@@ -2817,7 +2833,7 @@
             ItemType::UnrealReport =&gt; <span class="prelude-val">Some</span>(DataCategory::Error),
             ItemType::Attachment =&gt; <span class="prelude-val">Some</span>(DataCategory::Attachment),
             ItemType::Session | ItemType::Sessions =&gt; <span class="prelude-val">None</span>,
-            ItemType::Statsd | ItemType::MetricBuckets =&gt; <span class="prelude-val">None</span>,
+            ItemType::Statsd | ItemType::MetricBuckets | ItemType::MetricMeta =&gt; <span class="prelude-val">None</span>,
             ItemType::FormData =&gt; <span class="prelude-val">None</span>,
             ItemType::UserReport =&gt; <span class="prelude-val">None</span>,
             ItemType::UserReportV2 =&gt; <span class="prelude-val">Some</span>(DataCategory::UserReportV2),
@@ -3047,6 +3063,7 @@
             | ItemType::Sessions
             | ItemType::Statsd
             | ItemType::MetricBuckets
+            | ItemType::MetricMeta
             | ItemType::ClientReport
             | ItemType::ReplayEvent
             | ItemType::ReplayRecording
@@ -3083,6 +3100,7 @@
             ItemType::Sessions =&gt; <span class="bool-val">false</span>,
             ItemType::Statsd =&gt; <span class="bool-val">false</span>,
             ItemType::MetricBuckets =&gt; <span class="bool-val">false</span>,
+            ItemType::MetricMeta =&gt; <span class="bool-val">false</span>,
             ItemType::ClientReport =&gt; <span class="bool-val">false</span>,
             ItemType::ReplayRecording =&gt; <span class="bool-val">false</span>,
             ItemType::ReplayVideo =&gt; <span class="bool-val">false</span>,

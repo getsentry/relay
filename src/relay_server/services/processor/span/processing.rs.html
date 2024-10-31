@@ -2131,7 +2131,7 @@
             extracted_metrics: ProcessingExtractedMetrics::new(),
             config: Arc::new(Config::default()),
             project_info,
-            rate_limits: Arc::new(RateLimits::default()),
+            rate_limits: RateLimits::default(),
             sampling_project_info: <span class="prelude-val">None</span>,
             project_id: ProjectId::new(<span class="number">42</span>),
             managed_envelope: managed_envelope.try_into().unwrap(),

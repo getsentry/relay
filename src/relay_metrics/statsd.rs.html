@@ -131,6 +131,19 @@
 <a href="#131" id="131">131</a>
 <a href="#132" id="132">132</a>
 <a href="#133" id="133">133</a>
+<a href="#134" id="134">134</a>
+<a href="#135" id="135">135</a>
+<a href="#136" id="136">136</a>
+<a href="#137" id="137">137</a>
+<a href="#138" id="138">138</a>
+<a href="#139" id="139">139</a>
+<a href="#140" id="140">140</a>
+<a href="#141" id="141">141</a>
+<a href="#142" id="142">142</a>
+<a href="#143" id="143">143</a>
+<a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, SetMetric, TimerMetric};
 
 <span class="doccomment">/// Set metrics for Relay Metrics.
@@ -173,6 +186,15 @@
     ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
     ///  - `namespace`: The namespace of the metric.
     </span>MergeMiss,
+
+    <span class="doccomment">/// Incremented every time the meta aggregator emitted an update that needs to be stored or
+    /// sent upstream.
+    </span>MetaAggregatorUpdate,
+    <span class="doccomment">/// Incremnted for every metric meta item added to the metric meta aggregator.
+    </span>MetaAggregatorItems,
+    <span class="doccomment">/// Incremented every time a redis key is updated to store or update metadata.
+    </span><span class="attr">#[cfg(feature = <span class="string">"redis"</span>)]
+    </span>MetaRedisUpdate,
 }
 
 <span class="kw">impl </span>CounterMetric <span class="kw">for </span>MetricCounters {
@@ -180,6 +202,10 @@
         <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
             <span class="self">Self</span>::MergeHit =&gt; <span class="string">"metrics.buckets.merge.hit"</span>,
             <span class="self">Self</span>::MergeMiss =&gt; <span class="string">"metrics.buckets.merge.miss"</span>,
+            <span class="self">Self</span>::MetaAggregatorUpdate =&gt; <span class="string">"metrics.meta.agg.update"</span>,
+            <span class="self">Self</span>::MetaAggregatorItems =&gt; <span class="string">"metrics.meta.agg.items"</span>,
+            <span class="attr">#[cfg(feature = <span class="string">"redis"</span>)]
+            </span><span class="self">Self</span>::MetaRedisUpdate =&gt; <span class="string">"metrics.meta.redis.update"</span>,
         }
     }
 }

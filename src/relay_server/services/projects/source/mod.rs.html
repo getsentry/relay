@@ -208,20 +208,6 @@
 <a href="#208" id="208">208</a>
 <a href="#209" id="209">209</a>
 <a href="#210" id="210">210</a>
-<a href="#211" id="211">211</a>
-<a href="#212" id="212">212</a>
-<a href="#213" id="213">213</a>
-<a href="#214" id="214">214</a>
-<a href="#215" id="215">215</a>
-<a href="#216" id="216">216</a>
-<a href="#217" id="217">217</a>
-<a href="#218" id="218">218</a>
-<a href="#219" id="219">219</a>
-<a href="#220" id="220">220</a>
-<a href="#221" id="221">221</a>
-<a href="#222" id="222">222</a>
-<a href="#223" id="223">223</a>
-<a href="#224" id="224">224</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::sync::Arc;
 
@@ -239,7 +225,8 @@
 </span><span class="kw">pub mod </span>redis;
 <span class="kw">pub mod </span>upstream;
 
-<span class="kw">use </span><span class="kw">crate</span>::services::projects::project::{ProjectState, Revision};
+<span class="kw">use </span><span class="kw">crate</span>::services::projects::project::state::UpstreamProjectState;
+<span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectFetchState;
 <span class="kw">use </span><span class="kw">crate</span>::services::upstream::UpstreamRelay;
 
 <span class="kw">use </span><span class="self">self</span>::local::{LocalProjectSource, LocalProjectSourceService};
@@ -314,55 +301,53 @@
         }
     }
 
-    <span class="doccomment">/// Fetches a project with `project_key` from the configured sources.
-    ///
-    /// Returns a fully sanitized project.
-    </span><span class="kw">pub async fn </span>fetch(
+    <span class="kw">pub async fn </span>fetch(
         <span class="self">self</span>,
         project_key: ProjectKey,
         no_cache: bool,
-        current_revision: Revision,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;SourceProjectState, ProjectSourceError&gt; {
+        cached_state: ProjectFetchState,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;ProjectFetchState, ProjectSourceError&gt; {
         <span class="kw">let </span>state_opt = <span class="self">self
             </span>.local_source
             .send(FetchOptionalProjectState { project_key })
             .<span class="kw">await</span><span class="question-mark">?</span>;
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(state) = state_opt {
-            <span class="kw">return </span><span class="prelude-val">Ok</span>(state.into());
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(ProjectFetchState::new(state));
         }
 
         <span class="kw">match </span><span class="self">self</span>.config.relay_mode() {
-            RelayMode::Proxy =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(ProjectState::new_allowed().into()),
-            RelayMode::Static =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(ProjectState::Disabled.into()),
-            RelayMode::Capture =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(ProjectState::new_allowed().into()),
+            RelayMode::Proxy =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(ProjectFetchState::allowed()),
+            RelayMode::Static =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(ProjectFetchState::disabled()),
+            RelayMode::Capture =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(ProjectFetchState::allowed()),
             RelayMode::Managed =&gt; (), <span class="comment">// Proceed with loading the config from redis or upstream
         </span>}
 
+        <span class="kw">let </span>current_revision = cached_state.revision().map(String::from);
         <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
         </span><span class="kw">if let </span><span class="prelude-val">Some</span>(redis_source) = <span class="self">self</span>.redis_source {
             <span class="kw">let </span>current_revision = current_revision.clone();
 
             <span class="kw">let </span>redis_permit = <span class="self">self</span>.redis_semaphore.acquire().<span class="kw">await</span><span class="question-mark">?</span>;
             <span class="kw">let </span>state_fetch_result = tokio::task::spawn_blocking(<span class="kw">move </span>|| {
-                redis_source.get_config_if_changed(project_key, current_revision)
+                redis_source.get_config_if_changed(project_key, current_revision.as_deref())
             })
             .<span class="kw">await</span><span class="question-mark">?</span>;
             drop(redis_permit);
 
             <span class="kw">match </span>state_fetch_result {
                 <span class="comment">// New state fetched from Redis, possibly pending.
-                //
-                // If it is pending, we must fallback to fetching from the upstream.
-                </span><span class="prelude-val">Ok</span>(SourceProjectState::New(state)) =&gt; {
+                </span><span class="prelude-val">Ok</span>(UpstreamProjectState::New(state)) =&gt; {
                     <span class="kw">let </span>state = state.sanitized();
                     <span class="kw">if </span>!state.is_pending() {
-                        <span class="kw">return </span><span class="prelude-val">Ok</span>(state.into());
+                        <span class="kw">return </span><span class="prelude-val">Ok</span>(ProjectFetchState::new(state));
                     }
                 }
                 <span class="comment">// Redis reported that we're holding an up-to-date version of the state already,
                 // refresh the state and return the old cached state again.
-                </span><span class="prelude-val">Ok</span>(SourceProjectState::NotModified) =&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(SourceProjectState::NotModified),
+                </span><span class="prelude-val">Ok</span>(UpstreamProjectState::NotModified) =&gt; {
+                    <span class="kw">return </span><span class="prelude-val">Ok</span>(ProjectFetchState::refresh(cached_state))
+                }
                 <span class="prelude-val">Err</span>(error) =&gt; {
                     <span class="macro">relay_log::error!</span>(
                         error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
@@ -381,10 +366,10 @@
             })
             .<span class="kw">await</span><span class="question-mark">?</span>;
 
-        <span class="prelude-val">Ok</span>(<span class="kw">match </span>state {
-            SourceProjectState::New(state) =&gt; SourceProjectState::New(state.sanitized()),
-            SourceProjectState::NotModified =&gt; SourceProjectState::NotModified,
-        })
+        <span class="kw">match </span>state {
+            UpstreamProjectState::New(state) =&gt; <span class="prelude-val">Ok</span>(ProjectFetchState::new(state.sanitized())),
+            UpstreamProjectState::NotModified =&gt; <span class="prelude-val">Ok</span>(ProjectFetchState::refresh(cached_state)),
+        }
     }
 }
 
@@ -414,7 +399,10 @@
     /// The upstream is allowed to omit full project configs
     /// for requests for which the requester already has the most
     /// recent revision.
-    </span><span class="kw">pub </span>current_revision: Revision,
+    ///
+    /// Settings this to `None` will essentially always re-fetch
+    /// the project config.
+    </span><span class="kw">pub </span>current_revision: <span class="prelude-ty">Option</span>&lt;String&gt;,
 
     <span class="doccomment">/// If true, all caches should be skipped and a fresh state should be computed.
     </span><span class="kw">pub </span>no_cache: bool,
@@ -428,22 +416,6 @@
 <span class="kw">impl </span>FetchOptionalProjectState {
     <span class="kw">pub fn </span>project_key(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ProjectKey {
         <span class="self">self</span>.project_key
-    }
-}
-
-<span class="doccomment">/// Response indicating whether a project state needs to be updated
-/// or the upstream does not have a newer version.
-</span><span class="attr">#[derive(Debug, Clone)]
-</span><span class="kw">pub enum </span>SourceProjectState {
-    <span class="doccomment">/// The upstream sent a [`ProjectState`].
-    </span>New(ProjectState),
-    <span class="doccomment">/// The upstream indicated that there is no newer version of the state available.
-    </span>NotModified,
-}
-
-<span class="kw">impl </span>From&lt;ProjectState&gt; <span class="kw">for </span>SourceProjectState {
-    <span class="kw">fn </span>from(value: ProjectState) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::New(value)
     }
 }
 </code></pre></div></section></main></body></html>

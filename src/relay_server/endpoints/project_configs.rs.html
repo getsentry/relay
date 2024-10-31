@@ -254,14 +254,22 @@
 <a href="#254" id="254">254</a>
 <a href="#255" id="255">255</a>
 <a href="#256" id="256">256</a>
+<a href="#257" id="257">257</a>
+<a href="#258" id="258">258</a>
+<a href="#259" id="259">259</a>
+<a href="#260" id="260">260</a>
+<a href="#261" id="261">261</a>
+<a href="#262" id="262">262</a>
+<a href="#263" id="263">263</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>axum::extract::{Query, Request};
 <span class="kw">use </span>axum::handler::Handler;
-<span class="kw">use </span>axum::http::StatusCode;
 <span class="kw">use </span>axum::response::{IntoResponse, <span class="prelude-ty">Result</span>};
 <span class="kw">use </span>axum::{Json, RequestExt};
+<span class="kw">use </span>futures::stream::FuturesUnordered;
+<span class="kw">use </span>futures::StreamExt;
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
 <span class="kw">use </span>relay_dynamic_config::{ErrorBoundary, GlobalConfig};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
@@ -271,10 +279,15 @@
 <span class="kw">use </span><span class="kw">crate</span>::extractors::SignedJson;
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 <span class="kw">use </span><span class="kw">crate</span>::services::global_config::{<span class="self">self</span>, StatusResponse};
+<span class="kw">use </span><span class="kw">crate</span>::services::projects::cache::{GetCachedProjectState, GetProjectState};
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::project::{
-    LimitedParsedProjectState, ParsedProjectState, ProjectState, Revision,
+    LimitedParsedProjectState, ParsedProjectState, ProjectState,
 };
-<span class="kw">use </span><span class="kw">crate</span>::utils::ApiErrorResponse;
+
+<span class="doccomment">/// V2 version of this endpoint.
+///
+/// The request is a list of [`ProjectKey`]s and the response a list of [`ProjectStateWrapper`]s
+</span><span class="kw">const </span>ENDPOINT_V2: u16 = <span class="number">2</span>;
 
 <span class="doccomment">/// V3 version of this endpoint.
 ///
@@ -283,16 +296,6 @@
 /// next time a downstream relay polls for this it is hopefully in our cache and will be
 /// returned, or a further poll ensues.
 </span><span class="kw">const </span>ENDPOINT_V3: u16 = <span class="number">3</span>;
-
-<span class="attr">#[derive(Debug, Clone, Copy, thiserror::Error)]
-#[error(<span class="string">"This API version is no longer supported, upgrade your Relay or Client"</span>)]
-</span><span class="kw">struct </span>VersionOutdatedError;
-
-<span class="kw">impl </span>IntoResponse <span class="kw">for </span>VersionOutdatedError {
-    <span class="kw">fn </span>into_response(<span class="self">self</span>) -&gt; axum::response::Response {
-        (StatusCode::BAD_REQUEST, ApiErrorResponse::from_error(<span class="kw-2">&amp;</span><span class="self">self</span>)).into_response()
-    }
-}
 
 <span class="doccomment">/// Helper to deserialize the `version` query parameter.
 </span><span class="attr">#[derive(Clone, Copy, Debug, Deserialize)]
@@ -362,17 +365,19 @@
     ///
     /// This length of this list if specified must be the same length
     /// as [`Self::public_keys`], the items are asssociated by index.
-    </span>revisions: <span class="prelude-ty">Option</span>&lt;ErrorBoundary&lt;Vec&lt;Revision&gt;&gt;&gt;,
+    </span>revisions: <span class="prelude-ty">Option</span>&lt;ErrorBoundary&lt;Vec&lt;<span class="prelude-ty">Option</span>&lt;String&gt;&gt;&gt;&gt;,
     <span class="attr">#[serde(default)]
     </span>full_config: bool,
+    <span class="attr">#[serde(default)]
+    </span>no_cache: bool,
     <span class="attr">#[serde(default)]
     </span>global: bool,
 }
 
 <span class="kw">fn </span>into_valid_keys(
     public_keys: Vec&lt;ErrorBoundary&lt;ProjectKey&gt;&gt;,
-    revisions: <span class="prelude-ty">Option</span>&lt;ErrorBoundary&lt;Vec&lt;Revision&gt;&gt;&gt;,
-) -&gt; <span class="kw">impl </span>Iterator&lt;Item = (ProjectKey, Revision)&gt; {
+    revisions: <span class="prelude-ty">Option</span>&lt;ErrorBoundary&lt;Vec&lt;<span class="prelude-ty">Option</span>&lt;String&gt;&gt;&gt;&gt;,
+) -&gt; <span class="kw">impl </span>Iterator&lt;Item = (ProjectKey, <span class="prelude-ty">Option</span>&lt;String&gt;)&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>revisions = revisions.and_then(|e| e.ok()).unwrap_or_default();
     <span class="kw">if </span>!revisions.is_empty() &amp;&amp; revisions.len() != public_keys.len() {
         <span class="comment">// The downstream sent us a different amount of revisions than project keys,
@@ -385,9 +390,7 @@
         );
         revisions.clear();
     }
-    <span class="kw">let </span>revisions = revisions
-        .into_iter()
-        .chain(std::iter::repeat_with(Revision::default));
+    <span class="kw">let </span>revisions = revisions.into_iter().chain(std::iter::repeat(<span class="prelude-val">None</span>));
 
     std::iter::zip(public_keys, revisions).filter_map(|(public_key, revision)| {
         <span class="comment">// Skip unparsable public keys.
@@ -399,9 +402,30 @@
 
 <span class="kw">async fn </span>inner(
     state: ServiceState,
+    Query(version): Query&lt;VersionQuery&gt;,
     body: SignedJson&lt;GetProjectStatesRequest&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw">impl </span>IntoResponse, ServiceUnavailable&gt; {
     <span class="kw">let </span>SignedJson { inner, relay } = body;
+    <span class="kw">let </span>project_cache = <span class="kw-2">&amp;</span>state.project_cache().clone();
+
+    <span class="kw">let </span>no_cache = inner.no_cache;
+    <span class="kw">let </span>keys_len = inner.public_keys.len();
+
+    <span class="kw">let </span><span class="kw-2">mut </span>futures: FuturesUnordered&lt;<span class="kw">_</span>&gt; = into_valid_keys(inner.public_keys, inner.revisions)
+        .map(|(project_key, revision)| <span class="kw">async move </span>{
+            <span class="kw">let </span>state_result = <span class="kw">if </span>version.version &gt;= ENDPOINT_V3 &amp;&amp; !no_cache {
+                project_cache
+                    .send(GetCachedProjectState::new(project_key))
+                    .<span class="kw">await
+            </span>} <span class="kw">else </span>{
+                project_cache
+                    .send(GetProjectState::new(project_key).no_cache(no_cache))
+                    .<span class="kw">await
+            </span>};
+
+            (project_key, revision, state_result)
+        })
+        .collect();
 
     <span class="kw">let </span>(global, global_status) = <span class="kw">if </span>inner.global {
         <span class="kw">match </span>state.global_config().send(global_config::Get).<span class="kw">await</span><span class="question-mark">? </span>{
@@ -417,15 +441,12 @@
         (<span class="prelude-val">None</span>, <span class="prelude-val">None</span>)
     };
 
-    <span class="kw">let </span>keys_len = inner.public_keys.len();
     <span class="kw">let </span><span class="kw-2">mut </span>pending = Vec::with_capacity(keys_len);
     <span class="kw">let </span><span class="kw-2">mut </span>unchanged = Vec::with_capacity(keys_len);
     <span class="kw">let </span><span class="kw-2">mut </span>configs = HashMap::with_capacity(keys_len);
 
-    <span class="kw">for </span>(project_key, revision) <span class="kw">in </span>into_valid_keys(inner.public_keys, inner.revisions) {
-        <span class="kw">let </span>project = state.project_cache_handle().get(project_key);
-
-        <span class="kw">let </span>project_info = <span class="kw">match </span>project.state() {
+    <span class="kw">while let </span><span class="prelude-val">Some</span>((project_key, revision, state_result)) = futures.next().<span class="kw">await </span>{
+        <span class="kw">let </span>project_info = <span class="kw">match </span>state_result<span class="question-mark">? </span>{
             ProjectState::Enabled(info) =&gt; info,
             ProjectState::Disabled =&gt; {
                 <span class="comment">// Don't insert project config. Downstream Relay will consider it disabled.
@@ -438,7 +459,7 @@
         };
 
         <span class="comment">// Only ever omit responses when there was a valid revision in the first place.
-        </span><span class="kw">if </span>project_info.rev == revision {
+        </span><span class="kw">if </span>revision.is_some() &amp;&amp; project_info.rev == revision {
             unchanged.push(project_key);
             <span class="kw">continue</span>;
         }
@@ -479,14 +500,9 @@
     }))
 }
 
-<span class="doccomment">/// Returns `true` for all `?version` query parameters that are no longer supported by Relay and Sentry.
-</span><span class="kw">fn </span>is_outdated(Query(query): Query&lt;VersionQuery&gt;) -&gt; bool {
-    query.version &lt; ENDPOINT_V3
-}
-
 <span class="doccomment">/// Returns `true` if the `?version` query parameter is compatible with this implementation.
 </span><span class="kw">fn </span>is_compatible(Query(query): Query&lt;VersionQuery&gt;) -&gt; bool {
-    query.version == ENDPOINT_V3
+    query.version &gt;= ENDPOINT_V2 &amp;&amp; query.version &lt;= ENDPOINT_V3
 }
 
 <span class="doccomment">/// Endpoint handler for the project configs endpoint.
@@ -502,12 +518,10 @@
 /// support old Relay versions.
 </span><span class="kw">pub async fn </span>handle(state: ServiceState, <span class="kw-2">mut </span>req: Request) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="kw">impl </span>IntoResponse&gt; {
     <span class="kw">let </span>data = req.extract_parts().<span class="kw">await</span><span class="question-mark">?</span>;
-    <span class="kw">if </span>is_outdated(data) {
-        <span class="prelude-val">Err</span>(VersionOutdatedError.into())
-    } <span class="kw">else if </span>is_compatible(data) {
-        <span class="prelude-val">Ok</span>(inner.call(req, state).<span class="kw">await</span>)
-    } <span class="kw">else </span>{
-        <span class="prelude-val">Ok</span>(forward::forward(state, req).<span class="kw">await</span>)
-    }
+    <span class="prelude-val">Ok</span>(<span class="kw">if </span>is_compatible(data) {
+        inner.call(req, state).<span class="kw">await
+    </span>} <span class="kw">else </span>{
+        forward::forward(state, req).<span class="kw">await
+    </span>})
 }
 </code></pre></div></section></main></body></html>
