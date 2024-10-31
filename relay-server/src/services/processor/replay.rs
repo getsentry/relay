@@ -269,7 +269,7 @@ fn handle_replay_recording_item(
             error = &error as &dyn Error,
             event_id = ?config.event_id,
             project_id = config.project_id.map(|v| v.value()),
-            organization_id = config.organization_id,
+            organization_id = config.organization_id.map(|o| o.value()),
             "invalid replay recording"
         );
         ProcessingError::InvalidReplay(DiscardReason::InvalidReplayRecordingEvent)
