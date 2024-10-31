@@ -690,6 +690,8 @@ mod tests {
         let envelope = new_envelope(false, "foo");
         let project_key = envelope.meta().public_key();
 
+        tokio::time::sleep(Duration::from_secs(1)).await;
+
         addr.send(EnvelopeBuffer::Push(envelope.clone()));
         tokio::time::sleep(Duration::from_secs(3)).await;
 
