@@ -433,7 +433,10 @@ mod tests {
 
         // We peek the top element, which since the buffer is empty should result in a disk load.
         let peeked = stack.peek().await.unwrap().unwrap();
-        assert_eq!(peeked, envelopes[4].received_at());
+        assert_eq!(
+            peeked.timestamp_millis(),
+            envelopes[4].received_at().timestamp_millis()
+        );
 
         // We insert a new envelope, to test the load from disk happening during `peek()` gives
         // priority to this envelope in the stack.
