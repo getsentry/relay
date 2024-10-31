@@ -1,5 +1,7 @@
 use std::future::Future;
 
+use chrono::{DateTime, Utc};
+
 use crate::envelope::Envelope;
 
 pub mod memory;
@@ -15,7 +17,7 @@ pub trait EnvelopeStack: Send + std::fmt::Debug {
     fn push(&mut self, envelope: Box<Envelope>) -> impl Future<Output = Result<(), Self::Error>>;
 
     /// Peeks the [`Envelope`] on top of the stack.
-    fn peek(&mut self) -> impl Future<Output = Result<Option<&Envelope>, Self::Error>>;
+    fn peek(&mut self) -> impl Future<Output = Result<Option<DateTime<Utc>>, Self::Error>>;
 
     /// Pops the [`Envelope`] on top of the stack.
     fn pop(&mut self) -> impl Future<Output = Result<Option<Box<Envelope>>, Self::Error>>;
