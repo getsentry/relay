@@ -1619,8 +1619,6 @@ def test_ingest_in_eap(
         project_config["config"]["features"] += ["organizations:ingest-spans-in-eap"]
 
     event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
-    event["contexts"]["trace"]["status"] = "success"
-    event["contexts"]["trace"]["origin"] = "manual"
     end = datetime.now(timezone.utc) - timedelta(seconds=1)
     duration = timedelta(milliseconds=500)
     start = end - duration
