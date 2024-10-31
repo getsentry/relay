@@ -29,7 +29,6 @@ processing = [
 workspace = true
 
 [dependencies]
-ahash = { workspace = true }
 anyhow = { workspace = true }
 serde_path_to_error = { workspace = true }
 axum = { workspace = true, features = ["macros", "matched-path", "tracing"] }
@@ -54,7 +53,6 @@ mime = { workspace = true }
 minidump = { workspace = true, optional = true }
 multer = { workspace = true }
 once_cell = { workspace = true }
-papaya = { workspace = true }
 pin-project-lite = { workspace = true }
 priority-queue = { workspace = true }
 rand = { workspace = true }

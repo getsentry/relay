@@ -5,7 +5,7 @@ use relay_quotas::Scoping;
 
 use crate::metrics::MetricOutcomes;
 use crate::services::outcome::Outcome;
-use crate::services::processor::BucketSource;
+use crate::services::projects::cache::BucketSource;
 use crate::services::projects::project::ProjectInfo;
 
 /// Checks if the namespace of the passed bucket is valid.

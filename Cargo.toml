@@ -60,7 +60,6 @@ relay-test = { path = "relay-test" }
 relay-protocol-derive = { path = "relay-protocol-derive" }
 relay-event-derive = { path = "relay-event-derive" }
 
-ahash = "0.8.11"
 android_trace_log = { version = "0.3.0", features = ["serde"] }
 anyhow = "1.0.66"
 axum = "0.7.5"
@@ -120,7 +119,6 @@ num-traits = "0.2.18"
 num_cpus = "1.13.0"
 once_cell = "1.13.1"
 opentelemetry-proto = { version = "0.7.0", default-features = false }
-papaya = "0.1.4"
 parking_lot = "0.12.1"
 path-slash = "0.2.1"
 pest = "2.1.3"

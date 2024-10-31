@@ -12,8 +12,8 @@ use crate::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, I
 use crate::service::ServiceState;
 use crate::services::buffer::EnvelopeBuffer;
 use crate::services::outcome::{DiscardReason, Outcome};
-use crate::services::processor::{BucketSource, MetricData, ProcessMetrics, ProcessingGroup};
-use crate::services::projects::cache::legacy::ValidateEnvelope;
+use crate::services::processor::{MetricData, ProcessingGroup};
+use crate::services::projects::cache::{CheckEnvelope, ProcessMetrics, ValidateEnvelope};
 use crate::statsd::{RelayCounters, RelayHistograms};
 use crate::utils::{self, ApiErrorResponse, FormDataIter, ManagedEnvelope};
 
@@ -40,6 +40,9 @@ impl IntoResponse for ServiceUnavailable {
 /// Error type for all store-like requests.
 #[derive(Debug, thiserror::Error)]
 pub enum BadStoreRequest {
+    #[error("could not schedule event processing")]
+    ScheduleFailed,
+
     #[error("empty request body")]
     EmptyBody,
 
@@ -110,7 +113,7 @@ impl IntoResponse for BadStoreRequest {
 
                 (StatusCode::TOO_MANY_REQUESTS, headers, body).into_response()
             }
-            BadStoreRequest::QueueFailed => {
+            BadStoreRequest::ScheduleFailed | BadStoreRequest::QueueFailed => {
                 // These errors indicate that something's wrong with our service system, most likely
                 // mailbox congestion or a faulty shutdown. Indicate an unavailable service to the
                 // client. It might retry event submission at a later time.
@@ -271,12 +274,12 @@ fn queue_envelope(
 
         if !metric_items.is_empty() {
             relay_log::trace!("sending metrics into processing queue");
-            state.processor().send(ProcessMetrics {
+            state.project_cache().send(ProcessMetrics {
                 data: MetricData::Raw(metric_items.into_vec()),
                 received_at: envelope.received_at(),
                 sent_at: envelope.sent_at(),
                 project_key: envelope.meta().public_key(),
-                source: BucketSource::from_meta(envelope.meta()),
+                source: envelope.meta().into(),
             });
         }
     }
@@ -309,9 +312,7 @@ fn queue_envelope(
             }
             None => {
                 relay_log::trace!("Sending envelope to project cache for V1 buffer");
-                state
-                    .legacy_project_cache()
-                    .send(ValidateEnvelope::new(envelope));
+                state.project_cache().send(ValidateEnvelope::new(envelope));
             }
         }
     }
@@ -368,9 +369,10 @@ pub async fn handle_envelope(
     }
 
     let checked = state
-        .project_cache_handle()
-        .get(managed_envelope.scoping().project_key)
-        .check_envelope(managed_envelope)
+        .project_cache()
+        .send(CheckEnvelope::new(managed_envelope))
+        .await
+        .map_err(|_| BadStoreRequest::ScheduleFailed)?
         .map_err(BadStoreRequest::EventRejected)?;
 
     let Some(mut managed_envelope) = checked.envelope else {

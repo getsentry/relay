@@ -5,8 +5,8 @@ use relay_config::Config;
 use relay_redis::{RedisError, RedisPool};
 use relay_statsd::metric;
 
-use crate::services::projects::project::{ParsedProjectState, ProjectState, Revision};
-use crate::services::projects::source::SourceProjectState;
+use crate::services::projects::project::state::UpstreamProjectState;
+use crate::services::projects::project::{ParsedProjectState, ProjectState};
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 
 #[derive(Debug, Clone)]
@@ -60,13 +60,13 @@ impl RedisProjectSource {
     pub fn get_config_if_changed(
         &self,
         key: ProjectKey,
-        revision: Revision,
-    ) -> Result<SourceProjectState, RedisProjectError> {
+        revision: Option<&str>,
+    ) -> Result<UpstreamProjectState, RedisProjectError> {
         let mut client = self.redis.client()?;
         let mut connection = client.connection()?;
 
         // Only check for the revision if we were passed a revision.
-        if let Some(revision) = revision.as_str() {
+        if let Some(revision) = revision {
             let current_revision: Option<String> = relay_redis::redis::cmd("GET")
                 .arg(self.get_redis_rev_key(key))
                 .query(&mut connection)
@@ -80,7 +80,7 @@ impl RedisProjectSource {
                     counter(RelayCounters::ProjectStateRedis) += 1,
                     hit = "revision",
                 );
-                return Ok(SourceProjectState::NotModified);
+                return Ok(UpstreamProjectState::NotModified);
             }
         }
 
@@ -94,7 +94,7 @@ impl RedisProjectSource {
                 counter(RelayCounters::ProjectStateRedis) += 1,
                 hit = "false"
             );
-            return Ok(SourceProjectState::New(ProjectState::Pending));
+            return Ok(UpstreamProjectState::New(ProjectState::Pending));
         };
 
         let response = ProjectState::from(parse_redis_response(response.as_slice())?);
@@ -106,18 +106,18 @@ impl RedisProjectSource {
         //
         // While this is theoretically possible this should always been handled using the above revision
         // check using the additional Redis key.
-        if response.revision() == revision {
+        if revision.is_some() && response.revision() == revision {
             metric!(
                 counter(RelayCounters::ProjectStateRedis) += 1,
                 hit = "project_config_revision"
             );
-            Ok(SourceProjectState::NotModified)
+            Ok(UpstreamProjectState::NotModified)
         } else {
             metric!(
                 counter(RelayCounters::ProjectStateRedis) += 1,
                 hit = "project_config"
             );
-            Ok(SourceProjectState::New(response))
+            Ok(UpstreamProjectState::New(response))
         }
     }
 
