@@ -1065,7 +1065,7 @@ impl Default for Cache {
             downstream_relays_batch_interval: 100, // 100ms
             batch_size: 500,
             file_interval: 10,                // 10 seconds
-            eviction_interval: 15,            // 15 seconds
+            eviction_interval: 10,            // 10 seconds
             global_config_fetch_interval: 10, // 10 seconds
         }
     }
