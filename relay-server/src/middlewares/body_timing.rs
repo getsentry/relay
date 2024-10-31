@@ -3,14 +3,13 @@ use axum::body::{Body, HttpBody};
 use axum::http::Request;
 use hyper::body::Frame;
 use relay_statsd::metric;
-use std::fmt::{Display, Formatter};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use tokio::time::Instant;
 use tower::{Layer, Service};
 
 /// Middleware layer that wraps the request [`Body`] so that we can measure
-/// how long reading the body took.
+/// how long reading the body takes.
 #[derive(Clone)]
 pub struct BodyTimingLayer;
 
@@ -100,7 +99,7 @@ impl hyper::body::Body for TimedBody {
                 metric!(
                     timer(RelayTimers::BodyReading) = duration,
                     route = &self.route,
-                    size = &format!("{}", SizeBracket::bracket(self.size)),
+                    size = size_category(self.size),
                     status = match poll_result {
                         Poll::Ready(Some(Err(_))) => "failed",
                         _ => "completed",
@@ -117,39 +116,6 @@ impl hyper::body::Body for TimedBody {
     }
 }
 
-enum SizeBracket {
-    LessThan1K,
-    LessThan10K,
-    LessThan100K,
-    Greater100K,
-}
-
-impl SizeBracket {
-    fn bracket(size: usize) -> Self {
-        match size {
-            0..1_000 => SizeBracket::LessThan1K,
-            1_000..10_000 => SizeBracket::LessThan10K,
-            10_000..100_000 => SizeBracket::LessThan100K,
-            _ => SizeBracket::Greater100K,
-        }
-    }
-}
-
-impl Display for SizeBracket {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                SizeBracket::LessThan1K => "<1K",
-                SizeBracket::LessThan10K => "<10K",
-                SizeBracket::LessThan100K => "<100K",
-                SizeBracket::Greater100K => ">100K",
-            }
-        )
-    }
-}
-
 impl Drop for TimedBody {
     fn drop(&mut self) {
         if let Some(started_at) = self.reading_started_at.take() {
@@ -157,10 +123,20 @@ impl Drop for TimedBody {
             metric!(
                 timer(RelayTimers::BodyReading) = duration,
                 route = &self.route,
-                size = &format!("{}", SizeBracket::bracket(self.size)),
+                size = size_category(self.size),
                 status = "dropped"
             );
         }
+    }
+}
+
+fn size_category(size: usize) -> &'static str {
+    match size {
+        0..1_000 => "<1K",
+        1_000..10_000 => "<10K",
+        10_000..100_000 => "<100K",
+        100_000..1_000_000 => "<1M",
+        _ => ">1M",
     }
 }
 
