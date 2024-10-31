@@ -1,6 +1,6 @@
 ---
 source: relay-server/src/metrics_extraction/event.rs
-expression: "(&event.value().unwrap().spans, metrics)"
+expression: "(&event.value().unwrap().spans, metrics.project_metrics)"
 ---
 (
     [
@@ -54,6 +54,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
             _metrics_summary: ~,
             platform: ~,
             was_transaction: ~,
+            ingest_in_eap: ~,
             other: {},
         },
         Span {
@@ -201,6 +202,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
             _metrics_summary: ~,
             platform: ~,
             was_transaction: ~,
+            ingest_in_eap: ~,
             other: {},
         },
         Span {
@@ -255,6 +257,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
             _metrics_summary: ~,
             platform: ~,
             was_transaction: ~,
+            ingest_in_eap: ~,
             other: {},
         },
         Span {
@@ -306,6 +309,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
             _metrics_summary: ~,
             platform: ~,
             was_transaction: ~,
+            ingest_in_eap: ~,
             other: {},
         },
         Span {
@@ -359,6 +363,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
             _metrics_summary: ~,
             platform: ~,
             was_transaction: ~,
+            ingest_in_eap: ~,
             other: {},
         },
         Span {
@@ -412,6 +417,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
             _metrics_summary: ~,
             platform: ~,
             was_transaction: ~,
+            ingest_in_eap: ~,
             other: {},
         },
         Span {
@@ -534,6 +540,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
             _metrics_summary: ~,
             platform: ~,
             was_transaction: ~,
+            ingest_in_eap: ~,
             other: {},
         },
         Span {
@@ -654,6 +661,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
             _metrics_summary: ~,
             platform: ~,
             was_transaction: ~,
+            ingest_in_eap: ~,
             other: {},
         },
         Span {
@@ -708,6 +716,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
             _metrics_summary: ~,
             platform: ~,
             was_transaction: ~,
+            ingest_in_eap: ~,
             other: {},
         },
         Span {
@@ -830,6 +839,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
             _metrics_summary: ~,
             platform: ~,
             was_transaction: ~,
+            ingest_in_eap: ~,
             other: {},
         },
         Span {
@@ -952,6 +962,7 @@ expression: "(&event.value().unwrap().spans, metrics)"
             _metrics_summary: ~,
             platform: ~,
             was_transaction: ~,
+            ingest_in_eap: ~,
             other: {},
         },
     ],
