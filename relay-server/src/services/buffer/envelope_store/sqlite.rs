@@ -606,8 +606,8 @@ mod tests {
         assert_eq!(extracted_envelopes.len(), 5);
         for (i, extracted_envelope) in extracted_envelopes.iter().enumerate().take(5) {
             assert_eq!(
-                extracted_envelope.received_at(),
-                envelopes[5..][i].received_at()
+                extracted_envelope.received_at().timestamp_millis(),
+                envelopes[5..][i].received_at().timestamp_millis()
             );
         }
 
@@ -620,8 +620,8 @@ mod tests {
         assert_eq!(extracted_envelopes.len(), 5);
         for (i, extracted_envelope) in extracted_envelopes.iter().enumerate().take(5) {
             assert_eq!(
-                extracted_envelope.received_at(),
-                envelopes[..5][i].received_at()
+                extracted_envelope.received_at().timestamp_millis(),
+                envelopes[..5][i].received_at().timestamp_millis()
             );
         }
     }
