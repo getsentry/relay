@@ -11,22 +11,18 @@ use tower::{Layer, Service};
 
 /// Middleware layer that wraps the request [`Body`] to measure body reading duration.
 ///
-/// Metrics are tagged with a completion status to track whether the body:
-/// - was read to completion ("completed")
-/// - failed during reading ("failed")
-/// - was dropped before completion ("dropped")
+/// Each metric includes the following tags:
+/// - `route`: The request's URI path
+/// - `size`: Size category based on bytes read
+/// - `status`: Reading outcome, one of:
+///   - `"completed"`: Body was fully read
+///   - `"failed"`: Reading encountered an error
+///   - `"dropped"`: Body was dropped before completion
 ///
-/// The reported size reflects the actual number of bytes read, which may differ from
-/// the `Content-Length` header. For bodies that fail or are dropped mid-reading,
-/// the size represents only the bytes successfully read before the interruption.
-#[derive(Clone, Debug)]
+/// The size reflects actual bytes read, which may differ from the `Content-Length` header.
+/// For interrupted reads (failed/dropped), only successfully read bytes are counted.
+#[derive(Clone, Debug, Default)]
 pub struct BodyTimingLayer;
-
-impl BodyTimingLayer {
-    pub fn new() -> Self {
-        Self {}
-    }
-}
 
 impl<S> Layer<S> for BodyTimingLayer {
     type Service = BodyTiming<S>;
@@ -36,6 +32,7 @@ impl<S> Layer<S> for BodyTimingLayer {
     }
 }
 
+/// Tower service provided by [`BodyTimingLayer`].
 #[derive(Debug, Copy, Clone)]
 pub struct BodyTiming<S> {
     inner: S,
@@ -71,20 +68,17 @@ where
 struct TimedBody {
     inner: Body,
     reading_started_at: Option<Instant>,
-    size: u32,
+    size: usize,
     route: String,
 }
 
 impl TimedBody {
-    fn new<T>(inner: Body, route: T) -> Self
-    where
-        T: Into<String>,
-    {
+    fn new(inner: Body, route: String) -> Self {
         Self {
             inner,
             reading_started_at: None,
             size: 0,
-            route: route.into(),
+            route,
         }
     }
 
@@ -120,7 +114,7 @@ impl hyper::body::Body for TimedBody {
 
         if let Poll::Ready(Some(Ok(frame))) = &poll_result {
             if let Some(data) = frame.data_ref() {
-                self.size += data.len() as u32;
+                self.size += data.len();
             }
         }
 
@@ -136,19 +130,18 @@ impl hyper::body::Body for TimedBody {
 
 impl Drop for TimedBody {
     fn drop(&mut self) {
-        if let Some(started_at) = self.reading_started_at.take() {
-            let duration = started_at.elapsed();
-            self.emit_metric(duration, "dropped");
-        }
+        self.finish_timing("dropped");
     }
 }
 
-fn size_category(size: u32) -> &'static str {
+fn size_category(size: usize) -> &'static str {
     match size {
         0..1_000 => "<1KB",
-        1_000..100_000 => "<100KB",
+        1_000..10_000 => "<10KB",
+        10_000..100_000 => "<100KB",
         100_000..1_000_000 => "<1MB",
-        1_000_000..100_000_000 => "<100MB",
+        1_000_000..10_000_000 => "<10MB",
+        10_000_000..100_000_000 => "<100MB",
         100_000_000.. => ">=100MB",
     }
 }
@@ -272,16 +265,17 @@ mod tests {
         });
         assert_eq!(
             captures,
-            ["body.reading.duration:0|ms|#route:example/route,size:<100KB,status:completed"]
+            ["body.reading.duration:0|ms|#route:example/route,size:<10KB,status:completed"]
         )
     }
 
     #[test]
     fn test_size_category() {
         assert_eq!(size_category(10), "<1KB");
+        assert_eq!(size_category(9_000), "<10KB");
         assert_eq!(size_category(10_000), "<100KB");
         assert_eq!(size_category(99_999), "<100KB");
-        assert_eq!(size_category(1_000_000), "<100MB");
+        assert_eq!(size_category(1_000_000), "<10MB");
         assert_eq!(size_category(50_000_000), "<100MB");
         assert_eq!(size_category(100_000_000), ">=100MB")
     }
