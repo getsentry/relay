@@ -367,9 +367,20 @@ pub async fn handle_envelope(
         return Ok(event_id);
     }
 
+    let project_key = managed_envelope.envelope().meta().public_key();
+
+    // Prefetch sampling project key, current spooling implementations rely on this behavior.
+    //
+    // To be changed once spool v1 has been removed.
+    if let Some(sampling_project_key) = managed_envelope.envelope().sampling_key() {
+        if sampling_project_key != project_key {
+            state.project_cache_handle().fetch(sampling_project_key);
+        }
+    }
+
     let checked = state
         .project_cache_handle()
-        .get(managed_envelope.scoping().project_key)
+        .get(project_key)
         .check_envelope(managed_envelope)
         .map_err(BadStoreRequest::EventRejected)?;
 
