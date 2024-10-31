@@ -103,6 +103,7 @@ hostname = "0.4.0"
 human-size = "0.4.1"
 http = "1.1.0"
 hyper-util = { version = "0.1.7", features = ["tokio"] }
+hyper = "1.5.0"
 indexmap = "2.2.5"
 insta = { version = "1.31.0", features = ["json", "redactions", "ron"] }
 ipnetwork = "0.20.0"

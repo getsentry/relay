@@ -188,10 +188,6 @@ pub enum RelayHistograms {
     /// This is not quite the same as the actual size of a serialized envelope, because it ignores
     /// the envelope header and item headers.
     BufferEnvelopeBodySize,
-    /// Size of a serialized envelope pushed to the envelope buffer (sampled).
-    BufferEnvelopeSize,
-    /// Size of a compressed envelope pushed to the envelope buffer (sampled).
-    BufferEnvelopeSizeCompressed,
     /// The number of batches emitted per partition.
     BatchesPerPartition,
     /// The number of buckets in a batch emitted.
@@ -321,8 +317,6 @@ impl HistogramMetric for RelayHistograms {
                 "buffer.backpressure_envelopes_count"
             }
             RelayHistograms::BufferEnvelopeBodySize => "buffer.envelope_body_size",
-            RelayHistograms::BufferEnvelopeSize => "buffer.envelope_size",
-            RelayHistograms::BufferEnvelopeSizeCompressed => "buffer.envelope_size.compressed",
             RelayHistograms::ProjectStatePending => "project_state.pending",
             RelayHistograms::ProjectStateAttempts => "project_state.attempts",
             RelayHistograms::ProjectStateRequestBatchSize => "project_state.request.batch_size",
@@ -557,8 +551,8 @@ pub enum RelayTimers {
     BufferDrain,
     /// Timing in milliseconds for the time it takes for the envelopes to be serialized.
     BufferEnvelopesSerialization,
-    /// Timing in milliseconds for the time it takes for the envelopes to be compressed (sampled).
-    BufferEnvelopeCompression,
+    /// Timing in milliseconds to the time it takes to read an HTTP body.
+    BodyReading,
 }
 
 impl TimerMetric for RelayTimers {
@@ -610,7 +604,7 @@ impl TimerMetric for RelayTimers {
             RelayTimers::BufferPop => "buffer.pop.duration",
             RelayTimers::BufferDrain => "buffer.drain.duration",
             RelayTimers::BufferEnvelopesSerialization => "buffer.envelopes_serialization",
-            RelayTimers::BufferEnvelopeCompression => "buffer.envelopes_compression",
+            RelayTimers::BodyReading => "body.reading.duration",
         }
     }
 }
