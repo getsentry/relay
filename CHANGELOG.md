@@ -2,11 +2,6 @@
 
 ## Unreleased
 
-**Breaking Changes**:
-
-- Removes support for metric meta envelope items. ([#4152](https://github.com/getsentry/relay/pull/4152))
-- Removes support for the project cache endpoint version 2 and before. ([#4147](https://github.com/getsentry/relay/pull/4147))
-
 **Bug Fixes**
 
 - Allow profile chunks without release. ([#4155](https://github.com/getsentry/relay/pull/4155))
@@ -26,7 +21,7 @@
 
 ## 24.10.0
 
-**Breaking Changes**:
+**Breaking Changes:**
 
 - Only allow processing enabled in managed mode. ([#4087](https://github.com/getsentry/relay/pull/4087))
 
@@ -36,7 +31,7 @@
 - Use the duration reported by the profiler instead of the transaction. ([#4058](https://github.com/getsentry/relay/pull/4058))
 - Incorrect pattern matches involving adjacent any and wildcard matchers. ([#4072](https://github.com/getsentry/relay/pull/4072))
 
-**Features**:
+**Features:**
 
 - Add a config option to add default tags to all Relay Sentry events. ([#3944](https://github.com/getsentry/relay/pull/3944))
 - Automatically derive `client.address` and `user.geo` for standalone spans. ([#4047](https://github.com/getsentry/relay/pull/4047))
@@ -48,7 +43,7 @@
 - Add support for creating User from LoginId in Unreal Crash Context. ([#4093](https://github.com/getsentry/relay/pull/4093))
 - Add multi-write Redis client. ([#4064](https://github.com/getsentry/relay/pull/4064))
 
-**Internal**:
+**Internal:**
 
 - Remove unused `cogs.enabled` configuration option. ([#4060](https://github.com/getsentry/relay/pull/4060))
 - Add the dynamic sampling rate to standalone spans as a measurement so that it can be stored, queried, and used for extrapolation. ([#4063](https://github.com/getsentry/relay/pull/4063))

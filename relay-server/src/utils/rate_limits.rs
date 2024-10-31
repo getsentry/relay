@@ -120,6 +120,7 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
         ItemType::Sessions => None,
         ItemType::Statsd => None,
         ItemType::MetricBuckets => None,
+        ItemType::MetricMeta => None,
         ItemType::FormData => None,
         ItemType::UserReport => None,
         ItemType::Profile => None,
@@ -491,6 +492,7 @@ impl Enforcement {
             | ItemType::Sessions
             | ItemType::Statsd
             | ItemType::MetricBuckets
+            | ItemType::MetricMeta
             | ItemType::ClientReport
             | ItemType::UserReportV2
             | ItemType::ProfileChunk

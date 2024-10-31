@@ -15,7 +15,8 @@ pub mod local;
 pub mod redis;
 pub mod upstream;
 
-use crate::services::projects::project::{ProjectState, Revision};
+use crate::services::projects::project::state::UpstreamProjectState;
+use crate::services::projects::project::ProjectFetchState;
 use crate::services::upstream::UpstreamRelay;
 
 use self::local::{LocalProjectSource, LocalProjectSourceService};
@@ -90,55 +91,53 @@ impl ProjectSource {
         }
     }
 
-    /// Fetches a project with `project_key` from the configured sources.
-    ///
-    /// Returns a fully sanitized project.
     pub async fn fetch(
         self,
         project_key: ProjectKey,
         no_cache: bool,
-        current_revision: Revision,
-    ) -> Result<SourceProjectState, ProjectSourceError> {
+        cached_state: ProjectFetchState,
+    ) -> Result<ProjectFetchState, ProjectSourceError> {
         let state_opt = self
             .local_source
             .send(FetchOptionalProjectState { project_key })
             .await?;
 
         if let Some(state) = state_opt {
-            return Ok(state.into());
+            return Ok(ProjectFetchState::new(state));
         }
 
         match self.config.relay_mode() {
-            RelayMode::Proxy => return Ok(ProjectState::new_allowed().into()),
-            RelayMode::Static => return Ok(ProjectState::Disabled.into()),
-            RelayMode::Capture => return Ok(ProjectState::new_allowed().into()),
+            RelayMode::Proxy => return Ok(ProjectFetchState::allowed()),
+            RelayMode::Static => return Ok(ProjectFetchState::disabled()),
+            RelayMode::Capture => return Ok(ProjectFetchState::allowed()),
             RelayMode::Managed => (), // Proceed with loading the config from redis or upstream
         }
 
+        let current_revision = cached_state.revision().map(String::from);
         #[cfg(feature = "processing")]
         if let Some(redis_source) = self.redis_source {
             let current_revision = current_revision.clone();
 
             let redis_permit = self.redis_semaphore.acquire().await?;
             let state_fetch_result = tokio::task::spawn_blocking(move || {
-                redis_source.get_config_if_changed(project_key, current_revision)
+                redis_source.get_config_if_changed(project_key, current_revision.as_deref())
             })
             .await?;
             drop(redis_permit);
 
             match state_fetch_result {
                 // New state fetched from Redis, possibly pending.
-                //
-                // If it is pending, we must fallback to fetching from the upstream.
-                Ok(SourceProjectState::New(state)) => {
+                Ok(UpstreamProjectState::New(state)) => {
                     let state = state.sanitized();
                     if !state.is_pending() {
-                        return Ok(state.into());
+                        return Ok(ProjectFetchState::new(state));
                     }
                 }
                 // Redis reported that we're holding an up-to-date version of the state already,
                 // refresh the state and return the old cached state again.
-                Ok(SourceProjectState::NotModified) => return Ok(SourceProjectState::NotModified),
+                Ok(UpstreamProjectState::NotModified) => {
+                    return Ok(ProjectFetchState::refresh(cached_state))
+                }
                 Err(error) => {
                     relay_log::error!(
                         error = &error as &dyn std::error::Error,
@@ -157,10 +156,10 @@ impl ProjectSource {
             })
             .await?;
 
-        Ok(match state {
-            SourceProjectState::New(state) => SourceProjectState::New(state.sanitized()),
-            SourceProjectState::NotModified => SourceProjectState::NotModified,
-        })
+        match state {
+            UpstreamProjectState::New(state) => Ok(ProjectFetchState::new(state.sanitized())),
+            UpstreamProjectState::NotModified => Ok(ProjectFetchState::refresh(cached_state)),
+        }
     }
 }
 
@@ -190,7 +189,10 @@ pub struct FetchProjectState {
     /// The upstream is allowed to omit full project configs
     /// for requests for which the requester already has the most
     /// recent revision.
-    pub current_revision: Revision,
+    ///
+    /// Settings this to `None` will essentially always re-fetch
+    /// the project config.
+    pub current_revision: Option<String>,
 
     /// If true, all caches should be skipped and a fresh state should be computed.
     pub no_cache: bool,
@@ -204,21 +206,5 @@ pub struct FetchOptionalProjectState {
 impl FetchOptionalProjectState {
     pub fn project_key(&self) -> ProjectKey {
         self.project_key
-    }
-}
-
-/// Response indicating whether a project state needs to be updated
-/// or the upstream does not have a newer version.
-#[derive(Debug, Clone)]
-pub enum SourceProjectState {
-    /// The upstream sent a [`ProjectState`].
-    New(ProjectState),
-    /// The upstream indicated that there is no newer version of the state available.
-    NotModified,
-}
-
-impl From<ProjectState> for SourceProjectState {
-    fn from(value: ProjectState) -> Self {
-        Self::New(value)
     }
 }

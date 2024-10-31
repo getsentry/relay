@@ -1,4 +1,5 @@
 use std::convert::Infallible;
+use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -7,12 +8,11 @@ use crate::services::buffer::{self, EnvelopeBufferService, ObservableEnvelopeBuf
 use crate::services::cogs::{CogsService, CogsServiceRecorder};
 use crate::services::global_config::{GlobalConfigManager, GlobalConfigService};
 use crate::services::health_check::{HealthCheck, HealthCheckService};
-use crate::services::metrics::RouterService;
+use crate::services::metrics::{Aggregator, RouterService};
 use crate::services::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
 use crate::services::outcome_aggregator::OutcomeAggregator;
 use crate::services::processor::{self, EnvelopeProcessor, EnvelopeProcessorService};
-use crate::services::projects::cache::{legacy, ProjectCacheHandle, ProjectCacheService};
-use crate::services::projects::source::ProjectSource;
+use crate::services::projects::cache::{ProjectCache, ProjectCacheService, Services};
 use crate::services::relays::{RelayCache, RelayCacheService};
 use crate::services::stats::RelayStats;
 #[cfg(feature = "processing")]
@@ -52,8 +52,9 @@ pub enum ServiceError {
     Redis,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Registry {
+    pub aggregator: Addr<Aggregator>,
     pub health_check: Addr<HealthCheck>,
     pub outcome_producer: Addr<OutcomeProducer>,
     pub outcome_aggregator: Addr<TrackOutcome>,
@@ -61,11 +62,21 @@ pub struct Registry {
     pub test_store: Addr<TestStore>,
     pub relay_cache: Addr<RelayCache>,
     pub global_config: Addr<GlobalConfigManager>,
-    pub legacy_project_cache: Addr<legacy::ProjectCache>,
+    pub project_cache: Addr<ProjectCache>,
     pub upstream_relay: Addr<UpstreamRelay>,
     pub envelope_buffer: Option<ObservableEnvelopeBuffer>,
+}
 
-    pub project_cache_handle: ProjectCacheHandle,
+impl fmt::Debug for Registry {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Registry")
+            .field("aggregator", &self.aggregator)
+            .field("health_check", &self.health_check)
+            .field("outcome_producer", &self.outcome_producer)
+            .field("outcome_aggregator", &self.outcome_aggregator)
+            .field("processor", &format_args!("Addr<Processor>"))
+            .finish()
+    }
 }
 
 /// Constructs a tokio [`Runtime`] configured for running [services](relay_system::Service).
@@ -133,7 +144,6 @@ fn create_store_pool(config: &Config) -> Result<ThreadPool> {
 struct StateInner {
     config: Arc<Config>,
     memory_checker: MemoryChecker,
-
     registry: Registry,
 }
 
@@ -188,23 +198,12 @@ impl ServiceState {
         // service fail if the service is not running.
         let global_config = global_config.start();
 
-        let (legacy_project_cache, legacy_project_cache_rx) =
-            channel(legacy::ProjectCacheService::name());
-
-        let project_source = ProjectSource::start(
-            Arc::clone(&config),
-            upstream_relay.clone(),
-            redis_pools
-                .as_ref()
-                .map(|pools| pools.project_configs.clone()),
-        );
-        let project_cache_handle =
-            ProjectCacheService::new(Arc::clone(&config), project_source).start();
+        let (project_cache, project_cache_rx) = channel(ProjectCacheService::name());
 
         let aggregator = RouterService::new(
             config.default_aggregator_config().clone(),
             config.secondary_aggregator_configs().clone(),
-            Some(legacy_project_cache.clone().recipient()),
+            Some(project_cache.clone().recipient()),
         );
         let aggregator_handle = aggregator.handle();
         let aggregator = aggregator.start();
@@ -239,11 +238,11 @@ impl ServiceState {
             create_processor_pool(&config)?,
             config.clone(),
             global_config_handle,
-            project_cache_handle.clone(),
             cogs,
             #[cfg(feature = "processing")]
             redis_pools.clone(),
             processor::Addrs {
+                project_cache: project_cache.clone(),
                 outcome_aggregator: outcome_aggregator.clone(),
                 upstream_relay: upstream_relay.clone(),
                 test_store: test_store.clone(),
@@ -262,7 +261,7 @@ impl ServiceState {
             global_config_rx.clone(),
             buffer::Services {
                 envelopes_tx,
-                project_cache_handle: project_cache_handle.clone(),
+                project_cache: project_cache.clone(),
                 outcome_aggregator: outcome_aggregator.clone(),
                 test_store: test_store.clone(),
             },
@@ -270,24 +269,27 @@ impl ServiceState {
         .map(|b| b.start_observable());
 
         // Keep all the services in one context.
-        let project_cache_services = legacy::Services {
+        let project_cache_services = Services {
             envelope_buffer: envelope_buffer.as_ref().map(ObservableEnvelopeBuffer::addr),
             aggregator: aggregator.clone(),
             envelope_processor: processor.clone(),
             outcome_aggregator: outcome_aggregator.clone(),
-            project_cache: legacy_project_cache.clone(),
+            project_cache: project_cache.clone(),
             test_store: test_store.clone(),
+            upstream_relay: upstream_relay.clone(),
         };
 
-        legacy::ProjectCacheService::new(
+        ProjectCacheService::new(
             config.clone(),
             MemoryChecker::new(memory_stat.clone(), config.clone()),
-            project_cache_handle.clone(),
             project_cache_services,
             global_config_rx,
             envelopes_rx,
+            redis_pools
+                .as_ref()
+                .map(|pools| pools.project_configs.clone()),
         )
-        .spawn_handler(legacy_project_cache_rx);
+        .spawn_handler(project_cache_rx);
 
         let health_check = HealthCheckService::new(
             config.clone(),
@@ -309,6 +311,7 @@ impl ServiceState {
         let relay_cache = RelayCacheService::new(config.clone(), upstream_relay.clone()).start();
 
         let registry = Registry {
+            aggregator,
             processor,
             health_check,
             outcome_producer,
@@ -316,8 +319,7 @@ impl ServiceState {
             test_store,
             relay_cache,
             global_config,
-            legacy_project_cache,
-            project_cache_handle,
+            project_cache,
             upstream_relay,
             envelope_buffer,
         };
@@ -350,14 +352,9 @@ impl ServiceState {
         self.inner.registry.envelope_buffer.as_ref()
     }
 
-    /// Returns the address of the [`legacy::ProjectCache`] service.
-    pub fn legacy_project_cache(&self) -> &Addr<legacy::ProjectCache> {
-        &self.inner.registry.legacy_project_cache
-    }
-
-    /// Returns a [`ProjectCacheHandle`].
-    pub fn project_cache_handle(&self) -> &ProjectCacheHandle {
-        &self.inner.registry.project_cache_handle
+    /// Returns the address of the [`ProjectCache`] service.
+    pub fn project_cache(&self) -> &Addr<ProjectCache> {
+        &self.inner.registry.project_cache
     }
 
     /// Returns the address of the [`RelayCache`] service.
@@ -434,21 +431,25 @@ pub fn create_redis_pools(configs: RedisPoolConfigs) -> Result<RedisPools, Redis
                 project_configs: pool.clone(),
                 cardinality: pool.clone(),
                 quotas: pool.clone(),
+                misc: pool,
             })
         }
         RedisPoolConfigs::Individual {
             project_configs,
             cardinality,
             quotas,
+            misc,
         } => {
             let project_configs = create_redis_pool(project_configs)?;
             let cardinality = create_redis_pool(cardinality)?;
             let quotas = create_redis_pool(quotas)?;
+            let misc = create_redis_pool(misc)?;
 
             Ok(RedisPools {
                 project_configs,
                 cardinality,
                 quotas,
+                misc,
             })
         }
     }
@@ -459,10 +460,11 @@ fn initialize_redis_scripts_for_pools(redis_pools: &RedisPools) -> Result<(), Re
     let project_configs = redis_pools.project_configs.client()?;
     let cardinality = redis_pools.cardinality.client()?;
     let quotas = redis_pools.quotas.client()?;
+    let misc = redis_pools.misc.client()?;
 
     let scripts = RedisScripts::all();
 
-    let pools = [project_configs, cardinality, quotas];
+    let pools = [project_configs, cardinality, quotas, misc];
     for pool in pools {
         initialize_redis_scripts(pool, &scripts)?;
     }
