@@ -490,16 +490,10 @@
 <a href="#490" id="490">490</a>
 <a href="#491" id="491">491</a>
 <a href="#492" id="492">492</a>
-<a href="#493" id="493">493</a>
-<a href="#494" id="494">494</a>
-<a href="#495" id="495">495</a>
-<a href="#496" id="496">496</a>
-<a href="#497" id="497">497</a>
-<a href="#498" id="498">498</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::VecDeque;
-<span class="kw">use </span>std::fmt::Debug;
 <span class="kw">use </span>std::num::NonZeroUsize;
 
+<span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::Envelope;
@@ -694,7 +688,7 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">async fn </span>peek(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Envelope&gt;, <span class="self">Self</span>::Error&gt; {
+    <span class="kw">async fn </span>peek(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;, <span class="self">Self</span>::Error&gt; {
         <span class="kw">if </span><span class="self">self</span>.below_unspool_threshold() &amp;&amp; <span class="self">self</span>.check_disk {
             <span class="self">self</span>.unspool_from_disk().<span class="kw">await</span><span class="question-mark">?
         </span>}
@@ -703,7 +697,7 @@
             </span>.batches_buffer
             .back()
             .and_then(|last_batch| last_batch.last())
-            .map(|last_batch| last_batch.as_ref());
+            .map(|last_batch| last_batch.meta().received_at());
 
         <span class="prelude-val">Ok</span>(last)
     }
@@ -880,11 +874,8 @@
         <span class="macro">assert_eq!</span>(stack.batches_buffer_size, <span class="number">5</span>);
 
         <span class="comment">// We peek the top element.
-        </span><span class="kw">let </span>peeked_envelope = stack.peek().<span class="kw">await</span>.unwrap().unwrap();
-        <span class="macro">assert_eq!</span>(
-            peeked_envelope.event_id().unwrap(),
-            envelopes.clone()[<span class="number">4</span>].event_id().unwrap()
-        );
+        </span><span class="kw">let </span>peeked = stack.peek().<span class="kw">await</span>.unwrap().unwrap();
+        <span class="macro">assert_eq!</span>(peeked, envelopes.clone()[<span class="number">4</span>].received_at());
 
         <span class="comment">// We pop 5 envelopes.
         </span><span class="kw">for </span>envelope <span class="kw">in </span>envelopes.iter().rev() {
@@ -918,11 +909,8 @@
         <span class="macro">assert_eq!</span>(stack.batches_buffer_size, <span class="number">10</span>);
 
         <span class="comment">// We peek the top element.
-        </span><span class="kw">let </span>peeked_envelope = stack.peek().<span class="kw">await</span>.unwrap().unwrap();
-        <span class="macro">assert_eq!</span>(
-            peeked_envelope.event_id().unwrap(),
-            envelopes.clone()[<span class="number">14</span>].event_id().unwrap()
-        );
+        </span><span class="kw">let </span>peeked = stack.peek().<span class="kw">await</span>.unwrap().unwrap();
+        <span class="macro">assert_eq!</span>(peeked, envelopes[<span class="number">14</span>].received_at());
 
         <span class="comment">// We pop 10 envelopes, and we expect that the last 10 are in memory, since the first 5
         // should have been spooled to disk.
@@ -936,10 +924,10 @@
         <span class="macro">assert_eq!</span>(stack.batches_buffer_size, <span class="number">0</span>);
 
         <span class="comment">// We peek the top element, which since the buffer is empty should result in a disk load.
-        </span><span class="kw">let </span>peeked_envelope = stack.peek().<span class="kw">await</span>.unwrap().unwrap();
+        </span><span class="kw">let </span>peeked = stack.peek().<span class="kw">await</span>.unwrap().unwrap();
         <span class="macro">assert_eq!</span>(
-            peeked_envelope.event_id().unwrap(),
-            envelopes.clone()[<span class="number">4</span>].event_id().unwrap()
+            peeked.timestamp_millis(),
+            envelopes[<span class="number">4</span>].received_at().timestamp_millis()
         );
 
         <span class="comment">// We insert a new envelope, to test the load from disk happening during `peek()` gives

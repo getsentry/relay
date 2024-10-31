@@ -33,7 +33,11 @@
 <a href="#33" id="33">33</a>
 <a href="#34" id="34">34</a>
 <a href="#35" id="35">35</a>
+<a href="#36" id="36">36</a>
+<a href="#37" id="37">37</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
+
+<span class="kw">use </span>chrono::{DateTime, Utc};
 
 <span class="kw">use </span><span class="kw">crate</span>::Envelope;
 
@@ -56,8 +60,8 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">async fn </span>peek(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Envelope&gt;, <span class="self">Self</span>::Error&gt; {
-        <span class="prelude-val">Ok</span>(<span class="self">self</span>.<span class="number">0</span>.last().map(Box::as_ref))
+    <span class="kw">async fn </span>peek(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;, <span class="self">Self</span>::Error&gt; {
+        <span class="prelude-val">Ok</span>(<span class="self">self</span>.<span class="number">0</span>.last().map(|e| e.meta().received_at()))
     }
 
     <span class="kw">async fn </span>pop(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;Box&lt;Envelope&gt;&gt;, <span class="self">Self</span>::Error&gt; {

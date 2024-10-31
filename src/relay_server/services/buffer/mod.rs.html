@@ -767,6 +767,15 @@
 <a href="#767" id="767">767</a>
 <a href="#768" id="768">768</a>
 <a href="#769" id="769">769</a>
+<a href="#770" id="770">770</a>
+<a href="#771" id="771">771</a>
+<a href="#772" id="772">772</a>
+<a href="#773" id="773">773</a>
+<a href="#774" id="774">774</a>
+<a href="#775" id="775">775</a>
+<a href="#776" id="776">776</a>
+<a href="#777" id="777">777</a>
+<a href="#778" id="778">778</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Types for buffering envelopes.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -775,6 +784,8 @@
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
+<span class="kw">use </span>chrono::DateTime;
+<span class="kw">use </span>chrono::Utc;
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_system::{Addr, FromMessage, Interface, NoResponse, Receiver, Service};
@@ -784,6 +795,7 @@
 <span class="kw">use </span>tokio::time::{timeout, Instant};
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::Envelope;
+<span class="kw">use </span><span class="kw">crate</span>::services::buffer::common::ProjectKeyPair;
 <span class="kw">use </span><span class="kw">crate</span>::services::buffer::envelope_buffer::Peek;
 <span class="kw">use </span><span class="kw">crate</span>::services::global_config;
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::DiscardReason;
@@ -998,9 +1010,10 @@
 
                 Duration::MAX <span class="comment">// wait for reset by `handle_message`.
             </span>}
-            Peek::Ready(envelope) | Peek::NotReady(.., envelope)
-                <span class="kw">if </span><span class="self">Self</span>::expired(config, envelope) =&gt;
-            {
+            Peek::Ready { last_received_at }
+            | Peek::NotReady {
+                last_received_at, ..
+            } <span class="kw">if </span>is_expired(last_received_at, config) =&gt; {
                 <span class="kw">let </span>envelope = buffer
                     .pop()
                     .<span class="kw">await</span><span class="question-mark">?
@@ -1010,7 +1023,7 @@
 
                 Duration::ZERO <span class="comment">// try next pop immediately
             </span>}
-            Peek::Ready(<span class="kw">_</span>) =&gt; {
+            Peek::Ready { .. } =&gt; {
                 <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService: popping envelope"</span>);
                 <span class="macro">relay_statsd::metric!</span>(
                     counter(RelayCounters::BufferTryPop) += <span class="number">1</span>,
@@ -1024,7 +1037,11 @@
 
                 Duration::ZERO <span class="comment">// try next pop immediately
             </span>}
-            Peek::NotReady(stack_key, next_project_fetch, envelope) =&gt; {
+            Peek::NotReady {
+                project_key_pair,
+                next_project_fetch,
+                last_received_at: <span class="kw">_</span>,
+            } =&gt; {
                 <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService: project(s) of envelope not ready"</span>);
                 <span class="macro">relay_statsd::metric!</span>(
                     counter(RelayCounters::BufferTryPop) += <span class="number">1</span>,
@@ -1036,20 +1053,19 @@
                 // avoid flooding the project cache with `UpdateProject` messages.
                 </span><span class="kw">if </span>Instant::now() &gt;= next_project_fetch {
                     <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService: requesting project(s) update"</span>);
-                    <span class="kw">let </span>own_key = envelope.meta().public_key();
+                    <span class="kw">let </span>ProjectKeyPair {
+                        own_key,
+                        sampling_key,
+                    } = project_key_pair;
 
                     services.project_cache.send(UpdateProject(own_key));
-                    <span class="kw">match </span>envelope.sampling_key() {
-                        <span class="prelude-val">None </span>=&gt; {}
-                        <span class="prelude-val">Some</span>(sampling_key) <span class="kw">if </span>sampling_key == own_key =&gt; {} <span class="comment">// already sent.
-                        </span><span class="prelude-val">Some</span>(sampling_key) =&gt; {
-                            services.project_cache.send(UpdateProject(sampling_key));
-                        }
+                    <span class="kw">if </span>sampling_key != own_key {
+                        services.project_cache.send(UpdateProject(sampling_key));
                     }
 
                     <span class="comment">// Deprioritize the stack to prevent head-of-line blocking and update the next fetch
                     // time.
-                    </span>buffer.mark_seen(<span class="kw-2">&amp;</span>stack_key, DEFAULT_SLEEP);
+                    </span>buffer.mark_seen(<span class="kw-2">&amp;</span>project_key_pair, DEFAULT_SLEEP);
                 }
 
                 DEFAULT_SLEEP <span class="comment">// wait and prioritize handling new messages.
@@ -1057,10 +1073,6 @@
         };
 
         <span class="prelude-val">Ok</span>(sleep)
-    }
-
-    <span class="kw">fn </span>expired(config: <span class="kw-2">&amp;</span>Config, envelope: <span class="kw-2">&amp;</span>Envelope) -&gt; bool {
-        envelope.age() &gt; config.spool_envelopes_max_age()
     }
 
     <span class="kw">fn </span>drop_expired(envelope: Box&lt;Envelope&gt;, services: <span class="kw-2">&amp;</span>Services) {
@@ -1137,6 +1149,12 @@
         <span class="self">self</span>.has_capacity
             .store(buffer.has_capacity(), Ordering::Relaxed);
     }
+}
+
+<span class="kw">fn </span>is_expired(last_received_at: DateTime&lt;Utc&gt;, config: <span class="kw-2">&amp;</span>Config) -&gt; bool {
+    (Utc::now() - last_received_at)
+        .to_std()
+        .is_ok_and(|age| age &gt; config.spool_envelopes_max_age())
 }
 
 <span class="kw">impl </span>Service <span class="kw">for </span>EnvelopeBufferService {
