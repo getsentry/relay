@@ -260,6 +260,7 @@ mod tests {
             ),
             platform: "php",
             was_transaction: true,
+            ingest_in_eap: false,
             other: {},
         }
         "###);
