@@ -573,6 +573,9 @@ fn scrub_mongodb_query(query: &str, command: &str, collection: &str) -> Option<S
 
     let root = query.as_object_mut()?;
 
+    // Buffers are unnecessary noise so the entire key-value pair should be removed
+    root.remove("buffer");
+
     for value in root.values_mut() {
         scrub_mongodb_visit_node(value, 3);
     }
@@ -607,9 +610,8 @@ fn scrub_mongodb_visit_node(value: &mut Value, recursion_limit: usize) {
             }
         }
         Value::Array(arr) => {
-            for value in arr.iter_mut() {
-                scrub_mongodb_visit_node(value, recursion_limit - 1);
-            }
+            arr.clear();
+            arr.push(Value::String("...".to_owned()));
         }
         Value::String(str) => {
             str.clear();
@@ -1572,10 +1574,10 @@ mod tests {
 
     mongodb_scrubbing_test!(
         mongodb_max_depth,
-        r#"{"insert": "coll", "documents": [{"foo": {"bar": {"baz": "quux"}}}]}"#,
-        "insert",
+        r#"{"update": "coll", "updates": {"q": {"_id": "1"}, "u": {"$set": {"foo": {"bar": {"baz": "quux"}}}}}}"#,
+        "update",
         "coll",
-        r#"{"documents":[{"foo":{"bar":"?"}}],"insert":"coll"}"#
+        r#"{"update":"coll","updates":{"q":{"_id":"?"},"u":{"$set":{"foo":"?"}}}}"#
     );
 
     mongodb_scrubbing_test!(
@@ -1584,5 +1586,21 @@ mod tests {
         "find",
         "documents001",
         r#"{"find":"documents{%s}","showRecordId":"?"}"#
+    );
+
+    mongodb_scrubbing_test!(
+        mongodb_query_with_array,
+        r#"{"insert": "documents", "documents": [{"foo": "bar"}, {"baz": "quux"}, {"qux": "quuz"}]}"#,
+        "insert",
+        "documents",
+        r#"{"documents":["..."],"insert":"documents"}"#
+    );
+
+    mongodb_scrubbing_test!(
+        mongodb_query_with_buffer,
+        r#"{"insert": "documents", "buffer": {"0": "a", "1": "b", "2": "c"}, "documents": [{"foo": "bar"}]}"#,
+        "insert",
+        "documents",
+        r#"{"documents":["..."],"insert":"documents"}"#
     );
 }

@@ -190,9 +190,6 @@ fn handle_replay_event_item(
                 ReplayError::InvalidPayload(_) => {
                     ProcessingError::InvalidReplay(DiscardReason::InvalidReplayEvent)
                 }
-                ReplayError::DateInTheFuture => {
-                    ProcessingError::InvalidReplay(DiscardReason::DateInTheFuture)
-                }
             })
         }
     }
