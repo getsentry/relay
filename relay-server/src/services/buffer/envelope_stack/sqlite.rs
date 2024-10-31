@@ -166,6 +166,7 @@ impl EnvelopeStack for SqliteEnvelopeStack {
         let Some(envelope) = self.batch.last() else {
             return Ok(None);
         };
+
         Ok(Some(envelope.received_at()))
     }
 
@@ -199,6 +200,14 @@ mod tests {
     use super::*;
     use crate::services::buffer::testutils::utils::{mock_envelope, mock_envelopes, setup_db};
 
+    /// Helper function to calculate the total size of a slice of envelopes after compression
+    fn calculate_compressed_size(envelopes: &[Box<Envelope>]) -> usize {
+        envelopes
+            .iter()
+            .map(|e| DatabaseEnvelope::try_from(e.as_ref()).unwrap().len())
+            .sum()
+    }
+
     #[tokio::test]
     #[should_panic]
     async fn test_push_with_mismatching_project_keys() {
@@ -223,16 +232,19 @@ mod tests {
     async fn test_push_when_db_is_not_valid() {
         let db = setup_db(false).await;
         let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
+
+        // Create envelopes first so we can calculate actual size
+        let envelopes = mock_envelopes(4);
+        let threshold_size = calculate_compressed_size(&envelopes) - 1;
+
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store,
             10,
-            COMPRESSED_ENVELOPE_SIZE * 4 - 1,
+            threshold_size,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
         );
-
-        let envelopes = mock_envelopes(4);
 
         // We push the 4 envelopes without errors because they are below the threshold.
         for envelope in envelopes.clone() {
@@ -344,22 +356,26 @@ mod tests {
     async fn test_push_above_threshold_and_pop() {
         let db = setup_db(true).await;
         let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
+
+        // Create envelopes first so we can calculate actual size
+        let envelopes = mock_envelopes(7);
+        let threshold_size = calculate_compressed_size(&envelopes[..5]) - 1;
+
+        // Create stack with threshold just below the size of first 5 envelopes
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store,
             10,
-            5 * COMPRESSED_ENVELOPE_SIZE - 1,
+            threshold_size,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
         );
 
-        let envelopes = mock_envelopes(7);
-
         // We push 7 envelopes.
         for envelope in envelopes.clone() {
             assert!(stack.push(envelope).await.is_ok());
         }
-        assert_eq!(stack.batch.len(), 2); // five have been pushed to disk.
+        assert_eq!(stack.batch.len(), 2);
 
         // We peek the top element.
         let peeked = stack.peek().await.unwrap().unwrap();
