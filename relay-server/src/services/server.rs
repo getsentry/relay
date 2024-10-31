@@ -13,7 +13,7 @@ use relay_config::Config;
 use relay_system::{Controller, Service, Shutdown};
 use socket2::TcpKeepalive;
 use tokio::net::{TcpSocket, TcpStream};
-use tower::{Layer, ServiceBuilder};
+use tower::ServiceBuilder;
 use tower_http::compression::predicate::SizeAbove;
 use tower_http::compression::{CompressionLayer, DefaultPredicate, Predicate};
 use tower_http::set_header::SetResponseHeaderLayer;
