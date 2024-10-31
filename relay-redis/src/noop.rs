@@ -52,4 +52,6 @@ pub struct RedisPools {
     pub cardinality: RedisPool,
     /// The pool used for rate limiting/quotas.
     pub quotas: RedisPool,
+    /// The pool used for metrics metadata.
+    pub misc: RedisPool,
 }

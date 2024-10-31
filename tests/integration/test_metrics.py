@@ -2,6 +2,7 @@ import hashlib
 from collections import defaultdict
 from datetime import UTC, datetime, timedelta, timezone
 from pathlib import Path
+from sentry_sdk.envelope import Envelope, Item, PayloadRef
 import json
 import signal
 import time
@@ -133,9 +134,52 @@ def test_metrics_proxy_mode_statsd(mini_sentry, relay):
     relay.send_metrics(project_id, metrics_payload)
     envelope = mini_sentry.captured_events.get(timeout=3)
     assert len(envelope.items) == 1
-    item = envelope.items[0]
-    assert item.type == "statsd"
-    assert item.get_bytes().decode() == metrics_payload
+    metric_meta_item = envelope.items[0]
+    assert metric_meta_item.type == "statsd"
+    assert metric_meta_item.get_bytes().decode() == metrics_payload
+
+
+def test_metrics_proxy_mode_metrics_meta(mini_sentry, relay):
+    relay = relay(
+        mini_sentry,
+        options={
+            "relay": {"mode": "proxy"},
+            "aggregator": {
+                "bucket_interval": 1,
+                "initial_delay": 0,
+                "shift_key": "none",
+            },
+        },
+    )
+
+    location = {
+        "type": "location",
+        "function": "_scan_for_suspect_projects",
+        "module": "sentry.tasks.low_priority_symbolication",
+        "filename": "sentry/tasks/low_priority_symbolication.py",
+        "abs_path": "/usr/src/sentry/src/sentry/tasks/low_priority_symbolication.py",
+        "lineno": 45,
+    }
+
+    meta_payload = {
+        "timestamp": datetime.now(tz=timezone.utc).isoformat(),
+        "mapping": {
+            "d:custom/sentry.process_profile.track_outcome@second": [
+                location,
+            ]
+        },
+    }
+    meta_payload = json.dumps(meta_payload, sort_keys=True)
+
+    envelope = Envelope()
+    envelope.add_item(Item(PayloadRef(json=meta_payload), type="metric_meta"))
+    relay.send_envelope(42, envelope)
+
+    envelope = mini_sentry.captured_events.get(timeout=3)
+    assert len(envelope.items) == 1
+    metric_meta_item = envelope.items[0]
+    assert metric_meta_item.type == "metric_meta"
+    assert json.loads(metric_meta_item.get_bytes().decode()) == meta_payload
 
 
 def test_metrics(mini_sentry, relay):

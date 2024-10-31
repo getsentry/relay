@@ -435,6 +435,7 @@ fn is_duplicate(item: &Item, processing_enabled: bool) -> bool {
         ItemType::Sessions => false,
         ItemType::Statsd => false,
         ItemType::MetricBuckets => false,
+        ItemType::MetricMeta => false,
         ItemType::ClientReport => false,
         ItemType::Profile => false,
         ItemType::ReplayEvent => false,

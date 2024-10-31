@@ -30,7 +30,7 @@ use relay_event_schema::protocol::{
     ClientReport, Event, EventId, EventType, IpAddr, Metrics, NetworkReportError,
 };
 use relay_filter::FilterStatKey;
-use relay_metrics::{Bucket, BucketMetadata, BucketView, BucketsView, MetricNamespace};
+use relay_metrics::{Bucket, BucketMetadata, BucketView, BucketsView, MetricMeta, MetricNamespace};
 use relay_pii::PiiConfigError;
 use relay_profiling::ProfileId;
 use relay_protocol::Annotated;
@@ -52,6 +52,7 @@ use {
         RedisSetLimiterOptions,
     },
     relay_dynamic_config::{CardinalityLimiterMode, GlobalConfig, MetricExtractionGroups},
+    relay_metrics::RedisMetricMetaStore,
     relay_quotas::{Quota, RateLimitingError, RedisRateLimiter},
     relay_redis::{RedisPool, RedisPools},
     std::iter::Chain,
@@ -73,7 +74,7 @@ use crate::services::metrics::{Aggregator, MergeBuckets};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::event::FiltersStatus;
 use crate::services::projects::cache::{
-    BucketSource, ProcessMetrics, ProjectCache, UpdateRateLimits,
+    AddMetricMeta, BucketSource, ProcessMetrics, ProjectCache, UpdateRateLimits,
 };
 use crate::services::projects::project::{ProjectInfo, ProjectState};
 use crate::services::test_store::{Capture, TestStore};
@@ -1000,6 +1001,15 @@ pub struct ProcessBatchedMetrics {
     pub sent_at: Option<DateTime<Utc>>,
 }
 
+/// Parses a list of metric meta items and pushes them to the project cache for aggregation.
+#[derive(Debug)]
+pub struct ProcessMetricMeta {
+    /// A list of metric meta items.
+    pub items: Vec<Item>,
+    /// The target project.
+    pub project_key: ProjectKey,
+}
+
 /// Metric buckets with additional project.
 #[derive(Debug, Clone)]
 pub struct ProjectMetrics {
@@ -1016,6 +1026,18 @@ pub struct ProjectMetrics {
 pub struct EncodeMetrics {
     pub partition_key: Option<u64>,
     pub scopes: BTreeMap<Scoping, ProjectMetrics>,
+}
+
+/// Encodes metric meta into an [`Envelope`] and sends it upstream.
+///
+/// At the moment, upstream means directly into Redis for processing relays
+/// and otherwise submitting the Envelope via HTTP to the [`UpstreamRelay`].
+#[derive(Debug)]
+pub struct EncodeMetricMeta {
+    /// Scoping of the meta.
+    pub scoping: Scoping,
+    /// The metric meta.
+    pub meta: MetricMeta,
 }
 
 /// Sends an envelope to the upstream or Kafka.
@@ -1039,7 +1061,9 @@ pub enum EnvelopeProcessor {
     ProcessEnvelope(Box<ProcessEnvelope>),
     ProcessProjectMetrics(Box<ProcessProjectMetrics>),
     ProcessBatchedMetrics(Box<ProcessBatchedMetrics>),
+    ProcessMetricMeta(Box<ProcessMetricMeta>),
     EncodeMetrics(Box<EncodeMetrics>),
+    EncodeMetricMeta(Box<EncodeMetricMeta>),
     SubmitEnvelope(Box<SubmitEnvelope>),
     SubmitClientReports(Box<SubmitClientReports>),
 }
@@ -1051,7 +1075,9 @@ impl EnvelopeProcessor {
             EnvelopeProcessor::ProcessEnvelope(_) => "ProcessEnvelope",
             EnvelopeProcessor::ProcessProjectMetrics(_) => "ProcessProjectMetrics",
             EnvelopeProcessor::ProcessBatchedMetrics(_) => "ProcessBatchedMetrics",
+            EnvelopeProcessor::ProcessMetricMeta(_) => "ProcessMetricMeta",
             EnvelopeProcessor::EncodeMetrics(_) => "EncodeMetrics",
+            EnvelopeProcessor::EncodeMetricMeta(_) => "EncodeMetricMeta",
             EnvelopeProcessor::SubmitEnvelope(_) => "SubmitEnvelope",
             EnvelopeProcessor::SubmitClientReports(_) => "SubmitClientReports",
         }
@@ -1084,11 +1110,27 @@ impl FromMessage<ProcessBatchedMetrics> for EnvelopeProcessor {
     }
 }
 
+impl FromMessage<ProcessMetricMeta> for EnvelopeProcessor {
+    type Response = NoResponse;
+
+    fn from_message(message: ProcessMetricMeta, _: ()) -> Self {
+        Self::ProcessMetricMeta(Box::new(message))
+    }
+}
+
 impl FromMessage<EncodeMetrics> for EnvelopeProcessor {
     type Response = NoResponse;
 
     fn from_message(message: EncodeMetrics, _: ()) -> Self {
         Self::EncodeMetrics(Box::new(message))
+    }
+}
+
+impl FromMessage<EncodeMetricMeta> for EnvelopeProcessor {
+    type Response = NoResponse;
+
+    fn from_message(message: EncodeMetricMeta, _: ()) -> Self {
+        Self::EncodeMetricMeta(Box::new(message))
     }
 }
 
@@ -1153,6 +1195,8 @@ struct InnerProcessor {
     rate_limiter: Option<RedisRateLimiter>,
     geoip_lookup: Option<GeoIpLookup>,
     #[cfg(feature = "processing")]
+    metric_meta_store: Option<RedisMetricMetaStore>,
+    #[cfg(feature = "processing")]
     cardinality_limiter: Option<CardinalityLimiter>,
     metric_outcomes: MetricOutcomes,
 }
@@ -1179,13 +1223,14 @@ impl EnvelopeProcessorService {
         });
 
         #[cfg(feature = "processing")]
-        let (cardinality, quotas) = match redis {
+        let (cardinality, quotas, misc) = match redis {
             Some(RedisPools {
                 cardinality,
                 quotas,
+                misc,
                 ..
-            }) => (Some(cardinality), Some(quotas)),
-            None => (None, None),
+            }) => (Some(cardinality), Some(quotas), Some(misc)),
+            None => (None, None, None),
         };
 
         let inner = InnerProcessor {
@@ -1199,6 +1244,10 @@ impl EnvelopeProcessorService {
                 .map(|quotas| RedisRateLimiter::new(quotas).max_limit(config.max_rate_limit())),
             addrs,
             geoip_lookup,
+            #[cfg(feature = "processing")]
+            metric_meta_store: misc.map(|misc| {
+                RedisMetricMetaStore::new(misc, config.metrics_meta_locations_expiry())
+            }),
             #[cfg(feature = "processing")]
             cardinality_limiter: cardinality
                 .map(|cardinality| {
@@ -2185,6 +2234,35 @@ impl EnvelopeProcessorService {
         }
     }
 
+    fn handle_process_metric_meta(&self, message: ProcessMetricMeta) {
+        let ProcessMetricMeta { items, project_key } = message;
+
+        for item in items {
+            if item.ty() != &ItemType::MetricMeta {
+                relay_log::error!(
+                    "invalid item of type {} passed to ProcessMetricMeta",
+                    item.ty()
+                );
+                continue;
+            }
+
+            let payload = item.payload();
+            match serde_json::from_slice::<MetricMeta>(&payload) {
+                Ok(meta) => {
+                    relay_log::trace!("adding metric metadata to project cache");
+                    self.inner
+                        .addrs
+                        .project_cache
+                        .send(AddMetricMeta { project_key, meta });
+                }
+                Err(error) => {
+                    metric!(counter(RelayCounters::MetricMetaParsingFailed) += 1);
+                    relay_log::debug!(error = &error as &dyn Error, "failed to parse metric meta");
+                }
+            }
+        }
+    }
+
     fn handle_submit_envelope(&self, message: SubmitEnvelope) {
         let SubmitEnvelope { mut envelope } = message;
 
@@ -2758,6 +2836,54 @@ impl EnvelopeProcessorService {
         }
     }
 
+    fn handle_encode_metric_meta(&self, message: EncodeMetricMeta) {
+        #[cfg(feature = "processing")]
+        if self.inner.config.processing_enabled() {
+            return self.store_metric_meta(message);
+        }
+
+        self.encode_metric_meta(message);
+    }
+
+    fn encode_metric_meta(&self, message: EncodeMetricMeta) {
+        let EncodeMetricMeta { scoping, meta } = message;
+
+        let upstream = self.inner.config.upstream_descriptor();
+        let dsn = PartialDsn::outbound(&scoping, upstream);
+
+        let mut item = Item::new(ItemType::MetricMeta);
+        item.set_payload(ContentType::Json, serde_json::to_vec(&meta).unwrap());
+        let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn));
+        envelope.add_item(item);
+
+        let envelope = ManagedEnvelope::new(
+            envelope,
+            self.inner.addrs.outcome_aggregator.clone(),
+            self.inner.addrs.test_store.clone(),
+            ProcessingGroup::Metrics,
+        );
+        self.handle_submit_envelope(SubmitEnvelope {
+            envelope: envelope.into_processed(),
+        });
+    }
+
+    #[cfg(feature = "processing")]
+    fn store_metric_meta(&self, message: EncodeMetricMeta) {
+        let EncodeMetricMeta { scoping, meta } = message;
+
+        let Some(ref metric_meta_store) = self.inner.metric_meta_store else {
+            return;
+        };
+
+        let r = metric_meta_store.store(scoping.organization_id, scoping.project_id, meta);
+        if let Err(error) = r {
+            relay_log::error!(
+                error = &error as &dyn std::error::Error,
+                "failed to store metric meta in redis"
+            )
+        }
+    }
+
     #[cfg(all(test, feature = "processing"))]
     fn redis_rate_limiter_enabled(&self) -> bool {
         self.inner.rate_limiter.is_some()
@@ -2778,7 +2904,9 @@ impl EnvelopeProcessorService {
                 EnvelopeProcessor::ProcessBatchedMetrics(m) => {
                     self.handle_process_batched_metrics(&mut cogs, *m)
                 }
+                EnvelopeProcessor::ProcessMetricMeta(m) => self.handle_process_metric_meta(*m),
                 EnvelopeProcessor::EncodeMetrics(m) => self.handle_encode_metrics(*m),
+                EnvelopeProcessor::EncodeMetricMeta(m) => self.handle_encode_metric_meta(*m),
                 EnvelopeProcessor::SubmitEnvelope(m) => self.handle_submit_envelope(*m),
                 EnvelopeProcessor::SubmitClientReports(m) => self.handle_submit_client_reports(*m),
             }
@@ -2790,6 +2918,7 @@ impl EnvelopeProcessorService {
             EnvelopeProcessor::ProcessEnvelope(v) => AppFeature::from(v.envelope.group()).into(),
             EnvelopeProcessor::ProcessProjectMetrics(_) => AppFeature::Unattributed.into(),
             EnvelopeProcessor::ProcessBatchedMetrics(_) => AppFeature::Unattributed.into(),
+            EnvelopeProcessor::ProcessMetricMeta(_) => AppFeature::MetricMeta.into(),
             EnvelopeProcessor::EncodeMetrics(v) => v
                 .scopes
                 .values()
@@ -2803,6 +2932,7 @@ impl EnvelopeProcessorService {
                     }
                 })
                 .fold(FeatureWeights::none(), FeatureWeights::merge),
+            EnvelopeProcessor::EncodeMetricMeta(_) => AppFeature::MetricMeta.into(),
             EnvelopeProcessor::SubmitEnvelope(v) => AppFeature::from(v.envelope.group()).into(),
             EnvelopeProcessor::SubmitClientReports(_) => AppFeature::ClientReports.into(),
         }

@@ -559,9 +559,17 @@ impl Default for Metrics {
 }
 
 /// Controls processing of Sentry metrics and metric metadata.
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
 struct SentryMetrics {
+    /// Code locations expiry in seconds.
+    ///
+    /// Defaults to 15 days.
+    pub meta_locations_expiry: u64,
+    /// Maximum amount of code locations to store per metric.
+    ///
+    /// Defaults to 5.
+    pub meta_locations_max: usize,
     /// Whether metric stats are collected and emitted.
     ///
     /// Metric stats are always collected and emitted when processing
@@ -573,6 +581,16 @@ struct SentryMetrics {
     ///
     /// Defaults to `false`.
     pub metric_stats_enabled: bool,
+}
+
+impl Default for SentryMetrics {
+    fn default() -> Self {
+        Self {
+            meta_locations_expiry: 15 * 24 * 60 * 60,
+            meta_locations_max: 5,
+            metric_stats_enabled: false,
+        }
+    }
 }
 
 /// Controls various limits
@@ -615,6 +633,8 @@ struct Limits {
     max_statsd_size: ByteSize,
     /// The maximum payload size for metric buckets.
     max_metric_buckets_size: ByteSize,
+    /// The maximum payload size for metric metadata.
+    max_metric_meta_size: ByteSize,
     /// The maximum payload size for a compressed replay.
     max_replay_compressed_size: ByteSize,
     /// The maximum payload size for an uncompressed replay.
@@ -666,6 +686,7 @@ impl Default for Limits {
             max_span_size: ByteSize::mebibytes(1),
             max_statsd_size: ByteSize::mebibytes(1),
             max_metric_buckets_size: ByteSize::mebibytes(1),
+            max_metric_meta_size: ByteSize::mebibytes(1),
             max_replay_compressed_size: ByteSize::mebibytes(10),
             max_replay_uncompressed_size: ByteSize::mebibytes(100),
             max_replay_message_size: ByteSize::mebibytes(15),
@@ -2050,6 +2071,16 @@ impl Config {
         self.values.metrics.sample_rate
     }
 
+    /// Returns the maximum amount of code locations per metric.
+    pub fn metrics_meta_locations_max(&self) -> usize {
+        self.values.sentry_metrics.meta_locations_max
+    }
+
+    /// Returns the expiry for code locations.
+    pub fn metrics_meta_locations_expiry(&self) -> Duration {
+        Duration::from_secs(self.values.sentry_metrics.meta_locations_expiry)
+    }
+
     /// Returns the interval for periodic metrics emitted from Relay.
     ///
     /// `None` if periodic metrics are disabled.
@@ -2263,6 +2294,11 @@ impl Config {
     /// Returns the maximum payload size of metric buckets in bytes.
     pub fn max_metric_buckets_size(&self) -> usize {
         self.values.limits.max_metric_buckets_size.as_bytes()
+    }
+
+    /// Returns the maximum payload size of metric metadata in bytes.
+    pub fn max_metric_meta_size(&self) -> usize {
+        self.values.limits.max_metric_meta_size.as_bytes()
     }
 
     /// Whether metric stats are collected and emitted.

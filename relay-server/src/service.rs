@@ -431,21 +431,25 @@ pub fn create_redis_pools(configs: RedisPoolConfigs) -> Result<RedisPools, Redis
                 project_configs: pool.clone(),
                 cardinality: pool.clone(),
                 quotas: pool.clone(),
+                misc: pool,
             })
         }
         RedisPoolConfigs::Individual {
             project_configs,
             cardinality,
             quotas,
+            misc,
         } => {
             let project_configs = create_redis_pool(project_configs)?;
             let cardinality = create_redis_pool(cardinality)?;
             let quotas = create_redis_pool(quotas)?;
+            let misc = create_redis_pool(misc)?;
 
             Ok(RedisPools {
                 project_configs,
                 cardinality,
                 quotas,
+                misc,
             })
         }
     }
@@ -456,10 +460,11 @@ fn initialize_redis_scripts_for_pools(redis_pools: &RedisPools) -> Result<(), Re
     let project_configs = redis_pools.project_configs.client()?;
     let cardinality = redis_pools.cardinality.client()?;
     let quotas = redis_pools.quotas.client()?;
+    let misc = redis_pools.misc.client()?;
 
     let scripts = RedisScripts::all();
 
-    let pools = [project_configs, cardinality, quotas];
+    let pools = [project_configs, cardinality, quotas, misc];
     for pool in pools {
         initialize_redis_scripts(pool, &scripts)?;
     }
