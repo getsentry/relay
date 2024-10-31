@@ -848,7 +848,7 @@ mod tests {
             extracted_metrics: ProcessingExtractedMetrics::new(),
             config: Arc::new(Config::default()),
             project_info,
-            rate_limits: RateLimits::default(),
+            rate_limits: Arc::new(RateLimits::default()),
             sampling_project_info: None,
             project_id: ProjectId::new(42),
             managed_envelope: managed_envelope.try_into().unwrap(),

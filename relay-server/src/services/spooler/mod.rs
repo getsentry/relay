@@ -54,7 +54,7 @@ use tokio::sync::mpsc;
 use crate::envelope::{Envelope, EnvelopeError};
 use crate::services::outcome::TrackOutcome;
 use crate::services::processor::ProcessingGroup;
-use crate::services::projects::cache::{ProjectCache, RefreshIndexCache, UpdateSpoolIndex};
+use crate::services::projects::cache::legacy::{ProjectCache, RefreshIndexCache, UpdateSpoolIndex};
 use crate::services::test_store::TestStore;
 use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::{ManagedEnvelope, MemoryChecker};
@@ -156,7 +156,6 @@ impl QueueKey {
 /// It's sent in response to [`DequeueMany`] message from the [`ProjectCache`].
 #[derive(Debug)]
 pub struct UnspooledEnvelope {
-    pub key: QueueKey,
     pub managed_envelope: ManagedEnvelope,
 }
 
@@ -375,7 +374,6 @@ impl InMemory {
                 self.envelope_count = self.envelope_count.saturating_sub(1);
                 sender
                     .send(UnspooledEnvelope {
-                        key,
                         managed_envelope: envelope,
                     })
                     .ok();
@@ -585,14 +583,9 @@ impl OnDisk {
                 };
 
                 match self.extract_envelope(envelope, services) {
-                    Ok((key, managed_envelopes)) => {
+                    Ok((_, managed_envelopes)) => {
                         for managed_envelope in managed_envelopes {
-                            sender
-                                .send(UnspooledEnvelope {
-                                    key,
-                                    managed_envelope,
-                                })
-                                .ok();
+                            sender.send(UnspooledEnvelope { managed_envelope }).ok();
                         }
                     }
                     Err(err) => relay_log::error!(
@@ -1436,10 +1429,7 @@ mod tests {
                 sender: tx.clone(),
             });
 
-            let UnspooledEnvelope {
-                key: _,
-                managed_envelope,
-            } = rx.recv().await.unwrap();
+            let UnspooledEnvelope { managed_envelope } = rx.recv().await.unwrap();
             let received_at_received = managed_envelope.received_at();
 
             // Check if the original start time elapsed to the same second as the restored one.
