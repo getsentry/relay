@@ -554,7 +554,7 @@ pub enum RelayTimers {
     BufferEnvelopesSerialization,
     /// Timing in milliseconds for the time it takes for the envelopes to be compressed (sampled).
     BufferEnvelopeCompression,
-
+    /// Timing in milliseconds to the time it takes to read an HTTP body.
     BodyReading,
 }
 
