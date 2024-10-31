@@ -33,8 +33,8 @@ services:
     extra_hosts:
       - host.docker.internal:host-gateway
     networks:
-      - sentry
+      - devservices
 
 networks:
-  sentry:
-    name: sentry
+  devservices:
+    name: devservices
