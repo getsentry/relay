@@ -1,3 +1,4 @@
+use std::error::Error;
 use std::fmt::Debug;
 use std::num::NonZeroUsize;
 
@@ -79,32 +80,23 @@ impl SqliteEnvelopeStack {
     /// In case there is a failure while writing envelopes, all the envelopes that were enqueued
     /// to be written to disk are lost. The explanation for this behavior can be found in the body
     /// of the method.
-    async fn spool_to_disk(&mut self) -> Result<(), SqliteEnvelopeStackError> {
+    async fn spool_to_disk(&mut self) {
         let batch = std::mem::take(&mut self.batch);
         relay_statsd::metric!(counter(RelayCounters::BufferSpooledEnvelopes) += batch.len() as u64);
 
-        // When early return here, we are acknowledging that the elements that we popped from
-        // the buffer are lost in case of failure. We are doing this on purposes, since if we were
-        // to have a database corruption during runtime, and we were to put the values back into
-        // the buffer we will end up with an infinite cycle.
-
-        if let Some(join_handle) = self.join_handle.take() {
-            let res = join_handle.await.unwrap(); // TODO
-            let mut store = self.envelope_store.clone();
-            self.join_handle = Some(tokio::spawn(async move {
-                relay_statsd::metric!(timer(RelayTimers::BufferSpool), {
-                    store
-                        .insert_many(batch)
-                        .await
-                        .map_err(SqliteEnvelopeStackError::EnvelopeStoreError)
-                })
-            }));
-        }
+        self.previous_write().await;
+        let mut store = self.envelope_store.clone();
+        self.join_handle = Some(tokio::spawn(async move {
+            relay_statsd::metric!(timer(RelayTimers::BufferSpool), {
+                store
+                    .insert_many(batch)
+                    .await
+                    .map_err(SqliteEnvelopeStackError::EnvelopeStoreError)
+            })
+        }));
 
         // If we successfully spooled to disk, we know that data should be there.
         self.check_disk = true;
-
-        Ok(())
     }
 
     /// Unspools from disk up to `disk_batch_size` envelopes and appends them to the `buffer`.
@@ -115,10 +107,7 @@ impl SqliteEnvelopeStack {
     /// In case an envelope fails deserialization due to malformed data in the database, the affected
     /// envelope will not be unspooled and unspooling will continue with the remaining envelopes.
     async fn unspool_from_disk(&mut self) -> Result<(), SqliteEnvelopeStackError> {
-        if let Some(join_handle) = self.join_handle.take() {
-            // wait for writers
-            let res = join_handle.await.unwrap(); // TODO
-        }
+        self.previous_write().await;
 
         debug_assert!(self.batch.is_empty());
         self.batch = relay_statsd::metric!(timer(RelayTimers::BufferUnspool), {
@@ -144,6 +133,21 @@ impl SqliteEnvelopeStack {
         Ok(())
     }
 
+    async fn previous_write(&mut self) {
+        if let Some(join_handle) = self.join_handle.take() {
+            match join_handle.await {
+                Ok(res) => {
+                    if let Err(e) = res {
+                        relay_log::error!(error = &e as &dyn Error, "error on previous write");
+                    }
+                }
+                Err(e) => {
+                    relay_log::error!(error = &e as &dyn Error, "join error");
+                }
+            }
+        }
+    }
+
     /// Validates that the incoming [`Envelope`] has the same project keys at the
     /// [`SqliteEnvelopeStack`].
     fn validate_envelope(&self, envelope: &Envelope) -> bool {
@@ -161,7 +165,7 @@ impl EnvelopeStack for SqliteEnvelopeStack {
         debug_assert!(self.validate_envelope(&envelope));
 
         if self.above_spool_threshold() {
-            self.spool_to_disk().await?;
+            self.spool_to_disk().await;
         }
 
         let encoded_envelope =
