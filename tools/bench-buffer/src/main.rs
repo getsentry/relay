@@ -128,7 +128,9 @@ async fn run_sequential(
     let start_time = Instant::now();
 
     let mut last_check = Instant::now();
+    let mut total_write_duration = Duration::ZERO;
     let mut write_duration = Duration::ZERO;
+    let mut total_writes = 0;
     let mut writes = 0;
     while start_time.elapsed() < duration / 2 {
         let envelope = mock_envelope(envelope_size, project_count, compression_ratio);
@@ -137,13 +139,21 @@ async fn run_sequential(
         buffer.push(envelope).await.unwrap();
         let after = Instant::now();
 
+        total_write_duration += after - before;
         write_duration += after - before;
+        total_writes += 1;
         writes += 1;
 
         if (after - last_check) > Duration::from_secs(1) {
+            let total_throughput =
+                (total_writes * bytes_per_envelope) as f64 / total_write_duration.as_secs_f64();
+            let total_throughput = total_throughput / 1024.0 / 1024.0;
+
             let throughput = (writes * bytes_per_envelope) as f64 / write_duration.as_secs_f64();
             let throughput = throughput / 1024.0 / 1024.0;
-            println!("Write throughput: {throughput:.2} MiB / s");
+            println!(
+                "Write throughput: {throughput:.2} MiB / s, total {total_throughput:.2} MiB / s"
+            );
             write_duration = Duration::ZERO;
             writes = 0;
             last_check = after;
