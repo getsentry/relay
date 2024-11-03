@@ -4,6 +4,7 @@ use clap::{Parser, ValueEnum};
 use rand::RngCore;
 use relay_config::Config;
 use relay_server::{Envelope, MemoryChecker, MemoryStat, PolymorphicEnvelopeBuffer};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -37,6 +38,8 @@ struct Args {
     projects: usize,
     #[arg(long, default_value_t = 60)]
     duration_secs: u64,
+    #[arg(long, default_value = None)]
+    db: Option<PathBuf>,
 }
 
 #[tokio::main]
@@ -52,9 +55,11 @@ async fn main() {
         mode,
         projects,
         duration_secs,
+        db,
     } = args;
 
     let dir = tempfile::tempdir().unwrap();
+    let path = db.unwrap_or(dir.path().join("envelopes.db"));
 
     let config = Arc::new(
         Config::from_json_value(serde_json::json!({
@@ -66,7 +71,7 @@ async fn main() {
                     },
                     "path": match implementation {
                         Impl::Memory => None,
-                        Impl::Sqlite => Some(dir.path().join("envelopes.db")),
+                        Impl::Sqlite => Some(path),
                     },
                     "write_batch_bytes": write_batch_kib * 1024,
                     "read_batch_size": read_batch_size,
