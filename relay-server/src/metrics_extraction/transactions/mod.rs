@@ -657,7 +657,6 @@ mod tests {
                 _metrics_summary: ~,
                 platform: ~,
                 was_transaction: ~,
-                ingest_in_eap: ~,
                 other: {},
             },
         ]

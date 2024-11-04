@@ -713,7 +713,6 @@ mod tests {
             ),
             platform: "php",
             was_transaction: ~,
-            ingest_in_eap: ~,
             other: {},
         }
         "###);
