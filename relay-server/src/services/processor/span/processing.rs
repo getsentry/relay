@@ -206,16 +206,6 @@ pub fn process(
             }
         };
 
-        if let Some(span) = annotated_span.value_mut() {
-            span.ingest_in_eap = Annotated::new(
-                state
-                    .project_info
-                    .config
-                    .features
-                    .has(Feature::IngestSpansInEap),
-            );
-        }
-
         // Write back:
         let mut new_item = Item::new(ItemType::Span);
         let payload = match annotated_span.to_json() {
@@ -227,6 +217,13 @@ pub fn process(
         };
         new_item.set_payload(ContentType::Json, payload);
         new_item.set_metrics_extracted(item.metrics_extracted());
+        new_item.set_ingest_span_in_eap(
+            state
+                .project_info
+                .config
+                .features
+                .has(Feature::IngestSpansInEap),
+        );
 
         *item = new_item;
 
@@ -289,6 +286,11 @@ pub fn extract_from_event(
         .envelope()
         .dsc()
         .and_then(|ctx| ctx.sample_rate);
+    let ingest_in_eap = state
+        .project_info
+        .config
+        .features
+        .has(Feature::IngestSpansInEap);
 
     let mut add_span = |mut span: Span| {
         add_sample_rate(
@@ -340,6 +342,7 @@ pub fn extract_from_event(
         item.set_payload(ContentType::Json, span);
         // If metrics extraction happened for the event, it also happened for its spans:
         item.set_metrics_extracted(state.event_metrics_extracted);
+        item.set_ingest_span_in_eap(ingest_in_eap);
 
         relay_log::trace!("Adding span to envelope");
         state.managed_envelope.envelope_mut().add_item(item);
@@ -371,12 +374,6 @@ pub fn extract_from_event(
         return;
     };
 
-    let ingest_in_eap = state
-        .project_info
-        .config
-        .features
-        .has(Feature::IngestSpansInEap);
-
     // Add child spans as envelope items.
     if let Some(child_spans) = event.spans.value() {
         for span in child_spans {
@@ -391,8 +388,6 @@ pub fn extract_from_event(
             new_span.segment_id = transaction_span.segment_id.clone();
             new_span.platform = transaction_span.platform.clone();
 
-            new_span.set_ingest_span_in_eap(ingest_in_eap);
-
             // If a profile is associated with the transaction, also associate it with its
             // child spans.
             new_span.profile_id = transaction_span.profile_id.clone();
@@ -400,8 +395,6 @@ pub fn extract_from_event(
             add_span(new_span);
         }
     }
-
-    transaction_span.set_ingest_span_in_eap(ingest_in_eap);
 
     add_span(transaction_span);
 
