@@ -274,6 +274,7 @@ impl EnvelopeBufferService {
                 // avoid flooding the project cache with `UpdateProject` messages.
                 if Instant::now() >= next_project_fetch {
                     relay_log::trace!("EnvelopeBufferService: requesting project(s) update");
+
                     let ProjectKeyPair {
                         own_key,
                         sampling_key,
