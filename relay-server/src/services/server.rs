@@ -20,8 +20,8 @@ use tower_http::set_header::SetResponseHeaderLayer;
 
 use crate::constants;
 use crate::middlewares::{
-    self, CatchPanicLayer, NewSentryLayer, NormalizePath, RequestDecompressionLayer,
-    SentryHttpLayer,
+    self, BodyTimingLayer, CatchPanicLayer, NewSentryLayer, NormalizePath,
+    RequestDecompressionLayer, SentryHttpLayer,
 };
 use crate::service::ServiceState;
 use crate::statsd::RelayCounters;
@@ -63,6 +63,7 @@ fn make_app(service: ServiceState) -> App {
     //  - Requests go from top to bottom
     //  - Responses go from bottom to top
     let middleware = ServiceBuilder::new()
+        .layer(BodyTimingLayer)
         .layer(axum::middleware::from_fn(middlewares::metrics))
         .layer(CatchPanicLayer::custom(middlewares::handle_panic))
         .layer(SetResponseHeaderLayer::overriding(

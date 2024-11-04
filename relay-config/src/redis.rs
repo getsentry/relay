@@ -178,8 +178,6 @@ pub enum RedisConfigs {
         cardinality: Box<RedisConfig>,
         /// Configuration for the `quotas` pool.
         quotas: Box<RedisConfig>,
-        /// Configuration for the `misc` pool.
-        misc: Box<RedisConfig>,
     },
 }
 
@@ -221,8 +219,6 @@ pub enum RedisPoolConfigs<'a> {
         cardinality: RedisConfigRef<'a>,
         /// Configuration for the `quotas` pool.
         quotas: RedisConfigRef<'a>,
-        /// Configuration for the `misc` pool.
-        misc: RedisConfigRef<'a>,
     },
 }
 
@@ -292,18 +288,15 @@ pub(super) fn create_redis_pools(configs: &RedisConfigs, cpu_concurrency: u32) -
             project_configs,
             cardinality,
             quotas,
-            misc,
         } => {
             let project_configs =
                 create_redis_pool(project_configs, project_configs_default_connections);
             let cardinality = create_redis_pool(cardinality, cpu_concurrency);
             let quotas = create_redis_pool(quotas, cpu_concurrency);
-            let misc = create_redis_pool(misc, cpu_concurrency);
             RedisPoolConfigs::Individual {
                 project_configs,
                 cardinality,
                 quotas,
-                misc,
             }
         }
     }
@@ -378,16 +371,6 @@ quotas:
         - "redis://127.0.0.2:6379"
     max_connections: 17
     connection_timeout: 5
-misc:
-    configs:
-        - cluster_nodes:
-            - "redis://127.0.0.1:6379"
-            - "redis://127.0.0.2:6379"
-          max_connections: 42
-          connection_timeout: 5
-        - server: "redis://127.0.0.1:6379"
-          max_connections: 84
-          connection_timeout: 10
 "#;
 
         let configs: RedisConfigs = serde_yaml::from_str(yaml)
@@ -416,29 +399,6 @@ misc:
                     connection_timeout: 5,
                     ..Default::default()
                 },
-            }),
-            misc: Box::new(RedisConfig::MultiWrite {
-                configs: vec![
-                    RedisConfig::Cluster {
-                        cluster_nodes: vec![
-                            "redis://127.0.0.1:6379".to_owned(),
-                            "redis://127.0.0.2:6379".to_owned(),
-                        ],
-                        options: PartialRedisConfigOptions {
-                            max_connections: Some(42),
-                            connection_timeout: 5,
-                            ..Default::default()
-                        },
-                    },
-                    RedisConfig::Single(SingleRedisConfig::Detailed {
-                        server: "redis://127.0.0.1:6379".to_owned(),
-                        options: PartialRedisConfigOptions {
-                            max_connections: Some(84),
-                            connection_timeout: 10,
-                            ..Default::default()
-                        },
-                    }),
-                ],
             }),
         };
 
@@ -733,17 +693,6 @@ read_timeout: 10
                     }),
                 ],
             }),
-            misc: Box::new(RedisConfig::Cluster {
-                cluster_nodes: vec![
-                    "redis://127.0.0.1:6379".to_owned(),
-                    "redis://127.0.0.2:6379".to_owned(),
-                ],
-                options: PartialRedisConfigOptions {
-                    max_connections: Some(84),
-                    connection_timeout: 10,
-                    ..Default::default()
-                },
-            }),
         };
 
         assert_json_snapshot!(configs, @r###"
@@ -789,18 +738,6 @@ read_timeout: 10
                 "write_timeout": 3
               }
             ]
-          },
-          "misc": {
-            "cluster_nodes": [
-              "redis://127.0.0.1:6379",
-              "redis://127.0.0.2:6379"
-            ],
-            "max_connections": 84,
-            "connection_timeout": 10,
-            "max_lifetime": 300,
-            "idle_timeout": 60,
-            "read_timeout": 3,
-            "write_timeout": 3
           }
         }
         "###);

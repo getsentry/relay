@@ -122,13 +122,11 @@ impl RelayStats {
             project_configs,
             cardinality,
             quotas,
-            misc,
         }) = self.redis_pools.as_ref()
         {
             Self::redis_pool(project_configs, "project_configs");
             Self::redis_pool(cardinality, "cardinality");
             Self::redis_pool(quotas, "quotas");
-            Self::redis_pool(misc, "misc");
         }
     }
 }
