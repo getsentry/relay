@@ -1,5 +1,6 @@
 use crate::statsd::RelayTimers;
 use axum::body::{Body, HttpBody};
+use axum::extract::MatchedPath;
 use axum::http::Request;
 use hyper::body::Frame;
 use relay_statsd::metric;
@@ -58,7 +59,8 @@ where
 
     fn call(&mut self, req: Request<Body>) -> Self::Future {
         let (parts, body) = req.into_parts();
-        let timed_body = Body::new(TimedBody::new(body, parts.uri.to_string()));
+        let matched_path = parts.extensions.get::<MatchedPath>().cloned();
+        let timed_body = Body::new(TimedBody::new(body, matched_path));
         let request = Request::from_parts(parts, timed_body);
         self.inner.call(request)
     }
@@ -69,11 +71,11 @@ struct TimedBody {
     inner: Body,
     reading_started_at: Option<Instant>,
     size: usize,
-    route: String,
+    route: Option<MatchedPath>,
 }
 
 impl TimedBody {
-    fn new(inner: Body, route: String) -> Self {
+    fn new(inner: Body, route: Option<MatchedPath>) -> Self {
         Self {
             inner,
             reading_started_at: None,
@@ -91,7 +93,7 @@ impl TimedBody {
     fn emit_metric(&self, duration: Duration, status: &str) {
         metric!(
             timer(RelayTimers::BodyReading) = duration,
-            route = &self.route,
+            route = self.route.as_ref().map_or("unknown", |p| p.as_str()),
             size = size_category(self.size),
             status = status
         )
@@ -174,14 +176,14 @@ mod tests {
             let mut cx = Context::from_waker(waker);
 
             let empty_body = Body::from(vec![]);
-            let mut timed_body = TimedBody::new(empty_body, "example/route".to_string());
+            let mut timed_body = TimedBody::new(empty_body, None);
             let pinned = Pin::new(&mut timed_body);
 
             let _ = pinned.poll_frame(&mut cx);
         });
         assert_eq!(
             captures,
-            ["body.reading.duration:0|ms|#route:example/route,size:<1KB,status:completed"]
+            ["body.reading.duration:0|ms|#route:unknown,size:<1KB,status:completed"]
         );
     }
 
@@ -192,7 +194,7 @@ mod tests {
             let mut cx = Context::from_waker(waker);
 
             let body = Body::new("cool test".to_string());
-            let mut timed_body = TimedBody::new(body, "example/route".to_string());
+            let mut timed_body = TimedBody::new(body, None);
             let mut pinned = Pin::new(&mut timed_body);
 
             let _ = pinned.as_mut().poll_frame(&mut cx);
@@ -200,7 +202,7 @@ mod tests {
         });
         assert_eq!(
             captures,
-            ["body.reading.duration:0|ms|#route:example/route,size:<1KB,status:completed"]
+            ["body.reading.duration:0|ms|#route:unknown,size:<1KB,status:completed"]
         );
     }
 
@@ -211,14 +213,14 @@ mod tests {
             let mut cx = Context::from_waker(waker);
 
             let body = Body::new("just calling this once".to_string());
-            let mut timed_body = TimedBody::new(body, "example/route".to_string());
+            let mut timed_body = TimedBody::new(body, None);
             let pinned = Pin::new(&mut timed_body);
 
             let _ = pinned.poll_frame(&mut cx);
         });
         assert_eq!(
             captures,
-            ["body.reading.duration:0|ms|#route:example/route,size:<1KB,status:dropped"]
+            ["body.reading.duration:0|ms|#route:unknown,size:<1KB,status:dropped"]
         )
     }
 
@@ -226,7 +228,7 @@ mod tests {
     fn test_dropped_before_reading() {
         let captures = with_capturing_test_client(|| {
             let body = Body::new("dropped".to_string());
-            let _ = TimedBody::new(body, "example/route".to_string());
+            let _ = TimedBody::new(body, None);
         });
         assert_eq!(captures.len(), 0);
     }
@@ -238,14 +240,14 @@ mod tests {
             let mut cx = Context::from_waker(waker);
 
             let body = Body::new(ErrorBody {});
-            let mut timed_body = TimedBody::new(body, "example/route".to_string());
+            let mut timed_body = TimedBody::new(body, None);
 
             let pinned = Pin::new(&mut timed_body);
             let _ = pinned.poll_frame(&mut cx);
         });
         assert_eq!(
             captures,
-            ["body.reading.duration:0|ms|#route:example/route,size:<1KB,status:failed"]
+            ["body.reading.duration:0|ms|#route:unknown,size:<1KB,status:failed"]
         )
     }
 
@@ -258,14 +260,14 @@ mod tests {
             let data = (0..2000).map(|i| i as u8).collect::<Vec<u8>>();
 
             let body = Body::from(data);
-            let mut timed_body = TimedBody::new(body, "example/route".to_string());
+            let mut timed_body = TimedBody::new(body, None);
 
             let mut pinned = Pin::new(&mut timed_body);
             while let Poll::Ready(Some(Ok(_))) = pinned.as_mut().poll_frame(&mut cx) {}
         });
         assert_eq!(
             captures,
-            ["body.reading.duration:0|ms|#route:example/route,size:<10KB,status:completed"]
+            ["body.reading.duration:0|ms|#route:unknown,size:<10KB,status:completed"]
         )
     }
 
