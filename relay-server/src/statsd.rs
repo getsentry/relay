@@ -321,6 +321,8 @@ impl HistogramMetric for RelayHistograms {
                 "buffer.backpressure_envelopes_count"
             }
             RelayHistograms::BufferEnvelopeBodySize => "buffer.envelope_body_size",
+            RelayHistograms::BufferEnvelopeSize => "buffer.envelope_size",
+            RelayHistograms::BufferEnvelopeSizeCompressed => "buffer.envelope_size.compressed",
             RelayHistograms::ProjectStatePending => "project_state.pending",
             RelayHistograms::ProjectStateAttempts => "project_state.attempts",
             RelayHistograms::ProjectStateRequestBatchSize => "project_state.request.batch_size",
