@@ -92,7 +92,7 @@ impl TimedBody {
 
     fn emit_metric(&self, duration: Duration, status: &str) {
         metric!(
-            timer(RelayTimers::BodyReading) = duration,
+            timer(RelayTimers::BodyReadDuration) = duration,
             route = self.route.as_ref().map_or("unknown", |p| p.as_str()),
             size = size_category(self.size),
             status = status
@@ -183,7 +183,7 @@ mod tests {
         });
         assert_eq!(
             captures,
-            ["body.reading.duration:0|ms|#route:unknown,size:<1KB,status:completed"]
+            ["requests.body_read.duration:0|ms|#route:unknown,size:<1KB,status:completed"]
         );
     }
 
@@ -202,7 +202,7 @@ mod tests {
         });
         assert_eq!(
             captures,
-            ["body.reading.duration:0|ms|#route:unknown,size:<1KB,status:completed"]
+            ["requests.body_read.duration:0|ms|#route:unknown,size:<1KB,status:completed"]
         );
     }
 
@@ -220,7 +220,7 @@ mod tests {
         });
         assert_eq!(
             captures,
-            ["body.reading.duration:0|ms|#route:unknown,size:<1KB,status:dropped"]
+            ["requests.body_read.duration:0|ms|#route:unknown,size:<1KB,status:dropped"]
         )
     }
 
@@ -247,7 +247,7 @@ mod tests {
         });
         assert_eq!(
             captures,
-            ["body.reading.duration:0|ms|#route:unknown,size:<1KB,status:failed"]
+            ["requests.body_read.duration:0|ms|#route:unknown,size:<1KB,status:failed"]
         )
     }
 
@@ -267,7 +267,7 @@ mod tests {
         });
         assert_eq!(
             captures,
-            ["body.reading.duration:0|ms|#route:unknown,size:<10KB,status:completed"]
+            ["requests.body_read.duration:0|ms|#route:unknown,size:<10KB,status:completed"]
         )
     }
 

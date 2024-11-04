@@ -552,7 +552,7 @@ pub enum RelayTimers {
     /// Timing in milliseconds for the time it takes for the envelopes to be serialized.
     BufferEnvelopesSerialization,
     /// Timing in milliseconds to the time it takes to read an HTTP body.
-    BodyReading,
+    BodyReadDuration,
 }
 
 impl TimerMetric for RelayTimers {
@@ -604,7 +604,7 @@ impl TimerMetric for RelayTimers {
             RelayTimers::BufferPop => "buffer.pop.duration",
             RelayTimers::BufferDrain => "buffer.drain.duration",
             RelayTimers::BufferEnvelopesSerialization => "buffer.envelopes_serialization",
-            RelayTimers::BodyReading => "body.reading.duration",
+            RelayTimers::BodyReadDuration => "requests.body_read.duration",
         }
     }
 }
