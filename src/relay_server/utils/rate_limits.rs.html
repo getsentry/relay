@@ -1518,8 +1518,6 @@
 <a href="#1518" id="1518">1518</a>
 <a href="#1519" id="1519">1519</a>
 <a href="#1520" id="1520">1520</a>
-<a href="#1521" id="1521">1521</a>
-<a href="#1522" id="1522">1522</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt::{<span class="self">self</span>, Write};
 
 <span class="kw">use </span>relay_quotas::{
@@ -1642,7 +1640,6 @@
         ItemType::Sessions =&gt; <span class="prelude-val">None</span>,
         ItemType::Statsd =&gt; <span class="prelude-val">None</span>,
         ItemType::MetricBuckets =&gt; <span class="prelude-val">None</span>,
-        ItemType::MetricMeta =&gt; <span class="prelude-val">None</span>,
         ItemType::FormData =&gt; <span class="prelude-val">None</span>,
         ItemType::UserReport =&gt; <span class="prelude-val">None</span>,
         ItemType::Profile =&gt; <span class="prelude-val">None</span>,
@@ -2014,7 +2011,6 @@
             | ItemType::Sessions
             | ItemType::Statsd
             | ItemType::MetricBuckets
-            | ItemType::MetricMeta
             | ItemType::ClientReport
             | ItemType::UserReportV2
             | ItemType::ProfileChunk

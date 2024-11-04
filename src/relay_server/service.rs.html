@@ -497,10 +497,7 @@
 <a href="#497" id="497">497</a>
 <a href="#498" id="498">498</a>
 <a href="#499" id="499">499</a>
-<a href="#500" id="500">500</a>
-<a href="#501" id="501">501</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
-<span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
@@ -509,11 +506,12 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::cogs::{CogsService, CogsServiceRecorder};
 <span class="kw">use </span><span class="kw">crate</span>::services::global_config::{GlobalConfigManager, GlobalConfigService};
 <span class="kw">use </span><span class="kw">crate</span>::services::health_check::{HealthCheck, HealthCheckService};
-<span class="kw">use </span><span class="kw">crate</span>::services::metrics::{Aggregator, RouterService};
+<span class="kw">use </span><span class="kw">crate</span>::services::metrics::RouterService;
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome_aggregator::OutcomeAggregator;
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{<span class="self">self</span>, EnvelopeProcessor, EnvelopeProcessorService};
-<span class="kw">use </span><span class="kw">crate</span>::services::projects::cache::{ProjectCache, ProjectCacheService, Services};
+<span class="kw">use </span><span class="kw">crate</span>::services::projects::cache::{legacy, ProjectCacheHandle, ProjectCacheService};
+<span class="kw">use </span><span class="kw">crate</span>::services::projects::source::ProjectSource;
 <span class="kw">use </span><span class="kw">crate</span>::services::relays::{RelayCache, RelayCacheService};
 <span class="kw">use </span><span class="kw">crate</span>::services::stats::RelayStats;
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
@@ -553,9 +551,8 @@
     </span>Redis,
 }
 
-<span class="attr">#[derive(Clone)]
+<span class="attr">#[derive(Clone, Debug)]
 </span><span class="kw">pub struct </span>Registry {
-    <span class="kw">pub </span>aggregator: Addr&lt;Aggregator&gt;,
     <span class="kw">pub </span>health_check: Addr&lt;HealthCheck&gt;,
     <span class="kw">pub </span>outcome_producer: Addr&lt;OutcomeProducer&gt;,
     <span class="kw">pub </span>outcome_aggregator: Addr&lt;TrackOutcome&gt;,
@@ -563,21 +560,11 @@
     <span class="kw">pub </span>test_store: Addr&lt;TestStore&gt;,
     <span class="kw">pub </span>relay_cache: Addr&lt;RelayCache&gt;,
     <span class="kw">pub </span>global_config: Addr&lt;GlobalConfigManager&gt;,
-    <span class="kw">pub </span>project_cache: Addr&lt;ProjectCache&gt;,
+    <span class="kw">pub </span>legacy_project_cache: Addr&lt;legacy::ProjectCache&gt;,
     <span class="kw">pub </span>upstream_relay: Addr&lt;UpstreamRelay&gt;,
     <span class="kw">pub </span>envelope_buffer: <span class="prelude-ty">Option</span>&lt;ObservableEnvelopeBuffer&gt;,
-}
 
-<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Registry {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-        f.debug_struct(<span class="string">"Registry"</span>)
-            .field(<span class="string">"aggregator"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.aggregator)
-            .field(<span class="string">"health_check"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.health_check)
-            .field(<span class="string">"outcome_producer"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.outcome_producer)
-            .field(<span class="string">"outcome_aggregator"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.outcome_aggregator)
-            .field(<span class="string">"processor"</span>, <span class="kw-2">&amp;</span><span class="macro">format_args!</span>(<span class="string">"Addr&lt;Processor&gt;"</span>))
-            .finish()
-    }
+    <span class="kw">pub </span>project_cache_handle: ProjectCacheHandle,
 }
 
 <span class="doccomment">/// Constructs a tokio [`Runtime`] configured for running [services](relay_system::Service).
@@ -645,6 +632,7 @@
 </span><span class="kw">struct </span>StateInner {
     config: Arc&lt;Config&gt;,
     memory_checker: MemoryChecker,
+
     registry: Registry,
 }
 
@@ -699,12 +687,23 @@
         // service fail if the service is not running.
         </span><span class="kw">let </span>global_config = global_config.start();
 
-        <span class="kw">let </span>(project_cache, project_cache_rx) = channel(ProjectCacheService::name());
+        <span class="kw">let </span>(legacy_project_cache, legacy_project_cache_rx) =
+            channel(legacy::ProjectCacheService::name());
+
+        <span class="kw">let </span>project_source = ProjectSource::start(
+            Arc::clone(<span class="kw-2">&amp;</span>config),
+            upstream_relay.clone(),
+            redis_pools
+                .as_ref()
+                .map(|pools| pools.project_configs.clone()),
+        );
+        <span class="kw">let </span>project_cache_handle =
+            ProjectCacheService::new(Arc::clone(<span class="kw-2">&amp;</span>config), project_source).start();
 
         <span class="kw">let </span>aggregator = RouterService::new(
             config.default_aggregator_config().clone(),
             config.secondary_aggregator_configs().clone(),
-            <span class="prelude-val">Some</span>(project_cache.clone().recipient()),
+            <span class="prelude-val">Some</span>(legacy_project_cache.clone().recipient()),
         );
         <span class="kw">let </span>aggregator_handle = aggregator.handle();
         <span class="kw">let </span>aggregator = aggregator.start();
@@ -739,11 +738,11 @@
             create_processor_pool(<span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>,
             config.clone(),
             global_config_handle,
+            project_cache_handle.clone(),
             cogs,
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>redis_pools.clone(),
             processor::Addrs {
-                project_cache: project_cache.clone(),
                 outcome_aggregator: outcome_aggregator.clone(),
                 upstream_relay: upstream_relay.clone(),
                 test_store: test_store.clone(),
@@ -762,7 +761,7 @@
             global_config_rx.clone(),
             buffer::Services {
                 envelopes_tx,
-                project_cache: project_cache.clone(),
+                project_cache_handle: project_cache_handle.clone(),
                 outcome_aggregator: outcome_aggregator.clone(),
                 test_store: test_store.clone(),
             },
@@ -770,27 +769,24 @@
         .map(|b| b.start_observable());
 
         <span class="comment">// Keep all the services in one context.
-        </span><span class="kw">let </span>project_cache_services = Services {
+        </span><span class="kw">let </span>project_cache_services = legacy::Services {
             envelope_buffer: envelope_buffer.as_ref().map(ObservableEnvelopeBuffer::addr),
             aggregator: aggregator.clone(),
             envelope_processor: processor.clone(),
             outcome_aggregator: outcome_aggregator.clone(),
-            project_cache: project_cache.clone(),
+            project_cache: legacy_project_cache.clone(),
             test_store: test_store.clone(),
-            upstream_relay: upstream_relay.clone(),
         };
 
-        ProjectCacheService::new(
+        legacy::ProjectCacheService::new(
             config.clone(),
             MemoryChecker::new(memory_stat.clone(), config.clone()),
+            project_cache_handle.clone(),
             project_cache_services,
             global_config_rx,
             envelopes_rx,
-            redis_pools
-                .as_ref()
-                .map(|pools| pools.project_configs.clone()),
         )
-        .spawn_handler(project_cache_rx);
+        .spawn_handler(legacy_project_cache_rx);
 
         <span class="kw">let </span>health_check = HealthCheckService::new(
             config.clone(),
@@ -812,7 +808,6 @@
         <span class="kw">let </span>relay_cache = RelayCacheService::new(config.clone(), upstream_relay.clone()).start();
 
         <span class="kw">let </span>registry = Registry {
-            aggregator,
             processor,
             health_check,
             outcome_producer,
@@ -820,7 +815,8 @@
             test_store,
             relay_cache,
             global_config,
-            project_cache,
+            legacy_project_cache,
+            project_cache_handle,
             upstream_relay,
             envelope_buffer,
         };
@@ -853,9 +849,14 @@
         <span class="self">self</span>.inner.registry.envelope_buffer.as_ref()
     }
 
-    <span class="doccomment">/// Returns the address of the [`ProjectCache`] service.
-    </span><span class="kw">pub fn </span>project_cache(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Addr&lt;ProjectCache&gt; {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.inner.registry.project_cache
+    <span class="doccomment">/// Returns the address of the [`legacy::ProjectCache`] service.
+    </span><span class="kw">pub fn </span>legacy_project_cache(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Addr&lt;legacy::ProjectCache&gt; {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.inner.registry.legacy_project_cache
+    }
+
+    <span class="doccomment">/// Returns a [`ProjectCacheHandle`].
+    </span><span class="kw">pub fn </span>project_cache_handle(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>ProjectCacheHandle {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.inner.registry.project_cache_handle
     }
 
     <span class="doccomment">/// Returns the address of the [`RelayCache`] service.
@@ -932,25 +933,21 @@
                 project_configs: pool.clone(),
                 cardinality: pool.clone(),
                 quotas: pool.clone(),
-                misc: pool,
             })
         }
         RedisPoolConfigs::Individual {
             project_configs,
             cardinality,
             quotas,
-            misc,
         } =&gt; {
             <span class="kw">let </span>project_configs = create_redis_pool(project_configs)<span class="question-mark">?</span>;
             <span class="kw">let </span>cardinality = create_redis_pool(cardinality)<span class="question-mark">?</span>;
             <span class="kw">let </span>quotas = create_redis_pool(quotas)<span class="question-mark">?</span>;
-            <span class="kw">let </span>misc = create_redis_pool(misc)<span class="question-mark">?</span>;
 
             <span class="prelude-val">Ok</span>(RedisPools {
                 project_configs,
                 cardinality,
                 quotas,
-                misc,
             })
         }
     }
@@ -961,11 +958,10 @@
     <span class="kw">let </span>project_configs = redis_pools.project_configs.client()<span class="question-mark">?</span>;
     <span class="kw">let </span>cardinality = redis_pools.cardinality.client()<span class="question-mark">?</span>;
     <span class="kw">let </span>quotas = redis_pools.quotas.client()<span class="question-mark">?</span>;
-    <span class="kw">let </span>misc = redis_pools.misc.client()<span class="question-mark">?</span>;
 
     <span class="kw">let </span>scripts = RedisScripts::all();
 
-    <span class="kw">let </span>pools = [project_configs, cardinality, quotas, misc];
+    <span class="kw">let </span>pools = [project_configs, cardinality, quotas];
     <span class="kw">for </span>pool <span class="kw">in </span>pools {
         initialize_redis_scripts(pool, <span class="kw-2">&amp;</span>scripts)<span class="question-mark">?</span>;
     }

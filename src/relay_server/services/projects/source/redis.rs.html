@@ -157,8 +157,8 @@
 <span class="kw">use </span>relay_redis::{RedisError, RedisPool};
 <span class="kw">use </span>relay_statsd::metric;
 
-<span class="kw">use </span><span class="kw">crate</span>::services::projects::project::state::UpstreamProjectState;
-<span class="kw">use </span><span class="kw">crate</span>::services::projects::project::{ParsedProjectState, ProjectState};
+<span class="kw">use </span><span class="kw">crate</span>::services::projects::project::{ParsedProjectState, ProjectState, Revision};
+<span class="kw">use </span><span class="kw">crate</span>::services::projects::source::SourceProjectState;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 
 <span class="attr">#[derive(Debug, Clone)]
@@ -212,13 +212,13 @@
     </span><span class="kw">pub fn </span>get_config_if_changed(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         key: ProjectKey,
-        revision: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;UpstreamProjectState, RedisProjectError&gt; {
+        revision: Revision,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;SourceProjectState, RedisProjectError&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>client = <span class="self">self</span>.redis.client()<span class="question-mark">?</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>connection = client.connection()<span class="question-mark">?</span>;
 
         <span class="comment">// Only check for the revision if we were passed a revision.
-        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(revision) = revision {
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(revision) = revision.as_str() {
             <span class="kw">let </span>current_revision: <span class="prelude-ty">Option</span>&lt;String&gt; = relay_redis::redis::cmd(<span class="string">"GET"</span>)
                 .arg(<span class="self">self</span>.get_redis_rev_key(key))
                 .query(<span class="kw-2">&amp;mut </span>connection)
@@ -232,7 +232,7 @@
                     counter(RelayCounters::ProjectStateRedis) += <span class="number">1</span>,
                     hit = <span class="string">"revision"</span>,
                 );
-                <span class="kw">return </span><span class="prelude-val">Ok</span>(UpstreamProjectState::NotModified);
+                <span class="kw">return </span><span class="prelude-val">Ok</span>(SourceProjectState::NotModified);
             }
         }
 
@@ -246,7 +246,7 @@
                 counter(RelayCounters::ProjectStateRedis) += <span class="number">1</span>,
                 hit = <span class="string">"false"
             </span>);
-            <span class="kw">return </span><span class="prelude-val">Ok</span>(UpstreamProjectState::New(ProjectState::Pending));
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(SourceProjectState::New(ProjectState::Pending));
         };
 
         <span class="kw">let </span>response = ProjectState::from(parse_redis_response(response.as_slice())<span class="question-mark">?</span>);
@@ -258,18 +258,18 @@
         //
         // While this is theoretically possible this should always been handled using the above revision
         // check using the additional Redis key.
-        </span><span class="kw">if </span>revision.is_some() &amp;&amp; response.revision() == revision {
+        </span><span class="kw">if </span>response.revision() == revision {
             <span class="macro">metric!</span>(
                 counter(RelayCounters::ProjectStateRedis) += <span class="number">1</span>,
                 hit = <span class="string">"project_config_revision"
             </span>);
-            <span class="prelude-val">Ok</span>(UpstreamProjectState::NotModified)
+            <span class="prelude-val">Ok</span>(SourceProjectState::NotModified)
         } <span class="kw">else </span>{
             <span class="macro">metric!</span>(
                 counter(RelayCounters::ProjectStateRedis) += <span class="number">1</span>,
                 hit = <span class="string">"project_config"
             </span>);
-            <span class="prelude-val">Ok</span>(UpstreamProjectState::New(response))
+            <span class="prelude-val">Ok</span>(SourceProjectState::New(response))
         }
     }
 
