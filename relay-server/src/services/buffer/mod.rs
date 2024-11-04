@@ -545,10 +545,8 @@ mod tests {
         }
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn capacity_is_updated() {
-        tokio::time::pause();
-
         let EnvelopeBufferServiceResult {
             service,
             global_tx: _global_tx,
@@ -570,10 +568,8 @@ mod tests {
         assert!(has_capacity.load(Ordering::Relaxed));
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn pop_requires_global_config() {
-        tokio::time::pause();
-
         let EnvelopeBufferServiceResult {
             service,
             global_tx,
@@ -602,10 +598,8 @@ mod tests {
         assert_eq!(envelopes_rx.len(), 1);
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn pop_requires_memory_capacity() {
-        tokio::time::pause();
-
         let EnvelopeBufferServiceResult {
             service,
             envelopes_rx,
@@ -639,10 +633,8 @@ mod tests {
         assert_eq!(envelopes_rx.len(), 0);
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn old_envelope_is_dropped() {
-        tokio::time::pause();
-
         let EnvelopeBufferServiceResult {
             service,
             envelopes_rx,
@@ -680,10 +672,8 @@ mod tests {
         assert_eq!(outcome.quantity, 1);
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_update_project() {
-        tokio::time::pause();
-
         let EnvelopeBufferServiceResult {
             service,
             mut envelopes_rx,
@@ -705,26 +695,19 @@ mod tests {
         addr.send(EnvelopeBuffer::Push(envelope.clone()));
         tokio::time::sleep(Duration::from_secs(3)).await;
 
-        let message = tokio::time::timeout(Duration::from_secs(5), envelopes_rx.recv());
-        let Some(legacy::DequeuedEnvelope(envelope)) = message.await.unwrap() else {
-            panic!();
-        };
+        let legacy::DequeuedEnvelope(envelope) = envelopes_rx.recv().await.unwrap();
 
         addr.send(EnvelopeBuffer::NotReady(project_key, envelope));
 
         tokio::time::sleep(Duration::from_millis(100)).await;
-
         assert_eq!(project_cache_handle.test_num_fetches(), 1);
 
         tokio::time::sleep(Duration::from_millis(1300)).await;
-
         assert_eq!(project_cache_handle.test_num_fetches(), 2);
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn output_is_throttled() {
-        tokio::time::pause();
-
         let EnvelopeBufferServiceResult {
             service,
             mut envelopes_rx,
