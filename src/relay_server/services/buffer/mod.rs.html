@@ -757,23 +757,6 @@
 <a href="#757" id="757">757</a>
 <a href="#758" id="758">758</a>
 <a href="#759" id="759">759</a>
-<a href="#760" id="760">760</a>
-<a href="#761" id="761">761</a>
-<a href="#762" id="762">762</a>
-<a href="#763" id="763">763</a>
-<a href="#764" id="764">764</a>
-<a href="#765" id="765">765</a>
-<a href="#766" id="766">766</a>
-<a href="#767" id="767">767</a>
-<a href="#768" id="768">768</a>
-<a href="#769" id="769">769</a>
-<a href="#770" id="770">770</a>
-<a href="#771" id="771">771</a>
-<a href="#772" id="772">772</a>
-<a href="#773" id="773">773</a>
-<a href="#774" id="774">774</a>
-<a href="#775" id="775">775</a>
-<a href="#776" id="776">776</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Types for buffering envelopes.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -1323,10 +1306,8 @@
         }
     }
 
-    <span class="attr">#[tokio::test]
+    <span class="attr">#[tokio::test(start_paused = <span class="bool-val">true</span>)]
     </span><span class="kw">async fn </span>capacity_is_updated() {
-        tokio::time::pause();
-
         <span class="kw">let </span>EnvelopeBufferServiceResult {
             service,
             global_tx: _global_tx,
@@ -1348,10 +1329,8 @@
         <span class="macro">assert!</span>(has_capacity.load(Ordering::Relaxed));
     }
 
-    <span class="attr">#[tokio::test]
+    <span class="attr">#[tokio::test(start_paused = <span class="bool-val">true</span>)]
     </span><span class="kw">async fn </span>pop_requires_global_config() {
-        tokio::time::pause();
-
         <span class="kw">let </span>EnvelopeBufferServiceResult {
             service,
             global_tx,
@@ -1380,10 +1359,8 @@
         <span class="macro">assert_eq!</span>(envelopes_rx.len(), <span class="number">1</span>);
     }
 
-    <span class="attr">#[tokio::test]
+    <span class="attr">#[tokio::test(start_paused = <span class="bool-val">true</span>)]
     </span><span class="kw">async fn </span>pop_requires_memory_capacity() {
-        tokio::time::pause();
-
         <span class="kw">let </span>EnvelopeBufferServiceResult {
             service,
             envelopes_rx,
@@ -1417,10 +1394,8 @@
         <span class="macro">assert_eq!</span>(envelopes_rx.len(), <span class="number">0</span>);
     }
 
-    <span class="attr">#[tokio::test]
+    <span class="attr">#[tokio::test(start_paused = <span class="bool-val">true</span>)]
     </span><span class="kw">async fn </span>old_envelope_is_dropped() {
-        tokio::time::pause();
-
         <span class="kw">let </span>EnvelopeBufferServiceResult {
             service,
             envelopes_rx,
@@ -1458,10 +1433,8 @@
         <span class="macro">assert_eq!</span>(outcome.quantity, <span class="number">1</span>);
     }
 
-    <span class="attr">#[tokio::test]
+    <span class="attr">#[tokio::test(start_paused = <span class="bool-val">true</span>)]
     </span><span class="kw">async fn </span>test_update_project() {
-        tokio::time::pause();
-
         <span class="kw">let </span>EnvelopeBufferServiceResult {
             service,
             <span class="kw-2">mut </span>envelopes_rx,
@@ -1483,26 +1456,19 @@
         addr.send(EnvelopeBuffer::Push(envelope.clone()));
         tokio::time::sleep(Duration::from_secs(<span class="number">3</span>)).<span class="kw">await</span>;
 
-        <span class="kw">let </span>message = tokio::time::timeout(Duration::from_secs(<span class="number">5</span>), envelopes_rx.recv());
-        <span class="kw">let </span><span class="prelude-val">Some</span>(legacy::DequeuedEnvelope(envelope)) = message.<span class="kw">await</span>.unwrap() <span class="kw">else </span>{
-            <span class="macro">panic!</span>();
-        };
+        <span class="kw">let </span>legacy::DequeuedEnvelope(envelope) = envelopes_rx.recv().<span class="kw">await</span>.unwrap();
 
         addr.send(EnvelopeBuffer::NotReady(project_key, envelope));
 
         tokio::time::sleep(Duration::from_millis(<span class="number">100</span>)).<span class="kw">await</span>;
-
         <span class="macro">assert_eq!</span>(project_cache_handle.test_num_fetches(), <span class="number">1</span>);
 
         tokio::time::sleep(Duration::from_millis(<span class="number">1300</span>)).<span class="kw">await</span>;
-
         <span class="macro">assert_eq!</span>(project_cache_handle.test_num_fetches(), <span class="number">2</span>);
     }
 
-    <span class="attr">#[tokio::test]
+    <span class="attr">#[tokio::test(start_paused = <span class="bool-val">true</span>)]
     </span><span class="kw">async fn </span>output_is_throttled() {
-        tokio::time::pause();
-
         <span class="kw">let </span>EnvelopeBufferServiceResult {
             service,
             <span class="kw-2">mut </span>envelopes_rx,
