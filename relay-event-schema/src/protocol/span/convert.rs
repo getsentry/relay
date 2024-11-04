@@ -66,7 +66,6 @@ impl From<&Event> for Span {
             _metrics_summary: _metrics_summary.clone(),
             platform: platform.clone(),
             was_transaction: true.into(),
-            ingest_in_eap: false.into(),
             other: Default::default(),
         }
     }
@@ -260,7 +259,6 @@ mod tests {
             ),
             platform: "php",
             was_transaction: true,
-            ingest_in_eap: false,
             other: {},
         }
         "###);

@@ -891,6 +891,7 @@ impl StoreService {
         span.project_id = scoping.project_id.value();
         span.retention_days = retention_days;
         span.start_timestamp_ms = (span.start_timestamp_precise * 1e3) as u64;
+        span.ingest_in_eap = item.ingest_span_in_eap();
 
         if let Some(measurements) = &mut span.measurements {
             measurements.retain(|_, v| {
@@ -1361,8 +1362,8 @@ struct SpanKafkaMessage<'a> {
     #[serde(borrow, default, skip_serializing)]
     platform: Cow<'a, str>, // We only use this for logging for now
 
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    ingest_in_eap: Option<bool>,
+    #[serde(default)]
+    ingest_in_eap: bool,
 }
 
 fn none_or_empty_object(value: &Option<&RawValue>) -> bool {
