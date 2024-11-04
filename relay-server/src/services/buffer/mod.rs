@@ -6,6 +6,8 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
 
+use chrono::DateTime;
+use chrono::Utc;
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Receiver, Service};
@@ -15,6 +17,7 @@ use tokio::sync::{mpsc, watch};
 use tokio::time::{timeout, Instant};
 
 use crate::envelope::Envelope;
+use crate::services::buffer::common::ProjectKeyPair;
 use crate::services::buffer::envelope_buffer::Peek;
 use crate::services::global_config;
 use crate::services::outcome::DiscardReason;
@@ -228,9 +231,10 @@ impl EnvelopeBufferService {
 
                 Duration::MAX // wait for reset by `handle_message`.
             }
-            Peek::Ready(envelope) | Peek::NotReady(.., envelope)
-                if Self::expired(config, envelope) =>
-            {
+            Peek::Ready { last_received_at }
+            | Peek::NotReady {
+                last_received_at, ..
+            } if is_expired(last_received_at, config) => {
                 let envelope = buffer
                     .pop()
                     .await?
@@ -240,7 +244,7 @@ impl EnvelopeBufferService {
 
                 Duration::ZERO // try next pop immediately
             }
-            Peek::Ready(_) => {
+            Peek::Ready { .. } => {
                 relay_log::trace!("EnvelopeBufferService: popping envelope");
                 relay_statsd::metric!(
                     counter(RelayCounters::BufferTryPop) += 1,
@@ -254,7 +258,11 @@ impl EnvelopeBufferService {
 
                 Duration::ZERO // try next pop immediately
             }
-            Peek::NotReady(stack_key, next_project_fetch, envelope) => {
+            Peek::NotReady {
+                project_key_pair,
+                next_project_fetch,
+                last_received_at: _,
+            } => {
                 relay_log::trace!("EnvelopeBufferService: project(s) of envelope not ready");
                 relay_statsd::metric!(
                     counter(RelayCounters::BufferTryPop) += 1,
@@ -266,20 +274,20 @@ impl EnvelopeBufferService {
                 // avoid flooding the project cache with `UpdateProject` messages.
                 if Instant::now() >= next_project_fetch {
                     relay_log::trace!("EnvelopeBufferService: requesting project(s) update");
-                    let own_key = envelope.meta().public_key();
+
+                    let ProjectKeyPair {
+                        own_key,
+                        sampling_key,
+                    } = project_key_pair;
 
                     services.project_cache_handle.fetch(own_key);
-                    match envelope.sampling_key() {
-                        None => {}
-                        Some(sampling_key) if sampling_key == own_key => {} // already sent.
-                        Some(sampling_key) => {
-                            services.project_cache_handle.fetch(sampling_key);
-                        }
+                    if sampling_key != own_key {
+                        services.project_cache_handle.fetch(sampling_key);
                     }
 
                     // Deprioritize the stack to prevent head-of-line blocking and update the next fetch
                     // time.
-                    buffer.mark_seen(&stack_key, DEFAULT_SLEEP);
+                    buffer.mark_seen(&project_key_pair, DEFAULT_SLEEP);
                 }
 
                 DEFAULT_SLEEP // wait and prioritize handling new messages.
@@ -287,10 +295,6 @@ impl EnvelopeBufferService {
         };
 
         Ok(sleep)
-    }
-
-    fn expired(config: &Config, envelope: &Envelope) -> bool {
-        envelope.age() > config.spool_envelopes_max_age()
     }
 
     fn drop_expired(envelope: Box<Envelope>, services: &Services) {
@@ -367,6 +371,12 @@ impl EnvelopeBufferService {
         self.has_capacity
             .store(buffer.has_capacity(), Ordering::Relaxed);
     }
+}
+
+fn is_expired(last_received_at: DateTime<Utc>, config: &Config) -> bool {
+    (Utc::now() - last_received_at)
+        .to_std()
+        .is_ok_and(|age| age > config.spool_envelopes_max_age())
 }
 
 impl Service for EnvelopeBufferService {
@@ -689,6 +699,8 @@ mod tests {
 
         let envelope = new_envelope(false, "foo");
         let project_key = envelope.meta().public_key();
+
+        tokio::time::sleep(Duration::from_secs(1)).await;
 
         addr.send(EnvelopeBuffer::Push(envelope.clone()));
         tokio::time::sleep(Duration::from_secs(3)).await;
