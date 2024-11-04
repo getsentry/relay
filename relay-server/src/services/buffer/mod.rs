@@ -407,7 +407,7 @@ impl Service for EnvelopeBufferService {
             buffer.initialize().await;
 
             let mut shutdown = Controller::shutdown_handle();
-            let mut project_events = self.services.project_cache_handle.changes();
+            let mut project_changes = self.services.project_cache_handle.changes();
 
             relay_log::info!("EnvelopeBufferService: starting");
             loop {
@@ -437,8 +437,10 @@ impl Service for EnvelopeBufferService {
                             }
                         }
                     }
-                    Ok(ProjectChange::Ready(project_key)) = project_events.recv() => {
-                        Self::handle_message(&mut buffer, EnvelopeBuffer::Ready(project_key)).await;
+                    change = project_changes.recv() => {
+                        if let Ok(ProjectChange::Ready(project_key)) = change {
+                            Self::handle_message(&mut buffer, EnvelopeBuffer::Ready(project_key)).await;
+                        }
                         sleep = Duration::ZERO;
                     }
                     Some(message) = rx.recv() => {

@@ -227,7 +227,7 @@ impl ProjectCacheBroker {
         }
     }
 
-    fn handle_project_event(&mut self, event: ProjectChange) {
+    fn handle_project_change(&mut self, event: ProjectChange) {
         match event {
             ProjectChange::Ready(_) => self.schedule_unspool(),
             ProjectChange::Evicted(project_key) => self.evict_project(project_key),
@@ -689,7 +689,7 @@ impl Service for ProjectCacheService {
             mut global_config_rx,
             mut envelopes_rx,
         } = self;
-        let mut project_events = project_cache_handle.changes();
+        let mut project_changes = project_cache_handle.changes();
         let project_cache = services.project_cache.clone();
         let outcome_aggregator = services.outcome_aggregator.clone();
         let test_store = services.test_store.clone();
@@ -773,9 +773,11 @@ impl Service for ProjectCacheService {
                             }
                         })
                     },
-                    Ok(project_event) = project_events.recv() => {
-                        metric!(timer(RelayTimers::LegacyProjectCacheTaskDuration), task = "handle_project_event", {
-                            broker.handle_project_event(project_event);
+                    project_change = project_changes.recv() => {
+                        metric!(timer(RelayTimers::LegacyProjectCacheTaskDuration), task = "handle_project_change", {
+                            if let Ok(project_change) = project_change {
+                                broker.handle_project_change(project_change);
+                            }
                         })
                     }
                     // Buffer will not dequeue the envelopes from the spool if there is not enough
@@ -932,7 +934,7 @@ mod tests {
             loop {
                 select! {
                     Ok(project_event) = project_events.recv() => {
-                        broker.handle_project_event(project_event);
+                        broker.handle_project_change(project_event);
                     }
                     Some(assert) = rx_assert.recv() => {
                         assert_eq!(broker.spool_v1.as_ref().unwrap().index.len(), assert);
