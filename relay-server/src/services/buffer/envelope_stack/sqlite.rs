@@ -1,7 +1,7 @@
 use std::collections::VecDeque;
-use std::fmt::Debug;
 use std::num::NonZeroUsize;
 
+use chrono::{DateTime, Utc};
 use relay_base_schema::project::ProjectKey;
 
 use crate::envelope::Envelope;
@@ -196,7 +196,7 @@ impl EnvelopeStack for SqliteEnvelopeStack {
         Ok(())
     }
 
-    async fn peek(&mut self) -> Result<Option<&Envelope>, Self::Error> {
+    async fn peek(&mut self) -> Result<Option<DateTime<Utc>>, Self::Error> {
         if self.below_unspool_threshold() && self.check_disk {
             self.unspool_from_disk().await?
         }
@@ -205,7 +205,7 @@ impl EnvelopeStack for SqliteEnvelopeStack {
             .batches_buffer
             .back()
             .and_then(|last_batch| last_batch.last())
-            .map(|last_batch| last_batch.as_ref());
+            .map(|last_batch| last_batch.meta().received_at());
 
         Ok(last)
     }
@@ -382,11 +382,8 @@ mod tests {
         assert_eq!(stack.batches_buffer_size, 5);
 
         // We peek the top element.
-        let peeked_envelope = stack.peek().await.unwrap().unwrap();
-        assert_eq!(
-            peeked_envelope.event_id().unwrap(),
-            envelopes.clone()[4].event_id().unwrap()
-        );
+        let peeked = stack.peek().await.unwrap().unwrap();
+        assert_eq!(peeked, envelopes.clone()[4].received_at());
 
         // We pop 5 envelopes.
         for envelope in envelopes.iter().rev() {
@@ -420,11 +417,8 @@ mod tests {
         assert_eq!(stack.batches_buffer_size, 10);
 
         // We peek the top element.
-        let peeked_envelope = stack.peek().await.unwrap().unwrap();
-        assert_eq!(
-            peeked_envelope.event_id().unwrap(),
-            envelopes.clone()[14].event_id().unwrap()
-        );
+        let peeked = stack.peek().await.unwrap().unwrap();
+        assert_eq!(peeked, envelopes[14].received_at());
 
         // We pop 10 envelopes, and we expect that the last 10 are in memory, since the first 5
         // should have been spooled to disk.
@@ -438,10 +432,10 @@ mod tests {
         assert_eq!(stack.batches_buffer_size, 0);
 
         // We peek the top element, which since the buffer is empty should result in a disk load.
-        let peeked_envelope = stack.peek().await.unwrap().unwrap();
+        let peeked = stack.peek().await.unwrap().unwrap();
         assert_eq!(
-            peeked_envelope.event_id().unwrap(),
-            envelopes.clone()[4].event_id().unwrap()
+            peeked.timestamp_millis(),
+            envelopes[4].received_at().timestamp_millis()
         );
 
         // We insert a new envelope, to test the load from disk happening during `peek()` gives

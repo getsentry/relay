@@ -209,9 +209,6 @@ struct EnvelopeBuffer<P: StackProvider> {
     /// This boolean is just used for tagging the metric that tracks the total count of envelopes
     /// in the buffer.
     total_count_initialized: bool,
-
-    /// Temporary field used to track compression gains.
-    push_count: usize,
 }
 
 impl EnvelopeBuffer<MemoryStackProvider> {
@@ -223,7 +220,6 @@ impl EnvelopeBuffer<MemoryStackProvider> {
             stack_provider: MemoryStackProvider::new(memory_checker),
             total_count: Arc::new(AtomicI64::new(0)),
             total_count_initialized: false,
-            push_count: 0,
         }
     }
 }
@@ -238,7 +234,6 @@ impl EnvelopeBuffer<SqliteStackProvider> {
             stack_provider: SqliteStackProvider::new(config).await?,
             total_count: Arc::new(AtomicI64::new(0)),
             total_count_initialized: false,
-            push_count: 0,
         })
     }
 }
@@ -264,32 +259,6 @@ where
     /// The priority of the stack is updated with the envelope's received_at time.
     pub async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), EnvelopeBufferError> {
         let received_at = envelope.meta().received_at();
-
-        // Temporary metric to verify compression gains
-        self.push_count += 1;
-        if 0 == (self.push_count % 100) {
-            if let Ok(serialized) = envelope.to_vec() {
-                let compression_level = (self.push_count % 3) as i32 + 1; // 1 = lowest, 3 = default
-                tokio::spawn(async move {
-                    relay_statsd::metric!(
-                        histogram(RelayHistograms::BufferEnvelopeSize) = serialized.len() as u64
-                    );
-
-                    let tag = compression_level.to_string();
-                    if let Ok(encoded) = relay_statsd::metric!(
-                        timer(RelayTimers::BufferEnvelopeCompression),
-                        compression_level = &tag,
-                        { zstd::encode_all(serialized.as_slice(), compression_level) }
-                    ) {
-                        relay_statsd::metric!(
-                            histogram(RelayHistograms::BufferEnvelopeSizeCompressed) =
-                                encoded.len() as u64,
-                            compression_level = &tag
-                        );
-                    }
-                });
-            }
-        }
 
         let project_key_pair = ProjectKeyPair::from_envelope(&envelope);
         if let Some((
@@ -326,7 +295,7 @@ where
     pub async fn peek(&mut self) -> Result<Peek, EnvelopeBufferError> {
         let Some((
             QueueItem {
-                key: stack_key,
+                key: project_key_pair,
                 value: stack,
             },
             Priority {
@@ -343,8 +312,12 @@ where
 
         Ok(match (stack.peek().await?, ready) {
             (None, _) => Peek::Empty,
-            (Some(envelope), true) => Peek::Ready(envelope),
-            (Some(envelope), false) => Peek::NotReady(*stack_key, *next_project_fetch, envelope),
+            (Some(last_received_at), true) => Peek::Ready { last_received_at },
+            (Some(last_received_at), false) => Peek::NotReady {
+                project_key_pair: *project_key_pair,
+                next_project_fetch: *next_project_fetch,
+                last_received_at,
+            },
         })
     }
 
@@ -359,20 +332,17 @@ where
         let project_key_pair = *key;
         let envelope = stack.pop().await.unwrap().expect("found an empty stack");
 
-        let next_received_at = stack
-            .peek()
-            .await?
-            .map(|next_envelope| next_envelope.received_at());
+        let last_received_at = stack.peek().await?;
 
-        match next_received_at {
+        match last_received_at {
             None => {
                 relay_statsd::metric!(counter(RelayCounters::BufferEnvelopeStacksPopped) += 1);
                 self.pop_stack(project_key_pair);
             }
-            Some(next_received_at) => {
+            Some(last_received_at) => {
                 self.priority_queue
                     .change_priority_by(&project_key_pair, |prio| {
-                        prio.received_at = next_received_at;
+                        prio.received_at = last_received_at;
                     });
             }
         }
@@ -552,11 +522,29 @@ where
     }
 }
 
-/// Contains a reference to the first element in the buffer, together with its stack's ready state.
-pub enum Peek<'a> {
+/// Contains the state of the first element in the buffer.
+pub enum Peek {
     Empty,
-    Ready(&'a Envelope),
-    NotReady(ProjectKeyPair, Instant, &'a Envelope),
+    Ready {
+        last_received_at: DateTime<Utc>,
+    },
+    NotReady {
+        project_key_pair: ProjectKeyPair,
+        next_project_fetch: Instant,
+        last_received_at: DateTime<Utc>,
+    },
+}
+
+impl Peek {
+    pub fn last_received_at(&self) -> Option<DateTime<Utc>> {
+        match self {
+            Self::Empty => None,
+            Self::Ready { last_received_at }
+            | Self::NotReady {
+                last_received_at, ..
+            } => Some(*last_received_at),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -675,16 +663,9 @@ mod tests {
 
     use super::*;
 
-    impl Peek<'_> {
+    impl Peek {
         fn is_empty(&self) -> bool {
             matches!(self, Peek::Empty)
-        }
-
-        fn envelope(&self) -> Option<&Envelope> {
-            match self {
-                Peek::Empty => None,
-                Peek::Ready(envelope) | Peek::NotReady(_, _, envelope) => Some(envelope),
-            }
         }
     }
 
@@ -734,15 +715,8 @@ mod tests {
         MemoryChecker::new(MemoryStat::default(), mock_config("my/db/path").clone())
     }
 
-    async fn peek_project_key(buffer: &mut EnvelopeBuffer<MemoryStackProvider>) -> ProjectKey {
-        buffer
-            .peek()
-            .await
-            .unwrap()
-            .envelope()
-            .unwrap()
-            .meta()
-            .public_key()
+    async fn peek_received_at(buffer: &mut EnvelopeBuffer<MemoryStackProvider>) -> DateTime<Utc> {
+        buffer.peek().await.unwrap().last_received_at().unwrap()
     }
 
     #[tokio::test]
@@ -756,52 +730,49 @@ mod tests {
         assert!(buffer.pop().await.unwrap().is_none());
         assert!(buffer.peek().await.unwrap().is_empty());
 
-        buffer
-            .push(new_envelope(project_key1, None, None))
-            .await
-            .unwrap();
+        let envelope1 = new_envelope(project_key1, None, None);
+        let time1 = envelope1.meta().received_at();
+        buffer.push(envelope1).await.unwrap();
 
-        buffer
-            .push(new_envelope(project_key2, None, None))
-            .await
-            .unwrap();
+        let envelope2 = new_envelope(project_key2, None, None);
+        let time2 = envelope2.meta().received_at();
+        buffer.push(envelope2).await.unwrap();
 
         // Both projects are ready, so project 2 is on top (has the newest envelopes):
-        assert_eq!(peek_project_key(&mut buffer).await, project_key2);
+        assert_eq!(peek_received_at(&mut buffer).await, time2);
 
         buffer.mark_ready(&project_key1, false);
         buffer.mark_ready(&project_key2, false);
 
         // Both projects are not ready, so project 1 is on top (has the oldest envelopes):
-        assert_eq!(peek_project_key(&mut buffer).await, project_key1);
+        assert_eq!(peek_received_at(&mut buffer).await, time1);
 
-        buffer
-            .push(new_envelope(project_key3, None, None))
-            .await
-            .unwrap();
+        let envelope3 = new_envelope(project_key3, None, None);
+        let time3 = envelope3.meta().received_at();
+        buffer.push(envelope3).await.unwrap();
         buffer.mark_ready(&project_key3, false);
 
         // All projects are not ready, so project 1 is on top (has the oldest envelopes):
-        assert_eq!(peek_project_key(&mut buffer).await, project_key1);
+        assert_eq!(peek_received_at(&mut buffer).await, time1);
 
         // After marking a project ready, it goes to the top:
         buffer.mark_ready(&project_key3, true);
-        assert_eq!(peek_project_key(&mut buffer).await, project_key3);
+        assert_eq!(peek_received_at(&mut buffer).await, time3);
         assert_eq!(
             buffer.pop().await.unwrap().unwrap().meta().public_key(),
             project_key3
         );
 
         // After popping, project 1 is on top again:
-        assert_eq!(peek_project_key(&mut buffer).await, project_key1);
+        assert_eq!(peek_received_at(&mut buffer).await, time1);
 
         // Mark project 1 as ready (still on top):
         buffer.mark_ready(&project_key1, true);
-        assert_eq!(peek_project_key(&mut buffer).await, project_key1);
+        assert_eq!(peek_received_at(&mut buffer).await, time1);
 
         // Mark project 2 as ready as well (now on top because most recent):
         buffer.mark_ready(&project_key2, true);
-        assert_eq!(peek_project_key(&mut buffer).await, project_key2);
+        assert_eq!(peek_received_at(&mut buffer).await, time2);
         assert_eq!(
             buffer.pop().await.unwrap().unwrap().meta().public_key(),
             project_key2
@@ -823,22 +794,22 @@ mod tests {
         let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
 
         let envelope1 = new_envelope(project_key, None, None);
-        let instant1 = envelope1.meta().received_at();
+        let time1 = envelope1.meta().received_at();
         let envelope2 = new_envelope(project_key, None, None);
-        let instant2 = envelope2.meta().received_at();
+        let time2 = envelope2.meta().received_at();
 
-        assert!(instant2 > instant1);
+        assert!(time2 > time1);
 
         buffer.push(envelope1).await.unwrap();
         buffer.push(envelope2).await.unwrap();
 
         assert_eq!(
             buffer.pop().await.unwrap().unwrap().meta().received_at(),
-            instant2
+            time2
         );
         assert_eq!(
             buffer.pop().await.unwrap().unwrap().meta().received_at(),
-            instant1
+            time1
         );
         assert!(buffer.pop().await.unwrap().is_none());
     }
@@ -851,15 +822,15 @@ mod tests {
         let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fef").unwrap();
 
         let envelope1 = new_envelope(project_key1, None, None);
-        let instant1 = envelope1.meta().received_at();
+        let time1 = envelope1.received_at();
         buffer.push(envelope1).await.unwrap();
 
         let envelope2 = new_envelope(project_key2, None, None);
-        let instant2 = envelope2.meta().received_at();
+        let time2 = envelope2.received_at();
         buffer.push(envelope2).await.unwrap();
 
         let envelope3 = new_envelope(project_key1, Some(project_key2), None);
-        let instant3 = envelope3.meta().received_at();
+        let time3 = envelope3.meta().received_at();
         buffer.push(envelope3).await.unwrap();
 
         buffer.mark_ready(&project_key1, false);
@@ -867,86 +838,45 @@ mod tests {
 
         // Nothing is ready, instant1 is on top:
         assert_eq!(
-            buffer
-                .peek()
-                .await
-                .unwrap()
-                .envelope()
-                .unwrap()
-                .meta()
-                .received_at(),
-            instant1
+            buffer.peek().await.unwrap().last_received_at().unwrap(),
+            time1
         );
 
         // Mark project 2 ready, gets on top:
         buffer.mark_ready(&project_key2, true);
         assert_eq!(
-            buffer
-                .peek()
-                .await
-                .unwrap()
-                .envelope()
-                .unwrap()
-                .meta()
-                .received_at(),
-            instant2
+            buffer.peek().await.unwrap().last_received_at().unwrap(),
+            time2
         );
 
         // Revert
         buffer.mark_ready(&project_key2, false);
         assert_eq!(
-            buffer
-                .peek()
-                .await
-                .unwrap()
-                .envelope()
-                .unwrap()
-                .meta()
-                .received_at(),
-            instant1
+            buffer.peek().await.unwrap().last_received_at().unwrap(),
+            time1
         );
 
         // Project 1 ready:
         buffer.mark_ready(&project_key1, true);
         assert_eq!(
-            buffer
-                .peek()
-                .await
-                .unwrap()
-                .envelope()
-                .unwrap()
-                .meta()
-                .received_at(),
-            instant1
+            buffer.peek().await.unwrap().last_received_at().unwrap(),
+            time1
         );
 
         // when both projects are ready, event no 3 ends up on top:
         buffer.mark_ready(&project_key2, true);
         assert_eq!(
             buffer.pop().await.unwrap().unwrap().meta().received_at(),
-            instant3
+            time3
         );
         assert_eq!(
-            buffer
-                .peek()
-                .await
-                .unwrap()
-                .envelope()
-                .unwrap()
-                .meta()
-                .received_at(),
-            instant2
+            buffer.peek().await.unwrap().last_received_at().unwrap(),
+            time2
         );
 
         buffer.mark_ready(&project_key2, false);
-        assert_eq!(
-            buffer.pop().await.unwrap().unwrap().meta().received_at(),
-            instant1
-        );
-        assert_eq!(
-            buffer.pop().await.unwrap().unwrap().meta().received_at(),
-            instant2
-        );
+        assert_eq!(buffer.pop().await.unwrap().unwrap().received_at(), time1);
+        assert_eq!(buffer.pop().await.unwrap().unwrap().received_at(), time2);
 
         assert!(buffer.pop().await.unwrap().is_none());
     }
@@ -998,10 +928,12 @@ mod tests {
         let project_key_1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let event_id_1 = EventId::new();
         let envelope1 = new_envelope(project_key_1, None, Some(event_id_1));
+        let time1 = envelope1.received_at();
 
         let project_key_2 = ProjectKey::parse("b56ae32be2584e0bbd7a4cbb95971fed").unwrap();
         let event_id_2 = EventId::new();
         let envelope2 = new_envelope(project_key_2, None, Some(event_id_2));
+        let time2 = envelope2.received_at();
 
         buffer.push(envelope1).await.unwrap();
         buffer.push(envelope2).await.unwrap();
@@ -1010,37 +942,60 @@ mod tests {
         buffer.mark_ready(&project_key_2, false);
 
         // event_id_1 is first element:
-        let Peek::NotReady(_, _, envelope) = buffer.peek().await.unwrap() else {
+        let Peek::NotReady {
+            last_received_at, ..
+        } = buffer.peek().await.unwrap()
+        else {
             panic!();
         };
-        assert_eq!(envelope.event_id(), Some(event_id_1));
+        assert_eq!(last_received_at, time1);
 
         // Second peek returns same element:
-        let Peek::NotReady(stack_key, _, envelope) = buffer.peek().await.unwrap() else {
+        let Peek::NotReady {
+            last_received_at,
+            project_key_pair,
+            ..
+        } = buffer.peek().await.unwrap()
+        else {
             panic!();
         };
-        assert_eq!(envelope.event_id(), Some(event_id_1));
+        assert_eq!(last_received_at, time1);
+        assert_ne!(last_received_at, time2);
 
-        buffer.mark_seen(&stack_key, Duration::ZERO);
+        buffer.mark_seen(&project_key_pair, Duration::ZERO);
 
         // After mark_seen, event 2 is on top:
-        let Peek::NotReady(_, _, envelope) = buffer.peek().await.unwrap() else {
+        let Peek::NotReady {
+            last_received_at, ..
+        } = buffer.peek().await.unwrap()
+        else {
             panic!();
         };
-        assert_eq!(envelope.event_id(), Some(event_id_2));
+        assert_eq!(last_received_at, time2);
+        assert_ne!(last_received_at, time1);
 
-        let Peek::NotReady(stack_key, _, envelope) = buffer.peek().await.unwrap() else {
+        let Peek::NotReady {
+            last_received_at,
+            project_key_pair,
+            ..
+        } = buffer.peek().await.unwrap()
+        else {
             panic!();
         };
-        assert_eq!(envelope.event_id(), Some(event_id_2));
+        assert_eq!(last_received_at, time2);
+        assert_ne!(last_received_at, time1);
 
-        buffer.mark_seen(&stack_key, Duration::ZERO);
+        buffer.mark_seen(&project_key_pair, Duration::ZERO);
 
         // After another mark_seen, cycle back to event 1:
-        let Peek::NotReady(_, _, envelope) = buffer.peek().await.unwrap() else {
+        let Peek::NotReady {
+            last_received_at, ..
+        } = buffer.peek().await.unwrap()
+        else {
             panic!();
         };
-        assert_eq!(envelope.event_id(), Some(event_id_1));
+        assert_eq!(last_received_at, time1);
+        assert_ne!(last_received_at, time2);
     }
 
     #[tokio::test]
