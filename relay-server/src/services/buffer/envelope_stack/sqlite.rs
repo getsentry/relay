@@ -81,13 +81,21 @@ impl SqliteEnvelopeStack {
     /// to be written to disk are lost. The explanation for this behavior can be found in the body
     /// of the method.
     async fn spool_to_disk(&mut self) {
-        let batch = std::mem::take(&mut self.batch);
-        relay_statsd::metric!(counter(RelayCounters::BufferSpooledEnvelopes) += batch.len() as u64);
-
         self.previous_write().await;
+
+        let batch = std::mem::take(&mut self.batch);
+
         let mut store = self.envelope_store.clone();
         self.db_state = DbState::Busy(tokio::spawn(async move {
+            relay_statsd::metric!(
+                counter(RelayCounters::BufferSpooledEnvelopes) += batch.len() as u64
+            );
+
             relay_statsd::metric!(timer(RelayTimers::BufferSpool), {
+                // When the insert results in an error, the elements we took from the memory buffer
+                // are lost. We are doing this on purposes, since if we were
+                // to have a database corruption during runtime, and we were to put the values back into
+                // the buffer we might end up with an infinite cycle.
                 store
                     .insert_many(batch)
                     .await
