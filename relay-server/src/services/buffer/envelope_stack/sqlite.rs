@@ -180,6 +180,7 @@ impl EnvelopeStack for SqliteEnvelopeStack {
     }
 
     async fn peek(&mut self) -> Result<Option<DateTime<Utc>>, Self::Error> {
+        self.batch.len();
         if self.should_unspool() {
             self.unspool_from_disk().await?
         }
@@ -263,6 +264,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_push_when_db_is_not_valid() {
+        relay_log::init_test!();
         let db = setup_db(false).await;
         let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
 
@@ -283,28 +285,24 @@ mod tests {
         for envelope in envelopes.clone() {
             assert!(stack.push(envelope).await.is_ok());
         }
+        assert_eq!(stack.batch.len(), 4);
 
         // We push 1 more envelope which results in spooling, which fails because of a database
-        // problem.
+        // problem. The error is logged in a background task.
         let envelope = mock_envelope(Utc::now());
-        assert!(matches!(
-            stack.push(envelope).await,
-            Err(SqliteEnvelopeStackError::EnvelopeStoreError(_))
-        ));
-
-        // The stack now contains the last of the 1 elements that were added. If we add a new one
-        // we will end up with 2.
-        let envelope = mock_envelope(Utc::now());
-        assert!(stack.push(envelope.clone()).await.is_ok());
+        assert!(stack.push(envelope).await.is_ok());
+        // The db write failed, but the latest envelope is still in the memory buffer:
+        let received_at = stack.peek().await.unwrap().unwrap();
         assert_eq!(stack.batch.len(), 1);
 
-        // We pop the remaining elements, expecting the last added envelope to be on top.
+        // There is now only one element. The initial 4 elements have been lost.
         let popped_envelope_1 = stack.pop().await.unwrap().unwrap();
-        assert_eq!(
-            popped_envelope_1.event_id().unwrap(),
-            envelope.event_id().unwrap()
-        );
+        assert_eq!(popped_envelope_1.received_at(), received_at);
         assert_eq!(stack.batch.len(), 0);
+
+        // Further attempts to read result in errors because the database has not been set up:
+        assert!(stack.peek().await.is_err());
+        assert!(stack.pop().await.is_err());
     }
 
     #[tokio::test]
