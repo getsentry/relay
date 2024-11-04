@@ -201,6 +201,7 @@ impl relay_system::Service for ProjectCacheService {
 
         tokio::spawn(async move {
             let mut eviction_ticker = tokio::time::interval(self.config.cache_eviction_interval());
+            eviction_ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
             loop {
                 tokio::select! {
