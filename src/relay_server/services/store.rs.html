@@ -1606,6 +1606,9 @@
 <a href="#1606" id="1606">1606</a>
 <a href="#1607" id="1607">1607</a>
 <a href="#1608" id="1608">1608</a>
+<a href="#1609" id="1609">1609</a>
+<a href="#1610" id="1610">1610</a>
+<a href="#1611" id="1611">1611</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses Kafka topics to forward data to Sentry
 
@@ -2513,10 +2516,13 @@
         <span class="self">self</span>.produce(
             KafkaTopic::Spans,
             KafkaMessage::Span {
-                headers: BTreeMap::from([(
-                    <span class="string">"project_id"</span>.to_string(),
-                    scoping.project_id.to_string(),
-                )]),
+                headers: BTreeMap::from([
+                    (<span class="string">"project_id"</span>.to_string(), scoping.project_id.to_string()),
+                    (
+                        <span class="string">"ingest_in_eap"</span>.to_string(),
+                        item.ingest_span_in_eap().to_string(),
+                    ),
+                ]),
                 message: span,
             },
         )<span class="question-mark">?</span>;

@@ -1281,6 +1281,20 @@
 <a href="#1281" id="1281">1281</a>
 <a href="#1282" id="1282">1282</a>
 <a href="#1283" id="1283">1283</a>
+<a href="#1284" id="1284">1284</a>
+<a href="#1285" id="1285">1285</a>
+<a href="#1286" id="1286">1286</a>
+<a href="#1287" id="1287">1287</a>
+<a href="#1288" id="1288">1288</a>
+<a href="#1289" id="1289">1289</a>
+<a href="#1290" id="1290">1290</a>
+<a href="#1291" id="1291">1291</a>
+<a href="#1292" id="1292">1292</a>
+<a href="#1293" id="1293">1293</a>
+<a href="#1294" id="1294">1294</a>
+<a href="#1295" id="1295">1295</a>
+<a href="#1296" id="1296">1296</a>
+<a href="#1297" id="1297">1297</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -1500,6 +1514,13 @@
         };
         new_item.set_payload(ContentType::Json, payload);
         new_item.set_metrics_extracted(item.metrics_extracted());
+        new_item.set_ingest_span_in_eap(
+            state
+                .project_info
+                .config
+                .features
+                .has(Feature::IngestSpansInEap),
+        );
 
         <span class="kw-2">*</span>item = new_item;
 
@@ -1562,6 +1583,11 @@
         .envelope()
         .dsc()
         .and_then(|ctx| ctx.sample_rate);
+    <span class="kw">let </span>ingest_in_eap = state
+        .project_info
+        .config
+        .features
+        .has(Feature::IngestSpansInEap);
 
     <span class="kw">let </span><span class="kw-2">mut </span>add_span = |<span class="kw-2">mut </span>span: Span| {
         add_sample_rate(
@@ -1613,6 +1639,7 @@
         item.set_payload(ContentType::Json, span);
         <span class="comment">// If metrics extraction happened for the event, it also happened for its spans:
         </span>item.set_metrics_extracted(state.event_metrics_extracted);
+        item.set_ingest_span_in_eap(ingest_in_eap);
 
         <span class="macro">relay_log::trace!</span>(<span class="string">"Adding span to envelope"</span>);
         state.managed_envelope.envelope_mut().add_item(item);
@@ -1643,6 +1670,7 @@
     ) <span class="kw">else </span>{
         <span class="kw">return</span>;
     };
+
     <span class="comment">// Add child spans as envelope items.
     </span><span class="kw">if let </span><span class="prelude-val">Some</span>(child_spans) = event.spans.value() {
         <span class="kw">for </span>span <span class="kw">in </span>child_spans {
