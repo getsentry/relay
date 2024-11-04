@@ -37,6 +37,7 @@ gsutil cp \
   .
 
 echo 'Uploading debug information and source bundle...'
+sentry-cli --version
 sentry-cli upload-dif ./relay-debug.zip ./relay.src.zip
 
 echo 'Uploading system symbols...'
