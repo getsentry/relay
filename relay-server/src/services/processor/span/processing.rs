@@ -217,6 +217,13 @@ pub fn process(
         };
         new_item.set_payload(ContentType::Json, payload);
         new_item.set_metrics_extracted(item.metrics_extracted());
+        new_item.set_ingest_span_in_eap(
+            state
+                .project_info
+                .config
+                .features
+                .has(Feature::IngestSpansInEap),
+        );
 
         *item = new_item;
 
@@ -279,6 +286,11 @@ pub fn extract_from_event(
         .envelope()
         .dsc()
         .and_then(|ctx| ctx.sample_rate);
+    let ingest_in_eap = state
+        .project_info
+        .config
+        .features
+        .has(Feature::IngestSpansInEap);
 
     let mut add_span = |mut span: Span| {
         add_sample_rate(
@@ -330,6 +342,7 @@ pub fn extract_from_event(
         item.set_payload(ContentType::Json, span);
         // If metrics extraction happened for the event, it also happened for its spans:
         item.set_metrics_extracted(state.event_metrics_extracted);
+        item.set_ingest_span_in_eap(ingest_in_eap);
 
         relay_log::trace!("Adding span to envelope");
         state.managed_envelope.envelope_mut().add_item(item);
@@ -360,6 +373,7 @@ pub fn extract_from_event(
     ) else {
         return;
     };
+
     // Add child spans as envelope items.
     if let Some(child_spans) = event.spans.value() {
         for span in child_spans {
