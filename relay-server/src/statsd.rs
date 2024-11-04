@@ -562,7 +562,7 @@ pub enum RelayTimers {
     /// Timing in milliseconds for the time it takes for an envelope to be decompressed.
     BufferEnvelopeDecompression,
     /// Timing in milliseconds to the time it takes to read an HTTP body.
-    BodyReading,
+    BodyReadDuration,
 }
 
 impl TimerMetric for RelayTimers {
@@ -617,6 +617,7 @@ impl TimerMetric for RelayTimers {
             RelayTimers::BufferEnvelopeCompression => "buffer.envelopes_compression",
             RelayTimers::BufferEnvelopeDecompression => "buffer.envelopes_decompression",
             RelayTimers::BodyReading => "body.reading.duration",
+            RelayTimers::BodyReadDuration => "requests.body_read.duration",
         }
     }
 }
