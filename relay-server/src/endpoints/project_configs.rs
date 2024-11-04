@@ -3,10 +3,9 @@ use std::sync::Arc;
 
 use axum::extract::{Query, Request};
 use axum::handler::Handler;
+use axum::http::StatusCode;
 use axum::response::{IntoResponse, Result};
 use axum::{Json, RequestExt};
-use futures::stream::FuturesUnordered;
-use futures::StreamExt;
 use relay_base_schema::project::ProjectKey;
 use relay_dynamic_config::{ErrorBoundary, GlobalConfig};
 use serde::{Deserialize, Serialize};
@@ -16,15 +15,10 @@ use crate::endpoints::forward;
 use crate::extractors::SignedJson;
 use crate::service::ServiceState;
 use crate::services::global_config::{self, StatusResponse};
-use crate::services::projects::cache::{GetCachedProjectState, GetProjectState};
 use crate::services::projects::project::{
-    LimitedParsedProjectState, ParsedProjectState, ProjectState,
+    LimitedParsedProjectState, ParsedProjectState, ProjectState, Revision,
 };
-
-/// V2 version of this endpoint.
-///
-/// The request is a list of [`ProjectKey`]s and the response a list of [`ProjectStateWrapper`]s
-const ENDPOINT_V2: u16 = 2;
+use crate::utils::ApiErrorResponse;
 
 /// V3 version of this endpoint.
 ///
@@ -33,6 +27,16 @@ const ENDPOINT_V2: u16 = 2;
 /// next time a downstream relay polls for this it is hopefully in our cache and will be
 /// returned, or a further poll ensues.
 const ENDPOINT_V3: u16 = 3;
+
+#[derive(Debug, Clone, Copy, thiserror::Error)]
+#[error("This API version is no longer supported, upgrade your Relay or Client")]
+struct VersionOutdatedError;
+
+impl IntoResponse for VersionOutdatedError {
+    fn into_response(self) -> axum::response::Response {
+        (StatusCode::BAD_REQUEST, ApiErrorResponse::from_error(&self)).into_response()
+    }
+}
 
 /// Helper to deserialize the `version` query parameter.
 #[derive(Clone, Copy, Debug, Deserialize)]
@@ -102,19 +106,17 @@ struct GetProjectStatesRequest {
     ///
     /// This length of this list if specified must be the same length
     /// as [`Self::public_keys`], the items are asssociated by index.
-    revisions: Option<ErrorBoundary<Vec<Option<String>>>>,
+    revisions: Option<ErrorBoundary<Vec<Revision>>>,
     #[serde(default)]
     full_config: bool,
-    #[serde(default)]
-    no_cache: bool,
     #[serde(default)]
     global: bool,
 }
 
 fn into_valid_keys(
     public_keys: Vec<ErrorBoundary<ProjectKey>>,
-    revisions: Option<ErrorBoundary<Vec<Option<String>>>>,
-) -> impl Iterator<Item = (ProjectKey, Option<String>)> {
+    revisions: Option<ErrorBoundary<Vec<Revision>>>,
+) -> impl Iterator<Item = (ProjectKey, Revision)> {
     let mut revisions = revisions.and_then(|e| e.ok()).unwrap_or_default();
     if !revisions.is_empty() && revisions.len() != public_keys.len() {
         // The downstream sent us a different amount of revisions than project keys,
@@ -127,7 +129,9 @@ fn into_valid_keys(
         );
         revisions.clear();
     }
-    let revisions = revisions.into_iter().chain(std::iter::repeat(None));
+    let revisions = revisions
+        .into_iter()
+        .chain(std::iter::repeat_with(Revision::default));
 
     std::iter::zip(public_keys, revisions).filter_map(|(public_key, revision)| {
         // Skip unparsable public keys.
@@ -139,30 +143,9 @@ fn into_valid_keys(
 
 async fn inner(
     state: ServiceState,
-    Query(version): Query<VersionQuery>,
     body: SignedJson<GetProjectStatesRequest>,
 ) -> Result<impl IntoResponse, ServiceUnavailable> {
     let SignedJson { inner, relay } = body;
-    let project_cache = &state.project_cache().clone();
-
-    let no_cache = inner.no_cache;
-    let keys_len = inner.public_keys.len();
-
-    let mut futures: FuturesUnordered<_> = into_valid_keys(inner.public_keys, inner.revisions)
-        .map(|(project_key, revision)| async move {
-            let state_result = if version.version >= ENDPOINT_V3 && !no_cache {
-                project_cache
-                    .send(GetCachedProjectState::new(project_key))
-                    .await
-            } else {
-                project_cache
-                    .send(GetProjectState::new(project_key).no_cache(no_cache))
-                    .await
-            };
-
-            (project_key, revision, state_result)
-        })
-        .collect();
 
     let (global, global_status) = if inner.global {
         match state.global_config().send(global_config::Get).await? {
@@ -178,12 +161,15 @@ async fn inner(
         (None, None)
     };
 
+    let keys_len = inner.public_keys.len();
     let mut pending = Vec::with_capacity(keys_len);
     let mut unchanged = Vec::with_capacity(keys_len);
     let mut configs = HashMap::with_capacity(keys_len);
 
-    while let Some((project_key, revision, state_result)) = futures.next().await {
-        let project_info = match state_result? {
+    for (project_key, revision) in into_valid_keys(inner.public_keys, inner.revisions) {
+        let project = state.project_cache_handle().get(project_key);
+
+        let project_info = match project.state() {
             ProjectState::Enabled(info) => info,
             ProjectState::Disabled => {
                 // Don't insert project config. Downstream Relay will consider it disabled.
@@ -196,7 +182,7 @@ async fn inner(
         };
 
         // Only ever omit responses when there was a valid revision in the first place.
-        if revision.is_some() && project_info.rev == revision {
+        if project_info.rev == revision {
             unchanged.push(project_key);
             continue;
         }
@@ -237,9 +223,14 @@ async fn inner(
     }))
 }
 
+/// Returns `true` for all `?version` query parameters that are no longer supported by Relay and Sentry.
+fn is_outdated(Query(query): Query<VersionQuery>) -> bool {
+    query.version < ENDPOINT_V3
+}
+
 /// Returns `true` if the `?version` query parameter is compatible with this implementation.
 fn is_compatible(Query(query): Query<VersionQuery>) -> bool {
-    query.version >= ENDPOINT_V2 && query.version <= ENDPOINT_V3
+    query.version == ENDPOINT_V3
 }
 
 /// Endpoint handler for the project configs endpoint.
@@ -255,9 +246,11 @@ fn is_compatible(Query(query): Query<VersionQuery>) -> bool {
 /// support old Relay versions.
 pub async fn handle(state: ServiceState, mut req: Request) -> Result<impl IntoResponse> {
     let data = req.extract_parts().await?;
-    Ok(if is_compatible(data) {
-        inner.call(req, state).await
+    if is_outdated(data) {
+        Err(VersionOutdatedError.into())
+    } else if is_compatible(data) {
+        Ok(inner.call(req, state).await)
     } else {
-        forward::forward(state, req).await
-    })
+        Ok(forward::forward(state, req).await)
+    }
 }

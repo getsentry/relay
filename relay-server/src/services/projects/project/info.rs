@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use chrono::{DateTime, Utc};
 
 use relay_base_schema::project::{ProjectId, ProjectKey};
@@ -16,7 +18,6 @@ use url::Url;
 use crate::envelope::Envelope;
 use crate::extractors::RequestMeta;
 use crate::services::outcome::DiscardReason;
-use crate::services::projects::project::PublicKeyConfig;
 
 /// Information about an enabled project.
 ///
@@ -32,7 +33,7 @@ pub struct ProjectInfo {
     /// are faked locally.
     pub last_change: Option<DateTime<Utc>>,
     /// The revision id of the project config.
-    pub rev: Option<String>,
+    pub rev: Revision,
     /// Indicates that the project is disabled.
     /// A container of known public keys in the project.
     ///
@@ -57,7 +58,7 @@ pub struct ProjectInfo {
 pub struct LimitedProjectInfo {
     pub project_id: Option<ProjectId>,
     pub last_change: Option<DateTime<Utc>>,
-    pub rev: Option<String>,
+    pub rev: Revision,
     pub public_keys: SmallVec<[PublicKeyConfig; 1]>,
     pub slug: Option<String>,
     #[serde(with = "LimitedProjectConfig")]
@@ -187,9 +188,6 @@ impl ProjectInfo {
     /// This scoping amends `RequestMeta::get_partial_scoping` by adding organization and key info.
     /// The processor must fetch the full scoping before attempting to rate limit with partial
     /// scoping.
-    ///
-    /// To get the own scoping of this ProjectKey without amending request information, use
-    /// [`Project::scoping`](crate::services::projects::project::Project::scoping) instead.
     pub fn scope_request(&self, meta: &RequestMeta) -> Scoping {
         let mut scoping = meta.get_partial_scoping();
 
@@ -246,5 +244,53 @@ impl ProjectInfo {
     /// Returns `true` if the given feature is enabled for this project.
     pub fn has_feature(&self, feature: Feature) -> bool {
         self.config.features.has(feature)
+    }
+}
+
+/// Represents a public key received from the projectconfig endpoint.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PublicKeyConfig {
+    /// Public part of key (random hash).
+    pub public_key: ProjectKey,
+
+    /// The primary key of the DSN in Sentry's main database.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub numeric_id: Option<u64>,
+}
+
+/// Represents a project info revision.
+///
+/// A revision can be missing, a missing revision never compares equal
+/// to any other revision.
+///
+/// Revisions are internally reference counted and cheap to create.
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct Revision(Option<Arc<str>>);
+
+impl Revision {
+    /// Returns the revision as a string reference.
+    ///
+    /// `None` is a revision that does not match any other revision,
+    /// not even another revision which is represented as `None`.
+    pub fn as_str(&self) -> Option<&str> {
+        self.0.as_deref()
+    }
+}
+
+impl PartialEq for Revision {
+    fn eq(&self, other: &Self) -> bool {
+        match (&self.0, &other.0) {
+            (None, _) => false,
+            (_, None) => false,
+            (Some(left), Some(right)) => left == right,
+        }
+    }
+}
+
+impl From<&str> for Revision {
+    fn from(value: &str) -> Self {
+        Self(Some(value.into()))
     }
 }

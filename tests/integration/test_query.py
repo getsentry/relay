@@ -16,7 +16,12 @@ def test_local_project_config(mini_sentry, relay):
     project_id = 42
     config = mini_sentry.basic_project_config(project_id)
     relay_config = {
-        "cache": {"file_interval": 1, "project_expiry": 1, "project_grace_period": 0}
+        "cache": {
+            "file_interval": 1,
+            "project_expiry": 1,
+            "project_grace_period": 0,
+            "eviction_interval": 1,
+        }
     }
     relay = relay(mini_sentry, relay_config, wait_health_check=False)
     relay.config_dir.mkdir("projects").join("42.json").write(
@@ -45,17 +50,14 @@ def test_local_project_config(mini_sentry, relay):
     assert event["logentry"] == {"formatted": "Hello, World!"}
 
     relay.config_dir.join("projects").join("42.json").write(
-        json.dumps({"disabled": True})
+        json.dumps({"disabled": True, "publicKeys": config["publicKeys"]})
     )
+
     time.sleep(2)
 
-    try:
-        # This may or may not respond with 403, depending on how quickly the future to fetch project
-        # states executes.
-        relay.send_event(project_id, dsn_key=dsn_key)
-    except HTTPError:
-        pass
-
+    relay.send_event(project_id, dsn_key=dsn_key)
+    time.sleep(0.3)
+    pytest.raises(HTTPError, lambda: relay.send_event(project_id, dsn_key=dsn_key))
     pytest.raises(queue.Empty, lambda: mini_sentry.captured_events.get(timeout=1))
 
 
@@ -80,6 +82,7 @@ def test_project_grace_period(mini_sentry, relay, grace_period):
                 "miss_expiry": 1,
                 "project_expiry": 1,
                 "project_grace_period": grace_period,
+                "eviction_interval": 1,
             }
         },
     )
@@ -324,7 +327,8 @@ def test_project_fetch_revision(mini_sentry, relay, with_revision_support):
             "cache": {
                 "miss_expiry": 1,
                 "project_expiry": 1,
-                "project_grace_period": 0,
+                "project_grace_period": 5,
+                "eviction_interval": 1,
             }
         },
     )
@@ -343,8 +347,8 @@ def test_project_fetch_revision(mini_sentry, relay, with_revision_support):
 
     relay.send_event(42)
 
-    assert project_config_fetch.wait(timeout=1)
-    assert with_rev.wait(timeout=1)
+    assert project_config_fetch.wait(timeout=2)
+    assert with_rev.wait(timeout=2)
 
     event = mini_sentry.captured_events.get(timeout=1).get_event()
     assert event["logentry"] == {"formatted": "Hello, World!"}
