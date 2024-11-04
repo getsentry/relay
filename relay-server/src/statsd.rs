@@ -616,7 +616,6 @@ impl TimerMetric for RelayTimers {
             RelayTimers::BufferEnvelopesSerialization => "buffer.envelopes_serialization",
             RelayTimers::BufferEnvelopeCompression => "buffer.envelopes_compression",
             RelayTimers::BufferEnvelopeDecompression => "buffer.envelopes_decompression",
-            RelayTimers::BodyReading => "body.reading.duration",
             RelayTimers::BodyReadDuration => "requests.body_read.duration",
         }
     }
