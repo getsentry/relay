@@ -772,6 +772,8 @@
 <a href="#772" id="772">772</a>
 <a href="#773" id="773">773</a>
 <a href="#774" id="774">774</a>
+<a href="#775" id="775">775</a>
+<a href="#776" id="776">776</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Types for buffering envelopes.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -1181,7 +1183,7 @@
             buffer.initialize().<span class="kw">await</span>;
 
             <span class="kw">let </span><span class="kw-2">mut </span>shutdown = Controller::shutdown_handle();
-            <span class="kw">let </span><span class="kw-2">mut </span>project_events = <span class="self">self</span>.services.project_cache_handle.changes();
+            <span class="kw">let </span><span class="kw-2">mut </span>project_changes = <span class="self">self</span>.services.project_cache_handle.changes();
 
             <span class="macro">relay_log::info!</span>(<span class="string">"EnvelopeBufferService: starting"</span>);
             <span class="kw">loop </span>{
@@ -1211,8 +1213,10 @@
                             }
                         }
                     }
-                    <span class="prelude-val">Ok</span>(ProjectChange::Ready(project_key)) = project_events.recv() =&gt; {
-                        <span class="self">Self</span>::handle_message(<span class="kw-2">&amp;mut </span>buffer, EnvelopeBuffer::Ready(project_key)).<span class="kw">await</span>;
+                    change = project_changes.recv() =&gt; {
+                        <span class="kw">if let </span><span class="prelude-val">Ok</span>(ProjectChange::Ready(project_key)) = change {
+                            <span class="self">Self</span>::handle_message(<span class="kw-2">&amp;mut </span>buffer, EnvelopeBuffer::Ready(project_key)).<span class="kw">await</span>;
+                        }
                         sleep = Duration::ZERO;
                     }
                     <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; {
