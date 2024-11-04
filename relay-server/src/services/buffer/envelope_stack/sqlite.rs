@@ -22,15 +22,15 @@ pub enum SqliteEnvelopeStackError {
     Envelope(#[from] InsertEnvelopeError),
 }
 
-#[derive(Debug)]
 /// An [`EnvelopeStack`] that is implemented on an SQLite database.
 ///
 /// For efficiency reasons, the implementation has an in-memory buffer that is periodically spooled
 /// to disk in a batched way.
+#[derive(Debug)]
+
 pub struct SqliteEnvelopeStack {
     /// Shared SQLite database pool which will be used to read and write from disk.
     envelope_store: SqliteEnvelopeStore,
-    join_handle: Option<JoinHandle<Result<(), SqliteEnvelopeStackError>>>,
     /// Maximum number of envelopes to read from disk at once.
     read_batch_size: NonZeroUsize,
     /// Maximum number of bytes in the in-memory cache before we write to disk.
@@ -42,9 +42,7 @@ pub struct SqliteEnvelopeStack {
     /// In-memory stack containing a batch of envelopes that either have not been written to disk yet, or have been read from disk recently.
     #[allow(clippy::vec_box)]
     batch: Vec<DatabaseEnvelope>,
-    /// Boolean representing whether calls to `push()` and `peek()` check disk in case not enough
-    /// elements are available in the `batches_buffer`.
-    check_disk: bool,
+    db_state: DbState,
 }
 
 impl SqliteEnvelopeStack {
@@ -59,14 +57,16 @@ impl SqliteEnvelopeStack {
     ) -> Self {
         Self {
             envelope_store,
-            join_handle: None,
             read_batch_size: NonZeroUsize::new(read_batch_size).expect("batch size should be > 0"),
             write_batch_bytes: NonZeroUsize::new(write_batch_bytes)
                 .expect("batch bytes should be > 0"),
             own_key,
             sampling_key,
             batch: vec![],
-            check_disk,
+            db_state: match check_disk {
+                true => DbState::Idle,
+                false => DbState::Empty,
+            },
         }
     }
 
@@ -86,7 +86,7 @@ impl SqliteEnvelopeStack {
 
         self.previous_write().await;
         let mut store = self.envelope_store.clone();
-        self.join_handle = Some(tokio::spawn(async move {
+        self.db_state = DbState::Busy(tokio::spawn(async move {
             relay_statsd::metric!(timer(RelayTimers::BufferSpool), {
                 store
                     .insert_many(batch)
@@ -94,9 +94,6 @@ impl SqliteEnvelopeStack {
                     .map_err(SqliteEnvelopeStackError::EnvelopeStoreError)
             })
         }));
-
-        // If we successfully spooled to disk, we know that data should be there.
-        self.check_disk = true;
     }
 
     /// Unspools from disk up to `disk_batch_size` envelopes and appends them to the `buffer`.
@@ -124,7 +121,7 @@ impl SqliteEnvelopeStack {
         if self.batch.is_empty() {
             // In case no envelopes were unspooled, we will mark the disk as empty until another
             // round of spooling takes place.
-            self.check_disk = false;
+            self.db_state = DbState::Empty;
         }
 
         relay_statsd::metric!(
@@ -133,8 +130,12 @@ impl SqliteEnvelopeStack {
         Ok(())
     }
 
+    fn should_unspool(&self) -> bool {
+        self.batch.is_empty() && !matches!(self.db_state, DbState::Empty)
+    }
+
     async fn previous_write(&mut self) {
-        if let Some(join_handle) = self.join_handle.take() {
+        if let DbState::Busy(ref mut join_handle) = self.db_state {
             match join_handle.await {
                 Ok(res) => {
                     if let Err(e) = res {
@@ -145,6 +146,7 @@ impl SqliteEnvelopeStack {
                     relay_log::error!(error = &e as &dyn Error, "join error");
                 }
             }
+            self.db_state = DbState::Idle;
         }
     }
 
@@ -178,7 +180,7 @@ impl EnvelopeStack for SqliteEnvelopeStack {
     }
 
     async fn peek(&mut self) -> Result<Option<DateTime<Utc>>, Self::Error> {
-        if self.batch.is_empty() && self.check_disk {
+        if self.should_unspool() {
             self.unspool_from_disk().await?
         }
 
@@ -190,7 +192,7 @@ impl EnvelopeStack for SqliteEnvelopeStack {
     }
 
     async fn pop(&mut self) -> Result<Option<Box<Envelope>>, Self::Error> {
-        if self.batch.is_empty() && self.check_disk {
+        if self.should_unspool() {
             self.unspool_from_disk().await?
         }
 
@@ -208,6 +210,18 @@ impl EnvelopeStack for SqliteEnvelopeStack {
             .filter_map(|e| e.try_into().ok())
             .collect()
     }
+}
+
+#[derive(Debug)]
+enum DbState {
+    /// No other tokio task is writing to the db, we can schedule a new one.
+    Idle,
+    /// Another task is currently writing to the db.
+    Busy(JoinHandle<Result<(), SqliteEnvelopeStackError>>),
+    /// We assume that there are no envelopes in the db for this project pair.
+    ///
+    /// This is the case when the last read operation returned empty.
+    Empty,
 }
 
 #[cfg(test)]
