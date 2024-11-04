@@ -117,7 +117,6 @@ def test_span_extraction(
         "start_timestamp_precise": start.timestamp(),
         "end_timestamp_precise": start.timestamp() + duration.total_seconds(),
         "trace_id": "ff62a8b040f340bda5d830223def1d81",
-        "ingest_in_eap": False,
     }
 
     start_timestamp = datetime.fromisoformat(event["start_timestamp"]).replace(
@@ -162,7 +161,6 @@ def test_span_extraction(
         "start_timestamp_precise": start_timestamp.timestamp(),
         "end_timestamp_precise": start_timestamp.timestamp() + duration,
         "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
-        "ingest_in_eap": False,
     }
 
     spans_consumer.assert_empty()
@@ -543,7 +541,6 @@ def test_span_extraction_with_metrics_summary(
         "start_timestamp_precise": start_timestamp.timestamp(),
         "end_timestamp_precise": end_timestamp.timestamp(),
         "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
-        "ingest_in_eap": False,
     }
 
     spans_consumer.assert_empty()
@@ -675,7 +672,6 @@ def test_span_extraction_with_ddm_missing_values(
         "start_timestamp_precise": start_timestamp.timestamp(),
         "end_timestamp_precise": end_timestamp.timestamp(),
         "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
-        "ingest_in_eap": False,
     }
 
     spans_consumer.assert_empty()
@@ -911,7 +907,6 @@ def test_span_ingestion_with_performance_scores(
                 "ttfb": {"value": 500.0},
                 "score.cls": {"value": 0.0},
             },
-            "ingest_in_eap": False,
         },
         {
             "data": {
@@ -947,7 +942,6 @@ def test_span_ingestion_with_performance_scores(
                 "score.total": {"value": 0.9948129113413748},
                 "score.weight.inp": {"value": 1.0},
             },
-            "ingest_in_eap": False,
         },
     ]
 
@@ -1644,10 +1638,8 @@ def test_ingest_in_eap(
 
     relay.send_event(project_id, event)
 
-    child_span = spans_consumer.get_span()
-    assert child_span.get("ingest_in_eap", False) == ingest_in_eap
-
-    transaction_span = spans_consumer.get_span()
-    assert transaction_span.get("ingest_in_eap", False) == ingest_in_eap
+    if ingest_in_eap:
+        spans_consumer.get_span()
+        spans_consumer.get_span()
 
     spans_consumer.assert_empty()
