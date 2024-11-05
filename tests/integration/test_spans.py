@@ -558,6 +558,7 @@ def test_span_ingestion(
         {
             "data": {
                 "browser.name": "Chrome",
+                "client.address": "127.0.0.1",
                 "user_agent.original": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
                 "Chrome/111.0.0.0 Safari/537.36",
@@ -585,6 +586,7 @@ def test_span_ingestion(
         {
             "data": {
                 "browser.name": "Chrome",
+                "client.address": "127.0.0.1",
                 "user_agent.original": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
                 "Chrome/111.0.0.0 Safari/537.36",
@@ -616,6 +618,7 @@ def test_span_ingestion(
         {
             "data": {
                 "browser.name": "Chrome",
+                "client.address": "127.0.0.1",
                 "user_agent.original": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
                 "Chrome/111.0.0.0 Safari/537.36",
@@ -638,6 +641,7 @@ def test_span_ingestion(
         {
             "data": {
                 "browser.name": "Python Requests",
+                "client.address": "127.0.0.1",
                 "user_agent.original": "python-requests/2.32.2",
             },
             "description": "my 2nd OTel span",
@@ -662,6 +666,7 @@ def test_span_ingestion(
         {
             "data": {
                 "browser.name": "Chrome",
+                "client.address": "127.0.0.1",
                 "user_agent.original": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
                 "Chrome/111.0.0.0 Safari/537.36",
@@ -686,6 +691,7 @@ def test_span_ingestion(
         {
             "data": {
                 "browser.name": "Python Requests",
+                "client.address": "127.0.0.1",
                 "user_agent.original": "python-requests/2.32.2",
             },
             "description": "my 3rd protobuf OTel span",
@@ -722,6 +728,28 @@ def test_span_ingestion(
     now_timestamp = int(now.timestamp())
     expected_timestamp = int(end.timestamp())
     expected_span_metrics = [
+        {
+            "name": "c:spans/count_per_root_project@none",
+            "org_id": 1,
+            "project_id": 42,
+            "received_at": time_after(now_timestamp),
+            "retention_days": 90,
+            "tags": {"decision": "keep", "target_project_id": "42"},
+            "timestamp": expected_timestamp,
+            "type": "c",
+            "value": 3.0,
+        },
+        {
+            "name": "c:spans/count_per_root_project@none",
+            "org_id": 1,
+            "project_id": 42,
+            "received_at": time_after(now_timestamp),
+            "retention_days": 90,
+            "tags": {"decision": "keep", "target_project_id": "42"},
+            "timestamp": expected_timestamp + 1,
+            "type": "c",
+            "value": 3.0,
+        },
         {
             "name": "c:spans/usage@none",
             "org_id": 1,

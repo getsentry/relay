@@ -25,8 +25,6 @@ async fn handle(
         let Json(trace) = request.extract().await?;
         trace
     } else if content_type.as_ref().starts_with("application/x-protobuf") {
-        // let mut bytes: Bytes = Bytes::from_request(req, state).await?;
-        // let Protobuf(trace) = request.extract().await?;
         let mut bytes: Bytes = request.extract().await?;
         Message::decode(&mut bytes).map_err(|e| {
             (

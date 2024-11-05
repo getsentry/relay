@@ -795,7 +795,7 @@ impl BucketMetadata {
     /// Merges another metadata object into the current one.
     pub fn merge(&mut self, other: Self) {
         self.merges = self.merges.saturating_add(other.merges);
-        self.received_at = match (self.received_at, other.received_at) {
+        self.received_at = match dbg!((self.received_at, other.received_at)) {
             (Some(received_at), None) => Some(received_at),
             (None, Some(received_at)) => Some(received_at),
             (left, right) => left.min(right),
