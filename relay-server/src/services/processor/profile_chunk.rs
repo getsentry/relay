@@ -23,7 +23,7 @@ static END: Lazy<DateTime<Utc>> =
 
 fn within_date_range() -> bool {
     let now = Utc::now();
-    return now >= *START && now < *END;
+    now >= *START && now < *END
 }
 
 fn allow_ingest<G>(state: &ProcessEnvelopeState<G>) -> bool {
@@ -32,7 +32,7 @@ fn allow_ingest<G>(state: &ProcessEnvelopeState<G>) -> bool {
             .project_info
             .has_feature(Feature::ContinuousProfilingBetaOrg);
     }
-    return true;
+    true
 }
 
 /// Removes profile chunks from the envelope if the feature is not enabled.
