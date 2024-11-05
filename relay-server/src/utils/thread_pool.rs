@@ -147,7 +147,12 @@ fn set_current_thread_priority(kind: ThreadKind) {
         ThreadKind::Worker => 10,
     };
     if unsafe { libc::setpriority(libc::PRIO_PROCESS, 0, prio) } != 0 {
-        relay_log::warn!("failed to set thread priority for a {kind:?} thread");
+        // Clear the `errno` and log it.
+        let error = std::io::Error::last_os_error();
+        relay_log::warn!(
+            error = &error as &dyn std::error::Error,
+            "failed to set thread priority for a {kind:?} thread: {error:?}"
+        );
     };
 }
 
@@ -214,6 +219,34 @@ mod tests {
             }
         });
         barrier.wait();
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_thread_pool_priority() {
+        fn get_current_priority() -> i32 {
+            unsafe { libc::getpriority(libc::PRIO_PROCESS, 0) }
+        }
+
+        let default_prio = get_current_priority();
+
+        {
+            let pool = ThreadPoolBuilder::new("s").num_threads(1).build().unwrap();
+            let prio = pool.install(get_current_priority);
+            // Default pool priority must match current priority.
+            assert_eq!(prio, default_prio);
+        }
+
+        {
+            let pool = ThreadPoolBuilder::new("s")
+                .num_threads(1)
+                .thread_kind(ThreadKind::Worker)
+                .build()
+                .unwrap();
+            let prio = pool.install(get_current_priority);
+            // Worker must be higher than the default priority (higher number = lower priority).
+            assert!(prio > default_prio);
+        }
     }
 
     #[test]
