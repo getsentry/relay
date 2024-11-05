@@ -172,23 +172,6 @@ pub trait Sampling {
     fn supports_reservoir_sampling() -> bool;
 }
 
-/// A marker trait for processing groups that eventually become spans.
-///
-/// Note that transactions do not implement [`SpanLike`], because spans are currently just a byproduct
-/// of transactions.
-pub trait SpanLike {}
-
-impl<S: SpanLike> Sampling for S {
-    fn supports_sampling(project_info: &ProjectInfo) -> bool {
-        // If no metrics could be extracted, do not sample anything.
-        matches!(&project_info.config().metric_extraction, ErrorBoundary::Ok(c) if c.is_supported())
-    }
-
-    fn supports_reservoir_sampling() -> bool {
-        false
-    }
-}
-
 processing_group!(TransactionGroup, Transaction);
 impl EventProcessing for TransactionGroup {}
 
@@ -213,10 +196,16 @@ processing_group!(ReplayGroup, Replay);
 processing_group!(CheckInGroup, CheckIn);
 processing_group!(SpanGroup, Span);
 
-impl SpanLike for SpanGroup {}
+impl Sampling for SpanGroup {
+    fn supports_sampling(project_info: &ProjectInfo) -> bool {
+        // If no metrics could be extracted, do not sample anything.
+        matches!(&project_info.config().metric_extraction, ErrorBoundary::Ok(c) if c.is_supported())
+    }
 
-processing_group!(OtelTraceGroup, OtelTrace);
-impl SpanLike for OtelTraceGroup {}
+    fn supports_reservoir_sampling() -> bool {
+        false
+    }
+}
 
 processing_group!(ProfileChunkGroup, ProfileChunk);
 processing_group!(MetricsGroup, Metrics);
@@ -254,8 +243,6 @@ pub enum ProcessingGroup {
     CheckIn,
     /// Spans.
     Span,
-    /// Spans.
-    OtelTrace,
     /// Metrics.
     Metrics,
     /// ProfileChunk.
@@ -426,7 +413,6 @@ impl ProcessingGroup {
             ProcessingGroup::Replay => "replay",
             ProcessingGroup::CheckIn => "check_in",
             ProcessingGroup::Span => "span",
-            ProcessingGroup::OtelTrace => "otel_trace",
             ProcessingGroup::Metrics => "metrics",
             ProcessingGroup::ProfileChunk => "profile_chunk",
             ProcessingGroup::ForwardUnknown => "forward_unknown",
@@ -446,7 +432,6 @@ impl From<ProcessingGroup> for AppFeature {
             ProcessingGroup::Replay => AppFeature::Replays,
             ProcessingGroup::CheckIn => AppFeature::CheckIns,
             ProcessingGroup::Span => AppFeature::Spans,
-            ProcessingGroup::OtelTrace => AppFeature::Spans,
             ProcessingGroup::Metrics => AppFeature::UnattributedMetrics,
             ProcessingGroup::ProfileChunk => AppFeature::Profiles,
             ProcessingGroup::ForwardUnknown => AppFeature::UnattributedEnvelope,
@@ -1888,25 +1873,6 @@ impl EnvelopeProcessorService {
     ) -> Result<(), ProcessingError> {
         span::filter(state);
 
-        self.process_span_like(state);
-        Ok(())
-    }
-
-    // Like `[Self::process_standalone_spans`]
-    fn process_otel_trace(&self, state: &mut ProcessEnvelopeState<SpanGroup>) {
-        if state.should_filter(Feature::OtelEndpoint) {
-            state.managed_envelope.retain_items(|item| {
-                relay_log::debug!("dropping trace data because feature is disabled");
-                ItemAction::Drop(Outcome::Invalid(DiscardReason::FeatureDisabled(
-                    Feature::OtelEndpoint,
-                )))
-            });
-        }
-
-        self.process_span_like(state);
-    }
-
-    fn process_span_like<G: SpanLike>(&self, state: &mut ProcessEnvelopeState<G>) {
         if_processing!(self.inner.config, {
             let global_config = self.inner.global_config.current();
 
@@ -1914,6 +1880,7 @@ impl EnvelopeProcessorService {
 
             self.enforce_quotas(state)?;
         });
+        Ok(())
     }
 
     fn process_envelope(
@@ -1976,7 +1943,6 @@ impl EnvelopeProcessorService {
             ProcessingGroup::Replay => run!(process_replays),
             ProcessingGroup::CheckIn => run!(process_checkins),
             ProcessingGroup::Span => run!(process_standalone_spans),
-            ProcessingGroup::OtelTrace => run!(process_otel_trace),
             ProcessingGroup::ProfileChunk => run!(process_profile_chunks),
             // Currently is not used.
             ProcessingGroup::Metrics => {
