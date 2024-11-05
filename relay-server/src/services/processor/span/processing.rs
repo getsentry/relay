@@ -34,7 +34,7 @@ use crate::metrics_extraction::{event, metrics_summary};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::span::extract_transaction_span;
 use crate::services::processor::{
-    dynamic_sampling, ProcessEnvelopeState, ProcessingError, SpanGroup, TransactionGroup,
+    dynamic_sampling, ProcessEnvelopeState, ProcessingError, SpanGroup, SpanLike, TransactionGroup,
 };
 use crate::utils::{sample, ItemAction, ManagedEnvelope};
 
@@ -42,8 +42,8 @@ use crate::utils::{sample, ItemAction, ManagedEnvelope};
 #[error(transparent)]
 struct ValidationError(#[from] anyhow::Error);
 
-pub fn process(
-    state: &mut ProcessEnvelopeState<SpanGroup>,
+pub fn process<G: SpanLike>(
+    state: &mut ProcessEnvelopeState<G>,
     global_config: &GlobalConfig,
     geo_lookup: Option<&GeoIpLookup>,
 ) {
