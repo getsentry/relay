@@ -44,11 +44,11 @@ pub fn convert_otel(state: &mut ProcessEnvelopeState<SpanGroup>) {
     let envelope = state.managed_envelope.envelope_mut();
 
     for item in envelope.take_items_by(|item| item.ty() == &ItemType::OtelTrace) {
-        convert_trace_data(item, &mut state.managed_envelope);
+        convert_traces_data(item, &mut state.managed_envelope);
     }
 }
 
-fn convert_trace_data(item: Item, managed_envelope: &mut TypedEnvelope<SpanGroup>) {
+fn convert_traces_data(item: Item, managed_envelope: &mut TypedEnvelope<SpanGroup>) {
     let traces_data = match parse_traces_data(item) {
         Ok(traces_data) => traces_data,
         Err(reason) => {
