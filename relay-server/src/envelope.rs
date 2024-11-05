@@ -682,7 +682,10 @@ impl Item {
 
     /// True if the item represents any kind of span.
     pub fn is_span(&self) -> bool {
-        matches!(self.ty(), ItemType::OtelSpan | ItemType::Span)
+        matches!(
+            self.ty(),
+            ItemType::OtelSpan | ItemType::Span | ItemType::OtelTrace
+        )
     }
 
     /// Returns the data category used for generating outcomes.
