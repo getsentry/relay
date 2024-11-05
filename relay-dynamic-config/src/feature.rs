@@ -74,8 +74,8 @@ pub enum Feature {
     /// (beta orgs) during the date range (Nov 14th and Nov 18th)
     ///
     /// Serialized as `organizations:continuous-profiling-beta-org`.
-    #[serde(rename = "organizations:continuous-profiling-beta-org")]
-    ContinuousProfilingBetaOrg,
+    #[serde(rename = "organizations:continuous-profiling-allowed-ingest")]
+    ContinuousProfilingAllowedIngest,
     /// Enables metric extraction from spans for common modules.
     ///
     /// Serialized as `projects:span-metrics-extraction`.
