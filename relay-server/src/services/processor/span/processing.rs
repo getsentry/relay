@@ -11,14 +11,11 @@ use relay_dynamic_config::{
 use relay_event_normalization::span::ai::extract_ai_measurements;
 use relay_event_normalization::span::description::ScrubMongoDescription;
 use relay_event_normalization::{
-    normalize_measurements, normalize_performance_score, span::tag_extraction, validate_span,
-    CombinedMeasurementsConfig, MeasurementsConfig, PerformanceScoreConfig, RawUserAgentInfo,
-    TransactionsProcessor,
-};
-use relay_event_normalization::{
-    normalize_transaction_name, BorrowedSpanOpDefaults, ClientHints, FromUserAgentInfo,
-    GeoIpLookup, ModelCosts, SchemaProcessor, TimestampProcessor, TransactionNameRule,
-    TrimmingProcessor,
+    normalize_measurements, normalize_performance_score, normalize_transaction_name,
+    span::tag_extraction, validate_span, BorrowedSpanOpDefaults, ClientHints,
+    CombinedMeasurementsConfig, FromUserAgentInfo, GeoIpLookup, MeasurementsConfig, ModelCosts,
+    PerformanceScoreConfig, RawUserAgentInfo, SchemaProcessor, TimestampProcessor,
+    TransactionNameRule, TransactionsProcessor, TrimmingProcessor,
 };
 use relay_event_schema::processor::{process_value, ProcessingAction, ProcessingState};
 use relay_event_schema::protocol::{
@@ -29,7 +26,7 @@ use relay_metrics::{FractionUnit, MetricNamespace, MetricUnit, UnixTimestamp};
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Empty};
 use relay_quotas::DataCategory;
-use relay_spans::otel_trace::Span as OtelSpan;
+use relay_spans::{otel_to_sentry_span, otel_trace::Span as OtelSpan};
 use thiserror::Error;
 
 use crate::envelope::{ContentType, Item, ItemType};
@@ -77,7 +74,7 @@ pub fn process(
     state.managed_envelope.retain_items(|item| {
         let mut annotated_span = match item.ty() {
             ItemType::OtelSpan => match serde_json::from_slice::<OtelSpan>(&item.payload()) {
-                Ok(otel_span) => Annotated::new(relay_spans::otel_to_sentry_span(otel_span)),
+                Ok(otel_span) => Annotated::new(otel_to_sentry_span(otel_span)),
                 Err(err) => {
                     relay_log::debug!("failed to parse OTel span: {}", err);
                     return ItemAction::Drop(Outcome::Invalid(DiscardReason::InvalidJson));
