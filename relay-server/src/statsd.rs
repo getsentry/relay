@@ -553,6 +553,8 @@ pub enum RelayTimers {
     BufferEnvelopesSerialization,
     /// Timing in milliseconds to the time it takes to read an HTTP body.
     BodyReadDuration,
+    /// Timing in milliseconds to count spans in a serialized transaction payload.
+    CheckNestedSpans,
 }
 
 impl TimerMetric for RelayTimers {
@@ -605,6 +607,7 @@ impl TimerMetric for RelayTimers {
             RelayTimers::BufferDrain => "buffer.drain.duration",
             RelayTimers::BufferEnvelopesSerialization => "buffer.envelopes_serialization",
             RelayTimers::BodyReadDuration => "requests.body_read.duration",
+            RelayTimers::CheckNestedSpans => "envelope.check_nested_spans",
         }
     }
 }
