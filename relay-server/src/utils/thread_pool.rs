@@ -5,11 +5,24 @@ use tokio::runtime::Handle;
 pub use rayon::{ThreadPool, ThreadPoolBuildError};
 use tokio::sync::Semaphore;
 
+/// A thread kind.
+///
+/// The thread kind has an effect on how threads are prioritized and scheduled.
+#[derive(Default, Debug, Clone, Copy)]
+pub enum ThreadKind {
+    /// The default kind, just a thread like any other without any special configuration.
+    #[default]
+    Default,
+    /// A worker thread is a CPU intensive task with a lower priority than the [`Self::Default`] kind.
+    Worker,
+}
+
 /// Used to create a new [`ThreadPool`] thread pool.
 pub struct ThreadPoolBuilder {
     name: &'static str,
     runtime: Option<Handle>,
     num_threads: usize,
+    kind: ThreadKind,
 }
 
 impl ThreadPoolBuilder {
@@ -19,10 +32,11 @@ impl ThreadPoolBuilder {
             name,
             runtime: None,
             num_threads: 0,
+            kind: ThreadKind::Default,
         }
     }
 
-    /// Sets the number of threads to be used in the rayon threadpool.
+    /// Sets the number of threads to be used in the rayon thread-pool.
     ///
     /// See also [`rayon::ThreadPoolBuilder::num_threads`].
     pub fn num_threads(mut self, num_threads: usize) -> Self {
@@ -30,7 +44,13 @@ impl ThreadPoolBuilder {
         self
     }
 
-    /// Sets the tokio runtime which will be made available in the workers.
+    /// Configures the [`ThreadKind`] for all threads spawned in the pool.
+    pub fn thread_kind(mut self, kind: ThreadKind) -> Self {
+        self.kind = kind;
+        self
+    }
+
+    /// Sets the Tokio runtime which will be made available in the workers.
     pub fn runtime(mut self, runtime: Handle) -> Self {
         self.runtime = Some(runtime);
         self
@@ -56,6 +76,7 @@ impl ThreadPoolBuilder {
                 }
                 let runtime = self.runtime.clone();
                 b.spawn(move || {
+                    set_current_thread_priority(self.kind);
                     let _guard = runtime.as_ref().map(|runtime| runtime.enter());
                     thread.run()
                 })?;
@@ -65,7 +86,7 @@ impl ThreadPoolBuilder {
     }
 }
 
-/// A [`WorkerGroup`] adds an async backpressure mechanism to a [`ThreadPool`].
+/// A [`WorkerGroup`] adds an async back-pressure mechanism to a [`ThreadPool`].
 pub struct WorkerGroup {
     pool: ThreadPool,
     semaphore: Arc<Semaphore>,
@@ -114,6 +135,25 @@ impl WorkerGroup {
             drop(permit);
         });
     }
+}
+
+#[cfg(unix)]
+fn set_current_thread_priority(kind: ThreadKind) {
+    let prio = match kind {
+        // The default priority needs no change.
+        ThreadKind::Default => return,
+        // Set a priority of `10` for worker threads,
+        // it's just important that this is a lower priority than default.
+        ThreadKind::Worker => 10,
+    };
+    if unsafe { libc::setpriority(libc::PRIO_PROCESS, 0, prio) } != 0 {
+        relay_log::warn!("failed to set thread priority for a {kind:?} thread");
+    };
+}
+
+#[cfg(not(unix))]
+fn set_current_thread_priority(_kind: ThreadKind) {
+    // Ignored for non-Unix platforms.
 }
 
 #[cfg(test)]
