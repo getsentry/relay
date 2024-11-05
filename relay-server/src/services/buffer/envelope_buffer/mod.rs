@@ -122,6 +122,11 @@ impl PolymorphicEnvelopeBuffer {
     /// The buffer re-prioritizes its envelopes based on this information.
     /// Returns `true` if at least one priority was changed.
     pub fn mark_ready(&mut self, project: &ProjectKey, is_ready: bool) -> bool {
+        relay_log::trace!(
+            project_key = project.as_str(),
+            "buffer marked {}",
+            if is_ready { "ready" } else { "not ready" }
+        );
         match self {
             Self::Sqlite(buffer) => buffer.mark_ready(project, is_ready),
             Self::InMemory(buffer) => buffer.mark_ready(project, is_ready),
