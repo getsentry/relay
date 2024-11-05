@@ -1033,6 +1033,11 @@
 <a href="#1033" id="1033">1033</a>
 <a href="#1034" id="1034">1034</a>
 <a href="#1035" id="1035">1035</a>
+<a href="#1036" id="1036">1036</a>
+<a href="#1037" id="1037">1037</a>
+<a href="#1038" id="1038">1038</a>
+<a href="#1039" id="1039">1039</a>
+<a href="#1040" id="1040">1040</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::cmp::Ordering;
 <span class="kw">use </span>std::collections::BTreeSet;
 <span class="kw">use </span>std::convert::Infallible;
@@ -1157,6 +1162,11 @@
     /// The buffer re-prioritizes its envelopes based on this information.
     /// Returns `true` if at least one priority was changed.
     </span><span class="kw">pub fn </span>mark_ready(<span class="kw-2">&amp;mut </span><span class="self">self</span>, project: <span class="kw-2">&amp;</span>ProjectKey, is_ready: bool) -&gt; bool {
+        <span class="macro">relay_log::trace!</span>(
+            project_key = project.as_str(),
+            <span class="string">"buffer marked {}"</span>,
+            <span class="kw">if </span>is_ready { <span class="string">"ready" </span>} <span class="kw">else </span>{ <span class="string">"not ready" </span>}
+        );
         <span class="kw">match </span><span class="self">self </span>{
             <span class="self">Self</span>::Sqlite(buffer) =&gt; buffer.mark_ready(project, is_ready),
             <span class="self">Self</span>::InMemory(buffer) =&gt; buffer.mark_ready(project, is_ready),
