@@ -58,8 +58,6 @@ pub enum EnvelopeBuffer {
     /// This happens when an envelope was sent to the project cache, but one of the necessary project
     /// state has expired. The envelope is pushed back into the envelope buffer.
     NotReady(ProjectKey, Box<Envelope>),
-    /// Informs the service that a project has a valid project state and can be marked as ready.
-    Ready(ProjectKey),
 }
 
 impl Interface for EnvelopeBuffer {}
@@ -307,7 +305,11 @@ impl EnvelopeBufferService {
         managed_envelope.reject(Outcome::Invalid(DiscardReason::Timestamp));
     }
 
-    async fn handle_message(buffer: &mut PolymorphicEnvelopeBuffer, message: EnvelopeBuffer) {
+    async fn handle_message(
+        buffer: &mut PolymorphicEnvelopeBuffer,
+        services: &Services,
+        message: EnvelopeBuffer,
+    ) {
         match message {
             EnvelopeBuffer::Push(envelope) => {
                 // NOTE: This function assumes that a project state update for the relevant
@@ -324,14 +326,8 @@ impl EnvelopeBufferService {
                 );
                 relay_statsd::metric!(counter(RelayCounters::BufferEnvelopesReturned) += 1);
                 Self::push(buffer, envelope).await;
-                buffer.mark_ready(&project_key, false);
-            }
-            EnvelopeBuffer::Ready(project_key) => {
-                relay_log::trace!(
-                    "EnvelopeBufferService: received project ready message for project key {}",
-                    &project_key
-                );
-                buffer.mark_ready(&project_key, true);
+                let project = services.project_cache_handle.get(project_key);
+                buffer.mark_ready(&project_key, !project.state().is_pending());
             }
         };
     }
@@ -439,12 +435,12 @@ impl Service for EnvelopeBufferService {
                     }
                     change = project_changes.recv() => {
                         if let Ok(ProjectChange::Ready(project_key)) = change {
-                            Self::handle_message(&mut buffer, EnvelopeBuffer::Ready(project_key)).await;
+                            buffer.mark_ready(&project_key, true);
                         }
                         sleep = Duration::ZERO;
                     }
                     Some(message) = rx.recv() => {
-                        Self::handle_message(&mut buffer, message).await;
+                        Self::handle_message(&mut buffer, &services, message).await;
                         sleep = Duration::ZERO;
                     }
                     shutdown = shutdown.notified() => {
@@ -491,6 +487,7 @@ mod tests {
     use tokio::sync::mpsc;
     use uuid::Uuid;
 
+    use crate::services::projects::project::ProjectState;
     use crate::testutils::new_envelope;
     use crate::MemoryStat;
 
@@ -553,17 +550,19 @@ mod tests {
             service,
             global_tx: _global_tx,
             envelopes_rx: _envelopes_rx,
-            project_cache_handle: _project_cache_handle,
+            project_cache_handle,
             outcome_aggregator_rx: _outcome_aggregator_rx,
         } = envelope_buffer_service(None, global_config::Status::Pending);
 
         service.has_capacity.store(false, Ordering::Relaxed);
 
-        let ObservableEnvelopeBuffer { addr, has_capacity } = service.start_observable();
+        let ObservableEnvelopeBuffer { has_capacity, .. } = service.start_observable();
         assert!(!has_capacity.load(Ordering::Relaxed));
 
+        tokio::time::advance(Duration::from_millis(100)).await;
+
         let some_project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-        addr.send(EnvelopeBuffer::Ready(some_project_key));
+        project_cache_handle.test_set_project_state(some_project_key, ProjectState::Disabled);
 
         tokio::time::advance(Duration::from_millis(100)).await;
 
@@ -576,6 +575,7 @@ mod tests {
             service,
             global_tx,
             envelopes_rx,
+            project_cache_handle,
             outcome_aggregator_rx: _outcome_aggregator_rx,
             ..
         } = envelope_buffer_service(None, global_config::Status::Pending);
@@ -585,7 +585,7 @@ mod tests {
         let envelope = new_envelope(false, "foo");
         let project_key = envelope.meta().public_key();
         addr.send(EnvelopeBuffer::Push(envelope.clone()));
-        addr.send(EnvelopeBuffer::Ready(project_key));
+        project_cache_handle.test_set_project_state(project_key, ProjectState::Disabled);
 
         tokio::time::sleep(Duration::from_millis(1000)).await;
 
@@ -605,6 +605,7 @@ mod tests {
         let EnvelopeBufferServiceResult {
             service,
             envelopes_rx,
+            project_cache_handle,
             outcome_aggregator_rx: _outcome_aggregator_rx,
             global_tx: _global_tx,
             ..
@@ -628,7 +629,7 @@ mod tests {
         let envelope = new_envelope(false, "foo");
         let project_key = envelope.meta().public_key();
         addr.send(EnvelopeBuffer::Push(envelope.clone()));
-        addr.send(EnvelopeBuffer::Ready(project_key));
+        project_cache_handle.test_set_project_state(project_key, ProjectState::Disabled);
 
         tokio::time::sleep(Duration::from_millis(1000)).await;
 
@@ -657,6 +658,8 @@ mod tests {
 
         let config = service.config.clone();
         let addr = service.start();
+
+        tokio::time::sleep(Duration::from_millis(100)).await;
 
         let mut envelope = new_envelope(false, "foo");
         envelope.meta_mut().set_received_at(
@@ -702,10 +705,10 @@ mod tests {
         addr.send(EnvelopeBuffer::NotReady(project_key, envelope));
 
         tokio::time::sleep(Duration::from_millis(100)).await;
-        assert_eq!(project_cache_handle.test_num_fetches(), 1);
+        assert_eq!(project_cache_handle.test_num_fetches(), 2);
 
         tokio::time::sleep(Duration::from_millis(1300)).await;
-        assert_eq!(project_cache_handle.test_num_fetches(), 2);
+        assert_eq!(project_cache_handle.test_num_fetches(), 3);
     }
 
     #[tokio::test(start_paused = true)]
@@ -713,6 +716,7 @@ mod tests {
         let EnvelopeBufferServiceResult {
             service,
             mut envelopes_rx,
+            project_cache_handle,
             global_tx: _global_tx,
             outcome_aggregator_rx: _outcome_aggregator_rx,
             ..
@@ -728,7 +732,7 @@ mod tests {
         for _ in 0..10 {
             addr.send(EnvelopeBuffer::Push(envelope.clone()));
         }
-        addr.send(EnvelopeBuffer::Ready(project_key));
+        project_cache_handle.test_set_project_state(project_key, ProjectState::Disabled);
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
