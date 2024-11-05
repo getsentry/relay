@@ -121,6 +121,8 @@ pub enum ItemType {
     Span,
     /// A standalone OpenTelemetry span.
     OtelSpan,
+    /// An OTLP TracesData container.
+    OtelTrace,
     /// UserReport as an Event
     UserReportV2,
     /// ProfileChunk is a chunk of a profiling session.
@@ -174,6 +176,7 @@ impl ItemType {
             Self::CheckIn => "check_in",
             Self::Span => "span",
             Self::OtelSpan => "otel_span",
+            Self::OtelTrace => "otel_trace",
             Self::ProfileChunk => "profile_chunk",
             Self::Unknown(_) => "unknown",
         }
@@ -226,6 +229,7 @@ impl std::str::FromStr for ItemType {
             "check_in" => Self::CheckIn,
             "span" => Self::Span,
             "otel_span" => Self::OtelSpan,
+            "otel_trace" => Self::OtelTrace,
             "profile_chunk" => Self::ProfileChunk,
             other => Self::Unknown(other.to_owned()),
         })
@@ -253,6 +257,8 @@ pub enum ContentType {
     Xml,
     /// application/x-sentry-envelope
     Envelope,
+    /// "application/x-protobuf"
+    Protobuf,
     /// Any arbitrary content type not listed explicitly.
     Other(String),
 }
@@ -268,6 +274,7 @@ impl ContentType {
             Self::Minidump => "application/x-dmp",
             Self::Xml => "text/xml",
             Self::Envelope => CONTENT_TYPE,
+            Self::Protobuf => "application/x-protobuf",
             Self::Other(ref other) => other,
         }
     }
@@ -289,6 +296,8 @@ impl ContentType {
             Some(Self::Xml)
         } else if ct.eq_ignore_ascii_case(Self::Envelope.as_str()) {
             Some(Self::Envelope)
+        } else if ct.eq_ignore_ascii_case(Self::Protobuf.as_str()) {
+            Some(Self::Protobuf)
         } else {
             None
         }
@@ -664,6 +673,9 @@ impl Item {
     pub fn quantity(&self) -> usize {
         match self.ty() {
             ItemType::Attachment => self.len().max(1),
+            // NOTE: This is semantically wrong. An otel trace contains may contain many spans,
+            // but we cannot easily count these before converting the trace into a series of spans.
+            ItemType::OtelTrace => 1,
             _ => 1,
         }
     }
@@ -696,6 +708,7 @@ impl Item {
             ItemType::ClientReport => None,
             ItemType::CheckIn => Some(DataCategory::Monitor),
             ItemType::Span | ItemType::OtelSpan => Some(DataCategory::Span),
+            ItemType::OtelTrace => None,
             ItemType::ProfileChunk => Some(DataCategory::ProfileChunk),
             ItemType::Unknown(_) => None,
         }
@@ -933,6 +946,7 @@ impl Item {
             | ItemType::CheckIn
             | ItemType::Span
             | ItemType::OtelSpan
+            | ItemType::OtelTrace
             | ItemType::ProfileChunk => false,
 
             // The unknown item type can observe any behavior, most likely there are going to be no
@@ -968,6 +982,7 @@ impl Item {
             ItemType::CheckIn => false,
             ItemType::Span => false,
             ItemType::OtelSpan => false,
+            ItemType::OtelTrace => false,
             ItemType::ProfileChunk => false,
 
             // Since this Relay cannot interpret the semantics of this item, it does not know

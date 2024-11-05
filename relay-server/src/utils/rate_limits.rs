@@ -130,6 +130,7 @@ fn infer_event_category(item: &Item) -> Option<DataCategory> {
         ItemType::CheckIn => None,
         ItemType::Span => None,
         ItemType::OtelSpan => None,
+        ItemType::OtelTrace => None,
         ItemType::ProfileChunk => Some(DataCategory::ProfileChunk),
         ItemType::Unknown(_) => None,
     }
@@ -478,8 +479,9 @@ impl Enforcement {
             ItemType::ReplayVideo => !self.replays.is_active(),
             ItemType::ReplayRecording => !self.replays.is_active(),
             ItemType::CheckIn => !self.check_ins.is_active(),
-            ItemType::Span => !self.spans_indexed.is_active(),
-            ItemType::OtelSpan => !self.spans_indexed.is_active(),
+            ItemType::Span | ItemType::OtelSpan | ItemType::OtelTrace => {
+                !self.spans_indexed.is_active()
+            }
             ItemType::Event
             | ItemType::Transaction
             | ItemType::Security
