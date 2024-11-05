@@ -38,16 +38,7 @@ pub fn convert_otel(state: &mut ProcessEnvelopeState<SpanGroup>) {
     let envelope = state.managed_envelope.envelope_mut();
 
     for item in envelope.take_items_by(|item| item.ty() == &ItemType::OtelTrace) {
-        match convert_trace_data(item) {
-            Ok(items) => {
-                for item in items {
-                    envelope.add_item(item);
-                }
-            }
-            Err(_) => {
-                todo!(); // report outcome
-            }
-        }
+        convert_trace_data(item, |item: Item| envelope.add_item(item));
     }
 }
 
@@ -60,7 +51,7 @@ enum ConvertOtelError {
     ParseError(#[from] prost::DecodeError),
 }
 
-fn convert_trace_data(item: Item) -> Result<impl Iterator<Item = Item>, ConvertOtelError> {
+fn convert_trace_data<F: Fn(Item)>(item: Item, yield_: F) -> Result<(), ConvertOtelError> {
     let traces_data: TracesData = match item.content_type() {
         Some(&ContentType::Json) => {
             todo!()
@@ -68,15 +59,21 @@ fn convert_trace_data(item: Item) -> Result<impl Iterator<Item = Item>, ConvertO
         Some(&ContentType::Protobuf) => TracesData::decode(item.payload())?,
         other => return Err(ConvertOtelError::InvalidContentType(other.cloned())),
     };
-    // TODO: should write resource and scope into span?
-    let items = traces_data
-        .resource_spans
-        .into_iter()
-        .flat_map(|resource| resource.scope_spans.into_iter())
-        .flat_map(|scope_spans| scope_spans.spans.into_iter())
-        .flat_map(|span| Item::new(serde_json::to_vec(&span).ok()?)); // TODO: error handling
+    for resource_span in traces_data.resource_spans {
+        for scope_span in resource_span.scope_spans {
+            for span in scope_span.spans {
+                let Ok(payload) = serde_json::to_vec(&span) else {
+                    // TODO: emit outcome
+                    continue;
+                };
+                let mut item = Item::new(ItemType::OtelSpan);
+                item.set_payload(ContentType::Json, payload);
+                yield_(item);
+            }
+        }
+    }
 
-    Ok(items)
+    Ok(())
 }
 
 /// Creates a span from the transaction and applies tag extraction on it.
