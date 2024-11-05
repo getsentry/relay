@@ -497,6 +497,7 @@ def test_filters_are_applied_to_profiles(
         [
             "organizations:profiling",
             "organizations:continuous-profiling",
+            "organizations:continuous-profiling-allowed-ingest",
         ]
     )
     filter_settings = project_config["config"]["filterSettings"]
