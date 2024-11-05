@@ -1,7 +1,5 @@
 //! Processor code related to standalone spans.
 
-use std::collections::BTreeSet;
-
 use prost::Message;
 use relay_dynamic_config::Feature;
 use relay_event_normalization::span::description::ScrubMongoDescription;
@@ -15,7 +13,6 @@ use crate::envelope::{ContentType, Item, ItemType};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::SpanGroup;
 use crate::utils::TypedEnvelope;
-use crate::Envelope;
 use crate::{services::processor::ProcessEnvelopeState, utils::ItemAction};
 
 #[cfg(feature = "processing")]
