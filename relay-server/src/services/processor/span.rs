@@ -1,15 +1,21 @@
 //! Processor code related to standalone spans.
 
+use std::collections::BTreeSet;
+
 use prost::Message;
 use relay_dynamic_config::Feature;
 use relay_event_normalization::span::description::ScrubMongoDescription;
 use relay_event_normalization::span::tag_extraction;
 use relay_event_schema::protocol::{Event, Span};
 use relay_protocol::Annotated;
+use relay_quotas::DataCategory;
 use relay_spans::otel_trace::TracesData;
 
 use crate::envelope::{ContentType, Item, ItemType};
+use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::SpanGroup;
+use crate::utils::TypedEnvelope;
+use crate::Envelope;
 use crate::{services::processor::ProcessEnvelopeState, utils::ItemAction};
 
 #[cfg(feature = "processing")]
@@ -38,42 +44,52 @@ pub fn convert_otel(state: &mut ProcessEnvelopeState<SpanGroup>) {
     let envelope = state.managed_envelope.envelope_mut();
 
     for item in envelope.take_items_by(|item| item.ty() == &ItemType::OtelTrace) {
-        convert_trace_data(item, |item: Item| envelope.add_item(item));
+        convert_trace_data(item, &mut state.managed_envelope);
     }
 }
 
-#[derive(Debug, thiserror::Error)]
-enum ConvertOtelError {
-    #[error("invalid content type: {0:?}")]
-    InvalidContentType(Option<ContentType>),
-
-    #[error("parse error: {0}")]
-    ParseError(#[from] prost::DecodeError),
-}
-
-fn convert_trace_data<F: Fn(Item)>(item: Item, yield_: F) -> Result<(), ConvertOtelError> {
-    let traces_data: TracesData = match item.content_type() {
-        Some(&ContentType::Json) => {
-            todo!()
+fn convert_trace_data(item: Item, managed_envelope: &mut TypedEnvelope<SpanGroup>) {
+    let traces_data = match parse_traces_data(item) {
+        Ok(traces_data) => traces_data,
+        Err(reason) => {
+            // NOTE: logging quantity=1 is semantically wrong, but we cannot know the real quantity
+            // without parsing.
+            track_invalid(managed_envelope, reason);
+            return;
         }
-        Some(&ContentType::Protobuf) => TracesData::decode(item.payload())?,
-        other => return Err(ConvertOtelError::InvalidContentType(other.cloned())),
     };
-    for resource_span in traces_data.resource_spans {
-        for scope_span in resource_span.scope_spans {
-            for span in scope_span.spans {
+    for resource in traces_data.resource_spans {
+        for scope in resource.scope_spans {
+            for span in scope.spans {
+                // TODO: resources and scopes contain attributes, should denormalize into spans?
                 let Ok(payload) = serde_json::to_vec(&span) else {
-                    // TODO: emit outcome
+                    track_invalid(managed_envelope, DiscardReason::Internal);
                     continue;
                 };
                 let mut item = Item::new(ItemType::OtelSpan);
                 item.set_payload(ContentType::Json, payload);
-                yield_(item);
+                managed_envelope.envelope_mut().add_item(item);
             }
         }
     }
+    managed_envelope.update(); // update envelope summary
+}
 
-    Ok(())
+fn track_invalid(managed_envelope: &mut TypedEnvelope<SpanGroup>, reason: DiscardReason) {
+    managed_envelope.track_outcome(Outcome::Invalid(reason), DataCategory::Span, 1);
+    managed_envelope.track_outcome(Outcome::Invalid(reason), DataCategory::SpanIndexed, 1);
+}
+
+fn parse_traces_data(item: Item) -> Result<TracesData, DiscardReason> {
+    match item.content_type() {
+        Some(&ContentType::Json) => {
+            serde_json::from_slice(&item.payload()).map_err(|_| DiscardReason::InvalidJson)
+        }
+        Some(&ContentType::Protobuf) => {
+            TracesData::decode(item.payload()).map_err(|_| DiscardReason::InvalidProtobuf)
+        }
+        _ => Err(DiscardReason::ContentType),
+    }
 }
 
 /// Creates a span from the transaction and applies tag extraction on it.
