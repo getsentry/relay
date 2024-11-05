@@ -31,7 +31,7 @@ pub fn filter(state: &mut ProcessEnvelopeState<SpanGroup>) {
         if disabled && item.is_span() {
             relay_log::debug!("dropping span because feature is disabled");
             ItemAction::DropSilently
-        } else if otel_disabled && item.ty() == &ItemType::OtelTrace {
+        } else if otel_disabled && item.ty() == &ItemType::OtelTracesData {
             relay_log::debug!("dropping otel trace because feature is disabled");
             ItemAction::DropSilently
         } else {
@@ -40,10 +40,10 @@ pub fn filter(state: &mut ProcessEnvelopeState<SpanGroup>) {
     });
 }
 
-pub fn convert_otel(state: &mut ProcessEnvelopeState<SpanGroup>) {
+pub fn convert_otel_traces_data(state: &mut ProcessEnvelopeState<SpanGroup>) {
     let envelope = state.managed_envelope.envelope_mut();
 
-    for item in envelope.take_items_by(|item| item.ty() == &ItemType::OtelTrace) {
+    for item in envelope.take_items_by(|item| item.ty() == &ItemType::OtelTracesData) {
         convert_traces_data(item, &mut state.managed_envelope);
     }
 }

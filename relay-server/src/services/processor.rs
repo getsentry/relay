@@ -301,7 +301,7 @@ impl ProcessingGroup {
         let span_items = envelope.take_items_by(|item| {
             matches!(
                 item.ty(),
-                &ItemType::Span | &ItemType::OtelSpan | &ItemType::OtelTrace
+                &ItemType::Span | &ItemType::OtelSpan | &ItemType::OtelTracesData
             )
         });
         if !span_items.is_empty() {
@@ -1872,7 +1872,7 @@ impl EnvelopeProcessorService {
         state: &mut ProcessEnvelopeState<SpanGroup>,
     ) -> Result<(), ProcessingError> {
         span::filter(state);
-        span::convert_otel(state);
+        span::convert_otel_traces_data(state);
 
         if_processing!(self.inner.config, {
             let global_config = self.inner.global_config.current();

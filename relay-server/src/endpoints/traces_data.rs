@@ -28,7 +28,7 @@ async fn handle(
     envelope.require_feature(Feature::OtelEndpoint);
 
     envelope.add_item({
-        let mut item = Item::new(ItemType::OtelTrace);
+        let mut item = Item::new(ItemType::OtelTracesData);
         item.set_payload(content_type, payload);
         item
     });
@@ -39,5 +39,5 @@ async fn handle(
 }
 
 pub fn route(config: &Config) -> MethodRouter<ServiceState> {
-    post(handle).route_layer(DefaultBodyLimit::max(config.max_span_size()))
+    post(handle).route_layer(DefaultBodyLimit::max(config.max_envelope_size()))
 }

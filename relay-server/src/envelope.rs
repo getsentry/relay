@@ -122,7 +122,7 @@ pub enum ItemType {
     /// A standalone OpenTelemetry span.
     OtelSpan,
     /// An OTLP TracesData container.
-    OtelTrace,
+    OtelTracesData,
     /// UserReport as an Event
     UserReportV2,
     /// ProfileChunk is a chunk of a profiling session.
@@ -176,7 +176,7 @@ impl ItemType {
             Self::CheckIn => "check_in",
             Self::Span => "span",
             Self::OtelSpan => "otel_span",
-            Self::OtelTrace => "otel_trace",
+            Self::OtelTracesData => "otel_traces_data",
             Self::ProfileChunk => "profile_chunk",
             Self::Unknown(_) => "unknown",
         }
@@ -229,7 +229,7 @@ impl std::str::FromStr for ItemType {
             "check_in" => Self::CheckIn,
             "span" => Self::Span,
             "otel_span" => Self::OtelSpan,
-            "otel_trace" => Self::OtelTrace,
+            "otel_traces_data" => Self::OtelTracesData,
             "profile_chunk" => Self::ProfileChunk,
             other => Self::Unknown(other.to_owned()),
         })
@@ -675,7 +675,7 @@ impl Item {
             ItemType::Attachment => self.len().max(1),
             // NOTE: This is semantically wrong. An otel trace contains may contain many spans,
             // but we cannot easily count these before converting the trace into a series of spans.
-            ItemType::OtelTrace => 1,
+            ItemType::OtelTracesData => 1,
             _ => 1,
         }
     }
@@ -684,7 +684,7 @@ impl Item {
     pub fn is_span(&self) -> bool {
         matches!(
             self.ty(),
-            ItemType::OtelSpan | ItemType::Span | ItemType::OtelTrace
+            ItemType::OtelSpan | ItemType::Span | ItemType::OtelTracesData
         )
     }
 
@@ -711,7 +711,7 @@ impl Item {
             ItemType::ClientReport => None,
             ItemType::CheckIn => Some(DataCategory::Monitor),
             ItemType::Span | ItemType::OtelSpan => Some(DataCategory::Span),
-            ItemType::OtelTrace => None,
+            ItemType::OtelTracesData => None,
             ItemType::ProfileChunk => Some(DataCategory::ProfileChunk),
             ItemType::Unknown(_) => None,
         }
@@ -949,7 +949,7 @@ impl Item {
             | ItemType::CheckIn
             | ItemType::Span
             | ItemType::OtelSpan
-            | ItemType::OtelTrace
+            | ItemType::OtelTracesData
             | ItemType::ProfileChunk => false,
 
             // The unknown item type can observe any behavior, most likely there are going to be no
@@ -985,7 +985,7 @@ impl Item {
             ItemType::CheckIn => false,
             ItemType::Span => false,
             ItemType::OtelSpan => false,
-            ItemType::OtelTrace => false,
+            ItemType::OtelTracesData => false,
             ItemType::ProfileChunk => false,
 
             // Since this Relay cannot interpret the semantics of this item, it does not know
