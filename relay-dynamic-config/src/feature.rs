@@ -70,12 +70,16 @@ pub enum Feature {
     /// Serialized as `organizations:continuous-profiling`.
     #[serde(rename = "organizations:continuous-profiling")]
     ContinuousProfiling,
-    /// Enable continuous profiling ingestion.
-    /// This handle the Nov. 14th Nov. 18th case specifically.
+    /// Enabled for beta orgs
     ///
     /// Serialized as `organizations:continuous-profiling-beta`.
     #[serde(rename = "organizations:continuous-profiling-beta")]
     ContinuousProfilingBeta,
+    /// Enabled for beta orgs
+    ///
+    /// Serialized as `organizations:continuous-profiling-beta-ingest`.
+    #[serde(rename = "organizations:continuous-profiling-beta-ingest")]
+    ContinuousProfilingBetaIngest,
     /// Enables metric extraction from spans for common modules.
     ///
     /// Serialized as `projects:span-metrics-extraction`.
