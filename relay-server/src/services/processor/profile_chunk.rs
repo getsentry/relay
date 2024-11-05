@@ -19,7 +19,7 @@ pub fn filter<G>(state: &mut ProcessEnvelopeState<G>) {
     let continuous_profiling_enabled = state.project_info.has_feature(Feature::ContinuousProfiling)
         && state
             .project_info
-            .has_feature(Feature::ContinuousProfilingAllowedIngest);
+            .has_feature(Feature::ContinuousProfilingBeta);
     state.managed_envelope.retain_items(|item| match item.ty() {
         ItemType::ProfileChunk if !continuous_profiling_enabled => ItemAction::DropSilently,
         _ => ItemAction::Keep,
@@ -39,7 +39,7 @@ pub fn process(
     let continuous_profiling_enabled = state.project_info.has_feature(Feature::ContinuousProfiling)
         && state
             .project_info
-            .has_feature(Feature::ContinuousProfilingAllowedIngest);
+            .has_feature(Feature::ContinuousProfilingBeta);
     state.managed_envelope.retain_items(|item| match item.ty() {
         ItemType::ProfileChunk => {
             if !continuous_profiling_enabled {

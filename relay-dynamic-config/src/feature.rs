@@ -73,9 +73,9 @@ pub enum Feature {
     /// Enable continuous profiling ingestion.
     /// This handle the Nov. 14th Nov. 18th case specifically.
     ///
-    /// Serialized as `organizations:continuous-profiling-allowed-ingest`.
-    #[serde(rename = "organizations:continuous-profiling-allowed-ingest")]
-    ContinuousProfilingAllowedIngest,
+    /// Serialized as `organizations:continuous-profiling-beta`.
+    #[serde(rename = "organizations:continuous-profiling-beta")]
+    ContinuousProfilingBeta,
     /// Enables metric extraction from spans for common modules.
     ///
     /// Serialized as `projects:span-metrics-extraction`.
