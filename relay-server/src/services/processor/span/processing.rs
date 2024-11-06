@@ -9,7 +9,6 @@ use relay_dynamic_config::{
     CombinedMetricExtractionConfig, ErrorBoundary, Feature, GlobalConfig, ProjectConfig,
 };
 use relay_event_normalization::span::ai::extract_ai_measurements;
-use relay_event_normalization::span::description::ScrubMongoDescription;
 use relay_event_normalization::{
     normalize_measurements, normalize_performance_score, span::tag_extraction, validate_span,
     CombinedMeasurementsConfig, MeasurementsConfig, PerformanceScoreConfig, RawUserAgentInfo,
@@ -360,16 +359,6 @@ pub fn extract_from_event(
             .aggregator
             .max_tag_value_length,
         &[],
-        if state
-            .project_info
-            .config
-            .features
-            .has(Feature::ScrubMongoDbDescriptions)
-        {
-            ScrubMongoDescription::Enabled
-        } else {
-            ScrubMongoDescription::Disabled
-        },
     ) else {
         return;
     };
@@ -442,8 +431,6 @@ struct NormalizeSpanConfig<'a> {
     client_hints: ClientHints<String>,
     /// Hosts that are not replaced by "*" in HTTP span grouping.
     allowed_hosts: &'a [String],
-    /// Whether or not to scrub MongoDB span descriptions during normalization.
-    scrub_mongo_description: ScrubMongoDescription,
     /// The IP address of the SDK that sent the event.
     ///
     /// When `{{auto}}` is specified and there is no other IP address in the payload, such as in the
@@ -491,14 +478,6 @@ impl<'a> NormalizeSpanConfig<'a> {
                 .map(String::from),
             client_hints: managed_envelope.meta().client_hints().clone(),
             allowed_hosts: global_config.options.http_span_allowed_hosts.as_slice(),
-            scrub_mongo_description: if project_config
-                .features
-                .has(Feature::ScrubMongoDbDescriptions)
-            {
-                ScrubMongoDescription::Enabled
-            } else {
-                ScrubMongoDescription::Disabled
-            },
             client_ip,
             geo_lookup,
             span_op_defaults: global_config.span_op_defaults.borrow(),
@@ -554,7 +533,6 @@ fn normalize(
         user_agent,
         client_hints,
         allowed_hosts,
-        scrub_mongo_description,
         client_ip,
         geo_lookup,
         span_op_defaults,
@@ -648,7 +626,6 @@ fn normalize(
         is_mobile,
         None,
         allowed_hosts,
-        scrub_mongo_description,
     );
     span.sentry_tags = Annotated::new(
         tags.into_iter()
@@ -1219,7 +1196,6 @@ mod tests {
             user_agent: None,
             client_hints: ClientHints::default(),
             allowed_hosts: &[],
-            scrub_mongo_description: ScrubMongoDescription::Disabled,
             client_ip: Some(IpAddr("2.125.160.216".to_owned())),
             geo_lookup: Some(&GEO_LOOKUP),
             span_op_defaults: Default::default(),
