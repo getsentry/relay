@@ -214,11 +214,46 @@
 <a href="#214" id="214">214</a>
 <a href="#215" id="215">215</a>
 <a href="#216" id="216">216</a>
+<a href="#217" id="217">217</a>
+<a href="#218" id="218">218</a>
+<a href="#219" id="219">219</a>
+<a href="#220" id="220">220</a>
+<a href="#221" id="221">221</a>
+<a href="#222" id="222">222</a>
+<a href="#223" id="223">223</a>
+<a href="#224" id="224">224</a>
+<a href="#225" id="225">225</a>
+<a href="#226" id="226">226</a>
+<a href="#227" id="227">227</a>
+<a href="#228" id="228">228</a>
+<a href="#229" id="229">229</a>
+<a href="#230" id="230">230</a>
+<a href="#231" id="231">231</a>
+<a href="#232" id="232">232</a>
+<a href="#233" id="233">233</a>
+<a href="#234" id="234">234</a>
+<a href="#235" id="235">235</a>
+<a href="#236" id="236">236</a>
+<a href="#237" id="237">237</a>
+<a href="#238" id="238">238</a>
+<a href="#239" id="239">239</a>
+<a href="#240" id="240">240</a>
+<a href="#241" id="241">241</a>
+<a href="#242" id="242">242</a>
+<a href="#243" id="243">243</a>
+<a href="#244" id="244">244</a>
+<a href="#245" id="245">245</a>
+<a href="#246" id="246">246</a>
+<a href="#247" id="247">247</a>
+<a href="#248" id="248">248</a>
+<a href="#249" id="249">249</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>bytes::Bytes;
 <span class="kw">use </span>chrono::Utc;
 <span class="kw">use </span>clap::{Parser, ValueEnum};
+<span class="kw">use </span>rand::RngCore;
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_server::{Envelope, MemoryChecker, MemoryStat, PolymorphicEnvelopeBuffer};
+<span class="kw">use </span>std::path::PathBuf;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::{Duration, Instant};
 
@@ -239,7 +274,11 @@
     <span class="attr">#[arg(long)]
     </span>envelope_size_kib: usize,
     <span class="attr">#[arg(long)]
-    </span>batch_size: usize,
+    </span>compression_ratio: f64,
+    <span class="attr">#[arg(long)]
+    </span>write_batch_kib: usize,
+    <span class="attr">#[arg(long)]
+    </span>read_batch_size: usize,
     <span class="attr">#[arg(long)]
     </span>implementation: Impl,
     <span class="attr">#[arg(long)]
@@ -248,28 +287,43 @@
     </span>projects: usize,
     <span class="attr">#[arg(long, default_value_t = <span class="number">60</span>)]
     </span>duration_secs: u64,
+    <span class="attr">#[arg(long, default_value = <span class="prelude-val">None</span>)]
+    </span>db: <span class="prelude-ty">Option</span>&lt;PathBuf&gt;,
 }
 
 <span class="attr">#[tokio::main]
 </span><span class="kw">async fn </span>main() {
     <span class="kw">let </span>args = Args::parse();
     <span class="macro">println!</span>(<span class="string">"{:?}"</span>, <span class="kw-2">&amp;</span>args);
+    <span class="kw">let </span>Args {
+        envelope_size_kib,
+        compression_ratio,
+        write_batch_kib,
+        read_batch_size,
+        implementation,
+        mode,
+        projects,
+        duration_secs,
+        db,
+    } = args;
 
     <span class="kw">let </span>dir = tempfile::tempdir().unwrap();
+    <span class="kw">let </span>path = db.unwrap_or(dir.path().join(<span class="string">"envelopes.db"</span>));
 
     <span class="kw">let </span>config = Arc::new(
         Config::from_json_value(<span class="macro">serde_json::json!</span>({
             <span class="string">"spool"</span>: {
                 <span class="string">"envelopes"</span>: {
-                    <span class="string">"buffer_strategy"</span>: <span class="kw">match </span>args.implementation {
+                    <span class="string">"buffer_strategy"</span>: <span class="kw">match </span>implementation {
                         Impl::Memory =&gt; <span class="string">"memory"</span>,
                         Impl::Sqlite =&gt; <span class="string">"sqlite"</span>,
                     },
-                    <span class="string">"path"</span>: <span class="kw">match </span>args.implementation {
+                    <span class="string">"path"</span>: <span class="kw">match </span>implementation {
                         Impl::Memory =&gt; <span class="prelude-val">None</span>,
-                        Impl::Sqlite =&gt; <span class="prelude-val">Some</span>(dir.path().join(<span class="string">"envelopes.db"</span>)),
+                        Impl::Sqlite =&gt; <span class="prelude-val">Some</span>(path),
                     },
-                    <span class="string">"disk_batch_size"</span>: args.batch_size,
+                    <span class="string">"write_batch_bytes"</span>: write_batch_kib * <span class="number">1024</span>,
+                    <span class="string">"read_batch_size"</span>: read_batch_size,
                 }
             }
         }))
@@ -281,22 +335,24 @@
         .<span class="kw">await
         </span>.unwrap();
 
-    <span class="kw">match </span>args.mode {
+    <span class="kw">match </span>mode {
         Mode::Sequential =&gt; {
             run_sequential(
                 buffer,
-                args.envelope_size_kib * <span class="number">1024</span>,
-                args.projects,
-                Duration::from_secs(args.duration_secs),
+                envelope_size_kib * <span class="number">1024</span>,
+                compression_ratio,
+                projects,
+                Duration::from_secs(duration_secs),
             )
             .<span class="kw">await
         </span>}
         Mode::Interleaved =&gt; {
             run_interleaved(
                 buffer,
-                args.envelope_size_kib * <span class="number">1024</span>,
-                args.projects,
-                Duration::from_secs(args.duration_secs),
+                envelope_size_kib * <span class="number">1024</span>,
+                compression_ratio,
+                projects,
+                Duration::from_secs(duration_secs),
             )
             .<span class="kw">await
         </span>}
@@ -310,11 +366,12 @@
 <span class="kw">async fn </span>run_sequential(
     <span class="kw-2">mut </span>buffer: PolymorphicEnvelopeBuffer,
     envelope_size: usize,
+    compression_ratio: f64,
     project_count: usize,
     duration: Duration,
 ) {
     <span class="comment">// Determine envelope size once:
-    </span><span class="kw">let </span>proto_envelope = mock_envelope(envelope_size, project_count);
+    </span><span class="kw">let </span>proto_envelope = mock_envelope(envelope_size, project_count, compression_ratio);
     <span class="kw">let </span>bytes_per_envelope = proto_envelope.to_vec().unwrap().len();
 
     <span class="kw">let </span>start_time = Instant::now();
@@ -323,7 +380,7 @@
     <span class="kw">let </span><span class="kw-2">mut </span>write_duration = Duration::ZERO;
     <span class="kw">let </span><span class="kw-2">mut </span>writes = <span class="number">0</span>;
     <span class="kw">while </span>start_time.elapsed() &lt; duration / <span class="number">2 </span>{
-        <span class="kw">let </span>envelope = mock_envelope(envelope_size, project_count);
+        <span class="kw">let </span>envelope = mock_envelope(envelope_size, project_count, compression_ratio);
 
         <span class="kw">let </span>before = Instant::now();
         buffer.push(envelope).<span class="kw">await</span>.unwrap();
@@ -369,11 +426,12 @@
 <span class="kw">async fn </span>run_interleaved(
     <span class="kw-2">mut </span>buffer: PolymorphicEnvelopeBuffer,
     envelope_size: usize,
+    compression_ratio: f64,
     project_count: usize,
     duration: Duration,
 ) {
     <span class="comment">// Determine envelope size once:
-    </span><span class="kw">let </span>proto_envelope = mock_envelope(envelope_size, project_count);
+    </span><span class="kw">let </span>proto_envelope = mock_envelope(envelope_size, project_count, compression_ratio);
     <span class="kw">let </span>bytes_per_envelope = proto_envelope.to_vec().unwrap().len();
 
     <span class="kw">let </span>start_time = Instant::now();
@@ -383,7 +441,7 @@
     <span class="kw">let </span><span class="kw-2">mut </span>read_duration = Duration::ZERO;
     <span class="kw">let </span><span class="kw-2">mut </span>iterations = <span class="number">0</span>;
     <span class="kw">while </span>start_time.elapsed() &lt; duration {
-        <span class="kw">let </span>envelope = mock_envelope(envelope_size, project_count);
+        <span class="kw">let </span>envelope = mock_envelope(envelope_size, project_count, compression_ratio);
 
         <span class="kw">let </span>before = Instant::now();
         buffer.push(envelope).<span class="kw">await</span>.unwrap();
@@ -414,19 +472,27 @@
     }
 }
 
-<span class="kw">fn </span>mock_envelope(payload_size: usize, project_count: usize) -&gt; Box&lt;Envelope&gt; {
+<span class="kw">fn </span>mock_envelope(
+    payload_size: usize,
+    project_count: usize,
+    compression_ratio: f64,
+) -&gt; Box&lt;Envelope&gt; {
     <span class="kw">let </span>project_key = (rand::random::&lt;f64&gt;() * project_count <span class="kw">as </span>f64) <span class="kw">as </span>u128;
-    <span class="kw">let </span>bytes = Bytes::from(<span class="macro">format!</span>(
-            <span class="string">"\
-             {{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://{:032x}:@sentry.io/42\"}}\n\
-             {{\"type\":\"attachment\"}}\n\
-             {}\n\
-             "</span>,
-            project_key,
-            <span class="string">"X"</span>.repeat(payload_size)
-        ));
+    <span class="kw">let </span><span class="kw-2">mut </span>envelope = <span class="macro">format!</span>(
+        <span class="string">"\
+            {{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://{:032x}:@sentry.io/42\"}}\n\
+            {{\"type\":\"attachment\", \"length\":{}}}\n"</span>,
+        project_key,
+        payload_size,
+    ).into_bytes();
 
-    <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::parse_bytes(bytes).unwrap();
+    <span class="comment">// Fill with random bytes to get estimated compression ratio:
+    </span><span class="kw">let </span><span class="kw-2">mut </span>payload = [<span class="number">0u8</span>].repeat(payload_size);
+    <span class="kw">let </span>fraction = (payload_size <span class="kw">as </span>f64 / compression_ratio) <span class="kw">as </span>usize;
+    rand::thread_rng().fill_bytes(<span class="kw-2">&amp;mut </span>payload[..fraction]);
+    envelope.extend(payload);
+
+    <span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::parse_bytes(Bytes::from(envelope)).unwrap();
     envelope.set_received_at(Utc::now());
     envelope
 }

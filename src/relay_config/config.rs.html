@@ -2636,6 +2636,8 @@
 <a href="#2636" id="2636">2636</a>
 <a href="#2637" id="2637">2637</a>
 <a href="#2638" id="2638">2638</a>
+<a href="#2639" id="2639">2639</a>
+<a href="#2640" id="2640">2640</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
@@ -3510,15 +3512,15 @@
     <span class="number">100
 </span>}
 
-<span class="doccomment">/// Default batch size for the stack.
-</span><span class="kw">fn </span>spool_envelopes_stack_disk_batch_size() -&gt; usize {
+<span class="doccomment">/// Default number of envelope to read from disk at once.
+</span><span class="kw">fn </span>spool_envelopes_read_batch_size() -&gt; usize {
     <span class="number">200
 </span>}
 
-<span class="doccomment">/// Default maximum number of batches for the stack.
-</span><span class="kw">fn </span>spool_envelopes_stack_max_batches() -&gt; usize {
-    <span class="number">2
-</span>}
+<span class="doccomment">/// Default number of encoded envelope bytes to cache before writing to disk.
+</span><span class="kw">fn </span>spool_envelopes_write_batch_bytes() -&gt; ByteSize {
+    ByteSize::kibibytes(<span class="number">10</span>)
+}
 
 <span class="kw">fn </span>spool_envelopes_max_envelope_delay_secs() -&gt; u64 {
     <span class="number">24 </span>* <span class="number">60 </span>* <span class="number">60
@@ -3565,13 +3567,16 @@
     <span class="doccomment">/// The interval in milliseconds to trigger unspool.
     </span><span class="attr">#[serde(default = <span class="string">"spool_envelopes_unspool_interval"</span>)]
     </span>unspool_interval: u64,
-    <span class="doccomment">/// Number of elements of the envelope stack that are flushed to disk.
-    </span><span class="attr">#[serde(default = <span class="string">"spool_envelopes_stack_disk_batch_size"</span>)]
-    </span>disk_batch_size: usize,
-    <span class="doccomment">/// Number of batches of size [`Self::disk_batch_size`] that need to be accumulated before
-    /// flushing one batch to disk.
-    </span><span class="attr">#[serde(default = <span class="string">"spool_envelopes_stack_max_batches"</span>)]
-    </span>max_batches: usize,
+    <span class="doccomment">/// Number of envelopes that are read from disk at once.
+    ///
+    /// Defaults to 10.
+    </span><span class="attr">#[serde(default = <span class="string">"spool_envelopes_read_batch_size"</span>)]
+    </span>read_batch_size: usize,
+    <span class="doccomment">/// Number of encoded envelope bytes that are spooled to disk at once.
+    ///
+    /// Defaults to 10 KiB.
+    </span><span class="attr">#[serde(default = <span class="string">"spool_envelopes_write_batch_bytes"</span>)]
+    </span>write_batch_bytes: ByteSize,
     <span class="doccomment">/// Maximum time between receiving the envelope and processing it.
     ///
     /// When envelopes spend too much time in the buffer (e.g. because their project cannot be loaded),
@@ -3591,7 +3596,7 @@
     /// This value should be lower than [`Health::max_memory_percent`] to prevent flip-flopping.
     ///
     /// Warning: this threshold can cause the buffer service to deadlock when the buffer itself
-    /// is using too much memory (influenced by [`Self::max_batches`] and [`Self::disk_batch_size`]).
+    /// is using too much memory (influenced by [`Self::read_batch_size`] and [`Self::write_batch_bytes`]).
     ///
     /// Defaults to 90% (5% less than max memory).
     </span><span class="attr">#[serde(default = <span class="string">"spool_max_backpressure_memory_percent"</span>)]
@@ -3627,9 +3632,9 @@
             min_connections: spool_envelopes_min_connections(),
             max_disk_size: spool_envelopes_max_disk_size(),
             max_memory_size: spool_envelopes_max_memory_size(),
-            unspool_interval: spool_envelopes_unspool_interval(), <span class="comment">// 100ms
-            </span>disk_batch_size: spool_envelopes_stack_disk_batch_size(),
-            max_batches: spool_envelopes_stack_max_batches(),
+            unspool_interval: spool_envelopes_unspool_interval(),
+            read_batch_size: spool_envelopes_read_batch_size(),
+            write_batch_bytes: spool_envelopes_write_batch_bytes(),
             max_envelope_delay_secs: spool_envelopes_max_envelope_delay_secs(),
             disk_usage_refresh_frequency_ms: spool_disk_usage_refresh_frequency_ms(),
             max_backpressure_envelopes: spool_max_backpressure_envelopes(),
@@ -4812,22 +4817,21 @@
         <span class="self">self</span>.values.spool.envelopes.max_memory_size.as_bytes()
     }
 
-    <span class="doccomment">/// Number of batches of size `stack_disk_batch_size` that need to be accumulated before
-    /// flushing one batch to disk.
-    </span><span class="kw">pub fn </span>spool_envelopes_stack_disk_batch_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
-        <span class="self">self</span>.values.spool.envelopes.disk_batch_size
+    <span class="doccomment">/// Number of envelopes to read from disk at once.
+    </span><span class="kw">pub fn </span>spool_envelopes_read_batch_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="self">self</span>.values.spool.envelopes.read_batch_size
     }
 
-    <span class="doccomment">/// Number of batches of size `stack_disk_batch_size` that need to be accumulated before
+    <span class="doccomment">/// Number of encoded envelope bytes that need to be accumulated before
     /// flushing one batch to disk.
-    </span><span class="kw">pub fn </span>spool_envelopes_stack_max_batches(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
-        <span class="self">self</span>.values.spool.envelopes.max_batches
+    </span><span class="kw">pub fn </span>spool_envelopes_write_batch_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="self">self</span>.values.spool.envelopes.write_batch_bytes.as_bytes()
     }
 
     <span class="doccomment">/// Returns `true` if version 2 of the spooling mechanism is used.
     </span><span class="kw">pub fn </span>spool_v2(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="macro">matches!</span>(
-            <span class="self">self</span>.values.spool.envelopes.version,
+            <span class="kw-2">&amp;</span><span class="self">self</span>.values.spool.envelopes.version,
             EnvelopeSpoolVersion::V2
         )
     }

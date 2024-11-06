@@ -203,7 +203,6 @@
 <a href="#203" id="203">203</a>
 <a href="#204" id="204">204</a>
 <a href="#205" id="205">205</a>
-<a href="#206" id="206">206</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::error::Error;
 
 <span class="kw">use </span>relay_config::Config;
@@ -221,10 +220,9 @@
 <span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>SqliteStackProvider {
     envelope_store: SqliteEnvelopeStore,
-    disk_batch_size: usize,
-    max_batches: usize,
+    read_batch_size: usize,
+    write_batch_bytes: usize,
     max_disk_size: usize,
-    drain_batch_size: usize,
 }
 
 <span class="attr">#[warn(dead_code)]
@@ -234,10 +232,9 @@
         <span class="kw">let </span>envelope_store = SqliteEnvelopeStore::prepare(config).<span class="kw">await</span><span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
             envelope_store,
-            disk_batch_size: config.spool_envelopes_stack_disk_batch_size(),
-            max_batches: config.spool_envelopes_stack_max_batches(),
+            read_batch_size: config.spool_envelopes_read_batch_size(),
+            write_batch_bytes: config.spool_envelopes_write_batch_bytes(),
             max_disk_size: config.spool_envelopes_max_disk_size(),
-            drain_batch_size: config.spool_envelopes_stack_disk_batch_size(),
         })
     }
 
@@ -289,8 +286,8 @@
     ) -&gt; <span class="self">Self</span>::Stack {
         SqliteEnvelopeStack::new(
             <span class="self">self</span>.envelope_store.clone(),
-            <span class="self">self</span>.disk_batch_size,
-            <span class="self">self</span>.max_batches,
+            <span class="self">self</span>.read_batch_size,
+            <span class="self">self</span>.write_batch_bytes,
             project_key_pair.own_key,
             project_key_pair.sampling_key,
             <span class="comment">// We want to check the disk by default if we are creating the stack for the first time,
@@ -328,12 +325,13 @@
         <span class="macro">relay_log::trace!</span>(<span class="string">"Flushing sqlite envelope buffer"</span>);
 
         <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::BufferDrain), {
-            <span class="kw">let </span><span class="kw-2">mut </span>envelopes = Vec::with_capacity(<span class="self">self</span>.drain_batch_size);
+            <span class="kw">let </span>batch_size = <span class="number">1000</span>;
+            <span class="kw">let </span><span class="kw-2">mut </span>envelopes = Vec::with_capacity(batch_size);
             <span class="kw">for </span>envelope_stack <span class="kw">in </span>envelope_stacks {
                 <span class="kw">for </span>envelope <span class="kw">in </span>envelope_stack.flush() {
-                    <span class="kw">if </span>envelopes.len() &gt;= <span class="self">self</span>.drain_batch_size {
+                    <span class="kw">if </span>envelopes.len() &gt;= batch_size {
                         <span class="self">self</span>.drain_many(envelopes).<span class="kw">await</span>;
-                        envelopes = Vec::with_capacity(<span class="self">self</span>.drain_batch_size);
+                        envelopes = Vec::with_capacity(batch_size);
                     }
 
                     envelopes.push(envelope);
