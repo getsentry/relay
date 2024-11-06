@@ -13,6 +13,7 @@
 
 **Features:**
 
+- Add check to ensure unreal user info is not empty. ([#4225](https://github.com/getsentry/relay/pull/4225))
 - Retain empty string values in `span.data` and `event.contexts.trace.data`. ([#4174](https://github.com/getsentry/relay/pull/4174))
 - Allow `sample_rate` to be float type when deserializing `DynamicSamplingContext`. ([#4181](https://github.com/getsentry/relay/pull/4181))
 - Support inbound filters for profiles. ([#4176](https://github.com/getsentry/relay/pull/4176))
