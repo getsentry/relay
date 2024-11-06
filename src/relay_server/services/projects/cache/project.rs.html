@@ -297,6 +297,9 @@
 <a href="#297" id="297">297</a>
 <a href="#298" id="298">298</a>
 <a href="#299" id="299">299</a>
+<a href="#300" id="300">300</a>
+<a href="#301" id="301">301</a>
+<a href="#302" id="302">302</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>relay_config::Config;
@@ -308,6 +311,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome};
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::cache::state::SharedProject;
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectState;
+<span class="kw">use </span><span class="kw">crate</span>::statsd::RelayTimers;
 <span class="kw">use </span><span class="kw">crate</span>::utils::{CheckLimits, Enforcement, EnvelopeLimiter, ManagedEnvelope};
 
 <span class="doccomment">/// A loaded project.
@@ -389,7 +393,9 @@
         <span class="comment">// If we can extract spans from the event, we want to try and count the number of nested
         // spans to correctly emit negative outcomes in case the transaction itself is dropped.
         </span><span class="kw">if </span>check_nested_spans {
-            sync_spans_to_enforcement(<span class="kw-2">&amp;</span>envelope, <span class="kw-2">&amp;mut </span>enforcement);
+            <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::CheckNestedSpans), {
+                sync_spans_to_enforcement(<span class="kw-2">&amp;</span>envelope, <span class="kw-2">&amp;mut </span>enforcement);
+            });
         }
 
         enforcement.apply_with_outcomes(<span class="kw-2">&amp;mut </span>envelope);

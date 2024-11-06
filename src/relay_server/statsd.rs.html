@@ -958,6 +958,9 @@
 <a href="#958" id="958">958</a>
 <a href="#959" id="959">959</a>
 <a href="#960" id="960">960</a>
+<a href="#961" id="961">961</a>
+<a href="#962" id="962">962</a>
+<a href="#963" id="963">963</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 <span class="attr">#[cfg(doc)]
 </span><span class="kw">use </span>tokio::runtime::RuntimeMetrics;
@@ -1513,6 +1516,8 @@
     </span>BufferEnvelopesSerialization,
     <span class="doccomment">/// Timing in milliseconds to the time it takes to read an HTTP body.
     </span>BodyReadDuration,
+    <span class="doccomment">/// Timing in milliseconds to count spans in a serialized transaction payload.
+    </span>CheckNestedSpans,
 }
 
 <span class="kw">impl </span>TimerMetric <span class="kw">for </span>RelayTimers {
@@ -1565,6 +1570,7 @@
             RelayTimers::BufferDrain =&gt; <span class="string">"buffer.drain.duration"</span>,
             RelayTimers::BufferEnvelopesSerialization =&gt; <span class="string">"buffer.envelopes_serialization"</span>,
             RelayTimers::BodyReadDuration =&gt; <span class="string">"requests.body_read.duration"</span>,
+            RelayTimers::CheckNestedSpans =&gt; <span class="string">"envelope.check_nested_spans"</span>,
         }
     }
 }
