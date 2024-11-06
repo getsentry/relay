@@ -139,11 +139,15 @@ impl WorkerGroup {
 
 #[cfg(unix)]
 fn set_current_thread_priority(kind: ThreadKind) {
+    // Lower priorities cause more favorable scheduling.
+    // Higher priorities cause less favorable scheduling.
+    //
+    // For details see `man setpriority(2)`.
     let prio = match kind {
-        // The default priority needs no change.
+        // The default priority needs no change, and defaults to `0`.
         ThreadKind::Default => return,
         // Set a priority of `10` for worker threads,
-        // it's just important that this is a lower priority than default.
+        // it's just important that this is a higher priority than default.
         ThreadKind::Worker => 10,
     };
     if unsafe { libc::setpriority(libc::PRIO_PROCESS, 0, prio) } != 0 {
