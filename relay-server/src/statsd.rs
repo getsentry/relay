@@ -973,3 +973,83 @@ impl<S: AsRef<str>> From<S> for PlatformTag {
         }
     }
 }
+
+pub enum SdkTag {
+    Ruby,
+    CocoaFlutter,
+    CocoaReactNative,
+    Cocoa,
+    Dotnet,
+    AndroidReactNative,
+    AndroidJava,
+    SpringBoot,
+    JavascriptBrowser,
+    JavascriptElectron,
+    NestJs,
+    NextJS,
+    NodeJS,
+    React,
+    VueJS,
+    Native,
+    LaravelPHP,
+    SymfonyPHP,
+    PHP,
+    Python,
+    Other,
+}
+
+impl SdkTag {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Ruby => "sentry-ruby",
+            Self::CocoaFlutter => "sentry.cocoa.flutter",
+            Self::CocoaReactNative => "sentry.cocoa.react-native",
+            Self::Cocoa => "sentry.cocoa",
+            Self::Dotnet => "sentry.dotnet",
+            Self::AndroidReactNative => "sentry.java.android.react-native",
+            Self::AndroidJava => "sentry.java.android",
+            Self::SpringBoot => "sentry.java.spring-boot.jakarta",
+            Self::JavascriptBrowser => "sentry.javascript.browser",
+            Self::JavascriptElectron => "sentry.javascript.electron",
+            Self::NestJs => "sentry.javascript.nestjs",
+            Self::NextJS => "sentry.javascript.nextjs",
+            Self::NodeJS => "sentry.javascript.node",
+            Self::React => "sentry.javascript.react",
+            Self::VueJS => "sentry.javascript.vue",
+            Self::Native => "sentry.native",
+            Self::LaravelPHP => "sentry.php.laravel",
+            Self::SymfonyPHP => "sentry.php.symfony",
+            Self::PHP => "sentry.php",
+            Self::Python => "sentry.python",
+            Self::Other => "other",
+        }
+    }
+}
+
+impl<S: AsRef<str>> From<S> for SdkTag {
+    fn from(value: S) -> Self {
+        match value.as_ref() {
+            "sentry-ruby" => Self::Ruby,
+            "sentry.cocoa.flutter" => Self::CocoaFlutter,
+            "sentry.cocoa.react-native" => Self::CocoaReactNative,
+            "sentry.cocoa" => Self::Cocoa,
+            "sentry.dotnet" => Self::Dotnet,
+            "sentry.java.android.react-native" => Self::AndroidReactNative,
+            "sentry.java.android" => Self::AndroidJava,
+            "sentry.java.spring-boot.jakarta" => Self::SpringBoot,
+            "sentry.javascript.browser" => Self::JavascriptBrowser,
+            "sentry.javascript.electron" => Self::JavascriptElectron,
+            "sentry.javascript.nestjs" => Self::NestJs,
+            "sentry.javascript.nextjs" => Self::NextJS,
+            "sentry.javascript.node" => Self::NodeJS,
+            "sentry.javascript.react" => Self::React,
+            "sentry.javascript.vue" => Self::VueJS,
+            "sentry.native" => Self::Native,
+            "sentry.php.laravel" => Self::LaravelPHP,
+            "sentry.php.symfony" => Self::SymfonyPHP,
+            "sentry.php" => Self::PHP,
+            "sentry.python" => Self::Python,
+            _ => Self::Other,
+        }
+    }
+}
