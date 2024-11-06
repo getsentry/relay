@@ -210,6 +210,83 @@
 <a href="#210" id="210">210</a>
 <a href="#211" id="211">211</a>
 <a href="#212" id="212">212</a>
+<a href="#213" id="213">213</a>
+<a href="#214" id="214">214</a>
+<a href="#215" id="215">215</a>
+<a href="#216" id="216">216</a>
+<a href="#217" id="217">217</a>
+<a href="#218" id="218">218</a>
+<a href="#219" id="219">219</a>
+<a href="#220" id="220">220</a>
+<a href="#221" id="221">221</a>
+<a href="#222" id="222">222</a>
+<a href="#223" id="223">223</a>
+<a href="#224" id="224">224</a>
+<a href="#225" id="225">225</a>
+<a href="#226" id="226">226</a>
+<a href="#227" id="227">227</a>
+<a href="#228" id="228">228</a>
+<a href="#229" id="229">229</a>
+<a href="#230" id="230">230</a>
+<a href="#231" id="231">231</a>
+<a href="#232" id="232">232</a>
+<a href="#233" id="233">233</a>
+<a href="#234" id="234">234</a>
+<a href="#235" id="235">235</a>
+<a href="#236" id="236">236</a>
+<a href="#237" id="237">237</a>
+<a href="#238" id="238">238</a>
+<a href="#239" id="239">239</a>
+<a href="#240" id="240">240</a>
+<a href="#241" id="241">241</a>
+<a href="#242" id="242">242</a>
+<a href="#243" id="243">243</a>
+<a href="#244" id="244">244</a>
+<a href="#245" id="245">245</a>
+<a href="#246" id="246">246</a>
+<a href="#247" id="247">247</a>
+<a href="#248" id="248">248</a>
+<a href="#249" id="249">249</a>
+<a href="#250" id="250">250</a>
+<a href="#251" id="251">251</a>
+<a href="#252" id="252">252</a>
+<a href="#253" id="253">253</a>
+<a href="#254" id="254">254</a>
+<a href="#255" id="255">255</a>
+<a href="#256" id="256">256</a>
+<a href="#257" id="257">257</a>
+<a href="#258" id="258">258</a>
+<a href="#259" id="259">259</a>
+<a href="#260" id="260">260</a>
+<a href="#261" id="261">261</a>
+<a href="#262" id="262">262</a>
+<a href="#263" id="263">263</a>
+<a href="#264" id="264">264</a>
+<a href="#265" id="265">265</a>
+<a href="#266" id="266">266</a>
+<a href="#267" id="267">267</a>
+<a href="#268" id="268">268</a>
+<a href="#269" id="269">269</a>
+<a href="#270" id="270">270</a>
+<a href="#271" id="271">271</a>
+<a href="#272" id="272">272</a>
+<a href="#273" id="273">273</a>
+<a href="#274" id="274">274</a>
+<a href="#275" id="275">275</a>
+<a href="#276" id="276">276</a>
+<a href="#277" id="277">277</a>
+<a href="#278" id="278">278</a>
+<a href="#279" id="279">279</a>
+<a href="#280" id="280">280</a>
+<a href="#281" id="281">281</a>
+<a href="#282" id="282">282</a>
+<a href="#283" id="283">283</a>
+<a href="#284" id="284">284</a>
+<a href="#285" id="285">285</a>
+<a href="#286" id="286">286</a>
+<a href="#287" id="287">287</a>
+<a href="#288" id="288">288</a>
+<a href="#289" id="289">289</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::thread;
 <span class="kw">use </span>tokio::runtime::Handle;
@@ -217,11 +294,24 @@
 <span class="kw">pub use </span>rayon::{ThreadPool, ThreadPoolBuildError};
 <span class="kw">use </span>tokio::sync::Semaphore;
 
+<span class="doccomment">/// A thread kind.
+///
+/// The thread kind has an effect on how threads are prioritized and scheduled.
+</span><span class="attr">#[derive(Default, Debug, Clone, Copy)]
+</span><span class="kw">pub enum </span>ThreadKind {
+    <span class="doccomment">/// The default kind, just a thread like any other without any special configuration.
+    </span><span class="attr">#[default]
+    </span>Default,
+    <span class="doccomment">/// A worker thread is a CPU intensive task with a lower priority than the [`Self::Default`] kind.
+    </span>Worker,
+}
+
 <span class="doccomment">/// Used to create a new [`ThreadPool`] thread pool.
 </span><span class="kw">pub struct </span>ThreadPoolBuilder {
     name: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
     runtime: <span class="prelude-ty">Option</span>&lt;Handle&gt;,
     num_threads: usize,
+    kind: ThreadKind,
 }
 
 <span class="kw">impl </span>ThreadPoolBuilder {
@@ -231,10 +321,11 @@
             name,
             runtime: <span class="prelude-val">None</span>,
             num_threads: <span class="number">0</span>,
+            kind: ThreadKind::Default,
         }
     }
 
-    <span class="doccomment">/// Sets the number of threads to be used in the rayon threadpool.
+    <span class="doccomment">/// Sets the number of threads to be used in the rayon thread-pool.
     ///
     /// See also [`rayon::ThreadPoolBuilder::num_threads`].
     </span><span class="kw">pub fn </span>num_threads(<span class="kw-2">mut </span><span class="self">self</span>, num_threads: usize) -&gt; <span class="self">Self </span>{
@@ -242,7 +333,13 @@
         <span class="self">self
     </span>}
 
-    <span class="doccomment">/// Sets the tokio runtime which will be made available in the workers.
+    <span class="doccomment">/// Configures the [`ThreadKind`] for all threads spawned in the pool.
+    </span><span class="kw">pub fn </span>thread_kind(<span class="kw-2">mut </span><span class="self">self</span>, kind: ThreadKind) -&gt; <span class="self">Self </span>{
+        <span class="self">self</span>.kind = kind;
+        <span class="self">self
+    </span>}
+
+    <span class="doccomment">/// Sets the Tokio runtime which will be made available in the workers.
     </span><span class="kw">pub fn </span>runtime(<span class="kw-2">mut </span><span class="self">self</span>, runtime: Handle) -&gt; <span class="self">Self </span>{
         <span class="self">self</span>.runtime = <span class="prelude-val">Some</span>(runtime);
         <span class="self">self
@@ -268,6 +365,7 @@
                 }
                 <span class="kw">let </span>runtime = <span class="self">self</span>.runtime.clone();
                 b.spawn(<span class="kw">move </span>|| {
+                    set_current_thread_priority(<span class="self">self</span>.kind);
                     <span class="kw">let </span>_guard = runtime.as_ref().map(|runtime| runtime.enter());
                     thread.run()
                 })<span class="question-mark">?</span>;
@@ -277,7 +375,7 @@
     }
 }
 
-<span class="doccomment">/// A [`WorkerGroup`] adds an async backpressure mechanism to a [`ThreadPool`].
+<span class="doccomment">/// A [`WorkerGroup`] adds an async back-pressure mechanism to a [`ThreadPool`].
 </span><span class="kw">pub struct </span>WorkerGroup {
     pool: ThreadPool,
     semaphore: Arc&lt;Semaphore&gt;,
@@ -327,6 +425,34 @@
         });
     }
 }
+
+<span class="attr">#[cfg(unix)]
+</span><span class="kw">fn </span>set_current_thread_priority(kind: ThreadKind) {
+    <span class="comment">// Lower priorities cause more favorable scheduling.
+    // Higher priorities cause less favorable scheduling.
+    //
+    // For details see `man setpriority(2)`.
+    </span><span class="kw">let </span>prio = <span class="kw">match </span>kind {
+        <span class="comment">// The default priority needs no change, and defaults to `0`.
+        </span>ThreadKind::Default =&gt; <span class="kw">return</span>,
+        <span class="comment">// Set a priority of `10` for worker threads,
+        // it's just important that this is a higher priority than default.
+        </span>ThreadKind::Worker =&gt; <span class="number">10</span>,
+    };
+    <span class="kw">if unsafe </span>{ libc::setpriority(libc::PRIO_PROCESS, <span class="number">0</span>, prio) } != <span class="number">0 </span>{
+        <span class="comment">// Clear the `errno` and log it.
+        </span><span class="kw">let </span>error = std::io::Error::last_os_error();
+        <span class="macro">relay_log::warn!</span>(
+            error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
+            <span class="string">"failed to set thread priority for a {kind:?} thread: {error:?}"
+        </span>);
+    };
+}
+
+<span class="attr">#[cfg(not(unix))]
+</span><span class="kw">fn </span>set_current_thread_priority(_kind: ThreadKind) {
+    <span class="comment">// Ignored for non-Unix platforms.
+</span>}
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
@@ -386,6 +512,34 @@
             }
         });
         barrier.wait();
+    }
+
+    <span class="attr">#[test]
+    #[cfg(unix)]
+    </span><span class="kw">fn </span>test_thread_pool_priority() {
+        <span class="kw">fn </span>get_current_priority() -&gt; i32 {
+            <span class="kw">unsafe </span>{ libc::getpriority(libc::PRIO_PROCESS, <span class="number">0</span>) }
+        }
+
+        <span class="kw">let </span>default_prio = get_current_priority();
+
+        {
+            <span class="kw">let </span>pool = ThreadPoolBuilder::new(<span class="string">"s"</span>).num_threads(<span class="number">1</span>).build().unwrap();
+            <span class="kw">let </span>prio = pool.install(get_current_priority);
+            <span class="comment">// Default pool priority must match current priority.
+            </span><span class="macro">assert_eq!</span>(prio, default_prio);
+        }
+
+        {
+            <span class="kw">let </span>pool = ThreadPoolBuilder::new(<span class="string">"s"</span>)
+                .num_threads(<span class="number">1</span>)
+                .thread_kind(ThreadKind::Worker)
+                .build()
+                .unwrap();
+            <span class="kw">let </span>prio = pool.install(get_current_priority);
+            <span class="comment">// Worker must be higher than the default priority (higher number = lower priority).
+            </span><span class="macro">assert!</span>(prio &gt; default_prio);
+        }
     }
 
     <span class="attr">#[test]

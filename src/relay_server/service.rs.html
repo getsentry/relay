@@ -497,6 +497,7 @@
 <a href="#497" id="497">497</a>
 <a href="#498" id="498">498</a>
 <a href="#499" id="499">499</a>
+<a href="#500" id="500">500</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
@@ -518,7 +519,7 @@
 </span><span class="kw">use </span><span class="kw">crate</span>::services::store::StoreService;
 <span class="kw">use </span><span class="kw">crate</span>::services::test_store::{TestStore, TestStoreService};
 <span class="kw">use </span><span class="kw">crate</span>::services::upstream::{UpstreamRelay, UpstreamRelayService};
-<span class="kw">use </span><span class="kw">crate</span>::utils::{MemoryChecker, MemoryStat};
+<span class="kw">use </span><span class="kw">crate</span>::utils::{MemoryChecker, MemoryStat, ThreadKind};
 <span class="kw">use </span>anyhow::{Context, <span class="prelude-ty">Result</span>};
 <span class="kw">use </span>axum::extract::FromRequestParts;
 <span class="kw">use </span>axum::http::request::Parts;
@@ -604,6 +605,7 @@
 
     <span class="kw">let </span>pool = <span class="kw">crate</span>::utils::ThreadPoolBuilder::new(<span class="string">"processor"</span>)
         .num_threads(thread_count)
+        .thread_kind(ThreadKind::Worker)
         .runtime(tokio::runtime::Handle::current())
         .build()<span class="question-mark">?</span>;
 
@@ -613,7 +615,7 @@
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">fn </span>create_store_pool(config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="prelude-ty">Result</span>&lt;ThreadPool&gt; {
     <span class="comment">// Spawn a store worker for every 12 threads in the processor pool.
-    // This ratio was found emperically and may need adjustments in the future.
+    // This ratio was found empirically and may need adjustments in the future.
     //
     // Ideally in the future the store will be single threaded again, after we move
     // all the heavy processing (de- and re-serialization) into the processor.
