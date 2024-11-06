@@ -170,6 +170,16 @@
 <a href="#170" id="170">170</a>
 <a href="#171" id="171">171</a>
 <a href="#172" id="172">172</a>
+<a href="#173" id="173">173</a>
+<a href="#174" id="174">174</a>
+<a href="#175" id="175">175</a>
+<a href="#176" id="176">176</a>
+<a href="#177" id="177">177</a>
+<a href="#178" id="178">178</a>
+<a href="#179" id="179">179</a>
+<a href="#180" id="180">180</a>
+<a href="#181" id="181">181</a>
+<a href="#182" id="182">182</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeSet;
 
 <span class="kw">use </span>serde::{Deserialize, Serialize};
@@ -242,6 +252,16 @@
     /// Serialized as `organizations:continuous-profiling`.
     </span><span class="attr">#[serde(rename = <span class="string">"organizations:continuous-profiling"</span>)]
     </span>ContinuousProfiling,
+    <span class="doccomment">/// Enabled for beta orgs
+    ///
+    /// Serialized as `organizations:continuous-profiling-beta`.
+    </span><span class="attr">#[serde(rename = <span class="string">"organizations:continuous-profiling-beta"</span>)]
+    </span>ContinuousProfilingBeta,
+    <span class="doccomment">/// Enabled when only beta orgs are allowed to send continuous profiles.
+    ///
+    /// Serialized as `organizations:continuous-profiling-beta-ingest`.
+    </span><span class="attr">#[serde(rename = <span class="string">"organizations:continuous-profiling-beta-ingest"</span>)]
+    </span>ContinuousProfilingBetaIngest,
     <span class="doccomment">/// Enables metric extraction from spans for common modules.
     ///
     /// Serialized as `projects:span-metrics-extraction`.
