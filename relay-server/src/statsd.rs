@@ -188,6 +188,10 @@ pub enum RelayHistograms {
     /// This is not quite the same as the actual size of a serialized envelope, because it ignores
     /// the envelope header and item headers.
     BufferEnvelopeBodySize,
+    /// Size of a serialized envelope pushed to the envelope buffer.
+    BufferEnvelopeSize,
+    /// Size of a compressed envelope pushed to the envelope buffer.
+    BufferEnvelopeSizeCompressed,
     /// The number of batches emitted per partition.
     BatchesPerPartition,
     /// The number of buckets in a batch emitted.
@@ -317,6 +321,8 @@ impl HistogramMetric for RelayHistograms {
                 "buffer.backpressure_envelopes_count"
             }
             RelayHistograms::BufferEnvelopeBodySize => "buffer.envelope_body_size",
+            RelayHistograms::BufferEnvelopeSize => "buffer.envelope_size",
+            RelayHistograms::BufferEnvelopeSizeCompressed => "buffer.envelope_size.compressed",
             RelayHistograms::ProjectStatePending => "project_state.pending",
             RelayHistograms::ProjectStateAttempts => "project_state.attempts",
             RelayHistograms::ProjectStateRequestBatchSize => "project_state.request.batch_size",
@@ -549,8 +555,12 @@ pub enum RelayTimers {
     BufferPop,
     /// Timing in milliseconds for the time it takes for the buffer to drain its envelopes.
     BufferDrain,
-    /// Timing in milliseconds for the time it takes for the envelopes to be serialized.
+    /// Timing in milliseconds for the time it takes for an envelope to be serialized.
     BufferEnvelopesSerialization,
+    /// Timing in milliseconds for the time it takes for an envelope to be compressed.
+    BufferEnvelopeCompression,
+    /// Timing in milliseconds for the time it takes for an envelope to be decompressed.
+    BufferEnvelopeDecompression,
     /// Timing in milliseconds to the time it takes to read an HTTP body.
     BodyReadDuration,
     /// Timing in milliseconds to count spans in a serialized transaction payload.
@@ -606,6 +616,8 @@ impl TimerMetric for RelayTimers {
             RelayTimers::BufferPop => "buffer.pop.duration",
             RelayTimers::BufferDrain => "buffer.drain.duration",
             RelayTimers::BufferEnvelopesSerialization => "buffer.envelopes_serialization",
+            RelayTimers::BufferEnvelopeCompression => "buffer.envelopes_compression",
+            RelayTimers::BufferEnvelopeDecompression => "buffer.envelopes_decompression",
             RelayTimers::BodyReadDuration => "requests.body_read.duration",
             RelayTimers::CheckNestedSpans => "envelope.check_nested_spans",
         }
