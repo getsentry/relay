@@ -99,12 +99,12 @@ pub fn expand_unreal_envelope(
 fn merge_unreal_user_info(event: &mut Event, user_info: &str) {
     let mut parts = user_info.split('|');
 
-    if let Some(user_id) = parts.next() {
+    if let Some(user_id) = parts.next().filter(|id| !id.is_empty()) {
         let user = event.user.value_mut().get_or_insert_with(User::default);
         user.id = Annotated::new(LenientString(user_id.to_owned()));
     }
 
-    if let Some(epic_account_id) = parts.next() {
+    if let Some(epic_account_id) = parts.next().filter(|id| !id.is_empty()) {
         let tags = event.tags.value_mut().get_or_insert_with(Tags::default);
         tags.push(Annotated::new(TagEntry(
             Annotated::new("epic_account_id".to_string()),
@@ -112,7 +112,7 @@ fn merge_unreal_user_info(event: &mut Event, user_info: &str) {
         )));
     }
 
-    if let Some(machine_id) = parts.next() {
+    if let Some(machine_id) = parts.next().filter(|id| !id.is_empty()) {
         let tags = event.tags.value_mut().get_or_insert_with(Tags::default);
         tags.push(Annotated::new(TagEntry::from_pair((
             Annotated::new("machine_id".to_string()),
@@ -201,7 +201,8 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
 
     if let Some(login_id) = &runtime_props.login_id {
         let id = event.user.get_or_insert_with(User::default).id.value_mut();
-        if id.is_none() {
+
+        if id.as_ref().map_or(true, |s| s.is_empty()) {
             *id = Some(login_id.clone().into());
         }
     }
@@ -515,6 +516,38 @@ mod tests {
         assert_eq!(
             event.user.0.unwrap().id.0.unwrap(),
             LenientString("SOME_ID".to_owned())
+        );
+    }
+
+    #[test]
+    fn test_merge_unreal_context_login_id_empty_header() {
+        let user_id = "";
+
+        let context = get_context_with_login_id();
+        let mut event = Event::default();
+
+        merge_unreal_user_info(&mut event, user_id);
+        merge_unreal_context(&mut event, context);
+
+        assert_eq!(
+            event.user.0.unwrap().id.0.unwrap(),
+            LenientString("SOME_ID".to_owned())
+        );
+    }
+
+    #[test]
+    fn test_merge_unreal_context_login_id_full_header() {
+        let user_id = "ebff51ef3c4878627823eebd9ff40eb4|2e7d369327054a448be6c8d3601213cb|C52DC39D-DAF3-5E36-A8D3-BF5F53A5D38F";
+
+        let context = get_context_with_login_id();
+        let mut event = Event::default();
+
+        merge_unreal_user_info(&mut event, user_id);
+        merge_unreal_context(&mut event, context);
+
+        assert_eq!(
+            event.user.0.unwrap().id.0.unwrap(),
+            LenientString("ebff51ef3c4878627823eebd9ff40eb4".to_owned())
         );
     }
 }
