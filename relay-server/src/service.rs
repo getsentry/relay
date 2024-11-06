@@ -19,7 +19,7 @@ use crate::services::stats::RelayStats;
 use crate::services::store::StoreService;
 use crate::services::test_store::{TestStore, TestStoreService};
 use crate::services::upstream::{UpstreamRelay, UpstreamRelayService};
-use crate::utils::{MemoryChecker, MemoryStat};
+use crate::utils::{MemoryChecker, MemoryStat, ThreadKind};
 use anyhow::{Context, Result};
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
@@ -105,6 +105,7 @@ fn create_processor_pool(config: &Config) -> Result<ThreadPool> {
 
     let pool = crate::utils::ThreadPoolBuilder::new("processor")
         .num_threads(thread_count)
+        .thread_kind(ThreadKind::Worker)
         .runtime(tokio::runtime::Handle::current())
         .build()?;
 
@@ -114,7 +115,7 @@ fn create_processor_pool(config: &Config) -> Result<ThreadPool> {
 #[cfg(feature = "processing")]
 fn create_store_pool(config: &Config) -> Result<ThreadPool> {
     // Spawn a store worker for every 12 threads in the processor pool.
-    // This ratio was found emperically and may need adjustments in the future.
+    // This ratio was found empirically and may need adjustments in the future.
     //
     // Ideally in the future the store will be single threaded again, after we move
     // all the heavy processing (de- and re-serialization) into the processor.
