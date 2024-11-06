@@ -75,7 +75,7 @@ pub enum Feature {
     /// Serialized as `organizations:continuous-profiling-beta`.
     #[serde(rename = "organizations:continuous-profiling-beta")]
     ContinuousProfilingBeta,
-    /// Enabled for beta orgs
+    /// Enabled when only beta orgs are allowed to send continuous profiles.
     ///
     /// Serialized as `organizations:continuous-profiling-beta-ingest`.
     #[serde(rename = "organizations:continuous-profiling-beta-ingest")]
