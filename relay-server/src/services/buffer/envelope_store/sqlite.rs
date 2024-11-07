@@ -408,14 +408,23 @@ impl SqliteEnvelopeStore {
         } = envelopes;
 
         let count = envelopes.len();
-        let packed = pack_envelopes(envelopes);
+        let encoded = match count {
+            0 => {
+                debug_assert!(false, "should not be called with empty batch");
+                return Ok(());
+            }
+            // special-casing single envelopes shaves off a little bit of time for large envelopes,
+            // but it's mainly for backward compatibility.
+            1 => envelopes.into_iter().next().unwrap().encoded_envelope,
+            _more => pack_envelopes(envelopes),
+        };
 
         let query = sqlx::query("INSERT INTO envelopes (received_at, own_key, sampling_key, count, envelope) VALUES (?, ?, ?, ?, ?);")
             .bind(received_at)
             .bind(own_key.as_str())
             .bind(sampling_key.as_str())
             .bind(count as u16)
-            .bind(packed);
+            .bind(encoded);
 
         query
             .execute(&self.db)
@@ -475,14 +484,14 @@ impl SqliteEnvelopeStore {
     }
 }
 
-fn pack_envelopes(envelopes: Vec<DatabaseEnvelope>) -> Vec<u8> {
+fn pack_envelopes(envelopes: Vec<DatabaseEnvelope>) -> Box<[u8]> {
     let mut packed = vec![];
     for envelope in envelopes {
         packed.extend_from_slice(&envelope.received_at.to_le_bytes());
         packed.extend_from_slice(&(envelope.encoded_envelope.len() as u32).to_le_bytes());
         packed.extend_from_slice(&envelope.encoded_envelope);
     }
-    packed
+    packed.into_boxed_slice()
 }
 
 fn unpack_envelopes(
@@ -528,17 +537,22 @@ fn extract_batch(
     let data: Box<[u8]> = row
         .try_get("envelope")
         .map_err(SqliteEnvelopeStoreError::FetchError)?;
+    let count: u64 = row
+        .try_get("count")
+        .map_err(SqliteEnvelopeStoreError::FetchError)?;
 
-    let envelopes = if data.get(0) == Some(&b'{') || data.get(0..4) == Some(ZSTD_MAGIC_WORD) {
-        // legacy: one envelope per row
-        vec![DatabaseEnvelope {
+    let envelopes = match count {
+        0 => {
+            debug_assert!(false, "db should not contain empty row");
+            vec![]
+        }
+        1 => vec![DatabaseEnvelope {
             received_at,
             own_key,
             sampling_key,
             encoded_envelope: data,
-        }]
-    } else {
-        unpack_envelopes(own_key, sampling_key, &data)?
+        }],
+        _more => unpack_envelopes(own_key, sampling_key, &data)?,
     };
 
     Ok(DatabaseBatch {
@@ -586,7 +600,7 @@ pub fn build_delete_and_fetch_many_envelopes<'a>(
          WHERE id IN (SELECT id FROM envelopes WHERE own_key = ? AND sampling_key = ?
             ORDER BY received_at DESC LIMIT 1)
          RETURNING
-            received_at, own_key, sampling_key, envelope",
+            received_at, own_key, sampling_key, envelope, count",
     )
     .bind(own_key.to_string())
     .bind(project_key.to_string())
