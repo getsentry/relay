@@ -46,6 +46,8 @@ pub enum RelayGauges {
     RedisPoolIdleConnections,
     /// The number of notifications in the broadcast channel of the project cache.
     ProjectCacheNotificationChannel,
+    /// Exposes the amount of currently open and handled connections by the server.
+    ServerActiveConnections,
 }
 
 impl GaugeMetric for RelayGauges {
@@ -66,6 +68,7 @@ impl GaugeMetric for RelayGauges {
             RelayGauges::ProjectCacheNotificationChannel => {
                 "project_cache.notification_channel.size"
             }
+            RelayGauges::ServerActiveConnections => "server.http.connections",
         }
     }
 }

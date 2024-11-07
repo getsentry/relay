@@ -24,7 +24,7 @@ use crate::middlewares::{
     RequestDecompressionLayer, SentryHttpLayer,
 };
 use crate::service::ServiceState;
-use crate::statsd::RelayCounters;
+use crate::statsd::{RelayCounters, RelayGauges};
 
 /// Set the number of keep-alive retransmissions to be carried out before declaring that remote end
 /// is not available.
@@ -204,6 +204,11 @@ fn serve(listener: TcpListener, app: App, config: Arc<Config>) {
     let service = ServiceExt::<Request>::into_make_service_with_connect_info::<SocketAddr>(app);
     tokio::spawn(server.serve(service));
 
+    tokio::spawn(emit_active_connections_metric(
+        config.metrics_periodic_interval(),
+        handle.clone(),
+    ));
+
     tokio::spawn(async move {
         let Shutdown { timeout } = Controller::shutdown_handle().notified().await;
         relay_log::info!("Shutting down HTTP server");
@@ -253,5 +258,18 @@ impl Service for HttpServer {
 
         let app = make_app(service);
         serve(listener, app, config);
+    }
+}
+
+async fn emit_active_connections_metric(interval: Option<Duration>, handle: Handle) {
+    let Some(mut ticker) = interval.map(tokio::time::interval) else {
+        return;
+    };
+
+    loop {
+        ticker.tick().await;
+        relay_statsd::metric!(
+            gauge(RelayGauges::ServerActiveConnections) = handle.connection_count() as u64
+        );
     }
 }
