@@ -1,3 +1,4 @@
+use std::io::Read;
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -8,7 +9,7 @@ use crate::envelope::EnvelopeError;
 use crate::services::buffer::common::ProjectKeyPair;
 use crate::statsd::{RelayGauges, RelayHistograms, RelayTimers};
 use crate::Envelope;
-use bytes::Bytes;
+use bytes::{Buf, Bytes};
 use chrono::{DateTime, Utc};
 use futures::stream::StreamExt;
 use hashbrown::HashSet;
@@ -168,17 +169,14 @@ pub enum SqliteEnvelopeStoreError {
     #[error("failed to create the spool file: {0}")]
     FileSetupError(std::io::Error),
 
-    #[error("msgpack error: {0}")]
-    MsgPackEncode(#[from] rmp_serde::encode::Error),
-
-    #[error("msgpack error: {0}")]
-    MsgPackDecode(#[from] rmp_serde::decode::Error),
-
     #[error("failed to write to disk: {0}")]
     WriteError(sqlx::Error),
 
     #[error("failed to read from disk: {0}")]
     FetchError(sqlx::Error),
+
+    #[error("failed to unpack envelopes: {0}")]
+    UnpackError(#[from] std::io::Error),
 
     #[error("no file path for the spool was provided")]
     NoFilePath,
@@ -409,13 +407,14 @@ impl SqliteEnvelopeStore {
             envelopes,
         } = envelopes;
 
-        let packed = rmp_serde::to_vec(&envelopes)?;
+        let count = envelopes.len();
+        let packed = pack_envelopes(envelopes);
 
         let query = sqlx::query("INSERT INTO envelopes (received_at, own_key, sampling_key, count, envelope) VALUES (?, ?, ?, ?, ?);")
             .bind(received_at)
             .bind(own_key.as_str())
             .bind(sampling_key.as_str())
-            .bind(envelopes.len() as u16)
+            .bind(count as u16)
             .bind(packed);
 
         query
@@ -476,6 +475,47 @@ impl SqliteEnvelopeStore {
     }
 }
 
+fn pack_envelopes(envelopes: Vec<DatabaseEnvelope>) -> Vec<u8> {
+    let mut packed = vec![];
+    for envelope in envelopes {
+        packed.extend_from_slice(&envelope.received_at.to_le_bytes());
+        packed.extend_from_slice(&(envelope.encoded_envelope.len() as u32).to_le_bytes());
+        packed.extend_from_slice(&envelope.encoded_envelope);
+    }
+    packed
+}
+
+fn unpack_envelopes(
+    own_key: ProjectKey,
+    sampling_key: ProjectKey,
+    data: &[u8],
+) -> Result<Vec<DatabaseEnvelope>, std::io::Error> {
+    let mut envelopes = vec![];
+    let mut bytes = data.reader();
+    loop {
+        let mut b = [0u8; 8];
+        let Ok(()) = bytes.read_exact(&mut b) else {
+            break;
+        };
+        let received_at = i64::from_le_bytes(b);
+
+        let mut b = [0u8; 4];
+        bytes.read_exact(&mut b)?;
+        let size = u32::from_le_bytes(b);
+
+        let mut b = [0u8].repeat(size as usize);
+        bytes.read_exact(&mut b)?;
+
+        envelopes.push(DatabaseEnvelope {
+            received_at,
+            own_key,
+            sampling_key,
+            encoded_envelope: b.into_boxed_slice(),
+        });
+    }
+    Ok(envelopes)
+}
+
 /// Loads a [`DatabaseEnvelope`] from a database row.
 fn extract_batch(
     own_key: ProjectKey,
@@ -489,17 +529,16 @@ fn extract_batch(
         .try_get("envelope")
         .map_err(SqliteEnvelopeStoreError::FetchError)?;
 
-    let envelopes = match rmp_serde::from_slice::<Vec<DatabaseEnvelope>>(&*data) {
-        Ok(envelopes) => envelopes,
-        Err(_) => {
-            // legacy: one envelope per row
-            vec![DatabaseEnvelope {
-                received_at,
-                own_key,
-                sampling_key,
-                encoded_envelope: data,
-            }]
-        }
+    let envelopes = if data.get(0) == Some(&b'{') || data.get(0..4) == Some(ZSTD_MAGIC_WORD) {
+        // legacy: one envelope per row
+        vec![DatabaseEnvelope {
+            received_at,
+            own_key,
+            sampling_key,
+            encoded_envelope: data,
+        }]
+    } else {
+        unpack_envelopes(own_key, sampling_key, &data)?
     };
 
     Ok(DatabaseBatch {
