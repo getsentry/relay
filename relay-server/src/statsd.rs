@@ -974,7 +974,8 @@ impl<S: AsRef<str>> From<S> for PlatformTag {
     }
 }
 
-pub enum SdkTag {
+/// Low-cardinality SDK name that can be used as a statsd tag.
+pub enum ClientName<'a> {
     Ruby,
     CocoaFlutter,
     CocoaReactNative,
@@ -995,11 +996,11 @@ pub enum SdkTag {
     Symfony,
     Php,
     Python,
-    Other,
+    Other(&'a str),
 }
 
-impl SdkTag {
-    pub fn as_str(&self) -> &str {
+impl<'a> ClientName<'a> {
+    pub fn name(&self) -> &'static str {
         match self {
             Self::Ruby => "sentry-ruby",
             Self::CocoaFlutter => "sentry.cocoa.flutter",
@@ -1021,14 +1022,14 @@ impl SdkTag {
             Self::Symfony => "sentry.php.symfony",
             Self::Php => "sentry.php",
             Self::Python => "sentry.python",
-            Self::Other => "other",
+            Self::Other(_) => "other",
         }
     }
 }
 
-impl<S: AsRef<str>> From<S> for SdkTag {
-    fn from(value: S) -> Self {
-        match value.as_ref() {
+impl<'a> From<&'a str> for ClientName<'a> {
+    fn from(value: &'a str) -> Self {
+        match value {
             "sentry-ruby" => Self::Ruby,
             "sentry.cocoa.flutter" => Self::CocoaFlutter,
             "sentry.cocoa.react-native" => Self::CocoaReactNative,
@@ -1049,7 +1050,7 @@ impl<S: AsRef<str>> From<S> for SdkTag {
             "sentry.php.symfony" => Self::Symfony,
             "sentry.php" => Self::Php,
             "sentry.python" => Self::Python,
-            _ => Self::Other,
+            other => Self::Other(other),
         }
     }
 }

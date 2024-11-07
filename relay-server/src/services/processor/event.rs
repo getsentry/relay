@@ -203,7 +203,7 @@ pub fn finalize<G: EventProcessing>(
             let span_count = event.spans.value().map(Vec::len).unwrap_or(0) as u64;
             metric!(
                 histogram(RelayHistograms::EventSpans) = span_count,
-                sdk = envelope.meta().client_name().unwrap_or("proprietary"),
+                sdk = envelope.meta().client_name().name(),
                 platform = event.platform.as_str().unwrap_or("other"),
             );
 
@@ -215,7 +215,7 @@ pub fn finalize<G: EventProcessing>(
             if has_otel {
                 metric!(
                     counter(RelayCounters::OpenTelemetryEvent) += 1,
-                    sdk = envelope.meta().client_name().unwrap_or("proprietary"),
+                    sdk = envelope.meta().client_name().name(),
                     platform = event.platform.as_str().unwrap_or("other"),
                 );
             }

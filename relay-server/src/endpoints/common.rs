@@ -14,7 +14,7 @@ use crate::services::buffer::EnvelopeBuffer;
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{BucketSource, MetricData, ProcessMetrics, ProcessingGroup};
 use crate::services::projects::cache::legacy::ValidateEnvelope;
-use crate::statsd::{RelayCounters, RelayHistograms, SdkTag};
+use crate::statsd::{RelayCounters, RelayHistograms};
 use crate::utils::{self, ApiErrorResponse, FormDataIter, ManagedEnvelope};
 
 #[derive(Clone, Copy, Debug, thiserror::Error)]
@@ -334,15 +334,12 @@ pub async fn handle_envelope(
     state: &ServiceState,
     envelope: Box<Envelope>,
 ) -> Result<Option<EventId>, BadStoreRequest> {
-    let client_name: SdkTag = envelope
-        .meta()
-        .client_name()
-        .map_or(SdkTag::Other, SdkTag::from);
+    let client_name = envelope.meta().client_name();
     for item in envelope.items() {
         metric!(
             histogram(RelayHistograms::EnvelopeItemSize) = item.payload().len() as u64,
             item_type = item.ty().name(),
-            sdk = client_name.as_str(),
+            sdk = client_name.name(),
         )
     }
 
