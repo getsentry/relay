@@ -743,6 +743,7 @@
 <a href="#743" id="743">743</a>
 <a href="#744" id="744">744</a>
 <a href="#745" id="745">745</a>
+<a href="#746" id="746">746</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::net::{IpAddr, SocketAddr};
@@ -768,7 +769,7 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::extractors::{ForwardedFor, ReceivedAt};
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
-<span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
+<span class="kw">use </span><span class="kw">crate</span>::statsd::{ClientName, RelayCounters};
 <span class="kw">use </span><span class="kw">crate</span>::utils::ApiErrorResponse;
 
 <span class="attr">#[derive(Debug, thiserror::Error)]
@@ -993,10 +994,11 @@
     <span class="doccomment">/// Returns the name of the client that sent the event without version.
     ///
     /// If the client is not sent in standard format, this method returns `None`.
-    </span><span class="kw">pub fn </span>client_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
-        <span class="kw">let </span>client = <span class="self">self</span>.client()<span class="question-mark">?</span>;
-        <span class="kw">let </span>(name, _version) = client.split_once(<span class="string">'/'</span>)<span class="question-mark">?</span>;
-        <span class="prelude-val">Some</span>(name)
+    </span><span class="kw">pub fn </span>client_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ClientName {
+        <span class="self">self</span>.client()
+            .and_then(|client| client.split_once(<span class="string">'/'</span>))
+            .map(|(client, <span class="kw">_</span>)| client)
+            .map_or(ClientName::Other(<span class="string">"proprietary"</span>), ClientName::from)
     }
 
     <span class="doccomment">/// Returns the protocol version of the event payload.

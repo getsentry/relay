@@ -1057,7 +1057,7 @@
             <span class="macro">metric!</span>(
                 counter(RelayCounters::EventTransaction) += <span class="number">1</span>,
                 source = utils::transaction_source_tag(event),
-                platform = PlatformTag::from(event.platform.as_str().unwrap_or(<span class="string">"other"</span>)).as_str(),
+                platform = PlatformTag::from(event.platform.as_str().unwrap_or(<span class="string">"other"</span>)).name(),
                 contains_slashes = <span class="kw">if </span>event.transaction.as_str().unwrap_or_default().contains(<span class="string">'/'</span>) {
                     <span class="string">"true"
                 </span>} <span class="kw">else </span>{
@@ -1068,7 +1068,7 @@
             <span class="kw">let </span>span_count = event.spans.value().map(Vec::len).unwrap_or(<span class="number">0</span>) <span class="kw">as </span>u64;
             <span class="macro">metric!</span>(
                 histogram(RelayHistograms::EventSpans) = span_count,
-                sdk = envelope.meta().client_name().unwrap_or(<span class="string">"proprietary"</span>),
+                sdk = envelope.meta().client_name().name(),
                 platform = event.platform.as_str().unwrap_or(<span class="string">"other"</span>),
             );
 
@@ -1080,7 +1080,7 @@
             <span class="kw">if </span>has_otel {
                 <span class="macro">metric!</span>(
                     counter(RelayCounters::OpenTelemetryEvent) += <span class="number">1</span>,
-                    sdk = envelope.meta().client_name().unwrap_or(<span class="string">"proprietary"</span>),
+                    sdk = envelope.meta().client_name().name(),
                     platform = event.platform.as_str().unwrap_or(<span class="string">"other"</span>),
                 );
             }
