@@ -935,7 +935,7 @@ pub enum PlatformTag {
 }
 
 impl PlatformTag {
-    pub fn as_str(&self) -> &str {
+    pub fn name(&self) -> &str {
         match self {
             Self::Cocoa => "cocoa",
             Self::Csharp => "csharp",
@@ -976,6 +976,87 @@ impl<S: AsRef<str>> From<S> for PlatformTag {
             "ruby" => Self::Ruby,
             "swift" => Self::Swift,
             _ => Self::Other,
+        }
+    }
+}
+
+/// Low-cardinality SDK name that can be used as a statsd tag.
+pub enum ClientName<'a> {
+    Ruby,
+    CocoaFlutter,
+    CocoaReactNative,
+    Cocoa,
+    Dotnet,
+    AndroidReactNative,
+    AndroidJava,
+    SpringBoot,
+    JavascriptBrowser,
+    Electron,
+    NestJs,
+    NextJs,
+    Node,
+    React,
+    Vue,
+    Native,
+    Laravel,
+    Symfony,
+    Php,
+    Python,
+    Other(&'a str),
+}
+
+impl<'a> ClientName<'a> {
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Ruby => "sentry-ruby",
+            Self::CocoaFlutter => "sentry.cocoa.flutter",
+            Self::CocoaReactNative => "sentry.cocoa.react-native",
+            Self::Cocoa => "sentry.cocoa",
+            Self::Dotnet => "sentry.dotnet",
+            Self::AndroidReactNative => "sentry.java.android.react-native",
+            Self::AndroidJava => "sentry.java.android",
+            Self::SpringBoot => "sentry.java.spring-boot.jakarta",
+            Self::JavascriptBrowser => "sentry.javascript.browser",
+            Self::Electron => "sentry.javascript.electron",
+            Self::NestJs => "sentry.javascript.nestjs",
+            Self::NextJs => "sentry.javascript.nextjs",
+            Self::Node => "sentry.javascript.node",
+            Self::React => "sentry.javascript.react",
+            Self::Vue => "sentry.javascript.vue",
+            Self::Native => "sentry.native",
+            Self::Laravel => "sentry.php.laravel",
+            Self::Symfony => "sentry.php.symfony",
+            Self::Php => "sentry.php",
+            Self::Python => "sentry.python",
+            Self::Other(_) => "other",
+        }
+    }
+}
+
+impl<'a> From<&'a str> for ClientName<'a> {
+    fn from(value: &'a str) -> Self {
+        match value {
+            "sentry-ruby" => Self::Ruby,
+            "sentry.cocoa.flutter" => Self::CocoaFlutter,
+            "sentry.cocoa.react-native" => Self::CocoaReactNative,
+            "sentry.cocoa" => Self::Cocoa,
+            "sentry.dotnet" => Self::Dotnet,
+            "sentry.java.android.react-native" => Self::AndroidReactNative,
+            "sentry.java.android" => Self::AndroidJava,
+            "sentry.java.spring-boot.jakarta" => Self::SpringBoot,
+            "sentry.javascript.browser" => Self::JavascriptBrowser,
+            "sentry.javascript.electron" => Self::Electron,
+            "sentry.javascript.nestjs" => Self::NestJs,
+            "sentry.javascript.nextjs" => Self::NextJs,
+            "sentry.javascript.node" => Self::Node,
+            "sentry.javascript.react" => Self::React,
+            "sentry.javascript.vue" => Self::Vue,
+            "sentry.native" => Self::Native,
+            "sentry.php.laravel" => Self::Laravel,
+            "sentry.php.symfony" => Self::Symfony,
+            "sentry.php" => Self::Php,
+            "sentry.python" => Self::Python,
+            other => Self::Other(other),
         }
     }
 }
