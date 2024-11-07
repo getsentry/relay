@@ -929,7 +929,7 @@ pub enum PlatformTag {
 }
 
 impl PlatformTag {
-    pub fn as_str(&self) -> &str {
+    pub fn name(&self) -> &str {
         match self {
             Self::Cocoa => "cocoa",
             Self::Csharp => "csharp",

@@ -192,7 +192,7 @@ pub fn finalize<G: EventProcessing>(
             metric!(
                 counter(RelayCounters::EventTransaction) += 1,
                 source = utils::transaction_source_tag(event),
-                platform = PlatformTag::from(event.platform.as_str().unwrap_or("other")).as_str(),
+                platform = PlatformTag::from(event.platform.as_str().unwrap_or("other")).name(),
                 contains_slashes = if event.transaction.as_str().unwrap_or_default().contains('/') {
                     "true"
                 } else {
