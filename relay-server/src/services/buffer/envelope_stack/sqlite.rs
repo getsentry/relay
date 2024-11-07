@@ -7,7 +7,8 @@ use relay_base_schema::project::ProjectKey;
 use crate::envelope::Envelope;
 use crate::services::buffer::envelope_stack::EnvelopeStack;
 use crate::services::buffer::envelope_store::sqlite::{
-    DatabaseEnvelope, InsertEnvelopeError, SqliteEnvelopeStore, SqliteEnvelopeStoreError,
+    DatabaseBatch, DatabaseEnvelope, InsertEnvelopeError, SqliteEnvelopeStore,
+    SqliteEnvelopeStoreError,
 };
 use crate::statsd::{RelayCounters, RelayTimers};
 
@@ -77,6 +78,11 @@ impl SqliteEnvelopeStack {
     /// of the method.
     async fn spool_to_disk(&mut self) -> Result<(), SqliteEnvelopeStackError> {
         let batch = std::mem::take(&mut self.batch);
+        let Ok(batch) = DatabaseBatch::try_from(batch) else {
+            debug_assert!(false, "should not call spool_to_disk when batch is empty");
+            return Ok(());
+        };
+
         relay_statsd::metric!(counter(RelayCounters::BufferSpooledEnvelopes) += batch.len() as u64);
 
         // When early return here, we are acknowledging that the elements that we popped from

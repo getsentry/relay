@@ -16,13 +16,14 @@ use futures::stream::StreamExt;
 use hashbrown::HashSet;
 use relay_base_schema::project::{ParseProjectKeyError, ProjectKey};
 use relay_config::Config;
+use serde::{Deserialize, Serialize};
 use sqlx::migrate::MigrateError;
 use sqlx::query::Query;
 use sqlx::sqlite::{
     SqliteArguments, SqliteAutoVacuum, SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions,
     SqliteRow, SqliteSynchronous,
 };
-use sqlx::{Pool, QueryBuilder, Row, Sqlite};
+use sqlx::{Pool, Row, Sqlite};
 use tokio::fs::DirBuilder;
 use tokio::time::sleep;
 
@@ -32,12 +33,42 @@ use tokio::time::sleep;
 const ZSTD_MAGIC_WORD: &[u8] = &[40, 181, 47, 253];
 
 /// Struct that contains all the fields of an [`Envelope`] that are mapped to the database columns.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DatabaseEnvelope {
     received_at: i64,
     own_key: ProjectKey,
     sampling_key: ProjectKey,
     encoded_envelope: Box<[u8]>,
+}
+
+#[derive(Clone, Debug)]
+pub struct DatabaseBatch {
+    received_at: i64,
+    own_key: ProjectKey,
+    sampling_key: ProjectKey,
+    envelopes: Vec<DatabaseEnvelope>,
+}
+
+impl DatabaseBatch {
+    pub fn len(&self) -> usize {
+        self.envelopes.len()
+    }
+}
+
+impl TryFrom<Vec<DatabaseEnvelope>> for DatabaseBatch {
+    type Error = ();
+
+    fn try_from(envelopes: Vec<DatabaseEnvelope>) -> Result<Self, Self::Error> {
+        let Some(newest) = envelopes.last() else {
+            return Err(());
+        };
+        Ok(Self {
+            received_at: newest.received_at,
+            own_key: newest.own_key,
+            sampling_key: newest.sampling_key,
+            envelopes,
+        })
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -132,6 +163,12 @@ pub enum SqliteEnvelopeStoreError {
 
     #[error("failed to create the spool file: {0}")]
     FileSetupError(std::io::Error),
+
+    #[error("msgpack error: {0}")]
+    MsgPackEncode(#[from] rmp_serde::encode::Error),
+
+    #[error("msgpack error: {0}")]
+    MsgPackDecode(#[from] rmp_serde::decode::Error),
 
     #[error("failed to write to disk: {0}")]
     WriteError(sqlx::Error),
@@ -359,21 +396,27 @@ impl SqliteEnvelopeStore {
     /// Inserts one or more envelopes into the database.
     pub async fn insert_many(
         &mut self,
-        envelopes: impl IntoIterator<Item = DatabaseEnvelope>,
+        envelopes: DatabaseBatch,
     ) -> Result<(), SqliteEnvelopeStoreError> {
-        if let Err(err) = build_insert_many_envelopes(envelopes.into_iter())
-            .build()
+        let DatabaseBatch {
+            received_at,
+            own_key,
+            sampling_key,
+            envelopes,
+        } = envelopes;
+
+        let packed = rmp_serde::to_vec(&envelopes)?;
+
+        let query = sqlx::query("INSERT INTO envelopes (?, ?, ?, ?)")
+            .bind(received_at)
+            .bind(own_key.as_str())
+            .bind(sampling_key.as_str())
+            .bind(packed);
+
+        query
             .execute(&self.db)
             .await
-        {
-            relay_log::error!(
-                error = &err as &dyn Error,
-                "failed to spool envelopes to disk",
-            );
-
-            return Err(SqliteEnvelopeStoreError::WriteError(err));
-        }
-
+            .map_err(SqliteEnvelopeStoreError::WriteError)?;
         Ok(())
     }
 
@@ -522,23 +565,6 @@ fn extract_project_key_pair(row: SqliteRow) -> Result<ProjectKeyPair, SqliteEnve
             Err(err)
         }
     }
-}
-
-/// Builds a query that inserts many [`Envelope`]s in the database.
-fn build_insert_many_envelopes<'a>(
-    envelopes: impl Iterator<Item = DatabaseEnvelope>,
-) -> QueryBuilder<'a, Sqlite> {
-    let mut builder: QueryBuilder<Sqlite> =
-        QueryBuilder::new("INSERT INTO envelopes (received_at, own_key, sampling_key, envelope) ");
-
-    builder.push_values(envelopes, |mut b, envelope| {
-        b.push_bind(envelope.received_at)
-            .push_bind(envelope.own_key.to_string())
-            .push_bind(envelope.sampling_key.to_string())
-            .push_bind(envelope.encoded_envelope);
-    });
-
-    builder
 }
 
 /// Builds a query that deletes many [`Envelope`] from the database.
