@@ -405,7 +405,7 @@ impl SqliteEnvelopeStore {
             envelopes,
         } = envelopes;
 
-        let packed = rmp_serde::to_vec(&envelopes)?;
+        let packed = dbg!(rmp_serde::to_vec(&envelopes)?);
 
         let query = sqlx::query("INSERT INTO envelopes (?, ?, ?, ?)")
             .bind(received_at)
@@ -629,7 +629,14 @@ mod tests {
         // We insert 10 envelopes.
         let envelopes = mock_envelopes(10);
         assert!(envelope_store
-            .insert_many(envelopes.iter().map(|e| e.as_ref().try_into().unwrap()))
+            .insert_many(
+                envelopes
+                    .iter()
+                    .map(|e| DatabaseEnvelope::try_from(e.as_ref()).unwrap())
+                    .collect::<Vec<_>>()
+                    .try_into()
+                    .unwrap()
+            )
             .await
             .is_ok());
 
@@ -672,7 +679,14 @@ mod tests {
         // We insert 10 envelopes.
         let envelopes = mock_envelopes(2);
         assert!(envelope_store
-            .insert_many(envelopes.iter().map(|e| e.as_ref().try_into().unwrap()))
+            .insert_many(
+                envelopes
+                    .into_iter()
+                    .map(|e| DatabaseEnvelope::try_from(e.as_ref()).unwrap())
+                    .collect::<Vec<_>>()
+                    .try_into()
+                    .unwrap()
+            )
             .await
             .is_ok());
 
@@ -701,7 +715,14 @@ mod tests {
         // We write 10 envelopes to increase the disk usage.
         let envelopes = mock_envelopes(10);
         store
-            .insert_many(envelopes.iter().map(|e| e.as_ref().try_into().unwrap()))
+            .insert_many(
+                envelopes
+                    .into_iter()
+                    .map(|e| DatabaseEnvelope::try_from(e.as_ref()).unwrap())
+                    .collect::<Vec<_>>()
+                    .try_into()
+                    .unwrap(),
+            )
             .await
             .unwrap();
 
@@ -720,7 +741,14 @@ mod tests {
 
         let envelopes = mock_envelopes(10);
         store
-            .insert_many(envelopes.iter().map(|e| e.as_ref().try_into().unwrap()))
+            .insert_many(
+                envelopes
+                    .iter()
+                    .map(|e| DatabaseEnvelope::try_from(e.as_ref()).unwrap())
+                    .collect::<Vec<_>>()
+                    .try_into()
+                    .unwrap(),
+            )
             .await
             .unwrap();
 

@@ -79,7 +79,6 @@ impl SqliteEnvelopeStack {
     async fn spool_to_disk(&mut self) -> Result<(), SqliteEnvelopeStackError> {
         let batch = std::mem::take(&mut self.batch);
         let Ok(batch) = DatabaseBatch::try_from(batch) else {
-            debug_assert!(false, "should not call spool_to_disk when batch is empty");
             return Ok(());
         };
 
@@ -188,11 +187,10 @@ impl EnvelopeStack for SqliteEnvelopeStack {
         Ok(Some(envelope))
     }
 
-    fn flush(self) -> Vec<Box<Envelope>> {
-        self.batch
-            .into_iter()
-            .filter_map(|e| e.try_into().ok())
-            .collect()
+    async fn flush(mut self) {
+        if let Err(e) = self.spool_to_disk().await {
+            relay_log::error!(error = &e as &dyn std::error::Error, "flush error");
+        }
     }
 }
 
@@ -453,9 +451,8 @@ mod tests {
         assert_eq!(stack.batch.len(), 5);
         assert_eq!(envelope_store.total_count().await.unwrap(), 0);
 
-        // We drain the stack and make sure nothing was spooled to disk.
-        let drained_envelopes = stack.flush();
-        assert_eq!(drained_envelopes.into_iter().collect::<Vec<_>>().len(), 5);
-        assert_eq!(envelope_store.total_count().await.unwrap(), 0);
+        // We drain the stack and make sure everything was spooled to disk.
+        stack.flush().await;
+        assert_eq!(envelope_store.total_count().await.unwrap(), 5);
     }
 }
