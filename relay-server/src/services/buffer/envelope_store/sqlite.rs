@@ -37,7 +37,7 @@ pub struct DatabaseEnvelope {
     received_at: i64,
     own_key: ProjectKey,
     sampling_key: ProjectKey,
-    encoded_envelope: Vec<u8>,
+    encoded_envelope: Box<[u8]>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -78,7 +78,7 @@ impl TryFrom<DatabaseEnvelope> for Box<Envelope> {
 
         if encoded_envelope.starts_with(ZSTD_MAGIC_WORD) {
             relay_statsd::metric!(timer(RelayTimers::BufferEnvelopeDecompression), {
-                encoded_envelope = zstd::decode_all(encoded_envelope.as_slice())?;
+                encoded_envelope = zstd::decode_all(&*encoded_envelope)?.into_boxed_slice();
             });
         }
 
@@ -119,7 +119,7 @@ impl<'a> TryFrom<&'a Envelope> for DatabaseEnvelope {
             received_at: value.received_at().timestamp_millis(),
             own_key,
             sampling_key,
-            encoded_envelope,
+            encoded_envelope: encoded_envelope.into_boxed_slice(),
         })
     }
 }
@@ -482,7 +482,7 @@ fn extract_envelope(
     sampling_key: ProjectKey,
     row: SqliteRow,
 ) -> Result<DatabaseEnvelope, SqliteEnvelopeStoreError> {
-    let encoded_envelope: Vec<u8> = row
+    let encoded_envelope: Box<[u8]> = row
         .try_get("envelope")
         .map_err(SqliteEnvelopeStoreError::FetchError)?;
 

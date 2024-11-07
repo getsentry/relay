@@ -37,7 +37,6 @@ pub struct SqliteEnvelopeStack {
     /// The project key of the root project of the trace to which all the envelopes belong.
     sampling_key: ProjectKey,
     /// In-memory stack containing a batch of envelopes that either have not been written to disk yet, or have been read from disk recently.
-    #[allow(clippy::vec_box)]
     batch: Vec<DatabaseEnvelope>,
     /// Boolean representing whether calls to `push()` and `peek()` check disk in case not enough
     /// elements are available in the `batches_buffer`.
