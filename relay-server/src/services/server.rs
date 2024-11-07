@@ -141,7 +141,7 @@ fn build_keepalive(config: &Config) -> Option<TcpKeepalive> {
 pub struct KeepAliveAcceptor(Option<TcpKeepalive>);
 
 impl KeepAliveAcceptor {
-    /// Create a new acceptor that sets TCP_NODELAY and keep-alive.
+    /// Create a new acceptor that sets `TCP_NODELAY` and keep-alive.
     pub fn new(config: &Config) -> Self {
         Self(build_keepalive(config))
     }
@@ -153,16 +153,27 @@ impl<S> Accept<TcpStream, S> for KeepAliveAcceptor {
     type Future = std::future::Ready<io::Result<(Self::Stream, Self::Service)>>;
 
     fn accept(&self, stream: TcpStream, service: S) -> Self::Future {
+        let mut keepalive = "ok";
+        let mut nodelay = "ok";
+
         if let Self(Some(ref tcp_keepalive)) = self {
             let sock_ref = socket2::SockRef::from(&stream);
             if let Err(e) = sock_ref.set_tcp_keepalive(tcp_keepalive) {
                 relay_log::trace!("error trying to set TCP keepalive: {e}");
+                keepalive = "error";
             }
         }
 
         if let Err(e) = stream.set_nodelay(true) {
             relay_log::trace!("failed to set TCP_NODELAY: {e}");
+            nodelay = "error";
         }
+
+        relay_statsd::metric!(
+            counter(RelayCounters::ServerSocketAccept) += 1,
+            keepalive = keepalive,
+            nodelay = nodelay
+        );
 
         std::future::ready(Ok((stream, service)))
     }
@@ -180,6 +191,7 @@ fn serve(listener: TcpListener, app: App, config: Arc<Config>) {
         .http1()
         .timer(TokioTimer::new())
         .half_close(true)
+        .keep_alive(true)
         .header_read_timeout(CLIENT_HEADER_TIMEOUT)
         .writev(true);
 
