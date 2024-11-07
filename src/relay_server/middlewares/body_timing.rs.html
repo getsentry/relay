@@ -282,6 +282,8 @@
 <a href="#282" id="282">282</a>
 <a href="#283" id="283">283</a>
 <a href="#284" id="284">284</a>
+<a href="#285" id="285">285</a>
+<a href="#286" id="286">286</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::statsd::RelayTimers;
 <span class="kw">use </span>axum::body::{Body, HttpBody};
 <span class="kw">use </span>axum::extract::MatchedPath;
@@ -422,13 +424,14 @@
 
 <span class="kw">fn </span>size_category(size: usize) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
     <span class="kw">match </span>size {
-        <span class="number">0</span>..<span class="number">1_000 </span>=&gt; <span class="string">"&lt;1KB"</span>,
-        <span class="number">1_000</span>..<span class="number">10_000 </span>=&gt; <span class="string">"&lt;10KB"</span>,
-        <span class="number">10_000</span>..<span class="number">100_000 </span>=&gt; <span class="string">"&lt;100KB"</span>,
-        <span class="number">100_000</span>..<span class="number">1_000_000 </span>=&gt; <span class="string">"&lt;1MB"</span>,
-        <span class="number">1_000_000</span>..<span class="number">10_000_000 </span>=&gt; <span class="string">"&lt;10MB"</span>,
-        <span class="number">10_000_000</span>..<span class="number">100_000_000 </span>=&gt; <span class="string">"&lt;100MB"</span>,
-        <span class="number">100_000_000</span>.. =&gt; <span class="string">"&gt;=100MB"</span>,
+        <span class="number">0</span>..<span class="number">1_000 </span>=&gt; <span class="string">"lt1KB"</span>,
+        <span class="number">1_000</span>..<span class="number">10_000 </span>=&gt; <span class="string">"lt10KB"</span>,
+        <span class="number">10_000</span>..<span class="number">100_000 </span>=&gt; <span class="string">"lt100KB"</span>,
+        <span class="number">100_000</span>..<span class="number">1_000_000 </span>=&gt; <span class="string">"lt1MB"</span>,
+        <span class="number">1_000_000</span>..<span class="number">10_000_000 </span>=&gt; <span class="string">"lt10MB"</span>,
+        <span class="number">10_000_000</span>..<span class="number">20_000_000 </span>=&gt; <span class="string">"lt20MB"</span>,
+        <span class="number">20_000_000</span>..<span class="number">100_000_000 </span>=&gt; <span class="string">"lt100MB"</span>,
+        <span class="number">100_000_000</span>.. =&gt; <span class="string">"gte100MB"</span>,
     }
 }
 
@@ -467,7 +470,7 @@
         });
         <span class="macro">assert_eq!</span>(
             captures,
-            [<span class="string">"requests.body_read.duration:0|ms|#route:unknown,size:&lt;1KB,status:completed"</span>]
+            [<span class="string">"requests.body_read.duration:0|ms|#route:unknown,size:lt1KB,status:completed"</span>]
         );
     }
 
@@ -486,7 +489,7 @@
         });
         <span class="macro">assert_eq!</span>(
             captures,
-            [<span class="string">"requests.body_read.duration:0|ms|#route:unknown,size:&lt;1KB,status:completed"</span>]
+            [<span class="string">"requests.body_read.duration:0|ms|#route:unknown,size:lt1KB,status:completed"</span>]
         );
     }
 
@@ -504,7 +507,7 @@
         });
         <span class="macro">assert_eq!</span>(
             captures,
-            [<span class="string">"requests.body_read.duration:0|ms|#route:unknown,size:&lt;1KB,status:dropped"</span>]
+            [<span class="string">"requests.body_read.duration:0|ms|#route:unknown,size:lt1KB,status:dropped"</span>]
         )
     }
 
@@ -531,7 +534,7 @@
         });
         <span class="macro">assert_eq!</span>(
             captures,
-            [<span class="string">"requests.body_read.duration:0|ms|#route:unknown,size:&lt;1KB,status:failed"</span>]
+            [<span class="string">"requests.body_read.duration:0|ms|#route:unknown,size:lt1KB,status:failed"</span>]
         )
     }
 
@@ -551,19 +554,20 @@
         });
         <span class="macro">assert_eq!</span>(
             captures,
-            [<span class="string">"requests.body_read.duration:0|ms|#route:unknown,size:&lt;10KB,status:completed"</span>]
+            [<span class="string">"requests.body_read.duration:0|ms|#route:unknown,size:lt10KB,status:completed"</span>]
         )
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_size_category() {
-        <span class="macro">assert_eq!</span>(size_category(<span class="number">10</span>), <span class="string">"&lt;1KB"</span>);
-        <span class="macro">assert_eq!</span>(size_category(<span class="number">9_000</span>), <span class="string">"&lt;10KB"</span>);
-        <span class="macro">assert_eq!</span>(size_category(<span class="number">10_000</span>), <span class="string">"&lt;100KB"</span>);
-        <span class="macro">assert_eq!</span>(size_category(<span class="number">99_999</span>), <span class="string">"&lt;100KB"</span>);
-        <span class="macro">assert_eq!</span>(size_category(<span class="number">1_000_000</span>), <span class="string">"&lt;10MB"</span>);
-        <span class="macro">assert_eq!</span>(size_category(<span class="number">50_000_000</span>), <span class="string">"&lt;100MB"</span>);
-        <span class="macro">assert_eq!</span>(size_category(<span class="number">100_000_000</span>), <span class="string">"&gt;=100MB"</span>)
+        <span class="macro">assert_eq!</span>(size_category(<span class="number">10</span>), <span class="string">"lt1KB"</span>);
+        <span class="macro">assert_eq!</span>(size_category(<span class="number">9_000</span>), <span class="string">"lt10KB"</span>);
+        <span class="macro">assert_eq!</span>(size_category(<span class="number">10_000</span>), <span class="string">"lt100KB"</span>);
+        <span class="macro">assert_eq!</span>(size_category(<span class="number">99_999</span>), <span class="string">"lt100KB"</span>);
+        <span class="macro">assert_eq!</span>(size_category(<span class="number">1_000_000</span>), <span class="string">"lt10MB"</span>);
+        <span class="macro">assert_eq!</span>(size_category(<span class="number">15_000_000</span>), <span class="string">"lt20MB"</span>);
+        <span class="macro">assert_eq!</span>(size_category(<span class="number">50_000_000</span>), <span class="string">"lt100MB"</span>);
+        <span class="macro">assert_eq!</span>(size_category(<span class="number">100_000_000</span>), <span class="string">"gte100MB"</span>)
     }
 }
 </code></pre></div></section></main></body></html>
