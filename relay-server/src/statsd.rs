@@ -859,6 +859,8 @@ pub enum RelayCounters {
     BucketsDropped,
     /// Incremented every time a segment exceeds the expected limit.
     ReplayExceededSegmentLimit,
+    /// Incremented every time the server accepts a new connection.
+    ServerSocketAccept,
 }
 
 impl CounterMetric for RelayCounters {
@@ -904,6 +906,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ProjectStateFlushMetricsNoProject => "project_state.metrics.no_project",
             RelayCounters::BucketsDropped => "metrics.buckets.dropped",
             RelayCounters::ReplayExceededSegmentLimit => "replay.segment_limit_exceeded",
+            RelayCounters::ServerSocketAccept => "server.http.accepted",
         }
     }
 }
