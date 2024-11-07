@@ -1021,7 +1021,7 @@ mod tests {
         // belong to the same project keys, so they belong to the same envelope stack.
         let envelopes = mock_envelopes(10);
         assert!(store
-            .insert_many(
+            .insert_batch(
                 envelopes
                     .into_iter()
                     .map(|e| DatabaseEnvelope::try_from(e.as_ref()).unwrap())

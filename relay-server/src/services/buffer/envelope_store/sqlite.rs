@@ -1,6 +1,4 @@
-use std::error::Error;
 use std::path::Path;
-use std::pin::pin;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -68,6 +66,12 @@ impl TryFrom<Vec<DatabaseEnvelope>> for DatabaseBatch {
             sampling_key: newest.sampling_key,
             envelopes,
         })
+    }
+}
+
+impl From<DatabaseBatch> for Vec<DatabaseEnvelope> {
+    fn from(value: DatabaseBatch) -> Self {
+        value.envelopes
     }
 }
 
@@ -394,7 +398,7 @@ impl SqliteEnvelopeStore {
     }
 
     /// Inserts one or more envelopes into the database.
-    pub async fn insert_many(
+    pub async fn insert_batch(
         &mut self,
         envelopes: DatabaseBatch,
     ) -> Result<(), SqliteEnvelopeStoreError> {
@@ -405,9 +409,9 @@ impl SqliteEnvelopeStore {
             envelopes,
         } = envelopes;
 
-        let packed = dbg!(rmp_serde::to_vec(&envelopes)?);
+        let packed = rmp_serde::to_vec(&envelopes)?;
 
-        let query = sqlx::query("INSERT INTO envelopes (?, ?, ?, ?)")
+        let query = sqlx::query("INSERT INTO envelopes (received_at, own_key, sampling_key, envelope) VALUES (?, ?, ?, ?);")
             .bind(received_at)
             .bind(own_key.as_str())
             .bind(sampling_key.as_str())
@@ -421,66 +425,18 @@ impl SqliteEnvelopeStore {
     }
 
     /// Deletes and returns at most `limit` [`Envelope`]s from the database.
-    pub async fn delete_many(
+    pub async fn delete_batch(
         &mut self,
         own_key: ProjectKey,
         sampling_key: ProjectKey,
-        limit: i64,
-    ) -> Result<Vec<DatabaseEnvelope>, SqliteEnvelopeStoreError> {
-        let envelopes = build_delete_and_fetch_many_envelopes(own_key, sampling_key, limit)
-            .fetch(&self.db)
-            .peekable();
+    ) -> Result<Option<DatabaseBatch>, SqliteEnvelopeStoreError> {
+        let mut rows = build_delete_and_fetch_many_envelopes(own_key, sampling_key).fetch(&self.db);
+        let Some(row) = rows.as_mut().next().await else {
+            return Ok(None);
+        };
+        let row = row.map_err(SqliteEnvelopeStoreError::FetchError)?;
 
-        let mut envelopes = pin!(envelopes);
-        if envelopes.as_mut().peek().await.is_none() {
-            return Ok(vec![]);
-        }
-
-        let mut extracted_envelopes = Vec::with_capacity(limit as usize);
-        let mut db_error = None;
-        while let Some(envelope) = envelopes.as_mut().next().await {
-            let envelope = match envelope {
-                Ok(envelope) => envelope,
-                Err(err) => {
-                    relay_log::error!(
-                        error = &err as &dyn Error,
-                        "failed to unspool the envelopes from the disk",
-                    );
-                    db_error = Some(err);
-
-                    continue;
-                }
-            };
-
-            match extract_envelope(own_key, sampling_key, envelope) {
-                Ok(envelope) => {
-                    extracted_envelopes.push(envelope);
-                }
-                Err(err) => {
-                    relay_log::error!(
-                        error = &err as &dyn Error,
-                        "failed to extract the envelope unspooled from disk",
-                    )
-                }
-            }
-        }
-
-        // If we have no envelopes and there was at least one error, we signal total failure to the
-        // caller. We do this under the assumption that if there are envelopes and failures, we are
-        // fine with just logging the failure and not failing completely.
-        if extracted_envelopes.is_empty() {
-            if let Some(db_error) = db_error {
-                return Err(SqliteEnvelopeStoreError::FetchError(db_error));
-            }
-        }
-
-        // We sort envelopes by `received_at` in ascending order.
-        //
-        // Unfortunately we have to do this because SQLite `DELETE` with `RETURNING` doesn't
-        // return deleted rows in a specific order.
-        extracted_envelopes.sort_by_key(|a| a.received_at);
-
-        Ok(extracted_envelopes)
+        Ok(Some(extract_batch(own_key, sampling_key, row)?))
     }
 
     /// Returns a set of project key pairs, representing all the unique combinations of
@@ -520,24 +476,42 @@ impl SqliteEnvelopeStore {
 }
 
 /// Loads a [`DatabaseEnvelope`] from a database row.
-fn extract_envelope(
+fn extract_batch(
     own_key: ProjectKey,
     sampling_key: ProjectKey,
     row: SqliteRow,
-) -> Result<DatabaseEnvelope, SqliteEnvelopeStoreError> {
-    let encoded_envelope: Box<[u8]> = row
-        .try_get("envelope")
-        .map_err(SqliteEnvelopeStoreError::FetchError)?;
-
+) -> Result<DatabaseBatch, SqliteEnvelopeStoreError> {
     let received_at: i64 = row
         .try_get("received_at")
         .map_err(SqliteEnvelopeStoreError::FetchError)?;
+    let data: Box<[u8]> = row
+        .try_get("envelope")
+        .map_err(SqliteEnvelopeStoreError::FetchError)?;
 
-    Ok(DatabaseEnvelope {
+    let envelopes = match rmp_serde::from_slice::<Vec<DatabaseEnvelope>>(&*data) {
+        Ok(envelopes) => {
+            #[cfg(debug_assertions)]
+            for envelope in &envelopes {
+                debug_assert_eq!(envelope.received_at, received_at);
+            }
+            envelopes
+        }
+        Err(_) => {
+            // legacy: one envelope per row
+            vec![DatabaseEnvelope {
+                received_at,
+                own_key,
+                sampling_key,
+                encoded_envelope: data,
+            }]
+        }
+    };
+
+    Ok(DatabaseBatch {
         received_at,
         own_key,
         sampling_key,
-        encoded_envelope,
+        envelopes,
     })
 }
 
@@ -571,19 +545,17 @@ fn extract_project_key_pair(row: SqliteRow) -> Result<ProjectKeyPair, SqliteEnve
 pub fn build_delete_and_fetch_many_envelopes<'a>(
     own_key: ProjectKey,
     project_key: ProjectKey,
-    batch_size: i64,
 ) -> Query<'a, Sqlite, SqliteArguments<'a>> {
     sqlx::query(
         "DELETE FROM
             envelopes
          WHERE id IN (SELECT id FROM envelopes WHERE own_key = ? AND sampling_key = ?
-            ORDER BY received_at DESC LIMIT ?)
+            ORDER BY received_at DESC LIMIT 1)
          RETURNING
             received_at, own_key, sampling_key, envelope",
     )
     .bind(own_key.to_string())
     .bind(project_key.to_string())
-    .bind(batch_size)
 }
 
 /// Creates a query which fetches the number of used database pages multiplied by the page size.
@@ -627,45 +599,55 @@ mod tests {
         let sampling_key = ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap();
 
         // We insert 10 envelopes.
-        let envelopes = mock_envelopes(10);
-        assert!(envelope_store
-            .insert_many(
-                envelopes
-                    .iter()
-                    .map(|e| DatabaseEnvelope::try_from(e.as_ref()).unwrap())
-                    .collect::<Vec<_>>()
-                    .try_into()
-                    .unwrap()
-            )
-            .await
-            .is_ok());
+        let batches = [mock_envelopes(5), mock_envelopes(5)];
+        for batch in &batches {
+            assert!(envelope_store
+                .insert_batch(
+                    batch
+                        .iter()
+                        .map(|e| DatabaseEnvelope::try_from(e.as_ref()).unwrap())
+                        .collect::<Vec<_>>()
+                        .try_into()
+                        .unwrap()
+                )
+                .await
+                .is_ok());
+        }
 
         // We check that if we load 5, we get the newest 5.
-        let extracted_envelopes = envelope_store
-            .delete_many(own_key, sampling_key, 5)
+        let batch = envelope_store
+            .delete_batch(own_key, sampling_key)
             .await
+            .unwrap()
             .unwrap();
-        assert_eq!(extracted_envelopes.len(), 5);
-        for (i, extracted_envelope) in extracted_envelopes.iter().enumerate().take(5) {
+        assert_eq!(batch.len(), 5);
+        for (i, extracted_envelope) in batch.envelopes.iter().enumerate() {
             assert_eq!(
                 extracted_envelope.received_at().timestamp_millis(),
-                envelopes[5..][i].received_at().timestamp_millis()
+                (&batches[1])[i].received_at().timestamp_millis()
             );
         }
 
-        // We check that if we load more than the envelopes stored on disk, we still get back at
-        // most 5.
-        let extracted_envelopes = envelope_store
-            .delete_many(own_key, sampling_key, 10)
+        // We check that if we load 5 more, we get the oldest 5.
+        let batch = envelope_store
+            .delete_batch(own_key, sampling_key)
             .await
+            .unwrap()
             .unwrap();
-        assert_eq!(extracted_envelopes.len(), 5);
-        for (i, extracted_envelope) in extracted_envelopes.iter().enumerate().take(5) {
+        assert_eq!(batch.len(), 5);
+        for (i, extracted_envelope) in batch.envelopes.iter().enumerate() {
             assert_eq!(
                 extracted_envelope.received_at().timestamp_millis(),
-                envelopes[..5][i].received_at().timestamp_millis()
+                (&batches[0])[i].received_at().timestamp_millis()
             );
         }
+
+        // Store is empty.
+        assert!(envelope_store
+            .delete_batch(own_key, sampling_key)
+            .await
+            .unwrap()
+            .is_none());
     }
 
     #[tokio::test]
@@ -678,17 +660,17 @@ mod tests {
 
         // We insert 10 envelopes.
         let envelopes = mock_envelopes(2);
-        assert!(envelope_store
-            .insert_many(
+        envelope_store
+            .insert_batch(
                 envelopes
                     .into_iter()
                     .map(|e| DatabaseEnvelope::try_from(e.as_ref()).unwrap())
                     .collect::<Vec<_>>()
                     .try_into()
-                    .unwrap()
+                    .unwrap(),
             )
             .await
-            .is_ok());
+            .unwrap();
 
         // We check that we get back only one pair of project keys, since all envelopes have the
         // same pair.
@@ -715,7 +697,7 @@ mod tests {
         // We write 10 envelopes to increase the disk usage.
         let envelopes = mock_envelopes(10);
         store
-            .insert_many(
+            .insert_batch(
                 envelopes
                     .into_iter()
                     .map(|e| DatabaseEnvelope::try_from(e.as_ref()).unwrap())
@@ -741,7 +723,7 @@ mod tests {
 
         let envelopes = mock_envelopes(10);
         store
-            .insert_many(
+            .insert_batch(
                 envelopes
                     .iter()
                     .map(|e| DatabaseEnvelope::try_from(e.as_ref()).unwrap())

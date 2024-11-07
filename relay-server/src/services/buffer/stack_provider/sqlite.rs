@@ -15,8 +15,7 @@ use crate::{EnvelopeStack, SqliteEnvelopeStack};
 #[derive(Debug)]
 pub struct SqliteStackProvider {
     envelope_store: SqliteEnvelopeStore,
-    read_batch_size: usize,
-    write_batch_bytes: usize,
+    batch_size_bytes: usize,
     max_disk_size: usize,
 }
 
@@ -27,8 +26,7 @@ impl SqliteStackProvider {
         let envelope_store = SqliteEnvelopeStore::prepare(config).await?;
         Ok(Self {
             envelope_store,
-            read_batch_size: config.spool_envelopes_read_batch_size(),
-            write_batch_bytes: config.spool_envelopes_write_batch_bytes(),
+            batch_size_bytes: config.spool_envelopes_write_batch_bytes(),
             max_disk_size: config.spool_envelopes_max_disk_size(),
         })
     }
@@ -62,8 +60,7 @@ impl StackProvider for SqliteStackProvider {
     ) -> Self::Stack {
         SqliteEnvelopeStack::new(
             self.envelope_store.clone(),
-            self.read_batch_size,
-            self.write_batch_bytes,
+            self.batch_size_bytes,
             project_key_pair.own_key,
             project_key_pair.sampling_key,
             // We want to check the disk by default if we are creating the stack for the first time,
