@@ -411,10 +411,11 @@ impl SqliteEnvelopeStore {
 
         let packed = rmp_serde::to_vec(&envelopes)?;
 
-        let query = sqlx::query("INSERT INTO envelopes (received_at, own_key, sampling_key, envelope) VALUES (?, ?, ?, ?);")
+        let query = sqlx::query("INSERT INTO envelopes (received_at, own_key, sampling_key, count, envelope) VALUES (?, ?, ?, ?, ?);")
             .bind(received_at)
             .bind(own_key.as_str())
             .bind(sampling_key.as_str())
+            .bind(envelopes.len() as u16)
             .bind(packed);
 
         query
@@ -489,13 +490,7 @@ fn extract_batch(
         .map_err(SqliteEnvelopeStoreError::FetchError)?;
 
     let envelopes = match rmp_serde::from_slice::<Vec<DatabaseEnvelope>>(&*data) {
-        Ok(envelopes) => {
-            #[cfg(debug_assertions)]
-            for envelope in &envelopes {
-                debug_assert_eq!(envelope.received_at, received_at);
-            }
-            envelopes
-        }
+        Ok(envelopes) => envelopes,
         Err(_) => {
             // legacy: one envelope per row
             vec![DatabaseEnvelope {
@@ -577,7 +572,7 @@ pub fn build_get_project_key_pairs<'a>() -> Query<'a, Sqlite, SqliteArguments<'a
 /// Please note that this query is SLOW because SQLite doesn't use any metadata to satisfy it,
 /// meaning that it has to scan through all the rows and count them.
 pub fn build_count_all<'a>() -> Query<'a, Sqlite, SqliteArguments<'a>> {
-    sqlx::query("SELECT COUNT(1) FROM envelopes;")
+    sqlx::query("SELECT SUM(count) FROM envelopes;")
 }
 
 #[cfg(test)]
