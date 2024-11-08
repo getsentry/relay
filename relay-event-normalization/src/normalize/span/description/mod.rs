@@ -1,4 +1,5 @@
 //! Span description scrubbing logic.
+mod redis;
 mod resource;
 mod sql;
 use once_cell::sync::Lazy;
