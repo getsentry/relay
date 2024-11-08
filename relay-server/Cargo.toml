@@ -44,7 +44,7 @@ chrono = { workspace = true, features = ["clock"] }
 data-encoding = { workspace = true }
 flate2 = { workspace = true }
 fnv = { workspace = true }
-futures = { workspace = true }
+futures = { workspace = true, features = ["async-await"] }
 hashbrown = { workspace = true }
 hyper-util = { workspace = true }
 itertools = { workspace = true }
