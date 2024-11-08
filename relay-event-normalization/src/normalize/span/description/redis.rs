@@ -1,9 +1,32 @@
 use std::cmp::Ordering;
 
+/// Returns a redis command if it is a case-insensitive prefix of `seek`.
+pub fn matching_redis_command(seek: &str) -> Option<&str> {
+    let seek = seek.as_bytes();
+    let index = REDIS_COMMANDS
+        .binary_search_by(|probe| {
+            let probe = probe.as_bytes();
+            // step 1 - compare prefixes
+            for (probe, seek) in probe.iter().zip(seek) {
+                match probe.to_ascii_lowercase().cmp(&seek.to_ascii_lowercase()) {
+                    Ordering::Equal => continue,
+                    neq => return neq,
+                };
+            }
+            // step 2 - compare length
+            match probe.len().cmp(&seek.len()) {
+                Ordering::Greater => Ordering::Greater,
+                _ => Ordering::Equal,
+            }
+        })
+        .ok()?;
+    Some(REDIS_COMMANDS[index])
+}
+
 /// List of redis commands.
 ///
 /// See <https://redis.io/docs/latest/commands/>.
-pub const REDIS_COMMANDS: &[&str] = &[
+const REDIS_COMMANDS: &[&str] = &[
     "ACL",
     "ACL CAT",
     "ACL DELUSER",
@@ -506,29 +529,6 @@ pub const REDIS_COMMANDS: &[&str] = &[
     "ZUNIONSTORE",
 ];
 
-/// Returns a redis command if it is a case-insensitive prefix of `seek`.
-pub fn matching_redis_command(seek: &str) -> Option<&str> {
-    let seek = seek.as_bytes();
-    let index = REDIS_COMMANDS
-        .binary_search_by(|probe| {
-            let probe = probe.as_bytes();
-            // step 1 - compare prefixes
-            for (probe, seek) in probe.iter().zip(seek) {
-                match probe.to_ascii_lowercase().cmp(&seek.to_ascii_lowercase()) {
-                    Ordering::Equal => continue,
-                    neq => return neq,
-                };
-            }
-            // step 2 - compare length
-            match probe.len().cmp(&seek.len()) {
-                Ordering::Greater => Ordering::Greater,
-                _ => Ordering::Equal,
-            }
-        })
-        .ok()?;
-    Some(REDIS_COMMANDS[index])
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -541,6 +541,21 @@ mod tests {
     #[test]
     fn same_length_arbitrary_case() {
         assert_eq!(matching_redis_command("TopK.add"), Some("TOPK.ADD"));
+    }
+
+    #[test]
+    fn same_length_different_content() {
+        assert_eq!(matching_redis_command("_OPK.ADD"), None);
+    }
+
+    #[test]
+    fn same_length_different_content2() {
+        assert_eq!(matching_redis_command("T_PK.ADD"), None);
+    }
+
+    #[test]
+    fn same_length_different_content3() {
+        assert_eq!(matching_redis_command("TOPK.AD_"), None);
     }
 
     #[test]
