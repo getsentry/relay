@@ -506,13 +506,14 @@ pub const REDIS_COMMANDS: &[&str] = &[
     "ZUNIONSTORE",
 ];
 
-fn matching_redis_command(seek: &str) -> Option<&str> {
+/// Returns a redis command if it is a case-insensitive prefix of `seek`.
+pub fn matching_redis_command(seek: &str) -> Option<&str> {
     let seek = seek.as_bytes();
     let index = REDIS_COMMANDS
         .binary_search_by(|probe| {
             let probe = probe.as_bytes();
             // step 1 - compare prefixes
-            for (probe, seek) in probe.into_iter().zip(seek) {
+            for (probe, seek) in probe.iter().zip(seek) {
                 match probe.to_ascii_lowercase().cmp(&seek.to_ascii_lowercase()) {
                     Ordering::Equal => continue,
                     neq => return neq,

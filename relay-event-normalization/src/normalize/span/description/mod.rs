@@ -17,8 +17,9 @@ use url::{Host, Url};
 
 use crate::regexes::{
     DB_SQL_TRANSACTION_CORE_DATA_REGEX, DB_SUPABASE_REGEX, FUNCTION_NORMALIZER_REGEX,
-    REDIS_COMMAND_REGEX, RESOURCE_NORMALIZER_REGEX,
+    RESOURCE_NORMALIZER_REGEX,
 };
+use crate::span::description::redis::matching_redis_command;
 use crate::span::description::resource::COMMON_PATH_SEGMENTS;
 use crate::span::tag_extraction::HTTP_METHOD_EXTRACTOR_REGEX;
 use crate::span::TABLE_NAME_REGEX;
@@ -385,15 +386,14 @@ pub fn concatenate_host_and_port(host: Option<&str>, port: Option<u16>) -> Cow<s
 }
 
 fn scrub_redis_keys(string: &str) -> Option<String> {
-    let parts = REDIS_COMMAND_REGEX
-        .captures(string)
-        .map(|caps| (caps.name("command"), caps.name("args")));
-    let scrubbed = match parts {
-        Some((Some(command), Some(_args))) => command.as_str().to_owned() + " *",
-        Some((Some(command), None)) => command.as_str().into(),
-        None | Some((None, _)) => "*".into(),
-    };
-    Some(scrubbed)
+    let string = string.trim();
+    Some(match matching_redis_command(string) {
+        Some(command) => match string.get(command.len()..) {
+            None | Some("") => command.to_string(),
+            Some(_other) => format!("{command} *"),
+        },
+        None => "*".to_string(),
+    })
 }
 
 enum UrlType {
@@ -1317,8 +1317,7 @@ mod tests {
             ScrubMongoDescription::Disabled,
         );
 
-        // NOTE: this should return `DEL *`, but we cannot detect lowercase command names yet.
-        assert_eq!(scrubbed.0.as_deref(), Some("*"));
+        assert_eq!(scrubbed.0.as_deref(), Some("DEL *"));
     }
 
     #[test]
