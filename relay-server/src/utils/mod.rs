@@ -9,6 +9,8 @@ mod retry;
 mod sizes;
 mod sleep_handle;
 mod split_off;
+mod squeue;
+mod stask;
 mod statsd;
 mod thread_pool;
 
@@ -34,6 +36,8 @@ pub use self::serde::*;
 pub use self::sizes::*;
 pub use self::sleep_handle::*;
 pub use self::split_off::*;
+pub use self::squeue::*;
+pub use self::stask::*;
 pub use self::statsd::*;
 pub use self::thread_pool::*;
 #[cfg(feature = "processing")]

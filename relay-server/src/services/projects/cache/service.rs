@@ -1,16 +1,19 @@
 use std::sync::Arc;
 
+use futures::future::BoxFuture;
+use futures::StreamExt as _;
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
 use relay_statsd::metric;
 use relay_system::Service;
-use tokio::sync::{broadcast, mpsc};
+use tokio::sync::broadcast;
 
 use crate::services::projects::cache::handle::ProjectCacheHandle;
 use crate::services::projects::cache::state::{CompletedFetch, Fetch, ProjectStore};
 use crate::services::projects::project::ProjectState;
 use crate::services::projects::source::ProjectSource;
 use crate::statsd::{RelayGauges, RelayTimers};
+use crate::utils::ScheduledTasks;
 
 /// Size of the broadcast channel for project events.
 ///
@@ -66,8 +69,7 @@ pub struct ProjectCacheService {
     source: ProjectSource,
     config: Arc<Config>,
 
-    project_update_rx: mpsc::UnboundedReceiver<CompletedFetch>,
-    project_update_tx: mpsc::UnboundedSender<CompletedFetch>,
+    scheduled_fetches: ScheduledTasks<BoxFuture<'static, CompletedFetch>>,
 
     project_events_tx: broadcast::Sender<ProjectChange>,
 }
@@ -75,15 +77,13 @@ pub struct ProjectCacheService {
 impl ProjectCacheService {
     /// Creates a new [`ProjectCacheService`].
     pub fn new(config: Arc<Config>, source: ProjectSource) -> Self {
-        let (project_update_tx, project_update_rx) = mpsc::unbounded_channel();
         let project_events_tx = broadcast::channel(PROJECT_EVENTS_CHANNEL_SIZE).0;
 
         Self {
             store: ProjectStore::default(),
             source,
             config,
-            project_update_rx,
-            project_update_tx,
+            scheduled_fetches: ScheduledTasks::default(),
             project_events_tx,
         }
     }
@@ -106,14 +106,12 @@ impl ProjectCacheService {
         handle
     }
 
-    /// Schedules a new [`Fetch`] and delivers the result to the [`Self::project_update_tx`] channel.
-    fn schedule_fetch(&self, fetch: Fetch) {
+    /// Schedules a new [`Fetch`] in [`Self::scheduled_fetches`].
+    fn schedule_fetch(&mut self, fetch: Fetch) {
         let source = self.source.clone();
-        let project_updates = self.project_update_tx.clone();
 
-        tokio::spawn(async move {
-            tokio::time::sleep_until(fetch.when()).await;
-
+        let when = fetch.when();
+        let task = async move {
             let state = match source
                 .fetch(fetch.project_key(), false, fetch.revision())
                 .await
@@ -132,8 +130,13 @@ impl ProjectCacheService {
                 }
             };
 
-            let _ = project_updates.send(fetch.complete(state));
-        });
+            fetch.complete(state)
+        };
+        self.scheduled_fetches.schedule(when, Box::pin(task));
+
+        metric!(
+            gauge(RelayGauges::ProjectCacheScheduledFetches) = self.scheduled_fetches.len() as u64
+        );
     }
 }
 
@@ -207,9 +210,9 @@ impl relay_system::Service for ProjectCacheService {
                 tokio::select! {
                     biased;
 
-                    Some(update) = self.project_update_rx.recv() => timed!(
-                        "project_update",
-                        self.handle_completed_fetch(update)
+                    Some(fetch) = self.scheduled_fetches.next() => timed!(
+                        "completed_fetch",
+                        self.handle_completed_fetch(fetch)
                     ),
                     Some(message) = rx.recv() => timed!(
                         message.variant(),
