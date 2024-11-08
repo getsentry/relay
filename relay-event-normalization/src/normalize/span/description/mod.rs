@@ -671,6 +671,13 @@ mod tests {
         };
     }
 
+    macro_rules! span_description_test_with_lowercase {
+        ($name:ident, $name2:ident, $description_in:expr, $op_in:literal, $expected:literal) => {
+            span_description_test!($name, $description_in, $op_in, $expected);
+            span_description_test!($name2, ($description_in).to_lowercase(), $op_in, $expected);
+        };
+    }
+
     span_description_test!(empty, "", "http.client", "");
 
     span_description_test!(
@@ -792,30 +799,57 @@ mod tests {
         ""
     );
 
-    span_description_test!(
+    span_description_test_with_lowercase!(
         cache,
+        cache_lower,
         "GET abc:12:{def}:{34}:{fg56}:EAB38:zookeeper",
         "cache.get_item",
         "GET *"
     );
 
-    span_description_test!(redis_set, "SET mykey myvalue", "db.redis", "SET *");
+    span_description_test_with_lowercase!(
+        redis_set,
+        redis_set_lower,
+        "SET mykey myvalue",
+        "db.redis",
+        "SET *"
+    );
 
-    span_description_test!(
+    span_description_test_with_lowercase!(
         redis_set_quoted,
+        redis_set_quoted_lower,
         r#"SET mykey 'multi: part, value'"#,
         "db.redis",
         "SET *"
     );
 
-    span_description_test!(redis_whitespace, " GET  asdf:123", "db.redis", "GET *");
+    span_description_test_with_lowercase!(
+        redis_whitespace,
+        redis_whitespace_lower,
+        " GET  asdf:123",
+        "db.redis",
+        "GET *"
+    );
 
-    span_description_test!(redis_no_args, "EXEC", "db.redis", "EXEC");
+    span_description_test_with_lowercase!(
+        redis_no_args,
+        redis_no_args_lower,
+        "EXEC",
+        "db.redis",
+        "EXEC"
+    );
 
-    span_description_test!(redis_invalid, "What a beautiful day!", "db.redis", "*");
+    span_description_test_with_lowercase!(
+        redis_invalid,
+        redis_invalid_lower,
+        "What a beautiful day!",
+        "db.redis",
+        "*"
+    );
 
-    span_description_test!(
+    span_description_test_with_lowercase!(
         redis_long_command,
+        redis_long_command_lower,
         "ACL SETUSER jane",
         "db.redis",
         "ACL SETUSER *"
