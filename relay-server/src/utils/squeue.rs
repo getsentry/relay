@@ -62,8 +62,18 @@ impl<T> Stream for ScheduledQueue<T> {
         if let Some(next) = self.inner.peek() {
             let when = next.when;
 
-            // TODO: maybe optimize here for `when` being in the past,
-            // currently self goes through one additional wakeup and sleep poll.
+            // TODO: maybe optimize here for `when` being in the past but the sleep
+            // is still in the future. This can happen when an item with a shorter
+            // deadline, than the item at the front of the queue, is inserted.
+            //
+            // With the current behaviour we will reset the sleep deadline (in the else branch)
+            // to a value which will immediately be ready.
+            // Only after the sleep yields ready, we yield the item.
+            //
+            // This is one more wakeup and sleep poll than necessary.
+            //
+            // The current design is much simpler and less prone to mistakes since
+            // the sleep is always synchronized to the first item in the queue.
             if matches!(sleep, Poll::Ready(_)) && when <= Instant::now() {
                 // We already expired the first item, yield it.
                 let current = self.inner.pop().unwrap();
@@ -127,7 +137,7 @@ impl<T> PartialOrd for Item<T> {
 
 impl<T> Ord for Item<T> {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        other.when.cmp(&self.when)
+        self.when.cmp(&other.when).reverse()
     }
 }
 

@@ -290,10 +290,8 @@ impl Fetch {
 
     /// Returns when the fetch for the project should be scheduled.
     ///
-    /// A return value of `None` indicates, the fetch should be scheduled as soon as possible.
-    ///
-    /// This can be now (as soon as possible) or a later point in time, if the project is currently
-    /// in a backoff.
+    /// This can be now (as soon as possible, indicated by `None`) or a later point in time,
+    /// if the project is currently in a backoff.
     pub fn when(&self) -> Option<Instant> {
         self.when
     }
