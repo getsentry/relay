@@ -1,26 +1,20 @@
-use std::cmp::Ordering;
+use aho_corasick::{AhoCorasick, AhoCorasickBuilder, MatchKind};
+use once_cell::sync::Lazy;
 
 /// Returns a redis command if it is a case-insensitive prefix of `seek`.
 pub fn matching_redis_command(seek: &str) -> Option<&str> {
-    let seek = seek.as_bytes();
-    let index = REDIS_COMMANDS
-        .binary_search_by(|probe| {
-            let probe = probe.as_bytes();
-            // step 1 - compare prefixes
-            for (probe, seek) in probe.iter().zip(seek) {
-                match probe.to_ascii_lowercase().cmp(&seek.to_ascii_lowercase()) {
-                    Ordering::Equal => continue,
-                    neq => return neq,
-                };
-            }
-            // step 2 - compare length
-            match probe.len().cmp(&seek.len()) {
-                Ordering::Greater => Ordering::Greater,
-                _ => Ordering::Equal,
-            }
-        })
-        .ok()?;
-    Some(REDIS_COMMANDS[index])
+    let mut longest_matching = None;
+    for m in REDIS_COMMAND_MATCHER.find_iter(seek) {
+        let pattern = REDIS_COMMANDS[m.pattern().as_usize()];
+        if !seek.starts_with(pattern) {
+            continue;
+        }
+        debug_assert!(seek.len() >= pattern.len());
+        if (pattern.len() > longest_matching.map_or(0, str::len) && (pattern.len() == seek.len()) || !seek.as_bytes()[pattern.len()].is_ascii_alphanumeric()) {
+            longest_
+        }))
+    }
+    None
 }
 
 /// List of redis commands.
@@ -529,6 +523,14 @@ const REDIS_COMMANDS: &[&str] = &[
     "ZUNIONSTORE",
 ];
 
+static REDIS_COMMAND_MATCHER: Lazy<AhoCorasick> = Lazy::new(|| {
+    AhoCorasickBuilder::new()
+        .ascii_case_insensitive(true)
+        .match_kind(MatchKind::Standard)
+        .build(REDIS_COMMANDS)
+        .unwrap()
+});
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -587,5 +589,20 @@ mod tests {
     #[test]
     fn empty_needle() {
         assert_eq!(matching_redis_command(""), None);
+    }
+
+    #[test]
+    fn find_word_boundary() {
+        assert_eq!(matching_redis_command("ACL cattington"), Some("ACL"));
+    }
+
+    #[test]
+    fn find_with_extra_word() {
+        assert_eq!(matching_redis_command("ACL cat tington"), Some("ACL"));
+    }
+
+    #[test]
+    fn find_ambiguous_prefix() {
+        assert_eq!(matching_redis_command("ACL CAT"), Some("ACL CAT"));
     }
 }
