@@ -7,18 +7,18 @@
 - Removes support for metric meta envelope items. ([#4152](https://github.com/getsentry/relay/pull/4152))
 - Removes support for the project cache endpoint version 2 and before. ([#4147](https://github.com/getsentry/relay/pull/4147))
 
-**Bug Fixes**
+**Bug Fixes**:
 
 - Allow profile chunks without release. ([#4155](https://github.com/getsentry/relay/pull/4155))
 
-**Features:**
+**Features**:
 
 - Add check to ensure unreal user info is not empty. ([#4225](https://github.com/getsentry/relay/pull/4225))
 - Retain empty string values in `span.data` and `event.contexts.trace.data`. ([#4174](https://github.com/getsentry/relay/pull/4174))
 - Allow `sample_rate` to be float type when deserializing `DynamicSamplingContext`. ([#4181](https://github.com/getsentry/relay/pull/4181))
 - Support inbound filters for profiles. ([#4176](https://github.com/getsentry/relay/pull/4176))
 
-**Internal:**
+**Internal**:
 
 - Add a metric that counts span volume in the root project for dynamic sampling (`c:spans/count_per_root_project@none`). ([#4134](https://github.com/getsentry/relay/pull/4134))
 - Add a tag `target_project_id` to both root project metrics for dynamic sampling (`c:transactions/count_per_root_project@none` and `c:spans/count_per_root_project@none`) which shows the flow trace traffic from root to target projects. ([#4170](https://github.com/getsentry/relay/pull/4170))

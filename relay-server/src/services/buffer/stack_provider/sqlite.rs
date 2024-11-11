@@ -26,7 +26,7 @@ impl SqliteStackProvider {
         let envelope_store = SqliteEnvelopeStore::prepare(config).await?;
         Ok(Self {
             envelope_store,
-            batch_size_bytes: config.spool_envelopes_write_batch_bytes(),
+            batch_size_bytes: config.batch_size_bytes(),
             max_disk_size: config.spool_envelopes_max_disk_size(),
         })
     }
