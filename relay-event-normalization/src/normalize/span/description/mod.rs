@@ -388,10 +388,16 @@ pub fn concatenate_host_and_port(host: Option<&str>, port: Option<u16>) -> Cow<s
 fn scrub_redis_keys(string: &str) -> Option<String> {
     let string = string.trim();
     Some(match matching_redis_command(string) {
-        Some(command) => match string.get(command.len()..) {
-            None | Some("") => command.to_string(),
-            Some(_other) => format!("{command} *"),
-        },
+        Some(command) => {
+            let mut command = command.to_uppercase();
+            match string.get(command.len()..) {
+                None | Some("") => command,
+                Some(_other) => {
+                    command.push_str(" *");
+                    command
+                }
+            }
+        }
         None => "*".to_string(),
     })
 }
