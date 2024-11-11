@@ -13,7 +13,7 @@ use crate::services::projects::cache::state::{CompletedFetch, Fetch, ProjectStor
 use crate::services::projects::project::ProjectState;
 use crate::services::projects::source::ProjectSource;
 use crate::statsd::{RelayGauges, RelayTimers};
-use crate::utils::ScheduledTasks;
+use crate::utils::FuturesScheduled;
 
 /// Size of the broadcast channel for project events.
 ///
@@ -69,7 +69,7 @@ pub struct ProjectCacheService {
     source: ProjectSource,
     config: Arc<Config>,
 
-    scheduled_fetches: ScheduledTasks<BoxFuture<'static, CompletedFetch>>,
+    scheduled_fetches: FuturesScheduled<BoxFuture<'static, CompletedFetch>>,
 
     project_events_tx: broadcast::Sender<ProjectChange>,
 }
@@ -83,7 +83,7 @@ impl ProjectCacheService {
             store: ProjectStore::default(),
             source,
             config,
-            scheduled_fetches: ScheduledTasks::default(),
+            scheduled_fetches: FuturesScheduled::default(),
             project_events_tx,
         }
     }

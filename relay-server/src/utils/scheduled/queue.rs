@@ -76,7 +76,7 @@ impl<T> Stream for ScheduledQueue<T> {
             // the sleep is always synchronized to the first item in the queue.
             if matches!(sleep, Poll::Ready(_)) && when <= Instant::now() {
                 // We already expired the first item, yield it.
-                let current = self.inner.pop().unwrap();
+                let current = self.inner.pop().expect("pop after peek should never fail");
 
                 let next_deadline = self
                     .inner
