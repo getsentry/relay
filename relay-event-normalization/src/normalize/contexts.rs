@@ -4,7 +4,9 @@ use std::collections::HashMap;
 
 use once_cell::sync::Lazy;
 use regex::Regex;
-use relay_event_schema::protocol::{Context, Cookies, OsContext, ResponseContext, RuntimeContext};
+use relay_event_schema::protocol::{
+    BrowserContext, Context, Cookies, OsContext, ResponseContext, RuntimeContext,
+};
 use relay_protocol::{Annotated, Empty, Value};
 
 /// Environment.OSVersion (GetVersionEx) or RuntimeInformation.OSDescription on Windows
@@ -138,6 +140,15 @@ fn normalize_runtime_context(runtime: &mut RuntimeContext) {
             }
         }
     }
+
+    // Calculation of the computed context for the runtime.
+    //
+    // The equivalent calculation is done in `sentry` in `src/sentry/interfaces/contexts.py`.
+    if runtime.runtime.value().is_none() {
+        if let (Some(name), Some(version)) = (runtime.name.value(), runtime.version.value()) {
+            runtime.runtime = Annotated::from(format!("{} {}", name, version));
+        }
+    }
 }
 
 /// Parses the Windows build number from the description and maps it to a marketing name.
@@ -248,6 +259,26 @@ fn normalize_os_context(os: &mut OsContext) {
                 .into();
         }
     }
+
+    // Calculation of the computed context for the os.
+    //
+    // The equivalent calculation is done in `sentry` in `src/sentry/interfaces/contexts.py`.
+    if os.os.value().is_none() {
+        if let (Some(name), Some(version)) = (os.name.value(), os.version.value()) {
+            os.os = Annotated::from(format!("{} {}", name, version));
+        }
+    }
+}
+
+fn normalize_browser_context(browser: &mut BrowserContext) {
+    // Calculation of the computed context for the browser.
+    //
+    // The equivalent calculation is done in `sentry` in `src/sentry/interfaces/contexts.py`.
+    if browser.browser.value().is_none() {
+        if let (Some(name), Some(version)) = (browser.name.value(), browser.version.value()) {
+            browser.browser = Annotated::from(format!("{} {}", name, version));
+        }
+    }
 }
 
 fn parse_raw_response_data(response: &ResponseContext) -> Option<(&'static str, Value)> {
@@ -307,6 +338,7 @@ pub fn normalize_context(context: &mut Context) {
     match context {
         Context::Runtime(runtime) => normalize_runtime_context(runtime),
         Context::Os(os) => normalize_os_context(os),
+        Context::Browser(browser) => normalize_browser_context(browser),
         Context::Response(response) => normalize_response(response),
         Context::Device(device) => {
             if let Some(product_name) = device
