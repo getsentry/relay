@@ -72,7 +72,7 @@ impl<'a> ReservoirEvaluator<'a> {
         Arc::clone(&self.counters)
     }
 
-    /// Sets the Redis pool and organiation ID for the [`ReservoirEvaluator`].
+    /// Sets the Redis pool and organization ID for the [`ReservoirEvaluator`].
     ///
     /// These values are needed to synchronize with Redis.
     #[cfg(feature = "redis")]

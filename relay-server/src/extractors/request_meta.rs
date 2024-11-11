@@ -24,7 +24,7 @@ use url::Url;
 
 use crate::extractors::{ForwardedFor, ReceivedAt};
 use crate::service::ServiceState;
-use crate::statsd::RelayCounters;
+use crate::statsd::{ClientName, RelayCounters};
 use crate::utils::ApiErrorResponse;
 
 #[derive(Debug, thiserror::Error)]
@@ -249,10 +249,11 @@ impl<D> RequestMeta<D> {
     /// Returns the name of the client that sent the event without version.
     ///
     /// If the client is not sent in standard format, this method returns `None`.
-    pub fn client_name(&self) -> Option<&str> {
-        let client = self.client()?;
-        let (name, _version) = client.split_once('/')?;
-        Some(name)
+    pub fn client_name(&self) -> ClientName {
+        self.client()
+            .and_then(|client| client.split_once('/'))
+            .map(|(client, _)| client)
+            .map_or(ClientName::Other("proprietary"), ClientName::from)
     }
 
     /// Returns the protocol version of the event payload.

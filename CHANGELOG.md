@@ -2,26 +2,35 @@
 
 ## Unreleased
 
-**Bug Fixes:**
+**Breaking Changes**:
+
+- Removes support for metric meta envelope items. ([#4152](https://github.com/getsentry/relay/pull/4152))
+- Removes support for the project cache endpoint version 2 and before. ([#4147](https://github.com/getsentry/relay/pull/4147))
+
+**Bug Fixes**
 
 - Allow profile chunks without release. ([#4155](https://github.com/getsentry/relay/pull/4155))
-- Add validation for timestamps sent from the future. ([#4163](https://github.com/getsentry/relay/pull/4163))
-
 
 **Features:**
 
+- Add check to ensure unreal user info is not empty. ([#4225](https://github.com/getsentry/relay/pull/4225))
 - Retain empty string values in `span.data` and `event.contexts.trace.data`. ([#4174](https://github.com/getsentry/relay/pull/4174))
+- Allow `sample_rate` to be float type when deserializing `DynamicSamplingContext`. ([#4181](https://github.com/getsentry/relay/pull/4181))
+- Support inbound filters for profiles. ([#4176](https://github.com/getsentry/relay/pull/4176))
 
 **Internal:**
 
 - Add a metric that counts span volume in the root project for dynamic sampling (`c:spans/count_per_root_project@none`). ([#4134](https://github.com/getsentry/relay/pull/4134))
 - Add a tag `target_project_id` to both root project metrics for dynamic sampling (`c:transactions/count_per_root_project@none` and `c:spans/count_per_root_project@none`) which shows the flow trace traffic from root to target projects. ([#4170](https://github.com/getsentry/relay/pull/4170))
+- Remove `buffer` entries and scrub array contents from MongoDB queries. ([#4186](https://github.com/getsentry/relay/pull/4186))
 - Use `DateTime<Utc>` instead of `Instant` for tracking the received time of the `Envelope`. ([#4184](https://github.com/getsentry/relay/pull/4184))
+- Add a field to suggest consumers to ingest spans in EAP. ([#4206](https://github.com/getsentry/relay/pull/4206))
+- Run internal worker threads with a lower priority. ([#4222](https://github.com/getsentry/relay/pull/4222))
 - Replace u64 with `OrganizationId` new-type struct for organization id. ([#4159](https://github.com/getsentry/relay/pull/4159))
 
 ## 24.10.0
 
-**Breaking Changes:**
+**Breaking Changes**:
 
 - Only allow processing enabled in managed mode. ([#4087](https://github.com/getsentry/relay/pull/4087))
 
@@ -31,7 +40,7 @@
 - Use the duration reported by the profiler instead of the transaction. ([#4058](https://github.com/getsentry/relay/pull/4058))
 - Incorrect pattern matches involving adjacent any and wildcard matchers. ([#4072](https://github.com/getsentry/relay/pull/4072))
 
-**Features:**
+**Features**:
 
 - Add a config option to add default tags to all Relay Sentry events. ([#3944](https://github.com/getsentry/relay/pull/3944))
 - Automatically derive `client.address` and `user.geo` for standalone spans. ([#4047](https://github.com/getsentry/relay/pull/4047))
@@ -43,7 +52,7 @@
 - Add support for creating User from LoginId in Unreal Crash Context. ([#4093](https://github.com/getsentry/relay/pull/4093))
 - Add multi-write Redis client. ([#4064](https://github.com/getsentry/relay/pull/4064))
 
-**Internal:**
+**Internal**:
 
 - Remove unused `cogs.enabled` configuration option. ([#4060](https://github.com/getsentry/relay/pull/4060))
 - Add the dynamic sampling rate to standalone spans as a measurement so that it can be stored, queried, and used for extrapolation. ([#4063](https://github.com/getsentry/relay/pull/4063))

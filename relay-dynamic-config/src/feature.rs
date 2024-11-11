@@ -70,6 +70,16 @@ pub enum Feature {
     /// Serialized as `organizations:continuous-profiling`.
     #[serde(rename = "organizations:continuous-profiling")]
     ContinuousProfiling,
+    /// Enabled for beta orgs
+    ///
+    /// Serialized as `organizations:continuous-profiling-beta`.
+    #[serde(rename = "organizations:continuous-profiling-beta")]
+    ContinuousProfilingBeta,
+    /// Enabled when only beta orgs are allowed to send continuous profiles.
+    ///
+    /// Serialized as `organizations:continuous-profiling-beta-ingest`.
+    #[serde(rename = "organizations:continuous-profiling-beta-ingest")]
+    ContinuousProfilingBetaIngest,
     /// Enables metric extraction from spans for common modules.
     ///
     /// Serialized as `projects:span-metrics-extraction`.
@@ -92,6 +102,11 @@ pub enum Feature {
     /// Serialized as `organizations:performance-queries-mongodb-extraction`.
     #[serde(rename = "organizations:performance-queries-mongodb-extraction")]
     ScrubMongoDbDescriptions,
+    /// Indicate if the EAP consumers should ingest a span.
+    ///
+    /// Serialized as `organizations:ingest-spans-in-eap`
+    #[serde(rename = "organizations:ingest-spans-in-eap")]
+    IngestSpansInEap,
 
     /// This feature has graduated and is hard-coded for external Relays.
     #[doc(hidden)]

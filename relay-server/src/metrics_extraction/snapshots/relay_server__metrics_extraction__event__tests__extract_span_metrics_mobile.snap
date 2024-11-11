@@ -1,6 +1,6 @@
 ---
 source: relay-server/src/metrics_extraction/event.rs
-expression: "(&event.value().unwrap().spans, metrics)"
+expression: "(&event.value().unwrap().spans, metrics.project_metrics)"
 ---
 (
     [

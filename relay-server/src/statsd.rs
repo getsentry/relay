@@ -7,8 +7,6 @@ pub enum RelayGauges {
     /// The state of Relay with respect to the upstream connection.
     /// Possible values are `0` for normal operations and `1` for a network outage.
     NetworkOutage,
-    /// The number of items currently in the garbage disposal queue.
-    ProjectCacheGarbageQueueSize,
     /// The number of envelopes waiting for project states in memory.
     ///
     /// This number is always <= `EnvelopeQueueSize`.
@@ -46,13 +44,18 @@ pub enum RelayGauges {
     /// The number of idle connections in the Redis Pool.
     #[cfg(feature = "processing")]
     RedisPoolIdleConnections,
+    /// The number of notifications in the broadcast channel of the project cache.
+    ProjectCacheNotificationChannel,
+    /// The number of scheduled and in progress fetches in the project cache.
+    ProjectCacheScheduledFetches,
+    /// Exposes the amount of currently open and handled connections by the server.
+    ServerActiveConnections,
 }
 
 impl GaugeMetric for RelayGauges {
     fn name(&self) -> &'static str {
         match self {
             RelayGauges::NetworkOutage => "upstream.network_outage",
-            RelayGauges::ProjectCacheGarbageQueueSize => "project_cache.garbage.queue_size",
             RelayGauges::BufferEnvelopesMemoryCount => "buffer.envelopes_mem_count",
             RelayGauges::BufferEnvelopesDiskCount => "buffer.envelopes_disk_count",
             RelayGauges::BufferPeriodicUnspool => "buffer.unspool.periodic",
@@ -64,6 +67,11 @@ impl GaugeMetric for RelayGauges {
             RelayGauges::RedisPoolConnections => "redis.pool.connections",
             #[cfg(feature = "processing")]
             RelayGauges::RedisPoolIdleConnections => "redis.pool.idle_connections",
+            RelayGauges::ProjectCacheNotificationChannel => {
+                "project_cache.notification_channel.size"
+            }
+            RelayGauges::ProjectCacheScheduledFetches => "project_cache.fetches.size",
+            RelayGauges::ServerActiveConnections => "server.http.connections",
         }
     }
 }
@@ -186,9 +194,9 @@ pub enum RelayHistograms {
     /// This is not quite the same as the actual size of a serialized envelope, because it ignores
     /// the envelope header and item headers.
     BufferEnvelopeBodySize,
-    /// Size of a serialized envelope pushed to the envelope buffer (sampled).
+    /// Size of a serialized envelope pushed to the envelope buffer.
     BufferEnvelopeSize,
-    /// Size of a compressed envelope pushed to the envelope buffer (sampled).
+    /// Size of a compressed envelope pushed to the envelope buffer.
     BufferEnvelopeSizeCompressed,
     /// The number of batches emitted per partition.
     BatchesPerPartition,
@@ -395,8 +403,6 @@ pub enum RelayTimers {
     /// Total time in milliseconds an envelope spends in Relay from the time it is received until it
     /// finishes processing and has been submitted to the upstream.
     EnvelopeTotalTime,
-    /// Total time in milliseconds spent evicting outdated and unused projects happens.
-    ProjectStateEvictionDuration,
     /// Total time in milliseconds spent fetching queued project configuration updates requests to
     /// resolve.
     ///
@@ -487,25 +493,30 @@ pub enum RelayTimers {
     ///
     ///  - `message`: The type of message that was processed.
     ProcessMessageDuration,
-    /// Timing in milliseconds for handling a project cache message.
+    /// Timing in milliseconds for processing a task in the project cache service.
+    ///
+    /// This metric is tagged with:
+    /// - `task`: The type of the task the project cache does.
+    ProjectCacheTaskDuration,
+    /// Timing in milliseconds for handling a legacy project cache message.
     ///
     /// This metric is tagged with:
     ///  - `message`: The type of message that was processed.
-    ProjectCacheMessageDuration,
+    LegacyProjectCacheMessageDuration,
+    /// Timing in milliseconds for processing a task in the legacy project cache service.
+    ///
+    /// A task is a unit of work the service does. Each branch of the
+    /// `tokio::select` is a different task type.
+    ///
+    /// This metric is tagged with:
+    /// - `task`: The type of the task the project cache does.
+    LegacyProjectCacheTaskDuration,
     /// Timing in milliseconds for processing a message in the buffer service.
     ///
     /// This metric is tagged with:
     ///
     ///  - `message`: The type of message that was processed.
     BufferMessageProcessDuration,
-    /// Timing in milliseconds for processing a task in the project cache service.
-    ///
-    /// A task is a unit of work the service does. Each branch of the
-    /// `tokio::select` is a different task type.
-    ///
-    /// This metric is tagged with:
-    /// - `task`: The type of the task the processor does.
-    ProjectCacheTaskDuration,
     /// Timing in milliseconds for handling and responding to a health check request.
     ///
     /// This metric is tagged with:
@@ -550,10 +561,16 @@ pub enum RelayTimers {
     BufferPop,
     /// Timing in milliseconds for the time it takes for the buffer to drain its envelopes.
     BufferDrain,
-    /// Timing in milliseconds for the time it takes for the envelopes to be serialized.
+    /// Timing in milliseconds for the time it takes for an envelope to be serialized.
     BufferEnvelopesSerialization,
-    /// Timing in milliseconds for the time it takes for the envelopes to be compressed (sampled).
+    /// Timing in milliseconds for the time it takes for an envelope to be compressed.
     BufferEnvelopeCompression,
+    /// Timing in milliseconds for the time it takes for an envelope to be decompressed.
+    BufferEnvelopeDecompression,
+    /// Timing in milliseconds to the time it takes to read an HTTP body.
+    BodyReadDuration,
+    /// Timing in milliseconds to count spans in a serialized transaction payload.
+    CheckNestedSpans,
 }
 
 impl TimerMetric for RelayTimers {
@@ -572,7 +589,6 @@ impl TimerMetric for RelayTimers {
             RelayTimers::EnvelopeWaitTime => "event.wait_time",
             RelayTimers::EnvelopeProcessingTime => "event.processing_time",
             RelayTimers::EnvelopeTotalTime => "event.total_time",
-            RelayTimers::ProjectStateEvictionDuration => "project_state.eviction.duration",
             RelayTimers::ProjectStateRequestDuration => "project_state.request.duration",
             #[cfg(feature = "processing")]
             RelayTimers::ProjectStateDecompression => "project_state.decompression",
@@ -585,9 +601,12 @@ impl TimerMetric for RelayTimers {
             RelayTimers::ReplayRecordingProcessing => "replay.recording.process",
             RelayTimers::GlobalConfigRequestDuration => "global_config.requests.duration",
             RelayTimers::ProcessMessageDuration => "processor.message.duration",
-            RelayTimers::ProjectCacheMessageDuration => "project_cache.message.duration",
             RelayTimers::BufferMessageProcessDuration => "buffer.message.duration",
             RelayTimers::ProjectCacheTaskDuration => "project_cache.task.duration",
+            RelayTimers::LegacyProjectCacheMessageDuration => {
+                "legacy_project_cache.message.duration"
+            }
+            RelayTimers::LegacyProjectCacheTaskDuration => "legacy_project_cache.task.duration",
             RelayTimers::HealthCheckDuration => "health.message.duration",
             #[cfg(feature = "processing")]
             RelayTimers::RateLimitBucketsDuration => "processor.rate_limit_buckets",
@@ -604,6 +623,9 @@ impl TimerMetric for RelayTimers {
             RelayTimers::BufferDrain => "buffer.drain.duration",
             RelayTimers::BufferEnvelopesSerialization => "buffer.envelopes_serialization",
             RelayTimers::BufferEnvelopeCompression => "buffer.envelopes_compression",
+            RelayTimers::BufferEnvelopeDecompression => "buffer.envelopes_decompression",
+            RelayTimers::BodyReadDuration => "requests.body_read.duration",
+            RelayTimers::CheckNestedSpans => "envelope.check_nested_spans",
         }
     }
 }
@@ -683,15 +705,6 @@ pub enum RelayCounters {
     ///  - `invalid`: Data was considered invalid and could not be recovered. The reason indicates
     ///    the validation that failed.
     Outcomes,
-    /// Number of times a project state is looked up from the cache.
-    ///
-    /// This includes lookups for both cached and new projects. As part of this, updates for
-    /// outdated or expired project caches are triggered.
-    ///
-    /// Related metrics:
-    ///  - `project_cache.hit`: For successful cache lookups, even for outdated projects.
-    ///  - `project_cache.miss`: For failed lookups resulting in an update.
-    ProjectStateGet,
     /// Number of project state HTTP requests.
     ///
     /// Relay updates projects in batches. Every update cycle, Relay requests
@@ -701,15 +714,6 @@ pub enum RelayCounters {
     /// Note that after an update loop has completed, there may be more projects pending updates.
     /// This is indicated by `project_state.pending`.
     ProjectStateRequest,
-    /// Number of times a project config was requested with `.no-cache`.
-    ///
-    /// This effectively counts the number of envelopes or events that have been sent with a
-    /// corresponding DSN. Actual queries to the upstream may still be deduplicated for these
-    /// project state requests.
-    ///
-    /// A maximum of 1 such requests per second is allowed per project key. This metric counts only
-    /// permitted requests.
-    ProjectStateNoCache,
     /// Number of times a project state is requested from the central Redis cache.
     ///
     /// This metric is tagged with:
@@ -742,11 +746,6 @@ pub enum RelayCounters {
     /// Failure can happen, for example, when there's a network error. Refer to
     /// [`UpstreamRequestError`](crate::services::upstream::UpstreamRequestError) for all cases.
     ProjectUpstreamFailed,
-    /// Number of full metric data flushes.
-    ///
-    /// A full flush takes all contained items of the aggregator and flushes them upstream,
-    /// at best this happens once per freshly loaded project.
-    ProjectStateFlushAllMetricMeta,
     /// Number of Relay server starts.
     ///
     /// This can be used to track unwanted restarts due to crashes or termination.
@@ -831,8 +830,6 @@ pub enum RelayCounters {
     EvictingStaleProjectCaches,
     /// Number of times that parsing a metrics bucket item from an envelope failed.
     MetricBucketsParsingFailed,
-    /// Number of times that parsing a metric meta item from an envelope failed.
-    MetricMetaParsingFailed,
     /// Count extraction of transaction names. Tag with the decision to drop / replace / use original.
     MetricsTransactionNameExtracted,
     /// Number of Events with an OpenTelemetry Context
@@ -868,6 +865,8 @@ pub enum RelayCounters {
     BucketsDropped,
     /// Incremented every time a segment exceeds the expected limit.
     ReplayExceededSegmentLimit,
+    /// Incremented every time the server accepts a new connection.
+    ServerSocketAccept,
 }
 
 impl CounterMetric for RelayCounters {
@@ -888,10 +887,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::BufferSpooledEnvelopes => "buffer.spooled_envelopes",
             RelayCounters::BufferUnspooledEnvelopes => "buffer.unspooled_envelopes",
             RelayCounters::Outcomes => "events.outcomes",
-            RelayCounters::ProjectStateGet => "project_state.get",
             RelayCounters::ProjectStateRequest => "project_state.request",
-            RelayCounters::ProjectStateNoCache => "project_state.no_cache",
-            RelayCounters::ProjectStateFlushAllMetricMeta => "project_state.flush_all_metric_meta",
             #[cfg(feature = "processing")]
             RelayCounters::ProjectStateRedis => "project_state.redis.requests",
             RelayCounters::ProjectUpstreamCompleted => "project_upstream.completed",
@@ -908,7 +904,6 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ResponsesStatusCodes => "responses.status_codes",
             RelayCounters::EvictingStaleProjectCaches => "project_cache.eviction",
             RelayCounters::MetricBucketsParsingFailed => "metrics.buckets.parsing_failed",
-            RelayCounters::MetricMetaParsingFailed => "metrics.meta.parsing_failed",
             RelayCounters::MetricsTransactionNameExtracted => "metrics.transaction_name",
             RelayCounters::OpenTelemetryEvent => "event.opentelemetry",
             RelayCounters::GlobalConfigFetched => "global_config.fetch",
@@ -917,6 +912,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ProjectStateFlushMetricsNoProject => "project_state.metrics.no_project",
             RelayCounters::BucketsDropped => "metrics.buckets.dropped",
             RelayCounters::ReplayExceededSegmentLimit => "replay.segment_limit_exceeded",
+            RelayCounters::ServerSocketAccept => "server.http.accepted",
         }
     }
 }
@@ -942,7 +938,7 @@ pub enum PlatformTag {
 }
 
 impl PlatformTag {
-    pub fn as_str(&self) -> &str {
+    pub fn name(&self) -> &str {
         match self {
             Self::Cocoa => "cocoa",
             Self::Csharp => "csharp",
@@ -983,6 +979,87 @@ impl<S: AsRef<str>> From<S> for PlatformTag {
             "ruby" => Self::Ruby,
             "swift" => Self::Swift,
             _ => Self::Other,
+        }
+    }
+}
+
+/// Low-cardinality SDK name that can be used as a statsd tag.
+pub enum ClientName<'a> {
+    Ruby,
+    CocoaFlutter,
+    CocoaReactNative,
+    Cocoa,
+    Dotnet,
+    AndroidReactNative,
+    AndroidJava,
+    SpringBoot,
+    JavascriptBrowser,
+    Electron,
+    NestJs,
+    NextJs,
+    Node,
+    React,
+    Vue,
+    Native,
+    Laravel,
+    Symfony,
+    Php,
+    Python,
+    Other(&'a str),
+}
+
+impl<'a> ClientName<'a> {
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Ruby => "sentry-ruby",
+            Self::CocoaFlutter => "sentry.cocoa.flutter",
+            Self::CocoaReactNative => "sentry.cocoa.react-native",
+            Self::Cocoa => "sentry.cocoa",
+            Self::Dotnet => "sentry.dotnet",
+            Self::AndroidReactNative => "sentry.java.android.react-native",
+            Self::AndroidJava => "sentry.java.android",
+            Self::SpringBoot => "sentry.java.spring-boot.jakarta",
+            Self::JavascriptBrowser => "sentry.javascript.browser",
+            Self::Electron => "sentry.javascript.electron",
+            Self::NestJs => "sentry.javascript.nestjs",
+            Self::NextJs => "sentry.javascript.nextjs",
+            Self::Node => "sentry.javascript.node",
+            Self::React => "sentry.javascript.react",
+            Self::Vue => "sentry.javascript.vue",
+            Self::Native => "sentry.native",
+            Self::Laravel => "sentry.php.laravel",
+            Self::Symfony => "sentry.php.symfony",
+            Self::Php => "sentry.php",
+            Self::Python => "sentry.python",
+            Self::Other(_) => "other",
+        }
+    }
+}
+
+impl<'a> From<&'a str> for ClientName<'a> {
+    fn from(value: &'a str) -> Self {
+        match value {
+            "sentry-ruby" => Self::Ruby,
+            "sentry.cocoa.flutter" => Self::CocoaFlutter,
+            "sentry.cocoa.react-native" => Self::CocoaReactNative,
+            "sentry.cocoa" => Self::Cocoa,
+            "sentry.dotnet" => Self::Dotnet,
+            "sentry.java.android.react-native" => Self::AndroidReactNative,
+            "sentry.java.android" => Self::AndroidJava,
+            "sentry.java.spring-boot.jakarta" => Self::SpringBoot,
+            "sentry.javascript.browser" => Self::JavascriptBrowser,
+            "sentry.javascript.electron" => Self::Electron,
+            "sentry.javascript.nestjs" => Self::NestJs,
+            "sentry.javascript.nextjs" => Self::NextJs,
+            "sentry.javascript.node" => Self::Node,
+            "sentry.javascript.react" => Self::React,
+            "sentry.javascript.vue" => Self::Vue,
+            "sentry.native" => Self::Native,
+            "sentry.php.laravel" => Self::Laravel,
+            "sentry.php.symfony" => Self::Symfony,
+            "sentry.php" => Self::Php,
+            "sentry.python" => Self::Python,
+            other => Self::Other(other),
         }
     }
 }

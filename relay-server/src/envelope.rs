@@ -105,8 +105,6 @@ pub enum ItemType {
     Statsd,
     /// Buckets of preaggregated metrics encoded as JSON.
     MetricBuckets,
-    /// Additional metadata for metrics
-    MetricMeta,
     /// Client internal report (eg: outcomes).
     ClientReport,
     /// Profile event payload encoded as JSON.
@@ -168,7 +166,6 @@ impl ItemType {
             Self::Sessions => "sessions",
             Self::Statsd => "statsd",
             Self::MetricBuckets => "metric_buckets",
-            Self::MetricMeta => "metric_meta",
             Self::ClientReport => "client_report",
             Self::Profile => "profile",
             Self::ReplayEvent => "replay_event",
@@ -192,10 +189,7 @@ impl ItemType {
 
     /// Returns `true` if the item is a metric type.
     pub fn is_metrics(&self) -> bool {
-        matches!(
-            self,
-            ItemType::Statsd | ItemType::MetricBuckets | ItemType::MetricMeta
-        )
+        matches!(self, ItemType::Statsd | ItemType::MetricBuckets)
     }
 }
 
@@ -224,7 +218,6 @@ impl std::str::FromStr for ItemType {
             "sessions" => Self::Sessions,
             "statsd" => Self::Statsd,
             "metric_buckets" => Self::MetricBuckets,
-            "metric_meta" => Self::MetricMeta,
             "client_report" => Self::ClientReport,
             "profile" => Self::Profile,
             "replay_event" => Self::ReplayEvent,
@@ -575,6 +568,12 @@ pub struct ItemHeaders {
     #[serde(default = "default_true", skip_serializing_if = "is_true")]
     sampled: bool,
 
+    /// Indicates if we should ingest the item in the EAP
+    ///
+    /// NOTE: This is internal-only and not exposed into the Envelope.
+    #[serde(default, skip)]
+    ingest_span_in_eap: bool,
+
     /// Other attributes for forward compatibility.
     #[serde(flatten)]
     other: BTreeMap<String, Value>,
@@ -643,6 +642,7 @@ impl Item {
                 spans_extracted: false,
                 sampled: true,
                 fully_normalized: false,
+                ingest_span_in_eap: false,
             },
             payload: Bytes::new(),
         }
@@ -685,7 +685,7 @@ impl Item {
             ItemType::UnrealReport => Some(DataCategory::Error),
             ItemType::Attachment => Some(DataCategory::Attachment),
             ItemType::Session | ItemType::Sessions => None,
-            ItemType::Statsd | ItemType::MetricBuckets | ItemType::MetricMeta => None,
+            ItemType::Statsd | ItemType::MetricBuckets => None,
             ItemType::FormData => None,
             ItemType::UserReport => None,
             ItemType::UserReportV2 => Some(DataCategory::UserReportV2),
@@ -843,6 +843,16 @@ impl Item {
         self.headers.fully_normalized = fully_normalized;
     }
 
+    /// Returns whether or not to ingest the span in EAP.
+    pub fn ingest_span_in_eap(&self) -> bool {
+        self.headers.ingest_span_in_eap
+    }
+
+    /// Set whether or not to ingest the span in EAP.
+    pub fn set_ingest_span_in_eap(&mut self, ingest_span_in_eap: bool) {
+        self.headers.ingest_span_in_eap = ingest_span_in_eap;
+    }
+
     /// Gets the `sampled` flag.
     pub fn sampled(&self) -> bool {
         self.headers.sampled
@@ -915,7 +925,6 @@ impl Item {
             | ItemType::Sessions
             | ItemType::Statsd
             | ItemType::MetricBuckets
-            | ItemType::MetricMeta
             | ItemType::ClientReport
             | ItemType::ReplayEvent
             | ItemType::ReplayRecording
@@ -952,7 +961,6 @@ impl Item {
             ItemType::Sessions => false,
             ItemType::Statsd => false,
             ItemType::MetricBuckets => false,
-            ItemType::MetricMeta => false,
             ItemType::ClientReport => false,
             ItemType::ReplayRecording => false,
             ItemType::ReplayVideo => false,

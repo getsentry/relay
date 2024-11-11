@@ -1,5 +1,7 @@
 use std::convert::Infallible;
 
+use chrono::{DateTime, Utc};
+
 use crate::Envelope;
 
 use super::EnvelopeStack;
@@ -21,8 +23,8 @@ impl EnvelopeStack for MemoryEnvelopeStack {
         Ok(())
     }
 
-    async fn peek(&mut self) -> Result<Option<&Envelope>, Self::Error> {
-        Ok(self.0.last().map(Box::as_ref))
+    async fn peek(&mut self) -> Result<Option<DateTime<Utc>>, Self::Error> {
+        Ok(self.0.last().map(|e| e.meta().received_at()))
     }
 
     async fn pop(&mut self) -> Result<Option<Box<Envelope>>, Self::Error> {

@@ -1,8 +1,10 @@
 use bytes::Bytes;
 use chrono::Utc;
 use clap::{Parser, ValueEnum};
+use rand::RngCore;
 use relay_config::Config;
 use relay_server::{Envelope, MemoryChecker, MemoryStat, PolymorphicEnvelopeBuffer};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -23,7 +25,11 @@ struct Args {
     #[arg(long)]
     envelope_size_kib: usize,
     #[arg(long)]
-    batch_size: usize,
+    compression_ratio: f64,
+    #[arg(long)]
+    write_batch_kib: usize,
+    #[arg(long)]
+    read_batch_size: usize,
     #[arg(long)]
     implementation: Impl,
     #[arg(long)]
@@ -32,28 +38,43 @@ struct Args {
     projects: usize,
     #[arg(long, default_value_t = 60)]
     duration_secs: u64,
+    #[arg(long, default_value = None)]
+    db: Option<PathBuf>,
 }
 
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
     println!("{:?}", &args);
+    let Args {
+        envelope_size_kib,
+        compression_ratio,
+        write_batch_kib,
+        read_batch_size,
+        implementation,
+        mode,
+        projects,
+        duration_secs,
+        db,
+    } = args;
 
     let dir = tempfile::tempdir().unwrap();
+    let path = db.unwrap_or(dir.path().join("envelopes.db"));
 
     let config = Arc::new(
         Config::from_json_value(serde_json::json!({
             "spool": {
                 "envelopes": {
-                    "buffer_strategy": match args.implementation {
+                    "buffer_strategy": match implementation {
                         Impl::Memory => "memory",
                         Impl::Sqlite => "sqlite",
                     },
-                    "path": match args.implementation {
+                    "path": match implementation {
                         Impl::Memory => None,
-                        Impl::Sqlite => Some(dir.path().join("envelopes.db")),
+                        Impl::Sqlite => Some(path),
                     },
-                    "disk_batch_size": args.batch_size,
+                    "write_batch_bytes": write_batch_kib * 1024,
+                    "read_batch_size": read_batch_size,
                 }
             }
         }))
@@ -65,22 +86,24 @@ async fn main() {
         .await
         .unwrap();
 
-    match args.mode {
+    match mode {
         Mode::Sequential => {
             run_sequential(
                 buffer,
-                args.envelope_size_kib * 1024,
-                args.projects,
-                Duration::from_secs(args.duration_secs),
+                envelope_size_kib * 1024,
+                compression_ratio,
+                projects,
+                Duration::from_secs(duration_secs),
             )
             .await
         }
         Mode::Interleaved => {
             run_interleaved(
                 buffer,
-                args.envelope_size_kib * 1024,
-                args.projects,
-                Duration::from_secs(args.duration_secs),
+                envelope_size_kib * 1024,
+                compression_ratio,
+                projects,
+                Duration::from_secs(duration_secs),
             )
             .await
         }
@@ -94,11 +117,12 @@ async fn main() {
 async fn run_sequential(
     mut buffer: PolymorphicEnvelopeBuffer,
     envelope_size: usize,
+    compression_ratio: f64,
     project_count: usize,
     duration: Duration,
 ) {
     // Determine envelope size once:
-    let proto_envelope = mock_envelope(envelope_size, project_count);
+    let proto_envelope = mock_envelope(envelope_size, project_count, compression_ratio);
     let bytes_per_envelope = proto_envelope.to_vec().unwrap().len();
 
     let start_time = Instant::now();
@@ -107,7 +131,7 @@ async fn run_sequential(
     let mut write_duration = Duration::ZERO;
     let mut writes = 0;
     while start_time.elapsed() < duration / 2 {
-        let envelope = mock_envelope(envelope_size, project_count);
+        let envelope = mock_envelope(envelope_size, project_count, compression_ratio);
 
         let before = Instant::now();
         buffer.push(envelope).await.unwrap();
@@ -153,11 +177,12 @@ async fn run_sequential(
 async fn run_interleaved(
     mut buffer: PolymorphicEnvelopeBuffer,
     envelope_size: usize,
+    compression_ratio: f64,
     project_count: usize,
     duration: Duration,
 ) {
     // Determine envelope size once:
-    let proto_envelope = mock_envelope(envelope_size, project_count);
+    let proto_envelope = mock_envelope(envelope_size, project_count, compression_ratio);
     let bytes_per_envelope = proto_envelope.to_vec().unwrap().len();
 
     let start_time = Instant::now();
@@ -167,7 +192,7 @@ async fn run_interleaved(
     let mut read_duration = Duration::ZERO;
     let mut iterations = 0;
     while start_time.elapsed() < duration {
-        let envelope = mock_envelope(envelope_size, project_count);
+        let envelope = mock_envelope(envelope_size, project_count, compression_ratio);
 
         let before = Instant::now();
         buffer.push(envelope).await.unwrap();
@@ -198,19 +223,27 @@ async fn run_interleaved(
     }
 }
 
-fn mock_envelope(payload_size: usize, project_count: usize) -> Box<Envelope> {
+fn mock_envelope(
+    payload_size: usize,
+    project_count: usize,
+    compression_ratio: f64,
+) -> Box<Envelope> {
     let project_key = (rand::random::<f64>() * project_count as f64) as u128;
-    let bytes = Bytes::from(format!(
-            "\
-             {{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://{:032x}:@sentry.io/42\"}}\n\
-             {{\"type\":\"attachment\"}}\n\
-             {}\n\
-             ",
-            project_key,
-            "X".repeat(payload_size)
-        ));
+    let mut envelope = format!(
+        "\
+            {{\"event_id\":\"9ec79c33ec9942ab8353589fcb2e04dc\",\"dsn\":\"https://{:032x}:@sentry.io/42\"}}\n\
+            {{\"type\":\"attachment\", \"length\":{}}}\n",
+        project_key,
+        payload_size,
+    ).into_bytes();
 
-    let mut envelope = Envelope::parse_bytes(bytes).unwrap();
+    // Fill with random bytes to get estimated compression ratio:
+    let mut payload = [0u8].repeat(payload_size);
+    let fraction = (payload_size as f64 / compression_ratio) as usize;
+    rand::thread_rng().fill_bytes(&mut payload[..fraction]);
+    envelope.extend(payload);
+
+    let mut envelope = Envelope::parse_bytes(Bytes::from(envelope)).unwrap();
     envelope.set_received_at(Utc::now());
     envelope
 }
