@@ -767,6 +767,9 @@
 <a href="#767" id="767">767</a>
 <a href="#768" id="768">768</a>
 <a href="#769" id="769">769</a>
+<a href="#770" id="770">770</a>
+<a href="#771" id="771">771</a>
+<a href="#772" id="772">772</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>tokio::time::Instant;
@@ -1047,7 +1050,7 @@
 #[derive(Debug)]
 </span><span class="kw">pub struct </span>Fetch {
     project_key: ProjectKey,
-    when: Instant,
+    when: <span class="prelude-ty">Option</span>&lt;Instant&gt;,
     revision: Revision,
 }
 
@@ -1059,9 +1062,9 @@
 
     <span class="doccomment">/// Returns when the fetch for the project should be scheduled.
     ///
-    /// This can be now (as soon as possible) or a later point in time, if the project is currently
-    /// in a backoff.
-    </span><span class="kw">pub fn </span>when(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Instant {
+    /// This can be now (as soon as possible, indicated by `None`) or a later point in time,
+    /// if the project is currently in a backoff.
+    </span><span class="kw">pub fn </span>when(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Instant&gt; {
         <span class="self">self</span>.when
     }
 
@@ -1231,7 +1234,7 @@
             }
             FetchState::Pending { next_fetch_attempt } =&gt; {
                 <span class="comment">// Schedule a new fetch, even if there is a backoff, it will just be sleeping for a while.
-                </span>next_fetch_attempt.unwrap_or(now)
+                </span><span class="kw-2">*</span>next_fetch_attempt
             }
             FetchState::Complete { last_fetch } =&gt; {
                 <span class="kw">if </span>last_fetch.check_expiry(now, config).is_fresh() {
@@ -1242,8 +1245,8 @@
                     </span>);
                     <span class="kw">return </span><span class="prelude-val">None</span>;
                 }
-                now
-            }
+                <span class="prelude-val">None
+            </span>}
         };
 
         <span class="comment">// Mark a current fetch in progress.
@@ -1253,7 +1256,7 @@
             tags.project_key = <span class="kw-2">&amp;</span><span class="self">self</span>.project_key.as_str(),
             attempts = <span class="self">self</span>.backoff.attempt() + <span class="number">1</span>,
             <span class="string">"project state fetch scheduled in {:?}"</span>,
-            when.saturating_duration_since(Instant::now()),
+            when.unwrap_or(now).saturating_duration_since(now),
         );
 
         <span class="prelude-val">Some</span>(Fetch {
@@ -1270,9 +1273,12 @@
         </span>);
 
         <span class="kw">if </span>fetch.is_pending() {
-            <span class="self">self</span>.state = FetchState::Pending {
-                next_fetch_attempt: now.checked_add(<span class="self">self</span>.backoff.next_backoff()),
+            <span class="kw">let </span>next_backoff = <span class="self">self</span>.backoff.next_backoff();
+            <span class="kw">let </span>next_fetch_attempt = <span class="kw">match </span>next_backoff.is_zero() {
+                <span class="bool-val">false </span>=&gt; now.checked_add(next_backoff),
+                <span class="bool-val">true </span>=&gt; <span class="prelude-val">None</span>,
             };
+            <span class="self">self</span>.state = FetchState::Pending { next_fetch_attempt };
             <span class="macro">relay_log::trace!</span>(
                 tags.project_key = <span class="kw-2">&amp;</span><span class="self">self</span>.project_key.as_str(),
                 <span class="string">"project state fetch completed but still pending"
@@ -1365,7 +1371,7 @@
 
         <span class="kw">let </span>fetch = store.try_begin_fetch(project_key, <span class="kw-2">&amp;</span>config).unwrap();
         <span class="macro">assert_eq!</span>(fetch.project_key(), project_key);
-        <span class="macro">assert!</span>(fetch.when() &lt; Instant::now());
+        <span class="macro">assert_eq!</span>(fetch.when(), <span class="prelude-val">None</span>);
         <span class="macro">assert_eq!</span>(fetch.revision().as_str(), <span class="prelude-val">None</span>);
         <span class="macro">assert_state!</span>(store, project_key, ProjectState::Pending);
 
@@ -1377,7 +1383,7 @@
         <span class="kw">let </span>fetch = store.complete_fetch(fetch, <span class="kw-2">&amp;</span>config).unwrap();
         <span class="macro">assert_eq!</span>(fetch.project_key(), project_key);
         <span class="comment">// First backoff is still immediately.
-        </span><span class="macro">assert!</span>(fetch.when() &lt; Instant::now());
+        </span><span class="macro">assert_eq!</span>(fetch.when(), <span class="prelude-val">None</span>);
         <span class="macro">assert_eq!</span>(fetch.revision().as_str(), <span class="prelude-val">None</span>);
         <span class="macro">assert_state!</span>(store, project_key, ProjectState::Pending);
 
@@ -1386,7 +1392,7 @@
         <span class="kw">let </span>fetch = store.complete_fetch(fetch, <span class="kw-2">&amp;</span>config).unwrap();
         <span class="macro">assert_eq!</span>(fetch.project_key(), project_key);
         <span class="comment">// This time it needs to be in the future (backoff).
-        </span><span class="macro">assert!</span>(fetch.when() &gt; Instant::now());
+        </span><span class="macro">assert!</span>(fetch.when() &gt; <span class="prelude-val">Some</span>(Instant::now()));
         <span class="macro">assert_eq!</span>(fetch.revision().as_str(), <span class="prelude-val">None</span>);
         <span class="macro">assert_state!</span>(store, project_key, ProjectState::Pending);
 

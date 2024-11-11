@@ -1060,6 +1060,9 @@
 <a href="#1060" id="1060">1060</a>
 <a href="#1061" id="1061">1061</a>
 <a href="#1062" id="1062">1062</a>
+<a href="#1063" id="1063">1063</a>
+<a href="#1064" id="1064">1064</a>
+<a href="#1065" id="1065">1065</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 <span class="attr">#[cfg(doc)]
 </span><span class="kw">use </span>tokio::runtime::RuntimeMetrics;
@@ -1108,6 +1111,8 @@
     </span>RedisPoolIdleConnections,
     <span class="doccomment">/// The number of notifications in the broadcast channel of the project cache.
     </span>ProjectCacheNotificationChannel,
+    <span class="doccomment">/// The number of scheduled and in progress fetches in the project cache.
+    </span>ProjectCacheScheduledFetches,
     <span class="doccomment">/// Exposes the amount of currently open and handled connections by the server.
     </span>ServerActiveConnections,
 }
@@ -1130,6 +1135,7 @@
             RelayGauges::ProjectCacheNotificationChannel =&gt; {
                 <span class="string">"project_cache.notification_channel.size"
             </span>}
+            RelayGauges::ProjectCacheScheduledFetches =&gt; <span class="string">"project_cache.fetches.size"</span>,
             RelayGauges::ServerActiveConnections =&gt; <span class="string">"server.http.connections"</span>,
         }
     }

@@ -224,19 +224,25 @@
 <a href="#224" id="224">224</a>
 <a href="#225" id="225">225</a>
 <a href="#226" id="226">226</a>
+<a href="#227" id="227">227</a>
+<a href="#228" id="228">228</a>
+<a href="#229" id="229">229</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 
+<span class="kw">use </span>futures::future::BoxFuture;
+<span class="kw">use </span>futures::StreamExt <span class="kw">as _</span>;
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>relay_system::Service;
-<span class="kw">use </span>tokio::sync::{broadcast, mpsc};
+<span class="kw">use </span>tokio::sync::broadcast;
 
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::cache::handle::ProjectCacheHandle;
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::cache::state::{CompletedFetch, Fetch, ProjectStore};
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectState;
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::source::ProjectSource;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayGauges, RelayTimers};
+<span class="kw">use </span><span class="kw">crate</span>::utils::FuturesScheduled;
 
 <span class="doccomment">/// Size of the broadcast channel for project events.
 ///
@@ -292,8 +298,7 @@
     source: ProjectSource,
     config: Arc&lt;Config&gt;,
 
-    project_update_rx: mpsc::UnboundedReceiver&lt;CompletedFetch&gt;,
-    project_update_tx: mpsc::UnboundedSender&lt;CompletedFetch&gt;,
+    scheduled_fetches: FuturesScheduled&lt;BoxFuture&lt;<span class="lifetime">'static</span>, CompletedFetch&gt;&gt;,
 
     project_events_tx: broadcast::Sender&lt;ProjectChange&gt;,
 }
@@ -301,15 +306,13 @@
 <span class="kw">impl </span>ProjectCacheService {
     <span class="doccomment">/// Creates a new [`ProjectCacheService`].
     </span><span class="kw">pub fn </span>new(config: Arc&lt;Config&gt;, source: ProjectSource) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span>(project_update_tx, project_update_rx) = mpsc::unbounded_channel();
         <span class="kw">let </span>project_events_tx = broadcast::channel(PROJECT_EVENTS_CHANNEL_SIZE).<span class="number">0</span>;
 
         <span class="self">Self </span>{
             store: ProjectStore::default(),
             source,
             config,
-            project_update_rx,
-            project_update_tx,
+            scheduled_fetches: FuturesScheduled::default(),
             project_events_tx,
         }
     }
@@ -332,14 +335,12 @@
         handle
     }
 
-    <span class="doccomment">/// Schedules a new [`Fetch`] and delivers the result to the [`Self::project_update_tx`] channel.
-    </span><span class="kw">fn </span>schedule_fetch(<span class="kw-2">&amp;</span><span class="self">self</span>, fetch: Fetch) {
+    <span class="doccomment">/// Schedules a new [`Fetch`] in [`Self::scheduled_fetches`].
+    </span><span class="kw">fn </span>schedule_fetch(<span class="kw-2">&amp;mut </span><span class="self">self</span>, fetch: Fetch) {
         <span class="kw">let </span>source = <span class="self">self</span>.source.clone();
-        <span class="kw">let </span>project_updates = <span class="self">self</span>.project_update_tx.clone();
 
-        tokio::spawn(<span class="kw">async move </span>{
-            tokio::time::sleep_until(fetch.when()).<span class="kw">await</span>;
-
+        <span class="kw">let </span>when = fetch.when();
+        <span class="kw">let </span>task = <span class="kw">async move </span>{
             <span class="kw">let </span>state = <span class="kw">match </span>source
                 .fetch(fetch.project_key(), <span class="bool-val">false</span>, fetch.revision())
                 .<span class="kw">await
@@ -358,8 +359,13 @@
                 }
             };
 
-            <span class="kw">let _ </span>= project_updates.send(fetch.complete(state));
-        });
+            fetch.complete(state)
+        };
+        <span class="self">self</span>.scheduled_fetches.schedule(when, Box::pin(task));
+
+        <span class="macro">metric!</span>(
+            gauge(RelayGauges::ProjectCacheScheduledFetches) = <span class="self">self</span>.scheduled_fetches.len() <span class="kw">as </span>u64
+        );
     }
 }
 
@@ -433,9 +439,9 @@
                 <span class="macro">tokio::select!</span> {
                     biased;
 
-                    <span class="prelude-val">Some</span>(update) = <span class="self">self</span>.project_update_rx.recv() =&gt; <span class="macro">timed!</span>(
-                        <span class="string">"project_update"</span>,
-                        <span class="self">self</span>.handle_completed_fetch(update)
+                    <span class="prelude-val">Some</span>(fetch) = <span class="self">self</span>.scheduled_fetches.next() =&gt; <span class="macro">timed!</span>(
+                        <span class="string">"completed_fetch"</span>,
+                        <span class="self">self</span>.handle_completed_fetch(fetch)
                     ),
                     <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; <span class="macro">timed!</span>(
                         message.variant(),
