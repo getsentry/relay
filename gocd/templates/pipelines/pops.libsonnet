@@ -13,7 +13,10 @@ local canary_region_pops = {
     'us-pop-2',
     'us-pop-3',
     'us-pop-4',
+    'us-pop-5',
+    'us-pop-6',
     'us-pop-8',
+    'us-pop-9',
   ],
 };
 
@@ -29,7 +32,10 @@ local region_pops = {
     'us-pop-2',
     'us-pop-3',
     'us-pop-4',
+    'us-pop-5',
+    'us-pop-6',
     'us-pop-8',
+    'us-pop-9',
   ],
   s4s: [],
 };
