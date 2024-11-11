@@ -278,7 +278,7 @@ impl ProjectRef<'_> {
 #[derive(Debug)]
 pub struct Fetch {
     project_key: ProjectKey,
-    when: Instant,
+    when: Option<Instant>,
     revision: Revision,
 }
 
@@ -290,9 +290,9 @@ impl Fetch {
 
     /// Returns when the fetch for the project should be scheduled.
     ///
-    /// This can be now (as soon as possible) or a later point in time, if the project is currently
-    /// in a backoff.
-    pub fn when(&self) -> Instant {
+    /// This can be now (as soon as possible, indicated by `None`) or a later point in time,
+    /// if the project is currently in a backoff.
+    pub fn when(&self) -> Option<Instant> {
         self.when
     }
 
@@ -462,7 +462,7 @@ impl PrivateProjectState {
             }
             FetchState::Pending { next_fetch_attempt } => {
                 // Schedule a new fetch, even if there is a backoff, it will just be sleeping for a while.
-                next_fetch_attempt.unwrap_or(now)
+                *next_fetch_attempt
             }
             FetchState::Complete { last_fetch } => {
                 if last_fetch.check_expiry(now, config).is_fresh() {
@@ -473,7 +473,7 @@ impl PrivateProjectState {
                     );
                     return None;
                 }
-                now
+                None
             }
         };
 
@@ -484,7 +484,7 @@ impl PrivateProjectState {
             tags.project_key = &self.project_key.as_str(),
             attempts = self.backoff.attempt() + 1,
             "project state fetch scheduled in {:?}",
-            when.saturating_duration_since(Instant::now()),
+            when.unwrap_or(now).saturating_duration_since(now),
         );
 
         Some(Fetch {
@@ -501,9 +501,12 @@ impl PrivateProjectState {
         );
 
         if fetch.is_pending() {
-            self.state = FetchState::Pending {
-                next_fetch_attempt: now.checked_add(self.backoff.next_backoff()),
+            let next_backoff = self.backoff.next_backoff();
+            let next_fetch_attempt = match next_backoff.is_zero() {
+                false => now.checked_add(next_backoff),
+                true => None,
             };
+            self.state = FetchState::Pending { next_fetch_attempt };
             relay_log::trace!(
                 tags.project_key = &self.project_key.as_str(),
                 "project state fetch completed but still pending"
@@ -596,7 +599,7 @@ mod tests {
 
         let fetch = store.try_begin_fetch(project_key, &config).unwrap();
         assert_eq!(fetch.project_key(), project_key);
-        assert!(fetch.when() < Instant::now());
+        assert_eq!(fetch.when(), None);
         assert_eq!(fetch.revision().as_str(), None);
         assert_state!(store, project_key, ProjectState::Pending);
 
@@ -608,7 +611,7 @@ mod tests {
         let fetch = store.complete_fetch(fetch, &config).unwrap();
         assert_eq!(fetch.project_key(), project_key);
         // First backoff is still immediately.
-        assert!(fetch.when() < Instant::now());
+        assert_eq!(fetch.when(), None);
         assert_eq!(fetch.revision().as_str(), None);
         assert_state!(store, project_key, ProjectState::Pending);
 
@@ -617,7 +620,7 @@ mod tests {
         let fetch = store.complete_fetch(fetch, &config).unwrap();
         assert_eq!(fetch.project_key(), project_key);
         // This time it needs to be in the future (backoff).
-        assert!(fetch.when() > Instant::now());
+        assert!(fetch.when() > Some(Instant::now()));
         assert_eq!(fetch.revision().as_str(), None);
         assert_state!(store, project_key, ProjectState::Pending);
 
