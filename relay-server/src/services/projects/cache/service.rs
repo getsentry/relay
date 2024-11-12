@@ -9,10 +9,10 @@ use relay_system::Service;
 use tokio::sync::broadcast;
 
 use crate::services::projects::cache::handle::ProjectCacheHandle;
-use crate::services::projects::cache::state::{CompletedFetch, Fetch, ProjectStore};
+use crate::services::projects::cache::state::{CompletedFetch, Eviction, Fetch, ProjectStore};
 use crate::services::projects::project::ProjectState;
 use crate::services::projects::source::ProjectSource;
-use crate::statsd::{RelayGauges, RelayTimers};
+use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
 use crate::utils::FuturesScheduled;
 
 /// Size of the broadcast channel for project events.
@@ -170,14 +170,17 @@ impl ProjectCacheService {
         );
     }
 
-    fn handle_evict_stale_projects(&mut self) {
-        let on_evict = |project_key| {
-            let _ = self
-                .project_events_tx
-                .send(ProjectChange::Evicted(project_key));
-        };
+    fn handle_eviction(&mut self, eviction: Eviction) {
+        let project_key = eviction.project_key();
 
-        self.store.evict_stale_projects(&self.config, on_evict);
+        self.store.evict(eviction);
+
+        let _ = self
+            .project_events_tx
+            .send(ProjectChange::Evicted(project_key));
+
+        relay_log::trace!(tags.project_key = project_key.as_str(), "project evicted");
+        metric!(counter(RelayCounters::EvictingStaleProjectCaches) += 1);
     }
 
     fn handle_message(&mut self, message: ProjectCache) {
@@ -203,9 +206,6 @@ impl relay_system::Service for ProjectCacheService {
         }
 
         tokio::spawn(async move {
-            let mut eviction_ticker = tokio::time::interval(self.config.cache_eviction_interval());
-            eviction_ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-
             loop {
                 tokio::select! {
                     biased;
@@ -218,9 +218,9 @@ impl relay_system::Service for ProjectCacheService {
                         message.variant(),
                         self.handle_message(message)
                     ),
-                    _ = eviction_ticker.tick() => timed!(
-                        "evict_stale_projects",
-                        self.handle_evict_stale_projects()
+                    Some(eviction) = self.store.next_eviction() => timed!(
+                        "eviction",
+                        self.handle_eviction(eviction)
                     ),
                 }
             }
