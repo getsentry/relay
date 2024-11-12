@@ -212,7 +212,10 @@ impl relay_system::Service for ProjectCacheService {
 
                     Some(fetch) = self.scheduled_fetches.next() => timed!(
                         "completed_fetch",
-                        self.handle_completed_fetch(fetch)
+                        {
+                            self.handle_completed_fetch(fetch);
+                            tokio::task::yield_now().await;
+                        }
                     ),
                     Some(message) = rx.recv() => timed!(
                         message.variant(),
@@ -220,7 +223,10 @@ impl relay_system::Service for ProjectCacheService {
                     ),
                     _ = eviction_ticker.tick() => timed!(
                         "evict_stale_projects",
-                        self.handle_evict_stale_projects()
+                        {
+                            self.handle_evict_stale_projects();
+                            tokio::task::yield_now().await;
+                        }
                     ),
                 }
             }
