@@ -235,7 +235,7 @@ fn mock_envelope(
     ).into_bytes();
 
     // Fill with random bytes to get estimated compression ratio:
-    let mut payload = [0u8].repeat(payload_size);
+    let mut payload = vec![0u8; payload_size];
     let fraction = (payload_size as f64 / compression_ratio) as usize;
     rand::thread_rng().fill_bytes(&mut payload[..fraction]);
     envelope.extend(payload);

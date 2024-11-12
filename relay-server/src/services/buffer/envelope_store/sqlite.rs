@@ -1,4 +1,4 @@
-use std::io::Read;
+use std::io::{ErrorKind, Read};
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
@@ -58,13 +58,13 @@ impl TryFrom<Vec<DatabaseEnvelope>> for DatabaseBatch {
     type Error = ();
 
     fn try_from(envelopes: Vec<DatabaseEnvelope>) -> Result<Self, Self::Error> {
-        let Some(newest) = envelopes.last() else {
+        let Some(last) = envelopes.last() else {
             return Err(());
         };
         Ok(Self {
-            received_at: newest.received_at,
-            own_key: newest.own_key,
-            sampling_key: newest.sampling_key,
+            received_at: last.received_at,
+            own_key: last.own_key,
+            sampling_key: last.sampling_key,
             envelopes,
         })
     }
@@ -500,20 +500,24 @@ fn unpack_envelopes(
     data: &[u8],
 ) -> Result<Vec<DatabaseEnvelope>, std::io::Error> {
     let mut envelopes = vec![];
-    let mut bytes = data.reader();
+    let mut buf = data.reader();
     loop {
         let mut b = [0u8; 8];
-        let Ok(()) = bytes.read_exact(&mut b) else {
-            break;
-        };
+        match buf.read(&mut b)? {
+            // done:
+            0 => break,
+            // additional trailing bytes:
+            n if n != b.len() => return Err(ErrorKind::UnexpectedEof.into()),
+            _ => {}
+        }
         let received_at = i64::from_le_bytes(b);
 
         let mut b = [0u8; 4];
-        bytes.read_exact(&mut b)?;
+        buf.read_exact(&mut b)?;
         let size = u32::from_le_bytes(b);
 
-        let mut b = [0u8].repeat(size as usize);
-        bytes.read_exact(&mut b)?;
+        let mut b = vec![0u8; size as usize];
+        buf.read_exact(&mut b)?;
 
         envelopes.push(DatabaseEnvelope {
             received_at,
@@ -689,6 +693,50 @@ mod tests {
                 (&batches[0])[i].received_at().timestamp_millis()
             );
         }
+
+        // Store is empty.
+        assert!(envelope_store
+            .delete_batch(own_key, sampling_key)
+            .await
+            .unwrap()
+            .is_none());
+    }
+
+    #[tokio::test]
+    async fn test_insert_and_delete_single() {
+        let db = setup_db(true).await;
+        let mut envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
+
+        let own_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+        let sampling_key = ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap();
+
+        // We insert 10 envelopes.
+        let inserted = mock_envelopes(1);
+
+        assert!(envelope_store
+            .insert_batch(
+                inserted
+                    .iter()
+                    .map(|e| DatabaseEnvelope::try_from(e.as_ref()).unwrap())
+                    .collect::<Vec<_>>()
+                    .try_into()
+                    .unwrap()
+            )
+            .await
+            .is_ok());
+
+        // We check that if we load 5, we get the newest 5.
+        let extracted = envelope_store
+            .delete_batch(own_key, sampling_key)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(extracted.len(), 1);
+
+        assert_eq!(
+            extracted.envelopes[0].received_at().timestamp_millis(),
+            inserted[0].received_at().timestamp_millis()
+        );
 
         // Store is empty.
         assert!(envelope_store

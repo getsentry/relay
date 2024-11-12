@@ -873,7 +873,7 @@ fn spool_envelopes_unspool_interval() -> u64 {
 }
 
 /// Default number of encoded envelope bytes to cache before writing to disk.
-fn spool_envelopes_write_batch_bytes() -> ByteSize {
+fn spool_envelopes_batch_size_bytes() -> ByteSize {
     ByteSize::kibibytes(10)
 }
 
@@ -925,7 +925,7 @@ pub struct EnvelopeSpool {
     /// Number of encoded envelope bytes that are spooled to disk at once.
     ///
     /// Defaults to 10 KiB.
-    #[serde(default = "spool_envelopes_write_batch_bytes")]
+    #[serde(default = "spool_envelopes_batch_size_bytes")]
     batch_size_bytes: ByteSize,
     /// Maximum time between receiving the envelope and processing it.
     ///
@@ -983,7 +983,7 @@ impl Default for EnvelopeSpool {
             max_disk_size: spool_envelopes_max_disk_size(),
             max_memory_size: spool_envelopes_max_memory_size(),
             unspool_interval: spool_envelopes_unspool_interval(),
-            batch_size_bytes: spool_envelopes_write_batch_bytes(),
+            batch_size_bytes: spool_envelopes_batch_size_bytes(),
             max_envelope_delay_secs: spool_envelopes_max_envelope_delay_secs(),
             disk_usage_refresh_frequency_ms: spool_disk_usage_refresh_frequency_ms(),
             max_backpressure_envelopes: spool_max_backpressure_envelopes(),
@@ -2168,7 +2168,7 @@ impl Config {
 
     /// Number of encoded envelope bytes that need to be accumulated before
     /// flushing one batch to disk.
-    pub fn batch_size_bytes(&self) -> usize {
+    pub fn spool_envelopes_batch_size_bytes(&self) -> usize {
         self.values.spool.envelopes.batch_size_bytes.as_bytes()
     }
 
