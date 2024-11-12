@@ -1296,6 +1296,43 @@
 <a href="#1296" id="1296">1296</a>
 <a href="#1297" id="1297">1297</a>
 <a href="#1298" id="1298">1298</a>
+<a href="#1299" id="1299">1299</a>
+<a href="#1300" id="1300">1300</a>
+<a href="#1301" id="1301">1301</a>
+<a href="#1302" id="1302">1302</a>
+<a href="#1303" id="1303">1303</a>
+<a href="#1304" id="1304">1304</a>
+<a href="#1305" id="1305">1305</a>
+<a href="#1306" id="1306">1306</a>
+<a href="#1307" id="1307">1307</a>
+<a href="#1308" id="1308">1308</a>
+<a href="#1309" id="1309">1309</a>
+<a href="#1310" id="1310">1310</a>
+<a href="#1311" id="1311">1311</a>
+<a href="#1312" id="1312">1312</a>
+<a href="#1313" id="1313">1313</a>
+<a href="#1314" id="1314">1314</a>
+<a href="#1315" id="1315">1315</a>
+<a href="#1316" id="1316">1316</a>
+<a href="#1317" id="1317">1317</a>
+<a href="#1318" id="1318">1318</a>
+<a href="#1319" id="1319">1319</a>
+<a href="#1320" id="1320">1320</a>
+<a href="#1321" id="1321">1321</a>
+<a href="#1322" id="1322">1322</a>
+<a href="#1323" id="1323">1323</a>
+<a href="#1324" id="1324">1324</a>
+<a href="#1325" id="1325">1325</a>
+<a href="#1326" id="1326">1326</a>
+<a href="#1327" id="1327">1327</a>
+<a href="#1328" id="1328">1328</a>
+<a href="#1329" id="1329">1329</a>
+<a href="#1330" id="1330">1330</a>
+<a href="#1331" id="1331">1331</a>
+<a href="#1332" id="1332">1332</a>
+<a href="#1333" id="1333">1333</a>
+<a href="#1334" id="1334">1334</a>
+<a href="#1335" id="1335">1335</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
@@ -1309,10 +1346,11 @@
 <span class="kw">use </span><span class="kw">crate</span>::processor::ProcessValue;
 <span class="kw">use </span><span class="kw">crate</span>::protocol::{
     AppContext, Breadcrumb, Breakdowns, BrowserContext, ClientSdkInfo, Contexts, Csp, DebugMeta,
-    DefaultContext, DeviceContext, EventType, Exception, ExpectCt, ExpectStaple, Fingerprint, Hpkp,
-    LenientString, Level, LogEntry, Measurements, Metrics, MetricsSummary, OsContext,
-    ProfileContext, RelayInfo, Request, ResponseContext, Span, SpanId, Stacktrace, Tags,
-    TemplateInfo, Thread, Timestamp, TraceContext, TransactionInfo, User, Values,
+    DefaultContext, DeviceContext, EventType, Exception, ExpectCt, ExpectStaple, Fingerprint,
+    GpuContext, Hpkp, LenientString, Level, LogEntry, Measurements, Metrics, MetricsSummary,
+    MonitorContext, OsContext, ProfileContext, RelayInfo, Request, ResponseContext, RuntimeContext,
+    Span, SpanId, Stacktrace, Tags, TemplateInfo, Thread, Timestamp, TraceContext, TransactionInfo,
+    User, Values,
 };
 
 <span class="doccomment">/// Wrapper around a UUID with slightly different formatting.
@@ -1972,6 +2010,11 @@
             </span><span class="string">"contexts.app.in_foreground" </span>=&gt; {
                 <span class="self">self</span>.context::&lt;AppContext&gt;()<span class="question-mark">?</span>.in_foreground.value()<span class="question-mark">?</span>.into()
             }
+            <span class="string">"contexts.app.device_app_hash" </span>=&gt; <span class="self">self
+                </span>.context::&lt;AppContext&gt;()<span class="question-mark">?
+                </span>.device_app_hash
+                .as_str()<span class="question-mark">?
+                </span>.into(),
             <span class="string">"contexts.device.arch" </span>=&gt; <span class="self">self</span>.context::&lt;DeviceContext&gt;()<span class="question-mark">?</span>.arch.as_str()<span class="question-mark">?</span>.into(),
             <span class="string">"contexts.device.battery_level" </span>=&gt; <span class="self">self
                 </span>.context::&lt;DeviceContext&gt;()<span class="question-mark">?
@@ -2011,12 +2054,23 @@
             <span class="string">"contexts.device.simulator" </span>=&gt; {
                 <span class="self">self</span>.context::&lt;DeviceContext&gt;()<span class="question-mark">?</span>.simulator.value()<span class="question-mark">?</span>.into()
             }
+            <span class="string">"contexts.gpu.vendor_name" </span>=&gt; {
+                <span class="self">self</span>.context::&lt;GpuContext&gt;()<span class="question-mark">?</span>.vendor_name.as_str()<span class="question-mark">?</span>.into()
+            }
+            <span class="string">"contexts.gpu.name" </span>=&gt; <span class="self">self</span>.context::&lt;GpuContext&gt;()<span class="question-mark">?</span>.name.as_str()<span class="question-mark">?</span>.into(),
+            <span class="string">"contexts.monitor.id" </span>=&gt; <span class="self">self</span>.context::&lt;MonitorContext&gt;()<span class="question-mark">?</span>.get(<span class="string">"id"</span>)<span class="question-mark">?</span>.value()<span class="question-mark">?</span>.into(),
+            <span class="string">"contexts.monitor.slug" </span>=&gt; <span class="self">self
+                </span>.context::&lt;MonitorContext&gt;()<span class="question-mark">?
+                </span>.get(<span class="string">"slug"</span>)<span class="question-mark">?
+                </span>.value()<span class="question-mark">?
+                </span>.into(),
             <span class="string">"contexts.os.build" </span>=&gt; <span class="self">self</span>.context::&lt;OsContext&gt;()<span class="question-mark">?</span>.build.as_str()<span class="question-mark">?</span>.into(),
             <span class="string">"contexts.os.kernel_version" </span>=&gt; {
                 <span class="self">self</span>.context::&lt;OsContext&gt;()<span class="question-mark">?</span>.kernel_version.as_str()<span class="question-mark">?</span>.into()
             }
             <span class="string">"contexts.os.name" </span>=&gt; <span class="self">self</span>.context::&lt;OsContext&gt;()<span class="question-mark">?</span>.name.as_str()<span class="question-mark">?</span>.into(),
             <span class="string">"contexts.os.version" </span>=&gt; <span class="self">self</span>.context::&lt;OsContext&gt;()<span class="question-mark">?</span>.version.as_str()<span class="question-mark">?</span>.into(),
+            <span class="string">"contexts.os.rooted" </span>=&gt; <span class="self">self</span>.context::&lt;OsContext&gt;()<span class="question-mark">?</span>.rooted.value()<span class="question-mark">?</span>.into(),
             <span class="string">"contexts.browser.name" </span>=&gt; <span class="self">self</span>.context::&lt;BrowserContext&gt;()<span class="question-mark">?</span>.name.as_str()<span class="question-mark">?</span>.into(),
             <span class="string">"contexts.browser.version" </span>=&gt; {
                 <span class="self">self</span>.context::&lt;BrowserContext&gt;()<span class="question-mark">?</span>.version.as_str()<span class="question-mark">?</span>.into()
@@ -2044,6 +2098,7 @@
                 <span class="kw">super</span>::Context::Other(context) =&gt; context.get(<span class="string">"crash_type"</span>)<span class="question-mark">?</span>.value()<span class="question-mark">?</span>.into(),
                 <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">None</span>,
             },
+            <span class="string">"contexts.runtime.name" </span>=&gt; <span class="self">self</span>.context::&lt;RuntimeContext&gt;()<span class="question-mark">?</span>.name.as_str()<span class="question-mark">?</span>.into(),
 
             <span class="comment">// Computed fields (see Discover)
             </span><span class="string">"duration" </span>=&gt; {
@@ -2105,6 +2160,7 @@
     <span class="kw">use </span>chrono::{TimeZone, Utc};
     <span class="kw">use </span>relay_protocol::{ErrorKind, Map, Meta};
     <span class="kw">use </span>similar_asserts::assert_eq;
+    <span class="kw">use </span>std::collections::BTreeMap;
     <span class="kw">use </span>uuid::uuid;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
@@ -2456,6 +2512,16 @@
                     </span>))),
                     ..ProfileContext::default()
                 });
+                <span class="kw">let </span><span class="kw-2">mut </span>monitor_context_fields = BTreeMap::new();
+                monitor_context_fields.insert(
+                    <span class="string">"id"</span>.to_string(),
+                    Annotated::new(Value::String(<span class="string">"123"</span>.to_string())),
+                );
+                monitor_context_fields.insert(
+                    <span class="string">"slug"</span>.to_string(),
+                    Annotated::new(Value::String(<span class="string">"my_monitor"</span>.to_string())),
+                );
+                contexts.add(MonitorContext(monitor_context_fields));
                 contexts
             }),
             ..Default::default()
@@ -2569,6 +2635,14 @@
         <span class="macro">assert_eq!</span>(
             <span class="prelude-val">Some</span>(Val::String(<span class="string">"message"</span>)),
             event.get_value(<span class="string">"event.logentry.message"</span>)
+        );
+        <span class="macro">assert_eq!</span>(
+            <span class="prelude-val">Some</span>(Val::String(<span class="string">"123"</span>)),
+            event.get_value(<span class="string">"event.contexts.monitor.id"</span>)
+        );
+        <span class="macro">assert_eq!</span>(
+            <span class="prelude-val">Some</span>(Val::String(<span class="string">"my_monitor"</span>)),
+            event.get_value(<span class="string">"event.contexts.monitor.slug"</span>)
         );
     }
 
