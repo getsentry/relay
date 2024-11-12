@@ -1,6 +1,6 @@
 ---
 source: relay-server/tests/test_fixtures.rs
-expression: SerializableAnnotated(&event)
+expression: SerializableAnnotated(& event)
 ---
 {
   "event_id": "6f6e2d3fa0754d14b37a2bec59619a98",
@@ -172,6 +172,7 @@ expression: SerializableAnnotated(&event)
       "type": "os"
     },
     "runtime": {
+      "runtime": "Mono 5.11.0",
       "name": "Mono",
       "version": "5.11.0",
       "raw_description": "Mono 5.11.0 (Visual Studio built mono)",

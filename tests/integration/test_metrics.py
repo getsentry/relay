@@ -2166,3 +2166,118 @@ def test_histogram_outliers(mini_sentry, relay):
         "d:transactions/duration@millisecond": "inlier",
         "d:transactions/measurements.lcp@millisecond": "inlier",
     }
+
+
+def test_metrics_extraction_with_computed_context_filters(
+    mini_sentry, relay_with_processing, metrics_consumer, transactions_consumer
+):
+    """
+    Test that metrics extraction filters work with computed contexts like os, runtime and browser.
+    """
+    metrics_consumer = metrics_consumer()
+    transactions_consumer = transactions_consumer()
+
+    relay = relay_with_processing(options=TEST_CONFIG)
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["metricExtraction"] = {
+        "version": 1,
+        "metrics": [
+            {
+                "category": "transaction",
+                "mri": "c:transactions/on_demand_os@none",
+                "condition": {
+                    "op": "eq",
+                    "name": "event.contexts.os",
+                    "value": "Windows 10",
+                },
+            },
+            {
+                "category": "transaction",
+                "mri": "c:transactions/on_demand_runtime@none",
+                "condition": {
+                    "op": "eq",
+                    "name": "event.contexts.runtime",
+                    "value": "Python 3.9.0",
+                },
+            },
+            {
+                "category": "transaction",
+                "mri": "c:transactions/on_demand_browser@none",
+                "condition": {
+                    "op": "eq",
+                    "name": "event.contexts.browser",
+                    "value": "Firefox 89.0",
+                },
+            },
+        ],
+    }
+    project_config["config"]["transactionMetrics"] = {
+        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
+    }
+
+    # Create a transaction with matching contexts
+    transaction = generate_transaction_item()
+    transaction["contexts"].update(
+        {
+            "os": {
+                "name": "Windows",
+                "version": "10",
+            },
+            "runtime": {
+                "name": "Python",
+                "version": "3.9.0",
+            },
+            "browser": {
+                "name": "Firefox",
+                "version": "89.0",
+            },
+        }
+    )
+
+    # Set timestamps to avoid metrics being dropped due to age
+    timestamp = datetime.now(tz=timezone.utc)
+    transaction["timestamp"] = timestamp.isoformat()
+    transaction["start_timestamp"] = (timestamp - timedelta(seconds=1)).isoformat()
+
+    relay.send_transaction(project_id, transaction)
+
+    # Get the transaction event to verify it was processed
+    event, _ = transactions_consumer.get_event()
+    assert event["contexts"]["os"]["os"] == "Windows 10"
+    assert event["contexts"]["runtime"]["runtime"] == "Python 3.9.0"
+    assert event["contexts"]["browser"]["browser"] == "Firefox 89.0"
+
+    # Define list of extracted metrics to check
+    metric_names = [
+        "c:transactions/on_demand_os@none",
+        "c:transactions/on_demand_runtime@none",
+        "c:transactions/on_demand_browser@none",
+    ]
+
+    # Verify that all three metrics were extracted
+    metrics = metrics_by_name(metrics_consumer, 7)
+
+    # Check each extracted metric
+    for metric_name in metric_names:
+        assert metrics[metric_name]["value"] == 1.0
+
+    # Send another transaction with non-matching contexts
+    transaction["contexts"].update(
+        {
+            "os": {"name": "Linux", "version": "5.4", "type": "os"},
+            "runtime": {"name": "Node", "version": "16.0.0", "type": "runtime"},
+            "browser": {"name": "Chrome", "version": "95.0", "type": "browser"},
+        }
+    )
+    relay.send_transaction(project_id, transaction)
+
+    # Get the transaction event
+    event, _ = transactions_consumer.get_event()
+    assert event["contexts"]["os"]["os"] == "Linux 5.4"
+
+    # Verify no new metrics were extracted for the specified contexts
+    metrics = metrics_consumer.get_metrics()
+    for metric, _ in metrics:
+        assert metric["name"] not in metric_names

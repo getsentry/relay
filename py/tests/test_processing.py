@@ -120,7 +120,12 @@ def test_normalize_user_agent(must_normalize):
 
     if must_normalize:
         assert event["contexts"] == {
-            "browser": {"name": "Firefox", "version": "15.0.1", "type": "browser"},
+            "browser": {
+                "browser": "Firefox 15.0.1",
+                "name": "Firefox",
+                "version": "15.0.1",
+                "type": "browser",
+            },
             "client_os": {"name": "Ubuntu", "type": "os"},
         }
     else:

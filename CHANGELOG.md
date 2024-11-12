@@ -29,6 +29,7 @@
 - Run internal worker threads with a lower priority. ([#4222](https://github.com/getsentry/relay/pull/4222))
 - Add additional fields to the `Event` `Getter`. ([#4238](https://github.com/getsentry/relay/pull/4238))
 - Replace u64 with `OrganizationId` new-type struct for organization id. ([#4159](https://github.com/getsentry/relay/pull/4159))
+- Add computed contexts for `os`, `browser` and `runtime`. ([#4239](https://github.com/getsentry/relay/pull/4239))
 
 ## 24.10.0
 

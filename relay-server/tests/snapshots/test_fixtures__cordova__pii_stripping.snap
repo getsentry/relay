@@ -1,6 +1,6 @@
 ---
 source: relay-server/tests/test_fixtures.rs
-expression: SerializableAnnotated(&event)
+expression: SerializableAnnotated(& event)
 ---
 {
   "event_id": "ae3a2cc6e08741c5b09946c65c022469",
@@ -27,6 +27,7 @@ expression: SerializableAnnotated(&event)
       "type": "app"
     },
     "chrome": {
+      "runtime": "Chrome 61.0.3163.100",
       "name": "Chrome",
       "version": "61.0.3163.100",
       "type": "runtime"
@@ -36,11 +37,13 @@ expression: SerializableAnnotated(&event)
       "type": "device"
     },
     "node": {
+      "runtime": "Node 8.9.3",
       "name": "Node",
       "version": "8.9.3",
       "type": "runtime"
     },
     "os": {
+      "os": "Mac OS X 10.13.6",
       "name": "Mac OS X",
       "version": "10.13.6",
       "build": "17G65",
@@ -48,6 +51,7 @@ expression: SerializableAnnotated(&event)
       "type": "os"
     },
     "runtime": {
+      "runtime": "Electron 2.0.2",
       "name": "Electron",
       "version": "2.0.2",
       "type": "runtime"
