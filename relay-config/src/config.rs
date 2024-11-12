@@ -2592,6 +2592,7 @@ impl Default for Config {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     /// Regression test for renaming the envelope buffer flags.
