@@ -76,6 +76,7 @@
     },
     "contexts": {
         "browser": {
+            "browser": "Python Requests 2.26",
             "name": "Python Requests",
             "version": "2.26",
             "type": "browser"
