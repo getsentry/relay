@@ -27,6 +27,7 @@
 - Add a field to suggest consumers to ingest spans in EAP. ([#4206](https://github.com/getsentry/relay/pull/4206))
 - Run internal worker threads with a lower priority. ([#4222](https://github.com/getsentry/relay/pull/4222))
 - Add additional fields to the `Event` `Getter`. ([#4238](https://github.com/getsentry/relay/pull/4238))
+- Add computed contexts for `os`, `browser` and `runtime`. ([#4239](https://github.com/getsentry/relay/pull/4239))
 
 ## 24.10.0
 
