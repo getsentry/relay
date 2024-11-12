@@ -1,4 +1,5 @@
 //! Span description scrubbing logic.
+mod redis;
 mod resource;
 mod sql;
 use once_cell::sync::Lazy;
@@ -16,8 +17,9 @@ use url::{Host, Url};
 
 use crate::regexes::{
     DB_SQL_TRANSACTION_CORE_DATA_REGEX, DB_SUPABASE_REGEX, FUNCTION_NORMALIZER_REGEX,
-    REDIS_COMMAND_REGEX, RESOURCE_NORMALIZER_REGEX,
+    RESOURCE_NORMALIZER_REGEX,
 };
+use crate::span::description::redis::matching_redis_command;
 use crate::span::description::resource::COMMON_PATH_SEGMENTS;
 use crate::span::tag_extraction::HTTP_METHOD_EXTRACTOR_REGEX;
 use crate::span::TABLE_NAME_REGEX;
@@ -384,15 +386,20 @@ pub fn concatenate_host_and_port(host: Option<&str>, port: Option<u16>) -> Cow<s
 }
 
 fn scrub_redis_keys(string: &str) -> Option<String> {
-    let parts = REDIS_COMMAND_REGEX
-        .captures(string)
-        .map(|caps| (caps.name("command"), caps.name("args")));
-    let scrubbed = match parts {
-        Some((Some(command), Some(_args))) => command.as_str().to_owned() + " *",
-        Some((Some(command), None)) => command.as_str().into(),
-        None | Some((None, _)) => "*".into(),
-    };
-    Some(scrubbed)
+    let string = string.trim();
+    Some(match matching_redis_command(string) {
+        Some(command) => {
+            let mut command = command.to_uppercase();
+            match string.get(command.len()..) {
+                None | Some("") => command,
+                Some(_other) => {
+                    command.push_str(" *");
+                    command
+                }
+            }
+        }
+        None => "*".to_owned(),
+    })
 }
 
 enum UrlType {
@@ -671,6 +678,13 @@ mod tests {
         };
     }
 
+    macro_rules! span_description_test_with_lowercase {
+        ($name:ident, $name2:ident, $description_in:expr, $op_in:literal, $expected:literal) => {
+            span_description_test!($name, $description_in, $op_in, $expected);
+            span_description_test!($name2, ($description_in).to_lowercase(), $op_in, $expected);
+        };
+    }
+
     span_description_test!(empty, "", "http.client", "");
 
     span_description_test!(
@@ -792,30 +806,57 @@ mod tests {
         ""
     );
 
-    span_description_test!(
+    span_description_test_with_lowercase!(
         cache,
+        cache_lower,
         "GET abc:12:{def}:{34}:{fg56}:EAB38:zookeeper",
         "cache.get_item",
         "GET *"
     );
 
-    span_description_test!(redis_set, "SET mykey myvalue", "db.redis", "SET *");
+    span_description_test_with_lowercase!(
+        redis_set,
+        redis_set_lower,
+        "SET mykey myvalue",
+        "db.redis",
+        "SET *"
+    );
 
-    span_description_test!(
+    span_description_test_with_lowercase!(
         redis_set_quoted,
+        redis_set_quoted_lower,
         r#"SET mykey 'multi: part, value'"#,
         "db.redis",
         "SET *"
     );
 
-    span_description_test!(redis_whitespace, " GET  asdf:123", "db.redis", "GET *");
+    span_description_test_with_lowercase!(
+        redis_whitespace,
+        redis_whitespace_lower,
+        " GET  asdf:123",
+        "db.redis",
+        "GET *"
+    );
 
-    span_description_test!(redis_no_args, "EXEC", "db.redis", "EXEC");
+    span_description_test_with_lowercase!(
+        redis_no_args,
+        redis_no_args_lower,
+        "EXEC",
+        "db.redis",
+        "EXEC"
+    );
 
-    span_description_test!(redis_invalid, "What a beautiful day!", "db.redis", "*");
+    span_description_test_with_lowercase!(
+        redis_invalid,
+        redis_invalid_lower,
+        "What a beautiful day!",
+        "db.redis",
+        "*"
+    );
 
-    span_description_test!(
+    span_description_test_with_lowercase!(
         redis_long_command,
+        redis_long_command_lower,
         "ACL SETUSER jane",
         "db.redis",
         "ACL SETUSER *"
@@ -1282,8 +1323,7 @@ mod tests {
             ScrubMongoDescription::Disabled,
         );
 
-        // NOTE: this should return `DEL *`, but we cannot detect lowercase command names yet.
-        assert_eq!(scrubbed.0.as_deref(), Some("*"));
+        assert_eq!(scrubbed.0.as_deref(), Some("DEL *"));
     }
 
     #[test]

@@ -13,6 +13,7 @@ use axum::RequestPartsExt;
 use chrono::{DateTime, Utc};
 use data_encoding::BASE64;
 use relay_auth::RelayId;
+use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::{ParseProjectKeyError, ProjectId, ProjectKey};
 use relay_common::{Auth, Dsn, ParseAuthError, ParseDsnError, Scheme};
 use relay_config::UpstreamDescriptor;
@@ -398,7 +399,7 @@ impl RequestMeta {
     /// state. To fetch full scoping information, invoke the `GetScoping` message on `Project`.
     pub fn get_partial_scoping(&self) -> Scoping {
         Scoping {
-            organization_id: 0,
+            organization_id: OrganizationId::new(0),
             project_id: self.project_id().unwrap_or_else(|| ProjectId::new(0)),
             project_key: self.public_key(),
             key_id: None,

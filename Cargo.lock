@@ -407,6 +407,7 @@ dependencies = [
  "clap",
  "rand",
  "relay-config",
+ "relay-log",
  "relay-server",
  "serde_json",
  "tempfile",

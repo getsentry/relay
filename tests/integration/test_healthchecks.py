@@ -178,8 +178,7 @@ def test_readiness_disk_spool(mini_sentry, relay):
                 "version": "experimental",
                 "path": dbfile,
                 "max_disk_size": 24577,  # one more than the initial size
-                "read_batch_size": 1,
-                "write_batch_bytes": 1,
+                "batch_size_bytes": 1,
             }
         },
     }

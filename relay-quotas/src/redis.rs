@@ -99,7 +99,7 @@ impl<'a> RedisQuota<'a> {
         if self.quota.scope == QuotaScope::Global {
             0
         } else {
-            self.scoping.organization_id % self.window
+            self.scoping.organization_id.value() % self.window
         }
     }
 
@@ -305,6 +305,7 @@ mod tests {
     use std::time::{SystemTime, UNIX_EPOCH};
 
     use relay_base_schema::metrics::MetricNamespace;
+    use relay_base_schema::organization::OrganizationId;
     use relay_base_schema::project::{ProjectId, ProjectKey};
     use relay_redis::redis::Commands;
     use relay_redis::RedisConfigOptions;
@@ -355,7 +356,7 @@ mod tests {
         let scoping = ItemScoping {
             category: DataCategory::Error,
             scoping: &Scoping {
-                organization_id: 42,
+                organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(43),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
@@ -373,7 +374,7 @@ mod tests {
             rate_limits,
             vec![RateLimit {
                 categories: DataCategories::new(),
-                scope: RateLimitScope::Organization(42),
+                scope: RateLimitScope::Organization(OrganizationId::new(42)),
                 reason_code: Some(ReasonCode::new("get_lost")),
                 retry_after: rate_limits[0].retry_after,
                 namespaces: smallvec![],
@@ -404,7 +405,7 @@ mod tests {
         let scoping = ItemScoping {
             category: DataCategory::Error,
             scoping: &Scoping {
-                organization_id: 42,
+                organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(43),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
@@ -467,7 +468,7 @@ mod tests {
         let scoping = ItemScoping {
             category: DataCategory::Error,
             scoping: &Scoping {
-                organization_id: 42,
+                organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(43),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
@@ -489,7 +490,7 @@ mod tests {
                     rate_limits,
                     vec![RateLimit {
                         categories: DataCategories::new(),
-                        scope: RateLimitScope::Organization(42),
+                        scope: RateLimitScope::Organization(OrganizationId::new(42)),
                         reason_code: Some(ReasonCode::new("get_lost")),
                         retry_after: rate_limits[0].retry_after,
                         namespaces: smallvec![],
@@ -517,7 +518,7 @@ mod tests {
         let scoping = ItemScoping {
             category: DataCategory::Error,
             scoping: &Scoping {
-                organization_id: 42,
+                organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(43),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
@@ -567,7 +568,7 @@ mod tests {
         let scoping = ItemScoping {
             category: DataCategory::Error,
             scoping: &Scoping {
-                organization_id: 42,
+                organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(43),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
@@ -618,7 +619,7 @@ mod tests {
         let scoping = ItemScoping {
             category: DataCategory::Error,
             scoping: &Scoping {
-                organization_id: 42,
+                organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(43),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
@@ -662,7 +663,7 @@ mod tests {
         let scoping = ItemScoping {
             category: DataCategory::Error,
             scoping: &Scoping {
-                organization_id: 42,
+                organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(43),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
@@ -707,7 +708,7 @@ mod tests {
         let scoping = ItemScoping {
             category: DataCategory::Error,
             scoping: &Scoping {
-                organization_id: 42,
+                organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(43),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
@@ -731,7 +732,7 @@ mod tests {
                     rate_limits,
                     vec![RateLimit {
                         categories: DataCategories::new(),
-                        scope: RateLimitScope::Organization(42),
+                        scope: RateLimitScope::Organization(OrganizationId::new(42)),
                         reason_code: Some(ReasonCode::new("project_quota1")),
                         retry_after: rate_limits[0].retry_after,
                         namespaces: smallvec![],
@@ -757,7 +758,7 @@ mod tests {
         let scoping = ItemScoping {
             category: DataCategory::Error,
             scoping: &Scoping {
-                organization_id: 42,
+                organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(43),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(44),
@@ -779,7 +780,7 @@ mod tests {
                     rate_limits,
                     vec![RateLimit {
                         categories: DataCategories::new(),
-                        scope: RateLimitScope::Organization(42),
+                        scope: RateLimitScope::Organization(OrganizationId::new(42)),
                         reason_code: Some(ReasonCode::new("get_lost")),
                         retry_after: rate_limits[0].retry_after,
                         namespaces: smallvec![],
@@ -807,7 +808,7 @@ mod tests {
         let scoping = ItemScoping {
             category: DataCategory::Error,
             scoping: &Scoping {
-                organization_id: 69420,
+                organization_id: OrganizationId::new(69420),
                 project_id: ProjectId::new(42),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(4711),
@@ -836,7 +837,7 @@ mod tests {
         let scoping = ItemScoping {
             category: DataCategory::Error,
             scoping: &Scoping {
-                organization_id: 69420,
+                organization_id: OrganizationId::new(69420),
                 project_id: ProjectId::new(42),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(4711),
@@ -865,7 +866,7 @@ mod tests {
         let scoping = ItemScoping {
             category: DataCategory::Error,
             scoping: &Scoping {
-                organization_id: 69420,
+                organization_id: OrganizationId::new(69420),
                 project_id: ProjectId::new(42),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: Some(4711),

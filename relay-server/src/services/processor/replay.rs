@@ -3,6 +3,7 @@ use std::error::Error;
 use std::net::IpAddr;
 
 use bytes::Bytes;
+use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
 use relay_dynamic_config::{Feature, GlobalConfig, ProjectConfig};
 use relay_event_normalization::replay::{self, ReplayError};
@@ -118,7 +119,7 @@ struct ReplayProcessingConfig<'a> {
     pub geoip_lookup: Option<&'a GeoIpLookup>,
     pub event_id: Option<EventId>,
     pub project_id: Option<ProjectId>,
-    pub organization_id: Option<u64>,
+    pub organization_id: Option<OrganizationId>,
     pub client_addr: Option<IpAddr>,
     pub user_agent: RawUserAgentInfo<String>,
 }
@@ -149,7 +150,7 @@ fn handle_replay_event_item(
                         relay_log::debug!(
                             event_id = ?config.event_id,
                             project_id = config.project_id.map(|v| v.value()),
-                            organization_id = config.organization_id,
+                            organization_id = config.organization_id.map(|o| o.value()),
                             segment_id = segment_id,
                             "replay segment-exceeded-limit"
                         );
@@ -174,7 +175,7 @@ fn handle_replay_event_item(
                 error = &error as &dyn Error,
                 event_id = ?config.event_id,
                 project_id = config.project_id.map(|v| v.value()),
-                organization_id = config.organization_id,
+                organization_id = config.organization_id.map(|o| o.value()),
                 "invalid replay event"
             );
             Err(match error {
@@ -265,7 +266,7 @@ fn handle_replay_recording_item(
             error = &error as &dyn Error,
             event_id = ?config.event_id,
             project_id = config.project_id.map(|v| v.value()),
-            organization_id = config.organization_id,
+            organization_id = config.organization_id.map(|o| o.value()),
             "invalid replay recording"
         );
         ProcessingError::InvalidReplay(DiscardReason::InvalidReplayRecordingEvent)

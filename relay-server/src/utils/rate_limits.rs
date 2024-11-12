@@ -781,6 +781,7 @@ impl<F> fmt::Debug for EnvelopeLimiter<F> {
 mod tests {
     use std::collections::{BTreeMap, BTreeSet};
 
+    use relay_base_schema::organization::OrganizationId;
     use relay_base_schema::project::{ProjectId, ProjectKey};
     use relay_metrics::MetricNamespace;
     use relay_quotas::RetryAfter;
@@ -801,7 +802,7 @@ mod tests {
         // Add a generic rate limit for all categories.
         rate_limits.add(RateLimit {
             categories: DataCategories::new(),
-            scope: RateLimitScope::Organization(42),
+            scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: Some(ReasonCode::new("my_limit")),
             retry_after: RetryAfter::from_secs(42),
             namespaces: smallvec![],
@@ -828,7 +829,7 @@ mod tests {
         // Rate limit with reason code and namespace.
         rate_limits.add(RateLimit {
             categories: smallvec![DataCategory::MetricBucket],
-            scope: RateLimitScope::Organization(42),
+            scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: Some(ReasonCode::new("my_limit")),
             retry_after: RetryAfter::from_secs(42),
             namespaces: smallvec![MetricNamespace::Custom, MetricNamespace::Spans],
@@ -837,7 +838,7 @@ mod tests {
         // Rate limit without reason code.
         rate_limits.add(RateLimit {
             categories: smallvec![DataCategory::MetricBucket],
-            scope: RateLimitScope::Organization(42),
+            scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(42),
             namespaces: smallvec![MetricNamespace::Spans],
@@ -852,7 +853,7 @@ mod tests {
     #[test]
     fn test_parse_invalid_rate_limits() {
         let scoping = Scoping {
-            organization_id: 42,
+            organization_id: OrganizationId::new(42),
             project_id: ProjectId::new(21),
             project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             key_id: Some(17),
@@ -866,7 +867,7 @@ mod tests {
     #[test]
     fn test_parse_rate_limits() {
         let scoping = Scoping {
-            organization_id: 42,
+            organization_id: OrganizationId::new(42),
             project_id: ProjectId::new(21),
             project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             key_id: Some(17),
@@ -883,7 +884,7 @@ mod tests {
             vec![
                 RateLimit {
                     categories: DataCategories::new(),
-                    scope: RateLimitScope::Organization(42),
+                    scope: RateLimitScope::Organization(OrganizationId::new(42)),
                     reason_code: Some(ReasonCode::new("my_limit")),
                     retry_after: rate_limits[0].retry_after,
                     namespaces: smallvec![],
@@ -909,7 +910,7 @@ mod tests {
     #[test]
     fn test_parse_rate_limits_namespace() {
         let scoping = Scoping {
-            organization_id: 42,
+            organization_id: OrganizationId::new(42),
             project_id: ProjectId::new(21),
             project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             key_id: Some(17),
@@ -923,7 +924,7 @@ mod tests {
             rate_limits,
             vec![RateLimit {
                 categories: smallvec![DataCategory::MetricBucket],
-                scope: RateLimitScope::Organization(42),
+                scope: RateLimitScope::Organization(OrganizationId::new(42)),
                 reason_code: None,
                 retry_after: rate_limits[0].retry_after,
                 namespaces: smallvec![MetricNamespace::Custom, MetricNamespace::Spans],
@@ -934,7 +935,7 @@ mod tests {
     #[test]
     fn test_parse_rate_limits_empty_namespace() {
         let scoping = Scoping {
-            organization_id: 42,
+            organization_id: OrganizationId::new(42),
             project_id: ProjectId::new(21),
             project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             key_id: Some(17),
@@ -949,7 +950,7 @@ mod tests {
             rate_limits,
             vec![RateLimit {
                 categories: smallvec![DataCategory::MetricBucket],
-                scope: RateLimitScope::Organization(42),
+                scope: RateLimitScope::Organization(OrganizationId::new(42)),
                 reason_code: Some(ReasonCode::new("some_reason")),
                 retry_after: rate_limits[0].retry_after,
                 namespaces: smallvec![],
@@ -960,7 +961,7 @@ mod tests {
     #[test]
     fn test_parse_rate_limits_only_unknown() {
         let scoping = Scoping {
-            organization_id: 42,
+            organization_id: OrganizationId::new(42),
             project_id: ProjectId::new(21),
             project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             key_id: Some(17),
@@ -974,7 +975,7 @@ mod tests {
             rate_limits,
             vec![RateLimit {
                 categories: smallvec![DataCategory::Unknown, DataCategory::Unknown],
-                scope: RateLimitScope::Organization(42),
+                scope: RateLimitScope::Organization(OrganizationId::new(42)),
                 reason_code: None,
                 retry_after: rate_limits[0].retry_after,
                 namespaces: smallvec![],
@@ -1016,7 +1017,7 @@ mod tests {
     fn rate_limit(category: DataCategory) -> RateLimit {
         RateLimit {
             categories: vec![category].into(),
-            scope: RateLimitScope::Organization(42),
+            scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(60),
             namespaces: smallvec![],
