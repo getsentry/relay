@@ -323,14 +323,12 @@ impl Getter for Replay {
             "contexts.device.simulator" => {
                 self.context::<DeviceContext>()?.simulator.value()?.into()
             }
-            "contexts.os" => self.context::<OsContext>()?.os.as_str()?.into(),
             "contexts.os.build" => self.context::<OsContext>()?.build.as_str()?.into(),
             "contexts.os.kernel_version" => {
                 self.context::<OsContext>()?.kernel_version.as_str()?.into()
             }
             "contexts.os.name" => self.context::<OsContext>()?.name.as_str()?.into(),
             "contexts.os.version" => self.context::<OsContext>()?.version.as_str()?.into(),
-            "contexts.browser" => self.context::<BrowserContext>()?.browser.as_str()?.into(),
             "contexts.browser.name" => self.context::<BrowserContext>()?.name.as_str()?.into(),
             "contexts.browser.version" => {
                 self.context::<BrowserContext>()?.version.as_str()?.into()
@@ -358,7 +356,6 @@ impl Getter for Replay {
                 super::Context::Other(context) => context.get("crash_type")?.value()?.into(),
                 _ => return None,
             },
-            "contexts.runtime" => self.context::<RuntimeContext>()?.runtime.as_str()?.into(),
 
             // Dynamic access to certain data bags
             path => {
