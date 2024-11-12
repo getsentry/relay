@@ -1048,8 +1048,6 @@ struct Cache {
     batch_size: usize,
     /// Interval for watching local cache override files in seconds.
     file_interval: u32,
-    /// Interval for evicting outdated project configs from memory.
-    eviction_interval: u32,
     /// Interval for fetching new global configs from the upstream, in seconds.
     global_config_fetch_interval: u32,
 }
@@ -1068,7 +1066,6 @@ impl Default for Cache {
             downstream_relays_batch_interval: 100, // 100ms
             batch_size: 500,
             file_interval: 10,                // 10 seconds
-            eviction_interval: 10,            // 10 seconds
             global_config_fetch_interval: 10, // 10 seconds
         }
     }
@@ -2128,12 +2125,6 @@ impl Config {
     /// Returns the interval in seconds in which local project configurations should be reloaded.
     pub fn local_cache_interval(&self) -> Duration {
         Duration::from_secs(self.values.cache.file_interval.into())
-    }
-
-    /// Returns the interval in seconds in which projects configurations should be freed from
-    /// memory when expired.
-    pub fn cache_eviction_interval(&self) -> Duration {
-        Duration::from_secs(self.values.cache.eviction_interval.into())
     }
 
     /// Returns the interval in seconds in which fresh global configs should be

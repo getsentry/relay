@@ -20,7 +20,6 @@ def test_local_project_config(mini_sentry, relay):
             "file_interval": 1,
             "project_expiry": 1,
             "project_grace_period": 0,
-            "eviction_interval": 1,
         }
     }
     relay = relay(mini_sentry, relay_config, wait_health_check=False)
@@ -82,7 +81,6 @@ def test_project_grace_period(mini_sentry, relay, grace_period):
                 "miss_expiry": 1,
                 "project_expiry": 1,
                 "project_grace_period": grace_period,
-                "eviction_interval": 1,
             }
         },
     )
@@ -328,7 +326,6 @@ def test_project_fetch_revision(mini_sentry, relay, with_revision_support):
                 "miss_expiry": 1,
                 "project_expiry": 1,
                 "project_grace_period": 5,
-                "eviction_interval": 1,
             }
         },
     )
