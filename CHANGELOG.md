@@ -26,6 +26,7 @@
 - Use `DateTime<Utc>` instead of `Instant` for tracking the received time of the `Envelope`. ([#4184](https://github.com/getsentry/relay/pull/4184))
 - Add a field to suggest consumers to ingest spans in EAP. ([#4206](https://github.com/getsentry/relay/pull/4206))
 - Run internal worker threads with a lower priority. ([#4222](https://github.com/getsentry/relay/pull/4222))
+- Add additional fields to the `Event` `Getter`. ([#4238](https://github.com/getsentry/relay/pull/4238))
 
 ## 24.10.0
 
