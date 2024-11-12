@@ -30,8 +30,8 @@ use relay_protocol::{Annotated, Array, Empty, FromValue, Getter, IntoValue, Val}
 use crate::processor::ProcessValue;
 use crate::protocol::{
     AppContext, BrowserContext, ClientSdkInfo, Contexts, DefaultContext, DeviceContext, EventId,
-    LenientString, OsContext, ProfileContext, Request, ResponseContext, RuntimeContext, Tags,
-    Timestamp, TraceContext, User,
+    LenientString, OsContext, ProfileContext, Request, ResponseContext, Tags, Timestamp,
+    TraceContext, User,
 };
 use uuid::Uuid;
 
