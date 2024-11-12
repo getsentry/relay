@@ -16,6 +16,7 @@
   },
   "contexts": {
     "browser": {
+      "browser": "Chrome 74.0.3729",
       "name": "Chrome",
       "type": "browser",
       "version": "74.0.3729"
