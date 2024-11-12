@@ -70,9 +70,19 @@ def assert_expected_feedback(parsed_feedback, sent_feedback):
 
     # Assert contexts object was pulled out.
     assert parsed_feedback["contexts"] == {
-        "browser": {"name": "Safari", "version": "15.5", "type": "browser"},
+        "browser": {
+            "browser": "Safari 15.5",
+            "name": "Safari",
+            "version": "15.5",
+            "type": "browser",
+        },
         "device": {"brand": "Apple", "family": "Mac", "model": "Mac", "type": "device"},
-        "os": {"name": "Mac OS X", "version": ">=10.15.7", "type": "os"},
+        "os": {
+            "os": "Mac OS X >=10.15.7",
+            "name": "Mac OS X",
+            "version": ">=10.15.7",
+            "type": "os",
+        },
         "replay": {
             "replay_id": sent_feedback["contexts"]["replay"]["replay_id"].lower(),
             "type": "replay",
