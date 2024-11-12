@@ -244,9 +244,6 @@
 <a href="#244" id="244">244</a>
 <a href="#245" id="245">245</a>
 <a href="#246" id="246">246</a>
-<a href="#247" id="247">247</a>
-<a href="#248" id="248">248</a>
-<a href="#249" id="249">249</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>bytes::Bytes;
 <span class="kw">use </span>chrono::Utc;
 <span class="kw">use </span>clap::{Parser, ValueEnum};
@@ -276,9 +273,7 @@
     <span class="attr">#[arg(long)]
     </span>compression_ratio: f64,
     <span class="attr">#[arg(long)]
-    </span>write_batch_kib: usize,
-    <span class="attr">#[arg(long)]
-    </span>read_batch_size: usize,
+    </span>batch_size_kib: usize,
     <span class="attr">#[arg(long)]
     </span>implementation: Impl,
     <span class="attr">#[arg(long)]
@@ -298,14 +293,14 @@
     <span class="kw">let </span>Args {
         envelope_size_kib,
         compression_ratio,
-        write_batch_kib,
-        read_batch_size,
+        batch_size_kib,
         implementation,
         mode,
         projects,
         duration_secs,
         db,
     } = args;
+    relay_log::init(<span class="kw-2">&amp;</span>Default::default(), <span class="kw-2">&amp;</span>Default::default());
 
     <span class="kw">let </span>dir = tempfile::tempdir().unwrap();
     <span class="kw">let </span>path = db.unwrap_or(dir.path().join(<span class="string">"envelopes.db"</span>));
@@ -322,8 +317,7 @@
                         Impl::Memory =&gt; <span class="prelude-val">None</span>,
                         Impl::Sqlite =&gt; <span class="prelude-val">Some</span>(path),
                     },
-                    <span class="string">"write_batch_bytes"</span>: write_batch_kib * <span class="number">1024</span>,
-                    <span class="string">"read_batch_size"</span>: read_batch_size,
+                    <span class="string">"batch_size_bytes"</span>: batch_size_kib * <span class="number">1024</span>,
                 }
             }
         }))
@@ -392,7 +386,7 @@
         <span class="kw">if </span>(after - last_check) &gt; Duration::from_secs(<span class="number">1</span>) {
             <span class="kw">let </span>throughput = (writes * bytes_per_envelope) <span class="kw">as </span>f64 / write_duration.as_secs_f64();
             <span class="kw">let </span>throughput = throughput / <span class="number">1024.0 </span>/ <span class="number">1024.0</span>;
-            <span class="macro">println!</span>(<span class="string">"Write throughput: {throughput:.2} MiB / s"</span>);
+            <span class="macro">println!</span>(<span class="string">"{throughput:.2}"</span>);
             write_duration = Duration::ZERO;
             writes = <span class="number">0</span>;
             last_check = after;
@@ -487,7 +481,7 @@
     ).into_bytes();
 
     <span class="comment">// Fill with random bytes to get estimated compression ratio:
-    </span><span class="kw">let </span><span class="kw-2">mut </span>payload = [<span class="number">0u8</span>].repeat(payload_size);
+    </span><span class="kw">let </span><span class="kw-2">mut </span>payload = <span class="macro">vec!</span>[<span class="number">0u8</span>; payload_size];
     <span class="kw">let </span>fraction = (payload_size <span class="kw">as </span>f64 / compression_ratio) <span class="kw">as </span>usize;
     rand::thread_rng().fill_bytes(<span class="kw-2">&amp;mut </span>payload[..fraction]);
     envelope.extend(payload);

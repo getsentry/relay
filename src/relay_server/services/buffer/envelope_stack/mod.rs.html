@@ -52,6 +52,6 @@
 
     <span class="doccomment">/// Persists all envelopes in the [`EnvelopeStack`]s to external storage, if possible,
     /// and consumes the stack provider.
-    </span><span class="kw">fn </span>flush(<span class="self">self</span>) -&gt; Vec&lt;Box&lt;Envelope&gt;&gt;;
+    </span><span class="kw">fn </span>flush(<span class="self">self</span>) -&gt; <span class="kw">impl </span>Future&lt;Output = ()&gt;;
 }
 </code></pre></div></section></main></body></html>

@@ -33,8 +33,6 @@
 <a href="#33" id="33">33</a>
 <a href="#34" id="34">34</a>
 <a href="#35" id="35">35</a>
-<a href="#36" id="36">36</a>
-<a href="#37" id="37">37</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 
 <span class="kw">use </span>chrono::{DateTime, Utc};
@@ -68,8 +66,6 @@
         <span class="prelude-val">Ok</span>(<span class="self">self</span>.<span class="number">0</span>.pop())
     }
 
-    <span class="kw">fn </span>flush(<span class="self">self</span>) -&gt; Vec&lt;Box&lt;Envelope&gt;&gt; {
-        <span class="self">self</span>.<span class="number">0
-    </span>}
+    <span class="kw">async fn </span>flush(<span class="self">self</span>) {}
 }
 </code></pre></div></section></main></body></html>
