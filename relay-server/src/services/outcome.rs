@@ -15,6 +15,7 @@ use std::{fmt, mem};
 #[cfg(feature = "processing")]
 use anyhow::Context;
 use chrono::{DateTime, SecondsFormat, Utc};
+use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, EmitOutcomes};
@@ -523,7 +524,7 @@ pub struct TrackRawOutcome {
     timestamp: String,
     /// Organization id.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    org_id: Option<u64>,
+    org_id: Option<OrganizationId>,
     /// Project id.
     project_id: ProjectId,
     /// The DSN project key id.
@@ -559,9 +560,9 @@ impl TrackRawOutcome {
         // e.g. something like: "2019-09-29T09:46:40.123456Z"
         let timestamp = msg.timestamp.to_rfc3339_opts(SecondsFormat::Micros, true);
 
-        let org_id = match msg.scoping.organization_id {
+        let org_id = match msg.scoping.organization_id.value() {
             0 => None,
-            id => Some(id),
+            id => Some(OrganizationId::new(id)),
         };
 
         // since TrackOutcome objects come only from this Relay (and not any downstream

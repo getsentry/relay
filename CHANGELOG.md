@@ -27,6 +27,7 @@
 - Add a field to suggest consumers to ingest spans in EAP. ([#4206](https://github.com/getsentry/relay/pull/4206))
 - Run internal worker threads with a lower priority. ([#4222](https://github.com/getsentry/relay/pull/4222))
 - Add additional fields to the `Event` `Getter`. ([#4238](https://github.com/getsentry/relay/pull/4238))
+- Replace u64 with `OrganizationId` new-type struct for organization id. ([#4159](https://github.com/getsentry/relay/pull/4159))
 
 ## 24.10.0
 

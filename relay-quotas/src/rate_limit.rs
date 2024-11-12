@@ -4,6 +4,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
 use relay_base_schema::metrics::MetricNamespace;
+use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use smallvec::SmallVec;
 
@@ -129,7 +130,7 @@ pub enum RateLimitScope {
     /// Global scope.
     Global,
     /// An organization with identifier.
-    Organization(u64),
+    Organization(OrganizationId),
     /// A project with identifier.
     Project(ProjectId),
     /// A DSN public key.
@@ -498,7 +499,7 @@ mod tests {
     fn test_rate_limit_matches_categories() {
         let rate_limit = RateLimit {
             categories: smallvec![DataCategory::Unknown, DataCategory::Error],
-            scope: RateLimitScope::Organization(42),
+            scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
             namespaces: smallvec![],
@@ -507,7 +508,7 @@ mod tests {
         assert!(rate_limit.matches(ItemScoping {
             category: DataCategory::Error,
             scoping: &Scoping {
-                organization_id: 42,
+                organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
@@ -518,7 +519,7 @@ mod tests {
         assert!(!rate_limit.matches(ItemScoping {
             category: DataCategory::Transaction,
             scoping: &Scoping {
-                organization_id: 42,
+                organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
@@ -531,7 +532,7 @@ mod tests {
     fn test_rate_limit_matches_organization() {
         let rate_limit = RateLimit {
             categories: DataCategories::new(),
-            scope: RateLimitScope::Organization(42),
+            scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
             namespaces: smallvec![],
@@ -540,7 +541,7 @@ mod tests {
         assert!(rate_limit.matches(ItemScoping {
             category: DataCategory::Error,
             scoping: &Scoping {
-                organization_id: 42,
+                organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
@@ -551,7 +552,7 @@ mod tests {
         assert!(!rate_limit.matches(ItemScoping {
             category: DataCategory::Error,
             scoping: &Scoping {
-                organization_id: 0,
+                organization_id: OrganizationId::new(0),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
@@ -573,7 +574,7 @@ mod tests {
         assert!(rate_limit.matches(ItemScoping {
             category: DataCategory::Error,
             scoping: &Scoping {
-                organization_id: 42,
+                organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
@@ -584,7 +585,7 @@ mod tests {
         assert!(!rate_limit.matches(ItemScoping {
             category: DataCategory::Error,
             scoping: &Scoping {
-                organization_id: 42,
+                organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(0),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
@@ -597,14 +598,14 @@ mod tests {
     fn test_rate_limit_matches_namespaces() {
         let rate_limit = RateLimit {
             categories: smallvec![],
-            scope: RateLimitScope::Organization(42),
+            scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
             namespaces: smallvec![MetricNamespace::Custom],
         };
 
         let scoping = Scoping {
-            organization_id: 42,
+            organization_id: OrganizationId::new(42),
             project_id: ProjectId::new(21),
             project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             key_id: None,
@@ -624,7 +625,7 @@ mod tests {
 
         let general_rate_limit = RateLimit {
             categories: smallvec![],
-            scope: RateLimitScope::Organization(42),
+            scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
             namespaces: smallvec![], // all namespaces
@@ -658,7 +659,7 @@ mod tests {
         assert!(rate_limit.matches(ItemScoping {
             category: DataCategory::Error,
             scoping: &Scoping {
-                organization_id: 42,
+                organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
@@ -669,7 +670,7 @@ mod tests {
         assert!(!rate_limit.matches(ItemScoping {
             category: DataCategory::Error,
             scoping: &Scoping {
-                organization_id: 0,
+                organization_id: OrganizationId::new(0),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("deadbeefdeadbeefdeadbeefdeadbeef").unwrap(),
                 key_id: None,
@@ -684,7 +685,7 @@ mod tests {
 
         rate_limits.add(RateLimit {
             categories: smallvec![DataCategory::Default, DataCategory::Error],
-            scope: RateLimitScope::Organization(42),
+            scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: Some(ReasonCode::new("first")),
             retry_after: RetryAfter::from_secs(1),
             namespaces: smallvec![],
@@ -693,7 +694,7 @@ mod tests {
         // longer rate limit shadows shorter one
         rate_limits.add(RateLimit {
             categories: smallvec![DataCategory::Error, DataCategory::Default],
-            scope: RateLimitScope::Organization(42),
+            scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: Some(ReasonCode::new("second")),
             retry_after: RetryAfter::from_secs(10),
             namespaces: smallvec![],
@@ -707,7 +708,7 @@ mod tests {
                 default,
                 error,
               ],
-              scope: Organization(42),
+              scope: Organization(OrganizationId(42)),
               reason_code: Some(ReasonCode("second")),
               retry_after: RetryAfter(10),
               namespaces: [],
@@ -723,7 +724,7 @@ mod tests {
 
         rate_limits.add(RateLimit {
             categories: smallvec![DataCategory::Default, DataCategory::Error],
-            scope: RateLimitScope::Organization(42),
+            scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: Some(ReasonCode::new("first")),
             retry_after: RetryAfter::from_secs(10),
             namespaces: smallvec![],
@@ -732,7 +733,7 @@ mod tests {
         // shorter rate limit is shadowed by existing one
         rate_limits.add(RateLimit {
             categories: smallvec![DataCategory::Error, DataCategory::Default],
-            scope: RateLimitScope::Organization(42),
+            scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: Some(ReasonCode::new("second")),
             retry_after: RetryAfter::from_secs(1),
             namespaces: smallvec![],
@@ -746,7 +747,7 @@ mod tests {
                 default,
                 error,
               ],
-              scope: Organization(42),
+              scope: Organization(OrganizationId(42)),
               reason_code: Some(ReasonCode("first")),
               retry_after: RetryAfter(10),
               namespaces: [],
@@ -762,7 +763,7 @@ mod tests {
 
         rate_limits.add(RateLimit {
             categories: smallvec![DataCategory::Error],
-            scope: RateLimitScope::Organization(42),
+            scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
             namespaces: smallvec![],
@@ -771,7 +772,7 @@ mod tests {
         // Same scope but different categories
         rate_limits.add(RateLimit {
             categories: smallvec![DataCategory::Transaction],
-            scope: RateLimitScope::Organization(42),
+            scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
             namespaces: smallvec![],
@@ -793,7 +794,7 @@ mod tests {
               categories: [
                 error,
               ],
-              scope: Organization(42),
+              scope: Organization(OrganizationId(42)),
               reason_code: None,
               retry_after: RetryAfter(1),
               namespaces: [],
@@ -802,7 +803,7 @@ mod tests {
               categories: [
                 transaction,
               ],
-              scope: Organization(42),
+              scope: Organization(OrganizationId(42)),
               reason_code: None,
               retry_after: RetryAfter(1),
               namespaces: [],
@@ -828,7 +829,7 @@ mod tests {
 
         rate_limits.add(RateLimit {
             categories: smallvec![DataCategory::MetricBucket],
-            scope: RateLimitScope::Organization(42),
+            scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
             namespaces: smallvec![MetricNamespace::Custom],
@@ -837,7 +838,7 @@ mod tests {
         // Same category but different namespaces
         rate_limits.add(RateLimit {
             categories: smallvec![DataCategory::MetricBucket],
-            scope: RateLimitScope::Organization(42),
+            scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
             namespaces: smallvec![MetricNamespace::Spans],
@@ -850,7 +851,7 @@ mod tests {
               categories: [
                 metric_bucket,
               ],
-              scope: Organization(42),
+              scope: Organization(OrganizationId(42)),
               reason_code: None,
               retry_after: RetryAfter(1),
               namespaces: [
@@ -861,7 +862,7 @@ mod tests {
               categories: [
                 metric_bucket,
               ],
-              scope: Organization(42),
+              scope: Organization(OrganizationId(42)),
               reason_code: None,
               retry_after: RetryAfter(1),
               namespaces: [
@@ -879,7 +880,7 @@ mod tests {
 
         rate_limits.add(RateLimit {
             categories: smallvec![DataCategory::Error],
-            scope: RateLimitScope::Organization(42),
+            scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: Some(ReasonCode::new("first")),
             retry_after: RetryAfter::from_secs(1),
             namespaces: smallvec![],
@@ -888,7 +889,7 @@ mod tests {
         // Distinct scope to prevent deduplication
         rate_limits.add(RateLimit {
             categories: smallvec![DataCategory::Transaction],
-            scope: RateLimitScope::Organization(42),
+            scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: Some(ReasonCode::new("second")),
             retry_after: RetryAfter::from_secs(10),
             namespaces: smallvec![],
@@ -900,7 +901,7 @@ mod tests {
           categories: [
             transaction,
           ],
-          scope: Organization(42),
+          scope: Organization(OrganizationId(42)),
           reason_code: Some(ReasonCode("second")),
           retry_after: RetryAfter(10),
           namespaces: [],
@@ -915,7 +916,7 @@ mod tests {
         // Active error limit
         rate_limits.add(RateLimit {
             categories: smallvec![DataCategory::Error],
-            scope: RateLimitScope::Organization(42),
+            scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
             namespaces: smallvec![],
@@ -943,7 +944,7 @@ mod tests {
               categories: [
                 error,
               ],
-              scope: Organization(42),
+              scope: Organization(OrganizationId(42)),
               reason_code: None,
               retry_after: RetryAfter(1),
               namespaces: [],
@@ -960,7 +961,7 @@ mod tests {
         // Active error limit
         rate_limits.add(RateLimit {
             categories: smallvec![DataCategory::Error],
-            scope: RateLimitScope::Organization(42),
+            scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
             namespaces: smallvec![],
@@ -969,7 +970,7 @@ mod tests {
         // Active transaction limit
         rate_limits.add(RateLimit {
             categories: smallvec![DataCategory::Transaction],
-            scope: RateLimitScope::Organization(42),
+            scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
             namespaces: smallvec![],
@@ -978,7 +979,7 @@ mod tests {
         let applied_limits = rate_limits.check(ItemScoping {
             category: DataCategory::Error,
             scoping: &Scoping {
-                organization_id: 42,
+                organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
@@ -994,7 +995,7 @@ mod tests {
               categories: [
                 error,
               ],
-              scope: Organization(42),
+              scope: Organization(OrganizationId(42)),
               reason_code: None,
               retry_after: RetryAfter(1),
               namespaces: [],
@@ -1011,7 +1012,7 @@ mod tests {
         // Active error limit
         rate_limits.add(RateLimit {
             categories: smallvec![DataCategory::Error],
-            scope: RateLimitScope::Organization(42),
+            scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
             namespaces: smallvec![],
@@ -1020,7 +1021,7 @@ mod tests {
         // Active transaction limit
         rate_limits.add(RateLimit {
             categories: smallvec![DataCategory::Transaction],
-            scope: RateLimitScope::Organization(42),
+            scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
             namespaces: smallvec![],
@@ -1029,7 +1030,7 @@ mod tests {
         let item_scoping = ItemScoping {
             category: DataCategory::Error,
             scoping: &Scoping {
-                organization_id: 42,
+                organization_id: OrganizationId::new(42),
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
                 key_id: None,
@@ -1057,7 +1058,7 @@ mod tests {
               categories: [
                 error,
               ],
-              scope: Organization(42),
+              scope: Organization(OrganizationId(42)),
               reason_code: Some(ReasonCode("zero")),
               retry_after: RetryAfter(60),
               namespaces: [],
@@ -1074,7 +1075,7 @@ mod tests {
 
         rate_limits1.add(RateLimit {
             categories: smallvec![DataCategory::Error],
-            scope: RateLimitScope::Organization(42),
+            scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: Some(ReasonCode::new("first")),
             retry_after: RetryAfter::from_secs(1),
             namespaces: smallvec![],
@@ -1082,7 +1083,7 @@ mod tests {
 
         rate_limits1.add(RateLimit {
             categories: smallvec![DataCategory::TransactionIndexed],
-            scope: RateLimitScope::Organization(42),
+            scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
             namespaces: smallvec![],
@@ -1090,7 +1091,7 @@ mod tests {
 
         rate_limits2.add(RateLimit {
             categories: smallvec![DataCategory::Error],
-            scope: RateLimitScope::Organization(42),
+            scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: Some(ReasonCode::new("second")),
             retry_after: RetryAfter::from_secs(10),
             namespaces: smallvec![],
@@ -1105,7 +1106,7 @@ mod tests {
               categories: [
                 error,
               ],
-              scope: Organization(42),
+              scope: Organization(OrganizationId(42)),
               reason_code: Some(ReasonCode("second")),
               retry_after: RetryAfter(10),
               namespaces: [],
@@ -1114,7 +1115,7 @@ mod tests {
               categories: [
                 transaction_indexed,
               ],
-              scope: Organization(42),
+              scope: Organization(OrganizationId(42)),
               reason_code: None,
               retry_after: RetryAfter(1),
               namespaces: [],
@@ -1131,7 +1132,7 @@ mod tests {
         // Active error limit
         cached.add(RateLimit {
             categories: smallvec![DataCategory::Error],
-            scope: RateLimitScope::Organization(42),
+            scope: RateLimitScope::Organization(OrganizationId::new(42)),
             reason_code: None,
             retry_after: RetryAfter::from_secs(1),
             namespaces: smallvec![],
@@ -1155,7 +1156,7 @@ mod tests {
               categories: [
                 error,
               ],
-              scope: Organization(42),
+              scope: Organization(OrganizationId(42)),
               reason_code: None,
               retry_after: RetryAfter(1),
               namespaces: [],
