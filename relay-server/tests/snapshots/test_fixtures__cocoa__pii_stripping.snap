@@ -1,6 +1,6 @@
 ---
 source: relay-server/tests/test_fixtures.rs
-expression: SerializableAnnotated(&event)
+expression: SerializableAnnotated(& event)
 ---
 {
   "event_id": "498b1ef84dd242d4b265fcc39c42f744",
@@ -43,6 +43,7 @@ expression: SerializableAnnotated(&event)
       "type": "device"
     },
     "os": {
+      "os": "iOS 11.4",
       "name": "iOS",
       "version": "11.4",
       "build": "17F77",
