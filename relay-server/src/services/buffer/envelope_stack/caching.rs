@@ -17,7 +17,7 @@ impl<S> CachingEnvelopeStack<S>
 where
     S: EnvelopeStack,
 {
-    /// Creates a new `CachingEnvelopeStack` wrapping the provided envelope stack
+    /// Creates a new [`CachingEnvelopeStack`] wrapping the provided envelope stack
     pub fn new(inner: S) -> Self {
         Self {
             inner,

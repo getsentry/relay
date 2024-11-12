@@ -24,7 +24,7 @@ impl EnvelopeStack for MemoryEnvelopeStack {
     }
 
     async fn peek(&mut self) -> Result<Option<DateTime<Utc>>, Self::Error> {
-        Ok(self.0.last().map(|e| e.meta().received_at()))
+        Ok(self.0.last().map(|e| e.received_at()))
     }
 
     async fn pop(&mut self) -> Result<Option<Box<Envelope>>, Self::Error> {
