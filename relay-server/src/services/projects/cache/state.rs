@@ -116,7 +116,7 @@ impl ProjectStore {
         // Remove the private part.
         let Some(private) = self.private.remove(&project_key) else {
             // Not possible if all invariants are upheld.
-            debug_assert!(false, "no private state for evicition");
+            debug_assert!(false, "no private state for eviction");
             return;
         };
 
@@ -601,7 +601,7 @@ impl Expiry {
 }
 
 /// Instant when a project is scheduled for expiry.
-#[must_use = "an expiry time must be used to schedule an evicition"]
+#[must_use = "an expiry time must be used to schedule an eviction"]
 struct ExpiryTime(Instant);
 
 #[cfg(test)]
