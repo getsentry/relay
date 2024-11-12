@@ -200,7 +200,11 @@ struct Inner<Q> {
 }
 
 impl<Q> Inner<Q> {
-    pub fn modify(&mut self, f: impl FnOnce(&mut Q) -> bool) {
+    /// Provides mutable access to the inner queue implementation.
+    ///
+    /// The closure `f` must return whether the modification requires a wakeup.
+    /// All modifications which changes the head of the queue must return `true`.
+    fn modify(&mut self, f: impl FnOnce(&mut Q) -> bool) {
         let needs_wake = f(&mut self.inner);
         if needs_wake {
             if let Some(ref waker) = self.waker {

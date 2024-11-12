@@ -170,10 +170,10 @@ impl ProjectCacheService {
         );
     }
 
-    fn handle_eviction(&mut self, evicition: Eviction) {
-        let project_key = evicition.project_key();
+    fn handle_eviction(&mut self, eviction: Eviction) {
+        let project_key = eviction.project_key();
 
-        self.store.evict(evicition);
+        self.store.evict(eviction);
 
         let _ = self
             .project_events_tx
