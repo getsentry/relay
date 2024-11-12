@@ -398,7 +398,7 @@ fn scrub_redis_keys(string: &str) -> Option<String> {
                 }
             }
         }
-        None => "*".to_string(),
+        None => "*".to_owned(),
     })
 }
 
