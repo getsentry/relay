@@ -27,9 +27,7 @@ struct Args {
     #[arg(long)]
     compression_ratio: f64,
     #[arg(long)]
-    write_batch_kib: usize,
-    #[arg(long)]
-    read_batch_size: usize,
+    batch_size_kib: usize,
     #[arg(long)]
     implementation: Impl,
     #[arg(long)]
@@ -49,14 +47,14 @@ async fn main() {
     let Args {
         envelope_size_kib,
         compression_ratio,
-        write_batch_kib,
-        read_batch_size,
+        batch_size_kib,
         implementation,
         mode,
         projects,
         duration_secs,
         db,
     } = args;
+    relay_log::init(&Default::default(), &Default::default());
 
     let dir = tempfile::tempdir().unwrap();
     let path = db.unwrap_or(dir.path().join("envelopes.db"));
@@ -73,8 +71,7 @@ async fn main() {
                         Impl::Memory => None,
                         Impl::Sqlite => Some(path),
                     },
-                    "write_batch_bytes": write_batch_kib * 1024,
-                    "read_batch_size": read_batch_size,
+                    "batch_size_bytes": batch_size_kib * 1024,
                 }
             }
         }))
@@ -143,7 +140,7 @@ async fn run_sequential(
         if (after - last_check) > Duration::from_secs(1) {
             let throughput = (writes * bytes_per_envelope) as f64 / write_duration.as_secs_f64();
             let throughput = throughput / 1024.0 / 1024.0;
-            println!("Write throughput: {throughput:.2} MiB / s");
+            println!("{throughput:.2}");
             write_duration = Duration::ZERO;
             writes = 0;
             last_check = after;
@@ -238,7 +235,7 @@ fn mock_envelope(
     ).into_bytes();
 
     // Fill with random bytes to get estimated compression ratio:
-    let mut payload = [0u8].repeat(payload_size);
+    let mut payload = vec![0u8; payload_size];
     let fraction = (payload_size as f64 / compression_ratio) as usize;
     rand::thread_rng().fill_bytes(&mut payload[..fraction]);
     envelope.extend(payload);

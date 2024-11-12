@@ -872,13 +872,8 @@ fn spool_envelopes_unspool_interval() -> u64 {
     100
 }
 
-/// Default number of envelope to read from disk at once.
-fn spool_envelopes_read_batch_size() -> usize {
-    200
-}
-
 /// Default number of encoded envelope bytes to cache before writing to disk.
-fn spool_envelopes_write_batch_bytes() -> ByteSize {
+fn spool_envelopes_batch_size_bytes() -> ByteSize {
     ByteSize::kibibytes(10)
 }
 
@@ -927,16 +922,11 @@ pub struct EnvelopeSpool {
     /// The interval in milliseconds to trigger unspool.
     #[serde(default = "spool_envelopes_unspool_interval")]
     unspool_interval: u64,
-    /// Number of envelopes that are read from disk at once.
-    ///
-    /// Defaults to 10.
-    #[serde(default = "spool_envelopes_read_batch_size")]
-    read_batch_size: usize,
     /// Number of encoded envelope bytes that are spooled to disk at once.
     ///
     /// Defaults to 10 KiB.
-    #[serde(default = "spool_envelopes_write_batch_bytes")]
-    write_batch_bytes: ByteSize,
+    #[serde(default = "spool_envelopes_batch_size_bytes")]
+    batch_size_bytes: ByteSize,
     /// Maximum time between receiving the envelope and processing it.
     ///
     /// When envelopes spend too much time in the buffer (e.g. because their project cannot be loaded),
@@ -956,7 +946,7 @@ pub struct EnvelopeSpool {
     /// This value should be lower than [`Health::max_memory_percent`] to prevent flip-flopping.
     ///
     /// Warning: this threshold can cause the buffer service to deadlock when the buffer itself
-    /// is using too much memory (influenced by [`Self::read_batch_size`] and [`Self::write_batch_bytes`]).
+    /// is using too much memory (influenced by [`Self::batch_size_bytes`]).
     ///
     /// Defaults to 90% (5% less than max memory).
     #[serde(default = "spool_max_backpressure_memory_percent")]
@@ -993,8 +983,7 @@ impl Default for EnvelopeSpool {
             max_disk_size: spool_envelopes_max_disk_size(),
             max_memory_size: spool_envelopes_max_memory_size(),
             unspool_interval: spool_envelopes_unspool_interval(),
-            read_batch_size: spool_envelopes_read_batch_size(),
-            write_batch_bytes: spool_envelopes_write_batch_bytes(),
+            batch_size_bytes: spool_envelopes_batch_size_bytes(),
             max_envelope_delay_secs: spool_envelopes_max_envelope_delay_secs(),
             disk_usage_refresh_frequency_ms: spool_disk_usage_refresh_frequency_ms(),
             max_backpressure_envelopes: spool_max_backpressure_envelopes(),
@@ -2177,15 +2166,10 @@ impl Config {
         self.values.spool.envelopes.max_memory_size.as_bytes()
     }
 
-    /// Number of envelopes to read from disk at once.
-    pub fn spool_envelopes_read_batch_size(&self) -> usize {
-        self.values.spool.envelopes.read_batch_size
-    }
-
     /// Number of encoded envelope bytes that need to be accumulated before
     /// flushing one batch to disk.
-    pub fn spool_envelopes_write_batch_bytes(&self) -> usize {
-        self.values.spool.envelopes.write_batch_bytes.as_bytes()
+    pub fn spool_envelopes_batch_size_bytes(&self) -> usize {
+        self.values.spool.envelopes.batch_size_bytes.as_bytes()
     }
 
     /// Returns `true` if version 2 of the spooling mechanism is used.

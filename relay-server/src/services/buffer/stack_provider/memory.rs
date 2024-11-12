@@ -46,7 +46,7 @@ impl StackProvider for MemoryStackProvider {
     async fn flush(&mut self, envelope_stacks: impl IntoIterator<Item = Self::Stack>) {
         for envelope_stack in envelope_stacks {
             // The flushed envelopes will be immediately dropped.
-            let _ = envelope_stack.flush();
+            envelope_stack.flush().await;
         }
     }
 }

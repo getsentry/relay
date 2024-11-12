@@ -10,13 +10,12 @@ use crate::services::buffer::stack_provider::{
     InitializationState, StackCreationType, StackProvider,
 };
 use crate::statsd::RelayTimers;
-use crate::{Envelope, EnvelopeStack, SqliteEnvelopeStack};
+use crate::{EnvelopeStack, SqliteEnvelopeStack};
 
 #[derive(Debug)]
 pub struct SqliteStackProvider {
     envelope_store: SqliteEnvelopeStore,
-    read_batch_size: usize,
-    write_batch_bytes: usize,
+    batch_size_bytes: usize,
     max_disk_size: usize,
 }
 
@@ -27,29 +26,9 @@ impl SqliteStackProvider {
         let envelope_store = SqliteEnvelopeStore::prepare(config).await?;
         Ok(Self {
             envelope_store,
-            read_batch_size: config.spool_envelopes_read_batch_size(),
-            write_batch_bytes: config.spool_envelopes_write_batch_bytes(),
+            batch_size_bytes: config.spool_envelopes_batch_size_bytes(),
             max_disk_size: config.spool_envelopes_max_disk_size(),
         })
-    }
-
-    /// Inserts the supplied [`Envelope`]s in the database.
-    #[allow(clippy::vec_box)]
-    async fn drain_many(&mut self, envelopes: Vec<Box<Envelope>>) {
-        if let Err(error) = self
-            .envelope_store
-            .insert_many(
-                envelopes
-                    .into_iter()
-                    .filter_map(|e| e.as_ref().try_into().ok()),
-            )
-            .await
-        {
-            relay_log::error!(
-                error = &error as &dyn Error,
-                "failed to drain the envelope stacks, some envelopes might be lost",
-            );
-        }
     }
 
     /// Returns `true` when there might be data residing on disk, `false` otherwise.
@@ -81,8 +60,7 @@ impl StackProvider for SqliteStackProvider {
     ) -> Self::Stack {
         SqliteEnvelopeStack::new(
             self.envelope_store.clone(),
-            self.read_batch_size,
-            self.write_batch_bytes,
+            self.batch_size_bytes,
             project_key_pair.own_key,
             project_key_pair.sampling_key,
             // We want to check the disk by default if we are creating the stack for the first time,
@@ -120,21 +98,8 @@ impl StackProvider for SqliteStackProvider {
         relay_log::trace!("Flushing sqlite envelope buffer");
 
         relay_statsd::metric!(timer(RelayTimers::BufferDrain), {
-            let batch_size = 1000;
-            let mut envelopes = Vec::with_capacity(batch_size);
             for envelope_stack in envelope_stacks {
-                for envelope in envelope_stack.flush() {
-                    if envelopes.len() >= batch_size {
-                        self.drain_many(envelopes).await;
-                        envelopes = Vec::with_capacity(batch_size);
-                    }
-
-                    envelopes.push(envelope);
-                }
-            }
-
-            if !envelopes.is_empty() {
-                self.drain_many(envelopes).await;
+                envelope_stack.flush().await;
             }
         });
     }

@@ -7,7 +7,8 @@ use relay_base_schema::project::ProjectKey;
 use crate::envelope::Envelope;
 use crate::services::buffer::envelope_stack::EnvelopeStack;
 use crate::services::buffer::envelope_store::sqlite::{
-    DatabaseEnvelope, InsertEnvelopeError, SqliteEnvelopeStore, SqliteEnvelopeStoreError,
+    DatabaseBatch, DatabaseEnvelope, InsertEnvelopeError, SqliteEnvelopeStore,
+    SqliteEnvelopeStoreError,
 };
 use crate::statsd::{RelayCounters, RelayTimers};
 
@@ -28,16 +29,13 @@ pub enum SqliteEnvelopeStackError {
 pub struct SqliteEnvelopeStack {
     /// Shared SQLite database pool which will be used to read and write from disk.
     envelope_store: SqliteEnvelopeStore,
-    /// Maximum number of envelopes to read from disk at once.
-    read_batch_size: NonZeroUsize,
     /// Maximum number of bytes in the in-memory cache before we write to disk.
-    write_batch_bytes: NonZeroUsize,
+    batch_size_bytes: NonZeroUsize,
     /// The project key of the project to which all the envelopes belong.
     own_key: ProjectKey,
     /// The project key of the root project of the trace to which all the envelopes belong.
     sampling_key: ProjectKey,
     /// In-memory stack containing a batch of envelopes that either have not been written to disk yet, or have been read from disk recently.
-    #[allow(clippy::vec_box)]
     batch: Vec<DatabaseEnvelope>,
     /// Boolean representing whether calls to `push()` and `peek()` check disk in case not enough
     /// elements are available in the `batches_buffer`.
@@ -48,16 +46,14 @@ impl SqliteEnvelopeStack {
     /// Creates a new empty [`SqliteEnvelopeStack`].
     pub fn new(
         envelope_store: SqliteEnvelopeStore,
-        read_batch_size: usize,
-        write_batch_bytes: usize,
+        batch_size_bytes: usize,
         own_key: ProjectKey,
         sampling_key: ProjectKey,
         check_disk: bool,
     ) -> Self {
         Self {
             envelope_store,
-            read_batch_size: NonZeroUsize::new(read_batch_size).expect("batch size should be > 0"),
-            write_batch_bytes: NonZeroUsize::new(write_batch_bytes)
+            batch_size_bytes: NonZeroUsize::new(batch_size_bytes)
                 .expect("batch bytes should be > 0"),
             own_key,
             sampling_key,
@@ -68,7 +64,7 @@ impl SqliteEnvelopeStack {
 
     /// Threshold above which the [`SqliteEnvelopeStack`] will spool data from the `buffer` to disk.
     fn above_spool_threshold(&self) -> bool {
-        self.batch.iter().map(|e| e.len()).sum::<usize>() > self.write_batch_bytes.get()
+        self.batch.iter().map(|e| e.len()).sum::<usize>() > self.batch_size_bytes.get()
     }
 
     /// Spools to disk up to `disk_batch_size` envelopes from the `buffer`.
@@ -78,6 +74,10 @@ impl SqliteEnvelopeStack {
     /// of the method.
     async fn spool_to_disk(&mut self) -> Result<(), SqliteEnvelopeStackError> {
         let batch = std::mem::take(&mut self.batch);
+        let Ok(batch) = DatabaseBatch::try_from(batch) else {
+            return Ok(());
+        };
+
         relay_statsd::metric!(counter(RelayCounters::BufferSpooledEnvelopes) += batch.len() as u64);
 
         // When early return here, we are acknowledging that the elements that we popped from
@@ -86,7 +86,7 @@ impl SqliteEnvelopeStack {
         // the buffer we will end up with an infinite cycle.
         relay_statsd::metric!(timer(RelayTimers::BufferSpool), {
             self.envelope_store
-                .insert_many(batch)
+                .insert_batch(batch)
                 .await
                 .map_err(SqliteEnvelopeStackError::EnvelopeStoreError)?;
         });
@@ -106,21 +106,18 @@ impl SqliteEnvelopeStack {
     /// envelope will not be unspooled and unspooling will continue with the remaining envelopes.
     async fn unspool_from_disk(&mut self) -> Result<(), SqliteEnvelopeStackError> {
         debug_assert!(self.batch.is_empty());
-        self.batch = relay_statsd::metric!(timer(RelayTimers::BufferUnspool), {
+        let batch = relay_statsd::metric!(timer(RelayTimers::BufferUnspool), {
             self.envelope_store
-                .delete_many(
-                    self.own_key,
-                    self.sampling_key,
-                    self.read_batch_size.get() as i64,
-                )
+                .delete_batch(self.own_key, self.sampling_key)
                 .await
                 .map_err(SqliteEnvelopeStackError::EnvelopeStoreError)?
         });
 
-        if self.batch.is_empty() {
-            // In case no envelopes were unspooled, we will mark the disk as empty until another
-            // round of spooling takes place.
-            self.check_disk = false;
+        match batch {
+            Some(batch) => {
+                self.batch = batch.into();
+            }
+            None => self.check_disk = false,
         }
 
         relay_statsd::metric!(
@@ -183,11 +180,10 @@ impl EnvelopeStack for SqliteEnvelopeStack {
         Ok(Some(envelope))
     }
 
-    fn flush(self) -> Vec<Box<Envelope>> {
-        self.batch
-            .into_iter()
-            .filter_map(|e| e.try_into().ok())
-            .collect()
+    async fn flush(mut self) {
+        if let Err(e) = self.spool_to_disk().await {
+            relay_log::error!(error = &e as &dyn std::error::Error, "flush error");
+        }
     }
 }
 
@@ -216,7 +212,6 @@ mod tests {
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store,
             10,
-            2,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("c25ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
             true,
@@ -239,7 +234,6 @@ mod tests {
 
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store,
-            10,
             threshold_size,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
@@ -280,7 +274,6 @@ mod tests {
         let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store,
-            10,
             2,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
@@ -300,7 +293,6 @@ mod tests {
         let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store,
-            10,
             2,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
@@ -318,7 +310,6 @@ mod tests {
         let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store,
-            10,
             9999,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
@@ -364,7 +355,6 @@ mod tests {
         // Create stack with threshold just below the size of first 5 envelopes
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store,
-            10,
             threshold_size,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
@@ -432,7 +422,6 @@ mod tests {
         let envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
         let mut stack = SqliteEnvelopeStack::new(
             envelope_store.clone(),
-            10,
             10 * COMPRESSED_ENVELOPE_SIZE,
             ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
             ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap(),
@@ -448,9 +437,8 @@ mod tests {
         assert_eq!(stack.batch.len(), 5);
         assert_eq!(envelope_store.total_count().await.unwrap(), 0);
 
-        // We drain the stack and make sure nothing was spooled to disk.
-        let drained_envelopes = stack.flush();
-        assert_eq!(drained_envelopes.into_iter().collect::<Vec<_>>().len(), 5);
-        assert_eq!(envelope_store.total_count().await.unwrap(), 0);
+        // We drain the stack and make sure everything was spooled to disk.
+        stack.flush().await;
+        assert_eq!(envelope_store.total_count().await.unwrap(), 5);
     }
 }
