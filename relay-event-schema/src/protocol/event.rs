@@ -11,10 +11,11 @@ use uuid::Uuid;
 use crate::processor::ProcessValue;
 use crate::protocol::{
     AppContext, Breadcrumb, Breakdowns, BrowserContext, ClientSdkInfo, Contexts, Csp, DebugMeta,
-    DefaultContext, DeviceContext, EventType, Exception, ExpectCt, ExpectStaple, Fingerprint, Hpkp,
-    LenientString, Level, LogEntry, Measurements, Metrics, MetricsSummary, OsContext,
-    ProfileContext, RelayInfo, Request, ResponseContext, Span, SpanId, Stacktrace, Tags,
-    TemplateInfo, Thread, Timestamp, TraceContext, TransactionInfo, User, Values,
+    DefaultContext, DeviceContext, EventType, Exception, ExpectCt, ExpectStaple, Fingerprint,
+    GpuContext, Hpkp, LenientString, Level, LogEntry, Measurements, Metrics, MetricsSummary,
+    MonitorContext, OsContext, ProfileContext, RelayInfo, Request, ResponseContext, RuntimeContext,
+    Span, SpanId, Stacktrace, Tags, TemplateInfo, Thread, Timestamp, TraceContext, TransactionInfo,
+    User, Values,
 };
 
 /// Wrapper around a UUID with slightly different formatting.
@@ -674,6 +675,11 @@ impl Getter for Event {
             "contexts.app.in_foreground" => {
                 self.context::<AppContext>()?.in_foreground.value()?.into()
             }
+            "contexts.app.device_app_hash" => self
+                .context::<AppContext>()?
+                .device_app_hash
+                .as_str()?
+                .into(),
             "contexts.device.arch" => self.context::<DeviceContext>()?.arch.as_str()?.into(),
             "contexts.device.battery_level" => self
                 .context::<DeviceContext>()?
@@ -713,12 +719,23 @@ impl Getter for Event {
             "contexts.device.simulator" => {
                 self.context::<DeviceContext>()?.simulator.value()?.into()
             }
+            "contexts.gpu.vendor_name" => {
+                self.context::<GpuContext>()?.vendor_name.as_str()?.into()
+            }
+            "contexts.gpu.name" => self.context::<GpuContext>()?.name.as_str()?.into(),
+            "contexts.monitor.id" => self.context::<MonitorContext>()?.get("id")?.value()?.into(),
+            "contexts.monitor.slug" => self
+                .context::<MonitorContext>()?
+                .get("slug")?
+                .value()?
+                .into(),
             "contexts.os.build" => self.context::<OsContext>()?.build.as_str()?.into(),
             "contexts.os.kernel_version" => {
                 self.context::<OsContext>()?.kernel_version.as_str()?.into()
             }
             "contexts.os.name" => self.context::<OsContext>()?.name.as_str()?.into(),
             "contexts.os.version" => self.context::<OsContext>()?.version.as_str()?.into(),
+            "contexts.os.rooted" => self.context::<OsContext>()?.rooted.value()?.into(),
             "contexts.browser.name" => self.context::<BrowserContext>()?.name.as_str()?.into(),
             "contexts.browser.version" => {
                 self.context::<BrowserContext>()?.version.as_str()?.into()
@@ -746,6 +763,7 @@ impl Getter for Event {
                 super::Context::Other(context) => context.get("crash_type")?.value()?.into(),
                 _ => return None,
             },
+            "contexts.runtime.name" => self.context::<RuntimeContext>()?.name.as_str()?.into(),
 
             // Computed fields (see Discover)
             "duration" => {
@@ -807,6 +825,7 @@ mod tests {
     use chrono::{TimeZone, Utc};
     use relay_protocol::{ErrorKind, Map, Meta};
     use similar_asserts::assert_eq;
+    use std::collections::BTreeMap;
     use uuid::uuid;
 
     use super::*;
@@ -1158,6 +1177,16 @@ mod tests {
                     ))),
                     ..ProfileContext::default()
                 });
+                let mut monitor_context_fields = BTreeMap::new();
+                monitor_context_fields.insert(
+                    "id".to_string(),
+                    Annotated::new(Value::String("123".to_string())),
+                );
+                monitor_context_fields.insert(
+                    "slug".to_string(),
+                    Annotated::new(Value::String("my_monitor".to_string())),
+                );
+                contexts.add(MonitorContext(monitor_context_fields));
                 contexts
             }),
             ..Default::default()
@@ -1271,6 +1300,14 @@ mod tests {
         assert_eq!(
             Some(Val::String("message")),
             event.get_value("event.logentry.message")
+        );
+        assert_eq!(
+            Some(Val::String("123")),
+            event.get_value("event.contexts.monitor.id")
+        );
+        assert_eq!(
+            Some(Val::String("my_monitor")),
+            event.get_value("event.contexts.monitor.slug")
         );
     }
 
