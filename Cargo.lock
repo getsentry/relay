@@ -3426,7 +3426,6 @@ dependencies = [
 name = "relay-event-normalization"
 version = "24.10.0"
 dependencies = [
- "aho-corasick",
  "bytecount",
  "chrono",
  "dynfmt",

@@ -13,7 +13,6 @@ publish = false
 workspace = true
 
 [dependencies]
-aho-corasick = { workspace = true }
 bytecount = { workspace = true }
 chrono = { workspace = true, features = ["clock"] }
 dynfmt = { workspace = true, features = ["python", "curly"] }

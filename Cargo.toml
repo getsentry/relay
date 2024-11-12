@@ -61,7 +61,6 @@ relay-protocol-derive = { path = "relay-protocol-derive" }
 relay-event-derive = { path = "relay-event-derive" }
 
 ahash = "0.8.11"
-aho-corasick = "1.1.3"
 android_trace_log = { version = "0.3.0", features = ["serde"] }
 anyhow = "1.0.66"
 axum = "0.7.5"
