@@ -51,6 +51,8 @@ impl ProjectStore {
             .get_or_create(project_key, config)
             .try_begin_fetch(config);
 
+        // If there is a new fetch, remove the pending eviction, it will be re-scheduled once the
+        // fetch is completed.
         if fetch.is_some() {
             self.evictions.remove(&project_key);
         }
@@ -100,6 +102,8 @@ impl ProjectStore {
     /// Waits for the next scheduled eviction and returns an [`Eviction`] token.
     ///
     /// The returned [`Eviction`] token must be immediately turned in using [`Self::evict`].
+    ///
+    /// The returned future is cancellation safe.
     pub async fn next_eviction(&mut self) -> Option<Eviction> {
         if self.evictions.is_empty() {
             return None;
@@ -109,30 +113,18 @@ impl ProjectStore {
 
     /// Evicts a project using an [`Eviction`] token returned from [`Self::next_eviction`].
     pub fn evict(&mut self, Eviction(project_key): Eviction) {
-        let private = match self.private.entry_ref(&project_key) {
-            hashbrown::hash_map::EntryRef::Occupied(private) => private,
-            hashbrown::hash_map::EntryRef::Vacant(_) => {
-                debug_assert!(false, "no private state for evicition");
-                // Don't modify the shared state here.
-                //
-                // A potentially queued double eviction may have happened.
-                // In which case the shared state could have already been re-created between
-                // evictions.
-                return;
-            }
+        // Remove the private part.
+        let Some(private) = self.private.remove(&project_key) else {
+            // Not possible if all invariants are upheld.
+            debug_assert!(false, "no private state for evicition");
+            return;
         };
 
-        #[cfg(debug_assertions)]
-        {
-            let private = private.get();
-            assert!(
-                matches!(private.state, FetchState::Complete { .. }),
-                "private state must be completed"
-            );
-        }
+        debug_assert!(
+            matches!(private.state, FetchState::Complete { .. }),
+            "private state must be completed"
+        );
 
-        // Remove the private part.
-        let _ = private.remove();
         // Remove the shared part.
         let shared = self.shared.projects.pin();
         let _removed = shared.remove(&project_key);
