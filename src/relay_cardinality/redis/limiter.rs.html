@@ -1140,6 +1140,9 @@
 <a href="#1140" id="1140">1140</a>
 <a href="#1141" id="1141">1141</a>
 <a href="#1142" id="1142">1142</a>
+<a href="#1143" id="1143">1143</a>
+<a href="#1144" id="1144">1144</a>
+<a href="#1145" id="1145">1145</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span>relay_redis::{Connection, RedisPool};
@@ -1404,6 +1407,7 @@
     <span class="kw">use </span>std::sync::atomic::AtomicU64;
 
     <span class="kw">use </span>relay_base_schema::metrics::{MetricName, MetricNamespace::<span class="kw-2">*</span>, MetricType};
+    <span class="kw">use </span>relay_base_schema::organization::OrganizationId;
     <span class="kw">use </span>relay_base_schema::project::ProjectId;
     <span class="kw">use </span>relay_redis::{redis, RedisConfigOptions};
 
@@ -1435,7 +1439,9 @@
         <span class="kw">static </span>ORGS: AtomicU64 = AtomicU64::new(<span class="number">100</span>);
 
         <span class="kw">let </span>scoping = Scoping {
-            organization_id: ORGS.fetch_add(<span class="number">1</span>, std::sync::atomic::Ordering::SeqCst),
+            organization_id: OrganizationId::new(
+                ORGS.fetch_add(<span class="number">1</span>, std::sync::atomic::Ordering::SeqCst),
+            ),
             project_id: ProjectId::new(<span class="number">1</span>),
         };
 
@@ -1735,12 +1741,12 @@
         <span class="kw">let </span>granularity_seconds = <span class="number">10_000</span>;
 
         <span class="kw">let </span>scoping1 = Scoping {
-            organization_id: granularity_seconds,
+            organization_id: OrganizationId::new(granularity_seconds),
             project_id: ProjectId::new(<span class="number">1</span>),
         };
         <span class="kw">let </span>scoping2 = Scoping {
             <span class="comment">// Time shift relative to `scoping1` should be half the granularity.
-            </span>organization_id: granularity_seconds / <span class="number">2</span>,
+            </span>organization_id: OrganizationId::new(granularity_seconds / <span class="number">2</span>),
             project_id: ProjectId::new(<span class="number">1</span>),
         };
 

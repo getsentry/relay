@@ -394,6 +394,7 @@
 <a href="#394" id="394">394</a>
 <a href="#395" id="395">395</a>
 <a href="#396" id="396">396</a>
+<a href="#397" id="397">397</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>parking_lot::{MappedRwLockWriteGuard, RwLock, RwLockReadGuard, RwLockWriteGuard};
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::time::Duration;
@@ -593,11 +594,12 @@
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>relay_base_schema::metrics::{MetricName, MetricNamespace};
+    <span class="kw">use </span>relay_base_schema::organization::OrganizationId;
     <span class="kw">use </span>relay_base_schema::project::ProjectId;
 
     <span class="kw">use </span><span class="kw">crate</span>::limiter::{Entry, EntryId};
     <span class="kw">use </span><span class="kw">crate</span>::redis::quota::PartialQuotaScoping;
-    <span class="kw">use crate</span>::{CardinalityLimit, CardinalityScope, OrganizationId, Scoping, SlidingWindow};
+    <span class="kw">use crate</span>::{CardinalityLimit, CardinalityScope, Scoping, SlidingWindow};
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
@@ -634,7 +636,7 @@
             window_seconds: <span class="number">100</span>,
             granularity_seconds: <span class="number">10</span>,
         };
-        <span class="kw">let </span>scope = build_scoping(<span class="number">1</span>, window);
+        <span class="kw">let </span>scope = build_scoping(OrganizationId::new(<span class="number">1</span>), window);
         <span class="kw">let </span>now = UnixTimestamp::now();
         <span class="kw">let </span>future = now + Duration::from_secs(window.granularity_seconds + <span class="number">1</span>);
 
@@ -694,8 +696,8 @@
             window_seconds: <span class="number">100</span>,
             granularity_seconds: <span class="number">10</span>,
         };
-        <span class="kw">let </span>scope1 = build_scoping(<span class="number">1</span>, window);
-        <span class="kw">let </span>scope2 = build_scoping(<span class="number">2</span>, window);
+        <span class="kw">let </span>scope1 = build_scoping(OrganizationId::new(<span class="number">1</span>), window);
+        <span class="kw">let </span>scope2 = build_scoping(OrganizationId::new(<span class="number">2</span>), window);
 
         <span class="kw">let </span>now = UnixTimestamp::now();
 
@@ -732,8 +734,8 @@
             window_seconds: vacuum_interval.as_secs() * <span class="number">10</span>,
             granularity_seconds: vacuum_interval.as_secs() * <span class="number">2</span>,
         };
-        <span class="kw">let </span>scope1 = build_scoping(<span class="number">1</span>, window);
-        <span class="kw">let </span>scope2 = build_scoping(<span class="number">2</span>, window);
+        <span class="kw">let </span>scope1 = build_scoping(OrganizationId::new(<span class="number">1</span>), window);
+        <span class="kw">let </span>scope2 = build_scoping(OrganizationId::new(<span class="number">2</span>), window);
 
         <span class="kw">let </span>now = UnixTimestamp::now();
         <span class="kw">let </span>in_interval = now + Duration::from_secs(vacuum_interval.as_secs() - <span class="number">1</span>);

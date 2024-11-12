@@ -1518,6 +1518,7 @@
 <a href="#1518" id="1518">1518</a>
 <a href="#1519" id="1519">1519</a>
 <a href="#1520" id="1520">1520</a>
+<a href="#1521" id="1521">1521</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt::{<span class="self">self</span>, Write};
 
 <span class="kw">use </span>relay_quotas::{
@@ -2301,6 +2302,7 @@
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 
+    <span class="kw">use </span>relay_base_schema::organization::OrganizationId;
     <span class="kw">use </span>relay_base_schema::project::{ProjectId, ProjectKey};
     <span class="kw">use </span>relay_metrics::MetricNamespace;
     <span class="kw">use </span>relay_quotas::RetryAfter;
@@ -2321,7 +2323,7 @@
         <span class="comment">// Add a generic rate limit for all categories.
         </span>rate_limits.add(RateLimit {
             categories: DataCategories::new(),
-            scope: RateLimitScope::Organization(<span class="number">42</span>),
+            scope: RateLimitScope::Organization(OrganizationId::new(<span class="number">42</span>)),
             reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"my_limit"</span>)),
             retry_after: RetryAfter::from_secs(<span class="number">42</span>),
             namespaces: <span class="macro">smallvec!</span>[],
@@ -2348,7 +2350,7 @@
         <span class="comment">// Rate limit with reason code and namespace.
         </span>rate_limits.add(RateLimit {
             categories: <span class="macro">smallvec!</span>[DataCategory::MetricBucket],
-            scope: RateLimitScope::Organization(<span class="number">42</span>),
+            scope: RateLimitScope::Organization(OrganizationId::new(<span class="number">42</span>)),
             reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"my_limit"</span>)),
             retry_after: RetryAfter::from_secs(<span class="number">42</span>),
             namespaces: <span class="macro">smallvec!</span>[MetricNamespace::Custom, MetricNamespace::Spans],
@@ -2357,7 +2359,7 @@
         <span class="comment">// Rate limit without reason code.
         </span>rate_limits.add(RateLimit {
             categories: <span class="macro">smallvec!</span>[DataCategory::MetricBucket],
-            scope: RateLimitScope::Organization(<span class="number">42</span>),
+            scope: RateLimitScope::Organization(OrganizationId::new(<span class="number">42</span>)),
             reason_code: <span class="prelude-val">None</span>,
             retry_after: RetryAfter::from_secs(<span class="number">42</span>),
             namespaces: <span class="macro">smallvec!</span>[MetricNamespace::Spans],
@@ -2372,7 +2374,7 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_parse_invalid_rate_limits() {
         <span class="kw">let </span>scoping = Scoping {
-            organization_id: <span class="number">42</span>,
+            organization_id: OrganizationId::new(<span class="number">42</span>),
             project_id: ProjectId::new(<span class="number">21</span>),
             project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
             key_id: <span class="prelude-val">Some</span>(<span class="number">17</span>),
@@ -2386,7 +2388,7 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_parse_rate_limits() {
         <span class="kw">let </span>scoping = Scoping {
-            organization_id: <span class="number">42</span>,
+            organization_id: OrganizationId::new(<span class="number">42</span>),
             project_id: ProjectId::new(<span class="number">21</span>),
             project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
             key_id: <span class="prelude-val">Some</span>(<span class="number">17</span>),
@@ -2403,7 +2405,7 @@
             <span class="macro">vec!</span>[
                 RateLimit {
                     categories: DataCategories::new(),
-                    scope: RateLimitScope::Organization(<span class="number">42</span>),
+                    scope: RateLimitScope::Organization(OrganizationId::new(<span class="number">42</span>)),
                     reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"my_limit"</span>)),
                     retry_after: rate_limits[<span class="number">0</span>].retry_after,
                     namespaces: <span class="macro">smallvec!</span>[],
@@ -2429,7 +2431,7 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_parse_rate_limits_namespace() {
         <span class="kw">let </span>scoping = Scoping {
-            organization_id: <span class="number">42</span>,
+            organization_id: OrganizationId::new(<span class="number">42</span>),
             project_id: ProjectId::new(<span class="number">21</span>),
             project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
             key_id: <span class="prelude-val">Some</span>(<span class="number">17</span>),
@@ -2443,7 +2445,7 @@
             rate_limits,
             <span class="macro">vec!</span>[RateLimit {
                 categories: <span class="macro">smallvec!</span>[DataCategory::MetricBucket],
-                scope: RateLimitScope::Organization(<span class="number">42</span>),
+                scope: RateLimitScope::Organization(OrganizationId::new(<span class="number">42</span>)),
                 reason_code: <span class="prelude-val">None</span>,
                 retry_after: rate_limits[<span class="number">0</span>].retry_after,
                 namespaces: <span class="macro">smallvec!</span>[MetricNamespace::Custom, MetricNamespace::Spans],
@@ -2454,7 +2456,7 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_parse_rate_limits_empty_namespace() {
         <span class="kw">let </span>scoping = Scoping {
-            organization_id: <span class="number">42</span>,
+            organization_id: OrganizationId::new(<span class="number">42</span>),
             project_id: ProjectId::new(<span class="number">21</span>),
             project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
             key_id: <span class="prelude-val">Some</span>(<span class="number">17</span>),
@@ -2469,7 +2471,7 @@
             rate_limits,
             <span class="macro">vec!</span>[RateLimit {
                 categories: <span class="macro">smallvec!</span>[DataCategory::MetricBucket],
-                scope: RateLimitScope::Organization(<span class="number">42</span>),
+                scope: RateLimitScope::Organization(OrganizationId::new(<span class="number">42</span>)),
                 reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"some_reason"</span>)),
                 retry_after: rate_limits[<span class="number">0</span>].retry_after,
                 namespaces: <span class="macro">smallvec!</span>[],
@@ -2480,7 +2482,7 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_parse_rate_limits_only_unknown() {
         <span class="kw">let </span>scoping = Scoping {
-            organization_id: <span class="number">42</span>,
+            organization_id: OrganizationId::new(<span class="number">42</span>),
             project_id: ProjectId::new(<span class="number">21</span>),
             project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
             key_id: <span class="prelude-val">Some</span>(<span class="number">17</span>),
@@ -2494,7 +2496,7 @@
             rate_limits,
             <span class="macro">vec!</span>[RateLimit {
                 categories: <span class="macro">smallvec!</span>[DataCategory::Unknown, DataCategory::Unknown],
-                scope: RateLimitScope::Organization(<span class="number">42</span>),
+                scope: RateLimitScope::Organization(OrganizationId::new(<span class="number">42</span>)),
                 reason_code: <span class="prelude-val">None</span>,
                 retry_after: rate_limits[<span class="number">0</span>].retry_after,
                 namespaces: <span class="macro">smallvec!</span>[],
@@ -2536,7 +2538,7 @@
     <span class="kw">fn </span>rate_limit(category: DataCategory) -&gt; RateLimit {
         RateLimit {
             categories: <span class="macro">vec!</span>[category].into(),
-            scope: RateLimitScope::Organization(<span class="number">42</span>),
+            scope: RateLimitScope::Organization(OrganizationId::new(<span class="number">42</span>)),
             reason_code: <span class="prelude-val">None</span>,
             retry_after: RetryAfter::from_secs(<span class="number">60</span>),
             namespaces: <span class="macro">smallvec!</span>[],

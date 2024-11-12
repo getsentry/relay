@@ -991,6 +991,7 @@
 <a href="#991" id="991">991</a>
 <a href="#992" id="992">992</a>
 <a href="#993" id="993">993</a>
+<a href="#994" id="994">994</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt::{<span class="self">self</span>, Debug};
 
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
@@ -1092,7 +1093,7 @@
         <span class="kw">if </span><span class="self">self</span>.quota.scope == QuotaScope::Global {
             <span class="number">0
         </span>} <span class="kw">else </span>{
-            <span class="self">self</span>.scoping.organization_id % <span class="self">self</span>.window
+            <span class="self">self</span>.scoping.organization_id.value() % <span class="self">self</span>.window
         }
     }
 
@@ -1298,6 +1299,7 @@
     <span class="kw">use </span>std::time::{SystemTime, UNIX_EPOCH};
 
     <span class="kw">use </span>relay_base_schema::metrics::MetricNamespace;
+    <span class="kw">use </span>relay_base_schema::organization::OrganizationId;
     <span class="kw">use </span>relay_base_schema::project::{ProjectId, ProjectKey};
     <span class="kw">use </span>relay_redis::redis::Commands;
     <span class="kw">use </span>relay_redis::RedisConfigOptions;
@@ -1348,7 +1350,7 @@
         <span class="kw">let </span>scoping = ItemScoping {
             category: DataCategory::Error,
             scoping: <span class="kw-2">&amp;</span>Scoping {
-                organization_id: <span class="number">42</span>,
+                organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">43</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">44</span>),
@@ -1366,7 +1368,7 @@
             rate_limits,
             <span class="macro">vec!</span>[RateLimit {
                 categories: DataCategories::new(),
-                scope: RateLimitScope::Organization(<span class="number">42</span>),
+                scope: RateLimitScope::Organization(OrganizationId::new(<span class="number">42</span>)),
                 reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"get_lost"</span>)),
                 retry_after: rate_limits[<span class="number">0</span>].retry_after,
                 namespaces: <span class="macro">smallvec!</span>[],
@@ -1397,7 +1399,7 @@
         <span class="kw">let </span>scoping = ItemScoping {
             category: DataCategory::Error,
             scoping: <span class="kw-2">&amp;</span>Scoping {
-                organization_id: <span class="number">42</span>,
+                organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">43</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">44</span>),
@@ -1460,7 +1462,7 @@
         <span class="kw">let </span>scoping = ItemScoping {
             category: DataCategory::Error,
             scoping: <span class="kw-2">&amp;</span>Scoping {
-                organization_id: <span class="number">42</span>,
+                organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">43</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">44</span>),
@@ -1482,7 +1484,7 @@
                     rate_limits,
                     <span class="macro">vec!</span>[RateLimit {
                         categories: DataCategories::new(),
-                        scope: RateLimitScope::Organization(<span class="number">42</span>),
+                        scope: RateLimitScope::Organization(OrganizationId::new(<span class="number">42</span>)),
                         reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"get_lost"</span>)),
                         retry_after: rate_limits[<span class="number">0</span>].retry_after,
                         namespaces: <span class="macro">smallvec!</span>[],
@@ -1510,7 +1512,7 @@
         <span class="kw">let </span>scoping = ItemScoping {
             category: DataCategory::Error,
             scoping: <span class="kw-2">&amp;</span>Scoping {
-                organization_id: <span class="number">42</span>,
+                organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">43</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">44</span>),
@@ -1560,7 +1562,7 @@
         <span class="kw">let </span>scoping = ItemScoping {
             category: DataCategory::Error,
             scoping: <span class="kw-2">&amp;</span>Scoping {
-                organization_id: <span class="number">42</span>,
+                organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">43</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">44</span>),
@@ -1611,7 +1613,7 @@
         <span class="kw">let </span>scoping = ItemScoping {
             category: DataCategory::Error,
             scoping: <span class="kw-2">&amp;</span>Scoping {
-                organization_id: <span class="number">42</span>,
+                organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">43</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">44</span>),
@@ -1655,7 +1657,7 @@
         <span class="kw">let </span>scoping = ItemScoping {
             category: DataCategory::Error,
             scoping: <span class="kw-2">&amp;</span>Scoping {
-                organization_id: <span class="number">42</span>,
+                organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">43</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">44</span>),
@@ -1700,7 +1702,7 @@
         <span class="kw">let </span>scoping = ItemScoping {
             category: DataCategory::Error,
             scoping: <span class="kw-2">&amp;</span>Scoping {
-                organization_id: <span class="number">42</span>,
+                organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">43</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">44</span>),
@@ -1724,7 +1726,7 @@
                     rate_limits,
                     <span class="macro">vec!</span>[RateLimit {
                         categories: DataCategories::new(),
-                        scope: RateLimitScope::Organization(<span class="number">42</span>),
+                        scope: RateLimitScope::Organization(OrganizationId::new(<span class="number">42</span>)),
                         reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"project_quota1"</span>)),
                         retry_after: rate_limits[<span class="number">0</span>].retry_after,
                         namespaces: <span class="macro">smallvec!</span>[],
@@ -1750,7 +1752,7 @@
         <span class="kw">let </span>scoping = ItemScoping {
             category: DataCategory::Error,
             scoping: <span class="kw-2">&amp;</span>Scoping {
-                organization_id: <span class="number">42</span>,
+                organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">43</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">44</span>),
@@ -1772,7 +1774,7 @@
                     rate_limits,
                     <span class="macro">vec!</span>[RateLimit {
                         categories: DataCategories::new(),
-                        scope: RateLimitScope::Organization(<span class="number">42</span>),
+                        scope: RateLimitScope::Organization(OrganizationId::new(<span class="number">42</span>)),
                         reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"get_lost"</span>)),
                         retry_after: rate_limits[<span class="number">0</span>].retry_after,
                         namespaces: <span class="macro">smallvec!</span>[],
@@ -1800,7 +1802,7 @@
         <span class="kw">let </span>scoping = ItemScoping {
             category: DataCategory::Error,
             scoping: <span class="kw-2">&amp;</span>Scoping {
-                organization_id: <span class="number">69420</span>,
+                organization_id: OrganizationId::new(<span class="number">69420</span>),
                 project_id: ProjectId::new(<span class="number">42</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">4711</span>),
@@ -1829,7 +1831,7 @@
         <span class="kw">let </span>scoping = ItemScoping {
             category: DataCategory::Error,
             scoping: <span class="kw-2">&amp;</span>Scoping {
-                organization_id: <span class="number">69420</span>,
+                organization_id: OrganizationId::new(<span class="number">69420</span>),
                 project_id: ProjectId::new(<span class="number">42</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">4711</span>),
@@ -1858,7 +1860,7 @@
         <span class="kw">let </span>scoping = ItemScoping {
             category: DataCategory::Error,
             scoping: <span class="kw-2">&amp;</span>Scoping {
-                organization_id: <span class="number">69420</span>,
+                organization_id: OrganizationId::new(<span class="number">69420</span>),
                 project_id: ProjectId::new(<span class="number">42</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">4711</span>),

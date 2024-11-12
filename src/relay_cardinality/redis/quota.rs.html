@@ -193,18 +193,20 @@
 <a href="#193" id="193">193</a>
 <a href="#194" id="194">194</a>
 <a href="#195" id="195">195</a>
+<a href="#196" id="196">196</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>hash32::Hasher;
 <span class="kw">use </span>std::fmt::{<span class="self">self</span>, Write};
 <span class="kw">use </span>std::hash::Hash;
 
 <span class="kw">use </span>relay_base_schema::metrics::{MetricName, MetricNamespace, MetricType};
+<span class="kw">use </span>relay_base_schema::organization::OrganizationId;
 <span class="kw">use </span>relay_base_schema::project::ProjectId;
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
 
 <span class="kw">use </span><span class="kw">crate</span>::limiter::Entry;
 <span class="kw">use </span><span class="kw">crate</span>::redis::{KEY_PREFIX, KEY_VERSION};
 <span class="kw">use </span><span class="kw">crate</span>::window::Slot;
-<span class="kw">use crate</span>::{CardinalityLimit, CardinalityScope, OrganizationId, Scoping, SlidingWindow};
+<span class="kw">use crate</span>::{CardinalityLimit, CardinalityScope, Scoping, SlidingWindow};
 
 <span class="doccomment">/// A quota scoping extracted from a [`CardinalityLimit`] and a [`Scoping`].
 ///
@@ -265,7 +267,7 @@
     </span><span class="kw">fn </span>shifted(<span class="kw-2">&amp;</span><span class="self">self</span>, timestamp: UnixTimestamp) -&gt; UnixTimestamp {
         <span class="kw">let </span>shift = <span class="self">self
             </span>.organization_id
-            .map(|o| o % <span class="self">self</span>.window.granularity_seconds)
+            .map(|o| o.value() % <span class="self">self</span>.window.granularity_seconds)
             .unwrap_or(<span class="number">0</span>);
 
         UnixTimestamp::from_secs(timestamp.as_secs() + shift)
@@ -314,7 +316,7 @@
 
     <span class="doccomment">/// Turns the scoping into a Redis key for the passed slot.
     </span><span class="kw">pub fn </span>to_redis_key(<span class="kw-2">&amp;</span><span class="self">self</span>, slot: Slot) -&gt; String {
-        <span class="kw">let </span>organization_id = <span class="self">self</span>.organization_id.unwrap_or(<span class="number">0</span>);
+        <span class="kw">let </span>organization_id = <span class="self">self</span>.organization_id.unwrap_or(OrganizationId::new(<span class="number">0</span>));
         <span class="kw">let </span>project_id = <span class="self">self</span>.project_id.map(|p| p.value()).unwrap_or(<span class="number">0</span>);
         <span class="kw">let </span>namespace = <span class="self">self</span>.namespace.map(|ns| ns.as_str()).unwrap_or(<span class="string">""</span>);
         <span class="kw">let </span>metric_type = DisplayOptMinus(<span class="self">self</span>.metric_type);

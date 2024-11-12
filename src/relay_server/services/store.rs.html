@@ -1609,10 +1609,12 @@
 <a href="#1609" id="1609">1609</a>
 <a href="#1610" id="1610">1610</a>
 <a href="#1611" id="1611">1611</a>
+<a href="#1612" id="1612">1612</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses Kafka topics to forward data to Sentry
 
 </span><span class="kw">use </span>anyhow::Context;
+<span class="kw">use </span>relay_base_schema::organization::OrganizationId;
 <span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::error::Error;
@@ -2043,7 +2045,7 @@
 
     <span class="kw">fn </span>create_metric_message&lt;<span class="lifetime">'a</span>&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        organization_id: u64,
+        organization_id: OrganizationId,
         project_id: ProjectId,
         encoder: <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>BucketEncoder,
         namespace: MetricNamespace,
@@ -2293,7 +2295,7 @@
 
     <span class="kw">fn </span>produce_profile(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        organization_id: u64,
+        organization_id: OrganizationId,
         project_id: ProjectId,
         key_id: <span class="prelude-ty">Option</span>&lt;u64&gt;,
         received_at: DateTime&lt;Utc&gt;,
@@ -2498,7 +2500,7 @@
         span.duration_ms =
             ((span.end_timestamp_precise - span.start_timestamp_precise) * <span class="number">1e3</span>) <span class="kw">as </span>u32;
         span.event_id = event_id;
-        span.organization_id = scoping.organization_id;
+        span.organization_id = scoping.organization_id.value();
         span.project_id = scoping.project_id.value();
         span.retention_days = retention_days;
         span.start_timestamp_ms = (span.start_timestamp_precise * <span class="number">1e3</span>) <span class="kw">as </span>u64;
@@ -2637,7 +2639,7 @@
 
     <span class="kw">fn </span>produce_profile_chunk(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        organization_id: u64,
+        organization_id: OrganizationId,
         project_id: ProjectId,
         received_at: DateTime&lt;Utc&gt;,
         retention_days: u16,
@@ -2799,7 +2801,7 @@
 </span><span class="kw">struct </span>ReplayRecordingNotChunkedKafkaMessage&lt;<span class="lifetime">'a</span>&gt; {
     replay_id: EventId,
     key_id: <span class="prelude-ty">Option</span>&lt;u64&gt;,
-    org_id: u64,
+    org_id: OrganizationId,
     project_id: ProjectId,
     received: u64,
     retention_days: u16,
@@ -2828,7 +2830,7 @@
 
 <span class="attr">#[derive(Clone, Debug, Serialize)]
 </span><span class="kw">struct </span>MetricKafkaMessage&lt;<span class="lifetime">'a</span>&gt; {
-    org_id: u64,
+    org_id: OrganizationId,
     project_id: ProjectId,
     name: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>MetricName,
     <span class="attr">#[serde(flatten)]
@@ -2874,7 +2876,7 @@
 
 <span class="attr">#[derive(Clone, Debug, Serialize)]
 </span><span class="kw">struct </span>ProfileKafkaMessage {
-    organization_id: u64,
+    organization_id: OrganizationId,
     project_id: ProjectId,
     key_id: <span class="prelude-ty">Option</span>&lt;u64&gt;,
     received: u64,
@@ -3032,7 +3034,7 @@
 
 <span class="attr">#[derive(Clone, Debug, Serialize)]
 </span><span class="kw">struct </span>ProfileChunkKafkaMessage {
-    organization_id: u64,
+    organization_id: OrganizationId,
     project_id: ProjectId,
     received: u64,
     retention_days: u16,

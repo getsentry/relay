@@ -328,11 +328,13 @@
 <a href="#328" id="328">328</a>
 <a href="#329" id="329">329</a>
 <a href="#330" id="330">330</a>
+<a href="#331" id="331">331</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Replay related processor code.
 </span><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::net::IpAddr;
 
 <span class="kw">use </span>bytes::Bytes;
+<span class="kw">use </span>relay_base_schema::organization::OrganizationId;
 <span class="kw">use </span>relay_base_schema::project::ProjectId;
 <span class="kw">use </span>relay_dynamic_config::{Feature, GlobalConfig, ProjectConfig};
 <span class="kw">use </span>relay_event_normalization::replay::{<span class="self">self</span>, ReplayError};
@@ -448,7 +450,7 @@
     <span class="kw">pub </span>geoip_lookup: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>GeoIpLookup&gt;,
     <span class="kw">pub </span>event_id: <span class="prelude-ty">Option</span>&lt;EventId&gt;,
     <span class="kw">pub </span>project_id: <span class="prelude-ty">Option</span>&lt;ProjectId&gt;,
-    <span class="kw">pub </span>organization_id: <span class="prelude-ty">Option</span>&lt;u64&gt;,
+    <span class="kw">pub </span>organization_id: <span class="prelude-ty">Option</span>&lt;OrganizationId&gt;,
     <span class="kw">pub </span>client_addr: <span class="prelude-ty">Option</span>&lt;IpAddr&gt;,
     <span class="kw">pub </span>user_agent: RawUserAgentInfo&lt;String&gt;,
 }
@@ -479,7 +481,7 @@
                         <span class="macro">relay_log::debug!</span>(
                             event_id = <span class="question-mark">?</span>config.event_id,
                             project_id = config.project_id.map(|v| v.value()),
-                            organization_id = config.organization_id,
+                            organization_id = config.organization_id.map(|o| o.value()),
                             segment_id = segment_id,
                             <span class="string">"replay segment-exceeded-limit"
                         </span>);
@@ -504,7 +506,7 @@
                 error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
                 event_id = <span class="question-mark">?</span>config.event_id,
                 project_id = config.project_id.map(|v| v.value()),
-                organization_id = config.organization_id,
+                organization_id = config.organization_id.map(|o| o.value()),
                 <span class="string">"invalid replay event"
             </span>);
             <span class="prelude-val">Err</span>(<span class="kw">match </span>error {
@@ -595,7 +597,7 @@
             error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
             event_id = <span class="question-mark">?</span>config.event_id,
             project_id = config.project_id.map(|v| v.value()),
-            organization_id = config.organization_id,
+            organization_id = config.organization_id.map(|o| o.value()),
             <span class="string">"invalid replay recording"
         </span>);
         ProcessingError::InvalidReplay(DiscardReason::InvalidReplayRecordingEvent)

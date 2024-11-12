@@ -940,10 +940,12 @@
 <a href="#940" id="940">940</a>
 <a href="#941" id="941">941</a>
 <a href="#942" id="942">942</a>
+<a href="#943" id="943">943</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
 <span class="kw">use </span>relay_base_schema::metrics::MetricNamespace;
+<span class="kw">use </span>relay_base_schema::organization::OrganizationId;
 <span class="kw">use </span>relay_base_schema::project::{ProjectId, ProjectKey};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>smallvec::SmallVec;
@@ -957,7 +959,7 @@
 </span><span class="attr">#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 </span><span class="kw">pub struct </span>Scoping {
     <span class="doccomment">/// The organization id.
-    </span><span class="kw">pub </span>organization_id: u64,
+    </span><span class="kw">pub </span>organization_id: OrganizationId,
 
     <span class="doccomment">/// The project id.
     </span><span class="kw">pub </span>project_id: ProjectId,
@@ -1071,7 +1073,7 @@
     </span><span class="kw">pub fn </span>scope_id(<span class="kw-2">&amp;</span><span class="self">self</span>, scope: QuotaScope) -&gt; <span class="prelude-ty">Option</span>&lt;u64&gt; {
         <span class="kw">match </span>scope {
             QuotaScope::Global =&gt; <span class="prelude-val">None</span>,
-            QuotaScope::Organization =&gt; <span class="prelude-val">Some</span>(<span class="self">self</span>.organization_id),
+            QuotaScope::Organization =&gt; <span class="prelude-val">Some</span>(<span class="self">self</span>.organization_id.value()),
             QuotaScope::Project =&gt; <span class="prelude-val">Some</span>(<span class="self">self</span>.project_id.value()),
             QuotaScope::Key =&gt; <span class="self">self</span>.key_id,
             QuotaScope::Unknown =&gt; <span class="prelude-val">None</span>,
@@ -1668,7 +1670,7 @@
         <span class="macro">assert!</span>(quota.matches(ItemScoping {
             category: DataCategory::Error,
             scoping: <span class="kw-2">&amp;</span>Scoping {
-                organization_id: <span class="number">42</span>,
+                organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">17</span>),
@@ -1693,7 +1695,7 @@
         <span class="macro">assert!</span>(!quota.matches(ItemScoping {
             category: DataCategory::Error,
             scoping: <span class="kw-2">&amp;</span>Scoping {
-                organization_id: <span class="number">42</span>,
+                organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">17</span>),
@@ -1718,7 +1720,7 @@
         <span class="macro">assert!</span>(quota.matches(ItemScoping {
             category: DataCategory::Error,
             scoping: <span class="kw-2">&amp;</span>Scoping {
-                organization_id: <span class="number">42</span>,
+                organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">17</span>),
@@ -1729,7 +1731,7 @@
         <span class="macro">assert!</span>(!quota.matches(ItemScoping {
             category: DataCategory::Transaction,
             scoping: <span class="kw-2">&amp;</span>Scoping {
-                organization_id: <span class="number">42</span>,
+                organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">17</span>),
@@ -1754,7 +1756,7 @@
         <span class="macro">assert!</span>(!quota.matches(ItemScoping {
             category: DataCategory::Error,
             scoping: <span class="kw-2">&amp;</span>Scoping {
-                organization_id: <span class="number">42</span>,
+                organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">17</span>),
@@ -1779,7 +1781,7 @@
         <span class="macro">assert!</span>(quota.matches(ItemScoping {
             category: DataCategory::Error,
             scoping: <span class="kw-2">&amp;</span>Scoping {
-                organization_id: <span class="number">42</span>,
+                organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">17</span>),
@@ -1790,7 +1792,7 @@
         <span class="macro">assert!</span>(!quota.matches(ItemScoping {
             category: DataCategory::Error,
             scoping: <span class="kw-2">&amp;</span>Scoping {
-                organization_id: <span class="number">0</span>,
+                organization_id: OrganizationId::new(<span class="number">0</span>),
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">17</span>),
@@ -1815,7 +1817,7 @@
         <span class="macro">assert!</span>(quota.matches(ItemScoping {
             category: DataCategory::Error,
             scoping: <span class="kw-2">&amp;</span>Scoping {
-                organization_id: <span class="number">42</span>,
+                organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">17</span>),
@@ -1826,7 +1828,7 @@
         <span class="macro">assert!</span>(!quota.matches(ItemScoping {
             category: DataCategory::Error,
             scoping: <span class="kw-2">&amp;</span>Scoping {
-                organization_id: <span class="number">42</span>,
+                organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">0</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">17</span>),
@@ -1851,7 +1853,7 @@
         <span class="macro">assert!</span>(quota.matches(ItemScoping {
             category: DataCategory::Error,
             scoping: <span class="kw-2">&amp;</span>Scoping {
-                organization_id: <span class="number">42</span>,
+                organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">17</span>),
@@ -1862,7 +1864,7 @@
         <span class="macro">assert!</span>(!quota.matches(ItemScoping {
             category: DataCategory::Error,
             scoping: <span class="kw-2">&amp;</span>Scoping {
-                organization_id: <span class="number">42</span>,
+                organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">Some</span>(<span class="number">0</span>),
@@ -1873,7 +1875,7 @@
         <span class="macro">assert!</span>(!quota.matches(ItemScoping {
             category: DataCategory::Error,
             scoping: <span class="kw-2">&amp;</span>Scoping {
-                organization_id: <span class="number">42</span>,
+                organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">None</span>,

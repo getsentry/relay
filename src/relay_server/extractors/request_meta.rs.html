@@ -744,6 +744,7 @@
 <a href="#744" id="744">744</a>
 <a href="#745" id="745">745</a>
 <a href="#746" id="746">746</a>
+<a href="#747" id="747">747</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::net::{IpAddr, SocketAddr};
@@ -759,6 +760,7 @@
 <span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>data_encoding::BASE64;
 <span class="kw">use </span>relay_auth::RelayId;
+<span class="kw">use </span>relay_base_schema::organization::OrganizationId;
 <span class="kw">use </span>relay_base_schema::project::{ParseProjectKeyError, ProjectId, ProjectKey};
 <span class="kw">use </span>relay_common::{Auth, Dsn, ParseAuthError, ParseDsnError, Scheme};
 <span class="kw">use </span>relay_config::UpstreamDescriptor;
@@ -1144,7 +1146,7 @@
     /// state. To fetch full scoping information, invoke the `GetScoping` message on `Project`.
     </span><span class="kw">pub fn </span>get_partial_scoping(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Scoping {
         Scoping {
-            organization_id: <span class="number">0</span>,
+            organization_id: OrganizationId::new(<span class="number">0</span>),
             project_id: <span class="self">self</span>.project_id().unwrap_or_else(|| ProjectId::new(<span class="number">0</span>)),
             project_key: <span class="self">self</span>.public_key(),
             key_id: <span class="prelude-val">None</span>,

@@ -294,10 +294,12 @@
 <a href="#294" id="294">294</a>
 <a href="#295" id="295">295</a>
 <a href="#296" id="296">296</a>
+<a href="#297" id="297">297</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>chrono::{DateTime, Utc};
 
+<span class="kw">use </span>relay_base_schema::organization::OrganizationId;
 <span class="kw">use </span>relay_base_schema::project::{ProjectId, ProjectKey};
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">use </span>relay_cardinality::CardinalityLimit;
@@ -345,7 +347,7 @@
     </span><span class="kw">pub </span>config: ProjectConfig,
     <span class="doccomment">/// The organization id.
     </span><span class="attr">#[serde(default)]
-    </span><span class="kw">pub </span>organization_id: <span class="prelude-ty">Option</span>&lt;u64&gt;,
+    </span><span class="kw">pub </span>organization_id: <span class="prelude-ty">Option</span>&lt;OrganizationId&gt;,
 }
 
 <span class="doccomment">/// Controls how we serialize a ProjectState for an external Relay
@@ -359,7 +361,7 @@
     <span class="kw">pub </span>slug: <span class="prelude-ty">Option</span>&lt;String&gt;,
     <span class="attr">#[serde(with = <span class="string">"LimitedProjectConfig"</span>)]
     </span><span class="kw">pub </span>config: ProjectConfig,
-    <span class="kw">pub </span>organization_id: <span class="prelude-ty">Option</span>&lt;u64&gt;,
+    <span class="kw">pub </span>organization_id: <span class="prelude-ty">Option</span>&lt;OrganizationId&gt;,
 }
 
 <span class="kw">impl </span>ProjectInfo {
@@ -373,7 +375,7 @@
     /// Returns `Some` if the project contains a project identifier otherwise `None`.
     </span><span class="kw">pub fn </span>scoping(<span class="kw-2">&amp;</span><span class="self">self</span>, project_key: ProjectKey) -&gt; <span class="prelude-ty">Option</span>&lt;Scoping&gt; {
         <span class="prelude-val">Some</span>(Scoping {
-            organization_id: <span class="self">self</span>.organization_id.unwrap_or(<span class="number">0</span>),
+            organization_id: <span class="self">self</span>.organization_id.unwrap_or(OrganizationId::new(<span class="number">0</span>)),
             project_id: <span class="self">self</span>.project_id<span class="question-mark">?</span>,
             project_key,
             key_id: <span class="self">self
@@ -512,7 +514,7 @@
         //  3. An organization id is available and can be matched against rate limits. In this
         //     project, all organizations will match automatically, unless the organization id
         //     has changed since the last fetch.
-        </span>scoping.organization_id = <span class="self">self</span>.organization_id.unwrap_or(<span class="number">0</span>);
+        </span>scoping.organization_id = <span class="self">self</span>.organization_id.unwrap_or(OrganizationId::new(<span class="number">0</span>));
 
         scoping
     }

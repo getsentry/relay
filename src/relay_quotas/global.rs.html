@@ -535,6 +535,7 @@
 <a href="#535" id="535">535</a>
 <a href="#536" id="536">536</a>
 <a href="#537" id="537">537</a>
+<a href="#538" id="538">538</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::{Mutex, PoisonError};
 
 <span class="kw">use </span>itertools::Itertools;
@@ -782,6 +783,7 @@
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
     <span class="kw">use </span>relay_base_schema::data_category::DataCategory;
+    <span class="kw">use </span>relay_base_schema::organization::OrganizationId;
     <span class="kw">use </span>relay_base_schema::project::{ProjectId, ProjectKey};
     <span class="kw">use </span>relay_common::time::UnixTimestamp;
     <span class="kw">use </span>relay_redis::{RedisConfigOptions, RedisPool};
@@ -810,7 +812,7 @@
 
     <span class="kw">fn </span>build_scoping() -&gt; Scoping {
         Scoping {
-            organization_id: <span class="number">69420</span>,
+            organization_id: OrganizationId::new(<span class="number">69420</span>),
             project_id: ProjectId::new(<span class="number">42</span>),
             project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
             key_id: <span class="prelude-val">Some</span>(<span class="number">4711</span>),

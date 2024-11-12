@@ -531,6 +531,7 @@
 <a href="#531" id="531">531</a>
 <a href="#532" id="532">532</a>
 <a href="#533" id="533">533</a>
+<a href="#534" id="534">534</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Quota and rate limiting helpers for metrics and metrics buckets.
 
 </span><span class="kw">use </span>chrono::{DateTime, Utc};
@@ -799,6 +800,7 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>relay_base_schema::organization::OrganizationId;
     <span class="kw">use </span>relay_base_schema::project::{ProjectId, ProjectKey};
     <span class="kw">use </span>relay_metrics::{BucketMetadata, BucketValue};
     <span class="kw">use </span>relay_quotas::QuotaScope;
@@ -833,7 +835,7 @@
             metrics,
             quotas,
             Scoping {
-                organization_id: <span class="number">1</span>,
+                organization_id: OrganizationId::new(<span class="number">1</span>),
                 project_id: ProjectId::new(<span class="number">1</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">None</span>,

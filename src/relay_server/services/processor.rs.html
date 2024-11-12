@@ -3874,6 +3874,8 @@
 <a href="#3874" id="3874">3874</a>
 <a href="#3875" id="3875">3875</a>
 <a href="#3876" id="3876">3876</a>
+<a href="#3877" id="3877">3877</a>
+<a href="#3878" id="3878">3878</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -6411,7 +6413,7 @@
                     },
                     || {
                         <span class="macro">relay_log::error!</span>(
-                            tags.organization_id = scoping.organization_id,
+                            tags.organization_id = scoping.organization_id.value(),
                             tags.limit_id = limit.id,
                             tags.passive = limit.passive,
                             <span class="string">"Cardinality Limit"
@@ -7183,8 +7185,10 @@
     </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     #[tokio::test]
     </span><span class="kw">async fn </span>test_ratelimit_per_batch() {
-        <span class="kw">let </span>rate_limited_org = <span class="number">1</span>;
-        <span class="kw">let </span>not_ratelimited_org = <span class="number">2</span>;
+        <span class="kw">use </span>relay_base_schema::organization::OrganizationId;
+
+        <span class="kw">let </span>rate_limited_org = OrganizationId::new(<span class="number">1</span>);
+        <span class="kw">let </span>not_ratelimited_org = OrganizationId::new(<span class="number">2</span>);
 
         <span class="kw">let </span>message = {
             <span class="kw">let </span>project_info = {
@@ -7221,7 +7225,7 @@
                 project_info,
             };
 
-            <span class="kw">let </span>scoping_by_org_id = |org_id: u64| Scoping {
+            <span class="kw">let </span>scoping_by_org_id = |org_id: OrganizationId| Scoping {
                 organization_id: org_id,
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
@@ -7258,7 +7262,7 @@
         };
 
         <span class="kw">let </span>(store, handle) = {
-            <span class="kw">let </span>f = |org_ids: <span class="kw-2">&amp;mut </span>Vec&lt;u64&gt;, msg: Store| {
+            <span class="kw">let </span>f = |org_ids: <span class="kw-2">&amp;mut </span>Vec&lt;OrganizationId&gt;, msg: Store| {
                 <span class="kw">let </span>org_id = <span class="kw">match </span>msg {
                     Store::Metrics(x) =&gt; x.scoping.organization_id,
                     <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">"received envelope when expecting only metrics"</span>),

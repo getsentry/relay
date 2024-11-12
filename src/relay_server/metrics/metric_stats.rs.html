@@ -480,9 +480,11 @@
 <a href="#480" id="480">480</a>
 <a href="#481" id="481">481</a>
 <a href="#482" id="482">482</a>
+<a href="#483" id="483">483</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::sync::{Arc, OnceLock};
 
+<span class="kw">use </span>relay_base_schema::organization::OrganizationId;
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">use </span>relay_cardinality::{CardinalityLimit, CardinalityReport};
 <span class="kw">use </span>relay_config::Config;
@@ -593,14 +595,14 @@
         <span class="self">self</span>.config.metric_stats_enabled() &amp;&amp; <span class="self">self</span>.is_rolled_out(scoping.organization_id)
     }
 
-    <span class="kw">fn </span>is_rolled_out(<span class="kw-2">&amp;</span><span class="self">self</span>, organization_id: u64) -&gt; bool {
+    <span class="kw">fn </span>is_rolled_out(<span class="kw-2">&amp;</span><span class="self">self</span>, organization_id: OrganizationId) -&gt; bool {
         <span class="kw">let </span>rate = <span class="self">self
             </span>.global_config
             .current()
             .options
             .metric_stats_rollout_rate;
 
-        is_rolled_out(organization_id, rate)
+        is_rolled_out(organization_id.value(), rate)
     }
 
     <span class="kw">fn </span>to_volume_metric(<span class="kw-2">&amp;</span><span class="self">self</span>, bucket: <span class="kw">impl </span>TrackableBucket, outcome: <span class="kw-2">&amp;</span>Outcome) -&gt; <span class="prelude-ty">Option</span>&lt;Bucket&gt; {
@@ -727,7 +729,7 @@
 
     <span class="kw">fn </span>scoping() -&gt; Scoping {
         Scoping {
-            organization_id: <span class="number">42</span>,
+            organization_id: OrganizationId::new(<span class="number">42</span>),
             project_id: ProjectId::new(<span class="number">21</span>),
             project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
             key_id: <span class="prelude-val">Some</span>(<span class="number">17</span>),

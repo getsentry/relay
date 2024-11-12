@@ -352,10 +352,10 @@
             passive = passive,
         );
 
-        <span class="kw">let </span>organization_id = <span class="self">self</span>.scoping.organization_id <span class="kw">as </span>i64;
+        <span class="kw">let </span>organization_id = <span class="self">self</span>.scoping.organization_id;
         <span class="kw">let </span>status = <span class="kw">if </span><span class="self">self</span>.rejections &gt; <span class="number">0 </span>{ <span class="string">"limited" </span>} <span class="kw">else </span>{ <span class="string">"ok" </span>};
         <span class="macro">metric!</span>(
-            set(CardinalityLimiterSets::Organizations) = organization_id,
+            set(CardinalityLimiterSets::Organizations) = organization_id.value() <span class="kw">as </span>i64,
             id = <span class="kw-2">&amp;</span><span class="self">self</span>.cardinality_limit.id,
             passive = passive,
             status = status,

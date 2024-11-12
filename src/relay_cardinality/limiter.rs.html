@@ -837,6 +837,7 @@
 <a href="#837" id="837">837</a>
 <a href="#838" id="838">838</a>
 <a href="#839" id="839">839</a>
+<a href="#840" id="840">840</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Relay Cardinality Limiter
 
 </span><span class="kw">use </span>std::cmp::Reverse;
@@ -844,12 +845,13 @@
 
 <span class="kw">use </span>hashbrown::{HashMap, HashSet};
 <span class="kw">use </span>relay_base_schema::metrics::{MetricName, MetricNamespace, MetricType};
+<span class="kw">use </span>relay_base_schema::organization::OrganizationId;
 <span class="kw">use </span>relay_base_schema::project::ProjectId;
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_statsd::metric;
 
 <span class="kw">use </span><span class="kw">crate</span>::statsd::CardinalityLimiterTimers;
-<span class="kw">use crate</span>::{CardinalityLimit, Error, OrganizationId, <span class="prelude-ty">Result</span>};
+<span class="kw">use crate</span>::{CardinalityLimit, Error, <span class="prelude-ty">Result</span>};
 
 <span class="doccomment">/// Data scoping information.
 ///
@@ -1233,7 +1235,7 @@
 
     <span class="kw">fn </span>build_scoping() -&gt; Scoping {
         Scoping {
-            organization_id: <span class="number">1</span>,
+            organization_id: OrganizationId::new(<span class="number">1</span>),
             project_id: ProjectId::new(<span class="number">1</span>),
         }
     }

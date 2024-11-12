@@ -1068,6 +1068,7 @@
 <a href="#1068" id="1068">1068</a>
 <a href="#1069" id="1069">1069</a>
 <a href="#1070" id="1070">1070</a>
+<a href="#1071" id="1071">1071</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that tracks outcomes.
 //!
 //! Outcomes describe the final "fate" of an envelope item. As such, for every item exactly one
@@ -1085,6 +1086,7 @@
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">use </span>anyhow::Context;
 <span class="kw">use </span>chrono::{DateTime, SecondsFormat, Utc};
+<span class="kw">use </span>relay_base_schema::organization::OrganizationId;
 <span class="kw">use </span>relay_base_schema::project::ProjectId;
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_config::{Config, EmitOutcomes};
@@ -1593,7 +1595,7 @@
     </span>timestamp: String,
     <span class="doccomment">/// Organization id.
     </span><span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
-    </span>org_id: <span class="prelude-ty">Option</span>&lt;u64&gt;,
+    </span>org_id: <span class="prelude-ty">Option</span>&lt;OrganizationId&gt;,
     <span class="doccomment">/// Project id.
     </span>project_id: ProjectId,
     <span class="doccomment">/// The DSN project key id.
@@ -1629,9 +1631,9 @@
         // e.g. something like: "2019-09-29T09:46:40.123456Z"
         </span><span class="kw">let </span>timestamp = msg.timestamp.to_rfc3339_opts(SecondsFormat::Micros, <span class="bool-val">true</span>);
 
-        <span class="kw">let </span>org_id = <span class="kw">match </span>msg.scoping.organization_id {
+        <span class="kw">let </span>org_id = <span class="kw">match </span>msg.scoping.organization_id.value() {
             <span class="number">0 </span>=&gt; <span class="prelude-val">None</span>,
-            id =&gt; <span class="prelude-val">Some</span>(id),
+            id =&gt; <span class="prelude-val">Some</span>(OrganizationId::new(id)),
         };
 
         <span class="comment">// since TrackOutcome objects come only from this Relay (and not any downstream

@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["data_category","events","metrics","project","spans"]};
+window.SIDEBAR_ITEMS = {"mod":["data_category","events","metrics","organization","project","spans"]};

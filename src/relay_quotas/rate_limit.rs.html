@@ -1165,12 +1165,14 @@
 <a href="#1165" id="1165">1165</a>
 <a href="#1166" id="1166">1166</a>
 <a href="#1167" id="1167">1167</a>
+<a href="#1168" id="1168">1168</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 <span class="kw">use </span>std::sync::{Arc, Mutex, PoisonError};
 <span class="kw">use </span>std::time::{Duration, Instant};
 
 <span class="kw">use </span>relay_base_schema::metrics::MetricNamespace;
+<span class="kw">use </span>relay_base_schema::organization::OrganizationId;
 <span class="kw">use </span>relay_base_schema::project::{ProjectId, ProjectKey};
 <span class="kw">use </span>smallvec::SmallVec;
 
@@ -1296,7 +1298,7 @@
     <span class="doccomment">/// Global scope.
     </span>Global,
     <span class="doccomment">/// An organization with identifier.
-    </span>Organization(u64),
+    </span>Organization(OrganizationId),
     <span class="doccomment">/// A project with identifier.
     </span>Project(ProjectId),
     <span class="doccomment">/// A DSN public key.
@@ -1665,7 +1667,7 @@
     </span><span class="kw">fn </span>test_rate_limit_matches_categories() {
         <span class="kw">let </span>rate_limit = RateLimit {
             categories: <span class="macro">smallvec!</span>[DataCategory::Unknown, DataCategory::Error],
-            scope: RateLimitScope::Organization(<span class="number">42</span>),
+            scope: RateLimitScope::Organization(OrganizationId::new(<span class="number">42</span>)),
             reason_code: <span class="prelude-val">None</span>,
             retry_after: RetryAfter::from_secs(<span class="number">1</span>),
             namespaces: <span class="macro">smallvec!</span>[],
@@ -1674,7 +1676,7 @@
         <span class="macro">assert!</span>(rate_limit.matches(ItemScoping {
             category: DataCategory::Error,
             scoping: <span class="kw-2">&amp;</span>Scoping {
-                organization_id: <span class="number">42</span>,
+                organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">None</span>,
@@ -1685,7 +1687,7 @@
         <span class="macro">assert!</span>(!rate_limit.matches(ItemScoping {
             category: DataCategory::Transaction,
             scoping: <span class="kw-2">&amp;</span>Scoping {
-                organization_id: <span class="number">42</span>,
+                organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">None</span>,
@@ -1698,7 +1700,7 @@
     </span><span class="kw">fn </span>test_rate_limit_matches_organization() {
         <span class="kw">let </span>rate_limit = RateLimit {
             categories: DataCategories::new(),
-            scope: RateLimitScope::Organization(<span class="number">42</span>),
+            scope: RateLimitScope::Organization(OrganizationId::new(<span class="number">42</span>)),
             reason_code: <span class="prelude-val">None</span>,
             retry_after: RetryAfter::from_secs(<span class="number">1</span>),
             namespaces: <span class="macro">smallvec!</span>[],
@@ -1707,7 +1709,7 @@
         <span class="macro">assert!</span>(rate_limit.matches(ItemScoping {
             category: DataCategory::Error,
             scoping: <span class="kw-2">&amp;</span>Scoping {
-                organization_id: <span class="number">42</span>,
+                organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">None</span>,
@@ -1718,7 +1720,7 @@
         <span class="macro">assert!</span>(!rate_limit.matches(ItemScoping {
             category: DataCategory::Error,
             scoping: <span class="kw-2">&amp;</span>Scoping {
-                organization_id: <span class="number">0</span>,
+                organization_id: OrganizationId::new(<span class="number">0</span>),
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">None</span>,
@@ -1740,7 +1742,7 @@
         <span class="macro">assert!</span>(rate_limit.matches(ItemScoping {
             category: DataCategory::Error,
             scoping: <span class="kw-2">&amp;</span>Scoping {
-                organization_id: <span class="number">42</span>,
+                organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">None</span>,
@@ -1751,7 +1753,7 @@
         <span class="macro">assert!</span>(!rate_limit.matches(ItemScoping {
             category: DataCategory::Error,
             scoping: <span class="kw-2">&amp;</span>Scoping {
-                organization_id: <span class="number">42</span>,
+                organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">0</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">None</span>,
@@ -1764,14 +1766,14 @@
     </span><span class="kw">fn </span>test_rate_limit_matches_namespaces() {
         <span class="kw">let </span>rate_limit = RateLimit {
             categories: <span class="macro">smallvec!</span>[],
-            scope: RateLimitScope::Organization(<span class="number">42</span>),
+            scope: RateLimitScope::Organization(OrganizationId::new(<span class="number">42</span>)),
             reason_code: <span class="prelude-val">None</span>,
             retry_after: RetryAfter::from_secs(<span class="number">1</span>),
             namespaces: <span class="macro">smallvec!</span>[MetricNamespace::Custom],
         };
 
         <span class="kw">let </span>scoping = Scoping {
-            organization_id: <span class="number">42</span>,
+            organization_id: OrganizationId::new(<span class="number">42</span>),
             project_id: ProjectId::new(<span class="number">21</span>),
             project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
             key_id: <span class="prelude-val">None</span>,
@@ -1791,7 +1793,7 @@
 
         <span class="kw">let </span>general_rate_limit = RateLimit {
             categories: <span class="macro">smallvec!</span>[],
-            scope: RateLimitScope::Organization(<span class="number">42</span>),
+            scope: RateLimitScope::Organization(OrganizationId::new(<span class="number">42</span>)),
             reason_code: <span class="prelude-val">None</span>,
             retry_after: RetryAfter::from_secs(<span class="number">1</span>),
             namespaces: <span class="macro">smallvec!</span>[], <span class="comment">// all namespaces
@@ -1825,7 +1827,7 @@
         <span class="macro">assert!</span>(rate_limit.matches(ItemScoping {
             category: DataCategory::Error,
             scoping: <span class="kw-2">&amp;</span>Scoping {
-                organization_id: <span class="number">42</span>,
+                organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">None</span>,
@@ -1836,7 +1838,7 @@
         <span class="macro">assert!</span>(!rate_limit.matches(ItemScoping {
             category: DataCategory::Error,
             scoping: <span class="kw-2">&amp;</span>Scoping {
-                organization_id: <span class="number">0</span>,
+                organization_id: OrganizationId::new(<span class="number">0</span>),
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">"deadbeefdeadbeefdeadbeefdeadbeef"</span>).unwrap(),
                 key_id: <span class="prelude-val">None</span>,
@@ -1851,7 +1853,7 @@
 
         rate_limits.add(RateLimit {
             categories: <span class="macro">smallvec!</span>[DataCategory::Default, DataCategory::Error],
-            scope: RateLimitScope::Organization(<span class="number">42</span>),
+            scope: RateLimitScope::Organization(OrganizationId::new(<span class="number">42</span>)),
             reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"first"</span>)),
             retry_after: RetryAfter::from_secs(<span class="number">1</span>),
             namespaces: <span class="macro">smallvec!</span>[],
@@ -1860,7 +1862,7 @@
         <span class="comment">// longer rate limit shadows shorter one
         </span>rate_limits.add(RateLimit {
             categories: <span class="macro">smallvec!</span>[DataCategory::Error, DataCategory::Default],
-            scope: RateLimitScope::Organization(<span class="number">42</span>),
+            scope: RateLimitScope::Organization(OrganizationId::new(<span class="number">42</span>)),
             reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"second"</span>)),
             retry_after: RetryAfter::from_secs(<span class="number">10</span>),
             namespaces: <span class="macro">smallvec!</span>[],
@@ -1874,7 +1876,7 @@
                 default,
                 error,
               ],
-              scope: Organization(42),
+              scope: Organization(OrganizationId(42)),
               reason_code: Some(ReasonCode("second")),
               retry_after: RetryAfter(10),
               namespaces: [],
@@ -1890,7 +1892,7 @@
 
         rate_limits.add(RateLimit {
             categories: <span class="macro">smallvec!</span>[DataCategory::Default, DataCategory::Error],
-            scope: RateLimitScope::Organization(<span class="number">42</span>),
+            scope: RateLimitScope::Organization(OrganizationId::new(<span class="number">42</span>)),
             reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"first"</span>)),
             retry_after: RetryAfter::from_secs(<span class="number">10</span>),
             namespaces: <span class="macro">smallvec!</span>[],
@@ -1899,7 +1901,7 @@
         <span class="comment">// shorter rate limit is shadowed by existing one
         </span>rate_limits.add(RateLimit {
             categories: <span class="macro">smallvec!</span>[DataCategory::Error, DataCategory::Default],
-            scope: RateLimitScope::Organization(<span class="number">42</span>),
+            scope: RateLimitScope::Organization(OrganizationId::new(<span class="number">42</span>)),
             reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"second"</span>)),
             retry_after: RetryAfter::from_secs(<span class="number">1</span>),
             namespaces: <span class="macro">smallvec!</span>[],
@@ -1913,7 +1915,7 @@
                 default,
                 error,
               ],
-              scope: Organization(42),
+              scope: Organization(OrganizationId(42)),
               reason_code: Some(ReasonCode("first")),
               retry_after: RetryAfter(10),
               namespaces: [],
@@ -1929,7 +1931,7 @@
 
         rate_limits.add(RateLimit {
             categories: <span class="macro">smallvec!</span>[DataCategory::Error],
-            scope: RateLimitScope::Organization(<span class="number">42</span>),
+            scope: RateLimitScope::Organization(OrganizationId::new(<span class="number">42</span>)),
             reason_code: <span class="prelude-val">None</span>,
             retry_after: RetryAfter::from_secs(<span class="number">1</span>),
             namespaces: <span class="macro">smallvec!</span>[],
@@ -1938,7 +1940,7 @@
         <span class="comment">// Same scope but different categories
         </span>rate_limits.add(RateLimit {
             categories: <span class="macro">smallvec!</span>[DataCategory::Transaction],
-            scope: RateLimitScope::Organization(<span class="number">42</span>),
+            scope: RateLimitScope::Organization(OrganizationId::new(<span class="number">42</span>)),
             reason_code: <span class="prelude-val">None</span>,
             retry_after: RetryAfter::from_secs(<span class="number">1</span>),
             namespaces: <span class="macro">smallvec!</span>[],
@@ -1960,7 +1962,7 @@
               categories: [
                 error,
               ],
-              scope: Organization(42),
+              scope: Organization(OrganizationId(42)),
               reason_code: None,
               retry_after: RetryAfter(1),
               namespaces: [],
@@ -1969,7 +1971,7 @@
               categories: [
                 transaction,
               ],
-              scope: Organization(42),
+              scope: Organization(OrganizationId(42)),
               reason_code: None,
               retry_after: RetryAfter(1),
               namespaces: [],
@@ -1995,7 +1997,7 @@
 
         rate_limits.add(RateLimit {
             categories: <span class="macro">smallvec!</span>[DataCategory::MetricBucket],
-            scope: RateLimitScope::Organization(<span class="number">42</span>),
+            scope: RateLimitScope::Organization(OrganizationId::new(<span class="number">42</span>)),
             reason_code: <span class="prelude-val">None</span>,
             retry_after: RetryAfter::from_secs(<span class="number">1</span>),
             namespaces: <span class="macro">smallvec!</span>[MetricNamespace::Custom],
@@ -2004,7 +2006,7 @@
         <span class="comment">// Same category but different namespaces
         </span>rate_limits.add(RateLimit {
             categories: <span class="macro">smallvec!</span>[DataCategory::MetricBucket],
-            scope: RateLimitScope::Organization(<span class="number">42</span>),
+            scope: RateLimitScope::Organization(OrganizationId::new(<span class="number">42</span>)),
             reason_code: <span class="prelude-val">None</span>,
             retry_after: RetryAfter::from_secs(<span class="number">1</span>),
             namespaces: <span class="macro">smallvec!</span>[MetricNamespace::Spans],
@@ -2017,7 +2019,7 @@
               categories: [
                 metric_bucket,
               ],
-              scope: Organization(42),
+              scope: Organization(OrganizationId(42)),
               reason_code: None,
               retry_after: RetryAfter(1),
               namespaces: [
@@ -2028,7 +2030,7 @@
               categories: [
                 metric_bucket,
               ],
-              scope: Organization(42),
+              scope: Organization(OrganizationId(42)),
               reason_code: None,
               retry_after: RetryAfter(1),
               namespaces: [
@@ -2046,7 +2048,7 @@
 
         rate_limits.add(RateLimit {
             categories: <span class="macro">smallvec!</span>[DataCategory::Error],
-            scope: RateLimitScope::Organization(<span class="number">42</span>),
+            scope: RateLimitScope::Organization(OrganizationId::new(<span class="number">42</span>)),
             reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"first"</span>)),
             retry_after: RetryAfter::from_secs(<span class="number">1</span>),
             namespaces: <span class="macro">smallvec!</span>[],
@@ -2055,7 +2057,7 @@
         <span class="comment">// Distinct scope to prevent deduplication
         </span>rate_limits.add(RateLimit {
             categories: <span class="macro">smallvec!</span>[DataCategory::Transaction],
-            scope: RateLimitScope::Organization(<span class="number">42</span>),
+            scope: RateLimitScope::Organization(OrganizationId::new(<span class="number">42</span>)),
             reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"second"</span>)),
             retry_after: RetryAfter::from_secs(<span class="number">10</span>),
             namespaces: <span class="macro">smallvec!</span>[],
@@ -2067,7 +2069,7 @@
           categories: [
             transaction,
           ],
-          scope: Organization(42),
+          scope: Organization(OrganizationId(42)),
           reason_code: Some(ReasonCode("second")),
           retry_after: RetryAfter(10),
           namespaces: [],
@@ -2082,7 +2084,7 @@
         <span class="comment">// Active error limit
         </span>rate_limits.add(RateLimit {
             categories: <span class="macro">smallvec!</span>[DataCategory::Error],
-            scope: RateLimitScope::Organization(<span class="number">42</span>),
+            scope: RateLimitScope::Organization(OrganizationId::new(<span class="number">42</span>)),
             reason_code: <span class="prelude-val">None</span>,
             retry_after: RetryAfter::from_secs(<span class="number">1</span>),
             namespaces: <span class="macro">smallvec!</span>[],
@@ -2110,7 +2112,7 @@
               categories: [
                 error,
               ],
-              scope: Organization(42),
+              scope: Organization(OrganizationId(42)),
               reason_code: None,
               retry_after: RetryAfter(1),
               namespaces: [],
@@ -2127,7 +2129,7 @@
         <span class="comment">// Active error limit
         </span>rate_limits.add(RateLimit {
             categories: <span class="macro">smallvec!</span>[DataCategory::Error],
-            scope: RateLimitScope::Organization(<span class="number">42</span>),
+            scope: RateLimitScope::Organization(OrganizationId::new(<span class="number">42</span>)),
             reason_code: <span class="prelude-val">None</span>,
             retry_after: RetryAfter::from_secs(<span class="number">1</span>),
             namespaces: <span class="macro">smallvec!</span>[],
@@ -2136,7 +2138,7 @@
         <span class="comment">// Active transaction limit
         </span>rate_limits.add(RateLimit {
             categories: <span class="macro">smallvec!</span>[DataCategory::Transaction],
-            scope: RateLimitScope::Organization(<span class="number">42</span>),
+            scope: RateLimitScope::Organization(OrganizationId::new(<span class="number">42</span>)),
             reason_code: <span class="prelude-val">None</span>,
             retry_after: RetryAfter::from_secs(<span class="number">1</span>),
             namespaces: <span class="macro">smallvec!</span>[],
@@ -2145,7 +2147,7 @@
         <span class="kw">let </span>applied_limits = rate_limits.check(ItemScoping {
             category: DataCategory::Error,
             scoping: <span class="kw-2">&amp;</span>Scoping {
-                organization_id: <span class="number">42</span>,
+                organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">None</span>,
@@ -2161,7 +2163,7 @@
               categories: [
                 error,
               ],
-              scope: Organization(42),
+              scope: Organization(OrganizationId(42)),
               reason_code: None,
               retry_after: RetryAfter(1),
               namespaces: [],
@@ -2178,7 +2180,7 @@
         <span class="comment">// Active error limit
         </span>rate_limits.add(RateLimit {
             categories: <span class="macro">smallvec!</span>[DataCategory::Error],
-            scope: RateLimitScope::Organization(<span class="number">42</span>),
+            scope: RateLimitScope::Organization(OrganizationId::new(<span class="number">42</span>)),
             reason_code: <span class="prelude-val">None</span>,
             retry_after: RetryAfter::from_secs(<span class="number">1</span>),
             namespaces: <span class="macro">smallvec!</span>[],
@@ -2187,7 +2189,7 @@
         <span class="comment">// Active transaction limit
         </span>rate_limits.add(RateLimit {
             categories: <span class="macro">smallvec!</span>[DataCategory::Transaction],
-            scope: RateLimitScope::Organization(<span class="number">42</span>),
+            scope: RateLimitScope::Organization(OrganizationId::new(<span class="number">42</span>)),
             reason_code: <span class="prelude-val">None</span>,
             retry_after: RetryAfter::from_secs(<span class="number">1</span>),
             namespaces: <span class="macro">smallvec!</span>[],
@@ -2196,7 +2198,7 @@
         <span class="kw">let </span>item_scoping = ItemScoping {
             category: DataCategory::Error,
             scoping: <span class="kw-2">&amp;</span>Scoping {
-                organization_id: <span class="number">42</span>,
+                organization_id: OrganizationId::new(<span class="number">42</span>),
                 project_id: ProjectId::new(<span class="number">21</span>),
                 project_key: ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap(),
                 key_id: <span class="prelude-val">None</span>,
@@ -2224,7 +2226,7 @@
               categories: [
                 error,
               ],
-              scope: Organization(42),
+              scope: Organization(OrganizationId(42)),
               reason_code: Some(ReasonCode("zero")),
               retry_after: RetryAfter(60),
               namespaces: [],
@@ -2241,7 +2243,7 @@
 
         rate_limits1.add(RateLimit {
             categories: <span class="macro">smallvec!</span>[DataCategory::Error],
-            scope: RateLimitScope::Organization(<span class="number">42</span>),
+            scope: RateLimitScope::Organization(OrganizationId::new(<span class="number">42</span>)),
             reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"first"</span>)),
             retry_after: RetryAfter::from_secs(<span class="number">1</span>),
             namespaces: <span class="macro">smallvec!</span>[],
@@ -2249,7 +2251,7 @@
 
         rate_limits1.add(RateLimit {
             categories: <span class="macro">smallvec!</span>[DataCategory::TransactionIndexed],
-            scope: RateLimitScope::Organization(<span class="number">42</span>),
+            scope: RateLimitScope::Organization(OrganizationId::new(<span class="number">42</span>)),
             reason_code: <span class="prelude-val">None</span>,
             retry_after: RetryAfter::from_secs(<span class="number">1</span>),
             namespaces: <span class="macro">smallvec!</span>[],
@@ -2257,7 +2259,7 @@
 
         rate_limits2.add(RateLimit {
             categories: <span class="macro">smallvec!</span>[DataCategory::Error],
-            scope: RateLimitScope::Organization(<span class="number">42</span>),
+            scope: RateLimitScope::Organization(OrganizationId::new(<span class="number">42</span>)),
             reason_code: <span class="prelude-val">Some</span>(ReasonCode::new(<span class="string">"second"</span>)),
             retry_after: RetryAfter::from_secs(<span class="number">10</span>),
             namespaces: <span class="macro">smallvec!</span>[],
@@ -2272,7 +2274,7 @@
               categories: [
                 error,
               ],
-              scope: Organization(42),
+              scope: Organization(OrganizationId(42)),
               reason_code: Some(ReasonCode("second")),
               retry_after: RetryAfter(10),
               namespaces: [],
@@ -2281,7 +2283,7 @@
               categories: [
                 transaction_indexed,
               ],
-              scope: Organization(42),
+              scope: Organization(OrganizationId(42)),
               reason_code: None,
               retry_after: RetryAfter(1),
               namespaces: [],
@@ -2298,7 +2300,7 @@
         <span class="comment">// Active error limit
         </span>cached.add(RateLimit {
             categories: <span class="macro">smallvec!</span>[DataCategory::Error],
-            scope: RateLimitScope::Organization(<span class="number">42</span>),
+            scope: RateLimitScope::Organization(OrganizationId::new(<span class="number">42</span>)),
             reason_code: <span class="prelude-val">None</span>,
             retry_after: RetryAfter::from_secs(<span class="number">1</span>),
             namespaces: <span class="macro">smallvec!</span>[],
@@ -2322,7 +2324,7 @@
               categories: [
                 error,
               ],
-              scope: Organization(42),
+              scope: Organization(OrganizationId(42)),
               reason_code: None,
               retry_after: RetryAfter(1),
               namespaces: [],
