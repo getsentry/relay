@@ -2614,15 +2614,6 @@
 <a href="#2614" id="2614">2614</a>
 <a href="#2615" id="2615">2615</a>
 <a href="#2616" id="2616">2616</a>
-<a href="#2617" id="2617">2617</a>
-<a href="#2618" id="2618">2618</a>
-<a href="#2619" id="2619">2619</a>
-<a href="#2620" id="2620">2620</a>
-<a href="#2621" id="2621">2621</a>
-<a href="#2622" id="2622">2622</a>
-<a href="#2623" id="2623">2623</a>
-<a href="#2624" id="2624">2624</a>
-<a href="#2625" id="2625">2625</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
@@ -3662,8 +3653,6 @@
     </span>batch_size: usize,
     <span class="doccomment">/// Interval for watching local cache override files in seconds.
     </span>file_interval: u32,
-    <span class="doccomment">/// Interval for evicting outdated project configs from memory.
-    </span>eviction_interval: u32,
     <span class="doccomment">/// Interval for fetching new global configs from the upstream, in seconds.
     </span>global_config_fetch_interval: u32,
 }
@@ -3682,7 +3671,6 @@
             </span>downstream_relays_batch_interval: <span class="number">100</span>, <span class="comment">// 100ms
             </span>batch_size: <span class="number">500</span>,
             file_interval: <span class="number">10</span>,                <span class="comment">// 10 seconds
-            </span>eviction_interval: <span class="number">10</span>,            <span class="comment">// 10 seconds
             </span>global_config_fetch_interval: <span class="number">10</span>, <span class="comment">// 10 seconds
         </span>}
     }
@@ -4742,12 +4730,6 @@
     <span class="doccomment">/// Returns the interval in seconds in which local project configurations should be reloaded.
     </span><span class="kw">pub fn </span>local_cache_interval(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
         Duration::from_secs(<span class="self">self</span>.values.cache.file_interval.into())
-    }
-
-    <span class="doccomment">/// Returns the interval in seconds in which projects configurations should be freed from
-    /// memory when expired.
-    </span><span class="kw">pub fn </span>cache_eviction_interval(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
-        Duration::from_secs(<span class="self">self</span>.values.cache.eviction_interval.into())
     }
 
     <span class="doccomment">/// Returns the interval in seconds in which fresh global configs should be

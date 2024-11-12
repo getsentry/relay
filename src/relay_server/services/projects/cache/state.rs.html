@@ -770,7 +770,92 @@
 <a href="#770" id="770">770</a>
 <a href="#771" id="771">771</a>
 <a href="#772" id="772">772</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
+<a href="#773" id="773">773</a>
+<a href="#774" id="774">774</a>
+<a href="#775" id="775">775</a>
+<a href="#776" id="776">776</a>
+<a href="#777" id="777">777</a>
+<a href="#778" id="778">778</a>
+<a href="#779" id="779">779</a>
+<a href="#780" id="780">780</a>
+<a href="#781" id="781">781</a>
+<a href="#782" id="782">782</a>
+<a href="#783" id="783">783</a>
+<a href="#784" id="784">784</a>
+<a href="#785" id="785">785</a>
+<a href="#786" id="786">786</a>
+<a href="#787" id="787">787</a>
+<a href="#788" id="788">788</a>
+<a href="#789" id="789">789</a>
+<a href="#790" id="790">790</a>
+<a href="#791" id="791">791</a>
+<a href="#792" id="792">792</a>
+<a href="#793" id="793">793</a>
+<a href="#794" id="794">794</a>
+<a href="#795" id="795">795</a>
+<a href="#796" id="796">796</a>
+<a href="#797" id="797">797</a>
+<a href="#798" id="798">798</a>
+<a href="#799" id="799">799</a>
+<a href="#800" id="800">800</a>
+<a href="#801" id="801">801</a>
+<a href="#802" id="802">802</a>
+<a href="#803" id="803">803</a>
+<a href="#804" id="804">804</a>
+<a href="#805" id="805">805</a>
+<a href="#806" id="806">806</a>
+<a href="#807" id="807">807</a>
+<a href="#808" id="808">808</a>
+<a href="#809" id="809">809</a>
+<a href="#810" id="810">810</a>
+<a href="#811" id="811">811</a>
+<a href="#812" id="812">812</a>
+<a href="#813" id="813">813</a>
+<a href="#814" id="814">814</a>
+<a href="#815" id="815">815</a>
+<a href="#816" id="816">816</a>
+<a href="#817" id="817">817</a>
+<a href="#818" id="818">818</a>
+<a href="#819" id="819">819</a>
+<a href="#820" id="820">820</a>
+<a href="#821" id="821">821</a>
+<a href="#822" id="822">822</a>
+<a href="#823" id="823">823</a>
+<a href="#824" id="824">824</a>
+<a href="#825" id="825">825</a>
+<a href="#826" id="826">826</a>
+<a href="#827" id="827">827</a>
+<a href="#828" id="828">828</a>
+<a href="#829" id="829">829</a>
+<a href="#830" id="830">830</a>
+<a href="#831" id="831">831</a>
+<a href="#832" id="832">832</a>
+<a href="#833" id="833">833</a>
+<a href="#834" id="834">834</a>
+<a href="#835" id="835">835</a>
+<a href="#836" id="836">836</a>
+<a href="#837" id="837">837</a>
+<a href="#838" id="838">838</a>
+<a href="#839" id="839">839</a>
+<a href="#840" id="840">840</a>
+<a href="#841" id="841">841</a>
+<a href="#842" id="842">842</a>
+<a href="#843" id="843">843</a>
+<a href="#844" id="844">844</a>
+<a href="#845" id="845">845</a>
+<a href="#846" id="846">846</a>
+<a href="#847" id="847">847</a>
+<a href="#848" id="848">848</a>
+<a href="#849" id="849">849</a>
+<a href="#850" id="850">850</a>
+<a href="#851" id="851">851</a>
+<a href="#852" id="852">852</a>
+<a href="#853" id="853">853</a>
+<a href="#854" id="854">854</a>
+<a href="#855" id="855">855</a>
+<a href="#856" id="856">856</a>
+</pre></div><pre class="rust"><code><span class="kw">use </span>futures::StreamExt;
+<span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>tokio::time::Instant;
 
@@ -784,7 +869,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::project::{ProjectState, Revision};
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::source::SourceProjectState;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms};
-<span class="kw">use </span><span class="kw">crate</span>::utils::RetryBackoff;
+<span class="kw">use </span><span class="kw">crate</span>::utils::{RetryBackoff, UniqueScheduledQueue};
 
 <span class="doccomment">/// The backing storage for a project cache.
 ///
@@ -802,6 +887,8 @@
     </span>shared: Arc&lt;Shared&gt;,
     <span class="doccomment">/// The private, mutably exclusive state, used to maintain the project state.
     </span>private: hashbrown::HashMap&lt;ProjectKey, PrivateProjectState&gt;,
+    <span class="doccomment">/// Scheduled queue tracking all evictions.
+    </span>evictions: UniqueScheduledQueue&lt;ProjectKey&gt;,
 }
 
 <span class="kw">impl </span>ProjectStore {
@@ -816,8 +903,17 @@
     /// A returned [`Fetch`] must be scheduled and completed with [`Fetch::complete`] and
     /// [`Self::complete_fetch`].
     </span><span class="kw">pub fn </span>try_begin_fetch(<span class="kw-2">&amp;mut </span><span class="self">self</span>, project_key: ProjectKey, config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="prelude-ty">Option</span>&lt;Fetch&gt; {
-        <span class="self">self</span>.get_or_create(project_key, config)
-            .try_begin_fetch(config)
+        <span class="kw">let </span>fetch = <span class="self">self
+            </span>.get_or_create(project_key, config)
+            .try_begin_fetch(config);
+
+        <span class="comment">// If there is a new fetch, remove the pending eviction, it will be re-scheduled once the
+        // fetch is completed.
+        </span><span class="kw">if </span>fetch.is_some() {
+            <span class="self">self</span>.evictions.remove(<span class="kw-2">&amp;</span>project_key);
+        }
+
+        fetch
     }
 
     <span class="doccomment">/// Completes a [`CompletedFetch`] started with [`Self::try_begin_fetch`].
@@ -826,54 +922,26 @@
     /// [`ProjectState`] is still pending or already deemed expired.
     </span><span class="attr">#[must_use = <span class="string">"an incomplete fetch must be retried"</span>]
     </span><span class="kw">pub fn </span>complete_fetch(<span class="kw-2">&amp;mut </span><span class="self">self</span>, fetch: CompletedFetch, config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="prelude-ty">Option</span>&lt;Fetch&gt; {
+        <span class="kw">let </span>project_key = fetch.project_key;
+
         <span class="comment">// Eviction is not possible for projects which are currently being fetched.
         // Hence if there was a started fetch, the project state must always exist at this stage.
-        </span><span class="macro">debug_assert!</span>(<span class="self">self</span>.shared.projects.pin().get(<span class="kw-2">&amp;</span>fetch.project_key).is_some());
-        <span class="macro">debug_assert!</span>(<span class="self">self</span>.private.get(<span class="kw-2">&amp;</span>fetch.project_key).is_some());
+        </span><span class="macro">debug_assert!</span>(<span class="self">self</span>.shared.projects.pin().get(<span class="kw-2">&amp;</span>project_key).is_some());
+        <span class="macro">debug_assert!</span>(<span class="self">self</span>.private.get(<span class="kw-2">&amp;</span>project_key).is_some());
 
-        <span class="kw">let </span><span class="kw-2">mut </span>project = <span class="self">self</span>.get_or_create(fetch.project_key, config);
-        project.complete_fetch(fetch);
+        <span class="kw">let </span><span class="kw-2">mut </span>project = <span class="self">self</span>.get_or_create(project_key, config);
+        <span class="kw">let </span>expiry = project.complete_fetch(fetch, config);
         <span class="comment">// Schedule another fetch if necessary, usually should only happen if
         // the completed fetch is pending.
-        </span>project.try_begin_fetch(config)
-    }
+        </span><span class="kw">let </span>new_fetch = project.try_begin_fetch(config);
 
-    <span class="doccomment">/// Evicts all stale, expired projects from the cache.
-    ///
-    /// Evicted projects are passed to the `on_evict` callback. Returns the total amount of evicted
-    /// projects.
-    </span><span class="kw">pub fn </span>evict_stale_projects&lt;F&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, config: <span class="kw-2">&amp;</span>Config, <span class="kw-2">mut </span>on_evict: F) -&gt; usize
-    <span class="kw">where
-        </span>F: FnMut(ProjectKey),
-    {
-        <span class="kw">let </span>eviction_start = Instant::now();
-
-        <span class="kw">let </span>expired = <span class="self">self</span>.private.extract_if(|<span class="kw">_</span>, private| {
-            <span class="comment">// We only evict projects which have fully expired and are not currently being fetched.
-            //
-            // This relies on the fact that a project should never remain in the `pending` state
-            // for long and is either always being fetched or successfully fetched.
-            </span>private.last_fetch().map_or(<span class="bool-val">false</span>, |ts| {
-                ts.check_expiry(eviction_start, config).is_expired()
-            })
-        });
-
-        <span class="kw">let </span><span class="kw-2">mut </span>evicted = <span class="number">0</span>;
-
-        <span class="kw">let </span>shared = <span class="self">self</span>.shared.projects.pin();
-        <span class="kw">for </span>(project_key, <span class="kw">_</span>) <span class="kw">in </span>expired {
-            <span class="kw">let </span>_removed = shared.remove(<span class="kw-2">&amp;</span>project_key);
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(ExpiryTime(when)) = expiry {
             <span class="macro">debug_assert!</span>(
-                _removed.is_some(),
-                <span class="string">"an expired project must exist in the shared state"
+                new_fetch.is_none(),
+                <span class="string">"there cannot be a new fetch and a scheduled expiry"
             </span>);
-            <span class="macro">relay_log::trace!</span>(tags.project_key = project_key.as_str(), <span class="string">"project evicted"</span>);
-
-            evicted += <span class="number">1</span>;
-
-            on_evict(project_key);
+            <span class="self">self</span>.evictions.schedule(when, project_key);
         }
-        drop(shared);
 
         <span class="macro">metric!</span>(
             histogram(RelayHistograms::ProjectStateCacheSize) = <span class="self">self</span>.shared.projects.len() <span class="kw">as </span>u64,
@@ -883,9 +951,43 @@
             histogram(RelayHistograms::ProjectStateCacheSize) = <span class="self">self</span>.private.len() <span class="kw">as </span>u64,
             storage = <span class="string">"private"
         </span>);
-        <span class="macro">metric!</span>(counter(RelayCounters::EvictingStaleProjectCaches) += evicted <span class="kw">as </span>u64);
 
-        evicted
+        new_fetch
+    }
+
+    <span class="doccomment">/// Waits for the next scheduled eviction and returns an [`Eviction`] token.
+    ///
+    /// The returned [`Eviction`] token must be immediately turned in using [`Self::evict`].
+    ///
+    /// The returned future is cancellation safe.
+    </span><span class="kw">pub async fn </span>next_eviction(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Eviction&gt; {
+        <span class="kw">if </span><span class="self">self</span>.evictions.is_empty() {
+            <span class="kw">return </span><span class="prelude-val">None</span>;
+        }
+        <span class="self">self</span>.evictions.next().<span class="kw">await</span>.map(Eviction)
+    }
+
+    <span class="doccomment">/// Evicts a project using an [`Eviction`] token returned from [`Self::next_eviction`].
+    </span><span class="kw">pub fn </span>evict(<span class="kw-2">&amp;mut </span><span class="self">self</span>, Eviction(project_key): Eviction) {
+        <span class="comment">// Remove the private part.
+        </span><span class="kw">let </span><span class="prelude-val">Some</span>(private) = <span class="self">self</span>.private.remove(<span class="kw-2">&amp;</span>project_key) <span class="kw">else </span>{
+            <span class="comment">// Not possible if all invariants are upheld.
+            </span><span class="macro">debug_assert!</span>(<span class="bool-val">false</span>, <span class="string">"no private state for evicition"</span>);
+            <span class="kw">return</span>;
+        };
+
+        <span class="macro">debug_assert!</span>(
+            <span class="macro">matches!</span>(private.state, FetchState::Complete { .. }),
+            <span class="string">"private state must be completed"
+        </span>);
+
+        <span class="comment">// Remove the shared part.
+        </span><span class="kw">let </span>shared = <span class="self">self</span>.shared.projects.pin();
+        <span class="kw">let </span>_removed = shared.remove(<span class="kw-2">&amp;</span>project_key);
+        <span class="macro">debug_assert!</span>(
+            _removed.is_some(),
+            <span class="string">"an expired project must exist in the shared state"
+        </span>);
     }
 
     <span class="doccomment">/// Get a reference to the current project or create a new project.
@@ -1028,7 +1130,7 @@
             .map(|fetch| fetch.with_revision(<span class="self">self</span>.shared.revision()))
     }
 
-    <span class="kw">fn </span>complete_fetch(<span class="kw-2">&amp;mut </span><span class="self">self</span>, fetch: CompletedFetch) {
+    <span class="kw">fn </span>complete_fetch(<span class="kw-2">&amp;mut </span><span class="self">self</span>, fetch: CompletedFetch, config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="prelude-ty">Option</span>&lt;ExpiryTime&gt; {
         <span class="kw">let </span>now = Instant::now();
         <span class="self">self</span>.private.complete_fetch(<span class="kw-2">&amp;</span>fetch, now);
 
@@ -1040,7 +1142,22 @@
             }
             <span class="kw">_ </span>=&gt; {}
         }
+
+        <span class="self">self</span>.private.expiry_time(config)
     }
+}
+
+<span class="doccomment">/// A [`Eviction`] token.
+///
+/// The token must be turned in using [`ProjectStore::evict`].
+</span><span class="attr">#[must_use = <span class="string">"an eviction must be used"</span>]
+</span><span class="kw">pub struct </span>Eviction(ProjectKey);
+
+<span class="kw">impl </span>Eviction {
+    <span class="doccomment">/// Returns the [`ProjectKey`] of the project that needs to be evicted.
+    </span><span class="kw">pub fn </span>project_key(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ProjectKey {
+        <span class="self">self</span>.<span class="number">0
+    </span>}
 }
 
 <span class="doccomment">/// A [`Fetch`] token.
@@ -1214,11 +1331,9 @@
         }
     }
 
-    <span class="doccomment">/// Returns the [`LastFetch`] if there is currently no fetch in progress and the project
-    /// was fetched successfully before.
-    </span><span class="kw">fn </span>last_fetch(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;LastFetch&gt; {
+    <span class="kw">fn </span>expiry_time(<span class="kw-2">&amp;</span><span class="self">self</span>, config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="prelude-ty">Option</span>&lt;ExpiryTime&gt; {
         <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self</span>.state {
-            FetchState::Complete { last_fetch } =&gt; <span class="prelude-val">Some</span>(<span class="kw-2">*</span>last_fetch),
+            FetchState::Complete { last_fetch } =&gt; <span class="prelude-val">Some</span>(last_fetch.expiry_time(config)),
             <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
         }
     }
@@ -1314,6 +1429,11 @@
             Expiry::Fresh
         }
     }
+
+    <span class="doccomment">/// Returns when the project is based to expire based on the current [`LastFetch`].
+    </span><span class="kw">fn </span>expiry_time(<span class="kw-2">&amp;</span><span class="self">self</span>, config: <span class="kw-2">&amp;</span>Config) -&gt; ExpiryTime {
+        ExpiryTime(<span class="self">self</span>.<span class="number">0 </span>+ config.project_grace_period() + config.project_cache_expiry())
+    }
 }
 
 <span class="doccomment">/// Expiry state of a project.
@@ -1334,12 +1454,11 @@
     </span><span class="kw">fn </span>is_fresh(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="macro">matches!</span>(<span class="self">self</span>, <span class="self">Self</span>::Fresh)
     }
-
-    <span class="doccomment">/// Returns `true` if the project is expired and can be evicted.
-    </span><span class="kw">fn </span>is_expired(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="macro">matches!</span>(<span class="self">self</span>, <span class="self">Self</span>::Expired)
-    }
 }
+
+<span class="doccomment">/// Instant when a project is scheduled for expiry.
+</span><span class="attr">#[must_use = <span class="string">"an expiry time must be used to schedule an evicition"</span>]
+</span><span class="kw">struct </span>ExpiryTime(Instant);
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
@@ -1347,10 +1466,15 @@
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="kw">fn </span>collect_evicted(store: <span class="kw-2">&amp;mut </span>ProjectStore, config: <span class="kw-2">&amp;</span>Config) -&gt; Vec&lt;ProjectKey&gt; {
+    <span class="kw">async fn </span>collect_evicted(store: <span class="kw-2">&amp;mut </span>ProjectStore) -&gt; Vec&lt;ProjectKey&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>evicted = Vec::new();
-        <span class="kw">let </span>num_evicted = store.evict_stale_projects(config, |pk| evicted.push(pk));
-        <span class="macro">assert_eq!</span>(evicted.len(), num_evicted);
+        <span class="comment">// Small timeout to really only get what is ready to be evicted right now.
+        </span><span class="kw">while let </span><span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(eviction)) =
+            tokio::time::timeout(Duration::from_nanos(<span class="number">5</span>), store.next_eviction()).<span class="kw">await
+        </span>{
+            evicted.push(eviction.<span class="number">0</span>);
+            store.evict(eviction);
+        }
         evicted
     }
 
@@ -1363,8 +1487,8 @@
         };
     }
 
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_store_fetch() {
+    <span class="attr">#[tokio::test(start_paused = <span class="bool-val">true</span>)]
+    </span><span class="kw">async fn </span>test_store_fetch() {
         <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"</span>).unwrap();
         <span class="kw">let </span><span class="kw-2">mut </span>store = ProjectStore::default();
         <span class="kw">let </span>config = Default::default();
@@ -1453,13 +1577,13 @@
         <span class="kw">let </span>fetch = fetch.complete(ProjectState::Disabled.into());
         <span class="macro">assert!</span>(store.complete_fetch(fetch, <span class="kw-2">&amp;</span>config).is_none());
 
-        <span class="macro">assert_eq!</span>(collect_evicted(<span class="kw-2">&amp;mut </span>store, <span class="kw-2">&amp;</span>config), Vec::new());
+        <span class="macro">assert_eq!</span>(collect_evicted(<span class="kw-2">&amp;mut </span>store).<span class="kw">await</span>, Vec::new());
         <span class="macro">assert_state!</span>(store, project_key1, ProjectState::Disabled);
 
         <span class="comment">// 3 seconds is not enough to expire any project.
         </span>tokio::time::advance(Duration::from_secs(<span class="number">3</span>)).<span class="kw">await</span>;
 
-        <span class="macro">assert_eq!</span>(collect_evicted(<span class="kw-2">&amp;mut </span>store, <span class="kw-2">&amp;</span>config), Vec::new());
+        <span class="macro">assert_eq!</span>(collect_evicted(<span class="kw-2">&amp;mut </span>store).<span class="kw">await</span>, Vec::new());
         <span class="macro">assert_state!</span>(store, project_key1, ProjectState::Disabled);
 
         <span class="kw">let </span>fetch = store.try_begin_fetch(project_key2, <span class="kw-2">&amp;</span>config).unwrap();
@@ -1469,7 +1593,7 @@
         <span class="comment">// A total of 6 seconds should expire the first project.
         </span>tokio::time::advance(Duration::from_secs(<span class="number">3</span>)).<span class="kw">await</span>;
 
-        <span class="macro">assert_eq!</span>(collect_evicted(<span class="kw-2">&amp;mut </span>store, <span class="kw-2">&amp;</span>config), <span class="macro">vec!</span>[project_key1]);
+        <span class="macro">assert_eq!</span>(collect_evicted(<span class="kw-2">&amp;mut </span>store).<span class="kw">await</span>, <span class="macro">vec!</span>[project_key1]);
         <span class="macro">assert_state!</span>(store, project_key1, ProjectState::Pending);
         <span class="macro">assert_state!</span>(store, project_key2, ProjectState::Disabled);
     }
@@ -1494,21 +1618,21 @@
         tokio::time::advance(Duration::from_secs(<span class="number">6</span>)).<span class="kw">await</span>;
 
         <span class="comment">// No evictions, project is pending.
-        </span><span class="macro">assert_eq!</span>(collect_evicted(<span class="kw-2">&amp;mut </span>store, <span class="kw-2">&amp;</span>config), Vec::new());
+        </span><span class="macro">assert_eq!</span>(collect_evicted(<span class="kw-2">&amp;mut </span>store).<span class="kw">await</span>, Vec::new());
 
         <span class="comment">// Complete the project.
         </span><span class="kw">let </span>fetch = fetch.complete(ProjectState::Disabled.into());
         <span class="macro">assert!</span>(store.complete_fetch(fetch, <span class="kw-2">&amp;</span>config).is_none());
 
         <span class="comment">// Still should not be evicted, because we do have 5 seconds to expire since completion.
-        </span><span class="macro">assert_eq!</span>(collect_evicted(<span class="kw-2">&amp;mut </span>store, <span class="kw-2">&amp;</span>config), Vec::new());
+        </span><span class="macro">assert_eq!</span>(collect_evicted(<span class="kw-2">&amp;mut </span>store).<span class="kw">await</span>, Vec::new());
         tokio::time::advance(Duration::from_secs(<span class="number">4</span>)).<span class="kw">await</span>;
-        <span class="macro">assert_eq!</span>(collect_evicted(<span class="kw-2">&amp;mut </span>store, <span class="kw-2">&amp;</span>config), Vec::new());
+        <span class="macro">assert_eq!</span>(collect_evicted(<span class="kw-2">&amp;mut </span>store).<span class="kw">await</span>, Vec::new());
         <span class="macro">assert_state!</span>(store, project_key1, ProjectState::Disabled);
 
         <span class="comment">// Just enough to expire the project.
         </span>tokio::time::advance(Duration::from_millis(<span class="number">1001</span>)).<span class="kw">await</span>;
-        <span class="macro">assert_eq!</span>(collect_evicted(<span class="kw-2">&amp;mut </span>store, <span class="kw-2">&amp;</span>config), <span class="macro">vec!</span>[project_key1]);
+        <span class="macro">assert_eq!</span>(collect_evicted(<span class="kw-2">&amp;mut </span>store).<span class="kw">await</span>, <span class="macro">vec!</span>[project_key1]);
         <span class="macro">assert_state!</span>(store, project_key1, ProjectState::Pending);
         <span class="macro">assert_state!</span>(store, project_key2, ProjectState::Pending);
     }
@@ -1532,13 +1656,57 @@
         <span class="comment">// This is in the grace period, but not yet expired.
         </span>tokio::time::advance(Duration::from_millis(<span class="number">9500</span>)).<span class="kw">await</span>;
 
-        <span class="macro">assert_eq!</span>(collect_evicted(<span class="kw-2">&amp;mut </span>store, <span class="kw-2">&amp;</span>config), Vec::new());
+        <span class="macro">assert_eq!</span>(collect_evicted(<span class="kw-2">&amp;mut </span>store).<span class="kw">await</span>, Vec::new());
         <span class="macro">assert_state!</span>(store, project_key, ProjectState::Disabled);
 
         <span class="comment">// Now it's expired.
         </span>tokio::time::advance(Duration::from_secs(<span class="number">1</span>)).<span class="kw">await</span>;
 
-        <span class="macro">assert_eq!</span>(collect_evicted(<span class="kw-2">&amp;mut </span>store, <span class="kw-2">&amp;</span>config), <span class="macro">vec!</span>[project_key]);
+        <span class="macro">assert_eq!</span>(collect_evicted(<span class="kw-2">&amp;mut </span>store).<span class="kw">await</span>, <span class="macro">vec!</span>[project_key]);
+        <span class="macro">assert_state!</span>(store, project_key, ProjectState::Pending);
+    }
+
+    <span class="attr">#[tokio::test(start_paused = <span class="bool-val">true</span>)]
+    </span><span class="kw">async fn </span>test_store_no_eviction_during_fetch() {
+        <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"</span>).unwrap();
+        <span class="kw">let </span><span class="kw-2">mut </span>store = ProjectStore::default();
+        <span class="kw">let </span>config = Config::from_json_value(<span class="macro">serde_json::json!</span>({
+            <span class="string">"cache"</span>: {
+                <span class="string">"project_expiry"</span>: <span class="number">5</span>,
+                <span class="string">"project_grace_period"</span>: <span class="number">5</span>,
+            }
+        }))
+        .unwrap();
+
+        <span class="kw">let </span>fetch = store.try_begin_fetch(project_key, <span class="kw-2">&amp;</span>config).unwrap();
+
+        <span class="comment">// Project is expired, but there is an ongoing fetch.
+        </span>tokio::time::advance(Duration::from_millis(<span class="number">10500</span>)).<span class="kw">await</span>;
+        <span class="comment">// No evictions, there is a fetch ongoing!
+        </span><span class="macro">assert_eq!</span>(collect_evicted(<span class="kw-2">&amp;mut </span>store).<span class="kw">await</span>, Vec::new());
+
+        <span class="comment">// Complete the project.
+        </span><span class="kw">let </span>fetch = fetch.complete(ProjectState::Disabled.into());
+        <span class="macro">assert!</span>(store.complete_fetch(fetch, <span class="kw-2">&amp;</span>config).is_none());
+        <span class="comment">// But start a new fetch asap (after grace period).
+        </span>tokio::time::advance(Duration::from_millis(<span class="number">5001</span>)).<span class="kw">await</span>;
+        <span class="kw">let </span>fetch = store.try_begin_fetch(project_key, <span class="kw-2">&amp;</span>config).unwrap();
+
+        <span class="comment">// Again, expire the project.
+        </span>tokio::time::advance(Duration::from_millis(<span class="number">10500</span>)).<span class="kw">await</span>;
+        <span class="comment">// No evictions, there is a fetch ongoing!
+        </span><span class="macro">assert_eq!</span>(collect_evicted(<span class="kw-2">&amp;mut </span>store).<span class="kw">await</span>, Vec::new());
+
+        <span class="comment">// Complete the project.
+        </span><span class="kw">let </span>fetch = fetch.complete(ProjectState::Disabled.into());
+        <span class="macro">assert!</span>(store.complete_fetch(fetch, <span class="kw-2">&amp;</span>config).is_none());
+
+        <span class="comment">// Not quite yet expired.
+        </span>tokio::time::advance(Duration::from_millis(<span class="number">9500</span>)).<span class="kw">await</span>;
+        <span class="macro">assert_eq!</span>(collect_evicted(<span class="kw-2">&amp;mut </span>store).<span class="kw">await</span>, Vec::new());
+        <span class="comment">// Now it's expired.
+        </span>tokio::time::advance(Duration::from_millis(<span class="number">501</span>)).<span class="kw">await</span>;
+        <span class="macro">assert_eq!</span>(collect_evicted(<span class="kw-2">&amp;mut </span>store).<span class="kw">await</span>, <span class="macro">vec!</span>[project_key]);
         <span class="macro">assert_state!</span>(store, project_key, ProjectState::Pending);
     }
 }

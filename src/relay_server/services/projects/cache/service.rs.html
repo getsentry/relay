@@ -238,10 +238,10 @@
 <span class="kw">use </span>tokio::sync::broadcast;
 
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::cache::handle::ProjectCacheHandle;
-<span class="kw">use </span><span class="kw">crate</span>::services::projects::cache::state::{CompletedFetch, Fetch, ProjectStore};
+<span class="kw">use </span><span class="kw">crate</span>::services::projects::cache::state::{CompletedFetch, Eviction, Fetch, ProjectStore};
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectState;
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::source::ProjectSource;
-<span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayGauges, RelayTimers};
+<span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayGauges, RelayTimers};
 <span class="kw">use </span><span class="kw">crate</span>::utils::FuturesScheduled;
 
 <span class="doccomment">/// Size of the broadcast channel for project events.
@@ -399,14 +399,17 @@
         );
     }
 
-    <span class="kw">fn </span>handle_evict_stale_projects(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="kw">let </span>on_evict = |project_key| {
-            <span class="kw">let _ </span>= <span class="self">self
-                </span>.project_events_tx
-                .send(ProjectChange::Evicted(project_key));
-        };
+    <span class="kw">fn </span>handle_eviction(<span class="kw-2">&amp;mut </span><span class="self">self</span>, eviction: Eviction) {
+        <span class="kw">let </span>project_key = eviction.project_key();
 
-        <span class="self">self</span>.store.evict_stale_projects(<span class="kw-2">&amp;</span><span class="self">self</span>.config, on_evict);
+        <span class="self">self</span>.store.evict(eviction);
+
+        <span class="kw">let _ </span>= <span class="self">self
+            </span>.project_events_tx
+            .send(ProjectChange::Evicted(project_key));
+
+        <span class="macro">relay_log::trace!</span>(tags.project_key = project_key.as_str(), <span class="string">"project evicted"</span>);
+        <span class="macro">metric!</span>(counter(RelayCounters::EvictingStaleProjectCaches) += <span class="number">1</span>);
     }
 
     <span class="kw">fn </span>handle_message(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: ProjectCache) {
@@ -432,9 +435,6 @@
         }
 
         tokio::spawn(<span class="kw">async move </span>{
-            <span class="kw">let </span><span class="kw-2">mut </span>eviction_ticker = tokio::time::interval(<span class="self">self</span>.config.cache_eviction_interval());
-            eviction_ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-
             <span class="kw">loop </span>{
                 <span class="macro">tokio::select!</span> {
                     biased;
@@ -447,9 +447,9 @@
                         message.variant(),
                         <span class="self">self</span>.handle_message(message)
                     ),
-                    <span class="kw">_ </span>= eviction_ticker.tick() =&gt; <span class="macro">timed!</span>(
-                        <span class="string">"evict_stale_projects"</span>,
-                        <span class="self">self</span>.handle_evict_stale_projects()
+                    <span class="prelude-val">Some</span>(eviction) = <span class="self">self</span>.store.next_eviction() =&gt; <span class="macro">timed!</span>(
+                        <span class="string">"eviction"</span>,
+                        <span class="self">self</span>.handle_eviction(eviction)
                     ),
                 }
             }
