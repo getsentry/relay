@@ -7370,7 +7370,7 @@
         </span><span class="kw">let </span>contexts = event.contexts.into_value().unwrap();
         <span class="kw">let </span>browser = contexts.<span class="number">0</span>.get(<span class="string">"browser"</span>).unwrap();
         <span class="macro">assert_eq!</span>(
-            <span class="string">r#"{"name":"Chrome","version":"103.0.0","type":"browser"}"#</span>,
+            <span class="string">r#"{"browser":"Chrome 103.0.0","name":"Chrome","version":"103.0.0","type":"browser"}"#</span>,
             browser.to_json().unwrap()
         );
     }

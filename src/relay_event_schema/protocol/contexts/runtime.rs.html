@@ -98,6 +98,11 @@
 <a href="#98" id="98">98</a>
 <a href="#99" id="99">99</a>
 <a href="#100" id="100">100</a>
+<a href="#101" id="101">101</a>
+<a href="#102" id="102">102</a>
+<a href="#103" id="103">103</a>
+<a href="#104" id="104">104</a>
+<a href="#105" id="105">105</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
 
 <span class="kw">use </span><span class="kw">crate</span>::processor::ProcessValue;
@@ -110,6 +115,9 @@
 /// JavaScript application running on top of JVM).
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 </span><span class="kw">pub struct </span>RuntimeContext {
+    <span class="doccomment">/// Computed field from `name` and `version`. Needed by the metrics extraction.
+    </span><span class="kw">pub </span>runtime: Annotated&lt;String&gt;,
+
     <span class="doccomment">/// Runtime name.
     </span><span class="kw">pub </span>name: Annotated&lt;String&gt;,
 
@@ -172,6 +180,7 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_runtime_context_roundtrip() {
         <span class="kw">let </span>json = <span class="string">r#"{
+  "runtime": "rustc 1.27.0",
   "name": "rustc",
   "version": "1.27.0",
   "build": "stable",
@@ -180,6 +189,7 @@
   "type": "runtime"
 }"#</span>;
         <span class="kw">let </span>context = Annotated::new(Context::Runtime(Box::new(RuntimeContext {
+            runtime: Annotated::new(<span class="string">"rustc 1.27.0"</span>.to_string()),
             name: Annotated::new(<span class="string">"rustc"</span>.to_string()),
             version: Annotated::new(<span class="string">"1.27.0"</span>.to_string()),
             build: Annotated::new(LenientString(<span class="string">"stable"</span>.to_string())),

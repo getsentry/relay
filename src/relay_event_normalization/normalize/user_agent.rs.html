@@ -1094,6 +1094,10 @@
 <a href="#1094" id="1094">1094</a>
 <a href="#1095" id="1095">1095</a>
 <a href="#1096" id="1096">1096</a>
+<a href="#1097" id="1097">1097</a>
+<a href="#1098" id="1098">1098</a>
+<a href="#1099" id="1099">1099</a>
+<a href="#1100" id="1100">1100</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Generate context data from user agent and client hints.
 //!
 //! This module is responsible for taking the user agent string parsing it and filling in
@@ -1917,13 +1921,14 @@
         <span class="kw">let </span>browser =
             BrowserContext::from_hints_or_ua(<span class="kw-2">&amp;</span>RawUserAgentInfo::from_headers(<span class="kw-2">&amp;</span>headers)).unwrap();
 
-        <span class="macro">insta::assert_debug_snapshot!</span>(browser, @<span class="string">r#"
+        <span class="macro">insta::assert_debug_snapshot!</span>(browser, @<span class="string">r###"
         BrowserContext {
+            browser: ~,
             name: "Google Chrome",
             version: "109",
             other: {},
         }
-        "#</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
@@ -1969,13 +1974,14 @@
         <span class="kw">let </span>browser =
             BrowserContext::from_hints_or_ua(<span class="kw-2">&amp;</span>RawUserAgentInfo::from_headers(<span class="kw-2">&amp;</span>headers)).unwrap();
 
-        <span class="macro">insta::assert_debug_snapshot!</span>(browser, @<span class="string">r#"
+        <span class="macro">insta::assert_debug_snapshot!</span>(browser, @<span class="string">r###"
         BrowserContext {
+            browser: ~,
             name: "weird browser",
             version: "109",
             other: {},
         }
-        "#</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
@@ -2048,18 +2054,19 @@
 
         <span class="kw">let </span>os = OsContext::from_hints_or_ua(<span class="kw-2">&amp;</span>RawUserAgentInfo::from_headers(<span class="kw-2">&amp;</span>headers)).unwrap();
 
-        <span class="macro">insta::assert_debug_snapshot!</span>(os, @<span class="string">r#"
-OsContext {
-    name: "macOS",
-    version: "13.1.0",
-    build: ~,
-    kernel_version: ~,
-    rooted: ~,
-    distribution: ~,
-    raw_description: ~,
-    other: {},
-}
-        "#</span>);
+        <span class="macro">insta::assert_debug_snapshot!</span>(os, @<span class="string">r###"
+        OsContext {
+            os: ~,
+            name: "macOS",
+            version: "13.1.0",
+            build: ~,
+            kernel_version: ~,
+            rooted: ~,
+            distribution: ~,
+            raw_description: ~,
+            other: {},
+        }
+        "###</span>);
     }
 
     <span class="attr">#[test]
@@ -2120,18 +2127,19 @@ OsContext {
 
         <span class="kw">let </span>os = OsContext::from_hints_or_ua(<span class="kw-2">&amp;</span>RawUserAgentInfo::from_headers(<span class="kw-2">&amp;</span>headers)).unwrap();
 
-        <span class="macro">insta::assert_debug_snapshot!</span>(os, @<span class="string">r#"
-OsContext {
-    name: "Mac OS X",
-    version: "10.15.6",
-    build: ~,
-    kernel_version: ~,
-    rooted: ~,
-    distribution: ~,
-    raw_description: ~,
-    other: {},
-}
-        "#</span>);
+        <span class="macro">insta::assert_debug_snapshot!</span>(os, @<span class="string">r###"
+        OsContext {
+            os: ~,
+            name: "Mac OS X",
+            version: "10.15.6",
+            build: ~,
+            kernel_version: ~,
+            rooted: ~,
+            distribution: ~,
+            raw_description: ~,
+            other: {},
+        }
+        "###</span>);
     }
 
     <span class="attr">#[test]
