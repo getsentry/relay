@@ -4,6 +4,7 @@ use chrono::{DateTime, Utc};
 
 use crate::envelope::Envelope;
 
+pub mod caching;
 pub mod memory;
 pub mod sqlite;
 
