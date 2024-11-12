@@ -2186,7 +2186,7 @@ def test_metrics_extraction_with_computed_context_filters(
         "metrics": [
             {
                 "category": "transaction",
-                "mri": "c:transaction/on_demand_os@none",
+                "mri": "c:transactions/on_demand_os@none",
                 "condition": {
                     "op": "eq",
                     "name": "event.contexts.os",
@@ -2195,7 +2195,7 @@ def test_metrics_extraction_with_computed_context_filters(
             },
             {
                 "category": "transaction",
-                "mri": "c:transaction/on_demand_runtime@none",
+                "mri": "c:transactions/on_demand_runtime@none",
                 "condition": {
                     "op": "eq",
                     "name": "event.contexts.runtime",
@@ -2204,7 +2204,7 @@ def test_metrics_extraction_with_computed_context_filters(
             },
             {
                 "category": "transaction",
-                "mri": "c:transaction/on_demand_browser@none",
+                "mri": "c:transactions/on_demand_browser@none",
                 "condition": {
                     "op": "eq",
                     "name": "event.contexts.browser",
@@ -2249,14 +2249,19 @@ def test_metrics_extraction_with_computed_context_filters(
     assert event["contexts"]["runtime"]["runtime"] == "Python 3.9.0"
     assert event["contexts"]["browser"]["browser"] == "Firefox 89.0"
 
+    # Define list of extracted metrics to check
+    metric_names = [
+        "c:transactions/on_demand_os@none",
+        "c:transactions/on_demand_runtime@none",
+        "c:transactions/on_demand_browser@none",
+    ]
+
     # Verify that all three metrics were extracted
-    metrics = metrics_by_name(metrics_consumer, 4)
-    print(metrics)
+    metrics = metrics_by_name(metrics_consumer, 7)
 
     # Check each extracted metric
-    assert metrics["c:transaction/on_demand_os@none"]["value"] == 1.0
-    assert metrics["c:transaction/on_demand_runtime@none"]["value"] == 1.0
-    assert metrics["c:transaction/on_demand_browser@none"]["value"] == 1.0
+    for metric_name in metric_names:
+        assert metrics[metric_name]["value"] == 1.0
 
     # Send another transaction with non-matching contexts
     transaction["contexts"].update(
@@ -2275,8 +2280,4 @@ def test_metrics_extraction_with_computed_context_filters(
     # Verify no new metrics were extracted for the specified contexts
     metrics = metrics_consumer.get_metrics()
     for metric, _ in metrics:
-        assert metric["name"] not in [
-            "c:transaction/on_demand_os@none",
-            "c:transaction/on_demand_runtime@none",
-            "c:transaction/on_demand_browser@none",
-        ]
+        assert metric["name"] not in metric_names
