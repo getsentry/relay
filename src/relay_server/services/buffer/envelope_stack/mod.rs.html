@@ -26,12 +26,14 @@
 <a href="#26" id="26">26</a>
 <a href="#27" id="27">27</a>
 <a href="#28" id="28">28</a>
+<a href="#29" id="29">29</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::future::Future;
 
 <span class="kw">use </span>chrono::{DateTime, Utc};
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::Envelope;
 
+<span class="kw">pub mod </span>caching;
 <span class="kw">pub mod </span>memory;
 <span class="kw">pub mod </span>sqlite;
 
@@ -39,7 +41,7 @@
 </span><span class="kw">pub trait </span>EnvelopeStack: Send + std::fmt::Debug {
     <span class="doccomment">/// The error type that is returned when an error is encountered during reading or writing the
     /// [`EnvelopeStack`].
-    </span><span class="kw">type </span>Error: std::fmt::Debug;
+    </span><span class="kw">type </span>Error: std::fmt::Debug + std::error::Error;
 
     <span class="doccomment">/// Pushes an [`Envelope`] on top of the stack.
     </span><span class="kw">fn </span>push(<span class="kw-2">&amp;mut </span><span class="self">self</span>, envelope: Box&lt;Envelope&gt;) -&gt; <span class="kw">impl </span>Future&lt;Output = <span class="prelude-ty">Result</span>&lt;(), <span class="self">Self</span>::Error&gt;&gt;;

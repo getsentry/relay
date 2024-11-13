@@ -59,7 +59,7 @@
     }
 
     <span class="kw">async fn </span>peek(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;DateTime&lt;Utc&gt;&gt;, <span class="self">Self</span>::Error&gt; {
-        <span class="prelude-val">Ok</span>(<span class="self">self</span>.<span class="number">0</span>.last().map(|e| e.meta().received_at()))
+        <span class="prelude-val">Ok</span>(<span class="self">self</span>.<span class="number">0</span>.last().map(|e| e.received_at()))
     }
 
     <span class="kw">async fn </span>pop(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;Box&lt;Envelope&gt;&gt;, <span class="self">Self</span>::Error&gt; {
