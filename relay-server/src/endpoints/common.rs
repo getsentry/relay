@@ -338,9 +338,18 @@ pub async fn handle_envelope(
     for item in envelope.items() {
         metric!(
             histogram(RelayHistograms::EnvelopeItemSize) = item.payload().len() as u64,
+            item_type = item.ty().name()
+        );
+        metric!(
+            counter(RelayCounters::EnvelopeItemsPerSdk) += 1,
             item_type = item.ty().name(),
             sdk = client_name.name(),
-        )
+        );
+        metric!(
+            counter(RelayCounters::EnvelopeItemBytesPerSdk) += item.payload().len() as u64,
+            item_type = item.ty().name(),
+            sdk = client_name.name(),
+        );
     }
 
     if state.memory_checker().check_memory().is_exceeded() {
