@@ -972,7 +972,7 @@
         <span class="comment">// Remove the private part.
         </span><span class="kw">let </span><span class="prelude-val">Some</span>(private) = <span class="self">self</span>.private.remove(<span class="kw-2">&amp;</span>project_key) <span class="kw">else </span>{
             <span class="comment">// Not possible if all invariants are upheld.
-            </span><span class="macro">debug_assert!</span>(<span class="bool-val">false</span>, <span class="string">"no private state for evicition"</span>);
+            </span><span class="macro">debug_assert!</span>(<span class="bool-val">false</span>, <span class="string">"no private state for eviction"</span>);
             <span class="kw">return</span>;
         };
 
@@ -1457,7 +1457,7 @@
 }
 
 <span class="doccomment">/// Instant when a project is scheduled for expiry.
-</span><span class="attr">#[must_use = <span class="string">"an expiry time must be used to schedule an evicition"</span>]
+</span><span class="attr">#[must_use = <span class="string">"an expiry time must be used to schedule an eviction"</span>]
 </span><span class="kw">struct </span>ExpiryTime(Instant);
 
 <span class="attr">#[cfg(test)]
