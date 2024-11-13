@@ -59,7 +59,7 @@ where
 
     async fn flush(mut self) {
         if let Some(envelope) = self.cached {
-            if let Err(_) = self.inner.push(envelope).await {
+            if self.inner.push(envelope).await.is_err() {
                 relay_log::error!(
                     "error while pushing the cached envelope in the inner stack during flushing",
                 );
