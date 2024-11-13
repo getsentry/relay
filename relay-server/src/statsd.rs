@@ -880,7 +880,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::EnvelopeAccepted => "event.accepted",
             RelayCounters::EnvelopeRejected => "event.rejected",
             RelayCounters::EnvelopeItems => "event.items",
-            RelayCounters::EnvelopeItemByteSize => "event.items.size_bytes",
+            RelayCounters::EnvelopeItemBytes => "event.item_bytes",
             RelayCounters::BufferWritesDisk => "buffer.writes",
             RelayCounters::BufferReadsDisk => "buffer.reads",
             RelayCounters::BufferEnvelopesWritten => "buffer.envelopes_written",
