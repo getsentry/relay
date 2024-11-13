@@ -346,7 +346,7 @@ pub async fn handle_envelope(
             sdk = client_name.name(),
         );
         metric!(
-            counter(RelayCounters::EnvelopeItemByteSize) += item.payload().len() as u64,
+            counter(RelayCounters::EnvelopeItemBytes) += item.payload().len() as u64,
             item_type = item.ty().name(),
             sdk = client_name.name(),
         );
