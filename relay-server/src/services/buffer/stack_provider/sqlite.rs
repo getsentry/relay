@@ -3,6 +3,7 @@ use std::error::Error;
 use relay_config::Config;
 
 use crate::services::buffer::common::ProjectKeyPair;
+use crate::services::buffer::envelope_stack::caching::CachingEnvelopeStack;
 use crate::services::buffer::envelope_store::sqlite::{
     SqliteEnvelopeStore, SqliteEnvelopeStoreError,
 };
@@ -38,7 +39,7 @@ impl SqliteStackProvider {
 }
 
 impl StackProvider for SqliteStackProvider {
-    type Stack = SqliteEnvelopeStack;
+    type Stack = CachingEnvelopeStack<SqliteEnvelopeStack>;
 
     async fn initialize(&self) -> InitializationState {
         match self.envelope_store.project_key_pairs().await {
@@ -58,7 +59,7 @@ impl StackProvider for SqliteStackProvider {
         stack_creation_type: StackCreationType,
         project_key_pair: ProjectKeyPair,
     ) -> Self::Stack {
-        SqliteEnvelopeStack::new(
+        let inner = SqliteEnvelopeStack::new(
             self.envelope_store.clone(),
             self.batch_size_bytes,
             project_key_pair.own_key,
@@ -69,7 +70,9 @@ impl StackProvider for SqliteStackProvider {
             // it was empty, or we never had data on disk for that stack, so we assume by default
             // that there is no need to check disk until some data is spooled.
             Self::assume_data_on_disk(stack_creation_type),
-        )
+        );
+
+        CachingEnvelopeStack::new(inner)
     }
 
     fn has_store_capacity(&self) -> bool {

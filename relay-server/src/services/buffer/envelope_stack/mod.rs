@@ -4,6 +4,7 @@ use chrono::{DateTime, Utc};
 
 use crate::envelope::Envelope;
 
+pub mod caching;
 pub mod memory;
 pub mod sqlite;
 
@@ -11,7 +12,7 @@ pub mod sqlite;
 pub trait EnvelopeStack: Send + std::fmt::Debug {
     /// The error type that is returned when an error is encountered during reading or writing the
     /// [`EnvelopeStack`].
-    type Error: std::fmt::Debug;
+    type Error: std::fmt::Debug + std::error::Error;
 
     /// Pushes an [`Envelope`] on top of the stack.
     fn push(&mut self, envelope: Box<Envelope>) -> impl Future<Output = Result<(), Self::Error>>;
