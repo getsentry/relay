@@ -658,9 +658,9 @@ pub enum RelayCounters {
     ///    there was an error or bug.
     EnvelopeRejected,
     /// Number of items we processed per envelope.
-    EnvelopeItemsPerSdk,
+    EnvelopeItems,
     /// Number of bytes we processed per envelope item.
-    EnvelopeItemBytesPerSdk,
+    EnvelopeItemByteSize,
     /// Number of times the envelope buffer spools to disk.
     BufferWritesDisk,
     /// Number of times the envelope buffer reads back from disk.
@@ -879,8 +879,8 @@ impl CounterMetric for RelayCounters {
             RelayCounters::EventCorrupted => "event.corrupted",
             RelayCounters::EnvelopeAccepted => "event.accepted",
             RelayCounters::EnvelopeRejected => "event.rejected",
-            RelayCounters::EnvelopeItemsPerSdk => "event.items",
-            RelayCounters::EnvelopeItemBytesPerSdk => "event.items.size_bytes",
+            RelayCounters::EnvelopeItems => "event.items",
+            RelayCounters::EnvelopeItemByteSize => "event.items.size_bytes",
             RelayCounters::BufferWritesDisk => "buffer.writes",
             RelayCounters::BufferReadsDisk => "buffer.reads",
             RelayCounters::BufferEnvelopesWritten => "buffer.envelopes_written",
