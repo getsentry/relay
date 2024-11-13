@@ -657,9 +657,9 @@ pub enum RelayCounters {
     ///  - `handling`: Either `"success"` if the envelope was handled correctly, or `"failure"` if
     ///    there was an error or bug.
     EnvelopeRejected,
-    /// Number of items we processed for an SDK
+    /// Number of items we processed per envelope.
     EnvelopeItemsPerSdk,
-    /// Number of bytes we processed for an envelope item.
+    /// Number of bytes we processed per envelope item.
     EnvelopeItemBytesPerSdk,
     /// Number of times the envelope buffer spools to disk.
     BufferWritesDisk,
