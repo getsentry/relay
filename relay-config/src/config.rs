@@ -633,10 +633,17 @@ struct Limits {
     /// The maximum number of seconds to wait for pending envelopes after receiving a shutdown
     /// signal.
     shutdown_timeout: u64,
-    /// server keep-alive timeout in seconds.
+    /// Server keep-alive timeout in seconds.
     ///
     /// By default keep-alive is set to a 5 seconds.
     keepalive_timeout: u64,
+    /// Server idle timeout in seconds.
+    ///
+    /// The idle timeout limits the amount of time a connection is kept open without activity.
+    /// Setting this too short may abort connections before Relay is able to send a response.
+    ///
+    /// By default there is no idle timeout.
+    idle_timeout: Option<u64>,
     /// The TCP listen backlog.
     ///
     /// Configures the TCP listen backlog for the listening socket of Relay.
@@ -673,6 +680,7 @@ impl Default for Limits {
             query_timeout: 30,
             shutdown_timeout: 10,
             keepalive_timeout: 5,
+            idle_timeout: None,
             tcp_listen_backlog: 1024,
         }
     }
@@ -2317,6 +2325,11 @@ impl Config {
     /// By default keep alive is set to a 5 seconds.
     pub fn keepalive_timeout(&self) -> Duration {
         Duration::from_secs(self.values.limits.keepalive_timeout)
+    }
+
+    /// Returns the server idle timeout in seconds.
+    pub fn idle_timeout(&self) -> Option<Duration> {
+        self.values.limits.idle_timeout.map(Duration::from_secs)
     }
 
     /// TCP listen backlog to configure on Relay's listening socket.

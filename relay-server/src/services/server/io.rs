@@ -1,55 +1,75 @@
-use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
 
+use futures::FutureExt;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
-use tokio::time::Sleep;
+use tokio::time::{Instant, Sleep};
 
 use crate::statsd::RelayCounters;
 
-pin_project_lite::pin_project! {
-    pub struct IdleTimeout<T> {
-        #[pin]
-        inner: T,
-        timeout: Duration,
-        #[pin]
-        sleep: Option<Sleep>,
-    }
+/// A wrapper for [`AsyncRead`] and [`AsyncWrite`] streams with a maximum idle time.
+///
+/// If there is no activity in the underlying stream for the specified `timeout`
+/// the [`IdleTimeout`] will abort the operation and return [`std::io::ErrorKind::TimedOut`].
+pub struct IdleTimeout<T> {
+    inner: T,
+    timeout: Option<Duration>,
+    // `Box::pin` the sleep timer, the entire connection/stream is required to be `Unpin` anyways.
+    timer: Option<Pin<Box<Sleep>>>,
+    is_idle: bool,
 }
 
-impl<T> IdleTimeout<T> {
-    pub fn new(inner: T, timeout: Duration) -> Self {
+impl<T: Unpin> IdleTimeout<T> {
+    /// Creates a new [`IdleTimeout`] with the specified timeout.
+    ///
+    /// A `None` timeout is equivalent to an infinite timeout.
+    pub fn new(inner: T, timeout: Option<Duration>) -> Self {
         Self {
             inner,
             timeout,
-            sleep: None,
+            timer: None,
+            is_idle: false,
         }
     }
 
     fn wrap_poll<F, R>(
-        self: Pin<&mut Self>,
+        mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         poll_fn: F,
     ) -> Poll<std::io::Result<R>>
     where
         F: FnOnce(Pin<&mut T>, &mut Context<'_>) -> Poll<std::io::Result<R>>,
     {
-        let mut this = self.project();
-        match poll_fn(this.inner, cx) {
+        match poll_fn(Pin::new(&mut self.inner), cx) {
             Poll::Ready(ret) => {
                 // Any activity on the stream resets the timeout.
-                this.sleep.set(None);
+                self.is_idle = false;
                 Poll::Ready(ret)
             }
             Poll::Pending => {
-                // No activity on the stream, start the idle timeout.
-                if this.sleep.is_none() {
-                    this.sleep.set(Some(tokio::time::sleep(*this.timeout)));
-                }
+                // No timeout configured -> nothing to do.
+                let Some(timeout) = self.timeout else {
+                    return Poll::Pending;
+                };
 
-                let sleep = this.sleep.as_pin_mut().expect("sleep timer was just set");
-                match sleep.poll(cx) {
+                let was_idle = self.is_idle;
+                self.is_idle = true;
+
+                let timer = match &mut self.timer {
+                    // No timer created and we're idle now, create a timer with the appropriate deadline.
+                    entry @ None => entry.insert(Box::pin(tokio::time::sleep(timeout))),
+                    Some(sleep) => {
+                        // Only if we were not idle, we have to reset the schedule.
+                        if !was_idle {
+                            let deadline = Instant::now() + timeout;
+                            sleep.as_mut().reset(deadline);
+                        }
+                        sleep
+                    }
+                };
+
+                match timer.poll_unpin(cx) {
                     Poll::Ready(_) => {
                         relay_log::trace!("closing idle server connection");
                         relay_statsd::metric!(
@@ -64,10 +84,7 @@ impl<T> IdleTimeout<T> {
     }
 }
 
-impl<T> AsyncRead for IdleTimeout<T>
-where
-    T: AsyncRead,
-{
+impl<T: AsyncRead + Unpin> AsyncRead for IdleTimeout<T> {
     fn poll_read(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -77,10 +94,7 @@ where
     }
 }
 
-impl<T> AsyncWrite for IdleTimeout<T>
-where
-    T: AsyncWrite,
-{
+impl<T: AsyncWrite + Unpin> AsyncWrite for IdleTimeout<T> {
     fn poll_write(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -110,5 +124,142 @@ where
 
     fn is_write_vectored(&self) -> bool {
         self.inner.is_write_vectored()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::ErrorKind;
+
+    use tokio::io::{AsyncReadExt, AsyncWriteExt, SimplexStream};
+
+    use super::*;
+
+    macro_rules! assert_timeout {
+        ($duration:expr, $future:expr) => {
+            if let Ok(r) = tokio::time::timeout($duration, $future).await {
+                assert!(
+                    false,
+                    "expected {} to fail, but it returned {:?} in time",
+                    stringify!($future),
+                    r
+                )
+            }
+        };
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_read() {
+        let (receiver, mut sender) = tokio::io::simplex(64);
+        let mut receiver = IdleTimeout::new(receiver, Some(Duration::from_secs(3)));
+
+        assert_timeout!(Duration::from_millis(2900), receiver.read_u8());
+        assert_timeout!(Duration::from_millis(70), receiver.read_u8());
+        assert_timeout!(Duration::from_millis(29), receiver.read_u8());
+
+        sender.write_u8(1).await.unwrap();
+        assert_eq!(receiver.read_u8().await.unwrap(), 1);
+
+        // Timeout must be reset after reading.
+        assert_timeout!(Duration::from_millis(2900), receiver.read_u8());
+        assert_timeout!(Duration::from_millis(70), receiver.read_u8());
+        assert_timeout!(Duration::from_millis(29), receiver.read_u8());
+
+        // Only now it should fail.
+        assert_eq!(
+            receiver.read_u8().await.unwrap_err().kind(),
+            ErrorKind::TimedOut
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_read_no_idle_time() {
+        let (receiver, _sender) = tokio::io::simplex(64);
+        let mut receiver = IdleTimeout::new(receiver, None);
+
+        // A year should be enough...
+        assert_timeout!(Duration::from_secs(365 * 24 * 3600), receiver.read_u8());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_write() {
+        let (mut receiver, sender) = tokio::io::simplex(1);
+        let mut sender = IdleTimeout::new(sender, Some(Duration::from_secs(3)));
+
+        // First byte can immediately write.
+        sender.write_u8(1).await.unwrap();
+        // Second write, is blocked on the 1 byte sized buffer.
+        assert_timeout!(Duration::from_millis(2900), sender.write_u8(2));
+        assert_timeout!(Duration::from_millis(70), sender.write_u8(2));
+        assert_timeout!(Duration::from_millis(29), sender.write_u8(2));
+
+        // Consume the blocking byte and write successfully.
+        assert_eq!(receiver.read_u8().await.unwrap(), 1);
+        sender.write_u8(2).await.unwrap();
+
+        // Timeout must be reset.
+        assert_timeout!(Duration::from_millis(2900), sender.write_u8(3));
+        assert_timeout!(Duration::from_millis(70), sender.write_u8(3));
+        assert_timeout!(Duration::from_millis(29), sender.write_u8(3));
+
+        // Only now it should fail.
+        assert_eq!(
+            sender.write_u8(3).await.unwrap_err().kind(),
+            ErrorKind::TimedOut
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_write_no_timeout() {
+        let (_receiver, sender) = tokio::io::simplex(1);
+        let mut sender = IdleTimeout::new(sender, None);
+
+        sender.write_u8(1).await.unwrap();
+        // A year should be enough...
+        assert_timeout!(Duration::from_secs(365 * 24 * 3600), sender.write_u8(2));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_read_write() {
+        let stream = SimplexStream::new_unsplit(1);
+        let mut stream = IdleTimeout::new(stream, Some(Duration::from_secs(3)));
+
+        // First byte can immediately write.
+        stream.write_u8(1).await.unwrap();
+        // And read.
+        assert_eq!(stream.read_u8().await.unwrap(), 1);
+
+        // The buffer is empty, but we should not time out.
+        assert_timeout!(Duration::from_millis(2900), stream.read_u8());
+        assert_timeout!(Duration::from_millis(70), stream.read_u8());
+        assert_timeout!(Duration::from_millis(29), stream.read_u8());
+
+        // A write resets the read timer.
+        stream.write_u8(2).await.unwrap();
+        tokio::time::advance(Duration::from_millis(2900)).await;
+        assert_eq!(stream.read_u8().await.unwrap(), 2);
+
+        // Same for writes.
+        stream.write_u8(3).await.unwrap();
+        assert_timeout!(Duration::from_millis(2900), stream.write_u8(3));
+        assert_timeout!(Duration::from_millis(70), stream.write_u8(3));
+        assert_timeout!(Duration::from_millis(29), stream.write_u8(3));
+
+        assert_eq!(stream.read_u8().await.unwrap(), 3);
+        tokio::time::advance(Duration::from_millis(2900)).await;
+        stream.write_u8(99).await.unwrap();
+
+        // Buffer is full and no one is clearing it, this should fail.
+        assert_eq!(
+            stream.write_u8(0).await.unwrap_err().kind(),
+            ErrorKind::TimedOut
+        );
+
+        // Make sure reads are also timing out.
+        assert_eq!(stream.read_u8().await.unwrap(), 99);
+        assert_eq!(
+            stream.read_u8().await.unwrap_err().kind(),
+            ErrorKind::TimedOut
+        );
     }
 }

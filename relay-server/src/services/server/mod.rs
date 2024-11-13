@@ -115,11 +115,12 @@ fn listen(config: &Config) -> Result<TcpListener, ServerError> {
 fn serve(listener: TcpListener, app: App, config: Arc<Config>) {
     let handle = Handle::new();
 
+    let acceptor = self::acceptor::RelayAcceptor::new()
+        .tcp_keepalive(config.keepalive_timeout(), KEEPALIVE_RETRIES)
+        .idle_timeout(config.idle_timeout());
+
     let mut server = axum_server::from_tcp(listener)
-        .acceptor(self::acceptor::RelayAcceptor::new(
-            &config,
-            KEEPALIVE_RETRIES,
-        ))
+        .acceptor(acceptor)
         .handle(handle.clone());
 
     server
