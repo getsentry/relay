@@ -660,7 +660,7 @@ pub enum RelayCounters {
     /// Number of items we processed per envelope.
     EnvelopeItems,
     /// Number of bytes we processed per envelope item.
-    EnvelopeItemByteSize,
+    EnvelopeItemBytes,
     /// Number of times the envelope buffer spools to disk.
     BufferWritesDisk,
     /// Number of times the envelope buffer reads back from disk.
