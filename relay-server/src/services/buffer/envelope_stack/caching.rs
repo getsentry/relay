@@ -33,18 +33,12 @@ where
     type Error = S::Error;
 
     async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), Self::Error> {
-        if self.cached.is_none() {
-            // If we don't have a cached envelope, store this one in cache
-            self.cached = Some(envelope);
-            Ok(())
-        } else {
-            // If we already have a cached envelope, push the current cached one
-            // to the inner stack and keep the new one in cache
-            let cached = self.cached.take().unwrap();
+        if let Some(cached) = self.cached.take() {
             self.inner.push(cached).await?;
-            self.cached = Some(envelope);
-            Ok(())
         }
+        self.cached = Some(envelope);
+
+        Ok(())
     }
 
     async fn peek(&mut self) -> Result<Option<DateTime<Utc>>, Self::Error> {
@@ -65,7 +59,11 @@ where
 
     async fn flush(mut self) {
         if let Some(envelope) = self.cached {
-            let _ = self.inner.push(envelope).await;
+            if let Err(_) = self.inner.push(envelope).await {
+                relay_log::error!(
+                    "error while pushing the cached envelope in the inner stack during flushing",
+                );
+            }
         }
         self.inner.flush().await;
     }
@@ -83,19 +81,22 @@ mod tests {
         let mut stack = CachingEnvelopeStack::new(inner);
 
         // Create test envelopes with different timestamps
-        let env1 = mock_envelope(Utc::now());
-        let env2 = mock_envelope(Utc::now());
-        let env3 = mock_envelope(Utc::now());
+        let envelope_1 = mock_envelope(Utc::now());
+        let envelope_2 = mock_envelope(Utc::now());
 
-        // Push envelopes
-        stack.push(env1).await.unwrap();
-        stack.push(env2).await.unwrap();
-        stack.push(env3).await.unwrap();
+        // Push 2 envelopes
+        stack.push(envelope_1).await.unwrap();
+        stack.push(envelope_2).await.unwrap();
 
-        // Pop them back
-        assert!(stack.pop().await.unwrap().is_some()); // Should come from cache
-        assert!(stack.pop().await.unwrap().is_some()); // Should come from inner
-        assert!(stack.pop().await.unwrap().is_some()); // Should come from inner
-        assert!(stack.pop().await.unwrap().is_none()); // Should be empty
+        // We pop the cached element.
+        assert!(stack.pop().await.unwrap().is_some());
+
+        // We peek the stack expecting it peeks the inner one.
+        assert!(stack.peek().await.unwrap().is_some());
+
+        // We pop the element and then check if the stack is empty.
+        assert!(stack.pop().await.unwrap().is_some());
+        assert!(stack.peek().await.unwrap().is_none());
+        assert!(stack.pop().await.unwrap().is_none());
     }
 }
