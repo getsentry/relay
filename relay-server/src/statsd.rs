@@ -867,6 +867,8 @@ pub enum RelayCounters {
     ReplayExceededSegmentLimit,
     /// Incremented every time the server accepts a new connection.
     ServerSocketAccept,
+    /// Incremented every time the server aborts a connection because of an idle timeout.
+    ServerConnectionIdleTimeout,
 }
 
 impl CounterMetric for RelayCounters {
@@ -913,6 +915,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::BucketsDropped => "metrics.buckets.dropped",
             RelayCounters::ReplayExceededSegmentLimit => "replay.segment_limit_exceeded",
             RelayCounters::ServerSocketAccept => "server.http.accepted",
+            RelayCounters::ServerConnectionIdleTimeout => "server.http.idle_timeout",
         }
     }
 }
