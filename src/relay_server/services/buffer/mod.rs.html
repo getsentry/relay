@@ -1150,7 +1150,7 @@
         <span class="kw">let </span>dequeue = Arc::&lt;AtomicBool&gt;::new(<span class="bool-val">true</span>.into());
         <span class="kw">let </span>dequeue1 = dequeue.clone();
 
-        tokio::spawn(<span class="kw">async move </span>{
+        <span class="macro">relay_system::spawn!</span>(<span class="kw">async move </span>{
             <span class="kw">let </span>buffer = PolymorphicEnvelopeBuffer::from_config(<span class="kw-2">&amp;</span>config, memory_checker).<span class="kw">await</span>;
 
             <span class="kw">let </span><span class="kw-2">mut </span>buffer = <span class="kw">match </span>buffer {
@@ -1227,7 +1227,7 @@
         });
 
         <span class="attr">#[cfg(unix)]
-        </span>tokio::spawn(<span class="kw">async move </span>{
+        </span><span class="macro">relay_system::spawn!</span>(<span class="kw">async move </span>{
             <span class="kw">use </span>tokio::signal::unix::{signal, SignalKind};
             <span class="kw">let </span><span class="prelude-val">Ok</span>(<span class="kw-2">mut </span>signal) = signal(SignalKind::user_defined1()) <span class="kw">else </span>{
                 <span class="kw">return</span>;

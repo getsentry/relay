@@ -750,7 +750,7 @@
         <span class="kw">let </span>upstream_relay = <span class="self">self</span>.upstream.clone();
         <span class="kw">let </span>internal_tx = <span class="self">self</span>.internal_tx.clone();
 
-        tokio::spawn(<span class="kw">async move </span>{
+        <span class="macro">relay_system::spawn!</span>(<span class="kw">async move </span>{
             <span class="macro">metric!</span>(timer(RelayTimers::GlobalConfigRequestDuration), {
                 <span class="kw">let </span>query = GetGlobalConfig::new();
                 <span class="kw">let </span>res = upstream_relay.send(SendQuery(query)).<span class="kw">await</span>;
@@ -826,7 +826,7 @@
     <span class="kw">type </span>Interface = GlobalConfigManager;
 
     <span class="kw">fn </span>spawn_handler(<span class="kw-2">mut </span><span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
-        tokio::spawn(<span class="kw">async move </span>{
+        <span class="macro">relay_system::spawn!</span>(<span class="kw">async move </span>{
             <span class="kw">let </span><span class="kw-2">mut </span>shutdown_handle = Controller::shutdown_handle();
 
             <span class="macro">relay_log::info!</span>(<span class="string">"global config service starting"</span>);

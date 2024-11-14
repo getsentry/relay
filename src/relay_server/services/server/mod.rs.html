@@ -351,14 +351,14 @@
         .keep_alive_timeout(config.keepalive_timeout());
 
     <span class="kw">let </span>service = ServiceExt::&lt;Request&gt;::into_make_service_with_connect_info::&lt;SocketAddr&gt;(app);
-    tokio::spawn(server.serve(service));
+    <span class="macro">relay_system::spawn!</span>(server.serve(service));
 
-    tokio::spawn(emit_active_connections_metric(
+    <span class="macro">relay_system::spawn!</span>(emit_active_connections_metric(
         config.metrics_periodic_interval(),
         handle.clone(),
     ));
 
-    tokio::spawn(<span class="kw">async move </span>{
+    <span class="macro">relay_system::spawn!</span>(<span class="kw">async move </span>{
         <span class="kw">let </span>Shutdown { timeout } = Controller::shutdown_handle().notified().<span class="kw">await</span>;
         <span class="macro">relay_log::info!</span>(<span class="string">"Shutting down HTTP server"</span>);
 

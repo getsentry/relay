@@ -1729,7 +1729,7 @@
 
         <span class="kw">let </span>upstream_relay = <span class="self">self</span>.upstream_relay.clone();
 
-        tokio::spawn(<span class="kw">async move </span>{
+        <span class="macro">relay_system::spawn!</span>(<span class="kw">async move </span>{
             <span class="kw">match </span>upstream_relay.send(SendQuery(request)).<span class="kw">await </span>{
                 <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; <span class="macro">relay_log::trace!</span>(<span class="string">"outcome batch sent"</span>),
                 <span class="prelude-val">Err</span>(error) =&gt; {
@@ -1755,7 +1755,7 @@
     <span class="kw">type </span>Interface = TrackRawOutcome;
 
     <span class="kw">fn </span>spawn_handler(<span class="kw-2">mut </span><span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
-        tokio::spawn(<span class="kw">async move </span>{
+        <span class="macro">relay_system::spawn!</span>(<span class="kw">async move </span>{
             <span class="kw">loop </span>{
                 <span class="macro">tokio::select!</span> {
                     <span class="comment">// Prioritize flush over receiving messages to prevent starving.
@@ -1848,7 +1848,7 @@
     <span class="kw">type </span>Interface = TrackOutcome;
 
     <span class="kw">fn </span>spawn_handler(<span class="kw-2">mut </span><span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
-        tokio::spawn(<span class="kw">async move </span>{
+        <span class="macro">relay_system::spawn!</span>(<span class="kw">async move </span>{
             <span class="kw">loop </span>{
                 <span class="macro">tokio::select!</span> {
                     <span class="comment">// Prioritize flush over receiving messages to prevent starving.
@@ -2109,7 +2109,7 @@
     <span class="kw">fn </span>spawn_handler(<span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
         <span class="kw">let </span><span class="self">Self </span>{ config, inner } = <span class="self">self</span>;
 
-        tokio::spawn(<span class="kw">async move </span>{
+        <span class="macro">relay_system::spawn!</span>(<span class="kw">async move </span>{
             <span class="kw">let </span>broker = inner.start();
 
             <span class="macro">relay_log::info!</span>(<span class="string">"OutcomeProducer started."</span>);

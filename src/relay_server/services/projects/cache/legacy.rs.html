@@ -1667,7 +1667,7 @@
         <span class="kw">let </span>outcome_aggregator = services.outcome_aggregator.clone();
         <span class="kw">let </span>test_store = services.test_store.clone();
 
-        tokio::spawn(<span class="kw">async move </span>{
+        <span class="macro">relay_system::spawn!</span>(<span class="kw">async move </span>{
             <span class="macro">relay_log::info!</span>(<span class="string">"project cache started"</span>);
 
             <span class="kw">let </span>global_config = <span class="kw">match </span>global_config_rx.borrow().clone() {
@@ -1903,7 +1903,7 @@
         }
 
         <span class="comment">// Emulate the project cache service loop.
-        </span>tokio::task::spawn(<span class="kw">async move </span>{
+        </span><span class="macro">relay_system::spawn!</span>(<span class="kw">async move </span>{
             <span class="kw">loop </span>{
                 <span class="macro">select!</span> {
                     <span class="prelude-val">Ok</span>(project_event) = project_events.recv() =&gt; {

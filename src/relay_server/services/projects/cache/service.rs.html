@@ -434,7 +434,7 @@
             }};
         }
 
-        tokio::spawn(<span class="kw">async move </span>{
+        <span class="macro">relay_system::spawn!</span>(<span class="kw">async move </span>{
             <span class="kw">loop </span>{
                 <span class="macro">tokio::select!</span> {
                     biased;

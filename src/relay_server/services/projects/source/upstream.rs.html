@@ -1315,7 +1315,7 @@
         <span class="kw">let </span>channels = <span class="self">self</span>.prepare_batches();
         <span class="kw">let </span>upstream_relay = <span class="self">self</span>.upstream_relay.clone();
 
-        tokio::spawn(<span class="kw">async move </span>{
+        <span class="macro">relay_system::spawn!</span>(<span class="kw">async move </span>{
             <span class="kw">let </span>responses = <span class="self">Self</span>::fetch_states(config, upstream_relay, channels).<span class="kw">await</span>;
             <span class="comment">// Send back all resolved responses and also unused channels.
             // These responses will be handled by `handle_responses` function.
@@ -1372,7 +1372,7 @@
     <span class="kw">type </span>Interface = UpstreamProjectSource;
 
     <span class="kw">fn </span>spawn_handler(<span class="kw-2">mut </span><span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
-        tokio::spawn(<span class="kw">async move </span>{
+        <span class="macro">relay_system::spawn!</span>(<span class="kw">async move </span>{
             <span class="macro">relay_log::info!</span>(<span class="string">"project upstream cache started"</span>);
             <span class="kw">loop </span>{
                 <span class="macro">tokio::select!</span> {

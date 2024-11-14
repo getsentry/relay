@@ -446,7 +446,7 @@
     </span>poll_local_states(<span class="kw-2">&amp;</span>project_path, <span class="kw-2">&amp;</span>tx).<span class="kw">await</span>;
 
     <span class="comment">// Start a background loop that polls periodically:
-    </span>tokio::spawn(<span class="kw">async move </span>{
+    </span><span class="macro">relay_system::spawn!</span>(<span class="kw">async move </span>{
         <span class="comment">// To avoid running two load tasks simultaneously at startup, we delay the interval by one period:
         </span><span class="kw">let </span>start_at = Instant::now() + period;
         <span class="kw">let </span><span class="kw-2">mut </span>ticker = tokio::time::interval_at(start_at, period);
@@ -466,7 +466,7 @@
         // collect the result, the producer will block, which is acceptable.
         </span><span class="kw">let </span>(state_tx, <span class="kw-2">mut </span>state_rx) = mpsc::channel(<span class="number">1</span>);
 
-        tokio::spawn(<span class="kw">async move </span>{
+        <span class="macro">relay_system::spawn!</span>(<span class="kw">async move </span>{
             <span class="macro">relay_log::info!</span>(<span class="string">"project local cache started"</span>);
 
             <span class="comment">// Start the background task that periodically reloads projects from disk:

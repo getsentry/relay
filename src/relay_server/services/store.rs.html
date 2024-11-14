@@ -2663,7 +2663,7 @@
     <span class="kw">fn </span>spawn_handler(<span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
         <span class="kw">let </span>this = Arc::new(<span class="self">self</span>);
 
-        tokio::spawn(<span class="kw">async move </span>{
+        <span class="macro">relay_system::spawn!</span>(<span class="kw">async move </span>{
             <span class="macro">relay_log::info!</span>(<span class="string">"store forwarder started"</span>);
 
             <span class="kw">while let </span><span class="prelude-val">Some</span>(message) = rx.recv().<span class="kw">await </span>{

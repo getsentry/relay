@@ -2892,7 +2892,7 @@
         <span class="comment">// Only take action if we exceeded the grace period.
         </span><span class="kw">if </span>first_error + <span class="self">self</span>.client.config.http_outage_grace_period() &lt;= now {
             <span class="kw">let </span>return_tx = return_tx.clone();
-            <span class="kw">let </span>task = tokio::spawn(<span class="self">Self</span>::connect(<span class="self">self</span>.client.clone(), return_tx));
+            <span class="kw">let </span>task = <span class="macro">relay_system::spawn!</span>(<span class="self">Self</span>::connect(<span class="self">self</span>.client.clone(), return_tx));
             <span class="self">self</span>.state = ConnectionState::Reconnecting(task);
         }
     }
@@ -2977,7 +2977,7 @@
         <span class="kw">let </span>client = <span class="self">self</span>.client.clone();
         <span class="kw">let </span>action_tx = <span class="self">self</span>.action_tx.clone();
 
-        tokio::spawn(<span class="kw">async move </span>{
+        <span class="macro">relay_system::spawn!</span>(<span class="kw">async move </span>{
             <span class="kw">let </span>send_start = Instant::now();
             <span class="kw">let </span>result = client.send(entry.request.as_mut()).<span class="kw">await</span>;
             emit_response_metrics(send_start, <span class="kw-2">&amp;</span>entry, <span class="kw-2">&amp;</span>result);
@@ -3060,7 +3060,7 @@
             state: AuthState::Unknown,
             tx: action_tx.clone(),
         };
-        tokio::spawn(auth.run());
+        <span class="macro">relay_system::spawn!</span>(auth.run());
 
         <span class="comment">// Main broker that serializes public and internal messages, as well as maintains connection
         // and authentication state.
@@ -3073,7 +3073,7 @@
             action_tx,
         };
 
-        tokio::spawn(<span class="kw">async move </span>{
+        <span class="macro">relay_system::spawn!</span>(<span class="kw">async move </span>{
             <span class="kw">loop </span>{
                 <span class="macro">tokio::select!</span> {
                     biased;

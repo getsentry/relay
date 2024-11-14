@@ -468,7 +468,7 @@
         <span class="comment">// Add 10% buffer to the internal timeouts to avoid race conditions.
         </span><span class="kw">let </span>status_timeout = (check_interval + <span class="self">self</span>.config.health_probe_timeout()).mul_f64(<span class="number">1.1</span>);
 
-        tokio::spawn(<span class="kw">async move </span>{
+        <span class="macro">relay_system::spawn!</span>(<span class="kw">async move </span>{
             <span class="kw">let </span>shutdown = Controller::shutdown_handle();
 
             <span class="kw">while </span>shutdown.get().is_none() {
@@ -485,7 +485,7 @@
             </span>update_tx.send(StatusUpdate::new(Status::Unhealthy)).ok();
         });
 
-        tokio::spawn(<span class="kw">async move </span>{
+        <span class="macro">relay_system::spawn!</span>(<span class="kw">async move </span>{
             <span class="kw">while let </span><span class="prelude-val">Some</span>(HealthCheck(message, sender)) = rx.recv().<span class="kw">await </span>{
                 <span class="kw">let </span>update = update_rx.borrow();
 

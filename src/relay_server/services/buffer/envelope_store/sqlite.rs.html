@@ -1075,7 +1075,7 @@
         </span><span class="kw">let </span>last_known_usage_weak = Arc::downgrade(<span class="kw-2">&amp;</span><span class="self">self</span>.last_known_usage);
         <span class="kw">let </span>refresh_frequency = <span class="self">self</span>.refresh_frequency;
 
-        tokio::spawn(<span class="kw">async move </span>{
+        <span class="macro">relay_system::spawn!</span>(<span class="kw">async move </span>{
             <span class="kw">loop </span>{
                 <span class="comment">// When our `Weak` reference can't be upgraded to an `Arc`, it means that the value
                 // is not referenced anymore by self, meaning that `DiskUsage` was dropped.

@@ -292,7 +292,7 @@
             <span class="kw">return</span>;
         };
 
-        tokio::spawn(<span class="kw">async move </span>{
+        <span class="macro">relay_system::spawn!</span>(<span class="kw">async move </span>{
             <span class="kw">loop </span>{
                 <span class="kw">let _ </span>= <span class="macro">tokio::join!</span>(
                     <span class="self">self</span>.upstream_status(),

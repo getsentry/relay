@@ -356,6 +356,7 @@
 <a href="#356" id="356">356</a>
 <a href="#357" id="357">357</a>
 <a href="#358" id="358">358</a>
+<a href="#359" id="359">359</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::io;
 <span class="kw">use </span>std::time::Duration;
 
@@ -488,7 +489,7 @@
 ///     type Interface = ();
 ///
 ///     fn spawn_handler(self, mut rx: relay_system::Receiver&lt;Self::Interface&gt;) {
-///         tokio::spawn(async move {
+///         relay_system::spawn!(async move {
 ///             let mut shutdown = Controller::shutdown_handle();
 ///
 ///             loop {
@@ -524,8 +525,9 @@
 
 <span class="kw">impl </span>Controller {
     <span class="doccomment">/// Starts a controller that monitors shutdown signals.
+    </span><span class="attr">#[track_caller]
     </span><span class="kw">pub fn </span>start(shutdown_timeout: Duration) {
-        tokio::spawn(monitor_shutdown(shutdown_timeout));
+        <span class="macro">crate::spawn!</span>(monitor_shutdown(shutdown_timeout));
     }
 
     <span class="doccomment">/// Manually initiates the shutdown process of the system.

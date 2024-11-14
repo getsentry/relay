@@ -594,7 +594,7 @@
 
         <span class="kw">let </span>fetch_tx = <span class="self">self</span>.fetch_tx();
         <span class="kw">let </span>upstream_relay = <span class="self">self</span>.upstream_relay.clone();
-        tokio::spawn(<span class="kw">async move </span>{
+        <span class="macro">relay_system::spawn!</span>(<span class="kw">async move </span>{
             <span class="kw">let </span>request = GetRelays {
                 relay_ids: channels.keys().cloned().collect(),
             };
@@ -691,7 +691,7 @@
     <span class="kw">type </span>Interface = RelayCache;
 
     <span class="kw">fn </span>spawn_handler(<span class="kw-2">mut </span><span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
-        tokio::spawn(<span class="kw">async move </span>{
+        <span class="macro">relay_system::spawn!</span>(<span class="kw">async move </span>{
             <span class="macro">relay_log::info!</span>(<span class="string">"key cache started"</span>);
 
             <span class="kw">loop </span>{
