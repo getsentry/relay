@@ -120,7 +120,9 @@ pub fn extract_config_env_vars() -> OverridableConfig {
         outcome_source: None, //already extracted in params
         shutdown_timeout: env::var("SHUTDOWN_TIMEOUT").ok(),
         instance: env::var("RELAY_INSTANCE").ok(),
-        server_name: env::var("RELAY_SERVER_NAME").ok(),
+        server_name: env::var("RELAY_SERVER_NAME")
+            .ok()
+            .or_else(|| env::var("HOSTNAME").ok()),
     }
 }
 
