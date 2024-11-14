@@ -91,7 +91,7 @@ impl ProjectCacheService {
     /// Consumes and starts a [`ProjectCacheService`].
     ///
     /// Returns a [`ProjectCacheHandle`] to access the cache concurrently.
-    pub fn start(self, runner: &mut ServiceRunner) -> ProjectCacheHandle {
+    pub fn start_in(self, runner: &mut ServiceRunner) -> ProjectCacheHandle {
         let (addr, addr_rx) = relay_system::channel(Self::name());
 
         let handle = ProjectCacheHandle {

@@ -1018,12 +1018,6 @@ pub trait Service: Sized {
         addr
     }
 
-    // /// Starts the service with a previously defined receiver.
-    // #[must_use]
-    // fn spawn(self, rx: Receiver<Self::Interface>) -> JoinHandle<()> {
-    //     tokio::spawn(self.run(rx))
-    // }
-
     /// Returns a unique name for this service implementation.
     ///
     /// This is used for internal diagnostics and uses the fully qualified type name of the service

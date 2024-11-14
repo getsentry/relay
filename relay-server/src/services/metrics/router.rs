@@ -54,7 +54,7 @@ impl Service for RouterService {
     type Interface = Aggregator;
 
     async fn run(self, mut rx: relay_system::Receiver<Self::Interface>) {
-        let mut router = StartedRouter::start(self, &mut ServiceRunner::new());
+        let mut router = StartedRouter::start_in(self, &mut ServiceRunner::new());
         relay_log::info!("metrics router started");
 
         // Note that currently this loop never exists and will run till the tokio runtime shuts
@@ -81,7 +81,7 @@ struct StartedRouter {
 }
 
 impl StartedRouter {
-    fn start(router: RouterService, runner: &mut ServiceRunner) -> Self {
+    fn start_in(router: RouterService, runner: &mut ServiceRunner) -> Self {
         let RouterService { default, secondary } = router;
 
         let secondary = secondary

@@ -194,7 +194,7 @@ impl ServiceState {
         let (legacy_project_cache, legacy_project_cache_rx) =
             channel(legacy::ProjectCacheService::name());
 
-        let project_source = ProjectSource::start(
+        let project_source = ProjectSource::start_in(
             &mut runner,
             Arc::clone(&config),
             upstream_relay.clone(),
@@ -203,7 +203,7 @@ impl ServiceState {
                 .map(|pools| pools.project_configs.clone()),
         );
         let project_cache_handle =
-            ProjectCacheService::new(Arc::clone(&config), project_source).start(&mut runner);
+            ProjectCacheService::new(Arc::clone(&config), project_source).start_in(&mut runner);
 
         let aggregator = RouterService::new(
             config.default_aggregator_config().clone(),
@@ -273,7 +273,7 @@ impl ServiceState {
                 test_store: test_store.clone(),
             },
         )
-        .map(|b| b.start_observable(&mut runner));
+        .map(|b| b.start_in(&mut runner));
 
         // Keep all the services in one context.
         let project_cache_services = legacy::Services {

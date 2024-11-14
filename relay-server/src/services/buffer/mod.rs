@@ -145,11 +145,10 @@ impl EnvelopeBufferService {
     }
 
     /// Returns both the [`Addr`] to this service, and a reference to the capacity flag.
-    pub fn start_observable(self, runner: &mut ServiceRunner) -> ObservableEnvelopeBuffer {
+    pub fn start_in(self, runner: &mut ServiceRunner) -> ObservableEnvelopeBuffer {
         let has_capacity = self.has_capacity.clone();
 
-        let (addr, rx) = relay_system::channel(Self::name());
-        runner.start_with(self, rx);
+        let addr = runner.start(self);
         ObservableEnvelopeBuffer { addr, has_capacity }
     }
 
@@ -547,7 +546,7 @@ mod tests {
         service.has_capacity.store(false, Ordering::Relaxed);
 
         let ObservableEnvelopeBuffer { has_capacity, .. } =
-            service.start_observable(&mut ServiceRunner::new());
+            service.start_in(&mut ServiceRunner::new());
         assert!(!has_capacity.load(Ordering::Relaxed));
 
         tokio::time::advance(Duration::from_millis(100)).await;
