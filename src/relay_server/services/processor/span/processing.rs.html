@@ -1271,30 +1271,6 @@
 <a href="#1271" id="1271">1271</a>
 <a href="#1272" id="1272">1272</a>
 <a href="#1273" id="1273">1273</a>
-<a href="#1274" id="1274">1274</a>
-<a href="#1275" id="1275">1275</a>
-<a href="#1276" id="1276">1276</a>
-<a href="#1277" id="1277">1277</a>
-<a href="#1278" id="1278">1278</a>
-<a href="#1279" id="1279">1279</a>
-<a href="#1280" id="1280">1280</a>
-<a href="#1281" id="1281">1281</a>
-<a href="#1282" id="1282">1282</a>
-<a href="#1283" id="1283">1283</a>
-<a href="#1284" id="1284">1284</a>
-<a href="#1285" id="1285">1285</a>
-<a href="#1286" id="1286">1286</a>
-<a href="#1287" id="1287">1287</a>
-<a href="#1288" id="1288">1288</a>
-<a href="#1289" id="1289">1289</a>
-<a href="#1290" id="1290">1290</a>
-<a href="#1291" id="1291">1291</a>
-<a href="#1292" id="1292">1292</a>
-<a href="#1293" id="1293">1293</a>
-<a href="#1294" id="1294">1294</a>
-<a href="#1295" id="1295">1295</a>
-<a href="#1296" id="1296">1296</a>
-<a href="#1297" id="1297">1297</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -1306,7 +1282,6 @@
     CombinedMetricExtractionConfig, ErrorBoundary, Feature, GlobalConfig, ProjectConfig,
 };
 <span class="kw">use </span>relay_event_normalization::span::ai::extract_ai_measurements;
-<span class="kw">use </span>relay_event_normalization::span::description::ScrubMongoDescription;
 <span class="kw">use </span>relay_event_normalization::{
     normalize_measurements, normalize_performance_score, span::tag_extraction, validate_span,
     CombinedMeasurementsConfig, MeasurementsConfig, PerformanceScoreConfig, RawUserAgentInfo,
@@ -1657,16 +1632,6 @@
             .aggregator
             .max_tag_value_length,
         <span class="kw-2">&amp;</span>[],
-        <span class="kw">if </span>state
-            .project_info
-            .config
-            .features
-            .has(Feature::ScrubMongoDbDescriptions)
-        {
-            ScrubMongoDescription::Enabled
-        } <span class="kw">else </span>{
-            ScrubMongoDescription::Disabled
-        },
     ) <span class="kw">else </span>{
         <span class="kw">return</span>;
     };
@@ -1739,8 +1704,6 @@
     </span>client_hints: ClientHints&lt;String&gt;,
     <span class="doccomment">/// Hosts that are not replaced by "*" in HTTP span grouping.
     </span>allowed_hosts: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>[String],
-    <span class="doccomment">/// Whether or not to scrub MongoDB span descriptions during normalization.
-    </span>scrub_mongo_description: ScrubMongoDescription,
     <span class="doccomment">/// The IP address of the SDK that sent the event.
     ///
     /// When `{{auto}}` is specified and there is no other IP address in the payload, such as in the
@@ -1788,14 +1751,6 @@
                 .map(String::from),
             client_hints: managed_envelope.meta().client_hints().clone(),
             allowed_hosts: global_config.options.http_span_allowed_hosts.as_slice(),
-            scrub_mongo_description: <span class="kw">if </span>project_config
-                .features
-                .has(Feature::ScrubMongoDbDescriptions)
-            {
-                ScrubMongoDescription::Enabled
-            } <span class="kw">else </span>{
-                ScrubMongoDescription::Disabled
-            },
             client_ip,
             geo_lookup,
             span_op_defaults: global_config.span_op_defaults.borrow(),
@@ -1851,7 +1806,6 @@
         user_agent,
         client_hints,
         allowed_hosts,
-        scrub_mongo_description,
         client_ip,
         geo_lookup,
         span_op_defaults,
@@ -1945,7 +1899,6 @@
         is_mobile,
         <span class="prelude-val">None</span>,
         allowed_hosts,
-        scrub_mongo_description,
     );
     span.sentry_tags = Annotated::new(
         tags.into_iter()
@@ -2516,7 +2469,6 @@
             user_agent: <span class="prelude-val">None</span>,
             client_hints: ClientHints::default(),
             allowed_hosts: <span class="kw-2">&amp;</span>[],
-            scrub_mongo_description: ScrubMongoDescription::Disabled,
             client_ip: <span class="prelude-val">Some</span>(IpAddr(<span class="string">"2.125.160.216"</span>.to_owned())),
             geo_lookup: <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>GEO_LOOKUP),
             span_op_defaults: Default::default(),

@@ -179,7 +179,6 @@
 <a href="#179" id="179">179</a>
 <a href="#180" id="180">180</a>
 <a href="#181" id="181">181</a>
-<a href="#182" id="182">182</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeSet;
 
 <span class="kw">use </span>serde::{Deserialize, Serialize};
@@ -189,6 +188,7 @@
 </span><span class="kw">pub const </span>GRADUATED_FEATURE_FLAGS: <span class="kw-2">&amp;</span>[Feature] = <span class="kw-2">&amp;</span>[
     Feature::UserReportV2Ingest,
     Feature::IngestUnsampledProfiles,
+    Feature::ScrubMongoDbDescriptions,
 ];
 
 <span class="doccomment">/// Features exposed by project config.
@@ -278,12 +278,6 @@
     /// Serialized as `organizations:indexed-spans-extraction`.
     </span><span class="attr">#[serde(rename = <span class="string">"organizations:indexed-spans-extraction"</span>)]
     </span>ExtractSpansFromEvent,
-    <span class="doccomment">/// Enables description scrubbing for MongoDB spans (and consequently, their presence in the
-    /// Queries module inside Sentry).
-    ///
-    /// Serialized as `organizations:performance-queries-mongodb-extraction`.
-    </span><span class="attr">#[serde(rename = <span class="string">"organizations:performance-queries-mongodb-extraction"</span>)]
-    </span>ScrubMongoDbDescriptions,
     <span class="doccomment">/// Indicate if the EAP consumers should ingest a span.
     ///
     /// Serialized as `organizations:ingest-spans-in-eap`
@@ -298,6 +292,10 @@
     </span><span class="attr">#[doc(hidden)]
     #[serde(rename = <span class="string">"organizations:user-feedback-ingest"</span>)]
     </span>UserReportV2Ingest,
+    <span class="doccomment">/// This feature has graduated and is hard-coded for external Relays.
+    </span><span class="attr">#[doc(hidden)]
+    #[serde(rename = <span class="string">"organizations:performance-queries-mongodb-extraction"</span>)]
+    </span>ScrubMongoDbDescriptions,
     <span class="doccomment">/// Forward compatibility.
     </span><span class="attr">#[doc(hidden)]
     #[serde(other)]
