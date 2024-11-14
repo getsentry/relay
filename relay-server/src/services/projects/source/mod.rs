@@ -40,8 +40,8 @@ pub struct ProjectSource {
 }
 
 impl ProjectSource {
-    /// Starts all project source services in the given [`ServiceRunner`].
-    pub fn start_in(
+    /// Starts all project source services in the given `ServiceRunner`.
+    pub fn start(
         runner: &mut ServiceRunner,
         config: Arc<Config>,
         upstream_relay: Addr<UpstreamRelay>,
