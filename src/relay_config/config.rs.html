@@ -2614,6 +2614,19 @@
 <a href="#2614" id="2614">2614</a>
 <a href="#2615" id="2615">2615</a>
 <a href="#2616" id="2616">2616</a>
+<a href="#2617" id="2617">2617</a>
+<a href="#2618" id="2618">2618</a>
+<a href="#2619" id="2619">2619</a>
+<a href="#2620" id="2620">2620</a>
+<a href="#2621" id="2621">2621</a>
+<a href="#2622" id="2622">2622</a>
+<a href="#2623" id="2623">2623</a>
+<a href="#2624" id="2624">2624</a>
+<a href="#2625" id="2625">2625</a>
+<a href="#2626" id="2626">2626</a>
+<a href="#2627" id="2627">2627</a>
+<a href="#2628" id="2628">2628</a>
+<a href="#2629" id="2629">2629</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
@@ -3249,10 +3262,17 @@
     <span class="doccomment">/// The maximum number of seconds to wait for pending envelopes after receiving a shutdown
     /// signal.
     </span>shutdown_timeout: u64,
-    <span class="doccomment">/// server keep-alive timeout in seconds.
+    <span class="doccomment">/// Server keep-alive timeout in seconds.
     ///
     /// By default keep-alive is set to a 5 seconds.
     </span>keepalive_timeout: u64,
+    <span class="doccomment">/// Server idle timeout in seconds.
+    ///
+    /// The idle timeout limits the amount of time a connection is kept open without activity.
+    /// Setting this too short may abort connections before Relay is able to send a response.
+    ///
+    /// By default there is no idle timeout.
+    </span>idle_timeout: <span class="prelude-ty">Option</span>&lt;u64&gt;,
     <span class="doccomment">/// The TCP listen backlog.
     ///
     /// Configures the TCP listen backlog for the listening socket of Relay.
@@ -3289,6 +3309,7 @@
             query_timeout: <span class="number">30</span>,
             shutdown_timeout: <span class="number">10</span>,
             keepalive_timeout: <span class="number">5</span>,
+            idle_timeout: <span class="prelude-val">None</span>,
             tcp_listen_backlog: <span class="number">1024</span>,
         }
     }
@@ -4933,6 +4954,11 @@
     /// By default keep alive is set to a 5 seconds.
     </span><span class="kw">pub fn </span>keepalive_timeout(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
         Duration::from_secs(<span class="self">self</span>.values.limits.keepalive_timeout)
+    }
+
+    <span class="doccomment">/// Returns the server idle timeout in seconds.
+    </span><span class="kw">pub fn </span>idle_timeout(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Duration&gt; {
+        <span class="self">self</span>.values.limits.idle_timeout.map(Duration::from_secs)
     }
 
     <span class="doccomment">/// TCP listen backlog to configure on Relay's listening socket.
