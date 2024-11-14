@@ -53,26 +53,24 @@ impl RouterService {
 impl Service for RouterService {
     type Interface = Aggregator;
 
-    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
-        tokio::spawn(async move {
-            let mut router = StartedRouter::start(self);
-            relay_log::info!("metrics router started");
+    async fn run(self, mut rx: relay_system::Receiver<Self::Interface>) {
+        let mut router = StartedRouter::start(self);
+        relay_log::info!("metrics router started");
 
-            // Note that currently this loop never exists and will run till the tokio runtime shuts
-            // down. This is about to change with the refactoring for the shutdown process.
-            loop {
-                tokio::select! {
-                    biased;
+        // Note that currently this loop never exists and will run till the tokio runtime shuts
+        // down. This is about to change with the refactoring for the shutdown process.
+        loop {
+            tokio::select! {
+                biased;
 
-                    Some(message) = rx.recv() => {
-                        router.handle_message(message)
-                    },
+                Some(message) = rx.recv() => {
+                    router.handle_message(message)
+                },
 
-                    else => break,
-                }
+                else => break,
             }
-            relay_log::info!("metrics router stopped");
-        });
+        }
+        relay_log::info!("metrics router stopped");
     }
 }
 

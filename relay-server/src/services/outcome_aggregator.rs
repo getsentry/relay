@@ -138,25 +138,23 @@ impl OutcomeAggregator {
 impl Service for OutcomeAggregator {
     type Interface = TrackOutcome;
 
-    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
-        tokio::spawn(async move {
-            let mut shutdown = Controller::shutdown_handle();
-            relay_log::info!("outcome aggregator started");
+    async fn run(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+        let mut shutdown = Controller::shutdown_handle();
+        relay_log::info!("outcome aggregator started");
 
-            loop {
-                tokio::select! {
-                    // Prioritize flush over receiving messages to prevent starving. Shutdown can be
-                    // last since it is not vital if there are still messages in the channel.
-                    biased;
+        loop {
+            tokio::select! {
+                // Prioritize flush over receiving messages to prevent starving. Shutdown can be
+                // last since it is not vital if there are still messages in the channel.
+                biased;
 
-                    () = &mut self.flush_handle => self.flush(),
-                    Some(message) = rx.recv() => self.handle_track_outcome(message),
-                    shutdown = shutdown.notified() => self.handle_shutdown(shutdown),
-                    else => break,
-                }
+                () = &mut self.flush_handle => self.flush(),
+                Some(message) = rx.recv() => self.handle_track_outcome(message),
+                shutdown = shutdown.notified() => self.handle_shutdown(shutdown),
+                else => break,
             }
+        }
 
-            relay_log::info!("outcome aggregator stopped");
-        });
+        relay_log::info!("outcome aggregator stopped");
     }
 }

@@ -338,53 +338,51 @@ impl GlobalConfigService {
 impl Service for GlobalConfigService {
     type Interface = GlobalConfigManager;
 
-    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
-        tokio::spawn(async move {
-            let mut shutdown_handle = Controller::shutdown_handle();
+    async fn run(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+        let mut shutdown_handle = Controller::shutdown_handle();
 
-            relay_log::info!("global config service starting");
-            if self.config.relay_mode() == RelayMode::Managed {
-                relay_log::info!("requesting global config from upstream");
-                self.request_global_config();
-            } else {
-                match GlobalConfig::load(self.config.path()) {
-                    Ok(Some(from_file)) => {
-                        relay_log::info!("serving static global config loaded from file");
-                        self.global_config_watch
-                            .send_replace(Status::Ready(Arc::new(from_file)));
-                    }
-                    Ok(None) => {
-                        relay_log::info!(
-                                "serving default global configs due to lacking static global config file"
-                            );
-                        self.global_config_watch
-                            .send_replace(Status::Ready(Arc::default()));
-                    }
-                    Err(e) => {
-                        relay_log::error!("failed to load global config from file: {}", e);
-                        relay_log::info!(
+        relay_log::info!("global config service starting");
+        if self.config.relay_mode() == RelayMode::Managed {
+            relay_log::info!("requesting global config from upstream");
+            self.request_global_config();
+        } else {
+            match GlobalConfig::load(self.config.path()) {
+                Ok(Some(from_file)) => {
+                    relay_log::info!("serving static global config loaded from file");
+                    self.global_config_watch
+                        .send_replace(Status::Ready(Arc::new(from_file)));
+                }
+                Ok(None) => {
+                    relay_log::info!(
+                        "serving default global configs due to lacking static global config file"
+                    );
+                    self.global_config_watch
+                        .send_replace(Status::Ready(Arc::default()));
+                }
+                Err(e) => {
+                    relay_log::error!("failed to load global config from file: {}", e);
+                    relay_log::info!(
                                 "serving default global configs due to failure to load global config from file"
                             );
-                        self.global_config_watch
-                            .send_replace(Status::Ready(Arc::default()));
-                    }
-                }
-            };
-
-            loop {
-                tokio::select! {
-                    biased;
-
-                    () = &mut self.fetch_handle => self.request_global_config(),
-                    Some(result) = self.internal_rx.recv() => self.handle_result(result),
-                    Some(message) = rx.recv() => self.handle_message(message),
-                    _ = shutdown_handle.notified() => self.handle_shutdown(),
-
-                    else => break,
+                    self.global_config_watch
+                        .send_replace(Status::Ready(Arc::default()));
                 }
             }
-            relay_log::info!("global config service stopped");
-        });
+        };
+
+        loop {
+            tokio::select! {
+                biased;
+
+                () = &mut self.fetch_handle => self.request_global_config(),
+                Some(result) = self.internal_rx.recv() => self.handle_result(result),
+                Some(message) = rx.recv() => self.handle_message(message),
+                _ = shutdown_handle.notified() => self.handle_shutdown(),
+
+                else => break,
+            }
+        }
+        relay_log::info!("global config service stopped");
     }
 }
 

@@ -936,12 +936,10 @@ pub fn channel<I: Interface>(name: &'static str) -> (Addr<I>, Receiver<I>) {
 /// impl Service for MyService {
 ///     type Interface = MyMessage;
 ///
-///     fn spawn_handler(self, mut rx: Receiver<Self::Interface>) {
-///         tokio::spawn(async move {
-///             while let Some(message) = rx.recv().await {
-///                 // handle the message
-///             }
-///         });
+///     async fn run(self, mut rx: Receiver<Self::Interface>) {
+///         while let Some(message) = rx.recv().await {
+///             // handle the message
+///         }
 ///     }
 /// }
 ///
@@ -1002,16 +1000,16 @@ pub trait Service: Sized {
     /// can be handled by this service.
     type Interface: Interface;
 
-    /// Spawns a task to handle service messages.
+    /// Defines the main task of this service.
     ///
-    /// Receives an inbound channel for all messages sent through the service's [`Addr`]. Note
-    /// that this function is synchronous, so that this needs to spawn a task internally.
-    fn spawn_handler(self, rx: Receiver<Self::Interface>);
+    /// `run` typically contains a loop that reads from `rx`, or a `select!` that reads
+    /// from multiple sources at once.
+    fn run(self, rx: Receiver<Self::Interface>) -> impl Future<Output = ()> + Send + 'static;
 
     /// Starts the service in the current runtime and returns an address for it.
     fn start(self) -> Addr<Self::Interface> {
         let (addr, rx) = channel(Self::name());
-        self.spawn_handler(rx);
+        tokio::spawn(self.run(rx));
         addr
     }
 
@@ -1045,12 +1043,10 @@ mod tests {
     impl Service for MockService {
         type Interface = MockMessage;
 
-        fn spawn_handler(self, mut rx: Receiver<Self::Interface>) {
-            tokio::spawn(async move {
-                while rx.recv().await.is_some() {
-                    tokio::time::sleep(BACKLOG_INTERVAL * 2).await;
-                }
-            });
+        async fn run(self, mut rx: Receiver<Self::Interface>) {
+            while rx.recv().await.is_some() {
+                tokio::time::sleep(BACKLOG_INTERVAL * 2).await;
+            }
         }
 
         fn name() -> &'static str {

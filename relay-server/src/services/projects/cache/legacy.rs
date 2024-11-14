@@ -680,7 +680,7 @@ impl ProjectCacheService {
 impl Service for ProjectCacheService {
     type Interface = ProjectCache;
 
-    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
+    async fn run(self, mut rx: relay_system::Receiver<Self::Interface>) {
         let Self {
             config,
             memory_checker,
@@ -694,120 +694,118 @@ impl Service for ProjectCacheService {
         let outcome_aggregator = services.outcome_aggregator.clone();
         let test_store = services.test_store.clone();
 
-        tokio::spawn(async move {
-            relay_log::info!("project cache started");
+        relay_log::info!("project cache started");
 
-            let global_config = match global_config_rx.borrow().clone() {
-                global_config::Status::Ready(_) => {
-                    relay_log::info!("global config received");
-                    GlobalConfigStatus::Ready
-                }
-                global_config::Status::Pending => {
-                    relay_log::info!("waiting for global config");
-                    GlobalConfigStatus::Pending
-                }
-            };
-
-            let (buffer_tx, mut buffer_rx) = mpsc::unbounded_channel();
-            let spool_v1 = match config.spool_v2() {
-                true => None,
-                false => Some({
-                    // Channel for envelope buffering.
-                    let buffer_services = spooler::Services {
-                        outcome_aggregator,
-                        project_cache,
-                        test_store,
-                    };
-                    let buffer = match BufferService::create(
-                        memory_checker.clone(),
-                        buffer_services,
-                        config.clone(),
-                    )
-                    .await
-                    {
-                        Ok(buffer) => buffer.start(),
-                        Err(err) => {
-                            relay_log::error!(
-                                error = &err as &dyn Error,
-                                "failed to start buffer service",
-                            );
-                            // NOTE: The process will exit with error if the buffer file could not be
-                            // opened or the migrations could not be run.
-                            std::process::exit(1);
-                        }
-                    };
-
-                    // Request the existing index from the spooler.
-                    buffer.send(RestoreIndex);
-
-                    SpoolV1 {
-                        buffer_tx,
-                        index: HashSet::new(),
-                        buffer_unspool_backoff: RetryBackoff::new(config.http_max_retry_interval()),
-                        buffer,
-                    }
-                }),
-            };
-
-            let mut broker = ProjectCacheBroker {
-                config: config.clone(),
-                memory_checker,
-                projects: project_cache_handle,
-                services,
-                spool_v1_unspool_handle: SleepHandle::idle(),
-                spool_v1,
-                global_config,
-            };
-
-            loop {
-                tokio::select! {
-                    biased;
-
-                    Ok(()) = global_config_rx.changed() => {
-                        metric!(timer(RelayTimers::LegacyProjectCacheTaskDuration), task = "update_global_config", {
-                            match global_config_rx.borrow().clone() {
-                                global_config::Status::Ready(_) => broker.set_global_config_ready(),
-                                // The watch should only be updated if it gets a new value.
-                                // This would imply a logical bug.
-                                global_config::Status::Pending => relay_log::error!("still waiting for the global config"),
-                            }
-                        })
-                    },
-                    project_change = project_changes.recv() => {
-                        metric!(timer(RelayTimers::LegacyProjectCacheTaskDuration), task = "handle_project_change", {
-                            if let Ok(project_change) = project_change {
-                                broker.handle_project_change(project_change);
-                            }
-                        })
-                    }
-                    // Buffer will not dequeue the envelopes from the spool if there is not enough
-                    // permits in `BufferGuard` available. Currently this is 50%.
-                    Some(UnspooledEnvelope { managed_envelope, .. }) = buffer_rx.recv() => {
-                        metric!(timer(RelayTimers::LegacyProjectCacheTaskDuration), task = "handle_processing", {
-                            broker.handle_processing(managed_envelope)
-                        })
-                    },
-                    () = &mut broker.spool_v1_unspool_handle => {
-                        metric!(timer(RelayTimers::LegacyProjectCacheTaskDuration), task = "periodic_unspool", {
-                            broker.handle_periodic_unspool()
-                        })
-                    }
-                    Some(message) = rx.recv() => {
-                        metric!(timer(RelayTimers::LegacyProjectCacheTaskDuration), task = "handle_message", {
-                            broker.handle_message(message)
-                        })
-                    }
-                    Some(message) = envelopes_rx.recv() => {
-                        metric!(timer(RelayTimers::LegacyProjectCacheTaskDuration), task = "handle_envelope", {
-                            broker.handle_envelope(message)
-                        })
-                    }
-                    else => break,
-                }
+        let global_config = match global_config_rx.borrow().clone() {
+            global_config::Status::Ready(_) => {
+                relay_log::info!("global config received");
+                GlobalConfigStatus::Ready
             }
+            global_config::Status::Pending => {
+                relay_log::info!("waiting for global config");
+                GlobalConfigStatus::Pending
+            }
+        };
 
-            relay_log::info!("project cache stopped");
-        });
+        let (buffer_tx, mut buffer_rx) = mpsc::unbounded_channel();
+        let spool_v1 = match config.spool_v2() {
+            true => None,
+            false => Some({
+                // Channel for envelope buffering.
+                let buffer_services = spooler::Services {
+                    outcome_aggregator,
+                    project_cache,
+                    test_store,
+                };
+                let buffer = match BufferService::create(
+                    memory_checker.clone(),
+                    buffer_services,
+                    config.clone(),
+                )
+                .await
+                {
+                    Ok(buffer) => buffer.start(),
+                    Err(err) => {
+                        relay_log::error!(
+                            error = &err as &dyn Error,
+                            "failed to start buffer service",
+                        );
+                        // NOTE: The process will exit with error if the buffer file could not be
+                        // opened or the migrations could not be run.
+                        std::process::exit(1);
+                    }
+                };
+
+                // Request the existing index from the spooler.
+                buffer.send(RestoreIndex);
+
+                SpoolV1 {
+                    buffer_tx,
+                    index: HashSet::new(),
+                    buffer_unspool_backoff: RetryBackoff::new(config.http_max_retry_interval()),
+                    buffer,
+                }
+            }),
+        };
+
+        let mut broker = ProjectCacheBroker {
+            config: config.clone(),
+            memory_checker,
+            projects: project_cache_handle,
+            services,
+            spool_v1_unspool_handle: SleepHandle::idle(),
+            spool_v1,
+            global_config,
+        };
+
+        loop {
+            tokio::select! {
+                biased;
+
+                Ok(()) = global_config_rx.changed() => {
+                    metric!(timer(RelayTimers::LegacyProjectCacheTaskDuration), task = "update_global_config", {
+                        match global_config_rx.borrow().clone() {
+                            global_config::Status::Ready(_) => broker.set_global_config_ready(),
+                            // The watch should only be updated if it gets a new value.
+                            // This would imply a logical bug.
+                            global_config::Status::Pending => relay_log::error!("still waiting for the global config"),
+                        }
+                    })
+                },
+                project_change = project_changes.recv() => {
+                    metric!(timer(RelayTimers::LegacyProjectCacheTaskDuration), task = "handle_project_change", {
+                        if let Ok(project_change) = project_change {
+                            broker.handle_project_change(project_change);
+                        }
+                    })
+                }
+                // Buffer will not dequeue the envelopes from the spool if there is not enough
+                // permits in `BufferGuard` available. Currently this is 50%.
+                Some(UnspooledEnvelope { managed_envelope, .. }) = buffer_rx.recv() => {
+                    metric!(timer(RelayTimers::LegacyProjectCacheTaskDuration), task = "handle_processing", {
+                        broker.handle_processing(managed_envelope)
+                    })
+                },
+                () = &mut broker.spool_v1_unspool_handle => {
+                    metric!(timer(RelayTimers::LegacyProjectCacheTaskDuration), task = "periodic_unspool", {
+                        broker.handle_periodic_unspool()
+                    })
+                }
+                Some(message) = rx.recv() => {
+                    metric!(timer(RelayTimers::LegacyProjectCacheTaskDuration), task = "handle_message", {
+                        broker.handle_message(message)
+                    })
+                }
+                Some(message) = envelopes_rx.recv() => {
+                    metric!(timer(RelayTimers::LegacyProjectCacheTaskDuration), task = "handle_envelope", {
+                        broker.handle_envelope(message)
+                    })
+                }
+                else => break,
+            }
+        }
+
+        relay_log::info!("project cache stopped");
     }
 }
 

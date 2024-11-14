@@ -683,19 +683,17 @@ impl HttpOutcomeProducer {
 impl Service for HttpOutcomeProducer {
     type Interface = TrackRawOutcome;
 
-    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
-        tokio::spawn(async move {
-            loop {
-                tokio::select! {
-                    // Prioritize flush over receiving messages to prevent starving.
-                    biased;
+    async fn run(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+        loop {
+            tokio::select! {
+                // Prioritize flush over receiving messages to prevent starving.
+                biased;
 
-                    () = &mut self.flush_handle => self.send_batch(),
-                    Some(message) = rx.recv() => self.handle_message(message),
-                    else => break,
-                }
+                () = &mut self.flush_handle => self.send_batch(),
+                Some(message) = rx.recv() => self.handle_message(message),
+                else => break,
             }
-        });
+        }
     }
 }
 
@@ -776,19 +774,17 @@ impl ClientReportOutcomeProducer {
 impl Service for ClientReportOutcomeProducer {
     type Interface = TrackOutcome;
 
-    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
-        tokio::spawn(async move {
-            loop {
-                tokio::select! {
-                    // Prioritize flush over receiving messages to prevent starving.
-                    biased;
+    async fn run(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+        loop {
+            tokio::select! {
+                // Prioritize flush over receiving messages to prevent starving.
+                biased;
 
-                    () = &mut self.flush_handle => self.flush(),
-                    Some(message) = rx.recv() => self.handle_message(message),
-                    else => break,
-                }
+                () = &mut self.flush_handle => self.flush(),
+                Some(message) = rx.recv() => self.handle_message(message),
+                else => break,
             }
-        });
+        }
     }
 }
 
@@ -1035,18 +1031,16 @@ impl OutcomeProducerService {
 impl Service for OutcomeProducerService {
     type Interface = OutcomeProducer;
 
-    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
+    async fn run(self, mut rx: relay_system::Receiver<Self::Interface>) {
         let Self { config, inner } = self;
 
-        tokio::spawn(async move {
-            let broker = inner.start();
+        let broker = inner.start();
 
-            relay_log::info!("OutcomeProducer started.");
-            while let Some(message) = rx.recv().await {
-                broker.handle_message(message, &config);
-            }
-            relay_log::info!("OutcomeProducer stopped.");
-        });
+        relay_log::info!("OutcomeProducer started.");
+        while let Some(message) = rx.recv().await {
+            broker.handle_message(message, &config);
+        }
+        relay_log::info!("OutcomeProducer stopped.");
     }
 }
 
