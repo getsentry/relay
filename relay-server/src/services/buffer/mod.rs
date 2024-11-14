@@ -149,7 +149,7 @@ impl EnvelopeBufferService {
         let has_capacity = self.has_capacity.clone();
 
         let (addr, rx) = relay_system::channel(Self::name());
-        runner.spawn(self, rx);
+        runner.start_with(self, rx);
         ObservableEnvelopeBuffer { addr, has_capacity }
     }
 

@@ -1048,12 +1048,12 @@ impl ServiceRunner {
     /// Starts a service and starts tracking its join handle, exposing an [Addr] for message passing.
     pub fn start<S: Service>(&mut self, service: S) -> Addr<S::Interface> {
         let (addr, rx) = channel(S::name());
-        self.spawn(service, rx);
+        self.start_with(service, rx);
         addr
     }
 
     /// Starts a service and starts tracking its join handle, given a predefined receiver.
-    pub fn spawn<S: Service>(&mut self, service: S, rx: Receiver<S::Interface>) {
+    pub fn start_with<S: Service>(&mut self, service: S, rx: Receiver<S::Interface>) {
         self.0.push(tokio::spawn(service.run(rx)));
     }
 

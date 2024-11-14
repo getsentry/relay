@@ -239,7 +239,7 @@ impl ServiceState {
         let cogs = CogsService::new(&config);
         let cogs = Cogs::new(CogsServiceRecorder::new(&config, runner.start(cogs)));
 
-        runner.spawn(
+        runner.start_with(
             EnvelopeProcessorService::new(
                 create_processor_pool(&config)?,
                 config.clone(),
@@ -285,7 +285,7 @@ impl ServiceState {
             test_store: test_store.clone(),
         };
 
-        runner.spawn(
+        runner.start_with(
             legacy::ProjectCacheService::new(
                 config.clone(),
                 MemoryChecker::new(memory_stat.clone(), config.clone()),

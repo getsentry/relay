@@ -101,7 +101,7 @@ impl ProjectCacheService {
             project_changes: self.project_events_tx.clone(),
         };
 
-        runner.spawn(self, addr_rx);
+        runner.start_with(self, addr_rx);
 
         handle
     }
