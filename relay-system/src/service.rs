@@ -11,7 +11,7 @@ use futures::future::Shared;
 use futures::stream::FuturesUnordered;
 use futures::{FutureExt, StreamExt};
 use tokio::sync::{mpsc, oneshot};
-use tokio::task::JoinHandle;
+use tokio::task::{JoinError, JoinHandle};
 use tokio::time::MissedTickBehavior;
 
 use crate::statsd::{SystemCounters, SystemGauges};
@@ -1060,13 +1060,10 @@ impl ServiceRunner {
     /// Awaits until all services have finished.
     ///
     /// Panics if one of the spawned services has panicked.
-    pub async fn join(&mut self) {
+    pub async fn join<F: Fn(JoinError)>(&mut self, error_handler: F) {
         while let Some(res) = self.0.next().await {
             if let Err(e) = res {
-                if e.is_panic() {
-                    // Re-trigger panic to terminate the process:
-                    std::panic::resume_unwind(e.into_panic());
-                }
+                error_handler(e);
             }
         }
     }

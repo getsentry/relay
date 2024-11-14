@@ -1,4 +1,5 @@
 use std::convert::Infallible;
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -135,6 +136,7 @@ struct StateInner {
     config: Arc<Config>,
     memory_checker: MemoryChecker,
     registry: Registry,
+    service_crashed: AtomicBool,
 }
 
 /// Server state.
@@ -333,6 +335,7 @@ impl ServiceState {
             config: config.clone(),
             memory_checker: MemoryChecker::new(memory_stat, config.clone()),
             registry,
+            service_crashed: false.into(),
         };
 
         Ok((
@@ -408,6 +411,22 @@ impl ServiceState {
     /// Returns the address of the [`OutcomeProducer`] service.
     pub fn outcome_aggregator(&self) -> &Addr<TrackOutcome> {
         &self.inner.registry.outcome_aggregator
+    }
+
+    /// Checks whether one of the services has crashed.
+    pub fn has_crashed(&self) -> bool {
+        self.inner
+            .service_crashed
+            .load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    /// Reports that one of the services has crashed.
+    ///
+    /// Marks the entire service state as unhealthy.
+    pub fn report_crash(&self) {
+        self.inner
+            .service_crashed
+            .store(true, std::sync::atomic::Ordering::Relaxed);
     }
 }
 

@@ -13,13 +13,18 @@ struct Status {
     is_healthy: bool,
 }
 
+const UNHEALTHY: (hyper::StatusCode, axum::Json<Status>) = (
+    StatusCode::SERVICE_UNAVAILABLE,
+    axum::Json(Status { is_healthy: false }),
+);
+
 pub async fn handle(state: ServiceState, Path(kind): Path<IsHealthy>) -> impl IntoResponse {
+    if state.has_crashed() {
+        return UNHEALTHY;
+    }
     match state.health_check().send(kind).await {
         Ok(HealthStatus::Healthy) => (StatusCode::OK, axum::Json(Status { is_healthy: true })),
-        _ => (
-            StatusCode::SERVICE_UNAVAILABLE,
-            axum::Json(Status { is_healthy: false }),
-        ),
+        _ => UNHEALTHY,
     }
 }
 

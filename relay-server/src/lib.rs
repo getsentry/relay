@@ -305,11 +305,15 @@ pub fn run(config: Config) -> anyhow::Result<()> {
         runner.start(HttpServer::new(config, state.clone())?);
 
         tokio::select! {
-            _ = runner.join() => {},
-            // NOTE: when every service implements a shutdown listener,
-            // awaiting on `finished` becomes unnecessary: We can simply join() and guarantee
-            // that every service finished its main task.
-            // See also https://github.com/getsentry/relay/issues/4050.
+            _ = runner.join(|e| {
+                if e.is_panic() {
+                    state.report_crash();
+                }
+                // NOTE: when every service implements a shutdown listener,
+                // awaiting on `finished` becomes unnecessary: We can simply join() and guarantee
+                // that every service finished its main task.
+                // See also https://github.com/getsentry/relay/issues/4050.
+            }) => {},
             _ = Controller::shutdown_handle().finished() => {}
         }
 
