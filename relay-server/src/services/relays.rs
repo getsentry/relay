@@ -238,7 +238,7 @@ impl RelayCacheService {
 
         let fetch_tx = self.fetch_tx();
         let upstream_relay = self.upstream_relay.clone();
-        tokio::spawn(async move {
+        relay_system::spawn!(async move {
             let request = GetRelays {
                 relay_ids: channels.keys().cloned().collect(),
             };

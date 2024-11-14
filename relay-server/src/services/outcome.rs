@@ -658,7 +658,7 @@ impl HttpOutcomeProducer {
 
         let upstream_relay = self.upstream_relay.clone();
 
-        tokio::spawn(async move {
+        relay_system::spawn!(async move {
             match upstream_relay.send(SendQuery(request)).await {
                 Ok(_) => relay_log::trace!("outcome batch sent"),
                 Err(error) => {

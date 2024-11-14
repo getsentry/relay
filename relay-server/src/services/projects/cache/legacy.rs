@@ -931,7 +931,7 @@ mod tests {
         }
 
         // Emulate the project cache service loop.
-        tokio::task::spawn(async move {
+        relay_system::spawn!(async move {
             loop {
                 select! {
                     Ok(project_event) = project_events.recv() => {

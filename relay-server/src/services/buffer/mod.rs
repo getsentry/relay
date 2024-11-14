@@ -397,7 +397,7 @@ impl Service for EnvelopeBufferService {
         let mut project_changes = self.services.project_cache_handle.changes();
 
         #[cfg(unix)]
-        tokio::spawn(async move {
+        relay_system::spawn!(async move {
             use tokio::signal::unix::{signal, SignalKind};
             let Ok(mut signal) = signal(SignalKind::user_defined1()) else {
                 return;

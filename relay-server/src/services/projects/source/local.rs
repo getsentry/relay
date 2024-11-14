@@ -156,7 +156,7 @@ async fn spawn_poll_local_states(
     poll_local_states(&project_path, &tx).await;
 
     // Start a background loop that polls periodically:
-    tokio::spawn(async move {
+    relay_system::spawn!(async move {
         // To avoid running two load tasks simultaneously at startup, we delay the interval by one period:
         let start_at = Instant::now() + period;
         let mut ticker = tokio::time::interval_at(start_at, period);

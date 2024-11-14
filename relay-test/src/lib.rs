@@ -44,7 +44,7 @@ where
 {
     let (addr, mut rx) = channel(name);
 
-    let handle = tokio::spawn(async move {
+    let handle = relay_system::spawn!(async move {
         while let Some(msg) = rx.recv().await {
             f(&mut state, msg);
         }

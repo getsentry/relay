@@ -163,8 +163,9 @@ pub struct Controller;
 
 impl Controller {
     /// Starts a controller that monitors shutdown signals.
+    #[track_caller]
     pub fn start(shutdown_timeout: Duration) {
-        tokio::spawn(monitor_shutdown(shutdown_timeout));
+        crate::spawn!(monitor_shutdown(shutdown_timeout));
     }
 
     /// Manually initiates the shutdown process of the system.

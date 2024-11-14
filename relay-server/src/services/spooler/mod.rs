@@ -1194,7 +1194,7 @@ impl BufferService {
             BufferState::Disk(ref disk) => {
                 let db = disk.db.clone();
                 let project_cache = self.services.project_cache.clone();
-                tokio::spawn(async move {
+                relay_system::spawn!(async move {
                     match OnDisk::get_spooled_index(&db).await {
                         Ok(index) => {
                             relay_log::trace!(

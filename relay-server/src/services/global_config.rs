@@ -263,7 +263,7 @@ impl GlobalConfigService {
         let upstream_relay = self.upstream.clone();
         let internal_tx = self.internal_tx.clone();
 
-        tokio::spawn(async move {
+        relay_system::spawn!(async move {
             metric!(timer(RelayTimers::GlobalConfigRequestDuration), {
                 let query = GetGlobalConfig::new();
                 let res = upstream_relay.send(SendQuery(query)).await;

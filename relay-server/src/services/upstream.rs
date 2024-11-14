@@ -1347,7 +1347,7 @@ impl ConnectionMonitor {
         // Only take action if we exceeded the grace period.
         if first_error + self.client.config.http_outage_grace_period() <= now {
             let return_tx = return_tx.clone();
-            let task = tokio::spawn(Self::connect(self.client.clone(), return_tx));
+            let task = relay_system::spawn!(Self::connect(self.client.clone(), return_tx));
             self.state = ConnectionState::Reconnecting(task);
         }
     }
@@ -1432,7 +1432,7 @@ impl UpstreamBroker {
         let client = self.client.clone();
         let action_tx = self.action_tx.clone();
 
-        tokio::spawn(async move {
+        relay_system::spawn!(async move {
             let send_start = Instant::now();
             let result = client.send(entry.request.as_mut()).await;
             emit_response_metrics(send_start, &entry, &result);
@@ -1515,7 +1515,7 @@ impl Service for UpstreamRelayService {
             state: AuthState::Unknown,
             tx: action_tx.clone(),
         };
-        tokio::spawn(auth.run());
+        relay_system::spawn!(auth.run());
 
         // Main broker that serializes public and internal messages, as well as maintains connection
         // and authentication state.

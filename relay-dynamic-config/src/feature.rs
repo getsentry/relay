@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 pub const GRADUATED_FEATURE_FLAGS: &[Feature] = &[
     Feature::UserReportV2Ingest,
     Feature::IngestUnsampledProfiles,
+    Feature::ScrubMongoDbDescriptions,
 ];
 
 /// Features exposed by project config.
@@ -96,12 +97,6 @@ pub enum Feature {
     /// Serialized as `organizations:indexed-spans-extraction`.
     #[serde(rename = "organizations:indexed-spans-extraction")]
     ExtractSpansFromEvent,
-    /// Enables description scrubbing for MongoDB spans (and consequently, their presence in the
-    /// Queries module inside Sentry).
-    ///
-    /// Serialized as `organizations:performance-queries-mongodb-extraction`.
-    #[serde(rename = "organizations:performance-queries-mongodb-extraction")]
-    ScrubMongoDbDescriptions,
     /// Indicate if the EAP consumers should ingest a span.
     ///
     /// Serialized as `organizations:ingest-spans-in-eap`
@@ -116,6 +111,10 @@ pub enum Feature {
     #[doc(hidden)]
     #[serde(rename = "organizations:user-feedback-ingest")]
     UserReportV2Ingest,
+    /// This feature has graduated and is hard-coded for external Relays.
+    #[doc(hidden)]
+    #[serde(rename = "organizations:performance-queries-mongodb-extraction")]
+    ScrubMongoDbDescriptions,
     /// Forward compatibility.
     #[doc(hidden)]
     #[serde(other)]
