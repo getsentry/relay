@@ -14,6 +14,7 @@ use tokio::sync::{mpsc, oneshot};
 use tokio::task::{JoinError, JoinHandle};
 use tokio::time::MissedTickBehavior;
 
+use crate::spawn;
 use crate::statsd::SystemGauges;
 
 /// Interval for recording backlog metrics on service channels.
@@ -1008,7 +1009,7 @@ pub trait Service: Sized {
     /// for tests.
     fn start_detached(self) -> Addr<Self::Interface> {
         let (addr, rx) = channel(Self::name());
-        tokio::spawn(self.run(rx));
+        spawn!(self.run(rx));
         addr
     }
 
@@ -1042,7 +1043,7 @@ impl ServiceRunner {
 
     /// Starts a service and starts tracking its join handle, given a predefined receiver.
     pub fn start_with<S: Service>(&mut self, service: S, rx: Receiver<S::Interface>) {
-        self.0.push(tokio::spawn(service.run(rx)));
+        self.0.push(spawn!(service.run(rx)));
     }
 
     /// Awaits until all services have finished.
