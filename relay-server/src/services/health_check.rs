@@ -193,7 +193,11 @@ impl HealthCheckService {
 impl Service for HealthCheckService {
     type Interface = HealthCheck;
 
-    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+    async fn run(self, _rx: relay_system::Receiver<Self::Interface>) {
+        unreachable!();
+    }
+
+    fn spawn(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
         let (update_tx, update_rx) = watch::channel(StatusUpdate::new(Status::Unhealthy));
         let check_interval = self.config.health_refresh_interval();
         // Add 10% buffer to the internal timeouts to avoid race conditions.

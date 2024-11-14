@@ -245,7 +245,11 @@ impl HttpServer {
 impl Service for HttpServer {
     type Interface = ();
 
-    fn spawn_handler(self, _rx: relay_system::Receiver<Self::Interface>) {
+    async fn run(self, _rx: relay_system::Receiver<Self::Interface>) {
+        unreachable!();
+    }
+
+    fn spawn(self, _rx: relay_system::Receiver<Self::Interface>) {
         let Self {
             config,
             service,
