@@ -98,7 +98,7 @@ pub fn extract_config_args(matches: &ArgMatches) -> OverridableConfig {
         outcome_source: matches.get_one("source_id").cloned(),
         shutdown_timeout: matches.get_one("shutdown_timeout").cloned(),
         instance: matches.get_one("instance").cloned(),
-        server_name: None,
+        server_name: matches.get_one("server_name").cloned(),
     }
 }
 
