@@ -12,6 +12,10 @@ use serde::{Deserialize, Serialize};
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{prelude::*, EnvFilter, Layer};
 
+/// Name of the environment variable containing the Sentry
+/// [`server_name`](sentry::ClientOptions::server_name).
+const SERVER_NAME_VAR: &str = "RELAY_SERVER_NAME";
+
 /// The full release name including the Relay version and SHA.
 const RELEASE: &str = std::env!("RELAY_RELEASE");
 
@@ -174,6 +178,9 @@ pub struct SentryConfig {
     pub environment: Option<Cow<'static, str>>,
 
     /// Sets the server name for this service.
+    ///
+    /// This is overridden by the `RELAY_SERVER_NAME`
+    /// environment variable.
     pub server_name: Option<Cow<'static, str>>,
 
     /// Add defaults tags to the events emitted by Relay
@@ -291,13 +298,17 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
         .init();
 
     if let Some(dsn) = sentry.enabled_dsn() {
+        let server_name = env::var(SERVER_NAME_VAR)
+            .ok()
+            .map(Cow::from)
+            .or_else(|| sentry.server_name.clone());
         let mut options = sentry::ClientOptions {
             dsn: Some(dsn).cloned(),
             in_app_include: vec!["relay"],
             release: Some(RELEASE.into()),
             attach_stacktrace: config.enable_backtraces,
             environment: sentry.environment.clone(),
-            server_name: sentry.server_name.clone(),
+            server_name,
             traces_sample_rate: config.traces_sample_rate,
             ..Default::default()
         };
