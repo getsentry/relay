@@ -8,8 +8,10 @@ use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 
 use futures::future::Shared;
-use futures::FutureExt;
+use futures::stream::FuturesUnordered;
+use futures::{FutureExt, StreamExt};
 use tokio::sync::{mpsc, oneshot};
+use tokio::task::JoinHandle;
 use tokio::time::MissedTickBehavior;
 
 use crate::statsd::{SystemCounters, SystemGauges};
@@ -1007,16 +1009,17 @@ pub trait Service: Sized {
     fn run(self, rx: Receiver<Self::Interface>) -> impl Future<Output = ()> + Send + 'static;
 
     /// Starts the service in the current runtime and returns an address for it.
-    fn start(self) -> Addr<Self::Interface> {
-        let (addr, rx) = channel(Self::name());
-        self.spawn(rx);
-        addr
-    }
+    // #[must_use]
+    // fn start(self) -> (Addr<Self::Interface>, JoinHandle<()>) {
+    //     let (addr, rx) = channel(Self::name());
+    //     (addr, self.spawn(rx))
+    // }
 
-    /// Starts the service with a previously defined receiver.
-    fn spawn(self, rx: Receiver<Self::Interface>) {
-        tokio::spawn(self.run(rx));
-    }
+    // /// Starts the service with a previously defined receiver.
+    // #[must_use]
+    // fn spawn(self, rx: Receiver<Self::Interface>) -> JoinHandle<()> {
+    //     tokio::spawn(self.run(rx))
+    // }
 
     /// Returns a unique name for this service implementation.
     ///
@@ -1024,6 +1027,34 @@ pub trait Service: Sized {
     /// implementor by default.
     fn name() -> &'static str {
         std::any::type_name::<Self>()
+    }
+}
+
+pub struct ServiceRunner(FuturesUnordered<JoinHandle<()>>);
+
+impl ServiceRunner {
+    pub fn new() -> Self {
+        Self(FuturesUnordered::new())
+    }
+    pub fn start<S: Service>(&mut self, service: S) -> Addr<S::Interface> {
+        let (addr, rx) = channel(S::name());
+        self.spawn(service, rx);
+        addr
+    }
+
+    pub fn spawn<S: Service>(&mut self, service: S, rx: Receiver<S::Interface>) {
+        self.0.push(tokio::spawn(service.run(rx)));
+    }
+
+    pub async fn join(&mut self) {
+        while let Some(res) = self.0.next().await {
+            if let Err(e) = res {
+                if e.is_panic() {
+                    // Re-trigger panic to terminate the process:
+                    std::panic::resume_unwind(e.into_panic());
+                }
+            }
+        }
     }
 }
 
@@ -1077,7 +1108,7 @@ mod tests {
         tokio::time::pause();
 
         // Mock service takes 2 * BACKLOG_INTERVAL for every message
-        let addr = MockService.start();
+        let addr = ServiceRunner::new().start(MockService);
 
         // Advance the timer by a tiny offset to trigger the first metric emission.
         let captures = relay_statsd::with_capturing_test_client(|| {

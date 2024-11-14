@@ -280,6 +280,7 @@ use std::sync::Arc;
 
 use relay_config::Config;
 use relay_system::{Controller, Service};
+use tokio::select;
 
 use crate::service::ServiceState;
 use crate::services::server::HttpServer;
@@ -301,9 +302,14 @@ pub fn run(config: Config) -> anyhow::Result<()> {
     // information on all services.
     main_runtime.block_on(async {
         Controller::start(config.shutdown_timeout());
-        let service = ServiceState::start(config.clone())?;
-        HttpServer::new(config, service.clone())?.start();
-        Controller::shutdown_handle().finished().await;
+        let (state, mut runner) = ServiceState::start(config.clone())?;
+        runner.start(HttpServer::new(config, state.clone())?);
+
+        tokio::select! {
+            _ = runner.join() => {},
+            _ = Controller::shutdown_handle().finished() => {}
+        }
+
         anyhow::Ok(())
     })?;
 

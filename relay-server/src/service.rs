@@ -1,4 +1,5 @@
 use std::convert::Infallible;
+use std::future::Future;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -23,6 +24,7 @@ use crate::utils::{MemoryChecker, MemoryStat, ThreadKind};
 use anyhow::{Context, Result};
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
+use futures::stream::FuturesUnordered;
 use rayon::ThreadPool;
 use relay_cogs::Cogs;
 use relay_config::{Config, RedisConfigRef, RedisPoolConfigs};
@@ -31,7 +33,7 @@ use relay_redis::redis::Script;
 #[cfg(feature = "processing")]
 use relay_redis::{PooledClient, RedisScripts};
 use relay_redis::{RedisError, RedisPool, RedisPools};
-use relay_system::{channel, Addr, Service};
+use relay_system::{channel, Addr, Service, ServiceRunner};
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
 
@@ -134,7 +136,6 @@ fn create_store_pool(config: &Config) -> Result<ThreadPool> {
 struct StateInner {
     config: Arc<Config>,
     memory_checker: MemoryChecker,
-
     registry: Registry,
 }
 
@@ -146,9 +147,10 @@ pub struct ServiceState {
 
 impl ServiceState {
     /// Starts all services and returns addresses to all of them.
-    pub fn start(config: Arc<Config>) -> Result<Self> {
-        let upstream_relay = UpstreamRelayService::new(config.clone()).start();
-        let test_store = TestStoreService::new(config.clone()).start();
+    pub fn start(config: Arc<Config>) -> Result<(Self, ServiceRunner)> {
+        let mut runner = ServiceRunner::new();
+        let upstream_relay = runner.start(UpstreamRelayService::new(config.clone()));
+        let test_store = runner.start(TestStoreService::new(config.clone()));
 
         let redis_pools = config
             .redis()
@@ -280,32 +282,32 @@ impl ServiceState {
             test_store: test_store.clone(),
         };
 
-        legacy::ProjectCacheService::new(
-            config.clone(),
-            MemoryChecker::new(memory_stat.clone(), config.clone()),
-            project_cache_handle.clone(),
-            project_cache_services,
-            global_config_rx,
-            envelopes_rx,
-        )
-        .spawn(legacy_project_cache_rx);
+        runner.spawn(
+            legacy::ProjectCacheService::new(
+                config.clone(),
+                MemoryChecker::new(memory_stat.clone(), config.clone()),
+                project_cache_handle.clone(),
+                project_cache_services,
+                global_config_rx,
+                envelopes_rx,
+            ),
+            legacy_project_cache_rx,
+        );
 
-        let health_check = HealthCheckService::new(
+        let health_check = runner.start(HealthCheckService::new(
             config.clone(),
             MemoryChecker::new(memory_stat.clone(), config.clone()),
             aggregator_handle,
             upstream_relay.clone(),
             envelope_buffer.clone(),
-        )
-        .start();
+        ));
 
-        RelayStats::new(
+        runner.start(RelayStats::new(
             config.clone(),
             upstream_relay.clone(),
             #[cfg(feature = "processing")]
             redis_pools.clone(),
-        )
-        .start();
+        ));
 
         let relay_cache = RelayCacheService::new(config.clone(), upstream_relay.clone()).start();
 
@@ -329,9 +331,12 @@ impl ServiceState {
             registry,
         };
 
-        Ok(ServiceState {
-            inner: Arc::new(state),
-        })
+        Ok((
+            ServiceState {
+                inner: Arc::new(state),
+            },
+            runner,
+        ))
     }
 
     /// Returns a reference to the Relay configuration.
