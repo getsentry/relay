@@ -40,7 +40,7 @@ pub struct ProjectSource {
 }
 
 impl ProjectSource {
-    /// Starts all project source services in the current runtime.
+    /// Starts all project source services in the given `ServiceRunner`.
     pub fn start(
         runner: &mut ServiceRunner,
         config: Arc<Config>,
