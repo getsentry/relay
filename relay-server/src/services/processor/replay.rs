@@ -2,7 +2,6 @@
 use std::error::Error;
 use std::net::IpAddr;
 
-use base64::prelude::*;
 use bytes::Bytes;
 use rand::Rng;
 use relay_base_schema::organization::OrganizationId;
@@ -268,25 +267,47 @@ fn handle_replay_recording_item(
             relay_replays::recording::ParseRecordingError::Compression(e) => {
                 // 20k errors per day at 0.1% sample rate == 20 logs per day
                 if rand::thread_rng().gen_range(1..=1000) == 1 {
-                    relay_log::warn!(
-                        error = e as &dyn Error,
-                        event_id = ?config.event_id,
-                        project_id = config.project_id.map(|v| v.value()),
-                        organization_id = config.organization_id.map(|o| o.value()),
-                        encoded_payload = BASE64_STANDARD.encode(payload),
-                        "invalid replay recording ParseRecordingError::Compression"
+                    relay_log::with_scope(
+                        move |scope| {
+                            scope.add_attachment(relay_log::protocol::Attachment {
+                                buffer: payload.into(),
+                                filename: "payload.json".to_owned(),
+                                content_type: Some("application/octet-stream".to_owned()),
+                                ty: None,
+                            });
+                        },
+                        || {
+                            relay_log::error!(
+                                error = e as &dyn Error,
+                                event_id = ?config.event_id,
+                                project_id = config.project_id.map(|v| v.value()),
+                                organization_id = config.organization_id.map(|o| o.value()),
+                                "ParseRecordingError::Compression"
+                            )
+                        },
                     );
                 }
             }
             relay_replays::recording::ParseRecordingError::Message(e) => {
                 // Only 118 errors in the past 30 days. We log everything.
-                relay_log::warn!(
-                    error = e,
-                    event_id = ?config.event_id,
-                    project_id = config.project_id.map(|v| v.value()),
-                    organization_id = config.organization_id.map(|o| o.value()),
-                    encoded_payload = BASE64_STANDARD.encode(payload),
-                    "invalid replay recording ParseRecordingError::Message"
+                relay_log::with_scope(
+                    move |scope| {
+                        scope.add_attachment(relay_log::protocol::Attachment {
+                            buffer: payload.into(),
+                            filename: "payload.json".to_owned(),
+                            content_type: Some("application/octet-stream".to_owned()),
+                            ty: None,
+                        });
+                    },
+                    || {
+                        relay_log::error!(
+                            error = e,
+                            event_id = ?config.event_id,
+                            project_id = config.project_id.map(|v| v.value()),
+                            organization_id = config.organization_id.map(|o| o.value()),
+                            "ParseRecordingError::Compression"
+                        )
+                    },
                 );
             }
             _ => (),

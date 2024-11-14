@@ -3761,7 +3761,6 @@ dependencies = [
  "axum-extra",
  "axum-server",
  "backoff",
- "base64 0.22.1",
  "brotli",
  "bytes",
  "bzip2",
