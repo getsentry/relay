@@ -1,8 +1,10 @@
 //! Replay related processor code.
+use base64::prelude::*;
 use std::error::Error;
 use std::net::IpAddr;
 
 use bytes::Bytes;
+use rand::Rng;
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
 use relay_dynamic_config::{Feature, GlobalConfig, ProjectConfig};
@@ -262,6 +264,33 @@ fn handle_replay_recording_item(
     })
     .map(Into::into)
     .map_err(|error| {
+        match &error {
+            relay_replays::recording::ParseRecordingError::Compression(e) => {
+                // 20k errors per day at 0.1% sample rate == 20 logs per day
+                if rand::thread_rng().gen_range(1..=1000) == 1 {
+                    relay_log::warn!(
+                        error = e as &dyn Error,
+                        event_id = ?config.event_id,
+                        project_id = config.project_id.map(|v| v.value()),
+                        organization_id = config.organization_id.map(|o| o.value()),
+                        encoded_payload = BASE64_STANDARD.encode(payload),
+                        "invalid replay recording ParseRecordingError::Compression"
+                    );
+                }
+            }
+            relay_replays::recording::ParseRecordingError::Message(_) => {
+                // Only 118 errors in the past 30 days. We log everything.
+                relay_log::warn!(
+                    event_id = ?config.event_id,
+                    project_id = config.project_id.map(|v| v.value()),
+                    organization_id = config.organization_id.map(|o| o.value()),
+                    encoded_payload = BASE64_STANDARD.encode(payload),
+                    "invalid replay recording ParseRecordingError::Message"
+                );
+            }
+            _ => (),
+        };
+
         relay_log::error!(
             error = &error as &dyn Error,
             event_id = ?config.event_id,
@@ -269,6 +298,7 @@ fn handle_replay_recording_item(
             organization_id = config.organization_id.map(|o| o.value()),
             "invalid replay recording"
         );
+
         ProcessingError::InvalidReplay(DiscardReason::InvalidReplayRecordingEvent)
     })
 }
