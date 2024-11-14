@@ -945,7 +945,7 @@ pub fn channel<I: Interface>(name: &'static str) -> (Addr<I>, Receiver<I>) {
 ///     }
 /// }
 ///
-/// let addr = MyService.start();
+/// let addr = ServiceRunner::new().start(MyService);
 /// ```
 ///
 /// ## Debounce and Caching
@@ -1009,11 +1009,14 @@ pub trait Service: Sized {
     fn run(self, rx: Receiver<Self::Interface>) -> impl Future<Output = ()> + Send + 'static;
 
     /// Starts the service in the current runtime and returns an address for it.
-    // #[must_use]
-    // fn start(self) -> (Addr<Self::Interface>, JoinHandle<()>) {
-    //     let (addr, rx) = channel(Self::name());
-    //     (addr, self.spawn(rx))
-    // }
+    ///
+    /// The service runs in a detached tokio task that cannot be joined on. This is mainly useful
+    /// for tests.
+    fn start_detached(self) -> Addr<Self::Interface> {
+        let (addr, rx) = channel(Self::name());
+        tokio::spawn(self.run(rx));
+        addr
+    }
 
     // /// Starts the service with a previously defined receiver.
     // #[must_use]
@@ -1030,22 +1033,32 @@ pub trait Service: Sized {
     }
 }
 
+/// Keeps track of running services.
+///
+/// Exposes information about crashed services.
 pub struct ServiceRunner(FuturesUnordered<JoinHandle<()>>);
 
 impl ServiceRunner {
+    /// Creates a new service runner.
     pub fn new() -> Self {
         Self(FuturesUnordered::new())
     }
+
+    /// Starts a service and starts tracking its join handle, exposing an [Addr] for message passing.
     pub fn start<S: Service>(&mut self, service: S) -> Addr<S::Interface> {
         let (addr, rx) = channel(S::name());
         self.spawn(service, rx);
         addr
     }
 
+    /// Starts a service and starts tracking its join handle, given a predefined receiver.
     pub fn spawn<S: Service>(&mut self, service: S, rx: Receiver<S::Interface>) {
         self.0.push(tokio::spawn(service.run(rx)));
     }
 
+    /// Awaits until all services have finished.
+    ///
+    /// Panics if one of the spawned services has panicked.
     pub async fn join(&mut self) {
         while let Some(res) = self.0.next().await {
             if let Err(e) = res {

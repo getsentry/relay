@@ -419,7 +419,7 @@ mod tests {
 
         let service = GlobalConfigService::new(Arc::new(config), upstream)
             .0
-            .start();
+            .start_detached();
 
         assert!(service.send(Get).await.is_ok());
 
@@ -450,7 +450,7 @@ mod tests {
         let fetch_interval = config.global_config_fetch_interval();
         let service = GlobalConfigService::new(Arc::new(config), upstream)
             .0
-            .start();
+            .start_detached();
         service.send(Get).await.unwrap();
 
         tokio::time::sleep(fetch_interval * 2).await;
@@ -477,7 +477,7 @@ mod tests {
 
         let service = GlobalConfigService::new(Arc::new(config), upstream)
             .0
-            .start();
+            .start_detached();
         service.send(Get).await.unwrap();
 
         tokio::time::sleep(fetch_interval * 2).await;

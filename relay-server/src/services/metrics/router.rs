@@ -4,7 +4,7 @@
 use relay_config::aggregator::Condition;
 use relay_config::{AggregatorServiceConfig, ScopedAggregatorConfig};
 use relay_metrics::MetricNamespace;
-use relay_system::{Addr, NoResponse, Recipient, Service};
+use relay_system::{Addr, NoResponse, Recipient, Service, ServiceRunner};
 
 use crate::services::metrics::{
     Aggregator, AggregatorHandle, AggregatorService, FlushBuckets, MergeBuckets,
@@ -54,7 +54,7 @@ impl Service for RouterService {
     type Interface = Aggregator;
 
     async fn run(self, mut rx: relay_system::Receiver<Self::Interface>) {
-        let mut router = StartedRouter::start(self);
+        let mut router = StartedRouter::start(self, &mut ServiceRunner::new());
         relay_log::info!("metrics router started");
 
         // Note that currently this loop never exists and will run till the tokio runtime shuts
@@ -81,7 +81,7 @@ struct StartedRouter {
 }
 
 impl StartedRouter {
-    fn start(router: RouterService) -> Self {
+    fn start(router: RouterService, runner: &mut ServiceRunner) -> Self {
         let RouterService { default, secondary } = router;
 
         let secondary = secondary
@@ -92,12 +92,12 @@ impl StartedRouter {
                     .filter(|&namespace| condition.matches(Some(namespace)))
                     .collect();
 
-                (aggregator.start(), namespaces)
+                (runner.start(aggregator), namespaces)
             })
             .collect();
 
         Self {
-            default: default.start(),
+            default: runner.start(default),
             secondary,
         }
     }

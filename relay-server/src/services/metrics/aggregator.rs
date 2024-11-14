@@ -388,7 +388,7 @@ mod tests {
         tokio::time::pause();
 
         let receiver = TestReceiver::default();
-        let recipient = receiver.clone().start().recipient();
+        let recipient = receiver.clone().start_detached().recipient();
 
         let config = AggregatorServiceConfig {
             aggregator: AggregatorConfig {
@@ -398,7 +398,7 @@ mod tests {
             },
             ..Default::default()
         };
-        let aggregator = AggregatorService::new(config, Some(recipient)).start();
+        let aggregator = AggregatorService::new(config, Some(recipient)).start_detached();
 
         let mut bucket = some_bucket();
         bucket.timestamp = UnixTimestamp::now();

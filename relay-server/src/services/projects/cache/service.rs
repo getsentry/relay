@@ -5,7 +5,7 @@ use futures::StreamExt as _;
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
 use relay_statsd::metric;
-use relay_system::Service;
+use relay_system::{Service, ServiceRunner};
 use tokio::sync::broadcast;
 
 use crate::services::projects::cache::handle::ProjectCacheHandle;
@@ -91,7 +91,7 @@ impl ProjectCacheService {
     /// Consumes and starts a [`ProjectCacheService`].
     ///
     /// Returns a [`ProjectCacheHandle`] to access the cache concurrently.
-    pub fn start(self) -> ProjectCacheHandle {
+    pub fn start(self, runner: &mut ServiceRunner) -> ProjectCacheHandle {
         let (addr, addr_rx) = relay_system::channel(Self::name());
 
         let handle = ProjectCacheHandle {
@@ -101,7 +101,7 @@ impl ProjectCacheService {
             project_changes: self.project_events_tx.clone(),
         };
 
-        self.spawn(addr_rx);
+        runner.spawn(self, addr_rx);
 
         handle
     }

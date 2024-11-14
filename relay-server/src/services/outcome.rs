@@ -976,8 +976,10 @@ impl ProducerInner {
         match self {
             #[cfg(feature = "processing")]
             ProducerInner::Kafka(inner) => OutcomeBroker::Kafka(inner),
-            ProducerInner::Http(inner) => OutcomeBroker::Http(inner.start()),
-            ProducerInner::ClientReport(inner) => OutcomeBroker::ClientReport(inner.start()),
+            ProducerInner::Http(inner) => OutcomeBroker::Http(inner.start_detached()),
+            ProducerInner::ClientReport(inner) => {
+                OutcomeBroker::ClientReport(inner.start_detached())
+            }
             ProducerInner::Disabled => OutcomeBroker::Disabled,
         }
     }

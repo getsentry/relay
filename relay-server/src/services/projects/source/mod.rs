@@ -6,7 +6,7 @@ use relay_base_schema::project::ProjectKey;
 use relay_config::RedisConfigRef;
 use relay_config::{Config, RelayMode};
 use relay_redis::RedisPool;
-use relay_system::{Addr, Service as _};
+use relay_system::{Addr, ServiceRunner};
 #[cfg(feature = "processing")]
 use tokio::sync::Semaphore;
 
@@ -42,13 +42,16 @@ pub struct ProjectSource {
 impl ProjectSource {
     /// Starts all project source services in the current runtime.
     pub fn start(
+        runner: &mut ServiceRunner,
         config: Arc<Config>,
         upstream_relay: Addr<UpstreamRelay>,
         _redis: Option<RedisPool>,
     ) -> Self {
-        let local_source = LocalProjectSourceService::new(config.clone()).start();
-        let upstream_source =
-            UpstreamProjectSourceService::new(config.clone(), upstream_relay).start();
+        let local_source = runner.start(LocalProjectSourceService::new(config.clone()));
+        let upstream_source = runner.start(UpstreamProjectSourceService::new(
+            config.clone(),
+            upstream_relay,
+        ));
 
         #[cfg(feature = "processing")]
         let redis_max_connections = config

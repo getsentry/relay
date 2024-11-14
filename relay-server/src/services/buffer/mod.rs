@@ -10,6 +10,7 @@ use chrono::DateTime;
 use chrono::Utc;
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
+use relay_system::ServiceRunner;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Receiver, Service};
 use relay_system::{Controller, Shutdown};
 use tokio::sync::mpsc::Permit;
@@ -144,12 +145,12 @@ impl EnvelopeBufferService {
     }
 
     /// Returns both the [`Addr`] to this service, and a reference to the capacity flag.
-    pub fn start_observable(self) -> ObservableEnvelopeBuffer {
+    pub fn start_observable(self, runner: &mut ServiceRunner) -> ObservableEnvelopeBuffer {
         let has_capacity = self.has_capacity.clone();
-        ObservableEnvelopeBuffer {
-            addr: self.start(),
-            has_capacity,
-        }
+
+        let (addr, rx) = relay_system::channel(Self::name());
+        runner.spawn(self, rx);
+        ObservableEnvelopeBuffer { addr, has_capacity }
     }
 
     /// Wait for the configured amount of time and make sure the project cache is ready to receive.
@@ -545,7 +546,8 @@ mod tests {
 
         service.has_capacity.store(false, Ordering::Relaxed);
 
-        let ObservableEnvelopeBuffer { has_capacity, .. } = service.start_observable();
+        let ObservableEnvelopeBuffer { has_capacity, .. } =
+            service.start_observable(&mut ServiceRunner::new());
         assert!(!has_capacity.load(Ordering::Relaxed));
 
         tokio::time::advance(Duration::from_millis(100)).await;
@@ -569,7 +571,7 @@ mod tests {
             ..
         } = envelope_buffer_service(None, global_config::Status::Pending);
 
-        let addr = service.start();
+        let addr = service.start_detached();
 
         let envelope = new_envelope(false, "foo");
         let project_key = envelope.meta().public_key();
@@ -613,7 +615,7 @@ mod tests {
             global_config::Status::Ready(Arc::new(GlobalConfig::default())),
         );
 
-        let addr = service.start();
+        let addr = service.start_detached();
 
         let envelope = new_envelope(false, "foo");
         let project_key = envelope.meta().public_key();
@@ -646,7 +648,7 @@ mod tests {
         );
 
         let config = service.config.clone();
-        let addr = service.start();
+        let addr = service.start_detached();
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
@@ -679,7 +681,7 @@ mod tests {
             global_config::Status::Ready(Arc::new(GlobalConfig::default())),
         );
 
-        let addr = service.start();
+        let addr = service.start_detached();
 
         let envelope = new_envelope(false, "foo");
         let project_key = envelope.meta().public_key();
@@ -714,7 +716,7 @@ mod tests {
             global_config::Status::Ready(Arc::new(GlobalConfig::default())),
         );
 
-        let addr = service.start();
+        let addr = service.start_detached();
 
         let envelope = new_envelope(false, "foo");
         let project_key = envelope.meta().public_key();

@@ -279,8 +279,7 @@ mod testutils;
 use std::sync::Arc;
 
 use relay_config::Config;
-use relay_system::{Controller, Service};
-use tokio::select;
+use relay_system::Controller;
 
 use crate::service::ServiceState;
 use crate::services::server::HttpServer;

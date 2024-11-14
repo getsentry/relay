@@ -724,7 +724,10 @@ impl Service for ProjectCacheService {
                 )
                 .await
                 {
-                    Ok(buffer) => buffer.start(),
+                    Ok(buffer) => {
+                        // NOTE: This service is not monitored by the service runner.
+                        buffer.start_detached()
+                    }
                     Err(err) => {
                         relay_log::error!(
                             error = &err as &dyn Error,
@@ -865,7 +868,7 @@ mod tests {
             match BufferService::create(memory_checker.clone(), buffer_services, config.clone())
                 .await
             {
-                Ok(buffer) => buffer.start(),
+                Ok(buffer) => buffer.start_detached(),
                 Err(err) => {
                     relay_log::error!(error = &err as &dyn Error, "failed to start buffer service");
                     // NOTE: The process will exit with error if the buffer file could not be

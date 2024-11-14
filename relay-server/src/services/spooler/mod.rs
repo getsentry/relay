@@ -1392,7 +1392,7 @@ mod tests {
         let service = BufferService::create(memory_checker, services(), config)
             .await
             .unwrap();
-        let addr = service.start();
+        let addr = service.start_detached();
         let (tx, mut rx) = mpsc::unbounded_channel();
 
         // Test cases:
@@ -1607,7 +1607,7 @@ mod tests {
         let buffer = BufferService::create(memory_checker, services, config)
             .await
             .unwrap();
-        let addr = buffer.start();
+        let addr = buffer.start_detached();
         addr.send(RestoreIndex);
         // Give some time to process the message
         tokio::time::sleep(Duration::from_millis(500)).await;
@@ -1652,7 +1652,7 @@ mod tests {
         let buffer = BufferService::create(memory_checker, services, config)
             .await
             .unwrap();
-        let addr = buffer.start();
+        let addr = buffer.start_detached();
 
         let mut keys = HashSet::new();
         for _ in 1..=300 {
