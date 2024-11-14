@@ -1009,8 +1009,13 @@ pub trait Service: Sized {
     /// Starts the service in the current runtime and returns an address for it.
     fn start(self) -> Addr<Self::Interface> {
         let (addr, rx) = channel(Self::name());
-        tokio::spawn(self.run(rx));
+        self.spawn(rx);
         addr
+    }
+
+    /// Starts the service with a previously defined receiver.
+    fn spawn(self, rx: Receiver<Self::Interface>) {
+        tokio::spawn(self.run(rx));
     }
 
     /// Returns a unique name for this service implementation.

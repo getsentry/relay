@@ -101,7 +101,7 @@ impl ProjectCacheService {
             project_changes: self.project_events_tx.clone(),
         };
 
-        tokio::spawn(self.run(addr_rx));
+        self.spawn(addr_rx);
 
         handle
     }

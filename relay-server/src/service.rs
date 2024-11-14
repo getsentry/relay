@@ -254,7 +254,7 @@ impl ServiceState {
             },
             metric_outcomes.clone(),
         )
-        .spawn_handler(processor_rx);
+        .spawn(processor_rx);
 
         let (envelopes_tx, envelopes_rx) = mpsc::channel(config.spool_max_backpressure_envelopes());
         let envelope_buffer = EnvelopeBufferService::new(
@@ -288,7 +288,7 @@ impl ServiceState {
             global_config_rx,
             envelopes_rx,
         )
-        .spawn_handler(legacy_project_cache_rx);
+        .spawn(legacy_project_cache_rx);
 
         let health_check = HealthCheckService::new(
             config.clone(),
