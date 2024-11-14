@@ -3869,7 +3869,9 @@ name = "relay-system"
 version = "24.10.0"
 dependencies = [
  "futures",
+ "insta",
  "once_cell",
+ "pin-project-lite",
  "relay-log",
  "relay-statsd",
  "tokio",

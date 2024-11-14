@@ -5,7 +5,7 @@ use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use futures::future::Shared;
 use futures::FutureExt;
@@ -13,7 +13,7 @@ use tokio::runtime::Runtime;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::MissedTickBehavior;
 
-use crate::statsd::{SystemCounters, SystemGauges};
+use crate::statsd::SystemGauges;
 
 /// Interval for recording backlog metrics on service channels.
 const BACKLOG_INTERVAL: Duration = Duration::from_secs(1);
@@ -839,8 +839,7 @@ impl<I: Interface> Receiver<I> {
     /// not yet been closed, this method will sleep until a message is sent or
     /// the channel is closed.
     pub async fn recv(&mut self) -> Option<I> {
-        let start = Instant::now();
-        let next_message = loop {
+        loop {
             tokio::select! {
                 biased;
 
@@ -853,15 +852,10 @@ impl<I: Interface> Receiver<I> {
                 },
                 message = self.rx.recv() => {
                     self.queue_size.fetch_sub(1, Ordering::SeqCst);
-                    break message;
+                    return message;
                 },
             }
-        };
-        relay_statsd::metric!(
-            counter(SystemCounters::ServiceIdleTime) += start.elapsed().as_nanos() as u64,
-            service = self.name
-        );
-        next_message
+        }
     }
 }
 
@@ -938,7 +932,7 @@ pub fn channel<I: Interface>(name: &'static str) -> (Addr<I>, Receiver<I>) {
 ///     type Interface = MyMessage;
 ///
 ///     fn spawn_handler(self, mut rx: Receiver<Self::Interface>) {
-///         tokio::spawn(async move {
+///         relay_system::spawn!(async move {
 ///             while let Some(message) = rx.recv().await {
 ///                 // handle the message
 ///             }
@@ -1053,7 +1047,7 @@ mod tests {
         type Interface = MockMessage;
 
         fn spawn_handler(self, mut rx: Receiver<Self::Interface>) {
-            tokio::spawn(async move {
+            crate::spawn!(async move {
                 while rx.recv().await.is_some() {
                     tokio::time::sleep(BACKLOG_INTERVAL * 2).await;
                 }
@@ -1063,13 +1057,6 @@ mod tests {
         fn name() -> &'static str {
             "mock"
         }
-    }
-
-    fn skip_idle_time(captures: Vec<String>) -> Vec<String> {
-        captures
-            .into_iter()
-            .filter(|c| !c.starts_with("service.idle_time_nanos:"))
-            .collect()
     }
 
     #[test]
@@ -1105,7 +1092,7 @@ mod tests {
             })
         });
 
-        assert!(skip_idle_time(captures).is_empty());
+        assert!(captures.is_empty());
 
         // Advance to 6.5 * INTERVAL. The service should pull the first message immediately, another
         // message every 2 INTERVALS. The messages are fully handled after 6 INTERVALS, but we
@@ -1117,7 +1104,7 @@ mod tests {
         });
 
         assert_eq!(
-            skip_idle_time(captures),
+            captures,
             [
                 "service.back_pressure:2|g|#service:mock", // 2 * INTERVAL
                 "service.back_pressure:1|g|#service:mock", // 4 * INTERVAL

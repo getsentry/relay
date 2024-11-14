@@ -387,7 +387,7 @@ impl Service for EnvelopeBufferService {
         let dequeue = Arc::<AtomicBool>::new(true.into());
         let dequeue1 = dequeue.clone();
 
-        tokio::spawn(async move {
+        relay_system::spawn!(async move {
             let buffer = PolymorphicEnvelopeBuffer::from_config(&config, memory_checker).await;
 
             let mut buffer = match buffer {
@@ -464,7 +464,7 @@ impl Service for EnvelopeBufferService {
         });
 
         #[cfg(unix)]
-        tokio::spawn(async move {
+        relay_system::spawn!(async move {
             use tokio::signal::unix::{signal, SignalKind};
             let Ok(mut signal) = signal(SignalKind::user_defined1()) else {
                 return;
