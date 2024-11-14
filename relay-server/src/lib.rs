@@ -306,6 +306,10 @@ pub fn run(config: Config) -> anyhow::Result<()> {
 
         tokio::select! {
             _ = runner.join() => {},
+            // NOTE: when every service implements a shutdown listener,
+            // awaiting on `finished` becomes unnecessary: We can simply join() and guarantee
+            // that every service finished its main task.
+            // See also https://github.com/getsentry/relay/issues/4050.
             _ = Controller::shutdown_handle().finished() => {}
         }
 
