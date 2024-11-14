@@ -173,6 +173,9 @@ pub struct SentryConfig {
     /// Sets the environment for this service.
     pub environment: Option<Cow<'static, str>>,
 
+    /// Sets the server name for this service.
+    pub server_name: Option<Cow<'static, str>>,
+
     /// Add defaults tags to the events emitted by Relay
     pub default_tags: Option<BTreeMap<String, String>>,
 
@@ -196,6 +199,7 @@ impl Default for SentryConfig {
                 .ok(),
             enabled: false,
             environment: None,
+            server_name: None,
             default_tags: None,
             _crash_db: None,
         }
@@ -293,6 +297,7 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
             release: Some(RELEASE.into()),
             attach_stacktrace: config.enable_backtraces,
             environment: sentry.environment.clone(),
+            server_name: sentry.server_name.clone(),
             traces_sample_rate: config.traces_sample_rate,
             ..Default::default()
         };
