@@ -278,9 +278,10 @@ fn handle_replay_recording_item(
                     );
                 }
             }
-            relay_replays::recording::ParseRecordingError::Message(_) => {
+            relay_replays::recording::ParseRecordingError::Message(e) => {
                 // Only 118 errors in the past 30 days. We log everything.
                 relay_log::warn!(
+                    error = e,
                     event_id = ?config.event_id,
                     project_id = config.project_id.map(|v| v.value()),
                     organization_id = config.organization_id.map(|o| o.value()),
