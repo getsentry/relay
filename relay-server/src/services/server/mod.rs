@@ -139,14 +139,14 @@ fn serve(listener: TcpListener, app: App, config: Arc<Config>) {
         .keep_alive_timeout(config.keepalive_timeout());
 
     let service = ServiceExt::<Request>::into_make_service_with_connect_info::<SocketAddr>(app);
-    tokio::spawn(server.serve(service));
+    relay_system::spawn!(server.serve(service));
 
-    tokio::spawn(emit_active_connections_metric(
+    relay_system::spawn!(emit_active_connections_metric(
         config.metrics_periodic_interval(),
         handle.clone(),
     ));
 
-    tokio::spawn(async move {
+    relay_system::spawn!(async move {
         let Shutdown { timeout } = Controller::shutdown_handle().notified().await;
         relay_log::info!("Shutting down HTTP server");
 

@@ -694,7 +694,7 @@ impl Service for ProjectCacheService {
         let outcome_aggregator = services.outcome_aggregator.clone();
         let test_store = services.test_store.clone();
 
-        tokio::spawn(async move {
+        relay_system::spawn!(async move {
             relay_log::info!("project cache started");
 
             let global_config = match global_config_rx.borrow().clone() {
@@ -930,7 +930,7 @@ mod tests {
         }
 
         // Emulate the project cache service loop.
-        tokio::task::spawn(async move {
+        relay_system::spawn!(async move {
             loop {
                 select! {
                     Ok(project_event) = project_events.recv() => {

@@ -263,7 +263,7 @@ impl GlobalConfigService {
         let upstream_relay = self.upstream.clone();
         let internal_tx = self.internal_tx.clone();
 
-        tokio::spawn(async move {
+        relay_system::spawn!(async move {
             metric!(timer(RelayTimers::GlobalConfigRequestDuration), {
                 let query = GetGlobalConfig::new();
                 let res = upstream_relay.send(SendQuery(query)).await;
@@ -339,7 +339,7 @@ impl Service for GlobalConfigService {
     type Interface = GlobalConfigManager;
 
     fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
-        tokio::spawn(async move {
+        relay_system::spawn!(async move {
             let mut shutdown_handle = Controller::shutdown_handle();
 
             relay_log::info!("global config service starting");
