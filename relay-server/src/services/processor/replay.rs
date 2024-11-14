@@ -3,7 +3,6 @@ use std::error::Error;
 use std::net::IpAddr;
 
 use bytes::Bytes;
-use rand::Rng;
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
 use relay_dynamic_config::{Feature, GlobalConfig, ProjectConfig};
@@ -21,6 +20,7 @@ use crate::envelope::{ContentType, ItemType};
 use crate::services::outcome::DiscardReason;
 use crate::services::processor::{ProcessEnvelopeState, ProcessingError, ReplayGroup};
 use crate::statsd::{RelayCounters, RelayTimers};
+use crate::utils::sample;
 
 /// Removes replays if the feature flag is not enabled.
 pub fn process(
@@ -266,7 +266,7 @@ fn handle_replay_recording_item(
         match &error {
             relay_replays::recording::ParseRecordingError::Compression(e) => {
                 // 20k errors per day at 0.1% sample rate == 20 logs per day
-                if rand::thread_rng().gen_range(1..=1000) == 1 {
+                if sample(0.001) {
                     relay_log::with_scope(
                         move |scope| {
                             scope.add_attachment(relay_log::protocol::Attachment {
