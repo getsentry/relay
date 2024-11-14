@@ -919,7 +919,7 @@ pub fn channel<I: Interface>(name: &'static str) -> (Addr<I>, Receiver<I>) {
 /// synchronous, so that this needs to spawn at least one task internally:
 ///
 /// ```no_run
-/// use relay_system::{FromMessage, Interface, NoResponse, Receiver, Service};
+/// use relay_system::{FromMessage, Interface, NoResponse, Receiver, Service, ServiceRunner};
 ///
 /// struct MyMessage;
 ///
@@ -1122,7 +1122,7 @@ mod tests {
         tokio::time::pause();
 
         // Mock service takes 2 * BACKLOG_INTERVAL for every message
-        let addr = ServiceRunner::new().start(MockService);
+        let addr = MockService.start_detached();
 
         // Advance the timer by a tiny offset to trigger the first metric emission.
         let captures = relay_statsd::with_capturing_test_client(|| {

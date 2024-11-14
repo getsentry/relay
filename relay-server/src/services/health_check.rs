@@ -91,8 +91,6 @@ pub struct HealthCheckService {
 
 impl HealthCheckService {
     /// Creates a new instance of the HealthCheck service.
-    ///
-    /// The service does not run. To run the service, use [`start`](Self::start).
     pub fn new(
         config: Arc<Config>,
         memory_checker: MemoryChecker,
