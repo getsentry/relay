@@ -1,8 +1,8 @@
 //! Replay related processor code.
-use base64::prelude::*;
 use std::error::Error;
 use std::net::IpAddr;
 
+use base64::prelude::*;
 use bytes::Bytes;
 use rand::Rng;
 use relay_base_schema::organization::OrganizationId;
