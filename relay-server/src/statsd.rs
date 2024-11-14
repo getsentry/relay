@@ -657,6 +657,10 @@ pub enum RelayCounters {
     ///  - `handling`: Either `"success"` if the envelope was handled correctly, or `"failure"` if
     ///    there was an error or bug.
     EnvelopeRejected,
+    /// Number of items we processed per envelope.
+    EnvelopeItems,
+    /// Number of bytes we processed per envelope item.
+    EnvelopeItemBytes,
     /// Number of times the envelope buffer spools to disk.
     BufferWritesDisk,
     /// Number of times the envelope buffer reads back from disk.
@@ -867,6 +871,8 @@ pub enum RelayCounters {
     ReplayExceededSegmentLimit,
     /// Incremented every time the server accepts a new connection.
     ServerSocketAccept,
+    /// Incremented every time the server aborts a connection because of an idle timeout.
+    ServerConnectionIdleTimeout,
 }
 
 impl CounterMetric for RelayCounters {
@@ -875,6 +881,8 @@ impl CounterMetric for RelayCounters {
             RelayCounters::EventCorrupted => "event.corrupted",
             RelayCounters::EnvelopeAccepted => "event.accepted",
             RelayCounters::EnvelopeRejected => "event.rejected",
+            RelayCounters::EnvelopeItems => "event.items",
+            RelayCounters::EnvelopeItemBytes => "event.item_bytes",
             RelayCounters::BufferWritesDisk => "buffer.writes",
             RelayCounters::BufferReadsDisk => "buffer.reads",
             RelayCounters::BufferEnvelopesWritten => "buffer.envelopes_written",
@@ -913,6 +921,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::BucketsDropped => "metrics.buckets.dropped",
             RelayCounters::ReplayExceededSegmentLimit => "replay.segment_limit_exceeded",
             RelayCounters::ServerSocketAccept => "server.http.accepted",
+            RelayCounters::ServerConnectionIdleTimeout => "server.http.idle_timeout",
         }
     }
 }
