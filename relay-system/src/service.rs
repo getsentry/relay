@@ -819,7 +819,7 @@ where
 ///
 /// This channel is meant to be polled in a [`Service`].
 ///
-/// Instances are created automatically when [spawning](Service::spawn_handler) a service, or can be
+/// Instances are created automatically when [spawning](ServiceRunner::start) a service, or can be
 /// created through [`channel`]. The channel closes when all associated [`Addr`]s are dropped.
 pub struct Receiver<I: Interface> {
     rx: mpsc::UnboundedReceiver<I>,
@@ -910,7 +910,7 @@ pub fn channel<I: Interface>(name: &'static str) -> (Addr<I>, Receiver<I>) {
 /// Individual messages can have a response which will be sent once the message is handled by the
 /// service. The sender can asynchronously await the responses of such messages.
 ///
-/// To start a service, create an instance of the service and use [`Service::start`].
+/// To start a service, create a service runner and call [`ServiceRunner::start`].
 ///
 /// # Implementing Services
 ///
@@ -1036,6 +1036,7 @@ pub trait Service: Sized {
 /// Keeps track of running services.
 ///
 /// Exposes information about crashed services.
+#[derive(Debug, Default)]
 pub struct ServiceRunner(FuturesUnordered<JoinHandle<()>>);
 
 impl ServiceRunner {
