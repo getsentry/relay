@@ -32,10 +32,10 @@ impl RelayAcceptor {
             return self;
         }
 
-        let mut ka = socket2::TcpKeepalive::new().with_time(timeout);
+        let mut keepalive = socket2::TcpKeepalive::new().with_time(timeout);
         #[cfg(not(any(target_os = "openbsd", target_os = "redox", target_os = "solaris")))]
         {
-            ka = ka.with_interval(timeout);
+            keepalive = keepalive.with_interval(timeout);
         }
         #[cfg(not(any(
             target_os = "openbsd",
@@ -44,9 +44,9 @@ impl RelayAcceptor {
             target_os = "windows"
         )))]
         {
-            ka = ka.with_retries(retries);
+            keepalive = keepalive.with_retries(retries);
         }
-        self.tcp_keepalive = Some(ka);
+        self.tcp_keepalive = Some(keepalive);
 
         self
     }
