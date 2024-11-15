@@ -959,8 +959,6 @@ impl Item {
     }
 
     /// Determines whether the given item requires an event with identifier.
-    ///
-    /// This is true for all items except session health events.
     pub fn requires_event(&self) -> bool {
         match self.ty() {
             ItemType::Event => true,
