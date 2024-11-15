@@ -18,7 +18,10 @@ once_cell = { workspace = true }
 relay-log = { workspace = true }
 relay-statsd = { workspace = true }
 tokio = { workspace = true, features = ["rt", "signal", "macros", "sync", "time"] }
+pin-project-lite = { workspace = true }
+
 
 [dev-dependencies]
+insta = { workspace = true }
 relay-statsd = { workspace = true, features = ["test"] }
 tokio = { workspace = true, features = ["test-util"] }

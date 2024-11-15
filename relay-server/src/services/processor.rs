@@ -19,7 +19,6 @@ use relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId, Token};
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, HttpEncoding, NormalizationLevel, RelayMode};
 use relay_dynamic_config::{CombinedMetricExtractionConfig, ErrorBoundary, Feature};
-use relay_event_normalization::span::description::ScrubMongoDescription;
 use relay_event_normalization::{
     normalize_event, validate_event, ClockDriftProcessor, CombinedMeasurementsConfig,
     EventValidationConfig, GeoIpLookup, MeasurementsConfig, NormalizationConfig, RawUserAgentInfo,
@@ -1597,14 +1596,6 @@ impl EnvelopeProcessorService {
                     .dsc()
                     .and_then(|ctx| ctx.replay_id),
                 span_allowed_hosts: http_span_allowed_hosts,
-                scrub_mongo_description: if state
-                    .project_info
-                    .has_feature(Feature::ScrubMongoDbDescriptions)
-                {
-                    ScrubMongoDescription::Enabled
-                } else {
-                    ScrubMongoDescription::Disabled
-                },
                 span_op_defaults: global_config.span_op_defaults.borrow(),
             };
 
@@ -2830,7 +2821,7 @@ impl Service for EnvelopeProcessorService {
     type Interface = EnvelopeProcessor;
 
     fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
-        tokio::spawn(async move {
+        relay_system::spawn!(async move {
             while let Some(message) = rx.recv().await {
                 let service = self.clone();
                 self.inner

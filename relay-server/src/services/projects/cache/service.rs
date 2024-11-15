@@ -205,7 +205,7 @@ impl relay_system::Service for ProjectCacheService {
             }};
         }
 
-        tokio::spawn(async move {
+        relay_system::spawn!(async move {
             loop {
                 tokio::select! {
                     biased;

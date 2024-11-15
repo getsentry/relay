@@ -156,7 +156,7 @@ async fn spawn_poll_local_states(
     poll_local_states(&project_path, &tx).await;
 
     // Start a background loop that polls periodically:
-    tokio::spawn(async move {
+    relay_system::spawn!(async move {
         // To avoid running two load tasks simultaneously at startup, we delay the interval by one period:
         let start_at = Instant::now() + period;
         let mut ticker = tokio::time::interval_at(start_at, period);
@@ -176,7 +176,7 @@ impl Service for LocalProjectSourceService {
         // collect the result, the producer will block, which is acceptable.
         let (state_tx, mut state_rx) = mpsc::channel(1);
 
-        tokio::spawn(async move {
+        relay_system::spawn!(async move {
             relay_log::info!("project local cache started");
 
             // Start the background task that periodically reloads projects from disk:

@@ -199,7 +199,7 @@ impl Service for HealthCheckService {
         // Add 10% buffer to the internal timeouts to avoid race conditions.
         let status_timeout = (check_interval + self.config.health_probe_timeout()).mul_f64(1.1);
 
-        tokio::spawn(async move {
+        relay_system::spawn!(async move {
             let shutdown = Controller::shutdown_handle();
 
             while shutdown.get().is_none() {
@@ -216,7 +216,7 @@ impl Service for HealthCheckService {
             update_tx.send(StatusUpdate::new(Status::Unhealthy)).ok();
         });
 
-        tokio::spawn(async move {
+        relay_system::spawn!(async move {
             while let Some(HealthCheck(message, sender)) = rx.recv().await {
                 let update = update_rx.borrow();
 

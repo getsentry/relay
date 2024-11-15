@@ -1051,7 +1051,7 @@ impl Service for StoreService {
     fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
         let this = Arc::new(self);
 
-        tokio::spawn(async move {
+        relay_system::spawn!(async move {
             relay_log::info!("store forwarder started");
 
             while let Some(message) = rx.recv().await {

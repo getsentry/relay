@@ -240,7 +240,7 @@ impl DiskUsage {
         let last_known_usage_weak = Arc::downgrade(&self.last_known_usage);
         let refresh_frequency = self.refresh_frequency;
 
-        tokio::spawn(async move {
+        relay_system::spawn!(async move {
             loop {
                 // When our `Weak` reference can't be upgraded to an `Arc`, it means that the value
                 // is not referenced anymore by self, meaning that `DiskUsage` was dropped.

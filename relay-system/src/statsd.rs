@@ -1,5 +1,34 @@
 use relay_statsd::{CounterMetric, GaugeMetric};
 
+/// Counter metrics for Relay system components.
+pub enum SystemCounters {
+    /// Number of runtime tasks created/spawned.
+    ///
+    /// Every call to [`spawn`](`crate::spawn`) increases this counter by one.
+    ///
+    /// This metric is tagged with:
+    ///  - `id`: A unique identifier for the task, derived from its location in code.
+    ///  - `file`: The source filename where the task is created.
+    ///  - `line`: The source line where the task is created within the file.
+    RuntimeTaskCreated,
+    /// Number of runtime tasks terminated.
+    ///
+    /// This metric is tagged with:
+    ///  - `id`: A unique identifier for the task, derived from its location in code.
+    ///  - `file`: The source filename where the task is created.
+    ///  - `line`: The source line where the task is created within the file.
+    RuntimeTaskTerminated,
+}
+
+impl CounterMetric for SystemCounters {
+    fn name(&self) -> &'static str {
+        match self {
+            Self::RuntimeTaskCreated => "runtime.task.spawn.created",
+            Self::RuntimeTaskTerminated => "runtime.task.spawn.terminated",
+        }
+    }
+}
+
 /// Gauge metrics for Relay system components.
 pub enum SystemGauges {
     /// A number of messages queued in a services inbound message channel.
@@ -16,29 +45,7 @@ pub enum SystemGauges {
 impl GaugeMetric for SystemGauges {
     fn name(&self) -> &'static str {
         match *self {
-            SystemGauges::ServiceBackPressure => "service.back_pressure",
-        }
-    }
-}
-
-/// Counter metrics for Relay system components.
-pub enum SystemCounters {
-    /// The amount of time a service spends waiting for new messages.
-    ///
-    /// This is an indicator of how much more load a service can take on.
-    ///
-    /// Caveat: Some services circumvent the service framework by using custom incoming queues.
-    /// For these, we cannot fully rely on this metric.
-    ///
-    /// This metric is tagged with:
-    ///  - `service`: The fully qualified type name of the service implementation.
-    ServiceIdleTime,
-}
-
-impl CounterMetric for SystemCounters {
-    fn name(&self) -> &'static str {
-        match self {
-            Self::ServiceIdleTime => "service.idle_time_nanos",
+            Self::ServiceBackPressure => "service.back_pressure",
         }
     }
 }

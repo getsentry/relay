@@ -1194,7 +1194,7 @@ impl BufferService {
             BufferState::Disk(ref disk) => {
                 let db = disk.db.clone();
                 let project_cache = self.services.project_cache.clone();
-                tokio::spawn(async move {
+                relay_system::spawn!(async move {
                     match OnDisk::get_spooled_index(&db).await {
                         Ok(index) => {
                             relay_log::trace!(
@@ -1265,7 +1265,7 @@ impl Service for BufferService {
     type Interface = Buffer;
 
     fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
-        tokio::spawn(async move {
+        relay_system::spawn!(async move {
             let mut shutdown = Controller::shutdown_handle();
 
             loop {

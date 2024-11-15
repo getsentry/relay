@@ -238,7 +238,7 @@ impl RelayCacheService {
 
         let fetch_tx = self.fetch_tx();
         let upstream_relay = self.upstream_relay.clone();
-        tokio::spawn(async move {
+        relay_system::spawn!(async move {
             let request = GetRelays {
                 relay_ids: channels.keys().cloned().collect(),
             };
@@ -335,7 +335,7 @@ impl Service for RelayCacheService {
     type Interface = RelayCache;
 
     fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
-        tokio::spawn(async move {
+        relay_system::spawn!(async move {
             relay_log::info!("key cache started");
 
             loop {
