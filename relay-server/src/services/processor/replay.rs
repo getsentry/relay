@@ -271,7 +271,7 @@ fn handle_replay_recording_item(
                         move |scope| {
                             scope.add_attachment(relay_log::protocol::Attachment {
                                 buffer: payload.into(),
-                                filename: "payload.json".to_owned(),
+                                filename: "payload".to_owned(),
                                 content_type: Some("application/octet-stream".to_owned()),
                                 ty: None,
                             });
