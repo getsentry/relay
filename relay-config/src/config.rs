@@ -250,6 +250,8 @@ pub struct OverridableConfig {
     pub outcome_source: Option<String>,
     /// shutdown timeout
     pub shutdown_timeout: Option<String>,
+    /// Server name reported in the Sentry SDK.
+    pub server_name: Option<String>,
 }
 
 /// The relay credentials
@@ -1767,6 +1769,10 @@ impl Config {
             if let Ok(shutdown_timeout) = shutdown_timeout.parse::<u64>() {
                 limits.shutdown_timeout = shutdown_timeout;
             }
+        }
+
+        if let Some(server_name) = overrides.server_name {
+            self.values.sentry.server_name = Some(server_name.into());
         }
 
         Ok(self)

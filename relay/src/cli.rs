@@ -98,6 +98,7 @@ pub fn extract_config_args(matches: &ArgMatches) -> OverridableConfig {
         outcome_source: matches.get_one("source_id").cloned(),
         shutdown_timeout: matches.get_one("shutdown_timeout").cloned(),
         instance: matches.get_one("instance").cloned(),
+        server_name: matches.get_one("server_name").cloned(),
     }
 }
 
@@ -119,6 +120,9 @@ pub fn extract_config_env_vars() -> OverridableConfig {
         outcome_source: None, //already extracted in params
         shutdown_timeout: env::var("SHUTDOWN_TIMEOUT").ok(),
         instance: env::var("RELAY_INSTANCE").ok(),
+        server_name: env::var("RELAY_SERVER_NAME")
+            .ok()
+            .or_else(|| env::var("HOSTNAME").ok()),
     }
 }
 
