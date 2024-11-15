@@ -10,7 +10,7 @@
 **Bug Fixes**:
 
 - Allow profile chunks without release. ([#4155](https://github.com/getsentry/relay/pull/4155))
-- Terminate the process when one of the services crashes. ([#4249](https://github.com/getsentry/relay/pull/4249))
+- Report unhealthy when one of the services crashes. ([#4249](https://github.com/getsentry/relay/pull/4249), [#4250](https://github.com/getsentry/relay/pull/4250))
 
 **Features**:
 
