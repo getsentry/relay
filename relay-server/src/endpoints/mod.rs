@@ -75,7 +75,7 @@ pub fn routes(config: &Config) -> Router<ServiceState>{
         .route("/api/:project_id/minidump/", minidump::route(config))
         .route("/api/:project_id/events/:event_id/attachments/", post(attachments::handle))
         .route("/api/:project_id/unreal/:sentry_key/", unreal::route(config))
-        .route("/api/:project_id/traces-data/", traces_data::route(config))
+        .route("/api/:project_id/otlp/v1/traces/", traces_data::route(config))
         // NOTE: If you add a new (non-experimental) route here, please also list it in
         // https://github.com/getsentry/sentry-docs/blob/master/docs/product/relay/operating-guidelines.mdx
         .route_layer(middlewares::cors());
