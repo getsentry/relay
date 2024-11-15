@@ -119,7 +119,7 @@ pub enum ItemType {
     CheckIn,
     /// A standalone span.
     Span,
-    /// A standalone OpenTelemetry span.
+    /// A standalone OpenTelemetry span serialized as JSON.
     OtelSpan,
     /// An OTLP TracesData container.
     OtelTracesData,

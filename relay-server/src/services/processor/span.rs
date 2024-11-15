@@ -79,12 +79,20 @@ fn track_invalid(managed_envelope: &mut TypedEnvelope<SpanGroup>, reason: Discar
 
 fn parse_traces_data(item: Item) -> Result<TracesData, DiscardReason> {
     match item.content_type() {
-        Some(&ContentType::Json) => {
-            serde_json::from_slice(&item.payload()).map_err(|_| DiscardReason::InvalidJson)
-        }
-        Some(&ContentType::Protobuf) => {
-            TracesData::decode(item.payload()).map_err(|_| DiscardReason::InvalidProtobuf)
-        }
+        Some(&ContentType::Json) => serde_json::from_slice(&item.payload()).map_err(|e| {
+            relay_log::debug!(
+                error = &e as &dyn std::error::Error,
+                "Failed to parse traces data as JSON"
+            );
+            DiscardReason::InvalidJson
+        }),
+        Some(&ContentType::Protobuf) => TracesData::decode(item.payload()).map_err(|e| {
+            relay_log::debug!(
+                error = &e as &dyn std::error::Error,
+                "Failed to parse traces data as protobuf"
+            );
+            DiscardReason::InvalidProtobuf
+        }),
         _ => Err(DiscardReason::ContentType),
     }
 }
