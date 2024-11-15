@@ -393,6 +393,10 @@
 <a href="#393" id="393">393</a>
 <a href="#394" id="394">394</a>
 <a href="#395" id="395">395</a>
+<a href="#396" id="396">396</a>
+<a href="#397" id="397">397</a>
+<a href="#398" id="398">398</a>
+<a href="#399" id="399">399</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::io::BufRead;
 <span class="kw">use </span>std::path::{Path, PathBuf};
 <span class="kw">use </span>std::{env, io};
@@ -493,6 +497,7 @@
         outcome_source: matches.get_one(<span class="string">"source_id"</span>).cloned(),
         shutdown_timeout: matches.get_one(<span class="string">"shutdown_timeout"</span>).cloned(),
         instance: matches.get_one(<span class="string">"instance"</span>).cloned(),
+        server_name: matches.get_one(<span class="string">"server_name"</span>).cloned(),
     }
 }
 
@@ -514,6 +519,9 @@
         outcome_source: <span class="prelude-val">None</span>, <span class="comment">//already extracted in params
         </span>shutdown_timeout: env::var(<span class="string">"SHUTDOWN_TIMEOUT"</span>).ok(),
         instance: env::var(<span class="string">"RELAY_INSTANCE"</span>).ok(),
+        server_name: env::var(<span class="string">"RELAY_SERVER_NAME"</span>)
+            .ok()
+            .or_else(|| env::var(<span class="string">"HOSTNAME"</span>).ok()),
     }
 }
 

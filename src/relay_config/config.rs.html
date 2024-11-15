@@ -2627,6 +2627,12 @@
 <a href="#2627" id="2627">2627</a>
 <a href="#2628" id="2628">2628</a>
 <a href="#2629" id="2629">2629</a>
+<a href="#2630" id="2630">2630</a>
+<a href="#2631" id="2631">2631</a>
+<a href="#2632" id="2632">2632</a>
+<a href="#2633" id="2633">2633</a>
+<a href="#2634" id="2634">2634</a>
+<a href="#2635" id="2635">2635</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
@@ -2879,6 +2885,8 @@
     </span><span class="kw">pub </span>outcome_source: <span class="prelude-ty">Option</span>&lt;String&gt;,
     <span class="doccomment">/// shutdown timeout
     </span><span class="kw">pub </span>shutdown_timeout: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    <span class="doccomment">/// Server name reported in the Sentry SDK.
+    </span><span class="kw">pub </span>server_name: <span class="prelude-ty">Option</span>&lt;String&gt;,
 }
 
 <span class="doccomment">/// The relay credentials
@@ -4396,6 +4404,10 @@
             <span class="kw">if let </span><span class="prelude-val">Ok</span>(shutdown_timeout) = shutdown_timeout.parse::&lt;u64&gt;() {
                 limits.shutdown_timeout = shutdown_timeout;
             }
+        }
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(server_name) = overrides.server_name {
+            <span class="self">self</span>.values.sentry.server_name = <span class="prelude-val">Some</span>(server_name.into());
         }
 
         <span class="prelude-val">Ok</span>(<span class="self">self</span>)

@@ -334,6 +334,11 @@
 <a href="#334" id="334">334</a>
 <a href="#335" id="335">335</a>
 <a href="#336" id="336">336</a>
+<a href="#337" id="337">337</a>
+<a href="#338" id="338">338</a>
+<a href="#339" id="339">339</a>
+<a href="#340" id="340">340</a>
+<a href="#341" id="341">341</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module implements the definition of the command line app.
 
 </span><span class="kw">use </span>clap::builder::ValueParser;
@@ -481,6 +486,11 @@
                     Arg::new(<span class="string">"instance"</span>)
                         .long(<span class="string">"instance"</span>)
                         .help(<span class="string">"The instance type of this Relay."</span>)
+                )
+                .arg(
+                    Arg::new(<span class="string">"server_name"</span>)
+                        .long(<span class="string">"server-name"</span>)
+                        .help(<span class="string">"The server name reported to Sentry."</span>)
                 )
         )
         .subcommand(
