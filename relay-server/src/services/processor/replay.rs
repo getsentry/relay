@@ -305,7 +305,7 @@ fn handle_replay_recording_item(
                             event_id = ?config.event_id,
                             project_id = config.project_id.map(|v| v.value()),
                             organization_id = config.organization_id.map(|o| o.value()),
-                            "ParseRecordingError::Compression"
+                            "ParseRecordingError::Message"
                         )
                     },
                 );
