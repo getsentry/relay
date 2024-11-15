@@ -334,21 +334,10 @@ pub async fn handle_envelope(
     state: &ServiceState,
     envelope: Box<Envelope>,
 ) -> Result<Option<EventId>, BadStoreRequest> {
-    let client_name = envelope.meta().client_name();
     for item in envelope.items() {
         metric!(
             histogram(RelayHistograms::EnvelopeItemSize) = item.payload().len() as u64,
             item_type = item.ty().name()
-        );
-        metric!(
-            counter(RelayCounters::EnvelopeItems) += 1,
-            item_type = item.ty().name(),
-            sdk = client_name.name(),
-        );
-        metric!(
-            counter(RelayCounters::EnvelopeItemBytes) += item.payload().len() as u64,
-            item_type = item.ty().name(),
-            sdk = client_name.name(),
         );
     }
 
