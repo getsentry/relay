@@ -7,17 +7,21 @@
 - Removes support for metric meta envelope items. ([#4152](https://github.com/getsentry/relay/pull/4152))
 - Removes support for the project cache endpoint version 2 and before. ([#4147](https://github.com/getsentry/relay/pull/4147))
 
-**Bug Fixes**
+**Bug Fixes**:
 
 - Allow profile chunks without release. ([#4155](https://github.com/getsentry/relay/pull/4155))
 
-**Features:**
+**Features**:
 
 - Retain empty string values in `span.data` and `event.contexts.trace.data`. ([#4174](https://github.com/getsentry/relay/pull/4174))
 - Allow `sample_rate` to be float type when deserializing `DynamicSamplingContext`. ([#4181](https://github.com/getsentry/relay/pull/4181))
 - Support inbound filters for profiles. ([#4176](https://github.com/getsentry/relay/pull/4176))
+- Scrub lower-case redis commands. ([#4235](https://github.com/getsentry/relay/pull/4235))
+- Make the maximum idle time of a HTTP connection configurable. ([#4248](https://github.com/getsentry/relay/pull/4248))
+- Allow configuring a Sentry server name with an option or the `RELAY_SERVER_NAME` environment variable. ([#4251](https://github.com/getsentry/relay/pull/4251))
 
-**Internal:**
+
+**Internal**:
 
 - Add a metric that counts span volume in the root project for dynamic sampling (`c:spans/count_per_root_project@none`). ([#4134](https://github.com/getsentry/relay/pull/4134))
 - Add a tag `target_project_id` to both root project metrics for dynamic sampling (`c:transactions/count_per_root_project@none` and `c:spans/count_per_root_project@none`) which shows the flow trace traffic from root to target projects. ([#4170](https://github.com/getsentry/relay/pull/4170))
@@ -58,6 +62,7 @@
 - Feature flags of graduated features are now hard-coded in Relay so they can be removed from Sentry. ([#4076](https://github.com/getsentry/relay/pull/4076), [#4080](https://github.com/getsentry/relay/pull/4080))
 - Add parallelization in Redis commands. ([#4118](https://github.com/getsentry/relay/pull/4118))
 - Extract user ip for spans. ([#4144](https://github.com/getsentry/relay/pull/4144))
+- Add support for an experimental OTLP `/v1/traces/` endpoint. The endpoint is disabled by default. ([#4223](https://github.com/getsentry/relay/pull/4223))
 
 ## 24.9.0
 
