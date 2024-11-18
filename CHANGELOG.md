@@ -20,6 +20,7 @@
 - Support inbound filters for profiles. ([#4176](https://github.com/getsentry/relay/pull/4176))
 - Scrub lower-case redis commands. ([#4235](https://github.com/getsentry/relay/pull/4235))
 - Make the maximum idle time of a HTTP connection configurable. ([#4248](https://github.com/getsentry/relay/pull/4248))
+- Allow configuring a Sentry server name with an option or the `RELAY_SERVER_NAME` environment variable. ([#4251](https://github.com/getsentry/relay/pull/4251))
 
 **Internal**:
 
