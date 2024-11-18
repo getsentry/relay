@@ -9,9 +9,9 @@ use crate::statsd::SystemCounters;
 #[macro_export]
 macro_rules! spawn {
     ($future:expr) => {{
-        static _FILE_LINE: ::std::sync::OnceLock<(String, String, String)> =
+        static _PARTS: ::std::sync::OnceLock<(String, String, String)> =
             ::std::sync::OnceLock::new();
-        let (id, file, line) = _FILE_LINE.get_or_init(|| {
+        let (id, file, line) = _PARTS.get_or_init(|| {
             let caller = *::std::panic::Location::caller();
             let id = format!("{}:{}", caller.file(), caller.line());
             (id, caller.file().to_owned(), caller.line().to_string())
@@ -23,6 +23,7 @@ macro_rules! spawn {
 /// Spawns a new asynchronous task, returning a [`JoinHandle`] for it.
 ///
 /// This is in instrumented spawn variant of Tokio's [`tokio::spawn`].
+#[allow(clippy::disallowed_methods)]
 pub fn spawn<F>(task_id: impl Into<TaskId>, future: F) -> JoinHandle<F::Output>
 where
     F: Future + Send + 'static,
