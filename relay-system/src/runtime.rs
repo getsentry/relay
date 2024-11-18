@@ -2,6 +2,7 @@ use futures::Future;
 use tokio::task::JoinHandle;
 
 use crate::statsd::SystemCounters;
+use crate::Service;
 
 /// Spawns an instrumented task with an automatically generated [`TaskId`].
 ///
@@ -16,7 +17,10 @@ macro_rules! spawn {
             let id = format!("{}:{}", caller.file(), caller.line());
             (id, caller.file().to_owned(), caller.line().to_string())
         });
-        $crate::spawn((id.as_str(), file.as_str(), line.as_str()), $future)
+        $crate::spawn(
+            $crate::TaskId::_from_location(id.as_str(), file.as_str(), line.as_str()),
+            $future,
+        )
     }};
 }
 
@@ -24,7 +28,7 @@ macro_rules! spawn {
 ///
 /// This is in instrumented spawn variant of Tokio's [`tokio::spawn`].
 #[allow(clippy::disallowed_methods)]
-pub fn spawn<F>(task_id: impl Into<TaskId>, future: F) -> JoinHandle<F::Output>
+pub fn spawn<F>(task_id: TaskId, future: F) -> JoinHandle<F::Output>
 where
     F: Future + Send + 'static,
     F::Output: Send + 'static,
@@ -32,33 +36,40 @@ where
     tokio::spawn(Task::new(task_id.into(), future))
 }
 
-#[doc(hidden)]
+/// An identifier for tasks spawned by [`spawn`], used to log metrics.
 pub struct TaskId {
     id: &'static str,
-    file: &'static str,
-    line: &'static str,
+    file: Option<&'static str>,
+    line: Option<&'static str>,
 }
 
 impl TaskId {
-    fn emit_metric(&self, metric: SystemCounters) {
-        let Self { id, file, line } = self;
-        relay_statsd::metric!(counter(metric) += 1, id = id, file = file, line = line);
-    }
-}
-
-impl From<&'static str> for TaskId {
-    fn from(id: &'static str) -> Self {
-        TaskId {
-            id,
-            file: "",
-            line: "",
+    /// Create a task ID based on the service's name.
+    pub fn for_service<S: Service>() -> Self {
+        Self {
+            id: S::name(),
+            file: None,
+            line: None,
         }
     }
-}
 
-impl From<(&'static str, &'static str, &'static str)> for TaskId {
-    fn from((id, file, line): (&'static str, &'static str, &'static str)) -> Self {
-        Self { id, file, line }
+    #[doc(hidden)]
+    pub fn _from_location(id: &'static str, file: &'static str, line: &'static str) -> Self {
+        Self {
+            id,
+            file: Some(file),
+            line: Some(line),
+        }
+    }
+
+    fn emit_metric(&self, metric: SystemCounters) {
+        let Self { id, file, line } = self;
+        relay_statsd::metric!(
+            counter(metric) += 1,
+            id = id,
+            file = file.unwrap_or_default(),
+            line = line.unwrap_or_default()
+        );
     }
 }
 
@@ -100,6 +111,8 @@ impl<T: Future> Future for Task<T> {
 mod tests {
     use insta::assert_debug_snapshot;
 
+    use crate::{Service, TaskId};
+
     #[test]
     fn test_spawn_spawns_a_future() {
         let rt = tokio::runtime::Builder::new_current_thread()
@@ -115,35 +128,41 @@ mod tests {
         #[cfg(not(windows))]
         assert_debug_snapshot!(captures, @r###"
         [
-            "runtime.task.spawn.created:1|c|#id:relay-system/src/runtime.rs:110,file:relay-system/src/runtime.rs,line:110",
-            "runtime.task.spawn.terminated:1|c|#id:relay-system/src/runtime.rs:110,file:relay-system/src/runtime.rs,line:110",
+            "runtime.task.spawn.created:1|c|#id:relay-system/src/runtime.rs:124,file:relay-system/src/runtime.rs,line:124",
+            "runtime.task.spawn.terminated:1|c|#id:relay-system/src/runtime.rs:124,file:relay-system/src/runtime.rs,line:124",
         ]
         "###);
         #[cfg(windows)]
         assert_debug_snapshot!(captures, @r###"
         [
-            "runtime.task.spawn.created:1|c|#id:relay-system\\src\\runtime.rs:110,file:relay-system\\src\\runtime.rs,line:110",
-            "runtime.task.spawn.terminated:1|c|#id:relay-system\\src\\runtime.rs:110,file:relay-system\\src\\runtime.rs,line:110",
+            "runtime.task.spawn.created:1|c|#id:relay-system\\src\\runtime.rs:124,file:relay-system\\src\\runtime.rs,line:124",
+            "runtime.task.spawn.terminated:1|c|#id:relay-system\\src\\runtime.rs:124,file:relay-system\\src\\runtime.rs,line:124",
         ]
         "###);
     }
 
     #[test]
     fn test_spawn_with_custom_id() {
+        struct Foo;
+        impl Service for Foo {
+            type Interface = ();
+            async fn run(self, _rx: crate::Receiver<Self::Interface>) {}
+        }
+
         let rt = tokio::runtime::Builder::new_current_thread()
             .build()
             .unwrap();
 
         let captures = relay_statsd::with_capturing_test_client(|| {
             rt.block_on(async {
-                let _ = crate::spawn("my-task", async {}).await;
+                let _ = crate::spawn(TaskId::for_service::<Foo>(), async {}).await;
             })
         });
 
         assert_debug_snapshot!(captures, @r###"
         [
-            "runtime.task.spawn.created:1|c|#id:my-task,file:,line:",
-            "runtime.task.spawn.terminated:1|c|#id:my-task,file:,line:",
+            "runtime.task.spawn.created:1|c|#id:relay_system::runtime::tests::test_spawn_with_custom_id::Foo,file:,line:",
+            "runtime.task.spawn.terminated:1|c|#id:relay_system::runtime::tests::test_spawn_with_custom_id::Foo,file:,line:",
         ]
         "###);
     }
