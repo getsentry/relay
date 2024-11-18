@@ -1095,13 +1095,15 @@ def test_rate_limit_consistent_extracted(
     outcomes_consumer.assert_empty()
 
 
-def test_rate_limit_consistent_both(
+def test_span_counts_once(
     mini_sentry,
     relay_with_processing,
     spans_consumer,
     metrics_consumer,
     outcomes_consumer,
+    redis_client,
 ):
+    """A single span only counts towards a quota once, even if it is defined for two categories"""
     relay = relay_with_processing(options=TEST_CONFIG)
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
@@ -1114,15 +1116,18 @@ def test_rate_limit_consistent_both(
         "projects:span-metrics-extraction",
         "organizations:indexed-spans-extraction",
     ]
+    quota_id = uuid.uuid4()
     project_config["config"]["quotas"] = [
         {
-            "categories": ["span", "span_indexed"],
-            "limit": 1,
+            "categories": ["span_indexed", "span"],
+            "limit": 1000,
             "window": int(datetime.now(UTC).timestamp()),
-            "id": uuid.uuid4(),
+            "id": quota_id,
             "reasonCode": "my_rate_limit",
         },
     ]
+
+    redis_key = f"quota:{quota_id}{{1}}:1"
 
     spans_consumer = spans_consumer()
     metrics_consumer = metrics_consumer()
@@ -1136,17 +1141,14 @@ def test_rate_limit_consistent_both(
     duration = timedelta(milliseconds=500)
     start = end - duration
 
+    assert redis_client.get(redis_key) is None
+
     # We should be able to send one event:
     relay.send_event(project_id, event)
+    spans = spans_consumer.get_spans(n=1, timeout=2)
 
-    spans = spans_consumer.get_spans(n=1, timeout=10)
+    assert redis_client.get(redis_key) == b"1"
     assert len(spans) == 1
-
-    outcomes = Counter()
-    for outcome in outcomes_consumer.get_outcomes():
-        outcomes[(outcome["category"], outcome["outcome"])] += outcome["quantity"]
-
-    assert outcomes == {(16, 0): 2}  # SpanIndexed, Accepted
 
 
 def test_rate_limit_spans_in_envelope(
