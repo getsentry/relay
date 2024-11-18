@@ -12,7 +12,7 @@ use relay_statsd::metric;
 
 use crate::services::projects::project::{ProjectState, Revision};
 use crate::services::projects::source::SourceProjectState;
-use crate::statsd::{RelayCounters, RelayHistograms};
+use crate::statsd::RelayHistograms;
 use crate::utils::{RetryBackoff, UniqueScheduledQueue};
 
 /// The backing storage for a project cache.
@@ -151,13 +151,7 @@ impl ProjectStore {
         let private = self
             .private
             .entry(project_key)
-            .and_modify(|_| {
-                metric!(counter(RelayCounters::ProjectCacheHit) += 1);
-            })
-            .or_insert_with(|| {
-                metric!(counter(RelayCounters::ProjectCacheMiss) += 1);
-                PrivateProjectState::new(project_key, config)
-            });
+            .or_insert_with(|| PrivateProjectState::new(project_key, config));
 
         let shared = self
             .shared
