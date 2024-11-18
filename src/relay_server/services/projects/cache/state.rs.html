@@ -848,12 +848,6 @@
 <a href="#848" id="848">848</a>
 <a href="#849" id="849">849</a>
 <a href="#850" id="850">850</a>
-<a href="#851" id="851">851</a>
-<a href="#852" id="852">852</a>
-<a href="#853" id="853">853</a>
-<a href="#854" id="854">854</a>
-<a href="#855" id="855">855</a>
-<a href="#856" id="856">856</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>futures::StreamExt;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::sync::Arc;
@@ -868,7 +862,7 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::project::{ProjectState, Revision};
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::source::SourceProjectState;
-<span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms};
+<span class="kw">use </span><span class="kw">crate</span>::statsd::RelayHistograms;
 <span class="kw">use </span><span class="kw">crate</span>::utils::{RetryBackoff, UniqueScheduledQueue};
 
 <span class="doccomment">/// The backing storage for a project cache.
@@ -1007,13 +1001,7 @@
         <span class="kw">let </span>private = <span class="self">self
             </span>.private
             .entry(project_key)
-            .and_modify(|<span class="kw">_</span>| {
-                <span class="macro">metric!</span>(counter(RelayCounters::ProjectCacheHit) += <span class="number">1</span>);
-            })
-            .or_insert_with(|| {
-                <span class="macro">metric!</span>(counter(RelayCounters::ProjectCacheMiss) += <span class="number">1</span>);
-                PrivateProjectState::new(project_key, config)
-            });
+            .or_insert_with(|| PrivateProjectState::new(project_key, config));
 
         <span class="kw">let </span>shared = <span class="self">self
             </span>.shared

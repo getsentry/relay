@@ -1058,14 +1058,6 @@
 <a href="#1058" id="1058">1058</a>
 <a href="#1059" id="1059">1059</a>
 <a href="#1060" id="1060">1060</a>
-<a href="#1061" id="1061">1061</a>
-<a href="#1062" id="1062">1062</a>
-<a href="#1063" id="1063">1063</a>
-<a href="#1064" id="1064">1064</a>
-<a href="#1065" id="1065">1065</a>
-<a href="#1066" id="1066">1066</a>
-<a href="#1067" id="1067">1067</a>
-<a href="#1068" id="1068">1068</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 <span class="attr">#[cfg(doc)]
 </span><span class="kw">use </span>tokio::runtime::RuntimeMetrics;
@@ -1793,15 +1785,8 @@
     ///     - `false`: the request will be sent to the sentry endpoint.
     </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>ProjectStateRedis,
-    <span class="doccomment">/// Number of times a project is looked up from the cache.
-    ///
-    /// The cache may contain and outdated or expired project state. In that case, the project state
-    /// is updated even after a cache hit.
-    </span>ProjectCacheHit,
-    <span class="doccomment">/// Number of times a project lookup failed.
-    ///
-    /// A cache entry is created immediately and the project state requested from the upstream.
-    </span>ProjectCacheMiss,
+    <span class="doccomment">/// Number of times a project had a fetch scheduled.
+    </span>ProjectCacheSchedule,
     <span class="doccomment">/// Number of times an upstream request for a project config is completed.
     ///
     /// Completion can be because a result was returned or because the config request was
@@ -1962,8 +1947,7 @@
             </span>RelayCounters::ProjectStateRedis =&gt; <span class="string">"project_state.redis.requests"</span>,
             RelayCounters::ProjectUpstreamCompleted =&gt; <span class="string">"project_upstream.completed"</span>,
             RelayCounters::ProjectUpstreamFailed =&gt; <span class="string">"project_upstream.failed"</span>,
-            RelayCounters::ProjectCacheHit =&gt; <span class="string">"project_cache.hit"</span>,
-            RelayCounters::ProjectCacheMiss =&gt; <span class="string">"project_cache.miss"</span>,
+            RelayCounters::ProjectCacheSchedule =&gt; <span class="string">"project_cache.schedule"</span>,
             RelayCounters::ServerStarting =&gt; <span class="string">"server.starting"</span>,
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>RelayCounters::ProcessingMessageProduced =&gt; <span class="string">"processing.event.produced"</span>,

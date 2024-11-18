@@ -227,6 +227,7 @@
 <a href="#227" id="227">227</a>
 <a href="#228" id="228">228</a>
 <a href="#229" id="229">229</a>
+<a href="#230" id="230">230</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>futures::future::BoxFuture;
@@ -363,6 +364,7 @@
         };
         <span class="self">self</span>.scheduled_fetches.schedule(when, Box::pin(task));
 
+        <span class="macro">metric!</span>(counter(RelayCounters::ProjectCacheSchedule) += <span class="number">1</span>);
         <span class="macro">metric!</span>(
             gauge(RelayGauges::ProjectCacheScheduledFetches) = <span class="self">self</span>.scheduled_fetches.len() <span class="kw">as </span>u64
         );
