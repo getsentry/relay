@@ -1,4 +1,3 @@
-use std::io;
 use std::net::{SocketAddr, TcpListener};
 use std::sync::Arc;
 use std::time::Duration;
@@ -6,13 +5,11 @@ use std::time::Duration;
 use axum::extract::Request;
 use axum::http::{header, HeaderName, HeaderValue};
 use axum::ServiceExt;
-use axum_server::accept::Accept;
 use axum_server::Handle;
 use hyper_util::rt::TokioTimer;
 use relay_config::Config;
 use relay_system::{Controller, Service, Shutdown};
-use socket2::TcpKeepalive;
-use tokio::net::{TcpSocket, TcpStream};
+use tokio::net::TcpSocket;
 use tower::ServiceBuilder;
 use tower_http::compression::predicate::SizeAbove;
 use tower_http::compression::{CompressionLayer, DefaultPredicate, Predicate};
@@ -24,7 +21,10 @@ use crate::middlewares::{
     RequestDecompressionLayer, SentryHttpLayer,
 };
 use crate::service::ServiceState;
-use crate::statsd::RelayCounters;
+use crate::statsd::{RelayCounters, RelayGauges};
+
+mod acceptor;
+mod io;
 
 /// Set the number of keep-alive retransmissions to be carried out before declaring that remote end
 /// is not available.
@@ -47,7 +47,7 @@ const COMPRESSION_MIN_SIZE: u16 = 128;
 pub enum ServerError {
     /// Binding failed.
     #[error("bind to interface failed")]
-    BindFailed(#[from] io::Error),
+    BindFailed(#[from] std::io::Error),
 
     /// TLS support was not compiled in.
     #[error("SSL is no longer supported by Relay, please use a proxy in front")]
@@ -112,67 +112,15 @@ fn listen(config: &Config) -> Result<TcpListener, ServerError> {
     Ok(socket.listen(config.tcp_listen_backlog())?.into_std()?)
 }
 
-fn build_keepalive(config: &Config) -> Option<TcpKeepalive> {
-    let ka_timeout = config.keepalive_timeout();
-    if ka_timeout.is_zero() {
-        return None;
-    }
-
-    let mut ka = TcpKeepalive::new().with_time(ka_timeout);
-    #[cfg(not(any(target_os = "openbsd", target_os = "redox", target_os = "solaris")))]
-    {
-        ka = ka.with_interval(ka_timeout);
-    }
-
-    #[cfg(not(any(
-        target_os = "openbsd",
-        target_os = "redox",
-        target_os = "solaris",
-        target_os = "windows"
-    )))]
-    {
-        ka = ka.with_retries(KEEPALIVE_RETRIES);
-    }
-
-    Some(ka)
-}
-
-#[derive(Clone, Debug, Default)]
-pub struct KeepAliveAcceptor(Option<TcpKeepalive>);
-
-impl KeepAliveAcceptor {
-    /// Create a new acceptor that sets TCP_NODELAY and keep-alive.
-    pub fn new(config: &Config) -> Self {
-        Self(build_keepalive(config))
-    }
-}
-
-impl<S> Accept<TcpStream, S> for KeepAliveAcceptor {
-    type Stream = TcpStream;
-    type Service = S;
-    type Future = std::future::Ready<io::Result<(Self::Stream, Self::Service)>>;
-
-    fn accept(&self, stream: TcpStream, service: S) -> Self::Future {
-        if let Self(Some(ref tcp_keepalive)) = self {
-            let sock_ref = socket2::SockRef::from(&stream);
-            if let Err(e) = sock_ref.set_tcp_keepalive(tcp_keepalive) {
-                relay_log::trace!("error trying to set TCP keepalive: {e}");
-            }
-        }
-
-        if let Err(e) = stream.set_nodelay(true) {
-            relay_log::trace!("failed to set TCP_NODELAY: {e}");
-        }
-
-        std::future::ready(Ok((stream, service)))
-    }
-}
-
 fn serve(listener: TcpListener, app: App, config: Arc<Config>) {
     let handle = Handle::new();
 
+    let acceptor = self::acceptor::RelayAcceptor::new()
+        .tcp_keepalive(config.keepalive_timeout(), KEEPALIVE_RETRIES)
+        .idle_timeout(config.idle_timeout());
+
     let mut server = axum_server::from_tcp(listener)
-        .acceptor(KeepAliveAcceptor::new(&config))
+        .acceptor(acceptor)
         .handle(handle.clone());
 
     server
@@ -180,6 +128,7 @@ fn serve(listener: TcpListener, app: App, config: Arc<Config>) {
         .http1()
         .timer(TokioTimer::new())
         .half_close(true)
+        .keep_alive(true)
         .header_read_timeout(CLIENT_HEADER_TIMEOUT)
         .writev(true);
 
@@ -190,9 +139,14 @@ fn serve(listener: TcpListener, app: App, config: Arc<Config>) {
         .keep_alive_timeout(config.keepalive_timeout());
 
     let service = ServiceExt::<Request>::into_make_service_with_connect_info::<SocketAddr>(app);
-    tokio::spawn(server.serve(service));
+    relay_system::spawn!(server.serve(service));
 
-    tokio::spawn(async move {
+    relay_system::spawn!(emit_active_connections_metric(
+        config.metrics_periodic_interval(),
+        handle.clone(),
+    ));
+
+    relay_system::spawn!(async move {
         let Shutdown { timeout } = Controller::shutdown_handle().notified().await;
         relay_log::info!("Shutting down HTTP server");
 
@@ -241,5 +195,18 @@ impl Service for HttpServer {
 
         let app = make_app(service);
         serve(listener, app, config);
+    }
+}
+
+async fn emit_active_connections_metric(interval: Option<Duration>, handle: Handle) {
+    let Some(mut ticker) = interval.map(tokio::time::interval) else {
+        return;
+    };
+
+    loop {
+        ticker.tick().await;
+        relay_statsd::metric!(
+            gauge(RelayGauges::ServerActiveConnections) = handle.connection_count() as u64
+        );
     }
 }

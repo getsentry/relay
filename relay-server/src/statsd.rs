@@ -46,6 +46,10 @@ pub enum RelayGauges {
     RedisPoolIdleConnections,
     /// The number of notifications in the broadcast channel of the project cache.
     ProjectCacheNotificationChannel,
+    /// The number of scheduled and in progress fetches in the project cache.
+    ProjectCacheScheduledFetches,
+    /// Exposes the amount of currently open and handled connections by the server.
+    ServerActiveConnections,
 }
 
 impl GaugeMetric for RelayGauges {
@@ -66,6 +70,8 @@ impl GaugeMetric for RelayGauges {
             RelayGauges::ProjectCacheNotificationChannel => {
                 "project_cache.notification_channel.size"
             }
+            RelayGauges::ProjectCacheScheduledFetches => "project_cache.fetches.size",
+            RelayGauges::ServerActiveConnections => "server.http.connections",
         }
     }
 }
@@ -188,6 +194,10 @@ pub enum RelayHistograms {
     /// This is not quite the same as the actual size of a serialized envelope, because it ignores
     /// the envelope header and item headers.
     BufferEnvelopeBodySize,
+    /// Size of a serialized envelope pushed to the envelope buffer.
+    BufferEnvelopeSize,
+    /// Size of a compressed envelope pushed to the envelope buffer.
+    BufferEnvelopeSizeCompressed,
     /// The number of batches emitted per partition.
     BatchesPerPartition,
     /// The number of buckets in a batch emitted.
@@ -317,6 +327,8 @@ impl HistogramMetric for RelayHistograms {
                 "buffer.backpressure_envelopes_count"
             }
             RelayHistograms::BufferEnvelopeBodySize => "buffer.envelope_body_size",
+            RelayHistograms::BufferEnvelopeSize => "buffer.envelope_size",
+            RelayHistograms::BufferEnvelopeSizeCompressed => "buffer.envelope_size.compressed",
             RelayHistograms::ProjectStatePending => "project_state.pending",
             RelayHistograms::ProjectStateAttempts => "project_state.attempts",
             RelayHistograms::ProjectStateRequestBatchSize => "project_state.request.batch_size",
@@ -549,10 +561,16 @@ pub enum RelayTimers {
     BufferPop,
     /// Timing in milliseconds for the time it takes for the buffer to drain its envelopes.
     BufferDrain,
-    /// Timing in milliseconds for the time it takes for the envelopes to be serialized.
+    /// Timing in milliseconds for the time it takes for an envelope to be serialized.
     BufferEnvelopesSerialization,
+    /// Timing in milliseconds for the time it takes for an envelope to be compressed.
+    BufferEnvelopeCompression,
+    /// Timing in milliseconds for the time it takes for an envelope to be decompressed.
+    BufferEnvelopeDecompression,
     /// Timing in milliseconds to the time it takes to read an HTTP body.
     BodyReadDuration,
+    /// Timing in milliseconds to count spans in a serialized transaction payload.
+    CheckNestedSpans,
 }
 
 impl TimerMetric for RelayTimers {
@@ -604,7 +622,10 @@ impl TimerMetric for RelayTimers {
             RelayTimers::BufferPop => "buffer.pop.duration",
             RelayTimers::BufferDrain => "buffer.drain.duration",
             RelayTimers::BufferEnvelopesSerialization => "buffer.envelopes_serialization",
+            RelayTimers::BufferEnvelopeCompression => "buffer.envelopes_compression",
+            RelayTimers::BufferEnvelopeDecompression => "buffer.envelopes_decompression",
             RelayTimers::BodyReadDuration => "requests.body_read.duration",
+            RelayTimers::CheckNestedSpans => "envelope.check_nested_spans",
         }
     }
 }
@@ -844,6 +865,10 @@ pub enum RelayCounters {
     BucketsDropped,
     /// Incremented every time a segment exceeds the expected limit.
     ReplayExceededSegmentLimit,
+    /// Incremented every time the server accepts a new connection.
+    ServerSocketAccept,
+    /// Incremented every time the server aborts a connection because of an idle timeout.
+    ServerConnectionIdleTimeout,
 }
 
 impl CounterMetric for RelayCounters {
@@ -889,6 +914,8 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ProjectStateFlushMetricsNoProject => "project_state.metrics.no_project",
             RelayCounters::BucketsDropped => "metrics.buckets.dropped",
             RelayCounters::ReplayExceededSegmentLimit => "replay.segment_limit_exceeded",
+            RelayCounters::ServerSocketAccept => "server.http.accepted",
+            RelayCounters::ServerConnectionIdleTimeout => "server.http.idle_timeout",
         }
     }
 }
@@ -914,7 +941,7 @@ pub enum PlatformTag {
 }
 
 impl PlatformTag {
-    pub fn as_str(&self) -> &str {
+    pub fn name(&self) -> &str {
         match self {
             Self::Cocoa => "cocoa",
             Self::Csharp => "csharp",
@@ -955,6 +982,87 @@ impl<S: AsRef<str>> From<S> for PlatformTag {
             "ruby" => Self::Ruby,
             "swift" => Self::Swift,
             _ => Self::Other,
+        }
+    }
+}
+
+/// Low-cardinality SDK name that can be used as a statsd tag.
+pub enum ClientName<'a> {
+    Ruby,
+    CocoaFlutter,
+    CocoaReactNative,
+    Cocoa,
+    Dotnet,
+    AndroidReactNative,
+    AndroidJava,
+    SpringBoot,
+    JavascriptBrowser,
+    Electron,
+    NestJs,
+    NextJs,
+    Node,
+    React,
+    Vue,
+    Native,
+    Laravel,
+    Symfony,
+    Php,
+    Python,
+    Other(&'a str),
+}
+
+impl<'a> ClientName<'a> {
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Ruby => "sentry-ruby",
+            Self::CocoaFlutter => "sentry.cocoa.flutter",
+            Self::CocoaReactNative => "sentry.cocoa.react-native",
+            Self::Cocoa => "sentry.cocoa",
+            Self::Dotnet => "sentry.dotnet",
+            Self::AndroidReactNative => "sentry.java.android.react-native",
+            Self::AndroidJava => "sentry.java.android",
+            Self::SpringBoot => "sentry.java.spring-boot.jakarta",
+            Self::JavascriptBrowser => "sentry.javascript.browser",
+            Self::Electron => "sentry.javascript.electron",
+            Self::NestJs => "sentry.javascript.nestjs",
+            Self::NextJs => "sentry.javascript.nextjs",
+            Self::Node => "sentry.javascript.node",
+            Self::React => "sentry.javascript.react",
+            Self::Vue => "sentry.javascript.vue",
+            Self::Native => "sentry.native",
+            Self::Laravel => "sentry.php.laravel",
+            Self::Symfony => "sentry.php.symfony",
+            Self::Php => "sentry.php",
+            Self::Python => "sentry.python",
+            Self::Other(_) => "other",
+        }
+    }
+}
+
+impl<'a> From<&'a str> for ClientName<'a> {
+    fn from(value: &'a str) -> Self {
+        match value {
+            "sentry-ruby" => Self::Ruby,
+            "sentry.cocoa.flutter" => Self::CocoaFlutter,
+            "sentry.cocoa.react-native" => Self::CocoaReactNative,
+            "sentry.cocoa" => Self::Cocoa,
+            "sentry.dotnet" => Self::Dotnet,
+            "sentry.java.android.react-native" => Self::AndroidReactNative,
+            "sentry.java.android" => Self::AndroidJava,
+            "sentry.java.spring-boot.jakarta" => Self::SpringBoot,
+            "sentry.javascript.browser" => Self::JavascriptBrowser,
+            "sentry.javascript.electron" => Self::Electron,
+            "sentry.javascript.nestjs" => Self::NestJs,
+            "sentry.javascript.nextjs" => Self::NextJs,
+            "sentry.javascript.node" => Self::Node,
+            "sentry.javascript.react" => Self::React,
+            "sentry.javascript.vue" => Self::Vue,
+            "sentry.native" => Self::Native,
+            "sentry.php.laravel" => Self::Laravel,
+            "sentry.php.symfony" => Self::Symfony,
+            "sentry.php" => Self::Php,
+            "sentry.python" => Self::Python,
+            other => Self::Other(other),
         }
     }
 }

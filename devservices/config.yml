@@ -25,7 +25,7 @@ services:
   relay:
     image: us-central1-docker.pkg.dev/sentryio/relay/relay:nightly
     ports:
-      - 7899:7899
+      - 127.0.0.1:7899:7899
     command: [run, --config, /etc/relay]
     volumes:
       - ./config/relay.yml:/etc/relay/config.yml

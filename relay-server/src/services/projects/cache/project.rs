@@ -9,6 +9,7 @@ use crate::envelope::ItemType;
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::projects::cache::state::SharedProject;
 use crate::services::projects::project::ProjectState;
+use crate::statsd::RelayTimers;
 use crate::utils::{CheckLimits, Enforcement, EnvelopeLimiter, ManagedEnvelope};
 
 /// A loaded project.
@@ -90,7 +91,9 @@ impl<'a> Project<'a> {
         // If we can extract spans from the event, we want to try and count the number of nested
         // spans to correctly emit negative outcomes in case the transaction itself is dropped.
         if check_nested_spans {
-            sync_spans_to_enforcement(&envelope, &mut enforcement);
+            relay_statsd::metric!(timer(RelayTimers::CheckNestedSpans), {
+                sync_spans_to_enforcement(&envelope, &mut enforcement);
+            });
         }
 
         enforcement.apply_with_outcomes(&mut envelope);

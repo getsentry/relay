@@ -5,6 +5,9 @@ use crate::processor::ProcessValue;
 /// Web browser information.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct BrowserContext {
+    /// Computed field from `name` and `version`. Needed by the metrics extraction.
+    pub browser: Annotated<String>,
+
     /// Display name of the browser application.
     pub name: Annotated<String>,
 
@@ -55,12 +58,14 @@ mod tests {
     #[test]
     fn test_browser_context_roundtrip() {
         let json = r#"{
+  "browser": "Google Chrome 67.0.3396.99",
   "name": "Google Chrome",
   "version": "67.0.3396.99",
   "other": "value",
   "type": "browser"
 }"#;
         let context = Annotated::new(Context::Browser(Box::new(BrowserContext {
+            browser: Annotated::new(String::from("Google Chrome 67.0.3396.99")),
             name: Annotated::new("Google Chrome".to_string()),
             version: Annotated::new("67.0.3396.99".to_string()),
             other: {

@@ -13,13 +13,13 @@
 
 **Features**:
 
+- Add check to ensure unreal user info is not empty. ([#4225](https://github.com/getsentry/relay/pull/4225))
 - Retain empty string values in `span.data` and `event.contexts.trace.data`. ([#4174](https://github.com/getsentry/relay/pull/4174))
 - Allow `sample_rate` to be float type when deserializing `DynamicSamplingContext`. ([#4181](https://github.com/getsentry/relay/pull/4181))
 - Support inbound filters for profiles. ([#4176](https://github.com/getsentry/relay/pull/4176))
 - Scrub lower-case redis commands. ([#4235](https://github.com/getsentry/relay/pull/4235))
 - Make the maximum idle time of a HTTP connection configurable. ([#4248](https://github.com/getsentry/relay/pull/4248))
 - Allow configuring a Sentry server name with an option or the `RELAY_SERVER_NAME` environment variable. ([#4251](https://github.com/getsentry/relay/pull/4251))
-
 
 **Internal**:
 
@@ -28,6 +28,11 @@
 - Remove `buffer` entries and scrub array contents from MongoDB queries. ([#4186](https://github.com/getsentry/relay/pull/4186))
 - Use `DateTime<Utc>` instead of `Instant` for tracking the received time of the `Envelope`. ([#4184](https://github.com/getsentry/relay/pull/4184))
 - Add a field to suggest consumers to ingest spans in EAP. ([#4206](https://github.com/getsentry/relay/pull/4206))
+- Run internal worker threads with a lower priority. ([#4222](https://github.com/getsentry/relay/pull/4222))
+- Add additional fields to the `Event` `Getter`. ([#4238](https://github.com/getsentry/relay/pull/4238))
+- Replace u64 with `OrganizationId` new-type struct for organization id. ([#4159](https://github.com/getsentry/relay/pull/4159))
+- Add computed contexts for `os`, `browser` and `runtime`. ([#4239](https://github.com/getsentry/relay/pull/4239))
+- Add `CachingEnvelopeStack` strategy to the buffer. ([#4242](https://github.com/getsentry/relay/pull/4242))
 
 ## 24.10.0
 

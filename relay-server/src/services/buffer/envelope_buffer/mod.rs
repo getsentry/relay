@@ -122,6 +122,11 @@ impl PolymorphicEnvelopeBuffer {
     /// The buffer re-prioritizes its envelopes based on this information.
     /// Returns `true` if at least one priority was changed.
     pub fn mark_ready(&mut self, project: &ProjectKey, is_ready: bool) -> bool {
+        relay_log::trace!(
+            project_key = project.as_str(),
+            "buffer marked {}",
+            if is_ready { "ready" } else { "not ready" }
+        );
         match self {
             Self::Sqlite(buffer) => buffer.mark_ready(project, is_ready),
             Self::InMemory(buffer) => buffer.mark_ready(project, is_ready),
@@ -657,6 +662,7 @@ mod tests {
     use crate::envelope::{Item, ItemType};
     use crate::extractors::RequestMeta;
     use crate::services::buffer::common::ProjectKeyPair;
+    use crate::services::buffer::envelope_store::sqlite::DatabaseEnvelope;
     use crate::services::buffer::testutils::utils::mock_envelopes;
     use crate::utils::MemoryStat;
     use crate::SqliteEnvelopeStore;
@@ -1015,7 +1021,14 @@ mod tests {
         // belong to the same project keys, so they belong to the same envelope stack.
         let envelopes = mock_envelopes(10);
         assert!(store
-            .insert_many(envelopes.iter().map(|e| e.as_ref().try_into().unwrap()))
+            .insert_batch(
+                envelopes
+                    .into_iter()
+                    .map(|e| DatabaseEnvelope::try_from(e.as_ref()).unwrap())
+                    .collect::<Vec<_>>()
+                    .try_into()
+                    .unwrap()
+            )
             .await
             .is_ok());
 

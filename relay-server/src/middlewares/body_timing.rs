@@ -138,13 +138,14 @@ impl Drop for TimedBody {
 
 fn size_category(size: usize) -> &'static str {
     match size {
-        0..1_000 => "<1KB",
-        1_000..10_000 => "<10KB",
-        10_000..100_000 => "<100KB",
-        100_000..1_000_000 => "<1MB",
-        1_000_000..10_000_000 => "<10MB",
-        10_000_000..100_000_000 => "<100MB",
-        100_000_000.. => ">=100MB",
+        0..1_000 => "lt1KB",
+        1_000..10_000 => "lt10KB",
+        10_000..100_000 => "lt100KB",
+        100_000..1_000_000 => "lt1MB",
+        1_000_000..10_000_000 => "lt10MB",
+        10_000_000..20_000_000 => "lt20MB",
+        20_000_000..100_000_000 => "lt100MB",
+        100_000_000.. => "gte100MB",
     }
 }
 
@@ -183,7 +184,7 @@ mod tests {
         });
         assert_eq!(
             captures,
-            ["requests.body_read.duration:0|ms|#route:unknown,size:<1KB,status:completed"]
+            ["requests.body_read.duration:0|ms|#route:unknown,size:lt1KB,status:completed"]
         );
     }
 
@@ -202,7 +203,7 @@ mod tests {
         });
         assert_eq!(
             captures,
-            ["requests.body_read.duration:0|ms|#route:unknown,size:<1KB,status:completed"]
+            ["requests.body_read.duration:0|ms|#route:unknown,size:lt1KB,status:completed"]
         );
     }
 
@@ -220,7 +221,7 @@ mod tests {
         });
         assert_eq!(
             captures,
-            ["requests.body_read.duration:0|ms|#route:unknown,size:<1KB,status:dropped"]
+            ["requests.body_read.duration:0|ms|#route:unknown,size:lt1KB,status:dropped"]
         )
     }
 
@@ -247,7 +248,7 @@ mod tests {
         });
         assert_eq!(
             captures,
-            ["requests.body_read.duration:0|ms|#route:unknown,size:<1KB,status:failed"]
+            ["requests.body_read.duration:0|ms|#route:unknown,size:lt1KB,status:failed"]
         )
     }
 
@@ -267,18 +268,19 @@ mod tests {
         });
         assert_eq!(
             captures,
-            ["requests.body_read.duration:0|ms|#route:unknown,size:<10KB,status:completed"]
+            ["requests.body_read.duration:0|ms|#route:unknown,size:lt10KB,status:completed"]
         )
     }
 
     #[test]
     fn test_size_category() {
-        assert_eq!(size_category(10), "<1KB");
-        assert_eq!(size_category(9_000), "<10KB");
-        assert_eq!(size_category(10_000), "<100KB");
-        assert_eq!(size_category(99_999), "<100KB");
-        assert_eq!(size_category(1_000_000), "<10MB");
-        assert_eq!(size_category(50_000_000), "<100MB");
-        assert_eq!(size_category(100_000_000), ">=100MB")
+        assert_eq!(size_category(10), "lt1KB");
+        assert_eq!(size_category(9_000), "lt10KB");
+        assert_eq!(size_category(10_000), "lt100KB");
+        assert_eq!(size_category(99_999), "lt100KB");
+        assert_eq!(size_category(1_000_000), "lt10MB");
+        assert_eq!(size_category(15_000_000), "lt20MB");
+        assert_eq!(size_category(50_000_000), "lt100MB");
+        assert_eq!(size_category(100_000_000), "gte100MB")
     }
 }

@@ -250,6 +250,8 @@ pub struct OverridableConfig {
     pub outcome_source: Option<String>,
     /// shutdown timeout
     pub shutdown_timeout: Option<String>,
+    /// Server name reported in the Sentry SDK.
+    pub server_name: Option<String>,
 }
 
 /// The relay credentials
@@ -633,10 +635,17 @@ struct Limits {
     /// The maximum number of seconds to wait for pending envelopes after receiving a shutdown
     /// signal.
     shutdown_timeout: u64,
-    /// server keep-alive timeout in seconds.
+    /// Server keep-alive timeout in seconds.
     ///
     /// By default keep-alive is set to a 5 seconds.
     keepalive_timeout: u64,
+    /// Server idle timeout in seconds.
+    ///
+    /// The idle timeout limits the amount of time a connection is kept open without activity.
+    /// Setting this too short may abort connections before Relay is able to send a response.
+    ///
+    /// By default there is no idle timeout.
+    idle_timeout: Option<u64>,
     /// The TCP listen backlog.
     ///
     /// Configures the TCP listen backlog for the listening socket of Relay.
@@ -673,6 +682,7 @@ impl Default for Limits {
             query_timeout: 30,
             shutdown_timeout: 10,
             keepalive_timeout: 5,
+            idle_timeout: None,
             tcp_listen_backlog: 1024,
         }
     }
@@ -872,14 +882,9 @@ fn spool_envelopes_unspool_interval() -> u64 {
     100
 }
 
-/// Default batch size for the stack.
-fn spool_envelopes_stack_disk_batch_size() -> usize {
-    200
-}
-
-/// Default maximum number of batches for the stack.
-fn spool_envelopes_stack_max_batches() -> usize {
-    2
+/// Default number of encoded envelope bytes to cache before writing to disk.
+fn spool_envelopes_batch_size_bytes() -> ByteSize {
+    ByteSize::kibibytes(10)
 }
 
 fn spool_envelopes_max_envelope_delay_secs() -> u64 {
@@ -927,13 +932,11 @@ pub struct EnvelopeSpool {
     /// The interval in milliseconds to trigger unspool.
     #[serde(default = "spool_envelopes_unspool_interval")]
     unspool_interval: u64,
-    /// Number of elements of the envelope stack that are flushed to disk.
-    #[serde(default = "spool_envelopes_stack_disk_batch_size")]
-    disk_batch_size: usize,
-    /// Number of batches of size [`Self::disk_batch_size`] that need to be accumulated before
-    /// flushing one batch to disk.
-    #[serde(default = "spool_envelopes_stack_max_batches")]
-    max_batches: usize,
+    /// Number of encoded envelope bytes that are spooled to disk at once.
+    ///
+    /// Defaults to 10 KiB.
+    #[serde(default = "spool_envelopes_batch_size_bytes")]
+    batch_size_bytes: ByteSize,
     /// Maximum time between receiving the envelope and processing it.
     ///
     /// When envelopes spend too much time in the buffer (e.g. because their project cannot be loaded),
@@ -953,7 +956,7 @@ pub struct EnvelopeSpool {
     /// This value should be lower than [`Health::max_memory_percent`] to prevent flip-flopping.
     ///
     /// Warning: this threshold can cause the buffer service to deadlock when the buffer itself
-    /// is using too much memory (influenced by [`Self::max_batches`] and [`Self::disk_batch_size`]).
+    /// is using too much memory (influenced by [`Self::batch_size_bytes`]).
     ///
     /// Defaults to 90% (5% less than max memory).
     #[serde(default = "spool_max_backpressure_memory_percent")]
@@ -989,9 +992,8 @@ impl Default for EnvelopeSpool {
             min_connections: spool_envelopes_min_connections(),
             max_disk_size: spool_envelopes_max_disk_size(),
             max_memory_size: spool_envelopes_max_memory_size(),
-            unspool_interval: spool_envelopes_unspool_interval(), // 100ms
-            disk_batch_size: spool_envelopes_stack_disk_batch_size(),
-            max_batches: spool_envelopes_stack_max_batches(),
+            unspool_interval: spool_envelopes_unspool_interval(),
+            batch_size_bytes: spool_envelopes_batch_size_bytes(),
             max_envelope_delay_secs: spool_envelopes_max_envelope_delay_secs(),
             disk_usage_refresh_frequency_ms: spool_disk_usage_refresh_frequency_ms(),
             max_backpressure_envelopes: spool_max_backpressure_envelopes(),
@@ -1045,8 +1047,6 @@ struct Cache {
     batch_size: usize,
     /// Interval for watching local cache override files in seconds.
     file_interval: u32,
-    /// Interval for evicting outdated project configs from memory.
-    eviction_interval: u32,
     /// Interval for fetching new global configs from the upstream, in seconds.
     global_config_fetch_interval: u32,
 }
@@ -1065,7 +1065,6 @@ impl Default for Cache {
             downstream_relays_batch_interval: 100, // 100ms
             batch_size: 500,
             file_interval: 10,                // 10 seconds
-            eviction_interval: 10,            // 10 seconds
             global_config_fetch_interval: 10, // 10 seconds
         }
     }
@@ -1772,6 +1771,10 @@ impl Config {
             }
         }
 
+        if let Some(server_name) = overrides.server_name {
+            self.values.sentry.server_name = Some(server_name.into());
+        }
+
         Ok(self)
     }
 
@@ -2127,12 +2130,6 @@ impl Config {
         Duration::from_secs(self.values.cache.file_interval.into())
     }
 
-    /// Returns the interval in seconds in which projects configurations should be freed from
-    /// memory when expired.
-    pub fn cache_eviction_interval(&self) -> Duration {
-        Duration::from_secs(self.values.cache.eviction_interval.into())
-    }
-
     /// Returns the interval in seconds in which fresh global configs should be
     /// fetched from  upstream.
     pub fn global_config_fetch_interval(&self) -> Duration {
@@ -2174,22 +2171,16 @@ impl Config {
         self.values.spool.envelopes.max_memory_size.as_bytes()
     }
 
-    /// Number of batches of size `stack_disk_batch_size` that need to be accumulated before
+    /// Number of encoded envelope bytes that need to be accumulated before
     /// flushing one batch to disk.
-    pub fn spool_envelopes_stack_disk_batch_size(&self) -> usize {
-        self.values.spool.envelopes.disk_batch_size
-    }
-
-    /// Number of batches of size `stack_disk_batch_size` that need to be accumulated before
-    /// flushing one batch to disk.
-    pub fn spool_envelopes_stack_max_batches(&self) -> usize {
-        self.values.spool.envelopes.max_batches
+    pub fn spool_envelopes_batch_size_bytes(&self) -> usize {
+        self.values.spool.envelopes.batch_size_bytes.as_bytes()
     }
 
     /// Returns `true` if version 2 of the spooling mechanism is used.
     pub fn spool_v2(&self) -> bool {
         matches!(
-            self.values.spool.envelopes.version,
+            &self.values.spool.envelopes.version,
             EnvelopeSpoolVersion::V2
         )
     }
@@ -2340,6 +2331,11 @@ impl Config {
     /// By default keep alive is set to a 5 seconds.
     pub fn keepalive_timeout(&self) -> Duration {
         Duration::from_secs(self.values.limits.keepalive_timeout)
+    }
+
+    /// Returns the server idle timeout in seconds.
+    pub fn idle_timeout(&self) -> Option<Duration> {
+        self.values.limits.idle_timeout.map(Duration::from_secs)
     }
 
     /// TCP listen backlog to configure on Relay's listening socket.
@@ -2590,6 +2586,7 @@ impl Default for Config {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     /// Regression test for renaming the envelope buffer flags.

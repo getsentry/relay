@@ -429,6 +429,7 @@ dependencies = [
  "clap",
  "rand",
  "relay-config",
+ "relay-log",
  "relay-server",
  "serde_json",
  "tempfile",
@@ -2124,9 +2125,9 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.158"
+version = "0.2.161"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d8adc4bb1803a324070e64a98ae98f38934d91957a99cfb3a43dcbc01bc56439"
+checksum = "8e9489c2807c139ffd9c1794f4af0ebe86a828db53ecdc7fea2111d0fed085d1"
 
 [[package]]
 name = "libfuzzer-sys"
@@ -3347,7 +3348,7 @@ dependencies = [
 
 [[package]]
 name = "relay-cabi"
-version = "0.9.2"
+version = "0.9.3"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3827,6 +3828,7 @@ dependencies = [
  "insta",
  "itertools 0.13.0",
  "json-forensics",
+ "libc",
  "liblzma",
  "mime",
  "minidump",
@@ -3919,7 +3921,9 @@ name = "relay-system"
 version = "24.10.0"
 dependencies = [
  "futures",
+ "insta",
  "once_cell",
+ "pin-project-lite",
  "relay-log",
  "relay-statsd",
  "tokio",
@@ -5177,9 +5181,9 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tokio"
-version = "1.39.3"
+version = "1.41.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9babc99b9923bfa4804bd74722ff02c0381021eafa4db9949217e3be8e84fff5"
+checksum = "22cfb5bee7a6a52939ca9224d6ac897bb669134078daa8735560897f69de4d33"
 dependencies = [
  "backtrace",
  "bytes",
@@ -5237,9 +5241,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-util"
-version = "0.7.11"
+version = "0.7.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9cf6b47b3771c49ac75ad09a6162f53ad4b8088b76ac60e8ec1455b31a189fe1"
+checksum = "61e7c3654c13bcd040d4a03abee2c75b1d14a37b423cf5a813ceae1cc903ec6a"
 dependencies = [
  "bytes",
  "futures-core",

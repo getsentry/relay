@@ -3,6 +3,7 @@ use std::error::Error;
 use std::net::IpAddr;
 
 use bytes::Bytes;
+use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
 use relay_dynamic_config::{Feature, GlobalConfig, ProjectConfig};
 use relay_event_normalization::replay::{self, ReplayError};
@@ -19,6 +20,7 @@ use crate::envelope::{ContentType, ItemType};
 use crate::services::outcome::DiscardReason;
 use crate::services::processor::{ProcessEnvelopeState, ProcessingError, ReplayGroup};
 use crate::statsd::{RelayCounters, RelayTimers};
+use crate::utils::sample;
 
 /// Removes replays if the feature flag is not enabled.
 pub fn process(
@@ -118,7 +120,7 @@ struct ReplayProcessingConfig<'a> {
     pub geoip_lookup: Option<&'a GeoIpLookup>,
     pub event_id: Option<EventId>,
     pub project_id: Option<ProjectId>,
-    pub organization_id: Option<u64>,
+    pub organization_id: Option<OrganizationId>,
     pub client_addr: Option<IpAddr>,
     pub user_agent: RawUserAgentInfo<String>,
 }
@@ -149,7 +151,7 @@ fn handle_replay_event_item(
                         relay_log::debug!(
                             event_id = ?config.event_id,
                             project_id = config.project_id.map(|v| v.value()),
-                            organization_id = config.organization_id,
+                            organization_id = config.organization_id.map(|o| o.value()),
                             segment_id = segment_id,
                             "replay segment-exceeded-limit"
                         );
@@ -174,7 +176,7 @@ fn handle_replay_event_item(
                 error = &error as &dyn Error,
                 event_id = ?config.event_id,
                 project_id = config.project_id.map(|v| v.value()),
-                organization_id = config.organization_id,
+                organization_id = config.organization_id.map(|o| o.value()),
                 "invalid replay event"
             );
             Err(match error {
@@ -261,13 +263,55 @@ fn handle_replay_recording_item(
     })
     .map(Into::into)
     .map_err(|error| {
-        relay_log::error!(
-            error = &error as &dyn Error,
-            event_id = ?config.event_id,
-            project_id = config.project_id.map(|v| v.value()),
-            organization_id = config.organization_id,
-            "invalid replay recording"
-        );
+        match &error {
+            relay_replays::recording::ParseRecordingError::Compression(e) => {
+                // 20k errors per day at 0.1% sample rate == 20 logs per day
+                if sample(0.001) {
+                    relay_log::with_scope(
+                        move |scope| {
+                            scope.add_attachment(relay_log::protocol::Attachment {
+                                buffer: payload.into(),
+                                filename: "payload".to_owned(),
+                                content_type: Some("application/octet-stream".to_owned()),
+                                ty: None,
+                            });
+                        },
+                        || {
+                            relay_log::error!(
+                                error = e as &dyn Error,
+                                event_id = ?config.event_id,
+                                project_id = config.project_id.map(|v| v.value()),
+                                organization_id = config.organization_id.map(|o| o.value()),
+                                "ParseRecordingError::Compression"
+                            )
+                        },
+                    );
+                }
+            }
+            relay_replays::recording::ParseRecordingError::Message(e) => {
+                // Only 118 errors in the past 30 days. We log everything.
+                relay_log::with_scope(
+                    move |scope| {
+                        scope.add_attachment(relay_log::protocol::Attachment {
+                            buffer: payload.into(),
+                            filename: "payload".to_owned(),
+                            content_type: Some("application/octet-stream".to_owned()),
+                            ty: None,
+                        });
+                    },
+                    || {
+                        relay_log::error!(
+                            error = e,
+                            event_id = ?config.event_id,
+                            project_id = config.project_id.map(|v| v.value()),
+                            organization_id = config.organization_id.map(|o| o.value()),
+                            "ParseRecordingError::Message"
+                        )
+                    },
+                );
+            }
+            _ => (),
+        };
         ProcessingError::InvalidReplay(DiscardReason::InvalidReplayRecordingEvent)
     })
 }

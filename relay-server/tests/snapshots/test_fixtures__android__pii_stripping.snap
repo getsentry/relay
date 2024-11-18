@@ -1,6 +1,6 @@
 ---
 source: relay-server/tests/test_fixtures.rs
-expression: SerializableAnnotated(&event)
+expression: SerializableAnnotated(& event)
 ---
 {
   "event_id": "ae3a2cc6e08741c5b09946c65c022469",
@@ -53,6 +53,7 @@ expression: SerializableAnnotated(&event)
       "type": "device"
     },
     "os": {
+      "os": "Android 7.1.1",
       "name": "Android",
       "version": "7.1.1",
       "build": "sdk_google_phone_x86-userdebug 7.1.1 NYC 5464897 test-keys",

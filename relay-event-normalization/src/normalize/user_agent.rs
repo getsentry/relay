@@ -821,13 +821,14 @@ mod tests {
         let browser =
             BrowserContext::from_hints_or_ua(&RawUserAgentInfo::from_headers(&headers)).unwrap();
 
-        insta::assert_debug_snapshot!(browser, @r#"
+        insta::assert_debug_snapshot!(browser, @r###"
         BrowserContext {
+            browser: ~,
             name: "Google Chrome",
             version: "109",
             other: {},
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -873,13 +874,14 @@ mod tests {
         let browser =
             BrowserContext::from_hints_or_ua(&RawUserAgentInfo::from_headers(&headers)).unwrap();
 
-        insta::assert_debug_snapshot!(browser, @r#"
+        insta::assert_debug_snapshot!(browser, @r###"
         BrowserContext {
+            browser: ~,
             name: "weird browser",
             version: "109",
             other: {},
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -952,18 +954,19 @@ mod tests {
 
         let os = OsContext::from_hints_or_ua(&RawUserAgentInfo::from_headers(&headers)).unwrap();
 
-        insta::assert_debug_snapshot!(os, @r#"
-OsContext {
-    name: "macOS",
-    version: "13.1.0",
-    build: ~,
-    kernel_version: ~,
-    rooted: ~,
-    distribution: ~,
-    raw_description: ~,
-    other: {},
-}
-        "#);
+        insta::assert_debug_snapshot!(os, @r###"
+        OsContext {
+            os: ~,
+            name: "macOS",
+            version: "13.1.0",
+            build: ~,
+            kernel_version: ~,
+            rooted: ~,
+            distribution: ~,
+            raw_description: ~,
+            other: {},
+        }
+        "###);
     }
 
     #[test]
@@ -1024,18 +1027,19 @@ OsContext {
 
         let os = OsContext::from_hints_or_ua(&RawUserAgentInfo::from_headers(&headers)).unwrap();
 
-        insta::assert_debug_snapshot!(os, @r#"
-OsContext {
-    name: "Mac OS X",
-    version: "10.15.6",
-    build: ~,
-    kernel_version: ~,
-    rooted: ~,
-    distribution: ~,
-    raw_description: ~,
-    other: {},
-}
-        "#);
+        insta::assert_debug_snapshot!(os, @r###"
+        OsContext {
+            os: ~,
+            name: "Mac OS X",
+            version: "10.15.6",
+            build: ~,
+            kernel_version: ~,
+            rooted: ~,
+            distribution: ~,
+            raw_description: ~,
+            other: {},
+        }
+        "###);
     }
 
     #[test]

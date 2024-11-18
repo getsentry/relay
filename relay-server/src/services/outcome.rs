@@ -15,6 +15,7 @@ use std::{fmt, mem};
 #[cfg(feature = "processing")]
 use anyhow::Context;
 use chrono::{DateTime, SecondsFormat, Utc};
+use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, EmitOutcomes};
@@ -527,7 +528,7 @@ pub struct TrackRawOutcome {
     timestamp: String,
     /// Organization id.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    org_id: Option<u64>,
+    org_id: Option<OrganizationId>,
     /// Project id.
     project_id: ProjectId,
     /// The DSN project key id.
@@ -563,9 +564,9 @@ impl TrackRawOutcome {
         // e.g. something like: "2019-09-29T09:46:40.123456Z"
         let timestamp = msg.timestamp.to_rfc3339_opts(SecondsFormat::Micros, true);
 
-        let org_id = match msg.scoping.organization_id {
+        let org_id = match msg.scoping.organization_id.value() {
             0 => None,
-            id => Some(id),
+            id => Some(OrganizationId::new(id)),
         };
 
         // since TrackOutcome objects come only from this Relay (and not any downstream
@@ -661,7 +662,7 @@ impl HttpOutcomeProducer {
 
         let upstream_relay = self.upstream_relay.clone();
 
-        tokio::spawn(async move {
+        relay_system::spawn!(async move {
             match upstream_relay.send(SendQuery(request)).await {
                 Ok(_) => relay_log::trace!("outcome batch sent"),
                 Err(error) => {
@@ -687,7 +688,7 @@ impl Service for HttpOutcomeProducer {
     type Interface = TrackRawOutcome;
 
     fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
-        tokio::spawn(async move {
+        relay_system::spawn!(async move {
             loop {
                 tokio::select! {
                     // Prioritize flush over receiving messages to prevent starving.
@@ -780,7 +781,7 @@ impl Service for ClientReportOutcomeProducer {
     type Interface = TrackOutcome;
 
     fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
-        tokio::spawn(async move {
+        relay_system::spawn!(async move {
             loop {
                 tokio::select! {
                     // Prioritize flush over receiving messages to prevent starving.
@@ -1041,7 +1042,7 @@ impl Service for OutcomeProducerService {
     fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
         let Self { config, inner } = self;
 
-        tokio::spawn(async move {
+        relay_system::spawn!(async move {
             let broker = inner.start();
 
             relay_log::info!("OutcomeProducer started.");

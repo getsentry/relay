@@ -6,6 +6,7 @@ use std::{
 use criterion::{BatchSize, BenchmarkId, Criterion};
 use relay_base_schema::{
     metrics::{MetricName, MetricNamespace},
+    organization::OrganizationId,
     project::ProjectId,
 };
 use relay_cardinality::{
@@ -83,7 +84,7 @@ impl Params {
                 namespace: None,
             }],
             scoping: Scoping {
-                organization_id: 1,
+                organization_id: OrganizationId::new(1),
                 project_id: ProjectId::new(100),
             },
             rounds,

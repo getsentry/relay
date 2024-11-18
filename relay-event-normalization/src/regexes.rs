@@ -51,11 +51,6 @@ pub static TRANSACTION_NAME_NORMALIZER_REGEX: Lazy<Regex> = Lazy::new(|| {
     .unwrap()
 });
 
-/// Captures initial all-caps words as redis command, the rest as arguments.
-pub static REDIS_COMMAND_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(r"(?-u:\s)*(?P<command>[A-Z]+((?-u:\s)+[A-Z]+)*(?-u:\b))(?P<args>.+)?").unwrap()
-});
-
 /// Regex with multiple capture groups for resource tokens we should scrub.
 ///
 /// Resource tokens are the tokens that exist in resource spans that generate

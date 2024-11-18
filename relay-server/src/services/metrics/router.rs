@@ -54,7 +54,7 @@ impl Service for RouterService {
     type Interface = Aggregator;
 
     fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
-        tokio::spawn(async move {
+        relay_system::spawn!(async move {
             let mut router = StartedRouter::start(self);
             relay_log::info!("metrics router started");
 

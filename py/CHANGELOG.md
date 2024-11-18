@@ -1,5 +1,15 @@
 # Changelog
 
+# 0.9.3
+
+- Add computed contexts for `os`, `browser` and `runtime` during normalization. ([#4239](https://github.com/getsentry/relay/pull/4239))
+
+## 0.9.3
+
+### Various fixes & improvements
+
+- feat(on-demand): Add computed contexts (#4239) by @iambriccardo
+
 ## 0.9.2
 
 - Add `spanOpDefaults` to global config. ([#4056](https://github.com/getsentry/relay/pull/4056))

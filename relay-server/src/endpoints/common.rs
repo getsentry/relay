@@ -334,17 +334,11 @@ pub async fn handle_envelope(
     state: &ServiceState,
     envelope: Box<Envelope>,
 ) -> Result<Option<EventId>, BadStoreRequest> {
-    let client_name = envelope
-        .meta()
-        .client_name()
-        .filter(|name| name.starts_with("sentry") || name.starts_with("raven"))
-        .unwrap_or("proprietary");
     for item in envelope.items() {
         metric!(
             histogram(RelayHistograms::EnvelopeItemSize) = item.payload().len() as u64,
-            item_type = item.ty().name(),
-            sdk = client_name,
-        )
+            item_type = item.ty().name()
+        );
     }
 
     if state.memory_checker().check_memory().is_exceeded() {

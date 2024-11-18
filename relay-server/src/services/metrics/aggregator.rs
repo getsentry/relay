@@ -247,7 +247,7 @@ impl Service for AggregatorService {
     type Interface = Aggregator;
 
     fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
-        tokio::spawn(async move {
+        relay_system::spawn!(async move {
             let mut ticker = tokio::time::interval(Duration::from_millis(self.flush_interval_ms));
             let mut shutdown = Controller::shutdown_handle();
 
@@ -362,7 +362,7 @@ mod tests {
         type Interface = TestInterface;
 
         fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
-            tokio::spawn(async move {
+            relay_system::spawn!(async move {
                 while let Some(message) = rx.recv().await {
                     let buckets = message.0.buckets;
                     relay_log::debug!(?buckets, "received buckets");

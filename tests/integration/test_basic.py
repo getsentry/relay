@@ -79,7 +79,7 @@ def test_graceful_shutdown_with_sqlite_buffer(mini_sentry, relay):
     cursor = conn.cursor()
 
     # Check if there's data in the `envelopes` table
-    cursor.execute("SELECT COUNT(*) FROM envelopes")
+    cursor.execute("SELECT SUM(count) FROM envelopes")
     row_count = cursor.fetchone()[0]
     assert (
         row_count == n
