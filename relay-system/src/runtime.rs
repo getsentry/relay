@@ -33,7 +33,7 @@ where
     F: Future + Send + 'static,
     F::Output: Send + 'static,
 {
-    tokio::spawn(Task::new(task_id.into(), future))
+    tokio::spawn(Task::new(task_id, future))
 }
 
 /// An identifier for tasks spawned by [`spawn`], used to log metrics.
