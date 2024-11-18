@@ -1009,7 +1009,7 @@ pub trait Service: Sized {
     /// for tests.
     fn start_detached(self) -> Addr<Self::Interface> {
         let (addr, rx) = channel(Self::name());
-        spawn!(self.run(rx));
+        spawn(Self::name(), self.run(rx));
         addr
     }
 
@@ -1043,7 +1043,7 @@ impl ServiceRunner {
 
     /// Starts a service and starts tracking its join handle, given a predefined receiver.
     pub fn start_with<S: Service>(&mut self, service: S, rx: Receiver<S::Interface>) {
-        self.0.push(spawn!(service.run(rx)));
+        self.0.push(spawn(S::name(), service.run(rx)));
     }
 
     /// Awaits until all services have finished.
