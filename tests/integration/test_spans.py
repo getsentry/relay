@@ -1095,6 +1095,60 @@ def test_rate_limit_consistent_extracted(
     outcomes_consumer.assert_empty()
 
 
+def test_rate_limit_consistent_both(
+    mini_sentry,
+    relay_with_processing,
+    spans_consumer,
+    metrics_consumer,
+    outcomes_consumer,
+):
+    relay = relay_with_processing(options=TEST_CONFIG)
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    # Span metrics won't be extracted without a supported transactionMetrics config.
+    # Without extraction, the span is treated as `Span`, not `SpanIndexed`.
+    project_config["config"]["transactionMetrics"] = {
+        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
+    }
+    project_config["config"]["features"] = [
+        "projects:span-metrics-extraction",
+        "organizations:indexed-spans-extraction",
+    ]
+    project_config["config"]["quotas"] = [
+        {
+            "categories": ["span", "span_indexed"],
+            "limit": 1,
+            "window": int(datetime.now(UTC).timestamp()),
+            "id": uuid.uuid4(),
+            "reasonCode": "my_rate_limit",
+        },
+    ]
+
+    spans_consumer = spans_consumer()
+    metrics_consumer = metrics_consumer()
+    outcomes_consumer = outcomes_consumer()
+
+    start = datetime.now(timezone.utc)
+    end = start + timedelta(seconds=1)
+
+    event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
+    end = datetime.now(timezone.utc) - timedelta(seconds=1)
+    duration = timedelta(milliseconds=500)
+    start = end - duration
+
+    # We should be able to send one event:
+    relay.send_event(project_id, event)
+
+    spans = spans_consumer.get_spans(n=1, timeout=10)
+    assert len(spans) == 1
+
+    outcomes = Counter()
+    for outcome in outcomes_consumer.get_outcomes():
+        outcomes[(outcome["category"], outcome["outcome"])] += outcome["quantity"]
+
+    assert outcomes == {(16, 0): 2}  # SpanIndexed, Accepted
+
+
 def test_rate_limit_spans_in_envelope(
     mini_sentry,
     relay_with_processing,
