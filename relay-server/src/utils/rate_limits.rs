@@ -233,6 +233,7 @@ impl EnvelopeSummary {
             ItemType::ReplayRecording => &mut self.replay_quantity,
             ItemType::ReplayVideo => &mut self.replay_quantity,
             ItemType::CheckIn => &mut self.checkin_quantity,
+            ItemType::OtelTracesData => &mut self.span_quantity,
             ItemType::OtelSpan => &mut self.span_quantity,
             ItemType::Span => &mut self.span_quantity,
             ItemType::ProfileChunk => &mut self.profile_chunk_quantity,
