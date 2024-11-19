@@ -352,8 +352,6 @@
 <a href="#352" id="352">352</a>
 <a href="#353" id="353">353</a>
 <a href="#354" id="354">354</a>
-<a href="#355" id="355">355</a>
-<a href="#356" id="356">356</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::sync::Arc;
@@ -690,24 +688,22 @@
 <span class="kw">impl </span>Service <span class="kw">for </span>RelayCacheService {
     <span class="kw">type </span>Interface = RelayCache;
 
-    <span class="kw">fn </span>spawn_handler(<span class="kw-2">mut </span><span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
-        <span class="macro">relay_system::spawn!</span>(<span class="kw">async move </span>{
-            <span class="macro">relay_log::info!</span>(<span class="string">"key cache started"</span>);
+    <span class="kw">async fn </span>run(<span class="kw-2">mut </span><span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
+        <span class="macro">relay_log::info!</span>(<span class="string">"key cache started"</span>);
 
-            <span class="kw">loop </span>{
-                <span class="macro">tokio::select!</span> {
-                    <span class="comment">// Prioritize flush over receiving messages to prevent starving.
-                    </span>biased;
+        <span class="kw">loop </span>{
+            <span class="macro">tokio::select!</span> {
+                <span class="comment">// Prioritize flush over receiving messages to prevent starving.
+                </span>biased;
 
-                    <span class="prelude-val">Some</span>(result) = <span class="self">self</span>.fetch_channel.<span class="number">1</span>.recv() =&gt; <span class="self">self</span>.handle_fetch_result(result),
-                    () = <span class="kw-2">&amp;mut </span><span class="self">self</span>.delay =&gt; <span class="self">self</span>.fetch_relays(),
-                    <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; <span class="self">self</span>.get_or_fetch(message.<span class="number">0</span>, message.<span class="number">1</span>),
-                    <span class="kw">else </span>=&gt; <span class="kw">break</span>,
-                }
+                <span class="prelude-val">Some</span>(result) = <span class="self">self</span>.fetch_channel.<span class="number">1</span>.recv() =&gt; <span class="self">self</span>.handle_fetch_result(result),
+                () = <span class="kw-2">&amp;mut </span><span class="self">self</span>.delay =&gt; <span class="self">self</span>.fetch_relays(),
+                <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; <span class="self">self</span>.get_or_fetch(message.<span class="number">0</span>, message.<span class="number">1</span>),
+                <span class="kw">else </span>=&gt; <span class="kw">break</span>,
             }
+        }
 
-            <span class="macro">relay_log::info!</span>(<span class="string">"key cache stopped"</span>);
-        });
+        <span class="macro">relay_log::info!</span>(<span class="string">"key cache stopped"</span>);
     }
 }
 </code></pre></div></section></main></body></html>

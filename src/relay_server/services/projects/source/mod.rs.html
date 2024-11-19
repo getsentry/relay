@@ -222,6 +222,9 @@
 <a href="#222" id="222">222</a>
 <a href="#223" id="223">223</a>
 <a href="#224" id="224">224</a>
+<a href="#225" id="225">225</a>
+<a href="#226" id="226">226</a>
+<a href="#227" id="227">227</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::sync::Arc;
 
@@ -230,7 +233,7 @@
 </span><span class="kw">use </span>relay_config::RedisConfigRef;
 <span class="kw">use </span>relay_config::{Config, RelayMode};
 <span class="kw">use </span>relay_redis::RedisPool;
-<span class="kw">use </span>relay_system::{Addr, Service <span class="kw">as _</span>};
+<span class="kw">use </span>relay_system::{Addr, ServiceRunner};
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">use </span>tokio::sync::Semaphore;
 
@@ -264,15 +267,18 @@
 }
 
 <span class="kw">impl </span>ProjectSource {
-    <span class="doccomment">/// Starts all project source services in the current runtime.
-    </span><span class="kw">pub fn </span>start(
+    <span class="doccomment">/// Starts all project source services in the given `ServiceRunner`.
+    </span><span class="kw">pub fn </span>start_in(
+        runner: <span class="kw-2">&amp;mut </span>ServiceRunner,
         config: Arc&lt;Config&gt;,
         upstream_relay: Addr&lt;UpstreamRelay&gt;,
         _redis: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;,
     ) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span>local_source = LocalProjectSourceService::new(config.clone()).start();
-        <span class="kw">let </span>upstream_source =
-            UpstreamProjectSourceService::new(config.clone(), upstream_relay).start();
+        <span class="kw">let </span>local_source = runner.start(LocalProjectSourceService::new(config.clone()));
+        <span class="kw">let </span>upstream_source = runner.start(UpstreamProjectSourceService::new(
+            config.clone(),
+            upstream_relay,
+        ));
 
         <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
         </span><span class="kw">let </span>redis_max_connections = config

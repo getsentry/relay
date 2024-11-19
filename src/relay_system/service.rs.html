@@ -1113,6 +1113,40 @@
 <a href="#1113" id="1113">1113</a>
 <a href="#1114" id="1114">1114</a>
 <a href="#1115" id="1115">1115</a>
+<a href="#1116" id="1116">1116</a>
+<a href="#1117" id="1117">1117</a>
+<a href="#1118" id="1118">1118</a>
+<a href="#1119" id="1119">1119</a>
+<a href="#1120" id="1120">1120</a>
+<a href="#1121" id="1121">1121</a>
+<a href="#1122" id="1122">1122</a>
+<a href="#1123" id="1123">1123</a>
+<a href="#1124" id="1124">1124</a>
+<a href="#1125" id="1125">1125</a>
+<a href="#1126" id="1126">1126</a>
+<a href="#1127" id="1127">1127</a>
+<a href="#1128" id="1128">1128</a>
+<a href="#1129" id="1129">1129</a>
+<a href="#1130" id="1130">1130</a>
+<a href="#1131" id="1131">1131</a>
+<a href="#1132" id="1132">1132</a>
+<a href="#1133" id="1133">1133</a>
+<a href="#1134" id="1134">1134</a>
+<a href="#1135" id="1135">1135</a>
+<a href="#1136" id="1136">1136</a>
+<a href="#1137" id="1137">1137</a>
+<a href="#1138" id="1138">1138</a>
+<a href="#1139" id="1139">1139</a>
+<a href="#1140" id="1140">1140</a>
+<a href="#1141" id="1141">1141</a>
+<a href="#1142" id="1142">1142</a>
+<a href="#1143" id="1143">1143</a>
+<a href="#1144" id="1144">1144</a>
+<a href="#1145" id="1145">1145</a>
+<a href="#1146" id="1146">1146</a>
+<a href="#1147" id="1147">1147</a>
+<a href="#1148" id="1148">1148</a>
+<a href="#1149" id="1149">1149</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::future::Future;
 <span class="kw">use </span>std::marker::PhantomData;
@@ -1123,11 +1157,13 @@
 <span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span>futures::future::Shared;
-<span class="kw">use </span>futures::FutureExt;
-<span class="kw">use </span>tokio::runtime::Runtime;
+<span class="kw">use </span>futures::stream::FuturesUnordered;
+<span class="kw">use </span>futures::{FutureExt, StreamExt};
 <span class="kw">use </span>tokio::sync::{mpsc, oneshot};
+<span class="kw">use </span>tokio::task::JoinHandle;
 <span class="kw">use </span>tokio::time::MissedTickBehavior;
 
+<span class="kw">use </span><span class="kw">crate</span>::spawn;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::SystemGauges;
 
 <span class="doccomment">/// Interval for recording backlog metrics on service channels.
@@ -1933,7 +1969,7 @@
 ///
 /// This channel is meant to be polled in a [`Service`].
 ///
-/// Instances are created automatically when [spawning](Service::spawn_handler) a service, or can be
+/// Instances are created automatically when [spawning](ServiceRunner::start) a service, or can be
 /// created through [`channel`]. The channel closes when all associated [`Addr`]s are dropped.
 </span><span class="kw">pub struct </span>Receiver&lt;I: Interface&gt; {
     rx: mpsc::UnboundedReceiver&lt;I&gt;,
@@ -2018,7 +2054,7 @@
 /// Individual messages can have a response which will be sent once the message is handled by the
 /// service. The sender can asynchronously await the responses of such messages.
 ///
-/// To start a service, create an instance of the service and use [`Service::start`].
+/// To start a service, create a service runner and call [`ServiceRunner::start`].
 ///
 /// # Implementing Services
 ///
@@ -2027,7 +2063,7 @@
 /// synchronous, so that this needs to spawn at least one task internally:
 ///
 /// ```no_run
-/// use relay_system::{FromMessage, Interface, NoResponse, Receiver, Service};
+/// use relay_system::{FromMessage, Interface, NoResponse, Receiver, Service, ServiceRunner};
 ///
 /// struct MyMessage;
 ///
@@ -2046,16 +2082,14 @@
 /// impl Service for MyService {
 ///     type Interface = MyMessage;
 ///
-///     fn spawn_handler(self, mut rx: Receiver&lt;Self::Interface&gt;) {
-///         relay_system::spawn!(async move {
-///             while let Some(message) = rx.recv().await {
-///                 // handle the message
-///             }
-///         });
+///     async fn run(self, mut rx: Receiver&lt;Self::Interface&gt;) {
+///         while let Some(message) = rx.recv().await {
+///             // handle the message
+///         }
 ///     }
 /// }
 ///
-/// let addr = MyService.start();
+/// let addr = ServiceRunner::new().start(MyService);
 /// ```
 ///
 /// ## Debounce and Caching
@@ -2112,23 +2146,20 @@
     /// can be handled by this service.
     </span><span class="kw">type </span>Interface: Interface;
 
-    <span class="doccomment">/// Spawns a task to handle service messages.
+    <span class="doccomment">/// Defines the main task of this service.
     ///
-    /// Receives an inbound channel for all messages sent through the service's [`Addr`]. Note
-    /// that this function is synchronous, so that this needs to spawn a task internally.
-    </span><span class="kw">fn </span>spawn_handler(<span class="self">self</span>, rx: Receiver&lt;<span class="self">Self</span>::Interface&gt;);
+    /// `run` typically contains a loop that reads from `rx`, or a `select!` that reads
+    /// from multiple sources at once.
+    </span><span class="kw">fn </span>run(<span class="self">self</span>, rx: Receiver&lt;<span class="self">Self</span>::Interface&gt;) -&gt; <span class="kw">impl </span>Future&lt;Output = ()&gt; + Send + <span class="lifetime">'static</span>;
 
     <span class="doccomment">/// Starts the service in the current runtime and returns an address for it.
-    </span><span class="kw">fn </span>start(<span class="self">self</span>) -&gt; Addr&lt;<span class="self">Self</span>::Interface&gt; {
+    ///
+    /// The service runs in a detached tokio task that cannot be joined on. This is mainly useful
+    /// for tests.
+    </span><span class="kw">fn </span>start_detached(<span class="self">self</span>) -&gt; Addr&lt;<span class="self">Self</span>::Interface&gt; {
         <span class="kw">let </span>(addr, rx) = channel(<span class="self">Self</span>::name());
-        <span class="self">self</span>.spawn_handler(rx);
+        <span class="macro">spawn!</span>(<span class="self">self</span>.run(rx));
         addr
-    }
-
-    <span class="doccomment">/// Starts the service in the given runtime and returns an address for it.
-    </span><span class="kw">fn </span>start_in(<span class="self">self</span>, runtime: <span class="kw-2">&amp;</span>Runtime) -&gt; Addr&lt;<span class="self">Self</span>::Interface&gt; {
-        <span class="kw">let </span>_guard = runtime.enter();
-        <span class="self">self</span>.start()
     }
 
     <span class="doccomment">/// Returns a unique name for this service implementation.
@@ -2137,6 +2168,45 @@
     /// implementor by default.
     </span><span class="kw">fn </span>name() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         std::any::type_name::&lt;<span class="self">Self</span>&gt;()
+    }
+}
+
+<span class="doccomment">/// Keeps track of running services.
+///
+/// Exposes information about crashed services.
+</span><span class="attr">#[derive(Debug, Default)]
+</span><span class="kw">pub struct </span>ServiceRunner(FuturesUnordered&lt;JoinHandle&lt;()&gt;&gt;);
+
+<span class="kw">impl </span>ServiceRunner {
+    <span class="doccomment">/// Creates a new service runner.
+    </span><span class="kw">pub fn </span>new() -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>(FuturesUnordered::new())
+    }
+
+    <span class="doccomment">/// Starts a service and starts tracking its join handle, exposing an [Addr] for message passing.
+    </span><span class="kw">pub fn </span>start&lt;S: Service&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, service: S) -&gt; Addr&lt;S::Interface&gt; {
+        <span class="kw">let </span>(addr, rx) = channel(S::name());
+        <span class="self">self</span>.start_with(service, rx);
+        addr
+    }
+
+    <span class="doccomment">/// Starts a service and starts tracking its join handle, given a predefined receiver.
+    </span><span class="kw">pub fn </span>start_with&lt;S: Service&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, service: S, rx: Receiver&lt;S::Interface&gt;) {
+        <span class="self">self</span>.<span class="number">0</span>.push(<span class="macro">spawn!</span>(service.run(rx)));
+    }
+
+    <span class="doccomment">/// Awaits until all services have finished.
+    ///
+    /// Panics if one of the spawned services has panicked.
+    </span><span class="kw">pub async fn </span>join(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="kw">while let </span><span class="prelude-val">Some</span>(res) = <span class="self">self</span>.<span class="number">0</span>.next().<span class="kw">await </span>{
+            <span class="kw">if let </span><span class="prelude-val">Err</span>(e) = res {
+                <span class="kw">if </span>e.is_panic() {
+                    <span class="comment">// Re-trigger panic to terminate the process:
+                    </span>std::panic::resume_unwind(e.into_panic());
+                }
+            }
+        }
     }
 }
 
@@ -2161,12 +2231,10 @@
     <span class="kw">impl </span>Service <span class="kw">for </span>MockService {
         <span class="kw">type </span>Interface = MockMessage;
 
-        <span class="kw">fn </span>spawn_handler(<span class="self">self</span>, <span class="kw-2">mut </span>rx: Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
-            <span class="macro">crate::spawn!</span>(<span class="kw">async move </span>{
-                <span class="kw">while </span>rx.recv().<span class="kw">await</span>.is_some() {
-                    tokio::time::sleep(BACKLOG_INTERVAL * <span class="number">2</span>).<span class="kw">await</span>;
-                }
-            });
+        <span class="kw">async fn </span>run(<span class="self">self</span>, <span class="kw-2">mut </span>rx: Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
+            <span class="kw">while </span>rx.recv().<span class="kw">await</span>.is_some() {
+                tokio::time::sleep(BACKLOG_INTERVAL * <span class="number">2</span>).<span class="kw">await</span>;
+            }
         }
 
         <span class="kw">fn </span>name() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
@@ -2185,7 +2253,7 @@
         tokio::time::pause();
 
         <span class="comment">// Mock service takes 2 * BACKLOG_INTERVAL for every message
-        </span><span class="kw">let </span>addr = MockService.start();
+        </span><span class="kw">let </span>addr = MockService.start_detached();
 
         <span class="comment">// Advance the timer by a tiny offset to trigger the first metric emission.
         </span><span class="kw">let </span>captures = relay_statsd::with_capturing_test_client(|| {

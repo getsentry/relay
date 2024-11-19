@@ -312,6 +312,15 @@
 <a href="#312" id="312">312</a>
 <a href="#313" id="313">313</a>
 <a href="#314" id="314">314</a>
+<a href="#315" id="315">315</a>
+<a href="#316" id="316">316</a>
+<a href="#317" id="317">317</a>
+<a href="#318" id="318">318</a>
+<a href="#319" id="319">319</a>
+<a href="#320" id="320">320</a>
+<a href="#321" id="321">321</a>
+<a href="#322" id="322">322</a>
+<a href="#323" id="323">323</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! The Sentry relay server application.
 //!
 //! This module contains the [`run`] function which starts the relay server. It responds on
@@ -593,7 +602,7 @@
 <span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>relay_config::Config;
-<span class="kw">use </span>relay_system::{Controller, Service};
+<span class="kw">use </span>relay_system::Controller;
 
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 <span class="kw">use </span><span class="kw">crate</span>::services::server::HttpServer;
@@ -615,9 +624,18 @@
     // information on all services.
     </span>main_runtime.block_on(<span class="kw">async </span>{
         Controller::start(config.shutdown_timeout());
-        <span class="kw">let </span>service = ServiceState::start(config.clone())<span class="question-mark">?</span>;
-        HttpServer::new(config, service.clone())<span class="question-mark">?</span>.start();
-        Controller::shutdown_handle().finished().<span class="kw">await</span>;
+        <span class="kw">let </span>(state, <span class="kw-2">mut </span>runner) = ServiceState::start(config.clone())<span class="question-mark">?</span>;
+        runner.start(HttpServer::new(config, state.clone())<span class="question-mark">?</span>);
+
+        <span class="macro">tokio::select!</span> {
+            <span class="kw">_ </span>= runner.join() =&gt; {},
+            <span class="comment">// NOTE: when every service implements a shutdown listener,
+            // awaiting on `finished` becomes unnecessary: We can simply join() and guarantee
+            // that every service finished its main task.
+            // See also https://github.com/getsentry/relay/issues/4050.
+            </span><span class="kw">_ </span>= Controller::shutdown_handle().finished() =&gt; {}
+        }
+
         anyhow::Ok(())
     })<span class="question-mark">?</span>;
 

@@ -498,6 +498,15 @@
 <a href="#498" id="498">498</a>
 <a href="#499" id="499">499</a>
 <a href="#500" id="500">500</a>
+<a href="#501" id="501">501</a>
+<a href="#502" id="502">502</a>
+<a href="#503" id="503">503</a>
+<a href="#504" id="504">504</a>
+<a href="#505" id="505">505</a>
+<a href="#506" id="506">506</a>
+<a href="#507" id="507">507</a>
+<a href="#508" id="508">508</a>
+<a href="#509" id="509">509</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
@@ -531,7 +540,7 @@
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">use </span>relay_redis::{PooledClient, RedisScripts};
 <span class="kw">use </span>relay_redis::{RedisError, RedisPool, RedisPools};
-<span class="kw">use </span>relay_system::{channel, Addr, Service};
+<span class="kw">use </span>relay_system::{channel, Addr, Service, ServiceRunner};
 <span class="kw">use </span>tokio::runtime::Runtime;
 <span class="kw">use </span>tokio::sync::mpsc;
 
@@ -634,7 +643,6 @@
 </span><span class="kw">struct </span>StateInner {
     config: Arc&lt;Config&gt;,
     memory_checker: MemoryChecker,
-
     registry: Registry,
 }
 
@@ -646,9 +654,10 @@
 
 <span class="kw">impl </span>ServiceState {
     <span class="doccomment">/// Starts all services and returns addresses to all of them.
-    </span><span class="kw">pub fn </span>start(config: Arc&lt;Config&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>&gt; {
-        <span class="kw">let </span>upstream_relay = UpstreamRelayService::new(config.clone()).start();
-        <span class="kw">let </span>test_store = TestStoreService::new(config.clone()).start();
+    </span><span class="kw">pub fn </span>start(config: Arc&lt;Config&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(<span class="self">Self</span>, ServiceRunner)&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>runner = ServiceRunner::new();
+        <span class="kw">let </span>upstream_relay = runner.start(UpstreamRelayService::new(config.clone()));
+        <span class="kw">let </span>test_store = runner.start(TestStoreService::new(config.clone()));
 
         <span class="kw">let </span>redis_pools = config
             .redis()
@@ -673,13 +682,13 @@
         <span class="comment">// Create an address for the `EnvelopeProcessor`, which can be injected into the
         // other services.
         </span><span class="kw">let </span>(processor, processor_rx) = channel(EnvelopeProcessorService::name());
-        <span class="kw">let </span>outcome_producer = OutcomeProducerService::create(
+        <span class="kw">let </span>outcome_producer = runner.start(OutcomeProducerService::create(
             config.clone(),
             upstream_relay.clone(),
             processor.clone(),
-        )<span class="question-mark">?
-        </span>.start();
-        <span class="kw">let </span>outcome_aggregator = OutcomeAggregator::new(<span class="kw-2">&amp;</span>config, outcome_producer.clone()).start();
+        )<span class="question-mark">?</span>);
+        <span class="kw">let </span>outcome_aggregator =
+            runner.start(OutcomeAggregator::new(<span class="kw-2">&amp;</span>config, outcome_producer.clone()));
 
         <span class="kw">let </span>(global_config, global_config_rx) =
             GlobalConfigService::new(config.clone(), upstream_relay.clone());
@@ -687,12 +696,13 @@
         <span class="comment">// The global config service must start before dependant services are
         // started. Messages like subscription requests to the global config
         // service fail if the service is not running.
-        </span><span class="kw">let </span>global_config = global_config.start();
+        </span><span class="kw">let </span>global_config = runner.start(global_config);
 
         <span class="kw">let </span>(legacy_project_cache, legacy_project_cache_rx) =
             channel(legacy::ProjectCacheService::name());
 
-        <span class="kw">let </span>project_source = ProjectSource::start(
+        <span class="kw">let </span>project_source = ProjectSource::start_in(
+            <span class="kw-2">&amp;mut </span>runner,
             Arc::clone(<span class="kw-2">&amp;</span>config),
             upstream_relay.clone(),
             redis_pools
@@ -700,7 +710,7 @@
                 .map(|pools| pools.project_configs.clone()),
         );
         <span class="kw">let </span>project_cache_handle =
-            ProjectCacheService::new(Arc::clone(<span class="kw-2">&amp;</span>config), project_source).start();
+            ProjectCacheService::new(Arc::clone(<span class="kw-2">&amp;</span>config), project_source).start_in(<span class="kw-2">&amp;mut </span>runner);
 
         <span class="kw">let </span>aggregator = RouterService::new(
             config.default_aggregator_config().clone(),
@@ -708,7 +718,7 @@
             <span class="prelude-val">Some</span>(legacy_project_cache.clone().recipient()),
         );
         <span class="kw">let </span>aggregator_handle = aggregator.handle();
-        <span class="kw">let </span>aggregator = aggregator.start();
+        <span class="kw">let </span>aggregator = runner.start(aggregator);
 
         <span class="kw">let </span>metric_stats = MetricStats::new(
             config.clone(),
@@ -729,32 +739,34 @@
                     outcome_aggregator.clone(),
                     metric_outcomes.clone(),
                 )
-                .map(|s| s.start())
+                .map(|s| runner.start(s))
             })
             .transpose()<span class="question-mark">?</span>;
 
         <span class="kw">let </span>cogs = CogsService::new(<span class="kw-2">&amp;</span>config);
-        <span class="kw">let </span>cogs = Cogs::new(CogsServiceRecorder::new(<span class="kw-2">&amp;</span>config, cogs.start()));
+        <span class="kw">let </span>cogs = Cogs::new(CogsServiceRecorder::new(<span class="kw-2">&amp;</span>config, runner.start(cogs)));
 
-        EnvelopeProcessorService::new(
-            create_processor_pool(<span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>,
-            config.clone(),
-            global_config_handle,
-            project_cache_handle.clone(),
-            cogs,
-            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-            </span>redis_pools.clone(),
-            processor::Addrs {
-                outcome_aggregator: outcome_aggregator.clone(),
-                upstream_relay: upstream_relay.clone(),
-                test_store: test_store.clone(),
+        runner.start_with(
+            EnvelopeProcessorService::new(
+                create_processor_pool(<span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>,
+                config.clone(),
+                global_config_handle,
+                project_cache_handle.clone(),
+                cogs,
                 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-                </span>store_forwarder: store.clone(),
-                aggregator: aggregator.clone(),
-            },
-            metric_outcomes.clone(),
-        )
-        .spawn_handler(processor_rx);
+                </span>redis_pools.clone(),
+                processor::Addrs {
+                    outcome_aggregator: outcome_aggregator.clone(),
+                    upstream_relay: upstream_relay.clone(),
+                    test_store: test_store.clone(),
+                    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+                    </span>store_forwarder: store.clone(),
+                    aggregator: aggregator.clone(),
+                },
+                metric_outcomes.clone(),
+            ),
+            processor_rx,
+        );
 
         <span class="kw">let </span>(envelopes_tx, envelopes_rx) = mpsc::channel(config.spool_max_backpressure_envelopes());
         <span class="kw">let </span>envelope_buffer = EnvelopeBufferService::new(
@@ -768,7 +780,7 @@
                 test_store: test_store.clone(),
             },
         )
-        .map(|b| b.start_observable());
+        .map(|b| b.start_in(<span class="kw-2">&amp;mut </span>runner));
 
         <span class="comment">// Keep all the services in one context.
         </span><span class="kw">let </span>project_cache_services = legacy::Services {
@@ -780,34 +792,37 @@
             test_store: test_store.clone(),
         };
 
-        legacy::ProjectCacheService::new(
-            config.clone(),
-            MemoryChecker::new(memory_stat.clone(), config.clone()),
-            project_cache_handle.clone(),
-            project_cache_services,
-            global_config_rx,
-            envelopes_rx,
-        )
-        .spawn_handler(legacy_project_cache_rx);
+        runner.start_with(
+            legacy::ProjectCacheService::new(
+                config.clone(),
+                MemoryChecker::new(memory_stat.clone(), config.clone()),
+                project_cache_handle.clone(),
+                project_cache_services,
+                global_config_rx,
+                envelopes_rx,
+            ),
+            legacy_project_cache_rx,
+        );
 
-        <span class="kw">let </span>health_check = HealthCheckService::new(
+        <span class="kw">let </span>health_check = runner.start(HealthCheckService::new(
             config.clone(),
             MemoryChecker::new(memory_stat.clone(), config.clone()),
             aggregator_handle,
             upstream_relay.clone(),
             envelope_buffer.clone(),
-        )
-        .start();
+        ));
 
-        RelayStats::new(
+        runner.start(RelayStats::new(
             config.clone(),
             upstream_relay.clone(),
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>redis_pools.clone(),
-        )
-        .start();
+        ));
 
-        <span class="kw">let </span>relay_cache = RelayCacheService::new(config.clone(), upstream_relay.clone()).start();
+        <span class="kw">let </span>relay_cache = runner.start(RelayCacheService::new(
+            config.clone(),
+            upstream_relay.clone(),
+        ));
 
         <span class="kw">let </span>registry = Registry {
             processor,
@@ -829,9 +844,12 @@
             registry,
         };
 
-        <span class="prelude-val">Ok</span>(ServiceState {
-            inner: Arc::new(state),
-        })
+        <span class="prelude-val">Ok</span>((
+            ServiceState {
+                inner: Arc::new(state),
+            },
+            runner,
+        ))
     }
 
     <span class="doccomment">/// Returns a reference to the Relay configuration.

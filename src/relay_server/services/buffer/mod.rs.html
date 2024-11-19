@@ -751,16 +751,6 @@
 <a href="#751" id="751">751</a>
 <a href="#752" id="752">752</a>
 <a href="#753" id="753">753</a>
-<a href="#754" id="754">754</a>
-<a href="#755" id="755">755</a>
-<a href="#756" id="756">756</a>
-<a href="#757" id="757">757</a>
-<a href="#758" id="758">758</a>
-<a href="#759" id="759">759</a>
-<a href="#760" id="760">760</a>
-<a href="#761" id="761">761</a>
-<a href="#762" id="762">762</a>
-<a href="#763" id="763">763</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Types for buffering envelopes.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -773,6 +763,7 @@
 <span class="kw">use </span>chrono::Utc;
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
 <span class="kw">use </span>relay_config::Config;
+<span class="kw">use </span>relay_system::ServiceRunner;
 <span class="kw">use </span>relay_system::{Addr, FromMessage, Interface, NoResponse, Receiver, Service};
 <span class="kw">use </span>relay_system::{Controller, Shutdown};
 <span class="kw">use </span>tokio::sync::mpsc::Permit;
@@ -907,12 +898,11 @@
     }
 
     <span class="doccomment">/// Returns both the [`Addr`] to this service, and a reference to the capacity flag.
-    </span><span class="kw">pub fn </span>start_observable(<span class="self">self</span>) -&gt; ObservableEnvelopeBuffer {
+    </span><span class="kw">pub fn </span>start_in(<span class="self">self</span>, runner: <span class="kw-2">&amp;mut </span>ServiceRunner) -&gt; ObservableEnvelopeBuffer {
         <span class="kw">let </span>has_capacity = <span class="self">self</span>.has_capacity.clone();
-        ObservableEnvelopeBuffer {
-            addr: <span class="self">self</span>.start(),
-            has_capacity,
-        }
+
+        <span class="kw">let </span>addr = runner.start(<span class="self">self</span>);
+        ObservableEnvelopeBuffer { addr, has_capacity }
     }
 
     <span class="doccomment">/// Wait for the configured amount of time and make sure the project cache is ready to receive.
@@ -1141,7 +1131,7 @@
 <span class="kw">impl </span>Service <span class="kw">for </span>EnvelopeBufferService {
     <span class="kw">type </span>Interface = EnvelopeBuffer;
 
-    <span class="kw">fn </span>spawn_handler(<span class="kw-2">mut </span><span class="self">self</span>, <span class="kw-2">mut </span>rx: Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
+    <span class="kw">async fn </span>run(<span class="kw-2">mut </span><span class="self">self</span>, <span class="kw-2">mut </span>rx: Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
         <span class="kw">let </span>config = <span class="self">self</span>.config.clone();
         <span class="kw">let </span>memory_checker = MemoryChecker::new(<span class="self">self</span>.memory_stat.clone(), config.clone());
         <span class="kw">let </span><span class="kw-2">mut </span>global_config_rx = <span class="self">self</span>.global_config_rx.clone();
@@ -1150,81 +1140,14 @@
         <span class="kw">let </span>dequeue = Arc::&lt;AtomicBool&gt;::new(<span class="bool-val">true</span>.into());
         <span class="kw">let </span>dequeue1 = dequeue.clone();
 
-        <span class="macro">relay_system::spawn!</span>(<span class="kw">async move </span>{
-            <span class="kw">let </span>buffer = PolymorphicEnvelopeBuffer::from_config(<span class="kw-2">&amp;</span>config, memory_checker).<span class="kw">await</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>buffer = PolymorphicEnvelopeBuffer::from_config(<span class="kw-2">&amp;</span>config, memory_checker)
+            .<span class="kw">await
+            </span>.expect(<span class="string">"failed to start the envelope buffer service"</span>);
 
-            <span class="kw">let </span><span class="kw-2">mut </span>buffer = <span class="kw">match </span>buffer {
-                <span class="prelude-val">Ok</span>(buffer) =&gt; buffer,
-                <span class="prelude-val">Err</span>(error) =&gt; {
-                    <span class="macro">relay_log::error!</span>(
-                        error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
-                        <span class="string">"failed to start the envelope buffer service"</span>,
-                    );
-                    std::process::exit(<span class="number">1</span>);
-                }
-            };
-            buffer.initialize().<span class="kw">await</span>;
+        buffer.initialize().<span class="kw">await</span>;
 
-            <span class="kw">let </span><span class="kw-2">mut </span>shutdown = Controller::shutdown_handle();
-            <span class="kw">let </span><span class="kw-2">mut </span>project_changes = <span class="self">self</span>.services.project_cache_handle.changes();
-
-            <span class="macro">relay_log::info!</span>(<span class="string">"EnvelopeBufferService: starting"</span>);
-            <span class="kw">loop </span>{
-                <span class="kw">let </span>used_capacity = <span class="self">self</span>.services.envelopes_tx.max_capacity()
-                    - <span class="self">self</span>.services.envelopes_tx.capacity();
-                <span class="macro">relay_statsd::metric!</span>(
-                    histogram(RelayHistograms::BufferBackpressureEnvelopesCount) =
-                        used_capacity <span class="kw">as </span>u64
-                );
-
-                <span class="kw">let </span><span class="kw-2">mut </span>sleep = Duration::MAX;
-                <span class="macro">tokio::select!</span> {
-                    <span class="comment">// NOTE: we do not select a bias here.
-                    // On the one hand, we might want to prioritize dequeuing over enqueuing
-                    // so we do not exceed the buffer capacity by starving the dequeue.
-                    // on the other hand, prioritizing old messages violates the LIFO design.
-                    </span><span class="prelude-val">Some</span>(permit) = <span class="self">self</span>.ready_to_pop(<span class="kw-2">&amp;</span>buffer, dequeue.load(Ordering::Relaxed)) =&gt; {
-                        <span class="kw">match </span><span class="self">Self</span>::try_pop(<span class="kw-2">&amp;</span>config, <span class="kw-2">&amp;mut </span>buffer, <span class="kw-2">&amp;</span>services, permit).<span class="kw">await </span>{
-                            <span class="prelude-val">Ok</span>(new_sleep) =&gt; {
-                                sleep = new_sleep;
-                            }
-                            <span class="prelude-val">Err</span>(error) =&gt; {
-                                <span class="macro">relay_log::error!</span>(
-                                error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
-                                <span class="string">"failed to pop envelope"
-                            </span>);
-                            }
-                        }
-                    }
-                    change = project_changes.recv() =&gt; {
-                        <span class="kw">if let </span><span class="prelude-val">Ok</span>(ProjectChange::Ready(project_key)) = change {
-                            buffer.mark_ready(<span class="kw-2">&amp;</span>project_key, <span class="bool-val">true</span>);
-                        }
-                        sleep = Duration::ZERO;
-                    }
-                    <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; {
-                        <span class="self">Self</span>::handle_message(<span class="kw-2">&amp;mut </span>buffer, <span class="kw-2">&amp;</span>services, message).<span class="kw">await</span>;
-                        sleep = Duration::ZERO;
-                    }
-                    shutdown = shutdown.notified() =&gt; {
-                        <span class="comment">// In case the shutdown was handled, we break out of the loop signaling that
-                        // there is no need to process anymore envelopes.
-                        </span><span class="kw">if </span><span class="self">Self</span>::handle_shutdown(<span class="kw-2">&amp;mut </span>buffer, shutdown).<span class="kw">await </span>{
-                            <span class="kw">break</span>;
-                        }
-                    }
-                    <span class="prelude-val">Ok</span>(()) = global_config_rx.changed() =&gt; {
-                        sleep = Duration::ZERO;
-                    }
-                    <span class="kw">else </span>=&gt; <span class="kw">break</span>,
-                }
-
-                <span class="self">self</span>.sleep = sleep;
-                <span class="self">self</span>.update_observable_state(<span class="kw-2">&amp;mut </span>buffer);
-            }
-
-            <span class="macro">relay_log::info!</span>(<span class="string">"EnvelopeBufferService: stopping"</span>);
-        });
+        <span class="kw">let </span><span class="kw-2">mut </span>shutdown = Controller::shutdown_handle();
+        <span class="kw">let </span><span class="kw-2">mut </span>project_changes = <span class="self">self</span>.services.project_cache_handle.changes();
 
         <span class="attr">#[cfg(unix)]
         </span><span class="macro">relay_system::spawn!</span>(<span class="kw">async move </span>{
@@ -1238,6 +1161,62 @@
                 <span class="macro">relay_log::info!</span>(<span class="string">"SIGUSR1 receive, dequeue={}"</span>, deq);
             }
         });
+
+        <span class="macro">relay_log::info!</span>(<span class="string">"EnvelopeBufferService: starting"</span>);
+        <span class="kw">loop </span>{
+            <span class="kw">let </span>used_capacity =
+                <span class="self">self</span>.services.envelopes_tx.max_capacity() - <span class="self">self</span>.services.envelopes_tx.capacity();
+            <span class="macro">relay_statsd::metric!</span>(
+                histogram(RelayHistograms::BufferBackpressureEnvelopesCount) = used_capacity <span class="kw">as </span>u64
+            );
+
+            <span class="kw">let </span><span class="kw-2">mut </span>sleep = Duration::MAX;
+            <span class="macro">tokio::select!</span> {
+                <span class="comment">// NOTE: we do not select a bias here.
+                // On the one hand, we might want to prioritize dequeuing over enqueuing
+                // so we do not exceed the buffer capacity by starving the dequeue.
+                // on the other hand, prioritizing old messages violates the LIFO design.
+                </span><span class="prelude-val">Some</span>(permit) = <span class="self">self</span>.ready_to_pop(<span class="kw-2">&amp;</span>buffer, dequeue.load(Ordering::Relaxed)) =&gt; {
+                    <span class="kw">match </span><span class="self">Self</span>::try_pop(<span class="kw-2">&amp;</span>config, <span class="kw-2">&amp;mut </span>buffer, <span class="kw-2">&amp;</span>services, permit).<span class="kw">await </span>{
+                        <span class="prelude-val">Ok</span>(new_sleep) =&gt; {
+                            sleep = new_sleep;
+                        }
+                        <span class="prelude-val">Err</span>(error) =&gt; {
+                            <span class="macro">relay_log::error!</span>(
+                            error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
+                            <span class="string">"failed to pop envelope"
+                        </span>);
+                        }
+                    }
+                }
+                change = project_changes.recv() =&gt; {
+                    <span class="kw">if let </span><span class="prelude-val">Ok</span>(ProjectChange::Ready(project_key)) = change {
+                        buffer.mark_ready(<span class="kw-2">&amp;</span>project_key, <span class="bool-val">true</span>);
+                    }
+                    sleep = Duration::ZERO;
+                }
+                <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; {
+                    <span class="self">Self</span>::handle_message(<span class="kw-2">&amp;mut </span>buffer, <span class="kw-2">&amp;</span>services, message).<span class="kw">await</span>;
+                    sleep = Duration::ZERO;
+                }
+                shutdown = shutdown.notified() =&gt; {
+                    <span class="comment">// In case the shutdown was handled, we break out of the loop signaling that
+                    // there is no need to process anymore envelopes.
+                    </span><span class="kw">if </span><span class="self">Self</span>::handle_shutdown(<span class="kw-2">&amp;mut </span>buffer, shutdown).<span class="kw">await </span>{
+                        <span class="kw">break</span>;
+                    }
+                }
+                <span class="prelude-val">Ok</span>(()) = global_config_rx.changed() =&gt; {
+                    sleep = Duration::ZERO;
+                }
+                <span class="kw">else </span>=&gt; <span class="kw">break</span>,
+            }
+
+            <span class="self">self</span>.sleep = sleep;
+            <span class="self">self</span>.update_observable_state(<span class="kw-2">&amp;mut </span>buffer);
+        }
+
+        <span class="macro">relay_log::info!</span>(<span class="string">"EnvelopeBufferService: stopping"</span>);
     }
 }
 
@@ -1319,7 +1298,8 @@
 
         service.has_capacity.store(<span class="bool-val">false</span>, Ordering::Relaxed);
 
-        <span class="kw">let </span>ObservableEnvelopeBuffer { has_capacity, .. } = service.start_observable();
+        <span class="kw">let </span>ObservableEnvelopeBuffer { has_capacity, .. } =
+            service.start_in(<span class="kw-2">&amp;mut </span>ServiceRunner::new());
         <span class="macro">assert!</span>(!has_capacity.load(Ordering::Relaxed));
 
         tokio::time::advance(Duration::from_millis(<span class="number">100</span>)).<span class="kw">await</span>;
@@ -1343,7 +1323,7 @@
             ..
         } = envelope_buffer_service(<span class="prelude-val">None</span>, global_config::Status::Pending);
 
-        <span class="kw">let </span>addr = service.start();
+        <span class="kw">let </span>addr = service.start_detached();
 
         <span class="kw">let </span>envelope = new_envelope(<span class="bool-val">false</span>, <span class="string">"foo"</span>);
         <span class="kw">let </span>project_key = envelope.meta().public_key();
@@ -1387,7 +1367,7 @@
             global_config::Status::Ready(Arc::new(GlobalConfig::default())),
         );
 
-        <span class="kw">let </span>addr = service.start();
+        <span class="kw">let </span>addr = service.start_detached();
 
         <span class="kw">let </span>envelope = new_envelope(<span class="bool-val">false</span>, <span class="string">"foo"</span>);
         <span class="kw">let </span>project_key = envelope.meta().public_key();
@@ -1420,7 +1400,7 @@
         );
 
         <span class="kw">let </span>config = service.config.clone();
-        <span class="kw">let </span>addr = service.start();
+        <span class="kw">let </span>addr = service.start_detached();
 
         tokio::time::sleep(Duration::from_millis(<span class="number">100</span>)).<span class="kw">await</span>;
 
@@ -1453,7 +1433,7 @@
             global_config::Status::Ready(Arc::new(GlobalConfig::default())),
         );
 
-        <span class="kw">let </span>addr = service.start();
+        <span class="kw">let </span>addr = service.start_detached();
 
         <span class="kw">let </span>envelope = new_envelope(<span class="bool-val">false</span>, <span class="string">"foo"</span>);
         <span class="kw">let </span>project_key = envelope.meta().public_key();
@@ -1488,7 +1468,7 @@
             global_config::Status::Ready(Arc::new(GlobalConfig::default())),
         );
 
-        <span class="kw">let </span>addr = service.start();
+        <span class="kw">let </span>addr = service.start_detached();
 
         <span class="kw">let </span>envelope = new_envelope(<span class="bool-val">false</span>, <span class="string">"foo"</span>);
         <span class="kw">let </span>project_key = envelope.meta().public_key();

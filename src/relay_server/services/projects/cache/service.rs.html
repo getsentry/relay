@@ -226,8 +226,6 @@
 <a href="#226" id="226">226</a>
 <a href="#227" id="227">227</a>
 <a href="#228" id="228">228</a>
-<a href="#229" id="229">229</a>
-<a href="#230" id="230">230</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>futures::future::BoxFuture;
@@ -235,7 +233,7 @@
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_statsd::metric;
-<span class="kw">use </span>relay_system::Service;
+<span class="kw">use </span>relay_system::{Service, ServiceRunner};
 <span class="kw">use </span>tokio::sync::broadcast;
 
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::cache::handle::ProjectCacheHandle;
@@ -321,7 +319,7 @@
     <span class="doccomment">/// Consumes and starts a [`ProjectCacheService`].
     ///
     /// Returns a [`ProjectCacheHandle`] to access the cache concurrently.
-    </span><span class="kw">pub fn </span>start(<span class="self">self</span>) -&gt; ProjectCacheHandle {
+    </span><span class="kw">pub fn </span>start_in(<span class="self">self</span>, runner: <span class="kw-2">&amp;mut </span>ServiceRunner) -&gt; ProjectCacheHandle {
         <span class="kw">let </span>(addr, addr_rx) = relay_system::channel(<span class="self">Self</span>::name());
 
         <span class="kw">let </span>handle = ProjectCacheHandle {
@@ -331,7 +329,7 @@
             project_changes: <span class="self">self</span>.project_events_tx.clone(),
         };
 
-        <span class="self">self</span>.spawn_handler(addr_rx);
+        runner.start_with(<span class="self">self</span>, addr_rx);
 
         handle
     }
@@ -424,7 +422,7 @@
 <span class="kw">impl </span>relay_system::Service <span class="kw">for </span>ProjectCacheService {
     <span class="kw">type </span>Interface = ProjectCache;
 
-    <span class="kw">fn </span>spawn_handler(<span class="kw-2">mut </span><span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
+    <span class="kw">async fn </span>run(<span class="kw-2">mut </span><span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
         <span class="macro">macro_rules!</span> timed {
             (<span class="macro-nonterminal">$task</span>:expr, <span class="macro-nonterminal">$body</span>:expr) =&gt; {{
                 <span class="kw">let </span>task_name = <span class="macro-nonterminal">$task</span>;
@@ -436,26 +434,24 @@
             }};
         }
 
-        <span class="macro">relay_system::spawn!</span>(<span class="kw">async move </span>{
-            <span class="kw">loop </span>{
-                <span class="macro">tokio::select!</span> {
-                    biased;
+        <span class="kw">loop </span>{
+            <span class="macro">tokio::select!</span> {
+                biased;
 
-                    <span class="prelude-val">Some</span>(fetch) = <span class="self">self</span>.scheduled_fetches.next() =&gt; <span class="macro">timed!</span>(
-                        <span class="string">"completed_fetch"</span>,
-                        <span class="self">self</span>.handle_completed_fetch(fetch)
-                    ),
-                    <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; <span class="macro">timed!</span>(
-                        message.variant(),
-                        <span class="self">self</span>.handle_message(message)
-                    ),
-                    <span class="prelude-val">Some</span>(eviction) = <span class="self">self</span>.store.next_eviction() =&gt; <span class="macro">timed!</span>(
-                        <span class="string">"eviction"</span>,
-                        <span class="self">self</span>.handle_eviction(eviction)
-                    ),
-                }
+                <span class="prelude-val">Some</span>(fetch) = <span class="self">self</span>.scheduled_fetches.next() =&gt; <span class="macro">timed!</span>(
+                    <span class="string">"completed_fetch"</span>,
+                    <span class="self">self</span>.handle_completed_fetch(fetch)
+                ),
+                <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; <span class="macro">timed!</span>(
+                    message.variant(),
+                    <span class="self">self</span>.handle_message(message)
+                ),
+                <span class="prelude-val">Some</span>(eviction) = <span class="self">self</span>.store.next_eviction() =&gt; <span class="macro">timed!</span>(
+                    <span class="string">"eviction"</span>,
+                    <span class="self">self</span>.handle_eviction(eviction)
+                ),
             }
-        });
+        }
     }
 }
 </code></pre></div></section></main></body></html>

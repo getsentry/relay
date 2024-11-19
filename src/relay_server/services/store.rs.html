@@ -1608,8 +1608,6 @@
 <a href="#1608" id="1608">1608</a>
 <a href="#1609" id="1609">1609</a>
 <a href="#1610" id="1610">1610</a>
-<a href="#1611" id="1611">1611</a>
-<a href="#1612" id="1612">1612</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses Kafka topics to forward data to Sentry
 
@@ -2660,21 +2658,19 @@
 <span class="kw">impl </span>Service <span class="kw">for </span>StoreService {
     <span class="kw">type </span>Interface = Store;
 
-    <span class="kw">fn </span>spawn_handler(<span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
+    <span class="kw">async fn </span>run(<span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
         <span class="kw">let </span>this = Arc::new(<span class="self">self</span>);
 
-        <span class="macro">relay_system::spawn!</span>(<span class="kw">async move </span>{
-            <span class="macro">relay_log::info!</span>(<span class="string">"store forwarder started"</span>);
+        <span class="macro">relay_log::info!</span>(<span class="string">"store forwarder started"</span>);
 
-            <span class="kw">while let </span><span class="prelude-val">Some</span>(message) = rx.recv().<span class="kw">await </span>{
-                <span class="kw">let </span>service = Arc::clone(<span class="kw-2">&amp;</span>this);
-                this.workers
-                    .spawn(<span class="kw">move </span>|| service.handle_message(message))
-                    .<span class="kw">await</span>;
-            }
+        <span class="kw">while let </span><span class="prelude-val">Some</span>(message) = rx.recv().<span class="kw">await </span>{
+            <span class="kw">let </span>service = Arc::clone(<span class="kw-2">&amp;</span>this);
+            this.workers
+                .spawn(<span class="kw">move </span>|| service.handle_message(message))
+                .<span class="kw">await</span>;
+        }
 
-            <span class="macro">relay_log::info!</span>(<span class="string">"store forwarder stopped"</span>);
-        });
+        <span class="macro">relay_log::info!</span>(<span class="string">"store forwarder stopped"</span>);
     }
 }
 

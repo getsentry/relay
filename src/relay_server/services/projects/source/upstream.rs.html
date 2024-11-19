@@ -733,7 +733,6 @@
 <a href="#733" id="733">733</a>
 <a href="#734" id="734">734</a>
 <a href="#735" id="735">735</a>
-<a href="#736" id="736">736</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::hash_map::Entry;
 <span class="kw">use </span>std::collections::HashMap;
@@ -1371,22 +1370,20 @@
 <span class="kw">impl </span>Service <span class="kw">for </span>UpstreamProjectSourceService {
     <span class="kw">type </span>Interface = UpstreamProjectSource;
 
-    <span class="kw">fn </span>spawn_handler(<span class="kw-2">mut </span><span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
-        <span class="macro">relay_system::spawn!</span>(<span class="kw">async move </span>{
-            <span class="macro">relay_log::info!</span>(<span class="string">"project upstream cache started"</span>);
-            <span class="kw">loop </span>{
-                <span class="macro">tokio::select!</span> {
-                    biased;
+    <span class="kw">async fn </span>run(<span class="kw-2">mut </span><span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
+        <span class="macro">relay_log::info!</span>(<span class="string">"project upstream cache started"</span>);
+        <span class="kw">loop </span>{
+            <span class="macro">tokio::select!</span> {
+                biased;
 
-                    () = <span class="kw-2">&amp;mut </span><span class="self">self</span>.fetch_handle =&gt; <span class="self">self</span>.do_fetch(),
-                    <span class="prelude-val">Some</span>(responses) = <span class="self">self</span>.inner_rx.recv() =&gt; <span class="self">self</span>.handle_responses(responses),
-                    <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; <span class="self">self</span>.handle_message(message),
+                () = <span class="kw-2">&amp;mut </span><span class="self">self</span>.fetch_handle =&gt; <span class="self">self</span>.do_fetch(),
+                <span class="prelude-val">Some</span>(responses) = <span class="self">self</span>.inner_rx.recv() =&gt; <span class="self">self</span>.handle_responses(responses),
+                <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; <span class="self">self</span>.handle_message(message),
 
-                    <span class="kw">else </span>=&gt; <span class="kw">break</span>,
-                }
+                <span class="kw">else </span>=&gt; <span class="kw">break</span>,
             }
-            <span class="macro">relay_log::info!</span>(<span class="string">"project upstream cache stopped"</span>);
-        });
+        }
+        <span class="macro">relay_log::info!</span>(<span class="string">"project upstream cache stopped"</span>);
     }
 }
 
@@ -1424,7 +1421,8 @@
             }};
         }
 
-        <span class="kw">let </span>service = UpstreamProjectSourceService::new(Arc::clone(<span class="kw-2">&amp;</span>config), upstream_addr).start();
+        <span class="kw">let </span>service =
+            UpstreamProjectSourceService::new(Arc::clone(<span class="kw-2">&amp;</span>config), upstream_addr).start_detached();
 
         <span class="kw">let </span><span class="kw-2">mut </span>response1 = service.send(FetchProjectState {
             project_key,

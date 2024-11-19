@@ -158,8 +158,6 @@
 <a href="#158" id="158">158</a>
 <a href="#159" id="159">159</a>
 <a href="#160" id="160">160</a>
-<a href="#161" id="161">161</a>
-<a href="#162" id="162">162</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the outcomes aggregator, which collects similar outcomes into groups
 //! and flushed them periodically.
 
@@ -300,26 +298,24 @@
 <span class="kw">impl </span>Service <span class="kw">for </span>OutcomeAggregator {
     <span class="kw">type </span>Interface = TrackOutcome;
 
-    <span class="kw">fn </span>spawn_handler(<span class="kw-2">mut </span><span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
-        <span class="macro">relay_system::spawn!</span>(<span class="kw">async move </span>{
-            <span class="kw">let </span><span class="kw-2">mut </span>shutdown = Controller::shutdown_handle();
-            <span class="macro">relay_log::info!</span>(<span class="string">"outcome aggregator started"</span>);
+    <span class="kw">async fn </span>run(<span class="kw-2">mut </span><span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
+        <span class="kw">let </span><span class="kw-2">mut </span>shutdown = Controller::shutdown_handle();
+        <span class="macro">relay_log::info!</span>(<span class="string">"outcome aggregator started"</span>);
 
-            <span class="kw">loop </span>{
-                <span class="macro">tokio::select!</span> {
-                    <span class="comment">// Prioritize flush over receiving messages to prevent starving. Shutdown can be
-                    // last since it is not vital if there are still messages in the channel.
-                    </span>biased;
+        <span class="kw">loop </span>{
+            <span class="macro">tokio::select!</span> {
+                <span class="comment">// Prioritize flush over receiving messages to prevent starving. Shutdown can be
+                // last since it is not vital if there are still messages in the channel.
+                </span>biased;
 
-                    () = <span class="kw-2">&amp;mut </span><span class="self">self</span>.flush_handle =&gt; <span class="self">self</span>.flush(),
-                    <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; <span class="self">self</span>.handle_track_outcome(message),
-                    shutdown = shutdown.notified() =&gt; <span class="self">self</span>.handle_shutdown(shutdown),
-                    <span class="kw">else </span>=&gt; <span class="kw">break</span>,
-                }
+                () = <span class="kw-2">&amp;mut </span><span class="self">self</span>.flush_handle =&gt; <span class="self">self</span>.flush(),
+                <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; <span class="self">self</span>.handle_track_outcome(message),
+                shutdown = shutdown.notified() =&gt; <span class="self">self</span>.handle_shutdown(shutdown),
+                <span class="kw">else </span>=&gt; <span class="kw">break</span>,
             }
+        }
 
-            <span class="macro">relay_log::info!</span>(<span class="string">"outcome aggregator stopped"</span>);
-        });
+        <span class="macro">relay_log::info!</span>(<span class="string">"outcome aggregator stopped"</span>);
     }
 }
 </code></pre></div></section></main></body></html>

@@ -971,6 +971,7 @@
 <a href="#971" id="971">971</a>
 <a href="#972" id="972">972</a>
 <a href="#973" id="973">973</a>
+<a href="#974" id="974">974</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
@@ -1653,7 +1654,7 @@
 <span class="kw">impl </span>Service <span class="kw">for </span>ProjectCacheService {
     <span class="kw">type </span>Interface = ProjectCache;
 
-    <span class="kw">fn </span>spawn_handler(<span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
+    <span class="kw">async fn </span>run(<span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
         <span class="kw">let </span><span class="self">Self </span>{
             config,
             memory_checker,
@@ -1667,120 +1668,121 @@
         <span class="kw">let </span>outcome_aggregator = services.outcome_aggregator.clone();
         <span class="kw">let </span>test_store = services.test_store.clone();
 
-        <span class="macro">relay_system::spawn!</span>(<span class="kw">async move </span>{
-            <span class="macro">relay_log::info!</span>(<span class="string">"project cache started"</span>);
+        <span class="macro">relay_log::info!</span>(<span class="string">"project cache started"</span>);
 
-            <span class="kw">let </span>global_config = <span class="kw">match </span>global_config_rx.borrow().clone() {
-                global_config::Status::Ready(<span class="kw">_</span>) =&gt; {
-                    <span class="macro">relay_log::info!</span>(<span class="string">"global config received"</span>);
-                    GlobalConfigStatus::Ready
-                }
-                global_config::Status::Pending =&gt; {
-                    <span class="macro">relay_log::info!</span>(<span class="string">"waiting for global config"</span>);
-                    GlobalConfigStatus::Pending
-                }
-            };
-
-            <span class="kw">let </span>(buffer_tx, <span class="kw-2">mut </span>buffer_rx) = mpsc::unbounded_channel();
-            <span class="kw">let </span>spool_v1 = <span class="kw">match </span>config.spool_v2() {
-                <span class="bool-val">true </span>=&gt; <span class="prelude-val">None</span>,
-                <span class="bool-val">false </span>=&gt; <span class="prelude-val">Some</span>({
-                    <span class="comment">// Channel for envelope buffering.
-                    </span><span class="kw">let </span>buffer_services = spooler::Services {
-                        outcome_aggregator,
-                        project_cache,
-                        test_store,
-                    };
-                    <span class="kw">let </span>buffer = <span class="kw">match </span>BufferService::create(
-                        memory_checker.clone(),
-                        buffer_services,
-                        config.clone(),
-                    )
-                    .<span class="kw">await
-                    </span>{
-                        <span class="prelude-val">Ok</span>(buffer) =&gt; buffer.start(),
-                        <span class="prelude-val">Err</span>(err) =&gt; {
-                            <span class="macro">relay_log::error!</span>(
-                                error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
-                                <span class="string">"failed to start buffer service"</span>,
-                            );
-                            <span class="comment">// NOTE: The process will exit with error if the buffer file could not be
-                            // opened or the migrations could not be run.
-                            </span>std::process::exit(<span class="number">1</span>);
-                        }
-                    };
-
-                    <span class="comment">// Request the existing index from the spooler.
-                    </span>buffer.send(RestoreIndex);
-
-                    SpoolV1 {
-                        buffer_tx,
-                        index: HashSet::new(),
-                        buffer_unspool_backoff: RetryBackoff::new(config.http_max_retry_interval()),
-                        buffer,
-                    }
-                }),
-            };
-
-            <span class="kw">let </span><span class="kw-2">mut </span>broker = ProjectCacheBroker {
-                config: config.clone(),
-                memory_checker,
-                projects: project_cache_handle,
-                services,
-                spool_v1_unspool_handle: SleepHandle::idle(),
-                spool_v1,
-                global_config,
-            };
-
-            <span class="kw">loop </span>{
-                <span class="macro">tokio::select!</span> {
-                    biased;
-
-                    <span class="prelude-val">Ok</span>(()) = global_config_rx.changed() =&gt; {
-                        <span class="macro">metric!</span>(timer(RelayTimers::LegacyProjectCacheTaskDuration), task = <span class="string">"update_global_config"</span>, {
-                            <span class="kw">match </span>global_config_rx.borrow().clone() {
-                                global_config::Status::Ready(<span class="kw">_</span>) =&gt; broker.set_global_config_ready(),
-                                <span class="comment">// The watch should only be updated if it gets a new value.
-                                // This would imply a logical bug.
-                                </span>global_config::Status::Pending =&gt; <span class="macro">relay_log::error!</span>(<span class="string">"still waiting for the global config"</span>),
-                            }
-                        })
-                    },
-                    project_change = project_changes.recv() =&gt; {
-                        <span class="macro">metric!</span>(timer(RelayTimers::LegacyProjectCacheTaskDuration), task = <span class="string">"handle_project_change"</span>, {
-                            <span class="kw">if let </span><span class="prelude-val">Ok</span>(project_change) = project_change {
-                                broker.handle_project_change(project_change);
-                            }
-                        })
-                    }
-                    <span class="comment">// Buffer will not dequeue the envelopes from the spool if there is not enough
-                    // permits in `BufferGuard` available. Currently this is 50%.
-                    </span><span class="prelude-val">Some</span>(UnspooledEnvelope { managed_envelope, .. }) = buffer_rx.recv() =&gt; {
-                        <span class="macro">metric!</span>(timer(RelayTimers::LegacyProjectCacheTaskDuration), task = <span class="string">"handle_processing"</span>, {
-                            broker.handle_processing(managed_envelope)
-                        })
-                    },
-                    () = <span class="kw-2">&amp;mut </span>broker.spool_v1_unspool_handle =&gt; {
-                        <span class="macro">metric!</span>(timer(RelayTimers::LegacyProjectCacheTaskDuration), task = <span class="string">"periodic_unspool"</span>, {
-                            broker.handle_periodic_unspool()
-                        })
-                    }
-                    <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; {
-                        <span class="macro">metric!</span>(timer(RelayTimers::LegacyProjectCacheTaskDuration), task = <span class="string">"handle_message"</span>, {
-                            broker.handle_message(message)
-                        })
-                    }
-                    <span class="prelude-val">Some</span>(message) = envelopes_rx.recv() =&gt; {
-                        <span class="macro">metric!</span>(timer(RelayTimers::LegacyProjectCacheTaskDuration), task = <span class="string">"handle_envelope"</span>, {
-                            broker.handle_envelope(message)
-                        })
-                    }
-                    <span class="kw">else </span>=&gt; <span class="kw">break</span>,
-                }
+        <span class="kw">let </span>global_config = <span class="kw">match </span>global_config_rx.borrow().clone() {
+            global_config::Status::Ready(<span class="kw">_</span>) =&gt; {
+                <span class="macro">relay_log::info!</span>(<span class="string">"global config received"</span>);
+                GlobalConfigStatus::Ready
             }
+            global_config::Status::Pending =&gt; {
+                <span class="macro">relay_log::info!</span>(<span class="string">"waiting for global config"</span>);
+                GlobalConfigStatus::Pending
+            }
+        };
 
-            <span class="macro">relay_log::info!</span>(<span class="string">"project cache stopped"</span>);
-        });
+        <span class="kw">let </span>(buffer_tx, <span class="kw-2">mut </span>buffer_rx) = mpsc::unbounded_channel();
+        <span class="kw">let </span>spool_v1 = <span class="kw">match </span>config.spool_v2() {
+            <span class="bool-val">true </span>=&gt; <span class="prelude-val">None</span>,
+            <span class="bool-val">false </span>=&gt; <span class="prelude-val">Some</span>({
+                <span class="comment">// Channel for envelope buffering.
+                </span><span class="kw">let </span>buffer_services = spooler::Services {
+                    outcome_aggregator,
+                    project_cache,
+                    test_store,
+                };
+                <span class="kw">let </span>buffer = <span class="kw">match </span>BufferService::create(
+                    memory_checker.clone(),
+                    buffer_services,
+                    config.clone(),
+                )
+                .<span class="kw">await
+                </span>{
+                    <span class="prelude-val">Ok</span>(buffer) =&gt; {
+                        <span class="comment">// NOTE: This service is not monitored by the service runner.
+                        </span>buffer.start_detached()
+                    }
+                    <span class="prelude-val">Err</span>(err) =&gt; {
+                        <span class="macro">relay_log::error!</span>(
+                            error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error,
+                            <span class="string">"failed to start buffer service"</span>,
+                        );
+                        <span class="comment">// NOTE: The process will exit with error if the buffer file could not be
+                        // opened or the migrations could not be run.
+                        </span>std::process::exit(<span class="number">1</span>);
+                    }
+                };
+
+                <span class="comment">// Request the existing index from the spooler.
+                </span>buffer.send(RestoreIndex);
+
+                SpoolV1 {
+                    buffer_tx,
+                    index: HashSet::new(),
+                    buffer_unspool_backoff: RetryBackoff::new(config.http_max_retry_interval()),
+                    buffer,
+                }
+            }),
+        };
+
+        <span class="kw">let </span><span class="kw-2">mut </span>broker = ProjectCacheBroker {
+            config: config.clone(),
+            memory_checker,
+            projects: project_cache_handle,
+            services,
+            spool_v1_unspool_handle: SleepHandle::idle(),
+            spool_v1,
+            global_config,
+        };
+
+        <span class="kw">loop </span>{
+            <span class="macro">tokio::select!</span> {
+                biased;
+
+                <span class="prelude-val">Ok</span>(()) = global_config_rx.changed() =&gt; {
+                    <span class="macro">metric!</span>(timer(RelayTimers::LegacyProjectCacheTaskDuration), task = <span class="string">"update_global_config"</span>, {
+                        <span class="kw">match </span>global_config_rx.borrow().clone() {
+                            global_config::Status::Ready(<span class="kw">_</span>) =&gt; broker.set_global_config_ready(),
+                            <span class="comment">// The watch should only be updated if it gets a new value.
+                            // This would imply a logical bug.
+                            </span>global_config::Status::Pending =&gt; <span class="macro">relay_log::error!</span>(<span class="string">"still waiting for the global config"</span>),
+                        }
+                    })
+                },
+                project_change = project_changes.recv() =&gt; {
+                    <span class="macro">metric!</span>(timer(RelayTimers::LegacyProjectCacheTaskDuration), task = <span class="string">"handle_project_change"</span>, {
+                        <span class="kw">if let </span><span class="prelude-val">Ok</span>(project_change) = project_change {
+                            broker.handle_project_change(project_change);
+                        }
+                    })
+                }
+                <span class="comment">// Buffer will not dequeue the envelopes from the spool if there is not enough
+                // permits in `BufferGuard` available. Currently this is 50%.
+                </span><span class="prelude-val">Some</span>(UnspooledEnvelope { managed_envelope, .. }) = buffer_rx.recv() =&gt; {
+                    <span class="macro">metric!</span>(timer(RelayTimers::LegacyProjectCacheTaskDuration), task = <span class="string">"handle_processing"</span>, {
+                        broker.handle_processing(managed_envelope)
+                    })
+                },
+                () = <span class="kw-2">&amp;mut </span>broker.spool_v1_unspool_handle =&gt; {
+                    <span class="macro">metric!</span>(timer(RelayTimers::LegacyProjectCacheTaskDuration), task = <span class="string">"periodic_unspool"</span>, {
+                        broker.handle_periodic_unspool()
+                    })
+                }
+                <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; {
+                    <span class="macro">metric!</span>(timer(RelayTimers::LegacyProjectCacheTaskDuration), task = <span class="string">"handle_message"</span>, {
+                        broker.handle_message(message)
+                    })
+                }
+                <span class="prelude-val">Some</span>(message) = envelopes_rx.recv() =&gt; {
+                    <span class="macro">metric!</span>(timer(RelayTimers::LegacyProjectCacheTaskDuration), task = <span class="string">"handle_envelope"</span>, {
+                        broker.handle_envelope(message)
+                    })
+                }
+                <span class="kw">else </span>=&gt; <span class="kw">break</span>,
+            }
+        }
+
+        <span class="macro">relay_log::info!</span>(<span class="string">"project cache stopped"</span>);
     }
 }
 
@@ -1840,7 +1842,7 @@
             <span class="kw">match </span>BufferService::create(memory_checker.clone(), buffer_services, config.clone())
                 .<span class="kw">await
             </span>{
-                <span class="prelude-val">Ok</span>(buffer) =&gt; buffer.start(),
+                <span class="prelude-val">Ok</span>(buffer) =&gt; buffer.start_detached(),
                 <span class="prelude-val">Err</span>(err) =&gt; {
                     <span class="macro">relay_log::error!</span>(error = <span class="kw-2">&amp;</span>err <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">"failed to start buffer service"</span>);
                     <span class="comment">// NOTE: The process will exit with error if the buffer file could not be
