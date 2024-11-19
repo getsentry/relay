@@ -312,7 +312,6 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
             attach_stacktrace: config.enable_backtraces,
             environment: sentry.environment.clone(),
             server_name: sentry.server_name.clone(),
-            traces_sample_rate,
             traces_sampler,
             ..Default::default()
         };
