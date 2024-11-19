@@ -399,6 +399,9 @@ pub enum DiscardReason {
     /// (Relay) Parsing the event JSON payload failed due to a syntax error.
     InvalidJson,
 
+    /// (Relay) Parsing an OTLP payload failed.
+    InvalidProtobuf,
+
     /// (Relay) Parsing the event msgpack payload failed due to a syntax error.
     InvalidMsgpack,
 
@@ -485,6 +488,7 @@ impl DiscardReason {
             DiscardReason::InvalidJson => "invalid_json",
             DiscardReason::InvalidMultipart => "invalid_multipart",
             DiscardReason::InvalidMsgpack => "invalid_msgpack",
+            DiscardReason::InvalidProtobuf => "invalid_proto",
             DiscardReason::InvalidTransaction => "invalid_transaction",
             DiscardReason::InvalidEnvelope => "invalid_envelope",
             DiscardReason::InvalidCompression => "invalid_compression",

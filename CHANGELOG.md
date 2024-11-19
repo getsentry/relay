@@ -78,6 +78,7 @@
 - Feature flags of graduated features are now hard-coded in Relay so they can be removed from Sentry. ([#4076](https://github.com/getsentry/relay/pull/4076), [#4080](https://github.com/getsentry/relay/pull/4080))
 - Add parallelization in Redis commands. ([#4118](https://github.com/getsentry/relay/pull/4118))
 - Extract user ip for spans. ([#4144](https://github.com/getsentry/relay/pull/4144))
+- Add support for an experimental OTLP `/v1/traces/` endpoint. The endpoint is disabled by default. ([#4223](https://github.com/getsentry/relay/pull/4223))
 
 ## 24.9.0
 
