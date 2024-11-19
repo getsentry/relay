@@ -1065,6 +1065,10 @@
 <a href="#1065" id="1065">1065</a>
 <a href="#1066" id="1066">1066</a>
 <a href="#1067" id="1067">1067</a>
+<a href="#1068" id="1068">1068</a>
+<a href="#1069" id="1069">1069</a>
+<a href="#1070" id="1070">1070</a>
+<a href="#1071" id="1071">1071</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that tracks outcomes.
 //!
 //! Outcomes describe the final "fate" of an envelope item. As such, for every item exactly one
@@ -1466,6 +1470,9 @@
     <span class="doccomment">/// (Relay) Parsing the event JSON payload failed due to a syntax error.
     </span>InvalidJson,
 
+    <span class="doccomment">/// (Relay) Parsing an OTLP payload failed.
+    </span>InvalidProtobuf,
+
     <span class="doccomment">/// (Relay) Parsing the event msgpack payload failed due to a syntax error.
     </span>InvalidMsgpack,
 
@@ -1552,6 +1559,7 @@
             DiscardReason::InvalidJson =&gt; <span class="string">"invalid_json"</span>,
             DiscardReason::InvalidMultipart =&gt; <span class="string">"invalid_multipart"</span>,
             DiscardReason::InvalidMsgpack =&gt; <span class="string">"invalid_msgpack"</span>,
+            DiscardReason::InvalidProtobuf =&gt; <span class="string">"invalid_proto"</span>,
             DiscardReason::InvalidTransaction =&gt; <span class="string">"invalid_transaction"</span>,
             DiscardReason::InvalidEnvelope =&gt; <span class="string">"invalid_envelope"</span>,
             DiscardReason::InvalidCompression =&gt; <span class="string">"invalid_compression"</span>,

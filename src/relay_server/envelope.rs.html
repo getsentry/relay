@@ -2154,6 +2154,22 @@
 <a href="#2154" id="2154">2154</a>
 <a href="#2155" id="2155">2155</a>
 <a href="#2156" id="2156">2156</a>
+<a href="#2157" id="2157">2157</a>
+<a href="#2158" id="2158">2158</a>
+<a href="#2159" id="2159">2159</a>
+<a href="#2160" id="2160">2160</a>
+<a href="#2161" id="2161">2161</a>
+<a href="#2162" id="2162">2162</a>
+<a href="#2163" id="2163">2163</a>
+<a href="#2164" id="2164">2164</a>
+<a href="#2165" id="2165">2165</a>
+<a href="#2166" id="2166">2166</a>
+<a href="#2167" id="2167">2167</a>
+<a href="#2168" id="2168">2168</a>
+<a href="#2169" id="2169">2169</a>
+<a href="#2170" id="2170">2170</a>
+<a href="#2171" id="2171">2171</a>
+<a href="#2172" id="2172">2172</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.
 //!
 //! Envelopes are containers for payloads related to Sentry events. Similar to multipart form data
@@ -2275,8 +2291,10 @@
     </span>CheckIn,
     <span class="doccomment">/// A standalone span.
     </span>Span,
-    <span class="doccomment">/// A standalone OpenTelemetry span.
+    <span class="doccomment">/// A standalone OpenTelemetry span serialized as JSON.
     </span>OtelSpan,
+    <span class="doccomment">/// An OTLP TracesData container.
+    </span>OtelTracesData,
     <span class="doccomment">/// UserReport as an Event
     </span>UserReportV2,
     <span class="doccomment">/// ProfileChunk is a chunk of a profiling session.
@@ -2330,6 +2348,7 @@
             <span class="self">Self</span>::CheckIn =&gt; <span class="string">"check_in"</span>,
             <span class="self">Self</span>::Span =&gt; <span class="string">"span"</span>,
             <span class="self">Self</span>::OtelSpan =&gt; <span class="string">"otel_span"</span>,
+            <span class="self">Self</span>::OtelTracesData =&gt; <span class="string">"otel_traces_data"</span>,
             <span class="self">Self</span>::ProfileChunk =&gt; <span class="string">"profile_chunk"</span>,
             <span class="self">Self</span>::Unknown(<span class="kw">_</span>) =&gt; <span class="string">"unknown"</span>,
         }
@@ -2382,6 +2401,7 @@
             <span class="string">"check_in" </span>=&gt; <span class="self">Self</span>::CheckIn,
             <span class="string">"span" </span>=&gt; <span class="self">Self</span>::Span,
             <span class="string">"otel_span" </span>=&gt; <span class="self">Self</span>::OtelSpan,
+            <span class="string">"otel_traces_data" </span>=&gt; <span class="self">Self</span>::OtelTracesData,
             <span class="string">"profile_chunk" </span>=&gt; <span class="self">Self</span>::ProfileChunk,
             other =&gt; <span class="self">Self</span>::Unknown(other.to_owned()),
         })
@@ -2409,6 +2429,8 @@
     </span>Xml,
     <span class="doccomment">/// application/x-sentry-envelope
     </span>Envelope,
+    <span class="doccomment">/// "application/x-protobuf"
+    </span>Protobuf,
     <span class="doccomment">/// Any arbitrary content type not listed explicitly.
     </span>Other(String),
 }
@@ -2424,6 +2446,7 @@
             <span class="self">Self</span>::Minidump =&gt; <span class="string">"application/x-dmp"</span>,
             <span class="self">Self</span>::Xml =&gt; <span class="string">"text/xml"</span>,
             <span class="self">Self</span>::Envelope =&gt; CONTENT_TYPE,
+            <span class="self">Self</span>::Protobuf =&gt; <span class="string">"application/x-protobuf"</span>,
             <span class="self">Self</span>::Other(<span class="kw-2">ref </span>other) =&gt; other,
         }
     }
@@ -2445,6 +2468,8 @@
             <span class="prelude-val">Some</span>(<span class="self">Self</span>::Xml)
         } <span class="kw">else if </span>ct.eq_ignore_ascii_case(<span class="self">Self</span>::Envelope.as_str()) {
             <span class="prelude-val">Some</span>(<span class="self">Self</span>::Envelope)
+        } <span class="kw">else if </span>ct.eq_ignore_ascii_case(<span class="self">Self</span>::Protobuf.as_str()) {
+            <span class="prelude-val">Some</span>(<span class="self">Self</span>::Protobuf)
         } <span class="kw">else </span>{
             <span class="prelude-val">None
         </span>}
@@ -2820,13 +2845,19 @@
     </span><span class="kw">pub fn </span>quantity(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
         <span class="kw">match </span><span class="self">self</span>.ty() {
             ItemType::Attachment =&gt; <span class="self">self</span>.len().max(<span class="number">1</span>),
+            <span class="comment">// NOTE: This is semantically wrong. An otel trace contains may contain many spans,
+            // but we cannot easily count these before converting the trace into a series of spans.
+            </span>ItemType::OtelTracesData =&gt; <span class="number">1</span>,
             <span class="kw">_ </span>=&gt; <span class="number">1</span>,
         }
     }
 
     <span class="doccomment">/// True if the item represents any kind of span.
     </span><span class="kw">pub fn </span>is_span(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="macro">matches!</span>(<span class="self">self</span>.ty(), ItemType::OtelSpan | ItemType::Span)
+        <span class="macro">matches!</span>(
+            <span class="self">self</span>.ty(),
+            ItemType::OtelSpan | ItemType::Span | ItemType::OtelTracesData
+        )
     }
 
     <span class="doccomment">/// Returns the data category used for generating outcomes.
@@ -2852,6 +2883,7 @@
             ItemType::ClientReport =&gt; <span class="prelude-val">None</span>,
             ItemType::CheckIn =&gt; <span class="prelude-val">Some</span>(DataCategory::Monitor),
             ItemType::Span | ItemType::OtelSpan =&gt; <span class="prelude-val">Some</span>(DataCategory::Span),
+            ItemType::OtelTracesData =&gt; <span class="prelude-val">None</span>,
             ItemType::ProfileChunk =&gt; <span class="prelude-val">Some</span>(DataCategory::ProfileChunk),
             ItemType::Unknown(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
         }
@@ -3089,6 +3121,7 @@
             | ItemType::CheckIn
             | ItemType::Span
             | ItemType::OtelSpan
+            | ItemType::OtelTracesData
             | ItemType::ProfileChunk =&gt; <span class="bool-val">false</span>,
 
             <span class="comment">// The unknown item type can observe any behavior, most likely there are going to be no
@@ -3098,8 +3131,6 @@
     }
 
     <span class="doccomment">/// Determines whether the given item requires an event with identifier.
-    ///
-    /// This is true for all items except session health events.
     </span><span class="kw">pub fn </span>requires_event(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="kw">match </span><span class="self">self</span>.ty() {
             ItemType::Event =&gt; <span class="bool-val">true</span>,
@@ -3124,6 +3155,7 @@
             ItemType::CheckIn =&gt; <span class="bool-val">false</span>,
             ItemType::Span =&gt; <span class="bool-val">false</span>,
             ItemType::OtelSpan =&gt; <span class="bool-val">false</span>,
+            ItemType::OtelTracesData =&gt; <span class="bool-val">false</span>,
             ItemType::ProfileChunk =&gt; <span class="bool-val">false</span>,
 
             <span class="comment">// Since this Relay cannot interpret the semantics of this item, it does not know

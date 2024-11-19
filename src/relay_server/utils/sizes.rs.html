@@ -108,6 +108,7 @@
 <a href="#108" id="108">108</a>
 <a href="#109" id="109">109</a>
 <a href="#110" id="110">110</a>
+<a href="#111" id="111">111</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_config::Config;
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, Envelope, ItemType};
@@ -172,7 +173,8 @@
             ItemType::Statsd =&gt; config.max_statsd_size(),
             ItemType::MetricBuckets =&gt; config.max_metric_buckets_size(),
             ItemType::Span | ItemType::OtelSpan =&gt; config.max_span_size(),
-            ItemType::ProfileChunk =&gt; config.max_profile_size(),
+            ItemType::OtelTracesData =&gt; config.max_event_size(), <span class="comment">// a spans container similar to `Transaction`
+            </span>ItemType::ProfileChunk =&gt; config.max_profile_size(),
             ItemType::Unknown(<span class="kw">_</span>) =&gt; NO_LIMIT,
         };
 

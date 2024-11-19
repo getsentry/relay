@@ -3869,6 +3869,11 @@
 <a href="#3869" id="3869">3869</a>
 <a href="#3870" id="3870">3870</a>
 <a href="#3871" id="3871">3871</a>
+<a href="#3872" id="3872">3872</a>
+<a href="#3873" id="3873">3873</a>
+<a href="#3874" id="3874">3874</a>
+<a href="#3875" id="3875">3875</a>
+<a href="#3876" id="3876">3876</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -4169,8 +4174,12 @@
         }
 
         <span class="comment">// Extract spans.
-        </span><span class="kw">let </span>span_items = envelope
-            .take_items_by(|item| <span class="macro">matches!</span>(item.ty(), <span class="kw-2">&amp;</span>ItemType::Span | <span class="kw-2">&amp;</span>ItemType::OtelSpan));
+        </span><span class="kw">let </span>span_items = envelope.take_items_by(|item| {
+            <span class="macro">matches!</span>(
+                item.ty(),
+                <span class="kw-2">&amp;</span>ItemType::Span | <span class="kw-2">&amp;</span>ItemType::OtelSpan | <span class="kw-2">&amp;</span>ItemType::OtelTracesData
+            )
+        });
         <span class="kw">if </span>!span_items.is_empty() {
             grouped_envelopes.push((
                 ProcessingGroup::Span,
@@ -5727,6 +5736,7 @@
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;SpanGroup&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
         span::filter(state);
+        span::convert_otel_traces_data(state);
 
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
             <span class="kw">let </span>global_config = <span class="self">self</span>.inner.global_config.current();

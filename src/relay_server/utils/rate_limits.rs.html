@@ -1519,6 +1519,9 @@
 <a href="#1519" id="1519">1519</a>
 <a href="#1520" id="1520">1520</a>
 <a href="#1521" id="1521">1521</a>
+<a href="#1522" id="1522">1522</a>
+<a href="#1523" id="1523">1523</a>
+<a href="#1524" id="1524">1524</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt::{<span class="self">self</span>, Write};
 
 <span class="kw">use </span>relay_quotas::{
@@ -1651,6 +1654,7 @@
         ItemType::CheckIn =&gt; <span class="prelude-val">None</span>,
         ItemType::Span =&gt; <span class="prelude-val">None</span>,
         ItemType::OtelSpan =&gt; <span class="prelude-val">None</span>,
+        ItemType::OtelTracesData =&gt; <span class="prelude-val">None</span>,
         ItemType::ProfileChunk =&gt; <span class="prelude-val">Some</span>(DataCategory::ProfileChunk),
         ItemType::Unknown(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
     }
@@ -1753,6 +1757,7 @@
             ItemType::ReplayRecording =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.replay_quantity,
             ItemType::ReplayVideo =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.replay_quantity,
             ItemType::CheckIn =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.checkin_quantity,
+            ItemType::OtelTracesData =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.span_quantity,
             ItemType::OtelSpan =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.span_quantity,
             ItemType::Span =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.span_quantity,
             ItemType::ProfileChunk =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.profile_chunk_quantity,
@@ -1999,8 +2004,9 @@
             ItemType::ReplayVideo =&gt; !<span class="self">self</span>.replays.is_active(),
             ItemType::ReplayRecording =&gt; !<span class="self">self</span>.replays.is_active(),
             ItemType::CheckIn =&gt; !<span class="self">self</span>.check_ins.is_active(),
-            ItemType::Span =&gt; !<span class="self">self</span>.spans_indexed.is_active(),
-            ItemType::OtelSpan =&gt; !<span class="self">self</span>.spans_indexed.is_active(),
+            ItemType::Span | ItemType::OtelSpan | ItemType::OtelTracesData =&gt; {
+                !<span class="self">self</span>.spans_indexed.is_active()
+            }
             ItemType::Event
             | ItemType::Transaction
             | ItemType::Security

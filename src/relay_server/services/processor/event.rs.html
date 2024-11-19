@@ -863,6 +863,7 @@
 <a href="#863" id="863">863</a>
 <a href="#864" id="864">864</a>
 <a href="#865" id="865">865</a>
+<a href="#866" id="866">866</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Event processor related code.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -1308,6 +1309,7 @@
         ItemType::CheckIn =&gt; <span class="bool-val">false</span>,
         ItemType::Span =&gt; <span class="bool-val">false</span>,
         ItemType::OtelSpan =&gt; <span class="bool-val">false</span>,
+        ItemType::OtelTracesData =&gt; <span class="bool-val">false</span>,
         ItemType::ProfileChunk =&gt; <span class="bool-val">false</span>,
 
         <span class="comment">// Without knowing more, `Unknown` items are allowed to be repeated

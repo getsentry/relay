@@ -1268,9 +1268,6 @@
 <a href="#1268" id="1268">1268</a>
 <a href="#1269" id="1269">1269</a>
 <a href="#1270" id="1270">1270</a>
-<a href="#1271" id="1271">1271</a>
-<a href="#1272" id="1272">1272</a>
-<a href="#1273" id="1273">1273</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -1283,14 +1280,11 @@
 };
 <span class="kw">use </span>relay_event_normalization::span::ai::extract_ai_measurements;
 <span class="kw">use </span>relay_event_normalization::{
-    normalize_measurements, normalize_performance_score, span::tag_extraction, validate_span,
-    CombinedMeasurementsConfig, MeasurementsConfig, PerformanceScoreConfig, RawUserAgentInfo,
-    TransactionsProcessor,
-};
-<span class="kw">use </span>relay_event_normalization::{
-    normalize_transaction_name, BorrowedSpanOpDefaults, ClientHints, FromUserAgentInfo,
-    GeoIpLookup, ModelCosts, SchemaProcessor, TimestampProcessor, TransactionNameRule,
-    TrimmingProcessor,
+    normalize_measurements, normalize_performance_score, normalize_transaction_name,
+    span::tag_extraction, validate_span, BorrowedSpanOpDefaults, ClientHints,
+    CombinedMeasurementsConfig, FromUserAgentInfo, GeoIpLookup, MeasurementsConfig, ModelCosts,
+    PerformanceScoreConfig, RawUserAgentInfo, SchemaProcessor, TimestampProcessor,
+    TransactionNameRule, TransactionsProcessor, TrimmingProcessor,
 };
 <span class="kw">use </span>relay_event_schema::processor::{process_value, ProcessingAction, ProcessingState};
 <span class="kw">use </span>relay_event_schema::protocol::{
