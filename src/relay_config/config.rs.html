@@ -2633,6 +2633,11 @@
 <a href="#2633" id="2633">2633</a>
 <a href="#2634" id="2634">2634</a>
 <a href="#2635" id="2635">2635</a>
+<a href="#2636" id="2636">2636</a>
+<a href="#2637" id="2637">2637</a>
+<a href="#2638" id="2638">2638</a>
+<a href="#2639" id="2639">2639</a>
+<a href="#2640" id="2640">2640</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
@@ -3363,13 +3368,17 @@
     </span>Gzip,
     <span class="doccomment">/// A format using the [Brotli](https://en.wikipedia.org/wiki/Brotli) algorithm.
     </span>Br,
+    <span class="doccomment">/// A format using the [Zstd](https://en.wikipedia.org/wiki/Zstd) compression algorithm.
+    </span>Zstd,
 }
 
 <span class="kw">impl </span>HttpEncoding {
     <span class="doccomment">/// Parses a [`HttpEncoding`] from its `content-encoding` header value.
     </span><span class="kw">pub fn </span>parse(str: <span class="kw-2">&amp;</span>str) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>str = str.trim();
-        <span class="kw">if </span>str.eq_ignore_ascii_case(<span class="string">"br"</span>) {
+        <span class="kw">if </span>str.eq_ignore_ascii_case(<span class="string">"zstd"</span>) {
+            <span class="self">Self</span>::Zstd
+        } <span class="kw">else if </span>str.eq_ignore_ascii_case(<span class="string">"br"</span>) {
             <span class="self">Self</span>::Br
         } <span class="kw">else if </span>str.eq_ignore_ascii_case(<span class="string">"gzip"</span>) || str.eq_ignore_ascii_case(<span class="string">"x-gzip"</span>) {
             <span class="self">Self</span>::Gzip
@@ -3389,6 +3398,7 @@
             <span class="self">Self</span>::Deflate =&gt; <span class="prelude-val">Some</span>(<span class="string">"deflate"</span>),
             <span class="self">Self</span>::Gzip =&gt; <span class="prelude-val">Some</span>(<span class="string">"gzip"</span>),
             <span class="self">Self</span>::Br =&gt; <span class="prelude-val">Some</span>(<span class="string">"br"</span>),
+            <span class="self">Self</span>::Zstd =&gt; <span class="prelude-val">Some</span>(<span class="string">"zstd"</span>),
         }
     }
 }

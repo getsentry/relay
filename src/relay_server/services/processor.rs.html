@@ -3865,6 +3865,14 @@
 <a href="#3865" id="3865">3865</a>
 <a href="#3866" id="3866">3866</a>
 <a href="#3867" id="3867">3867</a>
+<a href="#3868" id="3868">3868</a>
+<a href="#3869" id="3869">3869</a>
+<a href="#3870" id="3870">3870</a>
+<a href="#3871" id="3871">3871</a>
+<a href="#3872" id="3872">3872</a>
+<a href="#3873" id="3873">3873</a>
+<a href="#3874" id="3874">3874</a>
+<a href="#3875" id="3875">3875</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -3907,6 +3915,7 @@
 <span class="kw">use </span>relay_system::{Addr, FromMessage, NoResponse, Service};
 <span class="kw">use </span>reqwest::header;
 <span class="kw">use </span>smallvec::{smallvec, SmallVec};
+<span class="kw">use </span>zstd::stream::Encoder <span class="kw">as </span>ZstdEncoder;
 
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">use </span>{
@@ -6781,6 +6790,13 @@
             encoder.write_all(body.as_ref())<span class="question-mark">?</span>;
             encoder.into_inner()
         }
+        HttpEncoding::Zstd =&gt; {
+            <span class="comment">// Use the fastest compression level, our main objective here is to get the best
+            // compression ratio for least amount of time spent.
+            </span><span class="kw">let </span><span class="kw-2">mut </span>encoder = ZstdEncoder::new(Vec::new(), <span class="number">1</span>)<span class="question-mark">?</span>;
+            encoder.write_all(body.as_ref())<span class="question-mark">?</span>;
+            encoder.finish()<span class="question-mark">?
+        </span>}
     };
 
     <span class="prelude-val">Ok</span>(envelope_body.into())
