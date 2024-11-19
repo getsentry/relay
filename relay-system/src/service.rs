@@ -14,6 +14,7 @@ use tokio::sync::{mpsc, oneshot};
 use tokio::task::JoinHandle;
 use tokio::time::MissedTickBehavior;
 
+use crate::spawn;
 use crate::statsd::SystemGauges;
 use crate::{spawn, TaskId};
 

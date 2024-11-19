@@ -728,13 +728,17 @@ pub enum HttpEncoding {
     Gzip,
     /// A format using the [Brotli](https://en.wikipedia.org/wiki/Brotli) algorithm.
     Br,
+    /// A format using the [Zstd](https://en.wikipedia.org/wiki/Zstd) compression algorithm.
+    Zstd,
 }
 
 impl HttpEncoding {
     /// Parses a [`HttpEncoding`] from its `content-encoding` header value.
     pub fn parse(str: &str) -> Self {
         let str = str.trim();
-        if str.eq_ignore_ascii_case("br") {
+        if str.eq_ignore_ascii_case("zstd") {
+            Self::Zstd
+        } else if str.eq_ignore_ascii_case("br") {
             Self::Br
         } else if str.eq_ignore_ascii_case("gzip") || str.eq_ignore_ascii_case("x-gzip") {
             Self::Gzip
@@ -754,6 +758,7 @@ impl HttpEncoding {
             Self::Deflate => Some("deflate"),
             Self::Gzip => Some("gzip"),
             Self::Br => Some("br"),
+            Self::Zstd => Some("zstd"),
         }
     }
 }

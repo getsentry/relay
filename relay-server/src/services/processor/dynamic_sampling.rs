@@ -91,16 +91,13 @@ where
 }
 
 /// Apply the dynamic sampling decision from `compute_sampling_decision`.
-pub fn drop_unsampled_items(
-    state: &mut ProcessEnvelopeState<TransactionGroup>,
-    outcome: Outcome,
-    keep_profiles: bool,
-) {
+pub fn drop_unsampled_items(state: &mut ProcessEnvelopeState<TransactionGroup>, outcome: Outcome) {
     // Remove all items from the envelope which need to be dropped due to dynamic sampling.
-    let dropped_items = state.envelope_mut().take_items_by(|item| match item.ty() {
-        ItemType::Profile => !keep_profiles,
-        _ => true,
-    });
+    let dropped_items = state
+        .envelope_mut()
+        // Profiles are not dropped by dynamic sampling, they are all forwarded to storage and
+        // later processed in Sentry and potentially dropped there.
+        .take_items_by(|item| *item.ty() != ItemType::Profile);
 
     for item in dropped_items {
         let Some(category) = item.outcome_category() else {
@@ -117,7 +114,7 @@ pub fn drop_unsampled_items(
             .track_outcome(outcome.clone(), category, item.quantity());
     }
 
-    // Mark all remaining items in the envelope as unsampled.
+    // Mark all remaining items in the envelope as un-sampled.
     for item in state.envelope_mut().items_mut() {
         item.set_sampled(false);
     }

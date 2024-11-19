@@ -134,6 +134,7 @@ impl ProjectCacheService {
         };
         self.scheduled_fetches.schedule(when, Box::pin(task));
 
+        metric!(counter(RelayCounters::ProjectCacheSchedule) += 1);
         metric!(
             gauge(RelayGauges::ProjectCacheScheduledFetches) = self.scheduled_fetches.len() as u64
         );

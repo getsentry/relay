@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+**Bug Fixes**:
+
+- Terminate the process when one of the services crashes. ([#4249](https://github.com/getsentry/relay/pull/4249))
+- Don't propagate trace sampling decisions from SDKs ([#4265](https://github.com/getsentry/relay/pull/4265))
+
+**Features**:
+
+- Implement zstd http encoding for Relay to Relay communication. ([#4266](https://github.com/getsentry/relay/pull/4266))
+
+## 24.11.0
+
 **Breaking Changes**:
 
 - Removes support for metric meta envelope items. ([#4152](https://github.com/getsentry/relay/pull/4152))
