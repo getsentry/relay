@@ -1161,6 +1161,7 @@ def test_profile_outcomes(
     relay,
     relay_with_processing,
     outcomes_consumer,
+    profiles_consumer,
     num_intermediate_relays,
     metrics_consumer,
 ):
@@ -1173,6 +1174,7 @@ def test_profile_outcomes(
     """
     outcomes_consumer = outcomes_consumer(timeout=5)
     metrics_consumer = metrics_consumer()
+    profiles_consumer = profiles_consumer()
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
@@ -1286,16 +1288,6 @@ def test_profile_outcomes(
             "reason": "Sampled:3000",
             "source": expected_source,
         },
-        {
-            "category": 11,  # ProfileIndexed
-            "key_id": 123,
-            "org_id": 1,
-            "outcome": 1,  # Filtered
-            "project_id": 42,
-            "quantity": 1,
-            "reason": "Sampled:3000",
-            "source": expected_source,
-        },
     ]
     for outcome in outcomes:
         outcome.pop("timestamp")
@@ -1309,6 +1301,9 @@ def test_profile_outcomes(
     assert sum(metric["value"] for metric in metrics) == 2
 
     assert outcomes == expected_outcomes, outcomes
+
+    assert profiles_consumer.get_profile()
+    assert profiles_consumer.get_profile()
 
 
 @pytest.mark.parametrize(

@@ -1702,17 +1702,13 @@ impl EnvelopeProcessorService {
         };
 
         if let Some(outcome) = sampling_result.into_dropped_outcome() {
-            let keep_profiles = global_config.options.unsampled_profiles_enabled;
             // Process profiles before dropping the transaction, if necessary.
             // Before metric extraction to make sure the profile count is reflected correctly.
-            let profile_id = match keep_profiles {
-                true => profile::process(state, &global_config),
-                false => profile_id,
-            };
+            let profile_id = profile::process(state, &global_config);
             // Extract metrics here, we're about to drop the event/transaction.
             self.extract_transaction_metrics(state, SamplingDecision::Drop, profile_id)?;
 
-            dynamic_sampling::drop_unsampled_items(state, outcome, keep_profiles);
+            dynamic_sampling::drop_unsampled_items(state, outcome);
 
             // At this point we have:
             //  - An empty envelope.
