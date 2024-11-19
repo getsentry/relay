@@ -1348,6 +1348,22 @@ def test_store_content_encodings(mini_sentry, relay):
     assert response.status_code == 415
 
 
+@pytest.mark.parametrize(
+    "encoding", ["identity", "zstd", "br", "gzip", "deflate", None]
+)
+def test_store_content_encodings_chained(mini_sentry, relay, encoding):
+    relay = relay(
+        relay(mini_sentry), options={"http": {"encoding": encoding} if encoding else {}}
+    )
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
+
+    relay.send_event(project_id)
+    event = mini_sentry.captured_events.get(timeout=1).get_event()
+
+    assert event["logentry"] == {"formatted": "Hello, World!"}
+
+
 def test_store_project_move(mini_sentry, relay):
     """
     Tests that relay redirects events for moved projects based on the project key if
