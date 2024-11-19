@@ -32,7 +32,9 @@ static WEB_CRAWLERS: Lazy<Regex> = Lazy::new(|| {
         Bytespider|                 # Bytedance
         Better\sUptime|             # Better Uptime
         Cloudflare-Healthchecks|    # Cloudflare Health Checks
-        GTmetrix                    # GTmetrix
+        GTmetrix|                   # GTmetrix
+        BrightEdgeOnCrawl|          # BrightEdge - see https://www.brightedge.com/news/press-releases/brightedge-acquires-oncrawl-future-proof-web-30-strategies
+        ELB-HealthChecker           # AWS Elastic Load Balancing Health Checks
     "
     )
     .expect("Invalid web crawlers filter Regex")
@@ -122,6 +124,8 @@ mod tests {
             "Better Uptime Bot Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36",
             "Mozilla/5.0 (compatible;Cloudflare-Healthchecks/1.0;+https://www.cloudflare.com/; healthcheck-id: 0d1ca23e292c8c14)",
             "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36 GTmetrix",
+            "Mozilla/5.0 (compatible; BrightEdgeOnCrawl/1.0; +http://www.oncrawl.com)",
+            "ELB-HealthChecker/2.0",
         ];
 
         for banned_user_agent in &user_agents {
