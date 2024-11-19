@@ -531,13 +531,6 @@
 <a href="#531" id="531">531</a>
 <a href="#532" id="532">532</a>
 <a href="#533" id="533">533</a>
-<a href="#534" id="534">534</a>
-<a href="#535" id="535">535</a>
-<a href="#536" id="536">536</a>
-<a href="#537" id="537">537</a>
-<a href="#538" id="538">538</a>
-<a href="#539" id="539">539</a>
-<a href="#540" id="540">540</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::btree_map::Entry;
 <span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::fs::File;
@@ -653,13 +646,6 @@
 </span><span class="attr">#[derive(Default, Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 </span><span class="kw">pub struct </span>Options {
-    <span class="doccomment">/// Kill switch for shutting down unsampled_profile metrics
-    </span><span class="attr">#[serde(
-        rename = <span class="string">"profiling.profile_metrics.unsampled_profiles.enabled"</span>,
-        deserialize_with = <span class="string">"default_on_error"</span>,
-        skip_serializing_if = <span class="string">"is_default"
-    </span>)]
-    </span><span class="kw">pub </span>unsampled_profiles_enabled: bool,
     <span class="doccomment">/// Kill switch for shutting down profile function metrics
     /// ingestion in the generic-metrics platform
     </span><span class="attr">#[serde(

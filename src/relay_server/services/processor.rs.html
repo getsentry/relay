@@ -3869,10 +3869,6 @@
 <a href="#3869" id="3869">3869</a>
 <a href="#3870" id="3870">3870</a>
 <a href="#3871" id="3871">3871</a>
-<a href="#3872" id="3872">3872</a>
-<a href="#3873" id="3873">3873</a>
-<a href="#3874" id="3874">3874</a>
-<a href="#3875" id="3875">3875</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -5577,17 +5573,13 @@
         };
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(outcome) = sampling_result.into_dropped_outcome() {
-            <span class="kw">let </span>keep_profiles = global_config.options.unsampled_profiles_enabled;
             <span class="comment">// Process profiles before dropping the transaction, if necessary.
             // Before metric extraction to make sure the profile count is reflected correctly.
-            </span><span class="kw">let </span>profile_id = <span class="kw">match </span>keep_profiles {
-                <span class="bool-val">true </span>=&gt; profile::process(state, <span class="kw-2">&amp;</span>global_config),
-                <span class="bool-val">false </span>=&gt; profile_id,
-            };
+            </span><span class="kw">let </span>profile_id = profile::process(state, <span class="kw-2">&amp;</span>global_config);
             <span class="comment">// Extract metrics here, we're about to drop the event/transaction.
             </span><span class="self">self</span>.extract_transaction_metrics(state, SamplingDecision::Drop, profile_id)<span class="question-mark">?</span>;
 
-            dynamic_sampling::drop_unsampled_items(state, outcome, keep_profiles);
+            dynamic_sampling::drop_unsampled_items(state, outcome);
 
             <span class="comment">// At this point we have:
             //  - An empty envelope.

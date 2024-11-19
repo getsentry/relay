@@ -769,9 +769,6 @@
 <a href="#769" id="769">769</a>
 <a href="#770" id="770">770</a>
 <a href="#771" id="771">771</a>
-<a href="#772" id="772">772</a>
-<a href="#773" id="773">773</a>
-<a href="#774" id="774">774</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic sampling processor related code.
 
 </span><span class="kw">use </span>std::ops::ControlFlow;
@@ -865,16 +862,13 @@
 }
 
 <span class="doccomment">/// Apply the dynamic sampling decision from `compute_sampling_decision`.
-</span><span class="kw">pub fn </span>drop_unsampled_items(
-    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;,
-    outcome: Outcome,
-    keep_profiles: bool,
-) {
+</span><span class="kw">pub fn </span>drop_unsampled_items(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;, outcome: Outcome) {
     <span class="comment">// Remove all items from the envelope which need to be dropped due to dynamic sampling.
-    </span><span class="kw">let </span>dropped_items = state.envelope_mut().take_items_by(|item| <span class="kw">match </span>item.ty() {
-        ItemType::Profile =&gt; !keep_profiles,
-        <span class="kw">_ </span>=&gt; <span class="bool-val">true</span>,
-    });
+    </span><span class="kw">let </span>dropped_items = state
+        .envelope_mut()
+        <span class="comment">// Profiles are not dropped by dynamic sampling, they are all forwarded to storage and
+        // later processed in Sentry and potentially dropped there.
+        </span>.take_items_by(|item| <span class="kw-2">*</span>item.ty() != ItemType::Profile);
 
     <span class="kw">for </span>item <span class="kw">in </span>dropped_items {
         <span class="kw">let </span><span class="prelude-val">Some</span>(category) = item.outcome_category() <span class="kw">else </span>{
@@ -891,7 +885,7 @@
             .track_outcome(outcome.clone(), category, item.quantity());
     }
 
-    <span class="comment">// Mark all remaining items in the envelope as unsampled.
+    <span class="comment">// Mark all remaining items in the envelope as un-sampled.
     </span><span class="kw">for </span>item <span class="kw">in </span>state.envelope_mut().items_mut() {
         item.set_sampled(<span class="bool-val">false</span>);
     }
