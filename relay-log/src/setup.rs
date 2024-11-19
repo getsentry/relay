@@ -330,8 +330,8 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
 
         crate::info!(
             release = RELEASE,
-            server_name = ?sentry.server_name,
-            environment = ?sentry.environment,
+            server_name = sentry.server_name.as_deref(),
+            environment = sentry.environment.as_deref(),
             traces_sample_rate,
             "Initialized Sentry client options"
         );
