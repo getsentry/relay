@@ -269,7 +269,7 @@
 <span class="attr">#[derive(Parser, Debug)]
 </span><span class="kw">struct </span>Args {
     <span class="attr">#[arg(long)]
-    </span>envelope_size_kib: usize,
+    </span>envelope_size_bytes: usize,
     <span class="attr">#[arg(long)]
     </span>compression_ratio: f64,
     <span class="attr">#[arg(long)]
@@ -291,7 +291,7 @@
     <span class="kw">let </span>args = Args::parse();
     <span class="macro">println!</span>(<span class="string">"{:?}"</span>, <span class="kw-2">&amp;</span>args);
     <span class="kw">let </span>Args {
-        envelope_size_kib,
+        envelope_size_bytes,
         compression_ratio,
         batch_size_kib,
         implementation,
@@ -333,7 +333,7 @@
         Mode::Sequential =&gt; {
             run_sequential(
                 buffer,
-                envelope_size_kib * <span class="number">1024</span>,
+                envelope_size_bytes,
                 compression_ratio,
                 projects,
                 Duration::from_secs(duration_secs),
@@ -343,7 +343,7 @@
         Mode::Interleaved =&gt; {
             run_interleaved(
                 buffer,
-                envelope_size_kib * <span class="number">1024</span>,
+                envelope_size_bytes,
                 compression_ratio,
                 projects,
                 Duration::from_secs(duration_secs),
