@@ -10,6 +10,7 @@ use chrono::DateTime;
 use chrono::Utc;
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
+use relay_system::ServiceRunner;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Receiver, Service};
 use relay_system::{Controller, Shutdown};
 use tokio::sync::mpsc::Permit;
@@ -144,12 +145,11 @@ impl EnvelopeBufferService {
     }
 
     /// Returns both the [`Addr`] to this service, and a reference to the capacity flag.
-    pub fn start_observable(self) -> ObservableEnvelopeBuffer {
+    pub fn start_in(self, runner: &mut ServiceRunner) -> ObservableEnvelopeBuffer {
         let has_capacity = self.has_capacity.clone();
-        ObservableEnvelopeBuffer {
-            addr: self.start(),
-            has_capacity,
-        }
+
+        let addr = runner.start(self);
+        ObservableEnvelopeBuffer { addr, has_capacity }
     }
 
     /// Wait for the configured amount of time and make sure the project cache is ready to receive.
@@ -378,7 +378,7 @@ fn is_expired(last_received_at: DateTime<Utc>, config: &Config) -> bool {
 impl Service for EnvelopeBufferService {
     type Interface = EnvelopeBuffer;
 
-    fn spawn_handler(mut self, mut rx: Receiver<Self::Interface>) {
+    async fn run(mut self, mut rx: Receiver<Self::Interface>) {
         let config = self.config.clone();
         let memory_checker = MemoryChecker::new(self.memory_stat.clone(), config.clone());
         let mut global_config_rx = self.global_config_rx.clone();
@@ -387,81 +387,14 @@ impl Service for EnvelopeBufferService {
         let dequeue = Arc::<AtomicBool>::new(true.into());
         let dequeue1 = dequeue.clone();
 
-        relay_system::spawn!(async move {
-            let buffer = PolymorphicEnvelopeBuffer::from_config(&config, memory_checker).await;
+        let mut buffer = PolymorphicEnvelopeBuffer::from_config(&config, memory_checker)
+            .await
+            .expect("failed to start the envelope buffer service");
 
-            let mut buffer = match buffer {
-                Ok(buffer) => buffer,
-                Err(error) => {
-                    relay_log::error!(
-                        error = &error as &dyn std::error::Error,
-                        "failed to start the envelope buffer service",
-                    );
-                    std::process::exit(1);
-                }
-            };
-            buffer.initialize().await;
+        buffer.initialize().await;
 
-            let mut shutdown = Controller::shutdown_handle();
-            let mut project_changes = self.services.project_cache_handle.changes();
-
-            relay_log::info!("EnvelopeBufferService: starting");
-            loop {
-                let used_capacity = self.services.envelopes_tx.max_capacity()
-                    - self.services.envelopes_tx.capacity();
-                relay_statsd::metric!(
-                    histogram(RelayHistograms::BufferBackpressureEnvelopesCount) =
-                        used_capacity as u64
-                );
-
-                let mut sleep = Duration::MAX;
-                tokio::select! {
-                    // NOTE: we do not select a bias here.
-                    // On the one hand, we might want to prioritize dequeuing over enqueuing
-                    // so we do not exceed the buffer capacity by starving the dequeue.
-                    // on the other hand, prioritizing old messages violates the LIFO design.
-                    Some(permit) = self.ready_to_pop(&buffer, dequeue.load(Ordering::Relaxed)) => {
-                        match Self::try_pop(&config, &mut buffer, &services, permit).await {
-                            Ok(new_sleep) => {
-                                sleep = new_sleep;
-                            }
-                            Err(error) => {
-                                relay_log::error!(
-                                error = &error as &dyn std::error::Error,
-                                "failed to pop envelope"
-                            );
-                            }
-                        }
-                    }
-                    change = project_changes.recv() => {
-                        if let Ok(ProjectChange::Ready(project_key)) = change {
-                            buffer.mark_ready(&project_key, true);
-                        }
-                        sleep = Duration::ZERO;
-                    }
-                    Some(message) = rx.recv() => {
-                        Self::handle_message(&mut buffer, &services, message).await;
-                        sleep = Duration::ZERO;
-                    }
-                    shutdown = shutdown.notified() => {
-                        // In case the shutdown was handled, we break out of the loop signaling that
-                        // there is no need to process anymore envelopes.
-                        if Self::handle_shutdown(&mut buffer, shutdown).await {
-                            break;
-                        }
-                    }
-                    Ok(()) = global_config_rx.changed() => {
-                        sleep = Duration::ZERO;
-                    }
-                    else => break,
-                }
-
-                self.sleep = sleep;
-                self.update_observable_state(&mut buffer);
-            }
-
-            relay_log::info!("EnvelopeBufferService: stopping");
-        });
+        let mut shutdown = Controller::shutdown_handle();
+        let mut project_changes = self.services.project_cache_handle.changes();
 
         #[cfg(unix)]
         relay_system::spawn!(async move {
@@ -475,6 +408,62 @@ impl Service for EnvelopeBufferService {
                 relay_log::info!("SIGUSR1 receive, dequeue={}", deq);
             }
         });
+
+        relay_log::info!("EnvelopeBufferService: starting");
+        loop {
+            let used_capacity =
+                self.services.envelopes_tx.max_capacity() - self.services.envelopes_tx.capacity();
+            relay_statsd::metric!(
+                histogram(RelayHistograms::BufferBackpressureEnvelopesCount) = used_capacity as u64
+            );
+
+            let mut sleep = Duration::MAX;
+            tokio::select! {
+                // NOTE: we do not select a bias here.
+                // On the one hand, we might want to prioritize dequeuing over enqueuing
+                // so we do not exceed the buffer capacity by starving the dequeue.
+                // on the other hand, prioritizing old messages violates the LIFO design.
+                Some(permit) = self.ready_to_pop(&buffer, dequeue.load(Ordering::Relaxed)) => {
+                    match Self::try_pop(&config, &mut buffer, &services, permit).await {
+                        Ok(new_sleep) => {
+                            sleep = new_sleep;
+                        }
+                        Err(error) => {
+                            relay_log::error!(
+                            error = &error as &dyn std::error::Error,
+                            "failed to pop envelope"
+                        );
+                        }
+                    }
+                }
+                change = project_changes.recv() => {
+                    if let Ok(ProjectChange::Ready(project_key)) = change {
+                        buffer.mark_ready(&project_key, true);
+                    }
+                    sleep = Duration::ZERO;
+                }
+                Some(message) = rx.recv() => {
+                    Self::handle_message(&mut buffer, &services, message).await;
+                    sleep = Duration::ZERO;
+                }
+                shutdown = shutdown.notified() => {
+                    // In case the shutdown was handled, we break out of the loop signaling that
+                    // there is no need to process anymore envelopes.
+                    if Self::handle_shutdown(&mut buffer, shutdown).await {
+                        break;
+                    }
+                }
+                Ok(()) = global_config_rx.changed() => {
+                    sleep = Duration::ZERO;
+                }
+                else => break,
+            }
+
+            self.sleep = sleep;
+            self.update_observable_state(&mut buffer);
+        }
+
+        relay_log::info!("EnvelopeBufferService: stopping");
     }
 }
 
@@ -556,7 +545,8 @@ mod tests {
 
         service.has_capacity.store(false, Ordering::Relaxed);
 
-        let ObservableEnvelopeBuffer { has_capacity, .. } = service.start_observable();
+        let ObservableEnvelopeBuffer { has_capacity, .. } =
+            service.start_in(&mut ServiceRunner::new());
         assert!(!has_capacity.load(Ordering::Relaxed));
 
         tokio::time::advance(Duration::from_millis(100)).await;
@@ -580,7 +570,7 @@ mod tests {
             ..
         } = envelope_buffer_service(None, global_config::Status::Pending);
 
-        let addr = service.start();
+        let addr = service.start_detached();
 
         let envelope = new_envelope(false, "foo");
         let project_key = envelope.meta().public_key();
@@ -624,7 +614,7 @@ mod tests {
             global_config::Status::Ready(Arc::new(GlobalConfig::default())),
         );
 
-        let addr = service.start();
+        let addr = service.start_detached();
 
         let envelope = new_envelope(false, "foo");
         let project_key = envelope.meta().public_key();
@@ -657,7 +647,7 @@ mod tests {
         );
 
         let config = service.config.clone();
-        let addr = service.start();
+        let addr = service.start_detached();
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
@@ -690,7 +680,7 @@ mod tests {
             global_config::Status::Ready(Arc::new(GlobalConfig::default())),
         );
 
-        let addr = service.start();
+        let addr = service.start_detached();
 
         let envelope = new_envelope(false, "foo");
         let project_key = envelope.meta().public_key();
@@ -725,7 +715,7 @@ mod tests {
             global_config::Status::Ready(Arc::new(GlobalConfig::default())),
         );
 
-        let addr = service.start();
+        let addr = service.start_detached();
 
         let envelope = new_envelope(false, "foo");
         let project_key = envelope.meta().public_key();

@@ -1264,34 +1264,32 @@ impl BufferService {
 impl Service for BufferService {
     type Interface = Buffer;
 
-    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
-        relay_system::spawn!(async move {
-            let mut shutdown = Controller::shutdown_handle();
+    async fn run(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+        let mut shutdown = Controller::shutdown_handle();
 
-            loop {
-                tokio::select! {
-                    biased;
+        loop {
+            tokio::select! {
+                biased;
 
-                    Some(message) = rx.recv() => {
-                        if let Err(err) = self.handle_message(message).await {
-                            relay_log::error!(
-                                error = &err as &dyn Error,
-                                "failed to handle an incoming message",
-                            );
-                        }
+                Some(message) = rx.recv() => {
+                    if let Err(err) = self.handle_message(message).await {
+                        relay_log::error!(
+                            error = &err as &dyn Error,
+                            "failed to handle an incoming message",
+                        );
                     }
-                    _ = shutdown.notified() => {
-                       if let Err(err) = self.handle_shutdown().await {
-                            relay_log::error!(
-                                error = &err as &dyn Error,
-                                "failed while shutting down the service",
-                            );
-                        }
-                    }
-                    else => break,
                 }
+                _ = shutdown.notified() => {
+                   if let Err(err) = self.handle_shutdown().await {
+                        relay_log::error!(
+                            error = &err as &dyn Error,
+                            "failed while shutting down the service",
+                        );
+                    }
+                }
+                else => break,
             }
-        });
+        }
     }
 }
 
@@ -1394,7 +1392,7 @@ mod tests {
         let service = BufferService::create(memory_checker, services(), config)
             .await
             .unwrap();
-        let addr = service.start();
+        let addr = service.start_detached();
         let (tx, mut rx) = mpsc::unbounded_channel();
 
         // Test cases:
@@ -1609,7 +1607,7 @@ mod tests {
         let buffer = BufferService::create(memory_checker, services, config)
             .await
             .unwrap();
-        let addr = buffer.start();
+        let addr = buffer.start_detached();
         addr.send(RestoreIndex);
         // Give some time to process the message
         tokio::time::sleep(Duration::from_millis(500)).await;
@@ -1654,7 +1652,7 @@ mod tests {
         let buffer = BufferService::create(memory_checker, services, config)
             .await
             .unwrap();
-        let addr = buffer.start();
+        let addr = buffer.start_detached();
 
         let mut keys = HashSet::new();
         for _ in 1..=300 {

@@ -279,7 +279,7 @@ mod testutils;
 use std::sync::Arc;
 
 use relay_config::Config;
-use relay_system::{Controller, Service};
+use relay_system::Controller;
 
 use crate::service::ServiceState;
 use crate::services::server::HttpServer;
@@ -301,9 +301,18 @@ pub fn run(config: Config) -> anyhow::Result<()> {
     // information on all services.
     main_runtime.block_on(async {
         Controller::start(config.shutdown_timeout());
-        let service = ServiceState::start(config.clone())?;
-        HttpServer::new(config, service.clone())?.start();
-        Controller::shutdown_handle().finished().await;
+        let (state, mut runner) = ServiceState::start(config.clone())?;
+        runner.start(HttpServer::new(config, state.clone())?);
+
+        tokio::select! {
+            _ = runner.join() => {},
+            // NOTE: when every service implements a shutdown listener,
+            // awaiting on `finished` becomes unnecessary: We can simply join() and guarantee
+            // that every service finished its main task.
+            // See also https://github.com/getsentry/relay/issues/4050.
+            _ = Controller::shutdown_handle().finished() => {}
+        }
+
         anyhow::Ok(())
     })?;
 

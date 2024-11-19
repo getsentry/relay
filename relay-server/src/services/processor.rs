@@ -2820,16 +2820,14 @@ impl EnvelopeProcessorService {
 impl Service for EnvelopeProcessorService {
     type Interface = EnvelopeProcessor;
 
-    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
-        relay_system::spawn!(async move {
-            while let Some(message) = rx.recv().await {
-                let service = self.clone();
-                self.inner
-                    .workers
-                    .spawn(move || service.handle_message(message))
-                    .await;
-            }
-        });
+    async fn run(self, mut rx: relay_system::Receiver<Self::Interface>) {
+        while let Some(message) = rx.recv().await {
+            let service = self.clone();
+            self.inner
+                .workers
+                .spawn(move || service.handle_message(message))
+                .await;
+        }
     }
 }
 

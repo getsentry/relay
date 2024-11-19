@@ -5,7 +5,7 @@ use futures::StreamExt as _;
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
 use relay_statsd::metric;
-use relay_system::Service;
+use relay_system::{Service, ServiceRunner};
 use tokio::sync::broadcast;
 
 use crate::services::projects::cache::handle::ProjectCacheHandle;
@@ -91,7 +91,7 @@ impl ProjectCacheService {
     /// Consumes and starts a [`ProjectCacheService`].
     ///
     /// Returns a [`ProjectCacheHandle`] to access the cache concurrently.
-    pub fn start(self) -> ProjectCacheHandle {
+    pub fn start_in(self, runner: &mut ServiceRunner) -> ProjectCacheHandle {
         let (addr, addr_rx) = relay_system::channel(Self::name());
 
         let handle = ProjectCacheHandle {
@@ -101,7 +101,7 @@ impl ProjectCacheService {
             project_changes: self.project_events_tx.clone(),
         };
 
-        self.spawn_handler(addr_rx);
+        runner.start_with(self, addr_rx);
 
         handle
     }
@@ -194,7 +194,7 @@ impl ProjectCacheService {
 impl relay_system::Service for ProjectCacheService {
     type Interface = ProjectCache;
 
-    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+    async fn run(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
         macro_rules! timed {
             ($task:expr, $body:expr) => {{
                 let task_name = $task;
@@ -206,25 +206,23 @@ impl relay_system::Service for ProjectCacheService {
             }};
         }
 
-        relay_system::spawn!(async move {
-            loop {
-                tokio::select! {
-                    biased;
+        loop {
+            tokio::select! {
+                biased;
 
-                    Some(fetch) = self.scheduled_fetches.next() => timed!(
-                        "completed_fetch",
-                        self.handle_completed_fetch(fetch)
-                    ),
-                    Some(message) = rx.recv() => timed!(
-                        message.variant(),
-                        self.handle_message(message)
-                    ),
-                    Some(eviction) = self.store.next_eviction() => timed!(
-                        "eviction",
-                        self.handle_eviction(eviction)
-                    ),
-                }
+                Some(fetch) = self.scheduled_fetches.next() => timed!(
+                    "completed_fetch",
+                    self.handle_completed_fetch(fetch)
+                ),
+                Some(message) = rx.recv() => timed!(
+                    message.variant(),
+                    self.handle_message(message)
+                ),
+                Some(eviction) = self.store.next_eviction() => timed!(
+                    "eviction",
+                    self.handle_eviction(eviction)
+                ),
             }
-        });
+        }
     }
 }

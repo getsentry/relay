@@ -112,7 +112,7 @@ fn listen(config: &Config) -> Result<TcpListener, ServerError> {
     Ok(socket.listen(config.tcp_listen_backlog())?.into_std()?)
 }
 
-fn serve(listener: TcpListener, app: App, config: Arc<Config>) {
+async fn serve(listener: TcpListener, app: App, config: Arc<Config>) {
     let handle = Handle::new();
 
     let acceptor = self::acceptor::RelayAcceptor::new()
@@ -139,7 +139,6 @@ fn serve(listener: TcpListener, app: App, config: Arc<Config>) {
         .keep_alive_timeout(config.keepalive_timeout());
 
     let service = ServiceExt::<Request>::into_make_service_with_connect_info::<SocketAddr>(app);
-    relay_system::spawn!(server.serve(service));
 
     relay_system::spawn!(emit_active_connections_metric(
         config.metrics_periodic_interval(),
@@ -155,6 +154,11 @@ fn serve(listener: TcpListener, app: App, config: Arc<Config>) {
             None => handle.shutdown(),
         }
     });
+
+    server
+        .serve(service)
+        .await
+        .expect("failed to start axum server");
 }
 
 /// HTTP server service.
@@ -182,7 +186,7 @@ impl HttpServer {
 impl Service for HttpServer {
     type Interface = ();
 
-    fn spawn_handler(self, _rx: relay_system::Receiver<Self::Interface>) {
+    async fn run(self, _rx: relay_system::Receiver<Self::Interface>) {
         let Self {
             config,
             service,
@@ -194,7 +198,7 @@ impl Service for HttpServer {
         relay_statsd::metric!(counter(RelayCounters::ServerStarting) += 1);
 
         let app = make_app(service);
-        serve(listener, app, config);
+        serve(listener, app, config).await;
     }
 }
 

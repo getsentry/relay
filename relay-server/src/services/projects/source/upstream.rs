@@ -635,22 +635,20 @@ impl UpstreamProjectSourceService {
 impl Service for UpstreamProjectSourceService {
     type Interface = UpstreamProjectSource;
 
-    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
-        relay_system::spawn!(async move {
-            relay_log::info!("project upstream cache started");
-            loop {
-                tokio::select! {
-                    biased;
+    async fn run(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+        relay_log::info!("project upstream cache started");
+        loop {
+            tokio::select! {
+                biased;
 
-                    () = &mut self.fetch_handle => self.do_fetch(),
-                    Some(responses) = self.inner_rx.recv() => self.handle_responses(responses),
-                    Some(message) = rx.recv() => self.handle_message(message),
+                () = &mut self.fetch_handle => self.do_fetch(),
+                Some(responses) = self.inner_rx.recv() => self.handle_responses(responses),
+                Some(message) = rx.recv() => self.handle_message(message),
 
-                    else => break,
-                }
+                else => break,
             }
-            relay_log::info!("project upstream cache stopped");
-        });
+        }
+        relay_log::info!("project upstream cache stopped");
     }
 }
 
@@ -688,7 +686,8 @@ mod tests {
             }};
         }
 
-        let service = UpstreamProjectSourceService::new(Arc::clone(&config), upstream_addr).start();
+        let service =
+            UpstreamProjectSourceService::new(Arc::clone(&config), upstream_addr).start_detached();
 
         let mut response1 = service.send(FetchProjectState {
             project_key,

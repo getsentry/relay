@@ -1498,7 +1498,7 @@ impl UpstreamRelayService {
 impl Service for UpstreamRelayService {
     type Interface = UpstreamRelay;
 
-    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
+    async fn run(self, mut rx: relay_system::Receiver<Self::Interface>) {
         let Self { config } = self;
 
         let client = SharedClient::build(config.clone());
@@ -1528,18 +1528,16 @@ impl Service for UpstreamRelayService {
             action_tx,
         };
 
-        relay_system::spawn!(async move {
-            loop {
-                tokio::select! {
-                    biased;
+        loop {
+            tokio::select! {
+                biased;
 
-                    Some(action) = action_rx.recv() => broker.handle_action(action),
-                    Some(request) = broker.next_request() => broker.execute(request),
-                    Some(message) = rx.recv() => broker.handle_message(message).await,
+                Some(action) = action_rx.recv() => broker.handle_action(action),
+                Some(request) = broker.next_request() => broker.execute(request),
+                Some(message) = rx.recv() => broker.handle_message(message).await,
 
-                    else => break,
-                }
+                else => break,
             }
-        });
+        }
     }
 }

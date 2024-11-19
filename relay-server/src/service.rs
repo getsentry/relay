@@ -31,7 +31,7 @@ use relay_redis::redis::Script;
 #[cfg(feature = "processing")]
 use relay_redis::{PooledClient, RedisScripts};
 use relay_redis::{RedisError, RedisPool, RedisPools};
-use relay_system::{channel, Addr, Service};
+use relay_system::{channel, Addr, Service, ServiceRunner};
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
 
@@ -134,7 +134,6 @@ fn create_store_pool(config: &Config) -> Result<ThreadPool> {
 struct StateInner {
     config: Arc<Config>,
     memory_checker: MemoryChecker,
-
     registry: Registry,
 }
 
@@ -146,9 +145,10 @@ pub struct ServiceState {
 
 impl ServiceState {
     /// Starts all services and returns addresses to all of them.
-    pub fn start(config: Arc<Config>) -> Result<Self> {
-        let upstream_relay = UpstreamRelayService::new(config.clone()).start();
-        let test_store = TestStoreService::new(config.clone()).start();
+    pub fn start(config: Arc<Config>) -> Result<(Self, ServiceRunner)> {
+        let mut runner = ServiceRunner::new();
+        let upstream_relay = runner.start(UpstreamRelayService::new(config.clone()));
+        let test_store = runner.start(TestStoreService::new(config.clone()));
 
         let redis_pools = config
             .redis()
@@ -173,13 +173,13 @@ impl ServiceState {
         // Create an address for the `EnvelopeProcessor`, which can be injected into the
         // other services.
         let (processor, processor_rx) = channel(EnvelopeProcessorService::name());
-        let outcome_producer = OutcomeProducerService::create(
+        let outcome_producer = runner.start(OutcomeProducerService::create(
             config.clone(),
             upstream_relay.clone(),
             processor.clone(),
-        )?
-        .start();
-        let outcome_aggregator = OutcomeAggregator::new(&config, outcome_producer.clone()).start();
+        )?);
+        let outcome_aggregator =
+            runner.start(OutcomeAggregator::new(&config, outcome_producer.clone()));
 
         let (global_config, global_config_rx) =
             GlobalConfigService::new(config.clone(), upstream_relay.clone());
@@ -187,12 +187,13 @@ impl ServiceState {
         // The global config service must start before dependant services are
         // started. Messages like subscription requests to the global config
         // service fail if the service is not running.
-        let global_config = global_config.start();
+        let global_config = runner.start(global_config);
 
         let (legacy_project_cache, legacy_project_cache_rx) =
             channel(legacy::ProjectCacheService::name());
 
-        let project_source = ProjectSource::start(
+        let project_source = ProjectSource::start_in(
+            &mut runner,
             Arc::clone(&config),
             upstream_relay.clone(),
             redis_pools
@@ -200,7 +201,7 @@ impl ServiceState {
                 .map(|pools| pools.project_configs.clone()),
         );
         let project_cache_handle =
-            ProjectCacheService::new(Arc::clone(&config), project_source).start();
+            ProjectCacheService::new(Arc::clone(&config), project_source).start_in(&mut runner);
 
         let aggregator = RouterService::new(
             config.default_aggregator_config().clone(),
@@ -208,7 +209,7 @@ impl ServiceState {
             Some(legacy_project_cache.clone().recipient()),
         );
         let aggregator_handle = aggregator.handle();
-        let aggregator = aggregator.start();
+        let aggregator = runner.start(aggregator);
 
         let metric_stats = MetricStats::new(
             config.clone(),
@@ -229,32 +230,34 @@ impl ServiceState {
                     outcome_aggregator.clone(),
                     metric_outcomes.clone(),
                 )
-                .map(|s| s.start())
+                .map(|s| runner.start(s))
             })
             .transpose()?;
 
         let cogs = CogsService::new(&config);
-        let cogs = Cogs::new(CogsServiceRecorder::new(&config, cogs.start()));
+        let cogs = Cogs::new(CogsServiceRecorder::new(&config, runner.start(cogs)));
 
-        EnvelopeProcessorService::new(
-            create_processor_pool(&config)?,
-            config.clone(),
-            global_config_handle,
-            project_cache_handle.clone(),
-            cogs,
-            #[cfg(feature = "processing")]
-            redis_pools.clone(),
-            processor::Addrs {
-                outcome_aggregator: outcome_aggregator.clone(),
-                upstream_relay: upstream_relay.clone(),
-                test_store: test_store.clone(),
+        runner.start_with(
+            EnvelopeProcessorService::new(
+                create_processor_pool(&config)?,
+                config.clone(),
+                global_config_handle,
+                project_cache_handle.clone(),
+                cogs,
                 #[cfg(feature = "processing")]
-                store_forwarder: store.clone(),
-                aggregator: aggregator.clone(),
-            },
-            metric_outcomes.clone(),
-        )
-        .spawn_handler(processor_rx);
+                redis_pools.clone(),
+                processor::Addrs {
+                    outcome_aggregator: outcome_aggregator.clone(),
+                    upstream_relay: upstream_relay.clone(),
+                    test_store: test_store.clone(),
+                    #[cfg(feature = "processing")]
+                    store_forwarder: store.clone(),
+                    aggregator: aggregator.clone(),
+                },
+                metric_outcomes.clone(),
+            ),
+            processor_rx,
+        );
 
         let (envelopes_tx, envelopes_rx) = mpsc::channel(config.spool_max_backpressure_envelopes());
         let envelope_buffer = EnvelopeBufferService::new(
@@ -268,7 +271,7 @@ impl ServiceState {
                 test_store: test_store.clone(),
             },
         )
-        .map(|b| b.start_observable());
+        .map(|b| b.start_in(&mut runner));
 
         // Keep all the services in one context.
         let project_cache_services = legacy::Services {
@@ -280,34 +283,37 @@ impl ServiceState {
             test_store: test_store.clone(),
         };
 
-        legacy::ProjectCacheService::new(
-            config.clone(),
-            MemoryChecker::new(memory_stat.clone(), config.clone()),
-            project_cache_handle.clone(),
-            project_cache_services,
-            global_config_rx,
-            envelopes_rx,
-        )
-        .spawn_handler(legacy_project_cache_rx);
+        runner.start_with(
+            legacy::ProjectCacheService::new(
+                config.clone(),
+                MemoryChecker::new(memory_stat.clone(), config.clone()),
+                project_cache_handle.clone(),
+                project_cache_services,
+                global_config_rx,
+                envelopes_rx,
+            ),
+            legacy_project_cache_rx,
+        );
 
-        let health_check = HealthCheckService::new(
+        let health_check = runner.start(HealthCheckService::new(
             config.clone(),
             MemoryChecker::new(memory_stat.clone(), config.clone()),
             aggregator_handle,
             upstream_relay.clone(),
             envelope_buffer.clone(),
-        )
-        .start();
+        ));
 
-        RelayStats::new(
+        runner.start(RelayStats::new(
             config.clone(),
             upstream_relay.clone(),
             #[cfg(feature = "processing")]
             redis_pools.clone(),
-        )
-        .start();
+        ));
 
-        let relay_cache = RelayCacheService::new(config.clone(), upstream_relay.clone()).start();
+        let relay_cache = runner.start(RelayCacheService::new(
+            config.clone(),
+            upstream_relay.clone(),
+        ));
 
         let registry = Registry {
             processor,
@@ -329,9 +335,12 @@ impl ServiceState {
             registry,
         };
 
-        Ok(ServiceState {
-            inner: Arc::new(state),
-        })
+        Ok((
+            ServiceState {
+                inner: Arc::new(state),
+            },
+            runner,
+        ))
     }
 
     /// Returns a reference to the Relay configuration.

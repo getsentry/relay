@@ -1048,21 +1048,19 @@ impl StoreService {
 impl Service for StoreService {
     type Interface = Store;
 
-    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
+    async fn run(self, mut rx: relay_system::Receiver<Self::Interface>) {
         let this = Arc::new(self);
 
-        relay_system::spawn!(async move {
-            relay_log::info!("store forwarder started");
+        relay_log::info!("store forwarder started");
 
-            while let Some(message) = rx.recv().await {
-                let service = Arc::clone(&this);
-                this.workers
-                    .spawn(move || service.handle_message(message))
-                    .await;
-            }
+        while let Some(message) = rx.recv().await {
+            let service = Arc::clone(&this);
+            this.workers
+                .spawn(move || service.handle_message(message))
+                .await;
+        }
 
-            relay_log::info!("store forwarder stopped");
-        });
+        relay_log::info!("store forwarder stopped");
     }
 }
 
