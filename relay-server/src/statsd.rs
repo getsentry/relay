@@ -549,6 +549,16 @@ pub enum RelayTimers {
     StoreServiceDuration,
     /// Timing in milliseconds for the time it takes for initialize the buffer.
     BufferInitialization,
+    /// Timing in milliseconds for the time the buffer service is waiting for input.
+    ///
+    /// This metric is tagged with:
+    /// - `input`: The type of input that broke the idling.
+    BufferIdle,
+    /// Timing in milliseconds for the time the buffer service spends handling input.
+    ///
+    /// This metric is tagged with:
+    /// - `input`: The type of input that the service is handling.
+    BufferBusy,
     /// Timing in milliseconds for the time it takes for the buffer to spool data to disk.
     BufferSpool,
     /// Timing in milliseconds for the time it takes for the buffer to unspool data from disk.
@@ -615,6 +625,8 @@ impl TimerMetric for RelayTimers {
             #[cfg(feature = "processing")]
             RelayTimers::StoreServiceDuration => "store.message.duration",
             RelayTimers::BufferInitialization => "buffer.initialization.duration",
+            RelayTimers::BufferIdle => "buffer.idle",
+            RelayTimers::BufferBusy => "buffer.busy",
             RelayTimers::BufferSpool => "buffer.spool.duration",
             RelayTimers::BufferUnspool => "buffer.unspool.duration",
             RelayTimers::BufferPush => "buffer.push.duration",
@@ -657,10 +669,6 @@ pub enum RelayCounters {
     ///  - `handling`: Either `"success"` if the envelope was handled correctly, or `"failure"` if
     ///    there was an error or bug.
     EnvelopeRejected,
-    /// Number of items we processed per envelope.
-    EnvelopeItems,
-    /// Number of bytes we processed per envelope item.
-    EnvelopeItemBytes,
     /// Number of times the envelope buffer spools to disk.
     BufferWritesDisk,
     /// Number of times the envelope buffer reads back from disk.
@@ -729,15 +737,8 @@ pub enum RelayCounters {
     ///     - `false`: the request will be sent to the sentry endpoint.
     #[cfg(feature = "processing")]
     ProjectStateRedis,
-    /// Number of times a project is looked up from the cache.
-    ///
-    /// The cache may contain and outdated or expired project state. In that case, the project state
-    /// is updated even after a cache hit.
-    ProjectCacheHit,
-    /// Number of times a project lookup failed.
-    ///
-    /// A cache entry is created immediately and the project state requested from the upstream.
-    ProjectCacheMiss,
+    /// Number of times a project had a fetch scheduled.
+    ProjectCacheSchedule,
     /// Number of times an upstream request for a project config is completed.
     ///
     /// Completion can be because a result was returned or because the config request was
@@ -881,8 +882,6 @@ impl CounterMetric for RelayCounters {
             RelayCounters::EventCorrupted => "event.corrupted",
             RelayCounters::EnvelopeAccepted => "event.accepted",
             RelayCounters::EnvelopeRejected => "event.rejected",
-            RelayCounters::EnvelopeItems => "event.items",
-            RelayCounters::EnvelopeItemBytes => "event.item_bytes",
             RelayCounters::BufferWritesDisk => "buffer.writes",
             RelayCounters::BufferReadsDisk => "buffer.reads",
             RelayCounters::BufferEnvelopesWritten => "buffer.envelopes_written",
@@ -900,8 +899,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ProjectStateRedis => "project_state.redis.requests",
             RelayCounters::ProjectUpstreamCompleted => "project_upstream.completed",
             RelayCounters::ProjectUpstreamFailed => "project_upstream.failed",
-            RelayCounters::ProjectCacheHit => "project_cache.hit",
-            RelayCounters::ProjectCacheMiss => "project_cache.miss",
+            RelayCounters::ProjectCacheSchedule => "project_cache.schedule",
             RelayCounters::ServerStarting => "server.starting",
             #[cfg(feature = "processing")]
             RelayCounters::ProcessingMessageProduced => "processing.event.produced",

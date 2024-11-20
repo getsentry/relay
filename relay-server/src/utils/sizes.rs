@@ -62,6 +62,7 @@ pub fn check_envelope_size_limits(config: &Config, envelope: &Envelope) -> Resul
             ItemType::Statsd => config.max_statsd_size(),
             ItemType::MetricBuckets => config.max_metric_buckets_size(),
             ItemType::Span | ItemType::OtelSpan => config.max_span_size(),
+            ItemType::OtelTracesData => config.max_event_size(), // a spans container similar to `Transaction`
             ItemType::ProfileChunk => config.max_profile_size(),
             ItemType::Unknown(_) => NO_LIMIT,
         };

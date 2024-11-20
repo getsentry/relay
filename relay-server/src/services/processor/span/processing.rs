@@ -10,14 +10,11 @@ use relay_dynamic_config::{
 };
 use relay_event_normalization::span::ai::extract_ai_measurements;
 use relay_event_normalization::{
-    normalize_measurements, normalize_performance_score, span::tag_extraction, validate_span,
-    CombinedMeasurementsConfig, MeasurementsConfig, PerformanceScoreConfig, RawUserAgentInfo,
-    TransactionsProcessor,
-};
-use relay_event_normalization::{
-    normalize_transaction_name, BorrowedSpanOpDefaults, ClientHints, FromUserAgentInfo,
-    GeoIpLookup, ModelCosts, SchemaProcessor, TimestampProcessor, TransactionNameRule,
-    TrimmingProcessor,
+    normalize_measurements, normalize_performance_score, normalize_transaction_name,
+    span::tag_extraction, validate_span, BorrowedSpanOpDefaults, ClientHints,
+    CombinedMeasurementsConfig, FromUserAgentInfo, GeoIpLookup, MeasurementsConfig, ModelCosts,
+    PerformanceScoreConfig, RawUserAgentInfo, SchemaProcessor, TimestampProcessor,
+    TransactionNameRule, TransactionsProcessor, TrimmingProcessor,
 };
 use relay_event_schema::processor::{process_value, ProcessingAction, ProcessingState};
 use relay_event_schema::protocol::{

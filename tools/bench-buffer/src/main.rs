@@ -23,7 +23,7 @@ enum Mode {
 #[derive(Parser, Debug)]
 struct Args {
     #[arg(long)]
-    envelope_size_kib: usize,
+    envelope_size_bytes: usize,
     #[arg(long)]
     compression_ratio: f64,
     #[arg(long)]
@@ -45,7 +45,7 @@ async fn main() {
     let args = Args::parse();
     println!("{:?}", &args);
     let Args {
-        envelope_size_kib,
+        envelope_size_bytes,
         compression_ratio,
         batch_size_kib,
         implementation,
@@ -87,7 +87,7 @@ async fn main() {
         Mode::Sequential => {
             run_sequential(
                 buffer,
-                envelope_size_kib * 1024,
+                envelope_size_bytes,
                 compression_ratio,
                 projects,
                 Duration::from_secs(duration_secs),
@@ -97,7 +97,7 @@ async fn main() {
         Mode::Interleaved => {
             run_interleaved(
                 buffer,
-                envelope_size_kib * 1024,
+                envelope_size_bytes,
                 compression_ratio,
                 projects,
                 Duration::from_secs(duration_secs),

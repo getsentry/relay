@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 use relay_common::impl_str_serde;
 use sentry::types::Dsn;
+use sentry::{TracesSampler, TransactionContext};
 use serde::{Deserialize, Serialize};
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{prelude::*, EnvFilter, Layer};
@@ -173,6 +174,12 @@ pub struct SentryConfig {
     /// Sets the environment for this service.
     pub environment: Option<Cow<'static, str>>,
 
+    /// Sets the server name for this service.
+    ///
+    /// This is overridden by the `RELAY_SERVER_NAME`
+    /// environment variable.
+    pub server_name: Option<Cow<'static, str>>,
+
     /// Add defaults tags to the events emitted by Relay
     pub default_tags: Option<BTreeMap<String, String>>,
 
@@ -196,6 +203,7 @@ impl Default for SentryConfig {
                 .ok(),
             enabled: false,
             environment: None,
+            server_name: None,
             default_tags: None,
             _crash_db: None,
         }
@@ -287,13 +295,24 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
         .init();
 
     if let Some(dsn) = sentry.enabled_dsn() {
+        let traces_sample_rate = config.traces_sample_rate;
+        // We're explicitly setting a `traces_sampler` here to circumvent trace
+        // propagation. A trace sampler that always just returns the constant
+        // `traces_sample_rate` is equivalent to using the `traces_sample_rate`
+        // directly, except it doesn't take into account whether the context
+        // was previously sampled. We don't want to take that into account because
+        // SDKs send headers with their envelopes that erroneously cause us to
+        // sample transactions.
+        let traces_sampler =
+            Some(Arc::new(move |_: &TransactionContext| traces_sample_rate) as Arc<TracesSampler>);
         let mut options = sentry::ClientOptions {
             dsn: Some(dsn).cloned(),
             in_app_include: vec!["relay"],
             release: Some(RELEASE.into()),
             attach_stacktrace: config.enable_backtraces,
             environment: sentry.environment.clone(),
-            traces_sample_rate: config.traces_sample_rate,
+            server_name: sentry.server_name.clone(),
+            traces_sampler,
             ..Default::default()
         };
 
@@ -308,6 +327,14 @@ pub fn init(config: &LogConfig, sentry: &SentryConfig) {
                 Some(event)
             }));
         }
+
+        crate::info!(
+            release = RELEASE,
+            server_name = sentry.server_name.as_deref(),
+            environment = sentry.environment.as_deref(),
+            traces_sample_rate,
+            "Initialized Sentry client options"
+        );
 
         let guard = sentry::init(options);
 

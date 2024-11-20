@@ -40,6 +40,7 @@ use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
 use reqwest::header;
 use smallvec::{smallvec, SmallVec};
+use zstd::stream::Encoder as ZstdEncoder;
 
 #[cfg(feature = "processing")]
 use {
@@ -297,8 +298,12 @@ impl ProcessingGroup {
         }
 
         // Extract spans.
-        let span_items = envelope
-            .take_items_by(|item| matches!(item.ty(), &ItemType::Span | &ItemType::OtelSpan));
+        let span_items = envelope.take_items_by(|item| {
+            matches!(
+                item.ty(),
+                &ItemType::Span | &ItemType::OtelSpan | &ItemType::OtelTracesData
+            )
+        });
         if !span_items.is_empty() {
             grouped_envelopes.push((
                 ProcessingGroup::Span,
@@ -1701,17 +1706,13 @@ impl EnvelopeProcessorService {
         };
 
         if let Some(outcome) = sampling_result.into_dropped_outcome() {
-            let keep_profiles = global_config.options.unsampled_profiles_enabled;
             // Process profiles before dropping the transaction, if necessary.
             // Before metric extraction to make sure the profile count is reflected correctly.
-            let profile_id = match keep_profiles {
-                true => profile::process(state, &global_config),
-                false => profile_id,
-            };
+            let profile_id = profile::process(state, &global_config);
             // Extract metrics here, we're about to drop the event/transaction.
             self.extract_transaction_metrics(state, SamplingDecision::Drop, profile_id)?;
 
-            dynamic_sampling::drop_unsampled_items(state, outcome, keep_profiles);
+            dynamic_sampling::drop_unsampled_items(state, outcome);
 
             // At this point we have:
             //  - An empty envelope.
@@ -1859,6 +1860,7 @@ impl EnvelopeProcessorService {
         state: &mut ProcessEnvelopeState<SpanGroup>,
     ) -> Result<(), ProcessingError> {
         span::filter(state);
+        span::convert_otel_traces_data(state);
 
         if_processing!(self.inner.config, {
             let global_config = self.inner.global_config.current();
@@ -2913,6 +2915,13 @@ fn encode_payload(body: &Bytes, http_encoding: HttpEncoding) -> Result<Bytes, st
             let mut encoder = BrotliEncoder::new(Vec::new(), 0, 5, 22);
             encoder.write_all(body.as_ref())?;
             encoder.into_inner()
+        }
+        HttpEncoding::Zstd => {
+            // Use the fastest compression level, our main objective here is to get the best
+            // compression ratio for least amount of time spent.
+            let mut encoder = ZstdEncoder::new(Vec::new(), 1)?;
+            encoder.write_all(body.as_ref())?;
+            encoder.finish()?
         }
     };
 

@@ -250,6 +250,8 @@ pub struct OverridableConfig {
     pub outcome_source: Option<String>,
     /// shutdown timeout
     pub shutdown_timeout: Option<String>,
+    /// Server name reported in the Sentry SDK.
+    pub server_name: Option<String>,
 }
 
 /// The relay credentials
@@ -726,13 +728,17 @@ pub enum HttpEncoding {
     Gzip,
     /// A format using the [Brotli](https://en.wikipedia.org/wiki/Brotli) algorithm.
     Br,
+    /// A format using the [Zstd](https://en.wikipedia.org/wiki/Zstd) compression algorithm.
+    Zstd,
 }
 
 impl HttpEncoding {
     /// Parses a [`HttpEncoding`] from its `content-encoding` header value.
     pub fn parse(str: &str) -> Self {
         let str = str.trim();
-        if str.eq_ignore_ascii_case("br") {
+        if str.eq_ignore_ascii_case("zstd") {
+            Self::Zstd
+        } else if str.eq_ignore_ascii_case("br") {
             Self::Br
         } else if str.eq_ignore_ascii_case("gzip") || str.eq_ignore_ascii_case("x-gzip") {
             Self::Gzip
@@ -752,6 +758,7 @@ impl HttpEncoding {
             Self::Deflate => Some("deflate"),
             Self::Gzip => Some("gzip"),
             Self::Br => Some("br"),
+            Self::Zstd => Some("zstd"),
         }
     }
 }
@@ -1767,6 +1774,10 @@ impl Config {
             if let Ok(shutdown_timeout) = shutdown_timeout.parse::<u64>() {
                 limits.shutdown_timeout = shutdown_timeout;
             }
+        }
+
+        if let Some(server_name) = overrides.server_name {
+            self.values.sentry.server_name = Some(server_name.into());
         }
 
         Ok(self)

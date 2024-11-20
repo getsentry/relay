@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+**Bug Fixes**:
+
+- Terminate the process when one of the services crashes. ([#4249](https://github.com/getsentry/relay/pull/4249))
+- Don't propagate trace sampling decisions from SDKs ([#4265](https://github.com/getsentry/relay/pull/4265))
+
+**Features**:
+
+- Implement zstd http encoding for Relay to Relay communication. ([#4266](https://github.com/getsentry/relay/pull/4266))
+
+## 24.11.0
+
 **Breaking Changes**:
 
 - Removes support for metric meta envelope items. ([#4152](https://github.com/getsentry/relay/pull/4152))
@@ -20,6 +31,7 @@
 - Support inbound filters for profiles. ([#4176](https://github.com/getsentry/relay/pull/4176))
 - Scrub lower-case redis commands. ([#4235](https://github.com/getsentry/relay/pull/4235))
 - Make the maximum idle time of a HTTP connection configurable. ([#4248](https://github.com/getsentry/relay/pull/4248))
+- Allow configuring a Sentry server name with an option or the `RELAY_SERVER_NAME` environment variable. ([#4251](https://github.com/getsentry/relay/pull/4251))
 
 **Internal**:
 
@@ -67,6 +79,7 @@
 - Feature flags of graduated features are now hard-coded in Relay so they can be removed from Sentry. ([#4076](https://github.com/getsentry/relay/pull/4076), [#4080](https://github.com/getsentry/relay/pull/4080))
 - Add parallelization in Redis commands. ([#4118](https://github.com/getsentry/relay/pull/4118))
 - Extract user ip for spans. ([#4144](https://github.com/getsentry/relay/pull/4144))
+- Add support for an experimental OTLP `/v1/traces/` endpoint. The endpoint is disabled by default. ([#4223](https://github.com/getsentry/relay/pull/4223))
 
 ## 24.9.0
 
