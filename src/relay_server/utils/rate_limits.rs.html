@@ -1522,6 +1522,24 @@
 <a href="#1522" id="1522">1522</a>
 <a href="#1523" id="1523">1523</a>
 <a href="#1524" id="1524">1524</a>
+<a href="#1525" id="1525">1525</a>
+<a href="#1526" id="1526">1526</a>
+<a href="#1527" id="1527">1527</a>
+<a href="#1528" id="1528">1528</a>
+<a href="#1529" id="1529">1529</a>
+<a href="#1530" id="1530">1530</a>
+<a href="#1531" id="1531">1531</a>
+<a href="#1532" id="1532">1532</a>
+<a href="#1533" id="1533">1533</a>
+<a href="#1534" id="1534">1534</a>
+<a href="#1535" id="1535">1535</a>
+<a href="#1536" id="1536">1536</a>
+<a href="#1537" id="1537">1537</a>
+<a href="#1538" id="1538">1538</a>
+<a href="#1539" id="1539">1539</a>
+<a href="#1540" id="1540">1540</a>
+<a href="#1541" id="1541">1541</a>
+<a href="#1542" id="1542">1542</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt::{<span class="self">self</span>, Write};
 
 <span class="kw">use </span>relay_quotas::{
@@ -2007,6 +2025,7 @@
             ItemType::Span | ItemType::OtelSpan | ItemType::OtelTracesData =&gt; {
                 !<span class="self">self</span>.spans_indexed.is_active()
             }
+            ItemType::ProfileChunk =&gt; !<span class="self">self</span>.profile_chunks.is_active(),
             ItemType::Event
             | ItemType::Transaction
             | ItemType::Security
@@ -2020,7 +2039,6 @@
             | ItemType::MetricBuckets
             | ItemType::ClientReport
             | ItemType::UserReportV2
-            | ItemType::ProfileChunk
             | ItemType::Unknown(<span class="kw">_</span>) =&gt; <span class="bool-val">true</span>,
         }
     }
@@ -2720,6 +2738,24 @@
                 (DataCategory::Profile, <span class="number">2</span>),
                 (DataCategory::ProfileIndexed, <span class="number">2</span>)
             ]
+        );
+    }
+
+    <span class="doccomment">/// Limit profile chunks.
+    </span><span class="attr">#[test]
+    </span><span class="kw">fn </span>test_enforce_limit_profile_chunks() {
+        <span class="kw">let </span><span class="kw-2">mut </span>envelope = <span class="macro">envelope!</span>[ProfileChunk, ProfileChunk];
+
+        <span class="kw">let </span><span class="kw-2">mut </span>mock = MockLimiter::default().deny(DataCategory::ProfileChunk);
+        <span class="kw">let </span>(enforcement, limits) = enforce_and_apply(<span class="kw-2">&amp;mut </span>mock, <span class="kw-2">&amp;mut </span>envelope, <span class="prelude-val">None</span>);
+
+        <span class="macro">assert!</span>(limits.is_limited());
+        <span class="macro">assert_eq!</span>(envelope.envelope().len(), <span class="number">0</span>);
+        mock.assert_call(DataCategory::ProfileChunk, <span class="number">2</span>);
+
+        <span class="macro">assert_eq!</span>(
+            get_outcomes(enforcement),
+            <span class="macro">vec!</span>[(DataCategory::ProfileChunk, <span class="number">2</span>),]
         );
     }
 
