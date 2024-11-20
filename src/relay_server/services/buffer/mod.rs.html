@@ -751,6 +751,31 @@
 <a href="#751" id="751">751</a>
 <a href="#752" id="752">752</a>
 <a href="#753" id="753">753</a>
+<a href="#754" id="754">754</a>
+<a href="#755" id="755">755</a>
+<a href="#756" id="756">756</a>
+<a href="#757" id="757">757</a>
+<a href="#758" id="758">758</a>
+<a href="#759" id="759">759</a>
+<a href="#760" id="760">760</a>
+<a href="#761" id="761">761</a>
+<a href="#762" id="762">762</a>
+<a href="#763" id="763">763</a>
+<a href="#764" id="764">764</a>
+<a href="#765" id="765">765</a>
+<a href="#766" id="766">766</a>
+<a href="#767" id="767">767</a>
+<a href="#768" id="768">768</a>
+<a href="#769" id="769">769</a>
+<a href="#770" id="770">770</a>
+<a href="#771" id="771">771</a>
+<a href="#772" id="772">772</a>
+<a href="#773" id="773">773</a>
+<a href="#774" id="774">774</a>
+<a href="#775" id="775">775</a>
+<a href="#776" id="776">776</a>
+<a href="#777" id="777">777</a>
+<a href="#778" id="778">778</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Types for buffering envelopes.
 
 </span><span class="kw">use </span>std::error::Error;
@@ -780,6 +805,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::ProcessingGroup;
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::cache::{legacy, ProjectCacheHandle, ProjectChange};
 <span class="kw">use </span><span class="kw">crate</span>::services::test_store::TestStore;
+<span class="kw">use </span><span class="kw">crate</span>::statsd::RelayTimers;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms};
 <span class="kw">use </span><span class="kw">crate</span>::utils::ManagedEnvelope;
 <span class="kw">use </span><span class="kw">crate</span>::MemoryChecker;
@@ -812,6 +838,15 @@
     /// This happens when an envelope was sent to the project cache, but one of the necessary project
     /// state has expired. The envelope is pushed back into the envelope buffer.
     </span>NotReady(ProjectKey, Box&lt;Envelope&gt;),
+}
+
+<span class="kw">impl </span>EnvelopeBuffer {
+    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+        <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self </span>{
+            EnvelopeBuffer::Push(<span class="kw">_</span>) =&gt; <span class="string">"push"</span>,
+            EnvelopeBuffer::NotReady(..) =&gt; <span class="string">"project_not_ready"</span>,
+        }
+    }
 }
 
 <span class="kw">impl </span>Interface <span class="kw">for </span>EnvelopeBuffer {}
@@ -1171,43 +1206,58 @@
             );
 
             <span class="kw">let </span><span class="kw-2">mut </span>sleep = Duration::MAX;
+            <span class="kw">let </span>start = Instant::now();
             <span class="macro">tokio::select!</span> {
                 <span class="comment">// NOTE: we do not select a bias here.
                 // On the one hand, we might want to prioritize dequeuing over enqueuing
                 // so we do not exceed the buffer capacity by starving the dequeue.
                 // on the other hand, prioritizing old messages violates the LIFO design.
                 </span><span class="prelude-val">Some</span>(permit) = <span class="self">self</span>.ready_to_pop(<span class="kw-2">&amp;</span>buffer, dequeue.load(Ordering::Relaxed)) =&gt; {
-                    <span class="kw">match </span><span class="self">Self</span>::try_pop(<span class="kw-2">&amp;</span>config, <span class="kw-2">&amp;mut </span>buffer, <span class="kw-2">&amp;</span>services, permit).<span class="kw">await </span>{
-                        <span class="prelude-val">Ok</span>(new_sleep) =&gt; {
-                            sleep = new_sleep;
+                    <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::BufferIdle) = start.elapsed(), input = <span class="string">"pop"</span>);
+                    <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::BufferBusy), input = <span class="string">"pop"</span>, {
+                        <span class="kw">match </span><span class="self">Self</span>::try_pop(<span class="kw-2">&amp;</span>config, <span class="kw-2">&amp;mut </span>buffer, <span class="kw-2">&amp;</span>services, permit).<span class="kw">await </span>{
+                            <span class="prelude-val">Ok</span>(new_sleep) =&gt; {
+                                sleep = new_sleep;
+                            }
+                            <span class="prelude-val">Err</span>(error) =&gt; {
+                                <span class="macro">relay_log::error!</span>(
+                                error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
+                                <span class="string">"failed to pop envelope"
+                            </span>);
                         }
-                        <span class="prelude-val">Err</span>(error) =&gt; {
-                            <span class="macro">relay_log::error!</span>(
-                            error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
-                            <span class="string">"failed to pop envelope"
-                        </span>);
-                        }
-                    }
+                    }});
                 }
                 change = project_changes.recv() =&gt; {
-                    <span class="kw">if let </span><span class="prelude-val">Ok</span>(ProjectChange::Ready(project_key)) = change {
-                        buffer.mark_ready(<span class="kw-2">&amp;</span>project_key, <span class="bool-val">true</span>);
-                    }
-                    sleep = Duration::ZERO;
+                    <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::BufferIdle) = start.elapsed(), input = <span class="string">"project_change"</span>);
+                    <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::BufferBusy), input = <span class="string">"project_change"</span>, {
+                        <span class="kw">if let </span><span class="prelude-val">Ok</span>(ProjectChange::Ready(project_key)) = change {
+                            buffer.mark_ready(<span class="kw-2">&amp;</span>project_key, <span class="bool-val">true</span>);
+                        }
+                        sleep = Duration::ZERO;
+                    });
                 }
                 <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; {
-                    <span class="self">Self</span>::handle_message(<span class="kw-2">&amp;mut </span>buffer, <span class="kw-2">&amp;</span>services, message).<span class="kw">await</span>;
-                    sleep = Duration::ZERO;
+                    <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::BufferIdle) = start.elapsed(), input = <span class="string">"handle_message"</span>);
+                    <span class="kw">let </span>message_name = message.name();
+                    <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::BufferBusy), input = message_name, {
+                        <span class="self">Self</span>::handle_message(<span class="kw-2">&amp;mut </span>buffer, <span class="kw-2">&amp;</span>services, message).<span class="kw">await</span>;
+                        sleep = Duration::ZERO;
+                    });
                 }
                 shutdown = shutdown.notified() =&gt; {
-                    <span class="comment">// In case the shutdown was handled, we break out of the loop signaling that
-                    // there is no need to process anymore envelopes.
-                    </span><span class="kw">if </span><span class="self">Self</span>::handle_shutdown(<span class="kw-2">&amp;mut </span>buffer, shutdown).<span class="kw">await </span>{
-                        <span class="kw">break</span>;
-                    }
+                    <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::BufferIdle) = start.elapsed(), input = <span class="string">"shutdown"</span>);
+                    <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::BufferBusy), input = <span class="string">"shutdown"</span>, {
+                        <span class="comment">// In case the shutdown was handled, we break out of the loop signaling that
+                        // there is no need to process anymore envelopes.
+                        </span><span class="kw">if </span><span class="self">Self</span>::handle_shutdown(<span class="kw-2">&amp;mut </span>buffer, shutdown).<span class="kw">await </span>{
+                            <span class="kw">break</span>;
+                        }
+                    });
                 }
                 <span class="prelude-val">Ok</span>(()) = global_config_rx.changed() =&gt; {
+                    <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::BufferIdle) = start.elapsed(), input = <span class="string">"global_config_change"</span>);
                     sleep = Duration::ZERO;
+
                 }
                 <span class="kw">else </span>=&gt; <span class="kw">break</span>,
             }
@@ -1447,7 +1497,7 @@
 
         addr.send(EnvelopeBuffer::NotReady(project_key, envelope));
 
-        tokio::time::sleep(Duration::from_millis(<span class="number">100</span>)).<span class="kw">await</span>;
+        tokio::time::sleep(Duration::from_millis(<span class="number">200</span>)).<span class="kw">await</span>;
         <span class="macro">assert_eq!</span>(project_cache_handle.test_num_fetches(), <span class="number">2</span>);
 
         tokio::time::sleep(Duration::from_millis(<span class="number">1300</span>)).<span class="kw">await</span>;

@@ -1058,6 +1058,18 @@
 <a href="#1058" id="1058">1058</a>
 <a href="#1059" id="1059">1059</a>
 <a href="#1060" id="1060">1060</a>
+<a href="#1061" id="1061">1061</a>
+<a href="#1062" id="1062">1062</a>
+<a href="#1063" id="1063">1063</a>
+<a href="#1064" id="1064">1064</a>
+<a href="#1065" id="1065">1065</a>
+<a href="#1066" id="1066">1066</a>
+<a href="#1067" id="1067">1067</a>
+<a href="#1068" id="1068">1068</a>
+<a href="#1069" id="1069">1069</a>
+<a href="#1070" id="1070">1070</a>
+<a href="#1071" id="1071">1071</a>
+<a href="#1072" id="1072">1072</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 <span class="attr">#[cfg(doc)]
 </span><span class="kw">use </span>tokio::runtime::RuntimeMetrics;
@@ -1609,6 +1621,16 @@
     </span>StoreServiceDuration,
     <span class="doccomment">/// Timing in milliseconds for the time it takes for initialize the buffer.
     </span>BufferInitialization,
+    <span class="doccomment">/// Timing in milliseconds for the time the buffer service is waiting for input.
+    ///
+    /// This metric is tagged with:
+    /// - `input`: The type of input that broke the idling.
+    </span>BufferIdle,
+    <span class="doccomment">/// Timing in milliseconds for the time the buffer service spends handling input.
+    ///
+    /// This metric is tagged with:
+    /// - `input`: The type of input that the service is handling.
+    </span>BufferBusy,
     <span class="doccomment">/// Timing in milliseconds for the time it takes for the buffer to spool data to disk.
     </span>BufferSpool,
     <span class="doccomment">/// Timing in milliseconds for the time it takes for the buffer to unspool data from disk.
@@ -1675,6 +1697,8 @@
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>RelayTimers::StoreServiceDuration =&gt; <span class="string">"store.message.duration"</span>,
             RelayTimers::BufferInitialization =&gt; <span class="string">"buffer.initialization.duration"</span>,
+            RelayTimers::BufferIdle =&gt; <span class="string">"buffer.idle"</span>,
+            RelayTimers::BufferBusy =&gt; <span class="string">"buffer.busy"</span>,
             RelayTimers::BufferSpool =&gt; <span class="string">"buffer.spool.duration"</span>,
             RelayTimers::BufferUnspool =&gt; <span class="string">"buffer.unspool.duration"</span>,
             RelayTimers::BufferPush =&gt; <span class="string">"buffer.push.duration"</span>,
