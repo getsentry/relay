@@ -719,7 +719,7 @@ mod tests {
 
         addr.send(EnvelopeBuffer::NotReady(project_key, envelope));
 
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        tokio::time::sleep(Duration::from_millis(200)).await;
         assert_eq!(project_cache_handle.test_num_fetches(), 2);
 
         tokio::time::sleep(Duration::from_millis(1300)).await;
