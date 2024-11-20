@@ -1,15 +1,24 @@
 use r2d2::{Builder, ManageConnection, Pool, PooledConnection};
 use rayon::prelude::*;
+use rayon::ThreadPool;
+use rayon::ThreadPoolBuilder;
 pub use redis;
 use redis::ConnectionLike;
 use std::error::Error;
-use std::sync::Mutex;
-use std::thread::Scope;
+use std::fmt;
+use std::sync::LazyLock;
 use std::time::Duration;
-use std::{fmt, thread};
 use thiserror::Error;
 
 use crate::config::RedisConfigOptions;
+
+static REDIS_SECONDARIES_THREAD_POOL: LazyLock<ThreadPool> = LazyLock::new(|| {
+    ThreadPoolBuilder::new()
+        .num_threads(10)
+        .thread_name(|i| format!("redis-secondary-{}", i))
+        .build()
+        .expect("Failed to create Redis secondaries thread pool")
+});
 
 /// An error returned from `RedisPool`.
 #[derive(Debug, Error)]
@@ -36,21 +45,6 @@ fn log_secondary_redis_error<T>(result: redis::RedisResult<T>) {
     }
 }
 
-fn spawn_secondary_thread<'scope, 'env: 'scope, T>(
-    scope: &'scope Scope<'scope, 'env>,
-    block: impl FnOnce() -> redis::RedisResult<T> + Send + 'scope,
-) {
-    let result = thread::Builder::new().spawn_scoped(scope, move || {
-        log_secondary_redis_error(block());
-    });
-    if let Err(error) = result {
-        relay_log::error!(
-            error = &error as &dyn Error,
-            "spawning the thread for the secondary Redis connection failed",
-        );
-    }
-}
-
 enum ConnectionInner<'a> {
     Cluster(&'a mut redis::cluster::ClusterConnection),
     MultiWrite {
@@ -69,8 +63,10 @@ impl ConnectionLike for ConnectionInner<'_> {
                 primary,
                 secondaries,
             } => {
-                secondaries.par_iter_mut().for_each(|connection| {
-                    log_secondary_redis_error(connection.req_packed_command(cmd));
+                REDIS_SECONDARIES_THREAD_POOL.install(|| {
+                    secondaries.par_iter_mut().for_each(|connection| {
+                        log_secondary_redis_error(connection.req_packed_command(cmd));
+                    });
                 });
                 primary.req_packed_command(cmd)
             }
@@ -90,8 +86,12 @@ impl ConnectionLike for ConnectionInner<'_> {
                 primary,
                 secondaries,
             } => {
-                secondaries.par_iter_mut().for_each(|connection| {
-                    log_secondary_redis_error(connection.req_packed_commands(cmd, offset, count));
+                REDIS_SECONDARIES_THREAD_POOL.install(|| {
+                    secondaries.par_iter_mut().for_each(|connection| {
+                        log_secondary_redis_error(
+                            connection.req_packed_commands(cmd, offset, count),
+                        );
+                    });
                 });
                 primary.req_packed_commands(cmd, offset, count)
             }
