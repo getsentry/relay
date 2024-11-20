@@ -446,7 +446,7 @@ impl Service for EnvelopeBufferService {
                                 error = &error as &dyn std::error::Error,
                                 "failed to pop envelope"
                             );
-                            }
+                        }
                     }});
                 }
                 change = project_changes.recv() => {
