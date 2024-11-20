@@ -27,6 +27,7 @@ use crate::services::outcome::TrackOutcome;
 use crate::services::processor::ProcessingGroup;
 use crate::services::projects::cache::{legacy, ProjectCacheHandle, ProjectChange};
 use crate::services::test_store::TestStore;
+use crate::statsd::RelayTimers;
 use crate::statsd::{RelayCounters, RelayHistograms};
 use crate::utils::ManagedEnvelope;
 use crate::MemoryChecker;
@@ -59,6 +60,15 @@ pub enum EnvelopeBuffer {
     /// This happens when an envelope was sent to the project cache, but one of the necessary project
     /// state has expired. The envelope is pushed back into the envelope buffer.
     NotReady(ProjectKey, Box<Envelope>),
+}
+
+impl EnvelopeBuffer {
+    fn name(&self) -> &'static str {
+        match &self {
+            EnvelopeBuffer::Push(_) => "push",
+            EnvelopeBuffer::NotReady(..) => "project_not_ready",
+        }
+    }
 }
 
 impl Interface for EnvelopeBuffer {}
@@ -418,43 +428,58 @@ impl Service for EnvelopeBufferService {
             );
 
             let mut sleep = Duration::MAX;
+            let start = Instant::now();
             tokio::select! {
                 // NOTE: we do not select a bias here.
                 // On the one hand, we might want to prioritize dequeuing over enqueuing
                 // so we do not exceed the buffer capacity by starving the dequeue.
                 // on the other hand, prioritizing old messages violates the LIFO design.
                 Some(permit) = self.ready_to_pop(&buffer, dequeue.load(Ordering::Relaxed)) => {
-                    match Self::try_pop(&config, &mut buffer, &services, permit).await {
-                        Ok(new_sleep) => {
-                            sleep = new_sleep;
-                        }
-                        Err(error) => {
-                            relay_log::error!(
-                            error = &error as &dyn std::error::Error,
-                            "failed to pop envelope"
-                        );
-                        }
-                    }
+                    relay_statsd::metric!(timer(RelayTimers::BufferIdle) = start.elapsed(), input = "pop");
+                    relay_statsd::metric!(timer(RelayTimers::BufferBusy), input = "pop", {
+                        match Self::try_pop(&config, &mut buffer, &services, permit).await {
+                            Ok(new_sleep) => {
+                                sleep = new_sleep;
+                            }
+                            Err(error) => {
+                                relay_log::error!(
+                                error = &error as &dyn std::error::Error,
+                                "failed to pop envelope"
+                            );
+                            }
+                    }});
                 }
                 change = project_changes.recv() => {
-                    if let Ok(ProjectChange::Ready(project_key)) = change {
-                        buffer.mark_ready(&project_key, true);
-                    }
-                    sleep = Duration::ZERO;
+                    relay_statsd::metric!(timer(RelayTimers::BufferIdle) = start.elapsed(), input = "project_change");
+                    relay_statsd::metric!(timer(RelayTimers::BufferBusy), input = "project_change", {
+                        if let Ok(ProjectChange::Ready(project_key)) = change {
+                            buffer.mark_ready(&project_key, true);
+                        }
+                        sleep = Duration::ZERO;
+                    });
                 }
                 Some(message) = rx.recv() => {
-                    Self::handle_message(&mut buffer, &services, message).await;
-                    sleep = Duration::ZERO;
+                    relay_statsd::metric!(timer(RelayTimers::BufferIdle) = start.elapsed(), input = "handle_message");
+                    let message_name = message.name();
+                    relay_statsd::metric!(timer(RelayTimers::BufferBusy), input = message_name, {
+                        Self::handle_message(&mut buffer, &services, message).await;
+                        sleep = Duration::ZERO;
+                    });
                 }
                 shutdown = shutdown.notified() => {
-                    // In case the shutdown was handled, we break out of the loop signaling that
-                    // there is no need to process anymore envelopes.
-                    if Self::handle_shutdown(&mut buffer, shutdown).await {
-                        break;
-                    }
+                    relay_statsd::metric!(timer(RelayTimers::BufferIdle) = start.elapsed(), input = "shutdown");
+                    relay_statsd::metric!(timer(RelayTimers::BufferBusy), input = "shutdown", {
+                        // In case the shutdown was handled, we break out of the loop signaling that
+                        // there is no need to process anymore envelopes.
+                        if Self::handle_shutdown(&mut buffer, shutdown).await {
+                            break;
+                        }
+                    });
                 }
                 Ok(()) = global_config_rx.changed() => {
+                    relay_statsd::metric!(timer(RelayTimers::BufferIdle) = start.elapsed(), input = "global_config_change");
                     sleep = Duration::ZERO;
+
                 }
                 else => break,
             }
