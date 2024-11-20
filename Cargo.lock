@@ -3758,6 +3758,7 @@ name = "relay-redis"
 version = "24.11.0"
 dependencies = [
  "r2d2",
+ "rayon",
  "redis",
  "relay-log",
  "serde",

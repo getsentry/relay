@@ -1,7 +1,9 @@
 use r2d2::{Builder, ManageConnection, Pool, PooledConnection};
+use rayon::prelude::*;
 pub use redis;
 use redis::ConnectionLike;
 use std::error::Error;
+use std::sync::Mutex;
 use std::thread::Scope;
 use std::time::Duration;
 use std::{fmt, thread};
@@ -66,12 +68,12 @@ impl ConnectionLike for ConnectionInner<'_> {
             ConnectionInner::MultiWrite {
                 primary,
                 secondaries,
-            } => thread::scope(|s| {
-                for connection in secondaries {
-                    spawn_secondary_thread(s, || connection.req_packed_command(cmd))
-                }
+            } => {
+                secondaries.par_iter_mut().for_each(|connection| {
+                    log_secondary_redis_error(connection.req_packed_command(cmd));
+                });
                 primary.req_packed_command(cmd)
-            }),
+            }
         }
     }
 
@@ -87,12 +89,12 @@ impl ConnectionLike for ConnectionInner<'_> {
             ConnectionInner::MultiWrite {
                 primary,
                 secondaries,
-            } => thread::scope(|s| {
-                for connection in secondaries {
-                    spawn_secondary_thread(s, || connection.req_packed_commands(cmd, offset, count))
-                }
+            } => {
+                secondaries.par_iter_mut().for_each(|connection| {
+                    log_secondary_redis_error(connection.req_packed_commands(cmd, offset, count));
+                });
                 primary.req_packed_commands(cmd, offset, count)
-            }),
+            }
         }
     }
 
