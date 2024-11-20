@@ -34,7 +34,9 @@ services:
       - host.docker.internal:host-gateway
     networks:
       - devservices
+    restart: unless-stopped
 
 networks:
   devservices:
     name: devservices
+    external: true
