@@ -483,6 +483,7 @@ impl Enforcement {
             ItemType::Span | ItemType::OtelSpan | ItemType::OtelTracesData => {
                 !self.spans_indexed.is_active()
             }
+            ItemType::ProfileChunk => !self.profile_chunks.is_active(),
             ItemType::Event
             | ItemType::Transaction
             | ItemType::Security
@@ -496,7 +497,6 @@ impl Enforcement {
             | ItemType::MetricBuckets
             | ItemType::ClientReport
             | ItemType::UserReportV2
-            | ItemType::ProfileChunk
             | ItemType::Unknown(_) => true,
         }
     }
@@ -1196,6 +1196,24 @@ mod tests {
                 (DataCategory::Profile, 2),
                 (DataCategory::ProfileIndexed, 2)
             ]
+        );
+    }
+
+    /// Limit profile chunks.
+    #[test]
+    fn test_enforce_limit_profile_chunks() {
+        let mut envelope = envelope![ProfileChunk, ProfileChunk];
+
+        let mut mock = MockLimiter::default().deny(DataCategory::ProfileChunk);
+        let (enforcement, limits) = enforce_and_apply(&mut mock, &mut envelope, None);
+
+        assert!(limits.is_limited());
+        assert_eq!(envelope.envelope().len(), 0);
+        mock.assert_call(DataCategory::ProfileChunk, 2);
+
+        assert_eq!(
+            get_outcomes(enforcement),
+            vec![(DataCategory::ProfileChunk, 2),]
         );
     }
 
