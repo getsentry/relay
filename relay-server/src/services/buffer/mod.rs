@@ -29,7 +29,7 @@ use crate::services::processor::ProcessingGroup;
 use crate::services::projects::cache::{legacy, ProjectCacheHandle, ProjectChange};
 use crate::services::test_store::TestStore;
 use crate::statsd::RelayTimers;
-use crate::statsd::{RelayCounters, RelayHistograms};
+use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms};
 use crate::utils::ManagedEnvelope;
 use crate::MemoryChecker;
 use crate::MemoryStat;
@@ -447,15 +447,21 @@ impl Service for EnvelopeBufferService {
                     } else {
                         Duration::ZERO
                     };
+                    
+                    let envelope_stacks_count = match &buffer {
+                        PolymorphicEnvelopeBuffer::InMemory(buffer) => buffer.priority_queue.len(),
+                        PolymorphicEnvelopeBuffer::Sqlite(buffer) => buffer.priority_queue.len(),
+                    };
 
                     println!(
-                        "Buffer metrics - Queue size: {}, Idle time: {:?}, Busy time: {:?}, Push time: {:?}, Avg push duration: {:?}, Push count: {}",
+                        "Buffer metrics:\n  Queue size: {}\n  Idle time: {:.2?}\n  Busy time: {:.2?}\n  Push time: {:.2?}\n  Avg push duration: {:.2?}\n  Push count: {}\n  Envelope stacks count: {}\n",
                         rx.queue_size.load(Ordering::Relaxed),
                         total_idle_time,
                         total_busy_time,
                         total_push_time,
                         avg_push_duration,
-                        push_count
+                        push_count,
+                        envelope_stacks_count
                     );
 
                     // Reset counters after logging

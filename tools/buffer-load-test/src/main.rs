@@ -9,10 +9,10 @@ use tokio::time::Instant;
 const NUM_PROJECTS: usize = 100000;
 const MIN_PAYLOAD_SIZE: usize = 300;
 const MAX_PAYLOAD_SIZE: usize = 10_000;
-const DEFAULT_DURATION_SECS: u64 = 60;
-const CONCURRENT_TASKS: usize = 10; // Number of concurrent tasks
-const ENVELOPE_POOL_SIZE: usize = 10000; // Number of pre-generated envelopes
-const DEFAULT_REQUESTS_PER_SECOND: f64 = 500.0; // Unlimited by default
+const DEFAULT_DURATION_SECS: u64 = 600;
+const CONCURRENT_TASKS: usize = 10;
+const ENVELOPE_POOL_SIZE: usize = 10000;
+const DEFAULT_REQUESTS_PER_SECOND: f64 = 500.0;
 
 /// Creates a mock envelope with random payload size
 fn create_envelope(project_key: &str, project_id: u64, payload_size: usize) -> Vec<u8> {

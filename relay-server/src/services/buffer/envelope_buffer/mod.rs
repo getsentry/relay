@@ -192,9 +192,9 @@ impl From<Infallible> for EnvelopeBufferError {
 /// Envelope stacks are organized in a priority queue, and are re-prioritized every time an envelope
 /// is pushed, popped, or when a project becomes ready.
 #[derive(Debug)]
-struct EnvelopeBuffer<P: StackProvider> {
+pub struct EnvelopeBuffer<P: StackProvider> {
     /// The central priority queue.
-    priority_queue: priority_queue::PriorityQueue<QueueItem<ProjectKeyPair, P::Stack>, Priority>,
+    pub priority_queue: priority_queue::PriorityQueue<QueueItem<ProjectKeyPair, P::Stack>, Priority>,
     /// A lookup table to find all stacks involving a project.
     stacks_by_project: hashbrown::HashMap<ProjectKey, BTreeSet<ProjectKeyPair>>,
     /// A provider of stacks that provides utilities to create stacks, check their capacity...
@@ -553,7 +553,7 @@ impl Peek {
 }
 
 #[derive(Debug)]
-struct QueueItem<K, V> {
+pub struct QueueItem<K, V> {
     key: K,
     value: V,
 }
@@ -579,7 +579,7 @@ impl<K: PartialEq, V> PartialEq for QueueItem<K, V> {
 impl<K: PartialEq, V> Eq for QueueItem<K, V> {}
 
 #[derive(Debug, Clone)]
-struct Priority {
+pub struct Priority {
     readiness: Readiness,
     received_at: DateTime<Utc>,
     next_project_fetch: Instant,
