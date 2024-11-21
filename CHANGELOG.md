@@ -12,6 +12,10 @@
 
 - Implement zstd http encoding for Relay to Relay communication. ([#4266](https://github.com/getsentry/relay/pull/4266))
 
+**Internal**:
+
+- Remove metrics summaries. ([#4278](https://github.com/getsentry/relay/pull/4278))
+
 ## 24.11.0
 
 **Breaking Changes**:
