@@ -9,9 +9,10 @@ use tokio::time::Instant;
 const NUM_PROJECTS: usize = 100000;
 const MIN_PAYLOAD_SIZE: usize = 300;
 const MAX_PAYLOAD_SIZE: usize = 10_000;
-const DEFAULT_DURATION_SECS: u64 = 1;
-const CONCURRENT_TASKS: usize = 32; // Number of concurrent tasks
+const DEFAULT_DURATION_SECS: u64 = 60;
+const CONCURRENT_TASKS: usize = 10; // Number of concurrent tasks
 const ENVELOPE_POOL_SIZE: usize = 10000; // Number of pre-generated envelopes
+const DEFAULT_REQUESTS_PER_SECOND: f64 = 500.0; // Unlimited by default
 
 /// Creates a mock envelope with random payload size
 fn create_envelope(project_key: &str, project_id: u64, payload_size: usize) -> Vec<u8> {
@@ -74,12 +75,31 @@ async fn worker_thread(
     envelope_pool: Arc<Vec<(u64, Vec<u8>)>>,
     counter: Arc<Mutex<usize>>,
     duration: Duration,
+    requests_per_second: f64,
 ) {
     let start_time = Instant::now();
     let mut local_count = 0;
     let mut rng = thread_rng();
 
+    // Calculate the delay between requests based on the desired rate
+    let delay = if requests_per_second.is_finite() {
+        Some(Duration::from_secs_f64(1.0 / requests_per_second))
+    } else {
+        None
+    };
+
+    let mut next_send_time = Instant::now();
+
     while start_time.elapsed() < duration {
+        // Wait until it's time to send the next request
+        if let Some(delay) = delay {
+            let now = Instant::now();
+            if now < next_send_time {
+                tokio::time::sleep(next_send_time - now).await;
+            }
+            next_send_time = now + delay;
+        }
+
         let (project_id, envelope) = &envelope_pool[rng.gen_range(0..envelope_pool.len())];
 
         let response = client
@@ -119,10 +139,24 @@ async fn main() {
         .unwrap_or(DEFAULT_DURATION_SECS);
     let duration = Duration::from_secs(duration_secs);
 
+    let requests_per_second = std::env::var("REQUESTS_PER_SECOND")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(DEFAULT_REQUESTS_PER_SECOND);
+
     println!(
         "Starting load test with {} projects for {} seconds using {} concurrent tasks",
         NUM_PROJECTS, duration_secs, CONCURRENT_TASKS
     );
+    if requests_per_second.is_finite() {
+        println!(
+            "Rate limit: {:.1} requests/second per worker ({:.1} total)",
+            requests_per_second,
+            requests_per_second * CONCURRENT_TASKS as f64
+        );
+    } else {
+        println!("Rate limit: unlimited");
+    }
 
     // Generate projects and envelope pool
     let project_pairs = generate_project_pairs(NUM_PROJECTS);
@@ -141,7 +175,13 @@ async fn main() {
         handles.push(tokio::task::spawn_blocking(move || {
             tokio::runtime::Runtime::new()
                 .unwrap()
-                .block_on(worker_thread(client, pool, counter, duration))
+                .block_on(worker_thread(
+                    client,
+                    pool,
+                    counter,
+                    duration,
+                    requests_per_second,
+                ))
         }));
     }
 

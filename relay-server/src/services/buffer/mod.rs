@@ -423,6 +423,8 @@ impl Service for EnvelopeBufferService {
         let mut last_metrics_time = SystemTime::now();
         let mut total_idle_time = Duration::ZERO;
         let mut total_busy_time = Duration::ZERO;
+        let mut total_push_time = Duration::ZERO;
+        let mut push_count = 0u64;
         let mut last_loop_time = Instant::now();
 
         relay_log::info!("EnvelopeBufferService: starting");
@@ -440,15 +442,27 @@ impl Service for EnvelopeBufferService {
             // Print metrics every second
             if let Ok(elapsed) = last_metrics_time.elapsed() {
                 if elapsed.as_secs() >= 1 {
+                    let avg_push_duration = if push_count > 0 {
+                        total_push_time.div_f64(push_count as f64)
+                    } else {
+                        Duration::ZERO
+                    };
+
                     println!(
-                        "Buffer metrics - Queue size: {}, Idle time: {:?}, Busy time: {:?}",
+                        "Buffer metrics - Queue size: {}, Idle time: {:?}, Busy time: {:?}, Push time: {:?}, Avg push duration: {:?}, Push count: {}",
                         rx.queue_size.load(Ordering::Relaxed),
                         total_idle_time,
-                        total_busy_time
+                        total_busy_time,
+                        total_push_time,
+                        avg_push_duration,
+                        push_count
                     );
+
                     // Reset counters after logging
                     total_idle_time = Duration::ZERO;
                     total_busy_time = Duration::ZERO;
+                    total_push_time = Duration::ZERO;
+                    push_count = 0;
                     last_metrics_time = SystemTime::now();
                 }
             }
@@ -471,7 +485,13 @@ impl Service for EnvelopeBufferService {
                     let message_name = message.name();
                     Self::handle_message(&mut buffer, &services, message).await;
                     sleep = Duration::ZERO;
-                    total_busy_time += busy_start.elapsed();
+                    let elapsed = busy_start.elapsed();
+                    // Track push time and count separately
+                    if message_name == "push" {
+                        total_push_time += elapsed;
+                        push_count += 1;
+                    }
+                    total_busy_time += elapsed;
                 }
                 shutdown = shutdown.notified() => {
                     total_idle_time += start.elapsed();
