@@ -36,7 +36,7 @@ where
     tokio::spawn(Task::new(task_id, future))
 }
 
-/// An identifier for tasks spawned by [`spawn`], used to log metrics.
+/// An identifier for tasks spawned by [`spawn()`], used to log metrics.
 pub struct TaskId {
     id: &'static str,
     file: Option<&'static str>,
