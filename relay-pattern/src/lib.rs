@@ -478,6 +478,7 @@ struct Parser<'a> {
     tokens: Tokens,
     alternates: Option<Vec<Tokens>>,
     current_literal: Option<String>,
+    current_alternate: Option<Tokens>,
     options: Options,
     complexity: u64,
 }
@@ -489,6 +490,7 @@ impl<'a> Parser<'a> {
             tokens: Default::default(),
             alternates: None,
             current_literal: None,
+            current_alternate: None,
             options,
             complexity: 0,
         }
@@ -508,10 +510,11 @@ impl<'a> Parser<'a> {
                     None => return Err(ErrorKind::DanglingEscape),
                 },
                 ',' if self.alternates.is_some() => {
-                    self.finish_literal();
-                    // safe to unwrap, we just checked for `some`.
-                    let alternates = self.alternates.as_mut().unwrap();
-                    alternates.push(Tokens::default());
+                    // If we encounter a ',' and we don't have a `current_alternate`,
+                    // we have to start one.
+                    self.current_alternate.get_or_insert_with(Tokens::default);
+                    self.finish_alternate();
+                    self.current_alternate = Some(Tokens::default());
                 }
                 c => self.push_literal(c),
             }
@@ -533,21 +536,35 @@ impl<'a> Parser<'a> {
     }
 
     fn end_alternates(&mut self) -> Result<(), ErrorKind> {
-        self.finish_literal();
-        match self.alternates.take() {
-            None => return Err(ErrorKind::UnbalancedAlternates),
-            Some(alternates) => {
-                if !alternates.is_empty() {
-                    self.complexity = self
-                        .complexity
-                        .max(1)
-                        .saturating_mul(alternates.len() as u64);
-                    self.push_token(Token::Alternates(alternates));
-                }
-            }
+        if self.alternates.is_none() {
+            return Err(ErrorKind::UnbalancedAlternates);
+        }
+        self.finish_alternate();
+        // We checked above that this is safe to unwrap.
+        let alternates = self.alternates.take().unwrap();
+        if !alternates.is_empty() {
+            self.complexity = self
+                .complexity
+                .max(1)
+                .saturating_mul(alternates.len() as u64);
+            self.push_token(Token::Alternates(alternates));
         }
 
         Ok(())
+    }
+
+    fn finish_alternate(&mut self) {
+        self.finish_literal();
+        if let Some(alternates) = self.alternates.as_mut() {
+            if let Some(mut tokens) = self.current_alternate.take() {
+                // If the current alternate is empty, replace it with "".
+                // An empty alternate should match the empty string.
+                if tokens.is_empty() {
+                    tokens.push(Token::Literal(Literal::new(String::new(), self.options)))
+                }
+                alternates.push(tokens);
+            }
+        }
     }
 
     fn parse_class(&mut self) -> Result<(), ErrorKind> {
@@ -626,16 +643,12 @@ impl<'a> Parser<'a> {
     /// Pushes the passed `token` and finishes the currently in progress literal token.
     fn push_token(&mut self, token: Token) {
         self.finish_literal();
-        match self.alternates.as_mut() {
-            Some(alternates) => match alternates.last_mut() {
-                Some(tokens) => tokens.push(token),
-                None => {
-                    let mut tokens = Tokens::default();
-                    tokens.push(token);
-                    alternates.push(tokens);
-                }
-            },
-            None => self.tokens.push(token),
+        if self.alternates.is_some() {
+            self.current_alternate
+                .get_or_insert_with(Tokens::default)
+                .push(token);
+        } else {
+            self.tokens.push(token)
         }
     }
 
@@ -715,6 +728,10 @@ impl Tokens {
 
     fn as_slice(&self) -> &[Token] {
         self.0.as_slice()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.0.is_empty()
     }
 }
 
@@ -1473,6 +1490,12 @@ mod tests {
         assert_pattern!("{foo,abc}{def,bar}", NOT "fooabc");
         assert_pattern!("{foo,abc}{def,bar}", NOT "defdef");
         assert_pattern!("{foo,abc}{def,bar}", NOT "defabc");
+        assert_pattern!("foo{,/}", "foo");
+        assert_pattern!("foo{/,}", "foo");
+        assert_pattern!("foo{,/}", "foo/");
+        assert_pattern!("foo{/,}", "foo/");
+        assert_pattern!("{,}", "");
+        assert_pattern!("{}", NOT "");
     }
 
     #[test]
