@@ -163,21 +163,10 @@ impl EnvelopeBufferService {
     }
 
     /// Wait for the configured amount of time and make sure the project cache is ready to receive.
-    async fn ready_to_pop(
-        &mut self,
-        buffer: &PolymorphicEnvelopeBuffer,
-        dequeue: bool,
-    ) -> Option<Permit<legacy::DequeuedEnvelope>> {
+    async fn ready_to_pop(&mut self) -> Option<Permit<legacy::DequeuedEnvelope>> {
         relay_statsd::metric!(
             counter(RelayCounters::BufferReadyToPop) += 1,
             status = "checking"
-        );
-
-        self.system_ready(buffer, dequeue).await;
-
-        relay_statsd::metric!(
-            counter(RelayCounters::BufferReadyToPop) += 1,
-            status = "system_ready"
         );
 
         if self.sleep > Duration::ZERO {
@@ -199,23 +188,13 @@ impl EnvelopeBufferService {
         permit
     }
 
-    /// Waits until preconditions for unspooling are met.
+    /// Returns `true` if preconditions for unspooling are met.
     ///
     /// - We should not pop from disk into memory when relay's overall memory capacity
     ///   has been reached.
     /// - We need a valid global config to unspool.
-    async fn system_ready(&self, buffer: &PolymorphicEnvelopeBuffer, dequeue: bool) {
-        loop {
-            // We should not unspool from external storage if memory capacity has been reached.
-            // But if buffer storage is in memory, unspooling can reduce memory usage.
-            let memory_ready = buffer.is_memory() || self.memory_ready();
-            let global_config_ready = self.global_config_rx.borrow().is_ready();
-
-            if memory_ready && global_config_ready && dequeue {
-                return;
-            }
-            tokio::time::sleep(DEFAULT_SLEEP).await;
-        }
+    fn system_ready(&self, buffer: &PolymorphicEnvelopeBuffer) -> bool {
+        self.global_config_rx.borrow().is_ready() && (buffer.is_memory() || self.memory_ready())
     }
 
     fn memory_ready(&self) -> bool {
@@ -394,9 +373,6 @@ impl Service for EnvelopeBufferService {
         let mut global_config_rx = self.global_config_rx.clone();
         let services = self.services.clone();
 
-        let dequeue = Arc::<AtomicBool>::new(true.into());
-        let dequeue1 = dequeue.clone();
-
         let mut buffer = PolymorphicEnvelopeBuffer::from_config(&config, memory_checker)
             .await
             .expect("failed to start the envelope buffer service");
@@ -406,6 +382,9 @@ impl Service for EnvelopeBufferService {
         let mut shutdown = Controller::shutdown_handle();
         let mut project_changes = self.services.project_cache_handle.changes();
 
+        // BEGIN temporary signal handler to artificially stop dequeing.
+        let should_dequeue = Arc::<AtomicBool>::new(true.into());
+        let should_dequeue2 = should_dequeue.clone();
         #[cfg(unix)]
         relay_system::spawn!(async move {
             use tokio::signal::unix::{signal, SignalKind};
@@ -413,11 +392,12 @@ impl Service for EnvelopeBufferService {
                 return;
             };
             while let Some(()) = signal.recv().await {
-                let deq = !dequeue1.load(Ordering::Relaxed);
-                dequeue1.store(deq, Ordering::Relaxed);
+                let deq = !should_dequeue2.load(Ordering::Relaxed);
+                should_dequeue2.store(deq, Ordering::Relaxed);
                 relay_log::info!("SIGUSR1 receive, dequeue={}", deq);
             }
         });
+        // END temporary signal handler
 
         relay_log::info!("EnvelopeBufferService: starting");
         loop {
@@ -434,7 +414,7 @@ impl Service for EnvelopeBufferService {
                 // On the one hand, we might want to prioritize dequeuing over enqueuing
                 // so we do not exceed the buffer capacity by starving the dequeue.
                 // on the other hand, prioritizing old messages violates the LIFO design.
-                Some(permit) = self.ready_to_pop(&buffer, dequeue.load(Ordering::Relaxed)) => {
+                Some(permit) = self.ready_to_pop(), if should_dequeue.load(Ordering::Relaxed) && self.system_ready(&buffer) => {
                     relay_statsd::metric!(timer(RelayTimers::BufferIdle) = start.elapsed(), input = "pop");
                     relay_statsd::metric!(timer(RelayTimers::BufferBusy), input = "pop", {
                         match Self::try_pop(&config, &mut buffer, &services, permit).await {
@@ -497,6 +477,7 @@ mod tests {
     use chrono::Utc;
     use relay_dynamic_config::GlobalConfig;
     use relay_quotas::DataCategory;
+    use std::sync::atomic::AtomicUsize;
     use std::time::Duration;
     use tokio::sync::mpsc;
     use uuid::Uuid;
@@ -774,5 +755,21 @@ mod tests {
                 .count(),
             5
         );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn precondition_no_future() {
+        let started = AtomicUsize::new(0);
+        let do_something = || async {
+            started.fetch_add(1, Ordering::Relaxed);
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        };
+
+        tokio::select! {
+            _ = do_something(), if false => {}
+            _ = do_something() => {}
+        }
+
+        assert_eq!(started.load(Ordering::Relaxed), 1);
     }
 }
