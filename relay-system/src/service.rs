@@ -826,7 +826,7 @@ pub struct Receiver<I: Interface> {
     rx: mpsc::UnboundedReceiver<I>,
     name: &'static str,
     interval: tokio::time::Interval,
-    queue_size: Arc<AtomicU64>,
+    pub queue_size: Arc<AtomicU64>,
 }
 
 impl<I: Interface> Receiver<I> {

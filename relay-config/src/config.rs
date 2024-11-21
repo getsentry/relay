@@ -869,7 +869,7 @@ fn spool_envelopes_max_memory_size() -> ByteSize {
 
 /// Default for max disk size, 500 MB.
 fn spool_envelopes_max_disk_size() -> ByteSize {
-    ByteSize::mebibytes(500)
+    ByteSize::mebibytes(50000)
 }
 
 /// Default for min connections to keep open in the pool.

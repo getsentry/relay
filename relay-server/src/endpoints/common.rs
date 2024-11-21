@@ -376,16 +376,16 @@ pub async fn handle_envelope(
         }
     }
 
-    let checked = state
-        .project_cache_handle()
-        .get(project_key)
-        .check_envelope(managed_envelope)
-        .map_err(BadStoreRequest::EventRejected)?;
-
-    let Some(mut managed_envelope) = checked.envelope else {
-        // All items have been removed from the envelope.
-        return Err(BadStoreRequest::RateLimited(checked.rate_limits));
-    };
+    // let checked = state
+    //     .project_cache_handle()
+    //     .get(project_key)
+    //     .check_envelope(managed_envelope)
+    //     .map_err(BadStoreRequest::EventRejected)?;
+    // 
+    // let Some(mut managed_envelope) = checked.envelope else {
+    //     // All items have been removed from the envelope.
+    //     return Err(BadStoreRequest::RateLimited(checked.rate_limits));
+    // };
 
     if let Err(offender) =
         utils::check_envelope_size_limits(state.config(), managed_envelope.envelope())
@@ -396,15 +396,17 @@ pub async fn handle_envelope(
 
     queue_envelope(state, managed_envelope)?;
 
-    if checked.rate_limits.is_limited() {
-        // Even if some envelope items have been queued, there might be active rate limits on
-        // other items. Communicate these rate limits to the downstream (Relay or SDK).
-        //
-        // See `IntoResponse` implementation of `BadStoreRequest`.
-        Err(BadStoreRequest::RateLimited(checked.rate_limits))
-    } else {
-        Ok(event_id)
-    }
+    // if checked.rate_limits.is_limited() {
+    //     // Even if some envelope items have been queued, there might be active rate limits on
+    //     // other items. Communicate these rate limits to the downstream (Relay or SDK).
+    //     //
+    //     // See `IntoResponse` implementation of `BadStoreRequest`.
+    //     Err(BadStoreRequest::RateLimited(checked.rate_limits))
+    // } else {
+    //     Ok(event_id)
+    // }
+
+    Ok(event_id)
 }
 
 #[derive(Debug)]

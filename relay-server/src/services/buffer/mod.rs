@@ -5,6 +5,7 @@ use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
+use std::time::SystemTime;
 
 use chrono::DateTime;
 use chrono::Utc;
@@ -419,6 +420,11 @@ impl Service for EnvelopeBufferService {
             }
         });
 
+        let mut last_metrics_time = SystemTime::now();
+        let mut total_idle_time = Duration::ZERO;
+        let mut total_busy_time = Duration::ZERO;
+        let mut last_loop_time = Instant::now();
+
         relay_log::info!("EnvelopeBufferService: starting");
         loop {
             let used_capacity =
@@ -427,65 +433,66 @@ impl Service for EnvelopeBufferService {
                 histogram(RelayHistograms::BufferBackpressureEnvelopesCount) = used_capacity as u64
             );
 
+            // Track idle time since last iteration
+            let idle_duration = last_loop_time.elapsed();
+            total_idle_time += idle_duration;
+
+            // Print metrics every second
+            if let Ok(elapsed) = last_metrics_time.elapsed() {
+                if elapsed.as_secs() >= 1 {
+                    println!(
+                        "Buffer metrics - Queue size: {}, Idle time: {:?}, Busy time: {:?}",
+                        rx.queue_size.load(Ordering::Relaxed),
+                        total_idle_time,
+                        total_busy_time
+                    );
+                    // Reset counters after logging
+                    total_idle_time = Duration::ZERO;
+                    total_busy_time = Duration::ZERO;
+                    last_metrics_time = SystemTime::now();
+                }
+            }
+
             let mut sleep = Duration::MAX;
             let start = Instant::now();
             tokio::select! {
-                // NOTE: we do not select a bias here.
-                // On the one hand, we might want to prioritize dequeuing over enqueuing
-                // so we do not exceed the buffer capacity by starving the dequeue.
-                // on the other hand, prioritizing old messages violates the LIFO design.
-                Some(permit) = self.ready_to_pop(&buffer, dequeue.load(Ordering::Relaxed)) => {
-                    relay_statsd::metric!(timer(RelayTimers::BufferIdle) = start.elapsed(), input = "pop");
-                    relay_statsd::metric!(timer(RelayTimers::BufferBusy), input = "pop", {
-                        match Self::try_pop(&config, &mut buffer, &services, permit).await {
-                            Ok(new_sleep) => {
-                                sleep = new_sleep;
-                            }
-                            Err(error) => {
-                                relay_log::error!(
-                                error = &error as &dyn std::error::Error,
-                                "failed to pop envelope"
-                            );
-                        }
-                    }});
-                }
                 change = project_changes.recv() => {
-                    relay_statsd::metric!(timer(RelayTimers::BufferIdle) = start.elapsed(), input = "project_change");
-                    relay_statsd::metric!(timer(RelayTimers::BufferBusy), input = "project_change", {
-                        if let Ok(ProjectChange::Ready(project_key)) = change {
-                            buffer.mark_ready(&project_key, true);
-                        }
-                        sleep = Duration::ZERO;
-                    });
+                    total_idle_time += start.elapsed();
+                    let busy_start = Instant::now();
+                    if let Ok(ProjectChange::Ready(project_key)) = change {
+                        buffer.mark_ready(&project_key, true);
+                    }
+                    sleep = Duration::ZERO;
+                    total_busy_time += busy_start.elapsed();
                 }
                 Some(message) = rx.recv() => {
-                    relay_statsd::metric!(timer(RelayTimers::BufferIdle) = start.elapsed(), input = "handle_message");
+                    total_idle_time += start.elapsed();
+                    let busy_start = Instant::now();
                     let message_name = message.name();
-                    relay_statsd::metric!(timer(RelayTimers::BufferBusy), input = message_name, {
-                        Self::handle_message(&mut buffer, &services, message).await;
-                        sleep = Duration::ZERO;
-                    });
+                    Self::handle_message(&mut buffer, &services, message).await;
+                    sleep = Duration::ZERO;
+                    total_busy_time += busy_start.elapsed();
                 }
                 shutdown = shutdown.notified() => {
-                    relay_statsd::metric!(timer(RelayTimers::BufferIdle) = start.elapsed(), input = "shutdown");
-                    relay_statsd::metric!(timer(RelayTimers::BufferBusy), input = "shutdown", {
-                        // In case the shutdown was handled, we break out of the loop signaling that
-                        // there is no need to process anymore envelopes.
-                        if Self::handle_shutdown(&mut buffer, shutdown).await {
-                            break;
-                        }
-                    });
+                    total_idle_time += start.elapsed();
+                    let busy_start = Instant::now();
+                    if Self::handle_shutdown(&mut buffer, shutdown).await {
+                        break;
+                    }
+                    total_busy_time += busy_start.elapsed();
                 }
                 Ok(()) = global_config_rx.changed() => {
-                    relay_statsd::metric!(timer(RelayTimers::BufferIdle) = start.elapsed(), input = "global_config_change");
+                    total_idle_time += start.elapsed();
+                    let busy_start = Instant::now();
                     sleep = Duration::ZERO;
-
+                    total_busy_time += busy_start.elapsed();
                 }
                 else => break,
             }
 
             self.sleep = sleep;
             self.update_observable_state(&mut buffer);
+            last_loop_time = Instant::now();
         }
 
         relay_log::info!("EnvelopeBufferService: stopping");

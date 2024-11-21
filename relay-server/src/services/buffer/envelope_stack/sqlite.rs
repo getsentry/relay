@@ -143,6 +143,7 @@ impl EnvelopeStack for SqliteEnvelopeStack {
         debug_assert!(self.validate_envelope(&envelope));
 
         if self.above_spool_threshold() {
+            relay_log::trace!("Spooling to disk");
             self.spool_to_disk().await?;
         }
 
