@@ -1,9 +1,12 @@
 use std::sync::Arc;
 
 use relay_config::Config;
-use relay_system::{Addr, AsyncResponse, Controller, FromMessage, Interface, Sender, Service};
+use relay_system::{
+    Addr, AsyncResponse, Controller, FromMessage, Interface, NoResponse, Sender, Service,
+};
 use std::future::Future;
 use tokio::sync::watch;
+use tokio::task::JoinError;
 use tokio::time::{timeout, Instant};
 
 use crate::services::buffer::ObservableEnvelopeBuffer;
@@ -51,8 +54,13 @@ impl FromIterator<Status> for Status {
     }
 }
 
-/// Service interface for the [`IsHealthy`] message.
-pub struct HealthCheck(IsHealthy, Sender<Status>);
+/// Service interface for the health check service.
+pub enum HealthCheck {
+    /// Query whether relay is healthy.
+    IsHealthy(IsHealthy, Sender<Status>),
+    /// Report a service crash.
+    ReportCrash(JoinError),
+}
 
 impl Interface for HealthCheck {}
 
@@ -60,7 +68,15 @@ impl FromMessage<IsHealthy> for HealthCheck {
     type Response = AsyncResponse<Status>;
 
     fn from_message(message: IsHealthy, sender: Sender<Status>) -> Self {
-        Self(message, sender)
+        Self::IsHealthy(message, sender)
+    }
+}
+
+impl FromMessage<JoinError> for HealthCheck {
+    type Response = NoResponse;
+
+    fn from_message(message: JoinError, _: ()) -> Self {
+        Self::ReportCrash(message)
     }
 }
 
@@ -197,6 +213,7 @@ impl Service for HealthCheckService {
         // Add 10% buffer to the internal timeouts to avoid race conditions.
         let status_timeout = (check_interval + self.config.health_probe_timeout()).mul_f64(1.1);
 
+        let update_tx2 = update_tx.clone();
         relay_system::spawn!(async move {
             let shutdown = Controller::shutdown_handle();
 
@@ -214,16 +231,22 @@ impl Service for HealthCheckService {
             update_tx.send(StatusUpdate::new(Status::Unhealthy)).ok();
         });
 
-        while let Some(HealthCheck(message, sender)) = rx.recv().await {
-            let update = update_rx.borrow();
-
-            sender.send(if matches!(message, IsHealthy::Liveness) {
-                Status::Healthy
-            } else if update.instant.elapsed() >= status_timeout {
-                Status::Unhealthy
-            } else {
-                update.status
-            });
+        while let Some(message) = rx.recv().await {
+            match message {
+                HealthCheck::IsHealthy(message, sender) => {
+                    let update = update_rx.borrow();
+                    sender.send(if matches!(message, IsHealthy::Liveness) {
+                        Status::Healthy
+                    } else if update.instant.elapsed() >= status_timeout {
+                        Status::Unhealthy
+                    } else {
+                        update.status
+                    });
+                }
+                HealthCheck::ReportCrash(_) => {
+                    update_tx2.send(StatusUpdate::new(Status::Unhealthy)).ok();
+                }
+            }
         }
     }
 }

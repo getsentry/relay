@@ -307,7 +307,7 @@ pub fn run(config: Config) -> anyhow::Result<()> {
         tokio::select! {
             _ = runner.join(|e| {
                 if e.is_panic() {
-                    state.report_crash();
+                    state.health_check().send(e);
                 }
                 // NOTE: when every service implements a shutdown listener,
                 // awaiting on `finished` becomes unnecessary: We can simply join() and guarantee
