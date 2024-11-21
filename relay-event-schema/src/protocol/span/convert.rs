@@ -17,7 +17,6 @@ impl From<&Event> for Span {
 
             measurements,
             _metrics,
-            _metrics_summary,
             ..
         } = event;
 
@@ -63,7 +62,6 @@ impl From<&Event> for Span {
             sentry_tags: Default::default(),
             received: received.clone(),
             measurements: measurements.clone(),
-            _metrics_summary: _metrics_summary.clone(),
             platform: platform.clone(),
             was_transaction: true.into(),
             other: Default::default(),
@@ -103,19 +101,6 @@ mod tests {
                             "custom_attribute": 42
                         }
                     }
-                },
-                "_metrics_summary": {
-                    "some_metric": [
-                        {
-                            "min": 1.0,
-                            "max": 2.0,
-                            "sum": 3.0,
-                            "count": 2,
-                            "tags": {
-                                "environment": "test"
-                            }
-                        }
-                    ]
                 },
                 "measurements": {
                     "memory": {
@@ -240,21 +225,6 @@ mod tests {
                             Byte,
                         ),
                     },
-                },
-            ),
-            _metrics_summary: MetricsSummary(
-                {
-                    "some_metric": [
-                        MetricSummary {
-                            min: 1.0,
-                            max: 2.0,
-                            sum: 3.0,
-                            count: 2,
-                            tags: {
-                                "environment": "test",
-                            },
-                        },
-                    ],
                 },
             ),
             platform: "php",
