@@ -536,12 +536,10 @@ impl<'a> Parser<'a> {
     }
 
     fn end_alternates(&mut self) -> Result<(), ErrorKind> {
-        if self.alternates.is_none() {
-            return Err(ErrorKind::UnbalancedAlternates);
-        }
         self.finish_alternate();
-        // We checked above that this is safe to unwrap.
-        let alternates = self.alternates.take().unwrap();
+        let Some(alternates) = self.alternates.take() else {
+            return Err(ErrorKind::UnbalancedAlternates);
+        };
         if !alternates.is_empty() {
             self.complexity = self
                 .complexity
