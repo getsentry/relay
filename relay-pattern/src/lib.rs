@@ -511,7 +511,7 @@ impl<'a> Parser<'a> {
                 },
                 ',' if self.alternates.is_some() => {
                     // If we encounter a ',' and we don't have a `current_alternate`,
-                    // we have to start one.
+                    // we have to start one to match the empty string.
                     self.current_alternate.get_or_insert_with(Tokens::default);
                     self.finish_alternate();
                     self.current_alternate = Some(Tokens::default());
