@@ -145,7 +145,7 @@ pub struct ServiceState {
 
 impl ServiceState {
     /// Starts all services and returns addresses to all of them.
-    pub fn start(config: Arc<Config>) -> Result<(Self, ServiceRunner)> {
+    pub async fn start(config: Arc<Config>) -> Result<(Self, ServiceRunner)> {
         let mut runner = ServiceRunner::new();
         let upstream_relay = runner.start(UpstreamRelayService::new(config.clone()));
         let test_store = runner.start(TestStoreService::new(config.clone()));
@@ -199,7 +199,8 @@ impl ServiceState {
             redis_pools
                 .as_ref()
                 .map(|pools| pools.project_configs.clone()),
-        );
+        )
+        .await;
         let project_cache_handle =
             ProjectCacheService::new(Arc::clone(&config), project_source).start_in(&mut runner);
 
