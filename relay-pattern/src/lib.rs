@@ -757,12 +757,14 @@ enum Token {
     /// The wildcard token `*`.
     Wildcard,
     /// A class token `[abc]` or its negated variant `[!abc]`.
-    Class {
-        negated: bool,
-        ranges: Ranges,
-    },
+    Class { negated: bool, ranges: Ranges },
     /// A list of nested alternate tokens `{a,b}`.
     Alternates(Vec<Tokens>),
+    /// A list of optional tokens.
+    ///
+    /// This has no syntax of its own, it's parsed
+    /// from alternatives containing empty branches
+    /// like `{a,b,}`.
     Optional(Vec<Token>),
 }
 
