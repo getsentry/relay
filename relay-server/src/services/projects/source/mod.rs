@@ -1,9 +1,10 @@
 use relay_base_schema::project::ProjectKey;
+use relay_config::{Config, RelayMode};
 #[cfg(feature = "processing")]
-use relay_config::RedisConfigRef;
-use relay_config::{Config, RedisPoolConfigs, RelayMode};
+use relay_config::{RedisConfigRef, RedisPoolConfigs};
 #[cfg(feature = "processing")]
-use relay_redis::{AsyncRedisPool, RedisPool};
+use relay_redis::AsyncRedisPool;
+use relay_redis::RedisPool;
 use relay_system::{Addr, ServiceRunner};
 use std::convert::Infallible;
 use std::sync::Arc;

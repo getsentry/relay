@@ -393,13 +393,13 @@ pub struct Stats {
     pub idle_connections: u32,
 }
 
-/// [`ConnectionManager`] for a async redis cluster.
+/// [`bb8::ManageConnection`] for a async redis cluster.
 pub struct RedisClusterConnectionManager {
     client: ClusterClient,
 }
 
 impl RedisClusterConnectionManager {
-    /// Creates a new [`ConnectionManager`] with the provided [`ClusterClient`]
+    /// Creates a new [`bb8::ManageConnection`] with the provided [`ClusterClient`]
     pub fn new(client: ClusterClient) -> Self {
         Self { client }
     }
