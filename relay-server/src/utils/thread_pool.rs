@@ -142,12 +142,18 @@ fn set_current_thread_priority(kind: ThreadKind) {
     // Lower priorities cause more favorable scheduling.
     // Higher priorities cause less favorable scheduling.
     //
-    // For details see `man setpriority(2)`.
+    // The relative niceness between threads determines their relative
+    // priority. The formula to map a nice value to a weight is approximately
+    // `1024 / (1.25 ^ nice)`.
+    //
+    // More information can be found:
+    //  - https://www.kernel.org/doc/Documentation/scheduler/sched-nice-design.txt
+    //  - https://oakbytes.wordpress.com/2012/06/06/linux-scheduler-cfs-and-nice/
+    //  - `man setpriority(2)`
     let prio = match kind {
         // The default priority needs no change, and defaults to `0`.
         ThreadKind::Default => return,
-        // Set a priority of `10` for worker threads,
-        // it's just important that this is a higher priority than default.
+        // Set a priority of `10` for worker threads.
         ThreadKind::Worker => 10,
     };
     if unsafe { libc::setpriority(libc::PRIO_PROCESS, 0, prio) } != 0 {
