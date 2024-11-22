@@ -734,7 +734,7 @@ enum Token {
     },
     /// A list of nested alternate tokens `{a,b}`.
     Alternates(Vec<Tokens>),
-    Optional(Box<Token>),
+    Optional(Vec<Token>),
 }
 
 /// A string literal.
