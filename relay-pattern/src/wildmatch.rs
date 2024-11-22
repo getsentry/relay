@@ -109,26 +109,14 @@ where
                     // No match, allow for backtracking.
                     false
                 }
-                Token::Optional(inner) => {
-                    let empty = &[Token::Literal(Literal(String::from("")))][..];
-                    let matches = match &**inner {
-                        Token::Alternates(alternates) => iter::once(empty)
-                            .chain(alternates.iter().map(|alt| alt.as_slice()))
-                            .any(|alternate| {
-                                let tokens = tokens.with_alternate(t_next, alternate);
-                                is_match_impl::<_, M>(h_current, &tokens)
-                            }),
-                        _ => [empty, slice::from_ref(&**inner)].iter().any(|alternate| {
-                            let tokens = tokens.with_alternate(t_next, alternate);
-                            is_match_impl::<_, M>(h_current, &tokens)
-                        }),
-                    };
-                    // The brace match already matches to the end, if it is successful we can end right here.
-                    if matches {
+                Token::Optional(optional) => {
+                    let optional = tokens.with_alternate(t_next, std::slice::from_ref(optional));
+                    if is_match_impl::<_, M>(h_current, &optional) {
+                        // There is a match with the optional token, we're done.
                         return true;
                     }
-                    // No match, allow for backtracking.
-                    false
+                    // Continue on without the optional token.
+                    true
                 }
             }
         };
