@@ -1853,6 +1853,17 @@
 <a href="#1853" id="1853">1853</a>
 <a href="#1854" id="1854">1854</a>
 <a href="#1855" id="1855">1855</a>
+<a href="#1856" id="1856">1856</a>
+<a href="#1857" id="1857">1857</a>
+<a href="#1858" id="1858">1858</a>
+<a href="#1859" id="1859">1859</a>
+<a href="#1860" id="1860">1860</a>
+<a href="#1861" id="1861">1861</a>
+<a href="#1862" id="1862">1862</a>
+<a href="#1863" id="1863">1863</a>
+<a href="#1864" id="1864">1864</a>
+<a href="#1865" id="1865">1865</a>
+<a href="#1866" id="1866">1866</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! A glob like pattern used throught Relay and its APIs.
 //!
 //! # Behaviour
@@ -3269,6 +3280,9 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_alternates() {
+        <span class="macro">assert_pattern!</span>(<span class="string">"{}foo{}"</span>, <span class="string">"foo"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"foo{}bar"</span>, <span class="string">"foobar"</span>);
+        <span class="macro">assert_pattern!</span>(<span class="string">"foo{}{}bar"</span>, <span class="string">"foobar"</span>);
         <span class="macro">assert_pattern!</span>(<span class="string">"{foo}"</span>, <span class="string">"foo"</span>);
         <span class="macro">assert_pattern!</span>(<span class="string">"{foo}"</span>, NOT <span class="string">"fOo"</span>);
         <span class="macro">assert_pattern!</span>(<span class="string">"{foo}"</span>, NOT <span class="string">"bar"</span>);
@@ -3328,6 +3342,14 @@
         <span class="macro">assert_pattern!</span>(<span class="string">"{foo,abc}{def,bar}"</span>, NOT <span class="string">"fooabc"</span>);
         <span class="macro">assert_pattern!</span>(<span class="string">"{foo,abc}{def,bar}"</span>, NOT <span class="string">"defdef"</span>);
         <span class="macro">assert_pattern!</span>(<span class="string">"{foo,abc}{def,bar}"</span>, NOT <span class="string">"defabc"</span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_alternate_strategy() {
+        <span class="comment">// Empty alternates can be simplified.
+        </span><span class="macro">assert_strategy!</span>(<span class="string">"{}foo{}"</span>, Literal);
+        <span class="macro">assert_strategy!</span>(<span class="string">"foo{}bar"</span>, Literal);
+        <span class="macro">assert_strategy!</span>(<span class="string">"foo{}{}{}bar"</span>, Literal);
     }
 
     <span class="attr">#[test]
