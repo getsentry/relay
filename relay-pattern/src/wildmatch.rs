@@ -1,4 +1,4 @@
-use std::num::NonZeroUsize;
+use std::{iter, num::NonZeroUsize, slice};
 
 use crate::{Literal, Options, Ranges, Token, Tokens};
 
@@ -102,6 +102,27 @@ where
                         is_match_impl::<_, M>(h_current, &tokens)
                     });
 
+                    // The brace match already matches to the end, if it is successful we can end right here.
+                    if matches {
+                        return true;
+                    }
+                    // No match, allow for backtracking.
+                    false
+                }
+                Token::Optional(inner) => {
+                    let empty = &[Token::Literal(Literal(String::from("")))][..];
+                    let matches = match &**inner {
+                        Token::Alternates(alternates) => iter::once(empty)
+                            .chain(alternates.iter().map(|alt| alt.as_slice()))
+                            .any(|alternate| {
+                                let tokens = tokens.with_alternate(t_next, alternate);
+                                is_match_impl::<_, M>(h_current, &tokens)
+                            }),
+                        _ => [empty, slice::from_ref(&**inner)].iter().any(|alternate| {
+                            let tokens = tokens.with_alternate(t_next, alternate);
+                            is_match_impl::<_, M>(h_current, &tokens)
+                        }),
+                    };
                     // The brace match already matches to the end, if it is successful we can end right here.
                     if matches {
                         return true;
@@ -610,6 +631,37 @@ mod tests {
         assert!(is_match("aba", &tokens, Default::default()));
         assert!(is_match("aca", &tokens, Default::default()));
         assert!(!is_match("ada", &tokens, Default::default()));
+    }
+
+    #[test]
+    fn test_optional() {
+        let mut tokens = Tokens::default();
+
+        tokens.push(Token::Optional(Box::new(Token::Literal(literal("foo")))));
+        assert!(is_match("foo", &tokens, Default::default()));
+        assert!(is_match("", &tokens, Default::default()));
+    }
+
+    #[test]
+    fn test_optional_alternate() {
+        let mut tokens = Tokens::default();
+        let alternates = Token::Alternates(vec![
+            {
+                let mut tokens = Tokens::default();
+                tokens.push(Token::Literal(literal("foo")));
+                tokens
+            },
+            {
+                let mut tokens = Tokens::default();
+                tokens.push(Token::Literal(literal("bar")));
+                tokens
+            },
+        ]);
+
+        tokens.push(Token::Optional(Box::new(alternates)));
+        assert!(is_match("foo", &tokens, Default::default()));
+        assert!(is_match("bar", &tokens, Default::default()));
+        assert!(is_match("", &tokens, Default::default()));
     }
 
     #[test]

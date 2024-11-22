@@ -728,9 +728,13 @@ enum Token {
     /// The wildcard token `*`.
     Wildcard,
     /// A class token `[abc]` or its negated variant `[!abc]`.
-    Class { negated: bool, ranges: Ranges },
+    Class {
+        negated: bool,
+        ranges: Ranges,
+    },
     /// A list of nested alternate tokens `{a,b}`.
     Alternates(Vec<Tokens>),
+    Optional(Box<Token>),
 }
 
 /// A string literal.
