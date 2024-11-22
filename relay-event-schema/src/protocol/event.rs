@@ -12,10 +12,9 @@ use crate::processor::ProcessValue;
 use crate::protocol::{
     AppContext, Breadcrumb, Breakdowns, BrowserContext, ClientSdkInfo, Contexts, Csp, DebugMeta,
     DefaultContext, DeviceContext, EventType, Exception, ExpectCt, ExpectStaple, Fingerprint,
-    GpuContext, Hpkp, LenientString, Level, LogEntry, Measurements, Metrics, MetricsSummary,
-    MonitorContext, OsContext, ProfileContext, RelayInfo, Request, ResponseContext, RuntimeContext,
-    Span, SpanId, Stacktrace, Tags, TemplateInfo, Thread, Timestamp, TraceContext, TransactionInfo,
-    User, Values,
+    GpuContext, Hpkp, LenientString, Level, LogEntry, Measurements, Metrics, MonitorContext,
+    OsContext, ProfileContext, RelayInfo, Request, ResponseContext, RuntimeContext, Span, SpanId,
+    Stacktrace, Tags, TemplateInfo, Thread, Timestamp, TraceContext, TransactionInfo, User, Values,
 };
 
 /// Wrapper around a UUID with slightly different formatting.
@@ -482,13 +481,6 @@ pub struct Event {
     /// This value should not be ingested and will be overwritten by the store normalizer.
     #[metastructure(omit_from_schema)]
     pub _metrics: Annotated<Metrics>,
-
-    /// Temporary protocol support for metric summaries.
-    ///
-    /// This shall move to a stable location once we have stabilized the
-    /// interface.  This is intentionally not typed today.
-    #[metastructure(omit_from_schema)]
-    pub _metrics_summary: Annotated<MetricsSummary>,
 
     /// Value of the `DynamicSamplingContext` for this event.
     #[metastructure(omit_from_schema)]

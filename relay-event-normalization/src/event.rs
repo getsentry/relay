@@ -11,18 +11,17 @@ use std::sync::OnceLock;
 use itertools::Itertools;
 use regex::Regex;
 use relay_base_schema::metrics::{
-    can_be_valid_metric_name, DurationUnit, FractionUnit, MetricResourceIdentifier, MetricUnit,
+    can_be_valid_metric_name, DurationUnit, FractionUnit, MetricUnit,
 };
 use relay_event_schema::processor::{self, ProcessingAction, ProcessingState, Processor};
 use relay_event_schema::protocol::{
     AsPair, ClientSdkInfo, Context, ContextInner, Contexts, DebugImage, DeviceClass, Event,
     EventId, EventType, Exception, Headers, IpAddr, Level, LogEntry, Measurement, Measurements,
-    MetricSummaryMapping, NelContext, PerformanceScoreContext, ReplayContext, Request, Span,
-    SpanStatus, Tags, Timestamp, TraceContext, User, VALID_PLATFORMS,
+    NelContext, PerformanceScoreContext, ReplayContext, Request, Span, SpanStatus, Tags, Timestamp,
+    TraceContext, User, VALID_PLATFORMS,
 };
 use relay_protocol::{
-    Annotated, Empty, Error, ErrorKind, FromValue, Getter, IntoValue, Meta, Object, Remark,
-    RemarkType, Value,
+    Annotated, Empty, Error, ErrorKind, FromValue, Getter, Meta, Object, Remark, RemarkType, Value,
 };
 use smallvec::SmallVec;
 use uuid::Uuid;
@@ -330,7 +329,6 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
     if config.normalize_spans && event.ty.value() == Some(&EventType::Transaction) {
         crate::normalize::normalize_app_start_spans(event);
         span::exclusive_time::compute_span_exclusive_time(event);
-        normalize_all_metrics_summaries(event);
     }
 
     if config.enrich_spans {
@@ -345,45 +343,6 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
         context.client_sample_rate = Annotated::from(config.client_sample_rate);
     }
     normalize_replay_context(event, config.replay_id);
-}
-
-/// Normalizes all the metrics summaries across the event payload.
-fn normalize_all_metrics_summaries(event: &mut Event) {
-    if let Some(metrics_summary) = event._metrics_summary.value_mut().as_mut() {
-        metrics_summary.update_value(normalize_metrics_summary_mris);
-    }
-
-    let Some(spans) = event.spans.value_mut() else {
-        return;
-    };
-
-    for span in spans.iter_mut() {
-        let metrics_summary = span
-            .value_mut()
-            .as_mut()
-            .and_then(|span| span._metrics_summary.value_mut().as_mut());
-
-        if let Some(ms) = metrics_summary {
-            ms.update_value(normalize_metrics_summary_mris);
-        }
-    }
-}
-
-/// Replaces all incoming metric identifiers in the metric summary with the correct MRI.
-///
-/// The reasoning behind this normalization, is that the SDK sends namespace-agnostic metric
-/// identifiers in the form `metric_type:metric_name@metric_unit` and those identifiers need to be
-/// converted to MRIs in the form `metric_type:metric_namespace/metric_name@metric_unit`.
-fn normalize_metrics_summary_mris(m: MetricSummaryMapping) -> MetricSummaryMapping {
-    m.into_iter()
-        .map(|(key, value)| match MetricResourceIdentifier::parse(&key) {
-            Ok(mri) => (mri.to_string(), value),
-            Err(err) => (
-                key,
-                Annotated::from_error(Error::invalid(err), value.0.map(IntoValue::into_value)),
-            ),
-        })
-        .collect()
 }
 
 fn normalize_replay_context(event: &mut Event, replay_id: Option<Uuid>) {
@@ -1485,12 +1444,10 @@ mod tests {
 
     use std::collections::BTreeMap;
 
-    use insta::{assert_debug_snapshot, assert_json_snapshot};
+    use insta::assert_debug_snapshot;
     use itertools::Itertools;
     use relay_common::glob2::LazyGlob;
-    use relay_event_schema::protocol::{
-        Breadcrumb, Csp, DebugMeta, DeviceContext, MetricSummary, MetricsSummary, Span, Values,
-    };
+    use relay_event_schema::protocol::{Breadcrumb, Csp, DebugMeta, DeviceContext, Values};
     use relay_protocol::{get_value, SerializableAnnotated};
     use serde_json::json;
 
@@ -4108,173 +4065,6 @@ mod tests {
                 ),
             ),
         }"#);
-    }
-
-    #[test]
-    fn test_normalize_metrics_summary_metric_identifiers() {
-        let mut metric_tags = BTreeMap::new();
-        metric_tags.insert(
-            "transaction".to_string(),
-            Annotated::new("/hello".to_string()),
-        );
-
-        let metric_summary = vec![Annotated::new(MetricSummary {
-            min: Annotated::new(1.0),
-            max: Annotated::new(20.0),
-            sum: Annotated::new(21.0),
-            count: Annotated::new(2),
-            tags: Annotated::new(metric_tags),
-        })];
-
-        let mut metrics_summary = BTreeMap::new();
-        metrics_summary.insert(
-            "d:page_duration@millisecond".to_string(),
-            Annotated::new(metric_summary.clone()),
-        );
-        metrics_summary.insert(
-            "c:custom/page_click@none".to_string(),
-            Annotated::new(Default::default()),
-        );
-        metrics_summary.insert(
-            "s:user@none".to_string(),
-            Annotated::new(metric_summary.clone()),
-        );
-        metrics_summary.insert("invalid".to_string(), Annotated::new(metric_summary));
-        metrics_summary.insert(
-            "g:page_load@second".to_string(),
-            Annotated::new(Default::default()),
-        );
-        let metrics_summary = MetricsSummary(metrics_summary);
-
-        let mut event = Annotated::new(Event {
-            spans: Annotated::new(vec![Annotated::new(Span {
-                op: Annotated::new("my_span".to_owned()),
-                _metrics_summary: Annotated::new(metrics_summary.clone()),
-                ..Default::default()
-            })]),
-            _metrics_summary: Annotated::new(metrics_summary),
-            ..Default::default()
-        });
-        normalize_all_metrics_summaries(event.value_mut().as_mut().unwrap());
-        assert_json_snapshot!(SerializableAnnotated(&event), @r###"
-        {
-          "spans": [
-            {
-              "op": "my_span",
-              "_metrics_summary": {
-                "c:custom/page_click@none": [],
-                "d:custom/page_duration@millisecond": [
-                  {
-                    "min": 1.0,
-                    "max": 20.0,
-                    "sum": 21.0,
-                    "count": 2,
-                    "tags": {
-                      "transaction": "/hello"
-                    }
-                  }
-                ],
-                "g:custom/page_load@second": [],
-                "invalid": null,
-                "s:custom/user@none": [
-                  {
-                    "min": 1.0,
-                    "max": 20.0,
-                    "sum": 21.0,
-                    "count": 2,
-                    "tags": {
-                      "transaction": "/hello"
-                    }
-                  }
-                ]
-              }
-            }
-          ],
-          "_metrics_summary": {
-            "c:custom/page_click@none": [],
-            "d:custom/page_duration@millisecond": [
-              {
-                "min": 1.0,
-                "max": 20.0,
-                "sum": 21.0,
-                "count": 2,
-                "tags": {
-                  "transaction": "/hello"
-                }
-              }
-            ],
-            "g:custom/page_load@second": [],
-            "invalid": null,
-            "s:custom/user@none": [
-              {
-                "min": 1.0,
-                "max": 20.0,
-                "sum": 21.0,
-                "count": 2,
-                "tags": {
-                  "transaction": "/hello"
-                }
-              }
-            ]
-          },
-          "_meta": {
-            "_metrics_summary": {
-              "invalid": {
-                "": {
-                  "err": [
-                    [
-                      "invalid_data",
-                      {
-                        "reason": "failed to parse metric"
-                      }
-                    ]
-                  ],
-                  "val": [
-                    {
-                      "count": 2,
-                      "max": 20.0,
-                      "min": 1.0,
-                      "sum": 21.0,
-                      "tags": {
-                        "transaction": "/hello"
-                      }
-                    }
-                  ]
-                }
-              }
-            },
-            "spans": {
-              "0": {
-                "_metrics_summary": {
-                  "invalid": {
-                    "": {
-                      "err": [
-                        [
-                          "invalid_data",
-                          {
-                            "reason": "failed to parse metric"
-                          }
-                        ]
-                      ],
-                      "val": [
-                        {
-                          "count": 2,
-                          "max": 20.0,
-                          "min": 1.0,
-                          "sum": 21.0,
-                          "tags": {
-                            "transaction": "/hello"
-                          }
-                        }
-                      ]
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-        "###);
     }
 
     #[test]
