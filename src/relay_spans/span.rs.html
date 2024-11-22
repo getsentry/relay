@@ -711,22 +711,6 @@
 <a href="#711" id="711">711</a>
 <a href="#712" id="712">712</a>
 <a href="#713" id="713">713</a>
-<a href="#714" id="714">714</a>
-<a href="#715" id="715">715</a>
-<a href="#716" id="716">716</a>
-<a href="#717" id="717">717</a>
-<a href="#718" id="718">718</a>
-<a href="#719" id="719">719</a>
-<a href="#720" id="720">720</a>
-<a href="#721" id="721">721</a>
-<a href="#722" id="722">722</a>
-<a href="#723" id="723">723</a>
-<a href="#724" id="724">724</a>
-<a href="#725" id="725">725</a>
-<a href="#726" id="726">726</a>
-<a href="#727" id="727">727</a>
-<a href="#728" id="728">728</a>
-<a href="#729" id="729">729</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::str::FromStr;
 
 <span class="kw">use </span>chrono::{TimeZone, Utc};
@@ -995,7 +979,6 @@
         timestamp: Timestamp(end_timestamp).into(),
         trace_id: TraceId(trace_id).into(),
         platform: platform.into(),
-        _metrics_summary: metrics_summary.into(),
         ..Default::default()
     }
 }
@@ -1425,21 +1408,6 @@
             sentry_tags: ~,
             received: ~,
             measurements: ~,
-            _metrics_summary: MetricsSummary(
-                {
-                    "some_metric": [
-                        MetricSummary {
-                            min: 1.0,
-                            max: 2.0,
-                            sum: 3.0,
-                            count: 2,
-                            tags: {
-                                "environment": "test",
-                            },
-                        },
-                    ],
-                },
-            ),
             platform: "php",
             was_transaction: ~,
             other: {},

@@ -1328,14 +1328,6 @@
 <a href="#1328" id="1328">1328</a>
 <a href="#1329" id="1329">1329</a>
 <a href="#1330" id="1330">1330</a>
-<a href="#1331" id="1331">1331</a>
-<a href="#1332" id="1332">1332</a>
-<a href="#1333" id="1333">1333</a>
-<a href="#1334" id="1334">1334</a>
-<a href="#1335" id="1335">1335</a>
-<a href="#1336" id="1336">1336</a>
-<a href="#1337" id="1337">1337</a>
-<a href="#1338" id="1338">1338</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
@@ -1350,10 +1342,9 @@
 <span class="kw">use </span><span class="kw">crate</span>::protocol::{
     AppContext, Breadcrumb, Breakdowns, BrowserContext, ClientSdkInfo, Contexts, Csp, DebugMeta,
     DefaultContext, DeviceContext, EventType, Exception, ExpectCt, ExpectStaple, Fingerprint,
-    GpuContext, Hpkp, LenientString, Level, LogEntry, Measurements, Metrics, MetricsSummary,
-    MonitorContext, OsContext, ProfileContext, RelayInfo, Request, ResponseContext, RuntimeContext,
-    Span, SpanId, Stacktrace, Tags, TemplateInfo, Thread, Timestamp, TraceContext, TransactionInfo,
-    User, Values,
+    GpuContext, Hpkp, LenientString, Level, LogEntry, Measurements, Metrics, MonitorContext,
+    OsContext, ProfileContext, RelayInfo, Request, ResponseContext, RuntimeContext, Span, SpanId,
+    Stacktrace, Tags, TemplateInfo, Thread, Timestamp, TraceContext, TransactionInfo, User, Values,
 };
 
 <span class="doccomment">/// Wrapper around a UUID with slightly different formatting.
@@ -1820,13 +1811,6 @@
     /// This value should not be ingested and will be overwritten by the store normalizer.
     </span><span class="attr">#[metastructure(omit_from_schema)]
     </span><span class="kw">pub </span>_metrics: Annotated&lt;Metrics&gt;,
-
-    <span class="doccomment">/// Temporary protocol support for metric summaries.
-    ///
-    /// This shall move to a stable location once we have stabilized the
-    /// interface.  This is intentionally not typed today.
-    </span><span class="attr">#[metastructure(omit_from_schema)]
-    </span><span class="kw">pub </span>_metrics_summary: Annotated&lt;MetricsSummary&gt;,
 
     <span class="doccomment">/// Value of the `DynamicSamplingContext` for this event.
     </span><span class="attr">#[metastructure(omit_from_schema)]
