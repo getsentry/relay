@@ -1,4 +1,4 @@
-use std::{iter, num::NonZeroUsize, slice};
+use std::num::NonZeroUsize;
 
 use crate::{Literal, Options, Ranges, Token, Tokens};
 
