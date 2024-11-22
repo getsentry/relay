@@ -287,6 +287,12 @@
 <a href="#287" id="287">287</a>
 <a href="#288" id="288">288</a>
 <a href="#289" id="289">289</a>
+<a href="#290" id="290">290</a>
+<a href="#291" id="291">291</a>
+<a href="#292" id="292">292</a>
+<a href="#293" id="293">293</a>
+<a href="#294" id="294">294</a>
+<a href="#295" id="295">295</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::thread;
 <span class="kw">use </span>tokio::runtime::Handle;
@@ -431,12 +437,18 @@
     <span class="comment">// Lower priorities cause more favorable scheduling.
     // Higher priorities cause less favorable scheduling.
     //
-    // For details see `man setpriority(2)`.
+    // The relative niceness between threads determines their relative
+    // priority. The formula to map a nice value to a weight is approximately
+    // `1024 / (1.25 ^ nice)`.
+    //
+    // More information can be found:
+    //  - https://www.kernel.org/doc/Documentation/scheduler/sched-nice-design.txt
+    //  - https://oakbytes.wordpress.com/2012/06/06/linux-scheduler-cfs-and-nice/
+    //  - `man setpriority(2)`
     </span><span class="kw">let </span>prio = <span class="kw">match </span>kind {
         <span class="comment">// The default priority needs no change, and defaults to `0`.
         </span>ThreadKind::Default =&gt; <span class="kw">return</span>,
-        <span class="comment">// Set a priority of `10` for worker threads,
-        // it's just important that this is a higher priority than default.
+        <span class="comment">// Set a priority of `10` for worker threads.
         </span>ThreadKind::Worker =&gt; <span class="number">10</span>,
     };
     <span class="kw">if unsafe </span>{ libc::setpriority(libc::PRIO_PROCESS, <span class="number">0</span>, prio) } != <span class="number">0 </span>{
