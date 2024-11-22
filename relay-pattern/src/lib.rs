@@ -1414,6 +1414,9 @@ mod tests {
 
     #[test]
     fn test_alternates() {
+        assert_pattern!("{}foo{}", "foo");
+        assert_pattern!("foo{}bar", "foobar");
+        assert_pattern!("foo{}{}bar", "foobar");
         assert_pattern!("{foo}", "foo");
         assert_pattern!("{foo}", NOT "fOo");
         assert_pattern!("{foo}", NOT "bar");
@@ -1473,6 +1476,14 @@ mod tests {
         assert_pattern!("{foo,abc}{def,bar}", NOT "fooabc");
         assert_pattern!("{foo,abc}{def,bar}", NOT "defdef");
         assert_pattern!("{foo,abc}{def,bar}", NOT "defabc");
+    }
+
+    #[test]
+    fn test_alternate_strategy() {
+        // Empty alternates can be simplified.
+        assert_strategy!("{}foo{}", Literal);
+        assert_strategy!("foo{}bar", Literal);
+        assert_strategy!("foo{}{}{}bar", Literal);
     }
 
     #[test]
