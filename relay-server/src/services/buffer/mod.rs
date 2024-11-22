@@ -265,6 +265,8 @@ impl EnvelopeBufferService {
                     .expect("Element disappeared despite exclusive excess");
                 envelopes_tx_permit.send(legacy::DequeuedEnvelope(envelope));
 
+                println!("READY");
+
                 Duration::ZERO // try next pop immediately
             }
             Peek::NotReady {
@@ -278,6 +280,8 @@ impl EnvelopeBufferService {
                     peek_result = "not_ready"
                 );
 
+                println!("NOT READY");
+
                 // We want to fetch the configs again, only if some time passed between the last
                 // peek of this not ready project key pair and the current peek. This is done to
                 // avoid flooding the project cache with `UpdateProject` messages.
@@ -289,10 +293,10 @@ impl EnvelopeBufferService {
                         sampling_key,
                     } = project_key_pair;
 
-                    services.project_cache_handle.fetch(own_key);
-                    if sampling_key != own_key {
-                        services.project_cache_handle.fetch(sampling_key);
-                    }
+                    // services.project_cache_handle.fetch(own_key);
+                    // if sampling_key != own_key {
+                    //     services.project_cache_handle.fetch(sampling_key);
+                    // }
 
                     // Deprioritize the stack to prevent head-of-line blocking and update the next fetch
                     // time.
@@ -424,6 +428,8 @@ impl Service for EnvelopeBufferService {
         let mut total_idle_time = Duration::ZERO;
         let mut total_busy_time = Duration::ZERO;
         let mut total_push_time = Duration::ZERO;
+        let mut total_pop_time = Duration::ZERO;
+        let mut total_project_cache_time = Duration::ZERO;
         let mut push_count = 0u64;
         let mut last_loop_time = Instant::now();
 
@@ -447,18 +453,20 @@ impl Service for EnvelopeBufferService {
                     } else {
                         Duration::ZERO
                     };
-                    
+
                     let envelope_stacks_count = match &buffer {
                         PolymorphicEnvelopeBuffer::InMemory(buffer) => buffer.priority_queue.len(),
                         PolymorphicEnvelopeBuffer::Sqlite(buffer) => buffer.priority_queue.len(),
                     };
 
                     println!(
-                        "Buffer metrics:\n  Queue size: {}\n  Idle time: {:.2?}\n  Busy time: {:.2?}\n  Push time: {:.2?}\n  Avg push duration: {:.2?}\n  Push count: {}\n  Envelope stacks count: {}\n",
+                        "Buffer metrics:\n  Queue size: {}\n  Idle time: {:.2?}\n  Busy time: {:.2?}\n  Push time: {:.2?}\n  Pop time: {:.2?}\n  Cache time: {:.2?}\n  Avg push duration: {:.2?}\n  Push count: {}\n  Envelope stacks count: {}\n",
                         rx.queue_size.load(Ordering::Relaxed),
                         total_idle_time,
                         total_busy_time,
                         total_push_time,
+                        total_pop_time,
+                        total_project_cache_time,
                         avg_push_duration,
                         push_count,
                         envelope_stacks_count
@@ -468,6 +476,8 @@ impl Service for EnvelopeBufferService {
                     total_idle_time = Duration::ZERO;
                     total_busy_time = Duration::ZERO;
                     total_push_time = Duration::ZERO;
+                    total_pop_time = Duration::ZERO;
+                    total_project_cache_time = Duration::ZERO;
                     push_count = 0;
                     last_metrics_time = SystemTime::now();
                 }
@@ -476,6 +486,27 @@ impl Service for EnvelopeBufferService {
             let mut sleep = Duration::MAX;
             let start = Instant::now();
             tokio::select! {
+                // NOTE: we do not select a bias here.
+                // On the one hand, we might want to prioritize dequeuing over enqueuing
+                // so we do not exceed the buffer capacity by starving the dequeue.
+                // on the other hand, prioritizing old messages violates the LIFO design.
+                Some(permit) = self.ready_to_pop(&buffer, false) => {
+                    total_idle_time += start.elapsed();
+                    let busy_start = Instant::now();
+                    match Self::try_pop(&config, &mut buffer, &services, permit).await {
+                        Ok(new_sleep) => {
+                            sleep = new_sleep;
+                        }
+                        Err(error) => {
+                            relay_log::error!(
+                                error = &error as &dyn std::error::Error,
+                                "failed to pop envelope"
+                            );
+                        }
+                    }
+                   total_busy_time += busy_start.elapsed();
+                   total_pop_time += start.elapsed();
+                }
                 change = project_changes.recv() => {
                     total_idle_time += start.elapsed();
                     let busy_start = Instant::now();
@@ -512,6 +543,7 @@ impl Service for EnvelopeBufferService {
                     let busy_start = Instant::now();
                     sleep = Duration::ZERO;
                     total_busy_time += busy_start.elapsed();
+                    total_project_cache_time += start.elapsed();
                 }
                 else => break,
             }

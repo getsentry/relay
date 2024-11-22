@@ -381,7 +381,7 @@ pub async fn handle_envelope(
     //     .get(project_key)
     //     .check_envelope(managed_envelope)
     //     .map_err(BadStoreRequest::EventRejected)?;
-    // 
+    //
     // let Some(mut managed_envelope) = checked.envelope else {
     //     // All items have been removed from the envelope.
     //     return Err(BadStoreRequest::RateLimited(checked.rate_limits));

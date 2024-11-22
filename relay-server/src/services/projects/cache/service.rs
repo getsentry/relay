@@ -1,5 +1,5 @@
 use std::sync::Arc;
-
+use std::time::Duration;
 use futures::future::BoxFuture;
 use futures::StreamExt as _;
 use relay_base_schema::project::ProjectKey;
@@ -206,10 +206,16 @@ impl relay_system::Service for ProjectCacheService {
             }};
         }
 
+        // 100 per second
+        let mut ticker = tokio::time::interval(Duration::from_millis(10));
+
         loop {
             tokio::select! {
                 biased;
 
+                 _ = ticker.tick() => {
+                    self.project_events_tx.send(ProjectChange::Ready(ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap()));
+                }
                 Some(fetch) = self.scheduled_fetches.next() => timed!(
                     "completed_fetch",
                     self.handle_completed_fetch(fetch)

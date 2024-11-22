@@ -194,7 +194,8 @@ impl From<Infallible> for EnvelopeBufferError {
 #[derive(Debug)]
 pub struct EnvelopeBuffer<P: StackProvider> {
     /// The central priority queue.
-    pub priority_queue: priority_queue::PriorityQueue<QueueItem<ProjectKeyPair, P::Stack>, Priority>,
+    pub priority_queue:
+        priority_queue::PriorityQueue<QueueItem<ProjectKeyPair, P::Stack>, Priority>,
     /// A lookup table to find all stacks involving a project.
     stacks_by_project: hashbrown::HashMap<ProjectKey, BTreeSet<ProjectKeyPair>>,
     /// A provider of stacks that provides utilities to create stacks, check their capacity...

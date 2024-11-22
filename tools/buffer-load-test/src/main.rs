@@ -6,13 +6,13 @@ use std::time::Duration;
 use tokio::sync::Mutex;
 use tokio::time::Instant;
 
-const NUM_PROJECTS: usize = 100000;
+const NUM_PROJECTS: usize = 10;
 const MIN_PAYLOAD_SIZE: usize = 300;
-const MAX_PAYLOAD_SIZE: usize = 10_000;
-const DEFAULT_DURATION_SECS: u64 = 600;
-const CONCURRENT_TASKS: usize = 10;
+const MAX_PAYLOAD_SIZE: usize = 300;
+const DEFAULT_DURATION_SECS: u64 = 60;
+const CONCURRENT_TASKS: usize = 100;
 const ENVELOPE_POOL_SIZE: usize = 10000;
-const DEFAULT_REQUESTS_PER_SECOND: f64 = 500.0;
+const DEFAULT_REQUESTS_PER_SECOND: f64 = 10000.0;
 
 /// Creates a mock envelope with random payload size
 fn create_envelope(project_key: &str, project_id: u64, payload_size: usize) -> Vec<u8> {
