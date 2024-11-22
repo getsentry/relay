@@ -120,26 +120,84 @@
 <a href="#120" id="120">120</a>
 <a href="#121" id="121">121</a>
 <a href="#122" id="122">122</a>
+<a href="#123" id="123">123</a>
+<a href="#124" id="124">124</a>
+<a href="#125" id="125">125</a>
+<a href="#126" id="126">126</a>
+<a href="#127" id="127">127</a>
+<a href="#128" id="128">128</a>
+<a href="#129" id="129">129</a>
+<a href="#130" id="130">130</a>
+<a href="#131" id="131">131</a>
+<a href="#132" id="132">132</a>
+<a href="#133" id="133">133</a>
+<a href="#134" id="134">134</a>
+<a href="#135" id="135">135</a>
+<a href="#136" id="136">136</a>
+<a href="#137" id="137">137</a>
+<a href="#138" id="138">138</a>
+<a href="#139" id="139">139</a>
+<a href="#140" id="140">140</a>
+<a href="#141" id="141">141</a>
+<a href="#142" id="142">142</a>
+<a href="#143" id="143">143</a>
+<a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
+<a href="#150" id="150">150</a>
+<a href="#151" id="151">151</a>
+<a href="#152" id="152">152</a>
+<a href="#153" id="153">153</a>
+<a href="#154" id="154">154</a>
+<a href="#155" id="155">155</a>
+<a href="#156" id="156">156</a>
+<a href="#157" id="157">157</a>
+<a href="#158" id="158">158</a>
+<a href="#159" id="159">159</a>
+<a href="#160" id="160">160</a>
+<a href="#161" id="161">161</a>
+<a href="#162" id="162">162</a>
+<a href="#163" id="163">163</a>
+<a href="#164" id="164">164</a>
+<a href="#165" id="165">165</a>
+<a href="#166" id="166">166</a>
+<a href="#167" id="167">167</a>
+<a href="#168" id="168">168</a>
+<a href="#169" id="169">169</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>futures::Future;
 <span class="kw">use </span>tokio::task::JoinHandle;
 
 <span class="kw">use </span><span class="kw">crate</span>::statsd::SystemCounters;
+<span class="kw">use </span><span class="kw">crate</span>::Service;
+
+<span class="doccomment">/// Spawns an instrumented task with an automatically generated [`TaskId`].
+///
+/// Returns a [`JoinHandle`].
+</span><span class="attr">#[macro_export]
+</span><span class="macro">macro_rules!</span> spawn {
+    (<span class="macro-nonterminal">$future</span>:expr) =&gt; {{
+        <span class="kw">static </span>_PARTS: ::std::sync::OnceLock&lt;(String, String, String)&gt; =
+            ::std::sync::OnceLock::new();
+        <span class="kw">let </span>(id, file, line) = _PARTS.get_or_init(|| {
+            <span class="kw">let </span>caller = <span class="kw-2">*</span>::std::panic::Location::caller();
+            <span class="kw">let </span>id = <span class="macro">format!</span>(<span class="string">"{}:{}"</span>, caller.file(), caller.line());
+            (id, caller.file().to_owned(), caller.line().to_string())
+        });
+        <span class="macro-nonterminal">$crate::spawn</span>(
+            <span class="macro-nonterminal">$crate::TaskId::_from_location</span>(id.as_str(), file.as_str(), line.as_str()),
+            <span class="macro-nonterminal">$future</span>,
+        )
+    }};
+}
 
 <span class="doccomment">/// Spawns a new asynchronous task, returning a [`JoinHandle`] for it.
 ///
 /// This is in instrumented spawn variant of Tokio's [`tokio::spawn`].
-</span><span class="attr">#[macro_export]
-</span><span class="macro">macro_rules!</span> spawn {
-    (<span class="macro-nonterminal">$future</span>:expr) =&gt; {{
-        <span class="kw">static </span>_TASK_ID: ::std::sync::OnceLock&lt;<span class="macro-nonterminal">$crate::TaskId</span>&gt; = ::std::sync::OnceLock::new();
-        <span class="kw">let </span>task_id = _TASK_ID.get_or_init(|| (<span class="kw-2">*</span>::std::panic::Location::caller()).into());
-        <span class="macro-nonterminal">$crate::_spawn_inner</span>(task_id, <span class="macro-nonterminal">$future</span>)
-    }};
-}
-
-<span class="attr">#[doc(hidden)]
-#[allow(clippy::disallowed_methods)]
-</span><span class="kw">pub fn </span>_spawn_inner&lt;F&gt;(task_id: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>TaskId, future: F) -&gt; JoinHandle&lt;F::Output&gt;
+</span><span class="attr">#[allow(clippy::disallowed_methods)]
+</span><span class="kw">pub fn </span>spawn&lt;F&gt;(task_id: TaskId, future: F) -&gt; JoinHandle&lt;F::Output&gt;
 <span class="kw">where
     </span>F: Future + Send + <span class="lifetime">'static</span>,
     F::Output: Send + <span class="lifetime">'static</span>,
@@ -147,53 +205,61 @@
     tokio::spawn(Task::new(task_id, future))
 }
 
-<span class="doccomment">/// An internal id for a spawned task.
-</span><span class="attr">#[doc(hidden)]
+<span class="doccomment">/// An identifier for tasks spawned by [`spawn()`], used to log metrics.
 </span><span class="kw">pub struct </span>TaskId {
-    id: String,
-    file: String,
-    line: String,
+    id: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
+    file: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'static </span>str&gt;,
+    line: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'static </span>str&gt;,
 }
 
-<span class="kw">impl </span>From&lt;std::panic::Location&lt;<span class="lifetime">'_</span>&gt;&gt; <span class="kw">for </span>TaskId {
-    <span class="kw">fn </span>from(value: std::panic::Location&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="self">Self </span>{
+<span class="kw">impl </span>TaskId {
+    <span class="doccomment">/// Create a task ID based on the service's name.
+    </span><span class="kw">pub fn </span>for_service&lt;S: Service&gt;() -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
-            id: <span class="macro">format!</span>(<span class="string">"{}:{}"</span>, value.file(), value.line()),
-            file: value.file().to_owned(),
-            line: value.line().to_string(),
+            id: S::name(),
+            file: <span class="prelude-val">None</span>,
+            line: <span class="prelude-val">None</span>,
         }
+    }
+
+    <span class="attr">#[doc(hidden)]
+    </span><span class="kw">pub fn </span>_from_location(id: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str, file: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str, line: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            id,
+            file: <span class="prelude-val">Some</span>(file),
+            line: <span class="prelude-val">Some</span>(line),
+        }
+    }
+
+    <span class="kw">fn </span>emit_metric(<span class="kw-2">&amp;</span><span class="self">self</span>, metric: SystemCounters) {
+        <span class="kw">let </span><span class="self">Self </span>{ id, file, line } = <span class="self">self</span>;
+        <span class="macro">relay_statsd::metric!</span>(
+            counter(metric) += <span class="number">1</span>,
+            id = id,
+            file = file.unwrap_or_default(),
+            line = line.unwrap_or_default()
+        );
     }
 }
 
 <span class="macro">pin_project_lite::pin_project!</span> {
     <span class="doccomment">/// Wraps a future and emits related task metrics.
     </span><span class="kw">struct </span>Task&lt;T&gt; {
-        id: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>TaskId,
+        id: TaskId,
         <span class="attr">#[pin]
         </span>inner: T,
     }
 
     <span class="kw">impl</span>&lt;T&gt; PinnedDrop <span class="kw">for </span>Task&lt;T&gt; {
         <span class="kw">fn </span>drop(this: Pin&lt;<span class="kw-2">&amp;mut </span><span class="self">Self</span>&gt;) {
-            <span class="kw">let </span>this = this.project();
-            <span class="macro">relay_statsd::metric!</span>(
-                counter(SystemCounters::RuntimeTaskTerminated) += <span class="number">1</span>,
-                id = this.id.id.as_str(),
-                file = this.id.file.as_str(),
-                line = this.id.line.as_str(),
-            );
+            this.id.emit_metric(SystemCounters::RuntimeTaskTerminated);
         }
     }
 }
 
 <span class="kw">impl</span>&lt;T&gt; Task&lt;T&gt; {
-    <span class="kw">fn </span>new(id: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>TaskId, inner: T) -&gt; <span class="self">Self </span>{
-        <span class="macro">relay_statsd::metric!</span>(
-            counter(SystemCounters::RuntimeTaskCreated) += <span class="number">1</span>,
-            id = id.id.as_str(),
-            file = id.file.as_str(),
-            line = id.line.as_str(),
-        );
+    <span class="kw">fn </span>new(id: TaskId, inner: T) -&gt; <span class="self">Self </span>{
+        id.emit_metric(SystemCounters::RuntimeTaskCreated);
         <span class="self">Self </span>{ id, inner }
     }
 }
@@ -214,6 +280,8 @@
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>insta::assert_debug_snapshot;
 
+    <span class="kw">use crate</span>::{Service, TaskId};
+
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_spawn_spawns_a_future() {
         <span class="kw">let </span>rt = tokio::runtime::Builder::new_current_thread()
@@ -229,15 +297,41 @@
         <span class="attr">#[cfg(not(windows))]
         </span><span class="macro">assert_debug_snapshot!</span>(captures, @<span class="string">r###"
         [
-            "runtime.task.spawn.created:1|c|#id:relay-system/src/runtime.rs:103,file:relay-system/src/runtime.rs,line:103",
-            "runtime.task.spawn.terminated:1|c|#id:relay-system/src/runtime.rs:103,file:relay-system/src/runtime.rs,line:103",
+            "runtime.task.spawn.created:1|c|#id:relay-system/src/runtime.rs:124,file:relay-system/src/runtime.rs,line:124",
+            "runtime.task.spawn.terminated:1|c|#id:relay-system/src/runtime.rs:124,file:relay-system/src/runtime.rs,line:124",
         ]
         "###</span>);
         <span class="attr">#[cfg(windows)]
         </span><span class="macro">assert_debug_snapshot!</span>(captures, @<span class="string">r###"
         [
-            "runtime.task.spawn.created:1|c|#id:relay-system\\src\\runtime.rs:103,file:relay-system\\src\\runtime.rs,line:103",
-            "runtime.task.spawn.terminated:1|c|#id:relay-system\\src\\runtime.rs:103,file:relay-system\\src\\runtime.rs,line:103",
+            "runtime.task.spawn.created:1|c|#id:relay-system\\src\\runtime.rs:124,file:relay-system\\src\\runtime.rs,line:124",
+            "runtime.task.spawn.terminated:1|c|#id:relay-system\\src\\runtime.rs:124,file:relay-system\\src\\runtime.rs,line:124",
+        ]
+        "###</span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_spawn_with_custom_id() {
+        <span class="kw">struct </span>Foo;
+        <span class="kw">impl </span>Service <span class="kw">for </span>Foo {
+            <span class="kw">type </span>Interface = ();
+            <span class="kw">async fn </span>run(<span class="self">self</span>, _rx: <span class="kw">crate</span>::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {}
+        }
+
+        <span class="kw">let </span>rt = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+
+        <span class="kw">let </span>captures = relay_statsd::with_capturing_test_client(|| {
+            rt.block_on(<span class="kw">async </span>{
+                <span class="kw">let _ </span>= <span class="kw">crate</span>::spawn(TaskId::for_service::&lt;Foo&gt;(), <span class="kw">async </span>{}).<span class="kw">await</span>;
+            })
+        });
+
+        <span class="macro">assert_debug_snapshot!</span>(captures, @<span class="string">r###"
+        [
+            "runtime.task.spawn.created:1|c|#id:relay_system::runtime::tests::test_spawn_with_custom_id::Foo,file:,line:",
+            "runtime.task.spawn.terminated:1|c|#id:relay_system::runtime::tests::test_spawn_with_custom_id::Foo,file:,line:",
         ]
         "###</span>);
     }

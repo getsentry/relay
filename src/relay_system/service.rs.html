@@ -1147,6 +1147,7 @@
 <a href="#1147" id="1147">1147</a>
 <a href="#1148" id="1148">1148</a>
 <a href="#1149" id="1149">1149</a>
+<a href="#1150" id="1150">1150</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::future::Future;
 <span class="kw">use </span>std::marker::PhantomData;
@@ -1163,8 +1164,8 @@
 <span class="kw">use </span>tokio::task::JoinHandle;
 <span class="kw">use </span>tokio::time::MissedTickBehavior;
 
-<span class="kw">use </span><span class="kw">crate</span>::spawn;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::SystemGauges;
+<span class="kw">use crate</span>::{spawn, TaskId};
 
 <span class="doccomment">/// Interval for recording backlog metrics on service channels.
 </span><span class="kw">const </span>BACKLOG_INTERVAL: Duration = Duration::from_secs(<span class="number">1</span>);
@@ -2158,7 +2159,7 @@
     /// for tests.
     </span><span class="kw">fn </span>start_detached(<span class="self">self</span>) -&gt; Addr&lt;<span class="self">Self</span>::Interface&gt; {
         <span class="kw">let </span>(addr, rx) = channel(<span class="self">Self</span>::name());
-        <span class="macro">spawn!</span>(<span class="self">self</span>.run(rx));
+        spawn(TaskId::for_service::&lt;<span class="self">Self</span>&gt;(), <span class="self">self</span>.run(rx));
         addr
     }
 
@@ -2192,7 +2193,8 @@
 
     <span class="doccomment">/// Starts a service and starts tracking its join handle, given a predefined receiver.
     </span><span class="kw">pub fn </span>start_with&lt;S: Service&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, service: S, rx: Receiver&lt;S::Interface&gt;) {
-        <span class="self">self</span>.<span class="number">0</span>.push(<span class="macro">spawn!</span>(service.run(rx)));
+        <span class="self">self</span>.<span class="number">0
+            </span>.push(spawn(TaskId::for_service::&lt;S&gt;(), service.run(rx)));
     }
 
     <span class="doccomment">/// Awaits until all services have finished.
