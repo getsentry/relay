@@ -479,23 +479,28 @@ async fn create_async_pool_from_configs(
     config: RedisPoolConfigs<'_>,
 ) -> Result<AsyncRedisPool, RedisError> {
     match config {
-        RedisPoolConfigs::Unified(config) => create_async_pool(config).await,
+        RedisPoolConfigs::Unified(config) => create_async_pool(&config).await,
         RedisPoolConfigs::Individual {
             project_configs, ..
-        } => create_async_pool(project_configs).await,
+        } => create_async_pool(&project_configs).await,
     }
 }
 
-async fn create_async_pool(config: RedisConfigRef<'_>) -> Result<AsyncRedisPool, RedisError> {
+async fn create_async_pool(config: &RedisConfigRef<'_>) -> Result<AsyncRedisPool, RedisError> {
     match config {
         RedisConfigRef::Cluster {
             cluster_nodes,
             options,
-        } => AsyncRedisPool::cluster(cluster_nodes.iter().map(|s| s.as_str()), &options).await,
+        } => AsyncRedisPool::cluster(cluster_nodes.iter().map(|s| s.as_str()), options).await,
         RedisConfigRef::Single { server, options } => {
-            AsyncRedisPool::single(server.as_str(), &options).await
+            AsyncRedisPool::single(server.as_str(), options).await
         }
-        _ => Err(RedisError::Configuration),
+        RedisConfigRef::MultiWrite { configs } => {
+            // Based on the assumption that the first config is the
+            // primary config for MultiWrite configurations
+            let primary_config = configs.iter().next().ok_or(RedisError::Configuration)?;
+            Box::pin(create_async_pool(primary_config)).await
+        }
     }
 }
 
