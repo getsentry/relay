@@ -528,7 +528,7 @@ impl<'a> Parser<'a> {
             return Err(ErrorKind::NestedAlternates);
         }
         self.finish_literal();
-        self.alternates = Some(Vec::new());
+        self.alternates = Some(vec![Tokens::default()]);
         Ok(())
     }
 
@@ -719,7 +719,7 @@ impl Tokens {
                 }
             } else {
                 // Case: {,,,} -> reduces to {}
-                token = Token::Alternates(vec![]);
+                return;
             }
         }
 
@@ -1465,6 +1465,12 @@ mod tests {
         assert_pattern!("{foo,bar,}baz", "foobaz");
         assert_pattern!("{foo,bar,}baz", "barbaz");
         assert_pattern!("{foo,bar,}baz", "baz");
+        assert_pattern!("{foo,,bar}baz", "foobaz");
+        assert_pattern!("{foo,,bar}baz", "barbaz");
+        assert_pattern!("{foo,,bar}baz", "baz");
+        assert_pattern!("{,foo,bar}baz", "foobaz");
+        assert_pattern!("{,foo,bar}baz", "barbaz");
+        assert_pattern!("{,foo,bar}baz", "baz");
         assert_pattern!("{[fb][oa][or]}", "foo");
         assert_pattern!("{[fb][oa][or]}", "bar");
         assert_pattern!("{[fb][oa][or],baz}", "foo");
