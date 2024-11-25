@@ -266,7 +266,6 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
         timestamp: Timestamp(end_timestamp).into(),
         trace_id: TraceId(trace_id).into(),
         platform: platform.into(),
-        _metrics_summary: metrics_summary.into(),
         ..Default::default()
     }
 }
@@ -696,21 +695,6 @@ mod tests {
             sentry_tags: ~,
             received: ~,
             measurements: ~,
-            _metrics_summary: MetricsSummary(
-                {
-                    "some_metric": [
-                        MetricSummary {
-                            min: 1.0,
-                            max: 2.0,
-                            sum: 3.0,
-                            count: 2,
-                            tags: {
-                                "environment": "test",
-                            },
-                        },
-                    ],
-                },
-            ),
             platform: "php",
             was_transaction: ~,
             other: {},

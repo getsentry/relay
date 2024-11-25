@@ -3,7 +3,7 @@
 use std::error::Error;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use std::time::SystemTime;
 
@@ -82,6 +82,35 @@ impl FromMessage<Self> for EnvelopeBuffer {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct ShardedEnvelopeBuffer {
+    buffers: Arc<Vec<ObservableEnvelopeBuffer>>,
+    shards: u32,
+    next_page: Arc<Mutex<u32>>,
+}
+
+impl ShardedEnvelopeBuffer {
+    pub fn new(buffers: Vec<ObservableEnvelopeBuffer>, shards: u32) -> Self {
+        Self {
+            buffers: Arc::new(buffers),
+            shards,
+            next_page: Arc::new(Mutex::new(0)),
+        }
+    }
+
+    pub fn buffer(&self) -> Option<&ObservableEnvelopeBuffer> {
+        let mut next_page = self.next_page.lock().unwrap();
+        // For now, we dispatch envelopes based on round-robin.
+        let buffer = self.buffers.get(*next_page as usize);
+        *next_page += 1 % self.shards;
+        buffer
+    }
+
+    pub fn buffers(&self) -> &Vec<ObservableEnvelopeBuffer> {
+        &self.buffers
+    }
+}
+
 /// Contains the services [`Addr`] and a watch channel to observe its state.
 ///
 /// This allows outside observers to check the capacity without having to send a message.
@@ -120,6 +149,7 @@ pub struct Services {
 /// Spool V2 service which buffers envelopes and forwards them to the project cache when a project
 /// becomes ready.
 pub struct EnvelopeBufferService {
+    shard_id: u32,
     config: Arc<Config>,
     memory_stat: MemoryStat,
     global_config_rx: watch::Receiver<global_config::Status>,
@@ -140,12 +170,14 @@ impl EnvelopeBufferService {
     /// NOTE: until the V1 spooler implementation is removed, this function returns `None`
     /// if V2 spooling is not configured.
     pub fn new(
+        shard_id: u32,
         config: Arc<Config>,
         memory_stat: MemoryStat,
         global_config_rx: watch::Receiver<global_config::Status>,
         services: Services,
     ) -> Option<Self> {
         config.spool_v2().then(|| Self {
+            shard_id,
             config,
             memory_stat,
             global_config_rx,
@@ -402,9 +434,10 @@ impl Service for EnvelopeBufferService {
         let dequeue = Arc::<AtomicBool>::new(true.into());
         let dequeue1 = dequeue.clone();
 
-        let mut buffer = PolymorphicEnvelopeBuffer::from_config(&config, memory_checker)
-            .await
-            .expect("failed to start the envelope buffer service");
+        let mut buffer =
+            PolymorphicEnvelopeBuffer::from_config(self.shard_id, &config, memory_checker)
+                .await
+                .expect("failed to start the envelope buffer service");
 
         buffer.initialize().await;
 
@@ -615,6 +648,7 @@ mod tests {
         let project_cache_handle = ProjectCacheHandle::for_test();
 
         let envelope_buffer_service = EnvelopeBufferService::new(
+            0,
             config,
             memory_stat,
             global_rx,

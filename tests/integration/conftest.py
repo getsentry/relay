@@ -35,7 +35,6 @@ from .fixtures.processing import (  # noqa
     monitors_consumer,
     spans_consumer,
     profiles_consumer,
-    metrics_summaries_consumer,
     feedback_consumer,
 )
 

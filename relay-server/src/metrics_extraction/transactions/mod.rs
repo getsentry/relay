@@ -654,7 +654,6 @@ mod tests {
                 sentry_tags: ~,
                 received: ~,
                 measurements: ~,
-                _metrics_summary: ~,
                 platform: ~,
                 was_transaction: ~,
                 other: {},

@@ -911,6 +911,11 @@ fn spool_max_backpressure_memory_percent() -> f32 {
     0.9
 }
 
+/// Default number of shards for the buffer.
+fn spool_envelopes_shards() -> u32 {
+    1
+}
+
 /// Persistent buffering configuration for incoming envelopes.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EnvelopeSpool {
@@ -966,6 +971,9 @@ pub struct EnvelopeSpool {
     /// Defaults to 90% (5% less than max memory).
     #[serde(default = "spool_max_backpressure_memory_percent")]
     max_backpressure_memory_percent: f32,
+    /// Number of shards of the buffer.
+    #[serde(default = "spool_envelopes_shards")]
+    shards: u32,
     /// Version of the spooler.
     #[serde(default)]
     version: EnvelopeSpoolVersion,
@@ -1003,6 +1011,7 @@ impl Default for EnvelopeSpool {
             disk_usage_refresh_frequency_ms: spool_disk_usage_refresh_frequency_ms(),
             max_backpressure_envelopes: spool_max_backpressure_envelopes(),
             max_backpressure_memory_percent: spool_max_backpressure_memory_percent(),
+            shards: spool_envelopes_shards(),
             version: EnvelopeSpoolVersion::default(),
         }
     }
@@ -2208,6 +2217,11 @@ impl Config {
     /// Returns the relative memory usage up to which the disk buffer will unspool envelopes.
     pub fn spool_max_backpressure_memory_percent(&self) -> f32 {
         self.values.spool.envelopes.max_backpressure_memory_percent
+    }
+
+    /// Returns the number of shards for the buffer.
+    pub fn spool_shards(&self) -> u32 {
+        self.values.spool.envelopes.shards
     }
 
     /// Returns the maximum size of an event payload in bytes.
