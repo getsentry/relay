@@ -86,7 +86,7 @@ impl FromMessage<Self> for EnvelopeBuffer {
 pub struct ShardedEnvelopeBuffer {
     buffers: Arc<Vec<ObservableEnvelopeBuffer>>,
     shards: u32,
-    next_page: Arc<Mutex<u32>>,
+    next_shard: Arc<Mutex<u32>>,
 }
 
 impl ShardedEnvelopeBuffer {
@@ -94,15 +94,15 @@ impl ShardedEnvelopeBuffer {
         Self {
             buffers: Arc::new(buffers),
             shards,
-            next_page: Arc::new(Mutex::new(0)),
+            next_shard: Arc::new(Mutex::new(0)),
         }
     }
 
     pub fn buffer(&self) -> Option<&ObservableEnvelopeBuffer> {
-        let mut next_page = self.next_page.lock().unwrap();
+        let mut next_shard = self.next_shard.lock().unwrap();
         // For now, we dispatch envelopes based on round-robin.
-        let buffer = self.buffers.get(*next_page as usize);
-        *next_page += 1 % self.shards;
+        let buffer = self.buffers.get(*next_shard as usize);
+        *next_shard = (*next_shard + 1) % self.shards;
         buffer
     }
 
