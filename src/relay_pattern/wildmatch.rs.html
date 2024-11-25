@@ -1005,7 +1005,7 @@
                     </span><span class="bool-val">false
                 </span>}
                 Token::Optional(optional) =&gt; {
-                    <span class="kw">let </span>optional = tokens.with_alternate(t_next, <span class="kw-2">&amp;</span>optional.<span class="number">0</span>[..]);
+                    <span class="kw">let </span>optional = tokens.with_alternate(t_next, optional.as_slice());
                     <span class="kw">if </span>is_match_impl::&lt;<span class="kw">_</span>, M&gt;(h_current, <span class="kw-2">&amp;</span>optional) {
                         <span class="comment">// There is a match with the optional token, we're done.
                         </span><span class="kw">return </span><span class="bool-val">true</span>;
