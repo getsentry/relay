@@ -54,12 +54,13 @@ impl PolymorphicEnvelopeBuffer {
     /// Creates either a memory-based or a disk-based envelope buffer,
     /// depending on the given configuration.
     pub async fn from_config(
+        shard_id: u32,
         config: &Config,
         memory_checker: MemoryChecker,
     ) -> Result<Self, EnvelopeBufferError> {
         let buffer = if config.spool_envelopes_path().is_some() {
             relay_log::trace!("PolymorphicEnvelopeBuffer: initializing sqlite envelope buffer");
-            let buffer = EnvelopeBuffer::<SqliteStackProvider>::new(config).await?;
+            let buffer = EnvelopeBuffer::<SqliteStackProvider>::new(shard_id, config).await?;
             Self::Sqlite(buffer)
         } else {
             relay_log::trace!("PolymorphicEnvelopeBuffer: initializing memory envelope buffer");
@@ -232,11 +233,11 @@ impl EnvelopeBuffer<MemoryStackProvider> {
 #[allow(dead_code)]
 impl EnvelopeBuffer<SqliteStackProvider> {
     /// Creates an empty sqlite-based buffer.
-    pub async fn new(config: &Config) -> Result<Self, EnvelopeBufferError> {
+    pub async fn new(shard_id: u32, config: &Config) -> Result<Self, EnvelopeBufferError> {
         Ok(Self {
             stacks_by_project: Default::default(),
             priority_queue: Default::default(),
-            stack_provider: SqliteStackProvider::new(config).await?,
+            stack_provider: SqliteStackProvider::new(shard_id, config).await?,
             total_count: Arc::new(AtomicI64::new(0)),
             total_count_initialized: false,
         })
@@ -1012,8 +1013,8 @@ mod tests {
             .into_string()
             .unwrap();
         let config = mock_config(&path);
-        let mut store = SqliteEnvelopeStore::prepare(&config).await.unwrap();
-        let mut buffer = EnvelopeBuffer::<SqliteStackProvider>::new(&config)
+        let mut store = SqliteEnvelopeStore::prepare(0, &config).await.unwrap();
+        let mut buffer = EnvelopeBuffer::<SqliteStackProvider>::new(0, &config)
             .await
             .unwrap();
 

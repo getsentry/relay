@@ -3,7 +3,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::metrics::{MetricOutcomes, MetricStats};
-use crate::services::buffer::{self, EnvelopeBufferService, ObservableEnvelopeBuffer};
+use crate::services::buffer::{
+    self, EnvelopeBufferService, ObservableEnvelopeBuffer, ShardedEnvelopeBuffer,
+};
 use crate::services::cogs::{CogsService, CogsServiceRecorder};
 use crate::services::global_config::{GlobalConfigManager, GlobalConfigService};
 use crate::services::health_check::{HealthCheck, HealthCheckService};
@@ -63,7 +65,7 @@ pub struct Registry {
     pub global_config: Addr<GlobalConfigManager>,
     pub legacy_project_cache: Addr<legacy::ProjectCache>,
     pub upstream_relay: Addr<UpstreamRelay>,
-    pub envelope_buffer: Option<ObservableEnvelopeBuffer>,
+    pub sharded_buffer: ShardedEnvelopeBuffer,
 
     pub project_cache_handle: ProjectCacheHandle,
 }
@@ -260,22 +262,32 @@ impl ServiceState {
         );
 
         let (envelopes_tx, envelopes_rx) = mpsc::channel(config.spool_max_backpressure_envelopes());
-        let envelope_buffer = EnvelopeBufferService::new(
-            config.clone(),
-            memory_stat.clone(),
-            global_config_rx.clone(),
-            buffer::Services {
-                envelopes_tx,
-                project_cache_handle: project_cache_handle.clone(),
-                outcome_aggregator: outcome_aggregator.clone(),
-                test_store: test_store.clone(),
-            },
-        )
-        .map(|b| b.start_in(&mut runner));
+
+        let mut envelope_buffers = Vec::with_capacity(config.spool_shards() as usize);
+        for shard_id in 0..config.spool_shards() {
+            let envelope_buffer = EnvelopeBufferService::new(
+                shard_id,
+                config.clone(),
+                memory_stat.clone(),
+                global_config_rx.clone(),
+                buffer::Services {
+                    envelopes_tx: envelopes_tx.clone(),
+                    project_cache_handle: project_cache_handle.clone(),
+                    outcome_aggregator: outcome_aggregator.clone(),
+                    test_store: test_store.clone(),
+                },
+            )
+            .map(|b| b.start_in(&mut runner));
+
+            if let Some(envelope_buffer) = envelope_buffer {
+                envelope_buffers.push(envelope_buffer);
+            }
+        }
+        let sharded_buffer = ShardedEnvelopeBuffer::new(envelope_buffers, config.spool_shards());
 
         // Keep all the services in one context.
         let project_cache_services = legacy::Services {
-            envelope_buffer: envelope_buffer.as_ref().map(ObservableEnvelopeBuffer::addr),
+            sharded_buffer: sharded_buffer.clone(),
             aggregator: aggregator.clone(),
             envelope_processor: processor.clone(),
             outcome_aggregator: outcome_aggregator.clone(),
@@ -300,7 +312,7 @@ impl ServiceState {
             MemoryChecker::new(memory_stat.clone(), config.clone()),
             aggregator_handle,
             upstream_relay.clone(),
-            envelope_buffer.clone(),
+            sharded_buffer.clone(),
         ));
 
         runner.start(RelayStats::new(
@@ -326,7 +338,7 @@ impl ServiceState {
             legacy_project_cache,
             project_cache_handle,
             upstream_relay,
-            envelope_buffer,
+            sharded_buffer,
         };
 
         let state = StateInner {
@@ -357,7 +369,7 @@ impl ServiceState {
 
     /// Returns the V2 envelope buffer, if present.
     pub fn envelope_buffer(&self) -> Option<&ObservableEnvelopeBuffer> {
-        self.inner.registry.envelope_buffer.as_ref()
+        self.inner.registry.sharded_buffer.buffer()
     }
 
     /// Returns the address of the [`legacy::ProjectCache`] service.
