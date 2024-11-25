@@ -110,7 +110,7 @@ where
                     false
                 }
                 Token::Optional(optional) => {
-                    let optional = tokens.with_alternate(t_next, &optional.0[..]);
+                    let optional = tokens.with_alternate(t_next, optional.as_slice());
                     if is_match_impl::<_, M>(h_current, &optional) {
                         // There is a match with the optional token, we're done.
                         return true;
