@@ -7,13 +7,15 @@ use tokio::sync::Mutex;
 use tokio::time::Instant;
 
 const NUM_PROJECTS: usize = 10;
-const MIN_PAYLOAD_SIZE: usize = 1000;
-const MAX_PAYLOAD_SIZE: usize = 1000000;
 const DEFAULT_DURATION_SECS: u64 = 60;
 const CONCURRENT_TASKS: usize = 10;
 const ENVELOPE_POOL_SIZE: usize = 10;
 const DEFAULT_REQUESTS_PER_SECOND: f64 = 100.0;
 const DEFAULT_SEED: u64 = 12345;
+const TINY_PAYLOAD: usize = 830; // 830 bytes
+const SMALL_PAYLOAD: usize = 18 * 1024; // 18 KiB
+const MEDIUM_PAYLOAD: usize = 100 * 1024; // 100 KiB
+const LARGE_PAYLOAD: usize = 20 * 1024 * 1024; // 20 MiB
 
 /// Creates a mock envelope with random payload size
 fn create_envelope(
@@ -70,11 +72,18 @@ fn generate_envelope_pool(
 
     for _ in 0..ENVELOPE_POOL_SIZE {
         let (project_key, project_id) = &project_pairs[rng.gen_range(0..project_pairs.len())];
-        let payload_size = if rng.gen_bool(0.75) {
-            MIN_PAYLOAD_SIZE
-        } else {
-            rng.gen_range(MIN_PAYLOAD_SIZE..=MAX_PAYLOAD_SIZE)
+
+        // Generate random number between 0 and 10000 for probability distribution
+        let rand_val = rng.gen_range(0..10000);
+
+        // Implement probability distribution
+        let payload_size = match rand_val {
+            0..=7500 => TINY_PAYLOAD,      // 75.00% - 830 bytes
+            7501..=9900 => SMALL_PAYLOAD,  // 24.00% - 18 KiB
+            9901..=9990 => MEDIUM_PAYLOAD, // 0.90% - 100 KiB
+            _ => LARGE_PAYLOAD,            // 0.10% - 20 MiB
         };
+
         let envelope = create_envelope(rng, project_key, *project_id, payload_size);
         pool.push((*project_id, envelope));
     }

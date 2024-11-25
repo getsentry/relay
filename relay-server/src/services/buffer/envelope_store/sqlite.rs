@@ -419,8 +419,6 @@ impl SqliteEnvelopeStore {
             _more => pack_envelopes(envelopes),
         };
 
-        let _ = self.db.execute("BEGIN IMMEDIATE").await;
-
         let query = sqlx::query("INSERT INTO envelopes (received_at, own_key, sampling_key, count, envelope) VALUES (?, ?, ?, ?, ?);")
             .bind(received_at)
             .bind(own_key.as_str())
@@ -432,8 +430,6 @@ impl SqliteEnvelopeStore {
             .execute(&self.db)
             .await
             .map_err(SqliteEnvelopeStoreError::WriteError)?;
-
-        let _ = self.db.execute("COMMIT").await;
 
         Ok(())
     }
