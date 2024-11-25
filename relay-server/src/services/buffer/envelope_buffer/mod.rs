@@ -552,10 +552,10 @@ where
             disk_write_time += disk;
         }
 
-        println!("Serialization Time {:.2?}\n", serialization_time);
-        println!("Compression Time {:.2?}\n", compression_time);
-        println!("Packing Time {:.2?}\n", packing_time);
-        println!("Disk Write Time {:.2?}\n", disk_write_time);
+        println!(
+            "Ser: {:.2?}, Comp: {:.2?}, Pack: {:.2?}, Wrt: {:.2?}\n",
+            serialization_time, compression_time, packing_time, disk_write_time
+        );
     }
 }
 
