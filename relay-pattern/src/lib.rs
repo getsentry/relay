@@ -1528,6 +1528,7 @@ mod tests {
         assert_strategy!("{}foo{}", Literal);
         assert_strategy!("foo{}bar", Literal);
         assert_strategy!("foo{}{}{}bar", Literal);
+        assert_strategy!("foo{,,,}bar", Literal);
     }
 
     #[test]
