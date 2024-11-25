@@ -27,12 +27,13 @@ use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
 use rayon::ThreadPool;
 use relay_cogs::Cogs;
-use relay_config::{Config, RedisConfigRef, RedisPoolConfigs};
+use relay_config::Config;
+#[cfg(feature = "processing")]
+use relay_config::{RedisConfigRef, RedisPoolConfigs};
 #[cfg(feature = "processing")]
 use relay_redis::redis::Script;
-use relay_redis::{AsyncRedisPool, RedisError};
 #[cfg(feature = "processing")]
-use relay_redis::{PooledClient, RedisPool, RedisPools, RedisScripts};
+use relay_redis::{AsyncRedisPool, PooledClient, RedisError, RedisPool, RedisPools, RedisScripts};
 use relay_system::{channel, Addr, Service, ServiceRunner};
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
@@ -154,18 +155,12 @@ impl ServiceState {
         let test_store = runner.start(TestStoreService::new(config.clone()));
 
         #[cfg(feature = "processing")]
-        let redis_pools = config
-            .redis()
-            .filter(|_| config.processing_enabled())
-            .map(create_redis_pools)
-            .transpose()
-            .context(ServiceError::Redis)?;
-
-        // Projectconfig can work with async redis connections but the rest can't yet.
-        let async_redis_pool = match config.redis().filter(|_| config.processing_enabled()) {
-            Some(config) => Some(create_async_pool_from_configs(config).await?),
+        let redis_pools = match config.redis().filter(|_| config.processing_enabled()) {
+            Some(config) => Some(create_redis_pools(config).await),
             None => None,
-        };
+        }
+        .transpose()
+        .context(ServiceError::Redis)?;
 
         // If we have Redis configured, we want to initialize all the scripts by loading them in
         // the scripts cache if not present. Our custom ConnectionLike implementation relies on this
@@ -173,7 +168,9 @@ impl ServiceState {
         // instances.
         #[cfg(feature = "processing")]
         if let Some(redis_pools) = &redis_pools {
-            initialize_redis_scripts_for_pools(redis_pools).context(ServiceError::Redis)?;
+            initialize_redis_scripts_for_pools(redis_pools)
+                .await
+                .context(ServiceError::Redis)?;
         }
 
         // We create an instance of `MemoryStat` which can be supplied composed with any arbitrary
@@ -206,7 +203,8 @@ impl ServiceState {
             &mut runner,
             Arc::clone(&config),
             upstream_relay.clone(),
-            async_redis_pool,
+            #[cfg(feature = "processing")]
+            redis_pools.clone(),
         )
         .await;
         let project_cache_handle =
@@ -443,16 +441,19 @@ fn create_redis_pool(redis_config: RedisConfigRef) -> Result<RedisPool, RedisErr
 /// Creates Redis pools from the given `configs`.
 ///
 /// If `configs` is [`Unified`](RedisPoolConfigs::Unified), one pool is created and then cloned
-/// for each use case, meaning that all use cases really use the same pool. If it is
-/// [`Individual`](RedisPoolConfigs::Individual), an actual separate pool is created for each
-/// use case.
+/// for cardinality and quotas, meaning that they really use the same pool.
+/// `project_config` uses an async pool so it cannot be shared with the other two
+///
+/// If it is [`Individual`](RedisPoolConfigs::Individual), an actual separate pool
+/// is created for each use case.
 #[cfg(feature = "processing")]
-pub fn create_redis_pools(configs: RedisPoolConfigs) -> Result<RedisPools, RedisError> {
+pub async fn create_redis_pools(configs: RedisPoolConfigs<'_>) -> Result<RedisPools, RedisError> {
     match configs {
         RedisPoolConfigs::Unified(pool) => {
+            let async_pool = create_async_pool(&pool).await?;
             let pool = create_redis_pool(pool)?;
             Ok(RedisPools {
-                project_configs: pool.clone(),
+                project_configs: async_pool,
                 cardinality: pool.clone(),
                 quotas: pool.clone(),
             })
@@ -462,7 +463,7 @@ pub fn create_redis_pools(configs: RedisPoolConfigs) -> Result<RedisPools, Redis
             cardinality,
             quotas,
         } => {
-            let project_configs = create_redis_pool(project_configs)?;
+            let project_configs = create_async_pool(&project_configs).await?;
             let cardinality = create_redis_pool(cardinality)?;
             let quotas = create_redis_pool(quotas)?;
 
@@ -475,17 +476,7 @@ pub fn create_redis_pools(configs: RedisPoolConfigs) -> Result<RedisPools, Redis
     }
 }
 
-async fn create_async_pool_from_configs(
-    config: RedisPoolConfigs<'_>,
-) -> Result<AsyncRedisPool, RedisError> {
-    match config {
-        RedisPoolConfigs::Unified(config) => create_async_pool(&config).await,
-        RedisPoolConfigs::Individual {
-            project_configs, ..
-        } => create_async_pool(&project_configs).await,
-    }
-}
-
+#[cfg(feature = "processing")]
 async fn create_async_pool(config: &RedisConfigRef<'_>) -> Result<AsyncRedisPool, RedisError> {
     match config {
         RedisConfigRef::Cluster {
@@ -505,17 +496,17 @@ async fn create_async_pool(config: &RedisConfigRef<'_>) -> Result<AsyncRedisPool
 }
 
 #[cfg(feature = "processing")]
-fn initialize_redis_scripts_for_pools(redis_pools: &RedisPools) -> Result<(), RedisError> {
-    let project_configs = redis_pools.project_configs.client()?;
+async fn initialize_redis_scripts_for_pools(redis_pools: &RedisPools) -> Result<(), RedisError> {
     let cardinality = redis_pools.cardinality.client()?;
     let quotas = redis_pools.quotas.client()?;
 
     let scripts = RedisScripts::all();
 
-    let pools = [project_configs, cardinality, quotas];
+    let pools = [cardinality, quotas];
     for pool in pools {
         initialize_redis_scripts(pool, &scripts)?;
     }
+    initialize_redis_script_async(&redis_pools.project_configs, &scripts).await?;
 
     Ok(())
 }
@@ -536,6 +527,17 @@ fn initialize_redis_scripts(
             .map_err(RedisError::Redis)?;
     }
 
+    Ok(())
+}
+
+#[cfg(feature = "processing")]
+async fn initialize_redis_script_async(
+    pool: &AsyncRedisPool,
+    scripts: &[&Script; 3],
+) -> Result<(), RedisError> {
+    for script in scripts {
+        pool.load_async(script).await?;
+    }
     Ok(())
 }
 

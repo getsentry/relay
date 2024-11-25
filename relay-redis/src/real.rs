@@ -5,7 +5,7 @@ use r2d2::{Builder, ManageConnection, Pool, PooledConnection};
 pub use redis;
 use redis::cluster::ClusterClient;
 use redis::cluster_async::ClusterConnection;
-use redis::{Cmd, ConnectionLike, FromRedisValue};
+use redis::{Cmd, ConnectionLike, FromRedisValue, Script};
 use std::error::Error;
 use std::future::Future;
 use std::pin::Pin;
@@ -382,7 +382,7 @@ impl RedisPool {
 #[derive(Debug, Clone)]
 pub struct RedisPools {
     /// The pool used for project configurations
-    pub project_configs: RedisPool,
+    pub project_configs: AsyncRedisPool,
     /// The pool used for cardinality limits.
     pub cardinality: RedisPool,
     /// The pool used for rate limiting/quotas.
@@ -478,6 +478,29 @@ impl AsyncRedisPool {
         }
     }
 
+    /// Forwards the [`Script`] to the pool and loads it asynchronously.
+    /// Returns the SHA1 hash of it.
+    pub async fn load_async(&self, script: &Script) -> Result<String, RedisError> {
+        match self {
+            Self::Cluster(pool, _options) => {
+                let mut conn = pool.get().await.map_err(RedisError::AsyncPool)?;
+                script
+                    .prepare_invoke()
+                    .load_async(&mut *conn)
+                    .await
+                    .map_err(RedisError::Redis)
+            }
+            Self::Single(pool, _options) => {
+                let mut conn = pool.get().await.map_err(RedisError::AsyncPool)?;
+                script
+                    .prepare_invoke()
+                    .load_async(&mut *conn)
+                    .await
+                    .map_err(RedisError::Redis)
+            }
+        }
+    }
+
     /// Creates a new cluster based [`AsyncRedisPool`].
     pub async fn cluster<'a>(
         servers: impl IntoIterator<Item = &'a str>,
@@ -500,6 +523,18 @@ impl AsyncRedisPool {
             .await
             .map_err(RedisError::Redis)?;
         Ok(AsyncRedisPool::Single(pool, opts.clone()))
+    }
+
+    /// Returns information about the current state of the pool.
+    pub fn stats(&self) -> Stats {
+        let state = match self {
+            AsyncRedisPool::Cluster(pool, _) => pool.state(),
+            AsyncRedisPool::Single(pool, _) => pool.state(),
+        };
+        Stats {
+            connections: state.connections,
+            idle_connections: state.idle_connections,
+        }
     }
 
     fn base_pool_builder<M: bb8::ManageConnection>(opts: &RedisConfigOptions) -> bb8::Builder<M> {
