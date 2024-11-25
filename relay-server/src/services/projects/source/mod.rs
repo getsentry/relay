@@ -1,10 +1,6 @@
 use relay_base_schema::project::ProjectKey;
 use relay_config::{Config, RelayMode};
-#[cfg(feature = "processing")]
-use relay_config::{RedisConfigRef, RedisPoolConfigs};
-#[cfg(feature = "processing")]
 use relay_redis::AsyncRedisPool;
-use relay_redis::RedisPool;
 use relay_system::{Addr, ServiceRunner};
 use std::convert::Infallible;
 use std::sync::Arc;
@@ -15,8 +11,6 @@ pub mod redis;
 pub mod upstream;
 
 use crate::services::projects::project::{ProjectState, Revision};
-#[cfg(feature = "processing")]
-use crate::services::projects::source::redis::RedisProjectError;
 use crate::services::upstream::UpstreamRelay;
 
 use self::local::{LocalProjectSource, LocalProjectSourceService};
@@ -40,7 +34,7 @@ impl ProjectSource {
         runner: &mut ServiceRunner,
         config: Arc<Config>,
         upstream_relay: Addr<UpstreamRelay>,
-        _redis: Option<RedisPool>,
+        _redis: Option<AsyncRedisPool>,
     ) -> Self {
         let local_source = runner.start(LocalProjectSourceService::new(config.clone()));
         let upstream_source = runner.start(UpstreamProjectSourceService::new(
@@ -49,14 +43,7 @@ impl ProjectSource {
         ));
 
         #[cfg(feature = "processing")]
-        let redis_source = if let Some(redis_config) = config.redis() {
-            Self::pool_config(redis_config)
-                .await
-                .ok()
-                .map(|client| RedisProjectSource::new(config.clone(), client))
-        } else {
-            None
-        };
+        let redis_source = _redis.map(|pool| RedisProjectSource::new(config.clone(), pool));
 
         Self {
             config,
@@ -64,38 +51,6 @@ impl ProjectSource {
             upstream_source,
             #[cfg(feature = "processing")]
             redis_source,
-        }
-    }
-
-    #[cfg(feature = "processing")]
-    async fn pool_config(
-        config: RedisPoolConfigs<'_>,
-    ) -> Result<AsyncRedisPool, RedisProjectError> {
-        match config {
-            RedisPoolConfigs::Unified(config) => Self::create_async_pool(config).await,
-            RedisPoolConfigs::Individual {
-                project_configs, ..
-            } => Self::create_async_pool(project_configs).await,
-        }
-    }
-
-    #[cfg(feature = "processing")]
-    async fn create_async_pool(
-        config: RedisConfigRef<'_>,
-    ) -> Result<AsyncRedisPool, RedisProjectError> {
-        match config {
-            RedisConfigRef::Cluster {
-                cluster_nodes,
-                options,
-            } => AsyncRedisPool::cluster(cluster_nodes.iter().map(|s| s.as_str()), &options)
-                .await
-                .map_err(RedisProjectError::Redis),
-            RedisConfigRef::Single { server, options } => {
-                AsyncRedisPool::single(server.as_str(), &options)
-                    .await
-                    .map_err(RedisProjectError::Redis)
-            }
-            _ => Err(RedisProjectError::MultiWriteNotSupported),
         }
     }
 

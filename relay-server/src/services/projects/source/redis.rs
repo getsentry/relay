@@ -23,9 +23,6 @@ pub enum RedisProjectError {
 
     #[error("failed to talk to redis")]
     Redis(#[from] RedisError),
-
-    #[error("redis multi write is not supported for projectconfig")]
-    MultiWriteNotSupported,
 }
 
 fn parse_redis_response(raw_response: &[u8]) -> Result<ParsedProjectState, RedisProjectError> {

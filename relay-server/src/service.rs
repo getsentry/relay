@@ -20,7 +20,9 @@ use crate::services::store::StoreService;
 use crate::services::test_store::{TestStore, TestStoreService};
 use crate::services::upstream::{UpstreamRelay, UpstreamRelayService};
 use crate::utils::{MemoryChecker, MemoryStat, ThreadKind};
-use anyhow::{Context, Result};
+#[cfg(feature = "processing")]
+use anyhow::Context;
+use anyhow::Result;
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
 use rayon::ThreadPool;
@@ -28,9 +30,9 @@ use relay_cogs::Cogs;
 use relay_config::{Config, RedisConfigRef, RedisPoolConfigs};
 #[cfg(feature = "processing")]
 use relay_redis::redis::Script;
+use relay_redis::{AsyncRedisPool, RedisError};
 #[cfg(feature = "processing")]
-use relay_redis::{PooledClient, RedisScripts};
-use relay_redis::{RedisError, RedisPool, RedisPools};
+use relay_redis::{PooledClient, RedisPool, RedisPools, RedisScripts};
 use relay_system::{channel, Addr, Service, ServiceRunner};
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
@@ -48,6 +50,7 @@ pub enum ServiceError {
     Kafka,
 
     /// Initializing the Redis cluster client failed.
+    #[cfg(feature = "processing")]
     #[error("could not initialize redis cluster client")]
     Redis,
 }
@@ -150,12 +153,19 @@ impl ServiceState {
         let upstream_relay = runner.start(UpstreamRelayService::new(config.clone()));
         let test_store = runner.start(TestStoreService::new(config.clone()));
 
+        #[cfg(feature = "processing")]
         let redis_pools = config
             .redis()
             .filter(|_| config.processing_enabled())
             .map(create_redis_pools)
             .transpose()
             .context(ServiceError::Redis)?;
+
+        // Projectconfig can work with async redis connections but the rest can't yet.
+        let async_redis_pool = match config.redis().filter(|_| config.processing_enabled()) {
+            Some(config) => Some(create_async_pool_from_configs(config).await?),
+            None => None,
+        };
 
         // If we have Redis configured, we want to initialize all the scripts by loading them in
         // the scripts cache if not present. Our custom ConnectionLike implementation relies on this
@@ -196,9 +206,7 @@ impl ServiceState {
             &mut runner,
             Arc::clone(&config),
             upstream_relay.clone(),
-            redis_pools
-                .as_ref()
-                .map(|pools| pools.project_configs.clone()),
+            async_redis_pool,
         )
         .await;
         let project_cache_handle =
@@ -412,6 +420,7 @@ impl ServiceState {
     }
 }
 
+#[cfg(feature = "processing")]
 fn create_redis_pool(redis_config: RedisConfigRef) -> Result<RedisPool, RedisError> {
     match redis_config {
         RedisConfigRef::Cluster {
@@ -437,6 +446,7 @@ fn create_redis_pool(redis_config: RedisConfigRef) -> Result<RedisPool, RedisErr
 /// for each use case, meaning that all use cases really use the same pool. If it is
 /// [`Individual`](RedisPoolConfigs::Individual), an actual separate pool is created for each
 /// use case.
+#[cfg(feature = "processing")]
 pub fn create_redis_pools(configs: RedisPoolConfigs) -> Result<RedisPools, RedisError> {
     match configs {
         RedisPoolConfigs::Unified(pool) => {
@@ -462,6 +472,30 @@ pub fn create_redis_pools(configs: RedisPoolConfigs) -> Result<RedisPools, Redis
                 quotas,
             })
         }
+    }
+}
+
+async fn create_async_pool_from_configs(
+    config: RedisPoolConfigs<'_>,
+) -> Result<AsyncRedisPool, RedisError> {
+    match config {
+        RedisPoolConfigs::Unified(config) => create_async_pool(config).await,
+        RedisPoolConfigs::Individual {
+            project_configs, ..
+        } => create_async_pool(project_configs).await,
+    }
+}
+
+async fn create_async_pool(config: RedisConfigRef<'_>) -> Result<AsyncRedisPool, RedisError> {
+    match config {
+        RedisConfigRef::Cluster {
+            cluster_nodes,
+            options,
+        } => AsyncRedisPool::cluster(cluster_nodes.iter().map(|s| s.as_str()), &options).await,
+        RedisConfigRef::Single { server, options } => {
+            AsyncRedisPool::single(server.as_str(), &options).await
+        }
+        _ => Err(RedisError::Configuration),
     }
 }
 
