@@ -483,6 +483,9 @@ impl Service for EnvelopeBufferService {
                     total_push_bytes = 0;
                     push_count = 0;
                     last_metrics_time = SystemTime::now();
+
+                    // Track metrics
+                    buffer.track().await;
                 }
             }
 

@@ -1,6 +1,6 @@
-use std::future::Future;
-
 use chrono::{DateTime, Utc};
+use std::future::Future;
+use std::time::Duration;
 
 use crate::envelope::Envelope;
 
@@ -26,4 +26,9 @@ pub trait EnvelopeStack: Send + std::fmt::Debug {
     /// Persists all envelopes in the [`EnvelopeStack`]s to external storage, if possible,
     /// and consumes the stack provider.
     fn flush(self) -> impl Future<Output = ()>;
+
+    /// Tracks metrics about the envelope stack
+    fn track(&mut self) -> Option<(Duration, Duration, Duration, Duration)> {
+        None
+    }
 }

@@ -2,7 +2,7 @@ use std::io::{ErrorKind, Read};
 use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::envelope::EnvelopeError;
 
@@ -34,10 +34,10 @@ const ZSTD_MAGIC_WORD: &[u8] = &[40, 181, 47, 253];
 /// Struct that contains all the fields of an [`Envelope`] that are mapped to the database columns.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DatabaseEnvelope {
-    received_at: i64,
-    own_key: ProjectKey,
-    sampling_key: ProjectKey,
-    encoded_envelope: Box<[u8]>,
+    pub received_at: i64,
+    pub own_key: ProjectKey,
+    pub sampling_key: ProjectKey,
+    pub encoded_envelope: Box<[u8]>,
 }
 
 #[derive(Clone, Debug)]
@@ -289,6 +289,8 @@ impl DiskUsage {
 pub struct SqliteEnvelopeStore {
     db: Pool<Sqlite>,
     disk_usage: DiskUsage,
+    packing_time: Duration,
+    disk_write_time: Duration,
 }
 
 impl SqliteEnvelopeStore {
@@ -297,6 +299,8 @@ impl SqliteEnvelopeStore {
         Self {
             db: db.clone(),
             disk_usage: DiskUsage::new(db, refresh_frequency),
+            packing_time: Duration::ZERO,
+            disk_write_time: Duration::ZERO,
         }
     }
 
@@ -349,6 +353,8 @@ impl SqliteEnvelopeStore {
             db: db.clone(),
             disk_usage: DiskUsage::prepare(db, config.spool_disk_usage_refresh_frequency_ms())
                 .await?,
+            packing_time: Duration::ZERO,
+            disk_write_time: Duration::ZERO,
         })
     }
 
@@ -407,6 +413,7 @@ impl SqliteEnvelopeStore {
             envelopes,
         } = envelopes;
 
+        let start = Instant::now();
         let count = envelopes.len();
         let encoded = match count {
             0 => {
@@ -418,6 +425,7 @@ impl SqliteEnvelopeStore {
             1 => envelopes.into_iter().next().unwrap().encoded_envelope,
             _more => pack_envelopes(envelopes),
         };
+        self.packing_time += start.elapsed();
 
         let query = sqlx::query("INSERT INTO envelopes (received_at, own_key, sampling_key, count, envelope) VALUES (?, ?, ?, ?, ?);")
             .bind(received_at)
@@ -426,10 +434,12 @@ impl SqliteEnvelopeStore {
             .bind(count as u16)
             .bind(encoded);
 
+        let start = Instant::now();
         query
             .execute(&self.db)
             .await
             .map_err(SqliteEnvelopeStoreError::WriteError)?;
+        self.disk_write_time += start.elapsed();
 
         Ok(())
     }
@@ -466,6 +476,14 @@ impl SqliteEnvelopeStore {
             .collect();
 
         Ok(project_key_pairs)
+    }
+
+    pub fn track(&mut self) -> (Duration, Duration) {
+        let packing_time = self.packing_time;
+        let disk_write_time = self.disk_write_time;
+        self.packing_time = Duration::ZERO;
+        self.disk_write_time = Duration::ZERO;
+        (packing_time, disk_write_time)
     }
 
     /// Returns an approximate measure of the used size of the database.

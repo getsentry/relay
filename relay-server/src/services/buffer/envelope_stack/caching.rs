@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use std::time::Duration;
 
 use super::EnvelopeStack;
 use crate::envelope::Envelope;
@@ -66,6 +67,10 @@ where
             }
         }
         self.inner.flush().await;
+    }
+
+    fn track(&mut self) -> Option<(Duration, Duration, Duration, Duration)> {
+        self.inner.track()
     }
 }
 

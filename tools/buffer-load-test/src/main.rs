@@ -9,8 +9,8 @@ use tokio::time::Instant;
 const NUM_PROJECTS: usize = 10;
 const DEFAULT_DURATION_SECS: u64 = 60;
 const CONCURRENT_TASKS: usize = 10;
-const ENVELOPE_POOL_SIZE: usize = 10;
-const DEFAULT_REQUESTS_PER_SECOND: f64 = 100.0;
+const ENVELOPE_POOL_SIZE: usize = 100;
+const DEFAULT_REQUESTS_PER_SECOND: f64 = 2500.0;
 const DEFAULT_SEED: u64 = 12345;
 const TINY_PAYLOAD: usize = 830; // 830 bytes
 const SMALL_PAYLOAD: usize = 18 * 1024; // 18 KiB

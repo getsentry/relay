@@ -1,8 +1,9 @@
-use std::fmt::Debug;
-use std::num::NonZeroUsize;
-
 use chrono::{DateTime, Utc};
 use relay_base_schema::project::ProjectKey;
+use std::fmt::Debug;
+use std::future::Future;
+use std::num::NonZeroUsize;
+use std::time::{Duration, Instant};
 
 use crate::envelope::Envelope;
 use crate::services::buffer::envelope_stack::EnvelopeStack;
@@ -40,6 +41,8 @@ pub struct SqliteEnvelopeStack {
     /// Boolean representing whether calls to `push()` and `peek()` check disk in case not enough
     /// elements are available in the `batches_buffer`.
     check_disk: bool,
+    serialization_time: Duration,
+    compression_time: Duration,
 }
 
 impl SqliteEnvelopeStack {
@@ -59,6 +62,8 @@ impl SqliteEnvelopeStack {
             sampling_key,
             batch: vec![],
             check_disk,
+            serialization_time: Duration::ZERO,
+            compression_time: Duration::ZERO,
         }
     }
 
@@ -147,10 +152,23 @@ impl EnvelopeStack for SqliteEnvelopeStack {
             self.spool_to_disk().await?;
         }
 
-        let encoded_envelope =
-            relay_statsd::metric!(timer(RelayTimers::BufferEnvelopesSerialization), {
-                DatabaseEnvelope::try_from(envelope.as_ref())?
-            });
+        let own_key = envelope.meta().public_key();
+        let sampling_key = envelope.sampling_key().unwrap_or(own_key);
+
+        let start = Instant::now();
+        let serialized_envelope = envelope.to_vec().unwrap();
+        self.serialization_time += start.elapsed();
+
+        let start = Instant::now();
+        let encoded_envelope = zstd::encode_all(serialized_envelope.as_slice(), 1).unwrap();
+        let encoded_envelope = DatabaseEnvelope {
+            received_at: envelope.received_at().timestamp_millis(),
+            own_key,
+            sampling_key,
+            encoded_envelope: encoded_envelope.into_boxed_slice(),
+        };
+        self.compression_time += start.elapsed();
+
         self.batch.push(encoded_envelope);
 
         Ok(())
@@ -185,6 +203,20 @@ impl EnvelopeStack for SqliteEnvelopeStack {
         if let Err(e) = self.spool_to_disk().await {
             relay_log::error!(error = &e as &dyn std::error::Error, "flush error");
         }
+    }
+
+    fn track(&mut self) -> Option<(Duration, Duration, Duration, Duration)> {
+        let serialization_time = self.serialization_time;
+        let compression_time = self.compression_time;
+        let (packing_time, disk_write_time) = self.envelope_store.track();
+        self.serialization_time = Duration::ZERO;
+        self.compression_time = Duration::ZERO;
+        Some((
+            serialization_time,
+            compression_time,
+            packing_time,
+            disk_write_time,
+        ))
     }
 }
 

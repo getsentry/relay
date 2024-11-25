@@ -166,6 +166,14 @@ impl PolymorphicEnvelopeBuffer {
 
         true
     }
+
+    /// Tracks metrics about the envelope buffer
+    pub async fn track(&mut self) {
+        match self {
+            Self::Sqlite(buffer) => buffer.track().await,
+            Self::InMemory(buffer) => buffer.track().await,
+        }
+    }
 }
 
 /// Error that occurs while interacting with the envelope buffer.
@@ -525,6 +533,28 @@ where
             initialized = initialized,
             stack_type = self.stack_provider.stack_type()
         );
+    }
+
+    pub async fn track(&mut self) {
+        let mut serialization_time = Duration::ZERO;
+        let mut compression_time = Duration::ZERO;
+        let mut packing_time = Duration::ZERO;
+        let mut disk_write_time = Duration::ZERO;
+
+        for (queue_item, _) in self.priority_queue.iter_mut() {
+            let Some((ser, compress, pack, disk)) = queue_item.value.track() else {
+                continue;
+            };
+            serialization_time += ser;
+            compression_time += compress;
+            packing_time += pack;
+            disk_write_time += disk;
+        }
+
+        println!("Serialization Time {:.2?}\n", serialization_time);
+        println!("Compression Time {:.2?}\n", compression_time);
+        println!("Packing Time {:.2?}\n", packing_time);
+        println!("Disk Write Time {:.2?}\n", disk_write_time);
     }
 }
 
