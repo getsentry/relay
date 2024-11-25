@@ -39,7 +39,7 @@ impl SqliteStackProvider {
 }
 
 impl StackProvider for SqliteStackProvider {
-    type Stack = CachingEnvelopeStack<SqliteEnvelopeStack>;
+    type Stack = SqliteEnvelopeStack;
 
     async fn initialize(&self) -> InitializationState {
         match self.envelope_store.project_key_pairs().await {
@@ -72,7 +72,7 @@ impl StackProvider for SqliteStackProvider {
             Self::assume_data_on_disk(stack_creation_type),
         );
 
-        CachingEnvelopeStack::new(inner)
+        inner
     }
 
     fn has_store_capacity(&self) -> bool {

@@ -1,4 +1,4 @@
-use rand::{random, thread_rng, Rng, RngCore};
+use rand::{rngs::StdRng, Rng, RngCore, SeedableRng};
 use reqwest::Client;
 use serde_json::json;
 use std::sync::Arc;
@@ -13,9 +13,15 @@ const DEFAULT_DURATION_SECS: u64 = 60;
 const CONCURRENT_TASKS: usize = 10;
 const ENVELOPE_POOL_SIZE: usize = 10;
 const DEFAULT_REQUESTS_PER_SECOND: f64 = 100.0;
+const DEFAULT_SEED: u64 = 12345;
 
 /// Creates a mock envelope with random payload size
-fn create_envelope(project_key: &str, project_id: u64, payload_size: usize) -> Vec<u8> {
+fn create_envelope(
+    rng: &mut impl RngCore,
+    project_key: &str,
+    project_id: u64,
+    payload_size: usize,
+) -> Vec<u8> {
     // Create envelope header with project DSN and project_id
     let header = json!({
         "event_id": "9ec79c33ec9942ab8353589fcb2e04dc",
@@ -25,7 +31,7 @@ fn create_envelope(project_key: &str, project_id: u64, payload_size: usize) -> V
 
     // Generate random payload
     let mut payload = vec![0u8; payload_size];
-    thread_rng().fill_bytes(&mut payload);
+    rng.fill_bytes(&mut payload);
 
     // Format envelope following Sentry protocol
     let mut envelope = format!(
@@ -44,12 +50,11 @@ fn create_envelope(project_key: &str, project_id: u64, payload_size: usize) -> V
 }
 
 /// Generate random project pairs
-fn generate_project_pairs(count: usize) -> Vec<(String, u64)> {
-    let mut rng = thread_rng();
+fn generate_project_pairs(rng: &mut impl RngCore, count: usize) -> Vec<(String, u64)> {
     (0..count)
         .map(|_| {
             (
-                format!("{:032x}", random::<u128>()),
+                format!("{:032x}", rng.gen::<u128>()),
                 rng.gen_range(0..NUM_PROJECTS) as u64,
             )
         })
@@ -57,9 +62,11 @@ fn generate_project_pairs(count: usize) -> Vec<(String, u64)> {
 }
 
 /// Pre-generate a pool of envelopes
-fn generate_envelope_pool(project_pairs: &[(String, u64)]) -> Vec<(u64, Vec<u8>)> {
+fn generate_envelope_pool(
+    rng: &mut impl RngCore,
+    project_pairs: &[(String, u64)],
+) -> Vec<(u64, Vec<u8>)> {
     let mut pool = Vec::with_capacity(ENVELOPE_POOL_SIZE);
-    let mut rng = thread_rng();
 
     for _ in 0..ENVELOPE_POOL_SIZE {
         let (project_key, project_id) = &project_pairs[rng.gen_range(0..project_pairs.len())];
@@ -68,7 +75,7 @@ fn generate_envelope_pool(project_pairs: &[(String, u64)]) -> Vec<(u64, Vec<u8>)
         } else {
             rng.gen_range(MIN_PAYLOAD_SIZE..=MAX_PAYLOAD_SIZE)
         };
-        let envelope = create_envelope(project_key, *project_id, payload_size);
+        let envelope = create_envelope(rng, project_key, *project_id, payload_size);
         pool.push((*project_id, envelope));
     }
     pool
@@ -80,10 +87,11 @@ async fn worker_thread(
     counter: Arc<Mutex<usize>>,
     duration: Duration,
     requests_per_second: f64,
+    worker_seed: u64,
 ) {
+    let mut rng = StdRng::seed_from_u64(worker_seed);
     let start_time = Instant::now();
     let mut local_count = 0;
-    let mut rng = thread_rng();
 
     // Calculate the delay between requests based on the desired rate
     let delay = if requests_per_second.is_finite() {
@@ -137,6 +145,14 @@ async fn worker_thread(
 
 #[tokio::main]
 async fn main() {
+    let seed = std::env::var("SEED")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(DEFAULT_SEED);
+
+    println!("Using random seed: {}", seed);
+    let mut rng = StdRng::seed_from_u64(seed);
+
     let duration_secs = std::env::var("DURATION_SECS")
         .ok()
         .and_then(|v| v.parse().ok())
@@ -162,19 +178,20 @@ async fn main() {
         println!("Rate limit: unlimited");
     }
 
-    // Generate projects and envelope pool
-    let project_pairs = generate_project_pairs(NUM_PROJECTS);
-    let envelope_pool = Arc::new(generate_envelope_pool(&project_pairs));
+    // Generate projects and envelope pool using seeded RNG
+    let project_pairs = generate_project_pairs(&mut rng, NUM_PROJECTS);
+    let envelope_pool = Arc::new(generate_envelope_pool(&mut rng, &project_pairs));
     let request_counter = Arc::new(Mutex::new(0));
 
     let start_time = Instant::now();
     let mut handles = Vec::new();
 
-    // Spawn worker threads
-    for _ in 0..CONCURRENT_TASKS {
+    // Spawn worker threads with different seeds derived from the main seed
+    for worker_id in 0..CONCURRENT_TASKS {
         let client = Client::new();
         let pool = Arc::clone(&envelope_pool);
         let counter = Arc::clone(&request_counter);
+        let worker_seed = seed.wrapping_add(worker_id as u64);
 
         handles.push(tokio::task::spawn_blocking(move || {
             tokio::runtime::Runtime::new()
@@ -185,6 +202,7 @@ async fn main() {
                     counter,
                     duration,
                     requests_per_second,
+                    worker_seed,
                 ))
         }));
     }
