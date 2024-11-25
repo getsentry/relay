@@ -700,7 +700,7 @@ impl Tokens {
             } else if alternates.len() == 1 {
                 if contains_empty {
                     // Case: {foo*bar,} -> Optional(foo*bar)
-                    token = Token::Optional(alternates.remove(0).0);
+                    token = Token::Optional(alternates.remove(0));
                 } else {
                     // Case: {foo*bar} -> remove the alternation and
                     // push foo*bar directly
@@ -712,7 +712,7 @@ impl Tokens {
             } else if alternates.len() > 1 {
                 if contains_empty {
                     // Case: {foo,bar,} -> Optional({foo,bar})
-                    token = Token::Optional(vec![Token::Alternates(alternates)]);
+                    token = Token::Optional(Tokens(vec![Token::Alternates(alternates)]));
                 } else {
                     // Case: {foo, bar} -> can stay as it is
                     token = Token::Alternates(alternates);
@@ -765,7 +765,7 @@ enum Token {
     /// This has no syntax of its own, it's parsed
     /// from alternatives containing empty branches
     /// like `{a,b,}`.
-    Optional(Vec<Token>),
+    Optional(Tokens),
 }
 
 /// A string literal.

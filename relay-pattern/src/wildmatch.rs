@@ -110,7 +110,7 @@ where
                     false
                 }
                 Token::Optional(optional) => {
-                    let optional = tokens.with_alternate(t_next, &optional[..]);
+                    let optional = tokens.with_alternate(t_next, &optional.0[..]);
                     if is_match_impl::<_, M>(h_current, &optional) {
                         // There is a match with the optional token, we're done.
                         return true;
@@ -625,7 +625,9 @@ mod tests {
     fn test_optional() {
         let mut tokens = Tokens::default();
 
-        tokens.push(Token::Optional(vec![Token::Literal(literal("foo"))]));
+        tokens.push(Token::Optional(Tokens(vec![Token::Literal(literal(
+            "foo",
+        ))])));
         assert!(is_match("foo", &tokens, Default::default()));
         assert!(is_match("", &tokens, Default::default()));
     }
@@ -646,7 +648,7 @@ mod tests {
             },
         ]);
 
-        tokens.push(Token::Optional(vec![alternates]));
+        tokens.push(Token::Optional(Tokens(vec![alternates])));
         assert!(is_match("foo", &tokens, Default::default()));
         assert!(is_match("bar", &tokens, Default::default()));
         assert!(is_match("", &tokens, Default::default()));
