@@ -11,6 +11,7 @@
 **Features**:
 
 - Implement zstd http encoding for Relay to Relay communication. ([#4266](https://github.com/getsentry/relay/pull/4266))
+- relay-pattern: Support empty branches in alternations. ([#4283](https://github.com/getsentry/relay/pull/4283))
 
 **Internal**:
 
