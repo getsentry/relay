@@ -851,6 +851,48 @@
 <a href="#851" id="851">851</a>
 <a href="#852" id="852">852</a>
 <a href="#853" id="853">853</a>
+<a href="#854" id="854">854</a>
+<a href="#855" id="855">855</a>
+<a href="#856" id="856">856</a>
+<a href="#857" id="857">857</a>
+<a href="#858" id="858">858</a>
+<a href="#859" id="859">859</a>
+<a href="#860" id="860">860</a>
+<a href="#861" id="861">861</a>
+<a href="#862" id="862">862</a>
+<a href="#863" id="863">863</a>
+<a href="#864" id="864">864</a>
+<a href="#865" id="865">865</a>
+<a href="#866" id="866">866</a>
+<a href="#867" id="867">867</a>
+<a href="#868" id="868">868</a>
+<a href="#869" id="869">869</a>
+<a href="#870" id="870">870</a>
+<a href="#871" id="871">871</a>
+<a href="#872" id="872">872</a>
+<a href="#873" id="873">873</a>
+<a href="#874" id="874">874</a>
+<a href="#875" id="875">875</a>
+<a href="#876" id="876">876</a>
+<a href="#877" id="877">877</a>
+<a href="#878" id="878">878</a>
+<a href="#879" id="879">879</a>
+<a href="#880" id="880">880</a>
+<a href="#881" id="881">881</a>
+<a href="#882" id="882">882</a>
+<a href="#883" id="883">883</a>
+<a href="#884" id="884">884</a>
+<a href="#885" id="885">885</a>
+<a href="#886" id="886">886</a>
+<a href="#887" id="887">887</a>
+<a href="#888" id="888">888</a>
+<a href="#889" id="889">889</a>
+<a href="#890" id="890">890</a>
+<a href="#891" id="891">891</a>
+<a href="#892" id="892">892</a>
+<a href="#893" id="893">893</a>
+<a href="#894" id="894">894</a>
+<a href="#895" id="895">895</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::num::NonZeroUsize;
 
 <span class="kw">use crate</span>::{Literal, Options, Ranges, Token, Tokens};
@@ -961,6 +1003,15 @@
                     }
                     <span class="comment">// No match, allow for backtracking.
                     </span><span class="bool-val">false
+                </span>}
+                Token::Optional(optional) =&gt; {
+                    <span class="kw">let </span>optional = tokens.with_alternate(t_next, <span class="kw-2">&amp;</span>optional.<span class="number">0</span>[..]);
+                    <span class="kw">if </span>is_match_impl::&lt;<span class="kw">_</span>, M&gt;(h_current, <span class="kw-2">&amp;</span>optional) {
+                        <span class="comment">// There is a match with the optional token, we're done.
+                        </span><span class="kw">return </span><span class="bool-val">true</span>;
+                    }
+                    <span class="comment">// Continue on without the optional token.
+                    </span><span class="bool-val">true
                 </span>}
             }
         };
@@ -1463,6 +1514,39 @@
         <span class="macro">assert!</span>(is_match(<span class="string">"aba"</span>, <span class="kw-2">&amp;</span>tokens, Default::default()));
         <span class="macro">assert!</span>(is_match(<span class="string">"aca"</span>, <span class="kw-2">&amp;</span>tokens, Default::default()));
         <span class="macro">assert!</span>(!is_match(<span class="string">"ada"</span>, <span class="kw-2">&amp;</span>tokens, Default::default()));
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_optional() {
+        <span class="kw">let </span><span class="kw-2">mut </span>tokens = Tokens::default();
+
+        tokens.push(Token::Optional(Tokens(<span class="macro">vec!</span>[Token::Literal(literal(
+            <span class="string">"foo"</span>,
+        ))])));
+        <span class="macro">assert!</span>(is_match(<span class="string">"foo"</span>, <span class="kw-2">&amp;</span>tokens, Default::default()));
+        <span class="macro">assert!</span>(is_match(<span class="string">""</span>, <span class="kw-2">&amp;</span>tokens, Default::default()));
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_optional_alternate() {
+        <span class="kw">let </span><span class="kw-2">mut </span>tokens = Tokens::default();
+        <span class="kw">let </span>alternates = Token::Alternates(<span class="macro">vec!</span>[
+            {
+                <span class="kw">let </span><span class="kw-2">mut </span>tokens = Tokens::default();
+                tokens.push(Token::Literal(literal(<span class="string">"foo"</span>)));
+                tokens
+            },
+            {
+                <span class="kw">let </span><span class="kw-2">mut </span>tokens = Tokens::default();
+                tokens.push(Token::Literal(literal(<span class="string">"bar"</span>)));
+                tokens
+            },
+        ]);
+
+        tokens.push(Token::Optional(Tokens(<span class="macro">vec!</span>[alternates])));
+        <span class="macro">assert!</span>(is_match(<span class="string">"foo"</span>, <span class="kw-2">&amp;</span>tokens, Default::default()));
+        <span class="macro">assert!</span>(is_match(<span class="string">"bar"</span>, <span class="kw-2">&amp;</span>tokens, Default::default()));
+        <span class="macro">assert!</span>(is_match(<span class="string">""</span>, <span class="kw-2">&amp;</span>tokens, Default::default()));
     }
 
     <span class="attr">#[test]
