@@ -430,7 +430,7 @@ impl SqliteEnvelopeStore {
             .execute(&self.db)
             .await
             .map_err(SqliteEnvelopeStoreError::WriteError)?;
-        
+
         Ok(())
     }
 

@@ -7,12 +7,12 @@ use tokio::sync::Mutex;
 use tokio::time::Instant;
 
 const NUM_PROJECTS: usize = 10;
-const MIN_PAYLOAD_SIZE: usize = 300;
-const MAX_PAYLOAD_SIZE: usize = 300;
+const MIN_PAYLOAD_SIZE: usize = 1000;
+const MAX_PAYLOAD_SIZE: usize = 1000000;
 const DEFAULT_DURATION_SECS: u64 = 60;
-const CONCURRENT_TASKS: usize = 100;
-const ENVELOPE_POOL_SIZE: usize = 10000;
-const DEFAULT_REQUESTS_PER_SECOND: f64 = 10000.0;
+const CONCURRENT_TASKS: usize = 10;
+const ENVELOPE_POOL_SIZE: usize = 10;
+const DEFAULT_REQUESTS_PER_SECOND: f64 = 100.0;
 
 /// Creates a mock envelope with random payload size
 fn create_envelope(project_key: &str, project_id: u64, payload_size: usize) -> Vec<u8> {
@@ -63,7 +63,11 @@ fn generate_envelope_pool(project_pairs: &[(String, u64)]) -> Vec<(u64, Vec<u8>)
 
     for _ in 0..ENVELOPE_POOL_SIZE {
         let (project_key, project_id) = &project_pairs[rng.gen_range(0..project_pairs.len())];
-        let payload_size = rng.gen_range(MIN_PAYLOAD_SIZE..=MAX_PAYLOAD_SIZE);
+        let payload_size = if rng.gen_bool(0.75) {
+            MIN_PAYLOAD_SIZE
+        } else {
+            rng.gen_range(MIN_PAYLOAD_SIZE..=MAX_PAYLOAD_SIZE)
+        };
         let envelope = create_envelope(project_key, *project_id, payload_size);
         pool.push((*project_id, envelope));
     }

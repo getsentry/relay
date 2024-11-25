@@ -430,6 +430,7 @@ impl Service for EnvelopeBufferService {
         let mut total_push_time = Duration::ZERO;
         let mut total_pop_time = Duration::ZERO;
         let mut total_project_cache_time = Duration::ZERO;
+        let mut total_push_bytes = 0;
         let mut push_count = 0u64;
         let mut last_loop_time = Instant::now();
 
@@ -460,7 +461,7 @@ impl Service for EnvelopeBufferService {
                     };
 
                     println!(
-                        "Buffer metrics:\n  Queue size: {}\n  Idle time: {:.2?}\n  Busy time: {:.2?}\n  Push time: {:.2?}\n  Pop time: {:.2?}\n  Cache time: {:.2?}\n  Avg push duration: {:.2?}\n  Push count: {}\n  Envelope stacks count: {}\n",
+                        "Buffer metrics:\n  Queue size: {}\n  Idle time: {:.2?}\n  Busy time: {:.2?}\n  Push time: {:.2?}\n  Pop time: {:.2?}\n  Cache time: {:.2?}\n  Avg push duration: {:.2?}\n  Pushed kib/s: {}\n  Push count: {}\n  Envelope stacks count: {}\n",
                         rx.queue_size.load(Ordering::Relaxed),
                         total_idle_time,
                         total_busy_time,
@@ -468,6 +469,7 @@ impl Service for EnvelopeBufferService {
                         total_pop_time,
                         total_project_cache_time,
                         avg_push_duration,
+                        total_push_bytes as f64 / 1024f64,
                         push_count,
                         envelope_stacks_count
                     );
@@ -478,6 +480,7 @@ impl Service for EnvelopeBufferService {
                     total_push_time = Duration::ZERO;
                     total_pop_time = Duration::ZERO;
                     total_project_cache_time = Duration::ZERO;
+                    total_push_bytes = 0;
                     push_count = 0;
                     last_metrics_time = SystemTime::now();
                 }
@@ -518,6 +521,12 @@ impl Service for EnvelopeBufferService {
                 }
                 Some(message) = rx.recv() => {
                     total_idle_time += start.elapsed();
+
+                    let envelope_size = match &message {
+                        EnvelopeBuffer::Push(envelope) => envelope.items().map(|i| i.len()).sum::<usize>(),
+                        EnvelopeBuffer::NotReady(_,_) => 0
+                    };
+
                     let busy_start = Instant::now();
                     let message_name = message.name();
                     Self::handle_message(&mut buffer, &services, message).await;
@@ -526,6 +535,7 @@ impl Service for EnvelopeBufferService {
                     // Track push time and count separately
                     if message_name == "push" {
                         total_push_time += elapsed;
+                        total_push_bytes += envelope_size;
                         push_count += 1;
                     }
                     total_busy_time += elapsed;
