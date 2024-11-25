@@ -1462,6 +1462,9 @@ mod tests {
         assert_pattern!("{foo,bar}", NOT "BAR");
         assert_pattern!("{foo,bar}", NOT "fooo");
         assert_pattern!("{foo,bar}", NOT "baar");
+        assert_pattern!("{foo,bar,}baz", "foobaz");
+        assert_pattern!("{foo,bar,}baz", "barbaz");
+        assert_pattern!("{foo,bar,}baz", "baz");
         assert_pattern!("{[fb][oa][or]}", "foo");
         assert_pattern!("{[fb][oa][or]}", "bar");
         assert_pattern!("{[fb][oa][or],baz}", "foo");
