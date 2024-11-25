@@ -27,10 +27,11 @@ redis = { workspace = true, optional = true, features = [
 relay-log = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
+tokio = { workspace = true, optional = true }
 
 [features]
 default = []
-impl = ["dep:r2d2", "dep:redis", "dep:bb8-redis"]
+impl = ["dep:r2d2", "dep:redis", "dep:bb8-redis", "dep:tokio"]
 
 [dev-dependencies]
 serde_yaml = { workspace = true }

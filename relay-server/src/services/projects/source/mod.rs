@@ -83,14 +83,9 @@ impl ProjectSource {
         if let Some(redis_source) = self.redis_source {
             let current_revision = current_revision.clone();
 
-            // let redis_permit = self.redis_semaphore.acquire().await?;
-            // let state_fetch_result = tokio::task::spawn_blocking(move || {
-            //     redis_source.get_config_if_changed(project_key, current_revision)
-            // }).await?;
             let state_fetch_result = redis_source
                 .get_config_if_changed(project_key, current_revision)
                 .await;
-            // drop(redis_permit);
 
             match state_fetch_result {
                 // New state fetched from Redis, possibly pending.
