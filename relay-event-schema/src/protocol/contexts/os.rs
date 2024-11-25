@@ -32,8 +32,12 @@ pub struct OsContext {
     pub rooted: Annotated<bool>,
 
     /// Meta-data for the Linux Distribution.
-    #[metastructure(skip_serialization = "empty")]
-    pub distribution: Annotated<LinuxDistribution>,
+    #[metastructure(pii = "maybe")]
+    pub distribution_name: Annotated<String>,
+    #[metastructure(pii = "maybe")]
+    pub distribution_version: Annotated<String>,
+    #[metastructure(pii = "maybe")]
+    pub distribution_pretty_name: Annotated<String>,
 
     /// Unprocessed operating system info.
     ///
@@ -45,28 +49,6 @@ pub struct OsContext {
 
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties, retain = "true", pii = "maybe")]
-    pub other: Object<Value>,
-}
-
-/// Metadata for the Linux Distribution.
-#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-pub struct LinuxDistribution {
-    /// An index-able name that is stable for each distribution.
-    pub name: Annotated<String>,
-    /// The version of the distribution (missing in distributions with solely rolling release).
-    #[metastructure(skip_serialization = "empty")]
-    pub version: Annotated<String>,
-    /// A full rendering of name + version + release name (not available in all distributions).
-    #[metastructure(skip_serialization = "empty")]
-    pub pretty_name: Annotated<String>,
-
-    /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(
-        additional_properties,
-        retain = "true",
-        pii = "maybe",
-        skip_serialization = "empty"
-    )]
     pub other: Object<Value>,
 }
 
@@ -127,7 +109,9 @@ mod tests {
             kernel_version: Annotated::new("17.4.0".to_string()),
             rooted: Annotated::new(true),
             raw_description: Annotated::new("iOS 11.4.2 FEEDFACE (17.4.0)".to_string()),
-            distribution: Annotated::empty(),
+            distribution_name: Annotated::empty(),
+            distribution_version: Annotated::empty(),
+            distribution_pretty_name: Annotated::empty(),
             other: {
                 let mut map = Object::new();
                 map.insert(
@@ -144,16 +128,14 @@ mod tests {
 
     #[test]
     fn test_os_context_linux_roundtrip() {
-        let json = r#"{
+        let json: &str = r#"{
   "os": "Linux 5.15.133",
   "name": "Linux",
   "version": "5.15.133",
   "build": "1-microsoft-standard-WSL2",
-  "distribution": {
-    "name": "ubuntu",
-    "version": "22.04",
-    "pretty_name": "Ubuntu 22.04.4 LTS"
-  },
+  "distribution_name": "ubuntu",
+  "distribution_version": "22.04",
+  "distribution_pretty_name": "Ubuntu 22.04.4 LTS",
   "type": "os"
 }"#;
         let context = Annotated::new(Context::Os(Box::new(OsContext {
@@ -164,12 +146,9 @@ mod tests {
             kernel_version: Annotated::empty(),
             rooted: Annotated::empty(),
             raw_description: Annotated::empty(),
-            distribution: Annotated::new(LinuxDistribution {
-                name: Annotated::new("ubuntu".to_string()),
-                version: Annotated::new("22.04".to_string()),
-                pretty_name: Annotated::new("Ubuntu 22.04.4 LTS".to_string()),
-                other: Object::default(),
-            }),
+            distribution_name: Annotated::new("ubuntu".to_string()),
+            distribution_version: Annotated::new("22.04".to_string()),
+            distribution_pretty_name: Annotated::new("Ubuntu 22.04.4 LTS".to_string()),
             other: Object::default(),
         })));
 

@@ -962,7 +962,9 @@ mod tests {
             build: ~,
             kernel_version: ~,
             rooted: ~,
-            distribution: ~,
+            distribution_name: ~,
+            distribution_version: ~,
+            distribution_pretty_name: ~,
             raw_description: ~,
             other: {},
         }
@@ -1035,7 +1037,9 @@ mod tests {
             build: ~,
             kernel_version: ~,
             rooted: ~,
-            distribution: ~,
+            distribution_name: ~,
+            distribution_version: ~,
+            distribution_pretty_name: ~,
             raw_description: ~,
             other: {},
         }
