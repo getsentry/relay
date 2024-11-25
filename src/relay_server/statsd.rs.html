@@ -1070,6 +1070,11 @@
 <a href="#1070" id="1070">1070</a>
 <a href="#1071" id="1071">1071</a>
 <a href="#1072" id="1072">1072</a>
+<a href="#1073" id="1073">1073</a>
+<a href="#1074" id="1074">1074</a>
+<a href="#1075" id="1075">1075</a>
+<a href="#1076" id="1076">1076</a>
+<a href="#1077" id="1077">1077</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 <span class="attr">#[cfg(doc)]
 </span><span class="kw">use </span>tokio::runtime::RuntimeMetrics;
@@ -1631,8 +1636,12 @@
     /// This metric is tagged with:
     /// - `input`: The type of input that the service is handling.
     </span>BufferBusy,
-    <span class="doccomment">/// Timing in milliseconds for the time it takes for the buffer to spool data to disk.
+    <span class="doccomment">/// Timing in milliseconds for the time it takes for the buffer to pack &amp; spool a batch.
+    ///
+    /// Contains the time it takes to pack multiple envelopes into a single memory blob.
     </span>BufferSpool,
+    <span class="doccomment">/// Timing in milliseconds for the time it takes for the buffer to spool data to SQLite.
+    </span>BufferSqlWrite,
     <span class="doccomment">/// Timing in milliseconds for the time it takes for the buffer to unspool data from disk.
     </span>BufferUnspool,
     <span class="doccomment">/// Timing in milliseconds for the time it takes for the buffer to push.
@@ -1700,6 +1709,7 @@
             RelayTimers::BufferIdle =&gt; <span class="string">"buffer.idle"</span>,
             RelayTimers::BufferBusy =&gt; <span class="string">"buffer.busy"</span>,
             RelayTimers::BufferSpool =&gt; <span class="string">"buffer.spool.duration"</span>,
+            RelayTimers::BufferSqlWrite =&gt; <span class="string">"buffer.write.duration"</span>,
             RelayTimers::BufferUnspool =&gt; <span class="string">"buffer.unspool.duration"</span>,
             RelayTimers::BufferPush =&gt; <span class="string">"buffer.push.duration"</span>,
             RelayTimers::BufferPeek =&gt; <span class="string">"buffer.peek.duration"</span>,

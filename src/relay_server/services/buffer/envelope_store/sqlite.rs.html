@@ -833,6 +833,8 @@
 <a href="#833" id="833">833</a>
 <a href="#834" id="834">834</a>
 <a href="#835" id="835">835</a>
+<a href="#836" id="836">836</a>
+<a href="#837" id="837">837</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::io::{ErrorKind, Read};
 <span class="kw">use </span>std::path::Path;
 <span class="kw">use </span>std::sync::atomic::{AtomicU64, Ordering};
@@ -1261,10 +1263,12 @@
             .bind(count <span class="kw">as </span>u16)
             .bind(encoded);
 
-        query
-            .execute(<span class="kw-2">&amp;</span><span class="self">self</span>.db)
-            .<span class="kw">await
-            </span>.map_err(SqliteEnvelopeStoreError::WriteError)<span class="question-mark">?</span>;
+        <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::BufferSqlWrite), {
+            query
+                .execute(<span class="kw-2">&amp;</span><span class="self">self</span>.db)
+                .<span class="kw">await
+                </span>.map_err(SqliteEnvelopeStoreError::WriteError)<span class="question-mark">?</span>;
+        });
         <span class="prelude-val">Ok</span>(())
     }
 
