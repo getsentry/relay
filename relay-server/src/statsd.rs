@@ -559,8 +559,12 @@ pub enum RelayTimers {
     /// This metric is tagged with:
     /// - `input`: The type of input that the service is handling.
     BufferBusy,
-    /// Timing in milliseconds for the time it takes for the buffer to spool data to disk.
+    /// Timing in milliseconds for the time it takes for the buffer to pack & spool a batch.
+    ///
+    /// Contains the time it takes to pack multiple envelopes into a single memory blob.
     BufferSpool,
+    /// Timing in milliseconds for the time it takes for the buffer to spool data to SQLite.
+    BufferSqlWrite,
     /// Timing in milliseconds for the time it takes for the buffer to unspool data from disk.
     BufferUnspool,
     /// Timing in milliseconds for the time it takes for the buffer to push.
@@ -628,6 +632,7 @@ impl TimerMetric for RelayTimers {
             RelayTimers::BufferIdle => "buffer.idle",
             RelayTimers::BufferBusy => "buffer.busy",
             RelayTimers::BufferSpool => "buffer.spool.duration",
+            RelayTimers::BufferSqlWrite => "buffer.write.duration",
             RelayTimers::BufferUnspool => "buffer.unspool.duration",
             RelayTimers::BufferPush => "buffer.push.duration",
             RelayTimers::BufferPeek => "buffer.peek.duration",
