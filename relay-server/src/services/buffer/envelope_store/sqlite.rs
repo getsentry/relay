@@ -321,7 +321,14 @@ impl SqliteEnvelopeStore {
             .ok_or(SqliteEnvelopeStoreError::NoFileName)?;
 
         if let Some(extension) = path.extension().and_then(|e| e.to_str()) {
-            let new_file_name = format!("{}_{}.{}", file_name, shard_id, extension);
+            let new_file_name = format!(
+                "{}_{}.{}",
+                file_name
+                    .strip_suffix(&format!(".{}", extension))
+                    .unwrap_or(file_name),
+                shard_id,
+                extension
+            );
             path.set_file_name(new_file_name);
         } else {
             let new_file_name = format!("{}_{}", file_name, shard_id);
