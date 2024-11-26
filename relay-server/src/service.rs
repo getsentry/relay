@@ -4,7 +4,8 @@ use std::time::Duration;
 
 use crate::metrics::{MetricOutcomes, MetricStats};
 use crate::services::buffer::{
-    self, EnvelopeBufferService, ObservableEnvelopeBuffer, ShardedEnvelopeBuffer,
+    self, EnvelopeBufferService, ObservableEnvelopeBuffer, PartitionedEnvelopeBuffer,
+    ProjectKeyPair,
 };
 use crate::services::cogs::{CogsService, CogsServiceRecorder};
 use crate::services::global_config::{GlobalConfigManager, GlobalConfigService};
@@ -65,7 +66,7 @@ pub struct Registry {
     pub global_config: Addr<GlobalConfigManager>,
     pub legacy_project_cache: Addr<legacy::ProjectCache>,
     pub upstream_relay: Addr<UpstreamRelay>,
-    pub sharded_buffer: ShardedEnvelopeBuffer,
+    pub sharded_buffer: PartitionedEnvelopeBuffer,
 
     pub project_cache_handle: ProjectCacheHandle,
 }
@@ -263,10 +264,10 @@ impl ServiceState {
 
         let (envelopes_tx, envelopes_rx) = mpsc::channel(config.spool_max_backpressure_envelopes());
 
-        let mut envelope_buffers = Vec::with_capacity(config.spool_shards() as usize);
-        for shard_id in 0..config.spool_shards() {
+        let mut envelope_buffers = Vec::with_capacity(config.spool_partitions() as usize);
+        for partition_id in 0..config.spool_partitions() {
             let envelope_buffer = EnvelopeBufferService::new(
-                shard_id,
+                partition_id,
                 config.clone(),
                 memory_stat.clone(),
                 global_config_rx.clone(),
@@ -283,7 +284,8 @@ impl ServiceState {
                 envelope_buffers.push(envelope_buffer);
             }
         }
-        let sharded_buffer = ShardedEnvelopeBuffer::new(envelope_buffers, config.spool_shards());
+        let sharded_buffer =
+            PartitionedEnvelopeBuffer::new(envelope_buffers, config.spool_partitions());
 
         // Keep all the services in one context.
         let project_cache_services = legacy::Services {
@@ -368,8 +370,11 @@ impl ServiceState {
     }
 
     /// Returns the V2 envelope buffer, if present.
-    pub fn envelope_buffer(&self) -> Option<&ObservableEnvelopeBuffer> {
-        self.inner.registry.sharded_buffer.buffer()
+    pub fn envelope_buffer(
+        &self,
+        project_key_pair: ProjectKeyPair,
+    ) -> Option<&ObservableEnvelopeBuffer> {
+        self.inner.registry.sharded_buffer.buffer(project_key_pair)
     }
 
     /// Returns the address of the [`legacy::ProjectCache`] service.

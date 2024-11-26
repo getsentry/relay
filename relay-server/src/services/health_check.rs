@@ -6,7 +6,7 @@ use std::future::Future;
 use tokio::sync::watch;
 use tokio::time::{timeout, Instant};
 
-use crate::services::buffer::ShardedEnvelopeBuffer;
+use crate::services::buffer::PartitionedEnvelopeBuffer;
 use crate::services::metrics::RouterHandle;
 use crate::services::upstream::{IsAuthenticated, UpstreamRelay};
 use crate::statsd::RelayTimers;
@@ -86,7 +86,7 @@ pub struct HealthCheckService {
     memory_checker: MemoryChecker,
     aggregator: RouterHandle,
     upstream_relay: Addr<UpstreamRelay>,
-    sharded_buffer: ShardedEnvelopeBuffer,
+    sharded_buffer: PartitionedEnvelopeBuffer,
 }
 
 impl HealthCheckService {
@@ -96,7 +96,7 @@ impl HealthCheckService {
         memory_checker: MemoryChecker,
         aggregator: RouterHandle,
         upstream_relay: Addr<UpstreamRelay>,
-        envelope_buffer: ShardedEnvelopeBuffer,
+        envelope_buffer: PartitionedEnvelopeBuffer,
     ) -> Self {
         Self {
             config,

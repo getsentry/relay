@@ -3,7 +3,9 @@ use std::error::Error;
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::services::buffer::{EnvelopeBuffer, EnvelopeBufferError, ShardedEnvelopeBuffer};
+use crate::services::buffer::{
+    EnvelopeBuffer, EnvelopeBufferError, PartitionedEnvelopeBuffer, ProjectKeyPair,
+};
 use crate::services::global_config;
 use crate::services::processor::{
     EncodeMetrics, EnvelopeProcessor, ProcessEnvelope, ProcessingGroup, ProjectMetrics,
@@ -132,7 +134,7 @@ impl FromMessage<FlushBuckets> for ProjectCache {
 /// Holds the addresses of all services required for [`ProjectCache`].
 #[derive(Debug, Clone)]
 pub struct Services {
-    pub sharded_buffer: ShardedEnvelopeBuffer,
+    pub sharded_buffer: PartitionedEnvelopeBuffer,
     pub aggregator: Addr<Aggregator>,
     pub envelope_processor: Addr<EnvelopeProcessor>,
     pub outcome_aggregator: Addr<TrackOutcome>,
@@ -629,11 +631,12 @@ impl ProjectCacheBroker {
     }
 
     fn handle_envelope(&mut self, dequeued_envelope: DequeuedEnvelope) {
+        let project_key_pair = ProjectKeyPair::from_envelope(&dequeued_envelope.0);
         let envelope_buffer = self
             .services
             .sharded_buffer
             .clone()
-            .buffer()
+            .buffer(project_key_pair)
             .map(|b| b.addr())
             .expect("Called HandleDequeuedEnvelope without an envelope buffer");
 
@@ -834,7 +837,7 @@ mod tests {
         let (test_store, _) = mock_service("test_store", (), |&mut (), _| {});
 
         Services {
-            sharded_buffer: ShardedEnvelopeBuffer::new(vec![], 0),
+            sharded_buffer: PartitionedEnvelopeBuffer::new(vec![], 0),
             aggregator,
             envelope_processor,
             project_cache,

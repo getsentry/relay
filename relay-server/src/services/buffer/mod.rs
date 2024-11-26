@@ -1,9 +1,10 @@
 //! Types for buffering envelopes.
 
 use std::error::Error;
+use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::DateTime;
@@ -18,7 +19,6 @@ use tokio::sync::{mpsc, watch};
 use tokio::time::{timeout, Instant};
 
 use crate::envelope::Envelope;
-use crate::services::buffer::common::ProjectKeyPair;
 use crate::services::buffer::envelope_buffer::Peek;
 use crate::services::global_config;
 use crate::services::outcome::DiscardReason;
@@ -33,6 +33,7 @@ use crate::utils::ManagedEnvelope;
 use crate::MemoryChecker;
 use crate::MemoryStat;
 
+// pub for benchmarks
 pub use envelope_buffer::EnvelopeBufferError;
 // pub for benchmarks
 pub use envelope_buffer::PolymorphicEnvelopeBuffer;
@@ -42,6 +43,8 @@ pub use envelope_stack::sqlite::SqliteEnvelopeStack;
 pub use envelope_stack::EnvelopeStack;
 // pub for benchmarks
 pub use envelope_store::sqlite::SqliteEnvelopeStore;
+
+pub use common::ProjectKeyPair;
 
 mod common;
 mod envelope_buffer;
@@ -81,30 +84,39 @@ impl FromMessage<Self> for EnvelopeBuffer {
     }
 }
 
+/// Abstraction that wraps a list of [`ObservableEnvelopeBuffer`]s to which [`Envelope`] are routed
+/// based on their [`ProjectKeyPair`].
 #[derive(Debug, Clone)]
-pub struct ShardedEnvelopeBuffer {
+pub struct PartitionedEnvelopeBuffer {
     buffers: Arc<Vec<ObservableEnvelopeBuffer>>,
-    shards: u32,
-    next_shard: Arc<Mutex<u32>>,
+    partitions: u32,
 }
 
-impl ShardedEnvelopeBuffer {
-    pub fn new(buffers: Vec<ObservableEnvelopeBuffer>, shards: u32) -> Self {
+impl PartitionedEnvelopeBuffer {
+    /// Creates a new [`PartitionedEnvelopeBuffer`] with already instantiated buffers and the number
+    /// of partitions.
+    pub fn new(buffers: Vec<ObservableEnvelopeBuffer>, partitions: u32) -> Self {
+        debug_assert!(buffers.len() == partitions as usize);
         Self {
             buffers: Arc::new(buffers),
-            shards,
-            next_shard: Arc::new(Mutex::new(0)),
+            partitions,
         }
     }
 
-    pub fn buffer(&self) -> Option<&ObservableEnvelopeBuffer> {
-        let mut next_shard = self.next_shard.lock().unwrap();
-        // For now, we dispatch envelopes based on round-robin.
-        let buffer = self.buffers.get(*next_shard as usize);
-        *next_shard = (*next_shard + 1) % self.shards;
+    /// Returns the [`ObservableEnvelopeBuffer`] to which [`Envelope`]s having the supplied
+    /// [`ProjectKeyPair`] will be sent.
+    ///
+    /// The rationale of using this partitioning strategy is to reduce memory usage across buffers
+    /// since each individual buffer will only take care of a subset of projects.
+    pub fn buffer(&self, project_key_pair: ProjectKeyPair) -> Option<&ObservableEnvelopeBuffer> {
+        let mut hasher = DefaultHasher::new();
+        project_key_pair.hash(&mut hasher);
+        let buffer_index = (hasher.finish() % self.partitions as u64) as usize;
+        let buffer = self.buffers.get(buffer_index);
         buffer
     }
 
+    /// Returns all the [`ObservableEnvelopeBuffer`]s.
     pub fn buffers(&self) -> &Vec<ObservableEnvelopeBuffer> {
         &self.buffers
     }
@@ -148,7 +160,7 @@ pub struct Services {
 /// Spool V2 service which buffers envelopes and forwards them to the project cache when a project
 /// becomes ready.
 pub struct EnvelopeBufferService {
-    shard_id: u32,
+    partition_id: u32,
     config: Arc<Config>,
     memory_stat: MemoryStat,
     global_config_rx: watch::Receiver<global_config::Status>,
@@ -169,14 +181,14 @@ impl EnvelopeBufferService {
     /// NOTE: until the V1 spooler implementation is removed, this function returns `None`
     /// if V2 spooling is not configured.
     pub fn new(
-        shard_id: u32,
+        partition_id: u32,
         config: Arc<Config>,
         memory_stat: MemoryStat,
         global_config_rx: watch::Receiver<global_config::Status>,
         services: Services,
     ) -> Option<Self> {
         config.spool_v2().then(|| Self {
-            shard_id,
+            partition_id,
             config,
             memory_stat,
             global_config_rx,
@@ -430,7 +442,7 @@ impl Service for EnvelopeBufferService {
         let dequeue1 = dequeue.clone();
 
         let mut buffer =
-            PolymorphicEnvelopeBuffer::from_config(self.shard_id, &config, memory_checker)
+            PolymorphicEnvelopeBuffer::from_config(self.partition_id, &config, memory_checker)
                 .await
                 .expect("failed to start the envelope buffer service");
 

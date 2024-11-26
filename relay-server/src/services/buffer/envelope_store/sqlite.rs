@@ -306,7 +306,7 @@ impl SqliteEnvelopeStore {
     /// Prepares the [`SqliteEnvelopeStore`] by running all the necessary migrations and preparing
     /// the folders where data will be stored.
     pub async fn prepare(
-        shard_id: u32,
+        partition_id: u32,
         config: &Config,
     ) -> Result<SqliteEnvelopeStore, SqliteEnvelopeStoreError> {
         // If no path is provided, we can't do disk spooling.
@@ -314,24 +314,23 @@ impl SqliteEnvelopeStore {
             return Err(SqliteEnvelopeStoreError::NoFilePath);
         };
 
-        // Modify the filename to include the shard_id
+        // Modify the filename to include the partition_id
         let file_name = path
             .file_name()
             .and_then(|f| f.to_str())
             .ok_or(SqliteEnvelopeStoreError::NoFileName)?;
-
         if let Some(extension) = path.extension().and_then(|e| e.to_str()) {
             let new_file_name = format!(
                 "{}_{}.{}",
                 file_name
                     .strip_suffix(&format!(".{}", extension))
                     .unwrap_or(file_name),
-                shard_id,
+                partition_id,
                 extension
             );
             path.set_file_name(new_file_name);
         } else {
-            let new_file_name = format!("{}_{}", file_name, shard_id);
+            let new_file_name = format!("{}_{}", file_name, partition_id);
             path.set_file_name(new_file_name);
         }
 

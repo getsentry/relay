@@ -23,8 +23,8 @@ pub struct SqliteStackProvider {
 #[warn(dead_code)]
 impl SqliteStackProvider {
     /// Creates a new [`SqliteStackProvider`] from the provided [`Config`].
-    pub async fn new(shard_id: u32, config: &Config) -> Result<Self, SqliteEnvelopeStoreError> {
-        let envelope_store = SqliteEnvelopeStore::prepare(shard_id, config).await?;
+    pub async fn new(partition_id: u32, config: &Config) -> Result<Self, SqliteEnvelopeStoreError> {
+        let envelope_store = SqliteEnvelopeStore::prepare(partition_id, config).await?;
         Ok(Self {
             envelope_store,
             batch_size_bytes: config.spool_envelopes_batch_size_bytes(),
