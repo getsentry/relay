@@ -2638,10 +2638,40 @@
 <a href="#2638" id="2638">2638</a>
 <a href="#2639" id="2639">2639</a>
 <a href="#2640" id="2640">2640</a>
+<a href="#2641" id="2641">2641</a>
+<a href="#2642" id="2642">2642</a>
+<a href="#2643" id="2643">2643</a>
+<a href="#2644" id="2644">2644</a>
+<a href="#2645" id="2645">2645</a>
+<a href="#2646" id="2646">2646</a>
+<a href="#2647" id="2647">2647</a>
+<a href="#2648" id="2648">2648</a>
+<a href="#2649" id="2649">2649</a>
+<a href="#2650" id="2650">2650</a>
+<a href="#2651" id="2651">2651</a>
+<a href="#2652" id="2652">2652</a>
+<a href="#2653" id="2653">2653</a>
+<a href="#2654" id="2654">2654</a>
+<a href="#2655" id="2655">2655</a>
+<a href="#2656" id="2656">2656</a>
+<a href="#2657" id="2657">2657</a>
+<a href="#2658" id="2658">2658</a>
+<a href="#2659" id="2659">2659</a>
+<a href="#2660" id="2660">2660</a>
+<a href="#2661" id="2661">2661</a>
+<a href="#2662" id="2662">2662</a>
+<a href="#2663" id="2663">2663</a>
+<a href="#2664" id="2664">2664</a>
+<a href="#2665" id="2665">2665</a>
+<a href="#2666" id="2666">2666</a>
+<a href="#2667" id="2667">2667</a>
+<a href="#2668" id="2668">2668</a>
+<a href="#2669" id="2669">2669</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
 <span class="kw">use </span>std::net::{IpAddr, SocketAddr, ToSocketAddrs};
+<span class="kw">use </span>std::num::NonZeroU8;
 <span class="kw">use </span>std::path::{Path, PathBuf};
 <span class="kw">use </span>std::str::FromStr;
 <span class="kw">use </span>std::time::Duration;
@@ -3551,6 +3581,11 @@
     <span class="number">0.9
 </span>}
 
+<span class="doccomment">/// Default number of partitions for the buffer.
+</span><span class="kw">fn </span>spool_envelopes_partitions() -&gt; NonZeroU8 {
+    NonZeroU8::new(<span class="number">1</span>).unwrap()
+}
+
 <span class="doccomment">/// Persistent buffering configuration for incoming envelopes.
 </span><span class="attr">#[derive(Debug, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>EnvelopeSpool {
@@ -3606,6 +3641,9 @@
     /// Defaults to 90% (5% less than max memory).
     </span><span class="attr">#[serde(default = <span class="string">"spool_max_backpressure_memory_percent"</span>)]
     </span>max_backpressure_memory_percent: f32,
+    <span class="doccomment">/// Number of partitions of the buffer.
+    </span><span class="attr">#[serde(default = <span class="string">"spool_envelopes_partitions"</span>)]
+    </span>partitions: NonZeroU8,
     <span class="doccomment">/// Version of the spooler.
     </span><span class="attr">#[serde(default)]
     </span>version: EnvelopeSpoolVersion,
@@ -3643,6 +3681,7 @@
             disk_usage_refresh_frequency_ms: spool_disk_usage_refresh_frequency_ms(),
             max_backpressure_envelopes: spool_max_backpressure_envelopes(),
             max_backpressure_memory_percent: spool_max_backpressure_memory_percent(),
+            partitions: spool_envelopes_partitions(),
             version: EnvelopeSpoolVersion::default(),
         }
     }
@@ -4782,13 +4821,27 @@
     }
 
     <span class="doccomment">/// Returns the path of the buffer file if the `cache.persistent_envelope_buffer.path` is configured.
-    </span><span class="kw">pub fn </span>spool_envelopes_path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;PathBuf&gt; {
-        <span class="self">self</span>.values
+    ///
+    /// In case a partition with id &gt; 0 is supplied, the filename of the envelopes path will be
+    /// suffixed with `.{partition_id}`.
+    </span><span class="kw">pub fn </span>spool_envelopes_path(<span class="kw-2">&amp;</span><span class="self">self</span>, partition_id: u8) -&gt; <span class="prelude-ty">Option</span>&lt;PathBuf&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>path = <span class="self">self
+            </span>.values
             .spool
             .envelopes
             .path
             .as_ref()
-            .map(|path| path.to_owned())
+            .map(|path| path.to_owned())<span class="question-mark">?</span>;
+
+        <span class="kw">if </span>partition_id == <span class="number">0 </span>{
+            <span class="kw">return </span><span class="prelude-val">Some</span>(path);
+        }
+
+        <span class="kw">let </span>file_name = path.file_name().and_then(|f| f.to_str())<span class="question-mark">?</span>;
+        <span class="kw">let </span>new_file_name = <span class="macro">format!</span>(<span class="string">"{}.{}"</span>, file_name, partition_id);
+        path.set_file_name(new_file_name);
+
+        <span class="prelude-val">Some</span>(path)
     }
 
     <span class="doccomment">/// Maximum number of connections to create to buffer file.
@@ -4848,6 +4901,11 @@
     <span class="doccomment">/// Returns the relative memory usage up to which the disk buffer will unspool envelopes.
     </span><span class="kw">pub fn </span>spool_max_backpressure_memory_percent(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; f32 {
         <span class="self">self</span>.values.spool.envelopes.max_backpressure_memory_percent
+    }
+
+    <span class="doccomment">/// Returns the number of partitions for the buffer.
+    </span><span class="kw">pub fn </span>spool_partitions(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; NonZeroU8 {
+        <span class="self">self</span>.values.spool.envelopes.partitions
     }
 
     <span class="doccomment">/// Returns the maximum size of an event payload in bytes.

@@ -1046,6 +1046,48 @@
 <a href="#1046" id="1046">1046</a>
 <a href="#1047" id="1047">1047</a>
 <a href="#1048" id="1048">1048</a>
+<a href="#1049" id="1049">1049</a>
+<a href="#1050" id="1050">1050</a>
+<a href="#1051" id="1051">1051</a>
+<a href="#1052" id="1052">1052</a>
+<a href="#1053" id="1053">1053</a>
+<a href="#1054" id="1054">1054</a>
+<a href="#1055" id="1055">1055</a>
+<a href="#1056" id="1056">1056</a>
+<a href="#1057" id="1057">1057</a>
+<a href="#1058" id="1058">1058</a>
+<a href="#1059" id="1059">1059</a>
+<a href="#1060" id="1060">1060</a>
+<a href="#1061" id="1061">1061</a>
+<a href="#1062" id="1062">1062</a>
+<a href="#1063" id="1063">1063</a>
+<a href="#1064" id="1064">1064</a>
+<a href="#1065" id="1065">1065</a>
+<a href="#1066" id="1066">1066</a>
+<a href="#1067" id="1067">1067</a>
+<a href="#1068" id="1068">1068</a>
+<a href="#1069" id="1069">1069</a>
+<a href="#1070" id="1070">1070</a>
+<a href="#1071" id="1071">1071</a>
+<a href="#1072" id="1072">1072</a>
+<a href="#1073" id="1073">1073</a>
+<a href="#1074" id="1074">1074</a>
+<a href="#1075" id="1075">1075</a>
+<a href="#1076" id="1076">1076</a>
+<a href="#1077" id="1077">1077</a>
+<a href="#1078" id="1078">1078</a>
+<a href="#1079" id="1079">1079</a>
+<a href="#1080" id="1080">1080</a>
+<a href="#1081" id="1081">1081</a>
+<a href="#1082" id="1082">1082</a>
+<a href="#1083" id="1083">1083</a>
+<a href="#1084" id="1084">1084</a>
+<a href="#1085" id="1085">1085</a>
+<a href="#1086" id="1086">1086</a>
+<a href="#1087" id="1087">1087</a>
+<a href="#1088" id="1088">1088</a>
+<a href="#1089" id="1089">1089</a>
+<a href="#1090" id="1090">1090</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::cmp::Ordering;
 <span class="kw">use </span>std::collections::BTreeSet;
 <span class="kw">use </span>std::convert::Infallible;
@@ -1102,16 +1144,17 @@
     <span class="doccomment">/// Creates either a memory-based or a disk-based envelope buffer,
     /// depending on the given configuration.
     </span><span class="kw">pub async fn </span>from_config(
+        partition_id: u8,
         config: <span class="kw-2">&amp;</span>Config,
         memory_checker: MemoryChecker,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, EnvelopeBufferError&gt; {
-        <span class="kw">let </span>buffer = <span class="kw">if </span>config.spool_envelopes_path().is_some() {
+        <span class="kw">let </span>buffer = <span class="kw">if </span>config.spool_envelopes_path(partition_id).is_some() {
             <span class="macro">relay_log::trace!</span>(<span class="string">"PolymorphicEnvelopeBuffer: initializing sqlite envelope buffer"</span>);
-            <span class="kw">let </span>buffer = EnvelopeBuffer::&lt;SqliteStackProvider&gt;::new(config).<span class="kw">await</span><span class="question-mark">?</span>;
+            <span class="kw">let </span>buffer = EnvelopeBuffer::&lt;SqliteStackProvider&gt;::new(partition_id, config).<span class="kw">await</span><span class="question-mark">?</span>;
             <span class="self">Self</span>::Sqlite(buffer)
         } <span class="kw">else </span>{
             <span class="macro">relay_log::trace!</span>(<span class="string">"PolymorphicEnvelopeBuffer: initializing memory envelope buffer"</span>);
-            <span class="kw">let </span>buffer = EnvelopeBuffer::&lt;MemoryStackProvider&gt;::new(memory_checker);
+            <span class="kw">let </span>buffer = EnvelopeBuffer::&lt;MemoryStackProvider&gt;::new(partition_id, memory_checker);
             <span class="self">Self</span>::InMemory(buffer)
         };
 
@@ -1130,38 +1173,57 @@
     </span><span class="kw">pub async fn </span>push(<span class="kw-2">&amp;mut </span><span class="self">self</span>, envelope: Box&lt;Envelope&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), EnvelopeBufferError&gt; {
         <span class="macro">relay_statsd::metric!</span>(
             histogram(RelayHistograms::BufferEnvelopeBodySize) =
-                envelope.items().map(Item::len).sum::&lt;usize&gt;() <span class="kw">as </span>u64
+                envelope.items().map(Item::len).sum::&lt;usize&gt;() <span class="kw">as </span>u64,
+            partition_id = <span class="self">self</span>.partition_tag()
         );
 
-        <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::BufferPush), {
-            <span class="kw">match </span><span class="self">self </span>{
-                <span class="self">Self</span>::Sqlite(buffer) =&gt; buffer.push(envelope).<span class="kw">await</span>,
-                <span class="self">Self</span>::InMemory(buffer) =&gt; buffer.push(envelope).<span class="kw">await</span>,
-            }<span class="question-mark">?</span>;
-        });
-        <span class="macro">relay_statsd::metric!</span>(counter(RelayCounters::BufferEnvelopesWritten) += <span class="number">1</span>);
+        <span class="macro">relay_statsd::metric!</span>(
+            timer(RelayTimers::BufferPush),
+            partition_id = <span class="self">self</span>.partition_tag(),
+            {
+                <span class="kw">match </span><span class="self">self </span>{
+                    <span class="self">Self</span>::Sqlite(buffer) =&gt; buffer.push(envelope).<span class="kw">await</span>,
+                    <span class="self">Self</span>::InMemory(buffer) =&gt; buffer.push(envelope).<span class="kw">await</span>,
+                }<span class="question-mark">?</span>;
+            }
+        );
+        <span class="macro">relay_statsd::metric!</span>(
+            counter(RelayCounters::BufferEnvelopesWritten) += <span class="number">1</span>,
+            partition_id = <span class="self">self</span>.partition_tag()
+        );
         <span class="prelude-val">Ok</span>(())
     }
 
     <span class="doccomment">/// Returns a reference to the next-in-line envelope.
     </span><span class="kw">pub async fn </span>peek(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Peek, EnvelopeBufferError&gt; {
-        <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::BufferPeek), {
-            <span class="kw">match </span><span class="self">self </span>{
-                <span class="self">Self</span>::Sqlite(buffer) =&gt; buffer.peek().<span class="kw">await</span>,
-                <span class="self">Self</span>::InMemory(buffer) =&gt; buffer.peek().<span class="kw">await</span>,
+        <span class="macro">relay_statsd::metric!</span>(
+            timer(RelayTimers::BufferPeek),
+            partition_id = <span class="self">self</span>.partition_tag(),
+            {
+                <span class="kw">match </span><span class="self">self </span>{
+                    <span class="self">Self</span>::Sqlite(buffer) =&gt; buffer.peek().<span class="kw">await</span>,
+                    <span class="self">Self</span>::InMemory(buffer) =&gt; buffer.peek().<span class="kw">await</span>,
+                }
             }
-        })
+        )
     }
 
     <span class="doccomment">/// Pops the next-in-line envelope.
     </span><span class="kw">pub async fn </span>pop(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;Box&lt;Envelope&gt;&gt;, EnvelopeBufferError&gt; {
-        <span class="kw">let </span>envelope = <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::BufferPop), {
-            <span class="kw">match </span><span class="self">self </span>{
-                <span class="self">Self</span>::Sqlite(buffer) =&gt; buffer.pop().<span class="kw">await</span>,
-                <span class="self">Self</span>::InMemory(buffer) =&gt; buffer.pop().<span class="kw">await</span>,
-            }<span class="question-mark">?
-        </span>});
-        <span class="macro">relay_statsd::metric!</span>(counter(RelayCounters::BufferEnvelopesRead) += <span class="number">1</span>);
+        <span class="kw">let </span>envelope = <span class="macro">relay_statsd::metric!</span>(
+            timer(RelayTimers::BufferPop),
+            partition_id = <span class="self">self</span>.partition_tag(),
+            {
+                <span class="kw">match </span><span class="self">self </span>{
+                    <span class="self">Self</span>::Sqlite(buffer) =&gt; buffer.pop().<span class="kw">await</span>,
+                    <span class="self">Self</span>::InMemory(buffer) =&gt; buffer.pop().<span class="kw">await</span>,
+                }<span class="question-mark">?
+            </span>}
+        );
+        <span class="macro">relay_statsd::metric!</span>(
+            counter(RelayCounters::BufferEnvelopesRead) += <span class="number">1</span>,
+            partition_id = <span class="self">self</span>.partition_tag()
+        );
         <span class="prelude-val">Ok</span>(envelope)
     }
 
@@ -1214,6 +1276,14 @@
 
         <span class="bool-val">true
     </span>}
+
+    <span class="doccomment">/// Returns the partition tag for this [`PolymorphicEnvelopeBuffer`].
+    </span><span class="kw">fn </span>partition_tag(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
+        <span class="kw">match </span><span class="self">self </span>{
+            PolymorphicEnvelopeBuffer::InMemory(buffer) =&gt; <span class="kw-2">&amp;</span>buffer.partition_tag,
+            PolymorphicEnvelopeBuffer::Sqlite(buffer) =&gt; <span class="kw-2">&amp;</span>buffer.partition_tag,
+        }
+    }
 }
 
 <span class="doccomment">/// Error that occurs while interacting with the envelope buffer.
@@ -1262,17 +1332,20 @@
     /// This boolean is just used for tagging the metric that tracks the total count of envelopes
     /// in the buffer.
     </span>total_count_initialized: bool,
+    <span class="doccomment">/// The tag value of this partition which is used for reporting purposes.
+    </span>partition_tag: String,
 }
 
 <span class="kw">impl </span>EnvelopeBuffer&lt;MemoryStackProvider&gt; {
     <span class="doccomment">/// Creates an empty memory-based buffer.
-    </span><span class="kw">pub fn </span>new(memory_checker: MemoryChecker) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>new(partition_id: u8, memory_checker: MemoryChecker) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             stacks_by_project: Default::default(),
             priority_queue: Default::default(),
             stack_provider: MemoryStackProvider::new(memory_checker),
             total_count: Arc::new(AtomicI64::new(<span class="number">0</span>)),
             total_count_initialized: <span class="bool-val">false</span>,
+            partition_tag: partition_id.to_string(),
         }
     }
 }
@@ -1280,13 +1353,14 @@
 <span class="attr">#[allow(dead_code)]
 </span><span class="kw">impl </span>EnvelopeBuffer&lt;SqliteStackProvider&gt; {
     <span class="doccomment">/// Creates an empty sqlite-based buffer.
-    </span><span class="kw">pub async fn </span>new(config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, EnvelopeBufferError&gt; {
+    </span><span class="kw">pub async fn </span>new(partition_id: u8, config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, EnvelopeBufferError&gt; {
         <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
             stacks_by_project: Default::default(),
             priority_queue: Default::default(),
-            stack_provider: SqliteStackProvider::new(config).<span class="kw">await</span><span class="question-mark">?</span>,
+            stack_provider: SqliteStackProvider::new(partition_id, config).<span class="kw">await</span><span class="question-mark">?</span>,
             total_count: Arc::new(AtomicI64::new(<span class="number">0</span>)),
             total_count_initialized: <span class="bool-val">false</span>,
+            partition_tag: partition_id.to_string(),
         })
     }
 }
@@ -1298,12 +1372,16 @@
     <span class="doccomment">/// Initializes the [`EnvelopeBuffer`] given the initialization state from the
     /// [`StackProvider`].
     </span><span class="kw">pub async fn </span>initialize(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::BufferInitialization), {
-            <span class="kw">let </span>initialization_state = <span class="self">self</span>.stack_provider.initialize().<span class="kw">await</span>;
-            <span class="self">self</span>.load_stacks(initialization_state.project_key_pairs)
-                .<span class="kw">await</span>;
-            <span class="self">self</span>.load_store_total_count().<span class="kw">await</span>;
-        });
+        <span class="macro">relay_statsd::metric!</span>(
+            timer(RelayTimers::BufferInitialization),
+            partition_id = <span class="kw-2">&amp;</span><span class="self">self</span>.partition_tag,
+            {
+                <span class="kw">let </span>initialization_state = <span class="self">self</span>.stack_provider.initialize().<span class="kw">await</span>;
+                <span class="self">self</span>.load_stacks(initialization_state.project_key_pairs)
+                    .<span class="kw">await</span>;
+                <span class="self">self</span>.load_store_total_count().<span class="kw">await</span>;
+            }
+        );
     }
 
     <span class="doccomment">/// Pushes an envelope to the appropriate envelope stack and re-prioritizes the stack.
@@ -1389,7 +1467,10 @@
 
         <span class="kw">match </span>last_received_at {
             <span class="prelude-val">None </span>=&gt; {
-                <span class="macro">relay_statsd::metric!</span>(counter(RelayCounters::BufferEnvelopeStacksPopped) += <span class="number">1</span>);
+                <span class="macro">relay_statsd::metric!</span>(
+                    counter(RelayCounters::BufferEnvelopeStacksPopped) += <span class="number">1</span>,
+                    partition_id = <span class="kw-2">&amp;</span><span class="self">self</span>.partition_tag
+                );
                 <span class="self">self</span>.pop_stack(project_key_pair);
             }
             <span class="prelude-val">Some</span>(last_received_at) =&gt; {
@@ -1503,7 +1584,8 @@
                 .insert(project_key_pair);
         }
         <span class="macro">relay_statsd::metric!</span>(
-            gauge(RelayGauges::BufferStackCount) = <span class="self">self</span>.priority_queue.len() <span class="kw">as </span>u64
+            gauge(RelayGauges::BufferStackCount) = <span class="self">self</span>.priority_queue.len() <span class="kw">as </span>u64,
+            partition_id = <span class="kw-2">&amp;</span><span class="self">self</span>.partition_tag
         );
 
         <span class="prelude-val">Ok</span>(())
@@ -1520,7 +1602,8 @@
         <span class="self">self</span>.priority_queue.remove(<span class="kw-2">&amp;</span>project_key_pair);
 
         <span class="macro">relay_statsd::metric!</span>(
-            gauge(RelayGauges::BufferStackCount) = <span class="self">self</span>.priority_queue.len() <span class="kw">as </span>u64
+            gauge(RelayGauges::BufferStackCount) = <span class="self">self</span>.priority_queue.len() <span class="kw">as </span>u64,
+            partition_id = <span class="kw-2">&amp;</span><span class="self">self</span>.partition_tag
         );
     }
 
@@ -1570,7 +1653,8 @@
         <span class="macro">relay_statsd::metric!</span>(
             histogram(RelayHistograms::BufferEnvelopesCount) = total_count,
             initialized = initialized,
-            stack_type = <span class="self">self</span>.stack_provider.stack_type()
+            stack_type = <span class="self">self</span>.stack_provider.stack_type(),
+            partition_id = <span class="kw-2">&amp;</span><span class="self">self</span>.partition_tag
         );
     }
 }
@@ -1775,7 +1859,7 @@
 
     <span class="attr">#[tokio::test]
     </span><span class="kw">async fn </span>test_insert_pop() {
-        <span class="kw">let </span><span class="kw-2">mut </span>buffer = EnvelopeBuffer::&lt;MemoryStackProvider&gt;::new(mock_memory_checker());
+        <span class="kw">let </span><span class="kw-2">mut </span>buffer = EnvelopeBuffer::&lt;MemoryStackProvider&gt;::new(<span class="number">0</span>, mock_memory_checker());
 
         <span class="kw">let </span>project_key1 = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fed"</span>).unwrap();
         <span class="kw">let </span>project_key2 = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap();
@@ -1843,7 +1927,7 @@
 
     <span class="attr">#[tokio::test]
     </span><span class="kw">async fn </span>test_project_internal_order() {
-        <span class="kw">let </span><span class="kw-2">mut </span>buffer = EnvelopeBuffer::&lt;MemoryStackProvider&gt;::new(mock_memory_checker());
+        <span class="kw">let </span><span class="kw-2">mut </span>buffer = EnvelopeBuffer::&lt;MemoryStackProvider&gt;::new(<span class="number">0</span>, mock_memory_checker());
 
         <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fed"</span>).unwrap();
 
@@ -1870,7 +1954,7 @@
 
     <span class="attr">#[tokio::test]
     </span><span class="kw">async fn </span>test_sampling_projects() {
-        <span class="kw">let </span><span class="kw-2">mut </span>buffer = EnvelopeBuffer::&lt;MemoryStackProvider&gt;::new(mock_memory_checker());
+        <span class="kw">let </span><span class="kw-2">mut </span>buffer = EnvelopeBuffer::&lt;MemoryStackProvider&gt;::new(<span class="number">0</span>, mock_memory_checker());
 
         <span class="kw">let </span>project_key1 = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fed"</span>).unwrap();
         <span class="kw">let </span>project_key2 = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fef"</span>).unwrap();
@@ -1945,7 +2029,7 @@
 
         <span class="macro">assert_ne!</span>(project_key_pair1, project_key_pair2);
 
-        <span class="kw">let </span><span class="kw-2">mut </span>buffer = EnvelopeBuffer::&lt;MemoryStackProvider&gt;::new(mock_memory_checker());
+        <span class="kw">let </span><span class="kw-2">mut </span>buffer = EnvelopeBuffer::&lt;MemoryStackProvider&gt;::new(<span class="number">0</span>, mock_memory_checker());
         buffer
             .push(new_envelope(project_key1, <span class="prelude-val">Some</span>(project_key2), <span class="prelude-val">None</span>))
             .<span class="kw">await
@@ -1977,7 +2061,7 @@
 
     <span class="attr">#[tokio::test]
     </span><span class="kw">async fn </span>test_last_peek_internal_order() {
-        <span class="kw">let </span><span class="kw-2">mut </span>buffer = EnvelopeBuffer::&lt;MemoryStackProvider&gt;::new(mock_memory_checker());
+        <span class="kw">let </span><span class="kw-2">mut </span>buffer = EnvelopeBuffer::&lt;MemoryStackProvider&gt;::new(<span class="number">0</span>, mock_memory_checker());
 
         <span class="kw">let </span>project_key_1 = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fed"</span>).unwrap();
         <span class="kw">let </span>event_id_1 = EventId::new();
@@ -2060,8 +2144,8 @@
             .into_string()
             .unwrap();
         <span class="kw">let </span>config = mock_config(<span class="kw-2">&amp;</span>path);
-        <span class="kw">let </span><span class="kw-2">mut </span>store = SqliteEnvelopeStore::prepare(<span class="kw-2">&amp;</span>config).<span class="kw">await</span>.unwrap();
-        <span class="kw">let </span><span class="kw-2">mut </span>buffer = EnvelopeBuffer::&lt;SqliteStackProvider&gt;::new(<span class="kw-2">&amp;</span>config)
+        <span class="kw">let </span><span class="kw-2">mut </span>store = SqliteEnvelopeStore::prepare(<span class="number">0</span>, <span class="kw-2">&amp;</span>config).<span class="kw">await</span>.unwrap();
+        <span class="kw">let </span><span class="kw-2">mut </span>buffer = EnvelopeBuffer::&lt;SqliteStackProvider&gt;::new(<span class="number">0</span>, <span class="kw-2">&amp;</span>config)
             .<span class="kw">await
             </span>.unwrap();
 

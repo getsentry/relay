@@ -259,10 +259,6 @@
 <a href="#259" id="259">259</a>
 <a href="#260" id="260">260</a>
 <a href="#261" id="261">261</a>
-<a href="#262" id="262">262</a>
-<a href="#263" id="263">263</a>
-<a href="#264" id="264">264</a>
-<a href="#265" id="265">265</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>relay_config::Config;
@@ -271,7 +267,7 @@
 <span class="kw">use </span>tokio::sync::watch;
 <span class="kw">use </span>tokio::time::{timeout, Instant};
 
-<span class="kw">use </span><span class="kw">crate</span>::services::buffer::ObservableEnvelopeBuffer;
+<span class="kw">use </span><span class="kw">crate</span>::services::buffer::PartitionedEnvelopeBuffer;
 <span class="kw">use </span><span class="kw">crate</span>::services::metrics::RouterHandle;
 <span class="kw">use </span><span class="kw">crate</span>::services::upstream::{IsAuthenticated, UpstreamRelay};
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayTimers;
@@ -351,8 +347,8 @@
     memory_checker: MemoryChecker,
     aggregator: RouterHandle,
     upstream_relay: Addr&lt;UpstreamRelay&gt;,
-    envelope_buffer: <span class="prelude-ty">Option</span>&lt;ObservableEnvelopeBuffer&gt;, <span class="comment">// make non-optional once V1 has been removed
-</span>}
+    envelope_buffer: PartitionedEnvelopeBuffer,
+}
 
 <span class="kw">impl </span>HealthCheckService {
     <span class="doccomment">/// Creates a new instance of the HealthCheck service.
@@ -361,7 +357,7 @@
         memory_checker: MemoryChecker,
         aggregator: RouterHandle,
         upstream_relay: Addr&lt;UpstreamRelay&gt;,
-        envelope_buffer: <span class="prelude-ty">Option</span>&lt;ObservableEnvelopeBuffer&gt;,
+        envelope_buffer: PartitionedEnvelopeBuffer,
     ) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             config,
@@ -414,11 +410,7 @@
     }
 
     <span class="kw">async fn </span>spool_health_probe(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Status {
-        <span class="kw">let </span>has_capacity = <span class="self">self
-            </span>.envelope_buffer
-            .as_ref()
-            .map_or(<span class="bool-val">true</span>, |b| b.has_capacity());
-        <span class="kw">match </span>has_capacity {
+        <span class="kw">match </span><span class="self">self</span>.envelope_buffer.has_capacity() {
             <span class="bool-val">true </span>=&gt; Status::Healthy,
             <span class="bool-val">false </span>=&gt; Status::Unhealthy,
         }

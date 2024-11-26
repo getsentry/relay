@@ -196,8 +196,8 @@
 <span class="attr">#[warn(dead_code)]
 </span><span class="kw">impl </span>SqliteStackProvider {
     <span class="doccomment">/// Creates a new [`SqliteStackProvider`] from the provided [`Config`].
-    </span><span class="kw">pub async fn </span>new(config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, SqliteEnvelopeStoreError&gt; {
-        <span class="kw">let </span>envelope_store = SqliteEnvelopeStore::prepare(config).<span class="kw">await</span><span class="question-mark">?</span>;
+    </span><span class="kw">pub async fn </span>new(partition_id: u8, config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, SqliteEnvelopeStoreError&gt; {
+        <span class="kw">let </span>envelope_store = SqliteEnvelopeStore::prepare(partition_id, config).<span class="kw">await</span><span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
             envelope_store,
             batch_size_bytes: config.spool_envelopes_batch_size_bytes(),
@@ -318,7 +318,7 @@
     <span class="attr">#[tokio::test]
     </span><span class="kw">async fn </span>test_flush() {
         <span class="kw">let </span>config = mock_config();
-        <span class="kw">let </span><span class="kw-2">mut </span>stack_provider = SqliteStackProvider::new(<span class="kw-2">&amp;</span>config).<span class="kw">await</span>.unwrap();
+        <span class="kw">let </span><span class="kw-2">mut </span>stack_provider = SqliteStackProvider::new(<span class="number">0</span>, <span class="kw-2">&amp;</span>config).<span class="kw">await</span>.unwrap();
 
         <span class="kw">let </span>own_key = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap();
         <span class="kw">let </span>sampling_key = ProjectKey::parse(<span class="string">"b81ae32be2584e0bbd7a4cbb95971fe1"</span>).unwrap();

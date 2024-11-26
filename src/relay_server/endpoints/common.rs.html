@@ -479,6 +479,7 @@
 <a href="#479" id="479">479</a>
 <a href="#480" id="480">480</a>
 <a href="#481" id="481">481</a>
+<a href="#482" id="482">482</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Common facilities for ingesting events through store-like endpoints.
 
 </span><span class="kw">use </span>axum::http::{header, StatusCode};
@@ -491,7 +492,7 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, Items};
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
-<span class="kw">use </span><span class="kw">crate</span>::services::buffer::EnvelopeBuffer;
+<span class="kw">use </span><span class="kw">crate</span>::services::buffer::{EnvelopeBuffer, ProjectKeyPair};
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome};
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{BucketSource, MetricData, ProcessMetrics, ProcessingGroup};
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::cache::legacy::ValidateEnvelope;
@@ -774,7 +775,8 @@
         );
         envelope.scope(scoping);
 
-        <span class="kw">match </span>state.envelope_buffer() {
+        <span class="kw">let </span>project_key_pair = ProjectKeyPair::from_envelope(envelope.envelope());
+        <span class="kw">match </span>state.envelope_buffer(project_key_pair) {
             <span class="prelude-val">Some</span>(buffer) =&gt; {
                 <span class="kw">if </span>!buffer.has_capacity() {
                     <span class="kw">return </span><span class="prelude-val">Err</span>(BadStoreRequest::QueueFailed);

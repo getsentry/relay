@@ -835,6 +835,9 @@
 <a href="#835" id="835">835</a>
 <a href="#836" id="836">836</a>
 <a href="#837" id="837">837</a>
+<a href="#838" id="838">838</a>
+<a href="#839" id="839">839</a>
+<a href="#840" id="840">840</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::io::{ErrorKind, Read};
 <span class="kw">use </span>std::path::Path;
 <span class="kw">use </span>std::sync::atomic::{AtomicU64, Ordering};
@@ -1139,9 +1142,12 @@
 
     <span class="doccomment">/// Prepares the [`SqliteEnvelopeStore`] by running all the necessary migrations and preparing
     /// the folders where data will be stored.
-    </span><span class="kw">pub async fn </span>prepare(config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="prelude-ty">Result</span>&lt;SqliteEnvelopeStore, SqliteEnvelopeStoreError&gt; {
+    </span><span class="kw">pub async fn </span>prepare(
+        partition_id: u8,
+        config: <span class="kw-2">&amp;</span>Config,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;SqliteEnvelopeStore, SqliteEnvelopeStoreError&gt; {
         <span class="comment">// If no path is provided, we can't do disk spooling.
-        </span><span class="kw">let </span><span class="prelude-val">Some</span>(path) = config.spool_envelopes_path() <span class="kw">else </span>{
+        </span><span class="kw">let </span><span class="prelude-val">Some</span>(path) = config.spool_envelopes_path(partition_id) <span class="kw">else </span>{
             <span class="kw">return </span><span class="prelude-val">Err</span>(SqliteEnvelopeStoreError::NoFilePath);
         };
 

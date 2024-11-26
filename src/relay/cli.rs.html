@@ -730,7 +730,7 @@
     <span class="kw">let </span>path = <span class="kw">match </span>matches.get_one::&lt;PathBuf&gt;(<span class="string">"path"</span>) {
         <span class="prelude-val">Some</span>(path) =&gt; path.to_owned(),
         <span class="prelude-val">None </span>=&gt; config
-            .spool_envelopes_path()
+            .spool_envelopes_path(<span class="number">0</span>)
             .context(<span class="string">"Config file does not contain the path to the spool file."</span>)<span class="question-mark">?</span>,
     };
 

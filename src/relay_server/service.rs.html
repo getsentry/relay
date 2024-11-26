@@ -507,12 +507,19 @@
 <a href="#507" id="507">507</a>
 <a href="#508" id="508">508</a>
 <a href="#509" id="509">509</a>
+<a href="#510" id="510">510</a>
+<a href="#511" id="511">511</a>
+<a href="#512" id="512">512</a>
+<a href="#513" id="513">513</a>
+<a href="#514" id="514">514</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span><span class="kw">crate</span>::metrics::{MetricOutcomes, MetricStats};
-<span class="kw">use </span><span class="kw">crate</span>::services::buffer::{<span class="self">self</span>, EnvelopeBufferService, ObservableEnvelopeBuffer};
+<span class="kw">use </span><span class="kw">crate</span>::services::buffer::{
+    ObservableEnvelopeBuffer, PartitionedEnvelopeBuffer, ProjectKeyPair,
+};
 <span class="kw">use </span><span class="kw">crate</span>::services::cogs::{CogsService, CogsServiceRecorder};
 <span class="kw">use </span><span class="kw">crate</span>::services::global_config::{GlobalConfigManager, GlobalConfigService};
 <span class="kw">use </span><span class="kw">crate</span>::services::health_check::{HealthCheck, HealthCheckService};
@@ -572,7 +579,7 @@
     <span class="kw">pub </span>global_config: Addr&lt;GlobalConfigManager&gt;,
     <span class="kw">pub </span>legacy_project_cache: Addr&lt;legacy::ProjectCache&gt;,
     <span class="kw">pub </span>upstream_relay: Addr&lt;UpstreamRelay&gt;,
-    <span class="kw">pub </span>envelope_buffer: <span class="prelude-ty">Option</span>&lt;ObservableEnvelopeBuffer&gt;,
+    <span class="kw">pub </span>envelope_buffer: PartitionedEnvelopeBuffer,
 
     <span class="kw">pub </span>project_cache_handle: ProjectCacheHandle,
 }
@@ -769,22 +776,22 @@
         );
 
         <span class="kw">let </span>(envelopes_tx, envelopes_rx) = mpsc::channel(config.spool_max_backpressure_envelopes());
-        <span class="kw">let </span>envelope_buffer = EnvelopeBufferService::new(
+
+        <span class="kw">let </span>envelope_buffer = PartitionedEnvelopeBuffer::create(
+            config.spool_partitions(),
             config.clone(),
             memory_stat.clone(),
             global_config_rx.clone(),
-            buffer::Services {
-                envelopes_tx,
-                project_cache_handle: project_cache_handle.clone(),
-                outcome_aggregator: outcome_aggregator.clone(),
-                test_store: test_store.clone(),
-            },
-        )
-        .map(|b| b.start_in(<span class="kw-2">&amp;mut </span>runner));
+            envelopes_tx.clone(),
+            project_cache_handle.clone(),
+            outcome_aggregator.clone(),
+            test_store.clone(),
+            <span class="kw-2">&amp;mut </span>runner,
+        );
 
         <span class="comment">// Keep all the services in one context.
         </span><span class="kw">let </span>project_cache_services = legacy::Services {
-            envelope_buffer: envelope_buffer.as_ref().map(ObservableEnvelopeBuffer::addr),
+            envelope_buffer: envelope_buffer.clone(),
             aggregator: aggregator.clone(),
             envelope_processor: processor.clone(),
             outcome_aggregator: outcome_aggregator.clone(),
@@ -865,8 +872,11 @@
     }
 
     <span class="doccomment">/// Returns the V2 envelope buffer, if present.
-    </span><span class="kw">pub fn </span>envelope_buffer(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>ObservableEnvelopeBuffer&gt; {
-        <span class="self">self</span>.inner.registry.envelope_buffer.as_ref()
+    </span><span class="kw">pub fn </span>envelope_buffer(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        project_key_pair: ProjectKeyPair,
+    ) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>ObservableEnvelopeBuffer&gt; {
+        <span class="self">self</span>.inner.registry.envelope_buffer.buffer(project_key_pair)
     }
 
     <span class="doccomment">/// Returns the address of the [`legacy::ProjectCache`] service.
