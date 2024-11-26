@@ -17,40 +17,6 @@ const SMALL_PAYLOAD: usize = 18 * 1024; // 18 KiB
 const MEDIUM_PAYLOAD: usize = 100 * 1024; // 100 KiB
 const LARGE_PAYLOAD: usize = 20 * 1024 * 1024; // 20 MiB
 
-/// Creates a mock envelope with random payload size
-fn create_envelope(
-    rng: &mut impl RngCore,
-    project_key: &str,
-    project_id: u64,
-    payload_size: usize,
-) -> Vec<u8> {
-    // Create envelope header with project DSN and project_id
-    let header = json!({
-        "event_id": "9ec79c33ec9942ab8353589fcb2e04dc",
-        "dsn": format!("https://{}:@sentry.io/{}", project_key, project_id),
-        "project_id": project_id
-    });
-
-    // Generate random payload
-    let mut payload = vec![0u8; payload_size];
-    rng.fill_bytes(&mut payload);
-
-    // Format envelope following Sentry protocol
-    let mut envelope = format!(
-        "{}\n{}\n",
-        header.to_string(),
-        json!({
-            "type": "attachment",
-            "length": payload_size
-        })
-    )
-    .into_bytes();
-
-    // Add payload
-    envelope.extend(payload);
-    envelope
-}
-
 /// Generate random project pairs
 fn generate_project_pairs(rng: &mut impl RngCore, count: usize) -> Vec<(String, u64)> {
     (0..count)
@@ -64,15 +30,10 @@ fn generate_project_pairs(rng: &mut impl RngCore, count: usize) -> Vec<(String, 
 }
 
 /// Pre-generate a pool of envelopes
-fn generate_envelope_pool(
-    rng: &mut impl RngCore,
-    project_pairs: &[(String, u64)],
-) -> Vec<(u64, Vec<u8>)> {
+fn generate_envelope_pool(rng: &mut impl RngCore) -> Vec<Vec<u8>> {
     let mut pool = Vec::with_capacity(ENVELOPE_POOL_SIZE);
 
     for _ in 0..ENVELOPE_POOL_SIZE {
-        let (project_key, project_id) = &project_pairs[rng.gen_range(0..project_pairs.len())];
-
         // Generate random number between 0 and 10000 for probability distribution
         let rand_val = rng.gen_range(0..10000);
 
@@ -84,15 +45,18 @@ fn generate_envelope_pool(
             _ => LARGE_PAYLOAD,            // 0.10% - 20 MiB
         };
 
-        let envelope = create_envelope(rng, project_key, *project_id, payload_size);
-        pool.push((*project_id, envelope));
+        // Generate random payload
+        let mut payload = vec![0u8; payload_size];
+        rng.fill_bytes(&mut payload);
+        pool.push(payload);
     }
     pool
 }
 
 async fn worker_thread(
     client: Client,
-    envelope_pool: Arc<Vec<(u64, Vec<u8>)>>,
+    envelope_pool: Arc<Vec<Vec<u8>>>,
+    project_pairs: Arc<Vec<(String, u64)>>,
     counter: Arc<Mutex<usize>>,
     duration: Duration,
     requests_per_second: f64,
@@ -121,14 +85,35 @@ async fn worker_thread(
             next_send_time = now + delay;
         }
 
-        let (project_id, envelope) = &envelope_pool[rng.gen_range(0..envelope_pool.len())];
+        // Select random project and payload
+        let (project_key, project_id) = &project_pairs[rng.gen_range(0..project_pairs.len())];
+        let payload = &envelope_pool[rng.gen_range(0..envelope_pool.len())];
+
+        // Build envelope header on the fly
+        let header = json!({
+            "event_id": format!("{:032x}", rng.gen::<u128>()),
+            "dsn": format!("https://{}:@sentry.io/{}", project_key, project_id),
+            "project_id": project_id
+        });
+
+        // Format envelope
+        let mut envelope = format!(
+            "{}\n{}\n",
+            header.to_string(),
+            json!({
+                "type": "attachment",
+                "length": payload.len()
+            })
+        )
+        .into_bytes();
+        envelope.extend(payload);
 
         let response = client
             .post(format!(
                 "http://localhost:3000/api/{}/envelope/",
                 project_id
             ))
-            .body(envelope.clone())
+            .body(envelope)
             .header("content-type", "application/x-sentry-envelope")
             .send()
             .await
@@ -188,8 +173,8 @@ async fn main() {
     }
 
     // Generate projects and envelope pool using seeded RNG
-    let project_pairs = generate_project_pairs(&mut rng, NUM_PROJECTS);
-    let envelope_pool = Arc::new(generate_envelope_pool(&mut rng, &project_pairs));
+    let project_pairs = Arc::new(generate_project_pairs(&mut rng, NUM_PROJECTS));
+    let envelope_pool = Arc::new(generate_envelope_pool(&mut rng));
     let request_counter = Arc::new(Mutex::new(0));
 
     let start_time = Instant::now();
@@ -199,6 +184,7 @@ async fn main() {
     for worker_id in 0..CONCURRENT_TASKS {
         let client = Client::new();
         let pool = Arc::clone(&envelope_pool);
+        let pairs = Arc::clone(&project_pairs);
         let counter = Arc::clone(&request_counter);
         let worker_seed = seed.wrapping_add(worker_id as u64);
 
@@ -208,6 +194,7 @@ async fn main() {
                 .block_on(worker_thread(
                     client,
                     pool,
+                    pairs,
                     counter,
                     duration,
                     requests_per_second,
