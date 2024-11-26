@@ -18,12 +18,12 @@ use relay_event_normalization::{
 };
 use relay_event_schema::processor::{process_value, ProcessingAction, ProcessingState};
 use relay_event_schema::protocol::{
-    BrowserContext, IpAddr, Measurement, Measurements, Span, SpanData,
+    BrowserContext, EventId, IpAddr, Measurement, Measurements, Span, SpanData,
 };
 use relay_log::protocol::{Attachment, AttachmentType};
 use relay_metrics::{FractionUnit, MetricNamespace, MetricUnit, UnixTimestamp};
 use relay_pii::PiiProcessor;
-use relay_protocol::{Annotated, Empty};
+use relay_protocol::{Annotated, Empty, Value};
 use relay_quotas::DataCategory;
 use relay_spans::otel_trace::Span as OtelSpan;
 use thiserror::Error;
@@ -590,6 +590,28 @@ fn normalize(
 
     populate_ua_fields(span, user_agent.as_deref(), client_hints.as_deref());
 
+    // INP spans sets some top level span attributes inside span.data so make sure to pull
+    // them out to the top level before further processing.
+    if let Annotated(Some(ref mut data), _) = span.data {
+        if let Some(exclusive_time) = match data.other.get("sentry.exclusive_time") {
+            Some(Annotated(Some(Value::I64(exclusive_time)), _)) => Some(*exclusive_time as f64),
+            Some(Annotated(Some(Value::U64(exclusive_time)), _)) => Some(*exclusive_time as f64),
+            Some(Annotated(Some(Value::F64(exclusive_time)), _)) => Some(*exclusive_time),
+            _ => None,
+        } {
+            data.other.remove("sentry.exclusive_time");
+            span.exclusive_time = exclusive_time.into();
+        }
+
+        if let Some(profile_id) = match data.other.get("profile_id") {
+            Some(Annotated(Some(Value::String(profile_id)), _)) => profile_id.parse().map(|profile_id| EventId(profile_id)).ok(),
+            _ => None,
+        } {
+            data.other.remove("profile_id");
+            span.profile_id = profile_id.into();
+        }
+    }
+
     if let Annotated(Some(ref mut measurement_values), ref mut meta) = span.measurements {
         normalize_measurements(
             measurement_values,
@@ -771,7 +793,7 @@ mod tests {
     use once_cell::sync::Lazy;
     use relay_base_schema::project::ProjectId;
     use relay_event_schema::protocol::{
-        Context, ContextInner, SpanId, Timestamp, TraceContext, TraceId,
+        Context, ContextInner, EventId, SpanData, SpanId, Timestamp, TraceContext, TraceId,
     };
     use relay_event_schema::protocol::{Contexts, Event, Span};
     use relay_protocol::get_value;
@@ -1265,5 +1287,91 @@ mod tests {
             "2.125.160.216"
         );
         assert_eq!(get_value!(span.data.user_geo_city!), "Boxford");
+    }
+
+    #[test]
+    fn exclusive_time_inside_span_data_i64() {
+        let mut span = Annotated::from_json(
+            r#"{
+            "start_timestamp": 0,
+            "timestamp": 1,
+            "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+            "span_id": "922dda2462ea4ac2",
+            "data": {
+                "sentry.exclusive_time": 123
+            }
+        }"#,
+        )
+        .unwrap();
+
+        normalize(&mut span, normalize_config()).unwrap();
+
+        assert_eq!(*get_value!(span.exclusive_time!), 123.0);
+    }
+
+    #[test]
+    fn exclusive_time_inside_span_data_f64() {
+        let mut span = Annotated::from_json(
+            r#"{
+            "start_timestamp": 0,
+            "timestamp": 1,
+            "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+            "span_id": "922dda2462ea4ac2",
+            "data": {
+                "sentry.exclusive_time": 123.0
+            }
+        }"#,
+        )
+        .unwrap();
+
+        normalize(&mut span, normalize_config()).unwrap();
+
+        assert_eq!(*get_value!(span.exclusive_time!), 123.0);
+    }
+
+    #[test]
+    fn normalize_inp_spans() {
+        /*
+        */
+        let mut span = Annotated::from_json(
+            r#"{
+              "data": {
+                "sentry.origin": "auto.http.browser.inp",
+                "sentry.op": "ui.interaction.click",
+                "release": "frontend@0735d75a05afe8d34bb0950f17c332eb32988862",
+                "environment": "prod",
+                "profile_id": "480ffcc911174ade9106b40ffbd822f5",
+                "replay_id": "f39c5eb6539f4e49b9ad2b95226bc120",
+                "transaction": "/replays",
+                "user_agent.original": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                "sentry.exclusive_time": 128.0
+              },
+              "description": "div.app-3diuwe.e88zkai6 > span.app-ksj0rb.e88zkai4",
+              "op": "ui.interaction.click",
+              "parent_span_id": "88457c3c28f4c0c6",
+              "span_id": "be0e95480798a2a9",
+              "start_timestamp": 1732635523.5048,
+              "timestamp": 1732635523.6328,
+              "trace_id": "bdaf4823d1c74068af238879e31e1be9",
+              "origin": "auto.http.browser.inp",
+              "exclusive_time": 128,
+              "measurements": {
+                "inp": {
+                  "value": 128,
+                  "unit": "millisecond"
+                }
+              },
+              "segment_id": "88457c3c28f4c0c6"
+        }"#,
+        )
+        .unwrap();
+
+        normalize(&mut span, normalize_config()).unwrap();
+
+        let data = get_value!(span.data!);
+        assert!(!data.other.contains_key("sentry.exclusive_time"));
+        assert!(!data.other.contains_key("profile_id"));
+
+        assert_eq!(get_value!(span.profile_id!), &EventId("480ffcc911174ade9106b40ffbd822f5".parse().unwrap()));
     }
 }
