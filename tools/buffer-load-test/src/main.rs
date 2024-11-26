@@ -6,7 +6,7 @@ use std::time::Duration;
 use tokio::sync::Mutex;
 use tokio::time::Instant;
 
-const NUM_PROJECTS: usize = 10;
+const NUM_PROJECTS: usize = 100000;
 const DEFAULT_DURATION_SECS: u64 = 60;
 const CONCURRENT_TASKS: usize = 10;
 const ENVELOPE_POOL_SIZE: usize = 100;
