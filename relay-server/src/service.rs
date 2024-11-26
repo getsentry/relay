@@ -448,10 +448,10 @@ fn create_redis_pool(redis_config: RedisConfigRef) -> Result<RedisPool, RedisErr
 pub async fn create_redis_pools(configs: RedisPoolConfigs<'_>) -> Result<RedisPools, RedisError> {
     match configs {
         RedisPoolConfigs::Unified(pool) => {
-            let async_pool = create_async_pool(&pool).await?;
+            let project_configs = create_async_pool(&pool).await?;
             let pool = create_redis_pool(pool)?;
             Ok(RedisPools {
-                project_configs: async_pool,
+                project_configs,
                 cardinality: pool.clone(),
                 quotas: pool.clone(),
             })
@@ -484,12 +484,7 @@ async fn create_async_pool(config: &RedisConfigRef<'_>) -> Result<AsyncRedisPool
         RedisConfigRef::Single { server, options } => {
             AsyncRedisPool::single(server.as_str(), options).await
         }
-        RedisConfigRef::MultiWrite { configs } => {
-            // Based on the assumption that the first config is the
-            // primary config for MultiWrite configurations
-            let primary_config = configs.iter().next().ok_or(RedisError::Configuration)?;
-            Box::pin(create_async_pool(primary_config)).await
-        }
+        RedisConfigRef::MultiWrite { .. } => Err(RedisError::MultiWriteNotSupported),
     }
 }
 

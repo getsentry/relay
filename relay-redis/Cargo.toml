@@ -27,11 +27,11 @@ redis = { workspace = true, optional = true, features = [
 relay-log = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
-axum = {workspace = true, optional = true}
+async-trait = { workspace = true, optional = true }
 
 [features]
 default = []
-impl = ["dep:r2d2", "dep:redis", "dep:bb8-redis", "dep:axum"]
+impl = ["dep:r2d2", "dep:redis", "dep:bb8-redis", "dep:async-trait"]
 
 [dev-dependencies]
 serde_yaml = { workspace = true }

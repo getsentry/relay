@@ -3857,7 +3857,7 @@ dependencies = [
 name = "relay-redis"
 version = "24.11.1"
 dependencies = [
- "axum",
+ "async-trait",
  "bb8-redis",
  "r2d2",
  "redis",
