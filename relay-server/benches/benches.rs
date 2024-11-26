@@ -75,7 +75,7 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
     let temp_dir = TempDir::new().unwrap();
     let db_path = temp_dir.path().join("test.db");
     let db = setup_db(&db_path);
-    let envelope_store = SqliteEnvelopeStore::new(db.clone(), Duration::from_millis(100));
+    let envelope_store = SqliteEnvelopeStore::new(0, db.clone(), Duration::from_millis(100));
 
     let runtime = Runtime::new().unwrap();
 
@@ -99,6 +99,7 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
                             });
 
                             let stack = SqliteEnvelopeStack::new(
+                                0,
                                 envelope_store.clone(),
                                 disk_batch_size,
                                 ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
@@ -135,6 +136,7 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
                                 reset_db(db.clone()).await;
 
                                 let mut stack = SqliteEnvelopeStack::new(
+                                    0,
                                     envelope_store.clone(),
                                     disk_batch_size,
                                     ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
@@ -175,6 +177,7 @@ fn benchmark_sqlite_envelope_stack(c: &mut Criterion) {
                             });
 
                             let stack = SqliteEnvelopeStack::new(
+                                0,
                                 envelope_store.clone(),
                                 disk_batch_size,
                                 ProjectKey::parse("e12d836b15bb49d7bbf99e64295d995b").unwrap(),
