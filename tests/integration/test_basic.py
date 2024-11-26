@@ -45,7 +45,10 @@ def test_graceful_shutdown_with_sqlite_buffer(mini_sentry, relay):
     from time import sleep
 
     # Create a temporary directory for the sqlite db.
-    db_file_path = os.path.join(tempfile.mkdtemp(), "database_1.db")
+    base_path = tempfile.mkdtemp()
+    db_file_path = os.path.join(base_path, "database.db")
+    # With partitioning the actual database is assigned the partition id in the name.
+    actual_db_file_path = os.path.join(base_path, "database_0.db")
 
     get_project_config_original = mini_sentry.app.view_functions["get_project_config"]
 
@@ -75,7 +78,7 @@ def test_graceful_shutdown_with_sqlite_buffer(mini_sentry, relay):
     assert mini_sentry.captured_events.empty()
 
     # Check if there's data in the SQLite table `envelopes`
-    conn = sqlite3.connect(db_file_path)
+    conn = sqlite3.connect(actual_db_file_path)
     cursor = conn.cursor()
 
     # Check if there's data in the `envelopes` table
