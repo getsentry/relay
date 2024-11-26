@@ -2154,7 +2154,7 @@ impl Config {
     /// Returns the path of the buffer file if the `cache.persistent_envelope_buffer.path` is configured.
     ///
     /// In case a partition with id > 0 is supplied, the filename of the envelopes path will be
-    /// suffixed with `.partition_id`.
+    /// suffixed with `.{partition_id}`.
     pub fn spool_envelopes_path(&self, partition_id: u8) -> Option<PathBuf> {
         let mut path = self
             .values
