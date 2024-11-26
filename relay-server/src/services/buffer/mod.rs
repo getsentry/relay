@@ -570,7 +570,7 @@ impl Service for EnvelopeBufferService {
                     relay_statsd::metric!(timer(RelayTimers::BufferIdle) = start.elapsed(), input = "handle_message", partition_id = &partition_tag);
                     let message_name = message.name();
                     relay_statsd::metric!(timer(RelayTimers::BufferBusy), input = message_name, partition_id = &partition_tag, {
-                        Self::handle_message(&mut buffer, &services, message).await;
+                        Self::handle_message(&partition_tag, &mut buffer, &services, message).await;
                         sleep = Duration::ZERO;
                     });
                 }
