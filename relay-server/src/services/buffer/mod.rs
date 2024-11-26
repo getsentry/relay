@@ -821,4 +821,78 @@ mod tests {
             5
         );
     }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_partitioned_buffer() {
+        let mut runner = ServiceRunner::new();
+        let (_global_tx, global_rx) = watch::channel(global_config::Status::Ready(Arc::new(
+            GlobalConfig::default(),
+        )));
+        let (envelopes_tx, mut envelopes_rx) = mpsc::channel(10);
+        let (outcome_aggregator, _outcome_rx) = Addr::custom();
+        let project_cache_handle = ProjectCacheHandle::for_test();
+
+        // Create common services for both buffers
+        let services = Services {
+            envelopes_tx,
+            project_cache_handle: project_cache_handle.clone(),
+            outcome_aggregator,
+            test_store: Addr::dummy(),
+        };
+
+        // Create two buffer services
+        let config = Arc::new(
+            Config::from_json_value(serde_json::json!({
+                "spool": {
+                    "envelopes": {
+                        "version": "experimental"
+                    }
+                }
+            }))
+            .unwrap(),
+        );
+
+        let buffer1 = EnvelopeBufferService::new(
+            0,
+            config.clone(),
+            MemoryStat::default(),
+            global_rx.clone(),
+            services.clone(),
+        )
+        .unwrap();
+
+        let buffer2 = EnvelopeBufferService::new(
+            1,
+            config.clone(),
+            MemoryStat::default(),
+            global_rx,
+            services,
+        )
+        .unwrap();
+
+        // Start both services and create partitioned buffer
+        let observable1 = buffer1.start_in(&mut runner);
+        let observable2 = buffer2.start_in(&mut runner);
+
+        let partitioned = PartitionedEnvelopeBuffer::new(vec![observable1, observable2], 2);
+
+        // Create two envelopes with different project keys
+        let envelope1 = new_envelope(false, "foo");
+        let envelope2 = new_envelope(false, "bar");
+
+        // Send envelopes to their respective buffers
+        let buffer1 = &partitioned.buffers()[0];
+        let buffer2 = &partitioned.buffers()[1];
+
+        buffer1.addr().send(EnvelopeBuffer::Push(envelope1));
+        buffer2.addr().send(EnvelopeBuffer::Push(envelope2));
+
+        // Wait for processing
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        // Verify both envelopes were received
+        let mut received = vec![];
+        envelopes_rx.recv_many(&mut received, 2).await;
+        assert_eq!(received.len(), 2);
+    }
 }
