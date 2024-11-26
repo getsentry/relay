@@ -45,7 +45,7 @@ def test_graceful_shutdown_with_sqlite_buffer(mini_sentry, relay):
     from time import sleep
 
     # Create a temporary directory for the sqlite db.
-    db_file_path = os.path.join(tempfile.mkdtemp(), "database.db")
+    db_file_path = os.path.join(tempfile.mkdtemp(), "database_1.db")
 
     get_project_config_original = mini_sentry.app.view_functions["get_project_config"]
 
