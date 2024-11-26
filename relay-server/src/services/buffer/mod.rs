@@ -896,7 +896,7 @@ mod tests {
             GlobalConfig::default(),
         )));
         let (envelopes_tx, mut envelopes_rx) = mpsc::channel(10);
-        let outcome_aggregator = Addr::dummy();
+        let (outcome_aggregator, _outcome_rx) = Addr::custom();
         let project_cache_handle = ProjectCacheHandle::for_test();
 
         // Create common services for both buffers
@@ -912,8 +912,7 @@ mod tests {
             Config::from_json_value(serde_json::json!({
                 "spool": {
                     "envelopes": {
-                        "version": "experimental",
-                        "max_backpressure_memory_percent": 1.0
+                        "version": "experimental"
                     }
                 }
             }))
