@@ -4,17 +4,18 @@ use relay_config::{Config, RelayMode};
 #[cfg(feature = "processing")]
 use relay_redis::{RedisPool, RedisPools};
 use relay_statsd::metric;
-use relay_system::{Addr, Service};
+use relay_system::{Addr, RuntimeMetrics, Service};
 use tokio::time::interval;
 
 use crate::services::upstream::{IsNetworkOutage, UpstreamRelay};
-use crate::statsd::{RelayGauges, TokioGauges};
+use crate::statsd::{RelayGauges, RuntimeCounters, RuntimeGauges};
 
 /// Relay Stats Service.
 ///
 /// Service which collects stats periodically and emits them via statsd.
 pub struct RelayStats {
     config: Arc<Config>,
+    runtime: RuntimeMetrics,
     upstream_relay: Addr<UpstreamRelay>,
     #[cfg(feature = "processing")]
     redis_pools: Option<RedisPools>,
@@ -23,70 +24,91 @@ pub struct RelayStats {
 impl RelayStats {
     pub fn new(
         config: Arc<Config>,
+        runtime: RuntimeMetrics,
         upstream_relay: Addr<UpstreamRelay>,
         #[cfg(feature = "processing")] redis_pools: Option<RedisPools>,
     ) -> Self {
         Self {
             config,
             upstream_relay,
+            runtime,
             #[cfg(feature = "processing")]
             redis_pools,
         }
     }
 
     async fn tokio_metrics(&self) {
-        let m = tokio::runtime::Handle::current().metrics();
+        metric!(gauge(RuntimeGauges::NumIdleThreads) = self.runtime.num_idle_threads() as u64);
+        metric!(gauge(RuntimeGauges::NumAliveTasks) = self.runtime.num_alive_tasks() as u64);
+        metric!(
+            gauge(RuntimeGauges::BlockingQueueDepth) = self.runtime.blocking_queue_depth() as u64
+        );
+        metric!(
+            gauge(RuntimeGauges::NumBlockingThreads) = self.runtime.num_blocking_threads() as u64
+        );
+        metric!(
+            gauge(RuntimeGauges::NumBlockingThreads) = self.runtime.num_blocking_threads() as u64
+        );
+        metric!(
+            gauge(RuntimeGauges::NumIdleBlockingThreads) =
+                self.runtime.num_idle_blocking_threads() as u64
+        );
 
-        metric!(gauge(TokioGauges::ActiveTasksCount) = m.num_alive_tasks() as u64);
-        metric!(gauge(TokioGauges::BlockingQueueDepth) = m.blocking_queue_depth() as u64);
-        metric!(gauge(TokioGauges::BudgetForcedYieldCount) = m.budget_forced_yield_count());
-        metric!(gauge(TokioGauges::NumBlockingThreads) = m.num_blocking_threads() as u64);
-        metric!(gauge(TokioGauges::NumIdleBlockingThreads) = m.num_idle_blocking_threads() as u64);
-        metric!(gauge(TokioGauges::NumWorkers) = m.num_workers() as u64);
-        for worker in 0..m.num_workers() {
+        metric!(
+            counter(RuntimeCounters::BudgetForcedYieldCount) +=
+                self.runtime.budget_forced_yield_count()
+        );
+
+        metric!(gauge(RuntimeGauges::NumWorkers) = self.runtime.num_workers() as u64);
+        for worker in 0..self.runtime.num_workers() {
             let worker_name = worker.to_string();
+
             metric!(
-                gauge(TokioGauges::WorkerLocalQueueDepth) =
-                    m.worker_local_queue_depth(worker) as u64,
+                gauge(RuntimeGauges::WorkerLocalQueueDepth) =
+                    self.runtime.worker_local_queue_depth(worker) as u64,
                 worker = &worker_name,
             );
             metric!(
-                gauge(TokioGauges::WorkerLocalScheduleCount) =
-                    m.worker_local_schedule_count(worker),
+                gauge(RuntimeGauges::WorkerMeanPollTime) =
+                    self.runtime.worker_mean_poll_time(worker).as_secs_f64(),
+                worker = &worker_name,
+            );
+
+            metric!(
+                counter(RuntimeCounters::WorkerLocalScheduleCount) +=
+                    self.runtime.worker_local_schedule_count(worker),
                 worker = &worker_name,
             );
             metric!(
-                gauge(TokioGauges::WorkerMeanPollTime) =
-                    m.worker_mean_poll_time(worker).as_secs_f64(),
+                counter(RuntimeCounters::WorkerNoopCount) += self.runtime.worker_noop_count(worker),
                 worker = &worker_name,
             );
             metric!(
-                gauge(TokioGauges::WorkerNoopCount) = m.worker_noop_count(worker),
+                counter(RuntimeCounters::WorkerOverflowCount) +=
+                    self.runtime.worker_overflow_count(worker),
                 worker = &worker_name,
             );
             metric!(
-                gauge(TokioGauges::WorkerOverflowCount) = m.worker_overflow_count(worker),
+                counter(RuntimeCounters::WorkerParkCount) += self.runtime.worker_park_count(worker),
                 worker = &worker_name,
             );
             metric!(
-                gauge(TokioGauges::WorkerParkCount) = m.worker_park_count(worker),
+                counter(RuntimeCounters::WorkerPollCount) += self.runtime.worker_poll_count(worker),
                 worker = &worker_name,
             );
             metric!(
-                gauge(TokioGauges::WorkerPollCount) = m.worker_poll_count(worker),
+                counter(RuntimeCounters::WorkerStealCount) +=
+                    self.runtime.worker_steal_count(worker),
                 worker = &worker_name,
             );
             metric!(
-                gauge(TokioGauges::WorkerStealCount) = m.worker_steal_count(worker),
+                counter(RuntimeCounters::WorkerStealOperations) +=
+                    self.runtime.worker_steal_operations(worker),
                 worker = &worker_name,
             );
             metric!(
-                gauge(TokioGauges::WorkerStealOperations) = m.worker_steal_operations(worker),
-                worker = &worker_name,
-            );
-            metric!(
-                gauge(TokioGauges::WorkerTotalBusyDuration) =
-                    m.worker_total_busy_duration(worker).as_secs_f64(),
+                counter(RuntimeCounters::WorkerTotalBusyDuration) +=
+                    self.runtime.worker_total_busy_duration(worker).as_millis() as u64,
                 worker = &worker_name,
             );
         }

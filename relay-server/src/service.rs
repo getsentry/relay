@@ -32,7 +32,6 @@ use relay_redis::redis::Script;
 use relay_redis::{PooledClient, RedisScripts};
 use relay_redis::{RedisError, RedisPool, RedisPools};
 use relay_system::{channel, Addr, Service, ServiceRunner};
-use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
 
 /// Indicates the type of failure of the server.
@@ -68,16 +67,15 @@ pub struct Registry {
     pub project_cache_handle: ProjectCacheHandle,
 }
 
-/// Constructs a tokio [`Runtime`] configured for running [services](relay_system::Service).
-pub fn create_runtime(name: &str, threads: usize) -> Runtime {
-    tokio::runtime::Builder::new_multi_thread()
-        .thread_name(name)
+/// Constructs a Tokio [`Runtime`] configured for running [services](relay_system::Service).
+pub fn create_runtime(name: &'static str, threads: usize) -> relay_system::Runtime {
+    relay_system::Runtime::builder(name)
         .worker_threads(threads)
         // Relay uses `spawn_blocking` only for Redis connections within the project
         // cache, those should never exceed 100 concurrent connections
         // (limited by connection pool).
         //
-        // Relay also does not use other blocking opertions from Tokio which require
+        // Relay also does not use other blocking operations from Tokio which require
         // this pool, no usage of `tokio::fs` and `tokio::io::{Stdin, Stdout, Stderr}`.
         //
         // We limit the maximum amount of threads here, we've seen that Tokio
@@ -88,9 +86,7 @@ pub fn create_runtime(name: &str, threads: usize) -> Runtime {
         // threads to encourage the runtime to not keep too many idle blocking threads
         // around.
         .thread_keep_alive(Duration::from_secs(1))
-        .enable_all()
         .build()
-        .unwrap()
 }
 
 fn create_processor_pool(config: &Config) -> Result<ThreadPool> {
@@ -145,7 +141,10 @@ pub struct ServiceState {
 
 impl ServiceState {
     /// Starts all services and returns addresses to all of them.
-    pub fn start(config: Arc<Config>) -> Result<(Self, ServiceRunner)> {
+    pub fn start(
+        rt_metrics: relay_system::RuntimeMetrics,
+        config: Arc<Config>,
+    ) -> Result<(Self, ServiceRunner)> {
         let mut runner = ServiceRunner::new();
         let upstream_relay = runner.start(UpstreamRelayService::new(config.clone()));
         let test_store = runner.start(TestStoreService::new(config.clone()));
@@ -305,6 +304,7 @@ impl ServiceState {
 
         runner.start(RelayStats::new(
             config.clone(),
+            rt_metrics,
             upstream_relay.clone(),
             #[cfg(feature = "processing")]
             redis_pools.clone(),

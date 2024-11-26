@@ -1,6 +1,6 @@
 use relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 #[cfg(doc)]
-use tokio::runtime::RuntimeMetrics;
+use relay_system::RuntimeMetrics;
 
 /// Gauge metrics used by Relay
 pub enum RelayGauges {
@@ -76,14 +76,14 @@ impl GaugeMetric for RelayGauges {
     }
 }
 
-/// Gauge metrics collected from the Tokio Runtime.
-pub enum TokioGauges {
-    /// Exposes [`RuntimeMetrics::active_tasks_count`].
-    ActiveTasksCount,
+/// Gauge metrics collected from the Runtime.
+pub enum RuntimeGauges {
+    /// Exposes [`RuntimeMetrics::num_idle_threads`].
+    NumIdleThreads,
+    /// Exposes [`RuntimeMetrics::num_alive_tasks`].
+    NumAliveTasks,
     /// Exposes [`RuntimeMetrics::blocking_queue_depth`].
     BlockingQueueDepth,
-    /// Exposes [`RuntimeMetrics::budget_forced_yield_count`].
-    BudgetForcedYieldCount,
     /// Exposes [`RuntimeMetrics::num_blocking_threads`].
     NumBlockingThreads,
     /// Exposes [`RuntimeMetrics::num_idle_blocking_threads`].
@@ -95,16 +95,37 @@ pub enum TokioGauges {
     /// This metric is tagged with:
     /// - `worker`: the worker id.
     WorkerLocalQueueDepth,
-    /// Exposes [`RuntimeMetrics::worker_local_schedule_count`].
-    ///
-    /// This metric is tagged with:
-    /// - `worker`: the worker id.
-    WorkerLocalScheduleCount,
     /// Exposes [`RuntimeMetrics::worker_mean_poll_time`].
     ///
     /// This metric is tagged with:
     /// - `worker`: the worker id.
     WorkerMeanPollTime,
+}
+
+impl GaugeMetric for RuntimeGauges {
+    fn name(&self) -> &'static str {
+        match self {
+            RuntimeGauges::NumIdleThreads => "runtime.idle_threads",
+            RuntimeGauges::NumAliveTasks => "runtime.alive_tasks",
+            RuntimeGauges::BlockingQueueDepth => "runtime.blocking_queue_depth",
+            RuntimeGauges::NumBlockingThreads => "runtime.num_blocking_threads",
+            RuntimeGauges::NumIdleBlockingThreads => "runtime.num_idle_blocking_threads",
+            RuntimeGauges::NumWorkers => "runtime.num_workers",
+            RuntimeGauges::WorkerLocalQueueDepth => "runtime.worker_local_queue_depth",
+            RuntimeGauges::WorkerMeanPollTime => "runtime.worker_mean_poll_time",
+        }
+    }
+}
+
+/// Counter metrics collected from the Runtime.
+pub enum RuntimeCounters {
+    /// Exposes [`RuntimeMetrics::budget_forced_yield_count`].
+    BudgetForcedYieldCount,
+    /// Exposes [`RuntimeMetrics::worker_local_schedule_count`].
+    ///
+    /// This metric is tagged with:
+    /// - `worker`: the worker id.
+    WorkerLocalScheduleCount,
     /// Exposes [`RuntimeMetrics::worker_noop_count`].
     ///
     /// This metric is tagged with:
@@ -142,25 +163,18 @@ pub enum TokioGauges {
     WorkerTotalBusyDuration,
 }
 
-impl GaugeMetric for TokioGauges {
+impl CounterMetric for RuntimeCounters {
     fn name(&self) -> &'static str {
         match self {
-            TokioGauges::ActiveTasksCount => "tokio.active_task_count",
-            TokioGauges::BlockingQueueDepth => "tokio.blocking_queue_depth",
-            TokioGauges::BudgetForcedYieldCount => "tokio.budget_forced_yield_count",
-            TokioGauges::NumBlockingThreads => "tokio.num_blocking_threads",
-            TokioGauges::NumIdleBlockingThreads => "tokio.num_idle_blocking_threads",
-            TokioGauges::NumWorkers => "tokio.num_workers",
-            TokioGauges::WorkerLocalQueueDepth => "tokio.worker_local_queue_depth",
-            TokioGauges::WorkerLocalScheduleCount => "tokio.worker_local_schedule_count",
-            TokioGauges::WorkerMeanPollTime => "tokio.worker_mean_poll_time",
-            TokioGauges::WorkerNoopCount => "tokio.worker_noop_count",
-            TokioGauges::WorkerOverflowCount => "tokio.worker_overflow_count",
-            TokioGauges::WorkerParkCount => "tokio.worker_park_count",
-            TokioGauges::WorkerPollCount => "tokio.worker_poll_count",
-            TokioGauges::WorkerStealCount => "tokio.worker_steal_count",
-            TokioGauges::WorkerStealOperations => "tokio.worker_steal_operations",
-            TokioGauges::WorkerTotalBusyDuration => "tokio.worker_total_busy_duration",
+            RuntimeCounters::BudgetForcedYieldCount => "runtime.budget_forced_yield_count",
+            RuntimeCounters::WorkerLocalScheduleCount => "runtime.worker_local_schedule_count",
+            RuntimeCounters::WorkerNoopCount => "runtime.worker_noop_count",
+            RuntimeCounters::WorkerOverflowCount => "runtime.worker_overflow_count",
+            RuntimeCounters::WorkerParkCount => "runtime.worker_park_count",
+            RuntimeCounters::WorkerPollCount => "runtime.worker_poll_count",
+            RuntimeCounters::WorkerStealCount => "runtime.worker_steal_count",
+            RuntimeCounters::WorkerStealOperations => "runtime.worker_steal_operations",
+            RuntimeCounters::WorkerTotalBusyDuration => "runtime.worker_total_busy_duration",
         }
     }
 }
