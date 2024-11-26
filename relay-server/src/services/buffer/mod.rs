@@ -156,13 +156,15 @@ impl PartitionedEnvelopeBuffer {
     }
 
     /// Returns `true` if all [`ObservableEnvelopeBuffer`]s have capacity to get new [`Envelope`]s.
+    ///
+    /// If no buffers are specified, the function returns `true`, assuming that there is capacity
+    /// if the buffer is not setup.
     pub fn has_capacity(&self) -> bool {
-        self.buffers.iter().all(|buffer| buffer.has_capacity())
-    }
+        if self.buffers.is_empty() {
+            return true;
+        }
 
-    /// Returns all the [`ObservableEnvelopeBuffer`]s.
-    pub fn buffers(&self) -> &Vec<ObservableEnvelopeBuffer> {
-        &self.buffers
+        self.buffers.iter().all(|buffer| buffer.has_capacity())
     }
 }
 

@@ -149,15 +149,7 @@ impl HealthCheckService {
     }
 
     async fn spool_health_probe(&self) -> Status {
-        let buffers = self.envelope_buffer.buffers();
-        // If no buffer is supplied, we assume it's healthy.
-        let all_have_capacity = if buffers.is_empty() {
-            true
-        } else {
-            self.envelope_buffer.has_capacity()
-        };
-
-        match all_have_capacity {
+        match self.envelope_buffer.has_capacity() {
             true => Status::Healthy,
             false => Status::Unhealthy,
         }
