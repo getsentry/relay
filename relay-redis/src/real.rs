@@ -2,16 +2,14 @@ use crate::config::RedisConfigOptions;
 use async_trait::async_trait;
 use bb8_redis::bb8::RunError;
 use bb8_redis::{bb8, RedisConnectionManager};
-use r2d2::{Builder, CustomizeConnection, ManageConnection, Pool, PooledConnection};
+use r2d2::{Builder, ManageConnection, Pool, PooledConnection};
 pub use redis;
 use redis::aio::MultiplexedConnection;
 use redis::cluster::{ClusterClient, ClusterClientBuilder};
 use redis::cluster_async::ClusterConnection;
-use redis::{
-    AsyncConnectionConfig, Client, Cmd, ConnectionLike, ErrorKind, FromRedisValue, RedisResult,
-};
+use redis::{Cmd, ConnectionLike, ErrorKind, FromRedisValue, RedisResult};
 use std::error::Error;
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
 use std::thread::Scope;
 use std::time::Duration;
 use std::{fmt, thread};
@@ -35,9 +33,6 @@ pub enum RedisError {
     /// Failure in Redis communication.
     #[error("failed to communicate with redis")]
     Redis(#[source] redis::RedisError),
-
-    #[error("multi write is not supported for projectconfigs")]
-    MultiWriteNotSupported,
 }
 
 fn log_secondary_redis_error<T>(result: redis::RedisResult<T>) {
@@ -398,6 +393,7 @@ pub struct Stats {
     pub idle_connections: u32,
 }
 
+/// [`bb8::CustomizeConnection`] that calls `set_response_timeout` on connections.
 #[derive(Debug)]
 pub struct ResponseTimeoutCustomConnection(Duration);
 

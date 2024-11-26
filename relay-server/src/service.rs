@@ -484,7 +484,12 @@ async fn create_async_pool(config: &RedisConfigRef<'_>) -> Result<AsyncRedisPool
         RedisConfigRef::Single { server, options } => {
             AsyncRedisPool::single(server.as_str(), options).await
         }
-        RedisConfigRef::MultiWrite { .. } => Err(RedisError::MultiWriteNotSupported),
+        RedisConfigRef::MultiWrite { configs } => {
+            // Based on the assumption that the first config is the
+            // primary config for MultiWrite configurations
+            let primary_config = configs.iter().next().ok_or(RedisError::Configuration)?;
+            Box::pin(create_async_pool(primary_config)).await
+        }
     }
 }
 
