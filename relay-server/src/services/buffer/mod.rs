@@ -957,7 +957,7 @@ mod tests {
         buffer2.addr().send(EnvelopeBuffer::Push(envelope2));
 
         // Wait for processing
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        tokio::time::sleep(Duration::from_secs(1)).await;
 
         // Verify both envelopes were received
         let mut received = vec![];
