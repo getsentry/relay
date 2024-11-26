@@ -188,7 +188,7 @@ impl PolymorphicEnvelopeBuffer {
     }
 
     /// Returns the partition tag for this [`PolymorphicEnvelopeBuffer`].
-    fn partition_tag(&self) -> &str {
+    pub fn partition_tag(&self) -> &str {
         match self {
             PolymorphicEnvelopeBuffer::InMemory(buffer) => &buffer.partition_tag,
             PolymorphicEnvelopeBuffer::Sqlite(buffer) => &buffer.partition_tag,
