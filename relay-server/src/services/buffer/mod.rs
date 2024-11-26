@@ -507,7 +507,7 @@ impl Service for EnvelopeBufferService {
 
                     println!(
                         "Buffer {} metrics:\n  Queue size: {}\n  Idle time: {:.2?}\n  Busy time: {:.2?}\n  Push time: {:.2?}\n  Pop time: {:.2?}\n  Cache time: {:.2?}\n  Avg push duration: {:.2?}\n  Pushed kib/s: {}\n  Push count: {}\n  Envelope stacks count: {}\n",
-                        self.shard_id,
+                        self.partition_id,
                         rx.queue_size.load(Ordering::Relaxed),
                         total_idle_time,
                         total_busy_time,
