@@ -33,6 +33,10 @@ pub enum RedisError {
     /// Failure in Redis communication.
     #[error("failed to communicate with redis")]
     Redis(#[source] redis::RedisError),
+
+    /// Multi write is not supported for the specified part.
+    #[error("multi write is not supported for {0}")]
+    MultiWriteNotSupported(&'static str),
 }
 
 fn log_secondary_redis_error<T>(result: redis::RedisResult<T>) {
