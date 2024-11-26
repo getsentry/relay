@@ -4,7 +4,7 @@ use relay_statsd::{CounterMetric, GaugeMetric};
 pub enum SystemCounters {
     /// Number of runtime tasks created/spawned.
     ///
-    /// Every call to [`spawn`](`crate::spawn`) increases this counter by one.
+    /// Every call to [`spawn`](`crate::spawn()`) increases this counter by one.
     ///
     /// This metric is tagged with:
     ///  - `id`: A unique identifier for the task, derived from its location in code.

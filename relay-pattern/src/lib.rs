@@ -528,7 +528,7 @@ impl<'a> Parser<'a> {
             return Err(ErrorKind::NestedAlternates);
         }
         self.finish_literal();
-        self.alternates = Some(Vec::new());
+        self.alternates = Some(vec![Tokens::default()]);
         Ok(())
     }
 
@@ -672,11 +672,12 @@ struct Tokens(Vec<Token>);
 impl Tokens {
     fn push(&mut self, mut token: Token) {
         // Normalize / clean the token.
-        if let Token::Alternates(alternates) = &mut token {
+        if let Token::Alternates(mut alternates) = token {
+            let mut contains_empty = false;
             let mut contains_wildcard = false;
             alternates.retain_mut(|alternate| {
-                // Empty groups can just be ignored and skipped.
                 if alternate.0.is_empty() {
+                    contains_empty = true;
                     return false;
                 }
 
@@ -687,10 +688,38 @@ impl Tokens {
                 true
             });
 
-            // If any of the alternations contains a wildcard, we can fold the entire
-            // alternation into a single wildcard.
+            // At this point `alternates` contains only the nonempty branches
+            // and we additionally know
+            // * if one of the branches was just a wildcard
+            // * if there were any empty branches.
+            //
+            // We can push different tokens based on this.
             if contains_wildcard {
+                // Case: {foo,*,} -> reduces to *
                 token = Token::Wildcard;
+            } else if alternates.len() == 1 {
+                if contains_empty {
+                    // Case: {foo*bar,} -> Optional(foo*bar)
+                    token = Token::Optional(alternates.remove(0));
+                } else {
+                    // Case: {foo*bar} -> remove the alternation and
+                    // push foo*bar directly
+                    for t in alternates.remove(0).0 {
+                        self.push(t);
+                    }
+                    return;
+                }
+            } else if alternates.len() > 1 {
+                if contains_empty {
+                    // Case: {foo,bar,} -> Optional({foo,bar})
+                    token = Token::Optional(Tokens(vec![Token::Alternates(alternates)]));
+                } else {
+                    // Case: {foo, bar} -> can stay as it is
+                    token = Token::Alternates(alternates);
+                }
+            } else {
+                // Case: {,,,} -> reduces to {}
+                return;
             }
         }
 
@@ -731,6 +760,12 @@ enum Token {
     Class { negated: bool, ranges: Ranges },
     /// A list of nested alternate tokens `{a,b}`.
     Alternates(Vec<Tokens>),
+    /// A list of optional tokens.
+    ///
+    /// This has no syntax of its own, it's parsed
+    /// from alternatives containing empty branches
+    /// like `{a,b,}`.
+    Optional(Tokens),
 }
 
 /// A string literal.
@@ -1414,6 +1449,9 @@ mod tests {
 
     #[test]
     fn test_alternates() {
+        assert_pattern!("{}foo{}", "foo");
+        assert_pattern!("foo{}bar", "foobar");
+        assert_pattern!("foo{}{}bar", "foobar");
         assert_pattern!("{foo}", "foo");
         assert_pattern!("{foo}", NOT "fOo");
         assert_pattern!("{foo}", NOT "bar");
@@ -1424,6 +1462,30 @@ mod tests {
         assert_pattern!("{foo,bar}", NOT "BAR");
         assert_pattern!("{foo,bar}", NOT "fooo");
         assert_pattern!("{foo,bar}", NOT "baar");
+        assert_pattern!("{foo,bar,}baz", "foobaz");
+        assert_pattern!("{foo,bar,}baz", "barbaz");
+        assert_pattern!("{foo,bar,}baz", "baz");
+        assert_pattern!("{foo,,bar}baz", "foobaz");
+        assert_pattern!("{foo,,bar}baz", "barbaz");
+        assert_pattern!("{foo,,bar}baz", "baz");
+        assert_pattern!("{,foo,bar}baz", "foobaz");
+        assert_pattern!("{,foo,bar}baz", "barbaz");
+        assert_pattern!("{,foo,bar}baz", "baz");
+        assert_pattern!("{foo*bar}", "foobar");
+        assert_pattern!("{foo*bar}", "fooooobar");
+        assert_pattern!("{foo*bar}", NOT "");
+        assert_pattern!("{foo*bar,}", "foobar");
+        assert_pattern!("{foo*bar,}", "fooooobar");
+        assert_pattern!("{foo*bar,}", "");
+        assert_pattern!("{foo*bar,baz}", "foobar");
+        assert_pattern!("{foo*bar,baz}", "fooooobar");
+        assert_pattern!("{foo*bar,baz}", "baz");
+        assert_pattern!("{foo*bar,baz}", NOT "");
+        assert_pattern!("{foo*bar,baz,}", "foobar");
+        assert_pattern!("{foo*bar,baz,}", "fooooobar");
+        assert_pattern!("{foo*bar,baz,}", "baz");
+        assert_pattern!("{foo*bar,baz,}", "");
+        assert_pattern!("{,,,,}", NOT "");
         assert_pattern!("{[fb][oa][or]}", "foo");
         assert_pattern!("{[fb][oa][or]}", "bar");
         assert_pattern!("{[fb][oa][or],baz}", "foo");
@@ -1473,6 +1535,15 @@ mod tests {
         assert_pattern!("{foo,abc}{def,bar}", NOT "fooabc");
         assert_pattern!("{foo,abc}{def,bar}", NOT "defdef");
         assert_pattern!("{foo,abc}{def,bar}", NOT "defabc");
+    }
+
+    #[test]
+    fn test_alternate_strategy() {
+        // Empty alternates can be simplified.
+        assert_strategy!("{}foo{}", Literal);
+        assert_strategy!("foo{}bar", Literal);
+        assert_strategy!("foo{}{}{}bar", Literal);
+        assert_strategy!("foo{,,,}bar", Literal);
     }
 
     #[test]

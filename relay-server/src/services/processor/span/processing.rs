@@ -29,7 +29,7 @@ use relay_spans::otel_trace::Span as OtelSpan;
 use thiserror::Error;
 
 use crate::envelope::{ContentType, Item, ItemType};
-use crate::metrics_extraction::{event, metrics_summary};
+use crate::metrics_extraction::{event, generic};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::span::extract_transaction_span;
 use crate::services::processor::{
@@ -127,11 +127,10 @@ pub fn process(
                 return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
             };
 
-            let (metrics, metrics_summary) = metrics_summary::extract_and_summarize_metrics(
+            let metrics = generic::extract_metrics(
                 span,
                 CombinedMetricExtractionConfig::new(global_metrics_config, config),
             );
-            metrics_summary.apply_on(&mut span._metrics_summary);
 
             state
                 .extracted_metrics

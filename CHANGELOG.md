@@ -1,15 +1,21 @@
 # Changelog
 
-## Unreleased
+## 24.11.1
 
 **Bug Fixes**:
 
 - Terminate the process when one of the services crashes. ([#4249](https://github.com/getsentry/relay/pull/4249))
 - Don't propagate trace sampling decisions from SDKs ([#4265](https://github.com/getsentry/relay/pull/4265))
+- Rate limit profile chunks. ([#4270](https://github.com/getsentry/relay/pull/4270))
 
 **Features**:
 
 - Implement zstd http encoding for Relay to Relay communication. ([#4266](https://github.com/getsentry/relay/pull/4266))
+- Support empty branches in Pattern alternations. ([#4283](https://github.com/getsentry/relay/pull/4283))
+
+**Internal**:
+
+- Remove metrics summaries. ([#4278](https://github.com/getsentry/relay/pull/4278), [#4279](https://github.com/getsentry/relay/pull/4279))
 
 ## 24.11.0
 
