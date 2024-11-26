@@ -2169,7 +2169,7 @@ impl Config {
         }
 
         let file_name = path.file_name().and_then(|f| f.to_str())?;
-        let new_file_name = format!("{}.{}", file_name, partition_id,);
+        let new_file_name = format!("{}.{}", file_name, partition_id);
         path.set_file_name(new_file_name);
 
         Some(path)
