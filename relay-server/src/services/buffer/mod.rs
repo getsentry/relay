@@ -338,7 +338,7 @@ impl EnvelopeBufferService {
                     partition_id = partition_tag
                 );
 
-                Duration::MAX // wait for reset by `handle_message`.
+                DEFAULT_SLEEP // wait for reset by `handle_message`.
             }
             Peek::Ready { last_received_at }
             | Peek::NotReady {
@@ -539,7 +539,7 @@ impl Service for EnvelopeBufferService {
                 partition_id = &partition_tag,
             );
 
-            let mut sleep = Duration::MAX;
+            let mut sleep = DEFAULT_SLEEP;
             let start = Instant::now();
             tokio::select! {
                 // NOTE: we do not select a bias here.
@@ -956,12 +956,9 @@ mod tests {
         buffer1.addr().send(EnvelopeBuffer::Push(envelope1));
         buffer2.addr().send(EnvelopeBuffer::Push(envelope2));
 
-        // Wait for processing
-        tokio::time::sleep(Duration::from_millis(100)).await;
-
         // Verify both envelopes were received
-        let mut received = vec![];
-        envelopes_rx.recv_many(&mut received, 2).await;
-        assert_eq!(received.len(), 2);
+        assert!(envelopes_rx.recv().await.is_some());
+        assert!(envelopes_rx.recv().await.is_some());
+        assert!(envelopes_rx.is_empty());
     }
 }
