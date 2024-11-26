@@ -302,9 +302,12 @@ impl SqliteEnvelopeStore {
 
     /// Prepares the [`SqliteEnvelopeStore`] by running all the necessary migrations and preparing
     /// the folders where data will be stored.
-    pub async fn prepare(config: &Config) -> Result<SqliteEnvelopeStore, SqliteEnvelopeStoreError> {
+    pub async fn prepare(
+        partition_id: u8,
+        config: &Config,
+    ) -> Result<SqliteEnvelopeStore, SqliteEnvelopeStoreError> {
         // If no path is provided, we can't do disk spooling.
-        let Some(path) = config.spool_envelopes_path() else {
+        let Some(path) = config.spool_envelopes_path(partition_id) else {
             return Err(SqliteEnvelopeStoreError::NoFilePath);
         };
 

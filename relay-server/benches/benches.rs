@@ -260,7 +260,7 @@ fn benchmark_envelope_buffer(c: &mut Criterion) {
             |envelopes| {
                 runtime.block_on(async {
                     let mut buffer =
-                        PolymorphicEnvelopeBuffer::from_config(&config, memory_checker.clone())
+                        PolymorphicEnvelopeBuffer::from_config(0, &config, memory_checker.clone())
                             .await
                             .unwrap();
                     for envelope in envelopes.into_iter() {
@@ -292,7 +292,7 @@ fn benchmark_envelope_buffer(c: &mut Criterion) {
             |envelopes| {
                 runtime.block_on(async {
                     let mut buffer =
-                        PolymorphicEnvelopeBuffer::from_config(&config, memory_checker.clone())
+                        PolymorphicEnvelopeBuffer::from_config(0, &config, memory_checker.clone())
                             .await
                             .unwrap();
                     let n = envelopes.len();

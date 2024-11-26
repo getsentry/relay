@@ -1,6 +1,8 @@
 //! Types for buffering envelopes.
 
 use std::error::Error;
+use std::hash::{Hash, Hasher};
+use std::num::NonZeroU8;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
@@ -8,17 +10,17 @@ use std::time::Duration;
 
 use chrono::DateTime;
 use chrono::Utc;
+use fnv::FnvHasher;
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
-use relay_system::ServiceRunner;
-use relay_system::{Addr, FromMessage, Interface, NoResponse, Receiver, Service};
+use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 use relay_system::{Controller, Shutdown};
+use relay_system::{Receiver, ServiceRunner};
 use tokio::sync::mpsc::Permit;
 use tokio::sync::{mpsc, watch};
 use tokio::time::{timeout, Instant};
 
 use crate::envelope::Envelope;
-use crate::services::buffer::common::ProjectKeyPair;
 use crate::services::buffer::envelope_buffer::Peek;
 use crate::services::global_config;
 use crate::services::outcome::DiscardReason;
@@ -33,6 +35,7 @@ use crate::utils::ManagedEnvelope;
 use crate::MemoryChecker;
 use crate::MemoryStat;
 
+// pub for benchmarks
 pub use envelope_buffer::EnvelopeBufferError;
 // pub for benchmarks
 pub use envelope_buffer::PolymorphicEnvelopeBuffer;
@@ -42,6 +45,8 @@ pub use envelope_stack::sqlite::SqliteEnvelopeStack;
 pub use envelope_stack::EnvelopeStack;
 // pub for benchmarks
 pub use envelope_store::sqlite::SqliteEnvelopeStore;
+
+pub use common::ProjectKeyPair;
 
 mod common;
 mod envelope_buffer;
@@ -78,6 +83,92 @@ impl FromMessage<Self> for EnvelopeBuffer {
 
     fn from_message(message: Self, _: ()) -> Self {
         message
+    }
+}
+
+/// Abstraction that wraps a list of [`ObservableEnvelopeBuffer`]s to which [`Envelope`] are routed
+/// based on their [`ProjectKeyPair`].
+#[derive(Debug, Clone)]
+pub struct PartitionedEnvelopeBuffer {
+    buffers: Arc<Vec<ObservableEnvelopeBuffer>>,
+}
+
+impl PartitionedEnvelopeBuffer {
+    /// Creates a [`PartitionedEnvelopeBuffer`] with no partitions.
+    #[cfg(test)]
+    pub fn empty() -> Self {
+        Self {
+            buffers: Arc::new(Vec::new()),
+        }
+    }
+
+    /// Creates a new [`PartitionedEnvelopeBuffer`] by instantiating inside all the necessary
+    /// [`ObservableEnvelopeBuffer`]s.
+    #[allow(clippy::too_many_arguments)]
+    pub fn create(
+        partitions: NonZeroU8,
+        config: Arc<Config>,
+        memory_stat: MemoryStat,
+        global_config_rx: watch::Receiver<global_config::Status>,
+        envelopes_tx: mpsc::Sender<legacy::DequeuedEnvelope>,
+        project_cache_handle: ProjectCacheHandle,
+        outcome_aggregator: Addr<TrackOutcome>,
+        test_store: Addr<TestStore>,
+        runner: &mut ServiceRunner,
+    ) -> Self {
+        let mut envelope_buffers = Vec::with_capacity(partitions.get() as usize);
+        for partition_id in 0..partitions.get() {
+            let envelope_buffer = EnvelopeBufferService::new(
+                partition_id,
+                config.clone(),
+                memory_stat.clone(),
+                global_config_rx.clone(),
+                Services {
+                    envelopes_tx: envelopes_tx.clone(),
+                    project_cache_handle: project_cache_handle.clone(),
+                    outcome_aggregator: outcome_aggregator.clone(),
+                    test_store: test_store.clone(),
+                },
+            )
+            .map(|b| b.start_in(runner));
+
+            if let Some(envelope_buffer) = envelope_buffer {
+                envelope_buffers.push(envelope_buffer);
+            }
+        }
+
+        Self {
+            buffers: Arc::new(envelope_buffers),
+        }
+    }
+
+    /// Returns the [`ObservableEnvelopeBuffer`] to which [`Envelope`]s having the supplied
+    /// [`ProjectKeyPair`] will be sent.
+    ///
+    /// The rationale of using this partitioning strategy is to reduce memory usage across buffers
+    /// since each individual buffer will only take care of a subset of projects.
+    pub fn buffer(&self, project_key_pair: ProjectKeyPair) -> Option<&ObservableEnvelopeBuffer> {
+        if self.buffers.is_empty() {
+            return None;
+        }
+
+        let mut hasher = FnvHasher::default();
+        project_key_pair.hash(&mut hasher);
+        let buffer_index = (hasher.finish() % self.buffers.len() as u64) as usize;
+        let buffer = self.buffers.get(buffer_index);
+        buffer
+    }
+
+    /// Returns `true` if all [`ObservableEnvelopeBuffer`]s have capacity to get new [`Envelope`]s.
+    ///
+    /// If no buffers are specified, the function returns `true`, assuming that there is capacity
+    /// if the buffer is not setup.
+    pub fn has_capacity(&self) -> bool {
+        if self.buffers.is_empty() {
+            return true;
+        }
+
+        self.buffers.iter().all(|buffer| buffer.has_capacity())
     }
 }
 
@@ -119,6 +210,7 @@ pub struct Services {
 /// Spool V2 service which buffers envelopes and forwards them to the project cache when a project
 /// becomes ready.
 pub struct EnvelopeBufferService {
+    partition_id: u8,
     config: Arc<Config>,
     memory_stat: MemoryStat,
     global_config_rx: watch::Receiver<global_config::Status>,
@@ -139,12 +231,14 @@ impl EnvelopeBufferService {
     /// NOTE: until the V1 spooler implementation is removed, this function returns `None`
     /// if V2 spooling is not configured.
     pub fn new(
+        partition_id: u8,
         config: Arc<Config>,
         memory_stat: MemoryStat,
         global_config_rx: watch::Receiver<global_config::Status>,
         services: Services,
     ) -> Option<Self> {
         config.spool_v2().then(|| Self {
+            partition_id,
             config,
             memory_stat,
             global_config_rx,
@@ -165,19 +259,22 @@ impl EnvelopeBufferService {
     /// Wait for the configured amount of time and make sure the project cache is ready to receive.
     async fn ready_to_pop(
         &mut self,
+        partition_tag: &str,
         buffer: &PolymorphicEnvelopeBuffer,
         dequeue: bool,
     ) -> Option<Permit<legacy::DequeuedEnvelope>> {
         relay_statsd::metric!(
             counter(RelayCounters::BufferReadyToPop) += 1,
-            status = "checking"
+            status = "checking",
+            partition_id = partition_tag
         );
 
         self.system_ready(buffer, dequeue).await;
 
         relay_statsd::metric!(
             counter(RelayCounters::BufferReadyToPop) += 1,
-            status = "system_ready"
+            status = "system_ready",
+            partition_id = partition_tag
         );
 
         if self.sleep > Duration::ZERO {
@@ -186,14 +283,16 @@ impl EnvelopeBufferService {
 
         relay_statsd::metric!(
             counter(RelayCounters::BufferReadyToPop) += 1,
-            status = "slept"
+            status = "slept",
+            partition_id = partition_tag
         );
 
         let permit = self.services.envelopes_tx.reserve().await.ok();
 
         relay_statsd::metric!(
             counter(RelayCounters::BufferReadyToPop) += 1,
-            status = "checked"
+            status = "checked",
+            partition_id = partition_tag
         );
 
         permit
@@ -225,6 +324,7 @@ impl EnvelopeBufferService {
 
     /// Tries to pop an envelope for a ready project.
     async fn try_pop<'a>(
+        partition_tag: &str,
         config: &Config,
         buffer: &mut PolymorphicEnvelopeBuffer,
         services: &Services,
@@ -234,10 +334,11 @@ impl EnvelopeBufferService {
             Peek::Empty => {
                 relay_statsd::metric!(
                     counter(RelayCounters::BufferTryPop) += 1,
-                    peek_result = "empty"
+                    peek_result = "empty",
+                    partition_id = partition_tag
                 );
 
-                Duration::MAX // wait for reset by `handle_message`.
+                DEFAULT_SLEEP // wait for reset by `handle_message`.
             }
             Peek::Ready { last_received_at }
             | Peek::NotReady {
@@ -256,7 +357,8 @@ impl EnvelopeBufferService {
                 relay_log::trace!("EnvelopeBufferService: popping envelope");
                 relay_statsd::metric!(
                     counter(RelayCounters::BufferTryPop) += 1,
-                    peek_result = "ready"
+                    peek_result = "ready",
+                    partition_id = partition_tag
                 );
                 let envelope = buffer
                     .pop()
@@ -274,7 +376,8 @@ impl EnvelopeBufferService {
                 relay_log::trace!("EnvelopeBufferService: project(s) of envelope not ready");
                 relay_statsd::metric!(
                     counter(RelayCounters::BufferTryPop) += 1,
-                    peek_result = "not_ready"
+                    peek_result = "not_ready",
+                    partition_id = partition_tag
                 );
 
                 // We want to fetch the configs again, only if some time passed between the last
@@ -316,6 +419,7 @@ impl EnvelopeBufferService {
     }
 
     async fn handle_message(
+        partition_tag: &str,
         buffer: &mut PolymorphicEnvelopeBuffer,
         services: &Services,
         message: EnvelopeBuffer,
@@ -334,7 +438,10 @@ impl EnvelopeBufferService {
                     "EnvelopeBufferService: received project not ready message for project key {}",
                     &project_key
                 );
-                relay_statsd::metric!(counter(RelayCounters::BufferEnvelopesReturned) += 1);
+                relay_statsd::metric!(
+                    counter(RelayCounters::BufferEnvelopesReturned) += 1,
+                    partition_id = partition_tag
+                );
                 Self::push(buffer, envelope).await;
                 let project = services.project_cache_handle.get(project_key);
                 buffer.mark_ready(&project_key, !project.state().is_pending());
@@ -397,11 +504,15 @@ impl Service for EnvelopeBufferService {
         let dequeue = Arc::<AtomicBool>::new(true.into());
         let dequeue1 = dequeue.clone();
 
-        let mut buffer = PolymorphicEnvelopeBuffer::from_config(&config, memory_checker)
-            .await
-            .expect("failed to start the envelope buffer service");
+        let mut buffer =
+            PolymorphicEnvelopeBuffer::from_config(self.partition_id, &config, memory_checker)
+                .await
+                .expect("failed to start the envelope buffer service");
 
         buffer.initialize().await;
+
+        // We convert the partition id to string to use it as a tag for all the metrics.
+        let partition_tag = self.partition_id.to_string();
 
         let mut shutdown = Controller::shutdown_handle();
         let mut project_changes = self.services.project_cache_handle.changes();
@@ -419,25 +530,26 @@ impl Service for EnvelopeBufferService {
             }
         });
 
-        relay_log::info!("EnvelopeBufferService: starting");
+        relay_log::info!("EnvelopeBufferService {}: starting", self.partition_id);
         loop {
             let used_capacity =
                 self.services.envelopes_tx.max_capacity() - self.services.envelopes_tx.capacity();
             relay_statsd::metric!(
-                histogram(RelayHistograms::BufferBackpressureEnvelopesCount) = used_capacity as u64
+                histogram(RelayHistograms::BufferBackpressureEnvelopesCount) = used_capacity as u64,
+                partition_id = &partition_tag,
             );
 
-            let mut sleep = Duration::MAX;
+            let mut sleep = DEFAULT_SLEEP;
             let start = Instant::now();
             tokio::select! {
                 // NOTE: we do not select a bias here.
                 // On the one hand, we might want to prioritize dequeuing over enqueuing
                 // so we do not exceed the buffer capacity by starving the dequeue.
                 // on the other hand, prioritizing old messages violates the LIFO design.
-                Some(permit) = self.ready_to_pop(&buffer, dequeue.load(Ordering::Relaxed)) => {
-                    relay_statsd::metric!(timer(RelayTimers::BufferIdle) = start.elapsed(), input = "pop");
-                    relay_statsd::metric!(timer(RelayTimers::BufferBusy), input = "pop", {
-                        match Self::try_pop(&config, &mut buffer, &services, permit).await {
+                Some(permit) = self.ready_to_pop(&partition_tag, &buffer, dequeue.load(Ordering::Relaxed)) => {
+                    relay_statsd::metric!(timer(RelayTimers::BufferIdle) = start.elapsed(), input = "pop", partition_id = &partition_tag);
+                    relay_statsd::metric!(timer(RelayTimers::BufferBusy), input = "pop", partition_id = &partition_tag, {
+                        match Self::try_pop(&partition_tag, &config, &mut buffer, &services, permit).await {
                             Ok(new_sleep) => {
                                 sleep = new_sleep;
                             }
@@ -450,8 +562,8 @@ impl Service for EnvelopeBufferService {
                     }});
                 }
                 change = project_changes.recv() => {
-                    relay_statsd::metric!(timer(RelayTimers::BufferIdle) = start.elapsed(), input = "project_change");
-                    relay_statsd::metric!(timer(RelayTimers::BufferBusy), input = "project_change", {
+                    relay_statsd::metric!(timer(RelayTimers::BufferIdle) = start.elapsed(), input = "project_change", partition_id = &partition_tag);
+                    relay_statsd::metric!(timer(RelayTimers::BufferBusy), input = "project_change", partition_id = &partition_tag, {
                         if let Ok(ProjectChange::Ready(project_key)) = change {
                             buffer.mark_ready(&project_key, true);
                         }
@@ -459,16 +571,16 @@ impl Service for EnvelopeBufferService {
                     });
                 }
                 Some(message) = rx.recv() => {
-                    relay_statsd::metric!(timer(RelayTimers::BufferIdle) = start.elapsed(), input = "handle_message");
+                    relay_statsd::metric!(timer(RelayTimers::BufferIdle) = start.elapsed(), input = "handle_message", partition_id = &partition_tag);
                     let message_name = message.name();
-                    relay_statsd::metric!(timer(RelayTimers::BufferBusy), input = message_name, {
-                        Self::handle_message(&mut buffer, &services, message).await;
+                    relay_statsd::metric!(timer(RelayTimers::BufferBusy), input = message_name, partition_id = &partition_tag, {
+                        Self::handle_message(&partition_tag, &mut buffer, &services, message).await;
                         sleep = Duration::ZERO;
                     });
                 }
                 shutdown = shutdown.notified() => {
-                    relay_statsd::metric!(timer(RelayTimers::BufferIdle) = start.elapsed(), input = "shutdown");
-                    relay_statsd::metric!(timer(RelayTimers::BufferBusy), input = "shutdown", {
+                    relay_statsd::metric!(timer(RelayTimers::BufferIdle) = start.elapsed(), input = "shutdown", partition_id = &partition_tag);
+                    relay_statsd::metric!(timer(RelayTimers::BufferBusy), input = "shutdown", partition_id = &partition_tag, {
                         // In case the shutdown was handled, we break out of the loop signaling that
                         // there is no need to process anymore envelopes.
                         if Self::handle_shutdown(&mut buffer, shutdown).await {
@@ -477,7 +589,7 @@ impl Service for EnvelopeBufferService {
                     });
                 }
                 Ok(()) = global_config_rx.changed() => {
-                    relay_statsd::metric!(timer(RelayTimers::BufferIdle) = start.elapsed(), input = "global_config_change");
+                    relay_statsd::metric!(timer(RelayTimers::BufferIdle) = start.elapsed(), input = "global_config_change", partition_id = &partition_tag);
                     sleep = Duration::ZERO;
 
                 }
@@ -488,7 +600,7 @@ impl Service for EnvelopeBufferService {
             self.update_observable_state(&mut buffer);
         }
 
-        relay_log::info!("EnvelopeBufferService: stopping");
+        relay_log::info!("EnvelopeBufferService {}: stopping", self.partition_id);
     }
 }
 
@@ -537,6 +649,7 @@ mod tests {
         let project_cache_handle = ProjectCacheHandle::for_test();
 
         let envelope_buffer_service = EnvelopeBufferService::new(
+            0,
             config,
             memory_stat,
             global_rx,
@@ -774,5 +887,78 @@ mod tests {
                 .count(),
             5
         );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_partitioned_buffer() {
+        let mut runner = ServiceRunner::new();
+        let (_global_tx, global_rx) = watch::channel(global_config::Status::Ready(Arc::new(
+            GlobalConfig::default(),
+        )));
+        let (envelopes_tx, mut envelopes_rx) = mpsc::channel(10);
+        let (outcome_aggregator, _outcome_rx) = Addr::custom();
+        let project_cache_handle = ProjectCacheHandle::for_test();
+
+        // Create common services for both buffers
+        let services = Services {
+            envelopes_tx,
+            project_cache_handle: project_cache_handle.clone(),
+            outcome_aggregator,
+            test_store: Addr::dummy(),
+        };
+
+        // Create two buffer services
+        let config = Arc::new(
+            Config::from_json_value(serde_json::json!({
+                "spool": {
+                    "envelopes": {
+                        "version": "experimental"
+                    }
+                }
+            }))
+            .unwrap(),
+        );
+
+        let buffer1 = EnvelopeBufferService::new(
+            0,
+            config.clone(),
+            MemoryStat::default(),
+            global_rx.clone(),
+            services.clone(),
+        )
+        .unwrap();
+
+        let buffer2 = EnvelopeBufferService::new(
+            1,
+            config.clone(),
+            MemoryStat::default(),
+            global_rx,
+            services,
+        )
+        .unwrap();
+
+        // Start both services and create partitioned buffer
+        let observable1 = buffer1.start_in(&mut runner);
+        let observable2 = buffer2.start_in(&mut runner);
+
+        let partitioned = PartitionedEnvelopeBuffer {
+            buffers: Arc::new(vec![observable1, observable2]),
+        };
+
+        // Create two envelopes with different project keys
+        let envelope1 = new_envelope(false, "foo");
+        let envelope2 = new_envelope(false, "bar");
+
+        // Send envelopes to their respective buffers
+        let buffer1 = &partitioned.buffers[0];
+        let buffer2 = &partitioned.buffers[1];
+
+        buffer1.addr().send(EnvelopeBuffer::Push(envelope1));
+        buffer2.addr().send(EnvelopeBuffer::Push(envelope2));
+
+        // Verify both envelopes were received
+        assert!(envelopes_rx.recv().await.is_some());
+        assert!(envelopes_rx.recv().await.is_some());
+        assert!(envelopes_rx.is_empty());
     }
 }
