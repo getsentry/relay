@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Report unhealthy when one of the services crashes. ([#4255](https://github.com/getsentry/relay/pull/4255))
+
 ## 24.11.1
 
 **Bug Fixes**:
@@ -27,7 +31,6 @@
 **Bug Fixes**:
 
 - Allow profile chunks without release. ([#4155](https://github.com/getsentry/relay/pull/4155))
-- Report unhealthy when one of the services crashes. ([#4249](https://github.com/getsentry/relay/pull/4249), [#4250](https://github.com/getsentry/relay/pull/4250))
 
 **Features**:
 
