@@ -8,7 +8,6 @@ use redis::cluster::{ClusterClient, ClusterClientBuilder};
 use redis::cluster_async::ClusterConnection;
 use redis::{
     AsyncConnectionConfig, Client, Cmd, ConnectionLike, ErrorKind, FromRedisValue, RedisResult,
-    Script,
 };
 use std::error::Error;
 use std::thread::Scope;
@@ -490,29 +489,6 @@ impl AsyncRedisPool {
             Self::Single(pool, ..) => {
                 let mut conn = pool.get().await.map_err(RedisError::AsyncPool)?;
                 cmd.query_async(&mut *conn).await.map_err(RedisError::Redis)
-            }
-        }
-    }
-
-    /// Forwards the [`Script`] to the pool and loads it asynchronously.
-    /// Returns the SHA1 hash of it.
-    pub async fn load_async(&self, script: &Script) -> Result<String, RedisError> {
-        match self {
-            Self::Cluster(pool, _options) => {
-                let mut conn = pool.get().await.map_err(RedisError::AsyncPool)?;
-                script
-                    .prepare_invoke()
-                    .load_async(&mut *conn)
-                    .await
-                    .map_err(RedisError::Redis)
-            }
-            Self::Single(pool, _options) => {
-                let mut conn = pool.get().await.map_err(RedisError::AsyncPool)?;
-                script
-                    .prepare_invoke()
-                    .load_async(&mut *conn)
-                    .await
-                    .map_err(RedisError::Redis)
             }
         }
     }

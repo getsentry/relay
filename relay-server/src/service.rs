@@ -168,9 +168,7 @@ impl ServiceState {
         // instances.
         #[cfg(feature = "processing")]
         if let Some(redis_pools) = &redis_pools {
-            initialize_redis_scripts_for_pools(redis_pools)
-                .await
-                .context(ServiceError::Redis)?;
+            initialize_redis_scripts_for_pools(redis_pools).context(ServiceError::Redis)?;
         }
 
         // We create an instance of `MemoryStat` which can be supplied composed with any arbitrary
@@ -442,7 +440,7 @@ fn create_redis_pool(redis_config: RedisConfigRef) -> Result<RedisPool, RedisErr
 ///
 /// If `configs` is [`Unified`](RedisPoolConfigs::Unified), one pool is created and then cloned
 /// for cardinality and quotas, meaning that they really use the same pool.
-/// `project_config` uses an async pool so it cannot be shared with the other two
+/// `project_config` uses an async pool so it cannot be shared with the other two.
 ///
 /// If it is [`Individual`](RedisPoolConfigs::Individual), an actual separate pool
 /// is created for each use case.
@@ -496,7 +494,7 @@ async fn create_async_pool(config: &RedisConfigRef<'_>) -> Result<AsyncRedisPool
 }
 
 #[cfg(feature = "processing")]
-async fn initialize_redis_scripts_for_pools(redis_pools: &RedisPools) -> Result<(), RedisError> {
+fn initialize_redis_scripts_for_pools(redis_pools: &RedisPools) -> Result<(), RedisError> {
     let cardinality = redis_pools.cardinality.client()?;
     let quotas = redis_pools.quotas.client()?;
 
@@ -506,7 +504,6 @@ async fn initialize_redis_scripts_for_pools(redis_pools: &RedisPools) -> Result<
     for pool in pools {
         initialize_redis_scripts(pool, &scripts)?;
     }
-    initialize_redis_script_async(&redis_pools.project_configs, &scripts).await?;
 
     Ok(())
 }
@@ -527,17 +524,6 @@ fn initialize_redis_scripts(
             .map_err(RedisError::Redis)?;
     }
 
-    Ok(())
-}
-
-#[cfg(feature = "processing")]
-async fn initialize_redis_script_async(
-    pool: &AsyncRedisPool,
-    scripts: &[&Script; 3],
-) -> Result<(), RedisError> {
-    for script in scripts {
-        pool.load_async(script).await?;
-    }
     Ok(())
 }
 
