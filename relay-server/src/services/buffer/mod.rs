@@ -758,7 +758,7 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn precondition_no_future() {
+    async fn precondition_no_poll() {
         let started = AtomicUsize::new(0);
         let do_something = || async {
             started.fetch_add(1, Ordering::Relaxed);
