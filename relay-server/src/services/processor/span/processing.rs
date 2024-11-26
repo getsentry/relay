@@ -604,7 +604,10 @@ fn normalize(
         }
 
         if let Some(profile_id) = match data.other.get("profile_id") {
-            Some(Annotated(Some(Value::String(profile_id)), _)) => profile_id.parse().map(|profile_id| EventId(profile_id)).ok(),
+            Some(Annotated(Some(Value::String(profile_id)), _)) => profile_id
+                .parse()
+                .map(|profile_id| EventId(profile_id))
+                .ok(),
             _ => None,
         } {
             data.other.remove("profile_id");
@@ -1331,8 +1334,6 @@ mod tests {
 
     #[test]
     fn normalize_inp_spans() {
-        /*
-        */
         let mut span = Annotated::from_json(
             r#"{
               "data": {
@@ -1372,6 +1373,9 @@ mod tests {
         assert!(!data.other.contains_key("sentry.exclusive_time"));
         assert!(!data.other.contains_key("profile_id"));
 
-        assert_eq!(get_value!(span.profile_id!), &EventId("480ffcc911174ade9106b40ffbd822f5".parse().unwrap()));
+        assert_eq!(
+            get_value!(span.profile_id!),
+            &EventId("480ffcc911174ade9106b40ffbd822f5".parse().unwrap())
+        );
     }
 }
