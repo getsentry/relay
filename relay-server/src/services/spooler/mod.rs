@@ -1009,7 +1009,7 @@ impl BufferService {
         memory_checker: MemoryChecker,
     ) -> Result<Option<OnDisk>, BufferError> {
         // Only if persistent envelopes buffer file path provided, we create the pool and set the config.
-        let Some(path) = config.spool_envelopes_path() else {
+        let Some(path) = config.spool_envelopes_path(0) else {
             return Ok(None);
         };
 

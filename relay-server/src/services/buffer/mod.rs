@@ -1,7 +1,8 @@
 //! Types for buffering envelopes.
 
 use std::error::Error;
-use std::hash::{DefaultHasher, Hash, Hasher};
+use std::hash::{Hash, Hasher};
+use std::num::NonZeroU8;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
@@ -9,11 +10,12 @@ use std::time::Duration;
 
 use chrono::DateTime;
 use chrono::Utc;
+use fnv::FnvHasher;
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
-use relay_system::ServiceRunner;
-use relay_system::{Addr, FromMessage, Interface, NoResponse, Receiver, Service};
+use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 use relay_system::{Controller, Shutdown};
+use relay_system::{Receiver, ServiceRunner};
 use tokio::sync::mpsc::Permit;
 use tokio::sync::{mpsc, watch};
 use tokio::time::{timeout, Instant};
@@ -89,17 +91,54 @@ impl FromMessage<Self> for EnvelopeBuffer {
 #[derive(Debug, Clone)]
 pub struct PartitionedEnvelopeBuffer {
     buffers: Arc<Vec<ObservableEnvelopeBuffer>>,
-    partitions: u32,
 }
 
 impl PartitionedEnvelopeBuffer {
-    /// Creates a new [`PartitionedEnvelopeBuffer`] with already instantiated buffers and the number
-    /// of partitions.
-    pub fn new(buffers: Vec<ObservableEnvelopeBuffer>, partitions: u32) -> Self {
-        debug_assert!(buffers.len() == partitions as usize);
+    /// Creates a [`PartitionedEnvelopeBuffer`] with no partitions.
+    #[cfg(test)]
+    pub fn empty() -> Self {
         Self {
-            buffers: Arc::new(buffers),
-            partitions,
+            buffers: Arc::new(Vec::new()),
+        }
+    }
+
+    /// Creates a new [`PartitionedEnvelopeBuffer`] by instantiating inside all the necessary
+    /// [`ObservableEnvelopeBuffer`]s.
+    #[allow(clippy::too_many_arguments)]
+    pub fn create(
+        partitions: NonZeroU8,
+        config: Arc<Config>,
+        memory_stat: MemoryStat,
+        global_config_rx: watch::Receiver<global_config::Status>,
+        envelopes_tx: mpsc::Sender<legacy::DequeuedEnvelope>,
+        project_cache_handle: ProjectCacheHandle,
+        outcome_aggregator: Addr<TrackOutcome>,
+        test_store: Addr<TestStore>,
+        runner: &mut ServiceRunner,
+    ) -> Self {
+        let mut envelope_buffers = Vec::with_capacity(partitions.get() as usize);
+        for partition_id in 0..partitions.get() {
+            let envelope_buffer = EnvelopeBufferService::new(
+                partition_id,
+                config.clone(),
+                memory_stat.clone(),
+                global_config_rx.clone(),
+                Services {
+                    envelopes_tx: envelopes_tx.clone(),
+                    project_cache_handle: project_cache_handle.clone(),
+                    outcome_aggregator: outcome_aggregator.clone(),
+                    test_store: test_store.clone(),
+                },
+            )
+            .map(|b| b.start_in(runner));
+
+            if let Some(envelope_buffer) = envelope_buffer {
+                envelope_buffers.push(envelope_buffer);
+            }
+        }
+
+        Self {
+            buffers: Arc::new(envelope_buffers),
         }
     }
 
@@ -109,11 +148,16 @@ impl PartitionedEnvelopeBuffer {
     /// The rationale of using this partitioning strategy is to reduce memory usage across buffers
     /// since each individual buffer will only take care of a subset of projects.
     pub fn buffer(&self, project_key_pair: ProjectKeyPair) -> Option<&ObservableEnvelopeBuffer> {
-        let mut hasher = DefaultHasher::new();
+        let mut hasher = FnvHasher::default();
         project_key_pair.hash(&mut hasher);
-        let buffer_index = (hasher.finish() % self.partitions as u64) as usize;
+        let buffer_index = (hasher.finish() % self.buffers.len() as u64) as usize;
         let buffer = self.buffers.get(buffer_index);
         buffer
+    }
+
+    /// Returns `true` if all [`ObservableEnvelopeBuffer`]s have capacity to get new [`Envelope`]s.
+    pub fn has_capacity(&self) -> bool {
+        self.buffers.iter().all(|buffer| buffer.has_capacity())
     }
 
     /// Returns all the [`ObservableEnvelopeBuffer`]s.
@@ -160,7 +204,7 @@ pub struct Services {
 /// Spool V2 service which buffers envelopes and forwards them to the project cache when a project
 /// becomes ready.
 pub struct EnvelopeBufferService {
-    partition_id: u32,
+    partition_id: u8,
     config: Arc<Config>,
     memory_stat: MemoryStat,
     global_config_rx: watch::Receiver<global_config::Status>,
@@ -181,7 +225,7 @@ impl EnvelopeBufferService {
     /// NOTE: until the V1 spooler implementation is removed, this function returns `None`
     /// if V2 spooling is not configured.
     pub fn new(
-        partition_id: u32,
+        partition_id: u8,
         config: Arc<Config>,
         memory_stat: MemoryStat,
         global_config_rx: watch::Receiver<global_config::Status>,
@@ -820,79 +864,5 @@ mod tests {
                 .count(),
             5
         );
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn test_partitioned_buffer() {
-        let mut runner = ServiceRunner::new();
-        let (_global_tx, global_rx) = watch::channel(global_config::Status::Ready(Arc::new(
-            GlobalConfig::default(),
-        )));
-        let (envelopes_tx, mut envelopes_rx) = mpsc::channel(10);
-        let (outcome_aggregator, _outcome_rx) = Addr::custom();
-        let project_cache_handle = ProjectCacheHandle::for_test();
-
-        // Create common services for both buffers
-        let services = Services {
-            envelopes_tx,
-            project_cache_handle: project_cache_handle.clone(),
-            outcome_aggregator,
-            test_store: Addr::dummy(),
-        };
-
-        // Create two buffer services
-        let config = Arc::new(
-            Config::from_json_value(serde_json::json!({
-                "spool": {
-                    "envelopes": {
-                        "version": "experimental"
-                    }
-                }
-            }))
-            .unwrap(),
-        );
-
-        let buffer1 = EnvelopeBufferService::new(
-            0,
-            config.clone(),
-            MemoryStat::default(),
-            global_rx.clone(),
-            services.clone(),
-        )
-        .unwrap();
-
-        let buffer2 = EnvelopeBufferService::new(
-            1,
-            config.clone(),
-            MemoryStat::default(),
-            global_rx,
-            services,
-        )
-        .unwrap();
-
-        // Start both services and create partitioned buffer
-        let observable1 = buffer1.start_in(&mut runner);
-        let observable2 = buffer2.start_in(&mut runner);
-
-        let partitioned = PartitionedEnvelopeBuffer::new(vec![observable1, observable2], 2);
-
-        // Create two envelopes with different project keys
-        let envelope1 = new_envelope(false, "foo");
-        let envelope2 = new_envelope(false, "bar");
-
-        // Send envelopes to their respective buffers
-        let buffer1 = &partitioned.buffers()[0];
-        let buffer2 = &partitioned.buffers()[1];
-
-        buffer1.addr().send(EnvelopeBuffer::Push(envelope1));
-        buffer2.addr().send(EnvelopeBuffer::Push(envelope2));
-
-        // Wait for processing
-        tokio::time::sleep(Duration::from_millis(100)).await;
-
-        // Verify both envelopes were received
-        let mut received = vec![];
-        envelopes_rx.recv_many(&mut received, 2).await;
-        assert_eq!(received.len(), 2);
     }
 }

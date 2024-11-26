@@ -54,11 +54,11 @@ impl PolymorphicEnvelopeBuffer {
     /// Creates either a memory-based or a disk-based envelope buffer,
     /// depending on the given configuration.
     pub async fn from_config(
-        partition_id: u32,
+        partition_id: u8,
         config: &Config,
         memory_checker: MemoryChecker,
     ) -> Result<Self, EnvelopeBufferError> {
-        let buffer = if config.spool_envelopes_path().is_some() {
+        let buffer = if config.spool_envelopes_path(partition_id).is_some() {
             relay_log::trace!("PolymorphicEnvelopeBuffer: initializing sqlite envelope buffer");
             let buffer = EnvelopeBuffer::<SqliteStackProvider>::new(partition_id, config).await?;
             Self::Sqlite(buffer)
@@ -233,7 +233,7 @@ impl EnvelopeBuffer<MemoryStackProvider> {
 #[allow(dead_code)]
 impl EnvelopeBuffer<SqliteStackProvider> {
     /// Creates an empty sqlite-based buffer.
-    pub async fn new(partition_id: u32, config: &Config) -> Result<Self, EnvelopeBufferError> {
+    pub async fn new(partition_id: u8, config: &Config) -> Result<Self, EnvelopeBufferError> {
         Ok(Self {
             stacks_by_project: Default::default(),
             priority_queue: Default::default(),
