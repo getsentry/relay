@@ -1,3 +1,13 @@
+use std::collections::{BTreeMap, HashMap};
+use std::error::Error;
+use std::io::Write;
+use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
+use std::num::NonZeroU8;
+use std::path::{Path, PathBuf};
+use std::str::FromStr;
+use std::time::Duration;
+use std::{env, fmt, fs, io};
+
 use anyhow::Context;
 use relay_auth::{generate_key_pair, generate_relay_id, PublicKey, RelayId, SecretKey};
 use relay_common::Dsn;
@@ -9,15 +19,6 @@ use relay_metrics::aggregator::{AggregatorConfig, FlushBatching};
 use relay_metrics::MetricNamespace;
 use serde::de::{DeserializeOwned, Unexpected, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::collections::{BTreeMap, HashMap};
-use std::error::Error;
-use std::io::Write;
-use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
-use std::num::NonZeroU8;
-use std::path::{Path, PathBuf};
-use std::str::FromStr;
-use std::time::Duration;
-use std::{env, fmt, fs, io};
 use uuid::Uuid;
 
 use crate::aggregator::{AggregatorServiceConfig, ScopedAggregatorConfig};
