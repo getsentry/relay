@@ -331,7 +331,7 @@ pub fn manage_spool(config: &Config, matches: &ArgMatches) -> Result<()> {
     let path = match matches.get_one::<PathBuf>("path") {
         Some(path) => path.to_owned(),
         None => config
-            .spool_envelopes_path()
+            .spool_envelopes_path(0)
             .context("Config file does not contain the path to the spool file.")?,
     };
 

@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 use std::io::Write;
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
+use std::num::NonZeroU8;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::time::Duration;
@@ -912,8 +913,8 @@ fn spool_max_backpressure_memory_percent() -> f32 {
 }
 
 /// Default number of partitions for the buffer.
-fn spool_envelopes_partitions() -> u32 {
-    1
+fn spool_envelopes_partitions() -> NonZeroU8 {
+    NonZeroU8::new(1).unwrap()
 }
 
 /// Persistent buffering configuration for incoming envelopes.
@@ -973,7 +974,7 @@ pub struct EnvelopeSpool {
     max_backpressure_memory_percent: f32,
     /// Number of partitions of the buffer.
     #[serde(default = "spool_envelopes_partitions")]
-    partitions: u32,
+    partitions: NonZeroU8,
     /// Version of the spooler.
     #[serde(default)]
     version: EnvelopeSpoolVersion,
@@ -2151,13 +2152,27 @@ impl Config {
     }
 
     /// Returns the path of the buffer file if the `cache.persistent_envelope_buffer.path` is configured.
-    pub fn spool_envelopes_path(&self) -> Option<PathBuf> {
-        self.values
+    ///
+    /// In case a partition with id > 0 is supplied, the filename of the envelopes path will be
+    /// suffixed with `.partition_id`.
+    pub fn spool_envelopes_path(&self, partition_id: u8) -> Option<PathBuf> {
+        let mut path = self
+            .values
             .spool
             .envelopes
             .path
             .as_ref()
-            .map(|path| path.to_owned())
+            .map(|path| path.to_owned())?;
+
+        if partition_id == 0 {
+            return Some(path);
+        }
+
+        let file_name = path.file_name().and_then(|f| f.to_str())?;
+        let new_file_name = format!("{}.{}", file_name, partition_id,);
+        path.set_file_name(new_file_name);
+
+        Some(path)
     }
 
     /// Maximum number of connections to create to buffer file.
@@ -2220,7 +2235,7 @@ impl Config {
     }
 
     /// Returns the number of partitions for the buffer.
-    pub fn spool_partitions(&self) -> u32 {
+    pub fn spool_partitions(&self) -> NonZeroU8 {
         self.values.spool.envelopes.partitions
     }
 

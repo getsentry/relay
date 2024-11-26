@@ -86,7 +86,7 @@ pub struct HealthCheckService {
     memory_checker: MemoryChecker,
     aggregator: RouterHandle,
     upstream_relay: Addr<UpstreamRelay>,
-    partitioned_buffer: PartitionedEnvelopeBuffer,
+    envelope_buffer: PartitionedEnvelopeBuffer,
 }
 
 impl HealthCheckService {
@@ -96,14 +96,14 @@ impl HealthCheckService {
         memory_checker: MemoryChecker,
         aggregator: RouterHandle,
         upstream_relay: Addr<UpstreamRelay>,
-        partitioned_buffer: PartitionedEnvelopeBuffer,
+        envelope_buffer: PartitionedEnvelopeBuffer,
     ) -> Self {
         Self {
             config,
             memory_checker,
             aggregator,
             upstream_relay,
-            partitioned_buffer,
+            envelope_buffer,
         }
     }
 
@@ -149,18 +149,7 @@ impl HealthCheckService {
     }
 
     async fn spool_health_probe(&self) -> Status {
-        let buffers = self.partitioned_buffer.buffers();
-        // If no buffer is supplied, we assume it's healthy.
-        let all_have_capacity = if buffers.is_empty() {
-            true
-        } else {
-            self.partitioned_buffer
-                .buffers()
-                .iter()
-                .all(|buffer| buffer.has_capacity())
-        };
-
-        match all_have_capacity {
+        match self.envelope_buffer.has_capacity() {
             true => Status::Healthy,
             false => Status::Unhealthy,
         }
