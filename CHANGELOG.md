@@ -16,6 +16,7 @@
 **Internal**:
 
 - Remove metrics summaries. ([#4278](https://github.com/getsentry/relay/pull/4278), [#4279](https://github.com/getsentry/relay/pull/4279))
+- Use async `redis` for `projectconfig`. ([#4284](https://github.com/getsentry/relay/pull/4284))
 
 ## 24.11.0
 
