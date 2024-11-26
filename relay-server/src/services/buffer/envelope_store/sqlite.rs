@@ -181,9 +181,6 @@ pub enum SqliteEnvelopeStoreError {
     #[error("no file path for the spool was provided")]
     NoFilePath,
 
-    #[error("no file name for the spool was provided")]
-    NoFileName,
-
     #[error("failed to migrate the database: {0}")]
     MigrationError(MigrateError),
 
