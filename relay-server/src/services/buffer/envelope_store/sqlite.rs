@@ -426,10 +426,12 @@ impl SqliteEnvelopeStore {
             .bind(count as u16)
             .bind(encoded);
 
-        query
-            .execute(&self.db)
-            .await
-            .map_err(SqliteEnvelopeStoreError::WriteError)?;
+        relay_statsd::metric!(timer(RelayTimers::BufferSqlWrite), {
+            query
+                .execute(&self.db)
+                .await
+                .map_err(SqliteEnvelopeStoreError::WriteError)?;
+        });
         Ok(())
     }
 
