@@ -171,6 +171,14 @@
 <a href="#171" id="171">171</a>
 <a href="#172" id="172">172</a>
 <a href="#173" id="173">173</a>
+<a href="#174" id="174">174</a>
+<a href="#175" id="175">175</a>
+<a href="#176" id="176">176</a>
+<a href="#177" id="177">177</a>
+<a href="#178" id="178">178</a>
+<a href="#179" id="179">179</a>
+<a href="#180" id="180">180</a>
+<a href="#181" id="181">181</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::error::Error;
 
 <span class="kw">use </span>relay_config::Config;
@@ -191,6 +199,7 @@
     envelope_store: SqliteEnvelopeStore,
     batch_size_bytes: usize,
     max_disk_size: usize,
+    partition_id: u8,
 }
 
 <span class="attr">#[warn(dead_code)]
@@ -202,6 +211,7 @@
             envelope_store,
             batch_size_bytes: config.spool_envelopes_batch_size_bytes(),
             max_disk_size: config.spool_envelopes_max_disk_size(),
+            partition_id,
         })
     }
 
@@ -233,6 +243,7 @@
         project_key_pair: ProjectKeyPair,
     ) -&gt; <span class="self">Self</span>::Stack {
         <span class="kw">let </span>inner = SqliteEnvelopeStack::new(
+            <span class="self">self</span>.partition_id,
             <span class="self">self</span>.envelope_store.clone(),
             <span class="self">self</span>.batch_size_bytes,
             project_key_pair.own_key,
@@ -273,11 +284,16 @@
     <span class="kw">async fn </span>flush(<span class="kw-2">&amp;mut </span><span class="self">self</span>, envelope_stacks: <span class="kw">impl </span>IntoIterator&lt;Item = <span class="self">Self</span>::Stack&gt;) {
         <span class="macro">relay_log::trace!</span>(<span class="string">"Flushing sqlite envelope buffer"</span>);
 
-        <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::BufferDrain), {
-            <span class="kw">for </span>envelope_stack <span class="kw">in </span>envelope_stacks {
-                envelope_stack.flush().<span class="kw">await</span>;
+        <span class="kw">let </span>partition_tag = <span class="self">self</span>.partition_id.to_string();
+        <span class="macro">relay_statsd::metric!</span>(
+            timer(RelayTimers::BufferDrain),
+            partition_id = <span class="kw-2">&amp;</span>partition_tag,
+            {
+                <span class="kw">for </span>envelope_stack <span class="kw">in </span>envelope_stacks {
+                    envelope_stack.flush().<span class="kw">await</span>;
+                }
             }
-        });
+        );
     }
 }
 

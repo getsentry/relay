@@ -838,6 +838,26 @@
 <a href="#838" id="838">838</a>
 <a href="#839" id="839">839</a>
 <a href="#840" id="840">840</a>
+<a href="#841" id="841">841</a>
+<a href="#842" id="842">842</a>
+<a href="#843" id="843">843</a>
+<a href="#844" id="844">844</a>
+<a href="#845" id="845">845</a>
+<a href="#846" id="846">846</a>
+<a href="#847" id="847">847</a>
+<a href="#848" id="848">848</a>
+<a href="#849" id="849">849</a>
+<a href="#850" id="850">850</a>
+<a href="#851" id="851">851</a>
+<a href="#852" id="852">852</a>
+<a href="#853" id="853">853</a>
+<a href="#854" id="854">854</a>
+<a href="#855" id="855">855</a>
+<a href="#856" id="856">856</a>
+<a href="#857" id="857">857</a>
+<a href="#858" id="858">858</a>
+<a href="#859" id="859">859</a>
+<a href="#860" id="860">860</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::io::{ErrorKind, Read};
 <span class="kw">use </span>std::path::Path;
 <span class="kw">use </span>std::sync::atomic::{AtomicU64, Ordering};
@@ -1039,27 +1059,29 @@
     db: Pool&lt;Sqlite&gt;,
     last_known_usage: Arc&lt;AtomicU64&gt;,
     refresh_frequency: Duration,
+    partition_tag: String,
 }
 
 <span class="kw">impl </span>DiskUsage {
     <span class="doccomment">/// Creates a new empty [`DiskUsage`].
-    </span><span class="kw">fn </span>new(db: Pool&lt;Sqlite&gt;, refresh_frequency: Duration) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">fn </span>new(partition_id: u8, db: Pool&lt;Sqlite&gt;, refresh_frequency: Duration) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             db,
             last_known_usage: Arc::new(AtomicU64::new(<span class="number">0</span>)),
             refresh_frequency,
+            partition_tag: partition_id.to_string(),
         }
     }
 
     <span class="doccomment">/// Prepares a [`DiskUsage`] instance with an initial reading of the database usage and fails
     /// if not reading can be made.
     </span><span class="kw">pub async fn </span>prepare(
+        partition_id: u8,
         db: Pool&lt;Sqlite&gt;,
         refresh_frequency: Duration,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, SqliteEnvelopeStoreError&gt; {
-        <span class="kw">let </span>usage = <span class="self">Self</span>::estimate_usage(<span class="kw-2">&amp;</span>db).<span class="kw">await</span><span class="question-mark">?</span>;
-
-        <span class="kw">let </span>disk_usage = <span class="self">Self</span>::new(db, refresh_frequency);
+        <span class="kw">let </span>disk_usage = <span class="self">Self</span>::new(partition_id, db.clone(), refresh_frequency);
+        <span class="kw">let </span>usage = <span class="self">Self</span>::estimate_usage(<span class="kw-2">&amp;</span>disk_usage.partition_tag, <span class="kw-2">&amp;</span>db).<span class="kw">await</span><span class="question-mark">?</span>;
         disk_usage.last_known_usage.store(usage, Ordering::Relaxed);
         disk_usage.start_background_refresh();
 
@@ -1080,6 +1102,7 @@
         </span><span class="kw">let </span>last_known_usage_weak = Arc::downgrade(<span class="kw-2">&amp;</span><span class="self">self</span>.last_known_usage);
         <span class="kw">let </span>refresh_frequency = <span class="self">self</span>.refresh_frequency;
 
+        <span class="kw">let </span>partition_tag = <span class="self">self</span>.partition_tag.clone();
         <span class="macro">relay_system::spawn!</span>(<span class="kw">async move </span>{
             <span class="kw">loop </span>{
                 <span class="comment">// When our `Weak` reference can't be upgraded to an `Arc`, it means that the value
@@ -1088,7 +1111,7 @@
                     <span class="kw">break</span>;
                 };
 
-                <span class="kw">let </span>usage = <span class="self">Self</span>::estimate_usage(<span class="kw-2">&amp;</span>db).<span class="kw">await</span>;
+                <span class="kw">let </span>usage = <span class="self">Self</span>::estimate_usage(<span class="kw-2">&amp;</span>partition_tag, <span class="kw-2">&amp;</span>db).<span class="kw">await</span>;
                 <span class="kw">let </span><span class="prelude-val">Ok</span>(usage) = usage <span class="kw">else </span>{
                     <span class="macro">relay_log::error!</span>(<span class="string">"failed to update the disk usage asynchronously"</span>);
                     <span class="kw">return</span>;
@@ -1108,14 +1131,20 @@
     }
 
     <span class="doccomment">/// Estimates the disk usage of the SQLite database.
-    </span><span class="kw">async fn </span>estimate_usage(db: <span class="kw-2">&amp;</span>Pool&lt;Sqlite&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;u64, SqliteEnvelopeStoreError&gt; {
+    </span><span class="kw">async fn </span>estimate_usage(
+        partition_tag: <span class="kw-2">&amp;</span>str,
+        db: <span class="kw-2">&amp;</span>Pool&lt;Sqlite&gt;,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;u64, SqliteEnvelopeStoreError&gt; {
         <span class="kw">let </span>usage: i64 = build_estimate_size()
             .fetch_one(db)
             .<span class="kw">await
             </span>.and_then(|r| r.try_get(<span class="number">0</span>))
             .map_err(SqliteEnvelopeStoreError::FileSizeReadFailed)<span class="question-mark">?</span>;
 
-        <span class="macro">relay_statsd::metric!</span>(gauge(RelayGauges::BufferDiskUsed) = usage <span class="kw">as </span>u64);
+        <span class="macro">relay_statsd::metric!</span>(
+            gauge(RelayGauges::BufferDiskUsed) = usage <span class="kw">as </span>u64,
+            partition_id = partition_tag
+        );
 
         <span class="prelude-val">Ok</span>(usage <span class="kw">as </span>u64)
     }
@@ -1129,14 +1158,16 @@
 </span><span class="kw">pub struct </span>SqliteEnvelopeStore {
     db: Pool&lt;Sqlite&gt;,
     disk_usage: DiskUsage,
+    partition_tag: String,
 }
 
 <span class="kw">impl </span>SqliteEnvelopeStore {
     <span class="doccomment">/// Initializes the [`SqliteEnvelopeStore`] with a supplied [`Pool`].
-    </span><span class="kw">pub fn </span>new(db: Pool&lt;Sqlite&gt;, refresh_frequency: Duration) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>new(partition_id: u8, db: Pool&lt;Sqlite&gt;, refresh_frequency: Duration) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             db: db.clone(),
-            disk_usage: DiskUsage::new(db, refresh_frequency),
+            disk_usage: DiskUsage::new(partition_id, db, refresh_frequency),
+            partition_tag: partition_id.to_string(),
         }
     }
 
@@ -1190,8 +1221,13 @@
 
         <span class="prelude-val">Ok</span>(SqliteEnvelopeStore {
             db: db.clone(),
-            disk_usage: DiskUsage::prepare(db, config.spool_disk_usage_refresh_frequency_ms())
-                .<span class="kw">await</span><span class="question-mark">?</span>,
+            disk_usage: DiskUsage::prepare(
+                partition_id,
+                db,
+                config.spool_disk_usage_refresh_frequency_ms(),
+            )
+            .<span class="kw">await</span><span class="question-mark">?</span>,
+            partition_tag: partition_id.to_string(),
         })
     }
 
@@ -1269,12 +1305,16 @@
             .bind(count <span class="kw">as </span>u16)
             .bind(encoded);
 
-        <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::BufferSqlWrite), {
-            query
-                .execute(<span class="kw-2">&amp;</span><span class="self">self</span>.db)
-                .<span class="kw">await
-                </span>.map_err(SqliteEnvelopeStoreError::WriteError)<span class="question-mark">?</span>;
-        });
+        <span class="macro">relay_statsd::metric!</span>(
+            timer(RelayTimers::BufferSqlWrite),
+            partition_id = <span class="kw-2">&amp;</span><span class="self">self</span>.partition_tag,
+            {
+                query
+                    .execute(<span class="kw-2">&amp;</span><span class="self">self</span>.db)
+                    .<span class="kw">await
+                    </span>.map_err(SqliteEnvelopeStoreError::WriteError)<span class="question-mark">?</span>;
+            }
+        );
         <span class="prelude-val">Ok</span>(())
     }
 
@@ -1490,7 +1530,7 @@
     <span class="attr">#[tokio::test]
     </span><span class="kw">async fn </span>test_insert_and_delete_envelopes() {
         <span class="kw">let </span>db = setup_db(<span class="bool-val">true</span>).<span class="kw">await</span>;
-        <span class="kw">let </span><span class="kw-2">mut </span>envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(<span class="number">100</span>));
+        <span class="kw">let </span><span class="kw-2">mut </span>envelope_store = SqliteEnvelopeStore::new(<span class="number">0</span>, db, Duration::from_millis(<span class="number">100</span>));
 
         <span class="kw">let </span>own_key = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap();
         <span class="kw">let </span>sampling_key = ProjectKey::parse(<span class="string">"b81ae32be2584e0bbd7a4cbb95971fe1"</span>).unwrap();
@@ -1550,7 +1590,7 @@
     <span class="attr">#[tokio::test]
     </span><span class="kw">async fn </span>test_insert_and_delete_single() {
         <span class="kw">let </span>db = setup_db(<span class="bool-val">true</span>).<span class="kw">await</span>;
-        <span class="kw">let </span><span class="kw-2">mut </span>envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(<span class="number">100</span>));
+        <span class="kw">let </span><span class="kw-2">mut </span>envelope_store = SqliteEnvelopeStore::new(<span class="number">0</span>, db, Duration::from_millis(<span class="number">100</span>));
 
         <span class="kw">let </span>own_key = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap();
         <span class="kw">let </span>sampling_key = ProjectKey::parse(<span class="string">"b81ae32be2584e0bbd7a4cbb95971fe1"</span>).unwrap();
@@ -1594,7 +1634,7 @@
     <span class="attr">#[tokio::test]
     </span><span class="kw">async fn </span>test_insert_and_get_project_keys_pairs() {
         <span class="kw">let </span>db = setup_db(<span class="bool-val">true</span>).<span class="kw">await</span>;
-        <span class="kw">let </span><span class="kw-2">mut </span>envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(<span class="number">100</span>));
+        <span class="kw">let </span><span class="kw-2">mut </span>envelope_store = SqliteEnvelopeStore::new(<span class="number">0</span>, db, Duration::from_millis(<span class="number">100</span>));
 
         <span class="kw">let </span>own_key = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap();
         <span class="kw">let </span>sampling_key = ProjectKey::parse(<span class="string">"b81ae32be2584e0bbd7a4cbb95971fe1"</span>).unwrap();
@@ -1626,8 +1666,8 @@
     <span class="attr">#[tokio::test]
     </span><span class="kw">async fn </span>test_estimate_disk_usage() {
         <span class="kw">let </span>db = setup_db(<span class="bool-val">true</span>).<span class="kw">await</span>;
-        <span class="kw">let </span><span class="kw-2">mut </span>store = SqliteEnvelopeStore::new(db.clone(), Duration::from_millis(<span class="number">1</span>));
-        <span class="kw">let </span>disk_usage = DiskUsage::prepare(db, Duration::from_millis(<span class="number">1</span>))
+        <span class="kw">let </span><span class="kw-2">mut </span>store = SqliteEnvelopeStore::new(<span class="number">0</span>, db.clone(), Duration::from_millis(<span class="number">1</span>));
+        <span class="kw">let </span>disk_usage = DiskUsage::prepare(<span class="number">0</span>, db, Duration::from_millis(<span class="number">1</span>))
             .<span class="kw">await
             </span>.unwrap();
 
@@ -1660,7 +1700,7 @@
     <span class="attr">#[tokio::test]
     </span><span class="kw">async fn </span>test_total_count() {
         <span class="kw">let </span>db = setup_db(<span class="bool-val">true</span>).<span class="kw">await</span>;
-        <span class="kw">let </span><span class="kw-2">mut </span>store = SqliteEnvelopeStore::new(db.clone(), Duration::from_millis(<span class="number">1</span>));
+        <span class="kw">let </span><span class="kw-2">mut </span>store = SqliteEnvelopeStore::new(<span class="number">0</span>, db.clone(), Duration::from_millis(<span class="number">1</span>));
 
         <span class="kw">let </span>envelopes = mock_envelopes(<span class="number">10</span>);
         store
