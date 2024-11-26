@@ -891,7 +891,6 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn test_partitioned_buffer() {
-        relay_log::init_test!();
         let mut runner = ServiceRunner::new();
         let (_global_tx, global_rx) = watch::channel(global_config::Status::Ready(Arc::new(
             GlobalConfig::default(),
@@ -957,12 +956,12 @@ mod tests {
         buffer1.addr().send(EnvelopeBuffer::Push(envelope1));
         buffer2.addr().send(EnvelopeBuffer::Push(envelope2));
 
-        // Verify 2 envelopes were received
-        assert!(envelopes_rx.recv().await.is_some());
-        assert!(envelopes_rx.recv().await.is_some());
+        // Wait for processing
+        tokio::time::sleep(Duration::from_secs(1)).await;
 
-        // Would be nice to join on the buffers here and assert that the channel is closed,
-        // but our service framework currently does not support local shutdown signals.
-        assert!(envelopes_rx.is_empty());
+        // Verify both envelopes were received
+        let mut received = vec![];
+        envelopes_rx.recv_many(&mut received, 2).await;
+        assert_eq!(received.len(), 2);
     }
 }
