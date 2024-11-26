@@ -6,7 +6,7 @@ use std::future::Future;
 use tokio::sync::watch;
 use tokio::time::{timeout, Instant};
 
-use crate::services::buffer::ShardedEnvelopeBuffer;
+use crate::services::buffer::PartitionedEnvelopeBuffer;
 use crate::services::metrics::RouterHandle;
 use crate::services::upstream::{IsAuthenticated, UpstreamRelay};
 use crate::statsd::RelayTimers;
@@ -86,7 +86,7 @@ pub struct HealthCheckService {
     memory_checker: MemoryChecker,
     aggregator: RouterHandle,
     upstream_relay: Addr<UpstreamRelay>,
-    sharded_buffer: ShardedEnvelopeBuffer,
+    partitioned_buffer: PartitionedEnvelopeBuffer,
 }
 
 impl HealthCheckService {
@@ -96,14 +96,14 @@ impl HealthCheckService {
         memory_checker: MemoryChecker,
         aggregator: RouterHandle,
         upstream_relay: Addr<UpstreamRelay>,
-        envelope_buffer: ShardedEnvelopeBuffer,
+        partitioned_buffer: PartitionedEnvelopeBuffer,
     ) -> Self {
         Self {
             config,
             memory_checker,
             aggregator,
             upstream_relay,
-            sharded_buffer: envelope_buffer,
+            partitioned_buffer,
         }
     }
 
@@ -149,12 +149,12 @@ impl HealthCheckService {
     }
 
     async fn spool_health_probe(&self) -> Status {
-        let buffers = self.sharded_buffer.buffers();
+        let buffers = self.partitioned_buffer.buffers();
         // If no buffer is supplied, we assume it's healthy.
         let all_have_capacity = if buffers.is_empty() {
             true
         } else {
-            self.sharded_buffer
+            self.partitioned_buffer
                 .buffers()
                 .iter()
                 .all(|buffer| buffer.has_capacity())

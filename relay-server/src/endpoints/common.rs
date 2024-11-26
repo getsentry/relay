@@ -10,7 +10,7 @@ use serde::Deserialize;
 
 use crate::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, Items};
 use crate::service::ServiceState;
-use crate::services::buffer::EnvelopeBuffer;
+use crate::services::buffer::{EnvelopeBuffer, ProjectKeyPair};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{BucketSource, MetricData, ProcessMetrics, ProcessingGroup};
 use crate::services::projects::cache::legacy::ValidateEnvelope;
@@ -293,7 +293,8 @@ fn queue_envelope(
         );
         envelope.scope(scoping);
 
-        match state.envelope_buffer() {
+        let project_key_pair = ProjectKeyPair::from_envelope(envelope.envelope());
+        match state.envelope_buffer(project_key_pair) {
             Some(buffer) => {
                 if !buffer.has_capacity() {
                     return Err(BadStoreRequest::QueueFailed);
