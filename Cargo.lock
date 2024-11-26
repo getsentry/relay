@@ -3857,6 +3857,7 @@ dependencies = [
 name = "relay-redis"
 version = "24.11.1"
 dependencies = [
+ "axum",
  "bb8-redis",
  "r2d2",
  "redis",
@@ -3864,7 +3865,6 @@ dependencies = [
  "serde",
  "serde_yaml",
  "thiserror",
- "tokio",
 ]
 
 [[package]]
