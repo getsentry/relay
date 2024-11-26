@@ -66,7 +66,7 @@ pub struct Registry {
     pub global_config: Addr<GlobalConfigManager>,
     pub legacy_project_cache: Addr<legacy::ProjectCache>,
     pub upstream_relay: Addr<UpstreamRelay>,
-    pub sharded_buffer: PartitionedEnvelopeBuffer,
+    pub partitioned_buffer: PartitionedEnvelopeBuffer,
 
     pub project_cache_handle: ProjectCacheHandle,
 }
@@ -284,12 +284,12 @@ impl ServiceState {
                 envelope_buffers.push(envelope_buffer);
             }
         }
-        let sharded_buffer =
+        let partitioned_buffer =
             PartitionedEnvelopeBuffer::new(envelope_buffers, config.spool_partitions());
 
         // Keep all the services in one context.
         let project_cache_services = legacy::Services {
-            sharded_buffer: sharded_buffer.clone(),
+            partitioned_buffer: partitioned_buffer.clone(),
             aggregator: aggregator.clone(),
             envelope_processor: processor.clone(),
             outcome_aggregator: outcome_aggregator.clone(),
@@ -314,7 +314,7 @@ impl ServiceState {
             MemoryChecker::new(memory_stat.clone(), config.clone()),
             aggregator_handle,
             upstream_relay.clone(),
-            sharded_buffer.clone(),
+            partitioned_buffer.clone(),
         ));
 
         runner.start(RelayStats::new(
@@ -340,7 +340,7 @@ impl ServiceState {
             legacy_project_cache,
             project_cache_handle,
             upstream_relay,
-            sharded_buffer,
+            partitioned_buffer,
         };
 
         let state = StateInner {
@@ -374,7 +374,10 @@ impl ServiceState {
         &self,
         project_key_pair: ProjectKeyPair,
     ) -> Option<&ObservableEnvelopeBuffer> {
-        self.inner.registry.sharded_buffer.buffer(project_key_pair)
+        self.inner
+            .registry
+            .partitioned_buffer
+            .buffer(project_key_pair)
     }
 
     /// Returns the address of the [`legacy::ProjectCache`] service.

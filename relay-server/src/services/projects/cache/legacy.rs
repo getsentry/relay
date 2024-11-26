@@ -134,7 +134,7 @@ impl FromMessage<FlushBuckets> for ProjectCache {
 /// Holds the addresses of all services required for [`ProjectCache`].
 #[derive(Debug, Clone)]
 pub struct Services {
-    pub sharded_buffer: PartitionedEnvelopeBuffer,
+    pub partitioned_buffer: PartitionedEnvelopeBuffer,
     pub aggregator: Addr<Aggregator>,
     pub envelope_processor: Addr<EnvelopeProcessor>,
     pub outcome_aggregator: Addr<TrackOutcome>,
@@ -634,7 +634,7 @@ impl ProjectCacheBroker {
         let project_key_pair = ProjectKeyPair::from_envelope(&dequeued_envelope.0);
         let envelope_buffer = self
             .services
-            .sharded_buffer
+            .partitioned_buffer
             .clone()
             .buffer(project_key_pair)
             .map(|b| b.addr())
@@ -837,7 +837,7 @@ mod tests {
         let (test_store, _) = mock_service("test_store", (), |&mut (), _| {});
 
         Services {
-            sharded_buffer: PartitionedEnvelopeBuffer::new(vec![], 0),
+            partitioned_buffer: PartitionedEnvelopeBuffer::new(vec![], 0),
             aggregator,
             envelope_processor,
             project_cache,
