@@ -16,7 +16,7 @@
 
 **Internal**:
 
-- Remove metrics summaries. ([#4278](https://github.com/getsentry/relay/pull/4278), [#4279](https://github.com/getsentry/relay/pull/4279))
+- Remove metrics summaries. ([#4278](https://github.com/getsentry/relay/pull/4278), [#4279](https://github.com/getsentry/relay/pull/4279), [#4296](https://github.com/getsentry/relay/pull/4296))
 
 ## 24.11.0
 
