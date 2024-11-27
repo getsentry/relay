@@ -590,30 +590,7 @@ fn normalize(
 
     populate_ua_fields(span, user_agent.as_deref(), client_hints.as_deref());
 
-    // INP spans sets some top level span attributes inside span.data so make sure to pull
-    // them out to the top level before further processing.
-    if let Annotated(Some(ref mut data), _) = span.data {
-        if let Some(exclusive_time) = match data.other.get("sentry.exclusive_time") {
-            Some(Annotated(Some(Value::I64(exclusive_time)), _)) => Some(*exclusive_time as f64),
-            Some(Annotated(Some(Value::U64(exclusive_time)), _)) => Some(*exclusive_time as f64),
-            Some(Annotated(Some(Value::F64(exclusive_time)), _)) => Some(*exclusive_time),
-            _ => None,
-        } {
-            data.other.remove("sentry.exclusive_time");
-            span.exclusive_time = exclusive_time.into();
-        }
-
-        if let Some(profile_id) = match data.other.get("profile_id") {
-            Some(Annotated(Some(Value::String(profile_id)), _)) => profile_id
-                .parse()
-                .map(|profile_id| EventId(profile_id))
-                .ok(),
-            _ => None,
-        } {
-            data.other.remove("profile_id");
-            span.profile_id = profile_id.into();
-        }
-    }
+    promote_span_data_fields(span);
 
     if let Annotated(Some(ref mut measurement_values), ref mut meta) = span.measurements {
         normalize_measurements(
@@ -692,6 +669,31 @@ fn populate_ua_fields(
             client_hints,
         }) {
             data.browser_name = context.name;
+        }
+    }
+}
+
+/// Promotes some fields from span.data as there are predefined places for certain fields.
+fn promote_span_data_fields(span: &mut Span) {
+    // INP spans sets some top level span attributes inside span.data so make sure to pull
+    // them out to the top level before further processing.
+    if let Some(data) = span.data.value_mut() {
+        if let Some(exclusive_time) = match data.exclusive_time.value() {
+            Some(Value::I64(exclusive_time)) => Some(*exclusive_time as f64),
+            Some(Value::U64(exclusive_time)) => Some(*exclusive_time as f64),
+            Some(Value::F64(exclusive_time)) => Some(*exclusive_time),
+            _ => None,
+        } {
+            span.exclusive_time = exclusive_time.into();
+            data.exclusive_time.set_value(None);
+        }
+
+        if let Some(profile_id) = match data.profile_id.value() {
+            Some(Value::String(profile_id)) => profile_id.parse().map(EventId).ok(),
+            _ => None,
+        } {
+            span.profile_id = profile_id.into();
+            data.profile_id.set_value(None);
         }
     }
 }
@@ -796,7 +798,7 @@ mod tests {
     use once_cell::sync::Lazy;
     use relay_base_schema::project::ProjectId;
     use relay_event_schema::protocol::{
-        Context, ContextInner, EventId, SpanData, SpanId, Timestamp, TraceContext, TraceId,
+        Context, ContextInner, EventId, SpanId, Timestamp, TraceContext, TraceId,
     };
     use relay_event_schema::protocol::{Contexts, Event, Span};
     use relay_protocol::get_value;
@@ -1370,8 +1372,6 @@ mod tests {
         normalize(&mut span, normalize_config()).unwrap();
 
         let data = get_value!(span.data!);
-        assert!(!data.other.contains_key("sentry.exclusive_time"));
-        assert!(!data.other.contains_key("profile_id"));
 
         assert_eq!(
             get_value!(span.profile_id!),
