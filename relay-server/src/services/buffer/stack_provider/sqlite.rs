@@ -18,17 +18,19 @@ pub struct SqliteStackProvider {
     envelope_store: SqliteEnvelopeStore,
     batch_size_bytes: usize,
     max_disk_size: usize,
+    partition_id: u8,
 }
 
 #[warn(dead_code)]
 impl SqliteStackProvider {
     /// Creates a new [`SqliteStackProvider`] from the provided [`Config`].
-    pub async fn new(config: &Config) -> Result<Self, SqliteEnvelopeStoreError> {
-        let envelope_store = SqliteEnvelopeStore::prepare(config).await?;
+    pub async fn new(partition_id: u8, config: &Config) -> Result<Self, SqliteEnvelopeStoreError> {
+        let envelope_store = SqliteEnvelopeStore::prepare(partition_id, config).await?;
         Ok(Self {
             envelope_store,
             batch_size_bytes: config.spool_envelopes_batch_size_bytes(),
             max_disk_size: config.spool_envelopes_max_disk_size(),
+            partition_id,
         })
     }
 
@@ -60,6 +62,7 @@ impl StackProvider for SqliteStackProvider {
         project_key_pair: ProjectKeyPair,
     ) -> Self::Stack {
         let inner = SqliteEnvelopeStack::new(
+            self.partition_id,
             self.envelope_store.clone(),
             self.batch_size_bytes,
             project_key_pair.own_key,
@@ -100,11 +103,16 @@ impl StackProvider for SqliteStackProvider {
     async fn flush(&mut self, envelope_stacks: impl IntoIterator<Item = Self::Stack>) {
         relay_log::trace!("Flushing sqlite envelope buffer");
 
-        relay_statsd::metric!(timer(RelayTimers::BufferDrain), {
-            for envelope_stack in envelope_stacks {
-                envelope_stack.flush().await;
+        let partition_tag = self.partition_id.to_string();
+        relay_statsd::metric!(
+            timer(RelayTimers::BufferDrain),
+            partition_id = &partition_tag,
+            {
+                for envelope_stack in envelope_stacks {
+                    envelope_stack.flush().await;
+                }
             }
-        });
+        );
     }
 }
 
@@ -145,7 +153,7 @@ mod tests {
     #[tokio::test]
     async fn test_flush() {
         let config = mock_config();
-        let mut stack_provider = SqliteStackProvider::new(&config).await.unwrap();
+        let mut stack_provider = SqliteStackProvider::new(0, &config).await.unwrap();
 
         let own_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let sampling_key = ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap();

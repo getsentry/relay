@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 24.11.1
 
 **Bug Fixes**:
 
@@ -11,10 +11,13 @@
 **Features**:
 
 - Implement zstd http encoding for Relay to Relay communication. ([#4266](https://github.com/getsentry/relay/pull/4266))
+- Support empty branches in Pattern alternations. ([#4283](https://github.com/getsentry/relay/pull/4283))
+- Add support for partitioning of the `EnvelopeBufferService`. ([#4291](https://github.com/getsentry/relay/pull/4291))
 
 **Internal**:
 
 - Remove metrics summaries. ([#4278](https://github.com/getsentry/relay/pull/4278), [#4279](https://github.com/getsentry/relay/pull/4279))
+- Use async `redis` for `projectconfig`. ([#4284](https://github.com/getsentry/relay/pull/4284))
 
 ## 24.11.0
 

@@ -302,7 +302,7 @@ pub fn run(config: Config) -> anyhow::Result<()> {
     // information on all services.
     runtime.block_on(async {
         Controller::start(config.shutdown_timeout());
-        let (state, mut runner) = ServiceState::start(runtime_metrics, config.clone())?;
+        let (state, mut runner) = ServiceState::start(runtime_metrics, config.clone()).await?;
         runner.start(HttpServer::new(config, state.clone())?);
 
         tokio::select! {

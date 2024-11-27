@@ -6,7 +6,7 @@ use std::future::Future;
 use tokio::sync::watch;
 use tokio::time::{timeout, Instant};
 
-use crate::services::buffer::ObservableEnvelopeBuffer;
+use crate::services::buffer::PartitionedEnvelopeBuffer;
 use crate::services::metrics::RouterHandle;
 use crate::services::upstream::{IsAuthenticated, UpstreamRelay};
 use crate::statsd::RelayTimers;
@@ -86,7 +86,7 @@ pub struct HealthCheckService {
     memory_checker: MemoryChecker,
     aggregator: RouterHandle,
     upstream_relay: Addr<UpstreamRelay>,
-    envelope_buffer: Option<ObservableEnvelopeBuffer>, // make non-optional once V1 has been removed
+    envelope_buffer: PartitionedEnvelopeBuffer,
 }
 
 impl HealthCheckService {
@@ -96,7 +96,7 @@ impl HealthCheckService {
         memory_checker: MemoryChecker,
         aggregator: RouterHandle,
         upstream_relay: Addr<UpstreamRelay>,
-        envelope_buffer: Option<ObservableEnvelopeBuffer>,
+        envelope_buffer: PartitionedEnvelopeBuffer,
     ) -> Self {
         Self {
             config,
@@ -149,11 +149,7 @@ impl HealthCheckService {
     }
 
     async fn spool_health_probe(&self) -> Status {
-        let has_capacity = self
-            .envelope_buffer
-            .as_ref()
-            .map_or(true, |b| b.has_capacity());
-        match has_capacity {
+        match self.envelope_buffer.has_capacity() {
             true => Status::Healthy,
             false => Status::Unhealthy,
         }
