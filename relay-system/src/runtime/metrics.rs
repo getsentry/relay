@@ -234,9 +234,11 @@ impl TokioCallbackMetrics {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(target_os = "linux")] // Test relies on Tokio/Platform specific internals.
     use super::*;
 
     #[test]
+    #[cfg(target_os = "linux")] // Test relies on Tokio/Platform specific internals.
     fn test_metric_diff() {
         let rt = crate::Runtime::builder("test").worker_threads(1).build();
 
