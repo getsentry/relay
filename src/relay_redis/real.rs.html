@@ -1069,7 +1069,7 @@
     <span class="kw">fn </span>base_pool_builder&lt;M: bb8::ManageConnection&gt;(opts: <span class="kw-2">&amp;</span>RedisConfigOptions) -&gt; bb8::Builder&lt;M&gt; {
         bb8::Pool::builder()
             .max_size(opts.max_connections)
-            .min_idle(opts.min_idle)
+            .min_idle(opts.min_idle.unwrap_or(opts.max_connections))
             .test_on_check_out(<span class="bool-val">false</span>)
             .max_lifetime(<span class="prelude-val">Some</span>(Duration::from_secs(opts.max_lifetime)))
             .idle_timeout(<span class="prelude-val">Some</span>(Duration::from_secs(opts.idle_timeout)))
