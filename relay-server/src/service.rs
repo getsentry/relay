@@ -3,7 +3,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::metrics::{MetricOutcomes, MetricStats};
-use crate::services::buffer::{self, EnvelopeBufferService, ObservableEnvelopeBuffer};
+use crate::services::buffer::{
+    ObservableEnvelopeBuffer, PartitionedEnvelopeBuffer, ProjectKeyPair,
+};
 use crate::services::cogs::{CogsService, CogsServiceRecorder};
 use crate::services::global_config::{GlobalConfigManager, GlobalConfigService};
 use crate::services::health_check::{HealthCheck, HealthCheckService};
@@ -67,7 +69,7 @@ pub struct Registry {
     pub global_config: Addr<GlobalConfigManager>,
     pub legacy_project_cache: Addr<legacy::ProjectCache>,
     pub upstream_relay: Addr<UpstreamRelay>,
-    pub envelope_buffer: Option<ObservableEnvelopeBuffer>,
+    pub envelope_buffer: PartitionedEnvelopeBuffer,
 
     pub project_cache_handle: ProjectCacheHandle,
 }
@@ -265,22 +267,22 @@ impl ServiceState {
         );
 
         let (envelopes_tx, envelopes_rx) = mpsc::channel(config.spool_max_backpressure_envelopes());
-        let envelope_buffer = EnvelopeBufferService::new(
+
+        let envelope_buffer = PartitionedEnvelopeBuffer::create(
+            config.spool_partitions(),
             config.clone(),
             memory_stat.clone(),
             global_config_rx.clone(),
-            buffer::Services {
-                envelopes_tx,
-                project_cache_handle: project_cache_handle.clone(),
-                outcome_aggregator: outcome_aggregator.clone(),
-                test_store: test_store.clone(),
-            },
-        )
-        .map(|b| b.start_in(&mut runner));
+            envelopes_tx.clone(),
+            project_cache_handle.clone(),
+            outcome_aggregator.clone(),
+            test_store.clone(),
+            &mut runner,
+        );
 
         // Keep all the services in one context.
         let project_cache_services = legacy::Services {
-            envelope_buffer: envelope_buffer.as_ref().map(ObservableEnvelopeBuffer::addr),
+            envelope_buffer: envelope_buffer.clone(),
             aggregator: aggregator.clone(),
             envelope_processor: processor.clone(),
             outcome_aggregator: outcome_aggregator.clone(),
@@ -361,8 +363,11 @@ impl ServiceState {
     }
 
     /// Returns the V2 envelope buffer, if present.
-    pub fn envelope_buffer(&self) -> Option<&ObservableEnvelopeBuffer> {
-        self.inner.registry.envelope_buffer.as_ref()
+    pub fn envelope_buffer(
+        &self,
+        project_key_pair: ProjectKeyPair,
+    ) -> Option<&ObservableEnvelopeBuffer> {
+        self.inner.registry.envelope_buffer.buffer(project_key_pair)
     }
 
     /// Returns the address of the [`legacy::ProjectCache`] service.

@@ -199,27 +199,29 @@ struct DiskUsage {
     db: Pool<Sqlite>,
     last_known_usage: Arc<AtomicU64>,
     refresh_frequency: Duration,
+    partition_tag: String,
 }
 
 impl DiskUsage {
     /// Creates a new empty [`DiskUsage`].
-    fn new(db: Pool<Sqlite>, refresh_frequency: Duration) -> Self {
+    fn new(partition_id: u8, db: Pool<Sqlite>, refresh_frequency: Duration) -> Self {
         Self {
             db,
             last_known_usage: Arc::new(AtomicU64::new(0)),
             refresh_frequency,
+            partition_tag: partition_id.to_string(),
         }
     }
 
     /// Prepares a [`DiskUsage`] instance with an initial reading of the database usage and fails
     /// if not reading can be made.
     pub async fn prepare(
+        partition_id: u8,
         db: Pool<Sqlite>,
         refresh_frequency: Duration,
     ) -> Result<Self, SqliteEnvelopeStoreError> {
-        let usage = Self::estimate_usage(&db).await?;
-
-        let disk_usage = Self::new(db, refresh_frequency);
+        let disk_usage = Self::new(partition_id, db.clone(), refresh_frequency);
+        let usage = Self::estimate_usage(&disk_usage.partition_tag, &db).await?;
         disk_usage.last_known_usage.store(usage, Ordering::Relaxed);
         disk_usage.start_background_refresh();
 
@@ -240,6 +242,7 @@ impl DiskUsage {
         let last_known_usage_weak = Arc::downgrade(&self.last_known_usage);
         let refresh_frequency = self.refresh_frequency;
 
+        let partition_tag = self.partition_tag.clone();
         relay_system::spawn!(async move {
             loop {
                 // When our `Weak` reference can't be upgraded to an `Arc`, it means that the value
@@ -248,7 +251,7 @@ impl DiskUsage {
                     break;
                 };
 
-                let usage = Self::estimate_usage(&db).await;
+                let usage = Self::estimate_usage(&partition_tag, &db).await;
                 let Ok(usage) = usage else {
                     relay_log::error!("failed to update the disk usage asynchronously");
                     return;
@@ -268,14 +271,20 @@ impl DiskUsage {
     }
 
     /// Estimates the disk usage of the SQLite database.
-    async fn estimate_usage(db: &Pool<Sqlite>) -> Result<u64, SqliteEnvelopeStoreError> {
+    async fn estimate_usage(
+        partition_tag: &str,
+        db: &Pool<Sqlite>,
+    ) -> Result<u64, SqliteEnvelopeStoreError> {
         let usage: i64 = build_estimate_size()
             .fetch_one(db)
             .await
             .and_then(|r| r.try_get(0))
             .map_err(SqliteEnvelopeStoreError::FileSizeReadFailed)?;
 
-        relay_statsd::metric!(gauge(RelayGauges::BufferDiskUsed) = usage as u64);
+        relay_statsd::metric!(
+            gauge(RelayGauges::BufferDiskUsed) = usage as u64,
+            partition_id = partition_tag
+        );
 
         Ok(usage as u64)
     }
@@ -289,22 +298,27 @@ impl DiskUsage {
 pub struct SqliteEnvelopeStore {
     db: Pool<Sqlite>,
     disk_usage: DiskUsage,
+    partition_tag: String,
 }
 
 impl SqliteEnvelopeStore {
     /// Initializes the [`SqliteEnvelopeStore`] with a supplied [`Pool`].
-    pub fn new(db: Pool<Sqlite>, refresh_frequency: Duration) -> Self {
+    pub fn new(partition_id: u8, db: Pool<Sqlite>, refresh_frequency: Duration) -> Self {
         Self {
             db: db.clone(),
-            disk_usage: DiskUsage::new(db, refresh_frequency),
+            disk_usage: DiskUsage::new(partition_id, db, refresh_frequency),
+            partition_tag: partition_id.to_string(),
         }
     }
 
     /// Prepares the [`SqliteEnvelopeStore`] by running all the necessary migrations and preparing
     /// the folders where data will be stored.
-    pub async fn prepare(config: &Config) -> Result<SqliteEnvelopeStore, SqliteEnvelopeStoreError> {
+    pub async fn prepare(
+        partition_id: u8,
+        config: &Config,
+    ) -> Result<SqliteEnvelopeStore, SqliteEnvelopeStoreError> {
         // If no path is provided, we can't do disk spooling.
-        let Some(path) = config.spool_envelopes_path() else {
+        let Some(path) = config.spool_envelopes_path(partition_id) else {
             return Err(SqliteEnvelopeStoreError::NoFilePath);
         };
 
@@ -347,8 +361,13 @@ impl SqliteEnvelopeStore {
 
         Ok(SqliteEnvelopeStore {
             db: db.clone(),
-            disk_usage: DiskUsage::prepare(db, config.spool_disk_usage_refresh_frequency_ms())
-                .await?,
+            disk_usage: DiskUsage::prepare(
+                partition_id,
+                db,
+                config.spool_disk_usage_refresh_frequency_ms(),
+            )
+            .await?,
+            partition_tag: partition_id.to_string(),
         })
     }
 
@@ -426,12 +445,16 @@ impl SqliteEnvelopeStore {
             .bind(count as u16)
             .bind(encoded);
 
-        relay_statsd::metric!(timer(RelayTimers::BufferSqlWrite), {
-            query
-                .execute(&self.db)
-                .await
-                .map_err(SqliteEnvelopeStoreError::WriteError)?;
-        });
+        relay_statsd::metric!(
+            timer(RelayTimers::BufferSqlWrite),
+            partition_id = &self.partition_tag,
+            {
+                query
+                    .execute(&self.db)
+                    .await
+                    .map_err(SqliteEnvelopeStoreError::WriteError)?;
+            }
+        );
         Ok(())
     }
 
@@ -647,7 +670,7 @@ mod tests {
     #[tokio::test]
     async fn test_insert_and_delete_envelopes() {
         let db = setup_db(true).await;
-        let mut envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
+        let mut envelope_store = SqliteEnvelopeStore::new(0, db, Duration::from_millis(100));
 
         let own_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let sampling_key = ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap();
@@ -707,7 +730,7 @@ mod tests {
     #[tokio::test]
     async fn test_insert_and_delete_single() {
         let db = setup_db(true).await;
-        let mut envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
+        let mut envelope_store = SqliteEnvelopeStore::new(0, db, Duration::from_millis(100));
 
         let own_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let sampling_key = ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap();
@@ -751,7 +774,7 @@ mod tests {
     #[tokio::test]
     async fn test_insert_and_get_project_keys_pairs() {
         let db = setup_db(true).await;
-        let mut envelope_store = SqliteEnvelopeStore::new(db, Duration::from_millis(100));
+        let mut envelope_store = SqliteEnvelopeStore::new(0, db, Duration::from_millis(100));
 
         let own_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let sampling_key = ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap();
@@ -783,8 +806,8 @@ mod tests {
     #[tokio::test]
     async fn test_estimate_disk_usage() {
         let db = setup_db(true).await;
-        let mut store = SqliteEnvelopeStore::new(db.clone(), Duration::from_millis(1));
-        let disk_usage = DiskUsage::prepare(db, Duration::from_millis(1))
+        let mut store = SqliteEnvelopeStore::new(0, db.clone(), Duration::from_millis(1));
+        let disk_usage = DiskUsage::prepare(0, db, Duration::from_millis(1))
             .await
             .unwrap();
 
@@ -817,7 +840,7 @@ mod tests {
     #[tokio::test]
     async fn test_total_count() {
         let db = setup_db(true).await;
-        let mut store = SqliteEnvelopeStore::new(db.clone(), Duration::from_millis(1));
+        let mut store = SqliteEnvelopeStore::new(0, db.clone(), Duration::from_millis(1));
 
         let envelopes = mock_envelopes(10);
         store
