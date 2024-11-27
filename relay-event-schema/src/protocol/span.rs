@@ -407,6 +407,14 @@ pub struct SpanData {
     #[metastructure(field = "user.roles")]
     pub user_roles: Annotated<Array<String>>,
 
+    /// Exclusive Time
+    #[metastructure(field = "sentry.exclusive_time")]
+    pub exclusive_time: Annotated<Value>,
+
+    /// Profile ID
+    #[metastructure(field = "profile_id")]
+    pub profile_id: Annotated<Value>,
+
     /// Replay ID
     #[metastructure(field = "sentry.replay.id", legacy_alias = "replay_id")]
     pub replay_id: Annotated<Value>,
@@ -868,6 +876,8 @@ mod tests {
             user_id: ~,
             user_name: ~,
             user_roles: ~,
+            exclusive_time: ~,
+            profile_id: ~,
             replay_id: ~,
             sdk_name: ~,
             sdk_version: ~,
