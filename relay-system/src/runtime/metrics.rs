@@ -231,3 +231,43 @@ impl TokioCallbackMetrics {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_metric_diff() {
+        let rt = crate::Runtime::builder("test").worker_threads(1).build();
+
+        let metrics = rt.metrics();
+
+        rt.block_on(async move {
+            let tokio_metrics = tokio::runtime::Handle::current().metrics();
+
+            assert_eq!(metrics.num_workers(), 1);
+            assert_eq!(tokio_metrics.num_workers(), 1);
+
+            assert_eq!(metrics.worker_local_schedule_count(0), 0);
+            assert_eq!(tokio_metrics.worker_local_schedule_count(0), 0);
+
+            // Increase local worker schedule count by awaiting a timer.
+            crate::spawn!(tokio::time::sleep(Duration::from_nanos(10)))
+                .await
+                .unwrap();
+
+            assert_eq!(metrics.worker_local_schedule_count(0), 1);
+            assert_eq!(tokio_metrics.worker_local_schedule_count(0), 1);
+
+            // Increase it again.
+            crate::spawn!(tokio::time::sleep(Duration::from_nanos(10)))
+                .await
+                .unwrap();
+
+            // The difference is `1`.
+            assert_eq!(metrics.worker_local_schedule_count(0), 1);
+            // The total count is `2`.
+            assert_eq!(tokio_metrics.worker_local_schedule_count(0), 2);
+        });
+    }
+}

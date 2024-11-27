@@ -44,7 +44,7 @@ pub struct Builder {
 impl Builder {
     fn new(name: &'static str) -> Self {
         let mut builder = tokio::runtime::Builder::new_multi_thread();
-        builder.thread_name(name);
+        builder.thread_name(name).enable_all();
 
         Self { name, builder }
     }
