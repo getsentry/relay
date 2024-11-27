@@ -73,7 +73,7 @@ pub struct Registry {
     pub project_cache_handle: ProjectCacheHandle,
 }
 
-/// Constructs a Tokio [`Runtime`] configured for running [services](relay_system::Service).
+/// Constructs a Tokio [`relay_system::Runtime`] configured for running [services](relay_system::Service).
 pub fn create_runtime(name: &'static str, threads: usize) -> relay_system::Runtime {
     relay_system::Runtime::builder(name)
         .worker_threads(threads)
