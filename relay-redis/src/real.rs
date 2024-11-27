@@ -1,13 +1,19 @@
+use crate::config::RedisConfigOptions;
+use async_trait::async_trait;
+use bb8_redis::bb8::RunError;
+use bb8_redis::{bb8, RedisConnectionManager};
 use r2d2::{Builder, ManageConnection, Pool, PooledConnection};
 pub use redis;
-use redis::ConnectionLike;
+use redis::aio::MultiplexedConnection;
+use redis::cluster::{ClusterClient, ClusterClientBuilder};
+use redis::cluster_async::ClusterConnection;
+use redis::{Cmd, ConnectionLike, ErrorKind, FromRedisValue, RedisResult};
 use std::error::Error;
+use std::fmt::Debug;
 use std::thread::Scope;
 use std::time::Duration;
 use std::{fmt, thread};
 use thiserror::Error;
-
-use crate::config::RedisConfigOptions;
 
 /// An error returned from `RedisPool`.
 #[derive(Debug, Error)]
@@ -20,9 +26,17 @@ pub enum RedisError {
     #[error("failed to pool redis connection")]
     Pool(#[source] r2d2::Error),
 
+    /// Failure in bb8 pool.
+    #[error("failed to pool async redis connections")]
+    AsyncPool(#[source] RunError<redis::RedisError>),
+
     /// Failure in Redis communication.
     #[error("failed to communicate with redis")]
     Redis(#[source] redis::RedisError),
+
+    /// Multi write is not supported for the specified part.
+    #[error("multi write is not supported for {0}")]
+    MultiWriteNotSupported(&'static str),
 }
 
 fn log_secondary_redis_error<T>(result: redis::RedisResult<T>) {
@@ -368,7 +382,7 @@ impl RedisPool {
 #[derive(Debug, Clone)]
 pub struct RedisPools {
     /// The pool used for project configurations
-    pub project_configs: RedisPool,
+    pub project_configs: AsyncRedisPool,
     /// The pool used for cardinality limits.
     pub cardinality: RedisPool,
     /// The pool used for rate limiting/quotas.
@@ -381,4 +395,145 @@ pub struct Stats {
     pub connections: u32,
     /// The number of idle connections.
     pub idle_connections: u32,
+}
+
+/// [`bb8::CustomizeConnection`] that calls `set_response_timeout` on connections.
+#[derive(Debug)]
+pub struct ResponseTimeoutCustomConnection(Duration);
+
+#[async_trait]
+impl bb8::CustomizeConnection<MultiplexedConnection, redis::RedisError>
+    for ResponseTimeoutCustomConnection
+{
+    async fn on_acquire(
+        &self,
+        connection: &mut MultiplexedConnection,
+    ) -> Result<(), redis::RedisError> {
+        connection.set_response_timeout(self.0);
+        Ok(())
+    }
+}
+
+/// [`bb8::ManageConnection`] for an async redis cluster.
+pub struct RedisClusterConnectionManager {
+    client: ClusterClient,
+}
+
+impl RedisClusterConnectionManager {
+    /// Creates a new [`bb8::ManageConnection`] with the provided [`ClusterClient`]
+    pub fn new(client: ClusterClient) -> Self {
+        Self { client }
+    }
+}
+
+#[async_trait]
+impl bb8::ManageConnection for RedisClusterConnectionManager {
+    type Connection = ClusterConnection;
+    type Error = redis::RedisError;
+
+    async fn connect(&self) -> Result<Self::Connection, Self::Error> {
+        self.client.get_async_connection().await
+    }
+
+    async fn is_valid(&self, conn: &mut Self::Connection) -> Result<(), Self::Error> {
+        check_redis_is_valid(conn).await
+    }
+
+    fn has_broken(&self, _: &mut Self::Connection) -> bool {
+        false
+    }
+}
+
+async fn check_redis_is_valid<C: redis::aio::ConnectionLike>(conn: &mut C) -> RedisResult<()> {
+    let pong: String = redis::cmd("PING").query_async(conn).await?;
+    match pong.as_str() {
+        "PONG" => Ok(()),
+        _ => Err((ErrorKind::ResponseError, "ping request").into()),
+    }
+}
+
+/// An abstraction over Single and Cluster redis connections.
+#[derive(Debug, Clone)]
+pub enum AsyncRedisPool {
+    /// Represents a connection pool to a clustered redis instance.
+    Cluster(bb8::Pool<RedisClusterConnectionManager>, RedisConfigOptions),
+    /// Represents a connection pool to a single redis server.
+    Single(bb8::Pool<RedisConnectionManager>, RedisConfigOptions),
+}
+
+impl AsyncRedisPool {
+    /// Takes a command and executes it on redis.
+    pub async fn query_async<T: FromRedisValue>(&self, cmd: Cmd) -> Result<T, RedisError> {
+        match self {
+            Self::Cluster(pool, ..) => {
+                let mut conn = pool.get().await.map_err(RedisError::AsyncPool)?;
+                cmd.query_async(&mut *conn).await.map_err(RedisError::Redis)
+            }
+            Self::Single(pool, ..) => {
+                let mut conn = pool.get().await.map_err(RedisError::AsyncPool)?;
+                cmd.query_async(&mut *conn).await.map_err(RedisError::Redis)
+            }
+        }
+    }
+
+    /// Creates a new cluster based [`AsyncRedisPool`].
+    ///
+    /// It will set the `response_timeout` to the provided `read_timeout`.
+    /// `write_timeout` is not used at all in the async pool
+    pub async fn cluster<'a>(
+        servers: impl IntoIterator<Item = &'a str>,
+        opts: &RedisConfigOptions,
+    ) -> Result<Self, RedisError> {
+        // connection timeout is set in `base_pool_builder` on the pool level
+        let client = ClusterClientBuilder::new(servers)
+            .response_timeout(Duration::from_secs(opts.read_timeout))
+            .build()
+            .map_err(RedisError::Redis)?;
+        let manager = RedisClusterConnectionManager::new(client);
+        let pool = Self::base_pool_builder(opts)
+            .build(manager)
+            .await
+            .map_err(RedisError::Redis)?;
+        Ok(AsyncRedisPool::Cluster(pool, opts.clone()))
+    }
+
+    /// Creates a new [`AsyncRedisPool`] backed by a single redis server.
+    ///
+    /// It will set the `response_timeout` to the provided `read_timeout`.
+    /// `write_timeout` is not used at all in the async pool
+    pub async fn single(server: &str, opts: &RedisConfigOptions) -> Result<Self, RedisError> {
+        let manager = RedisConnectionManager::new(server).map_err(RedisError::Redis)?;
+        let customizer = Box::new(ResponseTimeoutCustomConnection(Duration::from_secs(
+            opts.read_timeout,
+        )));
+        // `connection_timeout` is set in `base_pool_builder` on the pool level
+        let pool = Self::base_pool_builder(opts)
+            .connection_customizer(customizer)
+            .build(manager)
+            .await
+            .map_err(RedisError::Redis)?;
+        Ok(AsyncRedisPool::Single(pool, opts.clone()))
+    }
+
+    /// Returns information about the current state of the pool.
+    pub fn stats(&self) -> Stats {
+        let state = match self {
+            AsyncRedisPool::Cluster(pool, _) => pool.state(),
+            AsyncRedisPool::Single(pool, _) => pool.state(),
+        };
+        Stats {
+            connections: state.connections,
+            idle_connections: state.idle_connections,
+        }
+    }
+
+    fn base_pool_builder<M: bb8::ManageConnection>(opts: &RedisConfigOptions) -> bb8::Builder<M> {
+        bb8::Pool::builder()
+            .max_size(opts.max_connections)
+            .min_idle(opts.min_idle)
+            .test_on_check_out(false)
+            .max_lifetime(Some(Duration::from_secs(opts.max_lifetime)))
+            .idle_timeout(Some(Duration::from_secs(opts.idle_timeout)))
+            .connection_timeout(Duration::from_secs(opts.connection_timeout))
+    }
 }

@@ -293,7 +293,7 @@ mod tests {
         }))
         .unwrap();
 
-        let processor = create_test_processor(config);
+        let processor = create_test_processor(config).await;
 
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
@@ -348,7 +348,7 @@ mod tests {
         }))
         .unwrap();
 
-        let processor = create_test_processor(config);
+        let processor = create_test_processor(config).await;
 
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
@@ -411,7 +411,7 @@ mod tests {
         }))
         .unwrap();
 
-        let processor = create_test_processor(config);
+        let processor = create_test_processor(config).await;
 
         let dsn = "https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             .parse()
@@ -455,7 +455,7 @@ mod tests {
     #[tokio::test]
     async fn test_user_report_only() {
         relay_log::init_test!();
-        let processor = create_test_processor(Default::default());
+        let processor = create_test_processor(Default::default()).await;
         let (outcome_aggregator, test_store) = testutils::processor_services();
         let event_id = EventId::new();
 
@@ -502,7 +502,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_user_report_invalid() {
-        let processor = create_test_processor(Default::default());
+        let processor = create_test_processor(Default::default()).await;
         let (outcome_aggregator, test_store) = testutils::processor_services();
         let event_id = EventId::new();
 

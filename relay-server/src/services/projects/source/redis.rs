@@ -1,18 +1,19 @@
-use std::sync::Arc;
-
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
-use relay_redis::{RedisError, RedisPool};
+use relay_redis::{AsyncRedisPool, RedisError};
 use relay_statsd::metric;
+use std::fmt::Debug;
+use std::sync::Arc;
 
 use crate::services::projects::project::{ParsedProjectState, ProjectState, Revision};
 use crate::services::projects::source::SourceProjectState;
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
+use relay_redis::redis::cmd;
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug)]
 pub struct RedisProjectSource {
     config: Arc<Config>,
-    redis: RedisPool,
+    redis: AsyncRedisPool,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -49,7 +50,7 @@ fn parse_redis_response(raw_response: &[u8]) -> Result<ParsedProjectState, Redis
 }
 
 impl RedisProjectSource {
-    pub fn new(config: Arc<Config>, redis: RedisPool) -> Self {
+    pub fn new(config: Arc<Config>, redis: AsyncRedisPool) -> Self {
         RedisProjectSource { config, redis }
     }
 
@@ -57,20 +58,16 @@ impl RedisProjectSource {
     ///
     /// The returned project state is [`ProjectState::Pending`] if the requested project config is not
     /// stored in Redis.
-    pub fn get_config_if_changed(
+    pub async fn get_config_if_changed(
         &self,
         key: ProjectKey,
         revision: Revision,
     ) -> Result<SourceProjectState, RedisProjectError> {
-        let mut client = self.redis.client()?;
-        let mut connection = client.connection()?;
-
         // Only check for the revision if we were passed a revision.
         if let Some(revision) = revision.as_str() {
-            let current_revision: Option<String> = relay_redis::redis::cmd("GET")
-                .arg(self.get_redis_rev_key(key))
-                .query(&mut connection)
-                .map_err(RedisError::Redis)?;
+            let mut cmd = cmd("GET");
+            cmd.arg(self.get_redis_rev_key(key));
+            let current_revision: Option<String> = self.redis.query_async(cmd).await?;
 
             relay_log::trace!(
                 "Redis revision {current_revision:?}, requested revision {revision:?}"
@@ -84,10 +81,9 @@ impl RedisProjectSource {
             }
         }
 
-        let raw_response_opt: Option<Vec<u8>> = relay_redis::redis::cmd("GET")
-            .arg(self.get_redis_project_config_key(key))
-            .query(&mut connection)
-            .map_err(RedisError::Redis)?;
+        let mut raw_cmd = cmd("GET");
+        raw_cmd.arg(self.get_redis_project_config_key(key));
+        let raw_response_opt: Option<Vec<u8>> = self.redis.query_async(raw_cmd).await?;
 
         let Some(response) = raw_response_opt else {
             metric!(
