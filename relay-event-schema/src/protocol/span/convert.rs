@@ -188,6 +188,8 @@ mod tests {
                 user_id: ~,
                 user_name: ~,
                 user_roles: ~,
+                exclusive_time: ~,
+                profile_id: ~,
                 replay_id: ~,
                 sdk_name: "sentry.php",
                 sdk_version: "1.2.3",

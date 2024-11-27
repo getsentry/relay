@@ -876,6 +876,8 @@ mod tests {
             user_id: ~,
             user_name: ~,
             user_roles: ~,
+            exclusive_time: ~,
+            profile_id: ~,
             replay_id: ~,
             sdk_name: ~,
             sdk_version: ~,
