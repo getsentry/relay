@@ -1,5 +1,4 @@
 use relay_base_schema::project::ProjectKey;
-use std::hash::Hash;
 
 use crate::Envelope;
 
