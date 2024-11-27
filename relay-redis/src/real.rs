@@ -530,7 +530,7 @@ impl AsyncRedisPool {
     fn base_pool_builder<M: bb8::ManageConnection>(opts: &RedisConfigOptions) -> bb8::Builder<M> {
         bb8::Pool::builder()
             .max_size(opts.max_connections)
-            .min_idle(opts.min_idle)
+            .min_idle(opts.min_idle.unwrap_or(opts.max_connections))
             .test_on_check_out(false)
             .max_lifetime(Some(Duration::from_secs(opts.max_lifetime)))
             .idle_timeout(Some(Duration::from_secs(opts.idle_timeout)))
