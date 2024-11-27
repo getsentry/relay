@@ -959,6 +959,16 @@
 <a href="#959" id="959">959</a>
 <a href="#960" id="960">960</a>
 <a href="#961" id="961">961</a>
+<a href="#962" id="962">962</a>
+<a href="#963" id="963">963</a>
+<a href="#964" id="964">964</a>
+<a href="#965" id="965">965</a>
+<a href="#966" id="966">966</a>
+<a href="#967" id="967">967</a>
+<a href="#968" id="968">968</a>
+<a href="#969" id="969">969</a>
+<a href="#970" id="970">970</a>
+<a href="#971" id="971">971</a>
 </pre></div><pre class="rust"><code><span class="kw">mod </span>convert;
 
 <span class="kw">use </span>relay_protocol::{
@@ -1367,6 +1377,14 @@
     /// &lt;https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/&gt;
     </span><span class="attr">#[metastructure(field = <span class="string">"user.roles"</span>)]
     </span><span class="kw">pub </span>user_roles: Annotated&lt;Array&lt;String&gt;&gt;,
+
+    <span class="doccomment">/// Exclusive Time
+    </span><span class="attr">#[metastructure(field = <span class="string">"sentry.exclusive_time"</span>)]
+    </span><span class="kw">pub </span>exclusive_time: Annotated&lt;Value&gt;,
+
+    <span class="doccomment">/// Profile ID
+    </span><span class="attr">#[metastructure(field = <span class="string">"profile_id"</span>)]
+    </span><span class="kw">pub </span>profile_id: Annotated&lt;Value&gt;,
 
     <span class="doccomment">/// Replay ID
     </span><span class="attr">#[metastructure(field = <span class="string">"sentry.replay.id"</span>, legacy_alias = <span class="string">"replay_id"</span>)]
@@ -1829,6 +1847,8 @@
             user_id: ~,
             user_name: ~,
             user_roles: ~,
+            exclusive_time: ~,
+            profile_id: ~,
             replay_id: ~,
             sdk_name: ~,
             sdk_version: ~,
