@@ -149,17 +149,24 @@
 <a href="#149" id="149">149</a>
 <a href="#150" id="150">150</a>
 <a href="#151" id="151">151</a>
+<a href="#152" id="152">152</a>
+<a href="#153" id="153">153</a>
+<a href="#154" id="154">154</a>
+<a href="#155" id="155">155</a>
+<a href="#156" id="156">156</a>
+<a href="#157" id="157">157</a>
+<a href="#158" id="158">158</a>
+<a href="#159" id="159">159</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
-
-<span class="kw">use </span>relay_config::{Config, RelayMode};
-<span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-</span><span class="kw">use </span>relay_redis::{RedisPool, RedisPools};
-<span class="kw">use </span>relay_statsd::metric;
-<span class="kw">use </span>relay_system::{Addr, Service};
-<span class="kw">use </span>tokio::time::interval;
 
 <span class="kw">use </span><span class="kw">crate</span>::services::upstream::{IsNetworkOutage, UpstreamRelay};
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayGauges, TokioGauges};
+<span class="kw">use </span>relay_config::{Config, RelayMode};
+<span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+</span><span class="kw">use </span>relay_redis::{AsyncRedisPool, RedisPool, RedisPools, Stats};
+<span class="kw">use </span>relay_statsd::metric;
+<span class="kw">use </span>relay_system::{Addr, Service};
+<span class="kw">use </span>tokio::time::interval;
 
 <span class="doccomment">/// Relay Stats Service.
 ///
@@ -253,13 +260,22 @@
 
     <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span><span class="kw">fn </span>redis_pool(redis_pool: <span class="kw-2">&amp;</span>RedisPool, name: <span class="kw-2">&amp;</span>str) {
-        <span class="kw">let </span>state = redis_pool.stats();
+        <span class="self">Self</span>::stats_metrics(redis_pool.stats(), name);
+    }
+
+    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+    </span><span class="kw">fn </span>redis_pool_async(async_redis_pool: <span class="kw-2">&amp;</span>AsyncRedisPool, name: <span class="kw-2">&amp;</span>str) {
+        <span class="self">Self</span>::stats_metrics(async_redis_pool.stats(), name)
+    }
+
+    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+    </span><span class="kw">fn </span>stats_metrics(stats: Stats, name: <span class="kw-2">&amp;</span>str) {
         <span class="macro">metric!</span>(
-            gauge(RelayGauges::RedisPoolConnections) = u64::from(state.connections),
+            gauge(RelayGauges::RedisPoolConnections) = u64::from(stats.connections),
             pool = name
         );
         <span class="macro">metric!</span>(
-            gauge(RelayGauges::RedisPoolIdleConnections) = u64::from(state.idle_connections),
+            gauge(RelayGauges::RedisPoolIdleConnections) = u64::from(stats.idle_connections),
             pool = name
         );
     }
@@ -275,7 +291,7 @@
             quotas,
         }) = <span class="self">self</span>.redis_pools.as_ref()
         {
-            <span class="self">Self</span>::redis_pool(project_configs, <span class="string">"project_configs"</span>);
+            <span class="self">Self</span>::redis_pool_async(project_configs, <span class="string">"project_configs"</span>);
             <span class="self">Self</span>::redis_pool(cardinality, <span class="string">"cardinality"</span>);
             <span class="self">Self</span>::redis_pool(quotas, <span class="string">"quotas"</span>);
         }

@@ -185,57 +185,13 @@
 <a href="#185" id="185">185</a>
 <a href="#186" id="186">186</a>
 <a href="#187" id="187">187</a>
-<a href="#188" id="188">188</a>
-<a href="#189" id="189">189</a>
-<a href="#190" id="190">190</a>
-<a href="#191" id="191">191</a>
-<a href="#192" id="192">192</a>
-<a href="#193" id="193">193</a>
-<a href="#194" id="194">194</a>
-<a href="#195" id="195">195</a>
-<a href="#196" id="196">196</a>
-<a href="#197" id="197">197</a>
-<a href="#198" id="198">198</a>
-<a href="#199" id="199">199</a>
-<a href="#200" id="200">200</a>
-<a href="#201" id="201">201</a>
-<a href="#202" id="202">202</a>
-<a href="#203" id="203">203</a>
-<a href="#204" id="204">204</a>
-<a href="#205" id="205">205</a>
-<a href="#206" id="206">206</a>
-<a href="#207" id="207">207</a>
-<a href="#208" id="208">208</a>
-<a href="#209" id="209">209</a>
-<a href="#210" id="210">210</a>
-<a href="#211" id="211">211</a>
-<a href="#212" id="212">212</a>
-<a href="#213" id="213">213</a>
-<a href="#214" id="214">214</a>
-<a href="#215" id="215">215</a>
-<a href="#216" id="216">216</a>
-<a href="#217" id="217">217</a>
-<a href="#218" id="218">218</a>
-<a href="#219" id="219">219</a>
-<a href="#220" id="220">220</a>
-<a href="#221" id="221">221</a>
-<a href="#222" id="222">222</a>
-<a href="#223" id="223">223</a>
-<a href="#224" id="224">224</a>
-<a href="#225" id="225">225</a>
-<a href="#226" id="226">226</a>
-<a href="#227" id="227">227</a>
-</pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
-<span class="kw">use </span>std::sync::Arc;
-
-<span class="kw">use </span>relay_base_schema::project::ProjectKey;
-<span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-</span><span class="kw">use </span>relay_config::RedisConfigRef;
+</pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::project::ProjectKey;
 <span class="kw">use </span>relay_config::{Config, RelayMode};
-<span class="kw">use </span>relay_redis::RedisPool;
-<span class="kw">use </span>relay_system::{Addr, ServiceRunner};
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-</span><span class="kw">use </span>tokio::sync::Semaphore;
+</span><span class="kw">use </span>relay_redis::RedisPools;
+<span class="kw">use </span>relay_system::{Addr, ServiceRunner};
+<span class="kw">use </span>std::convert::Infallible;
+<span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">pub mod </span>local;
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
@@ -250,10 +206,6 @@
 </span><span class="kw">use </span><span class="self">self</span>::redis::RedisProjectSource;
 <span class="kw">use </span><span class="self">self</span>::upstream::{UpstreamProjectSource, UpstreamProjectSourceService};
 
-<span class="doccomment">/// Default value of maximum connections to Redis. This value was arbitrarily determined.
-</span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-</span><span class="kw">const </span>DEFAULT_REDIS_MAX_CONNECTIONS: u32 = <span class="number">10</span>;
-
 <span class="doccomment">/// Helper type that contains all configured sources for project cache fetching.
 </span><span class="attr">#[derive(Clone, Debug)]
 </span><span class="kw">pub struct </span>ProjectSource {
@@ -262,17 +214,15 @@
     upstream_source: Addr&lt;UpstreamProjectSource&gt;,
     <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>redis_source: <span class="prelude-ty">Option</span>&lt;RedisProjectSource&gt;,
-    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-    </span>redis_semaphore: Arc&lt;Semaphore&gt;,
 }
 
 <span class="kw">impl </span>ProjectSource {
     <span class="doccomment">/// Starts all project source services in the given `ServiceRunner`.
-    </span><span class="kw">pub fn </span>start_in(
+    </span><span class="kw">pub async fn </span>start_in(
         runner: <span class="kw-2">&amp;mut </span>ServiceRunner,
         config: Arc&lt;Config&gt;,
         upstream_relay: Addr&lt;UpstreamRelay&gt;,
-        _redis: <span class="prelude-ty">Option</span>&lt;RedisPool&gt;,
+        <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)] </span>_redis: <span class="prelude-ty">Option</span>&lt;RedisPools&gt;,
     ) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>local_source = runner.start(LocalProjectSourceService::new(config.clone()));
         <span class="kw">let </span>upstream_source = runner.start(UpstreamProjectSourceService::new(
@@ -281,21 +231,8 @@
         ));
 
         <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-        </span><span class="kw">let </span>redis_max_connections = config
-            .redis()
-            .map(|configs| {
-                <span class="kw">let </span>config = <span class="kw">match </span>configs {
-                    relay_config::RedisPoolConfigs::Unified(config) =&gt; config,
-                    relay_config::RedisPoolConfigs::Individual {
-                        project_configs: config,
-                        ..
-                    } =&gt; config,
-                };
-                <span class="self">Self</span>::compute_max_connections(config).unwrap_or(DEFAULT_REDIS_MAX_CONNECTIONS)
-            })
-            .unwrap_or(DEFAULT_REDIS_MAX_CONNECTIONS);
-        <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-        </span><span class="kw">let </span>redis_source = _redis.map(|pool| RedisProjectSource::new(config.clone(), pool));
+        </span><span class="kw">let </span>redis_source =
+            _redis.map(|pool| RedisProjectSource::new(config.clone(), pool.project_configs));
 
         <span class="self">Self </span>{
             config,
@@ -303,20 +240,6 @@
             upstream_source,
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>redis_source,
-            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-            </span>redis_semaphore: Arc::new(Semaphore::new(redis_max_connections.try_into().unwrap())),
-        }
-    }
-
-    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-    </span><span class="kw">fn </span>compute_max_connections(config: RedisConfigRef) -&gt; <span class="prelude-ty">Option</span>&lt;u32&gt; {
-        <span class="kw">match </span>config {
-            RedisConfigRef::Cluster { options, .. } =&gt; <span class="prelude-val">Some</span>(options.max_connections),
-            RedisConfigRef::MultiWrite { configs } =&gt; configs
-                .into_iter()
-                .filter_map(|c| <span class="self">Self</span>::compute_max_connections(c))
-                .max(),
-            RedisConfigRef::Single { options, .. } =&gt; <span class="prelude-val">Some</span>(options.max_connections),
         }
     }
 
@@ -349,12 +272,9 @@
         </span><span class="kw">if let </span><span class="prelude-val">Some</span>(redis_source) = <span class="self">self</span>.redis_source {
             <span class="kw">let </span>current_revision = current_revision.clone();
 
-            <span class="kw">let </span>redis_permit = <span class="self">self</span>.redis_semaphore.acquire().<span class="kw">await</span><span class="question-mark">?</span>;
-            <span class="kw">let </span>state_fetch_result = tokio::task::spawn_blocking(<span class="kw">move </span>|| {
-                redis_source.get_config_if_changed(project_key, current_revision)
-            })
-            .<span class="kw">await</span><span class="question-mark">?</span>;
-            drop(redis_permit);
+            <span class="kw">let </span>state_fetch_result = redis_source
+                .get_config_if_changed(project_key, current_revision)
+                .<span class="kw">await</span>;
 
             <span class="kw">match </span>state_fetch_result {
                 <span class="comment">// New state fetched from Redis, possibly pending.

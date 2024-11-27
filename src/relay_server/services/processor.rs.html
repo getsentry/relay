@@ -3874,6 +3874,8 @@
 <a href="#3874" id="3874">3874</a>
 <a href="#3875" id="3875">3875</a>
 <a href="#3876" id="3876">3876</a>
+<a href="#3877" id="3877">3877</a>
+<a href="#3878" id="3878">3878</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
@@ -7269,7 +7271,7 @@
             mock_service(<span class="string">"store_forwarder"</span>, <span class="macro">vec!</span>[], f)
         };
 
-        <span class="kw">let </span>processor = create_test_processor(config);
+        <span class="kw">let </span>processor = create_test_processor(config).<span class="kw">await</span>;
         <span class="macro">assert!</span>(processor.redis_rate_limiter_enabled());
 
         processor.encode_metrics_processing(message, <span class="kw-2">&amp;</span>store);
@@ -7282,7 +7284,7 @@
 
     <span class="attr">#[tokio::test]
     </span><span class="kw">async fn </span>test_browser_version_extraction_with_pii_like_data() {
-        <span class="kw">let </span>processor = create_test_processor(Default::default());
+        <span class="kw">let </span>processor = create_test_processor(Default::default()).<span class="kw">await</span>;
         <span class="kw">let </span>(outcome_aggregator, test_store) = testutils::processor_services();
         <span class="kw">let </span>event_id = EventId::new();
 
@@ -7415,7 +7417,7 @@
         }))
         .unwrap();
 
-        <span class="kw">let </span>processor = create_test_processor(config);
+        <span class="kw">let </span>processor = create_test_processor(config).<span class="kw">await</span>;
         <span class="kw">let </span>response = processor.process(process_message).unwrap();
         <span class="kw">let </span>envelope = response.envelope.as_ref().unwrap().envelope();
         <span class="kw">let </span>event = envelope
@@ -7593,7 +7595,8 @@
                 aggregator,
                 ..Default::default()
             },
-        );
+        )
+        .<span class="kw">await</span>;
 
         <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Statsd);
         item.set_payload(
@@ -7639,7 +7642,8 @@
                 aggregator,
                 ..Default::default()
             },
-        );
+        )
+        .<span class="kw">await</span>;
 
         <span class="kw">let </span>payload = <span class="string">r#"{
     "buckets": {

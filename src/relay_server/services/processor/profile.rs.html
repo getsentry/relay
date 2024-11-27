@@ -795,7 +795,7 @@
             }
         }))
         .unwrap();
-        <span class="kw">let </span>processor = create_test_processor(config);
+        <span class="kw">let </span>processor = create_test_processor(config).<span class="kw">await</span>;
         <span class="kw">let </span>event_id = EventId::new();
         <span class="kw">let </span>dsn = <span class="string">"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             </span>.parse()
@@ -926,7 +926,7 @@
             }
         }))
         .unwrap();
-        <span class="kw">let </span>processor = create_test_processor(config);
+        <span class="kw">let </span>processor = create_test_processor(config).<span class="kw">await</span>;
         <span class="kw">let </span>event_id = EventId::new();
         <span class="kw">let </span>dsn = <span class="string">"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             </span>.parse()
@@ -1049,7 +1049,7 @@
         <span class="macro">relay_log::init_test!</span>();
 
         <span class="comment">// Setup
-        </span><span class="kw">let </span>processor = create_test_processor(Default::default());
+        </span><span class="kw">let </span>processor = create_test_processor(Default::default()).<span class="kw">await</span>;
         <span class="kw">let </span>event_id = EventId::new();
         <span class="kw">let </span>dsn = <span class="string">"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             </span>.parse()
@@ -1106,7 +1106,7 @@
             }
         }))
         .unwrap();
-        <span class="kw">let </span>processor = create_test_processor(config);
+        <span class="kw">let </span>processor = create_test_processor(config).<span class="kw">await</span>;
         <span class="kw">let </span>event_id = EventId::new();
         <span class="kw">let </span>dsn = <span class="string">"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"
             </span>.parse()

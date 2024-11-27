@@ -624,7 +624,7 @@
     // information on all services.
     </span>main_runtime.block_on(<span class="kw">async </span>{
         Controller::start(config.shutdown_timeout());
-        <span class="kw">let </span>(state, <span class="kw-2">mut </span>runner) = ServiceState::start(config.clone())<span class="question-mark">?</span>;
+        <span class="kw">let </span>(state, <span class="kw-2">mut </span>runner) = ServiceState::start(config.clone()).<span class="kw">await</span><span class="question-mark">?</span>;
         runner.start(HttpServer::new(config, state.clone())<span class="question-mark">?</span>);
 
         <span class="macro">tokio::select!</span> {

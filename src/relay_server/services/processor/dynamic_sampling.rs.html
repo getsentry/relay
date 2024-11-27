@@ -769,6 +769,9 @@
 <a href="#769" id="769">769</a>
 <a href="#770" id="770">770</a>
 <a href="#771" id="771">771</a>
+<a href="#772" id="772">772</a>
+<a href="#773" id="773">773</a>
+<a href="#774" id="774">774</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic sampling processor related code.
 
 </span><span class="kw">use </span>std::ops::ControlFlow;
@@ -1052,11 +1055,11 @@
     }
 
     <span class="doccomment">/// Always sets the processing item type to event.
-    </span><span class="kw">fn </span>process_envelope_with_root_project_state(
+    </span><span class="kw">async fn </span>process_envelope_with_root_project_state(
         envelope: Box&lt;Envelope&gt;,
         sampling_project_info: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectInfo&gt;&gt;,
     ) -&gt; Envelope {
-        <span class="kw">let </span>processor = create_test_processor(Default::default());
+        <span class="kw">let </span>processor = create_test_processor(Default::default()).<span class="kw">await</span>;
         <span class="kw">let </span>(outcome_aggregator, test_store) = testutils::processor_services();
 
         <span class="kw">let </span><span class="kw-2">mut </span>envelopes = ProcessingGroup::split_envelope(<span class="kw-2">*</span>envelope);
@@ -1116,7 +1119,7 @@
         <span class="comment">// We test tagging when root project state and dsc are none.
         </span><span class="kw">let </span><span class="kw-2">mut </span>envelope = Envelope::from_request(<span class="prelude-val">Some</span>(event_id), request_meta);
         envelope.add_item(mocked_error_item());
-        <span class="kw">let </span>new_envelope = process_envelope_with_root_project_state(envelope, <span class="prelude-val">None</span>);
+        <span class="kw">let </span>new_envelope = process_envelope_with_root_project_state(envelope, <span class="prelude-val">None</span>).<span class="kw">await</span>;
         <span class="kw">let </span>event = extract_first_event_from_envelope(new_envelope);
 
         <span class="macro">assert!</span>(event.contexts.value().is_none());
@@ -1287,7 +1290,8 @@
         <span class="kw">let </span>new_envelope = process_envelope_with_root_project_state(
             envelope.clone(),
             <span class="prelude-val">Some</span>(Arc::new(sampling_project_state)),
-        );
+        )
+        .<span class="kw">await</span>;
         <span class="kw">let </span>event = extract_first_event_from_envelope(new_envelope);
         <span class="kw">let </span>trace_context = event.context::&lt;TraceContext&gt;().unwrap();
         <span class="macro">assert!</span>(trace_context.sampled.value().unwrap());
@@ -1297,7 +1301,8 @@
         <span class="kw">let </span>new_envelope = process_envelope_with_root_project_state(
             envelope,
             <span class="prelude-val">Some</span>(Arc::new(sampling_project_state)),
-        );
+        )
+        .<span class="kw">await</span>;
         <span class="kw">let </span>event = extract_first_event_from_envelope(new_envelope);
         <span class="kw">let </span>trace_context = event.context::&lt;TraceContext&gt;().unwrap();
         <span class="macro">assert!</span>(!trace_context.sampled.value().unwrap());
@@ -1341,7 +1346,8 @@
         <span class="kw">let </span>new_envelope = process_envelope_with_root_project_state(
             envelope,
             <span class="prelude-val">Some</span>(Arc::new(sampling_project_state)),
-        );
+        )
+        .<span class="kw">await</span>;
         <span class="kw">let </span>event = extract_first_event_from_envelope(new_envelope);
         <span class="kw">let </span>trace_context = event.context::&lt;TraceContext&gt;().unwrap();
         <span class="macro">assert!</span>(trace_context.sampled.value().unwrap());

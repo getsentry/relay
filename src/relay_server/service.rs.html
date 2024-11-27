@@ -512,6 +512,31 @@
 <a href="#512" id="512">512</a>
 <a href="#513" id="513">513</a>
 <a href="#514" id="514">514</a>
+<a href="#515" id="515">515</a>
+<a href="#516" id="516">516</a>
+<a href="#517" id="517">517</a>
+<a href="#518" id="518">518</a>
+<a href="#519" id="519">519</a>
+<a href="#520" id="520">520</a>
+<a href="#521" id="521">521</a>
+<a href="#522" id="522">522</a>
+<a href="#523" id="523">523</a>
+<a href="#524" id="524">524</a>
+<a href="#525" id="525">525</a>
+<a href="#526" id="526">526</a>
+<a href="#527" id="527">527</a>
+<a href="#528" id="528">528</a>
+<a href="#529" id="529">529</a>
+<a href="#530" id="530">530</a>
+<a href="#531" id="531">531</a>
+<a href="#532" id="532">532</a>
+<a href="#533" id="533">533</a>
+<a href="#534" id="534">534</a>
+<a href="#535" id="535">535</a>
+<a href="#536" id="536">536</a>
+<a href="#537" id="537">537</a>
+<a href="#538" id="538">538</a>
+<a href="#539" id="539">539</a>
 </pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
@@ -536,17 +561,20 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::test_store::{TestStore, TestStoreService};
 <span class="kw">use </span><span class="kw">crate</span>::services::upstream::{UpstreamRelay, UpstreamRelayService};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{MemoryChecker, MemoryStat, ThreadKind};
-<span class="kw">use </span>anyhow::{Context, <span class="prelude-ty">Result</span>};
+<span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+</span><span class="kw">use </span>anyhow::Context;
+<span class="kw">use </span>anyhow::Result;
 <span class="kw">use </span>axum::extract::FromRequestParts;
 <span class="kw">use </span>axum::http::request::Parts;
 <span class="kw">use </span>rayon::ThreadPool;
 <span class="kw">use </span>relay_cogs::Cogs;
-<span class="kw">use </span>relay_config::{Config, RedisConfigRef, RedisPoolConfigs};
+<span class="kw">use </span>relay_config::Config;
+<span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+</span><span class="kw">use </span>relay_config::{RedisConfigRef, RedisPoolConfigs};
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">use </span>relay_redis::redis::Script;
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-</span><span class="kw">use </span>relay_redis::{PooledClient, RedisScripts};
-<span class="kw">use </span>relay_redis::{RedisError, RedisPool, RedisPools};
+</span><span class="kw">use </span>relay_redis::{AsyncRedisPool, PooledClient, RedisError, RedisPool, RedisPools, RedisScripts};
 <span class="kw">use </span>relay_system::{channel, Addr, Service, ServiceRunner};
 <span class="kw">use </span>tokio::runtime::Runtime;
 <span class="kw">use </span>tokio::sync::mpsc;
@@ -564,7 +592,8 @@
     </span>Kafka,
 
     <span class="doccomment">/// Initializing the Redis cluster client failed.
-    </span><span class="attr">#[error(<span class="string">"could not initialize redis cluster client"</span>)]
+    </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+    #[error(<span class="string">"could not initialize redis cluster client"</span>)]
     </span>Redis,
 }
 
@@ -661,17 +690,18 @@
 
 <span class="kw">impl </span>ServiceState {
     <span class="doccomment">/// Starts all services and returns addresses to all of them.
-    </span><span class="kw">pub fn </span>start(config: Arc&lt;Config&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(<span class="self">Self</span>, ServiceRunner)&gt; {
+    </span><span class="kw">pub async fn </span>start(config: Arc&lt;Config&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(<span class="self">Self</span>, ServiceRunner)&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>runner = ServiceRunner::new();
         <span class="kw">let </span>upstream_relay = runner.start(UpstreamRelayService::new(config.clone()));
         <span class="kw">let </span>test_store = runner.start(TestStoreService::new(config.clone()));
 
-        <span class="kw">let </span>redis_pools = config
-            .redis()
-            .filter(|<span class="kw">_</span>| config.processing_enabled())
-            .map(create_redis_pools)
-            .transpose()
-            .context(ServiceError::Redis)<span class="question-mark">?</span>;
+        <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+        </span><span class="kw">let </span>redis_pools = <span class="kw">match </span>config.redis().filter(|<span class="kw">_</span>| config.processing_enabled()) {
+            <span class="prelude-val">Some</span>(config) =&gt; <span class="prelude-val">Some</span>(create_redis_pools(config).<span class="kw">await</span>),
+            <span class="prelude-val">None </span>=&gt; <span class="prelude-val">None</span>,
+        }
+        .transpose()
+        .context(ServiceError::Redis)<span class="question-mark">?</span>;
 
         <span class="comment">// If we have Redis configured, we want to initialize all the scripts by loading them in
         // the scripts cache if not present. Our custom ConnectionLike implementation relies on this
@@ -712,10 +742,10 @@
             <span class="kw-2">&amp;mut </span>runner,
             Arc::clone(<span class="kw-2">&amp;</span>config),
             upstream_relay.clone(),
-            redis_pools
-                .as_ref()
-                .map(|pools| pools.project_configs.clone()),
-        );
+            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+            </span>redis_pools.clone(),
+        )
+        .<span class="kw">await</span>;
         <span class="kw">let </span>project_cache_handle =
             ProjectCacheService::new(Arc::clone(<span class="kw-2">&amp;</span>config), project_source).start_in(<span class="kw-2">&amp;mut </span>runner);
 
@@ -930,7 +960,8 @@
     }
 }
 
-<span class="kw">fn </span>create_redis_pool(redis_config: RedisConfigRef) -&gt; <span class="prelude-ty">Result</span>&lt;RedisPool, RedisError&gt; {
+<span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+</span><span class="kw">fn </span>create_redis_pool(redis_config: RedisConfigRef) -&gt; <span class="prelude-ty">Result</span>&lt;RedisPool, RedisError&gt; {
     <span class="kw">match </span>redis_config {
         RedisConfigRef::Cluster {
             cluster_nodes,
@@ -952,15 +983,19 @@
 <span class="doccomment">/// Creates Redis pools from the given `configs`.
 ///
 /// If `configs` is [`Unified`](RedisPoolConfigs::Unified), one pool is created and then cloned
-/// for each use case, meaning that all use cases really use the same pool. If it is
-/// [`Individual`](RedisPoolConfigs::Individual), an actual separate pool is created for each
-/// use case.
-</span><span class="kw">pub fn </span>create_redis_pools(configs: RedisPoolConfigs) -&gt; <span class="prelude-ty">Result</span>&lt;RedisPools, RedisError&gt; {
+/// for cardinality and quotas, meaning that they really use the same pool.
+/// `project_config` uses an async pool so it cannot be shared with the other two.
+///
+/// If it is [`Individual`](RedisPoolConfigs::Individual), an actual separate pool
+/// is created for each use case.
+</span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+</span><span class="kw">pub async fn </span>create_redis_pools(configs: RedisPoolConfigs&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;RedisPools, RedisError&gt; {
     <span class="kw">match </span>configs {
         RedisPoolConfigs::Unified(pool) =&gt; {
+            <span class="kw">let </span>project_configs = create_async_pool(<span class="kw-2">&amp;</span>pool).<span class="kw">await</span><span class="question-mark">?</span>;
             <span class="kw">let </span>pool = create_redis_pool(pool)<span class="question-mark">?</span>;
             <span class="prelude-val">Ok</span>(RedisPools {
-                project_configs: pool.clone(),
+                project_configs,
                 cardinality: pool.clone(),
                 quotas: pool.clone(),
             })
@@ -970,7 +1005,7 @@
             cardinality,
             quotas,
         } =&gt; {
-            <span class="kw">let </span>project_configs = create_redis_pool(project_configs)<span class="question-mark">?</span>;
+            <span class="kw">let </span>project_configs = create_async_pool(<span class="kw-2">&amp;</span>project_configs).<span class="kw">await</span><span class="question-mark">?</span>;
             <span class="kw">let </span>cardinality = create_redis_pool(cardinality)<span class="question-mark">?</span>;
             <span class="kw">let </span>quotas = create_redis_pool(quotas)<span class="question-mark">?</span>;
 
@@ -984,14 +1019,29 @@
 }
 
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+</span><span class="kw">async fn </span>create_async_pool(config: <span class="kw-2">&amp;</span>RedisConfigRef&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;AsyncRedisPool, RedisError&gt; {
+    <span class="kw">match </span>config {
+        RedisConfigRef::Cluster {
+            cluster_nodes,
+            options,
+        } =&gt; AsyncRedisPool::cluster(cluster_nodes.iter().map(|s| s.as_str()), options).<span class="kw">await</span>,
+        RedisConfigRef::Single { server, options } =&gt; {
+            AsyncRedisPool::single(server.as_str(), options).<span class="kw">await
+        </span>}
+        RedisConfigRef::MultiWrite { .. } =&gt; {
+            <span class="prelude-val">Err</span>(RedisError::MultiWriteNotSupported(<span class="string">"projectconfig"</span>))
+        }
+    }
+}
+
+<span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">fn </span>initialize_redis_scripts_for_pools(redis_pools: <span class="kw-2">&amp;</span>RedisPools) -&gt; <span class="prelude-ty">Result</span>&lt;(), RedisError&gt; {
-    <span class="kw">let </span>project_configs = redis_pools.project_configs.client()<span class="question-mark">?</span>;
     <span class="kw">let </span>cardinality = redis_pools.cardinality.client()<span class="question-mark">?</span>;
     <span class="kw">let </span>quotas = redis_pools.quotas.client()<span class="question-mark">?</span>;
 
     <span class="kw">let </span>scripts = RedisScripts::all();
 
-    <span class="kw">let </span>pools = [project_configs, cardinality, quotas];
+    <span class="kw">let </span>pools = [cardinality, quotas];
     <span class="kw">for </span>pool <span class="kw">in </span>pools {
         initialize_redis_scripts(pool, <span class="kw-2">&amp;</span>scripts)<span class="question-mark">?</span>;
     }
