@@ -22,17 +22,20 @@ use crate::services::store::StoreService;
 use crate::services::test_store::{TestStore, TestStoreService};
 use crate::services::upstream::{UpstreamRelay, UpstreamRelayService};
 use crate::utils::{MemoryChecker, MemoryStat, ThreadKind};
-use anyhow::{Context, Result};
+#[cfg(feature = "processing")]
+use anyhow::Context;
+use anyhow::Result;
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
 use rayon::ThreadPool;
 use relay_cogs::Cogs;
-use relay_config::{Config, RedisConfigRef, RedisPoolConfigs};
+use relay_config::Config;
+#[cfg(feature = "processing")]
+use relay_config::{RedisConfigRef, RedisPoolConfigs};
 #[cfg(feature = "processing")]
 use relay_redis::redis::Script;
 #[cfg(feature = "processing")]
-use relay_redis::{PooledClient, RedisScripts};
-use relay_redis::{RedisError, RedisPool, RedisPools};
+use relay_redis::{AsyncRedisPool, PooledClient, RedisError, RedisPool, RedisPools, RedisScripts};
 use relay_system::{channel, Addr, Service, ServiceRunner};
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc;
@@ -50,6 +53,7 @@ pub enum ServiceError {
     Kafka,
 
     /// Initializing the Redis cluster client failed.
+    #[cfg(feature = "processing")]
     #[error("could not initialize redis cluster client")]
     Redis,
 }
@@ -147,17 +151,18 @@ pub struct ServiceState {
 
 impl ServiceState {
     /// Starts all services and returns addresses to all of them.
-    pub fn start(config: Arc<Config>) -> Result<(Self, ServiceRunner)> {
+    pub async fn start(config: Arc<Config>) -> Result<(Self, ServiceRunner)> {
         let mut runner = ServiceRunner::new();
         let upstream_relay = runner.start(UpstreamRelayService::new(config.clone()));
         let test_store = runner.start(TestStoreService::new(config.clone()));
 
-        let redis_pools = config
-            .redis()
-            .filter(|_| config.processing_enabled())
-            .map(create_redis_pools)
-            .transpose()
-            .context(ServiceError::Redis)?;
+        #[cfg(feature = "processing")]
+        let redis_pools = match config.redis().filter(|_| config.processing_enabled()) {
+            Some(config) => Some(create_redis_pools(config).await),
+            None => None,
+        }
+        .transpose()
+        .context(ServiceError::Redis)?;
 
         // If we have Redis configured, we want to initialize all the scripts by loading them in
         // the scripts cache if not present. Our custom ConnectionLike implementation relies on this
@@ -198,10 +203,10 @@ impl ServiceState {
             &mut runner,
             Arc::clone(&config),
             upstream_relay.clone(),
-            redis_pools
-                .as_ref()
-                .map(|pools| pools.project_configs.clone()),
-        );
+            #[cfg(feature = "processing")]
+            redis_pools.clone(),
+        )
+        .await;
         let project_cache_handle =
             ProjectCacheService::new(Arc::clone(&config), project_source).start_in(&mut runner);
 
@@ -416,6 +421,7 @@ impl ServiceState {
     }
 }
 
+#[cfg(feature = "processing")]
 fn create_redis_pool(redis_config: RedisConfigRef) -> Result<RedisPool, RedisError> {
     match redis_config {
         RedisConfigRef::Cluster {
@@ -438,15 +444,19 @@ fn create_redis_pool(redis_config: RedisConfigRef) -> Result<RedisPool, RedisErr
 /// Creates Redis pools from the given `configs`.
 ///
 /// If `configs` is [`Unified`](RedisPoolConfigs::Unified), one pool is created and then cloned
-/// for each use case, meaning that all use cases really use the same pool. If it is
-/// [`Individual`](RedisPoolConfigs::Individual), an actual separate pool is created for each
-/// use case.
-pub fn create_redis_pools(configs: RedisPoolConfigs) -> Result<RedisPools, RedisError> {
+/// for cardinality and quotas, meaning that they really use the same pool.
+/// `project_config` uses an async pool so it cannot be shared with the other two.
+///
+/// If it is [`Individual`](RedisPoolConfigs::Individual), an actual separate pool
+/// is created for each use case.
+#[cfg(feature = "processing")]
+pub async fn create_redis_pools(configs: RedisPoolConfigs<'_>) -> Result<RedisPools, RedisError> {
     match configs {
         RedisPoolConfigs::Unified(pool) => {
+            let project_configs = create_async_pool(&pool).await?;
             let pool = create_redis_pool(pool)?;
             Ok(RedisPools {
-                project_configs: pool.clone(),
+                project_configs,
                 cardinality: pool.clone(),
                 quotas: pool.clone(),
             })
@@ -456,7 +466,7 @@ pub fn create_redis_pools(configs: RedisPoolConfigs) -> Result<RedisPools, Redis
             cardinality,
             quotas,
         } => {
-            let project_configs = create_redis_pool(project_configs)?;
+            let project_configs = create_async_pool(&project_configs).await?;
             let cardinality = create_redis_pool(cardinality)?;
             let quotas = create_redis_pool(quotas)?;
 
@@ -470,14 +480,29 @@ pub fn create_redis_pools(configs: RedisPoolConfigs) -> Result<RedisPools, Redis
 }
 
 #[cfg(feature = "processing")]
+async fn create_async_pool(config: &RedisConfigRef<'_>) -> Result<AsyncRedisPool, RedisError> {
+    match config {
+        RedisConfigRef::Cluster {
+            cluster_nodes,
+            options,
+        } => AsyncRedisPool::cluster(cluster_nodes.iter().map(|s| s.as_str()), options).await,
+        RedisConfigRef::Single { server, options } => {
+            AsyncRedisPool::single(server.as_str(), options).await
+        }
+        RedisConfigRef::MultiWrite { .. } => {
+            Err(RedisError::MultiWriteNotSupported("projectconfig"))
+        }
+    }
+}
+
+#[cfg(feature = "processing")]
 fn initialize_redis_scripts_for_pools(redis_pools: &RedisPools) -> Result<(), RedisError> {
-    let project_configs = redis_pools.project_configs.client()?;
     let cardinality = redis_pools.cardinality.client()?;
     let quotas = redis_pools.quotas.client()?;
 
     let scripts = RedisScripts::all();
 
-    let pools = [project_configs, cardinality, quotas];
+    let pools = [cardinality, quotas];
     for pool in pools {
         initialize_redis_scripts(pool, &scripts)?;
     }

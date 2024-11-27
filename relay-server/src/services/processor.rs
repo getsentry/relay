@@ -3393,7 +3393,7 @@ mod tests {
             mock_service("store_forwarder", vec![], f)
         };
 
-        let processor = create_test_processor(config);
+        let processor = create_test_processor(config).await;
         assert!(processor.redis_rate_limiter_enabled());
 
         processor.encode_metrics_processing(message, &store);
@@ -3406,7 +3406,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_browser_version_extraction_with_pii_like_data() {
-        let processor = create_test_processor(Default::default());
+        let processor = create_test_processor(Default::default()).await;
         let (outcome_aggregator, test_store) = testutils::processor_services();
         let event_id = EventId::new();
 
@@ -3539,7 +3539,7 @@ mod tests {
         }))
         .unwrap();
 
-        let processor = create_test_processor(config);
+        let processor = create_test_processor(config).await;
         let response = processor.process(process_message).unwrap();
         let envelope = response.envelope.as_ref().unwrap().envelope();
         let event = envelope
@@ -3717,7 +3717,8 @@ mod tests {
                 aggregator,
                 ..Default::default()
             },
-        );
+        )
+        .await;
 
         let mut item = Item::new(ItemType::Statsd);
         item.set_payload(
@@ -3763,7 +3764,8 @@ mod tests {
                 aggregator,
                 ..Default::default()
             },
-        );
+        )
+        .await;
 
         let payload = r#"{
     "buckets": {

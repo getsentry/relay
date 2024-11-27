@@ -153,7 +153,7 @@ impl PartitionedEnvelopeBuffer {
         }
 
         let mut hasher = FnvHasher::default();
-        project_key_pair.hash(&mut hasher);
+        project_key_pair.own_key.hash(&mut hasher);
         let buffer_index = (hasher.finish() % self.buffers.len() as u64) as usize;
         let buffer = self.buffers.get(buffer_index);
         buffer
