@@ -1117,7 +1117,7 @@
         }
 
         <span class="kw">let </span><span class="kw-2">mut </span>hasher = FnvHasher::default();
-        project_key_pair.hash(<span class="kw-2">&amp;mut </span>hasher);
+        project_key_pair.own_key.hash(<span class="kw-2">&amp;mut </span>hasher);
         <span class="kw">let </span>buffer_index = (hasher.finish() % <span class="self">self</span>.buffers.len() <span class="kw">as </span>u64) <span class="kw">as </span>usize;
         <span class="kw">let </span>buffer = <span class="self">self</span>.buffers.get(buffer_index);
         buffer
