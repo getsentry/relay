@@ -80,7 +80,10 @@ impl Builder {
         let cb_metrics = Arc::new(TokioCallbackMetrics::default());
         cb_metrics.register(&mut self.builder);
 
-        let rt = self.builder.build().unwrap();
+        let rt = self
+            .builder
+            .build()
+            .expect("creating the Tokio runtime should never fail");
 
         Runtime {
             name: self.name,
