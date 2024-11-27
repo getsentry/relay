@@ -609,6 +609,7 @@ mod tests {
     use chrono::Utc;
     use relay_dynamic_config::GlobalConfig;
     use relay_quotas::DataCategory;
+    use std::hash::DefaultHasher;
     use std::time::Duration;
     use tokio::sync::mpsc;
     use uuid::Uuid;

@@ -1,9 +1,10 @@
 use relay_base_schema::project::ProjectKey;
+use std::hash::{Hash, Hasher};
 
 use crate::Envelope;
 
 /// Struct that represents two project keys.
-#[derive(Debug, Clone, Copy, Eq, Hash, Ord, PartialOrd, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, Ord, PartialOrd, PartialEq)]
 pub struct ProjectKeyPair {
     pub own_key: ProjectKey,
     pub sampling_key: ProjectKey,
@@ -29,5 +30,11 @@ impl ProjectKeyPair {
             sampling_key,
         } = self;
         std::iter::once(*own_key).chain((own_key != sampling_key).then_some(*sampling_key))
+    }
+}
+
+impl Hash for ProjectKeyPair {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.own_key.hash(state);
     }
 }
