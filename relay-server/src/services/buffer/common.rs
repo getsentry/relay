@@ -32,9 +32,3 @@ impl ProjectKeyPair {
         std::iter::once(*own_key).chain((own_key != sampling_key).then_some(*sampling_key))
     }
 }
-
-impl Hash for ProjectKeyPair {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.own_key.hash(state);
-    }
-}
