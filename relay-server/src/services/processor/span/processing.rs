@@ -1311,6 +1311,8 @@ mod tests {
 
         normalize(&mut span, normalize_config()).unwrap();
 
+        let data = get_value!(span.data!);
+        assert_eq!(data.exclusive_time, Annotated::empty());
         assert_eq!(*get_value!(span.exclusive_time!), 123.0);
     }
 
@@ -1331,6 +1333,8 @@ mod tests {
 
         normalize(&mut span, normalize_config()).unwrap();
 
+        let data = get_value!(span.data!);
+        assert_eq!(data.exclusive_time, Annotated::empty());
         assert_eq!(*get_value!(span.exclusive_time!), 123.0);
     }
 
@@ -1372,7 +1376,7 @@ mod tests {
         normalize(&mut span, normalize_config()).unwrap();
 
         let data = get_value!(span.data!);
-
+        assert_eq!(data.profile_id, Annotated::empty());
         assert_eq!(
             get_value!(span.profile_id!),
             &EventId("480ffcc911174ade9106b40ffbd822f5".parse().unwrap())
