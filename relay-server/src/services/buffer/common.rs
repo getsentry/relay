@@ -4,7 +4,7 @@ use std::hash::{Hash, Hasher};
 use crate::Envelope;
 
 /// Struct that represents two project keys.
-#[derive(Debug, Clone, Copy, Eq, Ord, PartialOrd, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, Hash, Ord, PartialOrd, PartialEq)]
 pub struct ProjectKeyPair {
     pub own_key: ProjectKey,
     pub sampling_key: ProjectKey,
