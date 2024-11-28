@@ -617,7 +617,9 @@ mod tests {
     ) -> EnvelopeBufferServiceResult {
         relay_log::init_test!();
 
-        let config = Arc::new(Config::default());
+        let config = Arc::new(
+            config_json.map_or_else(Config::default, |c| Config::from_json_value(c).unwrap()),
+        );
 
         let memory_stat = MemoryStat::default();
         let (global_tx, global_rx) = watch::channel(global_config_status);
