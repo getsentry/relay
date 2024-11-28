@@ -94,14 +94,6 @@ pub struct PartitionedEnvelopeBuffer {
 }
 
 impl PartitionedEnvelopeBuffer {
-    /// Creates a [`PartitionedEnvelopeBuffer`] with no partitions.
-    #[cfg(test)]
-    pub fn empty() -> Self {
-        Self {
-            buffers: Arc::new(Vec::new()),
-        }
-    }
-
     /// Creates a new [`PartitionedEnvelopeBuffer`] by instantiating inside all the necessary
     /// [`ObservableEnvelopeBuffer`]s.
     #[allow(clippy::too_many_arguments)]

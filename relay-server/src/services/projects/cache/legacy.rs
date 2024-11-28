@@ -10,7 +10,6 @@ use crate::services::processor::{
 };
 use crate::services::projects::cache::{CheckedEnvelope, ProjectCacheHandle};
 use crate::Envelope;
-use relay_config::Config;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, Service};
 use tokio::sync::{mpsc, watch};
@@ -21,7 +20,7 @@ use crate::services::projects::project::ProjectState;
 use crate::services::test_store::TestStore;
 
 use crate::statsd::{RelayCounters, RelayTimers};
-use crate::utils::{ManagedEnvelope, MemoryChecker};
+use crate::utils::ManagedEnvelope;
 
 /// Handle an envelope that was popped from the envelope buffer.
 #[derive(Debug)]
@@ -60,7 +59,6 @@ pub struct Services {
     pub aggregator: Addr<Aggregator>,
     pub envelope_processor: Addr<EnvelopeProcessor>,
     pub outcome_aggregator: Addr<TrackOutcome>,
-    pub project_cache: Addr<ProjectCache>,
     pub test_store: Addr<TestStore>,
 }
 
@@ -70,8 +68,6 @@ pub struct Services {
 /// cache of project states.
 #[derive(Debug)]
 struct ProjectCacheBroker {
-    config: Arc<Config>,
-    memory_checker: MemoryChecker,
     services: Services,
     projects: ProjectCacheHandle,
 
@@ -91,70 +87,9 @@ enum GlobalConfigStatus {
     Pending,
 }
 
-impl GlobalConfigStatus {
-    fn is_ready(&self) -> bool {
-        matches!(self, GlobalConfigStatus::Ready)
-    }
-}
-
 impl ProjectCacheBroker {
     fn set_global_config_ready(&mut self) {
         self.global_config = GlobalConfigStatus::Ready;
-    }
-
-    /// Handles the processing of the provided envelope.
-    fn handle_processing(&mut self, mut managed_envelope: ManagedEnvelope) {
-        let project_key = managed_envelope.envelope().meta().public_key();
-
-        let project = self.projects.get(project_key);
-
-        let project_info = match project.state() {
-            ProjectState::Enabled(info) => info,
-            ProjectState::Disabled => {
-                managed_envelope.reject(Outcome::Invalid(DiscardReason::ProjectId));
-                return;
-            }
-            ProjectState::Pending => {
-                relay_log::error!(
-                    tags.project_key = %project_key,
-                    "project has no valid cached state",
-                );
-                return;
-            }
-        };
-
-        // The `Envelope` and `EnvelopeContext` will be dropped if the `Project::check_envelope()`
-        // function returns any error, which will also be ignored here.
-        // TODO(jjbayer): check_envelope also makes sure the envelope has proper scoping.
-        // If we don't call check_envelope in the same message handler as handle_processing,
-        // there is a chance that the project is not ready yet and events are published with
-        // `organization_id: 0`. We should eliminate this footgun by introducing a `ScopedEnvelope`
-        // type which guarantees that the envelope has complete scoping.
-        if let Ok(CheckedEnvelope {
-            envelope: Some(managed_envelope),
-            ..
-        }) = project.check_envelope(managed_envelope)
-        {
-            let rate_limits = project.rate_limits().current_limits();
-            let reservoir_counters = project.reservoir_counters().clone();
-
-            let sampling_project_info = managed_envelope
-                .envelope()
-                .sampling_key()
-                .map(|key| self.projects.get(key))
-                .and_then(|p| p.state().clone().enabled())
-                .filter(|info| info.organization_id == project_info.organization_id);
-
-            let process = ProcessEnvelope {
-                envelope: managed_envelope,
-                project_info: Arc::clone(project_info),
-                rate_limits,
-                sampling_project_info,
-                reservoir_counters,
-            };
-
-            self.services.envelope_processor.send(process);
-        }
     }
 
     fn handle_flush_buckets(&mut self, message: FlushBuckets) {
@@ -217,8 +152,6 @@ impl ProjectCacheBroker {
             counter(RelayCounters::ProjectStateFlushMetricsNoProject) += no_project
         );
     }
-
-    // TODO: remove ValidateEnvelope?
 
     fn handle_dequeued_envelope(
         &mut self,
@@ -338,8 +271,6 @@ impl ProjectCacheBroker {
 /// Service implementing the [`ProjectCache`] interface.
 #[derive(Debug)]
 pub struct ProjectCacheService {
-    config: Arc<Config>,
-    memory_checker: MemoryChecker,
     project_cache_handle: ProjectCacheHandle,
     services: Services,
     global_config_rx: watch::Receiver<global_config::Status>,
@@ -350,16 +281,12 @@ pub struct ProjectCacheService {
 impl ProjectCacheService {
     /// Creates a new `ProjectCacheService`.
     pub fn new(
-        config: Arc<Config>,
-        memory_checker: MemoryChecker,
         project_cache_handle: ProjectCacheHandle,
         services: Services,
         global_config_rx: watch::Receiver<global_config::Status>,
         envelopes_rx: mpsc::Receiver<DequeuedEnvelope>,
     ) -> Self {
         Self {
-            config,
-            memory_checker,
             project_cache_handle,
             services,
             global_config_rx,
@@ -373,8 +300,6 @@ impl Service for ProjectCacheService {
 
     async fn run(self, mut rx: relay_system::Receiver<Self::Interface>) {
         let Self {
-            config,
-            memory_checker,
             project_cache_handle,
             services,
             mut global_config_rx,
@@ -394,8 +319,6 @@ impl Service for ProjectCacheService {
         };
 
         let mut broker = ProjectCacheBroker {
-            config: config.clone(),
-            memory_checker,
             projects: project_cache_handle,
             services,
             global_config,
@@ -430,28 +353,5 @@ impl Service for ProjectCacheService {
         }
 
         relay_log::info!("project cache stopped");
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use relay_test::mock_service;
-
-    fn mocked_services() -> Services {
-        let (aggregator, _) = mock_service("aggregator", (), |&mut (), _| {});
-        let (envelope_processor, _) = mock_service("envelope_processor", (), |&mut (), _| {});
-        let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
-        let (project_cache, _) = mock_service("project_cache", (), |&mut (), _| {});
-        let (test_store, _) = mock_service("test_store", (), |&mut (), _| {});
-
-        Services {
-            envelope_buffer: PartitionedEnvelopeBuffer::empty(),
-            aggregator,
-            envelope_processor,
-            project_cache,
-            outcome_aggregator,
-            test_store,
-        }
     }
 }

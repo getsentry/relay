@@ -1,8 +1,7 @@
-use std::io::BufRead;
 use std::path::{Path, PathBuf};
 use std::{env, io};
 
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{anyhow, bail, Result};
 use clap::ArgMatches;
 use clap_complete::Shell;
 use dialoguer::{Confirm, Select};

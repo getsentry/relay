@@ -7,23 +7,6 @@ pub enum RelayGauges {
     /// The state of Relay with respect to the upstream connection.
     /// Possible values are `0` for normal operations and `1` for a network outage.
     NetworkOutage,
-    /// The number of envelopes waiting for project states in memory.
-    ///
-    /// This number is always <= `EnvelopeQueueSize`.
-    ///
-    /// The memory buffer size can be configured with `spool.envelopes.max_memory_size`.
-    BufferEnvelopesMemoryCount,
-    /// The number of envelopes waiting for project states on disk.
-    ///
-    /// Note this metric *will not be logged* when we encounter envelopes in the database on startup,
-    /// because counting those envelopes reliably would risk locking the db for multiple seconds.
-    ///
-    /// The disk buffer size can be configured with `spool.envelopes.max_disk_size`.
-    BufferEnvelopesDiskCount,
-    /// Number of queue keys (project key pairs) unspooled during proactive unspool.
-    /// This metric is tagged with:
-    /// - `reason`: Why keys are / are not unspooled.
-    BufferPeriodicUnspool,
     /// The number of individual stacks in the priority queue.
     ///
     /// Per combination of `(own_key, sampling_key)`, a new stack is created.
@@ -56,9 +39,6 @@ impl GaugeMetric for RelayGauges {
     fn name(&self) -> &'static str {
         match self {
             RelayGauges::NetworkOutage => "upstream.network_outage",
-            RelayGauges::BufferEnvelopesMemoryCount => "buffer.envelopes_mem_count",
-            RelayGauges::BufferEnvelopesDiskCount => "buffer.envelopes_disk_count",
-            RelayGauges::BufferPeriodicUnspool => "buffer.unspool.periodic",
             RelayGauges::BufferStackCount => "buffer.stack_count",
             RelayGauges::BufferDiskUsed => "buffer.disk_used",
             RelayGauges::SystemMemoryUsed => "health.system_memory.used",
@@ -171,16 +151,7 @@ pub enum RelayHistograms {
     ///
     /// Metric is tagged by the item type.
     EnvelopeItemSize,
-    /// The estimated number of envelope bytes buffered in memory.
-    ///
-    /// The memory buffer size can be configured with `spool.envelopes.max_memory_size`.
-    BufferEnvelopesMemoryBytes,
-    /// The file size of the buffer db on disk, in bytes.
-    ///
-    /// This metric is computed by multiplying `page_count * page_size`.
-    BufferDiskSize,
-    /// Number of attempts needed to dequeue spooled envelopes from disk.
-    BufferDequeueAttempts,
+
     /// Number of elements in the envelope buffer across all the stacks.
     ///
     /// This metric is tagged with:
@@ -319,9 +290,6 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::EventSpans => "event.spans",
             RelayHistograms::BatchesPerPartition => "metrics.buckets.batches_per_partition",
             RelayHistograms::BucketsPerBatch => "metrics.buckets.per_batch",
-            RelayHistograms::BufferEnvelopesMemoryBytes => "buffer.envelopes_mem",
-            RelayHistograms::BufferDiskSize => "buffer.disk_size",
-            RelayHistograms::BufferDequeueAttempts => "buffer.dequeue_attempts",
             RelayHistograms::BufferEnvelopesCount => "buffer.envelopes_count",
             RelayHistograms::BufferBackpressureEnvelopesCount => {
                 "buffer.backpressure_envelopes_count"
@@ -511,12 +479,6 @@ pub enum RelayTimers {
     /// This metric is tagged with:
     /// - `task`: The type of the task the project cache does.
     LegacyProjectCacheTaskDuration,
-    /// Timing in milliseconds for processing a message in the buffer service.
-    ///
-    /// This metric is tagged with:
-    ///
-    ///  - `message`: The type of message that was processed.
-    BufferMessageProcessDuration,
     /// Timing in milliseconds for handling and responding to a health check request.
     ///
     /// This metric is tagged with:
@@ -615,7 +577,6 @@ impl TimerMetric for RelayTimers {
             RelayTimers::ReplayRecordingProcessing => "replay.recording.process",
             RelayTimers::GlobalConfigRequestDuration => "global_config.requests.duration",
             RelayTimers::ProcessMessageDuration => "processor.message.duration",
-            RelayTimers::BufferMessageProcessDuration => "buffer.message.duration",
             RelayTimers::ProjectCacheTaskDuration => "project_cache.task.duration",
             RelayTimers::LegacyProjectCacheMessageDuration => {
                 "legacy_project_cache.message.duration"
@@ -674,20 +635,10 @@ pub enum RelayCounters {
     ///  - `handling`: Either `"success"` if the envelope was handled correctly, or `"failure"` if
     ///    there was an error or bug.
     EnvelopeRejected,
-    /// Number of times the envelope buffer spools to disk.
-    BufferWritesDisk,
-    /// Number of times the envelope buffer reads back from disk.
-    BufferReadsDisk,
     /// Number of _envelopes_ the envelope buffer ingests.
     BufferEnvelopesWritten,
     /// Number of _envelopes_ the envelope buffer produces.
     BufferEnvelopesRead,
-    /// Number of state changes in the envelope buffer.
-    /// This metric is tagged with:
-    ///  - `state_in`: The previous state. `memory`, `memory_file_standby`, or `disk`.
-    ///  - `state_out`: The new state. `memory`, `memory_file_standby`, or `disk`.
-    ///  - `reason`: Why a transition was made (or not made).
-    BufferStateTransition,
     /// Number of envelopes that were returned to the envelope buffer by the project cache.
     ///
     /// This happens when the envelope buffer falsely assumes that the envelope's projects are loaded
@@ -887,12 +838,9 @@ impl CounterMetric for RelayCounters {
             RelayCounters::EventCorrupted => "event.corrupted",
             RelayCounters::EnvelopeAccepted => "event.accepted",
             RelayCounters::EnvelopeRejected => "event.rejected",
-            RelayCounters::BufferWritesDisk => "buffer.writes",
-            RelayCounters::BufferReadsDisk => "buffer.reads",
             RelayCounters::BufferEnvelopesWritten => "buffer.envelopes_written",
             RelayCounters::BufferEnvelopesRead => "buffer.envelopes_read",
             RelayCounters::BufferEnvelopesReturned => "buffer.envelopes_returned",
-            RelayCounters::BufferStateTransition => "buffer.state.transition",
             RelayCounters::BufferEnvelopeStacksPopped => "buffer.envelope_stacks_popped",
             RelayCounters::BufferTryPop => "buffer.try_pop",
             RelayCounters::BufferReadyToPop => "buffer.ready_to_pop",

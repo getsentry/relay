@@ -286,14 +286,11 @@ impl ServiceState {
             aggregator: aggregator.clone(),
             envelope_processor: processor.clone(),
             outcome_aggregator: outcome_aggregator.clone(),
-            project_cache: legacy_project_cache.clone(),
             test_store: test_store.clone(),
         };
 
         runner.start_with(
             legacy::ProjectCacheService::new(
-                config.clone(),
-                MemoryChecker::new(memory_stat.clone(), config.clone()),
                 project_cache_handle.clone(),
                 project_cache_services,
                 global_config_rx,
