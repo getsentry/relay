@@ -25,9 +25,7 @@ def test_graceful_shutdown_with_in_memory_buffer(mini_sentry, relay):
 
     relay = relay(
         mini_sentry,
-        {
-            "limits": {"shutdown_timeout": 2}
-        },
+        {"limits": {"shutdown_timeout": 2}},
     )
 
     relay.send_event(project_id)
