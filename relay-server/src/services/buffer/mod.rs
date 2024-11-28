@@ -139,16 +139,13 @@ impl PartitionedEnvelopeBuffer {
     ///
     /// The rationale of using this partitioning strategy is to reduce memory usage across buffers
     /// since each individual buffer will only take care of a subset of projects.
-    pub fn buffer(&self, project_key_pair: ProjectKeyPair) -> Option<&ObservableEnvelopeBuffer> {
-        if self.buffers.is_empty() {
-            return None;
-        }
-
+    pub fn buffer(&self, project_key_pair: ProjectKeyPair) -> &ObservableEnvelopeBuffer {
         let mut hasher = FnvHasher::default();
         project_key_pair.own_key.hash(&mut hasher);
         let buffer_index = (hasher.finish() % self.buffers.len() as u64) as usize;
-        let buffer = self.buffers.get(buffer_index);
-        buffer
+        self.buffers
+            .get(buffer_index)
+            .expect("buffers should not be empty")
     }
 
     /// Returns `true` if all [`ObservableEnvelopeBuffer`]s have capacity to get new [`Envelope`]s.

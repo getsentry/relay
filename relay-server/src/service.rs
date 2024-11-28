@@ -360,10 +360,7 @@ impl ServiceState {
     }
 
     /// Returns the V2 envelope buffer, if present.
-    pub fn envelope_buffer(
-        &self,
-        project_key_pair: ProjectKeyPair,
-    ) -> Option<&ObservableEnvelopeBuffer> {
+    pub fn envelope_buffer(&self, project_key_pair: ProjectKeyPair) -> &ObservableEnvelopeBuffer {
         self.inner.registry.envelope_buffer.buffer(project_key_pair)
     }
 

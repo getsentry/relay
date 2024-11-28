@@ -293,24 +293,18 @@ fn queue_envelope(
         envelope.scope(scoping);
 
         let project_key_pair = ProjectKeyPair::from_envelope(envelope.envelope());
-        match state.envelope_buffer(project_key_pair) {
-            Some(buffer) => {
-                if !buffer.has_capacity() {
-                    return Err(BadStoreRequest::QueueFailed);
-                }
-
-                // NOTE: This assumes that a `prefetch` has already been scheduled for both the
-                // envelope's projects. See `handle_check_envelope`.
-                relay_log::trace!("Pushing envelope to V2 buffer");
-
-                buffer
-                    .addr()
-                    .send(EnvelopeBuffer::Push(envelope.into_envelope()));
-            }
-            None => {
-                todo!();
-            }
+        let buffer = state.envelope_buffer(project_key_pair);
+        if !buffer.has_capacity() {
+            return Err(BadStoreRequest::QueueFailed);
         }
+
+        // NOTE: This assumes that a `prefetch` has already been scheduled for both the
+        // envelope's projects. See `handle_check_envelope`.
+        relay_log::trace!("Pushing envelope to V2 buffer");
+
+        buffer
+            .addr()
+            .send(EnvelopeBuffer::Push(envelope.into_envelope()));
     }
     // The entire envelope is taken for a split above, and it's empty at this point, we can just
     // accept it without additional checks.

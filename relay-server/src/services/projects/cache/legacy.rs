@@ -256,8 +256,7 @@ impl ProjectCacheBroker {
             .envelope_buffer
             .clone()
             .buffer(project_key_pair)
-            .map(|b| b.addr())
-            .expect("Called HandleDequeuedEnvelope without an envelope buffer");
+            .addr();
 
         if let Err(e) = self.handle_dequeued_envelope(dequeued_envelope.0, envelope_buffer) {
             relay_log::error!(
