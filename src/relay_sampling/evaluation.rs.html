@@ -1,4 +1,5 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-sampling/src/evaluation.rs`."><title>evaluation.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-492a78a4a87dcc01.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_sampling" data-themes="" data-resource-suffix="" data-rustdoc-version="1.82.0 (f6e511eec 2024-10-15)" data-channel="1.82.0" data-search-js="search-a99f1315e7cc5121.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-921df33f47b8780c.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-3b12f09e550e0385.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-sampling/src/evaluation.rs`."><title>evaluation.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-b0742ba02757f159.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_sampling" data-themes="" data-resource-suffix="" data-rustdoc-version="1.83.0 (90b35a623 2024-11-26)" data-channel="1.83.0" data-search-js="search-f0d225181b97f9a4.js" data-settings-js="settings-805db61a62df4bd2.js" ><script src="../../static.files/storage-1d39b6787ed640ff.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-f070b9041d14864c.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-0111fcff984fae8f.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">relay_sampling/</div>evaluation.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers">
+<a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -831,7 +832,8 @@
 <a href="#831" id="831">831</a>
 <a href="#832" id="832">832</a>
 <a href="#833" id="833">833</a>
-</pre></div><pre class="rust"><code><span class="doccomment">//! Evaluation of dynamic sampling rules.
+<a href="#834" id="834">834</a>
+<a href="#835" id="835">835</a></pre></div><pre class="rust"><code><span class="doccomment">//! Evaluation of dynamic sampling rules.
 
 </span><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::fmt;
@@ -889,7 +891,7 @@
     </span>_phantom: std::marker::PhantomData&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>()&gt;,
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; ReservoirEvaluator&lt;<span class="lifetime">'a</span>&gt; {
+<span class="kw">impl </span>ReservoirEvaluator&lt;<span class="lifetime">'_</span>&gt; {
     <span class="doccomment">/// Constructor for [`ReservoirEvaluator`].
     </span><span class="kw">pub fn </span>new(counters: ReservoirCounters) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
@@ -903,14 +905,6 @@
     <span class="doccomment">/// Gets shared ownership of the reservoir counters.
     </span><span class="kw">pub fn </span>counters(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ReservoirCounters {
         Arc::clone(<span class="kw-2">&amp;</span><span class="self">self</span>.counters)
-    }
-
-    <span class="doccomment">/// Sets the Redis pool and organization ID for the [`ReservoirEvaluator`].
-    ///
-    /// These values are needed to synchronize with Redis.
-    </span><span class="attr">#[cfg(feature = <span class="string">"redis"</span>)]
-    </span><span class="kw">pub fn </span>set_redis(<span class="kw-2">&amp;mut </span><span class="self">self</span>, org_id: OrganizationId, redis_pool: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>RedisPool) {
-        <span class="self">self</span>.org_id_and_redis_pool = <span class="prelude-val">Some</span>((org_id, redis_pool));
     }
 
     <span class="attr">#[cfg(feature = <span class="string">"redis"</span>)]
@@ -976,6 +970,16 @@
         }
 
         <span class="self">self</span>.incr_local(rule, limit)
+    }
+}
+
+<span class="attr">#[cfg(feature = <span class="string">"redis"</span>)]
+</span><span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; ReservoirEvaluator&lt;<span class="lifetime">'a</span>&gt; {
+    <span class="doccomment">/// Sets the Redis pool and organization ID for the [`ReservoirEvaluator`].
+    ///
+    /// These values are needed to synchronize with Redis.
+    </span><span class="kw">pub fn </span>set_redis(<span class="kw-2">&amp;mut </span><span class="self">self</span>, org_id: OrganizationId, redis_pool: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>RedisPool) {
+        <span class="self">self</span>.org_id_and_redis_pool = <span class="prelude-val">Some</span>((org_id, redis_pool));
     }
 }
 
