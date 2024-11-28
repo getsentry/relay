@@ -523,29 +523,29 @@ impl Default for Relay {
 /// Control the metrics.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
-struct Metrics {
+pub struct Metrics {
     /// Hostname and port of the statsd server.
     ///
     /// Defaults to `None`.
-    statsd: Option<String>,
+    pub statsd: Option<String>,
     /// Common prefix that should be added to all metrics.
     ///
     /// Defaults to `"sentry.relay"`.
-    prefix: String,
+    pub prefix: String,
     /// Default tags to apply to all metrics.
-    default_tags: BTreeMap<String, String>,
+    pub default_tags: BTreeMap<String, String>,
     /// Tag name to report the hostname to for each metric. Defaults to not sending such a tag.
-    hostname_tag: Option<String>,
+    pub hostname_tag: Option<String>,
     /// Global sample rate for all emitted metrics between `0.0` and `1.0`.
     ///
     /// For example, a value of `0.3` means that only 30% of the emitted metrics will be sent.
     /// Defaults to `1.0` (100%).
-    sample_rate: f32,
+    pub sample_rate: f32,
     /// Interval for periodic metrics emitted from Relay.
     ///
     /// Setting it to `0` seconds disables the periodic metrics.
     /// Defaults to 5 seconds.
-    periodic_secs: u64,
+    pub periodic_secs: u64,
 }
 
 impl Default for Metrics {
@@ -564,7 +564,7 @@ impl Default for Metrics {
 /// Controls processing of Sentry metrics and metric metadata.
 #[derive(Serialize, Deserialize, Debug, Default)]
 #[serde(default)]
-struct SentryMetrics {
+pub struct SentryMetrics {
     /// Whether metric stats are collected and emitted.
     ///
     /// Metric stats are always collected and emitted when processing
@@ -581,72 +581,72 @@ struct SentryMetrics {
 /// Controls various limits
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
-struct Limits {
+pub struct Limits {
     /// How many requests can be sent concurrently from Relay to the upstream before Relay starts
     /// buffering.
-    max_concurrent_requests: usize,
+    pub max_concurrent_requests: usize,
     /// How many queries can be sent concurrently from Relay to the upstream before Relay starts
     /// buffering.
     ///
     /// The concurrency of queries is additionally constrained by `max_concurrent_requests`.
-    max_concurrent_queries: usize,
+    pub max_concurrent_queries: usize,
     /// The maximum payload size for events.
-    max_event_size: ByteSize,
+    pub max_event_size: ByteSize,
     /// The maximum size for each attachment.
-    max_attachment_size: ByteSize,
+    pub max_attachment_size: ByteSize,
     /// The maximum combined size for all attachments in an envelope or request.
-    max_attachments_size: ByteSize,
+    pub max_attachments_size: ByteSize,
     /// The maximum combined size for all client reports in an envelope or request.
-    max_client_reports_size: ByteSize,
+    pub max_client_reports_size: ByteSize,
     /// The maximum payload size for a monitor check-in.
-    max_check_in_size: ByteSize,
+    pub max_check_in_size: ByteSize,
     /// The maximum payload size for an entire envelopes. Individual limits still apply.
-    max_envelope_size: ByteSize,
+    pub max_envelope_size: ByteSize,
     /// The maximum number of session items per envelope.
-    max_session_count: usize,
+    pub max_session_count: usize,
     /// The maximum payload size for general API requests.
-    max_api_payload_size: ByteSize,
+    pub max_api_payload_size: ByteSize,
     /// The maximum payload size for file uploads and chunks.
-    max_api_file_upload_size: ByteSize,
+    pub max_api_file_upload_size: ByteSize,
     /// The maximum payload size for chunks
-    max_api_chunk_upload_size: ByteSize,
+    pub max_api_chunk_upload_size: ByteSize,
     /// The maximum payload size for a profile
-    max_profile_size: ByteSize,
+    pub max_profile_size: ByteSize,
     /// The maximum payload size for a span.
-    max_span_size: ByteSize,
+    pub max_span_size: ByteSize,
     /// The maximum payload size for a statsd metric.
-    max_statsd_size: ByteSize,
+    pub max_statsd_size: ByteSize,
     /// The maximum payload size for metric buckets.
-    max_metric_buckets_size: ByteSize,
+    pub max_metric_buckets_size: ByteSize,
     /// The maximum payload size for a compressed replay.
-    max_replay_compressed_size: ByteSize,
+    pub max_replay_compressed_size: ByteSize,
     /// The maximum payload size for an uncompressed replay.
     #[serde(alias = "max_replay_size")]
     max_replay_uncompressed_size: ByteSize,
     /// The maximum size for a replay recording Kafka message.
-    max_replay_message_size: ByteSize,
+    pub max_replay_message_size: ByteSize,
     /// The maximum number of threads to spawn for CPU and web work, each.
     ///
     /// The total number of threads spawned will roughly be `2 * max_thread_count`. Defaults to
     /// the number of logical CPU cores on the host.
-    max_thread_count: usize,
+    pub max_thread_count: usize,
     /// The maximum number of seconds a query is allowed to take across retries. Individual requests
     /// have lower timeouts. Defaults to 30 seconds.
-    query_timeout: u64,
+    pub query_timeout: u64,
     /// The maximum number of seconds to wait for pending envelopes after receiving a shutdown
     /// signal.
-    shutdown_timeout: u64,
+    pub shutdown_timeout: u64,
     /// Server keep-alive timeout in seconds.
     ///
     /// By default keep-alive is set to a 5 seconds.
-    keepalive_timeout: u64,
+    pub keepalive_timeout: u64,
     /// Server idle timeout in seconds.
     ///
     /// The idle timeout limits the amount of time a connection is kept open without activity.
     /// Setting this too short may abort connections before Relay is able to send a response.
     ///
     /// By default there is no idle timeout.
-    idle_timeout: Option<u64>,
+    pub idle_timeout: Option<u64>,
     /// The TCP listen backlog.
     ///
     /// Configures the TCP listen backlog for the listening socket of Relay.
@@ -702,7 +702,7 @@ pub struct Routing {
     ///
     /// Defaults to `true` for all Relay modes other than processing mode. In processing mode, this
     /// is disabled by default since the item cannot be handled.
-    accept_unknown_items: Option<bool>,
+    pub accept_unknown_items: Option<bool>,
 }
 
 /// Http content encoding for both incoming and outgoing web requests.
@@ -773,22 +773,22 @@ impl Default for HttpEncoding {
 /// Controls authentication with upstream.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
-struct Http {
+pub struct Http {
     /// Timeout for upstream requests in seconds.
     ///
     /// This timeout covers the time from sending the request until receiving response headers.
     /// Neither the connection process and handshakes, nor reading the response body is covered in
     /// this timeout.
-    timeout: u32,
+    pub timeout: u32,
     /// Timeout for establishing connections with the upstream in seconds.
     ///
     /// This includes SSL handshakes. Relay reuses connections when the upstream supports connection
     /// keep-alive. Connections are retained for a maximum 75 seconds, or 15 seconds of inactivity.
-    connection_timeout: u32,
+    pub connection_timeout: u32,
     /// Maximum interval between failed request retries in seconds.
-    max_retry_interval: u32,
+    pub max_retry_interval: u32,
     /// The custom HTTP Host header to send to the upstream.
-    host_header: Option<String>,
+    pub host_header: Option<String>,
     /// The interval in seconds at which Relay attempts to reauthenticate with the upstream server.
     ///
     /// Re-authentication happens even when Relay is idle. If authentication fails, Relay reverts
@@ -796,22 +796,22 @@ struct Http {
     /// envelopes will be buffered.
     ///
     /// Defaults to `600` (10 minutes).
-    auth_interval: Option<u64>,
+    pub auth_interval: Option<u64>,
     /// The maximum time of experiencing uninterrupted network failures until Relay considers that
     /// it has encountered a network outage in seconds.
     ///
     /// During a network outage relay will try to reconnect and will buffer all upstream messages
     /// until it manages to reconnect.
-    outage_grace_period: u64,
+    pub outage_grace_period: u64,
     /// The time Relay waits before retrying an upstream request, in seconds.
     ///
     /// This time is only used before going into a network outage mode.
-    retry_delay: u64,
+    pub retry_delay: u64,
     /// The interval in seconds for continued failed project fetches at which Relay will error.
     ///
     /// A successful fetch resets this interval. Relay does nothing during long
     /// times without emitting requests.
-    project_failure_interval: u64,
+    pub project_failure_interval: u64,
     /// Content encoding to apply to upstream store requests.
     ///
     /// By default, Relay applies `gzip` content encoding to compress upstream requests. Compression
@@ -826,14 +826,14 @@ struct Http {
     ///  - `deflate`: Compression using a zlib header with deflate encoding.
     ///  - `gzip` (default): Compression using gzip.
     ///  - `br`: Compression using the brotli algorithm.
-    encoding: HttpEncoding,
+    pub encoding: HttpEncoding,
     /// Submit metrics globally through a shared endpoint.
     ///
     /// As opposed to regular envelopes which are sent to an endpoint inferred from the project's
     /// DSN, this submits metrics to the global endpoint with Relay authentication.
     ///
     /// This option does not have any effect on processing mode.
-    global_metrics: bool,
+    pub global_metrics: bool,
 }
 
 impl Default for Http {
@@ -923,7 +923,7 @@ pub struct EnvelopeSpool {
     /// The path to the persistent spool file.
     ///
     /// If set, this will enable the buffering for incoming envelopes.
-    path: Option<PathBuf>,
+    pub path: Option<PathBuf>,
     /// Maximum number of connections, which will be maintained by the pool.
     #[serde(default = "spool_envelopes_max_connections")]
     max_connections: u32,
@@ -1028,18 +1028,18 @@ pub struct Spool {
 /// Controls internal caching behavior.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
-struct Cache {
+pub struct Cache {
     /// The full project state will be requested by this Relay if set to `true`.
-    project_request_full_config: bool,
+    pub project_request_full_config: bool,
     /// The cache timeout for project configurations in seconds.
-    project_expiry: u32,
+    pub project_expiry: u32,
     /// Continue using project state this many seconds after cache expiry while a new state is
     /// being fetched. This is added on top of `project_expiry`.
     ///
     /// Default is 2 minutes.
-    project_grace_period: u32,
+    pub project_grace_period: u32,
     /// The cache timeout for downstream relay info (public keys) in seconds.
-    relay_expiry: u32,
+    pub relay_expiry: u32,
     /// Unused cache timeout for envelopes.
     ///
     /// The envelope buffer is instead controlled by `envelope_buffer_size`, which controls the
@@ -1051,19 +1051,19 @@ struct Cache {
     #[serde(alias = "event_buffer_size")]
     envelope_buffer_size: u32,
     /// The cache timeout for non-existing entries.
-    miss_expiry: u32,
+    pub miss_expiry: u32,
     /// The buffer timeout for batched project config queries before sending them upstream in ms.
-    batch_interval: u32,
+    pub batch_interval: u32,
     /// The buffer timeout for batched queries of downstream relays in ms. Defaults to 100ms.
-    downstream_relays_batch_interval: u32,
+    pub downstream_relays_batch_interval: u32,
     /// The maximum number of project configs to fetch from Sentry at once. Defaults to 500.
     ///
     /// `cache.batch_interval` controls how quickly batches are sent, this controls the batch size.
-    batch_size: usize,
+    pub batch_size: usize,
     /// Interval for watching local cache override files in seconds.
-    file_interval: u32,
+    pub file_interval: u32,
     /// Interval for fetching new global configs from the upstream, in seconds.
-    global_config_fetch_interval: u32,
+    pub global_config_fetch_interval: u32,
 }
 
 impl Default for Cache {
@@ -1437,7 +1437,7 @@ pub struct AuthConfig {
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct GeoIpConfig {
     /// The path to GeoIP database.
-    path: Option<PathBuf>,
+    pub path: Option<PathBuf>,
 }
 
 /// Cardinality Limiter configuration options.
@@ -1519,13 +1519,13 @@ pub struct Cogs {
     /// Any additional COGS measurements recorded will be dropped.
     ///
     /// Defaults to `10_000`.
-    max_queue_size: u64,
+    pub max_queue_size: u64,
     /// Relay COGS resource id.
     ///
     /// All Relay related COGS measurements are emitted with this resource id.
     ///
     /// Defaults to `relay_service`.
-    relay_resource_id: String,
+    pub relay_resource_id: String,
 }
 
 impl Default for Cogs {
