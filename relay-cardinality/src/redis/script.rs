@@ -153,7 +153,7 @@ pub struct CardinalityScriptPipeline<'a> {
     pipe: redis::Pipeline,
 }
 
-impl<'a> CardinalityScriptPipeline<'a> {
+impl CardinalityScriptPipeline<'_> {
     /// Adds another invocation of the script to the pipeline.
     pub fn add_invocation(
         &mut self,

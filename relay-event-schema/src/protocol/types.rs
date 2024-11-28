@@ -185,7 +185,7 @@ where
     ///
     /// The key may be any borrowed form of the pairlist's key type. If there are multiple entries
     /// with the same key, the first is returned.
-    pub fn get<'a, Q>(&'a self, key: Q) -> Option<&Annotated<V>>
+    pub fn get<'a, Q>(&'a self, key: Q) -> Option<&'a Annotated<V>>
     where
         Q: AsRef<str>,
         K: 'a,
@@ -200,7 +200,7 @@ where
     ///
     /// The key may be any borrowed form of the pairlist's key type. If there are multiple entries
     /// with the same key, the first is returned.
-    pub fn get_value<'a, Q>(&'a self, key: Q) -> Option<&V>
+    pub fn get_value<'a, Q>(&'a self, key: Q) -> Option<&'a V>
     where
         Q: AsRef<str>,
         K: 'a,

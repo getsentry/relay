@@ -409,10 +409,13 @@ struct AltAndTokens<'a> {
     tokens: &'a [Token],
 }
 
-impl<'a> TokenIndex for AltAndTokens<'a> {
+impl TokenIndex for AltAndTokens<'_> {
     // Type here does not matter, we implement `with_alternate` by returning the never type.
     // It just needs to satisfy the `TokenIndex` trait bound.
-    type WithAlternates<'b> = AltAndTokens<'b> where Self: 'b;
+    type WithAlternates<'b>
+        = AltAndTokens<'b>
+    where
+        Self: 'b;
 
     #[inline(always)]
     fn len(&self) -> usize {
@@ -434,7 +437,7 @@ impl<'a> TokenIndex for AltAndTokens<'a> {
     }
 }
 
-impl<'a> std::ops::Index<usize> for AltAndTokens<'a> {
+impl std::ops::Index<usize> for AltAndTokens<'_> {
     type Output = Token;
 
     fn index(&self, index: usize) -> &Self::Output {

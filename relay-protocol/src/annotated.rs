@@ -63,7 +63,7 @@ pub struct Annotated<T>(pub Option<T>, pub Meta);
 /// An utility to serialize annotated objects with payload.
 pub struct SerializableAnnotated<'a, T>(pub &'a Annotated<T>);
 
-impl<'a, T: IntoValue> Serialize for SerializableAnnotated<'a, T> {
+impl<T: IntoValue> Serialize for SerializableAnnotated<'_, T> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,

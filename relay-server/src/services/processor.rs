@@ -798,7 +798,7 @@ struct ProcessEnvelopeState<'a, Group> {
     event_fully_normalized: bool,
 }
 
-impl<'a, Group> ProcessEnvelopeState<'a, Group> {
+impl<Group> ProcessEnvelopeState<'_, Group> {
     /// Returns a reference to the contained [`Envelope`].
     fn envelope(&self) -> &Envelope {
         self.managed_envelope.envelope()
@@ -2840,7 +2840,7 @@ enum RateLimiter<'a> {
 }
 
 #[cfg(feature = "processing")]
-impl<'a> RateLimiter<'a> {
+impl RateLimiter<'_> {
     fn enforce<G>(
         &self,
         global_config: &GlobalConfig,

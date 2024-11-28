@@ -161,7 +161,7 @@ pub struct NormalizationConfig<'a> {
     pub span_op_defaults: BorrowedSpanOpDefaults<'a>,
 }
 
-impl<'a> Default for NormalizationConfig<'a> {
+impl Default for NormalizationConfig<'_> {
     fn default() -> Self {
         Self {
             project_id: Default::default(),
@@ -1773,7 +1773,16 @@ mod tests {
         let ipaddr = IpAddr("213.164.1.114".to_string());
 
         let client_ip = Some(&ipaddr);
-        let user_agent = RawUserAgentInfo::new_test_dummy();
+
+        let user_agent = RawUserAgentInfo {
+            user_agent: Some("Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/109.0"),
+            client_hints: ClientHints {
+                sec_ch_ua_platform: Some("macOS"),
+                sec_ch_ua_platform_version: Some("13.2.0"),
+                sec_ch_ua: Some(r#""Chromium";v="110", "Not A(Brand";v="24", "Google Chrome";v="110""#),
+                sec_ch_ua_model: Some("some model"),
+            }
+        };
 
         // This call should fill the event headers with info from the user_agent which is
         // tested below.

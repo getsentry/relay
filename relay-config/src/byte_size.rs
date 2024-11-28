@@ -137,7 +137,7 @@ impl<'de> de::Deserialize<'de> for ByteSize {
     {
         struct V;
 
-        impl<'de> de::Visitor<'de> for V {
+        impl de::Visitor<'_> for V {
             type Value = ByteSize;
 
             fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {

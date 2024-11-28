@@ -358,7 +358,7 @@ mod tests {
         extracted_metrics: Vec<Bucket>,
     }
 
-    impl<'a> TestProcessSessionArguments<'a> {
+    impl TestProcessSessionArguments<'_> {
         fn run_session_producer(&mut self) -> bool {
             process_session(
                 &mut self.item,

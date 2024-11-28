@@ -316,7 +316,7 @@ impl<'a> Iterator for WStrSegmentIter<'a> {
     }
 }
 
-impl<'a> FusedIterator for WStrSegmentIter<'a> {}
+impl FusedIterator for WStrSegmentIter<'_> {}
 
 /// An encoded string segment in a larger data block.
 ///
@@ -535,7 +535,7 @@ mod tests {
         },
     }
 
-    impl<'a> AttachmentBytesTestCase<'a> {
+    impl AttachmentBytesTestCase<'_> {
         fn run(self) {
             let (config, filename, value_type, input, expected, changed) = match self {
                 AttachmentBytesTestCase::Builtin {

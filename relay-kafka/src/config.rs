@@ -189,7 +189,7 @@ impl TopicAssignment {
         &'a self,
         default_config: &'a Vec<KafkaConfigParam>,
         secondary_configs: &'a BTreeMap<String, Vec<KafkaConfigParam>>,
-    ) -> Result<KafkaParams<'_>, ConfigError> {
+    ) -> Result<KafkaParams<'a>, ConfigError> {
         let kafka_config = match self {
             Self::Primary(topic_name) => KafkaParams {
                 topic_name,

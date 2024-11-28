@@ -230,7 +230,7 @@ impl<'de> Deserialize<'de> for ErrorKind {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         struct ErrorKindVisitor;
 
-        impl<'de> de::Visitor<'de> for ErrorKindVisitor {
+        impl de::Visitor<'_> for ErrorKindVisitor {
             type Value = ErrorKind;
 
             fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
