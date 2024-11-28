@@ -270,7 +270,6 @@ pub use self::envelope::Envelope; // pub for benchmarks
 pub use self::services::buffer::{
     EnvelopeStack, PolymorphicEnvelopeBuffer, SqliteEnvelopeStack, SqliteEnvelopeStore,
 }; // pub for benchmarks
-pub use self::services::spooler::spool_utils;
 pub use self::utils::{MemoryChecker, MemoryStat}; // pub for benchmarks
 
 #[cfg(test)]

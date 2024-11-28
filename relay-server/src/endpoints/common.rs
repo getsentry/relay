@@ -13,7 +13,6 @@ use crate::service::ServiceState;
 use crate::services::buffer::{EnvelopeBuffer, ProjectKeyPair};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{BucketSource, MetricData, ProcessMetrics, ProcessingGroup};
-use crate::services::projects::cache::legacy::ValidateEnvelope;
 use crate::statsd::{RelayCounters, RelayHistograms};
 use crate::utils::{self, ApiErrorResponse, FormDataIter, ManagedEnvelope};
 
@@ -309,10 +308,7 @@ fn queue_envelope(
                     .send(EnvelopeBuffer::Push(envelope.into_envelope()));
             }
             None => {
-                relay_log::trace!("Sending envelope to project cache for V1 buffer");
-                state
-                    .legacy_project_cache()
-                    .send(ValidateEnvelope::new(envelope));
+                todo!();
             }
         }
     }
