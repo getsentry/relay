@@ -617,14 +617,7 @@ mod tests {
     ) -> EnvelopeBufferServiceResult {
         relay_log::init_test!();
 
-        let config_json = config_json.unwrap_or(serde_json::json!({
-            "spool": {
-                "envelopes": {
-                    "version": "experimental"
-                }
-            }
-        }));
-        let config = Arc::new(Config::from_json_value(config_json).unwrap());
+        let config = Arc::new(Config::default());
 
         let memory_stat = MemoryStat::default();
         let (global_tx, global_rx) = watch::channel(global_config_status);
@@ -724,7 +717,6 @@ mod tests {
             Some(serde_json::json!({
                 "spool": {
                     "envelopes": {
-                        "version": "experimental",
                         "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
                     }
                 },
@@ -759,7 +751,6 @@ mod tests {
             Some(serde_json::json!({
                 "spool": {
                     "envelopes": {
-                        "version": "experimental",
                         "max_envelope_delay_secs": 1,
                     }
                 }
@@ -891,16 +882,7 @@ mod tests {
         };
 
         // Create two buffer services
-        let config = Arc::new(
-            Config::from_json_value(serde_json::json!({
-                "spool": {
-                    "envelopes": {
-                        "version": "experimental"
-                    }
-                }
-            }))
-            .unwrap(),
-        );
+        let config = Arc::new(Config::default());
 
         let buffer1 = EnvelopeBufferService::new(
             0,
