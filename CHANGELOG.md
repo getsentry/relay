@@ -4,7 +4,7 @@
 
 **Breaking Changes**:
 
-- Remove `spool.envelopes.{min_connections,max_connections,unspool_interval,max_memory_size}` config options.
+- Remove `spool.envelopes.{min_connections,max_connections,unspool_interval,max_memory_size}` config options. ([#4303](https://github.com/getsentry/relay/pull/4303))
 - Flatten Linux distribution fields into `os.context`. ([#4292](https://github.com/getsentry/relay/pull/4292))
 
 **Bug Fixes**:
@@ -15,7 +15,7 @@
 
 **Features**:
 
-- Remove old spooling logic.
+- Remove old disk spooling logic, default to new version. ([#4303](https://github.com/getsentry/relay/pull/4303))
 - Implement zstd http encoding for Relay to Relay communication. ([#4266](https://github.com/getsentry/relay/pull/4266))
 - Support empty branches in Pattern alternations. ([#4283](https://github.com/getsentry/relay/pull/4283))
 - Add support for partitioning of the `EnvelopeBufferService`. ([#4291](https://github.com/getsentry/relay/pull/4291))
