@@ -57,7 +57,7 @@ impl<'a> PiiProcessor<'a> {
     }
 }
 
-impl<'a> Processor for PiiProcessor<'a> {
+impl Processor for PiiProcessor<'_> {
     fn before_process<T: ProcessValue>(
         &mut self,
         value: Option<&T>,

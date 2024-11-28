@@ -190,7 +190,7 @@ mod sample_rate_as_string {
 
 struct BoolOptionVisitor;
 
-impl<'de> serde::de::Visitor<'de> for BoolOptionVisitor {
+impl serde::de::Visitor<'_> for BoolOptionVisitor {
     type Value = Option<bool>;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {

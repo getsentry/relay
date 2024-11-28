@@ -1263,7 +1263,7 @@ impl Serialize for EmitOutcomes {
 
 struct EmitOutcomesVisitor;
 
-impl<'de> Visitor<'de> for EmitOutcomesVisitor {
+impl Visitor<'_> for EmitOutcomesVisitor {
     type Value = EmitOutcomes;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {

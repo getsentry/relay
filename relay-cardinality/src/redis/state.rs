@@ -133,7 +133,7 @@ impl<'a> LimitState<'a> {
     }
 }
 
-impl<'a> Drop for LimitState<'a> {
+impl Drop for LimitState<'_> {
     fn drop(&mut self) {
         let passive = if self.cardinality_limit.passive {
             "true"

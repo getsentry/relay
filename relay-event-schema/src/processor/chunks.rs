@@ -49,7 +49,7 @@ pub enum Chunk<'a> {
     },
 }
 
-impl<'a> Chunk<'a> {
+impl Chunk<'_> {
     /// The text of this chunk.
     pub fn as_str(&self) -> &str {
         match self {

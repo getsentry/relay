@@ -1034,7 +1034,7 @@ pub enum ClientName<'a> {
     Other(&'a str),
 }
 
-impl<'a> ClientName<'a> {
+impl ClientName<'_> {
     pub fn name(&self) -> &'static str {
         match self {
             Self::Ruby => "sentry-ruby",

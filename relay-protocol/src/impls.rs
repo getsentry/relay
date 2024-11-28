@@ -12,7 +12,7 @@ use crate::value::{Array, Map, Object, Value};
 #[doc(hidden)]
 pub struct SerializePayload<'a, T>(pub &'a Annotated<T>, pub SkipSerialization);
 
-impl<'a, T: IntoValue> Serialize for SerializePayload<'a, T> {
+impl<T: IntoValue> Serialize for SerializePayload<'_, T> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,

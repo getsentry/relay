@@ -1144,7 +1144,7 @@ enum MetricValue<'a> {
     Gauge(GaugeValue),
 }
 
-impl<'a> MetricValue<'a> {
+impl MetricValue<'_> {
     fn variant(&self) -> &'static str {
         match self {
             Self::Counter(_) => "counter",

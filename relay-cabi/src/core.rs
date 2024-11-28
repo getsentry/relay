@@ -81,7 +81,7 @@ impl From<String> for RelayStr {
     }
 }
 
-impl<'a> From<&'a str> for RelayStr {
+impl From<&str> for RelayStr {
     fn from(string: &str) -> RelayStr {
         RelayStr::new(string)
     }

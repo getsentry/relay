@@ -441,7 +441,7 @@ fn scrub_resource(resource_type: &str, string: &str) -> Option<String> {
                 }
                 if COMMON_PATH_SEGMENTS.contains(segment) {
                     output_segments.push(segment);
-                } else if !output_segments.last().is_some_and(|s| *s == "*") {
+                } else if output_segments.last().is_none_or(|s| *s != "*") {
                     // only one asterisk
                     output_segments.push("*");
                 }
