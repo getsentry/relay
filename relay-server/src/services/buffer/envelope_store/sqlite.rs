@@ -354,7 +354,7 @@ impl SqliteEnvelopeStore {
 
         let db = SqlitePoolOptions::new()
             .max_connections(1)
-            .min_connections(0)
+            .min_connections(1)
             .connect_with(options)
             .await
             .map_err(SqliteEnvelopeStoreError::SqlxSetupFailed)?;
