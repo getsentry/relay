@@ -908,35 +908,35 @@ pub struct EnvelopeSpool {
     /// The path to the persistent spool file.
     ///
     /// If set, this will enable the buffering for incoming envelopes.
-    path: Option<PathBuf>,
+    pub path: Option<PathBuf>,
     /// The maximum size of the buffer to keep, in bytes.
     ///
     /// If not set the default is 524288000 bytes (500MB).
     #[serde(default = "spool_envelopes_max_disk_size")]
-    max_disk_size: ByteSize,
+    pub max_disk_size: ByteSize,
     /// The maximum bytes to keep in the memory buffer before spooling envelopes to disk, in bytes.
     ///
     /// This is a hard upper bound and defaults to 524288000 bytes (500MB).
     #[serde(default = "spool_envelopes_max_memory_size")]
-    max_memory_size: ByteSize,
+    pub max_memory_size: ByteSize,
     /// Number of encoded envelope bytes that are spooled to disk at once.
     ///
     /// Defaults to 10 KiB.
     #[serde(default = "spool_envelopes_batch_size_bytes")]
-    batch_size_bytes: ByteSize,
+    pub batch_size_bytes: ByteSize,
     /// Maximum time between receiving the envelope and processing it.
     ///
     /// When envelopes spend too much time in the buffer (e.g. because their project cannot be loaded),
     /// they are dropped. Defaults to 24h.
     #[serde(default = "spool_envelopes_max_envelope_delay_secs")]
-    max_envelope_delay_secs: u64,
+    pub max_envelope_delay_secs: u64,
     /// The refresh frequency in ms of how frequently disk usage is updated by querying SQLite
     /// internal page stats.
     #[serde(default = "spool_disk_usage_refresh_frequency_ms")]
-    disk_usage_refresh_frequency_ms: u64,
+    pub disk_usage_refresh_frequency_ms: u64,
     /// The amount of envelopes that the envelope buffer can push to its output queue.
     #[serde(default = "spool_max_backpressure_envelopes")]
-    max_backpressure_envelopes: usize,
+    pub max_backpressure_envelopes: usize,
     /// The relative memory usage above which the buffer service will stop dequeueing envelopes.
     ///
     /// Only applies when [`Self::path`] is set.
@@ -947,10 +947,10 @@ pub struct EnvelopeSpool {
     ///
     /// Defaults to 90% (5% less than max memory).
     #[serde(default = "spool_max_backpressure_memory_percent")]
-    max_backpressure_memory_percent: f32,
+    pub max_backpressure_memory_percent: f32,
     /// Number of partitions of the buffer.
     #[serde(default = "spool_envelopes_partitions")]
-    partitions: NonZeroU8,
+    pub partitions: NonZeroU8,
 }
 
 impl Default for EnvelopeSpool {
@@ -972,8 +972,9 @@ impl Default for EnvelopeSpool {
 /// Persistent buffering configuration.
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Spool {
+    /// Configuration for envelope spooling.
     #[serde(default)]
-    envelopes: EnvelopeSpool,
+    pub envelopes: EnvelopeSpool,
 }
 
 /// Controls internal caching behavior.
