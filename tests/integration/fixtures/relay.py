@@ -146,11 +146,7 @@ def relay(mini_sentry, random_port, background_process, config_dir, get_relay_bi
                     "bucket_interval": 1,
                     "flush_interval": 0,
                 },
-            },
-            "spool": {
-                # Unspool as quickly as possible
-                "envelopes": {"unspool_interval": 1, "version": "experimental"},
-            },
+            }
         }
 
         if static_relays is not None:

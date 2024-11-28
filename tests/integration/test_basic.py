@@ -26,8 +26,7 @@ def test_graceful_shutdown_with_in_memory_buffer(mini_sentry, relay):
     relay = relay(
         mini_sentry,
         {
-            "limits": {"shutdown_timeout": 2},
-            "spool": {"envelopes": {"version": "experimental"}},
+            "limits": {"shutdown_timeout": 2}
         },
     )
 
@@ -61,7 +60,7 @@ def test_graceful_shutdown_with_sqlite_buffer(mini_sentry, relay):
         mini_sentry,
         {
             "limits": {"shutdown_timeout": 2},
-            "spool": {"envelopes": {"version": "experimental", "path": db_file_path}},
+            "spool": {"envelopes": {"path": db_file_path}},
         },
     )
 
