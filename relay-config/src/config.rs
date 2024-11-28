@@ -873,21 +873,6 @@ fn spool_envelopes_max_disk_size() -> ByteSize {
     ByteSize::mebibytes(500)
 }
 
-/// Default for min connections to keep open in the pool.
-fn spool_envelopes_min_connections() -> u32 {
-    1
-}
-
-/// Default for max connections to keep open in the pool.
-fn spool_envelopes_max_connections() -> u32 {
-    1
-}
-
-/// Default interval to unspool buffered envelopes, 100ms.
-fn spool_envelopes_unspool_interval() -> u64 {
-    100
-}
-
 /// Default number of encoded envelope bytes to cache before writing to disk.
 fn spool_envelopes_batch_size_bytes() -> ByteSize {
     ByteSize::kibibytes(10)
@@ -924,12 +909,6 @@ pub struct EnvelopeSpool {
     ///
     /// If set, this will enable the buffering for incoming envelopes.
     path: Option<PathBuf>,
-    /// Maximum number of connections, which will be maintained by the pool.
-    #[serde(default = "spool_envelopes_max_connections")]
-    max_connections: u32,
-    /// Minimal number of connections, which will be maintained by the pool.
-    #[serde(default = "spool_envelopes_min_connections")]
-    min_connections: u32,
     /// The maximum size of the buffer to keep, in bytes.
     ///
     /// If not set the default is 524288000 bytes (500MB).
@@ -940,9 +919,6 @@ pub struct EnvelopeSpool {
     /// This is a hard upper bound and defaults to 524288000 bytes (500MB).
     #[serde(default = "spool_envelopes_max_memory_size")]
     max_memory_size: ByteSize,
-    /// The interval in milliseconds to trigger unspool.
-    #[serde(default = "spool_envelopes_unspool_interval")]
-    unspool_interval: u64,
     /// Number of encoded envelope bytes that are spooled to disk at once.
     ///
     /// Defaults to 10 KiB.
@@ -981,11 +957,8 @@ impl Default for EnvelopeSpool {
     fn default() -> Self {
         Self {
             path: None,
-            max_connections: spool_envelopes_max_connections(),
-            min_connections: spool_envelopes_min_connections(),
             max_disk_size: spool_envelopes_max_disk_size(),
             max_memory_size: spool_envelopes_max_memory_size(),
-            unspool_interval: spool_envelopes_unspool_interval(),
             batch_size_bytes: spool_envelopes_batch_size_bytes(),
             max_envelope_delay_secs: spool_envelopes_max_envelope_delay_secs(),
             disk_usage_refresh_frequency_ms: spool_disk_usage_refresh_frequency_ms(),
@@ -2153,29 +2126,9 @@ impl Config {
         Some(path)
     }
 
-    /// Maximum number of connections to create to buffer file.
-    pub fn spool_envelopes_max_connections(&self) -> u32 {
-        self.values.spool.envelopes.max_connections
-    }
-
-    /// Minimum number of connections to create to buffer file.
-    pub fn spool_envelopes_min_connections(&self) -> u32 {
-        self.values.spool.envelopes.min_connections
-    }
-
-    /// Unspool interval in milliseconds.
-    pub fn spool_envelopes_unspool_interval(&self) -> Duration {
-        Duration::from_millis(self.values.spool.envelopes.unspool_interval)
-    }
-
     /// The maximum size of the buffer, in bytes.
     pub fn spool_envelopes_max_disk_size(&self) -> usize {
         self.values.spool.envelopes.max_disk_size.as_bytes()
-    }
-
-    /// The maximum size of the memory buffer, in bytes.
-    pub fn spool_envelopes_max_memory_size(&self) -> usize {
-        self.values.spool.envelopes.max_memory_size.as_bytes()
     }
 
     /// Number of encoded envelope bytes that need to be accumulated before
