@@ -3192,29 +3192,29 @@
 <span class="doccomment">/// Control the metrics.
 </span><span class="attr">#[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
-</span><span class="kw">struct </span>Metrics {
+</span><span class="kw">pub struct </span>Metrics {
     <span class="doccomment">/// Hostname and port of the statsd server.
     ///
     /// Defaults to `None`.
-    </span>statsd: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    </span><span class="kw">pub </span>statsd: <span class="prelude-ty">Option</span>&lt;String&gt;,
     <span class="doccomment">/// Common prefix that should be added to all metrics.
     ///
     /// Defaults to `"sentry.relay"`.
-    </span>prefix: String,
+    </span><span class="kw">pub </span>prefix: String,
     <span class="doccomment">/// Default tags to apply to all metrics.
-    </span>default_tags: BTreeMap&lt;String, String&gt;,
+    </span><span class="kw">pub </span>default_tags: BTreeMap&lt;String, String&gt;,
     <span class="doccomment">/// Tag name to report the hostname to for each metric. Defaults to not sending such a tag.
-    </span>hostname_tag: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    </span><span class="kw">pub </span>hostname_tag: <span class="prelude-ty">Option</span>&lt;String&gt;,
     <span class="doccomment">/// Global sample rate for all emitted metrics between `0.0` and `1.0`.
     ///
     /// For example, a value of `0.3` means that only 30% of the emitted metrics will be sent.
     /// Defaults to `1.0` (100%).
-    </span>sample_rate: f32,
+    </span><span class="kw">pub </span>sample_rate: f32,
     <span class="doccomment">/// Interval for periodic metrics emitted from Relay.
     ///
     /// Setting it to `0` seconds disables the periodic metrics.
     /// Defaults to 5 seconds.
-    </span>periodic_secs: u64,
+    </span><span class="kw">pub </span>periodic_secs: u64,
 }
 
 <span class="kw">impl </span>Default <span class="kw">for </span>Metrics {
@@ -3233,7 +3233,7 @@
 <span class="doccomment">/// Controls processing of Sentry metrics and metric metadata.
 </span><span class="attr">#[derive(Serialize, Deserialize, Debug, Default)]
 #[serde(default)]
-</span><span class="kw">struct </span>SentryMetrics {
+</span><span class="kw">pub struct </span>SentryMetrics {
     <span class="doccomment">/// Whether metric stats are collected and emitted.
     ///
     /// Metric stats are always collected and emitted when processing
@@ -3250,72 +3250,72 @@
 <span class="doccomment">/// Controls various limits
 </span><span class="attr">#[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
-</span><span class="kw">struct </span>Limits {
+</span><span class="kw">pub struct </span>Limits {
     <span class="doccomment">/// How many requests can be sent concurrently from Relay to the upstream before Relay starts
     /// buffering.
-    </span>max_concurrent_requests: usize,
+    </span><span class="kw">pub </span>max_concurrent_requests: usize,
     <span class="doccomment">/// How many queries can be sent concurrently from Relay to the upstream before Relay starts
     /// buffering.
     ///
     /// The concurrency of queries is additionally constrained by `max_concurrent_requests`.
-    </span>max_concurrent_queries: usize,
+    </span><span class="kw">pub </span>max_concurrent_queries: usize,
     <span class="doccomment">/// The maximum payload size for events.
-    </span>max_event_size: ByteSize,
+    </span><span class="kw">pub </span>max_event_size: ByteSize,
     <span class="doccomment">/// The maximum size for each attachment.
-    </span>max_attachment_size: ByteSize,
+    </span><span class="kw">pub </span>max_attachment_size: ByteSize,
     <span class="doccomment">/// The maximum combined size for all attachments in an envelope or request.
-    </span>max_attachments_size: ByteSize,
+    </span><span class="kw">pub </span>max_attachments_size: ByteSize,
     <span class="doccomment">/// The maximum combined size for all client reports in an envelope or request.
-    </span>max_client_reports_size: ByteSize,
+    </span><span class="kw">pub </span>max_client_reports_size: ByteSize,
     <span class="doccomment">/// The maximum payload size for a monitor check-in.
-    </span>max_check_in_size: ByteSize,
+    </span><span class="kw">pub </span>max_check_in_size: ByteSize,
     <span class="doccomment">/// The maximum payload size for an entire envelopes. Individual limits still apply.
-    </span>max_envelope_size: ByteSize,
+    </span><span class="kw">pub </span>max_envelope_size: ByteSize,
     <span class="doccomment">/// The maximum number of session items per envelope.
-    </span>max_session_count: usize,
+    </span><span class="kw">pub </span>max_session_count: usize,
     <span class="doccomment">/// The maximum payload size for general API requests.
-    </span>max_api_payload_size: ByteSize,
+    </span><span class="kw">pub </span>max_api_payload_size: ByteSize,
     <span class="doccomment">/// The maximum payload size for file uploads and chunks.
-    </span>max_api_file_upload_size: ByteSize,
+    </span><span class="kw">pub </span>max_api_file_upload_size: ByteSize,
     <span class="doccomment">/// The maximum payload size for chunks
-    </span>max_api_chunk_upload_size: ByteSize,
+    </span><span class="kw">pub </span>max_api_chunk_upload_size: ByteSize,
     <span class="doccomment">/// The maximum payload size for a profile
-    </span>max_profile_size: ByteSize,
+    </span><span class="kw">pub </span>max_profile_size: ByteSize,
     <span class="doccomment">/// The maximum payload size for a span.
-    </span>max_span_size: ByteSize,
+    </span><span class="kw">pub </span>max_span_size: ByteSize,
     <span class="doccomment">/// The maximum payload size for a statsd metric.
-    </span>max_statsd_size: ByteSize,
+    </span><span class="kw">pub </span>max_statsd_size: ByteSize,
     <span class="doccomment">/// The maximum payload size for metric buckets.
-    </span>max_metric_buckets_size: ByteSize,
+    </span><span class="kw">pub </span>max_metric_buckets_size: ByteSize,
     <span class="doccomment">/// The maximum payload size for a compressed replay.
-    </span>max_replay_compressed_size: ByteSize,
+    </span><span class="kw">pub </span>max_replay_compressed_size: ByteSize,
     <span class="doccomment">/// The maximum payload size for an uncompressed replay.
     </span><span class="attr">#[serde(alias = <span class="string">"max_replay_size"</span>)]
     </span>max_replay_uncompressed_size: ByteSize,
     <span class="doccomment">/// The maximum size for a replay recording Kafka message.
-    </span>max_replay_message_size: ByteSize,
+    </span><span class="kw">pub </span>max_replay_message_size: ByteSize,
     <span class="doccomment">/// The maximum number of threads to spawn for CPU and web work, each.
     ///
     /// The total number of threads spawned will roughly be `2 * max_thread_count`. Defaults to
     /// the number of logical CPU cores on the host.
-    </span>max_thread_count: usize,
+    </span><span class="kw">pub </span>max_thread_count: usize,
     <span class="doccomment">/// The maximum number of seconds a query is allowed to take across retries. Individual requests
     /// have lower timeouts. Defaults to 30 seconds.
-    </span>query_timeout: u64,
+    </span><span class="kw">pub </span>query_timeout: u64,
     <span class="doccomment">/// The maximum number of seconds to wait for pending envelopes after receiving a shutdown
     /// signal.
-    </span>shutdown_timeout: u64,
+    </span><span class="kw">pub </span>shutdown_timeout: u64,
     <span class="doccomment">/// Server keep-alive timeout in seconds.
     ///
     /// By default keep-alive is set to a 5 seconds.
-    </span>keepalive_timeout: u64,
+    </span><span class="kw">pub </span>keepalive_timeout: u64,
     <span class="doccomment">/// Server idle timeout in seconds.
     ///
     /// The idle timeout limits the amount of time a connection is kept open without activity.
     /// Setting this too short may abort connections before Relay is able to send a response.
     ///
     /// By default there is no idle timeout.
-    </span>idle_timeout: <span class="prelude-ty">Option</span>&lt;u64&gt;,
+    </span><span class="kw">pub </span>idle_timeout: <span class="prelude-ty">Option</span>&lt;u64&gt;,
     <span class="doccomment">/// The TCP listen backlog.
     ///
     /// Configures the TCP listen backlog for the listening socket of Relay.
@@ -3371,7 +3371,7 @@
     ///
     /// Defaults to `true` for all Relay modes other than processing mode. In processing mode, this
     /// is disabled by default since the item cannot be handled.
-    </span>accept_unknown_items: <span class="prelude-ty">Option</span>&lt;bool&gt;,
+    </span><span class="kw">pub </span>accept_unknown_items: <span class="prelude-ty">Option</span>&lt;bool&gt;,
 }
 
 <span class="doccomment">/// Http content encoding for both incoming and outgoing web requests.
@@ -3442,22 +3442,22 @@
 <span class="doccomment">/// Controls authentication with upstream.
 </span><span class="attr">#[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
-</span><span class="kw">struct </span>Http {
+</span><span class="kw">pub struct </span>Http {
     <span class="doccomment">/// Timeout for upstream requests in seconds.
     ///
     /// This timeout covers the time from sending the request until receiving response headers.
     /// Neither the connection process and handshakes, nor reading the response body is covered in
     /// this timeout.
-    </span>timeout: u32,
+    </span><span class="kw">pub </span>timeout: u32,
     <span class="doccomment">/// Timeout for establishing connections with the upstream in seconds.
     ///
     /// This includes SSL handshakes. Relay reuses connections when the upstream supports connection
     /// keep-alive. Connections are retained for a maximum 75 seconds, or 15 seconds of inactivity.
-    </span>connection_timeout: u32,
+    </span><span class="kw">pub </span>connection_timeout: u32,
     <span class="doccomment">/// Maximum interval between failed request retries in seconds.
-    </span>max_retry_interval: u32,
+    </span><span class="kw">pub </span>max_retry_interval: u32,
     <span class="doccomment">/// The custom HTTP Host header to send to the upstream.
-    </span>host_header: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    </span><span class="kw">pub </span>host_header: <span class="prelude-ty">Option</span>&lt;String&gt;,
     <span class="doccomment">/// The interval in seconds at which Relay attempts to reauthenticate with the upstream server.
     ///
     /// Re-authentication happens even when Relay is idle. If authentication fails, Relay reverts
@@ -3465,22 +3465,22 @@
     /// envelopes will be buffered.
     ///
     /// Defaults to `600` (10 minutes).
-    </span>auth_interval: <span class="prelude-ty">Option</span>&lt;u64&gt;,
+    </span><span class="kw">pub </span>auth_interval: <span class="prelude-ty">Option</span>&lt;u64&gt;,
     <span class="doccomment">/// The maximum time of experiencing uninterrupted network failures until Relay considers that
     /// it has encountered a network outage in seconds.
     ///
     /// During a network outage relay will try to reconnect and will buffer all upstream messages
     /// until it manages to reconnect.
-    </span>outage_grace_period: u64,
+    </span><span class="kw">pub </span>outage_grace_period: u64,
     <span class="doccomment">/// The time Relay waits before retrying an upstream request, in seconds.
     ///
     /// This time is only used before going into a network outage mode.
-    </span>retry_delay: u64,
+    </span><span class="kw">pub </span>retry_delay: u64,
     <span class="doccomment">/// The interval in seconds for continued failed project fetches at which Relay will error.
     ///
     /// A successful fetch resets this interval. Relay does nothing during long
     /// times without emitting requests.
-    </span>project_failure_interval: u64,
+    </span><span class="kw">pub </span>project_failure_interval: u64,
     <span class="doccomment">/// Content encoding to apply to upstream store requests.
     ///
     /// By default, Relay applies `gzip` content encoding to compress upstream requests. Compression
@@ -3495,14 +3495,14 @@
     ///  - `deflate`: Compression using a zlib header with deflate encoding.
     ///  - `gzip` (default): Compression using gzip.
     ///  - `br`: Compression using the brotli algorithm.
-    </span>encoding: HttpEncoding,
+    </span><span class="kw">pub </span>encoding: HttpEncoding,
     <span class="doccomment">/// Submit metrics globally through a shared endpoint.
     ///
     /// As opposed to regular envelopes which are sent to an endpoint inferred from the project's
     /// DSN, this submits metrics to the global endpoint with Relay authentication.
     ///
     /// This option does not have any effect on processing mode.
-    </span>global_metrics: bool,
+    </span><span class="kw">pub </span>global_metrics: bool,
 }
 
 <span class="kw">impl </span>Default <span class="kw">for </span>Http {
@@ -3592,7 +3592,7 @@
     <span class="doccomment">/// The path to the persistent spool file.
     ///
     /// If set, this will enable the buffering for incoming envelopes.
-    </span>path: <span class="prelude-ty">Option</span>&lt;PathBuf&gt;,
+    </span><span class="kw">pub </span>path: <span class="prelude-ty">Option</span>&lt;PathBuf&gt;,
     <span class="doccomment">/// Maximum number of connections, which will be maintained by the pool.
     </span><span class="attr">#[serde(default = <span class="string">"spool_envelopes_max_connections"</span>)]
     </span>max_connections: u32,
@@ -3697,18 +3697,18 @@
 <span class="doccomment">/// Controls internal caching behavior.
 </span><span class="attr">#[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
-</span><span class="kw">struct </span>Cache {
+</span><span class="kw">pub struct </span>Cache {
     <span class="doccomment">/// The full project state will be requested by this Relay if set to `true`.
-    </span>project_request_full_config: bool,
+    </span><span class="kw">pub </span>project_request_full_config: bool,
     <span class="doccomment">/// The cache timeout for project configurations in seconds.
-    </span>project_expiry: u32,
+    </span><span class="kw">pub </span>project_expiry: u32,
     <span class="doccomment">/// Continue using project state this many seconds after cache expiry while a new state is
     /// being fetched. This is added on top of `project_expiry`.
     ///
     /// Default is 2 minutes.
-    </span>project_grace_period: u32,
+    </span><span class="kw">pub </span>project_grace_period: u32,
     <span class="doccomment">/// The cache timeout for downstream relay info (public keys) in seconds.
-    </span>relay_expiry: u32,
+    </span><span class="kw">pub </span>relay_expiry: u32,
     <span class="doccomment">/// Unused cache timeout for envelopes.
     ///
     /// The envelope buffer is instead controlled by `envelope_buffer_size`, which controls the
@@ -3720,19 +3720,19 @@
     </span><span class="attr">#[serde(alias = <span class="string">"event_buffer_size"</span>)]
     </span>envelope_buffer_size: u32,
     <span class="doccomment">/// The cache timeout for non-existing entries.
-    </span>miss_expiry: u32,
+    </span><span class="kw">pub </span>miss_expiry: u32,
     <span class="doccomment">/// The buffer timeout for batched project config queries before sending them upstream in ms.
-    </span>batch_interval: u32,
+    </span><span class="kw">pub </span>batch_interval: u32,
     <span class="doccomment">/// The buffer timeout for batched queries of downstream relays in ms. Defaults to 100ms.
-    </span>downstream_relays_batch_interval: u32,
+    </span><span class="kw">pub </span>downstream_relays_batch_interval: u32,
     <span class="doccomment">/// The maximum number of project configs to fetch from Sentry at once. Defaults to 500.
     ///
     /// `cache.batch_interval` controls how quickly batches are sent, this controls the batch size.
-    </span>batch_size: usize,
+    </span><span class="kw">pub </span>batch_size: usize,
     <span class="doccomment">/// Interval for watching local cache override files in seconds.
-    </span>file_interval: u32,
+    </span><span class="kw">pub </span>file_interval: u32,
     <span class="doccomment">/// Interval for fetching new global configs from the upstream, in seconds.
-    </span>global_config_fetch_interval: u32,
+    </span><span class="kw">pub </span>global_config_fetch_interval: u32,
 }
 
 <span class="kw">impl </span>Default <span class="kw">for </span>Cache {
@@ -4106,7 +4106,7 @@
 </span><span class="attr">#[derive(Serialize, Deserialize, Debug, Default)]
 </span><span class="kw">pub struct </span>GeoIpConfig {
     <span class="doccomment">/// The path to GeoIP database.
-    </span>path: <span class="prelude-ty">Option</span>&lt;PathBuf&gt;,
+    </span><span class="kw">pub </span>path: <span class="prelude-ty">Option</span>&lt;PathBuf&gt;,
 }
 
 <span class="doccomment">/// Cardinality Limiter configuration options.
@@ -4188,13 +4188,13 @@
     /// Any additional COGS measurements recorded will be dropped.
     ///
     /// Defaults to `10_000`.
-    </span>max_queue_size: u64,
+    </span><span class="kw">pub </span>max_queue_size: u64,
     <span class="doccomment">/// Relay COGS resource id.
     ///
     /// All Relay related COGS measurements are emitted with this resource id.
     ///
     /// Defaults to `relay_service`.
-    </span>relay_resource_id: String,
+    </span><span class="kw">pub </span>relay_resource_id: String,
 }
 
 <span class="kw">impl </span>Default <span class="kw">for </span>Cogs {
