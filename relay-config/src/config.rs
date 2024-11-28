@@ -975,27 +975,6 @@ pub struct EnvelopeSpool {
     /// Number of partitions of the buffer.
     #[serde(default = "spool_envelopes_partitions")]
     partitions: NonZeroU8,
-    /// Version of the spooler.
-    #[serde(default)]
-    version: EnvelopeSpoolVersion,
-}
-
-/// Version of the envelope buffering mechanism.
-#[derive(Debug, Default, Deserialize, Serialize)]
-pub enum EnvelopeSpoolVersion {
-    /// Use the spooler service, which only buffers envelopes for unloaded projects and
-    /// switches between an in-memory mode and a disk mode on-demand.
-    ///
-    /// This mode will be removed soon.
-    #[default]
-    #[serde(rename = "1")]
-    V1,
-    /// Use the envelope buffer, through which all envelopes pass before getting unspooled.
-    /// Can be either disk based or memory based.
-    ///
-    /// This mode has not yet been stress-tested, do not use in production environments.
-    #[serde(rename = "experimental")]
-    V2,
 }
 
 impl Default for EnvelopeSpool {
@@ -1013,7 +992,6 @@ impl Default for EnvelopeSpool {
             max_backpressure_envelopes: spool_max_backpressure_envelopes(),
             max_backpressure_memory_percent: spool_max_backpressure_memory_percent(),
             partitions: spool_envelopes_partitions(),
-            version: EnvelopeSpoolVersion::default(),
         }
     }
 }
@@ -2206,14 +2184,6 @@ impl Config {
         self.values.spool.envelopes.batch_size_bytes.as_bytes()
     }
 
-    /// Returns `true` if version 2 of the spooling mechanism is used.
-    pub fn spool_v2(&self) -> bool {
-        matches!(
-            &self.values.spool.envelopes.version,
-            EnvelopeSpoolVersion::V2
-        )
-    }
-
     /// Returns the time after which we drop envelopes as a [`Duration`] object.
     pub fn spool_envelopes_max_age(&self) -> Duration {
         Duration::from_secs(self.values.spool.envelopes.max_envelope_delay_secs)
@@ -2653,17 +2623,5 @@ cache:
     #[test]
     fn test_emit_outcomes_invalid() {
         assert!(serde_json::from_str::<EmitOutcomes>("asdf").is_err());
-    }
-
-    #[test]
-    fn test_spool_defaults_to_v1() {
-        let config: ConfigValues = serde_json::from_str("{}").unwrap();
-        assert!(matches!(
-            config.spool.envelopes.version,
-            EnvelopeSpoolVersion::V1
-        ));
-
-        let config = Config::from_json_value(serde_json::json!({})).unwrap();
-        assert!(!config.spool_v2());
     }
 }

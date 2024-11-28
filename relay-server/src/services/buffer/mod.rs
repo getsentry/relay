@@ -122,11 +122,9 @@ impl PartitionedEnvelopeBuffer {
                     test_store: test_store.clone(),
                 },
             )
-            .map(|b| b.start_in(runner));
+            .start_in(runner);
 
-            if let Some(envelope_buffer) = envelope_buffer {
-                envelope_buffers.push(envelope_buffer);
-            }
+            envelope_buffers.push(envelope_buffer);
         }
 
         Self {
@@ -216,17 +214,14 @@ const DEFAULT_SLEEP: Duration = Duration::from_secs(1);
 
 impl EnvelopeBufferService {
     /// Creates a memory or disk based [`EnvelopeBufferService`], depending on the given config.
-    ///
-    /// NOTE: until the V1 spooler implementation is removed, this function returns `None`
-    /// if V2 spooling is not configured.
     pub fn new(
         partition_id: u8,
         config: Arc<Config>,
         memory_stat: MemoryStat,
         global_config_rx: watch::Receiver<global_config::Status>,
         services: Services,
-    ) -> Option<Self> {
-        config.spool_v2().then(|| Self {
+    ) -> Self {
+        Self {
             partition_id,
             config,
             memory_stat,
@@ -234,7 +229,7 @@ impl EnvelopeBufferService {
             services,
             has_capacity: Arc::new(AtomicBool::new(true)),
             sleep: Duration::ZERO,
-        })
+        }
     }
 
     /// Returns both the [`Addr`] to this service, and a reference to the capacity flag.
@@ -648,8 +643,7 @@ mod tests {
                 outcome_aggregator,
                 test_store: Addr::dummy(),
             },
-        )
-        .unwrap();
+        );
 
         EnvelopeBufferServiceResult {
             service: envelope_buffer_service,
@@ -914,8 +908,7 @@ mod tests {
             MemoryStat::default(),
             global_rx.clone(),
             services.clone(),
-        )
-        .unwrap();
+        );
 
         let buffer2 = EnvelopeBufferService::new(
             1,
@@ -923,8 +916,7 @@ mod tests {
             MemoryStat::default(),
             global_rx,
             services,
-        )
-        .unwrap();
+        );
 
         // Start both services and create partitioned buffer
         let observable1 = buffer1.start_in(&mut runner);
