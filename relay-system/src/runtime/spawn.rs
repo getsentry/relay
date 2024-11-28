@@ -128,15 +128,15 @@ mod tests {
         #[cfg(not(windows))]
         assert_debug_snapshot!(captures, @r###"
         [
-            "runtime.task.spawn.created:1|c|#id:relay-system/src/runtime.rs:124,file:relay-system/src/runtime.rs,line:124",
-            "runtime.task.spawn.terminated:1|c|#id:relay-system/src/runtime.rs:124,file:relay-system/src/runtime.rs,line:124",
+            "runtime.task.spawn.created:1|c|#id:relay-system/src/runtime/spawn.rs:124,file:relay-system/src/runtime/spawn.rs,line:124",
+            "runtime.task.spawn.terminated:1|c|#id:relay-system/src/runtime/spawn.rs:124,file:relay-system/src/runtime/spawn.rs,line:124",
         ]
         "###);
         #[cfg(windows)]
         assert_debug_snapshot!(captures, @r###"
         [
-            "runtime.task.spawn.created:1|c|#id:relay-system\\src\\runtime.rs:124,file:relay-system\\src\\runtime.rs,line:124",
-            "runtime.task.spawn.terminated:1|c|#id:relay-system\\src\\runtime.rs:124,file:relay-system\\src\\runtime.rs,line:124",
+            "runtime.task.spawn.created:1|c|#id:relay-system\\src\\runtime\\spawn.rs:124,file:relay-system\\src\\runtime\\spawn.rs,line:124",
+            "runtime.task.spawn.terminated:1|c|#id:relay-system\\src\\runtime\\spawn.rs:124,file:relay-system\\src\\runtime\\spawn.rs,line:124",
         ]
         "###);
     }
@@ -161,8 +161,8 @@ mod tests {
 
         assert_debug_snapshot!(captures, @r###"
         [
-            "runtime.task.spawn.created:1|c|#id:relay_system::runtime::tests::test_spawn_with_custom_id::Foo,file:,line:",
-            "runtime.task.spawn.terminated:1|c|#id:relay_system::runtime::tests::test_spawn_with_custom_id::Foo,file:,line:",
+            "runtime.task.spawn.created:1|c|#id:relay_system::runtime::spawn::tests::test_spawn_with_custom_id::Foo,file:,line:",
+            "runtime.task.spawn.terminated:1|c|#id:relay_system::runtime::spawn::tests::test_spawn_with_custom_id::Foo,file:,line:",
         ]
         "###);
     }
