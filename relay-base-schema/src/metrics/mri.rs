@@ -322,7 +322,7 @@ impl Serialize for MetricResourceIdentifier<'_> {
     }
 }
 
-impl<'a> fmt::Display for MetricResourceIdentifier<'a> {
+impl fmt::Display for MetricResourceIdentifier<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // `<ty>:<ns>/<name>@<unit>`
         write!(

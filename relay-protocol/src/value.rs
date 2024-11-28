@@ -40,7 +40,7 @@ pub enum Value {
 /// Helper type that renders out a description of the value.
 pub struct ValueDescription<'a>(&'a Value);
 
-impl<'a> fmt::Display for ValueDescription<'a> {
+impl fmt::Display for ValueDescription<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self.0 {
             Value::Bool(true) => f.pad("true"),

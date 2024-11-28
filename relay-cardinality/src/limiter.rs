@@ -250,7 +250,7 @@ pub struct CardinalityLimitsSplit<'a, T> {
     pub rejected: Vec<(T, &'a CardinalityLimit)>,
 }
 
-impl<'a, T> CardinalityLimitsSplit<'a, T> {
+impl<T> CardinalityLimitsSplit<'_, T> {
     /// Creates a new cardinality limits split with a given capacity for `accepted` and `rejected`
     /// elements.
     fn with_capacity(accepted_capacity: usize, rejected_capacity: usize) -> Self {

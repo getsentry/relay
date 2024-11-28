@@ -135,7 +135,7 @@ impl<'a> Iterator for DynamicGenericFiltersConfigIter<'a> {
     }
 }
 
-impl<'a> FusedIterator for DynamicGenericFiltersConfigIter<'a> {}
+impl FusedIterator for DynamicGenericFiltersConfigIter<'_> {}
 
 /// Merges the two filters with the same id, prioritizing values from the primary.
 ///

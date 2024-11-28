@@ -171,6 +171,7 @@ fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
 
     s.gen_impl(quote! {
         #[automatically_derived]
+        #[expect(non_local_definitions, reason = "crate needs to be migrated to syn2")]
         gen impl crate::processor::ProcessValue for @Self {
             fn value_type(&self) -> enumset::EnumSet<crate::processor::ValueType> {
                 match *self {

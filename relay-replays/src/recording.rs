@@ -206,7 +206,7 @@ impl<'a, S> EventStreamVisitor<'a, S> {
     }
 }
 
-impl<'de, 'a, S> de::Visitor<'de> for EventStreamVisitor<'a, S>
+impl<'de, S> de::Visitor<'de> for EventStreamVisitor<'_, S>
 where
     S: ser::Serializer,
 {

@@ -688,7 +688,7 @@ mod serde_date_time_3339 {
     {
         struct DateTimeVisitor;
 
-        impl<'de> Visitor<'de> for DateTimeVisitor {
+        impl Visitor<'_> for DateTimeVisitor {
             type Value = Option<DateTime<Utc>>;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {

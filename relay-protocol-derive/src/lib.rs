@@ -77,6 +77,7 @@ fn derive_empty(mut s: synstructure::Structure<'_>) -> TokenStream {
 
     s.gen_impl(quote! {
         #[automatically_derived]
+        #[expect(non_local_definitions, reason = "crate needs to be migrated to syn2")]
         gen impl ::relay_protocol::Empty for @Self {
             fn is_empty(&self) -> bool {
                 match *self {
@@ -139,6 +140,7 @@ fn derive_newtype_metastructure(
     Ok(match t {
         Trait::From => s.gen_impl(quote! {
             #[automatically_derived]
+            #[expect(non_local_definitions, reason = "crate needs to be migrated to syn2")]
             gen impl ::relay_protocol::FromValue for @Self {
                 fn from_value(
                     __value: ::relay_protocol::Annotated<::relay_protocol::Value>,
@@ -152,6 +154,7 @@ fn derive_newtype_metastructure(
         }),
         Trait::To => s.gen_impl(quote! {
             #[automatically_derived]
+            #[expect(non_local_definitions, reason = "crate needs to be migrated to syn2")]
             gen impl ::relay_protocol::IntoValue for @Self {
                 fn into_value(self) -> ::relay_protocol::Value {
                     ::relay_protocol::IntoValue::into_value(self.0)
@@ -267,6 +270,7 @@ fn derive_enum_metastructure(
         Trait::From => {
             s.gen_impl(quote! {
                 #[automatically_derived]
+                #[expect(non_local_definitions, reason = "crate needs to be migrated to syn2")]
                 gen impl ::relay_protocol::FromValue for @Self {
                     fn from_value(
                         __value: ::relay_protocol::Annotated<::relay_protocol::Value>,
@@ -287,6 +291,7 @@ fn derive_enum_metastructure(
         Trait::To => {
             s.gen_impl(quote! {
                 #[automatically_derived]
+                #[expect(non_local_definitions, reason = "crate needs to be migrated to syn2")]
                 gen impl ::relay_protocol::IntoValue for @Self {
                     fn into_value(self) -> ::relay_protocol::Value {
                         match self {
@@ -490,6 +495,7 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
 
             s.gen_impl(quote! {
                 #[automatically_derived]
+                #[expect(non_local_definitions, reason = "crate needs to be migrated to syn2")]
                 gen impl ::relay_protocol::FromValue for @Self {
                     fn from_value(
                         __value: ::relay_protocol::Annotated<::relay_protocol::Value>,
@@ -540,6 +546,7 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
 
             s.gen_impl(quote! {
                 #[automatically_derived]
+                #[expect(non_local_definitions, reason = "crate needs to be migrated to syn2")]
                 gen impl ::relay_protocol::IntoValue for @Self {
                     fn into_value(self) -> ::relay_protocol::Value {
                         #into_value
