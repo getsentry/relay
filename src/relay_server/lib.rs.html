@@ -321,6 +321,7 @@
 <a href="#321" id="321">321</a>
 <a href="#322" id="322">322</a>
 <a href="#323" id="323">323</a>
+<a href="#324" id="324">324</a>
 </pre></div><pre class="rust"><code><span class="doccomment">//! The Sentry relay server application.
 //!
 //! This module contains the [`run`] function which starts the relay server. It responds on
@@ -617,14 +618,15 @@
     <span class="macro">relay_log::info!</span>(<span class="string">"relay server starting"</span>);
 
     <span class="comment">// Creates the main runtime.
-    </span><span class="kw">let </span>main_runtime = <span class="kw">crate</span>::service::create_runtime(<span class="string">"main-rt"</span>, config.cpu_concurrency());
+    </span><span class="kw">let </span>runtime = <span class="kw">crate</span>::service::create_runtime(<span class="string">"main-rt"</span>, config.cpu_concurrency());
+    <span class="kw">let </span>runtime_metrics = runtime.metrics();
 
     <span class="comment">// Run the system and block until a shutdown signal is sent to this process. Inside, start a
     // web server and run all relevant services. See the `actors` module documentation for more
     // information on all services.
-    </span>main_runtime.block_on(<span class="kw">async </span>{
+    </span>runtime.block_on(<span class="kw">async </span>{
         Controller::start(config.shutdown_timeout());
-        <span class="kw">let </span>(state, <span class="kw-2">mut </span>runner) = ServiceState::start(config.clone()).<span class="kw">await</span><span class="question-mark">?</span>;
+        <span class="kw">let </span>(state, <span class="kw-2">mut </span>runner) = ServiceState::start(runtime_metrics, config.clone()).<span class="kw">await</span><span class="question-mark">?</span>;
         runner.start(HttpServer::new(config, state.clone())<span class="question-mark">?</span>);
 
         <span class="macro">tokio::select!</span> {
@@ -639,7 +641,7 @@
         anyhow::Ok(())
     })<span class="question-mark">?</span>;
 
-    drop(main_runtime);
+    drop(runtime);
 
     <span class="macro">relay_log::info!</span>(<span class="string">"relay shutdown complete"</span>);
     <span class="prelude-val">Ok</span>(())
