@@ -2,6 +2,9 @@
 
 ## 24.11.1
 
+**Breaking Changes**:
+- Flatten Linux distribution fields into `os.context`([#4292](https://github.com/getsentry/relay/pull/4292))
+
 **Bug Fixes**:
 
 - Terminate the process when one of the services crashes. ([#4249](https://github.com/getsentry/relay/pull/4249))
