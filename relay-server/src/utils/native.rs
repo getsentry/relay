@@ -15,9 +15,6 @@ use relay_protocol::{Annotated, Value};
 
 type Minidump<'a> = minidump::Minidump<'a, &'a [u8]>;
 
-/// Client SDK name used for the event payload to identify events created out of minidumps.
-const CLIENT_SDK_NAME: &str = "minidump";
-
 /// Placeholder payload fragments indicating a native event.
 ///
 /// These payload attributes tell the processing pipeline that the event requires attachment
@@ -195,9 +192,20 @@ pub fn process_minidump(event: &mut Event, data: &[u8]) {
         }
     };
 
+    let client_sdk_name = if minidump.get_stream::<MinidumpCrashpadInfo>().is_ok() {
+        "minidump.crashpad"
+    } else if minidump
+        .get_stream::<minidump::MinidumpBreakpadInfo>()
+        .is_ok()
+    {
+        "minidump.breakpad"
+    } else {
+        "minidump.unknown"
+    };
+
     // Add sdk information for analytics.
     event.client_sdk.get_or_insert_with(|| ClientSdkInfo {
-        name: Annotated::new(CLIENT_SDK_NAME.to_owned()),
+        name: Annotated::new(client_sdk_name.to_owned()),
         ..ClientSdkInfo::default()
     });
 

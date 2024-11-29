@@ -448,6 +448,9 @@ def test_minidump_with_processing(
     # Check information extracted from the minidump
     assert event["timestamp"] == 1574692481.0  # 11/25/2019 @ 2:34pm (UTC)
 
+    # Check that the SDK name is correctly detected
+    assert event["sdk"]["name"] == "minidump.unknown"
+
     assert list(message["attachments"]) == [
         {
             "id": attachment_id,
