@@ -45,7 +45,11 @@ def test_multi_write_redis_client_with_rate_limiting(
         relay = relay_with_processing(
             {
                 "processing": {
-                    "redis": redis_config,
+                    "redis": {
+                        "project_configs": {"server": "redis://127.0.0.1:6379"},
+                        "cardinality": redis_config,
+                        "quotas": redis_config,
+                    },
                     # We use the same prefix across the instances to make sure they read/write the same keys.
                     "projectconfig_cache_prefix": project_cache_redis_prefix,
                 },

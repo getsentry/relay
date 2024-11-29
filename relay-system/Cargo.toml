@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Foundational system components for Relay's services"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "24.10.0"
+version = "24.11.1"
 edition = "2021"
 license-file = "../LICENSE.md"
 publish = false
@@ -17,8 +17,11 @@ futures = { workspace = true }
 once_cell = { workspace = true }
 relay-log = { workspace = true }
 relay-statsd = { workspace = true }
-tokio = { workspace = true, features = ["rt", "signal", "macros", "sync", "time"] }
+tokio = { workspace = true, features = ["rt", "signal", "macros", "sync", "time", "rt-multi-thread"] }
+pin-project-lite = { workspace = true }
+
 
 [dev-dependencies]
+insta = { workspace = true }
 relay-statsd = { workspace = true, features = ["test"] }
 tokio = { workspace = true, features = ["test-util"] }

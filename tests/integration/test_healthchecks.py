@@ -175,11 +175,9 @@ def test_readiness_disk_spool(mini_sentry, relay):
         "spool": {
             # if the config contains max_disk_size and max_memory_size set both to 0, Relay will never passes readiness check
             "envelopes": {
-                "version": "experimental",
                 "path": dbfile,
                 "max_disk_size": 24577,  # one more than the initial size
-                "disk_batch_size": 1,
-                "max_batches": 1,
+                "batch_size_bytes": 1,
             }
         },
     }
@@ -188,7 +186,7 @@ def test_readiness_disk_spool(mini_sentry, relay):
 
     # Second sent event can trigger error on the relay size, since the spool is full now.
     for _ in range(20):
-        # It takes ~10 events to make SQLlite use more pages.
+        # It takes ~10 events to make SQLite use more pages.
         try:
             relay.send_event(project_key)
         except HTTPError as e:

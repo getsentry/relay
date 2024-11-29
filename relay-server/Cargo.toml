@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Endpoints and services for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "24.10.0"
+version = "24.11.1"
 edition = "2021"
 build = "build.rs"
 license-file = "../LICENSE.md"
@@ -44,11 +44,12 @@ chrono = { workspace = true, features = ["clock"] }
 data-encoding = { workspace = true }
 flate2 = { workspace = true }
 fnv = { workspace = true }
-futures = { workspace = true }
+futures = { workspace = true, features = ["async-await"] }
 hashbrown = { workspace = true }
 hyper-util = { workspace = true }
 itertools = { workspace = true }
 json-forensics = { workspace = true }
+libc = { workspace = true }
 liblzma = { workspace = true }
 mime = { workspace = true }
 minidump = { workspace = true, optional = true }
@@ -57,6 +58,7 @@ once_cell = { workspace = true }
 papaya = { workspace = true }
 pin-project-lite = { workspace = true }
 priority-queue = { workspace = true }
+prost = { workspace = true }
 rand = { workspace = true }
 rayon = { workspace = true }
 regex = { workspace = true }
@@ -108,7 +110,7 @@ symbolic-unreal = { workspace = true, optional = true, default-features = false,
 ] }
 sysinfo = { workspace = true }
 thiserror = { workspace = true }
-tokio = { workspace = true, features = ["rt", "rt-multi-thread"] }
+tokio = { workspace = true, features = ["sync", "time"] }
 tower = { workspace = true, default-features = false }
 tower-http = { workspace = true, default-features = false, features = [
     "catch-panic",
@@ -138,7 +140,7 @@ relay-protocol = { workspace = true, features = ["test"] }
 relay-test = { workspace = true }
 similar-asserts = { workspace = true }
 tempfile = { workspace = true }
-tokio = { workspace = true, features = ['test-util'] }
+tokio = { workspace = true, features = ["rt", "macros", "test-util"] }
 
 [[bench]]
 name = "benches"

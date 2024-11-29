@@ -1,16 +1,19 @@
 use std::sync::Arc;
 
+use futures::future::BoxFuture;
+use futures::StreamExt as _;
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
 use relay_statsd::metric;
-use relay_system::Service;
-use tokio::sync::{broadcast, mpsc};
+use relay_system::{Service, ServiceRunner};
+use tokio::sync::broadcast;
 
 use crate::services::projects::cache::handle::ProjectCacheHandle;
-use crate::services::projects::cache::state::{CompletedFetch, Fetch, ProjectStore};
+use crate::services::projects::cache::state::{CompletedFetch, Eviction, Fetch, ProjectStore};
 use crate::services::projects::project::ProjectState;
 use crate::services::projects::source::ProjectSource;
-use crate::statsd::{RelayGauges, RelayTimers};
+use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
+use crate::utils::FuturesScheduled;
 
 /// Size of the broadcast channel for project events.
 ///
@@ -66,8 +69,7 @@ pub struct ProjectCacheService {
     source: ProjectSource,
     config: Arc<Config>,
 
-    project_update_rx: mpsc::UnboundedReceiver<CompletedFetch>,
-    project_update_tx: mpsc::UnboundedSender<CompletedFetch>,
+    scheduled_fetches: FuturesScheduled<BoxFuture<'static, CompletedFetch>>,
 
     project_events_tx: broadcast::Sender<ProjectChange>,
 }
@@ -75,15 +77,13 @@ pub struct ProjectCacheService {
 impl ProjectCacheService {
     /// Creates a new [`ProjectCacheService`].
     pub fn new(config: Arc<Config>, source: ProjectSource) -> Self {
-        let (project_update_tx, project_update_rx) = mpsc::unbounded_channel();
         let project_events_tx = broadcast::channel(PROJECT_EVENTS_CHANNEL_SIZE).0;
 
         Self {
             store: ProjectStore::default(),
             source,
             config,
-            project_update_rx,
-            project_update_tx,
+            scheduled_fetches: FuturesScheduled::default(),
             project_events_tx,
         }
     }
@@ -91,7 +91,7 @@ impl ProjectCacheService {
     /// Consumes and starts a [`ProjectCacheService`].
     ///
     /// Returns a [`ProjectCacheHandle`] to access the cache concurrently.
-    pub fn start(self) -> ProjectCacheHandle {
+    pub fn start_in(self, runner: &mut ServiceRunner) -> ProjectCacheHandle {
         let (addr, addr_rx) = relay_system::channel(Self::name());
 
         let handle = ProjectCacheHandle {
@@ -101,19 +101,17 @@ impl ProjectCacheService {
             project_changes: self.project_events_tx.clone(),
         };
 
-        self.spawn_handler(addr_rx);
+        runner.start_with(self, addr_rx);
 
         handle
     }
 
-    /// Schedules a new [`Fetch`] and delivers the result to the [`Self::project_update_tx`] channel.
-    fn schedule_fetch(&self, fetch: Fetch) {
+    /// Schedules a new [`Fetch`] in [`Self::scheduled_fetches`].
+    fn schedule_fetch(&mut self, fetch: Fetch) {
         let source = self.source.clone();
-        let project_updates = self.project_update_tx.clone();
 
-        tokio::spawn(async move {
-            tokio::time::sleep_until(fetch.when()).await;
-
+        let when = fetch.when();
+        let task = async move {
             let state = match source
                 .fetch(fetch.project_key(), false, fetch.revision())
                 .await
@@ -132,8 +130,14 @@ impl ProjectCacheService {
                 }
             };
 
-            let _ = project_updates.send(fetch.complete(state));
-        });
+            fetch.complete(state)
+        };
+        self.scheduled_fetches.schedule(when, Box::pin(task));
+
+        metric!(counter(RelayCounters::ProjectCacheSchedule) += 1);
+        metric!(
+            gauge(RelayGauges::ProjectCacheScheduledFetches) = self.scheduled_fetches.len() as u64
+        );
     }
 }
 
@@ -167,14 +171,17 @@ impl ProjectCacheService {
         );
     }
 
-    fn handle_evict_stale_projects(&mut self) {
-        let on_evict = |project_key| {
-            let _ = self
-                .project_events_tx
-                .send(ProjectChange::Evicted(project_key));
-        };
+    fn handle_eviction(&mut self, eviction: Eviction) {
+        let project_key = eviction.project_key();
 
-        self.store.evict_stale_projects(&self.config, on_evict);
+        self.store.evict(eviction);
+
+        let _ = self
+            .project_events_tx
+            .send(ProjectChange::Evicted(project_key));
+
+        relay_log::trace!(tags.project_key = project_key.as_str(), "project evicted");
+        metric!(counter(RelayCounters::EvictingStaleProjectCaches) += 1);
     }
 
     fn handle_message(&mut self, message: ProjectCache) {
@@ -187,7 +194,7 @@ impl ProjectCacheService {
 impl relay_system::Service for ProjectCacheService {
     type Interface = ProjectCache;
 
-    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+    async fn run(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
         macro_rules! timed {
             ($task:expr, $body:expr) => {{
                 let task_name = $task;
@@ -199,28 +206,23 @@ impl relay_system::Service for ProjectCacheService {
             }};
         }
 
-        tokio::spawn(async move {
-            let mut eviction_ticker = tokio::time::interval(self.config.cache_eviction_interval());
-            eviction_ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        loop {
+            tokio::select! {
+                biased;
 
-            loop {
-                tokio::select! {
-                    biased;
-
-                    Some(update) = self.project_update_rx.recv() => timed!(
-                        "project_update",
-                        self.handle_completed_fetch(update)
-                    ),
-                    Some(message) = rx.recv() => timed!(
-                        message.variant(),
-                        self.handle_message(message)
-                    ),
-                    _ = eviction_ticker.tick() => timed!(
-                        "evict_stale_projects",
-                        self.handle_evict_stale_projects()
-                    ),
-                }
+                Some(fetch) = self.scheduled_fetches.next() => timed!(
+                    "completed_fetch",
+                    self.handle_completed_fetch(fetch)
+                ),
+                Some(message) = rx.recv() => timed!(
+                    message.variant(),
+                    self.handle_message(message)
+                ),
+                Some(eviction) = self.store.next_eviction() => timed!(
+                    "eviction",
+                    self.handle_eviction(eviction)
+                ),
             }
-        });
+        }
     }
 }

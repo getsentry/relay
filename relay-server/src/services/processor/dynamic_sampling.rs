@@ -91,16 +91,13 @@ where
 }
 
 /// Apply the dynamic sampling decision from `compute_sampling_decision`.
-pub fn drop_unsampled_items(
-    state: &mut ProcessEnvelopeState<TransactionGroup>,
-    outcome: Outcome,
-    keep_profiles: bool,
-) {
+pub fn drop_unsampled_items(state: &mut ProcessEnvelopeState<TransactionGroup>, outcome: Outcome) {
     // Remove all items from the envelope which need to be dropped due to dynamic sampling.
-    let dropped_items = state.envelope_mut().take_items_by(|item| match item.ty() {
-        ItemType::Profile => !keep_profiles,
-        _ => true,
-    });
+    let dropped_items = state
+        .envelope_mut()
+        // Profiles are not dropped by dynamic sampling, they are all forwarded to storage and
+        // later processed in Sentry and potentially dropped there.
+        .take_items_by(|item| *item.ty() != ItemType::Profile);
 
     for item in dropped_items {
         let Some(category) = item.outcome_category() else {
@@ -117,7 +114,7 @@ pub fn drop_unsampled_items(
             .track_outcome(outcome.clone(), category, item.quantity());
     }
 
-    // Mark all remaining items in the envelope as unsampled.
+    // Mark all remaining items in the envelope as un-sampled.
     for item in state.envelope_mut().items_mut() {
         item.set_sampled(false);
     }
@@ -284,11 +281,11 @@ mod tests {
     }
 
     /// Always sets the processing item type to event.
-    fn process_envelope_with_root_project_state(
+    async fn process_envelope_with_root_project_state(
         envelope: Box<Envelope>,
         sampling_project_info: Option<Arc<ProjectInfo>>,
     ) -> Envelope {
-        let processor = create_test_processor(Default::default());
+        let processor = create_test_processor(Default::default()).await;
         let (outcome_aggregator, test_store) = testutils::processor_services();
 
         let mut envelopes = ProcessingGroup::split_envelope(*envelope);
@@ -348,7 +345,7 @@ mod tests {
         // We test tagging when root project state and dsc are none.
         let mut envelope = Envelope::from_request(Some(event_id), request_meta);
         envelope.add_item(mocked_error_item());
-        let new_envelope = process_envelope_with_root_project_state(envelope, None);
+        let new_envelope = process_envelope_with_root_project_state(envelope, None).await;
         let event = extract_first_event_from_envelope(new_envelope);
 
         assert!(event.contexts.value().is_none());
@@ -519,7 +516,8 @@ mod tests {
         let new_envelope = process_envelope_with_root_project_state(
             envelope.clone(),
             Some(Arc::new(sampling_project_state)),
-        );
+        )
+        .await;
         let event = extract_first_event_from_envelope(new_envelope);
         let trace_context = event.context::<TraceContext>().unwrap();
         assert!(trace_context.sampled.value().unwrap());
@@ -529,7 +527,8 @@ mod tests {
         let new_envelope = process_envelope_with_root_project_state(
             envelope,
             Some(Arc::new(sampling_project_state)),
-        );
+        )
+        .await;
         let event = extract_first_event_from_envelope(new_envelope);
         let trace_context = event.context::<TraceContext>().unwrap();
         assert!(!trace_context.sampled.value().unwrap());
@@ -573,7 +572,8 @@ mod tests {
         let new_envelope = process_envelope_with_root_project_state(
             envelope,
             Some(Arc::new(sampling_project_state)),
-        );
+        )
+        .await;
         let event = extract_first_event_from_envelope(new_envelope);
         let trace_context = event.context::<TraceContext>().unwrap();
         assert!(trace_context.sampled.value().unwrap());

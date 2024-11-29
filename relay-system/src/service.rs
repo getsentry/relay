@@ -5,15 +5,17 @@ use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use futures::future::Shared;
-use futures::FutureExt;
-use tokio::runtime::Runtime;
+use futures::stream::FuturesUnordered;
+use futures::{FutureExt, StreamExt};
 use tokio::sync::{mpsc, oneshot};
+use tokio::task::JoinHandle;
 use tokio::time::MissedTickBehavior;
 
-use crate::statsd::{SystemCounters, SystemGauges};
+use crate::statsd::SystemGauges;
+use crate::{spawn, TaskId};
 
 /// Interval for recording backlog metrics on service channels.
 const BACKLOG_INTERVAL: Duration = Duration::from_secs(1);
@@ -818,7 +820,7 @@ where
 ///
 /// This channel is meant to be polled in a [`Service`].
 ///
-/// Instances are created automatically when [spawning](Service::spawn_handler) a service, or can be
+/// Instances are created automatically when [spawning](ServiceRunner::start) a service, or can be
 /// created through [`channel`]. The channel closes when all associated [`Addr`]s are dropped.
 pub struct Receiver<I: Interface> {
     rx: mpsc::UnboundedReceiver<I>,
@@ -839,8 +841,7 @@ impl<I: Interface> Receiver<I> {
     /// not yet been closed, this method will sleep until a message is sent or
     /// the channel is closed.
     pub async fn recv(&mut self) -> Option<I> {
-        let start = Instant::now();
-        let next_message = loop {
+        loop {
             tokio::select! {
                 biased;
 
@@ -853,15 +854,10 @@ impl<I: Interface> Receiver<I> {
                 },
                 message = self.rx.recv() => {
                     self.queue_size.fetch_sub(1, Ordering::SeqCst);
-                    break message;
+                    return message;
                 },
             }
-        };
-        relay_statsd::metric!(
-            counter(SystemCounters::ServiceIdleTime) += start.elapsed().as_nanos() as u64,
-            service = self.name
-        );
-        next_message
+        }
     }
 }
 
@@ -909,7 +905,7 @@ pub fn channel<I: Interface>(name: &'static str) -> (Addr<I>, Receiver<I>) {
 /// Individual messages can have a response which will be sent once the message is handled by the
 /// service. The sender can asynchronously await the responses of such messages.
 ///
-/// To start a service, create an instance of the service and use [`Service::start`].
+/// To start a service, create a service runner and call [`ServiceRunner::start`].
 ///
 /// # Implementing Services
 ///
@@ -918,7 +914,7 @@ pub fn channel<I: Interface>(name: &'static str) -> (Addr<I>, Receiver<I>) {
 /// synchronous, so that this needs to spawn at least one task internally:
 ///
 /// ```no_run
-/// use relay_system::{FromMessage, Interface, NoResponse, Receiver, Service};
+/// use relay_system::{FromMessage, Interface, NoResponse, Receiver, Service, ServiceRunner};
 ///
 /// struct MyMessage;
 ///
@@ -937,16 +933,14 @@ pub fn channel<I: Interface>(name: &'static str) -> (Addr<I>, Receiver<I>) {
 /// impl Service for MyService {
 ///     type Interface = MyMessage;
 ///
-///     fn spawn_handler(self, mut rx: Receiver<Self::Interface>) {
-///         tokio::spawn(async move {
-///             while let Some(message) = rx.recv().await {
-///                 // handle the message
-///             }
-///         });
+///     async fn run(self, mut rx: Receiver<Self::Interface>) {
+///         while let Some(message) = rx.recv().await {
+///             // handle the message
+///         }
 ///     }
 /// }
 ///
-/// let addr = MyService.start();
+/// let addr = ServiceRunner::new().start(MyService);
 /// ```
 ///
 /// ## Debounce and Caching
@@ -1003,23 +997,20 @@ pub trait Service: Sized {
     /// can be handled by this service.
     type Interface: Interface;
 
-    /// Spawns a task to handle service messages.
+    /// Defines the main task of this service.
     ///
-    /// Receives an inbound channel for all messages sent through the service's [`Addr`]. Note
-    /// that this function is synchronous, so that this needs to spawn a task internally.
-    fn spawn_handler(self, rx: Receiver<Self::Interface>);
+    /// `run` typically contains a loop that reads from `rx`, or a `select!` that reads
+    /// from multiple sources at once.
+    fn run(self, rx: Receiver<Self::Interface>) -> impl Future<Output = ()> + Send + 'static;
 
     /// Starts the service in the current runtime and returns an address for it.
-    fn start(self) -> Addr<Self::Interface> {
+    ///
+    /// The service runs in a detached tokio task that cannot be joined on. This is mainly useful
+    /// for tests.
+    fn start_detached(self) -> Addr<Self::Interface> {
         let (addr, rx) = channel(Self::name());
-        self.spawn_handler(rx);
+        spawn(TaskId::for_service::<Self>(), self.run(rx));
         addr
-    }
-
-    /// Starts the service in the given runtime and returns an address for it.
-    fn start_in(self, runtime: &Runtime) -> Addr<Self::Interface> {
-        let _guard = runtime.enter();
-        self.start()
     }
 
     /// Returns a unique name for this service implementation.
@@ -1028,6 +1019,46 @@ pub trait Service: Sized {
     /// implementor by default.
     fn name() -> &'static str {
         std::any::type_name::<Self>()
+    }
+}
+
+/// Keeps track of running services.
+///
+/// Exposes information about crashed services.
+#[derive(Debug, Default)]
+pub struct ServiceRunner(FuturesUnordered<JoinHandle<()>>);
+
+impl ServiceRunner {
+    /// Creates a new service runner.
+    pub fn new() -> Self {
+        Self(FuturesUnordered::new())
+    }
+
+    /// Starts a service and starts tracking its join handle, exposing an [Addr] for message passing.
+    pub fn start<S: Service>(&mut self, service: S) -> Addr<S::Interface> {
+        let (addr, rx) = channel(S::name());
+        self.start_with(service, rx);
+        addr
+    }
+
+    /// Starts a service and starts tracking its join handle, given a predefined receiver.
+    pub fn start_with<S: Service>(&mut self, service: S, rx: Receiver<S::Interface>) {
+        self.0
+            .push(spawn(TaskId::for_service::<S>(), service.run(rx)));
+    }
+
+    /// Awaits until all services have finished.
+    ///
+    /// Panics if one of the spawned services has panicked.
+    pub async fn join(&mut self) {
+        while let Some(res) = self.0.next().await {
+            if let Err(e) = res {
+                if e.is_panic() {
+                    // Re-trigger panic to terminate the process:
+                    std::panic::resume_unwind(e.into_panic());
+                }
+            }
+        }
     }
 }
 
@@ -1052,24 +1083,15 @@ mod tests {
     impl Service for MockService {
         type Interface = MockMessage;
 
-        fn spawn_handler(self, mut rx: Receiver<Self::Interface>) {
-            tokio::spawn(async move {
-                while rx.recv().await.is_some() {
-                    tokio::time::sleep(BACKLOG_INTERVAL * 2).await;
-                }
-            });
+        async fn run(self, mut rx: Receiver<Self::Interface>) {
+            while rx.recv().await.is_some() {
+                tokio::time::sleep(BACKLOG_INTERVAL * 2).await;
+            }
         }
 
         fn name() -> &'static str {
             "mock"
         }
-    }
-
-    fn skip_idle_time(captures: Vec<String>) -> Vec<String> {
-        captures
-            .into_iter()
-            .filter(|c| !c.starts_with("service.idle_time_nanos:"))
-            .collect()
     }
 
     #[test]
@@ -1083,7 +1105,7 @@ mod tests {
         tokio::time::pause();
 
         // Mock service takes 2 * BACKLOG_INTERVAL for every message
-        let addr = MockService.start();
+        let addr = MockService.start_detached();
 
         // Advance the timer by a tiny offset to trigger the first metric emission.
         let captures = relay_statsd::with_capturing_test_client(|| {
@@ -1105,7 +1127,7 @@ mod tests {
             })
         });
 
-        assert!(skip_idle_time(captures).is_empty());
+        assert!(captures.is_empty());
 
         // Advance to 6.5 * INTERVAL. The service should pull the first message immediately, another
         // message every 2 INTERVALS. The messages are fully handled after 6 INTERVALS, but we
@@ -1117,7 +1139,7 @@ mod tests {
         });
 
         assert_eq!(
-            skip_idle_time(captures),
+            captures,
             [
                 "service.back_pressure:2|g|#service:mock", // 2 * INTERVAL
                 "service.back_pressure:1|g|#service:mock", // 4 * INTERVAL

@@ -121,7 +121,7 @@ impl ShutdownHandle {
 /// ### Example
 ///
 /// ```
-/// use relay_system::{Controller, Service, Shutdown, ShutdownMode};
+/// use relay_system::{Controller, Service, ServiceRunner, Shutdown, ShutdownMode};
 /// use std::time::Duration;
 ///
 /// struct MyService;
@@ -129,17 +129,14 @@ impl ShutdownHandle {
 /// impl Service for MyService {
 ///     type Interface = ();
 ///
-///     fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
-///         tokio::spawn(async move {
-///             let mut shutdown = Controller::shutdown_handle();
-///
-///             loop {
-///                 tokio::select! {
-///                     shutdown = shutdown.notified() => break, // Handle shutdown here
-///                     Some(message) = rx.recv() => (),         // Process incoming message
-///                 }
+///     async fn run(self, mut rx: relay_system::Receiver<Self::Interface>) {
+///         let mut shutdown = Controller::shutdown_handle();
+///         loop {
+///             tokio::select! {
+///                 shutdown = shutdown.notified() => break, // Handle shutdown here
+///                 Some(message) = rx.recv() => (),         // Process incoming message
 ///             }
-///         });
+///         }
 ///     }
 /// }
 ///
@@ -151,9 +148,9 @@ impl ShutdownHandle {
 ///
 ///     // Start all other services. Controller::shutdown_handle will use the same controller
 ///     // instance and receives the configured shutdown timeout.
-///     let addr = MyService.start();
+///     let addr = ServiceRunner::new().start(MyService);
 ///
-///     // By triggering a shutdown, all attached services will be notified. This happens
+///     // By triggering a shutdown, all subscribed services will be notified. This happens
 ///     // automatically when a signal is sent to the process (e.g. SIGINT or SIGTERM).
 ///     Controller::shutdown(ShutdownMode::Graceful);
 ///
@@ -166,8 +163,9 @@ pub struct Controller;
 
 impl Controller {
     /// Starts a controller that monitors shutdown signals.
+    #[track_caller]
     pub fn start(shutdown_timeout: Duration) {
-        tokio::spawn(monitor_shutdown(shutdown_timeout));
+        crate::spawn!(monitor_shutdown(shutdown_timeout));
     }
 
     /// Manually initiates the shutdown process of the system.

@@ -1434,83 +1434,7 @@ def test_span_metrics(
             assert metric["tags"]["span.group"] == expected_group, metric
 
 
-def test_mongodb_span_metrics_not_extracted_without_feature(
-    transactions_consumer,
-    metrics_consumer,
-    mini_sentry,
-    relay_with_processing,
-):
-    project_id = 42
-    mini_sentry.add_full_project_config(project_id)
-    config = mini_sentry.project_configs[project_id]["config"]
-    config["transactionMetrics"] = {
-        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION,
-    }
-    config.setdefault("features", []).append("projects:span-metrics-extraction")
-
-    sent_description = '{"find": "documents", "foo": "bar"}'
-
-    transaction = {
-        "event_id": "d2132d31b39445f1938d7e21b6bf0ec4",
-        "type": "transaction",
-        "transaction": "/organizations/:orgId/performance/:eventSlug/",
-        "transaction_info": {"source": "route"},
-        "start_timestamp": 1597976392.6542819,
-        "timestamp": 1597976400.6189718,
-        "user": {"id": "user123", "geo": {"country_code": "ES"}},
-        "contexts": {
-            "trace": {
-                "trace_id": "4C79F60C11214EB38604F4AE0781BFB2",
-                "span_id": "FA90FDEAD5F74052",
-                "type": "trace",
-                "op": "my-transaction-op",
-            }
-        },
-        "spans": [
-            {
-                "description": sent_description,
-                "op": "db",
-                "parent_span_id": "8f5a2b8768cafb4e",
-                "span_id": "bd429c44b67a3eb4",
-                "start_timestamp": 1597976393.4619668,
-                "timestamp": 1597976393.4718769,
-                "trace_id": "ff62a8b040f340bda5d830223def1d81",
-                "data": {
-                    "db.system": "mongodb",
-                    "db.collection.name": "documents",
-                    "db.operation": "find",
-                },
-            }
-        ],
-    }
-    # Default timestamp is so old that relay drops metrics, setting a more recent one avoids the drop.
-    timestamp = datetime.now(tz=timezone.utc)
-    transaction["timestamp"] = transaction["spans"][0]["timestamp"] = (
-        timestamp.isoformat()
-    )
-
-    metrics_consumer = metrics_consumer()
-    tx_consumer = transactions_consumer()
-    processing = relay_with_processing(options=TEST_CONFIG)
-    processing.send_transaction(project_id, transaction)
-
-    transaction, _ = tx_consumer.get_event()
-    assert transaction["spans"][0]["description"] == sent_description
-
-    metrics = metrics_consumer.get_metrics()
-    span_metrics = [
-        (metric, headers)
-        for metric, headers in metrics
-        if metric["name"].startswith("spans", 2)
-    ]
-    assert len(span_metrics) == 8
-
-    for metric, headers in span_metrics:
-        assert headers == [("namespace", b"spans")]
-        assert "span.description" not in metric["tags"]
-
-
-def test_mongodb_span_metrics_extracted_with_feature(
+def test_mongodb_span_metrics_extracted(
     transactions_consumer,
     metrics_consumer,
     mini_sentry,
@@ -1525,7 +1449,6 @@ def test_mongodb_span_metrics_extracted_with_feature(
     config.setdefault("features", []).extend(
         [
             "projects:span-metrics-extraction",
-            "organizations:performance-queries-mongodb-extraction",
         ]
     )
 
@@ -2166,3 +2089,118 @@ def test_histogram_outliers(mini_sentry, relay):
         "d:transactions/duration@millisecond": "inlier",
         "d:transactions/measurements.lcp@millisecond": "inlier",
     }
+
+
+def test_metrics_extraction_with_computed_context_filters(
+    mini_sentry, relay_with_processing, metrics_consumer, transactions_consumer
+):
+    """
+    Test that metrics extraction filters work with computed contexts like os, runtime and browser.
+    """
+    metrics_consumer = metrics_consumer()
+    transactions_consumer = transactions_consumer()
+
+    relay = relay_with_processing(options=TEST_CONFIG)
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["metricExtraction"] = {
+        "version": 1,
+        "metrics": [
+            {
+                "category": "transaction",
+                "mri": "c:transactions/on_demand_os@none",
+                "condition": {
+                    "op": "eq",
+                    "name": "event.contexts.os",
+                    "value": "Windows 10",
+                },
+            },
+            {
+                "category": "transaction",
+                "mri": "c:transactions/on_demand_runtime@none",
+                "condition": {
+                    "op": "eq",
+                    "name": "event.contexts.runtime",
+                    "value": "Python 3.9.0",
+                },
+            },
+            {
+                "category": "transaction",
+                "mri": "c:transactions/on_demand_browser@none",
+                "condition": {
+                    "op": "eq",
+                    "name": "event.contexts.browser",
+                    "value": "Firefox 89.0",
+                },
+            },
+        ],
+    }
+    project_config["config"]["transactionMetrics"] = {
+        "version": TRANSACTION_EXTRACT_MIN_SUPPORTED_VERSION
+    }
+
+    # Create a transaction with matching contexts
+    transaction = generate_transaction_item()
+    transaction["contexts"].update(
+        {
+            "os": {
+                "name": "Windows",
+                "version": "10",
+            },
+            "runtime": {
+                "name": "Python",
+                "version": "3.9.0",
+            },
+            "browser": {
+                "name": "Firefox",
+                "version": "89.0",
+            },
+        }
+    )
+
+    # Set timestamps to avoid metrics being dropped due to age
+    timestamp = datetime.now(tz=timezone.utc)
+    transaction["timestamp"] = timestamp.isoformat()
+    transaction["start_timestamp"] = (timestamp - timedelta(seconds=1)).isoformat()
+
+    relay.send_transaction(project_id, transaction)
+
+    # Get the transaction event to verify it was processed
+    event, _ = transactions_consumer.get_event()
+    assert event["contexts"]["os"]["os"] == "Windows 10"
+    assert event["contexts"]["runtime"]["runtime"] == "Python 3.9.0"
+    assert event["contexts"]["browser"]["browser"] == "Firefox 89.0"
+
+    # Define list of extracted metrics to check
+    metric_names = [
+        "c:transactions/on_demand_os@none",
+        "c:transactions/on_demand_runtime@none",
+        "c:transactions/on_demand_browser@none",
+    ]
+
+    # Verify that all three metrics were extracted
+    metrics = metrics_by_name(metrics_consumer, 7)
+
+    # Check each extracted metric
+    for metric_name in metric_names:
+        assert metrics[metric_name]["value"] == 1.0
+
+    # Send another transaction with non-matching contexts
+    transaction["contexts"].update(
+        {
+            "os": {"name": "Linux", "version": "5.4", "type": "os"},
+            "runtime": {"name": "Node", "version": "16.0.0", "type": "runtime"},
+            "browser": {"name": "Chrome", "version": "95.0", "type": "browser"},
+        }
+    )
+    relay.send_transaction(project_id, transaction)
+
+    # Get the transaction event
+    event, _ = transactions_consumer.get_event()
+    assert event["contexts"]["os"]["os"] == "Linux 5.4"
+
+    # Verify no new metrics were extracted for the specified contexts
+    metrics = metrics_consumer.get_metrics()
+    for metric, _ in metrics:
+        assert metric["name"] not in metric_names

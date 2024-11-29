@@ -10,6 +10,8 @@ use chrono::{DateTime, Utc};
 use rand::distributions::Uniform;
 use rand::Rng;
 use rand_pcg::Pcg32;
+#[cfg(feature = "redis")]
+use relay_base_schema::organization::OrganizationId;
 use relay_protocol::Getter;
 #[cfg(feature = "redis")]
 use relay_redis::RedisPool;
@@ -49,12 +51,12 @@ pub type ReservoirCounters = Arc<Mutex<BTreeMap<RuleId, i64>>>;
 pub struct ReservoirEvaluator<'a> {
     counters: ReservoirCounters,
     #[cfg(feature = "redis")]
-    org_id_and_redis_pool: Option<(u64, &'a RedisPool)>,
+    org_id_and_redis_pool: Option<(OrganizationId, &'a RedisPool)>,
     // Using PhantomData because the lifetimes are behind a feature flag.
     _phantom: std::marker::PhantomData<&'a ()>,
 }
 
-impl<'a> ReservoirEvaluator<'a> {
+impl ReservoirEvaluator<'_> {
     /// Constructor for [`ReservoirEvaluator`].
     pub fn new(counters: ReservoirCounters) -> Self {
         Self {
@@ -68,14 +70,6 @@ impl<'a> ReservoirEvaluator<'a> {
     /// Gets shared ownership of the reservoir counters.
     pub fn counters(&self) -> ReservoirCounters {
         Arc::clone(&self.counters)
-    }
-
-    /// Sets the Redis pool and organization ID for the [`ReservoirEvaluator`].
-    ///
-    /// These values are needed to synchronize with Redis.
-    #[cfg(feature = "redis")]
-    pub fn set_redis(&mut self, org_id: u64, redis_pool: &'a RedisPool) {
-        self.org_id_and_redis_pool = Some((org_id, redis_pool));
     }
 
     #[cfg(feature = "redis")]
@@ -141,6 +135,16 @@ impl<'a> ReservoirEvaluator<'a> {
         }
 
         self.incr_local(rule, limit)
+    }
+}
+
+#[cfg(feature = "redis")]
+impl<'a> ReservoirEvaluator<'a> {
+    /// Sets the Redis pool and organization ID for the [`ReservoirEvaluator`].
+    ///
+    /// These values are needed to synchronize with Redis.
+    pub fn set_redis(&mut self, org_id: OrganizationId, redis_pool: &'a RedisPool) {
+        self.org_id_and_redis_pool = Some((org_id, redis_pool));
     }
 }
 

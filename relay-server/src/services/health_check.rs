@@ -6,7 +6,7 @@ use std::future::Future;
 use tokio::sync::watch;
 use tokio::time::{timeout, Instant};
 
-use crate::services::buffer::ObservableEnvelopeBuffer;
+use crate::services::buffer::PartitionedEnvelopeBuffer;
 use crate::services::metrics::RouterHandle;
 use crate::services::upstream::{IsAuthenticated, UpstreamRelay};
 use crate::statsd::RelayTimers;
@@ -86,19 +86,17 @@ pub struct HealthCheckService {
     memory_checker: MemoryChecker,
     aggregator: RouterHandle,
     upstream_relay: Addr<UpstreamRelay>,
-    envelope_buffer: Option<ObservableEnvelopeBuffer>, // make non-optional once V1 has been removed
+    envelope_buffer: PartitionedEnvelopeBuffer,
 }
 
 impl HealthCheckService {
     /// Creates a new instance of the HealthCheck service.
-    ///
-    /// The service does not run. To run the service, use [`start`](Self::start).
     pub fn new(
         config: Arc<Config>,
         memory_checker: MemoryChecker,
         aggregator: RouterHandle,
         upstream_relay: Addr<UpstreamRelay>,
-        envelope_buffer: Option<ObservableEnvelopeBuffer>,
+        envelope_buffer: PartitionedEnvelopeBuffer,
     ) -> Self {
         Self {
             config,
@@ -151,11 +149,7 @@ impl HealthCheckService {
     }
 
     async fn spool_health_probe(&self) -> Status {
-        let has_capacity = self
-            .envelope_buffer
-            .as_ref()
-            .map_or(true, |b| b.has_capacity());
-        match has_capacity {
+        match self.envelope_buffer.has_capacity() {
             true => Status::Healthy,
             false => Status::Unhealthy,
         }
@@ -193,13 +187,13 @@ impl HealthCheckService {
 impl Service for HealthCheckService {
     type Interface = HealthCheck;
 
-    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+    async fn run(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
         let (update_tx, update_rx) = watch::channel(StatusUpdate::new(Status::Unhealthy));
         let check_interval = self.config.health_refresh_interval();
         // Add 10% buffer to the internal timeouts to avoid race conditions.
         let status_timeout = (check_interval + self.config.health_probe_timeout()).mul_f64(1.1);
 
-        tokio::spawn(async move {
+        relay_system::spawn!(async move {
             let shutdown = Controller::shutdown_handle();
 
             while shutdown.get().is_none() {
@@ -216,19 +210,17 @@ impl Service for HealthCheckService {
             update_tx.send(StatusUpdate::new(Status::Unhealthy)).ok();
         });
 
-        tokio::spawn(async move {
-            while let Some(HealthCheck(message, sender)) = rx.recv().await {
-                let update = update_rx.borrow();
+        while let Some(HealthCheck(message, sender)) = rx.recv().await {
+            let update = update_rx.borrow();
 
-                sender.send(if matches!(message, IsHealthy::Liveness) {
-                    Status::Healthy
-                } else if update.instant.elapsed() >= status_timeout {
-                    Status::Unhealthy
-                } else {
-                    update.status
-                });
-            }
-        });
+            sender.send(if matches!(message, IsHealthy::Liveness) {
+                Status::Healthy
+            } else if update.instant.elapsed() >= status_timeout {
+                Status::Unhealthy
+            } else {
+                update.status
+            });
+        }
     }
 }
 

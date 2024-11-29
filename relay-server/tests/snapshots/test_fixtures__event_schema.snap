@@ -2149,41 +2149,6 @@ expression: "relay_event_schema::protocol::event_json_schema()"
         "fatal"
       ]
     },
-    "LinuxDistribution": {
-      "description": " Metadata for the Linux Distribution.",
-      "anyOf": [
-        {
-          "type": "object",
-          "properties": {
-            "name": {
-              "description": " An index-able name that is stable for each distribution.",
-              "default": null,
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "pretty_name": {
-              "description": " A full rendering of name + version + release name (not available in all distributions).",
-              "default": null,
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "version": {
-              "description": " The version of the distribution (missing in distributions with solely rolling release).",
-              "default": null,
-              "type": [
-                "string",
-                "null"
-              ]
-            }
-          },
-          "additionalProperties": false
-        }
-      ]
-    },
     "LockReason": {
       "description": " Represents an instance of a held lock (java monitor object) in a thread.",
       "anyOf": [
@@ -2770,16 +2735,28 @@ expression: "relay_event_schema::protocol::event_json_schema()"
                 "null"
               ]
             },
-            "distribution": {
-              "description": " Meta-data for the Linux Distribution.",
+            "distribution_name": {
+              "description": " An index-able name that is stable for each distribution.",
               "default": null,
-              "anyOf": [
-                {
-                  "$ref": "#/definitions/LinuxDistribution"
-                },
-                {
-                  "type": "null"
-                }
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "distribution_version": {
+              "description": " The version of the distribution (missing in distributions with solely rolling release).",
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "distribution_pretty_name": {
+              "description": " A full rendering of name + version + release name (not available in all distributions).",
+              "default": null,
+              "type": [
+                "string",
+                "null"
               ]
             },
             "kernel_version": {

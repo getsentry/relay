@@ -1,6 +1,6 @@
 ---
 source: relay-server/tests/test_fixtures.rs
-expression: SerializableAnnotated(&event)
+expression: SerializableAnnotated(& event)
 ---
 {
   "event_id": "04e03764d7024caab8736daeefbb9bee",
@@ -298,6 +298,7 @@ expression: SerializableAnnotated(&event)
   },
   "contexts": {
     "server-os": {
+      "os": "Windows 10",
       "name": "Windows",
       "version": "10",
       "build": "17134",
@@ -305,6 +306,7 @@ expression: SerializableAnnotated(&event)
       "type": "os"
     },
     "server-runtime": {
+      "runtime": ".NET Core 2.0.7",
       "name": ".NET Core",
       "version": "2.0.7",
       "raw_description": ".NET Core 4.6.26328.01",

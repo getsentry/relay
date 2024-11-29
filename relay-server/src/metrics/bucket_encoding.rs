@@ -98,7 +98,7 @@ pub enum ArrayEncoding<'a, T> {
     Dynamic(DynamicArrayEncoding<'a, T>),
 }
 
-impl<'a, T> ArrayEncoding<'a, T> {
+impl<T> ArrayEncoding<'_, T> {
     /// Name of the encoding.
     ///
     /// Should only be used for debugging purposes.
@@ -132,7 +132,7 @@ pub enum DynamicArrayEncoding<'a, T> {
     Zstd { data: &'a str },
 }
 
-impl<'a, T> DynamicArrayEncoding<'a, T> {
+impl<T> DynamicArrayEncoding<'_, T> {
     /// Returns the serialized format name.
     pub fn format(&self) -> &'static str {
         match self {
@@ -170,7 +170,7 @@ fn zstd<T: Encodable>(data: T, buffer: &mut String) -> io::Result<ArrayEncoding<
 
 struct EncoderWriteAdapter<'a>(pub data_encoding::Encoder<'a>);
 
-impl<'a> io::Write for EncoderWriteAdapter<'a> {
+impl io::Write for EncoderWriteAdapter<'_> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.0.append(buf);
         Ok(buf.len())

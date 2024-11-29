@@ -25,10 +25,7 @@ def test_graceful_shutdown_with_in_memory_buffer(mini_sentry, relay):
 
     relay = relay(
         mini_sentry,
-        {
-            "limits": {"shutdown_timeout": 2},
-            "spool": {"envelopes": {"version": "experimental"}},
-        },
+        {"limits": {"shutdown_timeout": 2}},
     )
 
     relay.send_event(project_id)
@@ -61,7 +58,7 @@ def test_graceful_shutdown_with_sqlite_buffer(mini_sentry, relay):
         mini_sentry,
         {
             "limits": {"shutdown_timeout": 2},
-            "spool": {"envelopes": {"version": "experimental", "path": db_file_path}},
+            "spool": {"envelopes": {"path": db_file_path}},
         },
     )
 
@@ -79,7 +76,7 @@ def test_graceful_shutdown_with_sqlite_buffer(mini_sentry, relay):
     cursor = conn.cursor()
 
     # Check if there's data in the `envelopes` table
-    cursor.execute("SELECT COUNT(*) FROM envelopes")
+    cursor.execute("SELECT SUM(count) FROM envelopes")
     row_count = cursor.fetchone()[0]
     assert (
         row_count == n

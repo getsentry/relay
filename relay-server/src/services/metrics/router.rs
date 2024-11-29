@@ -4,7 +4,7 @@
 use relay_config::aggregator::Condition;
 use relay_config::{AggregatorServiceConfig, ScopedAggregatorConfig};
 use relay_metrics::MetricNamespace;
-use relay_system::{Addr, NoResponse, Recipient, Service};
+use relay_system::{Addr, NoResponse, Recipient, Service, ServiceRunner};
 
 use crate::services::metrics::{
     Aggregator, AggregatorHandle, AggregatorService, FlushBuckets, MergeBuckets,
@@ -53,26 +53,24 @@ impl RouterService {
 impl Service for RouterService {
     type Interface = Aggregator;
 
-    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
-        tokio::spawn(async move {
-            let mut router = StartedRouter::start(self);
-            relay_log::info!("metrics router started");
+    async fn run(self, mut rx: relay_system::Receiver<Self::Interface>) {
+        let mut router = StartedRouter::start_in(self, &mut ServiceRunner::new());
+        relay_log::info!("metrics router started");
 
-            // Note that currently this loop never exists and will run till the tokio runtime shuts
-            // down. This is about to change with the refactoring for the shutdown process.
-            loop {
-                tokio::select! {
-                    biased;
+        // Note that currently this loop never exists and will run till the tokio runtime shuts
+        // down. This is about to change with the refactoring for the shutdown process.
+        loop {
+            tokio::select! {
+                biased;
 
-                    Some(message) = rx.recv() => {
-                        router.handle_message(message)
-                    },
+                Some(message) = rx.recv() => {
+                    router.handle_message(message)
+                },
 
-                    else => break,
-                }
+                else => break,
             }
-            relay_log::info!("metrics router stopped");
-        });
+        }
+        relay_log::info!("metrics router stopped");
     }
 }
 
@@ -83,7 +81,7 @@ struct StartedRouter {
 }
 
 impl StartedRouter {
-    fn start(router: RouterService) -> Self {
+    fn start_in(router: RouterService, runner: &mut ServiceRunner) -> Self {
         let RouterService { default, secondary } = router;
 
         let secondary = secondary
@@ -94,12 +92,12 @@ impl StartedRouter {
                     .filter(|&namespace| condition.matches(Some(namespace)))
                     .collect();
 
-                (aggregator.start(), namespaces)
+                (runner.start(aggregator), namespaces)
             })
             .collect();
 
         Self {
-            default: default.start(),
+            default: runner.start(default),
             secondary,
         }
     }

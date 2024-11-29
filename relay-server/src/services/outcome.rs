@@ -15,6 +15,7 @@ use std::{fmt, mem};
 #[cfg(feature = "processing")]
 use anyhow::Context;
 use chrono::{DateTime, SecondsFormat, Utc};
+use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, EmitOutcomes};
@@ -398,6 +399,9 @@ pub enum DiscardReason {
     /// (Relay) Parsing the event JSON payload failed due to a syntax error.
     InvalidJson,
 
+    /// (Relay) Parsing an OTLP payload failed.
+    InvalidProtobuf,
+
     /// (Relay) Parsing the event msgpack payload failed due to a syntax error.
     InvalidMsgpack,
 
@@ -484,6 +488,7 @@ impl DiscardReason {
             DiscardReason::InvalidJson => "invalid_json",
             DiscardReason::InvalidMultipart => "invalid_multipart",
             DiscardReason::InvalidMsgpack => "invalid_msgpack",
+            DiscardReason::InvalidProtobuf => "invalid_proto",
             DiscardReason::InvalidTransaction => "invalid_transaction",
             DiscardReason::InvalidEnvelope => "invalid_envelope",
             DiscardReason::InvalidCompression => "invalid_compression",
@@ -523,7 +528,7 @@ pub struct TrackRawOutcome {
     timestamp: String,
     /// Organization id.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    org_id: Option<u64>,
+    org_id: Option<OrganizationId>,
     /// Project id.
     project_id: ProjectId,
     /// The DSN project key id.
@@ -559,9 +564,9 @@ impl TrackRawOutcome {
         // e.g. something like: "2019-09-29T09:46:40.123456Z"
         let timestamp = msg.timestamp.to_rfc3339_opts(SecondsFormat::Micros, true);
 
-        let org_id = match msg.scoping.organization_id {
+        let org_id = match msg.scoping.organization_id.value() {
             0 => None,
-            id => Some(id),
+            id => Some(OrganizationId::new(id)),
         };
 
         // since TrackOutcome objects come only from this Relay (and not any downstream
@@ -657,7 +662,7 @@ impl HttpOutcomeProducer {
 
         let upstream_relay = self.upstream_relay.clone();
 
-        tokio::spawn(async move {
+        relay_system::spawn!(async move {
             match upstream_relay.send(SendQuery(request)).await {
                 Ok(_) => relay_log::trace!("outcome batch sent"),
                 Err(error) => {
@@ -682,19 +687,17 @@ impl HttpOutcomeProducer {
 impl Service for HttpOutcomeProducer {
     type Interface = TrackRawOutcome;
 
-    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
-        tokio::spawn(async move {
-            loop {
-                tokio::select! {
-                    // Prioritize flush over receiving messages to prevent starving.
-                    biased;
+    async fn run(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+        loop {
+            tokio::select! {
+                // Prioritize flush over receiving messages to prevent starving.
+                biased;
 
-                    () = &mut self.flush_handle => self.send_batch(),
-                    Some(message) = rx.recv() => self.handle_message(message),
-                    else => break,
-                }
+                () = &mut self.flush_handle => self.send_batch(),
+                Some(message) = rx.recv() => self.handle_message(message),
+                else => break,
             }
-        });
+        }
     }
 }
 
@@ -775,19 +778,17 @@ impl ClientReportOutcomeProducer {
 impl Service for ClientReportOutcomeProducer {
     type Interface = TrackOutcome;
 
-    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
-        tokio::spawn(async move {
-            loop {
-                tokio::select! {
-                    // Prioritize flush over receiving messages to prevent starving.
-                    biased;
+    async fn run(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+        loop {
+            tokio::select! {
+                // Prioritize flush over receiving messages to prevent starving.
+                biased;
 
-                    () = &mut self.flush_handle => self.flush(),
-                    Some(message) = rx.recv() => self.handle_message(message),
-                    else => break,
-                }
+                () = &mut self.flush_handle => self.flush(),
+                Some(message) = rx.recv() => self.handle_message(message),
+                else => break,
             }
-        });
+        }
     }
 }
 
@@ -979,8 +980,10 @@ impl ProducerInner {
         match self {
             #[cfg(feature = "processing")]
             ProducerInner::Kafka(inner) => OutcomeBroker::Kafka(inner),
-            ProducerInner::Http(inner) => OutcomeBroker::Http(inner.start()),
-            ProducerInner::ClientReport(inner) => OutcomeBroker::ClientReport(inner.start()),
+            ProducerInner::Http(inner) => OutcomeBroker::Http(inner.start_detached()),
+            ProducerInner::ClientReport(inner) => {
+                OutcomeBroker::ClientReport(inner.start_detached())
+            }
             ProducerInner::Disabled => OutcomeBroker::Disabled,
         }
     }
@@ -1034,18 +1037,16 @@ impl OutcomeProducerService {
 impl Service for OutcomeProducerService {
     type Interface = OutcomeProducer;
 
-    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
+    async fn run(self, mut rx: relay_system::Receiver<Self::Interface>) {
         let Self { config, inner } = self;
 
-        tokio::spawn(async move {
-            let broker = inner.start();
+        let broker = inner.start();
 
-            relay_log::info!("OutcomeProducer started.");
-            while let Some(message) = rx.recv().await {
-                broker.handle_message(message, &config);
-            }
-            relay_log::info!("OutcomeProducer stopped.");
-        });
+        relay_log::info!("OutcomeProducer started.");
+        while let Some(message) = rx.recv().await {
+            broker.handle_message(message, &config);
+        }
+        relay_log::info!("OutcomeProducer stopped.");
     }
 }
 

@@ -1347,7 +1347,7 @@ impl ConnectionMonitor {
         // Only take action if we exceeded the grace period.
         if first_error + self.client.config.http_outage_grace_period() <= now {
             let return_tx = return_tx.clone();
-            let task = tokio::spawn(Self::connect(self.client.clone(), return_tx));
+            let task = relay_system::spawn!(Self::connect(self.client.clone(), return_tx));
             self.state = ConnectionState::Reconnecting(task);
         }
     }
@@ -1432,7 +1432,7 @@ impl UpstreamBroker {
         let client = self.client.clone();
         let action_tx = self.action_tx.clone();
 
-        tokio::spawn(async move {
+        relay_system::spawn!(async move {
             let send_start = Instant::now();
             let result = client.send(entry.request.as_mut()).await;
             emit_response_metrics(send_start, &entry, &result);
@@ -1498,7 +1498,7 @@ impl UpstreamRelayService {
 impl Service for UpstreamRelayService {
     type Interface = UpstreamRelay;
 
-    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
+    async fn run(self, mut rx: relay_system::Receiver<Self::Interface>) {
         let Self { config } = self;
 
         let client = SharedClient::build(config.clone());
@@ -1515,7 +1515,7 @@ impl Service for UpstreamRelayService {
             state: AuthState::Unknown,
             tx: action_tx.clone(),
         };
-        tokio::spawn(auth.run());
+        relay_system::spawn!(auth.run());
 
         // Main broker that serializes public and internal messages, as well as maintains connection
         // and authentication state.
@@ -1528,18 +1528,16 @@ impl Service for UpstreamRelayService {
             action_tx,
         };
 
-        tokio::spawn(async move {
-            loop {
-                tokio::select! {
-                    biased;
+        loop {
+            tokio::select! {
+                biased;
 
-                    Some(action) = action_rx.recv() => broker.handle_action(action),
-                    Some(request) = broker.next_request() => broker.execute(request),
-                    Some(message) = rx.recv() => broker.handle_message(message).await,
+                Some(action) = action_rx.recv() => broker.handle_action(action),
+                Some(request) = broker.next_request() => broker.execute(request),
+                Some(message) = rx.recv() => broker.handle_message(message).await,
 
-                    else => break,
-                }
+                else => break,
             }
-        });
+        }
     }
 }

@@ -47,8 +47,6 @@ pub enum KafkaTopic {
     Monitors,
     /// Standalone spans without a transaction.
     Spans,
-    /// Summary for metrics collected during a span.
-    MetricsSummaries,
     /// Feedback events topic.
     Feedback,
 }
@@ -58,7 +56,7 @@ impl KafkaTopic {
     /// It will have to be adjusted if the new variants are added.
     pub fn iter() -> std::slice::Iter<'static, Self> {
         use KafkaTopic::*;
-        static TOPICS: [KafkaTopic; 14] = [
+        static TOPICS: [KafkaTopic; 13] = [
             Events,
             Attachments,
             Transactions,
@@ -71,7 +69,6 @@ impl KafkaTopic {
             ReplayRecordings,
             Monitors,
             Spans,
-            MetricsSummaries,
             Feedback,
         ];
         TOPICS.iter()
@@ -133,7 +130,6 @@ define_topic_assignments! {
     replay_recordings: (KafkaTopic::ReplayRecordings, "ingest-replay-recordings", "Recordings topic name."),
     monitors: (KafkaTopic::Monitors, "ingest-monitors", "Monitor check-ins."),
     spans: (KafkaTopic::Spans, "snuba-spans", "Standalone spans without a transaction."),
-    metrics_summaries: (KafkaTopic::MetricsSummaries, "snuba-metrics-summaries", "Summary for metrics collected during a span."),
     feedback: (KafkaTopic::Feedback, "ingest-feedback-events", "Feedback events topic."),
 }
 
@@ -193,7 +189,7 @@ impl TopicAssignment {
         &'a self,
         default_config: &'a Vec<KafkaConfigParam>,
         secondary_configs: &'a BTreeMap<String, Vec<KafkaConfigParam>>,
-    ) -> Result<KafkaParams<'_>, ConfigError> {
+    ) -> Result<KafkaParams<'a>, ConfigError> {
         let kafka_config = match self {
             Self::Primary(topic_name) => KafkaParams {
                 topic_name,

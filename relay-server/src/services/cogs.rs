@@ -54,12 +54,10 @@ impl CogsService {
 impl Service for CogsService {
     type Interface = CogsReport;
 
-    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
-        tokio::spawn(async move {
-            while let Some(message) = rx.recv().await {
-                self.handle_report(message);
-            }
-        });
+    async fn run(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+        while let Some(message) = rx.recv().await {
+            self.handle_report(message);
+        }
     }
 }
 

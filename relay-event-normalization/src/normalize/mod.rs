@@ -134,7 +134,7 @@ impl<'a> CombinedMeasurementsConfig<'a> {
     /// there are no duplicates.
     pub fn builtin_measurement_keys(
         &'a self,
-    ) -> impl Iterator<Item = &'a BuiltinMeasurementKey> + '_ {
+    ) -> impl Iterator<Item = &'a BuiltinMeasurementKey> + 'a {
         let project = self
             .project
             .map(|p| p.builtin_measurements.as_slice())
@@ -1718,7 +1718,6 @@ mod tests {
                 sentry_tags: ~,
                 received: ~,
                 measurements: ~,
-                _metrics_summary: ~,
                 platform: ~,
                 was_transaction: ~,
                 other: {},
@@ -1763,7 +1762,6 @@ mod tests {
                 sentry_tags: ~,
                 received: ~,
                 measurements: ~,
-                _metrics_summary: ~,
                 platform: ~,
                 was_transaction: ~,
                 other: {},
@@ -1808,7 +1806,6 @@ mod tests {
                 sentry_tags: ~,
                 received: ~,
                 measurements: ~,
-                _metrics_summary: ~,
                 platform: ~,
                 was_transaction: ~,
                 other: {},

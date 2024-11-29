@@ -4,7 +4,9 @@ use std::collections::HashMap;
 
 use once_cell::sync::Lazy;
 use regex::Regex;
-use relay_event_schema::protocol::{Context, Cookies, OsContext, ResponseContext, RuntimeContext};
+use relay_event_schema::protocol::{
+    BrowserContext, Context, Cookies, OsContext, ResponseContext, RuntimeContext,
+};
 use relay_protocol::{Annotated, Empty, Value};
 
 /// Environment.OSVersion (GetVersionEx) or RuntimeInformation.OSDescription on Windows
@@ -138,6 +140,14 @@ fn normalize_runtime_context(runtime: &mut RuntimeContext) {
             }
         }
     }
+
+    // Calculation of the computed context for the runtime.
+    // The equivalent calculation is done in `sentry` in `src/sentry/interfaces/contexts.py`.
+    if runtime.runtime.value().is_none() {
+        if let (Some(name), Some(version)) = (runtime.name.value(), runtime.version.value()) {
+            runtime.runtime = Annotated::from(format!("{} {}", name, version));
+        }
+    }
 }
 
 /// Parses the Windows build number from the description and maps it to a marketing name.
@@ -183,6 +193,7 @@ pub fn get_android_api_version(description: &str) -> Option<&str> {
 
 fn normalize_os_context(os: &mut OsContext) {
     if os.name.value().is_some() || os.version.value().is_some() {
+        compute_os_context(os);
         return;
     }
 
@@ -248,6 +259,28 @@ fn normalize_os_context(os: &mut OsContext) {
                 .into();
         }
     }
+
+    compute_os_context(os);
+}
+
+fn compute_os_context(os: &mut OsContext) {
+    // Calculation of the computed context for the os.
+    // The equivalent calculation is done in `sentry` in `src/sentry/interfaces/contexts.py`.
+    if os.os.value().is_none() {
+        if let (Some(name), Some(version)) = (os.name.value(), os.version.value()) {
+            os.os = Annotated::from(format!("{} {}", name, version));
+        }
+    }
+}
+
+fn normalize_browser_context(browser: &mut BrowserContext) {
+    // Calculation of the computed context for the browser.
+    // The equivalent calculation is done in `sentry` in `src/sentry/interfaces/contexts.py`.
+    if browser.browser.value().is_none() {
+        if let (Some(name), Some(version)) = (browser.name.value(), browser.version.value()) {
+            browser.browser = Annotated::from(format!("{} {}", name, version));
+        }
+    }
 }
 
 fn parse_raw_response_data(response: &ResponseContext) -> Option<(&'static str, Value)> {
@@ -307,6 +340,7 @@ pub fn normalize_context(context: &mut Context) {
     match context {
         Context::Runtime(runtime) => normalize_runtime_context(runtime),
         Context::Os(os) => normalize_os_context(os),
+        Context::Browser(browser) => normalize_browser_context(browser),
         Context::Response(response) => normalize_response(response),
         Context::Device(device) => {
             if let Some(product_name) = device
@@ -770,5 +804,74 @@ mod tests {
         normalize_response(&mut response);
         assert_eq!(response.inferred_content_type.value(), None);
         assert_eq!(response.data.as_str(), Some(r#"{"foo":"b"#));
+    }
+
+    #[test]
+    fn test_os_computed_context() {
+        let mut os = OsContext {
+            name: "Windows".to_string().into(),
+            version: "10".to_string().into(),
+            ..OsContext::default()
+        };
+
+        normalize_os_context(&mut os);
+        assert_eq!(Some("Windows 10"), os.os.as_str());
+    }
+
+    #[test]
+    fn test_os_computed_context_missing_version() {
+        let mut os = OsContext {
+            name: "Windows".to_string().into(),
+            ..OsContext::default()
+        };
+
+        normalize_os_context(&mut os);
+        assert_eq!(None, os.os.value());
+    }
+
+    #[test]
+    fn test_runtime_computed_context() {
+        let mut runtime = RuntimeContext {
+            name: "Python".to_string().into(),
+            version: "3.9.0".to_string().into(),
+            ..RuntimeContext::default()
+        };
+
+        normalize_runtime_context(&mut runtime);
+        assert_eq!(Some("Python 3.9.0"), runtime.runtime.as_str());
+    }
+
+    #[test]
+    fn test_runtime_computed_context_missing_version() {
+        let mut runtime = RuntimeContext {
+            name: "Python".to_string().into(),
+            ..RuntimeContext::default()
+        };
+
+        normalize_runtime_context(&mut runtime);
+        assert_eq!(None, runtime.runtime.value());
+    }
+
+    #[test]
+    fn test_browser_computed_context() {
+        let mut browser = BrowserContext {
+            name: "Firefox".to_string().into(),
+            version: "89.0".to_string().into(),
+            ..BrowserContext::default()
+        };
+
+        normalize_browser_context(&mut browser);
+        assert_eq!(Some("Firefox 89.0"), browser.browser.as_str());
+    }
+
+    #[test]
+    fn test_browser_computed_context_missing_version() {
+        let mut browser = BrowserContext {
+            name: "Firefox".to_string().into(),
+            ..BrowserContext::default()
+        };
+
+        normalize_browser_context(&mut browser);
+        assert_eq!(None, browser.browser.value());
     }
 }

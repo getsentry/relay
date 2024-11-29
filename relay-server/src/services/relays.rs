@@ -238,7 +238,7 @@ impl RelayCacheService {
 
         let fetch_tx = self.fetch_tx();
         let upstream_relay = self.upstream_relay.clone();
-        tokio::spawn(async move {
+        relay_system::spawn!(async move {
             let request = GetRelays {
                 relay_ids: channels.keys().cloned().collect(),
             };
@@ -334,23 +334,21 @@ impl RelayCacheService {
 impl Service for RelayCacheService {
     type Interface = RelayCache;
 
-    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
-        tokio::spawn(async move {
-            relay_log::info!("key cache started");
+    async fn run(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+        relay_log::info!("key cache started");
 
-            loop {
-                tokio::select! {
-                    // Prioritize flush over receiving messages to prevent starving.
-                    biased;
+        loop {
+            tokio::select! {
+                // Prioritize flush over receiving messages to prevent starving.
+                biased;
 
-                    Some(result) = self.fetch_channel.1.recv() => self.handle_fetch_result(result),
-                    () = &mut self.delay => self.fetch_relays(),
-                    Some(message) = rx.recv() => self.get_or_fetch(message.0, message.1),
-                    else => break,
-                }
+                Some(result) = self.fetch_channel.1.recv() => self.handle_fetch_result(result),
+                () = &mut self.delay => self.fetch_relays(),
+                Some(message) = rx.recv() => self.get_or_fetch(message.0, message.1),
+                else => break,
             }
+        }
 
-            relay_log::info!("key cache stopped");
-        });
+        relay_log::info!("key cache stopped");
     }
 }

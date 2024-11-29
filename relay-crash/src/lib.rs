@@ -55,7 +55,7 @@ pub struct CrashHandler<'a> {
     environment: Option<&'a str>,
 }
 
-impl<'a> fmt::Debug for CrashHandler<'a> {
+impl fmt::Debug for CrashHandler<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let transport = match self.transport {
             Some(_) => "Some(fn)",

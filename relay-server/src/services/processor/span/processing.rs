@@ -9,31 +9,27 @@ use relay_dynamic_config::{
     CombinedMetricExtractionConfig, ErrorBoundary, Feature, GlobalConfig, ProjectConfig,
 };
 use relay_event_normalization::span::ai::extract_ai_measurements;
-use relay_event_normalization::span::description::ScrubMongoDescription;
 use relay_event_normalization::{
-    normalize_measurements, normalize_performance_score, span::tag_extraction, validate_span,
-    CombinedMeasurementsConfig, MeasurementsConfig, PerformanceScoreConfig, RawUserAgentInfo,
-    TransactionsProcessor,
-};
-use relay_event_normalization::{
-    normalize_transaction_name, BorrowedSpanOpDefaults, ClientHints, FromUserAgentInfo,
-    GeoIpLookup, ModelCosts, SchemaProcessor, TimestampProcessor, TransactionNameRule,
-    TrimmingProcessor,
+    normalize_measurements, normalize_performance_score, normalize_transaction_name,
+    span::tag_extraction, validate_span, BorrowedSpanOpDefaults, ClientHints,
+    CombinedMeasurementsConfig, FromUserAgentInfo, GeoIpLookup, MeasurementsConfig, ModelCosts,
+    PerformanceScoreConfig, RawUserAgentInfo, SchemaProcessor, TimestampProcessor,
+    TransactionNameRule, TransactionsProcessor, TrimmingProcessor,
 };
 use relay_event_schema::processor::{process_value, ProcessingAction, ProcessingState};
 use relay_event_schema::protocol::{
-    BrowserContext, IpAddr, Measurement, Measurements, Span, SpanData,
+    BrowserContext, EventId, IpAddr, Measurement, Measurements, Span, SpanData,
 };
 use relay_log::protocol::{Attachment, AttachmentType};
 use relay_metrics::{FractionUnit, MetricNamespace, MetricUnit, UnixTimestamp};
 use relay_pii::PiiProcessor;
-use relay_protocol::{Annotated, Empty};
+use relay_protocol::{Annotated, Empty, Value};
 use relay_quotas::DataCategory;
 use relay_spans::otel_trace::Span as OtelSpan;
 use thiserror::Error;
 
 use crate::envelope::{ContentType, Item, ItemType};
-use crate::metrics_extraction::{event, metrics_summary};
+use crate::metrics_extraction::{event, generic};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::span::extract_transaction_span;
 use crate::services::processor::{
@@ -131,11 +127,10 @@ pub fn process(
                 return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
             };
 
-            let (metrics, metrics_summary) = metrics_summary::extract_and_summarize_metrics(
+            let metrics = generic::extract_metrics(
                 span,
                 CombinedMetricExtractionConfig::new(global_metrics_config, config),
             );
-            metrics_summary.apply_on(&mut span._metrics_summary);
 
             state
                 .extracted_metrics
@@ -360,16 +355,6 @@ pub fn extract_from_event(
             .aggregator
             .max_tag_value_length,
         &[],
-        if state
-            .project_info
-            .config
-            .features
-            .has(Feature::ScrubMongoDbDescriptions)
-        {
-            ScrubMongoDescription::Enabled
-        } else {
-            ScrubMongoDescription::Disabled
-        },
     ) else {
         return;
     };
@@ -442,8 +427,6 @@ struct NormalizeSpanConfig<'a> {
     client_hints: ClientHints<String>,
     /// Hosts that are not replaced by "*" in HTTP span grouping.
     allowed_hosts: &'a [String],
-    /// Whether or not to scrub MongoDB span descriptions during normalization.
-    scrub_mongo_description: ScrubMongoDescription,
     /// The IP address of the SDK that sent the event.
     ///
     /// When `{{auto}}` is specified and there is no other IP address in the payload, such as in the
@@ -491,14 +474,6 @@ impl<'a> NormalizeSpanConfig<'a> {
                 .map(String::from),
             client_hints: managed_envelope.meta().client_hints().clone(),
             allowed_hosts: global_config.options.http_span_allowed_hosts.as_slice(),
-            scrub_mongo_description: if project_config
-                .features
-                .has(Feature::ScrubMongoDbDescriptions)
-            {
-                ScrubMongoDescription::Enabled
-            } else {
-                ScrubMongoDescription::Disabled
-            },
             client_ip,
             geo_lookup,
             span_op_defaults: global_config.span_op_defaults.borrow(),
@@ -554,7 +529,6 @@ fn normalize(
         user_agent,
         client_hints,
         allowed_hosts,
-        scrub_mongo_description,
         client_ip,
         geo_lookup,
         span_op_defaults,
@@ -616,6 +590,8 @@ fn normalize(
 
     populate_ua_fields(span, user_agent.as_deref(), client_hints.as_deref());
 
+    promote_span_data_fields(span);
+
     if let Annotated(Some(ref mut measurement_values), ref mut meta) = span.measurements {
         normalize_measurements(
             measurement_values,
@@ -648,7 +624,6 @@ fn normalize(
         is_mobile,
         None,
         allowed_hosts,
-        scrub_mongo_description,
     );
     span.sentry_tags = Annotated::new(
         tags.into_iter()
@@ -694,6 +669,31 @@ fn populate_ua_fields(
             client_hints,
         }) {
             data.browser_name = context.name;
+        }
+    }
+}
+
+/// Promotes some fields from span.data as there are predefined places for certain fields.
+fn promote_span_data_fields(span: &mut Span) {
+    // INP spans sets some top level span attributes inside span.data so make sure to pull
+    // them out to the top level before further processing.
+    if let Some(data) = span.data.value_mut() {
+        if let Some(exclusive_time) = match data.exclusive_time.value() {
+            Some(Value::I64(exclusive_time)) => Some(*exclusive_time as f64),
+            Some(Value::U64(exclusive_time)) => Some(*exclusive_time as f64),
+            Some(Value::F64(exclusive_time)) => Some(*exclusive_time),
+            _ => None,
+        } {
+            span.exclusive_time = exclusive_time.into();
+            data.exclusive_time.set_value(None);
+        }
+
+        if let Some(profile_id) = match data.profile_id.value() {
+            Some(Value::String(profile_id)) => profile_id.parse().map(EventId).ok(),
+            _ => None,
+        } {
+            span.profile_id = profile_id.into();
+            data.profile_id.set_value(None);
         }
     }
 }
@@ -798,7 +798,7 @@ mod tests {
     use once_cell::sync::Lazy;
     use relay_base_schema::project::ProjectId;
     use relay_event_schema::protocol::{
-        Context, ContextInner, SpanId, Timestamp, TraceContext, TraceId,
+        Context, ContextInner, EventId, SpanId, Timestamp, TraceContext, TraceId,
     };
     use relay_event_schema::protocol::{Contexts, Event, Span};
     use relay_protocol::get_value;
@@ -1219,7 +1219,6 @@ mod tests {
             user_agent: None,
             client_hints: ClientHints::default(),
             allowed_hosts: &[],
-            scrub_mongo_description: ScrubMongoDescription::Disabled,
             client_ip: Some(IpAddr("2.125.160.216".to_owned())),
             geo_lookup: Some(&GEO_LOOKUP),
             span_op_defaults: Default::default(),
@@ -1293,5 +1292,98 @@ mod tests {
             "2.125.160.216"
         );
         assert_eq!(get_value!(span.data.user_geo_city!), "Boxford");
+    }
+
+    #[test]
+    fn exclusive_time_inside_span_data_i64() {
+        let mut span = Annotated::from_json(
+            r#"{
+            "start_timestamp": 0,
+            "timestamp": 1,
+            "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+            "span_id": "922dda2462ea4ac2",
+            "data": {
+                "sentry.exclusive_time": 123
+            }
+        }"#,
+        )
+        .unwrap();
+
+        normalize(&mut span, normalize_config()).unwrap();
+
+        let data = get_value!(span.data!);
+        assert_eq!(data.exclusive_time, Annotated::empty());
+        assert_eq!(*get_value!(span.exclusive_time!), 123.0);
+    }
+
+    #[test]
+    fn exclusive_time_inside_span_data_f64() {
+        let mut span = Annotated::from_json(
+            r#"{
+            "start_timestamp": 0,
+            "timestamp": 1,
+            "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+            "span_id": "922dda2462ea4ac2",
+            "data": {
+                "sentry.exclusive_time": 123.0
+            }
+        }"#,
+        )
+        .unwrap();
+
+        normalize(&mut span, normalize_config()).unwrap();
+
+        let data = get_value!(span.data!);
+        assert_eq!(data.exclusive_time, Annotated::empty());
+        assert_eq!(*get_value!(span.exclusive_time!), 123.0);
+    }
+
+    #[test]
+    fn normalize_inp_spans() {
+        let mut span = Annotated::from_json(
+            r#"{
+              "data": {
+                "sentry.origin": "auto.http.browser.inp",
+                "sentry.op": "ui.interaction.click",
+                "release": "frontend@0735d75a05afe8d34bb0950f17c332eb32988862",
+                "environment": "prod",
+                "profile_id": "480ffcc911174ade9106b40ffbd822f5",
+                "replay_id": "f39c5eb6539f4e49b9ad2b95226bc120",
+                "transaction": "/replays",
+                "user_agent.original": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+                "sentry.exclusive_time": 128.0
+              },
+              "description": "div.app-3diuwe.e88zkai6 > span.app-ksj0rb.e88zkai4",
+              "op": "ui.interaction.click",
+              "parent_span_id": "88457c3c28f4c0c6",
+              "span_id": "be0e95480798a2a9",
+              "start_timestamp": 1732635523.5048,
+              "timestamp": 1732635523.6328,
+              "trace_id": "bdaf4823d1c74068af238879e31e1be9",
+              "origin": "auto.http.browser.inp",
+              "exclusive_time": 128,
+              "measurements": {
+                "inp": {
+                  "value": 128,
+                  "unit": "millisecond"
+                }
+              },
+              "segment_id": "88457c3c28f4c0c6"
+        }"#,
+        )
+        .unwrap();
+
+        normalize(&mut span, normalize_config()).unwrap();
+
+        let data = get_value!(span.data!);
+
+        assert_eq!(data.exclusive_time, Annotated::empty());
+        assert_eq!(*get_value!(span.exclusive_time!), 128.0);
+
+        assert_eq!(data.profile_id, Annotated::empty());
+        assert_eq!(
+            get_value!(span.profile_id!),
+            &EventId("480ffcc911174ade9106b40ffbd822f5".parse().unwrap())
+        );
     }
 }

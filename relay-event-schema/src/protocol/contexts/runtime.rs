@@ -10,6 +10,9 @@ use crate::protocol::LenientString;
 /// JavaScript application running on top of JVM).
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct RuntimeContext {
+    /// Computed field from `name` and `version`. Needed by the metrics extraction.
+    pub runtime: Annotated<String>,
+
     /// Runtime name.
     pub name: Annotated<String>,
 
@@ -72,6 +75,7 @@ mod tests {
     #[test]
     fn test_runtime_context_roundtrip() {
         let json = r#"{
+  "runtime": "rustc 1.27.0",
   "name": "rustc",
   "version": "1.27.0",
   "build": "stable",
@@ -80,6 +84,7 @@ mod tests {
   "type": "runtime"
 }"#;
         let context = Annotated::new(Context::Runtime(Box::new(RuntimeContext {
+            runtime: Annotated::new("rustc 1.27.0".to_string()),
             name: Annotated::new("rustc".to_string()),
             version: Annotated::new("1.27.0".to_string()),
             build: Annotated::new(LenientString("stable".to_string())),

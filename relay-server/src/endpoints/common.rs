@@ -10,10 +10,9 @@ use serde::Deserialize;
 
 use crate::envelope::{AttachmentType, Envelope, EnvelopeError, Item, ItemType, Items};
 use crate::service::ServiceState;
-use crate::services::buffer::EnvelopeBuffer;
+use crate::services::buffer::{EnvelopeBuffer, ProjectKeyPair};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{BucketSource, MetricData, ProcessMetrics, ProcessingGroup};
-use crate::services::projects::cache::legacy::ValidateEnvelope;
 use crate::statsd::{RelayCounters, RelayHistograms};
 use crate::utils::{self, ApiErrorResponse, FormDataIter, ManagedEnvelope};
 
@@ -293,27 +292,19 @@ fn queue_envelope(
         );
         envelope.scope(scoping);
 
-        match state.envelope_buffer() {
-            Some(buffer) => {
-                if !buffer.has_capacity() {
-                    return Err(BadStoreRequest::QueueFailed);
-                }
-
-                // NOTE: This assumes that a `prefetch` has already been scheduled for both the
-                // envelope's projects. See `handle_check_envelope`.
-                relay_log::trace!("Pushing envelope to V2 buffer");
-
-                buffer
-                    .addr()
-                    .send(EnvelopeBuffer::Push(envelope.into_envelope()));
-            }
-            None => {
-                relay_log::trace!("Sending envelope to project cache for V1 buffer");
-                state
-                    .legacy_project_cache()
-                    .send(ValidateEnvelope::new(envelope));
-            }
+        let project_key_pair = ProjectKeyPair::from_envelope(envelope.envelope());
+        let buffer = state.envelope_buffer(project_key_pair);
+        if !buffer.has_capacity() {
+            return Err(BadStoreRequest::QueueFailed);
         }
+
+        // NOTE: This assumes that a `prefetch` has already been scheduled for both the
+        // envelope's projects. See `handle_check_envelope`.
+        relay_log::trace!("Pushing envelope to V2 buffer");
+
+        buffer
+            .addr()
+            .send(EnvelopeBuffer::Push(envelope.into_envelope()));
     }
     // The entire envelope is taken for a split above, and it's empty at this point, we can just
     // accept it without additional checks.
@@ -334,17 +325,11 @@ pub async fn handle_envelope(
     state: &ServiceState,
     envelope: Box<Envelope>,
 ) -> Result<Option<EventId>, BadStoreRequest> {
-    let client_name = envelope
-        .meta()
-        .client_name()
-        .filter(|name| name.starts_with("sentry") || name.starts_with("raven"))
-        .unwrap_or("proprietary");
     for item in envelope.items() {
         metric!(
             histogram(RelayHistograms::EnvelopeItemSize) = item.payload().len() as u64,
-            item_type = item.ty().name(),
-            sdk = client_name,
-        )
+            item_type = item.ty().name()
+        );
     }
 
     if state.memory_checker().check_memory().is_exceeded() {

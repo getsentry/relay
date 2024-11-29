@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 use std::io::Write;
 use std::net::{IpAddr, SocketAddr, ToSocketAddrs};
+use std::num::NonZeroU8;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::time::Duration;
@@ -250,6 +251,8 @@ pub struct OverridableConfig {
     pub outcome_source: Option<String>,
     /// shutdown timeout
     pub shutdown_timeout: Option<String>,
+    /// Server name reported in the Sentry SDK.
+    pub server_name: Option<String>,
 }
 
 /// The relay credentials
@@ -520,29 +523,29 @@ impl Default for Relay {
 /// Control the metrics.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
-struct Metrics {
+pub struct Metrics {
     /// Hostname and port of the statsd server.
     ///
     /// Defaults to `None`.
-    statsd: Option<String>,
+    pub statsd: Option<String>,
     /// Common prefix that should be added to all metrics.
     ///
     /// Defaults to `"sentry.relay"`.
-    prefix: String,
+    pub prefix: String,
     /// Default tags to apply to all metrics.
-    default_tags: BTreeMap<String, String>,
+    pub default_tags: BTreeMap<String, String>,
     /// Tag name to report the hostname to for each metric. Defaults to not sending such a tag.
-    hostname_tag: Option<String>,
+    pub hostname_tag: Option<String>,
     /// Global sample rate for all emitted metrics between `0.0` and `1.0`.
     ///
     /// For example, a value of `0.3` means that only 30% of the emitted metrics will be sent.
     /// Defaults to `1.0` (100%).
-    sample_rate: f32,
+    pub sample_rate: f32,
     /// Interval for periodic metrics emitted from Relay.
     ///
     /// Setting it to `0` seconds disables the periodic metrics.
     /// Defaults to 5 seconds.
-    periodic_secs: u64,
+    pub periodic_secs: u64,
 }
 
 impl Default for Metrics {
@@ -561,7 +564,7 @@ impl Default for Metrics {
 /// Controls processing of Sentry metrics and metric metadata.
 #[derive(Serialize, Deserialize, Debug, Default)]
 #[serde(default)]
-struct SentryMetrics {
+pub struct SentryMetrics {
     /// Whether metric stats are collected and emitted.
     ///
     /// Metric stats are always collected and emitted when processing
@@ -578,65 +581,72 @@ struct SentryMetrics {
 /// Controls various limits
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
-struct Limits {
+pub struct Limits {
     /// How many requests can be sent concurrently from Relay to the upstream before Relay starts
     /// buffering.
-    max_concurrent_requests: usize,
+    pub max_concurrent_requests: usize,
     /// How many queries can be sent concurrently from Relay to the upstream before Relay starts
     /// buffering.
     ///
     /// The concurrency of queries is additionally constrained by `max_concurrent_requests`.
-    max_concurrent_queries: usize,
+    pub max_concurrent_queries: usize,
     /// The maximum payload size for events.
-    max_event_size: ByteSize,
+    pub max_event_size: ByteSize,
     /// The maximum size for each attachment.
-    max_attachment_size: ByteSize,
+    pub max_attachment_size: ByteSize,
     /// The maximum combined size for all attachments in an envelope or request.
-    max_attachments_size: ByteSize,
+    pub max_attachments_size: ByteSize,
     /// The maximum combined size for all client reports in an envelope or request.
-    max_client_reports_size: ByteSize,
+    pub max_client_reports_size: ByteSize,
     /// The maximum payload size for a monitor check-in.
-    max_check_in_size: ByteSize,
+    pub max_check_in_size: ByteSize,
     /// The maximum payload size for an entire envelopes. Individual limits still apply.
-    max_envelope_size: ByteSize,
+    pub max_envelope_size: ByteSize,
     /// The maximum number of session items per envelope.
-    max_session_count: usize,
+    pub max_session_count: usize,
     /// The maximum payload size for general API requests.
-    max_api_payload_size: ByteSize,
+    pub max_api_payload_size: ByteSize,
     /// The maximum payload size for file uploads and chunks.
-    max_api_file_upload_size: ByteSize,
+    pub max_api_file_upload_size: ByteSize,
     /// The maximum payload size for chunks
-    max_api_chunk_upload_size: ByteSize,
+    pub max_api_chunk_upload_size: ByteSize,
     /// The maximum payload size for a profile
-    max_profile_size: ByteSize,
+    pub max_profile_size: ByteSize,
     /// The maximum payload size for a span.
-    max_span_size: ByteSize,
+    pub max_span_size: ByteSize,
     /// The maximum payload size for a statsd metric.
-    max_statsd_size: ByteSize,
+    pub max_statsd_size: ByteSize,
     /// The maximum payload size for metric buckets.
-    max_metric_buckets_size: ByteSize,
+    pub max_metric_buckets_size: ByteSize,
     /// The maximum payload size for a compressed replay.
-    max_replay_compressed_size: ByteSize,
+    pub max_replay_compressed_size: ByteSize,
     /// The maximum payload size for an uncompressed replay.
     #[serde(alias = "max_replay_size")]
     max_replay_uncompressed_size: ByteSize,
     /// The maximum size for a replay recording Kafka message.
-    max_replay_message_size: ByteSize,
+    pub max_replay_message_size: ByteSize,
     /// The maximum number of threads to spawn for CPU and web work, each.
     ///
     /// The total number of threads spawned will roughly be `2 * max_thread_count`. Defaults to
     /// the number of logical CPU cores on the host.
-    max_thread_count: usize,
+    pub max_thread_count: usize,
     /// The maximum number of seconds a query is allowed to take across retries. Individual requests
     /// have lower timeouts. Defaults to 30 seconds.
-    query_timeout: u64,
+    pub query_timeout: u64,
     /// The maximum number of seconds to wait for pending envelopes after receiving a shutdown
     /// signal.
-    shutdown_timeout: u64,
-    /// server keep-alive timeout in seconds.
+    pub shutdown_timeout: u64,
+    /// Server keep-alive timeout in seconds.
     ///
     /// By default keep-alive is set to a 5 seconds.
-    keepalive_timeout: u64,
+    pub keepalive_timeout: u64,
+    /// Server idle timeout in seconds.
+    ///
+    /// The idle timeout limits the amount of time a connection is kept open without activity.
+    /// Setting this too short may abort connections before Relay is able to send a response.
+    ///
+    /// By default there is no idle timeout.
+    pub idle_timeout: Option<u64>,
     /// The TCP listen backlog.
     ///
     /// Configures the TCP listen backlog for the listening socket of Relay.
@@ -673,6 +683,7 @@ impl Default for Limits {
             query_timeout: 30,
             shutdown_timeout: 10,
             keepalive_timeout: 5,
+            idle_timeout: None,
             tcp_listen_backlog: 1024,
         }
     }
@@ -691,7 +702,7 @@ pub struct Routing {
     ///
     /// Defaults to `true` for all Relay modes other than processing mode. In processing mode, this
     /// is disabled by default since the item cannot be handled.
-    accept_unknown_items: Option<bool>,
+    pub accept_unknown_items: Option<bool>,
 }
 
 /// Http content encoding for both incoming and outgoing web requests.
@@ -718,13 +729,17 @@ pub enum HttpEncoding {
     Gzip,
     /// A format using the [Brotli](https://en.wikipedia.org/wiki/Brotli) algorithm.
     Br,
+    /// A format using the [Zstd](https://en.wikipedia.org/wiki/Zstd) compression algorithm.
+    Zstd,
 }
 
 impl HttpEncoding {
     /// Parses a [`HttpEncoding`] from its `content-encoding` header value.
     pub fn parse(str: &str) -> Self {
         let str = str.trim();
-        if str.eq_ignore_ascii_case("br") {
+        if str.eq_ignore_ascii_case("zstd") {
+            Self::Zstd
+        } else if str.eq_ignore_ascii_case("br") {
             Self::Br
         } else if str.eq_ignore_ascii_case("gzip") || str.eq_ignore_ascii_case("x-gzip") {
             Self::Gzip
@@ -744,6 +759,7 @@ impl HttpEncoding {
             Self::Deflate => Some("deflate"),
             Self::Gzip => Some("gzip"),
             Self::Br => Some("br"),
+            Self::Zstd => Some("zstd"),
         }
     }
 }
@@ -757,22 +773,22 @@ impl Default for HttpEncoding {
 /// Controls authentication with upstream.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
-struct Http {
+pub struct Http {
     /// Timeout for upstream requests in seconds.
     ///
     /// This timeout covers the time from sending the request until receiving response headers.
     /// Neither the connection process and handshakes, nor reading the response body is covered in
     /// this timeout.
-    timeout: u32,
+    pub timeout: u32,
     /// Timeout for establishing connections with the upstream in seconds.
     ///
     /// This includes SSL handshakes. Relay reuses connections when the upstream supports connection
     /// keep-alive. Connections are retained for a maximum 75 seconds, or 15 seconds of inactivity.
-    connection_timeout: u32,
+    pub connection_timeout: u32,
     /// Maximum interval between failed request retries in seconds.
-    max_retry_interval: u32,
+    pub max_retry_interval: u32,
     /// The custom HTTP Host header to send to the upstream.
-    host_header: Option<String>,
+    pub host_header: Option<String>,
     /// The interval in seconds at which Relay attempts to reauthenticate with the upstream server.
     ///
     /// Re-authentication happens even when Relay is idle. If authentication fails, Relay reverts
@@ -780,22 +796,22 @@ struct Http {
     /// envelopes will be buffered.
     ///
     /// Defaults to `600` (10 minutes).
-    auth_interval: Option<u64>,
+    pub auth_interval: Option<u64>,
     /// The maximum time of experiencing uninterrupted network failures until Relay considers that
     /// it has encountered a network outage in seconds.
     ///
     /// During a network outage relay will try to reconnect and will buffer all upstream messages
     /// until it manages to reconnect.
-    outage_grace_period: u64,
+    pub outage_grace_period: u64,
     /// The time Relay waits before retrying an upstream request, in seconds.
     ///
     /// This time is only used before going into a network outage mode.
-    retry_delay: u64,
+    pub retry_delay: u64,
     /// The interval in seconds for continued failed project fetches at which Relay will error.
     ///
     /// A successful fetch resets this interval. Relay does nothing during long
     /// times without emitting requests.
-    project_failure_interval: u64,
+    pub project_failure_interval: u64,
     /// Content encoding to apply to upstream store requests.
     ///
     /// By default, Relay applies `gzip` content encoding to compress upstream requests. Compression
@@ -810,14 +826,14 @@ struct Http {
     ///  - `deflate`: Compression using a zlib header with deflate encoding.
     ///  - `gzip` (default): Compression using gzip.
     ///  - `br`: Compression using the brotli algorithm.
-    encoding: HttpEncoding,
+    pub encoding: HttpEncoding,
     /// Submit metrics globally through a shared endpoint.
     ///
     /// As opposed to regular envelopes which are sent to an endpoint inferred from the project's
     /// DSN, this submits metrics to the global endpoint with Relay authentication.
     ///
     /// This option does not have any effect on processing mode.
-    global_metrics: bool,
+    pub global_metrics: bool,
 }
 
 impl Default for Http {
@@ -847,39 +863,14 @@ fn default_project_failure_interval() -> u64 {
     90
 }
 
-/// Default for max memory size, 500 MB.
-fn spool_envelopes_max_memory_size() -> ByteSize {
-    ByteSize::mebibytes(500)
-}
-
 /// Default for max disk size, 500 MB.
 fn spool_envelopes_max_disk_size() -> ByteSize {
     ByteSize::mebibytes(500)
 }
 
-/// Default for min connections to keep open in the pool.
-fn spool_envelopes_min_connections() -> u32 {
-    1
-}
-
-/// Default for max connections to keep open in the pool.
-fn spool_envelopes_max_connections() -> u32 {
-    1
-}
-
-/// Default interval to unspool buffered envelopes, 100ms.
-fn spool_envelopes_unspool_interval() -> u64 {
-    100
-}
-
-/// Default batch size for the stack.
-fn spool_envelopes_stack_disk_batch_size() -> usize {
-    200
-}
-
-/// Default maximum number of batches for the stack.
-fn spool_envelopes_stack_max_batches() -> usize {
-    2
+/// Default number of encoded envelope bytes to cache before writing to disk.
+fn spool_envelopes_batch_size_bytes() -> ByteSize {
+    ByteSize::kibibytes(10)
 }
 
 fn spool_envelopes_max_envelope_delay_secs() -> u64 {
@@ -901,102 +892,87 @@ fn spool_max_backpressure_memory_percent() -> f32 {
     0.9
 }
 
+/// Default number of partitions for the buffer.
+fn spool_envelopes_partitions() -> NonZeroU8 {
+    NonZeroU8::new(1).unwrap()
+}
+
 /// Persistent buffering configuration for incoming envelopes.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct EnvelopeSpool {
-    /// The path to the persistent spool file.
+    /// The path of the SQLite database file(s) which persist the data.
     ///
-    /// If set, this will enable the buffering for incoming envelopes.
-    path: Option<PathBuf>,
-    /// Maximum number of connections, which will be maintained by the pool.
-    #[serde(default = "spool_envelopes_max_connections")]
-    max_connections: u32,
-    /// Minimal number of connections, which will be maintained by the pool.
-    #[serde(default = "spool_envelopes_min_connections")]
-    min_connections: u32,
+    /// Based on the number of partitions, more database files will be created within the same path.
+    ///
+    /// If not set, the envelopes will be buffered in memory.
+    pub path: Option<PathBuf>,
     /// The maximum size of the buffer to keep, in bytes.
     ///
-    /// If not set the default is 524288000 bytes (500MB).
-    #[serde(default = "spool_envelopes_max_disk_size")]
-    max_disk_size: ByteSize,
-    /// The maximum bytes to keep in the memory buffer before spooling envelopes to disk, in bytes.
+    /// When the on-disk buffer reaches this size, new envelopes will be dropped.
     ///
-    /// This is a hard upper bound and defaults to 524288000 bytes (500MB).
-    #[serde(default = "spool_envelopes_max_memory_size")]
-    max_memory_size: ByteSize,
-    /// The interval in milliseconds to trigger unspool.
-    #[serde(default = "spool_envelopes_unspool_interval")]
-    unspool_interval: u64,
-    /// Number of elements of the envelope stack that are flushed to disk.
-    #[serde(default = "spool_envelopes_stack_disk_batch_size")]
-    disk_batch_size: usize,
-    /// Number of batches of size [`Self::disk_batch_size`] that need to be accumulated before
-    /// flushing one batch to disk.
-    #[serde(default = "spool_envelopes_stack_max_batches")]
-    max_batches: usize,
+    /// Defaults to 500MB.
+    #[serde(default = "spool_envelopes_max_disk_size")]
+    pub max_disk_size: ByteSize,
+    /// Size of the batch of compressed envelopes that are spooled to disk at once.
+    ///
+    /// Note that this is the size after which spooling will be triggered but it does not guarantee
+    /// that exactly this size will be spooled, it can be greater or equal.
+    ///
+    /// Defaults to 10 KiB.
+    #[serde(default = "spool_envelopes_batch_size_bytes")]
+    pub batch_size_bytes: ByteSize,
     /// Maximum time between receiving the envelope and processing it.
     ///
     /// When envelopes spend too much time in the buffer (e.g. because their project cannot be loaded),
-    /// they are dropped. Defaults to 24h.
+    /// they are dropped.
+    ///
+    /// Defaults to 24h.
     #[serde(default = "spool_envelopes_max_envelope_delay_secs")]
-    max_envelope_delay_secs: u64,
+    pub max_envelope_delay_secs: u64,
     /// The refresh frequency in ms of how frequently disk usage is updated by querying SQLite
     /// internal page stats.
+    ///
+    /// Defaults to 100ms.
     #[serde(default = "spool_disk_usage_refresh_frequency_ms")]
-    disk_usage_refresh_frequency_ms: u64,
+    pub disk_usage_refresh_frequency_ms: u64,
     /// The amount of envelopes that the envelope buffer can push to its output queue.
+    ///
+    /// Defaults to 500.
     #[serde(default = "spool_max_backpressure_envelopes")]
-    max_backpressure_envelopes: usize,
+    pub max_backpressure_envelopes: usize,
     /// The relative memory usage above which the buffer service will stop dequeueing envelopes.
     ///
     /// Only applies when [`Self::path`] is set.
+    ///
     /// This value should be lower than [`Health::max_memory_percent`] to prevent flip-flopping.
     ///
     /// Warning: this threshold can cause the buffer service to deadlock when the buffer itself
-    /// is using too much memory (influenced by [`Self::max_batches`] and [`Self::disk_batch_size`]).
+    /// is using too much memory (influenced by [`Self::batch_size_bytes`]).
     ///
     /// Defaults to 90% (5% less than max memory).
     #[serde(default = "spool_max_backpressure_memory_percent")]
-    max_backpressure_memory_percent: f32,
-    /// Version of the spooler.
-    #[serde(default)]
-    version: EnvelopeSpoolVersion,
-}
-
-/// Version of the envelope buffering mechanism.
-#[derive(Debug, Default, Deserialize, Serialize)]
-pub enum EnvelopeSpoolVersion {
-    /// Use the spooler service, which only buffers envelopes for unloaded projects and
-    /// switches between an in-memory mode and a disk mode on-demand.
+    pub max_backpressure_memory_percent: f32,
+    /// Number of partitions of the buffer.
     ///
-    /// This mode will be removed soon.
-    #[default]
-    #[serde(rename = "1")]
-    V1,
-    /// Use the envelope buffer, through which all envelopes pass before getting unspooled.
-    /// Can be either disk based or memory based.
+    /// A partition is a separate instance of the buffer which has its own isolated queue, stacks
+    /// and other resources.
     ///
-    /// This mode has not yet been stress-tested, do not use in production environments.
-    #[serde(rename = "experimental")]
-    V2,
+    /// Defaults to 1.
+    #[serde(default = "spool_envelopes_partitions")]
+    pub partitions: NonZeroU8,
 }
 
 impl Default for EnvelopeSpool {
     fn default() -> Self {
         Self {
             path: None,
-            max_connections: spool_envelopes_max_connections(),
-            min_connections: spool_envelopes_min_connections(),
             max_disk_size: spool_envelopes_max_disk_size(),
-            max_memory_size: spool_envelopes_max_memory_size(),
-            unspool_interval: spool_envelopes_unspool_interval(), // 100ms
-            disk_batch_size: spool_envelopes_stack_disk_batch_size(),
-            max_batches: spool_envelopes_stack_max_batches(),
+            batch_size_bytes: spool_envelopes_batch_size_bytes(),
             max_envelope_delay_secs: spool_envelopes_max_envelope_delay_secs(),
             disk_usage_refresh_frequency_ms: spool_disk_usage_refresh_frequency_ms(),
             max_backpressure_envelopes: spool_max_backpressure_envelopes(),
             max_backpressure_memory_percent: spool_max_backpressure_memory_percent(),
-            version: EnvelopeSpoolVersion::default(),
+            partitions: spool_envelopes_partitions(),
         }
     }
 }
@@ -1004,25 +980,26 @@ impl Default for EnvelopeSpool {
 /// Persistent buffering configuration.
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Spool {
+    /// Configuration for envelope spooling.
     #[serde(default)]
-    envelopes: EnvelopeSpool,
+    pub envelopes: EnvelopeSpool,
 }
 
 /// Controls internal caching behavior.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
-struct Cache {
+pub struct Cache {
     /// The full project state will be requested by this Relay if set to `true`.
-    project_request_full_config: bool,
+    pub project_request_full_config: bool,
     /// The cache timeout for project configurations in seconds.
-    project_expiry: u32,
+    pub project_expiry: u32,
     /// Continue using project state this many seconds after cache expiry while a new state is
     /// being fetched. This is added on top of `project_expiry`.
     ///
     /// Default is 2 minutes.
-    project_grace_period: u32,
+    pub project_grace_period: u32,
     /// The cache timeout for downstream relay info (public keys) in seconds.
-    relay_expiry: u32,
+    pub relay_expiry: u32,
     /// Unused cache timeout for envelopes.
     ///
     /// The envelope buffer is instead controlled by `envelope_buffer_size`, which controls the
@@ -1034,21 +1011,19 @@ struct Cache {
     #[serde(alias = "event_buffer_size")]
     envelope_buffer_size: u32,
     /// The cache timeout for non-existing entries.
-    miss_expiry: u32,
+    pub miss_expiry: u32,
     /// The buffer timeout for batched project config queries before sending them upstream in ms.
-    batch_interval: u32,
+    pub batch_interval: u32,
     /// The buffer timeout for batched queries of downstream relays in ms. Defaults to 100ms.
-    downstream_relays_batch_interval: u32,
+    pub downstream_relays_batch_interval: u32,
     /// The maximum number of project configs to fetch from Sentry at once. Defaults to 500.
     ///
     /// `cache.batch_interval` controls how quickly batches are sent, this controls the batch size.
-    batch_size: usize,
+    pub batch_size: usize,
     /// Interval for watching local cache override files in seconds.
-    file_interval: u32,
-    /// Interval for evicting outdated project configs from memory.
-    eviction_interval: u32,
+    pub file_interval: u32,
     /// Interval for fetching new global configs from the upstream, in seconds.
-    global_config_fetch_interval: u32,
+    pub global_config_fetch_interval: u32,
 }
 
 impl Default for Cache {
@@ -1065,7 +1040,6 @@ impl Default for Cache {
             downstream_relays_batch_interval: 100, // 100ms
             batch_size: 500,
             file_interval: 10,                // 10 seconds
-            eviction_interval: 10,            // 10 seconds
             global_config_fetch_interval: 10, // 10 seconds
         }
     }
@@ -1249,7 +1223,7 @@ impl Serialize for EmitOutcomes {
 
 struct EmitOutcomesVisitor;
 
-impl<'de> Visitor<'de> for EmitOutcomesVisitor {
+impl Visitor<'_> for EmitOutcomesVisitor {
     type Value = EmitOutcomes;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
@@ -1423,7 +1397,7 @@ pub struct AuthConfig {
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct GeoIpConfig {
     /// The path to GeoIP database.
-    path: Option<PathBuf>,
+    pub path: Option<PathBuf>,
 }
 
 /// Cardinality Limiter configuration options.
@@ -1505,13 +1479,13 @@ pub struct Cogs {
     /// Any additional COGS measurements recorded will be dropped.
     ///
     /// Defaults to `10_000`.
-    max_queue_size: u64,
+    pub max_queue_size: u64,
     /// Relay COGS resource id.
     ///
     /// All Relay related COGS measurements are emitted with this resource id.
     ///
     /// Defaults to `relay_service`.
-    relay_resource_id: String,
+    pub relay_resource_id: String,
 }
 
 impl Default for Cogs {
@@ -1770,6 +1744,10 @@ impl Config {
             if let Ok(shutdown_timeout) = shutdown_timeout.parse::<u64>() {
                 limits.shutdown_timeout = shutdown_timeout;
             }
+        }
+
+        if let Some(server_name) = overrides.server_name {
+            self.values.sentry.server_name = Some(server_name.into());
         }
 
         Ok(self)
@@ -2127,12 +2105,6 @@ impl Config {
         Duration::from_secs(self.values.cache.file_interval.into())
     }
 
-    /// Returns the interval in seconds in which projects configurations should be freed from
-    /// memory when expired.
-    pub fn cache_eviction_interval(&self) -> Duration {
-        Duration::from_secs(self.values.cache.eviction_interval.into())
-    }
-
     /// Returns the interval in seconds in which fresh global configs should be
     /// fetched from  upstream.
     pub fn global_config_fetch_interval(&self) -> Duration {
@@ -2140,28 +2112,27 @@ impl Config {
     }
 
     /// Returns the path of the buffer file if the `cache.persistent_envelope_buffer.path` is configured.
-    pub fn spool_envelopes_path(&self) -> Option<PathBuf> {
-        self.values
+    ///
+    /// In case a partition with id > 0 is supplied, the filename of the envelopes path will be
+    /// suffixed with `.{partition_id}`.
+    pub fn spool_envelopes_path(&self, partition_id: u8) -> Option<PathBuf> {
+        let mut path = self
+            .values
             .spool
             .envelopes
             .path
             .as_ref()
-            .map(|path| path.to_owned())
-    }
+            .map(|path| path.to_owned())?;
 
-    /// Maximum number of connections to create to buffer file.
-    pub fn spool_envelopes_max_connections(&self) -> u32 {
-        self.values.spool.envelopes.max_connections
-    }
+        if partition_id == 0 {
+            return Some(path);
+        }
 
-    /// Minimum number of connections to create to buffer file.
-    pub fn spool_envelopes_min_connections(&self) -> u32 {
-        self.values.spool.envelopes.min_connections
-    }
+        let file_name = path.file_name().and_then(|f| f.to_str())?;
+        let new_file_name = format!("{}.{}", file_name, partition_id);
+        path.set_file_name(new_file_name);
 
-    /// Unspool interval in milliseconds.
-    pub fn spool_envelopes_unspool_interval(&self) -> Duration {
-        Duration::from_millis(self.values.spool.envelopes.unspool_interval)
+        Some(path)
     }
 
     /// The maximum size of the buffer, in bytes.
@@ -2169,29 +2140,10 @@ impl Config {
         self.values.spool.envelopes.max_disk_size.as_bytes()
     }
 
-    /// The maximum size of the memory buffer, in bytes.
-    pub fn spool_envelopes_max_memory_size(&self) -> usize {
-        self.values.spool.envelopes.max_memory_size.as_bytes()
-    }
-
-    /// Number of batches of size `stack_disk_batch_size` that need to be accumulated before
+    /// Number of encoded envelope bytes that need to be accumulated before
     /// flushing one batch to disk.
-    pub fn spool_envelopes_stack_disk_batch_size(&self) -> usize {
-        self.values.spool.envelopes.disk_batch_size
-    }
-
-    /// Number of batches of size `stack_disk_batch_size` that need to be accumulated before
-    /// flushing one batch to disk.
-    pub fn spool_envelopes_stack_max_batches(&self) -> usize {
-        self.values.spool.envelopes.max_batches
-    }
-
-    /// Returns `true` if version 2 of the spooling mechanism is used.
-    pub fn spool_v2(&self) -> bool {
-        matches!(
-            self.values.spool.envelopes.version,
-            EnvelopeSpoolVersion::V2
-        )
+    pub fn spool_envelopes_batch_size_bytes(&self) -> usize {
+        self.values.spool.envelopes.batch_size_bytes.as_bytes()
     }
 
     /// Returns the time after which we drop envelopes as a [`Duration`] object.
@@ -2212,6 +2164,11 @@ impl Config {
     /// Returns the relative memory usage up to which the disk buffer will unspool envelopes.
     pub fn spool_max_backpressure_memory_percent(&self) -> f32 {
         self.values.spool.envelopes.max_backpressure_memory_percent
+    }
+
+    /// Returns the number of partitions for the buffer.
+    pub fn spool_partitions(&self) -> NonZeroU8 {
+        self.values.spool.envelopes.partitions
     }
 
     /// Returns the maximum size of an event payload in bytes.
@@ -2340,6 +2297,11 @@ impl Config {
     /// By default keep alive is set to a 5 seconds.
     pub fn keepalive_timeout(&self) -> Duration {
         Duration::from_secs(self.values.limits.keepalive_timeout)
+    }
+
+    /// Returns the server idle timeout in seconds.
+    pub fn idle_timeout(&self) -> Option<Duration> {
+        self.values.limits.idle_timeout.map(Duration::from_secs)
     }
 
     /// TCP listen backlog to configure on Relay's listening socket.
@@ -2590,6 +2552,7 @@ impl Default for Config {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     /// Regression test for renaming the envelope buffer flags.
@@ -2622,17 +2585,5 @@ cache:
     #[test]
     fn test_emit_outcomes_invalid() {
         assert!(serde_json::from_str::<EmitOutcomes>("asdf").is_err());
-    }
-
-    #[test]
-    fn test_spool_defaults_to_v1() {
-        let config: ConfigValues = serde_json::from_str("{}").unwrap();
-        assert!(matches!(
-            config.spool.envelopes.version,
-            EnvelopeSpoolVersion::V1
-        ));
-
-        let config = Config::from_json_value(serde_json::json!({})).unwrap();
-        assert!(!config.spool_v2());
     }
 }

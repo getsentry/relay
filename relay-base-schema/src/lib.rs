@@ -9,5 +9,6 @@
 pub mod data_category;
 pub mod events;
 pub mod metrics;
+pub mod organization;
 pub mod project;
 pub mod spans;

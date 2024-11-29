@@ -3,7 +3,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::metrics::{MetricOutcomes, MetricStats};
-use crate::services::buffer::{self, EnvelopeBufferService, ObservableEnvelopeBuffer};
+use crate::services::buffer::{
+    ObservableEnvelopeBuffer, PartitionedEnvelopeBuffer, ProjectKeyPair,
+};
 use crate::services::cogs::{CogsService, CogsServiceRecorder};
 use crate::services::global_config::{GlobalConfigManager, GlobalConfigService};
 use crate::services::health_check::{HealthCheck, HealthCheckService};
@@ -19,20 +21,22 @@ use crate::services::stats::RelayStats;
 use crate::services::store::StoreService;
 use crate::services::test_store::{TestStore, TestStoreService};
 use crate::services::upstream::{UpstreamRelay, UpstreamRelayService};
-use crate::utils::{MemoryChecker, MemoryStat};
-use anyhow::{Context, Result};
+use crate::utils::{MemoryChecker, MemoryStat, ThreadKind};
+#[cfg(feature = "processing")]
+use anyhow::Context;
+use anyhow::Result;
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
 use rayon::ThreadPool;
 use relay_cogs::Cogs;
-use relay_config::{Config, RedisConfigRef, RedisPoolConfigs};
+use relay_config::Config;
+#[cfg(feature = "processing")]
+use relay_config::{RedisConfigRef, RedisPoolConfigs};
 #[cfg(feature = "processing")]
 use relay_redis::redis::Script;
 #[cfg(feature = "processing")]
-use relay_redis::{PooledClient, RedisScripts};
-use relay_redis::{RedisError, RedisPool, RedisPools};
-use relay_system::{channel, Addr, Service};
-use tokio::runtime::Runtime;
+use relay_redis::{AsyncRedisPool, PooledClient, RedisError, RedisPool, RedisPools, RedisScripts};
+use relay_system::{channel, Addr, Service, ServiceRunner};
 use tokio::sync::mpsc;
 
 /// Indicates the type of failure of the server.
@@ -48,6 +52,7 @@ pub enum ServiceError {
     Kafka,
 
     /// Initializing the Redis cluster client failed.
+    #[cfg(feature = "processing")]
     #[error("could not initialize redis cluster client")]
     Redis,
 }
@@ -63,21 +68,20 @@ pub struct Registry {
     pub global_config: Addr<GlobalConfigManager>,
     pub legacy_project_cache: Addr<legacy::ProjectCache>,
     pub upstream_relay: Addr<UpstreamRelay>,
-    pub envelope_buffer: Option<ObservableEnvelopeBuffer>,
+    pub envelope_buffer: PartitionedEnvelopeBuffer,
 
     pub project_cache_handle: ProjectCacheHandle,
 }
 
-/// Constructs a tokio [`Runtime`] configured for running [services](relay_system::Service).
-pub fn create_runtime(name: &str, threads: usize) -> Runtime {
-    tokio::runtime::Builder::new_multi_thread()
-        .thread_name(name)
+/// Constructs a Tokio [`relay_system::Runtime`] configured for running [services](relay_system::Service).
+pub fn create_runtime(name: &'static str, threads: usize) -> relay_system::Runtime {
+    relay_system::Runtime::builder(name)
         .worker_threads(threads)
         // Relay uses `spawn_blocking` only for Redis connections within the project
         // cache, those should never exceed 100 concurrent connections
         // (limited by connection pool).
         //
-        // Relay also does not use other blocking opertions from Tokio which require
+        // Relay also does not use other blocking operations from Tokio which require
         // this pool, no usage of `tokio::fs` and `tokio::io::{Stdin, Stdout, Stderr}`.
         //
         // We limit the maximum amount of threads here, we've seen that Tokio
@@ -88,9 +92,7 @@ pub fn create_runtime(name: &str, threads: usize) -> Runtime {
         // threads to encourage the runtime to not keep too many idle blocking threads
         // around.
         .thread_keep_alive(Duration::from_secs(1))
-        .enable_all()
         .build()
-        .unwrap()
 }
 
 fn create_processor_pool(config: &Config) -> Result<ThreadPool> {
@@ -105,6 +107,7 @@ fn create_processor_pool(config: &Config) -> Result<ThreadPool> {
 
     let pool = crate::utils::ThreadPoolBuilder::new("processor")
         .num_threads(thread_count)
+        .thread_kind(ThreadKind::Worker)
         .runtime(tokio::runtime::Handle::current())
         .build()?;
 
@@ -114,7 +117,7 @@ fn create_processor_pool(config: &Config) -> Result<ThreadPool> {
 #[cfg(feature = "processing")]
 fn create_store_pool(config: &Config) -> Result<ThreadPool> {
     // Spawn a store worker for every 12 threads in the processor pool.
-    // This ratio was found emperically and may need adjustments in the future.
+    // This ratio was found empirically and may need adjustments in the future.
     //
     // Ideally in the future the store will be single threaded again, after we move
     // all the heavy processing (de- and re-serialization) into the processor.
@@ -133,7 +136,6 @@ fn create_store_pool(config: &Config) -> Result<ThreadPool> {
 struct StateInner {
     config: Arc<Config>,
     memory_checker: MemoryChecker,
-
     registry: Registry,
 }
 
@@ -145,16 +147,21 @@ pub struct ServiceState {
 
 impl ServiceState {
     /// Starts all services and returns addresses to all of them.
-    pub fn start(config: Arc<Config>) -> Result<Self> {
-        let upstream_relay = UpstreamRelayService::new(config.clone()).start();
-        let test_store = TestStoreService::new(config.clone()).start();
+    pub async fn start(
+        rt_metrics: relay_system::RuntimeMetrics,
+        config: Arc<Config>,
+    ) -> Result<(Self, ServiceRunner)> {
+        let mut runner = ServiceRunner::new();
+        let upstream_relay = runner.start(UpstreamRelayService::new(config.clone()));
+        let test_store = runner.start(TestStoreService::new(config.clone()));
 
-        let redis_pools = config
-            .redis()
-            .filter(|_| config.processing_enabled())
-            .map(create_redis_pools)
-            .transpose()
-            .context(ServiceError::Redis)?;
+        #[cfg(feature = "processing")]
+        let redis_pools = match config.redis().filter(|_| config.processing_enabled()) {
+            Some(config) => Some(create_redis_pools(config).await),
+            None => None,
+        }
+        .transpose()
+        .context(ServiceError::Redis)?;
 
         // If we have Redis configured, we want to initialize all the scripts by loading them in
         // the scripts cache if not present. Our custom ConnectionLike implementation relies on this
@@ -172,13 +179,13 @@ impl ServiceState {
         // Create an address for the `EnvelopeProcessor`, which can be injected into the
         // other services.
         let (processor, processor_rx) = channel(EnvelopeProcessorService::name());
-        let outcome_producer = OutcomeProducerService::create(
+        let outcome_producer = runner.start(OutcomeProducerService::create(
             config.clone(),
             upstream_relay.clone(),
             processor.clone(),
-        )?
-        .start();
-        let outcome_aggregator = OutcomeAggregator::new(&config, outcome_producer.clone()).start();
+        )?);
+        let outcome_aggregator =
+            runner.start(OutcomeAggregator::new(&config, outcome_producer.clone()));
 
         let (global_config, global_config_rx) =
             GlobalConfigService::new(config.clone(), upstream_relay.clone());
@@ -186,20 +193,21 @@ impl ServiceState {
         // The global config service must start before dependant services are
         // started. Messages like subscription requests to the global config
         // service fail if the service is not running.
-        let global_config = global_config.start();
+        let global_config = runner.start(global_config);
 
         let (legacy_project_cache, legacy_project_cache_rx) =
             channel(legacy::ProjectCacheService::name());
 
-        let project_source = ProjectSource::start(
+        let project_source = ProjectSource::start_in(
+            &mut runner,
             Arc::clone(&config),
             upstream_relay.clone(),
-            redis_pools
-                .as_ref()
-                .map(|pools| pools.project_configs.clone()),
-        );
+            #[cfg(feature = "processing")]
+            redis_pools.clone(),
+        )
+        .await;
         let project_cache_handle =
-            ProjectCacheService::new(Arc::clone(&config), project_source).start();
+            ProjectCacheService::new(Arc::clone(&config), project_source).start_in(&mut runner);
 
         let aggregator = RouterService::new(
             config.default_aggregator_config().clone(),
@@ -207,7 +215,7 @@ impl ServiceState {
             Some(legacy_project_cache.clone().recipient()),
         );
         let aggregator_handle = aggregator.handle();
-        let aggregator = aggregator.start();
+        let aggregator = runner.start(aggregator);
 
         let metric_stats = MetricStats::new(
             config.clone(),
@@ -228,85 +236,88 @@ impl ServiceState {
                     outcome_aggregator.clone(),
                     metric_outcomes.clone(),
                 )
-                .map(|s| s.start())
+                .map(|s| runner.start(s))
             })
             .transpose()?;
 
         let cogs = CogsService::new(&config);
-        let cogs = Cogs::new(CogsServiceRecorder::new(&config, cogs.start()));
+        let cogs = Cogs::new(CogsServiceRecorder::new(&config, runner.start(cogs)));
 
-        EnvelopeProcessorService::new(
-            create_processor_pool(&config)?,
-            config.clone(),
-            global_config_handle,
-            project_cache_handle.clone(),
-            cogs,
-            #[cfg(feature = "processing")]
-            redis_pools.clone(),
-            processor::Addrs {
-                outcome_aggregator: outcome_aggregator.clone(),
-                upstream_relay: upstream_relay.clone(),
-                test_store: test_store.clone(),
+        runner.start_with(
+            EnvelopeProcessorService::new(
+                create_processor_pool(&config)?,
+                config.clone(),
+                global_config_handle,
+                project_cache_handle.clone(),
+                cogs,
                 #[cfg(feature = "processing")]
-                store_forwarder: store.clone(),
-                aggregator: aggregator.clone(),
-            },
-            metric_outcomes.clone(),
-        )
-        .spawn_handler(processor_rx);
+                redis_pools.clone(),
+                processor::Addrs {
+                    outcome_aggregator: outcome_aggregator.clone(),
+                    upstream_relay: upstream_relay.clone(),
+                    test_store: test_store.clone(),
+                    #[cfg(feature = "processing")]
+                    store_forwarder: store.clone(),
+                    aggregator: aggregator.clone(),
+                },
+                metric_outcomes.clone(),
+            ),
+            processor_rx,
+        );
 
         let (envelopes_tx, envelopes_rx) = mpsc::channel(config.spool_max_backpressure_envelopes());
-        let envelope_buffer = EnvelopeBufferService::new(
+
+        let envelope_buffer = PartitionedEnvelopeBuffer::create(
+            config.spool_partitions(),
             config.clone(),
             memory_stat.clone(),
             global_config_rx.clone(),
-            buffer::Services {
-                envelopes_tx,
-                project_cache_handle: project_cache_handle.clone(),
-                outcome_aggregator: outcome_aggregator.clone(),
-                test_store: test_store.clone(),
-            },
-        )
-        .map(|b| b.start_observable());
+            envelopes_tx.clone(),
+            project_cache_handle.clone(),
+            outcome_aggregator.clone(),
+            test_store.clone(),
+            &mut runner,
+        );
 
         // Keep all the services in one context.
         let project_cache_services = legacy::Services {
-            envelope_buffer: envelope_buffer.as_ref().map(ObservableEnvelopeBuffer::addr),
+            envelope_buffer: envelope_buffer.clone(),
             aggregator: aggregator.clone(),
             envelope_processor: processor.clone(),
             outcome_aggregator: outcome_aggregator.clone(),
-            project_cache: legacy_project_cache.clone(),
             test_store: test_store.clone(),
         };
 
-        legacy::ProjectCacheService::new(
-            config.clone(),
-            MemoryChecker::new(memory_stat.clone(), config.clone()),
-            project_cache_handle.clone(),
-            project_cache_services,
-            global_config_rx,
-            envelopes_rx,
-        )
-        .spawn_handler(legacy_project_cache_rx);
+        runner.start_with(
+            legacy::ProjectCacheService::new(
+                project_cache_handle.clone(),
+                project_cache_services,
+                global_config_rx,
+                envelopes_rx,
+            ),
+            legacy_project_cache_rx,
+        );
 
-        let health_check = HealthCheckService::new(
+        let health_check = runner.start(HealthCheckService::new(
             config.clone(),
             MemoryChecker::new(memory_stat.clone(), config.clone()),
             aggregator_handle,
             upstream_relay.clone(),
             envelope_buffer.clone(),
-        )
-        .start();
+        ));
 
-        RelayStats::new(
+        runner.start(RelayStats::new(
             config.clone(),
+            rt_metrics,
             upstream_relay.clone(),
             #[cfg(feature = "processing")]
             redis_pools.clone(),
-        )
-        .start();
+        ));
 
-        let relay_cache = RelayCacheService::new(config.clone(), upstream_relay.clone()).start();
+        let relay_cache = runner.start(RelayCacheService::new(
+            config.clone(),
+            upstream_relay.clone(),
+        ));
 
         let registry = Registry {
             processor,
@@ -328,9 +339,12 @@ impl ServiceState {
             registry,
         };
 
-        Ok(ServiceState {
-            inner: Arc::new(state),
-        })
+        Ok((
+            ServiceState {
+                inner: Arc::new(state),
+            },
+            runner,
+        ))
     }
 
     /// Returns a reference to the Relay configuration.
@@ -346,8 +360,8 @@ impl ServiceState {
     }
 
     /// Returns the V2 envelope buffer, if present.
-    pub fn envelope_buffer(&self) -> Option<&ObservableEnvelopeBuffer> {
-        self.inner.registry.envelope_buffer.as_ref()
+    pub fn envelope_buffer(&self, project_key_pair: ProjectKeyPair) -> &ObservableEnvelopeBuffer {
+        self.inner.registry.envelope_buffer.buffer(project_key_pair)
     }
 
     /// Returns the address of the [`legacy::ProjectCache`] service.
@@ -401,6 +415,7 @@ impl ServiceState {
     }
 }
 
+#[cfg(feature = "processing")]
 fn create_redis_pool(redis_config: RedisConfigRef) -> Result<RedisPool, RedisError> {
     match redis_config {
         RedisConfigRef::Cluster {
@@ -423,15 +438,19 @@ fn create_redis_pool(redis_config: RedisConfigRef) -> Result<RedisPool, RedisErr
 /// Creates Redis pools from the given `configs`.
 ///
 /// If `configs` is [`Unified`](RedisPoolConfigs::Unified), one pool is created and then cloned
-/// for each use case, meaning that all use cases really use the same pool. If it is
-/// [`Individual`](RedisPoolConfigs::Individual), an actual separate pool is created for each
-/// use case.
-pub fn create_redis_pools(configs: RedisPoolConfigs) -> Result<RedisPools, RedisError> {
+/// for cardinality and quotas, meaning that they really use the same pool.
+/// `project_config` uses an async pool so it cannot be shared with the other two.
+///
+/// If it is [`Individual`](RedisPoolConfigs::Individual), an actual separate pool
+/// is created for each use case.
+#[cfg(feature = "processing")]
+pub async fn create_redis_pools(configs: RedisPoolConfigs<'_>) -> Result<RedisPools, RedisError> {
     match configs {
         RedisPoolConfigs::Unified(pool) => {
+            let project_configs = create_async_pool(&pool).await?;
             let pool = create_redis_pool(pool)?;
             Ok(RedisPools {
-                project_configs: pool.clone(),
+                project_configs,
                 cardinality: pool.clone(),
                 quotas: pool.clone(),
             })
@@ -441,7 +460,7 @@ pub fn create_redis_pools(configs: RedisPoolConfigs) -> Result<RedisPools, Redis
             cardinality,
             quotas,
         } => {
-            let project_configs = create_redis_pool(project_configs)?;
+            let project_configs = create_async_pool(&project_configs).await?;
             let cardinality = create_redis_pool(cardinality)?;
             let quotas = create_redis_pool(quotas)?;
 
@@ -455,14 +474,29 @@ pub fn create_redis_pools(configs: RedisPoolConfigs) -> Result<RedisPools, Redis
 }
 
 #[cfg(feature = "processing")]
+async fn create_async_pool(config: &RedisConfigRef<'_>) -> Result<AsyncRedisPool, RedisError> {
+    match config {
+        RedisConfigRef::Cluster {
+            cluster_nodes,
+            options,
+        } => AsyncRedisPool::cluster(cluster_nodes.iter().map(|s| s.as_str()), options).await,
+        RedisConfigRef::Single { server, options } => {
+            AsyncRedisPool::single(server.as_str(), options).await
+        }
+        RedisConfigRef::MultiWrite { .. } => {
+            Err(RedisError::MultiWriteNotSupported("projectconfig"))
+        }
+    }
+}
+
+#[cfg(feature = "processing")]
 fn initialize_redis_scripts_for_pools(redis_pools: &RedisPools) -> Result<(), RedisError> {
-    let project_configs = redis_pools.project_configs.client()?;
     let cardinality = redis_pools.cardinality.client()?;
     let quotas = redis_pools.quotas.client()?;
 
     let scripts = RedisScripts::all();
 
-    let pools = [project_configs, cardinality, quotas];
+    let pools = [cardinality, quotas];
     for pool in pools {
         initialize_redis_scripts(pool, &scripts)?;
     }

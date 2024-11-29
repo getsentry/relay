@@ -236,7 +236,7 @@ impl<'a> PartialEq for PathItem<'a> {
     }
 }
 
-impl<'a> PathItem<'a> {
+impl PathItem<'_> {
     /// Returns the key if there is one
     #[inline]
     pub fn key(&self) -> Option<&str> {
@@ -257,7 +257,7 @@ impl<'a> PathItem<'a> {
     }
 }
 
-impl<'a> fmt::Display for PathItem<'a> {
+impl fmt::Display for PathItem<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             PathItem::StaticKey(s) => f.pad(s),
@@ -517,9 +517,9 @@ impl<'a> Iterator for ProcessingStateIter<'a> {
     }
 }
 
-impl<'a> ExactSizeIterator for ProcessingStateIter<'a> {}
+impl ExactSizeIterator for ProcessingStateIter<'_> {}
 
-impl<'a> Default for ProcessingState<'a> {
+impl Default for ProcessingState<'_> {
     fn default() -> Self {
         ProcessingState::root().clone()
     }
@@ -531,7 +531,7 @@ impl<'a> Default for ProcessingState<'a> {
 #[derive(Debug)]
 pub struct Path<'a>(&'a ProcessingState<'a>);
 
-impl<'a> Path<'a> {
+impl Path<'_> {
     /// Returns the current key if there is one
     #[inline]
     pub fn key(&self) -> Option<&str> {
@@ -560,7 +560,7 @@ impl<'a> Path<'a> {
     }
 }
 
-impl<'a> fmt::Display for Path<'a> {
+impl fmt::Display for Path<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut items = Vec::with_capacity(self.0.depth);
         for state in self.0.iter() {

@@ -3,6 +3,7 @@ use std::error::Error;
 use relay_config::Config;
 
 use crate::services::buffer::common::ProjectKeyPair;
+use crate::services::buffer::envelope_stack::caching::CachingEnvelopeStack;
 use crate::services::buffer::envelope_store::sqlite::{
     SqliteEnvelopeStore, SqliteEnvelopeStoreError,
 };
@@ -10,48 +11,27 @@ use crate::services::buffer::stack_provider::{
     InitializationState, StackCreationType, StackProvider,
 };
 use crate::statsd::RelayTimers;
-use crate::{Envelope, EnvelopeStack, SqliteEnvelopeStack};
+use crate::{EnvelopeStack, SqliteEnvelopeStack};
 
 #[derive(Debug)]
 pub struct SqliteStackProvider {
     envelope_store: SqliteEnvelopeStore,
-    disk_batch_size: usize,
-    max_batches: usize,
+    batch_size_bytes: usize,
     max_disk_size: usize,
-    drain_batch_size: usize,
+    partition_id: u8,
 }
 
 #[warn(dead_code)]
 impl SqliteStackProvider {
     /// Creates a new [`SqliteStackProvider`] from the provided [`Config`].
-    pub async fn new(config: &Config) -> Result<Self, SqliteEnvelopeStoreError> {
-        let envelope_store = SqliteEnvelopeStore::prepare(config).await?;
+    pub async fn new(partition_id: u8, config: &Config) -> Result<Self, SqliteEnvelopeStoreError> {
+        let envelope_store = SqliteEnvelopeStore::prepare(partition_id, config).await?;
         Ok(Self {
             envelope_store,
-            disk_batch_size: config.spool_envelopes_stack_disk_batch_size(),
-            max_batches: config.spool_envelopes_stack_max_batches(),
+            batch_size_bytes: config.spool_envelopes_batch_size_bytes(),
             max_disk_size: config.spool_envelopes_max_disk_size(),
-            drain_batch_size: config.spool_envelopes_stack_disk_batch_size(),
+            partition_id,
         })
-    }
-
-    /// Inserts the supplied [`Envelope`]s in the database.
-    #[allow(clippy::vec_box)]
-    async fn drain_many(&mut self, envelopes: Vec<Box<Envelope>>) {
-        if let Err(error) = self
-            .envelope_store
-            .insert_many(
-                envelopes
-                    .into_iter()
-                    .filter_map(|e| e.as_ref().try_into().ok()),
-            )
-            .await
-        {
-            relay_log::error!(
-                error = &error as &dyn Error,
-                "failed to drain the envelope stacks, some envelopes might be lost",
-            );
-        }
     }
 
     /// Returns `true` when there might be data residing on disk, `false` otherwise.
@@ -61,7 +41,7 @@ impl SqliteStackProvider {
 }
 
 impl StackProvider for SqliteStackProvider {
-    type Stack = SqliteEnvelopeStack;
+    type Stack = CachingEnvelopeStack<SqliteEnvelopeStack>;
 
     async fn initialize(&self) -> InitializationState {
         match self.envelope_store.project_key_pairs().await {
@@ -81,10 +61,10 @@ impl StackProvider for SqliteStackProvider {
         stack_creation_type: StackCreationType,
         project_key_pair: ProjectKeyPair,
     ) -> Self::Stack {
-        SqliteEnvelopeStack::new(
+        let inner = SqliteEnvelopeStack::new(
+            self.partition_id,
             self.envelope_store.clone(),
-            self.disk_batch_size,
-            self.max_batches,
+            self.batch_size_bytes,
             project_key_pair.own_key,
             project_key_pair.sampling_key,
             // We want to check the disk by default if we are creating the stack for the first time,
@@ -93,7 +73,9 @@ impl StackProvider for SqliteStackProvider {
             // it was empty, or we never had data on disk for that stack, so we assume by default
             // that there is no need to check disk until some data is spooled.
             Self::assume_data_on_disk(stack_creation_type),
-        )
+        );
+
+        CachingEnvelopeStack::new(inner)
     }
 
     fn has_store_capacity(&self) -> bool {
@@ -121,23 +103,16 @@ impl StackProvider for SqliteStackProvider {
     async fn flush(&mut self, envelope_stacks: impl IntoIterator<Item = Self::Stack>) {
         relay_log::trace!("Flushing sqlite envelope buffer");
 
-        relay_statsd::metric!(timer(RelayTimers::BufferDrain), {
-            let mut envelopes = Vec::with_capacity(self.drain_batch_size);
-            for envelope_stack in envelope_stacks {
-                for envelope in envelope_stack.flush() {
-                    if envelopes.len() >= self.drain_batch_size {
-                        self.drain_many(envelopes).await;
-                        envelopes = Vec::with_capacity(self.drain_batch_size);
-                    }
-
-                    envelopes.push(envelope);
+        let partition_tag = self.partition_id.to_string();
+        relay_statsd::metric!(
+            timer(RelayTimers::BufferDrain),
+            partition_id = &partition_tag,
+            {
+                for envelope_stack in envelope_stacks {
+                    envelope_stack.flush().await;
                 }
             }
-
-            if !envelopes.is_empty() {
-                self.drain_many(envelopes).await;
-            }
-        });
+        );
     }
 }
 
@@ -178,7 +153,7 @@ mod tests {
     #[tokio::test]
     async fn test_flush() {
         let config = mock_config();
-        let mut stack_provider = SqliteStackProvider::new(&config).await.unwrap();
+        let mut stack_provider = SqliteStackProvider::new(0, &config).await.unwrap();
 
         let own_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
         let sampling_key = ProjectKey::parse("b81ae32be2584e0bbd7a4cbb95971fe1").unwrap();

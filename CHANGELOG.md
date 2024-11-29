@@ -1,30 +1,65 @@
 # Changelog
 
-## Unreleased
+## 24.11.1
+
+**Breaking Changes**:
+
+- Remove `spool.envelopes.{min_connections,max_connections,unspool_interval,max_memory_size}` config options. ([#4303](https://github.com/getsentry/relay/pull/4303))
+- Flatten Linux distribution fields into `os.context`. ([#4292](https://github.com/getsentry/relay/pull/4292))
+
+**Bug Fixes**:
+
+- Terminate the process when one of the services crashes. ([#4249](https://github.com/getsentry/relay/pull/4249))
+- Don't propagate trace sampling decisions from SDKs ([#4265](https://github.com/getsentry/relay/pull/4265))
+- Rate limit profile chunks. ([#4270](https://github.com/getsentry/relay/pull/4270))
+
+**Features**:
+
+- Remove old disk spooling logic, default to new version. ([#4303](https://github.com/getsentry/relay/pull/4303))
+- Implement zstd http encoding for Relay to Relay communication. ([#4266](https://github.com/getsentry/relay/pull/4266))
+- Support empty branches in Pattern alternations. ([#4283](https://github.com/getsentry/relay/pull/4283))
+- Add support for partitioning of the `EnvelopeBufferService`. ([#4291](https://github.com/getsentry/relay/pull/4291))
+
+**Internal**:
+
+- Remove metrics summaries. ([#4278](https://github.com/getsentry/relay/pull/4278), [#4279](https://github.com/getsentry/relay/pull/4279))
+- Use async `redis` for `projectconfig`. ([#4284](https://github.com/getsentry/relay/pull/4284))
+- Promote some `span.data` fields to the top level. ([#4298](https://github.com/getsentry/relay/pull/4298))
+
+## 24.11.0
 
 **Breaking Changes**:
 
 - Removes support for metric meta envelope items. ([#4152](https://github.com/getsentry/relay/pull/4152))
 - Removes support for the project cache endpoint version 2 and before. ([#4147](https://github.com/getsentry/relay/pull/4147))
 
-**Bug Fixes**
+**Bug Fixes**:
 
 - Allow profile chunks without release. ([#4155](https://github.com/getsentry/relay/pull/4155))
 
-**Features:**
+**Features**:
 
 - Set `sdk.name` for events created from minidumps. ([#4313](https://github.com/getsentry/relay/pull/4313))
+- Add check to ensure unreal user info is not empty. ([#4225](https://github.com/getsentry/relay/pull/4225))
 - Retain empty string values in `span.data` and `event.contexts.trace.data`. ([#4174](https://github.com/getsentry/relay/pull/4174))
 - Allow `sample_rate` to be float type when deserializing `DynamicSamplingContext`. ([#4181](https://github.com/getsentry/relay/pull/4181))
 - Support inbound filters for profiles. ([#4176](https://github.com/getsentry/relay/pull/4176))
+- Scrub lower-case redis commands. ([#4235](https://github.com/getsentry/relay/pull/4235))
+- Make the maximum idle time of a HTTP connection configurable. ([#4248](https://github.com/getsentry/relay/pull/4248))
+- Allow configuring a Sentry server name with an option or the `RELAY_SERVER_NAME` environment variable. ([#4251](https://github.com/getsentry/relay/pull/4251))
 
-**Internal:**
+**Internal**:
 
 - Add a metric that counts span volume in the root project for dynamic sampling (`c:spans/count_per_root_project@none`). ([#4134](https://github.com/getsentry/relay/pull/4134))
 - Add a tag `target_project_id` to both root project metrics for dynamic sampling (`c:transactions/count_per_root_project@none` and `c:spans/count_per_root_project@none`) which shows the flow trace traffic from root to target projects. ([#4170](https://github.com/getsentry/relay/pull/4170))
 - Remove `buffer` entries and scrub array contents from MongoDB queries. ([#4186](https://github.com/getsentry/relay/pull/4186))
 - Use `DateTime<Utc>` instead of `Instant` for tracking the received time of the `Envelope`. ([#4184](https://github.com/getsentry/relay/pull/4184))
 - Add a field to suggest consumers to ingest spans in EAP. ([#4206](https://github.com/getsentry/relay/pull/4206))
+- Run internal worker threads with a lower priority. ([#4222](https://github.com/getsentry/relay/pull/4222))
+- Add additional fields to the `Event` `Getter`. ([#4238](https://github.com/getsentry/relay/pull/4238))
+- Replace u64 with `OrganizationId` new-type struct for organization id. ([#4159](https://github.com/getsentry/relay/pull/4159))
+- Add computed contexts for `os`, `browser` and `runtime`. ([#4239](https://github.com/getsentry/relay/pull/4239))
+- Add `CachingEnvelopeStack` strategy to the buffer. ([#4242](https://github.com/getsentry/relay/pull/4242))
 
 ## 24.10.0
 
@@ -59,6 +94,7 @@
 - Feature flags of graduated features are now hard-coded in Relay so they can be removed from Sentry. ([#4076](https://github.com/getsentry/relay/pull/4076), [#4080](https://github.com/getsentry/relay/pull/4080))
 - Add parallelization in Redis commands. ([#4118](https://github.com/getsentry/relay/pull/4118))
 - Extract user ip for spans. ([#4144](https://github.com/getsentry/relay/pull/4144))
+- Add support for an experimental OTLP `/v1/traces/` endpoint. The endpoint is disabled by default. ([#4223](https://github.com/getsentry/relay/pull/4223))
 
 ## 24.9.0
 

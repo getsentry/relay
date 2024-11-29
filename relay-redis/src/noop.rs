@@ -53,3 +53,26 @@ pub struct RedisPools {
     /// The pool used for rate limiting/quotas.
     pub quotas: RedisPool,
 }
+
+/// Noop type of the `AsyncRedisPool`
+#[derive(Debug, Clone)]
+pub struct AsyncRedisPool;
+
+impl AsyncRedisPool {
+    /// Creates a [`AsyncRedisPool`] in cluster configration.
+    ///
+    /// Always returns `Ok(Self)`
+    pub async fn cluster<'a>(
+        _servers: impl IntoIterator<Item = &'a str>,
+        _opts: &RedisConfigOptions,
+    ) -> Result<Self, RedisError> {
+        Ok(Self)
+    }
+
+    /// Creates a [`AsyncRedisPool`] in single-node configuration.
+    ///
+    /// Always returns `Ok(Self)`
+    pub async fn single(_server: &str, _opts: &RedisConfigOptions) -> Result<Self, RedisError> {
+        Ok(Self)
+    }
+}

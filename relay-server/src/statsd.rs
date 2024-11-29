@@ -1,29 +1,12 @@
 use relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 #[cfg(doc)]
-use tokio::runtime::RuntimeMetrics;
+use relay_system::RuntimeMetrics;
 
 /// Gauge metrics used by Relay
 pub enum RelayGauges {
     /// The state of Relay with respect to the upstream connection.
     /// Possible values are `0` for normal operations and `1` for a network outage.
     NetworkOutage,
-    /// The number of envelopes waiting for project states in memory.
-    ///
-    /// This number is always <= `EnvelopeQueueSize`.
-    ///
-    /// The memory buffer size can be configured with `spool.envelopes.max_memory_size`.
-    BufferEnvelopesMemoryCount,
-    /// The number of envelopes waiting for project states on disk.
-    ///
-    /// Note this metric *will not be logged* when we encounter envelopes in the database on startup,
-    /// because counting those envelopes reliably would risk locking the db for multiple seconds.
-    ///
-    /// The disk buffer size can be configured with `spool.envelopes.max_disk_size`.
-    BufferEnvelopesDiskCount,
-    /// Number of queue keys (project key pairs) unspooled during proactive unspool.
-    /// This metric is tagged with:
-    /// - `reason`: Why keys are / are not unspooled.
-    BufferPeriodicUnspool,
     /// The number of individual stacks in the priority queue.
     ///
     /// Per combination of `(own_key, sampling_key)`, a new stack is created.
@@ -46,15 +29,16 @@ pub enum RelayGauges {
     RedisPoolIdleConnections,
     /// The number of notifications in the broadcast channel of the project cache.
     ProjectCacheNotificationChannel,
+    /// The number of scheduled and in progress fetches in the project cache.
+    ProjectCacheScheduledFetches,
+    /// Exposes the amount of currently open and handled connections by the server.
+    ServerActiveConnections,
 }
 
 impl GaugeMetric for RelayGauges {
     fn name(&self) -> &'static str {
         match self {
             RelayGauges::NetworkOutage => "upstream.network_outage",
-            RelayGauges::BufferEnvelopesMemoryCount => "buffer.envelopes_mem_count",
-            RelayGauges::BufferEnvelopesDiskCount => "buffer.envelopes_disk_count",
-            RelayGauges::BufferPeriodicUnspool => "buffer.unspool.periodic",
             RelayGauges::BufferStackCount => "buffer.stack_count",
             RelayGauges::BufferDiskUsed => "buffer.disk_used",
             RelayGauges::SystemMemoryUsed => "health.system_memory.used",
@@ -66,18 +50,20 @@ impl GaugeMetric for RelayGauges {
             RelayGauges::ProjectCacheNotificationChannel => {
                 "project_cache.notification_channel.size"
             }
+            RelayGauges::ProjectCacheScheduledFetches => "project_cache.fetches.size",
+            RelayGauges::ServerActiveConnections => "server.http.connections",
         }
     }
 }
 
-/// Gauge metrics collected from the Tokio Runtime.
-pub enum TokioGauges {
-    /// Exposes [`RuntimeMetrics::active_tasks_count`].
-    ActiveTasksCount,
+/// Gauge metrics collected from the Runtime.
+pub enum RuntimeGauges {
+    /// Exposes [`RuntimeMetrics::num_idle_threads`].
+    NumIdleThreads,
+    /// Exposes [`RuntimeMetrics::num_alive_tasks`].
+    NumAliveTasks,
     /// Exposes [`RuntimeMetrics::blocking_queue_depth`].
     BlockingQueueDepth,
-    /// Exposes [`RuntimeMetrics::budget_forced_yield_count`].
-    BudgetForcedYieldCount,
     /// Exposes [`RuntimeMetrics::num_blocking_threads`].
     NumBlockingThreads,
     /// Exposes [`RuntimeMetrics::num_idle_blocking_threads`].
@@ -89,16 +75,37 @@ pub enum TokioGauges {
     /// This metric is tagged with:
     /// - `worker`: the worker id.
     WorkerLocalQueueDepth,
-    /// Exposes [`RuntimeMetrics::worker_local_schedule_count`].
-    ///
-    /// This metric is tagged with:
-    /// - `worker`: the worker id.
-    WorkerLocalScheduleCount,
     /// Exposes [`RuntimeMetrics::worker_mean_poll_time`].
     ///
     /// This metric is tagged with:
     /// - `worker`: the worker id.
     WorkerMeanPollTime,
+}
+
+impl GaugeMetric for RuntimeGauges {
+    fn name(&self) -> &'static str {
+        match self {
+            RuntimeGauges::NumIdleThreads => "runtime.idle_threads",
+            RuntimeGauges::NumAliveTasks => "runtime.alive_tasks",
+            RuntimeGauges::BlockingQueueDepth => "runtime.blocking_queue_depth",
+            RuntimeGauges::NumBlockingThreads => "runtime.num_blocking_threads",
+            RuntimeGauges::NumIdleBlockingThreads => "runtime.num_idle_blocking_threads",
+            RuntimeGauges::NumWorkers => "runtime.num_workers",
+            RuntimeGauges::WorkerLocalQueueDepth => "runtime.worker_local_queue_depth",
+            RuntimeGauges::WorkerMeanPollTime => "runtime.worker_mean_poll_time",
+        }
+    }
+}
+
+/// Counter metrics collected from the Runtime.
+pub enum RuntimeCounters {
+    /// Exposes [`RuntimeMetrics::budget_forced_yield_count`].
+    BudgetForcedYieldCount,
+    /// Exposes [`RuntimeMetrics::worker_local_schedule_count`].
+    ///
+    /// This metric is tagged with:
+    /// - `worker`: the worker id.
+    WorkerLocalScheduleCount,
     /// Exposes [`RuntimeMetrics::worker_noop_count`].
     ///
     /// This metric is tagged with:
@@ -136,25 +143,18 @@ pub enum TokioGauges {
     WorkerTotalBusyDuration,
 }
 
-impl GaugeMetric for TokioGauges {
+impl CounterMetric for RuntimeCounters {
     fn name(&self) -> &'static str {
         match self {
-            TokioGauges::ActiveTasksCount => "tokio.active_task_count",
-            TokioGauges::BlockingQueueDepth => "tokio.blocking_queue_depth",
-            TokioGauges::BudgetForcedYieldCount => "tokio.budget_forced_yield_count",
-            TokioGauges::NumBlockingThreads => "tokio.num_blocking_threads",
-            TokioGauges::NumIdleBlockingThreads => "tokio.num_idle_blocking_threads",
-            TokioGauges::NumWorkers => "tokio.num_workers",
-            TokioGauges::WorkerLocalQueueDepth => "tokio.worker_local_queue_depth",
-            TokioGauges::WorkerLocalScheduleCount => "tokio.worker_local_schedule_count",
-            TokioGauges::WorkerMeanPollTime => "tokio.worker_mean_poll_time",
-            TokioGauges::WorkerNoopCount => "tokio.worker_noop_count",
-            TokioGauges::WorkerOverflowCount => "tokio.worker_overflow_count",
-            TokioGauges::WorkerParkCount => "tokio.worker_park_count",
-            TokioGauges::WorkerPollCount => "tokio.worker_poll_count",
-            TokioGauges::WorkerStealCount => "tokio.worker_steal_count",
-            TokioGauges::WorkerStealOperations => "tokio.worker_steal_operations",
-            TokioGauges::WorkerTotalBusyDuration => "tokio.worker_total_busy_duration",
+            RuntimeCounters::BudgetForcedYieldCount => "runtime.budget_forced_yield_count",
+            RuntimeCounters::WorkerLocalScheduleCount => "runtime.worker_local_schedule_count",
+            RuntimeCounters::WorkerNoopCount => "runtime.worker_noop_count",
+            RuntimeCounters::WorkerOverflowCount => "runtime.worker_overflow_count",
+            RuntimeCounters::WorkerParkCount => "runtime.worker_park_count",
+            RuntimeCounters::WorkerPollCount => "runtime.worker_poll_count",
+            RuntimeCounters::WorkerStealCount => "runtime.worker_steal_count",
+            RuntimeCounters::WorkerStealOperations => "runtime.worker_steal_operations",
+            RuntimeCounters::WorkerTotalBusyDuration => "runtime.worker_total_busy_duration",
         }
     }
 }
@@ -165,16 +165,7 @@ pub enum RelayHistograms {
     ///
     /// Metric is tagged by the item type.
     EnvelopeItemSize,
-    /// The estimated number of envelope bytes buffered in memory.
-    ///
-    /// The memory buffer size can be configured with `spool.envelopes.max_memory_size`.
-    BufferEnvelopesMemoryBytes,
-    /// The file size of the buffer db on disk, in bytes.
-    ///
-    /// This metric is computed by multiplying `page_count * page_size`.
-    BufferDiskSize,
-    /// Number of attempts needed to dequeue spooled envelopes from disk.
-    BufferDequeueAttempts,
+
     /// Number of elements in the envelope buffer across all the stacks.
     ///
     /// This metric is tagged with:
@@ -188,6 +179,10 @@ pub enum RelayHistograms {
     /// This is not quite the same as the actual size of a serialized envelope, because it ignores
     /// the envelope header and item headers.
     BufferEnvelopeBodySize,
+    /// Size of a serialized envelope pushed to the envelope buffer.
+    BufferEnvelopeSize,
+    /// Size of a compressed envelope pushed to the envelope buffer.
+    BufferEnvelopeSizeCompressed,
     /// The number of batches emitted per partition.
     BatchesPerPartition,
     /// The number of buckets in a batch emitted.
@@ -309,14 +304,13 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::EventSpans => "event.spans",
             RelayHistograms::BatchesPerPartition => "metrics.buckets.batches_per_partition",
             RelayHistograms::BucketsPerBatch => "metrics.buckets.per_batch",
-            RelayHistograms::BufferEnvelopesMemoryBytes => "buffer.envelopes_mem",
-            RelayHistograms::BufferDiskSize => "buffer.disk_size",
-            RelayHistograms::BufferDequeueAttempts => "buffer.dequeue_attempts",
             RelayHistograms::BufferEnvelopesCount => "buffer.envelopes_count",
             RelayHistograms::BufferBackpressureEnvelopesCount => {
                 "buffer.backpressure_envelopes_count"
             }
             RelayHistograms::BufferEnvelopeBodySize => "buffer.envelope_body_size",
+            RelayHistograms::BufferEnvelopeSize => "buffer.envelope_size",
+            RelayHistograms::BufferEnvelopeSizeCompressed => "buffer.envelope_size.compressed",
             RelayHistograms::ProjectStatePending => "project_state.pending",
             RelayHistograms::ProjectStateAttempts => "project_state.attempts",
             RelayHistograms::ProjectStateRequestBatchSize => "project_state.request.batch_size",
@@ -499,12 +493,6 @@ pub enum RelayTimers {
     /// This metric is tagged with:
     /// - `task`: The type of the task the project cache does.
     LegacyProjectCacheTaskDuration,
-    /// Timing in milliseconds for processing a message in the buffer service.
-    ///
-    /// This metric is tagged with:
-    ///
-    ///  - `message`: The type of message that was processed.
-    BufferMessageProcessDuration,
     /// Timing in milliseconds for handling and responding to a health check request.
     ///
     /// This metric is tagged with:
@@ -537,8 +525,22 @@ pub enum RelayTimers {
     StoreServiceDuration,
     /// Timing in milliseconds for the time it takes for initialize the buffer.
     BufferInitialization,
-    /// Timing in milliseconds for the time it takes for the buffer to spool data to disk.
+    /// Timing in milliseconds for the time the buffer service is waiting for input.
+    ///
+    /// This metric is tagged with:
+    /// - `input`: The type of input that broke the idling.
+    BufferIdle,
+    /// Timing in milliseconds for the time the buffer service spends handling input.
+    ///
+    /// This metric is tagged with:
+    /// - `input`: The type of input that the service is handling.
+    BufferBusy,
+    /// Timing in milliseconds for the time it takes for the buffer to pack & spool a batch.
+    ///
+    /// Contains the time it takes to pack multiple envelopes into a single memory blob.
     BufferSpool,
+    /// Timing in milliseconds for the time it takes for the buffer to spool data to SQLite.
+    BufferSqlWrite,
     /// Timing in milliseconds for the time it takes for the buffer to unspool data from disk.
     BufferUnspool,
     /// Timing in milliseconds for the time it takes for the buffer to push.
@@ -549,10 +551,16 @@ pub enum RelayTimers {
     BufferPop,
     /// Timing in milliseconds for the time it takes for the buffer to drain its envelopes.
     BufferDrain,
-    /// Timing in milliseconds for the time it takes for the envelopes to be serialized.
+    /// Timing in milliseconds for the time it takes for an envelope to be serialized.
     BufferEnvelopesSerialization,
+    /// Timing in milliseconds for the time it takes for an envelope to be compressed.
+    BufferEnvelopeCompression,
+    /// Timing in milliseconds for the time it takes for an envelope to be decompressed.
+    BufferEnvelopeDecompression,
     /// Timing in milliseconds to the time it takes to read an HTTP body.
     BodyReadDuration,
+    /// Timing in milliseconds to count spans in a serialized transaction payload.
+    CheckNestedSpans,
 }
 
 impl TimerMetric for RelayTimers {
@@ -583,7 +591,6 @@ impl TimerMetric for RelayTimers {
             RelayTimers::ReplayRecordingProcessing => "replay.recording.process",
             RelayTimers::GlobalConfigRequestDuration => "global_config.requests.duration",
             RelayTimers::ProcessMessageDuration => "processor.message.duration",
-            RelayTimers::BufferMessageProcessDuration => "buffer.message.duration",
             RelayTimers::ProjectCacheTaskDuration => "project_cache.task.duration",
             RelayTimers::LegacyProjectCacheMessageDuration => {
                 "legacy_project_cache.message.duration"
@@ -597,14 +604,20 @@ impl TimerMetric for RelayTimers {
             #[cfg(feature = "processing")]
             RelayTimers::StoreServiceDuration => "store.message.duration",
             RelayTimers::BufferInitialization => "buffer.initialization.duration",
+            RelayTimers::BufferIdle => "buffer.idle",
+            RelayTimers::BufferBusy => "buffer.busy",
             RelayTimers::BufferSpool => "buffer.spool.duration",
+            RelayTimers::BufferSqlWrite => "buffer.write.duration",
             RelayTimers::BufferUnspool => "buffer.unspool.duration",
             RelayTimers::BufferPush => "buffer.push.duration",
             RelayTimers::BufferPeek => "buffer.peek.duration",
             RelayTimers::BufferPop => "buffer.pop.duration",
             RelayTimers::BufferDrain => "buffer.drain.duration",
             RelayTimers::BufferEnvelopesSerialization => "buffer.envelopes_serialization",
+            RelayTimers::BufferEnvelopeCompression => "buffer.envelopes_compression",
+            RelayTimers::BufferEnvelopeDecompression => "buffer.envelopes_decompression",
             RelayTimers::BodyReadDuration => "requests.body_read.duration",
+            RelayTimers::CheckNestedSpans => "envelope.check_nested_spans",
         }
     }
 }
@@ -636,20 +649,10 @@ pub enum RelayCounters {
     ///  - `handling`: Either `"success"` if the envelope was handled correctly, or `"failure"` if
     ///    there was an error or bug.
     EnvelopeRejected,
-    /// Number of times the envelope buffer spools to disk.
-    BufferWritesDisk,
-    /// Number of times the envelope buffer reads back from disk.
-    BufferReadsDisk,
     /// Number of _envelopes_ the envelope buffer ingests.
     BufferEnvelopesWritten,
     /// Number of _envelopes_ the envelope buffer produces.
     BufferEnvelopesRead,
-    /// Number of state changes in the envelope buffer.
-    /// This metric is tagged with:
-    ///  - `state_in`: The previous state. `memory`, `memory_file_standby`, or `disk`.
-    ///  - `state_out`: The new state. `memory`, `memory_file_standby`, or `disk`.
-    ///  - `reason`: Why a transition was made (or not made).
-    BufferStateTransition,
     /// Number of envelopes that were returned to the envelope buffer by the project cache.
     ///
     /// This happens when the envelope buffer falsely assumes that the envelope's projects are loaded
@@ -704,15 +707,8 @@ pub enum RelayCounters {
     ///     - `false`: the request will be sent to the sentry endpoint.
     #[cfg(feature = "processing")]
     ProjectStateRedis,
-    /// Number of times a project is looked up from the cache.
-    ///
-    /// The cache may contain and outdated or expired project state. In that case, the project state
-    /// is updated even after a cache hit.
-    ProjectCacheHit,
-    /// Number of times a project lookup failed.
-    ///
-    /// A cache entry is created immediately and the project state requested from the upstream.
-    ProjectCacheMiss,
+    /// Number of times a project had a fetch scheduled.
+    ProjectCacheSchedule,
     /// Number of times an upstream request for a project config is completed.
     ///
     /// Completion can be because a result was returned or because the config request was
@@ -844,6 +840,10 @@ pub enum RelayCounters {
     BucketsDropped,
     /// Incremented every time a segment exceeds the expected limit.
     ReplayExceededSegmentLimit,
+    /// Incremented every time the server accepts a new connection.
+    ServerSocketAccept,
+    /// Incremented every time the server aborts a connection because of an idle timeout.
+    ServerConnectionIdleTimeout,
 }
 
 impl CounterMetric for RelayCounters {
@@ -852,12 +852,9 @@ impl CounterMetric for RelayCounters {
             RelayCounters::EventCorrupted => "event.corrupted",
             RelayCounters::EnvelopeAccepted => "event.accepted",
             RelayCounters::EnvelopeRejected => "event.rejected",
-            RelayCounters::BufferWritesDisk => "buffer.writes",
-            RelayCounters::BufferReadsDisk => "buffer.reads",
             RelayCounters::BufferEnvelopesWritten => "buffer.envelopes_written",
             RelayCounters::BufferEnvelopesRead => "buffer.envelopes_read",
             RelayCounters::BufferEnvelopesReturned => "buffer.envelopes_returned",
-            RelayCounters::BufferStateTransition => "buffer.state.transition",
             RelayCounters::BufferEnvelopeStacksPopped => "buffer.envelope_stacks_popped",
             RelayCounters::BufferTryPop => "buffer.try_pop",
             RelayCounters::BufferReadyToPop => "buffer.ready_to_pop",
@@ -869,8 +866,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ProjectStateRedis => "project_state.redis.requests",
             RelayCounters::ProjectUpstreamCompleted => "project_upstream.completed",
             RelayCounters::ProjectUpstreamFailed => "project_upstream.failed",
-            RelayCounters::ProjectCacheHit => "project_cache.hit",
-            RelayCounters::ProjectCacheMiss => "project_cache.miss",
+            RelayCounters::ProjectCacheSchedule => "project_cache.schedule",
             RelayCounters::ServerStarting => "server.starting",
             #[cfg(feature = "processing")]
             RelayCounters::ProcessingMessageProduced => "processing.event.produced",
@@ -889,6 +885,8 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ProjectStateFlushMetricsNoProject => "project_state.metrics.no_project",
             RelayCounters::BucketsDropped => "metrics.buckets.dropped",
             RelayCounters::ReplayExceededSegmentLimit => "replay.segment_limit_exceeded",
+            RelayCounters::ServerSocketAccept => "server.http.accepted",
+            RelayCounters::ServerConnectionIdleTimeout => "server.http.idle_timeout",
         }
     }
 }
@@ -914,7 +912,7 @@ pub enum PlatformTag {
 }
 
 impl PlatformTag {
-    pub fn as_str(&self) -> &str {
+    pub fn name(&self) -> &str {
         match self {
             Self::Cocoa => "cocoa",
             Self::Csharp => "csharp",
@@ -955,6 +953,87 @@ impl<S: AsRef<str>> From<S> for PlatformTag {
             "ruby" => Self::Ruby,
             "swift" => Self::Swift,
             _ => Self::Other,
+        }
+    }
+}
+
+/// Low-cardinality SDK name that can be used as a statsd tag.
+pub enum ClientName<'a> {
+    Ruby,
+    CocoaFlutter,
+    CocoaReactNative,
+    Cocoa,
+    Dotnet,
+    AndroidReactNative,
+    AndroidJava,
+    SpringBoot,
+    JavascriptBrowser,
+    Electron,
+    NestJs,
+    NextJs,
+    Node,
+    React,
+    Vue,
+    Native,
+    Laravel,
+    Symfony,
+    Php,
+    Python,
+    Other(&'a str),
+}
+
+impl ClientName<'_> {
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Ruby => "sentry-ruby",
+            Self::CocoaFlutter => "sentry.cocoa.flutter",
+            Self::CocoaReactNative => "sentry.cocoa.react-native",
+            Self::Cocoa => "sentry.cocoa",
+            Self::Dotnet => "sentry.dotnet",
+            Self::AndroidReactNative => "sentry.java.android.react-native",
+            Self::AndroidJava => "sentry.java.android",
+            Self::SpringBoot => "sentry.java.spring-boot.jakarta",
+            Self::JavascriptBrowser => "sentry.javascript.browser",
+            Self::Electron => "sentry.javascript.electron",
+            Self::NestJs => "sentry.javascript.nestjs",
+            Self::NextJs => "sentry.javascript.nextjs",
+            Self::Node => "sentry.javascript.node",
+            Self::React => "sentry.javascript.react",
+            Self::Vue => "sentry.javascript.vue",
+            Self::Native => "sentry.native",
+            Self::Laravel => "sentry.php.laravel",
+            Self::Symfony => "sentry.php.symfony",
+            Self::Php => "sentry.php",
+            Self::Python => "sentry.python",
+            Self::Other(_) => "other",
+        }
+    }
+}
+
+impl<'a> From<&'a str> for ClientName<'a> {
+    fn from(value: &'a str) -> Self {
+        match value {
+            "sentry-ruby" => Self::Ruby,
+            "sentry.cocoa.flutter" => Self::CocoaFlutter,
+            "sentry.cocoa.react-native" => Self::CocoaReactNative,
+            "sentry.cocoa" => Self::Cocoa,
+            "sentry.dotnet" => Self::Dotnet,
+            "sentry.java.android.react-native" => Self::AndroidReactNative,
+            "sentry.java.android" => Self::AndroidJava,
+            "sentry.java.spring-boot.jakarta" => Self::SpringBoot,
+            "sentry.javascript.browser" => Self::JavascriptBrowser,
+            "sentry.javascript.electron" => Self::Electron,
+            "sentry.javascript.nestjs" => Self::NestJs,
+            "sentry.javascript.nextjs" => Self::NextJs,
+            "sentry.javascript.node" => Self::Node,
+            "sentry.javascript.react" => Self::React,
+            "sentry.javascript.vue" => Self::Vue,
+            "sentry.native" => Self::Native,
+            "sentry.php.laravel" => Self::Laravel,
+            "sentry.php.symfony" => Self::Symfony,
+            "sentry.php" => Self::Php,
+            "sentry.python" => Self::Python,
+            other => Self::Other(other),
         }
     }
 }

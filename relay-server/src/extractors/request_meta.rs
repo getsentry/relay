@@ -13,6 +13,7 @@ use axum::RequestPartsExt;
 use chrono::{DateTime, Utc};
 use data_encoding::BASE64;
 use relay_auth::RelayId;
+use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::{ParseProjectKeyError, ProjectId, ProjectKey};
 use relay_common::{Auth, Dsn, ParseAuthError, ParseDsnError, Scheme};
 use relay_config::UpstreamDescriptor;
@@ -23,7 +24,7 @@ use url::Url;
 
 use crate::extractors::{ForwardedFor, ReceivedAt};
 use crate::service::ServiceState;
-use crate::statsd::RelayCounters;
+use crate::statsd::{ClientName, RelayCounters};
 use crate::utils::ApiErrorResponse;
 
 #[derive(Debug, thiserror::Error)]
@@ -248,10 +249,11 @@ impl<D> RequestMeta<D> {
     /// Returns the name of the client that sent the event without version.
     ///
     /// If the client is not sent in standard format, this method returns `None`.
-    pub fn client_name(&self) -> Option<&str> {
-        let client = self.client()?;
-        let (name, _version) = client.split_once('/')?;
-        Some(name)
+    pub fn client_name(&self) -> ClientName {
+        self.client()
+            .and_then(|client| client.split_once('/'))
+            .map(|(client, _)| client)
+            .map_or(ClientName::Other("proprietary"), ClientName::from)
     }
 
     /// Returns the protocol version of the event payload.
@@ -397,7 +399,7 @@ impl RequestMeta {
     /// state. To fetch full scoping information, invoke the `GetScoping` message on `Project`.
     pub fn get_partial_scoping(&self) -> Scoping {
         Scoping {
-            organization_id: 0,
+            organization_id: OrganizationId::new(0),
             project_id: self.project_id().unwrap_or_else(|| ProjectId::new(0)),
             project_key: self.public_key(),
             key_id: None,

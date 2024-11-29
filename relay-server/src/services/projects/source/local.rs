@@ -156,7 +156,7 @@ async fn spawn_poll_local_states(
     poll_local_states(&project_path, &tx).await;
 
     // Start a background loop that polls periodically:
-    tokio::spawn(async move {
+    relay_system::spawn!(async move {
         // To avoid running two load tasks simultaneously at startup, we delay the interval by one period:
         let start_at = Instant::now() + period;
         let mut ticker = tokio::time::interval_at(start_at, period);
@@ -171,28 +171,26 @@ async fn spawn_poll_local_states(
 impl Service for LocalProjectSourceService {
     type Interface = LocalProjectSource;
 
-    fn spawn_handler(mut self, mut rx: Receiver<Self::Interface>) {
+    async fn run(mut self, mut rx: Receiver<Self::Interface>) {
         // Use a channel with size 1. If the channel is full because the consumer does not
         // collect the result, the producer will block, which is acceptable.
         let (state_tx, mut state_rx) = mpsc::channel(1);
 
-        tokio::spawn(async move {
-            relay_log::info!("project local cache started");
+        relay_log::info!("project local cache started");
 
-            // Start the background task that periodically reloads projects from disk:
-            spawn_poll_local_states(&self.config, state_tx).await;
+        // Start the background task that periodically reloads projects from disk:
+        spawn_poll_local_states(&self.config, state_tx).await;
 
-            loop {
-                tokio::select! {
-                    biased;
-                    Some(message) = rx.recv() => self.handle_message(message),
-                    Some(states) = state_rx.recv() => self.local_states = states,
+        loop {
+            tokio::select! {
+                biased;
+                Some(message) = rx.recv() => self.handle_message(message),
+                Some(states) = state_rx.recv() => self.local_states = states,
 
-                    else => break,
-                }
+                else => break,
             }
-            relay_log::info!("project local cache stopped");
-        });
+        }
+        relay_log::info!("project local cache stopped");
     }
 }
 

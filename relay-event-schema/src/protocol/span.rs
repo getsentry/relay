@@ -6,8 +6,8 @@ use relay_protocol::{
 
 use crate::processor::ProcessValue;
 use crate::protocol::{
-    EventId, IpAddr, JsonLenientString, LenientString, Measurements, MetricsSummary, OperationType,
-    OriginType, SpanId, SpanStatus, ThreadId, Timestamp, TraceId,
+    EventId, IpAddr, JsonLenientString, LenientString, Measurements, OperationType, OriginType,
+    SpanId, SpanStatus, ThreadId, Timestamp, TraceId,
 };
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
@@ -92,13 +92,6 @@ pub struct Span {
     #[metastructure(skip_serialization = "empty", trim = "false")]
     #[metastructure(omit_from_schema)] // we only document error events for now
     pub measurements: Annotated<Measurements>,
-
-    /// Temporary protocol support for metric summaries.
-    ///
-    /// This shall move to a stable location once we have stabilized the
-    /// interface.  This is intentionally not typed today.
-    #[metastructure(skip_serialization = "empty", trim = "false")]
-    pub _metrics_summary: Annotated<MetricsSummary>,
 
     /// Platform identifier.
     ///
@@ -413,6 +406,14 @@ pub struct SpanData {
     /// <https://opentelemetry.io/docs/specs/semconv/attributes-registry/user/>
     #[metastructure(field = "user.roles")]
     pub user_roles: Annotated<Array<String>>,
+
+    /// Exclusive Time
+    #[metastructure(field = "sentry.exclusive_time")]
+    pub exclusive_time: Annotated<Value>,
+
+    /// Profile ID
+    #[metastructure(field = "profile_id")]
+    pub profile_id: Annotated<Value>,
 
     /// Replay ID
     #[metastructure(field = "sentry.replay.id", legacy_alias = "replay_id")]
@@ -875,6 +876,8 @@ mod tests {
             user_id: ~,
             user_name: ~,
             user_roles: ~,
+            exclusive_time: ~,
+            profile_id: ~,
             replay_id: ~,
             sdk_name: ~,
             sdk_version: ~,

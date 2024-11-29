@@ -821,13 +821,14 @@ mod tests {
         let browser =
             BrowserContext::from_hints_or_ua(&RawUserAgentInfo::from_headers(&headers)).unwrap();
 
-        insta::assert_debug_snapshot!(browser, @r#"
+        insta::assert_debug_snapshot!(browser, @r###"
         BrowserContext {
+            browser: ~,
             name: "Google Chrome",
             version: "109",
             other: {},
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -873,13 +874,14 @@ mod tests {
         let browser =
             BrowserContext::from_hints_or_ua(&RawUserAgentInfo::from_headers(&headers)).unwrap();
 
-        insta::assert_debug_snapshot!(browser, @r#"
+        insta::assert_debug_snapshot!(browser, @r###"
         BrowserContext {
+            browser: ~,
             name: "weird browser",
             version: "109",
             other: {},
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -952,18 +954,21 @@ mod tests {
 
         let os = OsContext::from_hints_or_ua(&RawUserAgentInfo::from_headers(&headers)).unwrap();
 
-        insta::assert_debug_snapshot!(os, @r#"
-OsContext {
-    name: "macOS",
-    version: "13.1.0",
-    build: ~,
-    kernel_version: ~,
-    rooted: ~,
-    distribution: ~,
-    raw_description: ~,
-    other: {},
-}
-        "#);
+        insta::assert_debug_snapshot!(os, @r###"
+        OsContext {
+            os: ~,
+            name: "macOS",
+            version: "13.1.0",
+            build: ~,
+            kernel_version: ~,
+            rooted: ~,
+            distribution_name: ~,
+            distribution_version: ~,
+            distribution_pretty_name: ~,
+            raw_description: ~,
+            other: {},
+        }
+        "###);
     }
 
     #[test]
@@ -1024,18 +1029,21 @@ OsContext {
 
         let os = OsContext::from_hints_or_ua(&RawUserAgentInfo::from_headers(&headers)).unwrap();
 
-        insta::assert_debug_snapshot!(os, @r#"
-OsContext {
-    name: "Mac OS X",
-    version: "10.15.6",
-    build: ~,
-    kernel_version: ~,
-    rooted: ~,
-    distribution: ~,
-    raw_description: ~,
-    other: {},
-}
-        "#);
+        insta::assert_debug_snapshot!(os, @r###"
+        OsContext {
+            os: ~,
+            name: "Mac OS X",
+            version: "10.15.6",
+            build: ~,
+            kernel_version: ~,
+            rooted: ~,
+            distribution_name: ~,
+            distribution_version: ~,
+            distribution_pretty_name: ~,
+            raw_description: ~,
+            other: {},
+        }
+        "###);
     }
 
     #[test]
@@ -1072,21 +1080,6 @@ OsContext {
 
         // Checks that the '>=' prefix is added.
         assert_eq!(os.version.value().unwrap(), ">=10.15.7");
-    }
-
-    impl RawUserAgentInfo<&str> {
-        pub fn new_test_dummy() -> Self {
-            Self {
-                user_agent: Some("Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:109.0) Gecko/20100101 Firefox/109.0"),
-                client_hints: ClientHints {
-                    sec_ch_ua_platform: Some("macOS"),
-                    sec_ch_ua_platform_version: Some("13.2.0"),
-                    sec_ch_ua: Some(r#""Chromium";v="110", "Not A(Brand";v="24", "Google Chrome";v="110""#),
-                    sec_ch_ua_model: Some("some model"),
-                }
-
-            }
-        }
     }
 
     #[test]

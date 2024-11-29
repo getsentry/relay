@@ -270,7 +270,6 @@ pub use self::envelope::Envelope; // pub for benchmarks
 pub use self::services::buffer::{
     EnvelopeStack, PolymorphicEnvelopeBuffer, SqliteEnvelopeStack, SqliteEnvelopeStore,
 }; // pub for benchmarks
-pub use self::services::spooler::spool_utils;
 pub use self::utils::{MemoryChecker, MemoryStat}; // pub for benchmarks
 
 #[cfg(test)]
@@ -279,7 +278,7 @@ mod testutils;
 use std::sync::Arc;
 
 use relay_config::Config;
-use relay_system::{Controller, Service};
+use relay_system::Controller;
 
 use crate::service::ServiceState;
 use crate::services::server::HttpServer;
@@ -294,20 +293,30 @@ pub fn run(config: Config) -> anyhow::Result<()> {
     relay_log::info!("relay server starting");
 
     // Creates the main runtime.
-    let main_runtime = crate::service::create_runtime("main-rt", config.cpu_concurrency());
+    let runtime = crate::service::create_runtime("main-rt", config.cpu_concurrency());
+    let runtime_metrics = runtime.metrics();
 
     // Run the system and block until a shutdown signal is sent to this process. Inside, start a
     // web server and run all relevant services. See the `actors` module documentation for more
     // information on all services.
-    main_runtime.block_on(async {
+    runtime.block_on(async {
         Controller::start(config.shutdown_timeout());
-        let service = ServiceState::start(config.clone())?;
-        HttpServer::new(config, service.clone())?.start();
-        Controller::shutdown_handle().finished().await;
+        let (state, mut runner) = ServiceState::start(runtime_metrics, config.clone()).await?;
+        runner.start(HttpServer::new(config, state.clone())?);
+
+        tokio::select! {
+            _ = runner.join() => {},
+            // NOTE: when every service implements a shutdown listener,
+            // awaiting on `finished` becomes unnecessary: We can simply join() and guarantee
+            // that every service finished its main task.
+            // See also https://github.com/getsentry/relay/issues/4050.
+            _ = Controller::shutdown_handle().finished() => {}
+        }
+
         anyhow::Ok(())
     })?;
 
-    drop(main_runtime);
+    drop(runtime);
 
     relay_log::info!("relay shutdown complete");
     Ok(())

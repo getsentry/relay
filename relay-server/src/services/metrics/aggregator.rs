@@ -246,25 +246,23 @@ impl AggregatorService {
 impl Service for AggregatorService {
     type Interface = Aggregator;
 
-    fn spawn_handler(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
-        tokio::spawn(async move {
-            let mut ticker = tokio::time::interval(Duration::from_millis(self.flush_interval_ms));
-            let mut shutdown = Controller::shutdown_handle();
+    async fn run(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
+        let mut ticker = tokio::time::interval(Duration::from_millis(self.flush_interval_ms));
+        let mut shutdown = Controller::shutdown_handle();
 
-            // Note that currently this loop never exits and will run till the tokio runtime shuts
-            // down. This is about to change with the refactoring for the shutdown process.
-            loop {
-                tokio::select! {
-                    biased;
+        // Note that currently this loop never exits and will run till the tokio runtime shuts
+        // down. This is about to change with the refactoring for the shutdown process.
+        loop {
+            tokio::select! {
+                biased;
 
-                    _ = ticker.tick() => self.try_flush(),
-                    Some(message) = rx.recv() => self.handle_message(message),
-                    shutdown = shutdown.notified() => self.handle_shutdown(shutdown),
+                _ = ticker.tick() => self.try_flush(),
+                Some(message) = rx.recv() => self.handle_message(message),
+                shutdown = shutdown.notified() => self.handle_shutdown(shutdown),
 
-                    else => break,
-                }
+                else => break,
             }
-        });
+        }
     }
 }
 
@@ -361,16 +359,14 @@ mod tests {
     impl Service for TestReceiver {
         type Interface = TestInterface;
 
-        fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
-            tokio::spawn(async move {
-                while let Some(message) = rx.recv().await {
-                    let buckets = message.0.buckets;
-                    relay_log::debug!(?buckets, "received buckets");
-                    if !self.reject_all {
-                        self.add_buckets(buckets);
-                    }
+        async fn run(self, mut rx: relay_system::Receiver<Self::Interface>) {
+            while let Some(message) = rx.recv().await {
+                let buckets = message.0.buckets;
+                relay_log::debug!(?buckets, "received buckets");
+                if !self.reject_all {
+                    self.add_buckets(buckets);
                 }
-            });
+            }
         }
     }
 
@@ -392,7 +388,7 @@ mod tests {
         tokio::time::pause();
 
         let receiver = TestReceiver::default();
-        let recipient = receiver.clone().start().recipient();
+        let recipient = receiver.clone().start_detached().recipient();
 
         let config = AggregatorServiceConfig {
             aggregator: AggregatorConfig {
@@ -402,7 +398,7 @@ mod tests {
             },
             ..Default::default()
         };
-        let aggregator = AggregatorService::new(config, Some(recipient)).start();
+        let aggregator = AggregatorService::new(config, Some(recipient)).start_detached();
 
         let mut bucket = some_bucket();
         bucket.timestamp = UnixTimestamp::now();

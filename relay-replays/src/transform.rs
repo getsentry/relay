@@ -203,7 +203,7 @@ where
     }
 }
 
-impl<'de, 'a, D, T> de::Deserializer<'de> for Deserializer<'a, D, T>
+impl<'de, D, T> de::Deserializer<'de> for Deserializer<'_, D, T>
 where
     D: de::Deserializer<'de>,
     T: Transform<'de>,
@@ -606,7 +606,7 @@ impl<'a, V, T> Visitor<'a, V, T> {
     }
 }
 
-impl<'de, 'a, V, T> de::Visitor<'de> for Visitor<'a, V, T>
+impl<'de, V, T> de::Visitor<'de> for Visitor<'_, V, T>
 where
     V: de::Visitor<'de>,
     T: Transform<'de>,
@@ -824,7 +824,7 @@ where
 
 struct SeqAccess<'a, A, T>(A, &'a mut T);
 
-impl<'de, 'a, A, T> de::SeqAccess<'de> for SeqAccess<'a, A, T>
+impl<'de, A, T> de::SeqAccess<'de> for SeqAccess<'_, A, T>
 where
     A: de::SeqAccess<'de>,
     T: Transform<'de>,
@@ -845,7 +845,7 @@ where
 
 struct MapAccess<'a, A, T>(A, &'a mut T);
 
-impl<'de, 'a, A, T> de::MapAccess<'de> for MapAccess<'a, A, T>
+impl<'de, A, T> de::MapAccess<'de> for MapAccess<'_, A, T>
 where
     A: de::MapAccess<'de>,
     T: Transform<'de>,
@@ -870,7 +870,7 @@ where
 
 struct DeserializeValueSeed<'a, D, T>(D, &'a mut T);
 
-impl<'de, 'a, D, T> de::DeserializeSeed<'de> for DeserializeValueSeed<'a, D, T>
+impl<'de, D, T> de::DeserializeSeed<'de> for DeserializeValueSeed<'_, D, T>
 where
     D: de::DeserializeSeed<'de>,
     T: Transform<'de>,
@@ -891,7 +891,7 @@ where
 
 struct DeserializeKeySeed<'a, D, T>(D, &'a mut T);
 
-impl<'de, 'a, D, T> de::DeserializeSeed<'de> for DeserializeKeySeed<'a, D, T>
+impl<'de, D, T> de::DeserializeSeed<'de> for DeserializeKeySeed<'_, D, T>
 where
     D: de::DeserializeSeed<'de>,
     T: Transform<'de>,

@@ -19,7 +19,6 @@ use relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId, Token};
 use relay_common::time::UnixTimestamp;
 use relay_config::{Config, HttpEncoding, NormalizationLevel, RelayMode};
 use relay_dynamic_config::{CombinedMetricExtractionConfig, ErrorBoundary, Feature};
-use relay_event_normalization::span::description::ScrubMongoDescription;
 use relay_event_normalization::{
     normalize_event, validate_event, ClockDriftProcessor, CombinedMeasurementsConfig,
     EventValidationConfig, GeoIpLookup, MeasurementsConfig, NormalizationConfig, RawUserAgentInfo,
@@ -41,6 +40,7 @@ use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
 use reqwest::header;
 use smallvec::{smallvec, SmallVec};
+use zstd::stream::Encoder as ZstdEncoder;
 
 #[cfg(feature = "processing")]
 use {
@@ -298,8 +298,12 @@ impl ProcessingGroup {
         }
 
         // Extract spans.
-        let span_items = envelope
-            .take_items_by(|item| matches!(item.ty(), &ItemType::Span | &ItemType::OtelSpan));
+        let span_items = envelope.take_items_by(|item| {
+            matches!(
+                item.ty(),
+                &ItemType::Span | &ItemType::OtelSpan | &ItemType::OtelTracesData
+            )
+        });
         if !span_items.is_empty() {
             grouped_envelopes.push((
                 ProcessingGroup::Span,
@@ -794,7 +798,7 @@ struct ProcessEnvelopeState<'a, Group> {
     event_fully_normalized: bool,
 }
 
-impl<'a, Group> ProcessEnvelopeState<'a, Group> {
+impl<Group> ProcessEnvelopeState<'_, Group> {
     /// Returns a reference to the contained [`Envelope`].
     fn envelope(&self) -> &Envelope {
         self.managed_envelope.envelope()
@@ -1597,14 +1601,6 @@ impl EnvelopeProcessorService {
                     .dsc()
                     .and_then(|ctx| ctx.replay_id),
                 span_allowed_hosts: http_span_allowed_hosts,
-                scrub_mongo_description: if state
-                    .project_info
-                    .has_feature(Feature::ScrubMongoDbDescriptions)
-                {
-                    ScrubMongoDescription::Enabled
-                } else {
-                    ScrubMongoDescription::Disabled
-                },
                 span_op_defaults: global_config.span_op_defaults.borrow(),
             };
 
@@ -1710,17 +1706,13 @@ impl EnvelopeProcessorService {
         };
 
         if let Some(outcome) = sampling_result.into_dropped_outcome() {
-            let keep_profiles = global_config.options.unsampled_profiles_enabled;
             // Process profiles before dropping the transaction, if necessary.
             // Before metric extraction to make sure the profile count is reflected correctly.
-            let profile_id = match keep_profiles {
-                true => profile::process(state, &global_config),
-                false => profile_id,
-            };
+            let profile_id = profile::process(state, &global_config);
             // Extract metrics here, we're about to drop the event/transaction.
             self.extract_transaction_metrics(state, SamplingDecision::Drop, profile_id)?;
 
-            dynamic_sampling::drop_unsampled_items(state, outcome, keep_profiles);
+            dynamic_sampling::drop_unsampled_items(state, outcome);
 
             // At this point we have:
             //  - An empty envelope.
@@ -1868,6 +1860,7 @@ impl EnvelopeProcessorService {
         state: &mut ProcessEnvelopeState<SpanGroup>,
     ) -> Result<(), ProcessingError> {
         span::filter(state);
+        span::convert_otel_traces_data(state);
 
         if_processing!(self.inner.config, {
             let global_config = self.inner.global_config.current();
@@ -2535,7 +2528,7 @@ impl EnvelopeProcessorService {
                     },
                     || {
                         relay_log::error!(
-                            tags.organization_id = scoping.organization_id,
+                            tags.organization_id = scoping.organization_id.value(),
                             tags.limit_id = limit.id,
                             tags.passive = limit.passive,
                             "Cardinality Limit"
@@ -2829,16 +2822,14 @@ impl EnvelopeProcessorService {
 impl Service for EnvelopeProcessorService {
     type Interface = EnvelopeProcessor;
 
-    fn spawn_handler(self, mut rx: relay_system::Receiver<Self::Interface>) {
-        tokio::spawn(async move {
-            while let Some(message) = rx.recv().await {
-                let service = self.clone();
-                self.inner
-                    .workers
-                    .spawn(move || service.handle_message(message))
-                    .await;
-            }
-        });
+    async fn run(self, mut rx: relay_system::Receiver<Self::Interface>) {
+        while let Some(message) = rx.recv().await {
+            let service = self.clone();
+            self.inner
+                .workers
+                .spawn(move || service.handle_message(message))
+                .await;
+        }
     }
 }
 
@@ -2849,7 +2840,7 @@ enum RateLimiter<'a> {
 }
 
 #[cfg(feature = "processing")]
-impl<'a> RateLimiter<'a> {
+impl RateLimiter<'_> {
     fn enforce<G>(
         &self,
         global_config: &GlobalConfig,
@@ -2924,6 +2915,13 @@ fn encode_payload(body: &Bytes, http_encoding: HttpEncoding) -> Result<Bytes, st
             let mut encoder = BrotliEncoder::new(Vec::new(), 0, 5, 22);
             encoder.write_all(body.as_ref())?;
             encoder.into_inner()
+        }
+        HttpEncoding::Zstd => {
+            // Use the fastest compression level, our main objective here is to get the best
+            // compression ratio for least amount of time spent.
+            let mut encoder = ZstdEncoder::new(Vec::new(), 1)?;
+            encoder.write_all(body.as_ref())?;
+            encoder.finish()?
         }
     };
 
@@ -3307,8 +3305,10 @@ mod tests {
     #[cfg(feature = "processing")]
     #[tokio::test]
     async fn test_ratelimit_per_batch() {
-        let rate_limited_org = 1;
-        let not_ratelimited_org = 2;
+        use relay_base_schema::organization::OrganizationId;
+
+        let rate_limited_org = OrganizationId::new(1);
+        let not_ratelimited_org = OrganizationId::new(2);
 
         let message = {
             let project_info = {
@@ -3345,7 +3345,7 @@ mod tests {
                 project_info,
             };
 
-            let scoping_by_org_id = |org_id: u64| Scoping {
+            let scoping_by_org_id = |org_id: OrganizationId| Scoping {
                 organization_id: org_id,
                 project_id: ProjectId::new(21),
                 project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
@@ -3382,7 +3382,7 @@ mod tests {
         };
 
         let (store, handle) = {
-            let f = |org_ids: &mut Vec<u64>, msg: Store| {
+            let f = |org_ids: &mut Vec<OrganizationId>, msg: Store| {
                 let org_id = match msg {
                     Store::Metrics(x) => x.scoping.organization_id,
                     _ => panic!("received envelope when expecting only metrics"),
@@ -3393,7 +3393,7 @@ mod tests {
             mock_service("store_forwarder", vec![], f)
         };
 
-        let processor = create_test_processor(config);
+        let processor = create_test_processor(config).await;
         assert!(processor.redis_rate_limiter_enabled());
 
         processor.encode_metrics_processing(message, &store);
@@ -3406,7 +3406,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_browser_version_extraction_with_pii_like_data() {
-        let processor = create_test_processor(Default::default());
+        let processor = create_test_processor(Default::default()).await;
         let (outcome_aggregator, test_store) = testutils::processor_services();
         let event_id = EventId::new();
 
@@ -3490,7 +3490,7 @@ mod tests {
         let contexts = event.contexts.into_value().unwrap();
         let browser = contexts.0.get("browser").unwrap();
         assert_eq!(
-            r#"{"name":"Chrome","version":"103.0.0","type":"browser"}"#,
+            r#"{"browser":"Chrome 103.0.0","name":"Chrome","version":"103.0.0","type":"browser"}"#,
             browser.to_json().unwrap()
         );
     }
@@ -3539,7 +3539,7 @@ mod tests {
         }))
         .unwrap();
 
-        let processor = create_test_processor(config);
+        let processor = create_test_processor(config).await;
         let response = processor.process(process_message).unwrap();
         let envelope = response.envelope.as_ref().unwrap().envelope();
         let event = envelope
@@ -3717,7 +3717,8 @@ mod tests {
                 aggregator,
                 ..Default::default()
             },
-        );
+        )
+        .await;
 
         let mut item = Item::new(ItemType::Statsd);
         item.set_payload(
@@ -3763,7 +3764,8 @@ mod tests {
                 aggregator,
                 ..Default::default()
             },
-        );
+        )
+        .await;
 
         let payload = r#"{
     "buckets": {

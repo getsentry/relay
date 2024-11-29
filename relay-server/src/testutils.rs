@@ -13,7 +13,6 @@ use relay_system::Addr;
 use relay_test::mock_service;
 
 use crate::envelope::{Envelope, Item, ItemType};
-use crate::extractors::RequestMeta;
 use crate::metrics::{MetricOutcomes, MetricStats};
 #[cfg(feature = "processing")]
 use crate::service::create_redis_pools;
@@ -104,26 +103,19 @@ pub fn new_envelope<T: Into<String>>(with_dsc: bool, transaction_name: T) -> Box
     envelope
 }
 
-pub fn empty_envelope() -> Box<Envelope> {
-    empty_envelope_with_dsn("e12d836b15bb49d7bbf99e64295d995b")
-}
-
-pub fn empty_envelope_with_dsn(dsn: &str) -> Box<Envelope> {
-    let dsn = format!("https://{dsn}:@sentry.io/42").parse().unwrap();
-
-    let mut envelope = Envelope::from_request(Some(EventId::new()), RequestMeta::new(dsn));
-    envelope.add_item(Item::new(ItemType::Event));
-    envelope
-}
-
-pub fn create_test_processor(config: Config) -> EnvelopeProcessorService {
+pub async fn create_test_processor(config: Config) -> EnvelopeProcessorService {
     let (outcome_aggregator, _) = mock_service("outcome_aggregator", (), |&mut (), _| {});
     let (aggregator, _) = mock_service("aggregator", (), |&mut (), _| {});
     let (upstream_relay, _) = mock_service("upstream_relay", (), |&mut (), _| {});
     let (test_store, _) = mock_service("test_store", (), |&mut (), _| {});
 
     #[cfg(feature = "processing")]
-    let redis_pools = config.redis().map(create_redis_pools).transpose().unwrap();
+    let redis_pools = match config.redis() {
+        Some(pool) => Some(create_redis_pools(pool).await),
+        None => None,
+    }
+    .transpose()
+    .unwrap();
 
     let metric_outcomes = MetricOutcomes::new(MetricStats::test().0, outcome_aggregator.clone());
 
@@ -148,12 +140,17 @@ pub fn create_test_processor(config: Config) -> EnvelopeProcessorService {
     )
 }
 
-pub fn create_test_processor_with_addrs(
+pub async fn create_test_processor_with_addrs(
     config: Config,
     addrs: processor::Addrs,
 ) -> EnvelopeProcessorService {
     #[cfg(feature = "processing")]
-    let redis_pools = config.redis().map(create_redis_pools).transpose().unwrap();
+    let redis_pools = match config.redis() {
+        Some(pools) => Some(create_redis_pools(pools).await),
+        None => None,
+    }
+    .transpose()
+    .unwrap();
     let metric_outcomes =
         MetricOutcomes::new(MetricStats::test().0, addrs.outcome_aggregator.clone());
 

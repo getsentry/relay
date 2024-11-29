@@ -1,4 +1,5 @@
 //! Span description scrubbing logic.
+mod redis;
 mod resource;
 mod sql;
 use once_cell::sync::Lazy;
@@ -16,8 +17,9 @@ use url::{Host, Url};
 
 use crate::regexes::{
     DB_SQL_TRANSACTION_CORE_DATA_REGEX, DB_SUPABASE_REGEX, FUNCTION_NORMALIZER_REGEX,
-    REDIS_COMMAND_REGEX, RESOURCE_NORMALIZER_REGEX,
+    RESOURCE_NORMALIZER_REGEX,
 };
+use crate::span::description::redis::matching_redis_command;
 use crate::span::description::resource::COMMON_PATH_SEGMENTS;
 use crate::span::tag_extraction::HTTP_METHOD_EXTRACTOR_REGEX;
 use crate::span::TABLE_NAME_REGEX;
@@ -36,22 +38,12 @@ const MAX_EXTENSION_LENGTH: usize = 10;
 /// Domain names that are preserved during scrubbing
 const DOMAIN_ALLOW_LIST: &[&str] = &["localhost"];
 
-#[derive(PartialEq, Clone, Copy, Debug)]
-/// Whether to scrub MongoDB span descriptions or not. See `Feature::ScrubMongoDBDescriptions`.
-pub enum ScrubMongoDescription {
-    /// Disable scrubbing of MongoDB span descriptions.
-    Disabled,
-    /// Enable scrubbing of MongoDB span descriptions.
-    Enabled,
-}
-
 /// Attempts to replace identifiers in the span description with placeholders.
 ///
 /// Returns `None` if no scrubbing can be performed.
 pub(crate) fn scrub_span_description(
     span: &Span,
     span_allowed_hosts: &[String],
-    scrub_mongo_description: ScrubMongoDescription,
 ) -> (Option<String>, Option<Vec<sqlparser::ast::Statement>>) {
     let Some(description) = span.description.as_str() else {
         return (None, None);
@@ -73,10 +65,7 @@ pub(crate) fn scrub_span_description(
             ("http", _) => scrub_http(description, span_allowed_hosts),
             ("cache", _) | ("db", "redis") => scrub_redis_keys(description),
             ("db", _) if db_system == Some("redis") => scrub_redis_keys(description),
-            ("db", _)
-                if scrub_mongo_description == ScrubMongoDescription::Enabled
-                    && db_system == Some("mongodb") =>
-            {
+            ("db", _) if db_system == Some("mongodb") => {
                 let command = data
                     .and_then(|data| data.db_operation.value())
                     .and_then(|command| command.as_str());
@@ -384,15 +373,20 @@ pub fn concatenate_host_and_port(host: Option<&str>, port: Option<u16>) -> Cow<s
 }
 
 fn scrub_redis_keys(string: &str) -> Option<String> {
-    let parts = REDIS_COMMAND_REGEX
-        .captures(string)
-        .map(|caps| (caps.name("command"), caps.name("args")));
-    let scrubbed = match parts {
-        Some((Some(command), Some(_args))) => command.as_str().to_owned() + " *",
-        Some((Some(command), None)) => command.as_str().into(),
-        None | Some((None, _)) => "*".into(),
-    };
-    Some(scrubbed)
+    let string = string.trim();
+    Some(match matching_redis_command(string) {
+        Some(command) => {
+            let mut command = command.to_uppercase();
+            match string.get(command.len()..) {
+                None | Some("") => command,
+                Some(_other) => {
+                    command.push_str(" *");
+                    command
+                }
+            }
+        }
+        None => "*".to_owned(),
+    })
 }
 
 enum UrlType {
@@ -447,7 +441,7 @@ fn scrub_resource(resource_type: &str, string: &str) -> Option<String> {
                 }
                 if COMMON_PATH_SEGMENTS.contains(segment) {
                     output_segments.push(segment);
-                } else if !output_segments.last().is_some_and(|s| *s == "*") {
+                } else if output_segments.last().is_none_or(|s| *s != "*") {
                     // only one asterisk
                     output_segments.push("*");
                 }
@@ -656,11 +650,7 @@ mod tests {
                     .description
                     .set_value(Some($description_in.into()));
 
-                let scrubbed = scrub_span_description(
-                    span.value_mut().as_mut().unwrap(),
-                    &[],
-                    ScrubMongoDescription::Disabled,
-                );
+                let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap(), &[]);
 
                 if $expected == "" {
                     assert!(scrubbed.0.is_none());
@@ -668,6 +658,13 @@ mod tests {
                     assert_eq!($expected, scrubbed.0.unwrap());
                 }
             }
+        };
+    }
+
+    macro_rules! span_description_test_with_lowercase {
+        ($name:ident, $name2:ident, $description_in:expr, $op_in:literal, $expected:literal) => {
+            span_description_test!($name, $description_in, $op_in, $expected);
+            span_description_test!($name2, ($description_in).to_lowercase(), $op_in, $expected);
         };
     }
 
@@ -792,30 +789,57 @@ mod tests {
         ""
     );
 
-    span_description_test!(
+    span_description_test_with_lowercase!(
         cache,
+        cache_lower,
         "GET abc:12:{def}:{34}:{fg56}:EAB38:zookeeper",
         "cache.get_item",
         "GET *"
     );
 
-    span_description_test!(redis_set, "SET mykey myvalue", "db.redis", "SET *");
+    span_description_test_with_lowercase!(
+        redis_set,
+        redis_set_lower,
+        "SET mykey myvalue",
+        "db.redis",
+        "SET *"
+    );
 
-    span_description_test!(
+    span_description_test_with_lowercase!(
         redis_set_quoted,
+        redis_set_quoted_lower,
         r#"SET mykey 'multi: part, value'"#,
         "db.redis",
         "SET *"
     );
 
-    span_description_test!(redis_whitespace, " GET  asdf:123", "db.redis", "GET *");
+    span_description_test_with_lowercase!(
+        redis_whitespace,
+        redis_whitespace_lower,
+        " GET  asdf:123",
+        "db.redis",
+        "GET *"
+    );
 
-    span_description_test!(redis_no_args, "EXEC", "db.redis", "EXEC");
+    span_description_test_with_lowercase!(
+        redis_no_args,
+        redis_no_args_lower,
+        "EXEC",
+        "db.redis",
+        "EXEC"
+    );
 
-    span_description_test!(redis_invalid, "What a beautiful day!", "db.redis", "*");
+    span_description_test_with_lowercase!(
+        redis_invalid,
+        redis_invalid_lower,
+        "What a beautiful day!",
+        "db.redis",
+        "*"
+    );
 
-    span_description_test!(
+    span_description_test_with_lowercase!(
         redis_long_command,
+        redis_long_command_lower,
         "ACL SETUSER jane",
         "db.redis",
         "ACL SETUSER *"
@@ -1219,7 +1243,7 @@ mod tests {
 
         let mut span = Annotated::<Span>::from_json(json).unwrap();
         let span = span.value_mut().as_mut().unwrap();
-        let scrubbed = scrub_span_description(span, &[], ScrubMongoDescription::Disabled);
+        let scrubbed = scrub_span_description(span, &[]);
         assert_eq!(scrubbed.0.as_deref(), Some("SELECT %s"));
     }
 
@@ -1232,11 +1256,7 @@ mod tests {
 
         let mut span = Annotated::<Span>::from_json(json).unwrap();
 
-        let scrubbed = scrub_span_description(
-            span.value_mut().as_mut().unwrap(),
-            &[],
-            ScrubMongoDescription::Disabled,
-        );
+        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap(), &[]);
 
         // When db.system is missing, no scrubbed description (i.e. no group) is set.
         assert!(scrubbed.0.is_none());
@@ -1254,11 +1274,7 @@ mod tests {
 
         let mut span = Annotated::<Span>::from_json(json).unwrap();
 
-        let scrubbed = scrub_span_description(
-            span.value_mut().as_mut().unwrap(),
-            &[],
-            ScrubMongoDescription::Disabled,
-        );
+        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap(), &[]);
 
         // Can be scrubbed with db system.
         assert_eq!(scrubbed.0.as_deref(), Some("SELECT a FROM b"));
@@ -1276,14 +1292,9 @@ mod tests {
 
         let mut span = Annotated::<Span>::from_json(json).unwrap();
 
-        let scrubbed = scrub_span_description(
-            span.value_mut().as_mut().unwrap(),
-            &[],
-            ScrubMongoDescription::Disabled,
-        );
+        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap(), &[]);
 
-        // NOTE: this should return `DEL *`, but we cannot detect lowercase command names yet.
-        assert_eq!(scrubbed.0.as_deref(), Some("*"));
+        assert_eq!(scrubbed.0.as_deref(), Some("DEL *"));
     }
 
     #[test]
@@ -1296,11 +1307,7 @@ mod tests {
 
         let mut span = Annotated::<Span>::from_json(json).unwrap();
 
-        let scrubbed = scrub_span_description(
-            span.value_mut().as_mut().unwrap(),
-            &[],
-            ScrubMongoDescription::Disabled,
-        );
+        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap(), &[]);
 
         assert_eq!(scrubbed.0.as_deref(), Some("INSERTED * 'UAEventData'"));
     }
@@ -1315,11 +1322,7 @@ mod tests {
 
         let mut span = Annotated::<Span>::from_json(json).unwrap();
 
-        let scrubbed = scrub_span_description(
-            span.value_mut().as_mut().unwrap(),
-            &[],
-            ScrubMongoDescription::Disabled,
-        );
+        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap(), &[]);
 
         assert_eq!(
             scrubbed.0.as_deref(),
@@ -1328,7 +1331,7 @@ mod tests {
     }
 
     #[test]
-    fn mongodb_scrubbing_enabled() {
+    fn mongodb_scrubbing() {
         let json = r#"{
             "description": "{\"find\": \"documents\", \"foo\": \"bar\"}",
             "op": "db",
@@ -1341,39 +1344,12 @@ mod tests {
 
         let mut span = Annotated::<Span>::from_json(json).unwrap();
 
-        let scrubbed = scrub_span_description(
-            span.value_mut().as_mut().unwrap(),
-            &[],
-            ScrubMongoDescription::Enabled,
-        );
+        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap(), &[]);
 
         assert_eq!(
             scrubbed.0.as_deref(),
             Some(r#"{"find":"documents","foo":"?"}"#)
         )
-    }
-
-    #[test]
-    fn mongodb_scrubbing_disabled() {
-        let json = r#"{
-            "description": "{\"find\": \"documents\", \"foo\": \"bar\"}",
-            "op": "db",
-            "data": {
-                "db.system": "mongodb",
-                "db.operation": "find",
-                "db.collection.name": "documents"
-            }
-        }"#;
-
-        let mut span = Annotated::<Span>::from_json(json).unwrap();
-
-        let scrubbed = scrub_span_description(
-            span.value_mut().as_mut().unwrap(),
-            &[],
-            ScrubMongoDescription::Disabled,
-        );
-
-        assert_eq!(scrubbed.0.as_deref(), None)
     }
 
     #[test]
@@ -1390,11 +1366,7 @@ mod tests {
 
         let mut span = Annotated::<Span>::from_json(json).unwrap();
 
-        let scrubbed = scrub_span_description(
-            span.value_mut().as_mut().unwrap(),
-            &[],
-            ScrubMongoDescription::Enabled,
-        );
+        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap(), &[]);
 
         assert_eq!(
             scrubbed.0.as_deref(),
@@ -1414,11 +1386,7 @@ mod tests {
 
         let mut span = Annotated::<Span>::from_json(json).unwrap();
 
-        let scrubbed = scrub_span_description(
-            span.value_mut().as_mut().unwrap(),
-            &[],
-            ScrubMongoDescription::Disabled,
-        );
+        let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap(), &[]);
 
         // Can be scrubbed with db system.
         assert_eq!(scrubbed.0.as_deref(), Some("my-component-name"));
@@ -1460,11 +1428,8 @@ mod tests {
 
             let mut span = Annotated::<Span>::from_json(&json).unwrap();
 
-            let scrubbed = scrub_span_description(
-                span.value_mut().as_mut().unwrap(),
-                &allowed_hosts,
-                ScrubMongoDescription::Disabled,
-            );
+            let scrubbed =
+                scrub_span_description(span.value_mut().as_mut().unwrap(), &allowed_hosts);
 
             assert_eq!(
                 scrubbed.0.as_deref(),
@@ -1517,11 +1482,7 @@ mod tests {
                     .description
                     .set_value(Some($description_in.into()));
 
-                let scrubbed = scrub_span_description(
-                    span.value_mut().as_mut().unwrap(),
-                    &[],
-                    ScrubMongoDescription::Enabled,
-                );
+                let scrubbed = scrub_span_description(span.value_mut().as_mut().unwrap(), &[]);
 
                 if $expected == "" {
                     assert!(scrubbed.0.is_none());

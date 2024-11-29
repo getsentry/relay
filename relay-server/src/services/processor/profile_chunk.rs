@@ -16,7 +16,16 @@ use {
 
 /// Removes profile chunks from the envelope if the feature is not enabled.
 pub fn filter<G>(state: &mut ProcessEnvelopeState<G>) {
-    let continuous_profiling_enabled = state.project_info.has_feature(Feature::ContinuousProfiling);
+    let continuous_profiling_enabled = if state
+        .project_info
+        .has_feature(Feature::ContinuousProfilingBetaIngest)
+    {
+        state
+            .project_info
+            .has_feature(Feature::ContinuousProfilingBeta)
+    } else {
+        state.project_info.has_feature(Feature::ContinuousProfiling)
+    };
     state.managed_envelope.retain_items(|item| match item.ty() {
         ItemType::ProfileChunk if !continuous_profiling_enabled => ItemAction::DropSilently,
         _ => ItemAction::Keep,
@@ -32,8 +41,16 @@ pub fn process(
 ) {
     let client_ip = state.managed_envelope.envelope().meta().client_addr();
     let filter_settings = &state.project_info.config.filter_settings;
-
-    let continuous_profiling_enabled = state.project_info.has_feature(Feature::ContinuousProfiling);
+    let continuous_profiling_enabled = if state
+        .project_info
+        .has_feature(Feature::ContinuousProfilingBetaIngest)
+    {
+        state
+            .project_info
+            .has_feature(Feature::ContinuousProfilingBeta)
+    } else {
+        state.project_info.has_feature(Feature::ContinuousProfiling)
+    };
     state.managed_envelope.retain_items(|item| match item.ty() {
         ItemType::ProfileChunk => {
             if !continuous_profiling_enabled {

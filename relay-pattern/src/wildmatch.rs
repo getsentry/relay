@@ -109,6 +109,15 @@ where
                     // No match, allow for backtracking.
                     false
                 }
+                Token::Optional(optional) => {
+                    let optional = tokens.with_alternate(t_next, optional.as_slice());
+                    if is_match_impl::<_, M>(h_current, &optional) {
+                        // There is a match with the optional token, we're done.
+                        return true;
+                    }
+                    // Continue on without the optional token.
+                    true
+                }
             }
         };
 
@@ -400,10 +409,13 @@ struct AltAndTokens<'a> {
     tokens: &'a [Token],
 }
 
-impl<'a> TokenIndex for AltAndTokens<'a> {
+impl TokenIndex for AltAndTokens<'_> {
     // Type here does not matter, we implement `with_alternate` by returning the never type.
     // It just needs to satisfy the `TokenIndex` trait bound.
-    type WithAlternates<'b> = AltAndTokens<'b> where Self: 'b;
+    type WithAlternates<'b>
+        = AltAndTokens<'b>
+    where
+        Self: 'b;
 
     #[inline(always)]
     fn len(&self) -> usize {
@@ -425,7 +437,7 @@ impl<'a> TokenIndex for AltAndTokens<'a> {
     }
 }
 
-impl<'a> std::ops::Index<usize> for AltAndTokens<'a> {
+impl std::ops::Index<usize> for AltAndTokens<'_> {
     type Output = Token;
 
     fn index(&self, index: usize) -> &Self::Output {
@@ -610,6 +622,39 @@ mod tests {
         assert!(is_match("aba", &tokens, Default::default()));
         assert!(is_match("aca", &tokens, Default::default()));
         assert!(!is_match("ada", &tokens, Default::default()));
+    }
+
+    #[test]
+    fn test_optional() {
+        let mut tokens = Tokens::default();
+
+        tokens.push(Token::Optional(Tokens(vec![Token::Literal(literal(
+            "foo",
+        ))])));
+        assert!(is_match("foo", &tokens, Default::default()));
+        assert!(is_match("", &tokens, Default::default()));
+    }
+
+    #[test]
+    fn test_optional_alternate() {
+        let mut tokens = Tokens::default();
+        let alternates = Token::Alternates(vec![
+            {
+                let mut tokens = Tokens::default();
+                tokens.push(Token::Literal(literal("foo")));
+                tokens
+            },
+            {
+                let mut tokens = Tokens::default();
+                tokens.push(Token::Literal(literal("bar")));
+                tokens
+            },
+        ]);
+
+        tokens.push(Token::Optional(Tokens(vec![alternates])));
+        assert!(is_match("foo", &tokens, Default::default()));
+        assert!(is_match("bar", &tokens, Default::default()));
+        assert!(is_match("", &tokens, Default::default()));
     }
 
     #[test]

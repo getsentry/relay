@@ -5,12 +5,13 @@ use std::collections::BTreeMap;
 
 use hashbrown::{HashMap, HashSet};
 use relay_base_schema::metrics::{MetricName, MetricNamespace, MetricType};
+use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
 use relay_statsd::metric;
 
 use crate::statsd::CardinalityLimiterTimers;
-use crate::{CardinalityLimit, Error, OrganizationId, Result};
+use crate::{CardinalityLimit, Error, Result};
 
 /// Data scoping information.
 ///
@@ -249,7 +250,7 @@ pub struct CardinalityLimitsSplit<'a, T> {
     pub rejected: Vec<(T, &'a CardinalityLimit)>,
 }
 
-impl<'a, T> CardinalityLimitsSplit<'a, T> {
+impl<T> CardinalityLimitsSplit<'_, T> {
     /// Creates a new cardinality limits split with a given capacity for `accepted` and `rejected`
     /// elements.
     fn with_capacity(accepted_capacity: usize, rejected_capacity: usize) -> Self {
@@ -394,7 +395,7 @@ mod tests {
 
     fn build_scoping() -> Scoping {
         Scoping {
-            organization_id: 1,
+            organization_id: OrganizationId::new(1),
             project_id: ProjectId::new(1),
         }
     }
