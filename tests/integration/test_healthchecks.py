@@ -175,7 +175,6 @@ def test_readiness_disk_spool(mini_sentry, relay):
         "spool": {
             # if the config contains max_disk_size and max_memory_size set both to 0, Relay will never passes readiness check
             "envelopes": {
-                "version": "experimental",
                 "path": dbfile,
                 "max_disk_size": 24577,  # one more than the initial size
                 "batch_size_bytes": 1,

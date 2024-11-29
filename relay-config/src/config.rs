@@ -873,21 +873,6 @@ fn spool_envelopes_max_disk_size() -> ByteSize {
     ByteSize::mebibytes(500)
 }
 
-/// Default for min connections to keep open in the pool.
-fn spool_envelopes_min_connections() -> u32 {
-    1
-}
-
-/// Default for max connections to keep open in the pool.
-fn spool_envelopes_max_connections() -> u32 {
-    1
-}
-
-/// Default interval to unspool buffered envelopes, 100ms.
-fn spool_envelopes_unspool_interval() -> u64 {
-    100
-}
-
 /// Default number of encoded envelope bytes to cache before writing to disk.
 fn spool_envelopes_batch_size_bytes() -> ByteSize {
     ByteSize::kibibytes(10)
@@ -924,43 +909,34 @@ pub struct EnvelopeSpool {
     ///
     /// If set, this will enable the buffering for incoming envelopes.
     pub path: Option<PathBuf>,
-    /// Maximum number of connections, which will be maintained by the pool.
-    #[serde(default = "spool_envelopes_max_connections")]
-    max_connections: u32,
-    /// Minimal number of connections, which will be maintained by the pool.
-    #[serde(default = "spool_envelopes_min_connections")]
-    min_connections: u32,
     /// The maximum size of the buffer to keep, in bytes.
     ///
     /// If not set the default is 524288000 bytes (500MB).
     #[serde(default = "spool_envelopes_max_disk_size")]
-    max_disk_size: ByteSize,
+    pub max_disk_size: ByteSize,
     /// The maximum bytes to keep in the memory buffer before spooling envelopes to disk, in bytes.
     ///
     /// This is a hard upper bound and defaults to 524288000 bytes (500MB).
     #[serde(default = "spool_envelopes_max_memory_size")]
-    max_memory_size: ByteSize,
-    /// The interval in milliseconds to trigger unspool.
-    #[serde(default = "spool_envelopes_unspool_interval")]
-    unspool_interval: u64,
+    pub max_memory_size: ByteSize,
     /// Number of encoded envelope bytes that are spooled to disk at once.
     ///
     /// Defaults to 10 KiB.
     #[serde(default = "spool_envelopes_batch_size_bytes")]
-    batch_size_bytes: ByteSize,
+    pub batch_size_bytes: ByteSize,
     /// Maximum time between receiving the envelope and processing it.
     ///
     /// When envelopes spend too much time in the buffer (e.g. because their project cannot be loaded),
     /// they are dropped. Defaults to 24h.
     #[serde(default = "spool_envelopes_max_envelope_delay_secs")]
-    max_envelope_delay_secs: u64,
+    pub max_envelope_delay_secs: u64,
     /// The refresh frequency in ms of how frequently disk usage is updated by querying SQLite
     /// internal page stats.
     #[serde(default = "spool_disk_usage_refresh_frequency_ms")]
-    disk_usage_refresh_frequency_ms: u64,
+    pub disk_usage_refresh_frequency_ms: u64,
     /// The amount of envelopes that the envelope buffer can push to its output queue.
     #[serde(default = "spool_max_backpressure_envelopes")]
-    max_backpressure_envelopes: usize,
+    pub max_backpressure_envelopes: usize,
     /// The relative memory usage above which the buffer service will stop dequeueing envelopes.
     ///
     /// Only applies when [`Self::path`] is set.
@@ -971,49 +947,24 @@ pub struct EnvelopeSpool {
     ///
     /// Defaults to 90% (5% less than max memory).
     #[serde(default = "spool_max_backpressure_memory_percent")]
-    max_backpressure_memory_percent: f32,
+    pub max_backpressure_memory_percent: f32,
     /// Number of partitions of the buffer.
     #[serde(default = "spool_envelopes_partitions")]
-    partitions: NonZeroU8,
-    /// Version of the spooler.
-    #[serde(default)]
-    version: EnvelopeSpoolVersion,
-}
-
-/// Version of the envelope buffering mechanism.
-#[derive(Debug, Default, Deserialize, Serialize)]
-pub enum EnvelopeSpoolVersion {
-    /// Use the spooler service, which only buffers envelopes for unloaded projects and
-    /// switches between an in-memory mode and a disk mode on-demand.
-    ///
-    /// This mode will be removed soon.
-    #[default]
-    #[serde(rename = "1")]
-    V1,
-    /// Use the envelope buffer, through which all envelopes pass before getting unspooled.
-    /// Can be either disk based or memory based.
-    ///
-    /// This mode has not yet been stress-tested, do not use in production environments.
-    #[serde(rename = "experimental")]
-    V2,
+    pub partitions: NonZeroU8,
 }
 
 impl Default for EnvelopeSpool {
     fn default() -> Self {
         Self {
             path: None,
-            max_connections: spool_envelopes_max_connections(),
-            min_connections: spool_envelopes_min_connections(),
             max_disk_size: spool_envelopes_max_disk_size(),
             max_memory_size: spool_envelopes_max_memory_size(),
-            unspool_interval: spool_envelopes_unspool_interval(),
             batch_size_bytes: spool_envelopes_batch_size_bytes(),
             max_envelope_delay_secs: spool_envelopes_max_envelope_delay_secs(),
             disk_usage_refresh_frequency_ms: spool_disk_usage_refresh_frequency_ms(),
             max_backpressure_envelopes: spool_max_backpressure_envelopes(),
             max_backpressure_memory_percent: spool_max_backpressure_memory_percent(),
             partitions: spool_envelopes_partitions(),
-            version: EnvelopeSpoolVersion::default(),
         }
     }
 }
@@ -1021,8 +972,9 @@ impl Default for EnvelopeSpool {
 /// Persistent buffering configuration.
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct Spool {
+    /// Configuration for envelope spooling.
     #[serde(default)]
-    envelopes: EnvelopeSpool,
+    pub envelopes: EnvelopeSpool,
 }
 
 /// Controls internal caching behavior.
@@ -2175,43 +2127,15 @@ impl Config {
         Some(path)
     }
 
-    /// Maximum number of connections to create to buffer file.
-    pub fn spool_envelopes_max_connections(&self) -> u32 {
-        self.values.spool.envelopes.max_connections
-    }
-
-    /// Minimum number of connections to create to buffer file.
-    pub fn spool_envelopes_min_connections(&self) -> u32 {
-        self.values.spool.envelopes.min_connections
-    }
-
-    /// Unspool interval in milliseconds.
-    pub fn spool_envelopes_unspool_interval(&self) -> Duration {
-        Duration::from_millis(self.values.spool.envelopes.unspool_interval)
-    }
-
     /// The maximum size of the buffer, in bytes.
     pub fn spool_envelopes_max_disk_size(&self) -> usize {
         self.values.spool.envelopes.max_disk_size.as_bytes()
-    }
-
-    /// The maximum size of the memory buffer, in bytes.
-    pub fn spool_envelopes_max_memory_size(&self) -> usize {
-        self.values.spool.envelopes.max_memory_size.as_bytes()
     }
 
     /// Number of encoded envelope bytes that need to be accumulated before
     /// flushing one batch to disk.
     pub fn spool_envelopes_batch_size_bytes(&self) -> usize {
         self.values.spool.envelopes.batch_size_bytes.as_bytes()
-    }
-
-    /// Returns `true` if version 2 of the spooling mechanism is used.
-    pub fn spool_v2(&self) -> bool {
-        matches!(
-            &self.values.spool.envelopes.version,
-            EnvelopeSpoolVersion::V2
-        )
     }
 
     /// Returns the time after which we drop envelopes as a [`Duration`] object.
@@ -2653,17 +2577,5 @@ cache:
     #[test]
     fn test_emit_outcomes_invalid() {
         assert!(serde_json::from_str::<EmitOutcomes>("asdf").is_err());
-    }
-
-    #[test]
-    fn test_spool_defaults_to_v1() {
-        let config: ConfigValues = serde_json::from_str("{}").unwrap();
-        assert!(matches!(
-            config.spool.envelopes.version,
-            EnvelopeSpoolVersion::V1
-        ));
-
-        let config = Config::from_json_value(serde_json::json!({})).unwrap();
-        assert!(!config.spool_v2());
     }
 }

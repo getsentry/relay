@@ -285,14 +285,11 @@ impl ServiceState {
             aggregator: aggregator.clone(),
             envelope_processor: processor.clone(),
             outcome_aggregator: outcome_aggregator.clone(),
-            project_cache: legacy_project_cache.clone(),
             test_store: test_store.clone(),
         };
 
         runner.start_with(
             legacy::ProjectCacheService::new(
-                config.clone(),
-                MemoryChecker::new(memory_stat.clone(), config.clone()),
                 project_cache_handle.clone(),
                 project_cache_services,
                 global_config_rx,
@@ -363,10 +360,7 @@ impl ServiceState {
     }
 
     /// Returns the V2 envelope buffer, if present.
-    pub fn envelope_buffer(
-        &self,
-        project_key_pair: ProjectKeyPair,
-    ) -> Option<&ObservableEnvelopeBuffer> {
+    pub fn envelope_buffer(&self, project_key_pair: ProjectKeyPair) -> &ObservableEnvelopeBuffer {
         self.inner.registry.envelope_buffer.buffer(project_key_pair)
     }
 
