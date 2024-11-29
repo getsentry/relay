@@ -198,7 +198,7 @@ pub fn process_minidump(event: &mut Event, data: &[u8]) {
     // Add sdk information for analytics.
     event.client_sdk.get_or_insert_with(|| ClientSdkInfo {
         name: Annotated::new(CLIENT_SDK_NAME.to_owned()),
-        ..Default::default()
+        ..ClientSdkInfo::default()
     });
 
     // Use the minidump's timestamp as the event's primary time. This timestamp can lie multiple
