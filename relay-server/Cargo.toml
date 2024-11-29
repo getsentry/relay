@@ -110,7 +110,7 @@ symbolic-unreal = { workspace = true, optional = true, default-features = false,
 ] }
 sysinfo = { workspace = true }
 thiserror = { workspace = true }
-tokio = { workspace = true, features = ["rt", "rt-multi-thread"] }
+tokio = { workspace = true, features = ["sync", "time"] }
 tower = { workspace = true, default-features = false }
 tower-http = { workspace = true, default-features = false, features = [
     "catch-panic",
@@ -140,7 +140,7 @@ relay-protocol = { workspace = true, features = ["test"] }
 relay-test = { workspace = true }
 similar-asserts = { workspace = true }
 tempfile = { workspace = true }
-tokio = { workspace = true, features = ['test-util'] }
+tokio = { workspace = true, features = ["rt", "macros", "test-util"] }
 
 [[bench]]
 name = "benches"

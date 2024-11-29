@@ -570,7 +570,7 @@ impl<'a> BucketView<'a> {
     }
 }
 
-impl<'a> fmt::Debug for BucketView<'a> {
+impl fmt::Debug for BucketView<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("BucketView")
             .field("timestamp", &self.inner.timestamp)
@@ -588,7 +588,7 @@ impl<'a> From<&'a Bucket> for BucketView<'a> {
     }
 }
 
-impl<'a> Serialize for BucketView<'a> {
+impl Serialize for BucketView<'_> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -701,13 +701,13 @@ impl<'a> SetView<'a> {
     }
 }
 
-impl<'a> PartialEq for SetView<'a> {
+impl PartialEq for SetView<'_> {
     fn eq(&self, other: &Self) -> bool {
         self.iter().eq(other.iter())
     }
 }
 
-impl<'a> fmt::Debug for SetView<'a> {
+impl fmt::Debug for SetView<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("SetView")
             .field(&self.iter().collect::<Vec<_>>())
@@ -715,7 +715,7 @@ impl<'a> fmt::Debug for SetView<'a> {
     }
 }
 
-impl<'a> Serialize for SetView<'a> {
+impl Serialize for SetView<'_> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,

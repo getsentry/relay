@@ -72,7 +72,7 @@ impl SizeEstimatingSerializer {
     }
 }
 
-impl<'a> ser::Serializer for &'a mut SizeEstimatingSerializer {
+impl ser::Serializer for &mut SizeEstimatingSerializer {
     type Ok = ();
     type Error = Error;
 
@@ -286,7 +286,7 @@ impl<'a> ser::Serializer for &'a mut SizeEstimatingSerializer {
     }
 }
 
-impl<'a> ser::SerializeSeq for &'a mut SizeEstimatingSerializer {
+impl ser::SerializeSeq for &mut SizeEstimatingSerializer {
     type Ok = ();
     type Error = Error;
 
@@ -306,7 +306,7 @@ impl<'a> ser::SerializeSeq for &'a mut SizeEstimatingSerializer {
 }
 
 // Same thing but for tuples.
-impl<'a> ser::SerializeTuple for &'a mut SizeEstimatingSerializer {
+impl ser::SerializeTuple for &mut SizeEstimatingSerializer {
     type Ok = ();
     type Error = Error;
 
@@ -326,7 +326,7 @@ impl<'a> ser::SerializeTuple for &'a mut SizeEstimatingSerializer {
 }
 
 // Same thing but for tuple structs.
-impl<'a> ser::SerializeTupleStruct for &'a mut SizeEstimatingSerializer {
+impl ser::SerializeTupleStruct for &mut SizeEstimatingSerializer {
     type Ok = ();
     type Error = Error;
 
@@ -345,7 +345,7 @@ impl<'a> ser::SerializeTupleStruct for &'a mut SizeEstimatingSerializer {
     }
 }
 
-impl<'a> ser::SerializeTupleVariant for &'a mut SizeEstimatingSerializer {
+impl ser::SerializeTupleVariant for &mut SizeEstimatingSerializer {
     type Ok = ();
     type Error = Error;
 
@@ -364,7 +364,7 @@ impl<'a> ser::SerializeTupleVariant for &'a mut SizeEstimatingSerializer {
     }
 }
 
-impl<'a> ser::SerializeMap for &'a mut SizeEstimatingSerializer {
+impl ser::SerializeMap for &mut SizeEstimatingSerializer {
     type Ok = ();
     type Error = Error;
 
@@ -392,7 +392,7 @@ impl<'a> ser::SerializeMap for &'a mut SizeEstimatingSerializer {
     }
 }
 
-impl<'a> ser::SerializeStruct for &'a mut SizeEstimatingSerializer {
+impl ser::SerializeStruct for &mut SizeEstimatingSerializer {
     type Ok = ();
     type Error = Error;
 
@@ -413,7 +413,7 @@ impl<'a> ser::SerializeStruct for &'a mut SizeEstimatingSerializer {
     }
 }
 
-impl<'a> ser::SerializeStructVariant for &'a mut SizeEstimatingSerializer {
+impl ser::SerializeStructVariant for &mut SizeEstimatingSerializer {
     type Ok = ();
     type Error = Error;
 

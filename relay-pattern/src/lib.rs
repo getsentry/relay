@@ -184,7 +184,7 @@ pub struct PatternBuilder<'a> {
     options: Options,
 }
 
-impl<'a> PatternBuilder<'a> {
+impl PatternBuilder<'_> {
     /// If enabled matches the pattern case insensitive.
     ///
     /// This is disabled by default.

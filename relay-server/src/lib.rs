@@ -293,14 +293,15 @@ pub fn run(config: Config) -> anyhow::Result<()> {
     relay_log::info!("relay server starting");
 
     // Creates the main runtime.
-    let main_runtime = crate::service::create_runtime("main-rt", config.cpu_concurrency());
+    let runtime = crate::service::create_runtime("main-rt", config.cpu_concurrency());
+    let runtime_metrics = runtime.metrics();
 
     // Run the system and block until a shutdown signal is sent to this process. Inside, start a
     // web server and run all relevant services. See the `actors` module documentation for more
     // information on all services.
-    main_runtime.block_on(async {
+    runtime.block_on(async {
         Controller::start(config.shutdown_timeout());
-        let (state, mut runner) = ServiceState::start(config.clone()).await?;
+        let (state, mut runner) = ServiceState::start(runtime_metrics, config.clone()).await?;
         runner.start(HttpServer::new(config, state.clone())?);
 
         tokio::select! {
@@ -315,7 +316,7 @@ pub fn run(config: Config) -> anyhow::Result<()> {
         anyhow::Ok(())
     })?;
 
-    drop(main_runtime);
+    drop(runtime);
 
     relay_log::info!("relay shutdown complete");
     Ok(())

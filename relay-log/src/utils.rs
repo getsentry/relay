@@ -35,7 +35,7 @@ pub fn ensure_error<E: AsRef<dyn Error>>(error: E) {
 /// A wrapper around an error that prints its causes.
 struct LogError<'a, E: Error + ?Sized>(pub &'a E);
 
-impl<'a, E: Error + ?Sized> fmt::Display for LogError<'a, E> {
+impl<E: Error + ?Sized> fmt::Display for LogError<'_, E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)?;
 

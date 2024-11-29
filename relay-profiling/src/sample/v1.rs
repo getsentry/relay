@@ -105,10 +105,10 @@ impl SampleProfile {
         let mut active_ranges: HashMap<u64, Range<usize>> = HashMap::new();
 
         for (i, sample) in self.samples.iter().enumerate() {
-            if !self
+            if self
                 .stacks
                 .get(sample.stack_id)
-                .is_some_and(|stack| !stack.is_empty())
+                .is_none_or(|stack| stack.is_empty())
             {
                 continue;
             }

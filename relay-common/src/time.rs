@@ -174,7 +174,7 @@ impl Serialize for UnixTimestamp {
 
 struct UnixTimestampVisitor;
 
-impl<'de> serde::de::Visitor<'de> for UnixTimestampVisitor {
+impl serde::de::Visitor<'_> for UnixTimestampVisitor {
     type Value = UnixTimestamp;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {

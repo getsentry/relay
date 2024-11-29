@@ -182,8 +182,8 @@ mod tests {
     use super::to_pii_config as to_pii_config_impl;
     use super::*;
 
-    /// These tests are ported from Sentry's Python testsuite (test_data_scrubber). Each testcase
-    /// has an equivalent testcase in Python.
+    // These tests are ported from Sentry's Python testsuite (test_data_scrubber). Each testcase
+    // has an equivalent testcase in Python.
 
     fn to_pii_config(datascrubbing_config: &DataScrubbingConfig) -> Option<PiiConfig> {
         let rv = to_pii_config_impl(datascrubbing_config).unwrap();
