@@ -470,17 +470,7 @@
 <a href="#469" id="469">469</a>
 <a href="#470" id="470">470</a>
 <a href="#471" id="471">471</a>
-<a href="#472" id="472">472</a>
-<a href="#473" id="473">473</a>
-<a href="#474" id="474">474</a>
-<a href="#475" id="475">475</a>
-<a href="#476" id="476">476</a>
-<a href="#477" id="477">477</a>
-<a href="#478" id="478">478</a>
-<a href="#479" id="479">479</a>
-<a href="#480" id="480">480</a>
-<a href="#481" id="481">481</a>
-<a href="#482" id="482">482</a></pre></div><pre class="rust"><code><span class="doccomment">//! Common facilities for ingesting events through store-like endpoints.
+<a href="#472" id="472">472</a></pre></div><pre class="rust"><code><span class="doccomment">//! Common facilities for ingesting events through store-like endpoints.
 
 </span><span class="kw">use </span>axum::http::{header, StatusCode};
 <span class="kw">use </span>axum::response::IntoResponse;
@@ -495,7 +485,6 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::buffer::{EnvelopeBuffer, ProjectKeyPair};
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome};
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{BucketSource, MetricData, ProcessMetrics, ProcessingGroup};
-<span class="kw">use </span><span class="kw">crate</span>::services::projects::cache::legacy::ValidateEnvelope;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, ApiErrorResponse, FormDataIter, ManagedEnvelope};
 
@@ -776,27 +765,18 @@
         envelope.scope(scoping);
 
         <span class="kw">let </span>project_key_pair = ProjectKeyPair::from_envelope(envelope.envelope());
-        <span class="kw">match </span>state.envelope_buffer(project_key_pair) {
-            <span class="prelude-val">Some</span>(buffer) =&gt; {
-                <span class="kw">if </span>!buffer.has_capacity() {
-                    <span class="kw">return </span><span class="prelude-val">Err</span>(BadStoreRequest::QueueFailed);
-                }
-
-                <span class="comment">// NOTE: This assumes that a `prefetch` has already been scheduled for both the
-                // envelope's projects. See `handle_check_envelope`.
-                </span><span class="macro">relay_log::trace!</span>(<span class="string">"Pushing envelope to V2 buffer"</span>);
-
-                buffer
-                    .addr()
-                    .send(EnvelopeBuffer::Push(envelope.into_envelope()));
-            }
-            <span class="prelude-val">None </span>=&gt; {
-                <span class="macro">relay_log::trace!</span>(<span class="string">"Sending envelope to project cache for V1 buffer"</span>);
-                state
-                    .legacy_project_cache()
-                    .send(ValidateEnvelope::new(envelope));
-            }
+        <span class="kw">let </span>buffer = state.envelope_buffer(project_key_pair);
+        <span class="kw">if </span>!buffer.has_capacity() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(BadStoreRequest::QueueFailed);
         }
+
+        <span class="comment">// NOTE: This assumes that a `prefetch` has already been scheduled for both the
+        // envelope's projects. See `handle_check_envelope`.
+        </span><span class="macro">relay_log::trace!</span>(<span class="string">"Pushing envelope to V2 buffer"</span>);
+
+        buffer
+            .addr()
+            .send(EnvelopeBuffer::Push(envelope.into_envelope()));
     }
     <span class="comment">// The entire envelope is taken for a split above, and it's empty at this point, we can just
     // accept it without additional checks.

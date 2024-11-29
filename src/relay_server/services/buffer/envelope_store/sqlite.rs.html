@@ -1213,8 +1213,8 @@
             </span>.shared_cache(<span class="bool-val">true</span>);
 
         <span class="kw">let </span>db = SqlitePoolOptions::new()
-            .max_connections(config.spool_envelopes_max_connections())
-            .min_connections(config.spool_envelopes_min_connections())
+            .max_connections(<span class="number">1</span>)
+            .min_connections(<span class="number">1</span>)
             .connect_with(options)
             .<span class="kw">await
             </span>.map_err(SqliteEnvelopeStoreError::SqlxSetupFailed)<span class="question-mark">?</span>;

@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["PolymorphicEnvelopeBuffer"],"fn":["run"],"mod":["spool_utils"],"struct":["MemoryChecker","MemoryStat","SqliteEnvelopeStack","SqliteEnvelopeStore"],"trait":["EnvelopeStack"]};
+window.SIDEBAR_ITEMS = {"enum":["PolymorphicEnvelopeBuffer"],"fn":["run"],"struct":["MemoryChecker","MemoryStat","SqliteEnvelopeStack","SqliteEnvelopeStore"],"trait":["EnvelopeStack"]};

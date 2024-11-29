@@ -2579,95 +2579,7 @@
 <a href="#2578" id="2578">2578</a>
 <a href="#2579" id="2579">2579</a>
 <a href="#2580" id="2580">2580</a>
-<a href="#2581" id="2581">2581</a>
-<a href="#2582" id="2582">2582</a>
-<a href="#2583" id="2583">2583</a>
-<a href="#2584" id="2584">2584</a>
-<a href="#2585" id="2585">2585</a>
-<a href="#2586" id="2586">2586</a>
-<a href="#2587" id="2587">2587</a>
-<a href="#2588" id="2588">2588</a>
-<a href="#2589" id="2589">2589</a>
-<a href="#2590" id="2590">2590</a>
-<a href="#2591" id="2591">2591</a>
-<a href="#2592" id="2592">2592</a>
-<a href="#2593" id="2593">2593</a>
-<a href="#2594" id="2594">2594</a>
-<a href="#2595" id="2595">2595</a>
-<a href="#2596" id="2596">2596</a>
-<a href="#2597" id="2597">2597</a>
-<a href="#2598" id="2598">2598</a>
-<a href="#2599" id="2599">2599</a>
-<a href="#2600" id="2600">2600</a>
-<a href="#2601" id="2601">2601</a>
-<a href="#2602" id="2602">2602</a>
-<a href="#2603" id="2603">2603</a>
-<a href="#2604" id="2604">2604</a>
-<a href="#2605" id="2605">2605</a>
-<a href="#2606" id="2606">2606</a>
-<a href="#2607" id="2607">2607</a>
-<a href="#2608" id="2608">2608</a>
-<a href="#2609" id="2609">2609</a>
-<a href="#2610" id="2610">2610</a>
-<a href="#2611" id="2611">2611</a>
-<a href="#2612" id="2612">2612</a>
-<a href="#2613" id="2613">2613</a>
-<a href="#2614" id="2614">2614</a>
-<a href="#2615" id="2615">2615</a>
-<a href="#2616" id="2616">2616</a>
-<a href="#2617" id="2617">2617</a>
-<a href="#2618" id="2618">2618</a>
-<a href="#2619" id="2619">2619</a>
-<a href="#2620" id="2620">2620</a>
-<a href="#2621" id="2621">2621</a>
-<a href="#2622" id="2622">2622</a>
-<a href="#2623" id="2623">2623</a>
-<a href="#2624" id="2624">2624</a>
-<a href="#2625" id="2625">2625</a>
-<a href="#2626" id="2626">2626</a>
-<a href="#2627" id="2627">2627</a>
-<a href="#2628" id="2628">2628</a>
-<a href="#2629" id="2629">2629</a>
-<a href="#2630" id="2630">2630</a>
-<a href="#2631" id="2631">2631</a>
-<a href="#2632" id="2632">2632</a>
-<a href="#2633" id="2633">2633</a>
-<a href="#2634" id="2634">2634</a>
-<a href="#2635" id="2635">2635</a>
-<a href="#2636" id="2636">2636</a>
-<a href="#2637" id="2637">2637</a>
-<a href="#2638" id="2638">2638</a>
-<a href="#2639" id="2639">2639</a>
-<a href="#2640" id="2640">2640</a>
-<a href="#2641" id="2641">2641</a>
-<a href="#2642" id="2642">2642</a>
-<a href="#2643" id="2643">2643</a>
-<a href="#2644" id="2644">2644</a>
-<a href="#2645" id="2645">2645</a>
-<a href="#2646" id="2646">2646</a>
-<a href="#2647" id="2647">2647</a>
-<a href="#2648" id="2648">2648</a>
-<a href="#2649" id="2649">2649</a>
-<a href="#2650" id="2650">2650</a>
-<a href="#2651" id="2651">2651</a>
-<a href="#2652" id="2652">2652</a>
-<a href="#2653" id="2653">2653</a>
-<a href="#2654" id="2654">2654</a>
-<a href="#2655" id="2655">2655</a>
-<a href="#2656" id="2656">2656</a>
-<a href="#2657" id="2657">2657</a>
-<a href="#2658" id="2658">2658</a>
-<a href="#2659" id="2659">2659</a>
-<a href="#2660" id="2660">2660</a>
-<a href="#2661" id="2661">2661</a>
-<a href="#2662" id="2662">2662</a>
-<a href="#2663" id="2663">2663</a>
-<a href="#2664" id="2664">2664</a>
-<a href="#2665" id="2665">2665</a>
-<a href="#2666" id="2666">2666</a>
-<a href="#2667" id="2667">2667</a>
-<a href="#2668" id="2668">2668</a>
-<a href="#2669" id="2669">2669</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
+<a href="#2581" id="2581">2581</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
 <span class="kw">use </span>std::net::{IpAddr, SocketAddr, ToSocketAddrs};
@@ -3542,21 +3454,6 @@
     ByteSize::mebibytes(<span class="number">500</span>)
 }
 
-<span class="doccomment">/// Default for min connections to keep open in the pool.
-</span><span class="kw">fn </span>spool_envelopes_min_connections() -&gt; u32 {
-    <span class="number">1
-</span>}
-
-<span class="doccomment">/// Default for max connections to keep open in the pool.
-</span><span class="kw">fn </span>spool_envelopes_max_connections() -&gt; u32 {
-    <span class="number">1
-</span>}
-
-<span class="doccomment">/// Default interval to unspool buffered envelopes, 100ms.
-</span><span class="kw">fn </span>spool_envelopes_unspool_interval() -&gt; u64 {
-    <span class="number">100
-</span>}
-
 <span class="doccomment">/// Default number of encoded envelope bytes to cache before writing to disk.
 </span><span class="kw">fn </span>spool_envelopes_batch_size_bytes() -&gt; ByteSize {
     ByteSize::kibibytes(<span class="number">10</span>)
@@ -3593,43 +3490,34 @@
     ///
     /// If set, this will enable the buffering for incoming envelopes.
     </span><span class="kw">pub </span>path: <span class="prelude-ty">Option</span>&lt;PathBuf&gt;,
-    <span class="doccomment">/// Maximum number of connections, which will be maintained by the pool.
-    </span><span class="attr">#[serde(default = <span class="string">"spool_envelopes_max_connections"</span>)]
-    </span>max_connections: u32,
-    <span class="doccomment">/// Minimal number of connections, which will be maintained by the pool.
-    </span><span class="attr">#[serde(default = <span class="string">"spool_envelopes_min_connections"</span>)]
-    </span>min_connections: u32,
     <span class="doccomment">/// The maximum size of the buffer to keep, in bytes.
     ///
     /// If not set the default is 524288000 bytes (500MB).
     </span><span class="attr">#[serde(default = <span class="string">"spool_envelopes_max_disk_size"</span>)]
-    </span>max_disk_size: ByteSize,
+    </span><span class="kw">pub </span>max_disk_size: ByteSize,
     <span class="doccomment">/// The maximum bytes to keep in the memory buffer before spooling envelopes to disk, in bytes.
     ///
     /// This is a hard upper bound and defaults to 524288000 bytes (500MB).
     </span><span class="attr">#[serde(default = <span class="string">"spool_envelopes_max_memory_size"</span>)]
-    </span>max_memory_size: ByteSize,
-    <span class="doccomment">/// The interval in milliseconds to trigger unspool.
-    </span><span class="attr">#[serde(default = <span class="string">"spool_envelopes_unspool_interval"</span>)]
-    </span>unspool_interval: u64,
+    </span><span class="kw">pub </span>max_memory_size: ByteSize,
     <span class="doccomment">/// Number of encoded envelope bytes that are spooled to disk at once.
     ///
     /// Defaults to 10 KiB.
     </span><span class="attr">#[serde(default = <span class="string">"spool_envelopes_batch_size_bytes"</span>)]
-    </span>batch_size_bytes: ByteSize,
+    </span><span class="kw">pub </span>batch_size_bytes: ByteSize,
     <span class="doccomment">/// Maximum time between receiving the envelope and processing it.
     ///
     /// When envelopes spend too much time in the buffer (e.g. because their project cannot be loaded),
     /// they are dropped. Defaults to 24h.
     </span><span class="attr">#[serde(default = <span class="string">"spool_envelopes_max_envelope_delay_secs"</span>)]
-    </span>max_envelope_delay_secs: u64,
+    </span><span class="kw">pub </span>max_envelope_delay_secs: u64,
     <span class="doccomment">/// The refresh frequency in ms of how frequently disk usage is updated by querying SQLite
     /// internal page stats.
     </span><span class="attr">#[serde(default = <span class="string">"spool_disk_usage_refresh_frequency_ms"</span>)]
-    </span>disk_usage_refresh_frequency_ms: u64,
+    </span><span class="kw">pub </span>disk_usage_refresh_frequency_ms: u64,
     <span class="doccomment">/// The amount of envelopes that the envelope buffer can push to its output queue.
     </span><span class="attr">#[serde(default = <span class="string">"spool_max_backpressure_envelopes"</span>)]
-    </span>max_backpressure_envelopes: usize,
+    </span><span class="kw">pub </span>max_backpressure_envelopes: usize,
     <span class="doccomment">/// The relative memory usage above which the buffer service will stop dequeueing envelopes.
     ///
     /// Only applies when [`Self::path`] is set.
@@ -3640,49 +3528,24 @@
     ///
     /// Defaults to 90% (5% less than max memory).
     </span><span class="attr">#[serde(default = <span class="string">"spool_max_backpressure_memory_percent"</span>)]
-    </span>max_backpressure_memory_percent: f32,
+    </span><span class="kw">pub </span>max_backpressure_memory_percent: f32,
     <span class="doccomment">/// Number of partitions of the buffer.
     </span><span class="attr">#[serde(default = <span class="string">"spool_envelopes_partitions"</span>)]
-    </span>partitions: NonZeroU8,
-    <span class="doccomment">/// Version of the spooler.
-    </span><span class="attr">#[serde(default)]
-    </span>version: EnvelopeSpoolVersion,
-}
-
-<span class="doccomment">/// Version of the envelope buffering mechanism.
-</span><span class="attr">#[derive(Debug, Default, Deserialize, Serialize)]
-</span><span class="kw">pub enum </span>EnvelopeSpoolVersion {
-    <span class="doccomment">/// Use the spooler service, which only buffers envelopes for unloaded projects and
-    /// switches between an in-memory mode and a disk mode on-demand.
-    ///
-    /// This mode will be removed soon.
-    </span><span class="attr">#[default]
-    #[serde(rename = <span class="string">"1"</span>)]
-    </span>V1,
-    <span class="doccomment">/// Use the envelope buffer, through which all envelopes pass before getting unspooled.
-    /// Can be either disk based or memory based.
-    ///
-    /// This mode has not yet been stress-tested, do not use in production environments.
-    </span><span class="attr">#[serde(rename = <span class="string">"experimental"</span>)]
-    </span>V2,
+    </span><span class="kw">pub </span>partitions: NonZeroU8,
 }
 
 <span class="kw">impl </span>Default <span class="kw">for </span>EnvelopeSpool {
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             path: <span class="prelude-val">None</span>,
-            max_connections: spool_envelopes_max_connections(),
-            min_connections: spool_envelopes_min_connections(),
             max_disk_size: spool_envelopes_max_disk_size(),
             max_memory_size: spool_envelopes_max_memory_size(),
-            unspool_interval: spool_envelopes_unspool_interval(),
             batch_size_bytes: spool_envelopes_batch_size_bytes(),
             max_envelope_delay_secs: spool_envelopes_max_envelope_delay_secs(),
             disk_usage_refresh_frequency_ms: spool_disk_usage_refresh_frequency_ms(),
             max_backpressure_envelopes: spool_max_backpressure_envelopes(),
             max_backpressure_memory_percent: spool_max_backpressure_memory_percent(),
             partitions: spool_envelopes_partitions(),
-            version: EnvelopeSpoolVersion::default(),
         }
     }
 }
@@ -3690,8 +3553,9 @@
 <span class="doccomment">/// Persistent buffering configuration.
 </span><span class="attr">#[derive(Debug, Serialize, Deserialize, Default)]
 </span><span class="kw">pub struct </span>Spool {
-    <span class="attr">#[serde(default)]
-    </span>envelopes: EnvelopeSpool,
+    <span class="doccomment">/// Configuration for envelope spooling.
+    </span><span class="attr">#[serde(default)]
+    </span><span class="kw">pub </span>envelopes: EnvelopeSpool,
 }
 
 <span class="doccomment">/// Controls internal caching behavior.
@@ -4844,43 +4708,15 @@
         <span class="prelude-val">Some</span>(path)
     }
 
-    <span class="doccomment">/// Maximum number of connections to create to buffer file.
-    </span><span class="kw">pub fn </span>spool_envelopes_max_connections(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u32 {
-        <span class="self">self</span>.values.spool.envelopes.max_connections
-    }
-
-    <span class="doccomment">/// Minimum number of connections to create to buffer file.
-    </span><span class="kw">pub fn </span>spool_envelopes_min_connections(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u32 {
-        <span class="self">self</span>.values.spool.envelopes.min_connections
-    }
-
-    <span class="doccomment">/// Unspool interval in milliseconds.
-    </span><span class="kw">pub fn </span>spool_envelopes_unspool_interval(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
-        Duration::from_millis(<span class="self">self</span>.values.spool.envelopes.unspool_interval)
-    }
-
     <span class="doccomment">/// The maximum size of the buffer, in bytes.
     </span><span class="kw">pub fn </span>spool_envelopes_max_disk_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
         <span class="self">self</span>.values.spool.envelopes.max_disk_size.as_bytes()
-    }
-
-    <span class="doccomment">/// The maximum size of the memory buffer, in bytes.
-    </span><span class="kw">pub fn </span>spool_envelopes_max_memory_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
-        <span class="self">self</span>.values.spool.envelopes.max_memory_size.as_bytes()
     }
 
     <span class="doccomment">/// Number of encoded envelope bytes that need to be accumulated before
     /// flushing one batch to disk.
     </span><span class="kw">pub fn </span>spool_envelopes_batch_size_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
         <span class="self">self</span>.values.spool.envelopes.batch_size_bytes.as_bytes()
-    }
-
-    <span class="doccomment">/// Returns `true` if version 2 of the spooling mechanism is used.
-    </span><span class="kw">pub fn </span>spool_v2(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="macro">matches!</span>(
-            <span class="kw-2">&amp;</span><span class="self">self</span>.values.spool.envelopes.version,
-            EnvelopeSpoolVersion::V2
-        )
     }
 
     <span class="doccomment">/// Returns the time after which we drop envelopes as a [`Duration`] object.
@@ -5322,18 +5158,6 @@ cache:
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_emit_outcomes_invalid() {
         <span class="macro">assert!</span>(serde_json::from_str::&lt;EmitOutcomes&gt;(<span class="string">"asdf"</span>).is_err());
-    }
-
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_spool_defaults_to_v1() {
-        <span class="kw">let </span>config: ConfigValues = serde_json::from_str(<span class="string">"{}"</span>).unwrap();
-        <span class="macro">assert!</span>(<span class="macro">matches!</span>(
-            config.spool.envelopes.version,
-            EnvelopeSpoolVersion::V1
-        ));
-
-        <span class="kw">let </span>config = Config::from_json_value(<span class="macro">serde_json::json!</span>({})).unwrap();
-        <span class="macro">assert!</span>(!config.spool_v2());
     }
 }
 </code></pre></div></section></main></body></html>

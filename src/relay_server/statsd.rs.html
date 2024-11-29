@@ -1037,59 +1037,7 @@
 <a href="#1036" id="1036">1036</a>
 <a href="#1037" id="1037">1037</a>
 <a href="#1038" id="1038">1038</a>
-<a href="#1039" id="1039">1039</a>
-<a href="#1040" id="1040">1040</a>
-<a href="#1041" id="1041">1041</a>
-<a href="#1042" id="1042">1042</a>
-<a href="#1043" id="1043">1043</a>
-<a href="#1044" id="1044">1044</a>
-<a href="#1045" id="1045">1045</a>
-<a href="#1046" id="1046">1046</a>
-<a href="#1047" id="1047">1047</a>
-<a href="#1048" id="1048">1048</a>
-<a href="#1049" id="1049">1049</a>
-<a href="#1050" id="1050">1050</a>
-<a href="#1051" id="1051">1051</a>
-<a href="#1052" id="1052">1052</a>
-<a href="#1053" id="1053">1053</a>
-<a href="#1054" id="1054">1054</a>
-<a href="#1055" id="1055">1055</a>
-<a href="#1056" id="1056">1056</a>
-<a href="#1057" id="1057">1057</a>
-<a href="#1058" id="1058">1058</a>
-<a href="#1059" id="1059">1059</a>
-<a href="#1060" id="1060">1060</a>
-<a href="#1061" id="1061">1061</a>
-<a href="#1062" id="1062">1062</a>
-<a href="#1063" id="1063">1063</a>
-<a href="#1064" id="1064">1064</a>
-<a href="#1065" id="1065">1065</a>
-<a href="#1066" id="1066">1066</a>
-<a href="#1067" id="1067">1067</a>
-<a href="#1068" id="1068">1068</a>
-<a href="#1069" id="1069">1069</a>
-<a href="#1070" id="1070">1070</a>
-<a href="#1071" id="1071">1071</a>
-<a href="#1072" id="1072">1072</a>
-<a href="#1073" id="1073">1073</a>
-<a href="#1074" id="1074">1074</a>
-<a href="#1075" id="1075">1075</a>
-<a href="#1076" id="1076">1076</a>
-<a href="#1077" id="1077">1077</a>
-<a href="#1078" id="1078">1078</a>
-<a href="#1079" id="1079">1079</a>
-<a href="#1080" id="1080">1080</a>
-<a href="#1081" id="1081">1081</a>
-<a href="#1082" id="1082">1082</a>
-<a href="#1083" id="1083">1083</a>
-<a href="#1084" id="1084">1084</a>
-<a href="#1085" id="1085">1085</a>
-<a href="#1086" id="1086">1086</a>
-<a href="#1087" id="1087">1087</a>
-<a href="#1088" id="1088">1088</a>
-<a href="#1089" id="1089">1089</a>
-<a href="#1090" id="1090">1090</a>
-<a href="#1091" id="1091">1091</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
+<a href="#1039" id="1039">1039</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 <span class="attr">#[cfg(doc)]
 </span><span class="kw">use </span>relay_system::RuntimeMetrics;
 
@@ -1098,23 +1046,6 @@
     <span class="doccomment">/// The state of Relay with respect to the upstream connection.
     /// Possible values are `0` for normal operations and `1` for a network outage.
     </span>NetworkOutage,
-    <span class="doccomment">/// The number of envelopes waiting for project states in memory.
-    ///
-    /// This number is always &lt;= `EnvelopeQueueSize`.
-    ///
-    /// The memory buffer size can be configured with `spool.envelopes.max_memory_size`.
-    </span>BufferEnvelopesMemoryCount,
-    <span class="doccomment">/// The number of envelopes waiting for project states on disk.
-    ///
-    /// Note this metric *will not be logged* when we encounter envelopes in the database on startup,
-    /// because counting those envelopes reliably would risk locking the db for multiple seconds.
-    ///
-    /// The disk buffer size can be configured with `spool.envelopes.max_disk_size`.
-    </span>BufferEnvelopesDiskCount,
-    <span class="doccomment">/// Number of queue keys (project key pairs) unspooled during proactive unspool.
-    /// This metric is tagged with:
-    /// - `reason`: Why keys are / are not unspooled.
-    </span>BufferPeriodicUnspool,
     <span class="doccomment">/// The number of individual stacks in the priority queue.
     ///
     /// Per combination of `(own_key, sampling_key)`, a new stack is created.
@@ -1147,9 +1078,6 @@
     <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="self">self </span>{
             RelayGauges::NetworkOutage =&gt; <span class="string">"upstream.network_outage"</span>,
-            RelayGauges::BufferEnvelopesMemoryCount =&gt; <span class="string">"buffer.envelopes_mem_count"</span>,
-            RelayGauges::BufferEnvelopesDiskCount =&gt; <span class="string">"buffer.envelopes_disk_count"</span>,
-            RelayGauges::BufferPeriodicUnspool =&gt; <span class="string">"buffer.unspool.periodic"</span>,
             RelayGauges::BufferStackCount =&gt; <span class="string">"buffer.stack_count"</span>,
             RelayGauges::BufferDiskUsed =&gt; <span class="string">"buffer.disk_used"</span>,
             RelayGauges::SystemMemoryUsed =&gt; <span class="string">"health.system_memory.used"</span>,
@@ -1276,16 +1204,7 @@
     ///
     /// Metric is tagged by the item type.
     </span>EnvelopeItemSize,
-    <span class="doccomment">/// The estimated number of envelope bytes buffered in memory.
-    ///
-    /// The memory buffer size can be configured with `spool.envelopes.max_memory_size`.
-    </span>BufferEnvelopesMemoryBytes,
-    <span class="doccomment">/// The file size of the buffer db on disk, in bytes.
-    ///
-    /// This metric is computed by multiplying `page_count * page_size`.
-    </span>BufferDiskSize,
-    <span class="doccomment">/// Number of attempts needed to dequeue spooled envelopes from disk.
-    </span>BufferDequeueAttempts,
+
     <span class="doccomment">/// Number of elements in the envelope buffer across all the stacks.
     ///
     /// This metric is tagged with:
@@ -1424,9 +1343,6 @@
             RelayHistograms::EventSpans =&gt; <span class="string">"event.spans"</span>,
             RelayHistograms::BatchesPerPartition =&gt; <span class="string">"metrics.buckets.batches_per_partition"</span>,
             RelayHistograms::BucketsPerBatch =&gt; <span class="string">"metrics.buckets.per_batch"</span>,
-            RelayHistograms::BufferEnvelopesMemoryBytes =&gt; <span class="string">"buffer.envelopes_mem"</span>,
-            RelayHistograms::BufferDiskSize =&gt; <span class="string">"buffer.disk_size"</span>,
-            RelayHistograms::BufferDequeueAttempts =&gt; <span class="string">"buffer.dequeue_attempts"</span>,
             RelayHistograms::BufferEnvelopesCount =&gt; <span class="string">"buffer.envelopes_count"</span>,
             RelayHistograms::BufferBackpressureEnvelopesCount =&gt; {
                 <span class="string">"buffer.backpressure_envelopes_count"
@@ -1616,12 +1532,6 @@
     /// This metric is tagged with:
     /// - `task`: The type of the task the project cache does.
     </span>LegacyProjectCacheTaskDuration,
-    <span class="doccomment">/// Timing in milliseconds for processing a message in the buffer service.
-    ///
-    /// This metric is tagged with:
-    ///
-    ///  - `message`: The type of message that was processed.
-    </span>BufferMessageProcessDuration,
     <span class="doccomment">/// Timing in milliseconds for handling and responding to a health check request.
     ///
     /// This metric is tagged with:
@@ -1720,7 +1630,6 @@
             RelayTimers::ReplayRecordingProcessing =&gt; <span class="string">"replay.recording.process"</span>,
             RelayTimers::GlobalConfigRequestDuration =&gt; <span class="string">"global_config.requests.duration"</span>,
             RelayTimers::ProcessMessageDuration =&gt; <span class="string">"processor.message.duration"</span>,
-            RelayTimers::BufferMessageProcessDuration =&gt; <span class="string">"buffer.message.duration"</span>,
             RelayTimers::ProjectCacheTaskDuration =&gt; <span class="string">"project_cache.task.duration"</span>,
             RelayTimers::LegacyProjectCacheMessageDuration =&gt; {
                 <span class="string">"legacy_project_cache.message.duration"
@@ -1779,20 +1688,10 @@
     ///  - `handling`: Either `"success"` if the envelope was handled correctly, or `"failure"` if
     ///    there was an error or bug.
     </span>EnvelopeRejected,
-    <span class="doccomment">/// Number of times the envelope buffer spools to disk.
-    </span>BufferWritesDisk,
-    <span class="doccomment">/// Number of times the envelope buffer reads back from disk.
-    </span>BufferReadsDisk,
     <span class="doccomment">/// Number of _envelopes_ the envelope buffer ingests.
     </span>BufferEnvelopesWritten,
     <span class="doccomment">/// Number of _envelopes_ the envelope buffer produces.
     </span>BufferEnvelopesRead,
-    <span class="doccomment">/// Number of state changes in the envelope buffer.
-    /// This metric is tagged with:
-    ///  - `state_in`: The previous state. `memory`, `memory_file_standby`, or `disk`.
-    ///  - `state_out`: The new state. `memory`, `memory_file_standby`, or `disk`.
-    ///  - `reason`: Why a transition was made (or not made).
-    </span>BufferStateTransition,
     <span class="doccomment">/// Number of envelopes that were returned to the envelope buffer by the project cache.
     ///
     /// This happens when the envelope buffer falsely assumes that the envelope's projects are loaded
@@ -1992,12 +1891,9 @@
             RelayCounters::EventCorrupted =&gt; <span class="string">"event.corrupted"</span>,
             RelayCounters::EnvelopeAccepted =&gt; <span class="string">"event.accepted"</span>,
             RelayCounters::EnvelopeRejected =&gt; <span class="string">"event.rejected"</span>,
-            RelayCounters::BufferWritesDisk =&gt; <span class="string">"buffer.writes"</span>,
-            RelayCounters::BufferReadsDisk =&gt; <span class="string">"buffer.reads"</span>,
             RelayCounters::BufferEnvelopesWritten =&gt; <span class="string">"buffer.envelopes_written"</span>,
             RelayCounters::BufferEnvelopesRead =&gt; <span class="string">"buffer.envelopes_read"</span>,
             RelayCounters::BufferEnvelopesReturned =&gt; <span class="string">"buffer.envelopes_returned"</span>,
-            RelayCounters::BufferStateTransition =&gt; <span class="string">"buffer.state.transition"</span>,
             RelayCounters::BufferEnvelopeStacksPopped =&gt; <span class="string">"buffer.envelope_stacks_popped"</span>,
             RelayCounters::BufferTryPop =&gt; <span class="string">"buffer.try_pop"</span>,
             RelayCounters::BufferReadyToPop =&gt; <span class="string">"buffer.ready_to_pop"</span>,
