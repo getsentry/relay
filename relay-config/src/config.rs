@@ -908,7 +908,7 @@ pub struct EnvelopeSpool {
     pub path: Option<PathBuf>,
     /// The maximum size of the buffer to keep, in bytes.
     ///
-    /// When the buffer, set to use SQLite, reaches this disk capacity, new envelopes will be dropped.
+    /// When the on-disk buffer reaches this size, new envelopes will be dropped.
     ///
     /// Defaults to 500MB.
     #[serde(default = "spool_envelopes_max_disk_size")]
