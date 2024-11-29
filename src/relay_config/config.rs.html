@@ -2579,7 +2579,15 @@
 <a href="#2578" id="2578">2578</a>
 <a href="#2579" id="2579">2579</a>
 <a href="#2580" id="2580">2580</a>
-<a href="#2581" id="2581">2581</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
+<a href="#2581" id="2581">2581</a>
+<a href="#2582" id="2582">2582</a>
+<a href="#2583" id="2583">2583</a>
+<a href="#2584" id="2584">2584</a>
+<a href="#2585" id="2585">2585</a>
+<a href="#2586" id="2586">2586</a>
+<a href="#2587" id="2587">2587</a>
+<a href="#2588" id="2588">2588</a>
+<a href="#2589" id="2589">2589</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
 <span class="kw">use </span>std::net::{IpAddr, SocketAddr, ToSocketAddrs};
@@ -3444,11 +3452,6 @@
     <span class="number">90
 </span>}
 
-<span class="doccomment">/// Default for max memory size, 500 MB.
-</span><span class="kw">fn </span>spool_envelopes_max_memory_size() -&gt; ByteSize {
-    ByteSize::mebibytes(<span class="number">500</span>)
-}
-
 <span class="doccomment">/// Default for max disk size, 500 MB.
 </span><span class="kw">fn </span>spool_envelopes_max_disk_size() -&gt; ByteSize {
     ByteSize::mebibytes(<span class="number">500</span>)
@@ -3486,21 +3489,23 @@
 <span class="doccomment">/// Persistent buffering configuration for incoming envelopes.
 </span><span class="attr">#[derive(Debug, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>EnvelopeSpool {
-    <span class="doccomment">/// The path to the persistent spool file.
+    <span class="doccomment">/// The path of the SQLite database file(s) which persist the data.
     ///
-    /// If set, this will enable the buffering for incoming envelopes.
+    /// Based on the number of partitions, more database files will be created within the same path.
+    ///
+    /// If not set, the envelopes will be buffered in memory.
     </span><span class="kw">pub </span>path: <span class="prelude-ty">Option</span>&lt;PathBuf&gt;,
     <span class="doccomment">/// The maximum size of the buffer to keep, in bytes.
     ///
-    /// If not set the default is 524288000 bytes (500MB).
+    /// When the on-disk buffer reaches this size, new envelopes will be dropped.
+    ///
+    /// Defaults to 500MB.
     </span><span class="attr">#[serde(default = <span class="string">"spool_envelopes_max_disk_size"</span>)]
     </span><span class="kw">pub </span>max_disk_size: ByteSize,
-    <span class="doccomment">/// The maximum bytes to keep in the memory buffer before spooling envelopes to disk, in bytes.
+    <span class="doccomment">/// Size of the batch of compressed envelopes that are spooled to disk at once.
     ///
-    /// This is a hard upper bound and defaults to 524288000 bytes (500MB).
-    </span><span class="attr">#[serde(default = <span class="string">"spool_envelopes_max_memory_size"</span>)]
-    </span><span class="kw">pub </span>max_memory_size: ByteSize,
-    <span class="doccomment">/// Number of encoded envelope bytes that are spooled to disk at once.
+    /// Note that this is the size after which spooling will be triggered but it does not guarantee
+    /// that exactly this size will be spooled, it can be greater or equal.
     ///
     /// Defaults to 10 KiB.
     </span><span class="attr">#[serde(default = <span class="string">"spool_envelopes_batch_size_bytes"</span>)]
@@ -3508,19 +3513,26 @@
     <span class="doccomment">/// Maximum time between receiving the envelope and processing it.
     ///
     /// When envelopes spend too much time in the buffer (e.g. because their project cannot be loaded),
-    /// they are dropped. Defaults to 24h.
+    /// they are dropped.
+    ///
+    /// Defaults to 24h.
     </span><span class="attr">#[serde(default = <span class="string">"spool_envelopes_max_envelope_delay_secs"</span>)]
     </span><span class="kw">pub </span>max_envelope_delay_secs: u64,
     <span class="doccomment">/// The refresh frequency in ms of how frequently disk usage is updated by querying SQLite
     /// internal page stats.
+    ///
+    /// Defaults to 100ms.
     </span><span class="attr">#[serde(default = <span class="string">"spool_disk_usage_refresh_frequency_ms"</span>)]
     </span><span class="kw">pub </span>disk_usage_refresh_frequency_ms: u64,
     <span class="doccomment">/// The amount of envelopes that the envelope buffer can push to its output queue.
+    ///
+    /// Defaults to 500.
     </span><span class="attr">#[serde(default = <span class="string">"spool_max_backpressure_envelopes"</span>)]
     </span><span class="kw">pub </span>max_backpressure_envelopes: usize,
     <span class="doccomment">/// The relative memory usage above which the buffer service will stop dequeueing envelopes.
     ///
     /// Only applies when [`Self::path`] is set.
+    ///
     /// This value should be lower than [`Health::max_memory_percent`] to prevent flip-flopping.
     ///
     /// Warning: this threshold can cause the buffer service to deadlock when the buffer itself
@@ -3530,6 +3542,11 @@
     </span><span class="attr">#[serde(default = <span class="string">"spool_max_backpressure_memory_percent"</span>)]
     </span><span class="kw">pub </span>max_backpressure_memory_percent: f32,
     <span class="doccomment">/// Number of partitions of the buffer.
+    ///
+    /// A partition is a separate instance of the buffer which has its own isolated queue, stacks
+    /// and other resources.
+    ///
+    /// Defaults to 1.
     </span><span class="attr">#[serde(default = <span class="string">"spool_envelopes_partitions"</span>)]
     </span><span class="kw">pub </span>partitions: NonZeroU8,
 }
@@ -3539,7 +3556,6 @@
         <span class="self">Self </span>{
             path: <span class="prelude-val">None</span>,
             max_disk_size: spool_envelopes_max_disk_size(),
-            max_memory_size: spool_envelopes_max_memory_size(),
             batch_size_bytes: spool_envelopes_batch_size_bytes(),
             max_envelope_delay_secs: spool_envelopes_max_envelope_delay_secs(),
             disk_usage_refresh_frequency_ms: spool_disk_usage_refresh_frequency_ms(),

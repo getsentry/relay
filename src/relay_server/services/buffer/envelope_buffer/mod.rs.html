@@ -1389,7 +1389,7 @@
     /// If the envelope stack does not exist, a new stack is pushed to the priority queue.
     /// The priority of the stack is updated with the envelope's received_at time.
     </span><span class="kw">pub async fn </span>push(<span class="kw-2">&amp;mut </span><span class="self">self</span>, envelope: Box&lt;Envelope&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), EnvelopeBufferError&gt; {
-        <span class="kw">let </span>received_at = envelope.meta().received_at();
+        <span class="kw">let </span>received_at = envelope.received_at();
 
         <span class="kw">let </span>project_key_pair = ProjectKeyPair::from_envelope(<span class="kw-2">&amp;</span>envelope);
         <span class="kw">if let </span><span class="prelude-val">Some</span>((
