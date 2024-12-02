@@ -3,7 +3,9 @@
 ## 24.11.1
 
 **Breaking Changes**:
-- Flatten Linux distribution fields into `os.context`([#4292](https://github.com/getsentry/relay/pull/4292))
+
+- Remove `spool.envelopes.{min_connections,max_connections,unspool_interval,max_memory_size}` config options. ([#4303](https://github.com/getsentry/relay/pull/4303))
+- Flatten Linux distribution fields into `os.context`. ([#4292](https://github.com/getsentry/relay/pull/4292))
 
 **Bug Fixes**:
 
@@ -13,6 +15,7 @@
 
 **Features**:
 
+- Remove old disk spooling logic, default to new version. ([#4303](https://github.com/getsentry/relay/pull/4303))
 - Implement zstd http encoding for Relay to Relay communication. ([#4266](https://github.com/getsentry/relay/pull/4266))
 - Support empty branches in Pattern alternations. ([#4283](https://github.com/getsentry/relay/pull/4283))
 - Add support for partitioning of the `EnvelopeBufferService`. ([#4291](https://github.com/getsentry/relay/pull/4291))
@@ -36,6 +39,7 @@
 
 **Features**:
 
+- Set `sdk.name` for events created from minidumps. ([#4313](https://github.com/getsentry/relay/pull/4313))
 - Add check to ensure unreal user info is not empty. ([#4225](https://github.com/getsentry/relay/pull/4225))
 - Retain empty string values in `span.data` and `event.contexts.trace.data`. ([#4174](https://github.com/getsentry/relay/pull/4174))
 - Allow `sample_rate` to be float type when deserializing `DynamicSamplingContext`. ([#4181](https://github.com/getsentry/relay/pull/4181))

@@ -353,8 +353,8 @@ impl SqliteEnvelopeStore {
             .shared_cache(true);
 
         let db = SqlitePoolOptions::new()
-            .max_connections(config.spool_envelopes_max_connections())
-            .min_connections(config.spool_envelopes_min_connections())
+            .max_connections(1)
+            .min_connections(1)
             .connect_with(options)
             .await
             .map_err(SqliteEnvelopeStoreError::SqlxSetupFailed)?;

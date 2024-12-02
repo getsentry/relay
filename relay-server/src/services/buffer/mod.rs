@@ -94,14 +94,6 @@ pub struct PartitionedEnvelopeBuffer {
 }
 
 impl PartitionedEnvelopeBuffer {
-    /// Creates a [`PartitionedEnvelopeBuffer`] with no partitions.
-    #[cfg(test)]
-    pub fn empty() -> Self {
-        Self {
-            buffers: Arc::new(Vec::new()),
-        }
-    }
-
     /// Creates a new [`PartitionedEnvelopeBuffer`] by instantiating inside all the necessary
     /// [`ObservableEnvelopeBuffer`]s.
     #[allow(clippy::too_many_arguments)]
@@ -130,11 +122,9 @@ impl PartitionedEnvelopeBuffer {
                     test_store: test_store.clone(),
                 },
             )
-            .map(|b| b.start_in(runner));
+            .start_in(runner);
 
-            if let Some(envelope_buffer) = envelope_buffer {
-                envelope_buffers.push(envelope_buffer);
-            }
+            envelope_buffers.push(envelope_buffer);
         }
 
         Self {
@@ -147,16 +137,13 @@ impl PartitionedEnvelopeBuffer {
     ///
     /// The rationale of using this partitioning strategy is to reduce memory usage across buffers
     /// since each individual buffer will only take care of a subset of projects.
-    pub fn buffer(&self, project_key_pair: ProjectKeyPair) -> Option<&ObservableEnvelopeBuffer> {
-        if self.buffers.is_empty() {
-            return None;
-        }
-
+    pub fn buffer(&self, project_key_pair: ProjectKeyPair) -> &ObservableEnvelopeBuffer {
         let mut hasher = FnvHasher::default();
         project_key_pair.own_key.hash(&mut hasher);
         let buffer_index = (hasher.finish() % self.buffers.len() as u64) as usize;
-        let buffer = self.buffers.get(buffer_index);
-        buffer
+        self.buffers
+            .get(buffer_index)
+            .expect("buffers should not be empty")
     }
 
     /// Returns `true` if all [`ObservableEnvelopeBuffer`]s have capacity to get new [`Envelope`]s.
@@ -227,17 +214,14 @@ const DEFAULT_SLEEP: Duration = Duration::from_secs(1);
 
 impl EnvelopeBufferService {
     /// Creates a memory or disk based [`EnvelopeBufferService`], depending on the given config.
-    ///
-    /// NOTE: until the V1 spooler implementation is removed, this function returns `None`
-    /// if V2 spooling is not configured.
     pub fn new(
         partition_id: u8,
         config: Arc<Config>,
         memory_stat: MemoryStat,
         global_config_rx: watch::Receiver<global_config::Status>,
         services: Services,
-    ) -> Option<Self> {
-        config.spool_v2().then(|| Self {
+    ) -> Self {
+        Self {
             partition_id,
             config,
             memory_stat,
@@ -245,7 +229,7 @@ impl EnvelopeBufferService {
             services,
             has_capacity: Arc::new(AtomicBool::new(true)),
             sleep: Duration::ZERO,
-        })
+        }
     }
 
     /// Returns both the [`Addr`] to this service, and a reference to the capacity flag.
@@ -633,14 +617,9 @@ mod tests {
     ) -> EnvelopeBufferServiceResult {
         relay_log::init_test!();
 
-        let config_json = config_json.unwrap_or(serde_json::json!({
-            "spool": {
-                "envelopes": {
-                    "version": "experimental"
-                }
-            }
-        }));
-        let config = Arc::new(Config::from_json_value(config_json).unwrap());
+        let config = Arc::new(
+            config_json.map_or_else(Config::default, |c| Config::from_json_value(c).unwrap()),
+        );
 
         let memory_stat = MemoryStat::default();
         let (global_tx, global_rx) = watch::channel(global_config_status);
@@ -659,8 +638,7 @@ mod tests {
                 outcome_aggregator,
                 test_store: Addr::dummy(),
             },
-        )
-        .unwrap();
+        );
 
         EnvelopeBufferServiceResult {
             service: envelope_buffer_service,
@@ -741,7 +719,6 @@ mod tests {
             Some(serde_json::json!({
                 "spool": {
                     "envelopes": {
-                        "version": "experimental",
                         "path": std::env::temp_dir().join(Uuid::new_v4().to_string()),
                     }
                 },
@@ -776,7 +753,6 @@ mod tests {
             Some(serde_json::json!({
                 "spool": {
                     "envelopes": {
-                        "version": "experimental",
                         "max_envelope_delay_secs": 1,
                     }
                 }
@@ -908,16 +884,7 @@ mod tests {
         };
 
         // Create two buffer services
-        let config = Arc::new(
-            Config::from_json_value(serde_json::json!({
-                "spool": {
-                    "envelopes": {
-                        "version": "experimental"
-                    }
-                }
-            }))
-            .unwrap(),
-        );
+        let config = Arc::new(Config::default());
 
         let buffer1 = EnvelopeBufferService::new(
             0,
@@ -925,8 +892,7 @@ mod tests {
             MemoryStat::default(),
             global_rx.clone(),
             services.clone(),
-        )
-        .unwrap();
+        );
 
         let buffer2 = EnvelopeBufferService::new(
             1,
@@ -934,8 +900,7 @@ mod tests {
             MemoryStat::default(),
             global_rx,
             services,
-        )
-        .unwrap();
+        );
 
         // Start both services and create partitioned buffer
         let observable1 = buffer1.start_in(&mut runner);
