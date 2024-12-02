@@ -4,7 +4,9 @@ use crate::services::upstream::{IsNetworkOutage, UpstreamRelay};
 use crate::statsd::{RelayGauges, RuntimeCounters, RuntimeGauges};
 use relay_config::{Config, RelayMode};
 #[cfg(feature = "processing")]
-use relay_redis::{AsyncRedisPool, RedisPool, RedisPools, Stats};
+use relay_redis::AsyncRedisConnection;
+#[cfg(feature = "processing")]
+use relay_redis::{RedisPool, RedisPools, Stats};
 use relay_statsd::metric;
 use relay_system::{Addr, RuntimeMetrics, Service};
 use tokio::time::interval;
@@ -41,9 +43,6 @@ impl RelayStats {
         metric!(gauge(RuntimeGauges::NumAliveTasks) = self.runtime.num_alive_tasks() as u64);
         metric!(
             gauge(RuntimeGauges::BlockingQueueDepth) = self.runtime.blocking_queue_depth() as u64
-        );
-        metric!(
-            gauge(RuntimeGauges::NumBlockingThreads) = self.runtime.num_blocking_threads() as u64
         );
         metric!(
             gauge(RuntimeGauges::NumBlockingThreads) = self.runtime.num_blocking_threads() as u64
@@ -127,8 +126,8 @@ impl RelayStats {
     }
 
     #[cfg(feature = "processing")]
-    fn redis_pool_async(async_redis_pool: &AsyncRedisPool, name: &str) {
-        Self::stats_metrics(async_redis_pool.stats(), name)
+    fn async_redis_connection(conn: &AsyncRedisConnection, name: &str) {
+        Self::stats_metrics(conn.stats(), name);
     }
 
     #[cfg(feature = "processing")]
@@ -154,7 +153,7 @@ impl RelayStats {
             quotas,
         }) = self.redis_pools.as_ref()
         {
-            Self::redis_pool_async(project_configs, "project_configs");
+            Self::async_redis_connection(project_configs, "project_configs");
             Self::redis_pool(cardinality, "cardinality");
             Self::redis_pool(quotas, "quotas");
         }
