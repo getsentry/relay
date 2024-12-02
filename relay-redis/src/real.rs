@@ -390,35 +390,15 @@ pub struct Stats {
     pub idle_connections: u32,
 }
 
-/// Wrapper for a [`ClusterConnection`] that implements `Debug`.
-#[derive(Clone)]
-pub struct ClusterConnectionDebug(ClusterConnection);
-
-impl Debug for ClusterConnectionDebug {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("ClusterConnection").finish()
-    }
-}
-
-/// Wrapper for a [`ConnectionManager`] that implements `Debug`.
-#[derive(Clone)]
-pub struct ConnectionManagerDebug(ConnectionManager);
-
-impl Debug for ConnectionManagerDebug {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("ConnectionManagerDebug").finish()
-    }
-}
-
 /// A wrapper Type for async redis connections. Conceptually it's similar to [`RedisPool`]
 /// but async redis does not require a pool since the connections can just be cloned and
 /// are thread safe.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub enum AsyncRedisConnection {
     /// Variant for [`ClusterConnection`].
-    Cluster(ClusterConnectionDebug),
+    Cluster(ClusterConnection),
     /// Variant for [`ConnectionManager`] using [`redis::aio::MultiplexedConnection`].
-    Single(ConnectionManagerDebug),
+    Single(ConnectionManager),
 }
 
 impl AsyncRedisConnection {
@@ -437,7 +417,7 @@ impl AsyncRedisConnection {
             .get_async_connection()
             .await
             .map_err(RedisError::Redis)?;
-        Ok(Self::Cluster(ClusterConnectionDebug(connection)))
+        Ok(Self::Cluster(connection))
     }
 
     /// Create a [`AsyncRedisConnection`] in single mode.
@@ -449,18 +429,18 @@ impl AsyncRedisConnection {
         let connection_manager = ConnectionManager::new_with_config(client, config)
             .await
             .map_err(RedisError::Redis)?;
-        Ok(Self::Single(ConnectionManagerDebug(connection_manager)))
+        Ok(Self::Single(connection_manager))
     }
 
     /// Runs the given command on redis and returns the result.
     pub async fn query_async<T: FromRedisValue>(&self, cmd: Cmd) -> Result<T, RedisError> {
         match self {
             Self::Cluster(conn, ..) => cmd
-                .query_async(&mut conn.0.clone())
+                .query_async(&mut conn.clone())
                 .await
                 .map_err(RedisError::Redis),
             Self::Single(conn, ..) => cmd
-                .query_async(&mut conn.0.clone())
+                .query_async(&mut conn.clone())
                 .await
                 .map_err(RedisError::Redis),
         }
@@ -475,5 +455,15 @@ impl AsyncRedisConnection {
             idle_connections: 0,
             connections: 1,
         }
+    }
+}
+
+impl Debug for AsyncRedisConnection {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        let name = match self {
+            Self::Cluster(_) => "Cluster",
+            Self::Single(_) => "Single",
+        };
+        f.debug_tuple(name).finish()
     }
 }
