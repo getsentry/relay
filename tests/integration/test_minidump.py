@@ -463,6 +463,8 @@ def test_minidump_with_processing(
         }
     ]
 
+    assert "errors" not in event
+
 
 def test_minidump_with_processing_invalid(
     mini_sentry, relay_with_processing, attachments_consumer
