@@ -3,6 +3,7 @@ use std::sync::Arc;
 use crate::services::upstream::{IsNetworkOutage, UpstreamRelay};
 use crate::statsd::{RelayGauges, RuntimeCounters, RuntimeGauges};
 use relay_config::{Config, RelayMode};
+#[cfg(feature = "processing")]
 use relay_redis::AsyncRedisConnection;
 #[cfg(feature = "processing")]
 use relay_redis::{RedisPool, RedisPools, Stats};
