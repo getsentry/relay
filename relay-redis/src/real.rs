@@ -415,9 +415,9 @@ impl Debug for ConnectionManagerDebug {
 /// are thread safe.
 #[derive(Debug, Clone)]
 pub enum AsyncRedisConnection {
-    /// Variant for [`ClusterConnection`]
+    /// Variant for [`ClusterConnection`].
     Cluster(ClusterConnectionDebug),
-    /// Variant for [`ConnectionManager`] using [`redis::aio::MultiplexedConnection`]
+    /// Variant for [`ConnectionManager`] using [`redis::aio::MultiplexedConnection`].
     Single(ConnectionManagerDebug),
 }
 
