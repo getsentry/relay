@@ -46,9 +46,6 @@ impl RelayStats {
             gauge(RuntimeGauges::NumBlockingThreads) = self.runtime.num_blocking_threads() as u64
         );
         metric!(
-            gauge(RuntimeGauges::NumBlockingThreads) = self.runtime.num_blocking_threads() as u64
-        );
-        metric!(
             gauge(RuntimeGauges::NumIdleBlockingThreads) =
                 self.runtime.num_idle_blocking_threads() as u64
         );
