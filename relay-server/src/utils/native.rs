@@ -206,6 +206,7 @@ pub fn process_minidump(event: &mut Event, data: &[u8]) {
     // Add sdk information for analytics.
     event.client_sdk.get_or_insert_with(|| ClientSdkInfo {
         name: Annotated::new(client_sdk_name.to_owned()),
+        version: "0.0.0".to_owned().into(),
         ..ClientSdkInfo::default()
     });
 
