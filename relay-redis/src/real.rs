@@ -465,4 +465,15 @@ impl AsyncRedisConnection {
                 .map_err(RedisError::Redis),
         }
     }
+
+    /// Return [`Stats`] for [`AsyncRedisConnection`].
+    ///
+    /// It will always return 0 for `idle_connections` and 1 for `connections` since we
+    /// are re-using the same connection.
+    pub fn stats(&self) -> Stats {
+        Stats {
+            idle_connections: 0,
+            connections: 1,
+        }
+    }
 }
