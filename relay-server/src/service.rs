@@ -35,7 +35,9 @@ use relay_config::{RedisConfigRef, RedisPoolConfigs};
 #[cfg(feature = "processing")]
 use relay_redis::redis::Script;
 #[cfg(feature = "processing")]
-use relay_redis::{AsyncRedisPool, PooledClient, RedisError, RedisPool, RedisPools, RedisScripts};
+use relay_redis::AsyncRedisConnection;
+#[cfg(feature = "processing")]
+use relay_redis::{PooledClient, RedisError, RedisPool, RedisPools, RedisScripts};
 use relay_system::{channel, Addr, Service, ServiceRunner};
 use tokio::sync::mpsc;
 
@@ -447,7 +449,7 @@ fn create_redis_pool(redis_config: RedisConfigRef) -> Result<RedisPool, RedisErr
 pub async fn create_redis_pools(configs: RedisPoolConfigs<'_>) -> Result<RedisPools, RedisError> {
     match configs {
         RedisPoolConfigs::Unified(pool) => {
-            let project_configs = create_async_pool(&pool).await?;
+            let project_configs = create_async_connection(&pool).await?;
             let pool = create_redis_pool(pool)?;
             Ok(RedisPools {
                 project_configs,
@@ -460,7 +462,7 @@ pub async fn create_redis_pools(configs: RedisPoolConfigs<'_>) -> Result<RedisPo
             cardinality,
             quotas,
         } => {
-            let project_configs = create_async_pool(&project_configs).await?;
+            let project_configs = create_async_connection(&project_configs).await?;
             let cardinality = create_redis_pool(cardinality)?;
             let quotas = create_redis_pool(quotas)?;
 
@@ -474,14 +476,16 @@ pub async fn create_redis_pools(configs: RedisPoolConfigs<'_>) -> Result<RedisPo
 }
 
 #[cfg(feature = "processing")]
-async fn create_async_pool(config: &RedisConfigRef<'_>) -> Result<AsyncRedisPool, RedisError> {
+async fn create_async_connection(
+    config: &RedisConfigRef<'_>,
+) -> Result<AsyncRedisConnection, RedisError> {
     match config {
         RedisConfigRef::Cluster {
             cluster_nodes,
             options,
-        } => AsyncRedisPool::cluster(cluster_nodes.iter().map(|s| s.as_str()), options).await,
+        } => AsyncRedisConnection::cluster(cluster_nodes.iter().map(|s| s.as_str()), options).await,
         RedisConfigRef::Single { server, options } => {
-            AsyncRedisPool::single(server.as_str(), options).await
+            AsyncRedisConnection::single(server, options).await
         }
         RedisConfigRef::MultiWrite { .. } => {
             Err(RedisError::MultiWriteNotSupported("projectconfig"))

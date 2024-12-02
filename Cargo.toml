@@ -63,13 +63,11 @@ relay-event-derive = { path = "relay-event-derive" }
 ahash = "0.8.11"
 android_trace_log = { version = "0.3.0", features = ["serde"] }
 anyhow = "1.0.66"
-async-trait = "0.1.83"
 axum = "0.7.5"
 axum-extra = "0.9.3"
 axum-server = "0.7.1"
 arc-swap = "1.7.1"
 backoff = "0.4.0"
-bb8-redis = "0.17.0"
 bindgen = "0.70.1"
 brotli = "6.0.0"
 bytecount = "0.6.0"
@@ -142,7 +140,7 @@ rand_pcg = "0.3.1"
 rayon = "1.10"
 rdkafka = "0.36.2"
 rdkafka-sys = "4.3.0"
-redis = { version = "0.27.4", default-features = false }
+redis = { version = "0.27.5", default-features = false }
 regex = "1.10.2"
 regex-lite = "0.1.6"
 reqwest = "0.12.7"
