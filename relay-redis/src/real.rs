@@ -417,7 +417,7 @@ impl Debug for ConnectionManagerDebug {
 pub enum AsyncRedisConnection {
     /// Variant for [`ClusterConnection`]
     Cluster(ClusterConnectionDebug),
-    /// Variant for [`ConnectionManager`] using [`MultiplexedConnection`]
+    /// Variant for [`ConnectionManager`] using [`redis::aio::MultiplexedConnection`]
     Single(ConnectionManagerDebug),
 }
 
