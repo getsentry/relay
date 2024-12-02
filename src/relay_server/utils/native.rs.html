@@ -240,7 +240,8 @@
 <a href="#239" id="239">239</a>
 <a href="#240" id="240">240</a>
 <a href="#241" id="241">241</a>
-<a href="#242" id="242">242</a></pre></div><pre class="rust"><code><span class="doccomment">//! Utility methods for native event processing.
+<a href="#242" id="242">242</a>
+<a href="#243" id="243">243</a></pre></div><pre class="rust"><code><span class="doccomment">//! Utility methods for native event processing.
 //!
 //! These functions are invoked by the `EnvelopeProcessor`, and are used to prepare native event
 //! payloads. See [`process_minidump`] and [`process_apple_crash_report`] for more information.
@@ -448,6 +449,7 @@
     <span class="comment">// Add sdk information for analytics.
     </span>event.client_sdk.get_or_insert_with(|| ClientSdkInfo {
         name: Annotated::new(client_sdk_name.to_owned()),
+        version: <span class="string">"0.0.0"</span>.to_owned().into(),
         ..ClientSdkInfo::default()
     });
 
