@@ -477,7 +477,7 @@
 
 <span class="kw">impl </span>TokioCallbackMetrics {
     <span class="kw">pub fn </span>register(<span class="self">self</span>: <span class="kw-2">&amp;</span>Arc&lt;<span class="self">Self</span>&gt;, builder: <span class="kw-2">&amp;mut </span>tokio::runtime::Builder) {
-        builder.on_thread_start({
+        builder.on_thread_park({
             <span class="kw">let </span>this = Arc::clone(<span class="self">self</span>);
             <span class="kw">move </span>|| {
                 this.idle_threads.fetch_add(<span class="number">1</span>, Ordering::Relaxed);
