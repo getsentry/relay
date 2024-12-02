@@ -14,7 +14,6 @@ workspace = true
 
 [dependencies]
 r2d2 = { workspace = true, optional = true }
-bb8-redis = { workspace = true, optional = true }
 redis = { workspace = true, optional = true, features = [
     "cluster",
     "r2d2",
@@ -22,16 +21,16 @@ redis = { workspace = true, optional = true, features = [
     "keep-alive",
     "script",
     "tokio-native-tls-comp",
-    "cluster-async"
+    "cluster-async",
+    "connection-manager"
 ], default-features = false }
 relay-log = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
-async-trait = { workspace = true, optional = true }
 
 [features]
 default = []
-impl = ["dep:r2d2", "dep:redis", "dep:bb8-redis", "dep:async-trait"]
+impl = ["dep:r2d2", "dep:redis"]
 
 [dev-dependencies]
 serde_yaml = { workspace = true }
