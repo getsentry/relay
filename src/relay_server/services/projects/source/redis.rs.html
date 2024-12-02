@@ -148,7 +148,7 @@
 <a href="#147" id="147">147</a>
 <a href="#148" id="148">148</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::project::ProjectKey;
 <span class="kw">use </span>relay_config::Config;
-<span class="kw">use </span>relay_redis::{AsyncRedisPool, RedisError};
+<span class="kw">use </span>relay_redis::{AsyncRedisConnection, RedisError};
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>std::fmt::Debug;
 <span class="kw">use </span>std::sync::Arc;
@@ -161,7 +161,7 @@
 <span class="attr">#[derive(Clone, Debug)]
 </span><span class="kw">pub struct </span>RedisProjectSource {
     config: Arc&lt;Config&gt;,
-    redis: AsyncRedisPool,
+    redis: AsyncRedisConnection,
 }
 
 <span class="attr">#[derive(Debug, thiserror::Error)]
@@ -198,7 +198,7 @@
 }
 
 <span class="kw">impl </span>RedisProjectSource {
-    <span class="kw">pub fn </span>new(config: Arc&lt;Config&gt;, redis: AsyncRedisPool) -&gt; <span class="self">Self </span>{
+    <span class="kw">pub fn </span>new(config: Arc&lt;Config&gt;, redis: AsyncRedisConnection) -&gt; <span class="self">Self </span>{
         RedisProjectSource { config, redis }
     }
 

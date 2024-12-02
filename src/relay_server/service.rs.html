@@ -531,7 +531,11 @@
 <a href="#530" id="530">530</a>
 <a href="#531" id="531">531</a>
 <a href="#532" id="532">532</a>
-<a href="#533" id="533">533</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
+<a href="#533" id="533">533</a>
+<a href="#534" id="534">534</a>
+<a href="#535" id="535">535</a>
+<a href="#536" id="536">536</a>
+<a href="#537" id="537">537</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
@@ -568,7 +572,9 @@
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">use </span>relay_redis::redis::Script;
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-</span><span class="kw">use </span>relay_redis::{AsyncRedisPool, PooledClient, RedisError, RedisPool, RedisPools, RedisScripts};
+</span><span class="kw">use </span>relay_redis::AsyncRedisConnection;
+<span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+</span><span class="kw">use </span>relay_redis::{PooledClient, RedisError, RedisPool, RedisPools, RedisScripts};
 <span class="kw">use </span>relay_system::{channel, Addr, Service, ServiceRunner};
 <span class="kw">use </span>tokio::sync::mpsc;
 
@@ -980,7 +986,7 @@
 </span><span class="kw">pub async fn </span>create_redis_pools(configs: RedisPoolConfigs&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;RedisPools, RedisError&gt; {
     <span class="kw">match </span>configs {
         RedisPoolConfigs::Unified(pool) =&gt; {
-            <span class="kw">let </span>project_configs = create_async_pool(<span class="kw-2">&amp;</span>pool).<span class="kw">await</span><span class="question-mark">?</span>;
+            <span class="kw">let </span>project_configs = create_async_connection(<span class="kw-2">&amp;</span>pool).<span class="kw">await</span><span class="question-mark">?</span>;
             <span class="kw">let </span>pool = create_redis_pool(pool)<span class="question-mark">?</span>;
             <span class="prelude-val">Ok</span>(RedisPools {
                 project_configs,
@@ -993,7 +999,7 @@
             cardinality,
             quotas,
         } =&gt; {
-            <span class="kw">let </span>project_configs = create_async_pool(<span class="kw-2">&amp;</span>project_configs).<span class="kw">await</span><span class="question-mark">?</span>;
+            <span class="kw">let </span>project_configs = create_async_connection(<span class="kw-2">&amp;</span>project_configs).<span class="kw">await</span><span class="question-mark">?</span>;
             <span class="kw">let </span>cardinality = create_redis_pool(cardinality)<span class="question-mark">?</span>;
             <span class="kw">let </span>quotas = create_redis_pool(quotas)<span class="question-mark">?</span>;
 
@@ -1007,14 +1013,16 @@
 }
 
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-</span><span class="kw">async fn </span>create_async_pool(config: <span class="kw-2">&amp;</span>RedisConfigRef&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;AsyncRedisPool, RedisError&gt; {
+</span><span class="kw">async fn </span>create_async_connection(
+    config: <span class="kw-2">&amp;</span>RedisConfigRef&lt;<span class="lifetime">'_</span>&gt;,
+) -&gt; <span class="prelude-ty">Result</span>&lt;AsyncRedisConnection, RedisError&gt; {
     <span class="kw">match </span>config {
         RedisConfigRef::Cluster {
             cluster_nodes,
             options,
-        } =&gt; AsyncRedisPool::cluster(cluster_nodes.iter().map(|s| s.as_str()), options).<span class="kw">await</span>,
+        } =&gt; AsyncRedisConnection::cluster(cluster_nodes.iter().map(|s| s.as_str()), options).<span class="kw">await</span>,
         RedisConfigRef::Single { server, options } =&gt; {
-            AsyncRedisPool::single(server.as_str(), options).<span class="kw">await
+            AsyncRedisConnection::single(server, options).<span class="kw">await
         </span>}
         RedisConfigRef::MultiWrite { .. } =&gt; {
             <span class="prelude-val">Err</span>(RedisError::MultiWriteNotSupported(<span class="string">"projectconfig"</span>))
