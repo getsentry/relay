@@ -252,9 +252,7 @@ impl EnvelopeBufferService {
             tokio::time::sleep(self.sleep).await;
         }
 
-        let permit = self.services.envelopes_tx.reserve().await.ok();
-
-        permit
+        self.services.envelopes_tx.reserve().await.ok()
     }
 
     /// Waits until preconditions for unspooling are met.
