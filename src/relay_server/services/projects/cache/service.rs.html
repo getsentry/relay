@@ -224,9 +224,7 @@
 <a href="#223" id="223">223</a>
 <a href="#224" id="224">224</a>
 <a href="#225" id="225">225</a>
-<a href="#226" id="226">226</a>
-<a href="#227" id="227">227</a>
-<a href="#228" id="228">228</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
+<a href="#226" id="226">226</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>futures::future::BoxFuture;
 <span class="kw">use </span>futures::StreamExt <span class="kw">as _</span>;
@@ -352,9 +350,7 @@
                         <span class="string">"failed to fetch project from source: {fetch:?}"
                     </span>);
 
-                    <span class="comment">// TODO: change this to ProjectState::Pending once we consider it safe to do so.
-                    // see https://github.com/getsentry/relay/pull/4140.
-                    </span>ProjectState::Disabled.into()
+                    ProjectState::Pending.into()
                 }
             };
 
