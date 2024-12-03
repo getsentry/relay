@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Bug Fixes**:
+
+- Accept incoming requests even if there was an error fetching their project config. ([#4140](https://github.com/getsentry/relay/pull/4140))
+
 ## 24.11.1
 
 **Breaking Changes**:
