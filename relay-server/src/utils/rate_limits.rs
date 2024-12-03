@@ -680,11 +680,10 @@ where
 
             // Profiles can persist in envelopes without transaction if the transaction item
             // was dropped by dynamic sampling.
-            if profile_limits.is_empty() {
-                profile_limits.merge(self.check.apply(
-                    scoping.item(DataCategory::Transaction),
-                    summary.profile_quantity,
-                )?);
+            if profile_limits.is_empty() && summary.event_category.is_none() {
+                profile_limits = self
+                    .check
+                    .apply(scoping.item(DataCategory::Transaction), 0)?;
             }
 
             enforcement.profiles = CategoryLimit::new(
@@ -1447,7 +1446,7 @@ mod tests {
 
         assert!(enforcement.profiles.is_active());
         mock.assert_call(DataCategory::Profile, 1);
-        mock.assert_call(DataCategory::Transaction, 1);
+        mock.assert_call(DataCategory::Transaction, 0);
 
         assert_eq!(
             get_outcomes(enforcement),
