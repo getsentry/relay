@@ -243,43 +243,16 @@ impl EnvelopeBufferService {
     /// Wait for the configured amount of time and make sure the project cache is ready to receive.
     async fn ready_to_pop(
         &mut self,
-        partition_tag: &str,
         buffer: &PolymorphicEnvelopeBuffer,
         dequeue: bool,
     ) -> Option<Permit<legacy::DequeuedEnvelope>> {
-        relay_statsd::metric!(
-            counter(RelayCounters::BufferReadyToPop) += 1,
-            status = "checking",
-            partition_id = partition_tag
-        );
-
         self.system_ready(buffer, dequeue).await;
-
-        relay_statsd::metric!(
-            counter(RelayCounters::BufferReadyToPop) += 1,
-            status = "system_ready",
-            partition_id = partition_tag
-        );
 
         if self.sleep > Duration::ZERO {
             tokio::time::sleep(self.sleep).await;
         }
 
-        relay_statsd::metric!(
-            counter(RelayCounters::BufferReadyToPop) += 1,
-            status = "slept",
-            partition_id = partition_tag
-        );
-
-        let permit = self.services.envelopes_tx.reserve().await.ok();
-
-        relay_statsd::metric!(
-            counter(RelayCounters::BufferReadyToPop) += 1,
-            status = "checked",
-            partition_id = partition_tag
-        );
-
-        permit
+        self.services.envelopes_tx.reserve().await.ok()
     }
 
     /// Waits until preconditions for unspooling are met.
@@ -328,6 +301,11 @@ impl EnvelopeBufferService {
             | Peek::NotReady {
                 last_received_at, ..
             } if is_expired(last_received_at, config) => {
+                relay_statsd::metric!(
+                    counter(RelayCounters::BufferTryPop) += 1,
+                    peek_result = "expired",
+                    partition_id = partition_tag
+                );
                 let envelope = buffer
                     .pop()
                     .await?
@@ -530,7 +508,7 @@ impl Service for EnvelopeBufferService {
                 // On the one hand, we might want to prioritize dequeuing over enqueuing
                 // so we do not exceed the buffer capacity by starving the dequeue.
                 // on the other hand, prioritizing old messages violates the LIFO design.
-                Some(permit) = self.ready_to_pop(&partition_tag, &buffer, dequeue.load(Ordering::Relaxed)) => {
+                Some(permit) = self.ready_to_pop(&buffer, dequeue.load(Ordering::Relaxed)) => {
                     relay_statsd::metric!(timer(RelayTimers::BufferIdle) = start.elapsed(), input = "pop", partition_id = &partition_tag);
                     relay_statsd::metric!(timer(RelayTimers::BufferBusy), input = "pop", partition_id = &partition_tag, {
                         match Self::try_pop(&partition_tag, &config, &mut buffer, &services, permit).await {
