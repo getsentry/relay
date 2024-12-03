@@ -90,13 +90,11 @@ macro_rules! impl_queue {
             }
 
             /// Returns the current size of the queue.
-            #[allow(dead_code)]
             pub fn len(&self) -> usize {
                 self.queue.len()
             }
 
             /// Returns true if there are no items in the queue.
-            #[allow(dead_code)]
             pub fn is_empty(&self) -> bool {
                 self.len() == 0
             }

@@ -4,7 +4,7 @@ use std::{
     task::{Context, Poll},
 };
 
-use crate::utils::ScheduledQueue;
+use crate::ScheduledQueue;
 use futures::{
     stream::{FusedStream, FuturesUnordered},
     Stream, StreamExt,
@@ -31,6 +31,11 @@ impl<T> FuturesScheduled<T> {
     /// Returns the total amount of scheduled and active tasks.
     pub fn len(&self) -> usize {
         self.queue.len() + self.tasks.len()
+    }
+
+    /// Returns true if there are futures scheduled.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
     }
 
     /// Schedules a new `task`.

@@ -31,6 +31,7 @@
 //! Relay is split into the following workspace crates:
 //!
 //!  - `relay`: Main entry point and command line interface.
+//!  - [`relay-async`]: Async combinators and utilities for Relay.
 //!  - [`relay-auth`]: Authentication and crypto.
 //!  - [`relay-base-schema`]: Basic types for Relay's API schema used across multiple services.
 //!  - [`relay-cabi`]: C-bindings for exposing functionality to Python.

@@ -1,0 +1,21 @@
+[package]
+name = "relay-async"
+authors = ["Sentry <oss@sentry.io>"]
+description = "Async combinators and utilities for Relay"
+homepage = "https://getsentry.github.io/relay/"
+repository = "https://github.com/getsentry/relay"
+version = "24.11.1"
+edition = "2021"
+license-file = "../LICENSE.md"
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+tokio = { workspace = true, features = ["time"] }
+futures = { workspace = true, features = ["async-await"] }
+priority-queue = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt", "macros", "test-util"] }

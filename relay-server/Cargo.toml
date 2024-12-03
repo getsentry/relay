@@ -62,6 +62,7 @@ prost = { workspace = true }
 rand = { workspace = true }
 rayon = { workspace = true }
 regex = { workspace = true }
+relay-async = { workspace = true }
 relay-auth = { workspace = true }
 relay-base-schema = { workspace = true }
 relay-cardinality = { workspace = true }

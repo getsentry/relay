@@ -26,6 +26,7 @@ print_stdout = "warn"
 print_stderr = "warn"
 
 [workspace.dependencies]
+relay-async = { path = "relay-async" }
 relay-auth = { path = "relay-auth" }
 relay-base-schema = { path = "relay-base-schema" }
 relay-cardinality = { path = "relay-cardinality" }

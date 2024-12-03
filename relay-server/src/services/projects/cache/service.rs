@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use futures::future::BoxFuture;
 use futures::StreamExt as _;
+use relay_async::FuturesScheduled;
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
 use relay_statsd::metric;
@@ -13,7 +14,6 @@ use crate::services::projects::cache::state::{CompletedFetch, Eviction, Fetch, P
 use crate::services::projects::project::ProjectState;
 use crate::services::projects::source::ProjectSource;
 use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
-use crate::utils::FuturesScheduled;
 
 /// Size of the broadcast channel for project events.
 ///
