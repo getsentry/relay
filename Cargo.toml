@@ -62,7 +62,7 @@ relay-event-derive = { path = "relay-event-derive" }
 
 ahash = "0.8.11"
 android_trace_log = { version = "0.3.0", features = ["serde"] }
-anyhow = "1.0.66"
+anyhow = "=1.0.69"
 axum = "0.7.5"
 axum-extra = "0.9.3"
 axum-server = "0.7.1"
