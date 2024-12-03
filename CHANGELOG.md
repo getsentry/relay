@@ -2,16 +2,27 @@
 
 ## Unreleased
 
-**Bug Fixes**:
-
-- Accept incoming requests even if there was an error fetching their project config. ([#4140](https://github.com/getsentry/relay/pull/4140))
-
-## 24.11.1
-
 **Breaking Changes**:
 
 - Remove `spool.envelopes.{min_connections,max_connections,unspool_interval,max_memory_size}` config options. ([#4303](https://github.com/getsentry/relay/pull/4303))
 - Flatten Linux distribution fields into `os.context`. ([#4292](https://github.com/getsentry/relay/pull/4292))
+
+**Bug Fixes**:
+
+- Accept incoming requests even if there was an error fetching their project config. ([#4140](https://github.com/getsentry/relay/pull/4140))
+
+**Features**:
+
+- Set `sdk.name` for events created from minidumps. ([#4313](https://github.com/getsentry/relay/pull/4313))
+- Remove old disk spooling logic, default to new version. ([#4303](https://github.com/getsentry/relay/pull/4303))
+
+**Internal**:
+
+- Promote some `span.data` fields to the top level. ([#4298](https://github.com/getsentry/relay/pull/4298))
+- Remove metrics summaries. ([#4278](https://github.com/getsentry/relay/pull/4278), [#4279](https://github.com/getsentry/relay/pull/4279), [#4296](https://github.com/getsentry/relay/pull/4296))
+- Use async `redis` for `projectconfig`. ([#4284](https://github.com/getsentry/relay/pull/4284))
+
+## 24.11.1
 
 **Bug Fixes**:
 
@@ -21,16 +32,9 @@
 
 **Features**:
 
-- Remove old disk spooling logic, default to new version. ([#4303](https://github.com/getsentry/relay/pull/4303))
 - Implement zstd http encoding for Relay to Relay communication. ([#4266](https://github.com/getsentry/relay/pull/4266))
 - Support empty branches in Pattern alternations. ([#4283](https://github.com/getsentry/relay/pull/4283))
 - Add support for partitioning of the `EnvelopeBufferService`. ([#4291](https://github.com/getsentry/relay/pull/4291))
-
-**Internal**:
-
-- Remove metrics summaries. ([#4278](https://github.com/getsentry/relay/pull/4278), [#4279](https://github.com/getsentry/relay/pull/4279))
-- Use async `redis` for `projectconfig`. ([#4284](https://github.com/getsentry/relay/pull/4284))
-- Promote some `span.data` fields to the top level. ([#4298](https://github.com/getsentry/relay/pull/4298))
 
 ## 24.11.0
 
@@ -45,7 +49,6 @@
 
 **Features**:
 
-- Set `sdk.name` for events created from minidumps. ([#4313](https://github.com/getsentry/relay/pull/4313))
 - Add check to ensure unreal user info is not empty. ([#4225](https://github.com/getsentry/relay/pull/4225))
 - Retain empty string values in `span.data` and `event.contexts.trace.data`. ([#4174](https://github.com/getsentry/relay/pull/4174))
 - Allow `sample_rate` to be float type when deserializing `DynamicSamplingContext`. ([#4181](https://github.com/getsentry/relay/pull/4181))
