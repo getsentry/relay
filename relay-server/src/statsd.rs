@@ -649,22 +649,13 @@ pub enum RelayCounters {
     ///  - `handling`: Either `"success"` if the envelope was handled correctly, or `"failure"` if
     ///    there was an error or bug.
     EnvelopeRejected,
-    /// Number of _envelopes_ the envelope buffer ingests.
-    BufferEnvelopesWritten,
-    /// Number of _envelopes_ the envelope buffer produces.
-    BufferEnvelopesRead,
     /// Number of envelopes that were returned to the envelope buffer by the project cache.
     ///
     /// This happens when the envelope buffer falsely assumes that the envelope's projects are loaded
     /// in the cache and sends the envelope onward, even though the project cache cannot handle it.
     BufferEnvelopesReturned,
-    /// Number of times an envelope stack is popped from the priority queue of stacks in the
-    /// envelope buffer.
-    BufferEnvelopeStacksPopped,
     /// Number of times an envelope from the buffer is trying to be popped.
     BufferTryPop,
-    /// Number of times the readiness check of the buffer is polled.
-    BufferReadyToPop,
     /// Number of envelopes spool to disk.
     BufferSpooledEnvelopes,
     /// Number of envelopes unspooled from disk.
@@ -852,12 +843,8 @@ impl CounterMetric for RelayCounters {
             RelayCounters::EventCorrupted => "event.corrupted",
             RelayCounters::EnvelopeAccepted => "event.accepted",
             RelayCounters::EnvelopeRejected => "event.rejected",
-            RelayCounters::BufferEnvelopesWritten => "buffer.envelopes_written",
-            RelayCounters::BufferEnvelopesRead => "buffer.envelopes_read",
             RelayCounters::BufferEnvelopesReturned => "buffer.envelopes_returned",
-            RelayCounters::BufferEnvelopeStacksPopped => "buffer.envelope_stacks_popped",
             RelayCounters::BufferTryPop => "buffer.try_pop",
-            RelayCounters::BufferReadyToPop => "buffer.ready_to_pop",
             RelayCounters::BufferSpooledEnvelopes => "buffer.spooled_envelopes",
             RelayCounters::BufferUnspooledEnvelopes => "buffer.unspooled_envelopes",
             RelayCounters::Outcomes => "events.outcomes",
