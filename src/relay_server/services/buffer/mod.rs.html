@@ -905,29 +905,7 @@
 <a href="#904" id="904">904</a>
 <a href="#905" id="905">905</a>
 <a href="#906" id="906">906</a>
-<a href="#907" id="907">907</a>
-<a href="#908" id="908">908</a>
-<a href="#909" id="909">909</a>
-<a href="#910" id="910">910</a>
-<a href="#911" id="911">911</a>
-<a href="#912" id="912">912</a>
-<a href="#913" id="913">913</a>
-<a href="#914" id="914">914</a>
-<a href="#915" id="915">915</a>
-<a href="#916" id="916">916</a>
-<a href="#917" id="917">917</a>
-<a href="#918" id="918">918</a>
-<a href="#919" id="919">919</a>
-<a href="#920" id="920">920</a>
-<a href="#921" id="921">921</a>
-<a href="#922" id="922">922</a>
-<a href="#923" id="923">923</a>
-<a href="#924" id="924">924</a>
-<a href="#925" id="925">925</a>
-<a href="#926" id="926">926</a>
-<a href="#927" id="927">927</a>
-<a href="#928" id="928">928</a>
-<a href="#929" id="929">929</a></pre></div><pre class="rust"><code><span class="doccomment">//! Types for buffering envelopes.
+<a href="#907" id="907">907</a></pre></div><pre class="rust"><code><span class="doccomment">//! Types for buffering envelopes.
 
 </span><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::hash::{Hash, Hasher};
@@ -1172,43 +1150,16 @@
     <span class="doccomment">/// Wait for the configured amount of time and make sure the project cache is ready to receive.
     </span><span class="kw">async fn </span>ready_to_pop(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        partition_tag: <span class="kw-2">&amp;</span>str,
         buffer: <span class="kw-2">&amp;</span>PolymorphicEnvelopeBuffer,
         dequeue: bool,
     ) -&gt; <span class="prelude-ty">Option</span>&lt;Permit&lt;legacy::DequeuedEnvelope&gt;&gt; {
-        <span class="macro">relay_statsd::metric!</span>(
-            counter(RelayCounters::BufferReadyToPop) += <span class="number">1</span>,
-            status = <span class="string">"checking"</span>,
-            partition_id = partition_tag
-        );
-
         <span class="self">self</span>.system_ready(buffer, dequeue).<span class="kw">await</span>;
-
-        <span class="macro">relay_statsd::metric!</span>(
-            counter(RelayCounters::BufferReadyToPop) += <span class="number">1</span>,
-            status = <span class="string">"system_ready"</span>,
-            partition_id = partition_tag
-        );
 
         <span class="kw">if </span><span class="self">self</span>.sleep &gt; Duration::ZERO {
             tokio::time::sleep(<span class="self">self</span>.sleep).<span class="kw">await</span>;
         }
 
-        <span class="macro">relay_statsd::metric!</span>(
-            counter(RelayCounters::BufferReadyToPop) += <span class="number">1</span>,
-            status = <span class="string">"slept"</span>,
-            partition_id = partition_tag
-        );
-
-        <span class="kw">let </span>permit = <span class="self">self</span>.services.envelopes_tx.reserve().<span class="kw">await</span>.ok();
-
-        <span class="macro">relay_statsd::metric!</span>(
-            counter(RelayCounters::BufferReadyToPop) += <span class="number">1</span>,
-            status = <span class="string">"checked"</span>,
-            partition_id = partition_tag
-        );
-
-        permit
+        <span class="self">self</span>.services.envelopes_tx.reserve().<span class="kw">await</span>.ok()
     }
 
     <span class="doccomment">/// Waits until preconditions for unspooling are met.
@@ -1257,6 +1208,11 @@
             | Peek::NotReady {
                 last_received_at, ..
             } <span class="kw">if </span>is_expired(last_received_at, config) =&gt; {
+                <span class="macro">relay_statsd::metric!</span>(
+                    counter(RelayCounters::BufferTryPop) += <span class="number">1</span>,
+                    peek_result = <span class="string">"expired"</span>,
+                    partition_id = partition_tag
+                );
                 <span class="kw">let </span>envelope = buffer
                     .pop()
                     .<span class="kw">await</span><span class="question-mark">?
@@ -1459,7 +1415,7 @@
                 // On the one hand, we might want to prioritize dequeuing over enqueuing
                 // so we do not exceed the buffer capacity by starving the dequeue.
                 // on the other hand, prioritizing old messages violates the LIFO design.
-                </span><span class="prelude-val">Some</span>(permit) = <span class="self">self</span>.ready_to_pop(<span class="kw-2">&amp;</span>partition_tag, <span class="kw-2">&amp;</span>buffer, dequeue.load(Ordering::Relaxed)) =&gt; {
+                </span><span class="prelude-val">Some</span>(permit) = <span class="self">self</span>.ready_to_pop(<span class="kw-2">&amp;</span>buffer, dequeue.load(Ordering::Relaxed)) =&gt; {
                     <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::BufferIdle) = start.elapsed(), input = <span class="string">"pop"</span>, partition_id = <span class="kw-2">&amp;</span>partition_tag);
                     <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::BufferBusy), input = <span class="string">"pop"</span>, partition_id = <span class="kw-2">&amp;</span>partition_tag, {
                         <span class="kw">match </span><span class="self">Self</span>::try_pop(<span class="kw-2">&amp;</span>partition_tag, <span class="kw-2">&amp;</span>config, <span class="kw-2">&amp;mut </span>buffer, <span class="kw-2">&amp;</span>services, permit).<span class="kw">await </span>{
