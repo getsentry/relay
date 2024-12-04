@@ -420,7 +420,16 @@
 <a href="#419" id="419">419</a>
 <a href="#420" id="420">420</a>
 <a href="#421" id="421">421</a>
-<a href="#422" id="422">422</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::atomic::{AtomicBool, Ordering};
+<a href="#422" id="422">422</a>
+<a href="#423" id="423">423</a>
+<a href="#424" id="424">424</a>
+<a href="#425" id="425">425</a>
+<a href="#426" id="426">426</a>
+<a href="#427" id="427">427</a>
+<a href="#428" id="428">428</a>
+<a href="#429" id="429">429</a>
+<a href="#430" id="430">430</a>
+<a href="#431" id="431">431</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::atomic::{AtomicBool, Ordering};
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
@@ -678,7 +687,17 @@
             <span class="macro">tokio::select!</span> {
                 biased;
 
-                <span class="kw">_ </span>= ticker.tick() =&gt; <span class="self">self</span>.try_flush(),
+                <span class="kw">_ </span>= ticker.tick() =&gt; {
+                    <span class="kw">if </span><span class="macro">cfg!</span>(test) {
+                        <span class="comment">// Tests are running in a single thread / current thread runtime,
+                        // which is required for 'fast-forwarding' and `block_in_place`
+                        // requires a multi threaded runtime. Relay always requires a multi
+                        // threaded runtime.
+                        </span><span class="self">self</span>.try_flush()
+                    } <span class="kw">else </span>{
+                        tokio::task::block_in_place(|| <span class="self">self</span>.try_flush())
+                    }
+                },
                 <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; <span class="self">self</span>.handle_message(message),
                 shutdown = shutdown.notified() =&gt; <span class="self">self</span>.handle_shutdown(shutdown),
 
@@ -804,10 +823,9 @@
         }
     }
 
-    <span class="attr">#[tokio::test]
+    <span class="attr">#[tokio::test(start_paused = <span class="bool-val">true</span>)]
     </span><span class="kw">async fn </span>test_flush_bucket() {
         relay_test::setup();
-        tokio::time::pause();
 
         <span class="kw">let </span>receiver = TestReceiver::default();
         <span class="kw">let </span>recipient = receiver.clone().start_detached().recipient();
