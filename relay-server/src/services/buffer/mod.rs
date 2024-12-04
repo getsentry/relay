@@ -8,6 +8,7 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
 
+use ahash::AHasher;
 use chrono::DateTime;
 use chrono::Utc;
 use fnv::FnvHasher;
@@ -138,8 +139,8 @@ impl PartitionedEnvelopeBuffer {
     /// The rationale of using this partitioning strategy is to reduce memory usage across buffers
     /// since each individual buffer will only take care of a subset of projects.
     pub fn buffer(&self, project_key_pair: ProjectKeyPair) -> &ObservableEnvelopeBuffer {
-        let mut hasher = FnvHasher::default();
-        project_key_pair.own_key.hash(&mut hasher);
+        let mut hasher = AHasher::default();
+        project_key_pair.hash(&mut hasher);
         let buffer_index = (hasher.finish() % self.buffers.len() as u64) as usize;
         self.buffers
             .get(buffer_index)
