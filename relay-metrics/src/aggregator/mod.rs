@@ -15,7 +15,7 @@ use crate::bucket::Bucket;
 use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
 use crate::MetricName;
 
-use hashbrown::{Equivalent, HashMap};
+use hashbrown::HashMap;
 
 mod buckets;
 mod config;
