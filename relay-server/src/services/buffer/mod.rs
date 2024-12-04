@@ -11,7 +11,6 @@ use std::time::Duration;
 use ahash::AHasher;
 use chrono::DateTime;
 use chrono::Utc;
-use fnv::FnvHasher;
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
