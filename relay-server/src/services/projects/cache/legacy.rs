@@ -183,33 +183,27 @@ impl ProjectCacheService {
 impl Service for ProjectCacheService {
     type Interface = ProjectCache;
 
-    async fn run(self, mut rx: relay_system::Receiver<Self::Interface>) {
+    async fn run(self, _rx: relay_system::Receiver<Self::Interface>) {
         let Self {
             project_cache_handle,
             services,
             mut envelopes_rx,
         } = self;
-        relay_log::info!("project cache started");
+        relay_log::info!("legacy project cache started");
 
         let mut broker = ProjectCacheBroker {
             projects: project_cache_handle,
             services,
         };
 
-        loop {
-            tokio::select! {
-                biased;
-
-                Some(message) = rx.recv() => { match message {} }
-                Some(message) = envelopes_rx.recv() => {
-                    metric!(timer(RelayTimers::LegacyProjectCacheTaskDuration), task = "handle_envelope", {
-                        broker.handle_envelope(message)
-                    })
-                }
-                else => break,
-            }
+        while let Some(message) = envelopes_rx.recv().await {
+            metric!(
+                timer(RelayTimers::LegacyProjectCacheTaskDuration),
+                task = "handle_envelope",
+                { broker.handle_envelope(message) }
+            )
         }
 
-        relay_log::info!("project cache stopped");
+        relay_log::info!("legacy project cache stopped");
     }
 }
