@@ -10,8 +10,13 @@ use std::str::FromStr;
 
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
-use syn::{Data, Lit, LitStr, Meta, NestedMeta};
-use synstructure::decl_derive;
+use syn2::spanned::Spanned;
+use syn2::{self as syn, Data, Error, Lit, LitStr};
+use synstructure2::{self as synstructure, decl_derive};
+
+mod utils;
+
+use self::utils::SynstructureExt as _;
 
 #[derive(Debug, Clone, Copy)]
 enum Trait {
@@ -23,14 +28,14 @@ decl_derive!([Empty, attributes(metastructure)] => derive_empty);
 decl_derive!([IntoValue, attributes(metastructure)] => derive_to_value);
 decl_derive!([FromValue, attributes(metastructure)] => derive_from_value);
 
-fn derive_empty(mut s: synstructure::Structure<'_>) -> TokenStream {
+fn derive_empty(mut s: synstructure::Structure<'_>) -> syn::Result<TokenStream> {
     let _ = s.add_bounds(synstructure::AddBounds::Generics);
 
-    let is_empty_arms = s.each_variant(|variant| {
+    let is_empty_arms = s.try_each_variant(|variant| {
         let mut is_tuple_struct = false;
         let mut cond = quote!(true);
         for (index, bi) in variant.bindings().iter().enumerate() {
-            let field_attrs = parse_field_attributes(index, bi.ast(), &mut is_tuple_struct);
+            let field_attrs = parse_field_attributes(index, bi.ast(), &mut is_tuple_struct)?;
             let ident = &bi.binding;
             if field_attrs.additional_properties {
                 cond = quote! {
@@ -43,21 +48,21 @@ fn derive_empty(mut s: synstructure::Structure<'_>) -> TokenStream {
             }
         }
 
-        cond
-    });
+        Ok(cond)
+    })?;
 
-    let is_deep_empty_arms = s.each_variant(|variant| {
-        if is_newtype(variant) {
+    let is_deep_empty_arms = s.try_each_variant(|variant| {
+        if is_newtype_variant(variant) {
             let ident = &variant.bindings()[0].binding;
-            return quote! {
+            return Ok(quote! {
                 ::relay_protocol::Empty::is_deep_empty(#ident)
-            };
+            });
         }
 
         let mut cond = quote!(true);
         let mut is_tuple_struct = false;
         for (index, bi) in variant.bindings().iter().enumerate() {
-            let field_attrs = parse_field_attributes(index, bi.ast(), &mut is_tuple_struct);
+            let field_attrs = parse_field_attributes(index, bi.ast(), &mut is_tuple_struct)?;
             let ident = &bi.binding;
             let skip_serialization_attr = field_attrs.skip_serialization.as_tokens();
 
@@ -72,12 +77,11 @@ fn derive_empty(mut s: synstructure::Structure<'_>) -> TokenStream {
             }
         }
 
-        cond
-    });
+        Ok(cond)
+    })?;
 
-    s.gen_impl(quote! {
+    Ok(s.gen_impl(quote! {
         #[automatically_derived]
-        #[expect(non_local_definitions, reason = "crate needs to be migrated to syn2")]
         gen impl ::relay_protocol::Empty for @Self {
             fn is_empty(&self) -> bool {
                 match *self {
@@ -91,48 +95,27 @@ fn derive_empty(mut s: synstructure::Structure<'_>) -> TokenStream {
                 }
             }
         }
-    })
+    }))
 }
 
-fn derive_to_value(s: synstructure::Structure<'_>) -> TokenStream {
+fn derive_to_value(s: synstructure::Structure<'_>) -> syn::Result<TokenStream> {
     derive_metastructure(s, Trait::To)
 }
 
-fn derive_from_value(s: synstructure::Structure<'_>) -> TokenStream {
+fn derive_from_value(s: synstructure::Structure<'_>) -> syn::Result<TokenStream> {
     derive_metastructure(s, Trait::From)
 }
 
 fn derive_newtype_metastructure(
-    s: synstructure::Structure<'_>,
+    s: &synstructure::Structure<'_>,
     t: Trait,
-) -> Result<TokenStream, synstructure::Structure<'_>> {
-    // The next few blocks are for finding out whether the given type is of the form:
-    // struct Foo(Bar)  (tuple struct with a single field)
-
-    if s.variants().len() != 1 {
-        // We have more than one variant (e.g. `enum Foo { A, B }`)
-        return Err(s);
-    }
-
-    if s.variants()[0].bindings().len() != 1 {
-        // The single variant has multiple fields
-        // e.g. `struct Foo(Bar, Baz)`
-        //      `enum Foo { A(X, Y) }`
-        return Err(s);
-    }
-
-    if s.variants()[0].bindings()[0].ast().ident.is_some() {
-        // The variant has a name
-        // e.g. `struct Foo { bar: Bar }` instead of `struct Foo(Bar)`
-        return Err(s);
-    }
-
-    let type_attrs = parse_type_attributes(&s);
+) -> syn::Result<TokenStream> {
+    let type_attrs = parse_type_attributes(s)?;
     if type_attrs.tag_key.is_some() {
         panic!("tag_key not supported on structs");
     }
 
-    let field_attrs = parse_field_attributes(0, s.variants()[0].bindings()[0].ast(), &mut true);
+    let field_attrs = parse_field_attributes(0, s.variants()[0].bindings()[0].ast(), &mut true)?;
     let skip_serialization_attr = field_attrs.skip_serialization.as_tokens();
 
     let name = &s.ast().ident;
@@ -140,7 +123,6 @@ fn derive_newtype_metastructure(
     Ok(match t {
         Trait::From => s.gen_impl(quote! {
             #[automatically_derived]
-            #[expect(non_local_definitions, reason = "crate needs to be migrated to syn2")]
             gen impl ::relay_protocol::FromValue for @Self {
                 fn from_value(
                     __value: ::relay_protocol::Annotated<::relay_protocol::Value>,
@@ -154,7 +136,6 @@ fn derive_newtype_metastructure(
         }),
         Trait::To => s.gen_impl(quote! {
             #[automatically_derived]
-            #[expect(non_local_definitions, reason = "crate needs to be migrated to syn2")]
             gen impl ::relay_protocol::IntoValue for @Self {
                 fn into_value(self) -> ::relay_protocol::Value {
                     ::relay_protocol::IntoValue::into_value(self.0)
@@ -180,15 +161,10 @@ fn derive_newtype_metastructure(
 }
 
 fn derive_enum_metastructure(
-    s: synstructure::Structure<'_>,
+    s: &synstructure::Structure<'_>,
     t: Trait,
-) -> Result<TokenStream, synstructure::Structure<'_>> {
-    if let Data::Enum(_) = s.ast().data {
-    } else {
-        return Err(s);
-    }
-
-    let type_attrs = parse_type_attributes(&s);
+) -> syn::Result<TokenStream> {
+    let type_attrs = parse_type_attributes(s)?;
 
     let type_name = &s.ast().ident;
     let tag_key_str = LitStr::new(
@@ -202,7 +178,7 @@ fn derive_enum_metastructure(
     let mut extract_child_meta_body = TokenStream::new();
 
     for variant in s.variants() {
-        let variant_attrs = parse_variant_attributes(variant.ast().attrs);
+        let variant_attrs = parse_variant_attributes(variant.ast().attrs)?;
         let variant_name = &variant.ast().ident;
         let tag = variant_attrs
             .tag_override
@@ -270,7 +246,6 @@ fn derive_enum_metastructure(
         Trait::From => {
             s.gen_impl(quote! {
                 #[automatically_derived]
-                #[expect(non_local_definitions, reason = "crate needs to be migrated to syn2")]
                 gen impl ::relay_protocol::FromValue for @Self {
                     fn from_value(
                         __value: ::relay_protocol::Annotated<::relay_protocol::Value>,
@@ -291,7 +266,6 @@ fn derive_enum_metastructure(
         Trait::To => {
             s.gen_impl(quote! {
                 #[automatically_derived]
-                #[expect(non_local_definitions, reason = "crate needs to be migrated to syn2")]
                 gen impl ::relay_protocol::IntoValue for @Self {
                     fn into_value(self) -> ::relay_protocol::Value {
                         match self {
@@ -322,16 +296,14 @@ fn derive_enum_metastructure(
     })
 }
 
-fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream {
-    let s = match derive_newtype_metastructure(s, t) {
-        Ok(stream) => return stream,
-        Err(s) => s,
-    };
+fn derive_metastructure(mut s: synstructure::Structure<'_>, t: Trait) -> syn::Result<TokenStream> {
+    if is_newtype(&s) {
+        return derive_newtype_metastructure(&s, t);
+    }
 
-    let mut s = match derive_enum_metastructure(s, t) {
-        Ok(stream) => return stream,
-        Err(s) => s,
-    };
+    if let Data::Enum(_) = s.ast().data {
+        return derive_enum_metastructure(&s, t);
+    }
 
     let _ = s.add_bounds(synstructure::AddBounds::Generics);
 
@@ -350,7 +322,7 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
     let mut serialize_body = TokenStream::new();
     let mut extract_child_meta_body = TokenStream::new();
 
-    let type_attrs = parse_type_attributes(&s);
+    let type_attrs = parse_type_attributes(&s)?;
     if type_attrs.tag_key.is_some() {
         panic!("tag_key not supported on structs");
     }
@@ -358,7 +330,7 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
     let mut is_tuple_struct = false;
 
     for (index, bi) in variant.bindings().iter().enumerate() {
-        let field_attrs = parse_field_attributes(index, bi.ast(), &mut is_tuple_struct);
+        let field_attrs = parse_field_attributes(index, bi.ast(), &mut is_tuple_struct)?;
         let field_name = field_attrs.field_name.clone();
 
         let skip_serialization_attr = field_attrs.skip_serialization.as_tokens();
@@ -467,7 +439,7 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
     }
     let serialize_pat = variant.pat();
 
-    match t {
+    Ok(match t {
         Trait::From => {
             let bindings_count = variant.bindings().len();
             let valid_match_arm = if is_tuple_struct {
@@ -495,7 +467,6 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
 
             s.gen_impl(quote! {
                 #[automatically_derived]
-                #[expect(non_local_definitions, reason = "crate needs to be migrated to syn2")]
                 gen impl ::relay_protocol::FromValue for @Self {
                     fn from_value(
                         __value: ::relay_protocol::Annotated<::relay_protocol::Value>,
@@ -546,7 +517,6 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
 
             s.gen_impl(quote! {
                 #[automatically_derived]
-                #[expect(non_local_definitions, reason = "crate needs to be migrated to syn2")]
                 gen impl ::relay_protocol::IntoValue for @Self {
                     fn into_value(self) -> ::relay_protocol::Value {
                         #into_value
@@ -573,7 +543,7 @@ fn derive_metastructure(s: synstructure::Structure<'_>, t: Trait) -> TokenStream
                 }
             })
         }
-    }
+    })
 }
 
 #[derive(Default)]
@@ -581,45 +551,38 @@ struct TypeAttrs {
     tag_key: Option<String>,
 }
 
-fn parse_type_attributes(s: &synstructure::Structure<'_>) -> TypeAttrs {
+fn parse_type_attributes(s: &synstructure::Structure<'_>) -> syn::Result<TypeAttrs> {
     let mut rv = TypeAttrs::default();
 
     for attr in &s.ast().attrs {
-        let meta = match attr.parse_meta() {
-            Ok(meta) => meta,
-            Err(_) => continue,
-        };
-
-        let ident = match meta.path().get_ident() {
-            Some(x) => x,
-            None => continue,
-        };
-
-        if ident != "metastructure" {
+        if !attr.path().is_ident("metastructure") {
             continue;
         }
 
-        if let Meta::List(metalist) = meta {
-            for nested_meta in metalist.nested {
-                if let NestedMeta::Meta(Meta::NameValue(name_value)) = nested_meta {
-                    let ident = name_value.path.get_ident().expect("Unexpected path");
-                    if ident == "tag_key" {
-                        match name_value.lit {
-                            Lit::Str(litstr) => rv.tag_key = Some(litstr.value()),
-                            _ => panic!("Got non string literal for tag_key"),
-                        }
-                    }
-                }
+        attr.parse_nested_meta(|meta| {
+            let ident = meta.path.require_ident()?;
+
+            if ident == "tag_key" {
+                let s = meta.value()?.parse::<LitStr>()?;
+                rv.tag_key = Some(s.value());
+            } else {
+                // Ignore other attributes used by `ProcessValue` derive macro.
+                let _ = meta.value()?.parse::<Lit>()?;
             }
-        }
+
+            Ok(())
+        })?;
     }
 
     if rv.tag_key.is_some() && s.variants().len() == 1 {
         // TODO: move into parse_type_attributes
-        panic!("tag_key not supported on structs");
+        return Err(Error::new(
+            s.ast().span(),
+            "tag_key not supported on structs",
+        ));
     }
 
-    rv
+    Ok(rv)
 }
 
 #[derive(Default)]
@@ -671,7 +634,7 @@ fn parse_field_attributes(
     index: usize,
     bi_ast: &syn::Field,
     is_tuple_struct: &mut bool,
-) -> FieldAttrs {
+) -> syn::Result<FieldAttrs> {
     if bi_ast.ident.is_none() {
         *is_tuple_struct = true;
     } else if *is_tuple_struct {
@@ -689,67 +652,39 @@ fn parse_field_attributes(
         .unwrap_or_else(|| index.to_string());
 
     for attr in &bi_ast.attrs {
-        let meta = match attr.parse_meta() {
-            Ok(meta) => meta,
-            Err(_) => continue,
-        };
-
-        let ident = match meta.path().get_ident() {
-            Some(x) => x,
-            None => continue,
-        };
-
-        if ident != "metastructure" {
+        if !attr.path().is_ident("metastructure") {
             continue;
         }
 
-        if let Meta::List(metalist) = meta {
-            for nested_meta in metalist.nested {
-                match nested_meta {
-                    NestedMeta::Lit(..) => panic!("unexpected literal attribute"),
-                    NestedMeta::Meta(meta) => match meta {
-                        Meta::Path(path) => {
-                            let ident = path.get_ident().expect("Unexpected path");
+        attr.parse_nested_meta(|meta| {
+            let ident = meta.path.require_ident()?;
 
-                            if ident == "additional_properties" {
-                                rv.additional_properties = true;
-                            } else if ident == "omit_from_schema" {
-                                // Skip
-                            } else {
-                                panic!("Unknown attribute {ident}");
-                            }
-                        }
-                        Meta::NameValue(name_value) => {
-                            let ident = name_value.path.get_ident().expect("Unexpected path");
-                            if ident == "field" {
-                                match name_value.lit {
-                                    Lit::Str(litstr) => rv.field_name = litstr.value(),
-                                    _ => panic!("Got non string literal for field"),
-                                }
-                            } else if ident == "legacy_alias" {
-                                match name_value.lit {
-                                    Lit::Str(litstr) => rv.legacy_aliases.push(litstr.value()),
-                                    _ => panic!("Got non string literal for legacy_alias"),
-                                }
-                            } else if ident == "skip_serialization" {
-                                match name_value.lit {
-                                    Lit::Str(litstr) => {
-                                        rv.skip_serialization = FromStr::from_str(&litstr.value())
-                                            .expect("Unknown value for skip_serialization");
-                                    }
-                                    _ => panic!("Got non string literal for skip_serialization"),
-                                }
-                            }
-                        }
-                        other => {
-                            panic!("Unexpected or bad attribute {:?}", other.path());
-                        }
-                    },
-                }
+            if ident == "additional_properties" {
+                rv.additional_properties = true;
+            } else if ident == "omit_from_schema" {
+                // Skip
+            } else if ident == "field" {
+                rv.field_name = meta.value()?.parse::<LitStr>()?.value();
+            } else if ident == "legacy_alias" {
+                rv.legacy_aliases
+                    .push(meta.value()?.parse::<LitStr>()?.value());
+            } else if ident == "skip_serialization" {
+                rv.skip_serialization = meta
+                    .value()?
+                    .parse::<LitStr>()?
+                    .value()
+                    .parse()
+                    .map_err(|_| meta.error("Unknown value"))?;
+            } else {
+                // Ignore other attributes used by `ProcessValue` derive macro.
+                let _ = meta.value()?.parse::<Lit>()?;
             }
-        }
+
+            Ok(())
+        })?;
     }
-    rv
+
+    Ok(rv)
 }
 
 #[derive(Default)]
@@ -759,65 +694,57 @@ struct VariantAttrs {
     fallback_variant: bool,
 }
 
-fn parse_variant_attributes(attrs: &[syn::Attribute]) -> VariantAttrs {
+fn parse_variant_attributes(attrs: &[syn::Attribute]) -> syn::Result<VariantAttrs> {
     let mut rv = VariantAttrs::default();
     for attr in attrs {
-        let meta = match attr.parse_meta() {
-            Ok(meta) => meta,
-            Err(_) => continue,
-        };
-        let ident = match meta.path().get_ident() {
-            Some(x) => x,
-            None => continue,
-        };
-
-        if ident != "metastructure" {
+        if !attr.path().is_ident("metastructure") {
             continue;
         }
 
-        if let Meta::List(metalist) = meta {
-            for nested_meta in metalist.nested {
-                match nested_meta {
-                    NestedMeta::Lit(..) => panic!("unexpected literal attribute"),
-                    NestedMeta::Meta(meta) => match meta {
-                        Meta::Path(path) => {
-                            let ident = path.get_ident().expect("Unexpected path");
+        attr.parse_nested_meta(|meta| {
+            let ident = meta.path.require_ident()?;
 
-                            if ident == "fallback_variant" {
-                                rv.tag_override = None;
-                                rv.fallback_variant = true;
-                            } else if ident == "omit_from_schema" {
-                                rv.omit_from_schema = true;
-                            } else {
-                                panic!("Unknown attribute {ident}");
-                            }
-                        }
-                        Meta::NameValue(name_value) => {
-                            let ident = name_value.path.get_ident();
-                            if ident.map_or(false, |x| x == "tag") {
-                                match name_value.lit {
-                                    Lit::Str(litstr) => {
-                                        rv.tag_override = Some(litstr.value());
-                                    }
-                                    _ => {
-                                        panic!("Got non string literal for tag");
-                                    }
-                                }
-                            } else {
-                                panic!("Unknown key {:?}", name_value.path);
-                            }
-                        }
-                        other => {
-                            panic!("Unexpected or bad attribute {:?}", other.path());
-                        }
-                    },
-                }
+            if ident == "fallback_variant" {
+                rv.tag_override = None;
+                rv.fallback_variant = true;
+            } else if ident == "omit_from_schema" {
+                rv.omit_from_schema = true;
+            } else if ident == "tag" {
+                rv.tag_override = Some(meta.value()?.parse::<LitStr>()?.value());
+            } else {
+                // Ignore other attributes used by `ProcessValue` derive macro.
+                let _ = meta.value()?.parse::<Lit>()?;
             }
-        }
+
+            Ok(())
+        })?;
     }
-    rv
+
+    Ok(rv)
 }
 
-fn is_newtype(variant: &synstructure::VariantInfo) -> bool {
+fn is_newtype_variant(variant: &synstructure::VariantInfo) -> bool {
     variant.bindings().len() == 1 && variant.bindings()[0].ast().ident.is_none()
+}
+
+fn is_newtype(s: &synstructure::Structure<'_>) -> bool {
+    if s.variants().len() != 1 {
+        // We have more than one variant (e.g. `enum Foo { A, B }`)
+        return false;
+    }
+
+    if s.variants()[0].bindings().len() != 1 {
+        // The single variant has multiple fields
+        // e.g. `struct Foo(Bar, Baz)`
+        //      `enum Foo { A(X, Y) }`
+        return false;
+    }
+
+    if s.variants()[0].bindings()[0].ast().ident.is_some() {
+        // The variant has a name
+        // e.g. `struct Foo { bar: Bar }` instead of `struct Foo(Bar)`
+        return false;
+    }
+
+    true
 }
