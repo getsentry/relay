@@ -1,14 +1,14 @@
 //! Types for buffering envelopes.
 
 use std::error::Error;
-use std::hash::{BuildHasher, Hash, Hasher};
+use std::hash::Hasher;
 use std::num::NonZeroU8;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
 
-use ahash::{AHasher, RandomState};
+use ahash::RandomState;
 use chrono::DateTime;
 use chrono::Utc;
 use relay_base_schema::project::ProjectKey;
