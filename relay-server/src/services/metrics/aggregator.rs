@@ -5,10 +5,13 @@ use std::time::Duration;
 use hashbrown::HashMap;
 use relay_base_schema::project::ProjectKey;
 use relay_config::AggregatorServiceConfig;
-use relay_metrics::aggregator::AggregateMetricsError;
-use relay_metrics::{aggregator, Bucket, UnixTimestamp};
+use relay_metrics::aggregator::{self, AggregateMetricsError, FlushDecision};
+use relay_metrics::{Bucket, UnixTimestamp};
+use relay_quotas::{RateLimits, Scoping};
 use relay_system::{Controller, FromMessage, Interface, NoResponse, Recipient, Service, Shutdown};
 
+use crate::services::projects::cache::ProjectCacheHandle;
+use crate::services::projects::project::{ProjectInfo, ProjectState};
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 
 /// Aggregator for metric buckets.
@@ -77,7 +80,20 @@ pub struct FlushBuckets {
     /// When set to `Some` it means that partitioning was enabled in the [`Aggregator`].
     pub partition_key: Option<u64>,
     /// The buckets to be flushed.
-    pub buckets: HashMap<ProjectKey, Vec<Bucket>>,
+    pub buckets: HashMap<ProjectKey, ProjectMetrics>,
+}
+
+/// Metric buckets with additional project.
+#[derive(Debug, Clone)]
+pub struct ProjectMetrics {
+    /// The metric buckets to encode.
+    pub buckets: Vec<Bucket>,
+    /// Scoping of the project.
+    pub scoping: Scoping,
+    /// Project info for extracting quotas.
+    pub project_info: Arc<ProjectInfo>,
+    /// Currently cached rate limits.
+    pub rate_limits: Arc<RateLimits>,
 }
 
 enum AggregatorState {
@@ -90,6 +106,7 @@ pub struct AggregatorService {
     aggregator: aggregator::Aggregator,
     state: AggregatorState,
     receiver: Option<Recipient<FlushBuckets, NoResponse>>,
+    project_cache: ProjectCacheHandle,
     flush_interval_ms: u64,
     can_accept_metrics: Arc<AtomicBool>,
 }
@@ -102,8 +119,9 @@ impl AggregatorService {
     pub fn new(
         config: AggregatorServiceConfig,
         receiver: Option<Recipient<FlushBuckets, NoResponse>>,
+        project_cache: ProjectCacheHandle,
     ) -> Self {
-        Self::named("default".to_owned(), config, receiver)
+        Self::named("default".to_owned(), config, receiver, project_cache)
     }
 
     /// Like [`Self::new`], but with a provided name.
@@ -111,6 +129,7 @@ impl AggregatorService {
         name: String,
         config: AggregatorServiceConfig,
         receiver: Option<Recipient<FlushBuckets, NoResponse>>,
+        project_cache: ProjectCacheHandle,
     ) -> Self {
         let aggregator = aggregator::Aggregator::named(name, config.aggregator);
         Self {
@@ -119,6 +138,7 @@ impl AggregatorService {
             flush_interval_ms: config.flush_interval_ms,
             can_accept_metrics: Arc::new(AtomicBool::new(!aggregator.totals_cost_exceeded())),
             aggregator,
+            project_cache,
         }
     }
 
@@ -135,7 +155,47 @@ impl AggregatorService {
     /// If `force` is true, flush all buckets unconditionally and do not attempt to merge back.
     fn try_flush(&mut self) {
         let force_flush = matches!(&self.state, AggregatorState::ShuttingDown);
-        let partitions = self.aggregator.pop_flush_buckets(force_flush);
+
+        let partitions = self.aggregator.pop_flush_buckets(
+            force_flush,
+            |project_key| {
+                let project = self.project_cache.get(project_key);
+
+                let project_info = match project.state() {
+                    ProjectState::Enabled(project_info) => project_info,
+                    ProjectState::Disabled => return FlushDecision::Drop,
+                    // Delay the flush, project is not yet ready.
+                    //
+                    // Querying the project will make sure it is eventually fetched.
+                    ProjectState::Pending => {
+                        relay_statsd::metric!(
+                            counter(RelayCounters::ProjectStateFlushMetricsNoProject) += 1
+                        );
+                        return FlushDecision::Delay;
+                    }
+                };
+
+                let Some(scoping) = project_info.scoping(project_key) else {
+                    // This should never happen, at this point we should always have a valid
+                    // project with the necessary information to construct a scoping.
+                    //
+                    // Ideally we enforce this through the type system in the future.
+                    relay_log::error!(
+                        tags.project_key = project_key.as_str(),
+                        "dropping buckets because of missing scope",
+                    );
+                    return FlushDecision::Drop;
+                };
+
+                FlushDecision::Flush(ProjectMetrics {
+                    scoping,
+                    project_info: Arc::clone(project_info),
+                    rate_limits: project.rate_limits().current_limits(),
+                    buckets: Vec::new(),
+                })
+            },
+            |pm, bucket| pm.buckets.push(bucket),
+        );
 
         self.can_accept_metrics
             .store(!self.aggregator.totals_cost_exceeded(), Ordering::Relaxed);
@@ -154,7 +214,7 @@ impl AggregatorService {
         let mut total_bucket_count = 0u64;
         for buckets_by_project in partitions.values() {
             for buckets in buckets_by_project.values() {
-                let bucket_count = buckets.len() as u64;
+                let bucket_count = buckets.buckets.len() as u64;
                 total_bucket_count += bucket_count;
 
                 relay_statsd::metric!(
@@ -327,6 +387,8 @@ mod tests {
     use std::collections::BTreeMap;
     use std::sync::{Arc, RwLock};
 
+    use relay_base_schema::organization::OrganizationId;
+    use relay_base_schema::project::ProjectId;
     use relay_common::time::UnixTimestamp;
     use relay_metrics::{aggregator::AggregatorConfig, BucketMetadata, BucketValue};
 
@@ -356,8 +418,8 @@ mod tests {
     }
 
     impl TestReceiver {
-        fn add_buckets(&self, buckets: HashMap<ProjectKey, Vec<Bucket>>) {
-            let buckets = buckets.into_values().flatten();
+        fn add_buckets(&self, buckets: HashMap<ProjectKey, ProjectMetrics>) {
+            let buckets = buckets.into_values().flat_map(|s| s.buckets);
             self.data.write().unwrap().buckets.extend(buckets);
         }
 
@@ -396,8 +458,22 @@ mod tests {
     async fn test_flush_bucket() {
         relay_test::setup();
 
+        let project_key = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
+
         let receiver = TestReceiver::default();
         let recipient = receiver.clone().start_detached().recipient();
+        let project_cache = ProjectCacheHandle::for_test();
+        project_cache.test_set_project_state(
+            project_key,
+            ProjectState::Enabled({
+                Arc::new(ProjectInfo {
+                    // Minimum necessary to get a valid scoping.
+                    project_id: Some(ProjectId::new(3)),
+                    organization_id: Some(OrganizationId::new(1)),
+                    ..Default::default()
+                })
+            }),
+        );
 
         let config = AggregatorServiceConfig {
             aggregator: AggregatorConfig {
@@ -407,15 +483,13 @@ mod tests {
             },
             ..Default::default()
         };
-        let aggregator = AggregatorService::new(config, Some(recipient)).start_detached();
+        let aggregator =
+            AggregatorService::new(config, Some(recipient), project_cache).start_detached();
 
         let mut bucket = some_bucket();
         bucket.timestamp = UnixTimestamp::now();
 
-        aggregator.send(MergeBuckets::new(
-            ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-            vec![bucket],
-        ));
+        aggregator.send(MergeBuckets::new(project_key, vec![bucket]));
 
         let buckets_count = aggregator.send(BucketCountInquiry).await.unwrap();
         // Let's check the number of buckets in the aggregator just after sending a

@@ -480,11 +480,6 @@ pub enum RelayTimers {
     /// This metric is tagged with:
     /// - `task`: The type of the task the project cache does.
     ProjectCacheTaskDuration,
-    /// Timing in milliseconds for handling a legacy project cache message.
-    ///
-    /// This metric is tagged with:
-    ///  - `message`: The type of message that was processed.
-    LegacyProjectCacheMessageDuration,
     /// Timing in milliseconds for processing a task in the legacy project cache service.
     ///
     /// A task is a unit of work the service does. Each branch of the
@@ -592,9 +587,6 @@ impl TimerMetric for RelayTimers {
             RelayTimers::GlobalConfigRequestDuration => "global_config.requests.duration",
             RelayTimers::ProcessMessageDuration => "processor.message.duration",
             RelayTimers::ProjectCacheTaskDuration => "project_cache.task.duration",
-            RelayTimers::LegacyProjectCacheMessageDuration => {
-                "legacy_project_cache.message.duration"
-            }
             RelayTimers::LegacyProjectCacheTaskDuration => "legacy_project_cache.task.duration",
             RelayTimers::HealthCheckDuration => "health.message.duration",
             #[cfg(feature = "processing")]
