@@ -1,7 +1,6 @@
 //! Types for buffering envelopes.
 
 use std::error::Error;
-use std::hash::Hasher;
 use std::num::NonZeroU8;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
