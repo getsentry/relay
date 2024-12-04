@@ -15,7 +15,7 @@ use crate::bucket::Bucket;
 use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
 use crate::MetricName;
 
-use hashbrown::HashMap;
+use hashbrown::{Equivalent, HashMap};
 
 mod buckets;
 mod config;
@@ -164,10 +164,12 @@ impl Aggregator {
         let mut partitions = HashMap::new();
         let mut stats = HashMap::new();
 
-        let mut ret = Vec::new();
+        let mut re_add = Vec::new();
 
         let now = Instant::now();
         let ts = UnixTimestamp::from_instant(now.into_std());
+
+        let should_pop = |entry: &QueuedBucket| force || entry.elapsed(now);
 
         relay_statsd::metric!(
             timer(MetricTimers::BucketsScanDuration),
@@ -176,9 +178,7 @@ impl Aggregator {
                 let bucket_interval = self.config.bucket_interval;
                 let cost_tracker = &mut self.cost_tracker;
 
-                while let Some((key, entry)) =
-                    self.buckets.try_pop(|_, entry| force || entry.elapsed(now))
-                {
+                while let Some((key, entry)) = self.buckets.try_pop(|_, entry| should_pop(entry)) {
                     let partition = self.config.flush_partitions.map(|p| key.partition_key(p));
 
                     let partition = partitions.entry(partition).or_insert_with(HashMap::new);
@@ -189,34 +189,33 @@ impl Aggregator {
                             match flush_decision(key.project_key) {
                                 FlushDecision::Flush(v) => vacant_entry.insert(v),
                                 FlushDecision::Delay => {
-                                    if force {
-                                        // If `force` we cannot directly return into the buckets,
-                                        // since this would produce and infinite loop.
-                                        //
-                                        // Instead we remember items to return and return them afterwards,
-                                        // the next flush cycle will then re-evaluate the condition.
-                                        //
-                                        // No point in re-calculating the flush time here, we can still
-                                        // do it on a flush without force.
-                                        ret.push((key, entry));
-                                    } else {
-                                        // Return the bucket back into the aggregator but adjust the flush time.
-                                        //
-                                        // It was popped because it was ready, but the filter decided it shouldn't
-                                        // be flushed yet -> return with a delayed timestamp.
-                                        //
-                                        // Adjusting the flush time will prevent the endless loop.
-                                        let flush_at = get_flush_time(
+                                    let mut entry = entry;
+
+                                    // No point in re-calculating the flush time when `force` is `true`.
+                                    // We can still do it on a flush without force.
+                                    if !force {
+                                        entry.flush_at = get_flush_time(
                                             &self.config,
                                             ts,
                                             self.reference_time,
                                             &key,
                                         );
-                                        let entry = QueuedBucket { flush_at, ..entry };
-                                        // New flush time should not be elapsed.
+                                        // This should not happen, but may happen with weird
+                                        // configs or due to bugs.
                                         debug_assert!(!entry.elapsed(now));
-                                        self.buckets.insert(key, entry);
                                     }
+
+                                    // Re-use the loop condition for `try_pop`, to make sure we
+                                    // will never accidentally create an infinite loop.
+                                    match should_pop(&entry) {
+                                        // If we would pop the entry again (`force`, a weird flush
+                                        // configuration, a bug), re-add it after the loop to
+                                        // prevent infinite loops.
+                                        true => re_add.push((key, entry)),
+                                        // Otherwise it's safe to immediately re-add.
+                                        false => self.buckets.insert(key, entry),
+                                    }
+
                                     continue;
                                 }
                                 FlushDecision::Drop => continue, // Drop the bucket
@@ -248,12 +247,12 @@ impl Aggregator {
 
                     merge(buckets, bucket);
                 }
+
+                for (key, entry) in re_add {
+                    self.buckets.insert(key, entry);
+                }
             }
         );
-
-        for (key, entry) in ret {
-            self.buckets.insert(key, entry);
-        }
 
         for ((ty, namespace), (bucket_count, item_count)) in stats.into_iter() {
             relay_statsd::metric!(
