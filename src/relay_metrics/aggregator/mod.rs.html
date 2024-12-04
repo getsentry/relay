@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-metrics/src/aggregator.rs`."><title>aggregator.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-b0742ba02757f159.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_metrics" data-themes="" data-resource-suffix="" data-rustdoc-version="1.83.0 (90b35a623 2024-11-26)" data-channel="1.83.0" data-search-js="search-f0d225181b97f9a4.js" data-settings-js="settings-805db61a62df4bd2.js" ><script src="../../static.files/storage-1d39b6787ed640ff.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-f070b9041d14864c.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-0111fcff984fae8f.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">relay_metrics/</div>aggregator.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-metrics/src/aggregator/mod.rs`."><title>mod.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-b0742ba02757f159.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="relay_metrics" data-themes="" data-resource-suffix="" data-rustdoc-version="1.83.0 (90b35a623 2024-11-26)" data-channel="1.83.0" data-search-js="search-f0d225181b97f9a4.js" data-settings-js="settings-805db61a62df4bd2.js" ><script src="../../../static.files/storage-1d39b6787ed640ff.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-f070b9041d14864c.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-0111fcff984fae8f.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">relay_metrics/aggregator/</div>mod.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers">
 <a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
@@ -1115,529 +1115,31 @@
 <a href="#1114" id="1114">1114</a>
 <a href="#1115" id="1115">1115</a>
 <a href="#1116" id="1116">1116</a>
-<a href="#1117" id="1117">1117</a>
-<a href="#1118" id="1118">1118</a>
-<a href="#1119" id="1119">1119</a>
-<a href="#1120" id="1120">1120</a>
-<a href="#1121" id="1121">1121</a>
-<a href="#1122" id="1122">1122</a>
-<a href="#1123" id="1123">1123</a>
-<a href="#1124" id="1124">1124</a>
-<a href="#1125" id="1125">1125</a>
-<a href="#1126" id="1126">1126</a>
-<a href="#1127" id="1127">1127</a>
-<a href="#1128" id="1128">1128</a>
-<a href="#1129" id="1129">1129</a>
-<a href="#1130" id="1130">1130</a>
-<a href="#1131" id="1131">1131</a>
-<a href="#1132" id="1132">1132</a>
-<a href="#1133" id="1133">1133</a>
-<a href="#1134" id="1134">1134</a>
-<a href="#1135" id="1135">1135</a>
-<a href="#1136" id="1136">1136</a>
-<a href="#1137" id="1137">1137</a>
-<a href="#1138" id="1138">1138</a>
-<a href="#1139" id="1139">1139</a>
-<a href="#1140" id="1140">1140</a>
-<a href="#1141" id="1141">1141</a>
-<a href="#1142" id="1142">1142</a>
-<a href="#1143" id="1143">1143</a>
-<a href="#1144" id="1144">1144</a>
-<a href="#1145" id="1145">1145</a>
-<a href="#1146" id="1146">1146</a>
-<a href="#1147" id="1147">1147</a>
-<a href="#1148" id="1148">1148</a>
-<a href="#1149" id="1149">1149</a>
-<a href="#1150" id="1150">1150</a>
-<a href="#1151" id="1151">1151</a>
-<a href="#1152" id="1152">1152</a>
-<a href="#1153" id="1153">1153</a>
-<a href="#1154" id="1154">1154</a>
-<a href="#1155" id="1155">1155</a>
-<a href="#1156" id="1156">1156</a>
-<a href="#1157" id="1157">1157</a>
-<a href="#1158" id="1158">1158</a>
-<a href="#1159" id="1159">1159</a>
-<a href="#1160" id="1160">1160</a>
-<a href="#1161" id="1161">1161</a>
-<a href="#1162" id="1162">1162</a>
-<a href="#1163" id="1163">1163</a>
-<a href="#1164" id="1164">1164</a>
-<a href="#1165" id="1165">1165</a>
-<a href="#1166" id="1166">1166</a>
-<a href="#1167" id="1167">1167</a>
-<a href="#1168" id="1168">1168</a>
-<a href="#1169" id="1169">1169</a>
-<a href="#1170" id="1170">1170</a>
-<a href="#1171" id="1171">1171</a>
-<a href="#1172" id="1172">1172</a>
-<a href="#1173" id="1173">1173</a>
-<a href="#1174" id="1174">1174</a>
-<a href="#1175" id="1175">1175</a>
-<a href="#1176" id="1176">1176</a>
-<a href="#1177" id="1177">1177</a>
-<a href="#1178" id="1178">1178</a>
-<a href="#1179" id="1179">1179</a>
-<a href="#1180" id="1180">1180</a>
-<a href="#1181" id="1181">1181</a>
-<a href="#1182" id="1182">1182</a>
-<a href="#1183" id="1183">1183</a>
-<a href="#1184" id="1184">1184</a>
-<a href="#1185" id="1185">1185</a>
-<a href="#1186" id="1186">1186</a>
-<a href="#1187" id="1187">1187</a>
-<a href="#1188" id="1188">1188</a>
-<a href="#1189" id="1189">1189</a>
-<a href="#1190" id="1190">1190</a>
-<a href="#1191" id="1191">1191</a>
-<a href="#1192" id="1192">1192</a>
-<a href="#1193" id="1193">1193</a>
-<a href="#1194" id="1194">1194</a>
-<a href="#1195" id="1195">1195</a>
-<a href="#1196" id="1196">1196</a>
-<a href="#1197" id="1197">1197</a>
-<a href="#1198" id="1198">1198</a>
-<a href="#1199" id="1199">1199</a>
-<a href="#1200" id="1200">1200</a>
-<a href="#1201" id="1201">1201</a>
-<a href="#1202" id="1202">1202</a>
-<a href="#1203" id="1203">1203</a>
-<a href="#1204" id="1204">1204</a>
-<a href="#1205" id="1205">1205</a>
-<a href="#1206" id="1206">1206</a>
-<a href="#1207" id="1207">1207</a>
-<a href="#1208" id="1208">1208</a>
-<a href="#1209" id="1209">1209</a>
-<a href="#1210" id="1210">1210</a>
-<a href="#1211" id="1211">1211</a>
-<a href="#1212" id="1212">1212</a>
-<a href="#1213" id="1213">1213</a>
-<a href="#1214" id="1214">1214</a>
-<a href="#1215" id="1215">1215</a>
-<a href="#1216" id="1216">1216</a>
-<a href="#1217" id="1217">1217</a>
-<a href="#1218" id="1218">1218</a>
-<a href="#1219" id="1219">1219</a>
-<a href="#1220" id="1220">1220</a>
-<a href="#1221" id="1221">1221</a>
-<a href="#1222" id="1222">1222</a>
-<a href="#1223" id="1223">1223</a>
-<a href="#1224" id="1224">1224</a>
-<a href="#1225" id="1225">1225</a>
-<a href="#1226" id="1226">1226</a>
-<a href="#1227" id="1227">1227</a>
-<a href="#1228" id="1228">1228</a>
-<a href="#1229" id="1229">1229</a>
-<a href="#1230" id="1230">1230</a>
-<a href="#1231" id="1231">1231</a>
-<a href="#1232" id="1232">1232</a>
-<a href="#1233" id="1233">1233</a>
-<a href="#1234" id="1234">1234</a>
-<a href="#1235" id="1235">1235</a>
-<a href="#1236" id="1236">1236</a>
-<a href="#1237" id="1237">1237</a>
-<a href="#1238" id="1238">1238</a>
-<a href="#1239" id="1239">1239</a>
-<a href="#1240" id="1240">1240</a>
-<a href="#1241" id="1241">1241</a>
-<a href="#1242" id="1242">1242</a>
-<a href="#1243" id="1243">1243</a>
-<a href="#1244" id="1244">1244</a>
-<a href="#1245" id="1245">1245</a>
-<a href="#1246" id="1246">1246</a>
-<a href="#1247" id="1247">1247</a>
-<a href="#1248" id="1248">1248</a>
-<a href="#1249" id="1249">1249</a>
-<a href="#1250" id="1250">1250</a>
-<a href="#1251" id="1251">1251</a>
-<a href="#1252" id="1252">1252</a>
-<a href="#1253" id="1253">1253</a>
-<a href="#1254" id="1254">1254</a>
-<a href="#1255" id="1255">1255</a>
-<a href="#1256" id="1256">1256</a>
-<a href="#1257" id="1257">1257</a>
-<a href="#1258" id="1258">1258</a>
-<a href="#1259" id="1259">1259</a>
-<a href="#1260" id="1260">1260</a>
-<a href="#1261" id="1261">1261</a>
-<a href="#1262" id="1262">1262</a>
-<a href="#1263" id="1263">1263</a>
-<a href="#1264" id="1264">1264</a>
-<a href="#1265" id="1265">1265</a>
-<a href="#1266" id="1266">1266</a>
-<a href="#1267" id="1267">1267</a>
-<a href="#1268" id="1268">1268</a>
-<a href="#1269" id="1269">1269</a>
-<a href="#1270" id="1270">1270</a>
-<a href="#1271" id="1271">1271</a>
-<a href="#1272" id="1272">1272</a>
-<a href="#1273" id="1273">1273</a>
-<a href="#1274" id="1274">1274</a>
-<a href="#1275" id="1275">1275</a>
-<a href="#1276" id="1276">1276</a>
-<a href="#1277" id="1277">1277</a>
-<a href="#1278" id="1278">1278</a>
-<a href="#1279" id="1279">1279</a>
-<a href="#1280" id="1280">1280</a>
-<a href="#1281" id="1281">1281</a>
-<a href="#1282" id="1282">1282</a>
-<a href="#1283" id="1283">1283</a>
-<a href="#1284" id="1284">1284</a>
-<a href="#1285" id="1285">1285</a>
-<a href="#1286" id="1286">1286</a>
-<a href="#1287" id="1287">1287</a>
-<a href="#1288" id="1288">1288</a>
-<a href="#1289" id="1289">1289</a>
-<a href="#1290" id="1290">1290</a>
-<a href="#1291" id="1291">1291</a>
-<a href="#1292" id="1292">1292</a>
-<a href="#1293" id="1293">1293</a>
-<a href="#1294" id="1294">1294</a>
-<a href="#1295" id="1295">1295</a>
-<a href="#1296" id="1296">1296</a>
-<a href="#1297" id="1297">1297</a>
-<a href="#1298" id="1298">1298</a>
-<a href="#1299" id="1299">1299</a>
-<a href="#1300" id="1300">1300</a>
-<a href="#1301" id="1301">1301</a>
-<a href="#1302" id="1302">1302</a>
-<a href="#1303" id="1303">1303</a>
-<a href="#1304" id="1304">1304</a>
-<a href="#1305" id="1305">1305</a>
-<a href="#1306" id="1306">1306</a>
-<a href="#1307" id="1307">1307</a>
-<a href="#1308" id="1308">1308</a>
-<a href="#1309" id="1309">1309</a>
-<a href="#1310" id="1310">1310</a>
-<a href="#1311" id="1311">1311</a>
-<a href="#1312" id="1312">1312</a>
-<a href="#1313" id="1313">1313</a>
-<a href="#1314" id="1314">1314</a>
-<a href="#1315" id="1315">1315</a>
-<a href="#1316" id="1316">1316</a>
-<a href="#1317" id="1317">1317</a>
-<a href="#1318" id="1318">1318</a>
-<a href="#1319" id="1319">1319</a>
-<a href="#1320" id="1320">1320</a>
-<a href="#1321" id="1321">1321</a>
-<a href="#1322" id="1322">1322</a>
-<a href="#1323" id="1323">1323</a>
-<a href="#1324" id="1324">1324</a>
-<a href="#1325" id="1325">1325</a>
-<a href="#1326" id="1326">1326</a>
-<a href="#1327" id="1327">1327</a>
-<a href="#1328" id="1328">1328</a>
-<a href="#1329" id="1329">1329</a>
-<a href="#1330" id="1330">1330</a>
-<a href="#1331" id="1331">1331</a>
-<a href="#1332" id="1332">1332</a>
-<a href="#1333" id="1333">1333</a>
-<a href="#1334" id="1334">1334</a>
-<a href="#1335" id="1335">1335</a>
-<a href="#1336" id="1336">1336</a>
-<a href="#1337" id="1337">1337</a>
-<a href="#1338" id="1338">1338</a>
-<a href="#1339" id="1339">1339</a>
-<a href="#1340" id="1340">1340</a>
-<a href="#1341" id="1341">1341</a>
-<a href="#1342" id="1342">1342</a>
-<a href="#1343" id="1343">1343</a>
-<a href="#1344" id="1344">1344</a>
-<a href="#1345" id="1345">1345</a>
-<a href="#1346" id="1346">1346</a>
-<a href="#1347" id="1347">1347</a>
-<a href="#1348" id="1348">1348</a>
-<a href="#1349" id="1349">1349</a>
-<a href="#1350" id="1350">1350</a>
-<a href="#1351" id="1351">1351</a>
-<a href="#1352" id="1352">1352</a>
-<a href="#1353" id="1353">1353</a>
-<a href="#1354" id="1354">1354</a>
-<a href="#1355" id="1355">1355</a>
-<a href="#1356" id="1356">1356</a>
-<a href="#1357" id="1357">1357</a>
-<a href="#1358" id="1358">1358</a>
-<a href="#1359" id="1359">1359</a>
-<a href="#1360" id="1360">1360</a>
-<a href="#1361" id="1361">1361</a>
-<a href="#1362" id="1362">1362</a>
-<a href="#1363" id="1363">1363</a>
-<a href="#1364" id="1364">1364</a>
-<a href="#1365" id="1365">1365</a>
-<a href="#1366" id="1366">1366</a>
-<a href="#1367" id="1367">1367</a>
-<a href="#1368" id="1368">1368</a>
-<a href="#1369" id="1369">1369</a>
-<a href="#1370" id="1370">1370</a>
-<a href="#1371" id="1371">1371</a>
-<a href="#1372" id="1372">1372</a>
-<a href="#1373" id="1373">1373</a>
-<a href="#1374" id="1374">1374</a>
-<a href="#1375" id="1375">1375</a>
-<a href="#1376" id="1376">1376</a>
-<a href="#1377" id="1377">1377</a>
-<a href="#1378" id="1378">1378</a>
-<a href="#1379" id="1379">1379</a>
-<a href="#1380" id="1380">1380</a>
-<a href="#1381" id="1381">1381</a>
-<a href="#1382" id="1382">1382</a>
-<a href="#1383" id="1383">1383</a>
-<a href="#1384" id="1384">1384</a>
-<a href="#1385" id="1385">1385</a>
-<a href="#1386" id="1386">1386</a>
-<a href="#1387" id="1387">1387</a>
-<a href="#1388" id="1388">1388</a>
-<a href="#1389" id="1389">1389</a>
-<a href="#1390" id="1390">1390</a>
-<a href="#1391" id="1391">1391</a>
-<a href="#1392" id="1392">1392</a>
-<a href="#1393" id="1393">1393</a>
-<a href="#1394" id="1394">1394</a>
-<a href="#1395" id="1395">1395</a>
-<a href="#1396" id="1396">1396</a>
-<a href="#1397" id="1397">1397</a>
-<a href="#1398" id="1398">1398</a>
-<a href="#1399" id="1399">1399</a>
-<a href="#1400" id="1400">1400</a>
-<a href="#1401" id="1401">1401</a>
-<a href="#1402" id="1402">1402</a>
-<a href="#1403" id="1403">1403</a>
-<a href="#1404" id="1404">1404</a>
-<a href="#1405" id="1405">1405</a>
-<a href="#1406" id="1406">1406</a>
-<a href="#1407" id="1407">1407</a>
-<a href="#1408" id="1408">1408</a>
-<a href="#1409" id="1409">1409</a>
-<a href="#1410" id="1410">1410</a>
-<a href="#1411" id="1411">1411</a>
-<a href="#1412" id="1412">1412</a>
-<a href="#1413" id="1413">1413</a>
-<a href="#1414" id="1414">1414</a>
-<a href="#1415" id="1415">1415</a>
-<a href="#1416" id="1416">1416</a>
-<a href="#1417" id="1417">1417</a>
-<a href="#1418" id="1418">1418</a>
-<a href="#1419" id="1419">1419</a>
-<a href="#1420" id="1420">1420</a>
-<a href="#1421" id="1421">1421</a>
-<a href="#1422" id="1422">1422</a>
-<a href="#1423" id="1423">1423</a>
-<a href="#1424" id="1424">1424</a>
-<a href="#1425" id="1425">1425</a>
-<a href="#1426" id="1426">1426</a>
-<a href="#1427" id="1427">1427</a>
-<a href="#1428" id="1428">1428</a>
-<a href="#1429" id="1429">1429</a>
-<a href="#1430" id="1430">1430</a>
-<a href="#1431" id="1431">1431</a>
-<a href="#1432" id="1432">1432</a>
-<a href="#1433" id="1433">1433</a>
-<a href="#1434" id="1434">1434</a>
-<a href="#1435" id="1435">1435</a>
-<a href="#1436" id="1436">1436</a>
-<a href="#1437" id="1437">1437</a>
-<a href="#1438" id="1438">1438</a>
-<a href="#1439" id="1439">1439</a>
-<a href="#1440" id="1440">1440</a>
-<a href="#1441" id="1441">1441</a>
-<a href="#1442" id="1442">1442</a>
-<a href="#1443" id="1443">1443</a>
-<a href="#1444" id="1444">1444</a>
-<a href="#1445" id="1445">1445</a>
-<a href="#1446" id="1446">1446</a>
-<a href="#1447" id="1447">1447</a>
-<a href="#1448" id="1448">1448</a>
-<a href="#1449" id="1449">1449</a>
-<a href="#1450" id="1450">1450</a>
-<a href="#1451" id="1451">1451</a>
-<a href="#1452" id="1452">1452</a>
-<a href="#1453" id="1453">1453</a>
-<a href="#1454" id="1454">1454</a>
-<a href="#1455" id="1455">1455</a>
-<a href="#1456" id="1456">1456</a>
-<a href="#1457" id="1457">1457</a>
-<a href="#1458" id="1458">1458</a>
-<a href="#1459" id="1459">1459</a>
-<a href="#1460" id="1460">1460</a>
-<a href="#1461" id="1461">1461</a>
-<a href="#1462" id="1462">1462</a>
-<a href="#1463" id="1463">1463</a>
-<a href="#1464" id="1464">1464</a>
-<a href="#1465" id="1465">1465</a>
-<a href="#1466" id="1466">1466</a>
-<a href="#1467" id="1467">1467</a>
-<a href="#1468" id="1468">1468</a>
-<a href="#1469" id="1469">1469</a>
-<a href="#1470" id="1470">1470</a>
-<a href="#1471" id="1471">1471</a>
-<a href="#1472" id="1472">1472</a>
-<a href="#1473" id="1473">1473</a>
-<a href="#1474" id="1474">1474</a>
-<a href="#1475" id="1475">1475</a>
-<a href="#1476" id="1476">1476</a>
-<a href="#1477" id="1477">1477</a>
-<a href="#1478" id="1478">1478</a>
-<a href="#1479" id="1479">1479</a>
-<a href="#1480" id="1480">1480</a>
-<a href="#1481" id="1481">1481</a>
-<a href="#1482" id="1482">1482</a>
-<a href="#1483" id="1483">1483</a>
-<a href="#1484" id="1484">1484</a>
-<a href="#1485" id="1485">1485</a>
-<a href="#1486" id="1486">1486</a>
-<a href="#1487" id="1487">1487</a>
-<a href="#1488" id="1488">1488</a>
-<a href="#1489" id="1489">1489</a>
-<a href="#1490" id="1490">1490</a>
-<a href="#1491" id="1491">1491</a>
-<a href="#1492" id="1492">1492</a>
-<a href="#1493" id="1493">1493</a>
-<a href="#1494" id="1494">1494</a>
-<a href="#1495" id="1495">1495</a>
-<a href="#1496" id="1496">1496</a>
-<a href="#1497" id="1497">1497</a>
-<a href="#1498" id="1498">1498</a>
-<a href="#1499" id="1499">1499</a>
-<a href="#1500" id="1500">1500</a>
-<a href="#1501" id="1501">1501</a>
-<a href="#1502" id="1502">1502</a>
-<a href="#1503" id="1503">1503</a>
-<a href="#1504" id="1504">1504</a>
-<a href="#1505" id="1505">1505</a>
-<a href="#1506" id="1506">1506</a>
-<a href="#1507" id="1507">1507</a>
-<a href="#1508" id="1508">1508</a>
-<a href="#1509" id="1509">1509</a>
-<a href="#1510" id="1510">1510</a>
-<a href="#1511" id="1511">1511</a>
-<a href="#1512" id="1512">1512</a>
-<a href="#1513" id="1513">1513</a>
-<a href="#1514" id="1514">1514</a>
-<a href="#1515" id="1515">1515</a>
-<a href="#1516" id="1516">1516</a>
-<a href="#1517" id="1517">1517</a>
-<a href="#1518" id="1518">1518</a>
-<a href="#1519" id="1519">1519</a>
-<a href="#1520" id="1520">1520</a>
-<a href="#1521" id="1521">1521</a>
-<a href="#1522" id="1522">1522</a>
-<a href="#1523" id="1523">1523</a>
-<a href="#1524" id="1524">1524</a>
-<a href="#1525" id="1525">1525</a>
-<a href="#1526" id="1526">1526</a>
-<a href="#1527" id="1527">1527</a>
-<a href="#1528" id="1528">1528</a>
-<a href="#1529" id="1529">1529</a>
-<a href="#1530" id="1530">1530</a>
-<a href="#1531" id="1531">1531</a>
-<a href="#1532" id="1532">1532</a>
-<a href="#1533" id="1533">1533</a>
-<a href="#1534" id="1534">1534</a>
-<a href="#1535" id="1535">1535</a>
-<a href="#1536" id="1536">1536</a>
-<a href="#1537" id="1537">1537</a>
-<a href="#1538" id="1538">1538</a>
-<a href="#1539" id="1539">1539</a>
-<a href="#1540" id="1540">1540</a>
-<a href="#1541" id="1541">1541</a>
-<a href="#1542" id="1542">1542</a>
-<a href="#1543" id="1543">1543</a>
-<a href="#1544" id="1544">1544</a>
-<a href="#1545" id="1545">1545</a>
-<a href="#1546" id="1546">1546</a>
-<a href="#1547" id="1547">1547</a>
-<a href="#1548" id="1548">1548</a>
-<a href="#1549" id="1549">1549</a>
-<a href="#1550" id="1550">1550</a>
-<a href="#1551" id="1551">1551</a>
-<a href="#1552" id="1552">1552</a>
-<a href="#1553" id="1553">1553</a>
-<a href="#1554" id="1554">1554</a>
-<a href="#1555" id="1555">1555</a>
-<a href="#1556" id="1556">1556</a>
-<a href="#1557" id="1557">1557</a>
-<a href="#1558" id="1558">1558</a>
-<a href="#1559" id="1559">1559</a>
-<a href="#1560" id="1560">1560</a>
-<a href="#1561" id="1561">1561</a>
-<a href="#1562" id="1562">1562</a>
-<a href="#1563" id="1563">1563</a>
-<a href="#1564" id="1564">1564</a>
-<a href="#1565" id="1565">1565</a>
-<a href="#1566" id="1566">1566</a>
-<a href="#1567" id="1567">1567</a>
-<a href="#1568" id="1568">1568</a>
-<a href="#1569" id="1569">1569</a>
-<a href="#1570" id="1570">1570</a>
-<a href="#1571" id="1571">1571</a>
-<a href="#1572" id="1572">1572</a>
-<a href="#1573" id="1573">1573</a>
-<a href="#1574" id="1574">1574</a>
-<a href="#1575" id="1575">1575</a>
-<a href="#1576" id="1576">1576</a>
-<a href="#1577" id="1577">1577</a>
-<a href="#1578" id="1578">1578</a>
-<a href="#1579" id="1579">1579</a>
-<a href="#1580" id="1580">1580</a>
-<a href="#1581" id="1581">1581</a>
-<a href="#1582" id="1582">1582</a>
-<a href="#1583" id="1583">1583</a>
-<a href="#1584" id="1584">1584</a>
-<a href="#1585" id="1585">1585</a>
-<a href="#1586" id="1586">1586</a>
-<a href="#1587" id="1587">1587</a>
-<a href="#1588" id="1588">1588</a>
-<a href="#1589" id="1589">1589</a>
-<a href="#1590" id="1590">1590</a>
-<a href="#1591" id="1591">1591</a>
-<a href="#1592" id="1592">1592</a>
-<a href="#1593" id="1593">1593</a>
-<a href="#1594" id="1594">1594</a>
-<a href="#1595" id="1595">1595</a>
-<a href="#1596" id="1596">1596</a>
-<a href="#1597" id="1597">1597</a>
-<a href="#1598" id="1598">1598</a>
-<a href="#1599" id="1599">1599</a>
-<a href="#1600" id="1600">1600</a>
-<a href="#1601" id="1601">1601</a>
-<a href="#1602" id="1602">1602</a>
-<a href="#1603" id="1603">1603</a>
-<a href="#1604" id="1604">1604</a>
-<a href="#1605" id="1605">1605</a>
-<a href="#1606" id="1606">1606</a>
-<a href="#1607" id="1607">1607</a>
-<a href="#1608" id="1608">1608</a>
-<a href="#1609" id="1609">1609</a>
-<a href="#1610" id="1610">1610</a>
-<a href="#1611" id="1611">1611</a>
-<a href="#1612" id="1612">1612</a>
-<a href="#1613" id="1613">1613</a>
-<a href="#1614" id="1614">1614</a>
-<a href="#1615" id="1615">1615</a>
-<a href="#1616" id="1616">1616</a>
-<a href="#1617" id="1617">1617</a>
-<a href="#1618" id="1618">1618</a>
-<a href="#1619" id="1619">1619</a>
-<a href="#1620" id="1620">1620</a></pre></div><pre class="rust"><code><span class="doccomment">//! Core functionality of metrics aggregation.
+<a href="#1117" id="1117">1117</a></pre></div><pre class="rust"><code><span class="doccomment">//! Core functionality of metrics aggregation.
 
-</span><span class="kw">use </span>std::collections::BTreeMap;
-<span class="kw">use </span>std::hash::{Hash, Hasher};
+</span><span class="kw">use </span>std::fmt;
+<span class="kw">use </span>std::hash::Hasher;
 <span class="kw">use </span>std::time::Duration;
-<span class="kw">use </span>std::{fmt, mem};
 
 <span class="kw">use </span>fnv::FnvHasher;
-<span class="kw">use </span>priority_queue::PriorityQueue;
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
-<span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>thiserror::Error;
 <span class="kw">use </span>tokio::time::Instant;
 
-<span class="kw">use </span><span class="kw">crate</span>::bucket::{Bucket, BucketValue};
+<span class="kw">use </span><span class="kw">crate</span>::bucket::Bucket;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
-<span class="kw">use crate</span>::{BucketMetadata, FiniteF64, MetricName, MetricNamespace};
+<span class="kw">use </span><span class="kw">crate</span>::MetricName;
 
 <span class="kw">use </span>hashbrown::HashMap;
+
+<span class="kw">mod </span>buckets;
+<span class="kw">mod </span>config;
+<span class="kw">mod </span>cost;
+
+<span class="kw">use </span><span class="self">self</span>::buckets::{BucketKey, Buckets, QueuedBucket};
+<span class="kw">pub use </span><span class="self">self</span>::config::<span class="kw-2">*</span>;
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use </span><span class="self">self</span>::cost::tags_cost;
 
 <span class="doccomment">/// Any error that may occur during aggregation.
 </span><span class="attr">#[derive(Debug, Error, PartialEq)]
@@ -1657,471 +1159,6 @@
     <span class="doccomment">/// A metric bucket is too large for the per-project bytes limit.
     </span><span class="attr">#[error(<span class="string">"project metrics limit exceeded"</span>)]
     </span>ProjectLimitExceeded,
-}
-
-<span class="attr">#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-</span><span class="kw">struct </span>BucketKey {
-    project_key: ProjectKey,
-    timestamp: UnixTimestamp,
-    metric_name: MetricName,
-    tags: BTreeMap&lt;String, String&gt;,
-    extracted_from_indexed: bool,
-}
-
-<span class="kw">impl </span>BucketKey {
-    <span class="doccomment">/// Creates a 64-bit hash of the bucket key using FnvHasher.
-    ///
-    /// This is used for partition key computation and statsd logging.
-    </span><span class="kw">fn </span>hash64(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u64 {
-        <span class="kw">let </span><span class="kw-2">mut </span>hasher = FnvHasher::default();
-        std::hash::Hash::hash(<span class="self">self</span>, <span class="kw-2">&amp;mut </span>hasher);
-        hasher.finish()
-    }
-
-    <span class="doccomment">/// Estimates the number of bytes needed to encode the bucket key.
-    ///
-    /// Note that this does not necessarily match the exact memory footprint of the key,
-    /// because data structures have a memory overhead.
-    </span><span class="kw">fn </span>cost(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
-        mem::size_of::&lt;<span class="self">Self</span>&gt;() + <span class="self">self</span>.metric_name.len() + tags_cost(<span class="kw-2">&amp;</span><span class="self">self</span>.tags)
-    }
-
-    <span class="doccomment">/// Returns the namespace of this bucket.
-    </span><span class="kw">fn </span>namespace(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; MetricNamespace {
-        <span class="self">self</span>.metric_name.namespace()
-    }
-
-    <span class="doccomment">/// Computes a stable partitioning key for this [`Bucket`].
-    ///
-    /// The partitioning key is inherently producing collisions, since the output of the hasher is
-    /// reduced into an interval of size `partitions`. This means that buckets with totally
-    /// different values might end up in the same partition.
-    ///
-    /// The role of partitioning is to let Relays forward the same metric to the same upstream
-    /// instance with the goal of increasing bucketing efficiency.
-    </span><span class="kw">fn </span>partition_key(<span class="kw-2">&amp;</span><span class="self">self</span>, partitions: u64) -&gt; u64 {
-        <span class="kw">let </span>key = (<span class="self">self</span>.project_key, <span class="kw-2">&amp;</span><span class="self">self</span>.metric_name, <span class="kw-2">&amp;</span><span class="self">self</span>.tags);
-
-        <span class="kw">let </span><span class="kw-2">mut </span>hasher = fnv::FnvHasher::default();
-        key.hash(<span class="kw-2">&amp;mut </span>hasher);
-
-        <span class="kw">let </span>partitions = partitions.max(<span class="number">1</span>);
-        hasher.finish() % partitions
-    }
-}
-
-<span class="doccomment">/// Estimates the number of bytes needed to encode the tags.
-///
-/// Note that this does not necessarily match the exact memory footprint of the tags,
-/// because data structures or their serialization have overheads.
-</span><span class="kw">pub fn </span>tags_cost(tags: <span class="kw-2">&amp;</span>BTreeMap&lt;String, String&gt;) -&gt; usize {
-    tags.iter().map(|(k, v)| k.len() + v.len()).sum()
-}
-
-<span class="doccomment">/// Configuration value for [`AggregatorConfig::flush_batching`].
-</span><span class="attr">#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
-#[serde(rename_all = <span class="string">"lowercase"</span>)]
-</span><span class="kw">pub enum </span>FlushBatching {
-    <span class="doccomment">/// Shifts the flush time by an offset based on the [`ProjectKey`].
-    ///
-    /// This allows buckets from the same project to be flushed together.
-    </span><span class="attr">#[default]
-    </span>Project,
-
-    <span class="doccomment">/// Shifts the flush time by an offset based on the bucket key itself.
-    ///
-    /// This allows for a completely random distribution of bucket flush times.
-    ///
-    /// It should only be used in processing Relays since this flushing behavior it's better
-    /// suited for how Relay emits metrics to Kafka.
-    </span>Bucket,
-
-    <span class="doccomment">/// Shifts the flush time by an offset based on the partition key.
-    ///
-    /// This allows buckets belonging to the same partition to be flushed together. Requires
-    /// [`flush_partitions`](AggregatorConfig::flush_partitions) to be set, otherwise this will fall
-    /// back to [`FlushBatching::Project`].
-    ///
-    /// It should only be used in Relays with the `http.global_metrics` option set since when
-    /// encoding metrics via the global endpoint we can leverage partitioning.
-    </span>Partition,
-
-    <span class="doccomment">/// Do not apply shift.
-    </span><span class="prelude-val">None</span>,
-}
-
-<span class="doccomment">/// Parameters used by the [`Aggregator`].
-</span><span class="attr">#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(default)]
-</span><span class="kw">pub struct </span>AggregatorConfig {
-    <span class="doccomment">/// Determines the wall clock time interval for buckets in seconds.
-    ///
-    /// Defaults to `10` seconds. Every metric is sorted into a bucket of this size based on its
-    /// timestamp. This defines the minimum granularity with which metrics can be queried later.
-    </span><span class="kw">pub </span>bucket_interval: u64,
-
-    <span class="doccomment">/// The initial delay in seconds to wait before flushing a bucket.
-    ///
-    /// Defaults to `30` seconds. Before sending an aggregated bucket, this is the time Relay waits
-    /// for buckets that are being reported in real time.
-    ///
-    /// Relay applies up to a full `bucket_interval` of additional jitter after the initial delay to spread out flushing real time buckets.
-    </span><span class="kw">pub </span>initial_delay: u64,
-
-    <span class="doccomment">/// The age in seconds of the oldest allowed bucket timestamp.
-    ///
-    /// Defaults to 5 days.
-    </span><span class="kw">pub </span>max_secs_in_past: u64,
-
-    <span class="doccomment">/// The time in seconds that a timestamp may be in the future.
-    ///
-    /// Defaults to 1 minute.
-    </span><span class="kw">pub </span>max_secs_in_future: u64,
-
-    <span class="doccomment">/// The length the name of a metric is allowed to be.
-    ///
-    /// Defaults to `200` bytes.
-    </span><span class="kw">pub </span>max_name_length: usize,
-
-    <span class="doccomment">/// The length the tag key is allowed to be.
-    ///
-    /// Defaults to `200` bytes.
-    </span><span class="kw">pub </span>max_tag_key_length: usize,
-
-    <span class="doccomment">/// The length the tag value is allowed to be.
-    ///
-    /// Defaults to `200` chars.
-    </span><span class="kw">pub </span>max_tag_value_length: usize,
-
-    <span class="doccomment">/// Maximum amount of bytes used for metrics aggregation per project key.
-    ///
-    /// Similar measuring technique to [`Self::max_total_bucket_bytes`], but instead of a
-    /// global/process-wide limit, it is enforced per project key.
-    ///
-    /// Defaults to `None`, i.e. no limit.
-    </span><span class="kw">pub </span>max_project_key_bucket_bytes: <span class="prelude-ty">Option</span>&lt;usize&gt;,
-
-    <span class="doccomment">/// Maximum amount of bytes used for metrics aggregation.
-    ///
-    /// When aggregating metrics, Relay keeps track of how many bytes a metric takes in memory.
-    /// This is only an approximation and does not take into account things such as pre-allocation
-    /// in hashmaps.
-    ///
-    /// Defaults to `None`, i.e. no limit.
-    </span><span class="kw">pub </span>max_total_bucket_bytes: <span class="prelude-ty">Option</span>&lt;usize&gt;,
-
-    <span class="doccomment">/// The number of logical partitions that can receive flushed buckets.
-    ///
-    /// If set, buckets are partitioned by (bucket key % flush_partitions), and routed
-    /// by setting the header `X-Sentry-Relay-Shard`.
-    ///
-    /// This setting will take effect only when paired with [`FlushBatching::Partition`].
-    </span><span class="kw">pub </span>flush_partitions: <span class="prelude-ty">Option</span>&lt;u64&gt;,
-
-    <span class="doccomment">/// The batching mode for the flushing of the aggregator.
-    ///
-    /// Batching is applied via shifts to the flushing time that is determined when the first bucket
-    /// is inserted. Thanks to the shifts, Relay is able to prevent flushing all buckets from a
-    /// bucket interval at the same time.
-    ///
-    /// For example, the aggregator can choose to shift by the same value all buckets within a given
-    /// partition, effectively allowing all the elements of that partition to be flushed together.
-    </span><span class="attr">#[serde(alias = <span class="string">"shift_key"</span>)]
-    </span><span class="kw">pub </span>flush_batching: FlushBatching,
-}
-
-<span class="kw">impl </span>AggregatorConfig {
-    <span class="doccomment">/// Returns the time width buckets.
-    </span><span class="kw">fn </span>bucket_interval(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
-        Duration::from_secs(<span class="self">self</span>.bucket_interval)
-    }
-
-    <span class="doccomment">/// Returns the initial flush delay after the end of a bucket's original time window.
-    </span><span class="kw">fn </span>initial_delay(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Duration {
-        Duration::from_secs(<span class="self">self</span>.initial_delay)
-    }
-
-    <span class="doccomment">/// Shift deterministically within one bucket interval based on the configured [`FlushBatching`].
-    ///
-    /// This distributes buckets over time to prevent peaks.
-    </span><span class="kw">fn </span>flush_time_shift(<span class="kw-2">&amp;</span><span class="self">self</span>, bucket: <span class="kw-2">&amp;</span>BucketKey) -&gt; Duration {
-        <span class="kw">let </span>shift_range = <span class="self">self</span>.bucket_interval * <span class="number">1000</span>;
-
-        <span class="comment">// Fall back to default flushing by project if no partitioning is configured.
-        </span><span class="kw">let </span>(batching, partitions) = <span class="kw">match </span>(<span class="self">self</span>.flush_batching, <span class="self">self</span>.flush_partitions) {
-            (FlushBatching::Partition, <span class="prelude-val">None </span>| <span class="prelude-val">Some</span>(<span class="number">0</span>)) =&gt; (FlushBatching::Project, <span class="number">0</span>),
-            (flush_batching, partitions) =&gt; (flush_batching, partitions.unwrap_or(<span class="number">0</span>)),
-        };
-
-        <span class="kw">let </span>shift_millis = <span class="kw">match </span>batching {
-            FlushBatching::Project =&gt; {
-                <span class="kw">let </span><span class="kw-2">mut </span>hasher = FnvHasher::default();
-                hasher.write(bucket.project_key.as_str().as_bytes());
-                hasher.finish() % shift_range
-            }
-            FlushBatching::Bucket =&gt; bucket.hash64() % shift_range,
-            FlushBatching::Partition =&gt; shift_range * bucket.partition_key(partitions) / partitions,
-            FlushBatching::None =&gt; <span class="number">0</span>,
-        };
-
-        Duration::from_millis(shift_millis)
-    }
-
-    <span class="doccomment">/// Determines the target bucket for an incoming bucket timestamp and bucket width.
-    ///
-    /// We select the output bucket which overlaps with the center of the incoming bucket.
-    /// Fails if timestamp is too old or too far into the future.
-    </span><span class="kw">fn </span>get_bucket_timestamp(<span class="kw-2">&amp;</span><span class="self">self</span>, timestamp: UnixTimestamp, bucket_width: u64) -&gt; UnixTimestamp {
-        <span class="comment">// Find middle of the input bucket to select a target
-        </span><span class="kw">let </span>ts = timestamp.as_secs().saturating_add(bucket_width / <span class="number">2</span>);
-        <span class="comment">// Align target_timestamp to output bucket width
-        </span><span class="kw">let </span>ts = (ts / <span class="self">self</span>.bucket_interval) * <span class="self">self</span>.bucket_interval;
-        UnixTimestamp::from_secs(ts)
-    }
-
-    <span class="doccomment">/// Returns the valid range for metrics timestamps.
-    ///
-    /// Metrics or buckets outside of this range should be discarded.
-    </span><span class="kw">pub fn </span>timestamp_range(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; std::ops::Range&lt;UnixTimestamp&gt; {
-        <span class="kw">let </span>now = UnixTimestamp::now().as_secs();
-        <span class="kw">let </span>min_timestamp = UnixTimestamp::from_secs(now.saturating_sub(<span class="self">self</span>.max_secs_in_past));
-        <span class="kw">let </span>max_timestamp = UnixTimestamp::from_secs(now.saturating_add(<span class="self">self</span>.max_secs_in_future));
-        min_timestamp..max_timestamp
-    }
-}
-
-<span class="kw">impl </span>Default <span class="kw">for </span>AggregatorConfig {
-    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{
-            bucket_interval: <span class="number">10</span>,
-            initial_delay: <span class="number">30</span>,
-            max_secs_in_past: <span class="number">5 </span>* <span class="number">24 </span>* <span class="number">60 </span>* <span class="number">60</span>, <span class="comment">// 5 days, as for sessions
-            </span>max_secs_in_future: <span class="number">60</span>,             <span class="comment">// 1 minute
-            </span>max_name_length: <span class="number">200</span>,
-            max_tag_key_length: <span class="number">200</span>,
-            max_tag_value_length: <span class="number">200</span>,
-            max_project_key_bucket_bytes: <span class="prelude-val">None</span>,
-            max_total_bucket_bytes: <span class="prelude-val">None</span>,
-            flush_batching: FlushBatching::default(),
-            flush_partitions: <span class="prelude-val">None</span>,
-        }
-    }
-}
-
-<span class="doccomment">/// Bucket in the [`Aggregator`] with a defined flush time.
-///
-/// This type implements an inverted total ordering. The maximum queued bucket has the lowest flush
-/// time, which is suitable for using it in a [`BinaryHeap`].
-///
-/// [`BinaryHeap`]: std::collections::BinaryHeap
-</span><span class="attr">#[derive(Debug)]
-</span><span class="kw">struct </span>QueuedBucket {
-    flush_at: Instant,
-    value: BucketValue,
-    metadata: BucketMetadata,
-}
-
-<span class="kw">impl </span>QueuedBucket {
-    <span class="doccomment">/// Creates a new `QueuedBucket` with a given flush time.
-    </span><span class="kw">fn </span>new(flush_at: Instant, value: BucketValue, metadata: BucketMetadata) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{
-            flush_at,
-            value,
-            metadata,
-        }
-    }
-
-    <span class="doccomment">/// Returns `true` if the flush time has elapsed.
-    </span><span class="kw">fn </span>elapsed(<span class="kw-2">&amp;</span><span class="self">self</span>, now: Instant) -&gt; bool {
-        now &gt; <span class="self">self</span>.flush_at
-    }
-
-    <span class="doccomment">/// Merges a bucket into the current queued bucket.
-    ///
-    /// Returns the value cost increase on success,
-    /// otherwise returns an error if the passed bucket value type does not match
-    /// the contained type.
-    </span><span class="kw">fn </span>merge(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        value: BucketValue,
-        metadata: BucketMetadata,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;usize, AggregateMetricsError&gt; {
-        <span class="kw">let </span>cost_before = <span class="self">self</span>.value.cost();
-
-        <span class="self">self</span>.value
-            .merge(value)
-            .map_err(|<span class="kw">_</span>| AggregateMetricsError::InvalidTypes)<span class="question-mark">?</span>;
-        <span class="self">self</span>.metadata.merge(metadata);
-
-        <span class="prelude-val">Ok</span>(<span class="self">self</span>.value.cost().saturating_sub(cost_before))
-    }
-}
-
-<span class="kw">impl </span>PartialEq <span class="kw">for </span>QueuedBucket {
-    <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; bool {
-        <span class="self">self</span>.flush_at.eq(<span class="kw-2">&amp;</span>other.flush_at)
-    }
-}
-
-<span class="kw">impl </span>Eq <span class="kw">for </span>QueuedBucket {}
-
-<span class="kw">impl </span>PartialOrd <span class="kw">for </span>QueuedBucket {
-    <span class="kw">fn </span>partial_cmp(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;std::cmp::Ordering&gt; {
-        <span class="comment">// Comparing order is reversed to convert the max heap into a min heap
-        </span><span class="prelude-val">Some</span>(other.flush_at.cmp(<span class="kw-2">&amp;</span><span class="self">self</span>.flush_at))
-    }
-}
-
-<span class="kw">impl </span>Ord <span class="kw">for </span>QueuedBucket {
-    <span class="kw">fn </span>cmp(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; std::cmp::Ordering {
-        <span class="comment">// Comparing order is reversed to convert the max heap into a min heap
-        </span>other.flush_at.cmp(<span class="kw-2">&amp;</span><span class="self">self</span>.flush_at)
-    }
-}
-
-<span class="attr">#[derive(Default)]
-</span><span class="kw">struct </span>CostTracker {
-    total_cost: usize,
-    cost_per_project_key: HashMap&lt;ProjectKey, usize&gt;,
-    cost_per_namespace: BTreeMap&lt;MetricNamespace, usize&gt;,
-}
-
-<span class="kw">impl </span>CostTracker {
-    <span class="kw">fn </span>totals_cost_exceeded(<span class="kw-2">&amp;</span><span class="self">self</span>, max_total_cost: <span class="prelude-ty">Option</span>&lt;usize&gt;) -&gt; bool {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(max_total_cost) = max_total_cost {
-            <span class="kw">if </span><span class="self">self</span>.total_cost &gt;= max_total_cost {
-                <span class="kw">return </span><span class="bool-val">true</span>;
-            }
-        }
-
-        <span class="bool-val">false
-    </span>}
-
-    <span class="kw">fn </span>check_limits_exceeded(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        project_key: ProjectKey,
-        max_total_cost: <span class="prelude-ty">Option</span>&lt;usize&gt;,
-        max_project_cost: <span class="prelude-ty">Option</span>&lt;usize&gt;,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), AggregateMetricsError&gt; {
-        <span class="kw">if </span><span class="self">self</span>.totals_cost_exceeded(max_total_cost) {
-            relay_log::configure_scope(|scope| {
-                scope.set_extra(<span class="string">"bucket.project_key"</span>, project_key.as_str().to_owned().into());
-            });
-            <span class="kw">return </span><span class="prelude-val">Err</span>(AggregateMetricsError::TotalLimitExceeded);
-        }
-
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(max_project_cost) = max_project_cost {
-            <span class="kw">let </span>project_cost = <span class="self">self
-                </span>.cost_per_project_key
-                .get(<span class="kw-2">&amp;</span>project_key)
-                .cloned()
-                .unwrap_or(<span class="number">0</span>);
-            <span class="kw">if </span>project_cost &gt;= max_project_cost {
-                relay_log::configure_scope(|scope| {
-                    scope.set_extra(<span class="string">"bucket.project_key"</span>, project_key.as_str().to_owned().into());
-                });
-                <span class="kw">return </span><span class="prelude-val">Err</span>(AggregateMetricsError::ProjectLimitExceeded);
-            }
-        }
-
-        <span class="prelude-val">Ok</span>(())
-    }
-
-    <span class="kw">fn </span>add_cost(<span class="kw-2">&amp;mut </span><span class="self">self</span>, namespace: MetricNamespace, project_key: ProjectKey, cost: usize) {
-        <span class="kw-2">*</span><span class="self">self</span>.cost_per_project_key.entry(project_key).or_insert(<span class="number">0</span>) += cost;
-        <span class="kw-2">*</span><span class="self">self</span>.cost_per_namespace.entry(namespace).or_insert(<span class="number">0</span>) += cost;
-        <span class="self">self</span>.total_cost += cost;
-    }
-
-    <span class="kw">fn </span>subtract_cost(<span class="kw-2">&amp;mut </span><span class="self">self</span>, namespace: MetricNamespace, project_key: ProjectKey, cost: usize) {
-        <span class="kw">let </span>project_cost = <span class="self">self</span>.cost_per_project_key.get_mut(<span class="kw-2">&amp;</span>project_key);
-        <span class="kw">let </span>namespace_cost = <span class="self">self</span>.cost_per_namespace.get_mut(<span class="kw-2">&amp;</span>namespace);
-        <span class="kw">match </span>(project_cost, namespace_cost) {
-            (<span class="prelude-val">Some</span>(project_cost), <span class="prelude-val">Some</span>(namespace_cost))
-                <span class="kw">if </span><span class="kw-2">*</span>project_cost &gt;= cost &amp;&amp; <span class="kw-2">*</span>namespace_cost &gt;= cost =&gt;
-            {
-                <span class="kw-2">*</span>project_cost -= cost;
-                <span class="kw">if </span><span class="kw-2">*</span>project_cost == <span class="number">0 </span>{
-                    <span class="self">self</span>.cost_per_project_key.remove(<span class="kw-2">&amp;</span>project_key);
-                }
-                <span class="kw-2">*</span>namespace_cost -= cost;
-                <span class="kw">if </span><span class="kw-2">*</span>namespace_cost == <span class="number">0 </span>{
-                    <span class="self">self</span>.cost_per_namespace.remove(<span class="kw-2">&amp;</span>namespace);
-                }
-                <span class="self">self</span>.total_cost -= cost;
-            }
-            <span class="kw">_ </span>=&gt; {
-                <span class="macro">relay_log::error!</span>(
-                    namespace = namespace.as_str(),
-                    project_key = project_key.to_string(),
-                    cost = cost.to_string(),
-                    <span class="string">"Cost mismatch"</span>,
-                );
-            }
-        }
-    }
-}
-
-<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>CostTracker {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; fmt::Result {
-        f.debug_struct(<span class="string">"CostTracker"</span>)
-            .field(<span class="string">"total_cost"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.total_cost)
-            <span class="comment">// Convert HashMap to BTreeMap to guarantee order:
-            </span>.field(
-                <span class="string">"cost_per_project_key"</span>,
-                <span class="kw-2">&amp;</span>BTreeMap::from_iter(<span class="self">self</span>.cost_per_project_key.iter()),
-            )
-            .field(<span class="string">"cost_per_namespace"</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.cost_per_namespace)
-            .finish()
-    }
-}
-
-<span class="doccomment">/// Returns the instant at which a bucket should be flushed.
-///
-/// All buckets are flushed after a grace period of `initial_delay`.
-</span><span class="kw">fn </span>get_flush_time(
-    config: <span class="kw-2">&amp;</span>AggregatorConfig,
-    now: UnixTimestamp,
-    reference_time: Instant,
-    bucket_key: <span class="kw-2">&amp;</span>BucketKey,
-) -&gt; Instant {
-    <span class="kw">let </span>initial_flush = bucket_key.timestamp + config.bucket_interval() + config.initial_delay();
-    <span class="kw">let </span>backdated = initial_flush &lt;= now;
-
-    <span class="kw">let </span>delay = now.as_secs() <span class="kw">as </span>i64 - bucket_key.timestamp.as_secs() <span class="kw">as </span>i64;
-    <span class="macro">relay_statsd::metric!</span>(
-        histogram(MetricHistograms::BucketsDelay) = delay <span class="kw">as </span>f64,
-        backdated = <span class="kw">if </span>backdated { <span class="string">"true" </span>} <span class="kw">else </span>{ <span class="string">"false" </span>},
-    );
-
-    <span class="kw">let </span>flush_timestamp = <span class="kw">if </span>backdated {
-        <span class="comment">// If the initial flush time has passed or can't be represented, we want to treat the
-        // flush of the bucket as if it came in with the timestamp of current bucket based on
-        // the now timestamp.
-        //
-        // The rationale behind this is that we want to flush this bucket in the earliest slot
-        // together with buckets that have similar characteristics (e.g., same partition,
-        // project...).
-        </span><span class="kw">let </span>floored_timestamp = (now.as_secs() / config.bucket_interval) * config.bucket_interval;
-        UnixTimestamp::from_secs(floored_timestamp)
-            + config.bucket_interval()
-            + config.initial_delay()
-    } <span class="kw">else </span>{
-        <span class="comment">// If the initial flush is still pending, use that.
-        </span>initial_flush
-    };
-
-    <span class="kw">let </span>instant = <span class="kw">if </span>flush_timestamp &gt; now {
-        Instant::now().checked_add(flush_timestamp - now)
-    } <span class="kw">else </span>{
-        Instant::now().checked_sub(now - flush_timestamp)
-    }
-    .unwrap_or_else(Instant::now);
-
-    <span class="comment">// Since `Instant` doesn't allow to get directly how many seconds elapsed, we leverage the
-    // diffing to get a duration and round it to the smallest second to get consistent times.
-    </span><span class="kw">let </span>instant = reference_time + Duration::from_secs((instant - reference_time).as_secs());
-    instant + config.flush_time_shift(bucket_key)
 }
 
 <span class="doccomment">/// A collector of [`Bucket`] submissions.
@@ -2147,8 +1184,8 @@
 </span><span class="kw">pub struct </span>Aggregator {
     name: String,
     config: AggregatorConfig,
-    buckets: PriorityQueue&lt;BucketKey, QueuedBucket&gt;,
-    cost_tracker: CostTracker,
+    buckets: Buckets,
+    cost_tracker: cost::Tracker,
     reference_time: Instant,
 }
 
@@ -2164,7 +1201,7 @@
             name,
             config,
             buckets: Default::default(),
-            cost_tracker: CostTracker::default(),
+            cost_tracker: Default::default(),
             reference_time: Instant::now(),
         }
     }
@@ -2224,9 +1261,9 @@
 
         <span class="comment">// We only emit statsd metrics for the cost on flush (and not when merging the buckets),
         // assuming that this gives us more than enough data points.
-        </span><span class="kw">for </span>(namespace, cost) <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.cost_tracker.cost_per_namespace {
+        </span><span class="kw">for </span>(namespace, cost) <span class="kw">in </span><span class="self">self</span>.cost_tracker.cost_per_namespace() {
             <span class="macro">relay_statsd::metric!</span>(
-                gauge(MetricGauges::BucketsCost) = <span class="kw-2">*</span>cost <span class="kw">as </span>u64,
+                gauge(MetricGauges::BucketsCost) = cost <span class="kw">as </span>u64,
                 aggregator = <span class="kw-2">&amp;</span><span class="self">self</span>.name,
                 namespace = namespace.as_str()
             );
@@ -2244,12 +1281,9 @@
                 <span class="kw">let </span>bucket_interval = <span class="self">self</span>.config.bucket_interval;
                 <span class="kw">let </span>cost_tracker = <span class="kw-2">&amp;mut </span><span class="self">self</span>.cost_tracker;
 
-                <span class="kw">while let </span><span class="prelude-val">Some</span>((<span class="kw">_</span>, entry)) = <span class="self">self</span>.buckets.peek() {
-                    <span class="kw">if </span>!entry.elapsed(now) &amp;&amp; !force {
-                        <span class="kw">break</span>;
-                    }
-
-                    <span class="kw">let </span>(key, entry) = <span class="self">self</span>.buckets.pop().expect(<span class="string">"pop after peek"</span>);
+                <span class="kw">while let </span><span class="prelude-val">Some</span>((key, entry)) =
+                    <span class="self">self</span>.buckets.try_pop(|<span class="kw">_</span>, entry| entry.elapsed(now) || force)
+                {
                     cost_tracker.subtract_cost(key.namespace(), key.project_key, key.cost());
                     cost_tracker.subtract_cost(
                         key.namespace(),
@@ -2341,7 +1375,7 @@
     </span><span class="kw">pub fn </span>merge_with_options(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         project_key: ProjectKey,
-        <span class="kw-2">mut </span>bucket: Bucket,
+        bucket: Bucket,
         now: UnixTimestamp,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), AggregateMetricsError&gt; {
         <span class="kw">let </span>timestamp = <span class="self">self</span>.get_bucket_timestamp(now, bucket.timestamp, bucket.width)<span class="question-mark">?</span>;
@@ -2387,49 +1421,34 @@
             <span class="self">self</span>.config.max_project_key_bucket_bytes,
         )<span class="question-mark">?</span>;
 
-        <span class="kw">let </span><span class="kw-2">mut </span>added_cost = <span class="number">0</span>;
+        <span class="kw">let </span>added_cost = <span class="self">self</span>.buckets.merge(
+            key,
+            (bucket.value, bucket.metadata),
+            |key, (value, metadata), exisiting| {
+                <span class="macro">relay_statsd::metric!</span>(
+                    counter(MetricCounters::MergeHit) += <span class="number">1</span>,
+                    aggregator = <span class="kw-2">&amp;</span><span class="self">self</span>.name,
+                    namespace = key.namespace().as_str(),
+                );
 
-        <span class="kw">let </span><span class="kw-2">mut </span>error = <span class="prelude-val">None</span>;
-        <span class="kw">let </span>updated = <span class="self">self</span>.buckets.change_priority_by(<span class="kw-2">&amp;</span>key, |value| {
-            <span class="macro">relay_statsd::metric!</span>(
-                counter(MetricCounters::MergeHit) += <span class="number">1</span>,
-                aggregator = <span class="kw-2">&amp;</span><span class="self">self</span>.name,
-                namespace = key.namespace().as_str(),
-            );
+                exisiting.merge(value, metadata)
+            },
+            |key, (value, metadata)| {
+                <span class="macro">relay_statsd::metric!</span>(
+                    counter(MetricCounters::MergeMiss) += <span class="number">1</span>,
+                    aggregator = <span class="kw-2">&amp;</span><span class="self">self</span>.name,
+                    namespace = key.namespace().as_str(),
+                );
+                <span class="macro">relay_statsd::metric!</span>(
+                    set(MetricSets::UniqueBucketsCreated) = key.hash64() <span class="kw">as </span>i64, <span class="comment">// 2-complement
+                    </span>aggregator = <span class="kw-2">&amp;</span><span class="self">self</span>.name,
+                    namespace = key.namespace().as_str(),
+                );
 
-            <span class="kw">let </span>bv = std::mem::replace(
-                <span class="kw-2">&amp;mut </span>bucket.value,
-                BucketValue::Counter(FiniteF64::default()),
-            );
-            <span class="kw">match </span>value.merge(bv, bucket.metadata) {
-                <span class="prelude-val">Ok</span>(ac) =&gt; added_cost = ac,
-                <span class="prelude-val">Err</span>(err) =&gt; error = <span class="prelude-val">Some</span>(err),
-            }
-        });
-
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(error) = error {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(error);
-        }
-
-        <span class="kw">if </span>!updated {
-            <span class="macro">relay_statsd::metric!</span>(
-                counter(MetricCounters::MergeMiss) += <span class="number">1</span>,
-                aggregator = <span class="kw-2">&amp;</span><span class="self">self</span>.name,
-                namespace = key.namespace().as_str(),
-            );
-            <span class="macro">relay_statsd::metric!</span>(
-                set(MetricSets::UniqueBucketsCreated) = key.hash64() <span class="kw">as </span>i64, <span class="comment">// 2-complement
-                </span>aggregator = <span class="kw-2">&amp;</span><span class="self">self</span>.name,
-                namespace = key.namespace().as_str(),
-            );
-
-            <span class="kw">let </span>flush_at = get_flush_time(<span class="kw-2">&amp;</span><span class="self">self</span>.config, now, <span class="self">self</span>.reference_time, <span class="kw-2">&amp;</span>key);
-            <span class="kw">let </span>value = bucket.value;
-            added_cost = key.cost() + value.cost();
-
-            <span class="self">self</span>.buckets
-                .push(key, QueuedBucket::new(flush_at, value, bucket.metadata));
-        }
+                <span class="kw">let </span>flush_at = get_flush_time(<span class="kw-2">&amp;</span><span class="self">self</span>.config, now, <span class="self">self</span>.reference_time, key);
+                QueuedBucket::new(flush_at, value, metadata)
+            },
+        )<span class="question-mark">?</span>;
 
         <span class="self">self</span>.cost_tracker
             .add_cost(namespace, project_key, added_cost);
@@ -2499,13 +1518,88 @@
     key
 }
 
+<span class="doccomment">/// Returns the instant at which a bucket should be flushed.
+///
+/// All buckets are flushed after a grace period of `initial_delay`.
+</span><span class="kw">fn </span>get_flush_time(
+    config: <span class="kw-2">&amp;</span>AggregatorConfig,
+    now: UnixTimestamp,
+    reference_time: Instant,
+    bucket_key: <span class="kw-2">&amp;</span>BucketKey,
+) -&gt; Instant {
+    <span class="kw">let </span>initial_flush = bucket_key.timestamp + config.bucket_interval() + config.initial_delay();
+    <span class="kw">let </span>backdated = initial_flush &lt;= now;
+
+    <span class="kw">let </span>delay = now.as_secs() <span class="kw">as </span>i64 - bucket_key.timestamp.as_secs() <span class="kw">as </span>i64;
+    <span class="macro">relay_statsd::metric!</span>(
+        histogram(MetricHistograms::BucketsDelay) = delay <span class="kw">as </span>f64,
+        backdated = <span class="kw">if </span>backdated { <span class="string">"true" </span>} <span class="kw">else </span>{ <span class="string">"false" </span>},
+    );
+
+    <span class="kw">let </span>flush_timestamp = <span class="kw">if </span>backdated {
+        <span class="comment">// If the initial flush time has passed or can't be represented, we want to treat the
+        // flush of the bucket as if it came in with the timestamp of current bucket based on
+        // the now timestamp.
+        //
+        // The rationale behind this is that we want to flush this bucket in the earliest slot
+        // together with buckets that have similar characteristics (e.g., same partition,
+        // project...).
+        </span><span class="kw">let </span>floored_timestamp = (now.as_secs() / config.bucket_interval) * config.bucket_interval;
+        UnixTimestamp::from_secs(floored_timestamp)
+            + config.bucket_interval()
+            + config.initial_delay()
+    } <span class="kw">else </span>{
+        <span class="comment">// If the initial flush is still pending, use that.
+        </span>initial_flush
+    };
+
+    <span class="kw">let </span>instant = <span class="kw">if </span>flush_timestamp &gt; now {
+        Instant::now().checked_add(flush_timestamp - now)
+    } <span class="kw">else </span>{
+        Instant::now().checked_sub(now - flush_timestamp)
+    }
+    .unwrap_or_else(Instant::now);
+
+    <span class="comment">// Since `Instant` doesn't allow to get directly how many seconds elapsed, we leverage the
+    // diffing to get a duration and round it to the smallest second to get consistent times.
+    </span><span class="kw">let </span>instant = reference_time + Duration::from_secs((instant - reference_time).as_secs());
+    instant + flush_time_shift(config, bucket_key)
+}
+
+<span class="doccomment">/// Shift deterministically within one bucket interval based on the configured [`FlushBatching`].
+///
+/// This distributes buckets over time to prevent peaks.
+</span><span class="kw">fn </span>flush_time_shift(config: <span class="kw-2">&amp;</span>AggregatorConfig, bucket: <span class="kw-2">&amp;</span>BucketKey) -&gt; Duration {
+    <span class="kw">let </span>shift_range = config.bucket_interval * <span class="number">1000</span>;
+
+    <span class="comment">// Fall back to default flushing by project if no partitioning is configured.
+    </span><span class="kw">let </span>(batching, partitions) = <span class="kw">match </span>(config.flush_batching, config.flush_partitions) {
+        (FlushBatching::Partition, <span class="prelude-val">None </span>| <span class="prelude-val">Some</span>(<span class="number">0</span>)) =&gt; (FlushBatching::Project, <span class="number">0</span>),
+        (flush_batching, partitions) =&gt; (flush_batching, partitions.unwrap_or(<span class="number">0</span>)),
+    };
+
+    <span class="kw">let </span>shift_millis = <span class="kw">match </span>batching {
+        FlushBatching::Project =&gt; {
+            <span class="kw">let </span><span class="kw-2">mut </span>hasher = FnvHasher::default();
+            hasher.write(bucket.project_key.as_str().as_bytes());
+            hasher.finish() % shift_range
+        }
+        FlushBatching::Bucket =&gt; bucket.hash64() % shift_range,
+        FlushBatching::Partition =&gt; shift_range * bucket.partition_key(partitions) / partitions,
+        FlushBatching::None =&gt; <span class="number">0</span>,
+    };
+
+    Duration::from_millis(shift_millis)
+}
+
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>insta::assert_debug_snapshot;
     <span class="kw">use </span>similar_asserts::assert_eq;
+    <span class="kw">use </span>std::collections::BTreeMap;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
-    <span class="kw">use crate</span>::{dist, GaugeValue};
+    <span class="kw">use crate</span>::{dist, BucketMetadata, BucketValue, GaugeValue};
 
     <span class="kw">fn </span>test_config() -&gt; AggregatorConfig {
         AggregatorConfig {
@@ -2550,8 +1644,8 @@
 
         <span class="kw">let </span>buckets: Vec&lt;<span class="kw">_</span>&gt; = aggregator
             .buckets
-            .iter()
-            .map(|(k, e)| (k, <span class="kw-2">&amp;</span>e.value)) <span class="comment">// skip flush times, they are different every time
+            .into_iter()
+            .map(|(k, e)| (k, e.value)) <span class="comment">// skip flush times, they are different every time
             </span>.collect();
 
         <span class="macro">insta::assert_debug_snapshot!</span>(buckets, @<span class="string">r###"
@@ -2647,8 +1741,8 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>buckets: Vec&lt;<span class="kw">_</span>&gt; = aggregator
             .buckets
-            .iter()
-            .map(|(k, e)| (k, <span class="kw-2">&amp;</span>e.value)) <span class="comment">// skip flush times, they are different every time
+            .into_iter()
+            .map(|(k, e)| (k, e.value)) <span class="comment">// skip flush times, they are different every time
             </span>.collect();
 
         buckets.sort_by(|a, b| a.<span class="number">0</span>.timestamp.cmp(<span class="kw-2">&amp;</span>b.<span class="number">0</span>.timestamp));
@@ -2706,106 +1800,6 @@
     }
 
     <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_cost_tracker() {
-        <span class="kw">let </span>namespace = MetricNamespace::Custom;
-        <span class="kw">let </span>project_key1 = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fed"</span>).unwrap();
-        <span class="kw">let </span>project_key2 = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fee"</span>).unwrap();
-        <span class="kw">let </span>project_key3 = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fef"</span>).unwrap();
-        <span class="kw">let </span><span class="kw-2">mut </span>cost_tracker = CostTracker::default();
-        <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r#"
-        CostTracker {
-            total_cost: 0,
-            cost_per_project_key: {},
-            cost_per_namespace: {},
-        }
-        "#</span>);
-        cost_tracker.add_cost(MetricNamespace::Custom, project_key1, <span class="number">50</span>);
-        cost_tracker.add_cost(MetricNamespace::Profiles, project_key1, <span class="number">50</span>);
-        <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r#"
-        CostTracker {
-            total_cost: 100,
-            cost_per_project_key: {
-                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
-            },
-            cost_per_namespace: {
-                Profiles: 50,
-                Custom: 50,
-            },
-        }
-        "#</span>);
-        cost_tracker.add_cost(namespace, project_key2, <span class="number">200</span>);
-        <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r#"
-        CostTracker {
-            total_cost: 300,
-            cost_per_project_key: {
-                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
-                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
-            },
-            cost_per_namespace: {
-                Profiles: 50,
-                Custom: 250,
-            },
-        }
-        "#</span>);
-        <span class="comment">// Unknown project: bail
-        </span>cost_tracker.subtract_cost(namespace, project_key3, <span class="number">666</span>);
-        <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r#"
-        CostTracker {
-            total_cost: 300,
-            cost_per_project_key: {
-                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
-                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
-            },
-            cost_per_namespace: {
-                Profiles: 50,
-                Custom: 250,
-            },
-        }
-        "#</span>);
-        <span class="comment">// Subtract too much: bail
-        </span>cost_tracker.subtract_cost(namespace, project_key1, <span class="number">666</span>);
-        <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r#"
-        CostTracker {
-            total_cost: 300,
-            cost_per_project_key: {
-                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
-                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
-            },
-            cost_per_namespace: {
-                Profiles: 50,
-                Custom: 250,
-            },
-        }
-        "#</span>);
-        cost_tracker.subtract_cost(namespace, project_key2, <span class="number">20</span>);
-        <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r#"
-        CostTracker {
-            total_cost: 280,
-            cost_per_project_key: {
-                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
-                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 180,
-            },
-            cost_per_namespace: {
-                Profiles: 50,
-                Custom: 230,
-            },
-        }
-        "#</span>);
-
-        <span class="comment">// Subtract all
-        </span>cost_tracker.subtract_cost(MetricNamespace::Profiles, project_key1, <span class="number">50</span>);
-        cost_tracker.subtract_cost(MetricNamespace::Custom, project_key1, <span class="number">50</span>);
-        cost_tracker.subtract_cost(MetricNamespace::Custom, project_key2, <span class="number">180</span>);
-        <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r#"
-        CostTracker {
-            total_cost: 0,
-            cost_per_project_key: {},
-            cost_per_namespace: {},
-        }
-        "#</span>);
-    }
-
-    <span class="attr">#[test]
     </span><span class="kw">fn </span>test_aggregator_cost_tracking() {
         <span class="comment">// Make sure that the right cost is added / subtracted
         </span><span class="kw">let </span><span class="kw-2">mut </span>aggregator: Aggregator = Aggregator::new(test_config());
@@ -2827,7 +1821,7 @@
             tags: BTreeMap::new(),
             extracted_from_indexed: <span class="bool-val">false</span>,
         };
-        <span class="kw">let </span>fixed_cost = bucket_key.cost() + mem::size_of::&lt;BucketValue&gt;();
+        <span class="kw">let </span>fixed_cost = bucket_key.cost() + std::mem::size_of::&lt;BucketValue&gt;();
         <span class="kw">for </span>(metric_name, metric_value, expected_added_cost) <span class="kw">in </span>[
             (
                 <span class="string">"c:transactions/foo@none"</span>,
@@ -2872,14 +1866,14 @@
             bucket.value = metric_value;
             bucket.name = metric_name.into();
 
-            <span class="kw">let </span>current_cost = aggregator.cost_tracker.total_cost;
+            <span class="kw">let </span>current_cost = aggregator.cost_tracker.total_cost();
             aggregator.merge(project_key, bucket).unwrap();
-            <span class="kw">let </span>total_cost = aggregator.cost_tracker.total_cost;
+            <span class="kw">let </span>total_cost = aggregator.cost_tracker.total_cost();
             <span class="macro">assert_eq!</span>(total_cost, current_cost + expected_added_cost);
         }
 
         aggregator.pop_flush_buckets(<span class="bool-val">true</span>);
-        <span class="macro">assert_eq!</span>(aggregator.cost_tracker.total_cost, <span class="number">0</span>);
+        <span class="macro">assert_eq!</span>(aggregator.cost_tracker.total_cost(), <span class="number">0</span>);
     }
 
     <span class="attr">#[tokio::test]
@@ -3182,8 +2176,8 @@
 
         <span class="kw">let </span>buckets_metadata: Vec&lt;<span class="kw">_</span>&gt; = aggregator
             .buckets
-            .iter()
-            .map(|(<span class="kw">_</span>, v)| <span class="kw-2">&amp;</span>v.metadata)
+            .into_iter()
+            .map(|(<span class="kw">_</span>, v)| v.metadata)
             .collect();
         <span class="macro">insta::assert_debug_snapshot!</span>(buckets_metadata, @<span class="string">r###"
         [

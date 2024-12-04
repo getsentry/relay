@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["AggregateMetricsError","FlushBatching"],"fn":["tags_cost"],"struct":["Aggregator","AggregatorConfig"]};
+window.SIDEBAR_ITEMS = {"enum":["AggregateMetricsError","FlushBatching"],"struct":["Aggregator","AggregatorConfig"]};
