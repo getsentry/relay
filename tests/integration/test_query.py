@@ -155,16 +155,11 @@ def test_query_retry(failure_type, mini_sentry, relay):
         mini_sentry.clear_test_failures()
 
 
-def test_query_retry_maxed_out(mini_sentry, relay_with_processing, events_consumer):
+def test_query_retry_maxed_out(mini_sentry, relay):
     """
     Assert that a query is not retried an infinite amount of times.
-
-    This is not specific to processing or store, but here we have the outcomes
-    consumer which we can use to assert that an event has been dropped.
     """
     request_count = 0
-
-    events_consumer = events_consumer()
 
     original_get_project_config = mini_sentry.app.view_functions["get_project_config"]
 
@@ -172,7 +167,6 @@ def test_query_retry_maxed_out(mini_sentry, relay_with_processing, events_consum
     def get_project_config():
         if flask_request.json.get("global") is True:
             return original_get_project_config()
-
         nonlocal request_count
         request_count += 1
         print("RETRY", request_count)
@@ -180,14 +174,11 @@ def test_query_retry_maxed_out(mini_sentry, relay_with_processing, events_consum
 
     RETRIES = 1
     query_timeout = 0.5  # Initial grace period
-
     # Relay's exponential backoff: INITIAL_INTERVAL = 1s; DEFAULT_MULTIPLIER = 1.5;
     for retry in range(RETRIES):  # 1 retry
         query_timeout += 1 * 1.5 ** (retry + 1)
 
-    relay = relay_with_processing(
-        {"limits": {"query_timeout": math.ceil(query_timeout)}}
-    )
+    relay = relay(mini_sentry, {"limits": {"query_timeout": math.ceil(query_timeout)}})
 
     # No error messages yet
     assert mini_sentry.test_failures.empty()
@@ -195,11 +186,16 @@ def test_query_retry_maxed_out(mini_sentry, relay_with_processing, events_consum
     try:
         relay.send_event(42)
         time.sleep(query_timeout)
-
         assert request_count == 1 + RETRIES
         assert {str(e) for _, e in mini_sentry.current_test_failures()} == {
             "Relay sent us event: error fetching project states: upstream request returned error 500 Internal Server Error: no error details",
         }
+
+        time.sleep(1)  # Wait for project to be cached
+
+        # Relay still accepts events for this project
+        next_response = relay.send_event(42)
+        assert "id" in next_response
     finally:
         mini_sentry.clear_test_failures()
 

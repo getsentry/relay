@@ -124,9 +124,7 @@ impl ProjectCacheService {
                         "failed to fetch project from source: {fetch:?}"
                     );
 
-                    // TODO: change this to ProjectState::Pending once we consider it safe to do so.
-                    // see https://github.com/getsentry/relay/pull/4140.
-                    ProjectState::Disabled.into()
+                    ProjectState::Pending.into()
                 }
             };
 

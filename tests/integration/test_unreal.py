@@ -129,6 +129,7 @@ def test_unreal_minidump_with_processing(
             mini_dump_process_marker_found = True
 
     assert mini_dump_process_marker_found
+    assert "errors" not in event
 
 
 def test_unreal_apple_crash_with_processing(
@@ -234,6 +235,7 @@ def test_unreal_apple_crash_with_processing(
             apple_crash_report_marker_found = True
 
     assert apple_crash_report_marker_found
+    assert "errors" not in event
 
 
 def test_unreal_minidump_with_config_and_processing(
@@ -326,6 +328,7 @@ def test_unreal_minidump_with_config_and_processing(
             mini_dump_process_marker_found = True
 
     assert mini_dump_process_marker_found
+    assert "errors" not in event
 
 
 def test_unreal_crash_too_large(mini_sentry, relay_with_processing, outcomes_consumer):

@@ -9,7 +9,7 @@ use std::error::Error;
 use chrono::{TimeZone, Utc};
 use minidump::{MinidumpAnnotation, MinidumpCrashpadInfo, MinidumpModuleList, Module};
 use relay_event_schema::protocol::{
-    Context, Contexts, Event, Exception, JsonLenientString, Level, Mechanism, Values,
+    ClientSdkInfo, Context, Contexts, Event, Exception, JsonLenientString, Level, Mechanism, Values,
 };
 use relay_protocol::{Annotated, Value};
 
@@ -191,6 +191,24 @@ pub fn process_minidump(event: &mut Event, data: &[u8]) {
             return;
         }
     };
+
+    let client_sdk_name = if minidump.get_stream::<MinidumpCrashpadInfo>().is_ok() {
+        "minidump.crashpad"
+    } else if minidump
+        .get_stream::<minidump::MinidumpBreakpadInfo>()
+        .is_ok()
+    {
+        "minidump.breakpad"
+    } else {
+        "minidump.unknown"
+    };
+
+    // Add sdk information for analytics.
+    event.client_sdk.get_or_insert_with(|| ClientSdkInfo {
+        name: Annotated::new(client_sdk_name.to_owned()),
+        version: "0.0.0".to_owned().into(),
+        ..ClientSdkInfo::default()
+    });
 
     // Use the minidump's timestamp as the event's primary time. This timestamp can lie multiple
     // days in the past, in which case the event may be rejected in store normalization.

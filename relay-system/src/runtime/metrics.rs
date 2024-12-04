@@ -202,7 +202,7 @@ pub struct TokioCallbackMetrics {
 
 impl TokioCallbackMetrics {
     pub fn register(self: &Arc<Self>, builder: &mut tokio::runtime::Builder) {
-        builder.on_thread_start({
+        builder.on_thread_park({
             let this = Arc::clone(self);
             move || {
                 this.idle_threads.fetch_add(1, Ordering::Relaxed);

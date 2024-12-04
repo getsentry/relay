@@ -4,7 +4,6 @@ use std::sync::Arc;
 use crate::services::buffer::{
     EnvelopeBuffer, EnvelopeBufferError, PartitionedEnvelopeBuffer, ProjectKeyPair,
 };
-use crate::services::global_config;
 use crate::services::processor::{
     EncodeMetrics, EnvelopeProcessor, ProcessEnvelope, ProcessingGroup, ProjectMetrics,
 };
@@ -12,7 +11,7 @@ use crate::services::projects::cache::{CheckedEnvelope, ProjectCacheHandle};
 use crate::Envelope;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, Service};
-use tokio::sync::{mpsc, watch};
+use tokio::sync::mpsc;
 
 use crate::services::metrics::{Aggregator, FlushBuckets, MergeBuckets};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
@@ -70,28 +69,9 @@ pub struct Services {
 struct ProjectCacheBroker {
     services: Services,
     projects: ProjectCacheHandle,
-
-    /// Status of the global configuration, used to determine readiness for processing.
-    global_config: GlobalConfigStatus,
-}
-
-/// Describes the current status of the `GlobalConfig`.
-///
-/// Either it's ready to be used, or it contains the list of in-flight project keys,
-/// to be processed once the config arrives.
-#[derive(Debug)]
-enum GlobalConfigStatus {
-    /// Global config needed for envelope processing.
-    Ready,
-    /// The global config is not fetched yet.
-    Pending,
 }
 
 impl ProjectCacheBroker {
-    fn set_global_config_ready(&mut self) {
-        self.global_config = GlobalConfigStatus::Ready;
-    }
-
     fn handle_flush_buckets(&mut self, message: FlushBuckets) {
         let aggregator = self.services.aggregator.clone();
 
@@ -272,7 +252,6 @@ impl ProjectCacheBroker {
 pub struct ProjectCacheService {
     project_cache_handle: ProjectCacheHandle,
     services: Services,
-    global_config_rx: watch::Receiver<global_config::Status>,
     /// Bounded channel used exclusively to receive envelopes from the envelope buffer.
     envelopes_rx: mpsc::Receiver<DequeuedEnvelope>,
 }
@@ -282,13 +261,11 @@ impl ProjectCacheService {
     pub fn new(
         project_cache_handle: ProjectCacheHandle,
         services: Services,
-        global_config_rx: watch::Receiver<global_config::Status>,
         envelopes_rx: mpsc::Receiver<DequeuedEnvelope>,
     ) -> Self {
         Self {
             project_cache_handle,
             services,
-            global_config_rx,
             envelopes_rx,
         }
     }
@@ -301,42 +278,19 @@ impl Service for ProjectCacheService {
         let Self {
             project_cache_handle,
             services,
-            mut global_config_rx,
             mut envelopes_rx,
         } = self;
         relay_log::info!("project cache started");
 
-        let global_config = match global_config_rx.borrow().clone() {
-            global_config::Status::Ready(_) => {
-                relay_log::info!("global config received");
-                GlobalConfigStatus::Ready
-            }
-            global_config::Status::Pending => {
-                relay_log::info!("waiting for global config");
-                GlobalConfigStatus::Pending
-            }
-        };
-
         let mut broker = ProjectCacheBroker {
             projects: project_cache_handle,
             services,
-            global_config,
         };
 
         loop {
             tokio::select! {
                 biased;
 
-                Ok(()) = global_config_rx.changed() => {
-                    metric!(timer(RelayTimers::LegacyProjectCacheTaskDuration), task = "update_global_config", {
-                        match global_config_rx.borrow().clone() {
-                            global_config::Status::Ready(_) => broker.set_global_config_ready(),
-                            // The watch should only be updated if it gets a new value.
-                            // This would imply a logical bug.
-                            global_config::Status::Pending => relay_log::error!("still waiting for the global config"),
-                        }
-                    })
-                },
                 Some(message) = rx.recv() => {
                     metric!(timer(RelayTimers::LegacyProjectCacheTaskDuration), task = "handle_message", {
                         broker.handle_message(message)

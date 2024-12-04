@@ -23,7 +23,7 @@ use crate::services::buffer::envelope_store::sqlite::SqliteEnvelopeStoreError;
 use crate::services::buffer::stack_provider::memory::MemoryStackProvider;
 use crate::services::buffer::stack_provider::sqlite::SqliteStackProvider;
 use crate::services::buffer::stack_provider::{StackCreationType, StackProvider};
-use crate::statsd::{RelayCounters, RelayGauges, RelayHistograms, RelayTimers};
+use crate::statsd::{RelayGauges, RelayHistograms, RelayTimers};
 use crate::utils::MemoryChecker;
 
 /// Polymorphic envelope buffering interface.
@@ -97,10 +97,6 @@ impl PolymorphicEnvelopeBuffer {
                 }?;
             }
         );
-        relay_statsd::metric!(
-            counter(RelayCounters::BufferEnvelopesWritten) += 1,
-            partition_id = self.partition_tag()
-        );
         Ok(())
     }
 
@@ -129,10 +125,6 @@ impl PolymorphicEnvelopeBuffer {
                     Self::InMemory(buffer) => buffer.pop().await,
                 }?
             }
-        );
-        relay_statsd::metric!(
-            counter(RelayCounters::BufferEnvelopesRead) += 1,
-            partition_id = self.partition_tag()
         );
         Ok(envelope)
     }
@@ -299,7 +291,7 @@ where
     /// If the envelope stack does not exist, a new stack is pushed to the priority queue.
     /// The priority of the stack is updated with the envelope's received_at time.
     pub async fn push(&mut self, envelope: Box<Envelope>) -> Result<(), EnvelopeBufferError> {
-        let received_at = envelope.meta().received_at();
+        let received_at = envelope.received_at();
 
         let project_key_pair = ProjectKeyPair::from_envelope(&envelope);
         if let Some((
@@ -377,10 +369,6 @@ where
 
         match last_received_at {
             None => {
-                relay_statsd::metric!(
-                    counter(RelayCounters::BufferEnvelopeStacksPopped) += 1,
-                    partition_id = &self.partition_tag
-                );
                 self.pop_stack(project_key_pair);
             }
             Some(last_received_at) => {
