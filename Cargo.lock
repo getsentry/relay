@@ -3807,8 +3807,8 @@ version = "24.11.1"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 1.0.109",
- "synstructure 0.12.6",
+ "syn 2.0.90",
+ "synstructure 0.13.1",
 ]
 
 [[package]]
