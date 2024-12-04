@@ -171,87 +171,79 @@ impl Aggregator {
 
         let should_pop = |entry: &QueuedBucket| force || entry.elapsed(now);
 
-        relay_statsd::metric!(
-            timer(MetricTimers::BucketsScanDuration),
-            aggregator = &self.name,
-            {
-                let bucket_interval = self.config.bucket_interval;
-                let cost_tracker = &mut self.cost_tracker;
+        let bucket_interval = self.config.bucket_interval;
+        let cost_tracker = &mut self.cost_tracker;
 
-                while let Some((key, entry)) = self.buckets.try_pop(|_, entry| should_pop(entry)) {
-                    let partition = self.config.flush_partitions.map(|p| key.partition_key(p));
+        let start_bucket_scan = Instant::now();
+        while let Some((key, entry)) = self.buckets.try_pop(|_, entry| should_pop(entry)) {
+            let partition = self.config.flush_partitions.map(|p| key.partition_key(p));
 
-                    let partition = partitions.entry(partition).or_insert_with(HashMap::new);
+            let partition = partitions.entry(partition).or_insert_with(HashMap::new);
 
-                    let buckets = match partition.entry(key.project_key) {
-                        Entry::Occupied(occupied_entry) => occupied_entry.into_mut(),
-                        Entry::Vacant(vacant_entry) => {
-                            match flush_decision(key.project_key) {
-                                FlushDecision::Flush(v) => vacant_entry.insert(v),
-                                FlushDecision::Delay => {
-                                    let mut entry = entry;
+            let buckets = match partition.entry(key.project_key) {
+                Entry::Occupied(occupied_entry) => occupied_entry.into_mut(),
+                Entry::Vacant(vacant_entry) => {
+                    match flush_decision(key.project_key) {
+                        FlushDecision::Flush(v) => vacant_entry.insert(v),
+                        FlushDecision::Delay => {
+                            let mut entry = entry;
 
-                                    // No point in re-calculating the flush time when `force` is `true`.
-                                    // We can still do it on a flush without force.
-                                    if !force {
-                                        entry.flush_at = get_flush_time(
-                                            &self.config,
-                                            ts,
-                                            self.reference_time,
-                                            &key,
-                                        );
-                                        // This should not happen, but may happen with weird
-                                        // configs or due to bugs.
-                                        debug_assert!(!entry.elapsed(now));
-                                    }
-
-                                    // Re-use the loop condition for `try_pop`, to make sure we
-                                    // will never accidentally create an infinite loop.
-                                    match should_pop(&entry) {
-                                        // If we would pop the entry again (`force`, a weird flush
-                                        // configuration, a bug), re-add it after the loop to
-                                        // prevent infinite loops.
-                                        true => re_add.push((key, entry)),
-                                        // Otherwise it's safe to immediately re-add.
-                                        false => self.buckets.insert(key, entry),
-                                    }
-
-                                    continue;
-                                }
-                                FlushDecision::Drop => continue, // Drop the bucket
+                            // No point in re-calculating the flush time when `force` is `true`.
+                            // We can still do it on a flush without force.
+                            if !force {
+                                entry.flush_at =
+                                    get_flush_time(&self.config, ts, self.reference_time, &key);
+                                // This should not happen, but may happen with weird
+                                // configs or due to bugs.
+                                debug_assert!(!entry.elapsed(now));
                             }
+
+                            // Re-use the loop condition for `try_pop`, to make sure we
+                            // will never accidentally create an infinite loop.
+                            match should_pop(&entry) {
+                                // If we would pop the entry again (`force`, a weird flush
+                                // configuration, a bug), re-add it after the loop to
+                                // prevent infinite loops.
+                                true => re_add.push((key, entry)),
+                                // Otherwise it's safe to immediately re-add.
+                                false => self.buckets.insert(key, entry),
+                            }
+
+                            continue;
                         }
-                    };
-
-                    cost_tracker.subtract_cost(key.namespace(), key.project_key, key.cost());
-                    cost_tracker.subtract_cost(
-                        key.namespace(),
-                        key.project_key,
-                        entry.value.cost(),
-                    );
-
-                    let (bucket_count, item_count) = stats
-                        .entry((entry.value.ty(), key.namespace()))
-                        .or_insert((0usize, 0usize));
-                    *bucket_count += 1;
-                    *item_count += entry.value.len();
-
-                    let bucket = Bucket {
-                        timestamp: key.timestamp,
-                        width: bucket_interval,
-                        name: key.metric_name,
-                        value: entry.value,
-                        tags: key.tags,
-                        metadata: entry.metadata,
-                    };
-
-                    merge(buckets, bucket);
+                        FlushDecision::Drop => continue, // Drop the bucket
+                    }
                 }
+            };
 
-                for (key, entry) in re_add {
-                    self.buckets.insert(key, entry);
-                }
-            }
+            cost_tracker.subtract_cost(key.namespace(), key.project_key, key.cost());
+            cost_tracker.subtract_cost(key.namespace(), key.project_key, entry.value.cost());
+
+            let (bucket_count, item_count) = stats
+                .entry((entry.value.ty(), key.namespace()))
+                .or_insert((0usize, 0usize));
+            *bucket_count += 1;
+            *item_count += entry.value.len();
+
+            let bucket = Bucket {
+                timestamp: key.timestamp,
+                width: bucket_interval,
+                name: key.metric_name,
+                value: entry.value,
+                tags: key.tags,
+                metadata: entry.metadata,
+            };
+
+            merge(buckets, bucket);
+        }
+
+        for (key, entry) in re_add {
+            self.buckets.insert(key, entry);
+        }
+
+        relay_statsd::metric!(
+            timer(MetricTimers::BucketsScanDuration) = start_bucket_scan.elapsed(),
+            aggregator = &self.name,
         );
 
         for ((ty, namespace), (bucket_count, item_count)) in stats.into_iter() {
