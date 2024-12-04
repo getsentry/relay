@@ -653,10 +653,6 @@ pub enum RelayCounters {
     EnvelopeItems,
     /// Number of bytes we processed per envelope item.
     EnvelopeItemBytes,
-    /// Number of _envelopes_ the envelope buffer ingests.
-    BufferEnvelopesWritten,
-    /// Number of _envelopes_ the envelope buffer produces.
-    BufferEnvelopesRead,
     /// Number of envelopes that were returned to the envelope buffer by the project cache.
     ///
     /// This happens when the envelope buffer falsely assumes that the envelope's projects are loaded
@@ -853,8 +849,6 @@ impl CounterMetric for RelayCounters {
             RelayCounters::EnvelopeRejected => "event.rejected",
             RelayCounters::EnvelopeItems => "event.items",
             RelayCounters::EnvelopeItemBytes => "event.item_bytes",
-            RelayCounters::BufferEnvelopesWritten => "buffer.envelopes_written",
-            RelayCounters::BufferEnvelopesRead => "buffer.envelopes_read",
             RelayCounters::BufferEnvelopesReturned => "buffer.envelopes_returned",
             RelayCounters::BufferTryPop => "buffer.try_pop",
             RelayCounters::BufferSpooledEnvelopes => "buffer.spooled_envelopes",
