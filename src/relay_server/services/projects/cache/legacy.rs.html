@@ -308,59 +308,12 @@
 <a href="#307" id="307">307</a>
 <a href="#308" id="308">308</a>
 <a href="#309" id="309">309</a>
-<a href="#310" id="310">310</a>
-<a href="#311" id="311">311</a>
-<a href="#312" id="312">312</a>
-<a href="#313" id="313">313</a>
-<a href="#314" id="314">314</a>
-<a href="#315" id="315">315</a>
-<a href="#316" id="316">316</a>
-<a href="#317" id="317">317</a>
-<a href="#318" id="318">318</a>
-<a href="#319" id="319">319</a>
-<a href="#320" id="320">320</a>
-<a href="#321" id="321">321</a>
-<a href="#322" id="322">322</a>
-<a href="#323" id="323">323</a>
-<a href="#324" id="324">324</a>
-<a href="#325" id="325">325</a>
-<a href="#326" id="326">326</a>
-<a href="#327" id="327">327</a>
-<a href="#328" id="328">328</a>
-<a href="#329" id="329">329</a>
-<a href="#330" id="330">330</a>
-<a href="#331" id="331">331</a>
-<a href="#332" id="332">332</a>
-<a href="#333" id="333">333</a>
-<a href="#334" id="334">334</a>
-<a href="#335" id="335">335</a>
-<a href="#336" id="336">336</a>
-<a href="#337" id="337">337</a>
-<a href="#338" id="338">338</a>
-<a href="#339" id="339">339</a>
-<a href="#340" id="340">340</a>
-<a href="#341" id="341">341</a>
-<a href="#342" id="342">342</a>
-<a href="#343" id="343">343</a>
-<a href="#344" id="344">344</a>
-<a href="#345" id="345">345</a>
-<a href="#346" id="346">346</a>
-<a href="#347" id="347">347</a>
-<a href="#348" id="348">348</a>
-<a href="#349" id="349">349</a>
-<a href="#350" id="350">350</a>
-<a href="#351" id="351">351</a>
-<a href="#352" id="352">352</a>
-<a href="#353" id="353">353</a>
-<a href="#354" id="354">354</a>
-<a href="#355" id="355">355</a>
-<a href="#356" id="356">356</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
+<a href="#310" id="310">310</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span><span class="kw">crate</span>::services::buffer::{
     EnvelopeBuffer, EnvelopeBufferError, PartitionedEnvelopeBuffer, ProjectKeyPair,
 };
-<span class="kw">use </span><span class="kw">crate</span>::services::global_config;
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{
     EncodeMetrics, EnvelopeProcessor, ProcessEnvelope, ProcessingGroup, ProjectMetrics,
 };
@@ -368,7 +321,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::Envelope;
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>relay_system::{Addr, FromMessage, Interface, Service};
-<span class="kw">use </span>tokio::sync::{mpsc, watch};
+<span class="kw">use </span>tokio::sync::mpsc;
 
 <span class="kw">use </span><span class="kw">crate</span>::services::metrics::{Aggregator, FlushBuckets, MergeBuckets};
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome, TrackOutcome};
@@ -426,28 +379,9 @@
 </span><span class="kw">struct </span>ProjectCacheBroker {
     services: Services,
     projects: ProjectCacheHandle,
-
-    <span class="doccomment">/// Status of the global configuration, used to determine readiness for processing.
-    </span>global_config: GlobalConfigStatus,
-}
-
-<span class="doccomment">/// Describes the current status of the `GlobalConfig`.
-///
-/// Either it's ready to be used, or it contains the list of in-flight project keys,
-/// to be processed once the config arrives.
-</span><span class="attr">#[derive(Debug)]
-</span><span class="kw">enum </span>GlobalConfigStatus {
-    <span class="doccomment">/// Global config needed for envelope processing.
-    </span>Ready,
-    <span class="doccomment">/// The global config is not fetched yet.
-    </span>Pending,
 }
 
 <span class="kw">impl </span>ProjectCacheBroker {
-    <span class="kw">fn </span>set_global_config_ready(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="self">self</span>.global_config = GlobalConfigStatus::Ready;
-    }
-
     <span class="kw">fn </span>handle_flush_buckets(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: FlushBuckets) {
         <span class="kw">let </span>aggregator = <span class="self">self</span>.services.aggregator.clone();
 
@@ -628,7 +562,6 @@
 </span><span class="kw">pub struct </span>ProjectCacheService {
     project_cache_handle: ProjectCacheHandle,
     services: Services,
-    global_config_rx: watch::Receiver&lt;global_config::Status&gt;,
     <span class="doccomment">/// Bounded channel used exclusively to receive envelopes from the envelope buffer.
     </span>envelopes_rx: mpsc::Receiver&lt;DequeuedEnvelope&gt;,
 }
@@ -638,13 +571,11 @@
     </span><span class="kw">pub fn </span>new(
         project_cache_handle: ProjectCacheHandle,
         services: Services,
-        global_config_rx: watch::Receiver&lt;global_config::Status&gt;,
         envelopes_rx: mpsc::Receiver&lt;DequeuedEnvelope&gt;,
     ) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             project_cache_handle,
             services,
-            global_config_rx,
             envelopes_rx,
         }
     }
@@ -657,42 +588,19 @@
         <span class="kw">let </span><span class="self">Self </span>{
             project_cache_handle,
             services,
-            <span class="kw-2">mut </span>global_config_rx,
             <span class="kw-2">mut </span>envelopes_rx,
         } = <span class="self">self</span>;
         <span class="macro">relay_log::info!</span>(<span class="string">"project cache started"</span>);
 
-        <span class="kw">let </span>global_config = <span class="kw">match </span>global_config_rx.borrow().clone() {
-            global_config::Status::Ready(<span class="kw">_</span>) =&gt; {
-                <span class="macro">relay_log::info!</span>(<span class="string">"global config received"</span>);
-                GlobalConfigStatus::Ready
-            }
-            global_config::Status::Pending =&gt; {
-                <span class="macro">relay_log::info!</span>(<span class="string">"waiting for global config"</span>);
-                GlobalConfigStatus::Pending
-            }
-        };
-
         <span class="kw">let </span><span class="kw-2">mut </span>broker = ProjectCacheBroker {
             projects: project_cache_handle,
             services,
-            global_config,
         };
 
         <span class="kw">loop </span>{
             <span class="macro">tokio::select!</span> {
                 biased;
 
-                <span class="prelude-val">Ok</span>(()) = global_config_rx.changed() =&gt; {
-                    <span class="macro">metric!</span>(timer(RelayTimers::LegacyProjectCacheTaskDuration), task = <span class="string">"update_global_config"</span>, {
-                        <span class="kw">match </span>global_config_rx.borrow().clone() {
-                            global_config::Status::Ready(<span class="kw">_</span>) =&gt; broker.set_global_config_ready(),
-                            <span class="comment">// The watch should only be updated if it gets a new value.
-                            // This would imply a logical bug.
-                            </span>global_config::Status::Pending =&gt; <span class="macro">relay_log::error!</span>(<span class="string">"still waiting for the global config"</span>),
-                        }
-                    })
-                },
                 <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; {
                     <span class="macro">metric!</span>(timer(RelayTimers::LegacyProjectCacheTaskDuration), task = <span class="string">"handle_message"</span>, {
                         broker.handle_message(message)
