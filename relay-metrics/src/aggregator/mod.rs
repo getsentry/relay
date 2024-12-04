@@ -1,23 +1,28 @@
 //! Core functionality of metrics aggregation.
 
-use std::collections::BTreeMap;
-use std::hash::{Hash, Hasher};
+use std::fmt;
+use std::hash::Hasher;
 use std::time::Duration;
-use std::{fmt, mem};
 
 use fnv::FnvHasher;
-use priority_queue::PriorityQueue;
 use relay_base_schema::project::ProjectKey;
 use relay_common::time::UnixTimestamp;
-use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use tokio::time::Instant;
 
-use crate::bucket::{Bucket, BucketValue};
+use crate::bucket::Bucket;
 use crate::statsd::{MetricCounters, MetricGauges, MetricHistograms, MetricSets, MetricTimers};
-use crate::{BucketMetadata, FiniteF64, MetricName, MetricNamespace};
+use crate::MetricName;
 
 use hashbrown::HashMap;
+
+mod buckets;
+mod config;
+mod cost;
+
+use self::buckets::{BucketKey, Buckets, QueuedBucket};
+pub use self::config::*;
+pub(crate) use self::cost::tags_cost;
 
 /// Any error that may occur during aggregation.
 #[derive(Debug, Error, PartialEq)]
@@ -37,471 +42,6 @@ pub enum AggregateMetricsError {
     /// A metric bucket is too large for the per-project bytes limit.
     #[error("project metrics limit exceeded")]
     ProjectLimitExceeded,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-struct BucketKey {
-    project_key: ProjectKey,
-    timestamp: UnixTimestamp,
-    metric_name: MetricName,
-    tags: BTreeMap<String, String>,
-    extracted_from_indexed: bool,
-}
-
-impl BucketKey {
-    /// Creates a 64-bit hash of the bucket key using FnvHasher.
-    ///
-    /// This is used for partition key computation and statsd logging.
-    fn hash64(&self) -> u64 {
-        let mut hasher = FnvHasher::default();
-        std::hash::Hash::hash(self, &mut hasher);
-        hasher.finish()
-    }
-
-    /// Estimates the number of bytes needed to encode the bucket key.
-    ///
-    /// Note that this does not necessarily match the exact memory footprint of the key,
-    /// because data structures have a memory overhead.
-    fn cost(&self) -> usize {
-        mem::size_of::<Self>() + self.metric_name.len() + tags_cost(&self.tags)
-    }
-
-    /// Returns the namespace of this bucket.
-    fn namespace(&self) -> MetricNamespace {
-        self.metric_name.namespace()
-    }
-
-    /// Computes a stable partitioning key for this [`Bucket`].
-    ///
-    /// The partitioning key is inherently producing collisions, since the output of the hasher is
-    /// reduced into an interval of size `partitions`. This means that buckets with totally
-    /// different values might end up in the same partition.
-    ///
-    /// The role of partitioning is to let Relays forward the same metric to the same upstream
-    /// instance with the goal of increasing bucketing efficiency.
-    fn partition_key(&self, partitions: u64) -> u64 {
-        let key = (self.project_key, &self.metric_name, &self.tags);
-
-        let mut hasher = fnv::FnvHasher::default();
-        key.hash(&mut hasher);
-
-        let partitions = partitions.max(1);
-        hasher.finish() % partitions
-    }
-}
-
-/// Estimates the number of bytes needed to encode the tags.
-///
-/// Note that this does not necessarily match the exact memory footprint of the tags,
-/// because data structures or their serialization have overheads.
-pub fn tags_cost(tags: &BTreeMap<String, String>) -> usize {
-    tags.iter().map(|(k, v)| k.len() + v.len()).sum()
-}
-
-/// Configuration value for [`AggregatorConfig::flush_batching`].
-#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum FlushBatching {
-    /// Shifts the flush time by an offset based on the [`ProjectKey`].
-    ///
-    /// This allows buckets from the same project to be flushed together.
-    #[default]
-    Project,
-
-    /// Shifts the flush time by an offset based on the bucket key itself.
-    ///
-    /// This allows for a completely random distribution of bucket flush times.
-    ///
-    /// It should only be used in processing Relays since this flushing behavior it's better
-    /// suited for how Relay emits metrics to Kafka.
-    Bucket,
-
-    /// Shifts the flush time by an offset based on the partition key.
-    ///
-    /// This allows buckets belonging to the same partition to be flushed together. Requires
-    /// [`flush_partitions`](AggregatorConfig::flush_partitions) to be set, otherwise this will fall
-    /// back to [`FlushBatching::Project`].
-    ///
-    /// It should only be used in Relays with the `http.global_metrics` option set since when
-    /// encoding metrics via the global endpoint we can leverage partitioning.
-    Partition,
-
-    /// Do not apply shift.
-    None,
-}
-
-/// Parameters used by the [`Aggregator`].
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(default)]
-pub struct AggregatorConfig {
-    /// Determines the wall clock time interval for buckets in seconds.
-    ///
-    /// Defaults to `10` seconds. Every metric is sorted into a bucket of this size based on its
-    /// timestamp. This defines the minimum granularity with which metrics can be queried later.
-    pub bucket_interval: u64,
-
-    /// The initial delay in seconds to wait before flushing a bucket.
-    ///
-    /// Defaults to `30` seconds. Before sending an aggregated bucket, this is the time Relay waits
-    /// for buckets that are being reported in real time.
-    ///
-    /// Relay applies up to a full `bucket_interval` of additional jitter after the initial delay to spread out flushing real time buckets.
-    pub initial_delay: u64,
-
-    /// The age in seconds of the oldest allowed bucket timestamp.
-    ///
-    /// Defaults to 5 days.
-    pub max_secs_in_past: u64,
-
-    /// The time in seconds that a timestamp may be in the future.
-    ///
-    /// Defaults to 1 minute.
-    pub max_secs_in_future: u64,
-
-    /// The length the name of a metric is allowed to be.
-    ///
-    /// Defaults to `200` bytes.
-    pub max_name_length: usize,
-
-    /// The length the tag key is allowed to be.
-    ///
-    /// Defaults to `200` bytes.
-    pub max_tag_key_length: usize,
-
-    /// The length the tag value is allowed to be.
-    ///
-    /// Defaults to `200` chars.
-    pub max_tag_value_length: usize,
-
-    /// Maximum amount of bytes used for metrics aggregation per project key.
-    ///
-    /// Similar measuring technique to [`Self::max_total_bucket_bytes`], but instead of a
-    /// global/process-wide limit, it is enforced per project key.
-    ///
-    /// Defaults to `None`, i.e. no limit.
-    pub max_project_key_bucket_bytes: Option<usize>,
-
-    /// Maximum amount of bytes used for metrics aggregation.
-    ///
-    /// When aggregating metrics, Relay keeps track of how many bytes a metric takes in memory.
-    /// This is only an approximation and does not take into account things such as pre-allocation
-    /// in hashmaps.
-    ///
-    /// Defaults to `None`, i.e. no limit.
-    pub max_total_bucket_bytes: Option<usize>,
-
-    /// The number of logical partitions that can receive flushed buckets.
-    ///
-    /// If set, buckets are partitioned by (bucket key % flush_partitions), and routed
-    /// by setting the header `X-Sentry-Relay-Shard`.
-    ///
-    /// This setting will take effect only when paired with [`FlushBatching::Partition`].
-    pub flush_partitions: Option<u64>,
-
-    /// The batching mode for the flushing of the aggregator.
-    ///
-    /// Batching is applied via shifts to the flushing time that is determined when the first bucket
-    /// is inserted. Thanks to the shifts, Relay is able to prevent flushing all buckets from a
-    /// bucket interval at the same time.
-    ///
-    /// For example, the aggregator can choose to shift by the same value all buckets within a given
-    /// partition, effectively allowing all the elements of that partition to be flushed together.
-    #[serde(alias = "shift_key")]
-    pub flush_batching: FlushBatching,
-}
-
-impl AggregatorConfig {
-    /// Returns the time width buckets.
-    fn bucket_interval(&self) -> Duration {
-        Duration::from_secs(self.bucket_interval)
-    }
-
-    /// Returns the initial flush delay after the end of a bucket's original time window.
-    fn initial_delay(&self) -> Duration {
-        Duration::from_secs(self.initial_delay)
-    }
-
-    /// Shift deterministically within one bucket interval based on the configured [`FlushBatching`].
-    ///
-    /// This distributes buckets over time to prevent peaks.
-    fn flush_time_shift(&self, bucket: &BucketKey) -> Duration {
-        let shift_range = self.bucket_interval * 1000;
-
-        // Fall back to default flushing by project if no partitioning is configured.
-        let (batching, partitions) = match (self.flush_batching, self.flush_partitions) {
-            (FlushBatching::Partition, None | Some(0)) => (FlushBatching::Project, 0),
-            (flush_batching, partitions) => (flush_batching, partitions.unwrap_or(0)),
-        };
-
-        let shift_millis = match batching {
-            FlushBatching::Project => {
-                let mut hasher = FnvHasher::default();
-                hasher.write(bucket.project_key.as_str().as_bytes());
-                hasher.finish() % shift_range
-            }
-            FlushBatching::Bucket => bucket.hash64() % shift_range,
-            FlushBatching::Partition => shift_range * bucket.partition_key(partitions) / partitions,
-            FlushBatching::None => 0,
-        };
-
-        Duration::from_millis(shift_millis)
-    }
-
-    /// Determines the target bucket for an incoming bucket timestamp and bucket width.
-    ///
-    /// We select the output bucket which overlaps with the center of the incoming bucket.
-    /// Fails if timestamp is too old or too far into the future.
-    fn get_bucket_timestamp(&self, timestamp: UnixTimestamp, bucket_width: u64) -> UnixTimestamp {
-        // Find middle of the input bucket to select a target
-        let ts = timestamp.as_secs().saturating_add(bucket_width / 2);
-        // Align target_timestamp to output bucket width
-        let ts = (ts / self.bucket_interval) * self.bucket_interval;
-        UnixTimestamp::from_secs(ts)
-    }
-
-    /// Returns the valid range for metrics timestamps.
-    ///
-    /// Metrics or buckets outside of this range should be discarded.
-    pub fn timestamp_range(&self) -> std::ops::Range<UnixTimestamp> {
-        let now = UnixTimestamp::now().as_secs();
-        let min_timestamp = UnixTimestamp::from_secs(now.saturating_sub(self.max_secs_in_past));
-        let max_timestamp = UnixTimestamp::from_secs(now.saturating_add(self.max_secs_in_future));
-        min_timestamp..max_timestamp
-    }
-}
-
-impl Default for AggregatorConfig {
-    fn default() -> Self {
-        Self {
-            bucket_interval: 10,
-            initial_delay: 30,
-            max_secs_in_past: 5 * 24 * 60 * 60, // 5 days, as for sessions
-            max_secs_in_future: 60,             // 1 minute
-            max_name_length: 200,
-            max_tag_key_length: 200,
-            max_tag_value_length: 200,
-            max_project_key_bucket_bytes: None,
-            max_total_bucket_bytes: None,
-            flush_batching: FlushBatching::default(),
-            flush_partitions: None,
-        }
-    }
-}
-
-/// Bucket in the [`Aggregator`] with a defined flush time.
-///
-/// This type implements an inverted total ordering. The maximum queued bucket has the lowest flush
-/// time, which is suitable for using it in a [`BinaryHeap`].
-///
-/// [`BinaryHeap`]: std::collections::BinaryHeap
-#[derive(Debug)]
-struct QueuedBucket {
-    flush_at: Instant,
-    value: BucketValue,
-    metadata: BucketMetadata,
-}
-
-impl QueuedBucket {
-    /// Creates a new `QueuedBucket` with a given flush time.
-    fn new(flush_at: Instant, value: BucketValue, metadata: BucketMetadata) -> Self {
-        Self {
-            flush_at,
-            value,
-            metadata,
-        }
-    }
-
-    /// Returns `true` if the flush time has elapsed.
-    fn elapsed(&self, now: Instant) -> bool {
-        now > self.flush_at
-    }
-
-    /// Merges a bucket into the current queued bucket.
-    ///
-    /// Returns the value cost increase on success,
-    /// otherwise returns an error if the passed bucket value type does not match
-    /// the contained type.
-    fn merge(
-        &mut self,
-        value: BucketValue,
-        metadata: BucketMetadata,
-    ) -> Result<usize, AggregateMetricsError> {
-        let cost_before = self.value.cost();
-
-        self.value
-            .merge(value)
-            .map_err(|_| AggregateMetricsError::InvalidTypes)?;
-        self.metadata.merge(metadata);
-
-        Ok(self.value.cost().saturating_sub(cost_before))
-    }
-}
-
-impl PartialEq for QueuedBucket {
-    fn eq(&self, other: &Self) -> bool {
-        self.flush_at.eq(&other.flush_at)
-    }
-}
-
-impl Eq for QueuedBucket {}
-
-impl PartialOrd for QueuedBucket {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        // Comparing order is reversed to convert the max heap into a min heap
-        Some(other.flush_at.cmp(&self.flush_at))
-    }
-}
-
-impl Ord for QueuedBucket {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        // Comparing order is reversed to convert the max heap into a min heap
-        other.flush_at.cmp(&self.flush_at)
-    }
-}
-
-#[derive(Default)]
-struct CostTracker {
-    total_cost: usize,
-    cost_per_project_key: HashMap<ProjectKey, usize>,
-    cost_per_namespace: BTreeMap<MetricNamespace, usize>,
-}
-
-impl CostTracker {
-    fn totals_cost_exceeded(&self, max_total_cost: Option<usize>) -> bool {
-        if let Some(max_total_cost) = max_total_cost {
-            if self.total_cost >= max_total_cost {
-                return true;
-            }
-        }
-
-        false
-    }
-
-    fn check_limits_exceeded(
-        &self,
-        project_key: ProjectKey,
-        max_total_cost: Option<usize>,
-        max_project_cost: Option<usize>,
-    ) -> Result<(), AggregateMetricsError> {
-        if self.totals_cost_exceeded(max_total_cost) {
-            relay_log::configure_scope(|scope| {
-                scope.set_extra("bucket.project_key", project_key.as_str().to_owned().into());
-            });
-            return Err(AggregateMetricsError::TotalLimitExceeded);
-        }
-
-        if let Some(max_project_cost) = max_project_cost {
-            let project_cost = self
-                .cost_per_project_key
-                .get(&project_key)
-                .cloned()
-                .unwrap_or(0);
-            if project_cost >= max_project_cost {
-                relay_log::configure_scope(|scope| {
-                    scope.set_extra("bucket.project_key", project_key.as_str().to_owned().into());
-                });
-                return Err(AggregateMetricsError::ProjectLimitExceeded);
-            }
-        }
-
-        Ok(())
-    }
-
-    fn add_cost(&mut self, namespace: MetricNamespace, project_key: ProjectKey, cost: usize) {
-        *self.cost_per_project_key.entry(project_key).or_insert(0) += cost;
-        *self.cost_per_namespace.entry(namespace).or_insert(0) += cost;
-        self.total_cost += cost;
-    }
-
-    fn subtract_cost(&mut self, namespace: MetricNamespace, project_key: ProjectKey, cost: usize) {
-        let project_cost = self.cost_per_project_key.get_mut(&project_key);
-        let namespace_cost = self.cost_per_namespace.get_mut(&namespace);
-        match (project_cost, namespace_cost) {
-            (Some(project_cost), Some(namespace_cost))
-                if *project_cost >= cost && *namespace_cost >= cost =>
-            {
-                *project_cost -= cost;
-                if *project_cost == 0 {
-                    self.cost_per_project_key.remove(&project_key);
-                }
-                *namespace_cost -= cost;
-                if *namespace_cost == 0 {
-                    self.cost_per_namespace.remove(&namespace);
-                }
-                self.total_cost -= cost;
-            }
-            _ => {
-                relay_log::error!(
-                    namespace = namespace.as_str(),
-                    project_key = project_key.to_string(),
-                    cost = cost.to_string(),
-                    "Cost mismatch",
-                );
-            }
-        }
-    }
-}
-
-impl fmt::Debug for CostTracker {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("CostTracker")
-            .field("total_cost", &self.total_cost)
-            // Convert HashMap to BTreeMap to guarantee order:
-            .field(
-                "cost_per_project_key",
-                &BTreeMap::from_iter(self.cost_per_project_key.iter()),
-            )
-            .field("cost_per_namespace", &self.cost_per_namespace)
-            .finish()
-    }
-}
-
-/// Returns the instant at which a bucket should be flushed.
-///
-/// All buckets are flushed after a grace period of `initial_delay`.
-fn get_flush_time(
-    config: &AggregatorConfig,
-    now: UnixTimestamp,
-    reference_time: Instant,
-    bucket_key: &BucketKey,
-) -> Instant {
-    let initial_flush = bucket_key.timestamp + config.bucket_interval() + config.initial_delay();
-    let backdated = initial_flush <= now;
-
-    let delay = now.as_secs() as i64 - bucket_key.timestamp.as_secs() as i64;
-    relay_statsd::metric!(
-        histogram(MetricHistograms::BucketsDelay) = delay as f64,
-        backdated = if backdated { "true" } else { "false" },
-    );
-
-    let flush_timestamp = if backdated {
-        // If the initial flush time has passed or can't be represented, we want to treat the
-        // flush of the bucket as if it came in with the timestamp of current bucket based on
-        // the now timestamp.
-        //
-        // The rationale behind this is that we want to flush this bucket in the earliest slot
-        // together with buckets that have similar characteristics (e.g., same partition,
-        // project...).
-        let floored_timestamp = (now.as_secs() / config.bucket_interval) * config.bucket_interval;
-        UnixTimestamp::from_secs(floored_timestamp)
-            + config.bucket_interval()
-            + config.initial_delay()
-    } else {
-        // If the initial flush is still pending, use that.
-        initial_flush
-    };
-
-    let instant = if flush_timestamp > now {
-        Instant::now().checked_add(flush_timestamp - now)
-    } else {
-        Instant::now().checked_sub(now - flush_timestamp)
-    }
-    .unwrap_or_else(Instant::now);
-
-    // Since `Instant` doesn't allow to get directly how many seconds elapsed, we leverage the
-    // diffing to get a duration and round it to the smallest second to get consistent times.
-    let instant = reference_time + Duration::from_secs((instant - reference_time).as_secs());
-    instant + config.flush_time_shift(bucket_key)
 }
 
 /// A collector of [`Bucket`] submissions.
@@ -527,8 +67,8 @@ fn get_flush_time(
 pub struct Aggregator {
     name: String,
     config: AggregatorConfig,
-    buckets: PriorityQueue<BucketKey, QueuedBucket>,
-    cost_tracker: CostTracker,
+    buckets: Buckets,
+    cost_tracker: cost::Tracker,
     reference_time: Instant,
 }
 
@@ -544,7 +84,7 @@ impl Aggregator {
             name,
             config,
             buckets: Default::default(),
-            cost_tracker: CostTracker::default(),
+            cost_tracker: Default::default(),
             reference_time: Instant::now(),
         }
     }
@@ -604,9 +144,9 @@ impl Aggregator {
 
         // We only emit statsd metrics for the cost on flush (and not when merging the buckets),
         // assuming that this gives us more than enough data points.
-        for (namespace, cost) in &self.cost_tracker.cost_per_namespace {
+        for (namespace, cost) in self.cost_tracker.cost_per_namespace() {
             relay_statsd::metric!(
-                gauge(MetricGauges::BucketsCost) = *cost as u64,
+                gauge(MetricGauges::BucketsCost) = cost as u64,
                 aggregator = &self.name,
                 namespace = namespace.as_str()
             );
@@ -624,12 +164,9 @@ impl Aggregator {
                 let bucket_interval = self.config.bucket_interval;
                 let cost_tracker = &mut self.cost_tracker;
 
-                while let Some((_, entry)) = self.buckets.peek() {
-                    if !entry.elapsed(now) && !force {
-                        break;
-                    }
-
-                    let (key, entry) = self.buckets.pop().expect("pop after peek");
+                while let Some((key, entry)) =
+                    self.buckets.try_pop(|_, entry| entry.elapsed(now) || force)
+                {
                     cost_tracker.subtract_cost(key.namespace(), key.project_key, key.cost());
                     cost_tracker.subtract_cost(
                         key.namespace(),
@@ -721,7 +258,7 @@ impl Aggregator {
     pub fn merge_with_options(
         &mut self,
         project_key: ProjectKey,
-        mut bucket: Bucket,
+        bucket: Bucket,
         now: UnixTimestamp,
     ) -> Result<(), AggregateMetricsError> {
         let timestamp = self.get_bucket_timestamp(now, bucket.timestamp, bucket.width)?;
@@ -767,49 +304,34 @@ impl Aggregator {
             self.config.max_project_key_bucket_bytes,
         )?;
 
-        let mut added_cost = 0;
+        let added_cost = self.buckets.merge(
+            key,
+            (bucket.value, bucket.metadata),
+            |key, (value, metadata), exisiting| {
+                relay_statsd::metric!(
+                    counter(MetricCounters::MergeHit) += 1,
+                    aggregator = &self.name,
+                    namespace = key.namespace().as_str(),
+                );
 
-        let mut error = None;
-        let updated = self.buckets.change_priority_by(&key, |value| {
-            relay_statsd::metric!(
-                counter(MetricCounters::MergeHit) += 1,
-                aggregator = &self.name,
-                namespace = key.namespace().as_str(),
-            );
+                exisiting.merge(value, metadata)
+            },
+            |key, (value, metadata)| {
+                relay_statsd::metric!(
+                    counter(MetricCounters::MergeMiss) += 1,
+                    aggregator = &self.name,
+                    namespace = key.namespace().as_str(),
+                );
+                relay_statsd::metric!(
+                    set(MetricSets::UniqueBucketsCreated) = key.hash64() as i64, // 2-complement
+                    aggregator = &self.name,
+                    namespace = key.namespace().as_str(),
+                );
 
-            let bv = std::mem::replace(
-                &mut bucket.value,
-                BucketValue::Counter(FiniteF64::default()),
-            );
-            match value.merge(bv, bucket.metadata) {
-                Ok(ac) => added_cost = ac,
-                Err(err) => error = Some(err),
-            }
-        });
-
-        if let Some(error) = error {
-            return Err(error);
-        }
-
-        if !updated {
-            relay_statsd::metric!(
-                counter(MetricCounters::MergeMiss) += 1,
-                aggregator = &self.name,
-                namespace = key.namespace().as_str(),
-            );
-            relay_statsd::metric!(
-                set(MetricSets::UniqueBucketsCreated) = key.hash64() as i64, // 2-complement
-                aggregator = &self.name,
-                namespace = key.namespace().as_str(),
-            );
-
-            let flush_at = get_flush_time(&self.config, now, self.reference_time, &key);
-            let value = bucket.value;
-            added_cost = key.cost() + value.cost();
-
-            self.buckets
-                .push(key, QueuedBucket::new(flush_at, value, bucket.metadata));
-        }
+                let flush_at = get_flush_time(&self.config, now, self.reference_time, key);
+                QueuedBucket::new(flush_at, value, metadata)
+            },
+        )?;
 
         self.cost_tracker
             .add_cost(namespace, project_key, added_cost);
@@ -879,13 +401,88 @@ fn validate_metric_tags(mut key: BucketKey, aggregator_config: &AggregatorConfig
     key
 }
 
+/// Returns the instant at which a bucket should be flushed.
+///
+/// All buckets are flushed after a grace period of `initial_delay`.
+fn get_flush_time(
+    config: &AggregatorConfig,
+    now: UnixTimestamp,
+    reference_time: Instant,
+    bucket_key: &BucketKey,
+) -> Instant {
+    let initial_flush = bucket_key.timestamp + config.bucket_interval() + config.initial_delay();
+    let backdated = initial_flush <= now;
+
+    let delay = now.as_secs() as i64 - bucket_key.timestamp.as_secs() as i64;
+    relay_statsd::metric!(
+        histogram(MetricHistograms::BucketsDelay) = delay as f64,
+        backdated = if backdated { "true" } else { "false" },
+    );
+
+    let flush_timestamp = if backdated {
+        // If the initial flush time has passed or can't be represented, we want to treat the
+        // flush of the bucket as if it came in with the timestamp of current bucket based on
+        // the now timestamp.
+        //
+        // The rationale behind this is that we want to flush this bucket in the earliest slot
+        // together with buckets that have similar characteristics (e.g., same partition,
+        // project...).
+        let floored_timestamp = (now.as_secs() / config.bucket_interval) * config.bucket_interval;
+        UnixTimestamp::from_secs(floored_timestamp)
+            + config.bucket_interval()
+            + config.initial_delay()
+    } else {
+        // If the initial flush is still pending, use that.
+        initial_flush
+    };
+
+    let instant = if flush_timestamp > now {
+        Instant::now().checked_add(flush_timestamp - now)
+    } else {
+        Instant::now().checked_sub(now - flush_timestamp)
+    }
+    .unwrap_or_else(Instant::now);
+
+    // Since `Instant` doesn't allow to get directly how many seconds elapsed, we leverage the
+    // diffing to get a duration and round it to the smallest second to get consistent times.
+    let instant = reference_time + Duration::from_secs((instant - reference_time).as_secs());
+    instant + flush_time_shift(config, bucket_key)
+}
+
+/// Shift deterministically within one bucket interval based on the configured [`FlushBatching`].
+///
+/// This distributes buckets over time to prevent peaks.
+fn flush_time_shift(config: &AggregatorConfig, bucket: &BucketKey) -> Duration {
+    let shift_range = config.bucket_interval * 1000;
+
+    // Fall back to default flushing by project if no partitioning is configured.
+    let (batching, partitions) = match (config.flush_batching, config.flush_partitions) {
+        (FlushBatching::Partition, None | Some(0)) => (FlushBatching::Project, 0),
+        (flush_batching, partitions) => (flush_batching, partitions.unwrap_or(0)),
+    };
+
+    let shift_millis = match batching {
+        FlushBatching::Project => {
+            let mut hasher = FnvHasher::default();
+            hasher.write(bucket.project_key.as_str().as_bytes());
+            hasher.finish() % shift_range
+        }
+        FlushBatching::Bucket => bucket.hash64() % shift_range,
+        FlushBatching::Partition => shift_range * bucket.partition_key(partitions) / partitions,
+        FlushBatching::None => 0,
+    };
+
+    Duration::from_millis(shift_millis)
+}
+
 #[cfg(test)]
 mod tests {
     use insta::assert_debug_snapshot;
     use similar_asserts::assert_eq;
+    use std::collections::BTreeMap;
 
     use super::*;
-    use crate::{dist, GaugeValue};
+    use crate::{dist, BucketMetadata, BucketValue, GaugeValue};
 
     fn test_config() -> AggregatorConfig {
         AggregatorConfig {
@@ -930,8 +527,8 @@ mod tests {
 
         let buckets: Vec<_> = aggregator
             .buckets
-            .iter()
-            .map(|(k, e)| (k, &e.value)) // skip flush times, they are different every time
+            .into_iter()
+            .map(|(k, e)| (k, e.value)) // skip flush times, they are different every time
             .collect();
 
         insta::assert_debug_snapshot!(buckets, @r###"
@@ -1027,8 +624,8 @@ mod tests {
 
         let mut buckets: Vec<_> = aggregator
             .buckets
-            .iter()
-            .map(|(k, e)| (k, &e.value)) // skip flush times, they are different every time
+            .into_iter()
+            .map(|(k, e)| (k, e.value)) // skip flush times, they are different every time
             .collect();
 
         buckets.sort_by(|a, b| a.0.timestamp.cmp(&b.0.timestamp));
@@ -1086,106 +683,6 @@ mod tests {
     }
 
     #[test]
-    fn test_cost_tracker() {
-        let namespace = MetricNamespace::Custom;
-        let project_key1 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fed").unwrap();
-        let project_key2 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap();
-        let project_key3 = ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fef").unwrap();
-        let mut cost_tracker = CostTracker::default();
-        insta::assert_debug_snapshot!(cost_tracker, @r#"
-        CostTracker {
-            total_cost: 0,
-            cost_per_project_key: {},
-            cost_per_namespace: {},
-        }
-        "#);
-        cost_tracker.add_cost(MetricNamespace::Custom, project_key1, 50);
-        cost_tracker.add_cost(MetricNamespace::Profiles, project_key1, 50);
-        insta::assert_debug_snapshot!(cost_tracker, @r#"
-        CostTracker {
-            total_cost: 100,
-            cost_per_project_key: {
-                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
-            },
-            cost_per_namespace: {
-                Profiles: 50,
-                Custom: 50,
-            },
-        }
-        "#);
-        cost_tracker.add_cost(namespace, project_key2, 200);
-        insta::assert_debug_snapshot!(cost_tracker, @r#"
-        CostTracker {
-            total_cost: 300,
-            cost_per_project_key: {
-                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
-                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
-            },
-            cost_per_namespace: {
-                Profiles: 50,
-                Custom: 250,
-            },
-        }
-        "#);
-        // Unknown project: bail
-        cost_tracker.subtract_cost(namespace, project_key3, 666);
-        insta::assert_debug_snapshot!(cost_tracker, @r#"
-        CostTracker {
-            total_cost: 300,
-            cost_per_project_key: {
-                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
-                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
-            },
-            cost_per_namespace: {
-                Profiles: 50,
-                Custom: 250,
-            },
-        }
-        "#);
-        // Subtract too much: bail
-        cost_tracker.subtract_cost(namespace, project_key1, 666);
-        insta::assert_debug_snapshot!(cost_tracker, @r#"
-        CostTracker {
-            total_cost: 300,
-            cost_per_project_key: {
-                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
-                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
-            },
-            cost_per_namespace: {
-                Profiles: 50,
-                Custom: 250,
-            },
-        }
-        "#);
-        cost_tracker.subtract_cost(namespace, project_key2, 20);
-        insta::assert_debug_snapshot!(cost_tracker, @r#"
-        CostTracker {
-            total_cost: 280,
-            cost_per_project_key: {
-                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
-                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 180,
-            },
-            cost_per_namespace: {
-                Profiles: 50,
-                Custom: 230,
-            },
-        }
-        "#);
-
-        // Subtract all
-        cost_tracker.subtract_cost(MetricNamespace::Profiles, project_key1, 50);
-        cost_tracker.subtract_cost(MetricNamespace::Custom, project_key1, 50);
-        cost_tracker.subtract_cost(MetricNamespace::Custom, project_key2, 180);
-        insta::assert_debug_snapshot!(cost_tracker, @r#"
-        CostTracker {
-            total_cost: 0,
-            cost_per_project_key: {},
-            cost_per_namespace: {},
-        }
-        "#);
-    }
-
-    #[test]
     fn test_aggregator_cost_tracking() {
         // Make sure that the right cost is added / subtracted
         let mut aggregator: Aggregator = Aggregator::new(test_config());
@@ -1207,7 +704,7 @@ mod tests {
             tags: BTreeMap::new(),
             extracted_from_indexed: false,
         };
-        let fixed_cost = bucket_key.cost() + mem::size_of::<BucketValue>();
+        let fixed_cost = bucket_key.cost() + std::mem::size_of::<BucketValue>();
         for (metric_name, metric_value, expected_added_cost) in [
             (
                 "c:transactions/foo@none",
@@ -1252,14 +749,14 @@ mod tests {
             bucket.value = metric_value;
             bucket.name = metric_name.into();
 
-            let current_cost = aggregator.cost_tracker.total_cost;
+            let current_cost = aggregator.cost_tracker.total_cost();
             aggregator.merge(project_key, bucket).unwrap();
-            let total_cost = aggregator.cost_tracker.total_cost;
+            let total_cost = aggregator.cost_tracker.total_cost();
             assert_eq!(total_cost, current_cost + expected_added_cost);
         }
 
         aggregator.pop_flush_buckets(true);
-        assert_eq!(aggregator.cost_tracker.total_cost, 0);
+        assert_eq!(aggregator.cost_tracker.total_cost(), 0);
     }
 
     #[tokio::test]
@@ -1562,8 +1059,8 @@ mod tests {
 
         let buckets_metadata: Vec<_> = aggregator
             .buckets
-            .iter()
-            .map(|(_, v)| &v.metadata)
+            .into_iter()
+            .map(|(_, v)| v.metadata)
             .collect();
         insta::assert_debug_snapshot!(buckets_metadata, @r###"
         [
