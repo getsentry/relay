@@ -1,14 +1,6 @@
 //! Types for buffering envelopes.
 
-use std::error::Error;
-use std::hash::{DefaultHasher, Hash, Hasher};
-use std::num::NonZeroU8;
-use std::sync::atomic::AtomicBool;
-use std::sync::atomic::Ordering;
-use std::sync::Arc;
-use std::time::Duration;
-use std::time::SystemTime;
-
+use ahash::AHasher;
 use chrono::DateTime;
 use chrono::Utc;
 use fnv::FnvHasher;
@@ -17,6 +9,14 @@ use relay_config::Config;
 use relay_system::ServiceRunner;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Receiver, Service};
 use relay_system::{Controller, Shutdown};
+use std::error::Error;
+use std::hash::{DefaultHasher, Hash, Hasher};
+use std::num::NonZeroU8;
+use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
+use std::time::Duration;
+use std::time::SystemTime;
 use tokio::sync::mpsc::Permit;
 use tokio::sync::{mpsc, watch};
 use tokio::time::{timeout, Instant};
@@ -149,7 +149,7 @@ impl PartitionedEnvelopeBuffer {
     /// The rationale of using this partitioning strategy is to reduce memory usage across buffers
     /// since each individual buffer will only take care of a subset of projects.
     pub fn buffer(&self, project_key_pair: ProjectKeyPair) -> Option<&ObservableEnvelopeBuffer> {
-        let mut hasher = FnvHasher::default();
+        let mut hasher = AHasher::default();
         project_key_pair.hash(&mut hasher);
         let buffer_index = (hasher.finish() % self.buffers.len() as u64) as usize;
         let buffer = self.buffers.get(buffer_index);
