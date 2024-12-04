@@ -62,6 +62,9 @@ relay-event-derive = { path = "relay-event-derive" }
 
 ahash = "0.8.11"
 android_trace_log = { version = "0.3.0", features = ["serde"] }
+# This version is pinned because upgrading it enables backtrace by default without the possibility to disable it
+# which will increase processing time for transactions massively.
+# Keep it pinned until it's possible to disable backtrace
 anyhow = "=1.0.69"
 axum = "0.7.9"
 axum-extra = "0.9.6"
