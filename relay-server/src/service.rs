@@ -294,7 +294,6 @@ impl ServiceState {
             legacy::ProjectCacheService::new(
                 project_cache_handle.clone(),
                 project_cache_services,
-                global_config_rx,
                 envelopes_rx,
             ),
             legacy_project_cache_rx,
