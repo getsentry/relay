@@ -175,18 +175,22 @@ impl Aggregator {
         let cost_tracker = &mut self.cost_tracker;
 
         let start_bucket_scan = Instant::now();
-        while let Some((key, entry)) = self.buckets.try_pop(|_, entry| should_pop(entry)) {
+        while let Some((key, queued_bucket)) = self.buckets.try_pop(|_, b| should_pop(b)) {
             let partition = self.config.flush_partitions.map(|p| key.partition_key(p));
-
             let partition = partitions.entry(partition).or_insert_with(HashMap::new);
+
+            let cost = key.cost() + queued_bucket.value.cost();
 
             let buckets = match partition.entry(key.project_key) {
                 Entry::Occupied(occupied_entry) => occupied_entry.into_mut(),
                 Entry::Vacant(vacant_entry) => {
                     match flush_decision(key.project_key) {
-                        FlushDecision::Flush(v) => vacant_entry.insert(v),
+                        FlushDecision::Flush(v) => {
+                            cost_tracker.subtract_cost(key.namespace(), key.project_key, cost);
+                            vacant_entry.insert(v)
+                        }
                         FlushDecision::Delay => {
-                            let mut entry = entry;
+                            let mut entry = queued_bucket;
 
                             // No point in re-calculating the flush time when `force` is `true`.
                             // We can still do it on a flush without force.
@@ -206,39 +210,39 @@ impl Aggregator {
                                 // prevent infinite loops.
                                 true => re_add.push((key, entry)),
                                 // Otherwise it's safe to immediately re-add.
-                                false => self.buckets.insert(key, entry),
+                                false => self.buckets.re_add(key, entry),
                             }
 
                             continue;
                         }
-                        FlushDecision::Drop => continue, // Drop the bucket
+                        FlushDecision::Drop => {
+                            cost_tracker.subtract_cost(key.namespace(), key.project_key, cost);
+                            continue;
+                        }
                     }
                 }
             };
 
-            cost_tracker.subtract_cost(key.namespace(), key.project_key, key.cost());
-            cost_tracker.subtract_cost(key.namespace(), key.project_key, entry.value.cost());
-
             let (bucket_count, item_count) = stats
-                .entry((entry.value.ty(), key.namespace()))
+                .entry((queued_bucket.value.ty(), key.namespace()))
                 .or_insert((0usize, 0usize));
             *bucket_count += 1;
-            *item_count += entry.value.len();
+            *item_count += queued_bucket.value.len();
 
             let bucket = Bucket {
                 timestamp: key.timestamp,
                 width: bucket_interval,
                 name: key.metric_name,
-                value: entry.value,
+                value: queued_bucket.value,
                 tags: key.tags,
-                metadata: entry.metadata,
+                metadata: queued_bucket.metadata,
             };
 
             merge(buckets, bucket);
         }
 
         for (key, entry) in re_add {
-            self.buckets.insert(key, entry);
+            self.buckets.re_add(key, entry);
         }
 
         relay_statsd::metric!(

@@ -80,12 +80,12 @@ pub struct FlushBuckets {
     /// When set to `Some` it means that partitioning was enabled in the [`Aggregator`].
     pub partition_key: Option<u64>,
     /// The buckets to be flushed.
-    pub buckets: HashMap<ProjectKey, ProjectMetrics>,
+    pub buckets: HashMap<ProjectKey, ProjectBuckets>,
 }
 
 /// Metric buckets with additional project.
 #[derive(Debug, Clone)]
-pub struct ProjectMetrics {
+pub struct ProjectBuckets {
     /// The metric buckets to encode.
     pub buckets: Vec<Bucket>,
     /// Scoping of the project.
@@ -156,46 +156,46 @@ impl AggregatorService {
     fn try_flush(&mut self) {
         let force_flush = matches!(&self.state, AggregatorState::ShuttingDown);
 
-        let partitions = self.aggregator.pop_flush_buckets(
-            force_flush,
-            |project_key| {
-                let project = self.project_cache.get(project_key);
+        let flush_decision = |project_key| {
+            let project = self.project_cache.get(project_key);
 
-                let project_info = match project.state() {
-                    ProjectState::Enabled(project_info) => project_info,
-                    ProjectState::Disabled => return FlushDecision::Drop,
-                    // Delay the flush, project is not yet ready.
-                    //
-                    // Querying the project will make sure it is eventually fetched.
-                    ProjectState::Pending => {
-                        relay_statsd::metric!(
-                            counter(RelayCounters::ProjectStateFlushMetricsNoProject) += 1
-                        );
-                        return FlushDecision::Delay;
-                    }
-                };
-
-                let Some(scoping) = project_info.scoping(project_key) else {
-                    // This should never happen, at this point we should always have a valid
-                    // project with the necessary information to construct a scoping.
-                    //
-                    // Ideally we enforce this through the type system in the future.
-                    relay_log::error!(
-                        tags.project_key = project_key.as_str(),
-                        "dropping buckets because of missing scope",
+            let project_info = match project.state() {
+                ProjectState::Enabled(project_info) => project_info,
+                ProjectState::Disabled => return FlushDecision::Drop,
+                // Delay the flush, project is not yet ready.
+                //
+                // Querying the project will make sure it is eventually fetched.
+                ProjectState::Pending => {
+                    relay_statsd::metric!(
+                        counter(RelayCounters::ProjectStateFlushMetricsNoProject) += 1
                     );
-                    return FlushDecision::Drop;
-                };
+                    return FlushDecision::Delay;
+                }
+            };
 
-                FlushDecision::Flush(ProjectMetrics {
-                    scoping,
-                    project_info: Arc::clone(project_info),
-                    rate_limits: project.rate_limits().current_limits(),
-                    buckets: Vec::new(),
-                })
-            },
-            |pm, bucket| pm.buckets.push(bucket),
-        );
+            let Some(scoping) = project_info.scoping(project_key) else {
+                // This should never happen, at this point we should always have a valid
+                // project with the necessary information to construct a scoping.
+                //
+                // Ideally we enforce this through the type system in the future.
+                relay_log::error!(
+                    tags.project_key = project_key.as_str(),
+                    "dropping buckets because of missing scope",
+                );
+                return FlushDecision::Drop;
+            };
+
+            FlushDecision::Flush(ProjectBuckets {
+                scoping,
+                project_info: Arc::clone(project_info),
+                rate_limits: project.rate_limits().current_limits(),
+                buckets: Vec::new(),
+            })
+        };
+
+        let partitions = self
+            .aggregator
+            .pop_flush_buckets(force_flush, flush_decision, |pb, b| pb.buckets.push(b));
 
         self.can_accept_metrics
             .store(!self.aggregator.totals_cost_exceeded(), Ordering::Relaxed);
@@ -418,7 +418,7 @@ mod tests {
     }
 
     impl TestReceiver {
-        fn add_buckets(&self, buckets: HashMap<ProjectKey, ProjectMetrics>) {
+        fn add_buckets(&self, buckets: HashMap<ProjectKey, ProjectBuckets>) {
             let buckets = buckets.into_values().flat_map(|s| s.buckets);
             self.data.write().unwrap().buckets.extend(buckets);
         }

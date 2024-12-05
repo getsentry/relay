@@ -69,7 +69,7 @@ use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
-use crate::services::metrics::{Aggregator, FlushBuckets, MergeBuckets, ProjectMetrics};
+use crate::services::metrics::{Aggregator, FlushBuckets, MergeBuckets, ProjectBuckets};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::event::FiltersStatus;
 use crate::services::projects::cache::ProjectCacheHandle;
@@ -2555,7 +2555,7 @@ impl EnvelopeProcessorService {
         use crate::constants::DEFAULT_EVENT_RETENTION;
         use crate::services::store::StoreMetrics;
 
-        for ProjectMetrics {
+        for ProjectBuckets {
             buckets,
             scoping,
             project_info,
@@ -2606,7 +2606,7 @@ impl EnvelopeProcessorService {
         let batch_size = self.inner.config.metrics_max_batch_size_bytes();
         let upstream = self.inner.config.upstream_descriptor();
 
-        for ProjectMetrics {
+        for ProjectBuckets {
             buckets, scoping, ..
         } in buckets.values()
         {
@@ -2700,7 +2700,7 @@ impl EnvelopeProcessorService {
         let mut partition = Partition::new(batch_size);
         let mut partition_splits = 0;
 
-        for ProjectMetrics {
+        for ProjectBuckets {
             buckets, scoping, ..
         } in buckets.values()
         {
@@ -2728,10 +2728,10 @@ impl EnvelopeProcessorService {
     }
 
     fn handle_flush_buckets(&self, mut message: FlushBuckets) {
-        for (project_key, pm) in message.buckets.iter_mut() {
-            let buckets = std::mem::take(&mut pm.buckets);
-            pm.buckets =
-                self.check_buckets(*project_key, &pm.project_info, &pm.rate_limits, buckets);
+        for (project_key, pb) in message.buckets.iter_mut() {
+            let buckets = std::mem::take(&mut pb.buckets);
+            pb.buckets =
+                self.check_buckets(*project_key, &pb.project_info, &pb.rate_limits, buckets);
         }
 
         #[cfg(feature = "processing")]
@@ -3323,7 +3323,7 @@ mod tests {
                 })
             };
 
-            let project_metrics = |scoping| ProjectMetrics {
+            let project_metrics = |scoping| ProjectBuckets {
                 buckets: vec![Bucket {
                     name: "d:transactions/bar".into(),
                     value: BucketValue::Counter(relay_metrics::FiniteF64::new(1.0).unwrap()),
@@ -3807,11 +3807,11 @@ mod tests {
         };
 
         let mut messages = vec![mb1, mb2];
-        messages.sort_by_key(|pm| pm.project_key);
+        messages.sort_by_key(|mb| mb.project_key);
 
         let actual = messages
             .into_iter()
-            .map(|pm| (pm.project_key, pm.buckets))
+            .map(|mb| (mb.project_key, mb.buckets))
             .collect::<Vec<_>>();
 
         assert_debug_snapshot!(actual, @r###"
