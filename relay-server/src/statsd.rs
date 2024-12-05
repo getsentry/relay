@@ -649,6 +649,10 @@ pub enum RelayCounters {
     ///  - `handling`: Either `"success"` if the envelope was handled correctly, or `"failure"` if
     ///    there was an error or bug.
     EnvelopeRejected,
+    /// Number of items we processed per envelope.
+    EnvelopeItems,
+    /// Number of bytes we processed per envelope item.
+    EnvelopeItemBytes,
     /// Number of envelopes that were returned to the envelope buffer by the project cache.
     ///
     /// This happens when the envelope buffer falsely assumes that the envelope's projects are loaded
@@ -843,6 +847,8 @@ impl CounterMetric for RelayCounters {
             RelayCounters::EventCorrupted => "event.corrupted",
             RelayCounters::EnvelopeAccepted => "event.accepted",
             RelayCounters::EnvelopeRejected => "event.rejected",
+            RelayCounters::EnvelopeItems => "event.items",
+            RelayCounters::EnvelopeItemBytes => "event.item_bytes",
             RelayCounters::BufferEnvelopesReturned => "buffer.envelopes_returned",
             RelayCounters::BufferTryPop => "buffer.try_pop",
             RelayCounters::BufferSpooledEnvelopes => "buffer.spooled_envelopes",
