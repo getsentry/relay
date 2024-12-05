@@ -1024,7 +1024,13 @@
 <a href="#1023" id="1023">1023</a>
 <a href="#1024" id="1024">1024</a>
 <a href="#1025" id="1025">1025</a>
-<a href="#1026" id="1026">1026</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
+<a href="#1026" id="1026">1026</a>
+<a href="#1027" id="1027">1027</a>
+<a href="#1028" id="1028">1028</a>
+<a href="#1029" id="1029">1029</a>
+<a href="#1030" id="1030">1030</a>
+<a href="#1031" id="1031">1031</a>
+<a href="#1032" id="1032">1032</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 <span class="attr">#[cfg(doc)]
 </span><span class="kw">use </span>relay_system::RuntimeMetrics;
 
@@ -1675,6 +1681,10 @@
     ///  - `handling`: Either `"success"` if the envelope was handled correctly, or `"failure"` if
     ///    there was an error or bug.
     </span>EnvelopeRejected,
+    <span class="doccomment">/// Number of items we processed per envelope.
+    </span>EnvelopeItems,
+    <span class="doccomment">/// Number of bytes we processed per envelope item.
+    </span>EnvelopeItemBytes,
     <span class="doccomment">/// Number of envelopes that were returned to the envelope buffer by the project cache.
     ///
     /// This happens when the envelope buffer falsely assumes that the envelope's projects are loaded
@@ -1869,6 +1879,8 @@
             RelayCounters::EventCorrupted =&gt; <span class="string">"event.corrupted"</span>,
             RelayCounters::EnvelopeAccepted =&gt; <span class="string">"event.accepted"</span>,
             RelayCounters::EnvelopeRejected =&gt; <span class="string">"event.rejected"</span>,
+            RelayCounters::EnvelopeItems =&gt; <span class="string">"event.items"</span>,
+            RelayCounters::EnvelopeItemBytes =&gt; <span class="string">"event.item_bytes"</span>,
             RelayCounters::BufferEnvelopesReturned =&gt; <span class="string">"buffer.envelopes_returned"</span>,
             RelayCounters::BufferTryPop =&gt; <span class="string">"buffer.try_pop"</span>,
             RelayCounters::BufferSpooledEnvelopes =&gt; <span class="string">"buffer.spooled_envelopes"</span>,
