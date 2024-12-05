@@ -1,16 +1,15 @@
 //! Types for buffering envelopes.
 
 use std::error::Error;
-use std::hash::{Hash, Hasher};
 use std::num::NonZeroU8;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::time::Duration;
 
+use ahash::RandomState;
 use chrono::DateTime;
 use chrono::Utc;
-use fnv::FnvHasher;
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
@@ -54,6 +53,9 @@ mod envelope_stack;
 mod envelope_store;
 mod stack_provider;
 mod testutils;
+
+/// Seed used for hashing the project key pairs.
+const PARTITIONING_HASHING_SEED: usize = 0;
 
 /// Message interface for [`EnvelopeBufferService`].
 #[derive(Debug)]
@@ -138,9 +140,8 @@ impl PartitionedEnvelopeBuffer {
     /// The rationale of using this partitioning strategy is to reduce memory usage across buffers
     /// since each individual buffer will only take care of a subset of projects.
     pub fn buffer(&self, project_key_pair: ProjectKeyPair) -> &ObservableEnvelopeBuffer {
-        let mut hasher = FnvHasher::default();
-        project_key_pair.own_key.hash(&mut hasher);
-        let buffer_index = (hasher.finish() % self.buffers.len() as u64) as usize;
+        let state = RandomState::with_seed(PARTITIONING_HASHING_SEED);
+        let buffer_index = (state.hash_one(project_key_pair) % self.buffers.len() as u64) as usize;
         self.buffers
             .get(buffer_index)
             .expect("buffers should not be empty")
