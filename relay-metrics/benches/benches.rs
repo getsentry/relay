@@ -6,7 +6,7 @@ use rand::SeedableRng;
 use relay_base_schema::project::ProjectKey;
 use relay_common::time::UnixTimestamp;
 use relay_metrics::{
-    aggregator::{Aggregator, AggregatorConfig},
+    aggregator::{Aggregator, AggregatorConfig, FlushDecision},
     Bucket, BucketValue, DistributionValue, FiniteF64,
 };
 use std::cell::RefCell;
@@ -224,7 +224,9 @@ fn bench_insert_and_flush(c: &mut Criterion) {
                     |mut aggregator| {
                         // XXX: Ideally we'd want to test the entire try_flush here, but spawning
                         // a service is too much work here.
-                        black_box(aggregator.pop_flush_buckets(black_box(false)));
+                        black_box(aggregator.pop_flush_buckets(black_box(false), |_| {
+                            FlushDecision::Flush(Vec::new())
+                        }));
                     },
                     BatchSize::SmallInput,
                 )

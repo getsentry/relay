@@ -1,24 +1,18 @@
-use std::collections::BTreeMap;
-use std::sync::Arc;
-
 use crate::services::buffer::{
     EnvelopeBuffer, EnvelopeBufferError, PartitionedEnvelopeBuffer, ProjectKeyPair,
 };
-use crate::services::processor::{
-    EncodeMetrics, EnvelopeProcessor, ProcessEnvelope, ProcessingGroup, ProjectMetrics,
-};
+use crate::services::processor::{EnvelopeProcessor, ProcessEnvelope, ProcessingGroup};
 use crate::services::projects::cache::{CheckedEnvelope, ProjectCacheHandle};
 use crate::Envelope;
 use relay_statsd::metric;
-use relay_system::{Addr, FromMessage, Interface, Service};
+use relay_system::{Addr, Interface, Service};
 use tokio::sync::mpsc;
 
-use crate::services::metrics::{Aggregator, FlushBuckets, MergeBuckets};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::projects::project::ProjectState;
 use crate::services::test_store::TestStore;
 
-use crate::statsd::{RelayCounters, RelayTimers};
+use crate::statsd::RelayTimers;
 use crate::utils::ManagedEnvelope;
 
 /// Handle an envelope that was popped from the envelope buffer.
@@ -27,35 +21,24 @@ pub struct DequeuedEnvelope(pub Box<Envelope>);
 
 /// The legacy project cache.
 ///
-/// It manages spool v1 and some remaining messages which handle project state.
+/// It currently just does some project routing from the spool to the processor,
+/// which eventually will be moved into the spool and processor, making this service
+/// obsolete.
 #[derive(Debug)]
-pub enum ProjectCache {
-    FlushBuckets(FlushBuckets),
-}
+pub enum ProjectCache {}
 
 impl ProjectCache {
     pub fn variant(&self) -> &'static str {
-        match self {
-            Self::FlushBuckets(_) => "FlushBuckets",
-        }
+        match *self {}
     }
 }
 
 impl Interface for ProjectCache {}
 
-impl FromMessage<FlushBuckets> for ProjectCache {
-    type Response = relay_system::NoResponse;
-
-    fn from_message(message: FlushBuckets, _: ()) -> Self {
-        Self::FlushBuckets(message)
-    }
-}
-
 /// Holds the addresses of all services required for [`ProjectCache`].
 #[derive(Debug, Clone)]
 pub struct Services {
     pub envelope_buffer: PartitionedEnvelopeBuffer,
-    pub aggregator: Addr<Aggregator>,
     pub envelope_processor: Addr<EnvelopeProcessor>,
     pub outcome_aggregator: Addr<TrackOutcome>,
     pub test_store: Addr<TestStore>,
@@ -72,67 +55,6 @@ struct ProjectCacheBroker {
 }
 
 impl ProjectCacheBroker {
-    fn handle_flush_buckets(&mut self, message: FlushBuckets) {
-        let aggregator = self.services.aggregator.clone();
-
-        let mut no_project = 0;
-        let mut scoped_buckets = BTreeMap::new();
-        for (project_key, buckets) in message.buckets {
-            let project = self.projects.get(project_key);
-
-            let project_info = match project.state() {
-                ProjectState::Pending => {
-                    no_project += 1;
-
-                    // Return the buckets to the aggregator.
-                    aggregator.send(MergeBuckets::new(project_key, buckets));
-                    continue;
-                }
-                ProjectState::Disabled => {
-                    // Project loaded and disabled, discard the buckets.
-                    //
-                    // Ideally we log outcomes for the metrics here, but currently for metric
-                    // outcomes we need a valid scoping, which we cannot construct for disabled
-                    // projects.
-                    continue;
-                }
-                ProjectState::Enabled(project_info) => project_info,
-            };
-
-            let Some(scoping) = project_info.scoping(project_key) else {
-                relay_log::error!(
-                    tags.project_key = project_key.as_str(),
-                    "there is no scoping: dropping {} buckets",
-                    buckets.len(),
-                );
-                continue;
-            };
-
-            use std::collections::btree_map::Entry::*;
-            match scoped_buckets.entry(scoping) {
-                Vacant(entry) => {
-                    entry.insert(ProjectMetrics {
-                        project_info: Arc::clone(project_info),
-                        rate_limits: project.rate_limits().current_limits(),
-                        buckets,
-                    });
-                }
-                Occupied(entry) => {
-                    entry.into_mut().buckets.extend(buckets);
-                }
-            }
-        }
-
-        self.services.envelope_processor.send(EncodeMetrics {
-            partition_key: message.partition_key,
-            scopes: scoped_buckets,
-        });
-
-        relay_statsd::metric!(
-            counter(RelayCounters::ProjectStateFlushMetricsNoProject) += no_project
-        );
-    }
-
     fn handle_dequeued_envelope(
         &mut self,
         envelope: Box<Envelope>,
@@ -216,19 +138,6 @@ impl ProjectCacheBroker {
         Ok(())
     }
 
-    fn handle_message(&mut self, message: ProjectCache) {
-        let ty = message.variant();
-        metric!(
-            timer(RelayTimers::LegacyProjectCacheMessageDuration),
-            message = ty,
-            {
-                match message {
-                    ProjectCache::FlushBuckets(message) => self.handle_flush_buckets(message),
-                }
-            }
-        )
-    }
-
     fn handle_envelope(&mut self, dequeued_envelope: DequeuedEnvelope) {
         let project_key_pair = ProjectKeyPair::from_envelope(&dequeued_envelope.0);
         let envelope_buffer = self
@@ -274,37 +183,27 @@ impl ProjectCacheService {
 impl Service for ProjectCacheService {
     type Interface = ProjectCache;
 
-    async fn run(self, mut rx: relay_system::Receiver<Self::Interface>) {
+    async fn run(self, _rx: relay_system::Receiver<Self::Interface>) {
         let Self {
             project_cache_handle,
             services,
             mut envelopes_rx,
         } = self;
-        relay_log::info!("project cache started");
+        relay_log::info!("legacy project cache started");
 
         let mut broker = ProjectCacheBroker {
             projects: project_cache_handle,
             services,
         };
 
-        loop {
-            tokio::select! {
-                biased;
-
-                Some(message) = rx.recv() => {
-                    metric!(timer(RelayTimers::LegacyProjectCacheTaskDuration), task = "handle_message", {
-                        broker.handle_message(message)
-                    })
-                }
-                Some(message) = envelopes_rx.recv() => {
-                    metric!(timer(RelayTimers::LegacyProjectCacheTaskDuration), task = "handle_envelope", {
-                        broker.handle_envelope(message)
-                    })
-                }
-                else => break,
-            }
+        while let Some(message) = envelopes_rx.recv().await {
+            metric!(
+                timer(RelayTimers::LegacyProjectCacheTaskDuration),
+                task = "handle_envelope",
+                { broker.handle_envelope(message) }
+            )
         }
 
-        relay_log::info!("project cache stopped");
+        relay_log::info!("legacy project cache stopped");
     }
 }

@@ -69,7 +69,7 @@ use crate::metrics_extraction::transactions::types::ExtractMetricsError;
 use crate::metrics_extraction::transactions::{ExtractedMetrics, TransactionExtractor};
 use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
-use crate::services::metrics::{Aggregator, MergeBuckets};
+use crate::services::metrics::{Aggregator, FlushBuckets, MergeBuckets, ProjectBuckets};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::event::FiltersStatus;
 use crate::services::projects::cache::ProjectCacheHandle;
@@ -1019,24 +1019,6 @@ impl BucketSource {
     }
 }
 
-/// Metric buckets with additional project.
-#[derive(Debug, Clone)]
-pub struct ProjectMetrics {
-    /// The metric buckets to encode.
-    pub buckets: Vec<Bucket>,
-    /// Project info for extracting quotas.
-    pub project_info: Arc<ProjectInfo>,
-    /// Currently cached rate limits.
-    pub rate_limits: Arc<RateLimits>,
-}
-
-/// Encodes metrics into an envelope ready to be sent upstream.
-#[derive(Debug)]
-pub struct EncodeMetrics {
-    pub partition_key: Option<u64>,
-    pub scopes: BTreeMap<Scoping, ProjectMetrics>,
-}
-
 /// Sends an envelope to the upstream or Kafka.
 #[derive(Debug)]
 pub struct SubmitEnvelope {
@@ -1058,7 +1040,7 @@ pub enum EnvelopeProcessor {
     ProcessEnvelope(Box<ProcessEnvelope>),
     ProcessProjectMetrics(Box<ProcessMetrics>),
     ProcessBatchedMetrics(Box<ProcessBatchedMetrics>),
-    EncodeMetrics(Box<EncodeMetrics>),
+    FlushBuckets(Box<FlushBuckets>),
     SubmitEnvelope(Box<SubmitEnvelope>),
     SubmitClientReports(Box<SubmitClientReports>),
 }
@@ -1070,7 +1052,7 @@ impl EnvelopeProcessor {
             EnvelopeProcessor::ProcessEnvelope(_) => "ProcessEnvelope",
             EnvelopeProcessor::ProcessProjectMetrics(_) => "ProcessProjectMetrics",
             EnvelopeProcessor::ProcessBatchedMetrics(_) => "ProcessBatchedMetrics",
-            EnvelopeProcessor::EncodeMetrics(_) => "EncodeMetrics",
+            EnvelopeProcessor::FlushBuckets(_) => "FlushBuckets",
             EnvelopeProcessor::SubmitEnvelope(_) => "SubmitEnvelope",
             EnvelopeProcessor::SubmitClientReports(_) => "SubmitClientReports",
         }
@@ -1103,11 +1085,11 @@ impl FromMessage<ProcessBatchedMetrics> for EnvelopeProcessor {
     }
 }
 
-impl FromMessage<EncodeMetrics> for EnvelopeProcessor {
+impl FromMessage<FlushBuckets> for EnvelopeProcessor {
     type Response = NoResponse;
 
-    fn from_message(message: EncodeMetrics, _: ()) -> Self {
-        Self::EncodeMetrics(Box::new(message))
+    fn from_message(message: FlushBuckets, _: ()) -> Self {
+        Self::FlushBuckets(Box::new(message))
     }
 }
 
@@ -2569,17 +2551,17 @@ impl EnvelopeProcessorService {
     ///  - rate limiting
     ///  - submit to `StoreForwarder`
     #[cfg(feature = "processing")]
-    fn encode_metrics_processing(&self, message: EncodeMetrics, store_forwarder: &Addr<Store>) {
+    fn encode_metrics_processing(&self, message: FlushBuckets, store_forwarder: &Addr<Store>) {
         use crate::constants::DEFAULT_EVENT_RETENTION;
         use crate::services::store::StoreMetrics;
 
-        for (scoping, message) in message.scopes {
-            let ProjectMetrics {
-                buckets,
-                project_info,
-                rate_limits: _,
-            } = message;
-
+        for ProjectBuckets {
+            buckets,
+            scoping,
+            project_info,
+            ..
+        } in message.buckets.into_values()
+        {
             let buckets = self.rate_limit_buckets(scoping, &project_info, buckets);
 
             let limits = project_info.get_cardinality_limits();
@@ -2615,26 +2597,27 @@ impl EnvelopeProcessorService {
     /// Cardinality limiting and rate limiting run only in processing Relays as they both require
     /// access to the central Redis instance. Cached rate limits are applied in the project cache
     /// already.
-    fn encode_metrics_envelope(&self, message: EncodeMetrics) {
-        let EncodeMetrics {
+    fn encode_metrics_envelope(&self, message: FlushBuckets) {
+        let FlushBuckets {
             partition_key,
-            scopes,
+            buckets,
         } = message;
 
         let batch_size = self.inner.config.metrics_max_batch_size_bytes();
         let upstream = self.inner.config.upstream_descriptor();
 
-        for (scoping, message) in scopes {
-            let ProjectMetrics { buckets, .. } = message;
-
-            let dsn = PartialDsn::outbound(&scoping, upstream);
+        for ProjectBuckets {
+            buckets, scoping, ..
+        } in buckets.values()
+        {
+            let dsn = PartialDsn::outbound(scoping, upstream);
 
             if let Some(key) = partition_key {
                 relay_statsd::metric!(histogram(RelayHistograms::PartitionKeys) = key);
             }
 
             let mut num_batches = 0;
-            for batch in BucketsView::from(&buckets).by_size(batch_size) {
+            for batch in BucketsView::from(buckets).by_size(batch_size) {
                 let mut envelope = Envelope::from_request(None, RequestMeta::outbound(dsn.clone()));
 
                 let mut item = Item::new(ItemType::MetricBuckets);
@@ -2648,7 +2631,7 @@ impl EnvelopeProcessorService {
                     self.inner.addrs.test_store.clone(),
                     ProcessingGroup::Metrics,
                 );
-                envelope.set_partition_key(partition_key).scope(scoping);
+                envelope.set_partition_key(partition_key).scope(*scoping);
 
                 relay_statsd::metric!(
                     histogram(RelayHistograms::BucketsPerBatch) = batch.len() as u64
@@ -2707,19 +2690,20 @@ impl EnvelopeProcessorService {
     /// Cardinality limiting and rate limiting run only in processing Relays as they both require
     /// access to the central Redis instance. Cached rate limits are applied in the project cache
     /// already.
-    fn encode_metrics_global(&self, message: EncodeMetrics) {
-        let EncodeMetrics {
+    fn encode_metrics_global(&self, message: FlushBuckets) {
+        let FlushBuckets {
             partition_key,
-            scopes,
+            buckets,
         } = message;
 
         let batch_size = self.inner.config.metrics_max_batch_size_bytes();
         let mut partition = Partition::new(batch_size);
         let mut partition_splits = 0;
 
-        for (scoping, message) in &scopes {
-            let ProjectMetrics { buckets, .. } = message;
-
+        for ProjectBuckets {
+            buckets, scoping, ..
+        } in buckets.values()
+        {
             for bucket in buckets {
                 let mut remaining = Some(BucketView::new(bucket));
 
@@ -2743,15 +2727,11 @@ impl EnvelopeProcessorService {
         self.send_global_partition(partition_key, &mut partition);
     }
 
-    fn handle_encode_metrics(&self, mut message: EncodeMetrics) {
-        for (scoping, pm) in message.scopes.iter_mut() {
-            let buckets = std::mem::take(&mut pm.buckets);
-            pm.buckets = self.check_buckets(
-                scoping.project_key,
-                &pm.project_info,
-                &pm.rate_limits,
-                buckets,
-            );
+    fn handle_flush_buckets(&self, mut message: FlushBuckets) {
+        for (project_key, pb) in message.buckets.iter_mut() {
+            let buckets = std::mem::take(&mut pb.buckets);
+            pb.buckets =
+                self.check_buckets(*project_key, &pb.project_info, &pb.rate_limits, buckets);
         }
 
         #[cfg(feature = "processing")]
@@ -2788,7 +2768,7 @@ impl EnvelopeProcessorService {
                 EnvelopeProcessor::ProcessBatchedMetrics(m) => {
                     self.handle_process_batched_metrics(&mut cogs, *m)
                 }
-                EnvelopeProcessor::EncodeMetrics(m) => self.handle_encode_metrics(*m),
+                EnvelopeProcessor::FlushBuckets(m) => self.handle_flush_buckets(*m),
                 EnvelopeProcessor::SubmitEnvelope(m) => self.handle_submit_envelope(*m),
                 EnvelopeProcessor::SubmitClientReports(m) => self.handle_submit_client_reports(*m),
             }
@@ -2800,8 +2780,8 @@ impl EnvelopeProcessorService {
             EnvelopeProcessor::ProcessEnvelope(v) => AppFeature::from(v.envelope.group()).into(),
             EnvelopeProcessor::ProcessProjectMetrics(_) => AppFeature::Unattributed.into(),
             EnvelopeProcessor::ProcessBatchedMetrics(_) => AppFeature::Unattributed.into(),
-            EnvelopeProcessor::EncodeMetrics(v) => v
-                .scopes
+            EnvelopeProcessor::FlushBuckets(v) => v
+                .buckets
                 .values()
                 .map(|s| {
                     if self.inner.config.processing_enabled() {
@@ -3011,7 +2991,7 @@ impl UpstreamRequest for SendEnvelope {
 /// A container for metric buckets from multiple projects.
 ///
 /// This container is used to send metrics to the upstream in global batches as part of the
-/// [`EncodeMetrics`] message if the `http.global_metrics` option is enabled. The container monitors
+/// [`FlushBuckets`] message if the `http.global_metrics` option is enabled. The container monitors
 /// the size of all metrics and allows to split them into multiple batches. See
 /// [`insert`](Self::insert) for more information.
 #[derive(Debug)]
@@ -3300,15 +3280,26 @@ mod tests {
         assert!(quota_ids.eq(["foo", "bar", "baz", "qux"]));
     }
 
-    /// Ensures that if we ratelimit one batch of buckets in [`EncodeMetrics`] message, it won't
+    /// Ensures that if we ratelimit one batch of buckets in [`FlushBuckets`] message, it won't
     /// also ratelimit the next batches in the same message automatically.
     #[cfg(feature = "processing")]
     #[tokio::test]
     async fn test_ratelimit_per_batch() {
         use relay_base_schema::organization::OrganizationId;
 
-        let rate_limited_org = OrganizationId::new(1);
-        let not_ratelimited_org = OrganizationId::new(2);
+        let rate_limited_org = Scoping {
+            organization_id: OrganizationId::new(1),
+            project_id: ProjectId::new(21),
+            project_key: ProjectKey::parse("00000000000000000000000000000000").unwrap(),
+            key_id: Some(17),
+        };
+
+        let not_rate_limited_org = Scoping {
+            organization_id: OrganizationId::new(2),
+            project_id: ProjectId::new(21),
+            project_key: ProjectKey::parse("11111111111111111111111111111111").unwrap(),
+            key_id: Some(17),
+        };
 
         let message = {
             let project_info = {
@@ -3316,7 +3307,7 @@ mod tests {
                     id: Some("testing".into()),
                     categories: vec![DataCategory::MetricBucket].into(),
                     scope: relay_quotas::QuotaScope::Organization,
-                    scope_id: Some(rate_limited_org.to_string()),
+                    scope_id: Some(rate_limited_org.organization_id.to_string()),
                     limit: Some(0),
                     window: None,
                     reason_code: Some(ReasonCode::new("test")),
@@ -3332,7 +3323,7 @@ mod tests {
                 })
             };
 
-            let project_metrics = ProjectMetrics {
+            let project_metrics = |scoping| ProjectBuckets {
                 buckets: vec![Bucket {
                     name: "d:transactions/bar".into(),
                     value: BucketValue::Counter(relay_metrics::FiniteF64::new(1.0).unwrap()),
@@ -3342,31 +3333,29 @@ mod tests {
                     metadata: BucketMetadata::default(),
                 }],
                 rate_limits: Default::default(),
-                project_info,
+                project_info: project_info.clone(),
+                scoping,
             };
 
-            let scoping_by_org_id = |org_id: OrganizationId| Scoping {
-                organization_id: org_id,
-                project_id: ProjectId::new(21),
-                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-                key_id: Some(17),
-            };
+            let buckets = hashbrown::HashMap::from([
+                (
+                    rate_limited_org.project_key,
+                    project_metrics(rate_limited_org),
+                ),
+                (
+                    not_rate_limited_org.project_key,
+                    project_metrics(not_rate_limited_org),
+                ),
+            ]);
 
-            let mut scopes = BTreeMap::<Scoping, ProjectMetrics>::new();
-            scopes.insert(scoping_by_org_id(rate_limited_org), project_metrics.clone());
-            scopes.insert(scoping_by_org_id(not_ratelimited_org), project_metrics);
-
-            EncodeMetrics {
+            FlushBuckets {
                 partition_key: None,
-                scopes,
+                buckets,
             }
         };
 
         // ensure the order of the map while iterating is as expected.
-        let mut iter = message.scopes.keys();
-        assert_eq!(iter.next().unwrap().organization_id, rate_limited_org);
-        assert_eq!(iter.next().unwrap().organization_id, not_ratelimited_org);
-        assert!(iter.next().is_none());
+        assert_eq!(message.buckets.keys().count(), 2);
 
         let config = {
             let config_json = serde_json::json!({
@@ -3401,7 +3390,10 @@ mod tests {
         drop(store);
         let orgs_not_ratelimited = handle.await.unwrap();
 
-        assert_eq!(orgs_not_ratelimited, vec![not_ratelimited_org]);
+        assert_eq!(
+            orgs_not_ratelimited,
+            vec![not_rate_limited_org.organization_id]
+        );
     }
 
     #[tokio::test]
@@ -3815,11 +3807,11 @@ mod tests {
         };
 
         let mut messages = vec![mb1, mb2];
-        messages.sort_by_key(|pm| pm.project_key);
+        messages.sort_by_key(|mb| mb.project_key);
 
         let actual = messages
             .into_iter()
-            .map(|pm| (pm.project_key, pm.buckets))
+            .map(|mb| (mb.project_key, mb.buckets))
             .collect::<Vec<_>>();
 
         assert_debug_snapshot!(actual, @r###"
