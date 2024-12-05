@@ -1666,6 +1666,76 @@ def test_profile_outcomes_rate_limited(
     assert outcomes == expected_outcomes, outcomes
 
 
+@pytest.mark.parametrize("quota_category", ["transaction", "transaction_indexed"])
+def test_profile_outcomes_rate_limited_when_dynamic_sampling_drops(
+    mini_sentry,
+    relay,
+    quota_category,
+):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)["config"]
+
+    project_config.setdefault("features", []).append("organizations:profiling")
+    project_config["quotas"] = [
+        {
+            "id": f"test_rate_limiting_{uuid.uuid4().hex}",
+            "categories": [quota_category],
+            "limit": 0,
+            "reasonCode": "profiles_exceeded",
+        }
+    ]
+
+    config = {
+        "outcomes": {
+            "emit_outcomes": True,
+            "batch_size": 1,
+            "batch_interval": 1,
+            "aggregator": {
+                "bucket_interval": 1,
+                "flush_interval": 0,
+            },
+        },
+        "aggregator": {
+            "bucket_interval": 1,
+            "initial_delay": 0,
+        },
+    }
+
+    relay = relay(mini_sentry, options=config)
+
+    with open(
+        RELAY_ROOT / "relay-profiling/tests/fixtures/sample/v1/valid.json",
+        "rb",
+    ) as f:
+        profile = f.read()
+
+    # Create an envelope with an invalid profile:
+    envelope = Envelope()
+    profile_item = Item(payload=PayloadRef(bytes=profile), type="profile")
+    profile_item.headers["sampled"] = False
+    envelope.add_item(profile_item)
+    relay.send_envelope(project_id, envelope)
+
+    if quota_category == "transaction":
+        (outcome1,) = mini_sentry.captured_outcomes.get()["outcomes"]
+        (outcome2,) = mini_sentry.captured_outcomes.get(timeout=1)["outcomes"]
+        outcome1, outcome2 = sorted([outcome1, outcome2], key=lambda o: o["category"])
+        assert outcome1["outcome"] == 2  # rate limited
+        assert outcome1["category"] == DataCategory.PROFILE
+        assert outcome1["quantity"] == 1
+        assert outcome2["outcome"] == 2  # rate limited
+        assert outcome2["category"] == DataCategory.PROFILE_INDEXED
+        assert outcome2["quantity"] == 1
+
+        assert mini_sentry.captured_events.empty()
+    else:
+        # Do not rate limit if there is only a transaction_indexed quota.
+        envelope = mini_sentry.captured_events.get()
+        assert envelope.items[0].headers["type"] == "profile"
+
+        assert mini_sentry.captured_outcomes.empty()
+
+
 def test_global_rate_limit(
     mini_sentry, relay_with_processing, metrics_consumer, outcomes_consumer
 ):
