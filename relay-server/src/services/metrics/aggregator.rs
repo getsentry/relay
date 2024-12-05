@@ -256,7 +256,17 @@ impl Service for AggregatorService {
             tokio::select! {
                 biased;
 
-                _ = ticker.tick() => self.try_flush(),
+                _ = ticker.tick() => {
+                    if cfg!(test) {
+                        // Tests are running in a single thread / current thread runtime,
+                        // which is required for 'fast-forwarding' and `block_in_place`
+                        // requires a multi threaded runtime. Relay always requires a multi
+                        // threaded runtime.
+                        self.try_flush()
+                    } else {
+                        tokio::task::block_in_place(|| self.try_flush())
+                    }
+                },
                 Some(message) = rx.recv() => self.handle_message(message),
                 shutdown = shutdown.notified() => self.handle_shutdown(shutdown),
 
@@ -382,10 +392,9 @@ mod tests {
         }
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_flush_bucket() {
         relay_test::setup();
-        tokio::time::pause();
 
         let receiver = TestReceiver::default();
         let recipient = receiver.clone().start_detached().recipient();

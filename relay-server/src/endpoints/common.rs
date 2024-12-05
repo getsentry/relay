@@ -325,12 +325,7 @@ pub async fn handle_envelope(
     state: &ServiceState,
     envelope: Box<Envelope>,
 ) -> Result<Option<EventId>, BadStoreRequest> {
-    for item in envelope.items() {
-        metric!(
-            histogram(RelayHistograms::EnvelopeItemSize) = item.payload().len() as u64,
-            item_type = item.ty().name()
-        );
-    }
+    emit_envelope_metrics(&envelope);
 
     if state.memory_checker().check_memory().is_exceeded() {
         return Err(BadStoreRequest::QueueFailed);
@@ -395,6 +390,37 @@ pub async fn handle_envelope(
         Err(BadStoreRequest::RateLimited(checked.rate_limits))
     } else {
         Ok(event_id)
+    }
+}
+
+fn emit_envelope_metrics(envelope: &Envelope) {
+    let client_name = envelope.meta().client_name();
+    let mut has_transaction = false;
+    let mut has_attachment = false;
+    for item in envelope.items() {
+        has_transaction |= item.ty() == &ItemType::Transaction;
+        has_attachment |= item.ty() == &ItemType::Attachment;
+        metric!(
+            histogram(RelayHistograms::EnvelopeItemSize) = item.payload().len() as u64,
+            item_type = item.ty().name()
+        );
+        metric!(
+            counter(RelayCounters::EnvelopeItems) += 1,
+            item_type = item.ty().name(),
+            sdk = client_name.name(),
+        );
+        metric!(
+            counter(RelayCounters::EnvelopeItemBytes) += item.payload().len() as u64,
+            item_type = item.ty().name(),
+            sdk = client_name.name(),
+        );
+    }
+
+    if has_transaction && has_attachment {
+        metric!(
+            counter(RelayCounters::TransactionsWithAttachments) += 1,
+            sdk = client_name.name(),
+        )
     }
 }
 
