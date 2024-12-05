@@ -1115,13 +1115,73 @@
 <a href="#1114" id="1114">1114</a>
 <a href="#1115" id="1115">1115</a>
 <a href="#1116" id="1116">1116</a>
-<a href="#1117" id="1117">1117</a></pre></div><pre class="rust"><code><span class="doccomment">//! Core functionality of metrics aggregation.
+<a href="#1117" id="1117">1117</a>
+<a href="#1118" id="1118">1118</a>
+<a href="#1119" id="1119">1119</a>
+<a href="#1120" id="1120">1120</a>
+<a href="#1121" id="1121">1121</a>
+<a href="#1122" id="1122">1122</a>
+<a href="#1123" id="1123">1123</a>
+<a href="#1124" id="1124">1124</a>
+<a href="#1125" id="1125">1125</a>
+<a href="#1126" id="1126">1126</a>
+<a href="#1127" id="1127">1127</a>
+<a href="#1128" id="1128">1128</a>
+<a href="#1129" id="1129">1129</a>
+<a href="#1130" id="1130">1130</a>
+<a href="#1131" id="1131">1131</a>
+<a href="#1132" id="1132">1132</a>
+<a href="#1133" id="1133">1133</a>
+<a href="#1134" id="1134">1134</a>
+<a href="#1135" id="1135">1135</a>
+<a href="#1136" id="1136">1136</a>
+<a href="#1137" id="1137">1137</a>
+<a href="#1138" id="1138">1138</a>
+<a href="#1139" id="1139">1139</a>
+<a href="#1140" id="1140">1140</a>
+<a href="#1141" id="1141">1141</a>
+<a href="#1142" id="1142">1142</a>
+<a href="#1143" id="1143">1143</a>
+<a href="#1144" id="1144">1144</a>
+<a href="#1145" id="1145">1145</a>
+<a href="#1146" id="1146">1146</a>
+<a href="#1147" id="1147">1147</a>
+<a href="#1148" id="1148">1148</a>
+<a href="#1149" id="1149">1149</a>
+<a href="#1150" id="1150">1150</a>
+<a href="#1151" id="1151">1151</a>
+<a href="#1152" id="1152">1152</a>
+<a href="#1153" id="1153">1153</a>
+<a href="#1154" id="1154">1154</a>
+<a href="#1155" id="1155">1155</a>
+<a href="#1156" id="1156">1156</a>
+<a href="#1157" id="1157">1157</a>
+<a href="#1158" id="1158">1158</a>
+<a href="#1159" id="1159">1159</a>
+<a href="#1160" id="1160">1160</a>
+<a href="#1161" id="1161">1161</a>
+<a href="#1162" id="1162">1162</a>
+<a href="#1163" id="1163">1163</a>
+<a href="#1164" id="1164">1164</a>
+<a href="#1165" id="1165">1165</a>
+<a href="#1166" id="1166">1166</a>
+<a href="#1167" id="1167">1167</a>
+<a href="#1168" id="1168">1168</a>
+<a href="#1169" id="1169">1169</a>
+<a href="#1170" id="1170">1170</a>
+<a href="#1171" id="1171">1171</a>
+<a href="#1172" id="1172">1172</a>
+<a href="#1173" id="1173">1173</a>
+<a href="#1174" id="1174">1174</a>
+<a href="#1175" id="1175">1175</a>
+<a href="#1176" id="1176">1176</a></pre></div><pre class="rust"><code><span class="doccomment">//! Core functionality of metrics aggregation.
 
 </span><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::hash::Hasher;
 <span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span>fnv::FnvHasher;
+<span class="kw">use </span>hashbrown::hash_map::Entry;
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>thiserror::Error;
@@ -1247,13 +1307,20 @@
     <span class="doccomment">/// Pop and return the partitions with buckets that are eligible for flushing out according to
     /// bucket interval.
     ///
-    /// If no partitioning is enabled, the function will return a single `None` partition.
+    /// For each project `flush_decision` is called, which can influence the flush decision
+    /// for buckets of that project. The decision can also return metadata for the project
+    /// on which all flushed buckets for the project are merged with the `merge` function.
     ///
-    /// Note that this function is primarily intended for tests.
-    </span><span class="kw">pub fn </span>pop_flush_buckets(
+    /// `flush_decision` is only called once if the decision is [`FlushDecision::Flush`],
+    /// but may be called multiple times otherwise. The `flush_decision` should be consistent
+    /// for each project key passed.
+    ///
+    /// If no partitioning is enabled, the function will return a single `None` partition.
+    </span><span class="kw">pub fn </span>pop_flush_buckets&lt;T: Extend&lt;Bucket&gt;&gt;(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,
         force: bool,
-    ) -&gt; HashMap&lt;<span class="prelude-ty">Option</span>&lt;u64&gt;, HashMap&lt;ProjectKey, Vec&lt;Bucket&gt;&gt;&gt; {
+        <span class="kw-2">mut </span>flush_decision: <span class="kw">impl </span>FnMut(ProjectKey) -&gt; FlushDecision&lt;T&gt;,
+    ) -&gt; HashMap&lt;<span class="prelude-ty">Option</span>&lt;u64&gt;, HashMap&lt;ProjectKey, T&gt;&gt; {
         <span class="macro">relay_statsd::metric!</span>(
             gauge(MetricGauges::Buckets) = <span class="self">self</span>.bucket_count() <span class="kw">as </span>u64,
             aggregator = <span class="kw-2">&amp;</span><span class="self">self</span>.name,
@@ -1272,50 +1339,89 @@
         <span class="kw">let </span><span class="kw-2">mut </span>partitions = HashMap::new();
         <span class="kw">let </span><span class="kw-2">mut </span>stats = HashMap::new();
 
+        <span class="kw">let </span><span class="kw-2">mut </span>re_add = Vec::new();
+
         <span class="kw">let </span>now = Instant::now();
+        <span class="kw">let </span>ts = UnixTimestamp::from_instant(now.into_std());
+
+        <span class="kw">let </span>should_pop = |entry: <span class="kw-2">&amp;</span>QueuedBucket| force || entry.elapsed(now);
+
+        <span class="kw">let </span>bucket_interval = <span class="self">self</span>.config.bucket_interval;
+        <span class="kw">let </span>cost_tracker = <span class="kw-2">&amp;mut </span><span class="self">self</span>.cost_tracker;
+
+        <span class="kw">let </span>start_bucket_scan = Instant::now();
+        <span class="kw">while let </span><span class="prelude-val">Some</span>((key, queued_bucket)) = <span class="self">self</span>.buckets.try_pop(|<span class="kw">_</span>, b| should_pop(b)) {
+            <span class="kw">let </span>partition = <span class="self">self</span>.config.flush_partitions.map(|p| key.partition_key(p));
+            <span class="kw">let </span>partition = partitions.entry(partition).or_insert_with(HashMap::new);
+
+            <span class="kw">let </span>cost = key.cost() + queued_bucket.value.cost();
+
+            <span class="kw">let </span>buckets = <span class="kw">match </span>partition.entry(key.project_key) {
+                Entry::Occupied(occupied_entry) =&gt; occupied_entry.into_mut(),
+                Entry::Vacant(vacant_entry) =&gt; {
+                    <span class="kw">match </span>flush_decision(key.project_key) {
+                        FlushDecision::Flush(v) =&gt; vacant_entry.insert(v),
+                        FlushDecision::Delay =&gt; {
+                            <span class="kw">let </span><span class="kw-2">mut </span>entry = queued_bucket;
+
+                            <span class="comment">// No point in re-calculating the flush time when `force` is `true`.
+                            // We can still do it on a flush without force.
+                            </span><span class="kw">if </span>!force {
+                                entry.flush_at =
+                                    get_flush_time(<span class="kw-2">&amp;</span><span class="self">self</span>.config, ts, <span class="self">self</span>.reference_time, <span class="kw-2">&amp;</span>key);
+                                <span class="comment">// This should not happen, but may happen with weird
+                                // configs or due to bugs.
+                                </span><span class="macro">debug_assert!</span>(!entry.elapsed(now));
+                            }
+
+                            <span class="comment">// Re-use the loop condition for `try_pop`, to make sure we
+                            // will never accidentally create an infinite loop.
+                            </span><span class="kw">match </span>should_pop(<span class="kw-2">&amp;</span>entry) {
+                                <span class="comment">// If we would pop the entry again (`force`, a weird flush
+                                // configuration, a bug), re-add it after the loop to
+                                // prevent infinite loops.
+                                </span><span class="bool-val">true </span>=&gt; re_add.push((key, entry)),
+                                <span class="comment">// Otherwise it's safe to immediately re-add.
+                                </span><span class="bool-val">false </span>=&gt; <span class="self">self</span>.buckets.re_add(key, entry),
+                            }
+
+                            <span class="kw">continue</span>;
+                        }
+                        FlushDecision::Drop =&gt; {
+                            cost_tracker.subtract_cost(key.namespace(), key.project_key, cost);
+                            <span class="kw">continue</span>;
+                        }
+                    }
+                }
+            };
+
+            cost_tracker.subtract_cost(key.namespace(), key.project_key, cost);
+
+            <span class="kw">let </span>(bucket_count, item_count) = stats
+                .entry((queued_bucket.value.ty(), key.namespace()))
+                .or_insert((<span class="number">0usize</span>, <span class="number">0usize</span>));
+            <span class="kw-2">*</span>bucket_count += <span class="number">1</span>;
+            <span class="kw-2">*</span>item_count += queued_bucket.value.len();
+
+            <span class="kw">let </span>bucket = Bucket {
+                timestamp: key.timestamp,
+                width: bucket_interval,
+                name: key.metric_name,
+                value: queued_bucket.value,
+                tags: key.tags,
+                metadata: queued_bucket.metadata,
+            };
+
+            buckets.extend(std::iter::once(bucket));
+        }
+
+        <span class="kw">for </span>(key, entry) <span class="kw">in </span>re_add {
+            <span class="self">self</span>.buckets.re_add(key, entry);
+        }
 
         <span class="macro">relay_statsd::metric!</span>(
-            timer(MetricTimers::BucketsScanDuration),
+            timer(MetricTimers::BucketsScanDuration) = start_bucket_scan.elapsed(),
             aggregator = <span class="kw-2">&amp;</span><span class="self">self</span>.name,
-            {
-                <span class="kw">let </span>bucket_interval = <span class="self">self</span>.config.bucket_interval;
-                <span class="kw">let </span>cost_tracker = <span class="kw-2">&amp;mut </span><span class="self">self</span>.cost_tracker;
-
-                <span class="kw">while let </span><span class="prelude-val">Some</span>((key, entry)) =
-                    <span class="self">self</span>.buckets.try_pop(|<span class="kw">_</span>, entry| entry.elapsed(now) || force)
-                {
-                    cost_tracker.subtract_cost(key.namespace(), key.project_key, key.cost());
-                    cost_tracker.subtract_cost(
-                        key.namespace(),
-                        key.project_key,
-                        entry.value.cost(),
-                    );
-
-                    <span class="kw">let </span>(bucket_count, item_count) = stats
-                        .entry((entry.value.ty(), key.namespace()))
-                        .or_insert((<span class="number">0usize</span>, <span class="number">0usize</span>));
-                    <span class="kw-2">*</span>bucket_count += <span class="number">1</span>;
-                    <span class="kw-2">*</span>item_count += entry.value.len();
-
-                    <span class="kw">let </span>partition = <span class="self">self</span>.config.flush_partitions.map(|p| key.partition_key(p));
-
-                    <span class="kw">let </span>bucket = Bucket {
-                        timestamp: key.timestamp,
-                        width: bucket_interval,
-                        name: key.metric_name,
-                        value: entry.value,
-                        tags: key.tags,
-                        metadata: entry.metadata,
-                    };
-
-                    partitions
-                        .entry(partition)
-                        .or_insert_with(HashMap::new)
-                        .entry(key.project_key)
-                        .or_insert_with(Vec::new)
-                        .push(bucket);
-                }
-            }
         );
 
         <span class="kw">for </span>((ty, namespace), (bucket_count, item_count)) <span class="kw">in </span>stats.into_iter() {
@@ -1465,6 +1571,16 @@
             .field(<span class="string">"receiver"</span>, <span class="kw-2">&amp;</span><span class="macro">format_args!</span>(<span class="string">"Recipient&lt;FlushBuckets&gt;"</span>))
             .finish()
     }
+}
+
+<span class="doccomment">/// Decision what to do with a bucket when flushing.
+</span><span class="kw">pub enum </span>FlushDecision&lt;T&gt; {
+    <span class="doccomment">/// Flush the bucket with the provided metadata.
+    </span>Flush(T),
+    <span class="doccomment">/// Drop the bucket.
+    </span>Drop,
+    <span class="doccomment">/// Delay flushing the bucket into the future, it's not ready.
+    </span>Delay,
 }
 
 <span class="doccomment">/// Validates the metric name and its tags are correct.
@@ -1872,21 +1988,20 @@
             <span class="macro">assert_eq!</span>(total_cost, current_cost + expected_added_cost);
         }
 
-        aggregator.pop_flush_buckets(<span class="bool-val">true</span>);
+        aggregator.pop_flush_buckets(<span class="bool-val">true</span>, |<span class="kw">_</span>| FlushDecision::Flush(Vec::new()));
         <span class="macro">assert_eq!</span>(aggregator.cost_tracker.total_cost(), <span class="number">0</span>);
     }
 
-    <span class="attr">#[tokio::test]
+    <span class="attr">#[tokio::test(start_paused = <span class="bool-val">true</span>)]
     </span><span class="kw">async fn </span>test_aggregator_flush() {
         <span class="comment">// Make sure that the right cost is added / subtracted
         </span><span class="kw">let </span><span class="kw-2">mut </span>aggregator: Aggregator = Aggregator::new(AggregatorConfig {
             bucket_interval: <span class="number">10</span>,
             ..test_config()
         });
-        <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fed"</span>).unwrap();
 
+        <span class="kw">let </span>project_key = ProjectKey::parse(<span class="string">"a94ae32be2584e0bbd7a4cbb95971fed"</span>).unwrap();
         <span class="kw">let </span>now = UnixTimestamp::now();
-        tokio::time::pause();
 
         <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..<span class="number">3u32 </span>{
             <span class="kw">for </span>(name, offset) <span class="kw">in </span>[(<span class="string">"foo"</span>, <span class="number">30</span>), (<span class="string">"bar"</span>, <span class="number">15</span>)] {
@@ -1906,7 +2021,10 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>flush_buckets = || {
             <span class="kw">let </span><span class="kw-2">mut </span>result = Vec::new();
-            <span class="kw">for </span>(partition, v) <span class="kw">in </span>aggregator.pop_flush_buckets(<span class="bool-val">false</span>) {
+
+            <span class="kw">let </span>partitions =
+                aggregator.pop_flush_buckets(<span class="bool-val">false</span>, |<span class="kw">_</span>| FlushDecision::Flush(Vec::new()));
+            <span class="kw">for </span>(partition, v) <span class="kw">in </span>partitions {
                 <span class="macro">assert!</span>(partition.is_none());
                 <span class="kw">for </span>(pk, buckets) <span class="kw">in </span>v {
                     <span class="macro">assert_eq!</span>(pk, project_key);

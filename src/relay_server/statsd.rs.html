@@ -1025,15 +1025,7 @@
 <a href="#1024" id="1024">1024</a>
 <a href="#1025" id="1025">1025</a>
 <a href="#1026" id="1026">1026</a>
-<a href="#1027" id="1027">1027</a>
-<a href="#1028" id="1028">1028</a>
-<a href="#1029" id="1029">1029</a>
-<a href="#1030" id="1030">1030</a>
-<a href="#1031" id="1031">1031</a>
-<a href="#1032" id="1032">1032</a>
-<a href="#1033" id="1033">1033</a>
-<a href="#1034" id="1034">1034</a>
-<a href="#1035" id="1035">1035</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
+<a href="#1027" id="1027">1027</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 <span class="attr">#[cfg(doc)]
 </span><span class="kw">use </span>relay_system::RuntimeMetrics;
 
@@ -1515,11 +1507,6 @@
     /// This metric is tagged with:
     /// - `task`: The type of the task the project cache does.
     </span>ProjectCacheTaskDuration,
-    <span class="doccomment">/// Timing in milliseconds for handling a legacy project cache message.
-    ///
-    /// This metric is tagged with:
-    ///  - `message`: The type of message that was processed.
-    </span>LegacyProjectCacheMessageDuration,
     <span class="doccomment">/// Timing in milliseconds for processing a task in the legacy project cache service.
     ///
     /// A task is a unit of work the service does. Each branch of the
@@ -1627,9 +1614,6 @@
             RelayTimers::GlobalConfigRequestDuration =&gt; <span class="string">"global_config.requests.duration"</span>,
             RelayTimers::ProcessMessageDuration =&gt; <span class="string">"processor.message.duration"</span>,
             RelayTimers::ProjectCacheTaskDuration =&gt; <span class="string">"project_cache.task.duration"</span>,
-            RelayTimers::LegacyProjectCacheMessageDuration =&gt; {
-                <span class="string">"legacy_project_cache.message.duration"
-            </span>}
             RelayTimers::LegacyProjectCacheTaskDuration =&gt; <span class="string">"legacy_project_cache.task.duration"</span>,
             RelayTimers::HealthCheckDuration =&gt; <span class="string">"health.message.duration"</span>,
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]

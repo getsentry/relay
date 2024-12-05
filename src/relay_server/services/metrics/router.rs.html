@@ -154,7 +154,10 @@
 <a href="#153" id="153">153</a>
 <a href="#154" id="154">154</a>
 <a href="#155" id="155">155</a>
-<a href="#156" id="156">156</a></pre></div><pre class="rust"><code><span class="doccomment">//! Routing logic for metrics. Metrics from different namespaces may be routed to different aggregators,
+<a href="#156" id="156">156</a>
+<a href="#157" id="157">157</a>
+<a href="#158" id="158">158</a>
+<a href="#159" id="159">159</a></pre></div><pre class="rust"><code><span class="doccomment">//! Routing logic for metrics. Metrics from different namespaces may be routed to different aggregators,
 //! with their own limits, bucket intervals, etc.
 
 </span><span class="kw">use </span>relay_config::aggregator::Condition;
@@ -165,6 +168,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::metrics::{
     Aggregator, AggregatorHandle, AggregatorService, FlushBuckets, MergeBuckets,
 };
+<span class="kw">use </span><span class="kw">crate</span>::services::projects::cache::ProjectCacheHandle;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayTimers;
 <span class="kw">use </span><span class="kw">crate</span>::utils;
 
@@ -184,15 +188,17 @@
         default_config: AggregatorServiceConfig,
         secondary_configs: Vec&lt;ScopedAggregatorConfig&gt;,
         receiver: <span class="prelude-ty">Option</span>&lt;Recipient&lt;FlushBuckets, NoResponse&gt;&gt;,
+        project_cache: ProjectCacheHandle,
     ) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>secondary = Vec::new();
 
         <span class="kw">for </span>c <span class="kw">in </span>secondary_configs {
-            <span class="kw">let </span>service = AggregatorService::named(c.name, c.config, receiver.clone());
+            <span class="kw">let </span>service =
+                AggregatorService::named(c.name, c.config, receiver.clone(), project_cache.clone());
             secondary.push((service, c.condition));
         }
 
-        <span class="kw">let </span>default = AggregatorService::new(default_config, receiver);
+        <span class="kw">let </span>default = AggregatorService::new(default_config, receiver, project_cache);
         <span class="self">Self </span>{ default, secondary }
     }
 

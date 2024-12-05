@@ -750,7 +750,8 @@
         <span class="kw">let </span>aggregator = RouterService::new(
             config.default_aggregator_config().clone(),
             config.secondary_aggregator_configs().clone(),
-            <span class="prelude-val">Some</span>(legacy_project_cache.clone().recipient()),
+            <span class="prelude-val">Some</span>(processor.clone().recipient()),
+            project_cache_handle.clone(),
         );
         <span class="kw">let </span>aggregator_handle = aggregator.handle();
         <span class="kw">let </span>aggregator = runner.start(aggregator);
@@ -820,7 +821,6 @@
         <span class="comment">// Keep all the services in one context.
         </span><span class="kw">let </span>project_cache_services = legacy::Services {
             envelope_buffer: envelope_buffer.clone(),
-            aggregator: aggregator.clone(),
             envelope_processor: processor.clone(),
             outcome_aggregator: outcome_aggregator.clone(),
             test_store: test_store.clone(),
