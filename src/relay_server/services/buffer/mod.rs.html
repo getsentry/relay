@@ -905,19 +905,19 @@
 <a href="#904" id="904">904</a>
 <a href="#905" id="905">905</a>
 <a href="#906" id="906">906</a>
-<a href="#907" id="907">907</a></pre></div><pre class="rust"><code><span class="doccomment">//! Types for buffering envelopes.
+<a href="#907" id="907">907</a>
+<a href="#908" id="908">908</a></pre></div><pre class="rust"><code><span class="doccomment">//! Types for buffering envelopes.
 
 </span><span class="kw">use </span>std::error::Error;
-<span class="kw">use </span>std::hash::{Hash, Hasher};
 <span class="kw">use </span>std::num::NonZeroU8;
 <span class="kw">use </span>std::sync::atomic::AtomicBool;
 <span class="kw">use </span>std::sync::atomic::Ordering;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
+<span class="kw">use </span>ahash::RandomState;
 <span class="kw">use </span>chrono::DateTime;
 <span class="kw">use </span>chrono::Utc;
-<span class="kw">use </span>fnv::FnvHasher;
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
@@ -961,6 +961,9 @@
 <span class="kw">mod </span>envelope_store;
 <span class="kw">mod </span>stack_provider;
 <span class="kw">mod </span>testutils;
+
+<span class="doccomment">/// Seed used for hashing the project key pairs.
+</span><span class="kw">const </span>PARTITIONING_HASHING_SEED: usize = <span class="number">0</span>;
 
 <span class="doccomment">/// Message interface for [`EnvelopeBufferService`].
 </span><span class="attr">#[derive(Debug)]
@@ -1045,9 +1048,8 @@
     /// The rationale of using this partitioning strategy is to reduce memory usage across buffers
     /// since each individual buffer will only take care of a subset of projects.
     </span><span class="kw">pub fn </span>buffer(<span class="kw-2">&amp;</span><span class="self">self</span>, project_key_pair: ProjectKeyPair) -&gt; <span class="kw-2">&amp;</span>ObservableEnvelopeBuffer {
-        <span class="kw">let </span><span class="kw-2">mut </span>hasher = FnvHasher::default();
-        project_key_pair.own_key.hash(<span class="kw-2">&amp;mut </span>hasher);
-        <span class="kw">let </span>buffer_index = (hasher.finish() % <span class="self">self</span>.buffers.len() <span class="kw">as </span>u64) <span class="kw">as </span>usize;
+        <span class="kw">let </span>state = RandomState::with_seed(PARTITIONING_HASHING_SEED);
+        <span class="kw">let </span>buffer_index = (state.hash_one(project_key_pair) % <span class="self">self</span>.buffers.len() <span class="kw">as </span>u64) <span class="kw">as </span>usize;
         <span class="self">self</span>.buffers
             .get(buffer_index)
             .expect(<span class="string">"buffers should not be empty"</span>)
