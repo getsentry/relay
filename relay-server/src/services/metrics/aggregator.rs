@@ -96,6 +96,12 @@ pub struct ProjectBuckets {
     pub rate_limits: Arc<RateLimits>,
 }
 
+impl Extend<Bucket> for ProjectBuckets {
+    fn extend<T: IntoIterator<Item = Bucket>>(&mut self, iter: T) {
+        self.buckets.extend(iter)
+    }
+}
+
 enum AggregatorState {
     Running,
     ShuttingDown,
@@ -195,7 +201,7 @@ impl AggregatorService {
 
         let partitions = self
             .aggregator
-            .pop_flush_buckets(force_flush, flush_decision, |pb, b| pb.buckets.push(b));
+            .pop_flush_buckets(force_flush, flush_decision);
 
         self.can_accept_metrics
             .store(!self.aggregator.totals_cost_exceeded(), Ordering::Relaxed);

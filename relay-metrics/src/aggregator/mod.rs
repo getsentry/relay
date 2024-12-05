@@ -140,11 +140,10 @@ impl Aggregator {
     /// for each project key passed.
     ///
     /// If no partitioning is enabled, the function will return a single `None` partition.
-    pub fn pop_flush_buckets<T>(
+    pub fn pop_flush_buckets<T: Extend<Bucket>>(
         &mut self,
         force: bool,
         mut flush_decision: impl FnMut(ProjectKey) -> FlushDecision<T>,
-        mut merge: impl FnMut(&mut T, Bucket),
     ) -> HashMap<Option<u64>, HashMap<ProjectKey, T>> {
         relay_statsd::metric!(
             gauge(MetricGauges::Buckets) = self.bucket_count() as u64,
@@ -185,10 +184,7 @@ impl Aggregator {
                 Entry::Occupied(occupied_entry) => occupied_entry.into_mut(),
                 Entry::Vacant(vacant_entry) => {
                     match flush_decision(key.project_key) {
-                        FlushDecision::Flush(v) => {
-                            cost_tracker.subtract_cost(key.namespace(), key.project_key, cost);
-                            vacant_entry.insert(v)
-                        }
+                        FlushDecision::Flush(v) => vacant_entry.insert(v),
                         FlushDecision::Delay => {
                             let mut entry = queued_bucket;
 
@@ -223,6 +219,8 @@ impl Aggregator {
                 }
             };
 
+            cost_tracker.subtract_cost(key.namespace(), key.project_key, cost);
+
             let (bucket_count, item_count) = stats
                 .entry((queued_bucket.value.ty(), key.namespace()))
                 .or_insert((0usize, 0usize));
@@ -238,7 +236,7 @@ impl Aggregator {
                 metadata: queued_bucket.metadata,
             };
 
-            merge(buckets, bucket);
+            buckets.extend(std::iter::once(bucket));
         }
 
         for (key, entry) in re_add {
@@ -814,7 +812,7 @@ mod tests {
             assert_eq!(total_cost, current_cost + expected_added_cost);
         }
 
-        aggregator.pop_flush_buckets(true, |_| FlushDecision::Flush(Vec::new()), |a, b| a.push(b));
+        aggregator.pop_flush_buckets(true, |_| FlushDecision::Flush(Vec::new()));
         assert_eq!(aggregator.cost_tracker.total_cost(), 0);
     }
 
@@ -848,11 +846,8 @@ mod tests {
         let mut flush_buckets = || {
             let mut result = Vec::new();
 
-            let partitions = aggregator.pop_flush_buckets(
-                false,
-                |_| FlushDecision::Flush(Vec::new()),
-                Vec::push,
-            );
+            let partitions =
+                aggregator.pop_flush_buckets(false, |_| FlushDecision::Flush(Vec::new()));
             for (partition, v) in partitions {
                 assert!(partition.is_none());
                 for (pk, buckets) in v {
