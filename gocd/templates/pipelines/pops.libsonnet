@@ -5,6 +5,10 @@ local canary_region_pops = {
   de: [
     'de-pop-regional-1',
     'de-pop-regional-2',
+    'de-pop-1',
+    'de-pop-2',
+    'de-pop-3',
+    'de-pop-4',
   ],
   us: [
     'us-pop-1',
@@ -23,6 +27,10 @@ local region_pops = {
   de: [
     'de-pop-regional-1',
     'de-pop-regional-2',
+    'de-pop-1',
+    'de-pop-2',
+    'de-pop-3',
+    'de-pop-4',
   ],
   us: [
     'us-pop-1',
