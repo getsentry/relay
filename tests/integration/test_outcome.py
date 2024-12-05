@@ -1717,7 +1717,7 @@ def test_profile_outcomes_rate_limited_when_dynamic_sampling_drops(
     relay.send_envelope(project_id, envelope)
 
     if quota_category == "transaction":
-        (outcome1,) = mini_sentry.captured_outcomes.get()["outcomes"]
+        (outcome1,) = mini_sentry.captured_outcomes.get(timeout=10)["outcomes"]
         (outcome2,) = mini_sentry.captured_outcomes.get(timeout=1)["outcomes"]
         outcome1, outcome2 = sorted([outcome1, outcome2], key=lambda o: o["category"])
         assert outcome1["outcome"] == 2  # rate limited
@@ -1730,7 +1730,7 @@ def test_profile_outcomes_rate_limited_when_dynamic_sampling_drops(
         assert mini_sentry.captured_events.empty()
     else:
         # Do not rate limit if there is only a transaction_indexed quota.
-        envelope = mini_sentry.captured_events.get()
+        envelope = mini_sentry.captured_events.get(timeout=10)
         assert envelope.items[0].headers["type"] == "profile"
 
         assert mini_sentry.captured_outcomes.empty()
