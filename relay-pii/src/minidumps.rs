@@ -609,6 +609,42 @@ mod tests {
     }
 
     #[test]
+    fn test_debug_file_userpath() {
+        let scrubber = TestScrubber::new(
+            "macos.dmp",
+            include_bytes!("../../tests/fixtures/macos.dmp"),
+            serde_json::json!({
+                "rules": {
+                   "project:0": {
+                        "type": "userpath",
+                        "redaction": {
+                            "method": "mask"
+                        }
+                    }
+                },
+                "applications": {
+                    "$string": [
+                        "project:0"
+                    ]
+                }
+            }),
+        );
+
+        let main = scrubber.main_module(Which::Original);
+        assert_eq!(
+            main.code_file(),
+            "/Users/travis/build/getsentry/breakpad-tools/macos/build/./crash"
+        );
+        assert_eq!(main.debug_file().unwrap(), "crash");
+
+        let main = scrubber.main_module(Which::Scrubbed);
+        assert_eq!(
+            main.code_file(),
+            "/Users/******/build/getsentry/breakpad-tools/macos/build/./crash"
+        );
+    }
+
+    #[test]
     fn test_module_list_selectors() {
         // Since scrubbing the module list is safe, it should be scrubbed by valuetype.
         let scrubber = TestScrubber::new(
