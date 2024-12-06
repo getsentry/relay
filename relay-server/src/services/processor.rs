@@ -87,6 +87,7 @@ use crate::utils::{
 mod attachment;
 mod dynamic_sampling;
 mod event;
+mod groups;
 mod metrics;
 mod profile;
 mod profile_chunk;
@@ -94,6 +95,7 @@ mod replay;
 mod report;
 mod session;
 mod span;
+use crate::services::processor::groups::ProcGroupResult;
 pub use span::extract_transaction_span;
 
 #[cfg(feature = "processing")]
@@ -102,6 +104,7 @@ mod unreal;
 /// Creates the block only if used with `processing` feature.
 ///
 /// Provided code block will be executed only if the provided config has `processing_enabled` set.
+#[macro_export]
 macro_rules! if_processing {
     ($config:expr, $if_true:block) => {
         #[cfg(feature = "processing")] {
@@ -400,6 +403,11 @@ impl ProcessingGroup {
         grouped_envelopes.extend(envelopes);
 
         grouped_envelopes
+    }
+
+    pub fn process(self) -> Result<ProcGroupResult, ProcessingError> {
+        // TODO: implement dispatch to the procgroup.
+        Err(ProcessingError::InvalidTimestamp)
     }
 
     /// Returns the name of the group.
@@ -1608,7 +1616,7 @@ impl EnvelopeProcessorService {
         state: &mut ProcessEnvelopeState<ErrorGroup>,
     ) -> Result<(), ProcessingError> {
         // Events can also contain user reports.
-        report::process_user_reports(state);
+        report::process_user_reports(&mut state.managed_envelope);
 
         if_processing!(self.inner.config, {
             unreal::expand(state, &self.inner.config)?;
@@ -1775,7 +1783,7 @@ impl EnvelopeProcessorService {
             self.enforce_quotas(state)?;
         });
 
-        report::process_user_reports(state);
+        report::process_user_reports(&mut state.managed_envelope);
         attachment::scrub(state);
         Ok(())
     }
