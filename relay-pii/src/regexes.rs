@@ -1,4 +1,5 @@
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
+
 use regex::Regex;
 use smallvec::{smallvec, SmallVec};
 
@@ -111,7 +112,7 @@ macro_rules! regex {
         #[allow(non_snake_case)]
         mod $name {
             use super::*;
-            pub static $name: Lazy<Regex> = Lazy::new(|| Regex::new($rule).unwrap());
+            pub static $name: LazyLock<Regex> = LazyLock::new(|| Regex::new($rule).unwrap());
 
             #[test]
             fn supports_byte_mode() {
@@ -127,7 +128,7 @@ macro_rules! regex {
     };
 }
 
-pub static ANYTHING_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(".*").unwrap());
+pub static ANYTHING_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(".*").unwrap());
 
 regex!(
     IMEI_REGEX,
@@ -333,6 +334,8 @@ mod tests {
     #[test]
     fn test_userpath_utf8_bytes() {
         // This mimicks `apply_regex_to_utf8_bytes`, which is used in minidump scrubbing.
+        // Ideally we would not compile a regex on the fly for every minidump
+        // (either add another lazy static or remove the distinction entirely).
         let regex = regex::bytes::RegexBuilder::new(PATH_REGEX.as_str())
             .unicode(false)
             .multi_line(false)
