@@ -11,7 +11,7 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use clap::{Parser, ValueEnum};
 use serde::Serialize;
-use syn2::{self as syn, Expr, Lit, LitStr};
+use syn::{Expr, Lit, LitStr};
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
 enum SchemaFormat {

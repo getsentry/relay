@@ -9,8 +9,7 @@ use std::path::PathBuf;
 
 use clap::{command, Parser};
 use serde::Serialize;
-use syn2::ItemEnum;
-use syn2::ItemStruct;
+use syn::{ItemEnum, ItemStruct};
 use walkdir::WalkDir;
 
 use crate::item_collector::AstItemCollector;

@@ -1,7 +1,6 @@
 use proc_macro2::TokenStream;
 use quote::ToTokens;
-use syn2 as syn;
-use synstructure2::{Structure, VariantInfo};
+use synstructure::{Structure, VariantInfo};
 
 pub trait SynstructureExt {
     fn try_each_variant<F, R>(&self, f: F) -> syn::Result<TokenStream>
