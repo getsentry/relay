@@ -15,7 +15,7 @@ pub struct ReplayContext {
     /// The replay ID.
     pub replay_id: Annotated<EventId>,
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties, retain = "true")]
+    #[metastructure(additional_properties, retain = true)]
     pub other: Object<Value>,
 }
 

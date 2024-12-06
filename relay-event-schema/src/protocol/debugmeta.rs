@@ -97,7 +97,7 @@ pub struct SystemSdkInfo {
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct AppleDebugImage {
     /// Path and name of the debug image (required).
-    #[metastructure(required = "true")]
+    #[metastructure(required = true)]
     pub name: Annotated<String>,
 
     /// CPU architecture target.
@@ -110,18 +110,18 @@ pub struct AppleDebugImage {
     pub cpu_subtype: Annotated<u64>,
 
     /// Starting memory address of the image (required).
-    #[metastructure(required = "true")]
+    #[metastructure(required = true)]
     pub image_addr: Annotated<Addr>,
 
     /// Size of the image in bytes (required).
-    #[metastructure(required = "true")]
+    #[metastructure(required = true)]
     pub image_size: Annotated<u64>,
 
     /// Loading address in virtual memory.
     pub image_vmaddr: Annotated<Addr>,
 
     /// The unique UUID of the image.
-    #[metastructure(required = "true")]
+    #[metastructure(required = true)]
     pub uuid: Annotated<Uuid>,
 
     /// Additional arbitrary fields for forwards compatibility.
@@ -311,7 +311,7 @@ pub struct NativeDebugImage {
     /// The absolute path to the dynamic library or executable. This helps to locate the file if it is missing on Sentry.
     ///
     /// - `pe`: The code file should be provided to allow server-side stack walking of binary crash reports, such as Minidumps.
-    #[metastructure(required = "true", legacy_alias = "name")]
+    #[metastructure(required = true, legacy_alias = "name")]
     #[metastructure(pii = "maybe")]
     pub code_file: Annotated<NativeImagePath>,
 
@@ -336,7 +336,7 @@ pub struct NativeDebugImage {
     ///   ```
     ///
     /// - `macho`: Identifier of the dynamic library or executable. It is the value of the `LC_UUID` load command in the Mach header, formatted as UUID.
-    #[metastructure(required = "true", legacy_alias = "id")]
+    #[metastructure(required = true, legacy_alias = "id")]
     pub debug_id: Annotated<DebugId>,
 
     /// Path and name of the debug companion file.
@@ -410,11 +410,11 @@ pub struct SourceMapDebugImage {
     /// Path and name of the image file as URL. (required).
     ///
     /// The absolute path to the minified JavaScript file.  This helps to correlate the file to the stack trace.
-    #[metastructure(required = "true")]
+    #[metastructure(required = true)]
     pub code_file: Annotated<String>,
 
     /// Unique debug identifier of the source map.
-    #[metastructure(required = "true")]
+    #[metastructure(required = true)]
     pub debug_id: Annotated<DebugId>,
 
     /// Path and name of the associated source map.
@@ -439,7 +439,7 @@ pub struct SourceMapDebugImage {
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct JvmDebugImage {
     /// Unique debug identifier of the bundle.
-    #[metastructure(required = "true")]
+    #[metastructure(required = true)]
     pub debug_id: Annotated<DebugId>,
 
     /// Additional arbitrary fields for forwards compatibility.
@@ -453,7 +453,7 @@ pub struct JvmDebugImage {
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct ProguardDebugImage {
     /// UUID computed from the file contents, assigned by the Java SDK.
-    #[metastructure(required = "true")]
+    #[metastructure(required = true)]
     pub uuid: Annotated<Uuid>,
 
     /// Additional arbitrary fields for forwards compatibility.

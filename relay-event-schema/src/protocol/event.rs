@@ -85,7 +85,7 @@ impl<T: Into<Value>> From<T> for ExtraValue {
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct EventProcessingError {
     /// The error kind.
-    #[metastructure(field = "type", required = "true")]
+    #[metastructure(field = "type", required = true)]
     pub ty: Annotated<String>,
 
     /// Affected key or deep path.
@@ -198,7 +198,7 @@ pub struct Event {
     ///
     /// For example, in a web app, this might be the route name (`"/users/<username>/"` or
     /// `UserView`), in a task queue it might be the function + module name.
-    #[metastructure(max_chars = 200, trim_whitespace = "true")]
+    #[metastructure(max_chars = 200, trim_whitespace = true)]
     pub transaction: Annotated<String>,
 
     /// Additional information about the name of the transaction.
@@ -294,9 +294,9 @@ pub struct Event {
     #[metastructure(
         max_chars = 200,  // release ends in tag
         // release allowed chars are validated in the sentry-release-parser crate!
-        required = "false",
-        trim_whitespace = "true",
-        nonempty = "true",
+        required = false,
+        trim_whitespace = true,
+        nonempty = true,
         skip_serialization = "empty"
     )]
     pub release: Annotated<LenientString>,
@@ -310,9 +310,9 @@ pub struct Event {
     /// version code of an Android build.
     #[metastructure(
         allow_chars = "a-zA-Z0-9_.-",
-        trim_whitespace = "true",
-        required = "false",
-        nonempty = "true"
+        trim_whitespace = true,
+        required = false,
+        nonempty = true
     )]
     pub dist: Annotated<String>,
 
@@ -324,9 +324,9 @@ pub struct Event {
     #[metastructure(
         max_chars = 64,
         // environment allowed chars are validated in the sentry-release-parser crate!
-        nonempty = "true",
-        required = "false",
-        trim_whitespace = "true"
+        nonempty = true,
+        required = false,
+        trim_whitespace = true
     )]
     pub environment: Annotated<String>,
 

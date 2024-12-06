@@ -17,7 +17,7 @@ pub struct ReprocessingContext {
     pub original_primary_hash: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties, retain = "true", pii = "false")]
+    #[metastructure(additional_properties, retain = true, pii = "false")]
     pub other: Object<Value>,
 }
 

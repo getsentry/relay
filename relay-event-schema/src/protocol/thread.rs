@@ -157,7 +157,7 @@ impl IntoValue for LockReasonType {
 #[derive(Clone, Debug, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct LockReason {
     /// Type of lock on the thread with available options being blocked, waiting, sleeping and locked.
-    #[metastructure(field = "type", required = "true")]
+    #[metastructure(field = "type", required = true)]
     pub ty: Annotated<LockReasonType>,
 
     /// Address of the java monitor object.

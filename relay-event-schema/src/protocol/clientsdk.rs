@@ -25,7 +25,7 @@ pub struct ClientSdkInfo {
     ///
     /// Official Sentry SDKs use the entity `sentry`, as in `sentry.python` or
     /// `sentry.javascript.react-native`. Please use a different entity for your own SDKs.
-    #[metastructure(required = "true", max_chars = 256, max_chars_allowance = 20)]
+    #[metastructure(required = true, max_chars = 256, max_chars_allowance = 20)]
     pub name: Annotated<String>,
 
     /// The version of the SDK. _Required._
@@ -34,7 +34,7 @@ pub struct ClientSdkInfo {
     /// without any prefix (no `v` or anything else in front of the major version number).
     ///
     /// Examples: `0.1.0`, `1.0.0`, `4.3.12`
-    #[metastructure(required = "true", max_chars = 256, max_chars_allowance = 20)]
+    #[metastructure(required = true, max_chars = 256, max_chars_allowance = 20)]
     pub version: Annotated<String>,
 
     /// List of integrations that are enabled in the SDK. _Optional._

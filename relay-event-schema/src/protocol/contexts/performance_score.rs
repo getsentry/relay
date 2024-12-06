@@ -12,7 +12,7 @@ pub struct PerformanceScoreContext {
     /// The performance score profile version.
     pub score_profile_version: Annotated<String>,
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties, retain = "true")]
+    #[metastructure(additional_properties, retain = true)]
     pub other: Object<Value>,
 }
 

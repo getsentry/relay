@@ -97,11 +97,11 @@ fn is_hex_string(string: &str, len: usize) -> bool {
 #[metastructure(process_func = "process_trace_context")]
 pub struct TraceContext {
     /// The trace ID.
-    #[metastructure(required = "true")]
+    #[metastructure(required = true)]
     pub trace_id: Annotated<TraceId>,
 
     /// The ID of the span.
-    #[metastructure(required = "true")]
+    #[metastructure(required = true)]
     pub span_id: Annotated<SpanId>,
 
     /// The ID of the span enclosing this span.
@@ -139,7 +139,7 @@ pub struct TraceContext {
     pub data: Annotated<SpanData>,
 
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties, retain = "true", pii = "maybe")]
+    #[metastructure(additional_properties, retain = true, pii = "maybe")]
     pub other: Object<Value>,
 }
 

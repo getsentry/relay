@@ -9,7 +9,7 @@ use crate::processor::ProcessValue;
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct Measurement {
     /// Value of observed measurement value.
-    #[metastructure(required = "true", skip_serialization = "never")]
+    #[metastructure(required = true, skip_serialization = "never")]
     pub value: Annotated<f64>,
 
     /// The unit of this measurement, defaulting to no unit.

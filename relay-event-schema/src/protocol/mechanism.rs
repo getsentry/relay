@@ -103,7 +103,7 @@ pub struct Mechanism {
     ///
     /// In the Python SDK this is merely the name of the framework integration that produced the
     /// exception, while for native it is e.g. `"minidump"` or `"applecrashreport"`.
-    #[metastructure(field = "type", required = "true", nonempty = "true", max_chars = 128)]
+    #[metastructure(field = "type", required = true, nonempty = true, max_chars = 128)]
     pub ty: Annotated<String>,
 
     /// If this is set then the exception is not a real exception but some
@@ -120,8 +120,8 @@ pub struct Mechanism {
 
     /// Link to online resources describing this error.
     #[metastructure(
-        required = "false",
-        nonempty = "true",
+        required = false,
+        nonempty = true,
         max_chars = 256,
         max_chars_allowance = 40
     )]
@@ -152,8 +152,8 @@ pub struct Mechanism {
     ///
     /// - JavaScript Examples: `"cause"`, `"errors[0]"`, `"errors[1]"`
     #[metastructure(
-        required = "false",
-        nonempty = "true",
+        required = false,
+        nonempty = true,
         max_chars = 128,
         deny_chars = " \t\r\n"
     )]
@@ -200,7 +200,7 @@ impl FromValue for Mechanism {
     fn from_value(annotated: Annotated<Value>) -> Annotated<Self> {
         #[derive(Debug, FromValue)]
         struct NewMechanism {
-            #[metastructure(field = "type", required = "true")]
+            #[metastructure(field = "type", required = true)]
             pub ty: Annotated<String>,
             pub synthetic: Annotated<bool>,
             pub description: Annotated<String>,

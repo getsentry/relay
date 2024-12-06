@@ -22,7 +22,7 @@ use crate::processor::{
 #[metastructure(process_func = "process_values")]
 pub struct Values<T> {
     /// The values of the collection.
-    #[metastructure(required = "true", skip_serialization = "empty_deep")]
+    #[metastructure(required = true, skip_serialization = "empty_deep")]
     pub values: Annotated<Array<T>>,
 
     /// Additional arbitrary fields for forwards compatibility.
