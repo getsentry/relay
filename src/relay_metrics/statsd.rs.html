@@ -118,20 +118,7 @@
 <a href="#117" id="117">117</a>
 <a href="#118" id="118">118</a>
 <a href="#119" id="119">119</a>
-<a href="#120" id="120">120</a>
-<a href="#121" id="121">121</a>
-<a href="#122" id="122">122</a>
-<a href="#123" id="123">123</a>
-<a href="#124" id="124">124</a>
-<a href="#125" id="125">125</a>
-<a href="#126" id="126">126</a>
-<a href="#127" id="127">127</a>
-<a href="#128" id="128">128</a>
-<a href="#129" id="129">129</a>
-<a href="#130" id="130">130</a>
-<a href="#131" id="131">131</a>
-<a href="#132" id="132">132</a>
-<a href="#133" id="133">133</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, SetMetric, TimerMetric};
+<a href="#120" id="120">120</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, SetMetric, TimerMetric};
 
 <span class="doccomment">/// Set metrics for Relay Metrics.
 </span><span class="kw">pub enum </span>MetricSets {
@@ -208,18 +195,6 @@
 <span class="doccomment">/// Histogram metrics for Relay Metrics.
 </span><span class="attr">#[allow(clippy::enum_variant_names)]
 </span><span class="kw">pub enum </span>MetricHistograms {
-    <span class="doccomment">/// The reporting delay at which a bucket arrives in Relay.
-    ///
-    /// A positive delay indicates the bucket arrives after its stated timestamp. Large delays
-    /// indicate backdating, particularly all delays larger than `bucket_interval + initial_delay`.
-    /// Negative delays indicate that the bucket is dated into the future, likely due to clock drift
-    /// on the client.
-    ///
-    /// This metric is tagged with:
-    ///  - `backdated`: A flag indicating whether the metric was reported within the `initial_delay`
-    ///    time period (`false`) or after the initial delay has expired (`true`).
-    </span>BucketsDelay,
-
     <span class="doccomment">/// Distribution of invalid bucket timestamps observed, relative to the time of observation.
     ///
     /// This is a temporary metric to better understand why we see so many invalid timestamp errors.
@@ -229,7 +204,6 @@
 <span class="kw">impl </span>HistogramMetric <span class="kw">for </span>MetricHistograms {
     <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
-            <span class="self">Self</span>::BucketsDelay =&gt; <span class="string">"metrics.buckets.delay"</span>,
             <span class="self">Self</span>::InvalidBucketTimestamp =&gt; <span class="string">"metrics.buckets.invalid_timestamp"</span>,
         }
     }
