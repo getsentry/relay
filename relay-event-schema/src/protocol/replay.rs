@@ -159,9 +159,9 @@ pub struct Replay {
     /// can be the git SHA for the given project, or a product identifier with a semantic version.
     #[metastructure(
         max_chars = 200,
-        required = "false",
-        trim_whitespace = "true",
-        nonempty = "true",
+        required = false,
+        trim_whitespace = true,
+        nonempty = true,
         skip_serialization = "empty"
     )]
     pub release: Annotated<LenientString>,
@@ -175,9 +175,9 @@ pub struct Replay {
     /// version code of an Android build.
     #[metastructure(
         allow_chars = "a-zA-Z0-9_.-",
-        trim_whitespace = "true",
-        required = "false",
-        nonempty = "true",
+        trim_whitespace = true,
+        required = false,
+        nonempty = true,
         max_chars = 64
     )]
     pub dist: Annotated<String>,
@@ -189,9 +189,9 @@ pub struct Replay {
     /// ```
     #[metastructure(
         max_chars = 64,
-        nonempty = "true",
-        required = "false",
-        trim_whitespace = "true"
+        nonempty = true,
+        required = false,
+        trim_whitespace = true
     )]
     pub environment: Annotated<String>,
 

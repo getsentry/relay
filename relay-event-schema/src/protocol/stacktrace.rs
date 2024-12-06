@@ -329,7 +329,7 @@ impl FromValue for FrameVars {
 pub struct RawStacktrace {
     /// Required. A non-empty list of stack frames. The list is ordered from caller to callee, or
     /// oldest to youngest. The last frame is the one creating the exception.
-    #[metastructure(required = "true", nonempty = "true", skip_serialization = "empty")]
+    #[metastructure(required = true, nonempty = true, skip_serialization = "empty")]
     pub frames: Annotated<Array<Frame>>,
 
     /// Register values of the thread (top frame).

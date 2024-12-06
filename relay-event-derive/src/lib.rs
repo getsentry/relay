@@ -12,8 +12,12 @@
 
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
-use syn::{Ident, Lit, Meta, NestedMeta};
-use synstructure::decl_derive;
+use syn2::{self as syn, Ident, Lit, LitBool, LitInt, LitStr};
+use synstructure2::{self as synstructure, decl_derive};
+
+mod utils;
+
+use utils::SynstructureExt as _;
 
 decl_derive!(
     [ProcessValue, attributes(metastructure)] =>
@@ -21,14 +25,14 @@ decl_derive!(
     derive_process_value
 );
 
-fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
+fn derive_process_value(mut s: synstructure::Structure<'_>) -> syn::Result<TokenStream> {
     let _ = s.bind_with(|_bi| synstructure::BindStyle::RefMut);
     let _ = s.add_bounds(synstructure::AddBounds::Generics);
 
-    let type_attrs = parse_type_attributes(&s);
+    let type_attrs = parse_type_attributes(&s)?;
     let process_func_call_tokens = type_attrs.process_func_call_tokens();
 
-    let process_value_arms = s.each_variant(|variant| {
+    let process_value_arms = s.try_each_variant(|variant| {
         if is_newtype(variant) {
             // Process variant twice s.t. both processor functions are called.
             //
@@ -39,10 +43,10 @@ fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
 
             let bi = &variant.bindings()[0];
             let ident = &bi.binding;
-            let field_attrs = parse_field_attributes(0, bi.ast(), &mut true);
+            let field_attrs = parse_field_attributes(0, bi.ast(), &mut true)?;
             let field_attrs_tokens = field_attrs.as_tokens(Some(quote!(parent_attrs)));
 
-            quote! {
+            Ok(quote! {
                 let parent_attrs = __state.attrs();
                 let attrs = #field_attrs_tokens;
                 let __state = &__state.enter_nothing(
@@ -72,25 +76,25 @@ fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
                     __meta,
                     &__state
                 )?;
-            }
+            })
         } else {
-            quote!()
+            Ok(quote!())
         }
-    });
+    })?;
 
-    let process_child_values_arms = s.each_variant(|variant| {
+    let process_child_values_arms = s.try_each_variant(|variant| {
         let mut is_tuple_struct = false;
 
         if is_newtype(variant) {
             // `process_child_values` has to be a noop because otherwise we recurse into the
             // subtree twice due to the weird `process_value` impl
 
-            return quote!();
+            return Ok(quote!());
         }
 
         let mut body = TokenStream::new();
         for (index, bi) in variant.bindings().iter().enumerate() {
-            let field_attrs = parse_field_attributes(index, bi.ast(), &mut is_tuple_struct);
+            let field_attrs = parse_field_attributes(index, bi.ast(), &mut is_tuple_struct)?;
             let ident = &bi.binding;
             let field_attrs_name = Ident::new(&format!("FIELD_ATTRS_{index}"), Span::call_site());
             let field_name = field_attrs.field_name.clone();
@@ -141,8 +145,8 @@ fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
             }
         }
 
-        quote!({ #body })
-    });
+        Ok(quote!({ #body }))
+    })?;
 
     let _ = s.bind_with(|_bi| synstructure::BindStyle::Ref);
 
@@ -169,9 +173,9 @@ fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
         }
     });
 
-    s.gen_impl(quote! {
+    Ok(s.gen_impl(quote! {
         #[automatically_derived]
-        #[expect(non_local_definitions, reason = "crate needs to be migrated to syn2")]
+        #[expect(non_local_definitions, reason = "crate needs to be migrated to syn")]
         gen impl crate::processor::ProcessValue for @Self {
             fn value_type(&self) -> enumset::EnumSet<crate::processor::ValueType> {
                 match *self {
@@ -212,7 +216,7 @@ fn derive_process_value(mut s: synstructure::Structure<'_>) -> TokenStream {
                 Ok(())
             }
         }
-    })
+    }))
 }
 
 #[derive(Default)]
@@ -236,60 +240,35 @@ impl TypeAttrs {
     }
 }
 
-fn parse_type_attributes(s: &synstructure::Structure<'_>) -> TypeAttrs {
+fn parse_type_attributes(s: &synstructure::Structure<'_>) -> syn::Result<TypeAttrs> {
     let mut rv = TypeAttrs::default();
 
     for attr in &s.ast().attrs {
-        let meta = match attr.parse_meta() {
-            Ok(meta) => meta,
-            Err(_) => continue,
-        };
-
-        let ident = match meta.path().get_ident() {
-            Some(x) => x,
-            None => continue,
-        };
-
-        if ident != "metastructure" {
+        if !attr.path().is_ident("metastructure") {
             continue;
         }
 
-        if let Meta::List(metalist) = meta {
-            for nested_meta in metalist.nested {
-                match nested_meta {
-                    NestedMeta::Lit(..) => panic!("unexpected literal attribute"),
-                    NestedMeta::Meta(meta) => match meta {
-                        Meta::NameValue(name_value) => {
-                            let ident = name_value.path.get_ident().expect("Unexpected path");
+        attr.parse_nested_meta(|meta| {
+            let ident = meta.path.require_ident()?;
 
-                            if ident == "process_func" {
-                                match name_value.lit {
-                                    Lit::Str(litstr) => {
-                                        rv.process_func = Some(litstr.value());
-                                    }
-                                    _ => {
-                                        panic!("Got non string literal for process_func");
-                                    }
-                                }
-                            } else if ident == "value_type" {
-                                match name_value.lit {
-                                    Lit::Str(litstr) => {
-                                        rv.value_type.push(litstr.value());
-                                    }
-                                    _ => {
-                                        panic!("Got non string literal for value type");
-                                    }
-                                }
-                            }
-                        }
-                        _ => panic!("Unsupported attribute"),
-                    },
+            if ident == "process_func" {
+                let s = meta.value()?.parse::<LitStr>()?;
+                rv.process_func = Some(s.value());
+            } else if ident == "value_type" {
+                let s = meta.value()?.parse::<LitStr>()?;
+                rv.value_type.push(s.value());
+            } else {
+                // Ignore other attributes used by `relay-protocol-derive`.
+                if !meta.input.peek(syn::Token![,]) {
+                    let _ = meta.value()?.parse::<Lit>()?;
                 }
             }
-        }
+
+            Ok(())
+        })?;
     }
 
-    rv
+    Ok(rv)
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -441,7 +420,7 @@ fn parse_field_attributes(
     index: usize,
     bi_ast: &syn::Field,
     is_tuple_struct: &mut bool,
-) -> FieldAttrs {
+) -> syn::Result<FieldAttrs> {
     if bi_ast.ident.is_none() {
         *is_tuple_struct = true;
     } else if *is_tuple_struct {
@@ -458,180 +437,72 @@ fn parse_field_attributes(
     };
 
     for attr in &bi_ast.attrs {
-        let meta = match attr.parse_meta() {
-            Ok(meta) => meta,
-            Err(_) => continue,
-        };
-
-        let ident = match meta.path().get_ident() {
-            Some(x) => x,
-            None => continue,
-        };
-
-        if ident != "metastructure" {
+        if !attr.path().is_ident("metastructure") {
             continue;
         }
 
-        if let Meta::List(metalist) = meta {
-            for nested_meta in metalist.nested {
-                match nested_meta {
-                    NestedMeta::Lit(..) => panic!("unexpected literal attribute"),
-                    NestedMeta::Meta(meta) => match meta {
-                        Meta::Path(path) => {
-                            let ident = path.get_ident().expect("Unexpected path");
+        attr.parse_nested_meta(|meta| {
+            let ident = meta.path.require_ident()?;
 
-                            if ident == "additional_properties" {
-                                rv.additional_properties = true;
-                            } else if ident == "omit_from_schema" {
-                                rv.omit_from_schema = true;
-                            } else {
-                                panic!("Unknown attribute {ident}");
-                            }
-                        }
-                        Meta::NameValue(name_value) => {
-                            let ident = name_value.path.get_ident().expect("Unexpected path");
-                            if ident == "field" {
-                                match name_value.lit {
-                                    Lit::Str(litstr) => {
-                                        rv.field_name = litstr.value();
-                                    }
-                                    _ => {
-                                        panic!("Got non string literal for field");
-                                    }
-                                }
-                            } else if ident == "required" {
-                                match name_value.lit {
-                                    Lit::Str(litstr) => match litstr.value().as_str() {
-                                        "true" => rv.required = Some(true),
-                                        "false" => rv.required = Some(false),
-                                        other => panic!("Unknown value {other}"),
-                                    },
-                                    _ => {
-                                        panic!("Got non string literal for required");
-                                    }
-                                }
-                            } else if ident == "nonempty" {
-                                match name_value.lit {
-                                    Lit::Str(litstr) => match litstr.value().as_str() {
-                                        "true" => rv.nonempty = Some(true),
-                                        "false" => rv.nonempty = Some(false),
-                                        other => panic!("Unknown value {other}"),
-                                    },
-                                    _ => {
-                                        panic!("Got non string literal for nonempty");
-                                    }
-                                }
-                            } else if ident == "trim_whitespace" {
-                                match name_value.lit {
-                                    Lit::Str(litstr) => match litstr.value().as_str() {
-                                        "true" => rv.trim_whitespace = Some(true),
-                                        "false" => rv.trim_whitespace = Some(false),
-                                        other => panic!("Unknown value {other}"),
-                                    },
-                                    _ => {
-                                        panic!("Got non string literal for trim_whitespace");
-                                    }
-                                }
-                            } else if ident == "allow_chars" || ident == "deny_chars" {
-                                if rv.characters.is_some() {
-                                    panic!("allow_chars and deny_chars are mutually exclusive");
-                                }
-
-                                match name_value.lit {
-                                    Lit::Str(litstr) => {
-                                        let attr =
-                                            parse_character_set(ident, litstr.value().as_str());
-                                        rv.characters = Some(attr);
-                                    }
-                                    _ => {
-                                        panic!("Got non string literal for {}", ident);
-                                    }
-                                }
-                            } else if ident == "max_chars" {
-                                match name_value.lit {
-                                    Lit::Int(litint) => {
-                                        rv.max_chars = Some(quote!(#litint));
-                                    }
-                                    _ => {
-                                        panic!("Got non integer literal for max_chars");
-                                    }
-                                }
-                            } else if ident == "max_chars_allowance" {
-                                match name_value.lit {
-                                    Lit::Int(litint) => {
-                                        rv.max_chars_allowance = Some(quote!(#litint));
-                                    }
-                                    _ => {
-                                        panic!("Got non integer literal for max_chars_allowance");
-                                    }
-                                }
-                            } else if ident == "max_depth" {
-                                match name_value.lit {
-                                    Lit::Int(litint) => {
-                                        rv.max_depth = Some(quote!(#litint));
-                                    }
-                                    _ => {
-                                        panic!("Got non integer literal for max_depth");
-                                    }
-                                }
-                            } else if ident == "max_bytes" {
-                                match name_value.lit {
-                                    Lit::Int(litint) => {
-                                        rv.max_bytes = Some(quote!(#litint));
-                                    }
-                                    _ => {
-                                        panic!("Got non integer literal for max_bytes");
-                                    }
-                                }
-                            } else if ident == "pii" {
-                                match name_value.lit {
-                                    Lit::Str(litstr) => match litstr.value().as_str() {
-                                        "true" => rv.pii = Some(Pii::True),
-                                        "false" => rv.pii = Some(Pii::False),
-                                        "maybe" => rv.pii = Some(Pii::Maybe),
-                                        other => panic!("Unknown value {other}"),
-                                    },
-                                    _ => {
-                                        panic!("Got non string literal for pii");
-                                    }
-                                }
-                            } else if ident == "retain" {
-                                match name_value.lit {
-                                    Lit::Str(litstr) => match litstr.value().as_str() {
-                                        "true" => rv.retain = true,
-                                        "false" => rv.retain = false,
-                                        other => panic!("Unknown value {other}"),
-                                    },
-                                    _ => {
-                                        panic!("Got non string literal for retain");
-                                    }
-                                }
-                            } else if ident == "trim" {
-                                match name_value.lit {
-                                    Lit::Str(litstr) => match litstr.value().as_str() {
-                                        "true" => rv.trim = None,
-                                        "false" => rv.trim = Some(false),
-                                        other => panic!("Unknown value {other}"),
-                                    },
-                                    _ => {
-                                        panic!("Got non string literal for trim");
-                                    }
-                                }
-                            } else if ident == "legacy_alias" || ident == "skip_serialization" {
-                                // Skip
-                            } else {
-                                panic!("Unknown argument to metastructure: {ident}");
-                            }
-                        }
-                        other => {
-                            panic!("Unexpected or bad attribute {:?}", other.path());
-                        }
-                    },
+            if ident == "additional_properties" {
+                rv.additional_properties = true;
+            } else if ident == "omit_from_schema" {
+                rv.omit_from_schema = true;
+            } else if ident == "field" {
+                let s = meta.value()?.parse::<LitStr>()?;
+                rv.field_name = s.value();
+            } else if ident == "required" {
+                let s = meta.value()?.parse::<LitBool>()?;
+                rv.required = Some(s.value());
+            } else if ident == "nonempty" {
+                let s = meta.value()?.parse::<LitBool>()?;
+                rv.nonempty = Some(s.value());
+            } else if ident == "trim_whitespace" {
+                let s = meta.value()?.parse::<LitBool>()?;
+                rv.trim_whitespace = Some(s.value());
+            } else if ident == "allow_chars" || ident == "deny_chars" {
+                if rv.characters.is_some() {
+                    return Err(meta.error("allow_chars and deny_chars are mutually exclusive"));
                 }
+                let s = meta.value()?.parse::<LitStr>()?;
+                rv.characters = Some(parse_character_set(ident, &s.value()));
+            } else if ident == "max_chars" {
+                let s = meta.value()?.parse::<LitInt>()?;
+                rv.max_chars = Some(quote!(#s));
+            } else if ident == "max_chars_allowance" {
+                let s = meta.value()?.parse::<LitInt>()?;
+                rv.max_chars_allowance = Some(quote!(#s));
+            } else if ident == "max_depth" {
+                let s = meta.value()?.parse::<LitInt>()?;
+                rv.max_depth = Some(quote!(#s));
+            } else if ident == "max_bytes" {
+                let s = meta.value()?.parse::<LitInt>()?;
+                rv.max_bytes = Some(quote!(#s));
+            } else if ident == "pii" {
+                let s = meta.value()?.parse::<LitStr>()?;
+                rv.pii = Some(match s.value().as_str() {
+                    "true" => Pii::True,
+                    "false" => Pii::False,
+                    "maybe" => Pii::Maybe,
+                    _ => return Err(meta.error("Expected one of `true`, `false`, `maybe`")),
+                });
+            } else if ident == "retain" {
+                let s = meta.value()?.parse::<LitBool>()?;
+                rv.retain = s.value();
+            } else if ident == "trim" {
+                let s = meta.value()?.parse::<LitBool>()?;
+                rv.trim = Some(s.value());
+            } else if ident == "legacy_alias" || ident == "skip_serialization" {
+                let _ = meta.value()?.parse::<Lit>()?;
+            } else {
+                return Err(meta.error("Unknown argument"));
             }
-        }
+
+            Ok(())
+        })?;
     }
-    rv
+
+    Ok(rv)
 }
 
 fn is_newtype(variant: &synstructure::VariantInfo) -> bool {

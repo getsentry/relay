@@ -954,7 +954,7 @@ pub struct Hpkp {
 
     /// Pins that the UA has noted for the Known Pinned Host.
     // TODO: regex this string for 'pin-sha256="ABC123"' syntax
-    #[metastructure(required = "true")]
+    #[metastructure(required = true)]
     pub known_pins: Annotated<Array<String>>,
 
     #[metastructure(pii = "true", additional_properties)]

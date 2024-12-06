@@ -80,7 +80,7 @@ pub struct GpuContext {
     pub supports_geometry_shaders: Annotated<bool>,
 
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties, retain = "true", pii = "maybe")]
+    #[metastructure(additional_properties, retain = true, pii = "maybe")]
     pub other: Object<Value>,
 }
 

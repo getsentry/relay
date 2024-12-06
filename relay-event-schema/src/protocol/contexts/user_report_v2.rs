@@ -16,7 +16,7 @@ pub struct UserReportV2Context {
     #[metastructure(pii = "false")]
     pub contact_email: Annotated<String>,
     /// Additional arbitrary fields for forwards compatibility.
-    #[metastructure(additional_properties, retain = "true")]
+    #[metastructure(additional_properties, retain = true)]
     pub other: Object<Value>,
 }
 
