@@ -11,19 +11,19 @@
 
 use proc_macro::TokenStream;
 use quote::ToTokens;
-use syn::fold::Fold;
+use syn2::fold::Fold;
 
 struct CatchUnwind;
 
 impl CatchUnwind {
     fn fold(&mut self, input: TokenStream) -> TokenStream {
-        let f = syn::parse(input).expect("#[catch_unwind] can only be applied to functions");
+        let f = syn2::parse(input).expect("#[catch_unwind] can only be applied to functions");
         self.fold_item_fn(f).to_token_stream().into()
     }
 }
 
 impl Fold for CatchUnwind {
-    fn fold_item_fn(&mut self, i: syn::ItemFn) -> syn::ItemFn {
+    fn fold_item_fn(&mut self, i: syn2::ItemFn) -> syn2::ItemFn {
         if i.sig.unsafety.is_none() {
             panic!("#[catch_unwind] requires `unsafe fn`");
         }
@@ -38,8 +38,8 @@ impl Fold for CatchUnwind {
             })
         }};
 
-        let block = Box::new(syn::parse2(folded).unwrap());
-        syn::ItemFn { block, ..i }
+        let block = Box::new(syn2::parse2(folded).unwrap());
+        syn2::ItemFn { block, ..i }
     }
 }
 

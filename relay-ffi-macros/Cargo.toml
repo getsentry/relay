@@ -16,5 +16,5 @@ proc-macro = true
 workspace = true
 
 [dependencies]
-syn = { workspace = true, features = ["fold", "full"] }
+syn2 = { workspace = true, features = ["fold", "full"] }
 quote = { workspace = true }
