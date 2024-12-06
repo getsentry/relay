@@ -27,11 +27,9 @@
 <a href="#26" id="26">26</a>
 <a href="#27" id="27">27</a>
 <a href="#28" id="28">28</a>
-<a href="#29" id="29">29</a>
-<a href="#30" id="30">30</a></pre></div><pre class="rust"><code><span class="kw">use </span>proc_macro2::TokenStream;
+<a href="#29" id="29">29</a></pre></div><pre class="rust"><code><span class="kw">use </span>proc_macro2::TokenStream;
 <span class="kw">use </span>quote::ToTokens;
-<span class="kw">use </span>syn2 <span class="kw">as </span>syn;
-<span class="kw">use </span>synstructure2::{Structure, VariantInfo};
+<span class="kw">use </span>synstructure::{Structure, VariantInfo};
 
 <span class="kw">pub trait </span>SynstructureExt {
     <span class="kw">fn </span>try_each_variant&lt;F, R&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, f: F) -&gt; syn::Result&lt;TokenStream&gt;

@@ -349,7 +349,7 @@
 <span class="kw">use </span>anyhow::{Context, <span class="prelude-ty">Result</span>};
 <span class="kw">use </span>clap::{Parser, ValueEnum};
 <span class="kw">use </span>serde::Serialize;
-<span class="kw">use </span>syn2::{<span class="self">self </span><span class="kw">as </span>syn, Expr, Lit, LitStr};
+<span class="kw">use </span>syn::{Expr, Lit, LitStr};
 
 <span class="attr">#[derive(Clone, Copy, Debug, ValueEnum)]
 </span><span class="kw">enum </span>SchemaFormat {

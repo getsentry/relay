@@ -283,8 +283,7 @@
 <a href="#282" id="282">282</a>
 <a href="#283" id="283">283</a>
 <a href="#284" id="284">284</a>
-<a href="#285" id="285">285</a>
-<a href="#286" id="286">286</a></pre></div><pre class="rust"><code><span class="attr">#![doc(
+<a href="#285" id="285">285</a></pre></div><pre class="rust"><code><span class="attr">#![doc(
     html_logo_url = <span class="string">"https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"</span>,
     html_favicon_url = <span class="string">"https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 </span>)]
@@ -295,8 +294,7 @@
 
 <span class="kw">use </span>clap::{command, Parser};
 <span class="kw">use </span>serde::Serialize;
-<span class="kw">use </span>syn2::ItemEnum;
-<span class="kw">use </span>syn2::ItemStruct;
+<span class="kw">use </span>syn::{ItemEnum, ItemStruct};
 <span class="kw">use </span>walkdir::WalkDir;
 
 <span class="kw">use </span><span class="kw">crate</span>::item_collector::AstItemCollector;
