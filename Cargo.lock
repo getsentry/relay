@@ -3620,7 +3620,7 @@ name = "relay-ffi-macros"
 version = "24.11.1"
 dependencies = [
  "quote",
- "syn 1.0.109",
+ "syn 2.0.90",
 ]
 
 [[package]]
