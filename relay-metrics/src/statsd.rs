@@ -75,18 +75,6 @@ impl TimerMetric for MetricTimers {
 /// Histogram metrics for Relay Metrics.
 #[allow(clippy::enum_variant_names)]
 pub enum MetricHistograms {
-    /// The reporting delay at which a bucket arrives in Relay.
-    ///
-    /// A positive delay indicates the bucket arrives after its stated timestamp. Large delays
-    /// indicate backdating, particularly all delays larger than `bucket_interval + initial_delay`.
-    /// Negative delays indicate that the bucket is dated into the future, likely due to clock drift
-    /// on the client.
-    ///
-    /// This metric is tagged with:
-    ///  - `backdated`: A flag indicating whether the metric was reported within the `initial_delay`
-    ///    time period (`false`) or after the initial delay has expired (`true`).
-    BucketsDelay,
-
     /// Distribution of invalid bucket timestamps observed, relative to the time of observation.
     ///
     /// This is a temporary metric to better understand why we see so many invalid timestamp errors.
@@ -96,7 +84,6 @@ pub enum MetricHistograms {
 impl HistogramMetric for MetricHistograms {
     fn name(&self) -> &'static str {
         match *self {
-            Self::BucketsDelay => "metrics.buckets.delay",
             Self::InvalidBucketTimestamp => "metrics.buckets.invalid_timestamp",
         }
     }
