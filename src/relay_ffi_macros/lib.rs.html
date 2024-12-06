@@ -77,19 +77,19 @@
 
 </span><span class="kw">use </span>proc_macro::TokenStream;
 <span class="kw">use </span>quote::ToTokens;
-<span class="kw">use </span>syn::fold::Fold;
+<span class="kw">use </span>syn2::fold::Fold;
 
 <span class="kw">struct </span>CatchUnwind;
 
 <span class="kw">impl </span>CatchUnwind {
     <span class="kw">fn </span>fold(<span class="kw-2">&amp;mut </span><span class="self">self</span>, input: TokenStream) -&gt; TokenStream {
-        <span class="kw">let </span>f = syn::parse(input).expect(<span class="string">"#[catch_unwind] can only be applied to functions"</span>);
+        <span class="kw">let </span>f = syn2::parse(input).expect(<span class="string">"#[catch_unwind] can only be applied to functions"</span>);
         <span class="self">self</span>.fold_item_fn(f).to_token_stream().into()
     }
 }
 
 <span class="kw">impl </span>Fold <span class="kw">for </span>CatchUnwind {
-    <span class="kw">fn </span>fold_item_fn(<span class="kw-2">&amp;mut </span><span class="self">self</span>, i: syn::ItemFn) -&gt; syn::ItemFn {
+    <span class="kw">fn </span>fold_item_fn(<span class="kw-2">&amp;mut </span><span class="self">self</span>, i: syn2::ItemFn) -&gt; syn2::ItemFn {
         <span class="kw">if </span>i.sig.unsafety.is_none() {
             <span class="macro">panic!</span>(<span class="string">"#[catch_unwind] requires `unsafe fn`"</span>);
         }
@@ -104,8 +104,8 @@
             })
         }};
 
-        <span class="kw">let </span>block = Box::new(syn::parse2(folded).unwrap());
-        syn::ItemFn { block, ..i }
+        <span class="kw">let </span>block = Box::new(syn2::parse2(folded).unwrap());
+        syn2::ItemFn { block, ..i }
     }
 }
 
