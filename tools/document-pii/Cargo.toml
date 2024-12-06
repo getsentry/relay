@@ -16,7 +16,7 @@ proc-macro2 = { workspace = true }
 quote = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-syn2 = { workspace = true, features = ["visit", "full", "extra-traits"] }
+syn = { workspace = true, features = ["visit", "full", "extra-traits"] }
 walkdir = { workspace = true }
 
 [dev-dependencies]

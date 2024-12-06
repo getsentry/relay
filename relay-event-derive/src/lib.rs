@@ -12,8 +12,8 @@
 
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
-use syn2::{self as syn, Ident, Lit, LitBool, LitInt, LitStr};
-use synstructure2::{self as synstructure, decl_derive};
+use syn::{Ident, Lit, LitBool, LitInt, LitStr};
+use synstructure::decl_derive;
 
 mod utils;
 

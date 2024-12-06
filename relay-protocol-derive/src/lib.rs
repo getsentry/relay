@@ -10,9 +10,9 @@ use std::str::FromStr;
 
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
-use syn2::spanned::Spanned;
-use syn2::{self as syn, Data, Error, Lit, LitStr};
-use synstructure2::{self as synstructure, decl_derive};
+use syn::spanned::Spanned;
+use syn::{Data, Error, Lit, LitStr};
+use synstructure::decl_derive;
 
 mod utils;
 
