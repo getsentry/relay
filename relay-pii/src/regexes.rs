@@ -1,4 +1,5 @@
-use once_cell::sync::Lazy;
+use std::sync::LazyLock;
+
 use regex::Regex;
 use smallvec::{smallvec, SmallVec};
 
@@ -106,186 +107,241 @@ macro_rules! ip {
     (v6s) => { "[0-9a-fA-F]{1,4}" };
 }
 
-pub static ANYTHING_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(".*").unwrap());
+macro_rules! regex {
+    ($name:ident, $rule:expr) => {
+        #[allow(non_snake_case)]
+        mod $name {
+            use super::*;
+            pub static $name: LazyLock<Regex> = LazyLock::new(|| Regex::new($rule).unwrap());
 
-static IMEI_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(
-        r"(?x)
-            \b
-                (\d{2}-?
-                 \d{6}-?
-                 \d{6}-?
-                 \d{1,2})
-            \b
-        ",
+            #[test]
+            fn supports_byte_mode() {
+                assert!(regex::bytes::RegexBuilder::new($name.as_str())
+                    .unicode(false)
+                    .multi_line(false)
+                    .dot_matches_new_line(true)
+                    .build()
+                    .is_ok());
+            }
+        }
+        use $name::$name;
+    };
+}
+
+pub static ANYTHING_REGEX: LazyLock<Regex> = LazyLock::new(|| Regex::new(".*").unwrap());
+
+regex!(
+    IMEI_REGEX,
+    r"(?x)
+        \b
+            (\d{2}-?
+                \d{6}-?
+                \d{6}-?
+                \d{1,2})
+        \b
+    "
+);
+
+regex!(
+    MAC_REGEX,
+    r"(?x)
+        \b([[:xdigit:]]{2}[:-]){5}[[:xdigit:]]{2}\b
+    "
+);
+
+regex!(
+    UUID_REGEX,
+    r"(?ix)
+        \b
+        [a-z0-9]{8}-?
+        [a-z0-9]{4}-?
+        [a-z0-9]{4}-?
+        [a-z0-9]{4}-?
+        [a-z0-9]{12}
+        \b
+    "
+);
+
+regex!(
+    EMAIL_REGEX,
+    r"(?x)
+        \b
+            [a-zA-Z0-9.!\#$%&'*+/=?^_`{|}~-]+
+            @
+            [a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*
+        \b
+    "
+);
+
+regex!(
+    IBAN_REGEX,
+    r"(?x)
+        \b
+        (AT|AD|AE|AL|AZ|BA|BE|BG|BH|BR|BY|CH|CR|CY|CZ|DE|DK|DO|EE|EG|ES|FI|FO|FR|GB|GE|GI|GL|GR|GT|HR|HU|IE|IL|IQ|IS|IT|JO|KW|KZ|LB|LC|LI|LT|LU|LV|LY|MC|MD|ME|MK|MR|MT|MU|NL|NO|PK|PL|PS|PT|QA|RO|RU|RS|SA|SC|SE|SI|SK|SM|ST|SV|TL|TN|TR|UA|VA|VG|XK|DZ|AO|BJ|BF|BI|CV|CM|CF|TD|KM|CG|CI|DJ|GQ|GA|GW|HN|IR|MG|ML|MA|MZ|NI|NE|SN|TG)\d{2}[a-zA-Z0-9]{11,29}
+        \b
+    "
+);
+
+regex!(IPV4_REGEX, concat!("\\b", ip!(v4a), "\\b"));
+
+regex!(
+    IPV6_REGEX,
+    concat!(
+        "(?i)(?:[\\s]|[[:punct:]]|^)(",
+        "(",
+        ip!(v6s),
+        ":){7}",
+        ip!(v6s),
+        "|",
+        "(",
+        ip!(v6s),
+        ":){1,7}:|",
+        "(",
+        ip!(v6s),
+        ":){1,6}::",
+        ip!(v6s),
+        "|",
+        "(",
+        ip!(v6s),
+        ":){1,5}:(:",
+        ip!(v6s),
+        "){1,2}|",
+        "(",
+        ip!(v6s),
+        ":){1,4}:(:",
+        ip!(v6s),
+        "){1,3}|",
+        "(",
+        ip!(v6s),
+        ":){1,3}:(:",
+        ip!(v6s),
+        "){1,4}|",
+        "(",
+        ip!(v6s),
+        ":){1,2}:(:",
+        ip!(v6s),
+        "){1,5}|",
+        ip!(v6s),
+        ":((:",
+        ip!(v6s),
+        "){1,6})|",
+        ":((:",
+        ip!(v6s),
+        "){1,7}|:)|",
+        "fe80:(:",
+        ip!(v6s),
+        "){0,4}%[0-9a-zA-Z]{1,}",
+        "::(ffff(:0{1,4}){0,1}:){0,1}",
+        ip!(v4a),
+        "|",
+        "(",
+        ip!(v6s),
+        ":){1,4}:",
+        ip!(v4a),
+        ")([\\s]|[[:punct:]]|$)",
     )
-    .unwrap()
-});
-
-static MAC_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(
-        r"(?x)
-            \b([[:xdigit:]]{2}[:-]){5}[[:xdigit:]]{2}\b
-        ",
-    )
-    .unwrap()
-});
-
-static UUID_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(
-        r"(?ix)
-            \b
-            [a-z0-9]{8}-?
-            [a-z0-9]{4}-?
-            [a-z0-9]{4}-?
-            [a-z0-9]{4}-?
-            [a-z0-9]{12}
-            \b
-        ",
-    )
-    .unwrap()
-});
-
-static EMAIL_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(
-        r"(?x)
-            \b
-                [a-zA-Z0-9.!\#$%&'*+/=?^_`{|}~-]+
-                @
-                [a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*
-            \b
-        ",
-    )
-    .unwrap()
-});
-
-static IBAN_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(
-        r"(?x)
-            \b
-            (AT|AD|AE|AL|AZ|BA|BE|BG|BH|BR|BY|CH|CR|CY|CZ|DE|DK|DO|EE|EG|ES|FI|FO|FR|GB|GE|GI|GL|GR|GT|HR|HU|IE|IL|IQ|IS|IT|JO|KW|KZ|LB|LC|LI|LT|LU|LV|LY|MC|MD|ME|MK|MR|MT|MU|NL|NO|PK|PL|PS|PT|QA|RO|RU|RS|SA|SC|SE|SI|SK|SM|ST|SV|TL|TN|TR|UA|VA|VG|XK|DZ|AO|BJ|BF|BI|CV|CM|CF|TD|KM|CG|CI|DJ|GQ|GA|GW|HN|IR|MG|ML|MA|MZ|NI|NE|SN|TG)\d{2}[a-zA-Z0-9]{11,29}
-            \b
-        ",
-    )
-    .unwrap()
-});
-
-static IPV4_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(concat!("\\b", ip!(v4a), "\\b")).unwrap());
-
-#[rustfmt::skip]
-static  IPV6_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(
-        concat!(
-            "(?i)(?:[\\s]|[[:punct:]]|^)(",
-                "(", ip!(v6s), ":){7}", ip!(v6s), "|",
-                "(", ip!(v6s), ":){1,7}:|",
-                "(", ip!(v6s), ":){1,6}::", ip!(v6s), "|",
-                "(", ip!(v6s), ":){1,5}:(:", ip!(v6s), "){1,2}|",
-                "(", ip!(v6s), ":){1,4}:(:", ip!(v6s), "){1,3}|",
-                "(", ip!(v6s), ":){1,3}:(:", ip!(v6s), "){1,4}|",
-                "(", ip!(v6s), ":){1,2}:(:", ip!(v6s), "){1,5}|",
-                ip!(v6s), ":((:", ip!(v6s), "){1,6})|",
-                ":((:", ip!(v6s), "){1,7}|:)|",
-                "fe80:(:", ip!(v6s), "){0,4}%[0-9a-zA-Z]{1,}",
-                "::(ffff(:0{1,4}){0,1}:){0,1}", ip!(v4a), "|",
-                "(", ip!(v6s), ":){1,4}:", ip!(v4a),
-            ")([\\s]|[[:punct:]]|$)",
-        )
-    ).unwrap()
-});
+);
 
 // http://www.richardsramblings.com/regex/credit-card-numbers/
 // Re-formatted with comments and dashes support
 //
 // Why so complicated? Because creditcard numbers are variable length and we do not want to
 // strip any number that just happens to have the same length.
-static CREDITCARD_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(
-        r#"(?x)
+regex!(
+    CREDITCARD_REGEX,
+    r#"(?x)
+    \b(
+        (?:  # vendor specific prefixes
+                3[47]\d      # amex (no 13-digit version) (length: 15)
+            | 4\d{3}       # visa (16-digit version only)
+            | 5[1-5]\d\d   # mastercard
+            | 65\d\d       # discover network (subset)
+            | 6011         # discover network (subset)
+        )
+
+        # "wildcard" remainder (allowing dashes in every position because of variable length)
+        ([-\s]?\d){12}
+    )\b
+    "#
+);
+
+regex!(
+    PATH_REGEX,
+    r"(?ix)
+        (?:
+            (?:
+                \b(?:[a-zA-Z]:[\\/])?
+                (?:users|home|documents and settings|[^/\\]+[/\\]profiles)[\\/]
+            ) | (?:
+                /(?:home|users)/
+            )
+        )
+        (
+            [^/\\\r\n]+
+        )
+    "
+);
+
+regex!(
+    PEM_KEY_REGEX,
+    r"(?sx)
+        (?:
+            -----
+            BEGIN[A-Z\ ]+(?:PRIVATE|PUBLIC)\ KEY
+            -----
+            [\t\ ]*\r?\n?
+        )
+        (.+?)
+        (?:
+            \r?\n?
+            -----
+            END[A-Z\ ]+(?:PRIVATE|PUBLIC)\ KEY
+            -----
+        )
+    "
+);
+
+regex!(
+    URL_AUTH_REGEX,
+    r"(?x)
+        \b(?:
+            (?:[a-z0-9+-]+:)?//
+            ([a-zA-Z0-9%_.-]+(?::[a-zA-Z0-9%_.-]+)?)
+        )@
+    "
+);
+
+regex!(
+    US_SSN_REGEX,
+    r"(?x)
         \b(
-            (?:  # vendor specific prefixes
-                  3[47]\d      # amex (no 13-digit version) (length: 15)
-                | 4\d{3}       # visa (16-digit version only)
-                | 5[1-5]\d\d   # mastercard
-                | 65\d\d       # discover network (subset)
-                | 6011         # discover network (subset)
-            )
-
-            # "wildcard" remainder (allowing dashes in every position because of variable length)
-            ([-\s]?\d){12}
+            [0-9]{3}-
+            [0-9]{2}-
+            [0-9]{4}
         )\b
-        "#,
-    )
-    .unwrap()
-});
+    "
+);
 
-static PATH_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(
-        r"(?ix)
-            (?:
-                (?:
-                    \b(?:[a-zA-Z]:[\\/])?
-                    (?:users|home|documents and settings|[^/\\]+[/\\]profiles)[\\/]
-                ) | (?:
-                    /(?:home|users)/
-                )
-            )
-            (
-                [A–Za-z0–9'\.\ _!\#^~-]+
-            )
-        ",
-    )
-    .unwrap()
-});
+regex!(
+    PASSWORD_KEY_REGEX,
+    r"(?i)(password|secret|passwd|api_key|apikey|auth|credentials|mysql_pwd|privatekey|private_key|token|bearer)"
+);
 
-static PEM_KEY_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(
-        r"(?sx)
-            (?:
-                -----
-                BEGIN[A-Z\ ]+(?:PRIVATE|PUBLIC)\ KEY
-                -----
-                [\t\ ]*\r?\n?
-            )
-            (.+?)
-            (?:
-                \r?\n?
-                -----
-                END[A-Z\ ]+(?:PRIVATE|PUBLIC)\ KEY
-                -----
-            )
-        ",
-    )
-    .unwrap()
-});
+#[cfg(test)]
+mod tests {
+    use super::*;
 
-static URL_AUTH_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(
-        r"(?x)
-            \b(?:
-                (?:[a-z0-9+-]+:)?//
-                ([a-zA-Z0-9%_.-]+(?::[a-zA-Z0-9%_.-]+)?)
-            )@
-        ",
-    )
-    .unwrap()
-});
-
-static US_SSN_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(
-        r"(?x)
-            \b(
-                [0-9]{3}-
-                [0-9]{2}-
-                [0-9]{4}
-            )\b
-        ",
-    )
-    .unwrap()
-});
-
-static PASSWORD_KEY_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(
-        r"(?i)(password|secret|passwd|api_key|apikey|auth|credentials|mysql_pwd|privatekey|private_key|token|bearer)"
-    ).unwrap()
-});
+    #[test]
+    fn test_userpath_utf8_bytes() {
+        // This mimicks `apply_regex_to_utf8_bytes`, which is used in minidump scrubbing.
+        // Ideally we would not compile a regex on the fly for every minidump
+        // (either add another lazy static or remove the distinction entirely).
+        let regex = regex::bytes::RegexBuilder::new(PATH_REGEX.as_str())
+            .unicode(false)
+            .multi_line(false)
+            .dot_matches_new_line(true)
+            .build()
+            .unwrap();
+        assert!(regex.is_match(br"C:\\Users\jane\somefile"));
+    }
+}
