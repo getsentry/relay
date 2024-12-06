@@ -502,10 +502,11 @@ pub enum RelayTimers {
     ///  - `count`: How many items matching the data category are contained in the batch.
     #[cfg(feature = "processing")]
     RateLimitBucketsDuration,
-    /// Timing in milliseconds for processing a message in the aggregator service.
+    /// Timing in milliseconds for processing a task in the aggregator service.
     ///
     /// This metric is tagged with:
-    ///  - `message`: The type of message that was processed.
+    ///  - `task`: The task being executed by the aggregator.
+    ///  - `aggregator`: The name of the aggregator.
     AggregatorServiceDuration,
     /// Timing in milliseconds for processing a message in the metric router service.
     ///

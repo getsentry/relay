@@ -286,20 +286,13 @@ impl AggregatorService {
     }
 
     fn handle_message(&mut self, message: Aggregator) {
-        let ty = message.variant();
-        relay_statsd::metric!(
-            timer(RelayTimers::AggregatorServiceDuration),
-            message = ty,
-            {
-                match message {
-                    Aggregator::MergeBuckets(msg) => self.handle_merge_buckets(msg),
-                    #[cfg(test)]
-                    Aggregator::BucketCountInquiry(_, sender) => {
-                        sender.send(self.aggregator.bucket_count())
-                    }
-                }
+        match message {
+            Aggregator::MergeBuckets(msg) => self.handle_merge_buckets(msg),
+            #[cfg(test)]
+            Aggregator::BucketCountInquiry(_, sender) => {
+                sender.send(self.aggregator.bucket_count())
             }
-        )
+        }
     }
 
     fn handle_shutdown(&mut self, message: Shutdown) {
@@ -317,13 +310,26 @@ impl Service for AggregatorService {
         ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         let mut shutdown = Controller::shutdown_handle();
 
+        macro_rules! timed {
+            ($task:expr, $body:expr) => {{
+                let task_name = $task;
+                relay_statsd::metric!(
+                    timer(RelayTimers::AggregatorServiceDuration),
+                    task = task_name,
+                    aggregator = self.aggregator.name(),
+                    { $body }
+                )
+            }};
+        }
+
         // Note that currently this loop never exits and will run till the tokio runtime shuts
         // down. This is about to change with the refactoring for the shutdown process.
         loop {
             tokio::select! {
                 biased;
 
-                _ = ticker.tick() => {
+                _ = ticker.tick() => timed!(
+                    "try_flush",
                     if cfg!(test) {
                         // Tests are running in a single thread / current thread runtime,
                         // which is required for 'fast-forwarding' and `block_in_place`
@@ -333,9 +339,9 @@ impl Service for AggregatorService {
                     } else {
                         tokio::task::block_in_place(|| self.try_flush())
                     }
-                },
-                Some(message) = rx.recv() => self.handle_message(message),
-                shutdown = shutdown.notified() => self.handle_shutdown(shutdown),
+                ),
+                Some(message) = rx.recv() => timed!(message.variant(), self.handle_message(message)),
+                shutdown = shutdown.notified() => timed!("shutdown", self.handle_shutdown(shutdown)),
 
                 else => break,
             }
