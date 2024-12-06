@@ -625,9 +625,9 @@
     /// can be the git SHA for the given project, or a product identifier with a semantic version.
     </span><span class="attr">#[metastructure(
         max_chars = <span class="number">200</span>,
-        required = <span class="string">"false"</span>,
-        trim_whitespace = <span class="string">"true"</span>,
-        nonempty = <span class="string">"true"</span>,
+        required = <span class="bool-val">false</span>,
+        trim_whitespace = <span class="bool-val">true</span>,
+        nonempty = <span class="bool-val">true</span>,
         skip_serialization = <span class="string">"empty"
     </span>)]
     </span><span class="kw">pub </span>release: Annotated&lt;LenientString&gt;,
@@ -641,9 +641,9 @@
     /// version code of an Android build.
     </span><span class="attr">#[metastructure(
         allow_chars = <span class="string">"a-zA-Z0-9_.-"</span>,
-        trim_whitespace = <span class="string">"true"</span>,
-        required = <span class="string">"false"</span>,
-        nonempty = <span class="string">"true"</span>,
+        trim_whitespace = <span class="bool-val">true</span>,
+        required = <span class="bool-val">false</span>,
+        nonempty = <span class="bool-val">true</span>,
         max_chars = <span class="number">64
     </span>)]
     </span><span class="kw">pub </span>dist: Annotated&lt;String&gt;,
@@ -655,9 +655,9 @@
     /// ```
     </span><span class="attr">#[metastructure(
         max_chars = <span class="number">64</span>,
-        nonempty = <span class="string">"true"</span>,
-        required = <span class="string">"false"</span>,
-        trim_whitespace = <span class="string">"true"
+        nonempty = <span class="bool-val">true</span>,
+        required = <span class="bool-val">false</span>,
+        trim_whitespace = <span class="bool-val">true
     </span>)]
     </span><span class="kw">pub </span>environment: Annotated&lt;String&gt;,
 

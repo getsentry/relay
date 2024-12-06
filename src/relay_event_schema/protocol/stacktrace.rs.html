@@ -1124,7 +1124,7 @@
 </span><span class="kw">pub struct </span>RawStacktrace {
     <span class="doccomment">/// Required. A non-empty list of stack frames. The list is ordered from caller to callee, or
     /// oldest to youngest. The last frame is the one creating the exception.
-    </span><span class="attr">#[metastructure(required = <span class="string">"true"</span>, nonempty = <span class="string">"true"</span>, skip_serialization = <span class="string">"empty"</span>)]
+    </span><span class="attr">#[metastructure(required = <span class="bool-val">true</span>, nonempty = <span class="bool-val">true</span>, skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>frames: Annotated&lt;Array&lt;Frame&gt;&gt;,
 
     <span class="doccomment">/// Register values of the thread (top frame).

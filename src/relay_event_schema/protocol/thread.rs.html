@@ -558,7 +558,7 @@
 </span><span class="attr">#[derive(Clone, Debug, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 </span><span class="kw">pub struct </span>LockReason {
     <span class="doccomment">/// Type of lock on the thread with available options being blocked, waiting, sleeping and locked.
-    </span><span class="attr">#[metastructure(field = <span class="string">"type"</span>, required = <span class="string">"true"</span>)]
+    </span><span class="attr">#[metastructure(field = <span class="string">"type"</span>, required = <span class="bool-val">true</span>)]
     </span><span class="kw">pub </span>ty: Annotated&lt;LockReasonType&gt;,
 
     <span class="doccomment">/// Address of the java monitor object.

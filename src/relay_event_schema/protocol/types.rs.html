@@ -1233,7 +1233,7 @@
 #[metastructure(process_func = <span class="string">"process_values"</span>)]
 </span><span class="kw">pub struct </span>Values&lt;T&gt; {
     <span class="doccomment">/// The values of the collection.
-    </span><span class="attr">#[metastructure(required = <span class="string">"true"</span>, skip_serialization = <span class="string">"empty_deep"</span>)]
+    </span><span class="attr">#[metastructure(required = <span class="bool-val">true</span>, skip_serialization = <span class="string">"empty_deep"</span>)]
     </span><span class="kw">pub </span>values: Annotated&lt;Array&lt;T&gt;&gt;,
 
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
