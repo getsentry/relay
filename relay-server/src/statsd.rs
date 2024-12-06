@@ -480,11 +480,6 @@ pub enum RelayTimers {
     /// This metric is tagged with:
     /// - `task`: The type of the task the project cache does.
     ProjectCacheTaskDuration,
-    /// Timing in milliseconds for handling a legacy project cache message.
-    ///
-    /// This metric is tagged with:
-    ///  - `message`: The type of message that was processed.
-    LegacyProjectCacheMessageDuration,
     /// Timing in milliseconds for processing a task in the legacy project cache service.
     ///
     /// A task is a unit of work the service does. Each branch of the
@@ -592,9 +587,6 @@ impl TimerMetric for RelayTimers {
             RelayTimers::GlobalConfigRequestDuration => "global_config.requests.duration",
             RelayTimers::ProcessMessageDuration => "processor.message.duration",
             RelayTimers::ProjectCacheTaskDuration => "project_cache.task.duration",
-            RelayTimers::LegacyProjectCacheMessageDuration => {
-                "legacy_project_cache.message.duration"
-            }
             RelayTimers::LegacyProjectCacheTaskDuration => "legacy_project_cache.task.duration",
             RelayTimers::HealthCheckDuration => "health.message.duration",
             #[cfg(feature = "processing")]
@@ -649,6 +641,12 @@ pub enum RelayCounters {
     ///  - `handling`: Either `"success"` if the envelope was handled correctly, or `"failure"` if
     ///    there was an error or bug.
     EnvelopeRejected,
+    /// Number of items we processed per envelope.
+    EnvelopeItems,
+    /// Number of bytes we processed per envelope item.
+    EnvelopeItemBytes,
+    /// Number of transactions with attachments seen in the request handler.
+    TransactionsWithAttachments,
     /// Number of envelopes that were returned to the envelope buffer by the project cache.
     ///
     /// This happens when the envelope buffer falsely assumes that the envelope's projects are loaded
@@ -843,6 +841,9 @@ impl CounterMetric for RelayCounters {
             RelayCounters::EventCorrupted => "event.corrupted",
             RelayCounters::EnvelopeAccepted => "event.accepted",
             RelayCounters::EnvelopeRejected => "event.rejected",
+            RelayCounters::EnvelopeItems => "event.items",
+            RelayCounters::TransactionsWithAttachments => "transactions_with_attachments",
+            RelayCounters::EnvelopeItemBytes => "event.item_bytes",
             RelayCounters::BufferEnvelopesReturned => "buffer.envelopes_returned",
             RelayCounters::BufferTryPop => "buffer.try_pop",
             RelayCounters::BufferSpooledEnvelopes => "buffer.spooled_envelopes",

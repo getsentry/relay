@@ -214,7 +214,8 @@ impl ServiceState {
         let aggregator = RouterService::new(
             config.default_aggregator_config().clone(),
             config.secondary_aggregator_configs().clone(),
-            Some(legacy_project_cache.clone().recipient()),
+            Some(processor.clone().recipient()),
+            project_cache_handle.clone(),
         );
         let aggregator_handle = aggregator.handle();
         let aggregator = runner.start(aggregator);
@@ -284,7 +285,6 @@ impl ServiceState {
         // Keep all the services in one context.
         let project_cache_services = legacy::Services {
             envelope_buffer: envelope_buffer.clone(),
-            aggregator: aggregator.clone(),
             envelope_processor: processor.clone(),
             outcome_aggregator: outcome_aggregator.clone(),
             test_store: test_store.clone(),
@@ -294,7 +294,6 @@ impl ServiceState {
             legacy::ProjectCacheService::new(
                 project_cache_handle.clone(),
                 project_cache_services,
-                global_config_rx,
                 envelopes_rx,
             ),
             legacy_project_cache_rx,

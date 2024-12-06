@@ -62,133 +62,136 @@ relay-event-derive = { path = "relay-event-derive" }
 
 ahash = "0.8.11"
 android_trace_log = { version = "0.3.0", features = ["serde"] }
-anyhow = "1.0.66"
-axum = "0.7.5"
-axum-extra = "0.9.3"
+# This version is pinned because upgrading it enables backtrace by default without the possibility to disable it
+# which will increase processing time for transactions massively.
+# Keep it pinned until it's possible to disable backtrace.
+anyhow = "=1.0.69"
+axum = "0.7.9"
+axum-extra = "0.9.6"
 axum-server = "0.7.1"
 arc-swap = "1.7.1"
 backoff = "0.4.0"
 bindgen = "0.70.1"
 brotli = "6.0.0"
-bytecount = "0.6.0"
-bytes = "1.4.0"
+bytecount = "0.6.8"
+bytes = "1.9.0"
 bzip2 = "0.4.4"
-cadence = "1.4.0"
-chrono = { version = "0.4.31", default-features = false, features = [
+cadence = "1.5.0"
+chrono = { version = "0.4.38", default-features = false, features = [
     "std",
     "serde",
 ] }
-clap = { version = "4.4.6" }
-clap_complete = "4.1.1"
-cmake = "0.1.46"
-console = "0.15.5"
+clap = { version = "4.4.18" }
+clap_complete = "4.1.6"
+cmake = "0.1.52"
+console = "0.15.8"
 cookie = "0.18.1"
-criterion = "0.5"
-crossbeam-channel = "0.5.6"
-data-encoding = "2.5.0"
+criterion = "0.5.1"
+crossbeam-channel = "0.5.13"
+data-encoding = "2.6.0"
 debugid = "0.8.0"
 dialoguer = "0.11.0"
-dynfmt = "0.1.4"
-ed25519-dalek = "2.0.0"
-enumset = "1.0.4"
-flate2 = "1.0.19"
+dynfmt = "0.1.5"
+ed25519-dalek = "2.1.1"
+enumset = "1.0.13"
+flate2 = "1.0.35"
 fnv = "1.0.7"
 futures = { version = "0.3", default-features = false, features = ["std"] }
-globset = "0.4.5"
+globset = "0.4.15"
 hash32 = "0.3.1"
-hashbrown = "0.14.3"
+hashbrown = "0.14.5"
 hex = "0.4.3"
 hmac = "0.12.1"
 hostname = "0.4.0"
-human-size = "0.4.1"
+human-size = "0.4.3"
 http = "1.1.0"
-hyper-util = { version = "0.1.7", features = ["tokio"] }
-hyper = "1.5.0"
-indexmap = "2.2.5"
+hyper-util = { version = "0.1.10", features = ["tokio"] }
+hyper = "1.5.1"
+indexmap = "2.2.6"
 insta = { version = "1.31.0", features = ["json", "redactions", "ron"] }
 ipnetwork = "0.20.0"
 itertools = "0.13.0"
 json-forensics = "0.1.1"
-libc = "0.2.161"
-liblzma = "0.3.4"
-lru = "0.12.4"
+libc = "0.2.167"
+liblzma = "0.3.5"
+lru = "0.12.5"
 maxminddb = "0.24.0"
 memchr = "2.7.4"
 md5 = "0.7.0"
-mime = "0.3.16"
-minidump = "0.22.0"
+mime = "0.3.17"
+minidump = "0.22.2"
 multer = "3.1.0"
-num-traits = "0.2.18"
-num_cpus = "1.13.0"
+num-traits = "0.2.19"
+num_cpus = "1.13.1"
 once_cell = "1.13.1"
 opentelemetry-proto = { version = "0.7.0", default-features = false }
-papaya = "0.1.4"
-parking_lot = "0.12.1"
+papaya = "0.1.6"
+parking_lot = "0.12.3"
 path-slash = "0.2.1"
 pest = "2.1.3"
 pest_derive = "2.1.0"
-pin-project-lite = "0.2.12"
+pin-project-lite = "0.2.15"
 pretty-hex = "0.4.1"
 priority-queue = "2.0.3"
-proc-macro2 = "1.0.8"
+proc-macro2 = "1.0.92"
 prost = "0.13.3"
-psl = "2.1.33"
-quote = "1.0.2"
+psl = "2.1.65"
+quote = "1.0.37"
 r2d2 = "0.8.10"
 rand = "0.8.5"
 rand_pcg = "0.3.1"
 rayon = "1.10"
 rdkafka = "0.36.2"
-rdkafka-sys = "4.3.0"
-redis = { version = "0.27.5", default-features = false }
-regex = "1.10.2"
+rdkafka-sys = "4.8.0"
+redis = { version = "0.27.6", default-features = false }
+regex = "1.11.1"
 regex-lite = "0.1.6"
-reqwest = "0.12.7"
-rmp-serde = "1.1.1"
+reqwest = "0.12.9"
+rmp-serde = "1.3.0"
 sentry = "0.34.0"
 sentry-core = "0.34.0"
 sentry-kafka-schemas = { version = "0.1.122", default-features = false }
 sentry-release-parser = { version = "1.3.2", default-features = false }
 sentry-types = "0.34.0"
 semver = "1.0.23"
-serde = { version = "1.0.159", features = ["derive", "rc"] }
+serde = { version = "1.0.215", features = ["derive", "rc"] }
 serde-transcode = "1.1.1"
 serde_bytes = "0.11"
-serde_json = "1.0.93"
-serde_path_to_error = "0.1.14"
-serde_test = "1.0.125"
+serde_json = "1.0.133"
+serde_path_to_error = "0.1.16"
+serde_test = "1.0.177"
 serde_urlencoded = "0.7.1"
-serde_yaml = "0.9.17"
-sha1 = "0.10.5"
+serde_yaml = "0.9.33"
+sha1 = "0.10.6"
 sha2 = "0.10.6"
-similar-asserts = "1.4.2"
-smallvec = { version = "1.11.2", features = ["serde"] }
-socket2 = "0.5.7"
+similar-asserts = "1.6.0"
+smallvec = { version = "1.13.2", features = ["serde"] }
+socket2 = "0.5.8"
 sqlparser = "0.44.0"
-sqlx = { version = "0.8.1", default-features = false }
+sqlx = { version = "0.8.2", default-features = false }
 statsdproxy = { version = "0.2.0", default-features = false }
-symbolic-common = { version = "12.1.2", default-features = false }
-symbolic-unreal = { version = "12.1.2", default-features = false }
-syn = "1.0.14"
+symbolic-common = { version = "12.12.3", default-features = false }
+symbolic-unreal = { version = "12.12.3", default-features = false }
+syn = "1.0.109"
 syn2 = { package = "syn", version = "2.0.11" }
-synstructure = "0.12.3"
+synstructure = "0.12.6"
 synstructure2 = { package = "synstructure", version = "0.13.1" }
 # This dependency was added through git since we are experimenting with a fork of sysinfo which adds additional
 # capabilities of reading cgroups memory stats. Such stats are used in Relay to correctly determine memory usage.
 sysinfo = { git = "https://github.com/getsentry/sysinfo.git", rev = "e2e5d530600f96bdd79652c856918da23e5dd938" }
-tempfile = "3.5.0"
-thiserror = "1.0.38"
+tempfile = "3.14.0"
+thiserror = "1.0.69"
 tikv-jemallocator = "0.6.0"
-tokio = { version = "1.28.0", default-features = false }
+tokio = { version = "1.42.0", default-features = false }
 tower = { version = "0.4.13", default-features = false }
 tower-http = { version = "0.5.2", default-features = false }
-tracing = "0.1.37"
-tracing-subscriber = "0.3.17"
-uaparser = "0.6.0"
-unescaper = "0.1.4"
-unicase = "2.6.0"
-url = "2.5.2"
+tracing = "0.1.41"
+tracing-subscriber = "0.3.19"
+uaparser = "0.6.4"
+unescaper = "0.1.5"
+unicase = "2.8.0"
+url = "2.5.4"
 utf16string = "0.2.0"
-uuid = { version = "1.7.0", features = ["serde", "v4"] }
-walkdir = "2.3.2"
+uuid = { version = "1.11.0", features = ["serde", "v4"] }
+walkdir = "2.5.0"
 zstd = "0.13.2"

@@ -83,6 +83,17 @@ impl Buckets {
         }
         self.queue.pop()
     }
+
+    /// Inserts an entry back into the collection.
+    ///
+    /// The intended use is to return bucket after [`Self::try_pop`].
+    ///
+    /// Note: this should only be used to return values back to the queue
+    /// after removing them, otherwise use [`Self::merge`].
+    pub fn re_add(&mut self, key: BucketKey, value: QueuedBucket) {
+        let _old = self.queue.push(key, value);
+        debug_assert!(_old.is_none());
+    }
 }
 
 impl IntoIterator for Buckets {

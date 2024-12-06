@@ -10,6 +10,7 @@
 **Bug Fixes**:
 
 - Accept incoming requests even if there was an error fetching their project config. ([#4140](https://github.com/getsentry/relay/pull/4140))
+- Rate limit profiles when transaction was sampled. ([#4195](https://github.com/getsentry/relay/pull/4195))
 
 **Features**:
 

@@ -9,6 +9,7 @@ use relay_system::{Addr, NoResponse, Recipient, Service, ServiceRunner};
 use crate::services::metrics::{
     Aggregator, AggregatorHandle, AggregatorService, FlushBuckets, MergeBuckets,
 };
+use crate::services::projects::cache::ProjectCacheHandle;
 use crate::statsd::RelayTimers;
 use crate::utils;
 
@@ -28,15 +29,17 @@ impl RouterService {
         default_config: AggregatorServiceConfig,
         secondary_configs: Vec<ScopedAggregatorConfig>,
         receiver: Option<Recipient<FlushBuckets, NoResponse>>,
+        project_cache: ProjectCacheHandle,
     ) -> Self {
         let mut secondary = Vec::new();
 
         for c in secondary_configs {
-            let service = AggregatorService::named(c.name, c.config, receiver.clone());
+            let service =
+                AggregatorService::named(c.name, c.config, receiver.clone(), project_cache.clone());
             secondary.push((service, c.condition));
         }
 
-        let default = AggregatorService::new(default_config, receiver);
+        let default = AggregatorService::new(default_config, receiver, project_cache);
         Self { default, secondary }
     }
 
