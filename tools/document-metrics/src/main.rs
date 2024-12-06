@@ -11,6 +11,7 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use clap::{Parser, ValueEnum};
 use serde::Serialize;
+use syn2::{self as syn, Expr, Lit, LitStr};
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
 enum SchemaFormat {
@@ -40,15 +41,18 @@ struct Metric {
 }
 
 /// Returns the value of a matching attribute in form `#[name = "value"]`.
-fn get_attr(name: &str, nv: syn::MetaNameValue) -> Option<String> {
-    match nv.lit {
-        syn::Lit::Str(lit_string) if nv.path.is_ident(name) => Some(lit_string.value()),
+fn get_attr(name: &str, nv: &syn::MetaNameValue) -> Option<String> {
+    let Expr::Lit(lit) = &nv.value else {
+        return None;
+    };
+    match &lit.lit {
+        syn::Lit::Str(s) if nv.path.is_ident(name) => Some(s.value()),
         _ => None,
     }
 }
 
 /// Adds a line to the string if the attribute is a doc attribute.
-fn add_doc_line(docs: &mut String, nv: syn::MetaNameValue) {
+fn add_doc_line(docs: &mut String, nv: &syn::MetaNameValue) {
     if let Some(line) = get_attr("doc", nv) {
         if !docs.is_empty() {
             docs.push('\n');
@@ -58,16 +62,23 @@ fn add_doc_line(docs: &mut String, nv: syn::MetaNameValue) {
 }
 
 /// Adds the name of the feature if the given attribute is a `cfg(feature)` attribute.
-fn add_feature(features: &mut Vec<String>, l: syn::MetaList) {
+fn add_feature(features: &mut Vec<String>, l: &syn::MetaList) -> Result<()> {
     if l.path.is_ident("cfg") {
-        for nested in l.nested {
-            if let syn::NestedMeta::Meta(syn::Meta::NameValue(nv)) = nested {
-                if let Some(feature) = get_attr("feature", nv) {
-                    features.push(feature);
+        l.parse_nested_meta(|meta| {
+            if meta.path.is_ident("feature") {
+                let s = meta.value()?.parse::<LitStr>()?;
+                features.push(s.value());
+            } else {
+                // Ignore everything else.
+                if !meta.input.peek(syn::Token![,]) {
+                    let _ = meta.value()?.parse::<Lit>()?;
                 }
             }
-        }
+            Ok(())
+        })?;
     }
+
+    Ok(())
 }
 
 /// Returns metric information from metric enum variant attributes.
@@ -76,9 +87,9 @@ fn parse_variant_parts(attrs: &[syn::Attribute]) -> Result<(String, Vec<String>)
     let mut docs = String::new();
 
     for attribute in attrs {
-        match attribute.parse_meta()? {
+        match &attribute.meta {
             syn::Meta::NameValue(nv) => add_doc_line(&mut docs, nv),
-            syn::Meta::List(l) => add_feature(&mut features, l),
+            syn::Meta::List(l) => add_feature(&mut features, l)?,
             _ => (),
         }
     }
@@ -140,12 +151,12 @@ fn get_type_name(ty: syn::Type) -> Option<syn::Ident> {
 fn find_name_arms(items: Vec<syn::ImplItem>) -> Option<Vec<syn::Arm>> {
     for item in items {
         let method = match item {
-            syn::ImplItem::Method(method) if method.sig.ident == "name" => method,
+            syn::ImplItem::Fn(method) if method.sig.ident == "name" => method,
             _ => continue,
         };
 
         for stmt in method.block.stmts {
-            if let syn::Stmt::Expr(syn::Expr::Match(mat)) = stmt {
+            if let syn::Stmt::Expr(syn::Expr::Match(mat), _) = stmt {
                 return Some(mat.arms);
             }
         }
