@@ -510,7 +510,13 @@
 <a href="#509" id="509">509</a>
 <a href="#510" id="510">510</a>
 <a href="#511" id="511">511</a>
-<a href="#512" id="512">512</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::atomic::{AtomicBool, Ordering};
+<a href="#512" id="512">512</a>
+<a href="#513" id="513">513</a>
+<a href="#514" id="514">514</a>
+<a href="#515" id="515">515</a>
+<a href="#516" id="516">516</a>
+<a href="#517" id="517">517</a>
+<a href="#518" id="518">518</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::atomic::{AtomicBool, Ordering};
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
@@ -798,20 +804,13 @@
     }
 
     <span class="kw">fn </span>handle_message(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: Aggregator) {
-        <span class="kw">let </span>ty = message.variant();
-        <span class="macro">relay_statsd::metric!</span>(
-            timer(RelayTimers::AggregatorServiceDuration),
-            message = ty,
-            {
-                <span class="kw">match </span>message {
-                    Aggregator::MergeBuckets(msg) =&gt; <span class="self">self</span>.handle_merge_buckets(msg),
-                    <span class="attr">#[cfg(test)]
-                    </span>Aggregator::BucketCountInquiry(<span class="kw">_</span>, sender) =&gt; {
-                        sender.send(<span class="self">self</span>.aggregator.bucket_count())
-                    }
-                }
+        <span class="kw">match </span>message {
+            Aggregator::MergeBuckets(msg) =&gt; <span class="self">self</span>.handle_merge_buckets(msg),
+            <span class="attr">#[cfg(test)]
+            </span>Aggregator::BucketCountInquiry(<span class="kw">_</span>, sender) =&gt; {
+                sender.send(<span class="self">self</span>.aggregator.bucket_count())
             }
-        )
+        }
     }
 
     <span class="kw">fn </span>handle_shutdown(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: Shutdown) {
@@ -829,13 +828,26 @@
         ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         <span class="kw">let </span><span class="kw-2">mut </span>shutdown = Controller::shutdown_handle();
 
+        <span class="macro">macro_rules!</span> timed {
+            (<span class="macro-nonterminal">$task</span>:expr, <span class="macro-nonterminal">$body</span>:expr) =&gt; {{
+                <span class="kw">let </span>task_name = <span class="macro-nonterminal">$task</span>;
+                <span class="macro">relay_statsd::metric!</span>(
+                    timer(RelayTimers::AggregatorServiceDuration),
+                    task = task_name,
+                    aggregator = <span class="self">self</span>.aggregator.name(),
+                    { <span class="macro-nonterminal">$body </span>}
+                )
+            }};
+        }
+
         <span class="comment">// Note that currently this loop never exits and will run till the tokio runtime shuts
         // down. This is about to change with the refactoring for the shutdown process.
         </span><span class="kw">loop </span>{
             <span class="macro">tokio::select!</span> {
                 biased;
 
-                <span class="kw">_ </span>= ticker.tick() =&gt; {
+                <span class="kw">_ </span>= ticker.tick() =&gt; <span class="macro">timed!</span>(
+                    <span class="string">"try_flush"</span>,
                     <span class="kw">if </span><span class="macro">cfg!</span>(test) {
                         <span class="comment">// Tests are running in a single thread / current thread runtime,
                         // which is required for 'fast-forwarding' and `block_in_place`
@@ -845,9 +857,9 @@
                     } <span class="kw">else </span>{
                         tokio::task::block_in_place(|| <span class="self">self</span>.try_flush())
                     }
-                },
-                <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; <span class="self">self</span>.handle_message(message),
-                shutdown = shutdown.notified() =&gt; <span class="self">self</span>.handle_shutdown(shutdown),
+                ),
+                <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; <span class="macro">timed!</span>(message.variant(), <span class="self">self</span>.handle_message(message)),
+                shutdown = shutdown.notified() =&gt; <span class="macro">timed!</span>(<span class="string">"shutdown"</span>, <span class="self">self</span>.handle_shutdown(shutdown)),
 
                 <span class="kw">else </span>=&gt; <span class="kw">break</span>,
             }

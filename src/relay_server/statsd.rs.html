@@ -1025,7 +1025,8 @@
 <a href="#1024" id="1024">1024</a>
 <a href="#1025" id="1025">1025</a>
 <a href="#1026" id="1026">1026</a>
-<a href="#1027" id="1027">1027</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
+<a href="#1027" id="1027">1027</a>
+<a href="#1028" id="1028">1028</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 <span class="attr">#[cfg(doc)]
 </span><span class="kw">use </span>relay_system::RuntimeMetrics;
 
@@ -1529,10 +1530,11 @@
     ///  - `count`: How many items matching the data category are contained in the batch.
     </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>RateLimitBucketsDuration,
-    <span class="doccomment">/// Timing in milliseconds for processing a message in the aggregator service.
+    <span class="doccomment">/// Timing in milliseconds for processing a task in the aggregator service.
     ///
     /// This metric is tagged with:
-    ///  - `message`: The type of message that was processed.
+    ///  - `task`: The task being executed by the aggregator.
+    ///  - `aggregator`: The name of the aggregator.
     </span>AggregatorServiceDuration,
     <span class="doccomment">/// Timing in milliseconds for processing a message in the metric router service.
     ///
