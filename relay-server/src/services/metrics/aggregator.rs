@@ -314,6 +314,7 @@ impl Service for AggregatorService {
 
     async fn run(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
         let mut ticker = tokio::time::interval(Duration::from_millis(self.flush_interval_ms));
+        ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         let mut shutdown = Controller::shutdown_handle();
 
         // Note that currently this loop never exits and will run till the tokio runtime shuts
