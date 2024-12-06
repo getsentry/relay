@@ -34,10 +34,18 @@ fn apply_regex_to_utf8_bytes(
         .build()
     {
         Ok(x) => x,
-        Err(_) => {
+        Err(e) => {
             // XXX: This is not going to fly long-term
             // Idea: Disable unicode support for regexes entirely, that drastically increases the
             // likelihood this conversion will never fail.
+
+            // If we see this error in production, it means we need to add more regex validation
+            // to `validate_pii_config` (which is called sentry-side).
+            relay_log::error!(
+                error = &e as &dyn std::error::Error,
+                pattern = regex.as_str(),
+                "Regex failed to compile in non-unicode mode",
+            );
             return matches;
         }
     };

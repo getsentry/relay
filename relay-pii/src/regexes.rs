@@ -116,7 +116,6 @@ macro_rules! regex {
             #[test]
             fn supports_byte_mode() {
                 assert!(regex::bytes::RegexBuilder::new($name.as_str())
-                    // https://github.com/rust-lang/regex/issues/697
                     .unicode(false)
                     .multi_line(false)
                     .dot_matches_new_line(true)
@@ -326,3 +325,20 @@ regex!(
     PASSWORD_KEY_REGEX,
     r"(?i)(password|secret|passwd|api_key|apikey|auth|credentials|mysql_pwd|privatekey|private_key|token|bearer)"
 );
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_userpath_utf8_bytes() {
+        // This mimicks `apply_regex_to_utf8_bytes`, which is used in minidump scrubbing.
+        let regex = regex::bytes::RegexBuilder::new(PATH_REGEX.as_str())
+            .unicode(false)
+            .multi_line(false)
+            .dot_matches_new_line(true)
+            .build()
+            .unwrap();
+        assert!(regex.is_match(br"C:\\Users\jane\somefile"));
+    }
+}
