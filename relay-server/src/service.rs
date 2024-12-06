@@ -35,7 +35,7 @@ use relay_config::{RedisConfigRef, RedisPoolConfigs};
 #[cfg(feature = "processing")]
 use relay_redis::redis::Script;
 #[cfg(feature = "processing")]
-use relay_redis::AsyncRedisConnection;
+use relay_redis::AsyncRedisClient;
 #[cfg(feature = "processing")]
 use relay_redis::{PooledClient, RedisError, RedisPool, RedisPools, RedisScripts};
 use relay_system::{channel, Addr, Service, ServiceRunner};
@@ -477,14 +477,14 @@ pub async fn create_redis_pools(configs: RedisPoolConfigs<'_>) -> Result<RedisPo
 #[cfg(feature = "processing")]
 async fn create_async_connection(
     config: &RedisConfigRef<'_>,
-) -> Result<AsyncRedisConnection, RedisError> {
+) -> Result<AsyncRedisClient, RedisError> {
     match config {
         RedisConfigRef::Cluster {
             cluster_nodes,
             options,
-        } => AsyncRedisConnection::cluster(cluster_nodes.iter().map(|s| s.as_str()), options).await,
+        } => AsyncRedisClient::cluster(cluster_nodes.iter().map(|s| s.as_str()), options).await,
         RedisConfigRef::Single { server, options } => {
-            AsyncRedisConnection::single(server, options).await
+            AsyncRedisClient::single(server, options).await
         }
         RedisConfigRef::MultiWrite { .. } => {
             Err(RedisError::MultiWriteNotSupported("projectconfig"))

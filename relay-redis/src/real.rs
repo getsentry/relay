@@ -4,7 +4,7 @@ pub use redis;
 use redis::aio::{ConnectionManager, ConnectionManagerConfig};
 use redis::cluster::ClusterClientBuilder;
 use redis::cluster_async::ClusterConnection;
-use redis::{Client, Cmd, ConnectionLike, FromRedisValue};
+use redis::{Client, Cmd, ConnectionLike, Pipeline, RedisFuture, Value};
 use std::error::Error;
 use std::fmt::{Debug, Formatter};
 use std::thread::Scope;
@@ -375,7 +375,7 @@ impl RedisPool {
 #[derive(Debug, Clone)]
 pub struct RedisPools {
     /// The pool used for project configurations
-    pub project_configs: AsyncRedisConnection,
+    pub project_configs: AsyncRedisClient,
     /// The pool used for cardinality limits.
     pub cardinality: RedisPool,
     /// The pool used for rate limiting/quotas.
@@ -388,6 +388,51 @@ pub struct Stats {
     pub connections: u32,
     /// The number of idle connections.
     pub idle_connections: u32,
+}
+
+/// Client that wraps a [`AsyncRedisConnection`].
+#[derive(Clone, Debug)]
+pub struct AsyncRedisClient {
+    connection: AsyncRedisConnection,
+}
+
+impl AsyncRedisClient {
+    fn new(connection: AsyncRedisConnection) -> Self {
+        Self { connection }
+    }
+
+    /// Creates a new [`AsyncRedisClient`] in cluster mode.
+    pub async fn cluster<'a>(
+        servers: impl IntoIterator<Item = &'a str>,
+        opts: &RedisConfigOptions,
+    ) -> Result<Self, RedisError> {
+        AsyncRedisConnection::cluster(servers, opts)
+            .await
+            .map(AsyncRedisClient::new)
+    }
+
+    /// Creates a new [`AsyncRedisClient`] in single mode.
+    pub async fn single(server: &str, opts: &RedisConfigOptions) -> Result<Self, RedisError> {
+        AsyncRedisConnection::single(server, opts)
+            .await
+            .map(AsyncRedisClient::new)
+    }
+
+    /// Returns a shared [`AsyncRedisConnection`].
+    pub fn get_connection(&self) -> AsyncRedisConnection {
+        self.connection.clone()
+    }
+
+    /// Return [`Stats`] for [`AsyncRedisClient`].
+    ///
+    /// It will always return 0 for `idle_connections` and 1 for `connections` since we
+    /// are re-using the same connection.
+    pub fn stats(&self) -> Stats {
+        Stats {
+            idle_connections: 0,
+            connections: 1,
+        }
+    }
 }
 
 /// A wrapper Type for async redis connections. Conceptually it's similar to [`RedisPool`]
@@ -431,31 +476,6 @@ impl AsyncRedisConnection {
             .map_err(RedisError::Redis)?;
         Ok(Self::Single(connection_manager))
     }
-
-    /// Runs the given command on redis and returns the result.
-    pub async fn query_async<T: FromRedisValue>(&self, cmd: Cmd) -> Result<T, RedisError> {
-        match self {
-            Self::Cluster(conn, ..) => cmd
-                .query_async(&mut conn.clone())
-                .await
-                .map_err(RedisError::Redis),
-            Self::Single(conn, ..) => cmd
-                .query_async(&mut conn.clone())
-                .await
-                .map_err(RedisError::Redis),
-        }
-    }
-
-    /// Return [`Stats`] for [`AsyncRedisConnection`].
-    ///
-    /// It will always return 0 for `idle_connections` and 1 for `connections` since we
-    /// are re-using the same connection.
-    pub fn stats(&self) -> Stats {
-        Stats {
-            idle_connections: 0,
-            connections: 1,
-        }
-    }
 }
 
 impl Debug for AsyncRedisConnection {
@@ -465,5 +485,33 @@ impl Debug for AsyncRedisConnection {
             Self::Single(_) => "Single",
         };
         f.debug_tuple(name).finish()
+    }
+}
+
+impl redis::aio::ConnectionLike for AsyncRedisConnection {
+    fn req_packed_command<'a>(&'a mut self, cmd: &'a Cmd) -> RedisFuture<'a, Value> {
+        match self {
+            Self::Cluster(conn) => conn.req_packed_command(cmd),
+            Self::Single(conn) => conn.req_packed_command(cmd),
+        }
+    }
+
+    fn req_packed_commands<'a>(
+        &'a mut self,
+        cmd: &'a Pipeline,
+        offset: usize,
+        count: usize,
+    ) -> RedisFuture<'a, Vec<Value>> {
+        match self {
+            Self::Cluster(conn) => conn.req_packed_commands(cmd, offset, count),
+            Self::Single(conn) => conn.req_packed_commands(cmd, offset, count),
+        }
+    }
+
+    fn get_db(&self) -> i64 {
+        match self {
+            Self::Cluster(conn) => conn.get_db(),
+            Self::Single(conn) => conn.get_db(),
+        }
     }
 }
