@@ -106,21 +106,41 @@ macro_rules! ip {
     (v6s) => { "[0-9a-fA-F]{1,4}" };
 }
 
+macro_rules! regex {
+    ($name:ident, $rule:literal) => {
+        #[allow(non_snake_case)]
+        mod $name {
+            use super::*;
+            pub static $name: Lazy<Regex> = Lazy::new(|| Regex::new($rule).unwrap());
+
+            #[test]
+            fn supports_byte_mode() {
+                assert!(regex::bytes::RegexBuilder::new($name.as_str())
+                    // https://github.com/rust-lang/regex/issues/697
+                    .unicode(false)
+                    .multi_line(false)
+                    .dot_matches_new_line(true)
+                    .build()
+                    .is_ok());
+            }
+        }
+        use $name::$name;
+    };
+}
+
 pub static ANYTHING_REGEX: Lazy<Regex> = Lazy::new(|| Regex::new(".*").unwrap());
 
-static IMEI_REGEX: Lazy<Regex> = Lazy::new(|| {
-    Regex::new(
-        r"(?x)
-            \b
-                (\d{2}-?
-                 \d{6}-?
-                 \d{6}-?
-                 \d{1,2})
-            \b
-        ",
-    )
-    .unwrap()
-});
+regex!(
+    IMEI_REGEX,
+    r"(?x)
+        \b
+            (\d{2}-?
+                \d{6}-?
+                \d{6}-?
+                \d{1,2})
+        \b
+    "
+);
 
 static MAC_REGEX: Lazy<Regex> = Lazy::new(|| {
     Regex::new(
