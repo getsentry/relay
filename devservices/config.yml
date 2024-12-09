@@ -8,13 +8,13 @@ x-sentry-service-config:
       remote:
         repo_name: sentry-shared-redis
         branch: main
-        repo_link: git@github.com:getsentry/sentry-shared-redis.git
+        repo_link: https://github.com/getsentry/sentry-shared-redis.git
     kafka:
       description: Shared instance of kafka used by sentry services
       remote:
         repo_name: sentry-shared-kafka
         branch: main
-        repo_link: git@github.com:getsentry/sentry-shared-kafka.git
+        repo_link: https://github.com/getsentry/sentry-shared-kafka.git
     relay:
       description: Service that pushes some functionality from the Sentry SDKs as well as the Sentry server into a proxy process.
   modes:
