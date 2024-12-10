@@ -230,18 +230,14 @@ pub struct SentryTags {
     pub http_response_transfer_size: Annotated<String>,
     #[metastructure(field = "resource.render_blocking_status")]
     pub resource_render_blocking_status: Annotated<String>,
-    #[metastructure(field = "op")]
-    pub span_op: Annotated<String>,
-    #[metastructure(field = "status")]
-    pub span_status: Annotated<String>,
+    pub op: Annotated<String>,
+    pub status: Annotated<String>,
     pub status_code: Annotated<String>,
     pub system: Annotated<String>,
     /// Contributes to Time-To-Initial-Display(String).
-    #[metastructure(field = "ttid")]
-    pub time_to_initial_display: Annotated<String>,
+    pub ttid: Annotated<String>,
     /// Contributes to Time-To-Full-Display(String).
-    #[metastructure(field = "ttfd")]
-    pub time_to_full_display: Annotated<String>,
+    pub ttfd: Annotated<String>,
     /// File extension for resource spans(String).
     pub file_extension: Annotated<String>,
     /// Span started on main thread(String).
@@ -293,7 +289,7 @@ impl Getter for SentryTags {
             "messaging.destination.name" => &self.messaging_destination_name,
             "messaging.message.id" => &self.messaging_message_id,
             "mobile" => &self.mobile,
-            "op" => &self.span_op,
+            "op" => &self.op,
             "os.name" => &self.os_name,
             "platform" => &self.platform,
             "profiler_id" => &self.profiler_id,
@@ -304,7 +300,7 @@ impl Getter for SentryTags {
             "sdk.name" => &self.sdk_name,
             "sdk.version" => &self.sdk_version,
             "status_code" => &self.status_code,
-            "status" => &self.span_status,
+            "status" => &self.status,
             "system" => &self.system,
             "thread.id" => &self.thread_id,
             "thread.name" => &self.thread_name,
@@ -312,8 +308,8 @@ impl Getter for SentryTags {
             "transaction.method" => &self.transaction_method,
             "transaction.op" => &self.transaction_op,
             "transaction" => &self.transaction,
-            "ttfd" => &self.time_to_full_display,
-            "ttid" => &self.time_to_initial_display,
+            "ttfd" => &self.ttfd,
+            "ttid" => &self.ttid,
             "user.email" => &self.user_email,
             "user.geo.country_code" => &self.user_country_code,
             "user.geo.subregion" => &self.user_subregion,

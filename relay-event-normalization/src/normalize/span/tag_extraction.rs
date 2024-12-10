@@ -146,7 +146,7 @@ pub fn extract_segment_span_tags(event: &Event, spans: &mut [Annotated<Span>]) {
     }
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Debug, Default)]
 struct SharedTags {
     browser_name: Annotated<String>,
     device_class: Annotated<String>,
@@ -199,30 +199,76 @@ impl SharedTags {
             user_subregion,
             user_username,
             user,
-        } = self.clone();
-        tags.browser_name = browser_name;
-        tags.device_class = device_class;
-        tags.environment = environment;
-        tags.mobile = mobile;
-        tags.os_name = os_name;
-        tags.platform = platform;
-        tags.profiler_id = profiler_id;
-        tags.release = release;
-        tags.sdk_name = sdk_name;
-        tags.sdk_version = sdk_version;
-        tags.thread_id = thread_id;
-        tags.thread_name = thread_name;
-        tags.trace_status = trace_status;
-        tags.transaction_method = transaction_method;
-        tags.transaction_op = transaction_op;
-        tags.transaction = transaction;
-        tags.user_country_code = user_country_code;
-        tags.user_email = user_email;
-        tags.user_id = user_id;
-        tags.user_ip = user_ip;
-        tags.user_subregion = user_subregion;
-        tags.user_username = user_username;
-        tags.user = user;
+        } = self;
+        if tags.browser_name.value().is_none() {
+            tags.browser_name = browser_name.clone();
+        };
+        if tags.device_class.value().is_none() {
+            tags.device_class = device_class.clone();
+        };
+        if tags.environment.value().is_none() {
+            tags.environment = environment.clone();
+        };
+        if tags.mobile.value().is_none() {
+            tags.mobile = mobile.clone();
+        };
+        if tags.os_name.value().is_none() {
+            tags.os_name = os_name.clone();
+        };
+        if tags.platform.value().is_none() {
+            tags.platform = platform.clone();
+        };
+        if tags.profiler_id.value().is_none() {
+            tags.profiler_id = profiler_id.clone();
+        };
+        if tags.release.value().is_none() {
+            tags.release = release.clone();
+        };
+        if tags.sdk_name.value().is_none() {
+            tags.sdk_name = sdk_name.clone();
+        };
+        if tags.sdk_version.value().is_none() {
+            tags.sdk_version = sdk_version.clone();
+        };
+        if tags.thread_id.value().is_none() {
+            tags.thread_id = thread_id.clone();
+        };
+        if tags.thread_name.value().is_none() {
+            tags.thread_name = thread_name.clone();
+        };
+        if tags.trace_status.value().is_none() {
+            tags.trace_status = trace_status.clone();
+        };
+        if tags.transaction_method.value().is_none() {
+            tags.transaction_method = transaction_method.clone();
+        };
+        if tags.transaction_op.value().is_none() {
+            tags.transaction_op = transaction_op.clone();
+        };
+        if tags.transaction.value().is_none() {
+            tags.transaction = transaction.clone();
+        };
+        if tags.user_country_code.value().is_none() {
+            tags.user_country_code = user_country_code.clone();
+        };
+        if tags.user_email.value().is_none() {
+            tags.user_email = user_email.clone();
+        };
+        if tags.user_id.value().is_none() {
+            tags.user_id = user_id.clone();
+        };
+        if tags.user_ip.value().is_none() {
+            tags.user_ip = user_ip.clone();
+        };
+        if tags.user_subregion.value().is_none() {
+            tags.user_subregion = user_subregion.clone();
+        };
+        if tags.user_username.value().is_none() {
+            tags.user_username = user_username.clone();
+        };
+        if tags.user.value().is_none() {
+            tags.user = user.clone();
+        };
     }
 }
 
@@ -456,13 +502,13 @@ pub fn extract_tags(
     }
 
     if let Some(status) = span.status.value() {
-        span_tags.span_status = status.as_str().to_owned().into();
+        span_tags.status = status.as_str().to_owned().into();
     }
 
     if let Some(unsanitized_span_op) = span.op.value() {
         let span_op = unsanitized_span_op.to_lowercase();
 
-        span_tags.span_op = span_op.to_owned().into();
+        span_tags.op = span_op.to_owned().into();
 
         let category = span_op_to_category(&span_op);
         if let Some(category) = category {
@@ -770,12 +816,12 @@ pub fn extract_tags(
     if let Some(end_time) = span.timestamp.value() {
         if let Some(initial_display) = initial_display {
             if end_time <= &initial_display {
-                span_tags.time_to_initial_display = "ttid".to_owned().into();
+                span_tags.ttid = "ttid".to_owned().into();
             }
         }
         if let Some(full_display) = full_display {
             if end_time <= &full_display {
-                span_tags.time_to_full_display = "ttfd".to_owned().into();
+                span_tags.ttfd = "ttfd".to_owned().into();
             }
         }
     }
@@ -2345,7 +2391,7 @@ LIMIT 1
 
         let statuses: Vec<_> = spans
             .iter()
-            .map(|span| get_value!(span.sentry_tags.status_code!))
+            .map(|span| get_value!(span.sentry_tags.status!))
             .collect();
 
         assert_eq!(statuses, vec!["ok", "invalid_argument"]);
