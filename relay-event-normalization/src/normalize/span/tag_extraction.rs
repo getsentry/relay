@@ -106,7 +106,7 @@ pub fn extract_span_tags(
             continue;
         };
 
-        let tags = extract_tags(
+        let mut tags = extract_tags(
             span,
             max_tag_value_size,
             ttid,
@@ -116,14 +116,8 @@ pub fn extract_span_tags(
             span_allowed_hosts,
         );
 
-        span.sentry_tags = Annotated::new(
-            shared_tags
-                .clone()
-                .into_iter()
-                .chain(tags)
-                .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
-                .collect(),
-        );
+        shared_tags.copy_into(&mut tags);
+        span.sentry_tags = tags.into();
 
         extract_measurements(span, is_mobile);
     }
@@ -152,9 +146,89 @@ pub fn extract_segment_span_tags(event: &Event, spans: &mut [Annotated<Span>]) {
     }
 }
 
+#[derive(Clone, Default)]
+struct SharedTags {
+    browser_name: Annotated<String>,
+    device_class: Annotated<String>,
+    environment: Annotated<String>,
+    mobile: Annotated<String>,
+    os_name: Annotated<String>,
+    platform: Annotated<String>,
+    profiler_id: Annotated<String>,
+    release: Annotated<String>,
+    sdk_name: Annotated<String>,
+    sdk_version: Annotated<String>,
+    thread_id: Annotated<String>,
+    thread_name: Annotated<String>,
+    trace_status: Annotated<String>,
+    transaction_method: Annotated<String>,
+    transaction_op: Annotated<String>,
+    transaction: Annotated<String>,
+    user_country_code: Annotated<String>,
+    user_email: Annotated<String>,
+    user_id: Annotated<String>,
+    user_ip: Annotated<String>,
+    user_subregion: Annotated<String>,
+    user_username: Annotated<String>,
+    user: Annotated<String>,
+}
+
+impl SharedTags {
+    fn copy_into(&self, tags: &mut SentryTags) {
+        let Self {
+            browser_name,
+            device_class,
+            environment,
+            mobile,
+            os_name,
+            platform,
+            profiler_id,
+            release,
+            sdk_name,
+            sdk_version,
+            thread_id,
+            thread_name,
+            trace_status,
+            transaction_method,
+            transaction_op,
+            transaction,
+            user_country_code,
+            user_email,
+            user_id,
+            user_ip,
+            user_subregion,
+            user_username,
+            user,
+        } = self.clone();
+        tags.browser_name = browser_name;
+        tags.device_class = device_class;
+        tags.environment = environment;
+        tags.mobile = mobile;
+        tags.os_name = os_name;
+        tags.platform = platform;
+        tags.profiler_id = profiler_id;
+        tags.release = release;
+        tags.sdk_name = sdk_name;
+        tags.sdk_version = sdk_version;
+        tags.thread_id = thread_id;
+        tags.thread_name = thread_name;
+        tags.trace_status = trace_status;
+        tags.transaction_method = transaction_method;
+        tags.transaction_op = transaction_op;
+        tags.transaction = transaction;
+        tags.user_country_code = user_country_code;
+        tags.user_email = user_email;
+        tags.user_id = user_id;
+        tags.user_ip = user_ip;
+        tags.user_subregion = user_subregion;
+        tags.user_username = user_username;
+        tags.user = user;
+    }
+}
+
 /// Extracts tags shared by every span.
-fn extract_shared_tags(event: &Event) -> SentryTags {
-    let mut tags = SentryTags::default();
+fn extract_shared_tags(event: &Event) -> SharedTags {
+    let mut tags = SharedTags::default();
 
     if let Some(release) = event.release.as_str() {
         tags.release = release.to_owned().into();
@@ -696,12 +770,12 @@ pub fn extract_tags(
     if let Some(end_time) = span.timestamp.value() {
         if let Some(initial_display) = initial_display {
             if end_time <= &initial_display {
-                span_tags.time_to_initial_display = ttid.to_owned().into();
+                span_tags.time_to_initial_display = "ttid".to_owned().into();
             }
         }
         if let Some(full_display) = full_display {
             if end_time <= &full_display {
-                span_tags.time_to_full_display = ttfd.to_owned().into();
+                span_tags.time_to_full_display = "ttfd".to_owned().into();
             }
         }
     }
