@@ -1,7 +1,7 @@
 //! Metrics aggregator configuration.
 
 use relay_metrics::aggregator::AggregatorConfig;
-use relay_metrics::MetricNamespace;
+use relay_metrics::{MetricNamespace, UnixTimestamp};
 use serde::{Deserialize, Serialize};
 
 /// Parameters used for metric aggregation.
@@ -12,27 +12,52 @@ pub struct AggregatorServiceConfig {
     #[serde(flatten)]
     pub aggregator: AggregatorConfig,
 
+    /// The length the name of a metric is allowed to be.
+    ///
+    /// Defaults to `200` bytes.
+    pub max_name_length: usize,
+
+    /// The length the tag key is allowed to be.
+    ///
+    /// Defaults to `200` bytes.
+    pub max_tag_key_length: usize,
+
+    /// The length the tag value is allowed to be.
+    ///
+    /// Defaults to `200` chars.
+    pub max_tag_value_length: usize,
+
     /// The approximate maximum number of bytes submitted within one flush cycle.
     ///
     /// This controls how big flushed batches of buckets get, depending on the number of buckets,
     /// the cumulative length of their keys, and the number of raw values. Since final serialization
-    /// adds some additional overhead, this number is approxmate and some safety margin should be
+    /// adds some additional overhead, this number is approximate and some safety margin should be
     /// left to hard limits.
     pub max_flush_bytes: usize,
+}
 
-    /// The flushing interval in milliseconds that determines how often the aggregator is polled for
-    /// flushing new buckets.
+impl AggregatorServiceConfig {
+    /// Returns the valid range for metrics timestamps.
     ///
-    /// Defaults to `100` milliseconds.
-    pub flush_interval_ms: u64,
+    /// Metrics or buckets outside of this range should be discarded.
+    pub fn timestamp_range(&self) -> std::ops::Range<UnixTimestamp> {
+        let now = UnixTimestamp::now().as_secs();
+        let min_timestamp =
+            UnixTimestamp::from_secs(now.saturating_sub(self.aggregator.max_secs_in_past));
+        let max_timestamp =
+            UnixTimestamp::from_secs(now.saturating_add(self.aggregator.max_secs_in_future));
+        min_timestamp..max_timestamp
+    }
 }
 
 impl Default for AggregatorServiceConfig {
     fn default() -> Self {
         Self {
             aggregator: AggregatorConfig::default(),
+            max_name_length: 200,
+            max_tag_key_length: 200,
+            max_tag_value_length: 200,
             max_flush_bytes: 5_000_000, // 5 MB
-            flush_interval_ms: 100,     // 100 milliseconds
         }
     }
 }

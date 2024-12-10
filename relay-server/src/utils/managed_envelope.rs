@@ -61,7 +61,7 @@ pub enum ItemAction {
 struct EnvelopeContext {
     summary: EnvelopeSummary,
     scoping: Scoping,
-    partition_key: Option<u64>,
+    partition_key: Option<u32>,
     done: bool,
     group: ProcessingGroup,
 }
@@ -463,11 +463,11 @@ impl ManagedEnvelope {
         self.context.scoping
     }
 
-    pub fn partition_key(&self) -> Option<u64> {
+    pub fn partition_key(&self) -> Option<u32> {
         self.context.partition_key
     }
 
-    pub fn set_partition_key(&mut self, partition_key: Option<u64>) -> &mut Self {
+    pub fn set_partition_key(&mut self, partition_key: Option<u32>) -> &mut Self {
         self.context.partition_key = partition_key;
         self
     }

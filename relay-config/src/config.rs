@@ -15,7 +15,6 @@ use relay_kafka::{
     ConfigError as KafkaConfigError, KafkaConfigParam, KafkaParams, KafkaTopic, TopicAssignment,
     TopicAssignments,
 };
-use relay_metrics::aggregator::{AggregatorConfig, FlushBatching};
 use relay_metrics::MetricNamespace;
 use serde::de::{DeserializeOwned, Unexpected, Visitor};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -2459,63 +2458,6 @@ impl Config {
     /// Resource ID to use for Relay COGS measurements.
     pub fn cogs_relay_resource_id(&self) -> &str {
         &self.values.cogs.relay_resource_id
-    }
-
-    /// Creates an [`AggregatorConfig`] that is compatible with every other aggregator.
-    ///
-    /// A lossless aggregator can be put in front of any of the configured aggregators without losing data that the configured aggregator would keep.
-    /// This is useful for pre-aggregating metrics together in a single aggregator instance.
-    pub fn permissive_aggregator_config(&self) -> AggregatorConfig {
-        let AggregatorConfig {
-            mut bucket_interval,
-            mut max_secs_in_past,
-            mut max_secs_in_future,
-            mut max_name_length,
-            mut max_tag_key_length,
-            mut max_tag_value_length,
-            mut max_project_key_bucket_bytes,
-            mut max_total_bucket_bytes,
-            ..
-        } = self.default_aggregator_config().aggregator;
-
-        for secondary_config in self.secondary_aggregator_configs() {
-            let agg = &secondary_config.config.aggregator;
-
-            bucket_interval = bucket_interval.min(agg.bucket_interval);
-            max_secs_in_past = max_secs_in_past.max(agg.max_secs_in_past);
-            max_secs_in_future = max_secs_in_future.max(agg.max_secs_in_future);
-            max_name_length = max_name_length.max(agg.max_name_length);
-            max_tag_key_length = max_tag_key_length.max(agg.max_tag_key_length);
-            max_tag_value_length = max_tag_value_length.max(agg.max_tag_value_length);
-            max_project_key_bucket_bytes =
-                max_project_key_bucket_bytes.max(agg.max_project_key_bucket_bytes);
-            max_total_bucket_bytes = max_total_bucket_bytes.max(agg.max_total_bucket_bytes);
-        }
-
-        for agg in self
-            .secondary_aggregator_configs()
-            .iter()
-            .map(|sc| &sc.config)
-            .chain(std::iter::once(self.default_aggregator_config()))
-        {
-            if agg.aggregator.bucket_interval % bucket_interval != 0 {
-                relay_log::error!("buckets don't align");
-            }
-        }
-
-        AggregatorConfig {
-            bucket_interval,
-            max_secs_in_past,
-            max_secs_in_future,
-            max_name_length,
-            max_tag_key_length,
-            max_tag_value_length,
-            max_project_key_bucket_bytes,
-            max_total_bucket_bytes,
-            initial_delay: 30,
-            flush_partitions: None,
-            flush_batching: FlushBatching::Project,
-        }
     }
 
     /// Returns configuration for the default metrics aggregator.

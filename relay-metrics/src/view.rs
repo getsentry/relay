@@ -3,8 +3,7 @@ use serde::ser::{SerializeMap, SerializeSeq};
 use serde::Serialize;
 
 use crate::{
-    aggregator, BucketMetadata, CounterType, DistributionType, GaugeValue, MetricName, SetType,
-    SetValue,
+    BucketMetadata, CounterType, DistributionType, GaugeValue, MetricName, SetType, SetValue,
 };
 use relay_base_schema::metrics::MetricType;
 use std::collections::BTreeMap;
@@ -518,7 +517,7 @@ impl<'a> BucketView<'a> {
     /// Note that this does not match the exact size of the serialized payload. Instead, the size is
     /// approximated through tags and a static overhead.
     fn estimated_base_size(&self) -> usize {
-        BUCKET_SIZE + self.name().len() + aggregator::tags_cost(self.tags())
+        BUCKET_SIZE + self.name().len() + crate::utils::tags_cost(self.tags())
     }
 
     /// Estimates the number of bytes needed to serialize the bucket.

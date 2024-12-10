@@ -113,8 +113,6 @@ impl StartedRouter {
             {
                 match message {
                     Aggregator::MergeBuckets(msg) => self.handle_merge_buckets(msg),
-                    #[cfg(test)]
-                    Aggregator::BucketCountInquiry(_, _sender) => (), // not supported
                 }
             }
         )

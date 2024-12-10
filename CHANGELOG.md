@@ -15,6 +15,7 @@
 
 **Internal**:
 
+- Rework metrics aggregator to keep internal partitions. ([#4378](https://github.com/getsentry/relay/pull/4378))
 - Remove support for metrics with profile namespace. ([#4391](https://github.com/getsentry/relay/pull/4391))
 
 ## 24.11.2

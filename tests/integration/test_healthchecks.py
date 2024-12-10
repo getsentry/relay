@@ -121,20 +121,6 @@ def test_readiness_not_enough_memory_percent(mini_sentry, relay):
     assert_not_enough_memory(relay, mini_sentry, ">= 1.00%")
 
 
-def test_readiness_depends_on_aggregator_being_full(mini_sentry, relay):
-    relay = relay(
-        mini_sentry,
-        {"relay": {"mode": "proxy"}, "aggregator": {"max_total_bucket_bytes": 0}},
-        wait_health_check=False,
-    )
-
-    response = wait_get(relay, "/api/relay/healthcheck/ready/")
-
-    error = str(mini_sentry.test_failures.get(timeout=1))
-    assert "Health check probe 'aggregator'" in error
-    assert response.status_code == 503
-
-
 def test_readiness_depends_on_aggregator_being_full_after_metrics(mini_sentry, relay):
     relay = relay(
         mini_sentry,

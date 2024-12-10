@@ -16,6 +16,7 @@ workspace = true
 redis = ["relay-redis/impl"]
 
 [dependencies]
+ahash = { workspace = true }
 bytecount = { workspace = true }
 chrono = { workspace = true }
 fnv = { workspace = true }
