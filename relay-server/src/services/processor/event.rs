@@ -11,8 +11,8 @@ use relay_dynamic_config::GlobalConfig;
 use relay_event_normalization::{nel, ClockDriftProcessor};
 use relay_event_schema::processor::{self, ProcessingState};
 use relay_event_schema::protocol::{
-    Breadcrumb, Csp, Event, ExpectCt, ExpectStaple, Hpkp, LenientString, NetworkReportError,
-    OtelContext, RelayInfo, SecurityReportType, Values,
+    Breadcrumb, Csp, Event, ExpectCt, ExpectStaple, Hpkp, LenientString, Metrics,
+    NetworkReportError, OtelContext, RelayInfo, SecurityReportType, Values,
 };
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Array, Empty, Object, Value};
@@ -23,11 +23,12 @@ use serde_json::Value as SerdeValue;
 use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::services::outcome::Outcome;
+use crate::services::processor::groups::event_category;
 use crate::services::processor::{
     EventProcessing, ExtractedEvent, ProcessEnvelopeState, ProcessingError, MINIMUM_CLOCK_DRIFT,
 };
 use crate::statsd::{PlatformTag, RelayCounters, RelayHistograms, RelayTimers};
-use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter};
+use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter, TypedEnvelope};
 
 /// Extracts the primary event payload from an envelope.
 ///
@@ -38,11 +39,12 @@ use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter};
 ///  4. A multipart form data body.
 ///  5. If none match, `Annotated::empty()`.
 pub fn extract<G: EventProcessing>(
-    state: &mut ProcessEnvelopeState<G>,
+    envelope: &mut TypedEnvelope<G>,
+    metrics: &mut Metrics,
+    event_fully_normalized: bool,
     config: &Config,
-) -> Result<(), ProcessingError> {
-    let event_fully_normalized = state.event_fully_normalized;
-    let envelope = &mut state.envelope_mut();
+) -> Result<(Annotated<Event>, bool, bool), ProcessingError> {
+    let envelope = envelope.envelope_mut();
 
     // Remove all items first, and then process them. After this function returns, only
     // attachments can remain in the envelope. The event will be added again at the end of
@@ -70,6 +72,8 @@ pub fn extract<G: EventProcessing>(
 
     let skip_normalization = config.processing_enabled() && event_fully_normalized;
 
+    let mut metrics_extracted = false;
+    let mut spans_extracted = false;
     let (event, event_len) = if let Some(item) = event_item.or(security_item) {
         relay_log::trace!("processing json event");
         metric!(timer(RelayTimers::EventProcessingDeserialize), {
@@ -85,8 +89,8 @@ pub fn extract<G: EventProcessing>(
         })
     } else if let Some(item) = transaction_item {
         relay_log::trace!("processing json transaction");
-        state.event_metrics_extracted = item.metrics_extracted();
-        state.spans_extracted = item.spans_extracted();
+        metrics_extracted = item.metrics_extracted();
+        spans_extracted = item.spans_extracted();
         metric!(timer(RelayTimers::EventProcessingDeserialize), {
             // Transaction items can only contain transaction events. Force the event type to
             // hint to normalization that we're dealing with a transaction now.
@@ -128,19 +132,20 @@ pub fn extract<G: EventProcessing>(
         (Annotated::empty(), 0)
     };
 
-    state.event = event;
-    state.metrics.bytes_ingested_event = Annotated::new(event_len as u64);
+    metrics.bytes_ingested_event = Annotated::new(event_len as u64);
 
-    Ok(())
+    Ok((event, metrics_extracted, spans_extracted))
 }
 
 pub fn finalize<G: EventProcessing>(
-    state: &mut ProcessEnvelopeState<G>,
+    original_event: &mut Annotated<Event>,
+    envelope: &mut TypedEnvelope<G>,
+    metrics: &mut Metrics,
     config: &Config,
 ) -> Result<(), ProcessingError> {
-    let envelope = state.managed_envelope.envelope_mut();
+    let envelope = envelope.envelope_mut();
 
-    let event = match state.event.value_mut() {
+    let event = match original_event.value_mut() {
         Some(event) => event,
         None if !config.processing_enabled() => return Ok(()),
         None => return Err(ProcessingError::NoEventPayload),
@@ -174,7 +179,7 @@ pub fn finalize<G: EventProcessing>(
     // In processing mode, also write metrics into the event. Most metrics have already been
     // collected at this state, except for the combined size of all attachments.
     if config.processing_enabled() {
-        let mut metrics = std::mem::take(&mut state.metrics);
+        let mut metrics = std::mem::take(metrics);
 
         let attachment_size = envelope
             .items()
@@ -228,19 +233,18 @@ pub fn finalize<G: EventProcessing>(
         }
     }
 
-    let mut processor =
-        ClockDriftProcessor::new(envelope.sent_at(), state.managed_envelope.received_at())
-            .at_least(MINIMUM_CLOCK_DRIFT);
-    processor::process_value(&mut state.event, &mut processor, ProcessingState::root())
+    let mut processor = ClockDriftProcessor::new(envelope.sent_at(), envelope.received_at())
+        .at_least(MINIMUM_CLOCK_DRIFT);
+    processor::process_value(original_event, &mut processor, ProcessingState::root())
         .map_err(|_| ProcessingError::InvalidTransaction)?;
 
     // Log timestamp delays for all events after clock drift correction. This happens before
     // store processing, which could modify the timestamp if it exceeds a threshold. We are
     // interested in the actual delay before this correction.
-    if let Some(timestamp) = state.event.value().and_then(|e| e.timestamp.value()) {
-        let event_delay = state.managed_envelope.received_at() - timestamp.into_inner();
+    if let Some(timestamp) = original_event.value().and_then(|e| e.timestamp.value()) {
+        let event_delay = envelope.received_at() - timestamp.into_inner();
         if event_delay > SignedDuration::minutes(1) {
-            let category = state.event_category().unwrap_or(DataCategory::Unknown);
+            let category = event_category(original_event).unwrap_or(DataCategory::Unknown);
             metric!(
                 timer(RelayTimers::TimestampDelay) = event_delay.to_std().unwrap(),
                 category = category.name(),

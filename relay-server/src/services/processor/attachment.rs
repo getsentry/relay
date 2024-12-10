@@ -10,6 +10,8 @@ use crate::envelope::{AttachmentType, ContentType};
 use crate::services::processor::ProcessEnvelopeState;
 use crate::statsd::RelayTimers;
 
+use crate::utils::TypedEnvelope;
+use relay_event_schema::protocol::Metrics;
 #[cfg(feature = "processing")]
 use {
     crate::services::processor::ErrorGroup, crate::utils, relay_event_schema::protocol::Event,
@@ -23,24 +25,30 @@ use {
 ///
 /// If the event payload was empty before, it is created.
 #[cfg(feature = "processing")]
-pub fn create_placeholders(state: &mut ProcessEnvelopeState<ErrorGroup>) {
-    let envelope = state.managed_envelope.envelope();
+pub fn create_placeholders(
+    event: &mut Annotated<Event>,
+    envelope: &mut TypedEnvelope<ErrorGroup>,
+    metrics: &mut Metrics,
+) -> bool {
+    let envelope = envelope.envelope();
     let minidump_attachment =
         envelope.get_item_by(|item| item.attachment_type() == Some(&AttachmentType::Minidump));
     let apple_crash_report_attachment = envelope
         .get_item_by(|item| item.attachment_type() == Some(&AttachmentType::AppleCrashReport));
 
     if let Some(item) = minidump_attachment {
-        let event = state.event.get_or_insert_with(Event::default);
-        state.metrics.bytes_ingested_event_minidump = Annotated::new(item.len() as u64);
+        let event = event.get_or_insert_with(Event::default);
+        metrics.bytes_ingested_event_minidump = Annotated::new(item.len() as u64);
         utils::process_minidump(event, &item.payload());
-        state.event_fully_normalized = false;
+        return false;
     } else if let Some(item) = apple_crash_report_attachment {
-        let event = state.event.get_or_insert_with(Event::default);
-        state.metrics.bytes_ingested_event_applecrashreport = Annotated::new(item.len() as u64);
+        let event = event.get_or_insert_with(Event::default);
+        metrics.bytes_ingested_event_applecrashreport = Annotated::new(item.len() as u64);
         utils::process_apple_crash_report(event, &item.payload());
-        state.event_fully_normalized = false;
+        return false;
     }
+
+    true
 }
 
 /// Apply data privacy rules to attachments in the envelope.

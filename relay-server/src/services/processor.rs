@@ -32,7 +32,7 @@ use relay_filter::FilterStatKey;
 use relay_metrics::{Bucket, BucketMetadata, BucketView, BucketsView, MetricNamespace};
 use relay_pii::PiiConfigError;
 use relay_profiling::ProfileId;
-use relay_protocol::Annotated;
+use relay_protocol::{Annotated, Empty};
 use relay_quotas::{DataCategory, RateLimits, Scoping};
 use relay_sampling::config::RuleId;
 use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator, SamplingDecision};
@@ -87,6 +87,7 @@ use crate::utils::{
 mod attachment;
 mod dynamic_sampling;
 mod event;
+mod groups;
 mod metrics;
 mod profile;
 mod profile_chunk;
@@ -94,6 +95,9 @@ mod replay;
 mod report;
 mod session;
 mod span;
+use crate::services::processor::groups::error::ErrorProcGroup;
+use crate::services::processor::groups::ProcGroup;
+use crate::services::processor::groups::{ProcGroupParams, ProcGroupResult};
 pub use span::extract_transaction_span;
 
 #[cfg(feature = "processing")]
@@ -102,6 +106,7 @@ mod unreal;
 /// Creates the block only if used with `processing` feature.
 ///
 /// Provided code block will be executed only if the provided config has `processing_enabled` set.
+#[macro_export]
 macro_rules! if_processing {
     ($config:expr, $if_true:block) => {
         #[cfg(feature = "processing")] {
@@ -400,6 +405,11 @@ impl ProcessingGroup {
         grouped_envelopes.extend(envelopes);
 
         grouped_envelopes
+    }
+
+    pub fn process(self) -> Result<ProcGroupResult, ProcessingError> {
+        // TODO: implement dispatch to the procgroup.
+        Err(ProcessingError::InvalidTimestamp)
     }
 
     /// Returns the name of the group.
@@ -1249,6 +1259,40 @@ impl EnvelopeProcessorService {
         })
     }
 
+    fn prepare_params<G>(
+        &self,
+        config: Arc<Config>,
+        mut managed_envelope: TypedEnvelope<G>,
+        project_id: ProjectId,
+        project_info: Arc<ProjectInfo>,
+        rate_limits: Arc<RateLimits>,
+        sampling_project_info: Option<Arc<ProjectInfo>>,
+        reservoir_counters: Arc<Mutex<BTreeMap<RuleId, i64>>>,
+    ) -> ProcGroupParams<G> {
+        let envelope = managed_envelope.envelope_mut();
+
+        // Only trust item headers in envelopes coming from internal relays
+        let event_fully_normalized = envelope.meta().is_from_internal_relay()
+            && envelope
+                .items()
+                .any(|item| item.creates_event() && item.fully_normalized());
+
+        #[allow(unused_mut)]
+        let mut reservoir = ReservoirEvaluator::new(reservoir_counters);
+        #[cfg(feature = "processing")]
+        if let Some(quotas_pool) = self.inner.quotas_pool.as_ref() {
+            let org_id = managed_envelope.scoping().organization_id;
+            reservoir.set_redis(org_id, quotas_pool);
+        }
+
+        let extracted_metrics = ProcessingExtractedMetrics::new();
+
+        ProcGroupParams {
+            managed_envelope,
+            event_fully_normalized,
+        }
+    }
+
     /// Creates and initializes the processing state.
     ///
     /// This applies defaults to the envelope and initializes empty rate limits.
@@ -1264,18 +1308,6 @@ impl EnvelopeProcessorService {
         reservoir_counters: Arc<Mutex<BTreeMap<RuleId, i64>>>,
     ) -> ProcessEnvelopeState<G> {
         let envelope = managed_envelope.envelope_mut();
-
-        // Set the event retention. Effectively, this value will only be available in processing
-        // mode when the full project config is queried from the upstream.
-        if let Some(retention) = project_info.config.event_retention {
-            envelope.set_retention(retention);
-        }
-
-        // Ensure the project ID is updated to the stored instance for this project cache. This can
-        // differ in two cases:
-        //  1. The envelope was sent to the legacy `/store/` endpoint without a project ID.
-        //  2. The DSN was moved and the envelope sent to the old project ID.
-        envelope.meta_mut().set_project_id(project_id);
 
         // Only trust item headers in envelopes coming from internal relays
         let event_fully_normalized = envelope.meta().is_from_internal_relay()
@@ -1608,7 +1640,7 @@ impl EnvelopeProcessorService {
         state: &mut ProcessEnvelopeState<ErrorGroup>,
     ) -> Result<(), ProcessingError> {
         // Events can also contain user reports.
-        report::process_user_reports(state);
+        report::process_user_reports(&mut state.managed_envelope);
 
         if_processing!(self.inner.config, {
             unreal::expand(state, &self.inner.config)?;
@@ -1775,7 +1807,7 @@ impl EnvelopeProcessorService {
             self.enforce_quotas(state)?;
         });
 
-        report::process_user_reports(state);
+        report::process_user_reports(&mut state.managed_envelope);
         attachment::scrub(state);
         Ok(())
     }
@@ -1862,7 +1894,7 @@ impl EnvelopeProcessorService {
         rate_limits: Arc<RateLimits>,
         sampling_project_info: Option<Arc<ProjectInfo>>,
         reservoir_counters: Arc<Mutex<BTreeMap<RuleId, i64>>>,
-    ) -> Result<ProcessingStateResult, ProcessingError> {
+    ) -> Result<ProcGroupResult, ProcessingError> {
         // Get the group from the managed envelope context, and if it's not set, try to guess it
         // from the contents of the envelope.
         let group = managed_envelope.group();
@@ -1876,10 +1908,25 @@ impl EnvelopeProcessorService {
                 .parametrize_dsc_transaction(&sampling_state.config.tx_name_rules);
         }
 
+        // Set the event retention. Effectively, this value will only be available in processing
+        // mode when the full project config is queried from the upstream.
+        if let Some(retention) = project_info.config.event_retention {
+            managed_envelope.envelope_mut().set_retention(retention);
+        }
+
+        // Ensure the project ID is updated to the stored instance for this project cache. This can
+        // differ in two cases:
+        //  1. The envelope was sent to the legacy `/store/` endpoint without a project ID.
+        //  2. The DSN was moved and the envelope sent to the old project ID.
+        managed_envelope
+            .envelope_mut()
+            .meta_mut()
+            .set_project_id(project_id);
+
         macro_rules! run {
-            ($fn:ident) => {{
+            ($ty:ident) => {{
                 let managed_envelope = managed_envelope.try_into()?;
-                let mut state = self.prepare_state(
+                let params = self.prepare_params(
                     self.inner.config.clone(),
                     managed_envelope,
                     project_id,
@@ -1888,16 +1935,15 @@ impl EnvelopeProcessorService {
                     sampling_project_info,
                     reservoir_counters,
                 );
-                match self.$fn(&mut state) {
-                    Ok(()) => Ok(ProcessingStateResult {
-                        managed_envelope: state.managed_envelope.into_processed(),
-                        extracted_metrics: state.extracted_metrics.metrics,
-                    }),
-                    Err(e) => {
-                        if let Some(outcome) = e.to_outcome() {
-                            state.managed_envelope.reject(outcome);
+                let group = $ty::create(self.inner.clone(), params);
+                match group.process() {
+                    Ok(val) => Ok(val),
+                    Err(mut err) => {
+                        if let Some(outcome) = err.error.to_outcome() {
+                            err.managed_envelope.reject(outcome);
                         }
-                        return Err(e);
+
+                        return Err(err.error);
                     }
                 }
             }};
@@ -1906,51 +1952,54 @@ impl EnvelopeProcessorService {
         relay_log::trace!("Processing {group} group", group = group.variant());
 
         match group {
-            ProcessingGroup::Error => run!(process_errors),
-            ProcessingGroup::Transaction => run!(process_transactions),
-            ProcessingGroup::Session => run!(process_sessions),
-            ProcessingGroup::Standalone => run!(process_standalone),
-            ProcessingGroup::ClientReport => run!(process_client_reports),
-            ProcessingGroup::Replay => run!(process_replays),
-            ProcessingGroup::CheckIn => run!(process_checkins),
-            ProcessingGroup::Span => run!(process_standalone_spans),
-            ProcessingGroup::ProfileChunk => run!(process_profile_chunks),
-            // Currently is not used.
-            ProcessingGroup::Metrics => {
-                // In proxy mode we simply forward the metrics.
-                // This group shouldn't be used outside of proxy mode.
-                if self.inner.config.relay_mode() != RelayMode::Proxy {
-                    relay_log::error!(
-                        tags.project = %project_id,
-                        items = ?managed_envelope.envelope().items().next().map(Item::ty),
-                        "received metrics in the process_state"
-                    );
-                }
-
-                Ok(ProcessingStateResult {
-                    managed_envelope: managed_envelope.into_processed(),
-                    extracted_metrics: Default::default(),
-                })
-            }
-            // Fallback to the legacy process_state implementation for Ungrouped events.
-            ProcessingGroup::Ungrouped => {
-                relay_log::error!(
-                    tags.project = %project_id,
-                    items = ?managed_envelope.envelope().items().next().map(Item::ty),
-                    "could not identify the processing group based on the envelope's items"
-                );
-                Ok(ProcessingStateResult {
-                    managed_envelope: managed_envelope.into_processed(),
-                    extracted_metrics: Default::default(),
-                })
-            }
-            // Leave this group unchanged.
-            //
-            // This will later be forwarded to upstream.
-            ProcessingGroup::ForwardUnknown => Ok(ProcessingStateResult {
+            ProcessingGroup::Error => run!(ErrorProcGroup),
+            _ => Ok(ProcGroupResult {
                 managed_envelope: managed_envelope.into_processed(),
                 extracted_metrics: Default::default(),
-            }),
+            }), // ProcessingGroup::Transaction => run!(process_transactions),
+                // ProcessingGroup::Session => run!(process_sessions),
+                // ProcessingGroup::Standalone => run!(process_standalone),
+                // ProcessingGroup::ClientReport => run!(process_client_reports),
+                // ProcessingGroup::Replay => run!(process_replays),
+                // ProcessingGroup::CheckIn => run!(process_checkins),
+                // ProcessingGroup::Span => run!(process_standalone_spans),
+                // ProcessingGroup::ProfileChunk => run!(process_profile_chunks),
+                // // Currently is not used.
+                // ProcessingGroup::Metrics => {
+                //     // In proxy mode we simply forward the metrics.
+                //     // This group shouldn't be used outside of proxy mode.
+                //     if self.inner.config.relay_mode() != RelayMode::Proxy {
+                //         relay_log::error!(
+                //             tags.project = %project_id,
+                //             items = ?managed_envelope.envelope().items().next().map(Item::ty),
+                //             "received metrics in the process_state"
+                //         );
+                //     }
+                //
+                //     Ok(ProcessingStateResult {
+                //         managed_envelope: managed_envelope.into_processed(),
+                //         extracted_metrics: Default::default(),
+                //     })
+                // }
+                // // Fallback to the legacy process_state implementation for Ungrouped events.
+                // ProcessingGroup::Ungrouped => {
+                //     relay_log::error!(
+                //         tags.project = %project_id,
+                //         items = ?managed_envelope.envelope().items().next().map(Item::ty),
+                //         "could not identify the processing group based on the envelope's items"
+                //     );
+                //     Ok(ProcessingStateResult {
+                //         managed_envelope: managed_envelope.into_processed(),
+                //         extracted_metrics: Default::default(),
+                //     })
+                // }
+                // // Leave this group unchanged.
+                // //
+                // // This will later be forwarded to upstream.
+                // ProcessingGroup::ForwardUnknown => Ok(ProcessingStateResult {
+                //     managed_envelope: managed_envelope.into_processed(),
+                //     extracted_metrics: Default::default(),
+                // }),
         }
     }
 
@@ -2811,6 +2860,134 @@ impl Service for EnvelopeProcessorService {
                 .await;
         }
     }
+}
+
+pub fn process_event<G: EventProcessing>(
+    event: &mut Annotated<Event>,
+    envelope: &mut TypedEnvelope<G>,
+    event_fully_normalized: bool,
+    geoip_lookup: &Option<GeoIpLookup>,
+    global_config: &GlobalConfigHandle,
+    config: &Config,
+    project_info: &ProjectInfo,
+    project_id: &ProjectId,
+) -> Result<bool, ProcessingError> {
+    if event.is_empty() {
+        // NOTE(iker): only processing relays create events from
+        // attachments, so these events won't be normalized in
+        // non-processing relays even if the config is set to run full
+        // normalization.
+        return Ok(event_fully_normalized);
+    }
+
+    let full_normalization = match config.normalization_level() {
+        NormalizationLevel::Full => true,
+        NormalizationLevel::Default => {
+            if config.processing_enabled() && event_fully_normalized {
+                return Ok(event_fully_normalized);
+            }
+
+            config.processing_enabled()
+        }
+    };
+
+    let envelope = envelope.envelope();
+    let request_meta = envelope.meta();
+    let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
+
+    let transaction_aggregator_config = config.aggregator_config_for(MetricNamespace::Transactions);
+
+    let global_config = global_config.current();
+    let ai_model_costs = global_config.ai_model_costs.clone().ok();
+    let http_span_allowed_hosts = global_config.options.http_span_allowed_hosts.as_slice();
+
+    let retention_days: i64 = project_info
+        .config
+        .event_retention
+        .unwrap_or(DEFAULT_EVENT_RETENTION)
+        .into();
+
+    utils::log_transaction_name_metrics(event, |event| {
+        let event_validation_config = EventValidationConfig {
+            received_at: Some(envelope.received_at()),
+            max_secs_in_past: Some(retention_days * 24 * 3600),
+            max_secs_in_future: Some(config.max_secs_in_future()),
+            transaction_timestamp_range: Some(
+                transaction_aggregator_config.aggregator.timestamp_range(),
+            ),
+            is_validated: false,
+        };
+
+        let key_id = project_info
+            .get_public_key_config()
+            .and_then(|key| Some(key.numeric_id?.to_string()));
+        if full_normalization && key_id.is_none() {
+            relay_log::error!(
+                "project state for key {} is missing key id",
+                envelope.meta().public_key()
+            );
+        }
+
+        let normalization_config = NormalizationConfig {
+            project_id: Some(project_id.value()),
+            client: request_meta.client().map(str::to_owned),
+            key_id,
+            protocol_version: Some(request_meta.version().to_string()),
+            grouping_config: project_info.config.grouping_config.clone(),
+            client_ip: client_ipaddr.as_ref(),
+            client_sample_rate: envelope.dsc().and_then(|ctx| ctx.sample_rate),
+            user_agent: RawUserAgentInfo {
+                user_agent: request_meta.user_agent(),
+                client_hints: request_meta.client_hints().as_deref(),
+            },
+            max_name_and_unit_len: Some(
+                transaction_aggregator_config
+                    .aggregator
+                    .max_name_length
+                    .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
+            ),
+            breakdowns_config: project_info.config.breakdowns_v2.as_ref(),
+            performance_score: project_info.config.performance_score.as_ref(),
+            normalize_user_agent: Some(true),
+            transaction_name_config: TransactionNameConfig {
+                rules: &project_info.config.tx_name_rules,
+            },
+            device_class_synthesis_config: project_info.has_feature(Feature::DeviceClassSynthesis),
+            enrich_spans: project_info.has_feature(Feature::ExtractSpansFromEvent)
+                || project_info.has_feature(Feature::ExtractCommonSpanMetricsFromEvent),
+            max_tag_value_length: config
+                .aggregator_config_for(MetricNamespace::Spans)
+                .aggregator
+                .max_tag_value_length,
+            is_renormalize: false,
+            remove_other: full_normalization,
+            emit_event_errors: full_normalization,
+            span_description_rules: project_info.config.span_description_rules.as_ref(),
+            geoip_lookup: geoip_lookup.as_ref(),
+            ai_model_costs: ai_model_costs.as_ref(),
+            enable_trimming: true,
+            measurements: Some(CombinedMeasurementsConfig::new(
+                project_info.config().measurements.as_ref(),
+                global_config.measurements.as_ref(),
+            )),
+            normalize_spans: true,
+            replay_id: envelope.dsc().and_then(|ctx| ctx.replay_id),
+            span_allowed_hosts: http_span_allowed_hosts,
+            span_op_defaults: global_config.span_op_defaults.borrow(),
+        };
+
+        metric!(timer(RelayTimers::EventProcessingNormalization), {
+            validate_event(event, &event_validation_config)
+                .map_err(|_| ProcessingError::InvalidTransaction)?;
+            normalize_event(event, &normalization_config);
+            if full_normalization && event::has_unprintable_fields(event) {
+                metric!(counter(RelayCounters::EventCorrupted) += 1);
+            }
+            Result::<(), ProcessingError>::Ok(())
+        })
+    })?;
+
+    Ok(event_fully_normalized | full_normalization)
 }
 
 #[cfg(feature = "processing")]
