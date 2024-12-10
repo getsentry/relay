@@ -12,8 +12,6 @@ use crate::services::outcome::{Outcome, TrackOutcome};
 #[cfg(feature = "processing")]
 use relay_cardinality::{CardinalityLimit, CardinalityReport};
 
-pub const PROFILE_TAG: &str = "has_profile";
-
 /// [`MetricOutcomes`] takes care of creating the right outcomes for metrics at the end of their
 /// lifecycle.
 ///
@@ -99,10 +97,7 @@ impl MetricOutcomes {
 /// Contains the count of total transactions or spans that went into this bucket.
 #[derive(Debug, Default, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum BucketSummary {
-    Transactions {
-        count: usize,
-        has_profile: bool,
-    },
+    Transactions(usize),
     Spans(usize),
     #[default]
     None,
@@ -185,9 +180,7 @@ impl TrackableBucket for BucketView<'_> {
                     BucketViewValue::Counter(c) if mri.name == "usage" => c.to_f64() as usize,
                     _ => 0,
                 };
-                let has_profile = matches!(mri.name.as_ref(), "usage" | "duration")
-                    && self.tag(PROFILE_TAG) == Some("true");
-                BucketSummary::Transactions { count, has_profile }
+                BucketSummary::Transactions(count)
             }
             MetricNamespace::Spans => BucketSummary::Spans(match self.value() {
                 BucketViewValue::Counter(c) if mri.name == "usage" => c.to_f64() as usize,
@@ -217,11 +210,8 @@ where
         quantities.buckets += 1;
         let summary = bucket.summary();
         match summary {
-            BucketSummary::Transactions { count, has_profile } => {
+            BucketSummary::Transactions(count) => {
                 quantities.transactions += count;
-                if has_profile {
-                    quantities.profiles += count;
-                }
             }
             BucketSummary::Spans(count) => quantities.spans += count,
             BucketSummary::None => continue,
