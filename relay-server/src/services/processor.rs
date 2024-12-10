@@ -32,7 +32,7 @@ use relay_filter::FilterStatKey;
 use relay_metrics::{Bucket, BucketMetadata, BucketView, BucketsView, MetricNamespace};
 use relay_pii::PiiConfigError;
 use relay_profiling::ProfileId;
-use relay_protocol::Annotated;
+use relay_protocol::{Annotated, Empty};
 use relay_quotas::{DataCategory, RateLimits, Scoping};
 use relay_sampling::config::RuleId;
 use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator, SamplingDecision};
@@ -2860,6 +2860,134 @@ impl Service for EnvelopeProcessorService {
                 .await;
         }
     }
+}
+
+pub fn process_event<G: EventProcessing>(
+    event: &mut Annotated<Event>,
+    envelope: &mut TypedEnvelope<G>,
+    event_fully_normalized: bool,
+    geoip_lookup: &Option<GeoIpLookup>,
+    global_config: &GlobalConfigHandle,
+    config: &Config,
+    project_info: &ProjectInfo,
+    project_id: &ProjectId,
+) -> Result<bool, ProcessingError> {
+    if event.is_empty() {
+        // NOTE(iker): only processing relays create events from
+        // attachments, so these events won't be normalized in
+        // non-processing relays even if the config is set to run full
+        // normalization.
+        return Ok(event_fully_normalized);
+    }
+
+    let full_normalization = match config.normalization_level() {
+        NormalizationLevel::Full => true,
+        NormalizationLevel::Default => {
+            if config.processing_enabled() && event_fully_normalized {
+                return Ok(event_fully_normalized);
+            }
+
+            config.processing_enabled()
+        }
+    };
+
+    let envelope = envelope.envelope();
+    let request_meta = envelope.meta();
+    let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
+
+    let transaction_aggregator_config = config.aggregator_config_for(MetricNamespace::Transactions);
+
+    let global_config = global_config.current();
+    let ai_model_costs = global_config.ai_model_costs.clone().ok();
+    let http_span_allowed_hosts = global_config.options.http_span_allowed_hosts.as_slice();
+
+    let retention_days: i64 = project_info
+        .config
+        .event_retention
+        .unwrap_or(DEFAULT_EVENT_RETENTION)
+        .into();
+
+    utils::log_transaction_name_metrics(event, |event| {
+        let event_validation_config = EventValidationConfig {
+            received_at: Some(envelope.received_at()),
+            max_secs_in_past: Some(retention_days * 24 * 3600),
+            max_secs_in_future: Some(config.max_secs_in_future()),
+            transaction_timestamp_range: Some(
+                transaction_aggregator_config.aggregator.timestamp_range(),
+            ),
+            is_validated: false,
+        };
+
+        let key_id = project_info
+            .get_public_key_config()
+            .and_then(|key| Some(key.numeric_id?.to_string()));
+        if full_normalization && key_id.is_none() {
+            relay_log::error!(
+                "project state for key {} is missing key id",
+                envelope.meta().public_key()
+            );
+        }
+
+        let normalization_config = NormalizationConfig {
+            project_id: Some(project_id.value()),
+            client: request_meta.client().map(str::to_owned),
+            key_id,
+            protocol_version: Some(request_meta.version().to_string()),
+            grouping_config: project_info.config.grouping_config.clone(),
+            client_ip: client_ipaddr.as_ref(),
+            client_sample_rate: envelope.dsc().and_then(|ctx| ctx.sample_rate),
+            user_agent: RawUserAgentInfo {
+                user_agent: request_meta.user_agent(),
+                client_hints: request_meta.client_hints().as_deref(),
+            },
+            max_name_and_unit_len: Some(
+                transaction_aggregator_config
+                    .aggregator
+                    .max_name_length
+                    .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
+            ),
+            breakdowns_config: project_info.config.breakdowns_v2.as_ref(),
+            performance_score: project_info.config.performance_score.as_ref(),
+            normalize_user_agent: Some(true),
+            transaction_name_config: TransactionNameConfig {
+                rules: &project_info.config.tx_name_rules,
+            },
+            device_class_synthesis_config: project_info.has_feature(Feature::DeviceClassSynthesis),
+            enrich_spans: project_info.has_feature(Feature::ExtractSpansFromEvent)
+                || project_info.has_feature(Feature::ExtractCommonSpanMetricsFromEvent),
+            max_tag_value_length: config
+                .aggregator_config_for(MetricNamespace::Spans)
+                .aggregator
+                .max_tag_value_length,
+            is_renormalize: false,
+            remove_other: full_normalization,
+            emit_event_errors: full_normalization,
+            span_description_rules: project_info.config.span_description_rules.as_ref(),
+            geoip_lookup: geoip_lookup.as_ref(),
+            ai_model_costs: ai_model_costs.as_ref(),
+            enable_trimming: true,
+            measurements: Some(CombinedMeasurementsConfig::new(
+                project_info.config().measurements.as_ref(),
+                global_config.measurements.as_ref(),
+            )),
+            normalize_spans: true,
+            replay_id: envelope.dsc().and_then(|ctx| ctx.replay_id),
+            span_allowed_hosts: http_span_allowed_hosts,
+            span_op_defaults: global_config.span_op_defaults.borrow(),
+        };
+
+        metric!(timer(RelayTimers::EventProcessingNormalization), {
+            validate_event(event, &event_validation_config)
+                .map_err(|_| ProcessingError::InvalidTransaction)?;
+            normalize_event(event, &normalization_config);
+            if full_normalization && event::has_unprintable_fields(event) {
+                metric!(counter(RelayCounters::EventCorrupted) += 1);
+            }
+            Result::<(), ProcessingError>::Ok(())
+        })
+    })?;
+
+    Ok(event_fully_normalized | full_normalization)
 }
 
 #[cfg(feature = "processing")]

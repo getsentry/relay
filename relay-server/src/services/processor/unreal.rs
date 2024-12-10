@@ -2,12 +2,13 @@
 //!
 //! These functions are included only in the processing mode.
 
-use relay_config::Config;
-
 use crate::envelope::ItemType;
 use crate::services::processor::{ErrorGroup, ProcessEnvelopeState, ProcessingError};
 use crate::utils;
 use crate::utils::TypedEnvelope;
+use relay_config::Config;
+use relay_event_schema::protocol::Event;
+use relay_protocol::Annotated;
 
 /// Expands Unreal 4 items inside an envelope.
 ///
@@ -38,11 +39,15 @@ pub fn expand(
 ///
 /// If the event does not contain an unreal context, this function does not perform any action.
 /// If there was no event payload prior to this function, it is created.
-pub fn process(state: &mut ProcessEnvelopeState<ErrorGroup>) -> Result<(), ProcessingError> {
-    if utils::process_unreal_envelope(&mut state.event, state.managed_envelope.envelope_mut())
+pub fn process(
+    event: &mut Annotated<Event>,
+    envelope: &mut TypedEnvelope<ErrorGroup>,
+) -> Result<bool, ProcessingError> {
+    if utils::process_unreal_envelope(event, envelope.envelope_mut())
         .map_err(ProcessingError::InvalidUnrealReport)?
     {
-        state.event_fully_normalized = false;
+        return Ok(false);
     }
-    Ok(())
+
+    Ok(true)
 }
