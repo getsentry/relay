@@ -10,24 +10,45 @@ High-level design:
 The call to the function can be done statically
 
  */
-mod errors;
+pub mod error;
 
 use crate::metrics_extraction::transactions::ExtractedMetrics;
-use crate::services::processor::{ErrorGroup, InnerProcessor, Processed, ProcessingError};
+use crate::services::processor::{InnerProcessor, Processed, ProcessingError};
 use crate::utils::TypedEnvelope;
 use std::sync::Arc;
 
 pub struct ProcGroupParams<Group> {
-    managed_envelope: TypedEnvelope<Group>,
+    pub managed_envelope: TypedEnvelope<Group>,
+    pub event_fully_normalized: bool,
 }
 
 pub struct ProcGroupResult {
-    managed_envelope: TypedEnvelope<Processed>,
-    extracted_metrics: ExtractedMetrics,
+    pub managed_envelope: TypedEnvelope<Processed>,
+    pub extracted_metrics: ExtractedMetrics,
+}
+
+pub struct ProcGroupError {
+    pub managed_envelope: TypedEnvelope<Processed>,
+    pub error: ProcessingError,
+}
+
+#[macro_export]
+macro_rules! try_err {
+    ($exp:expr) => {
+        match $exp {
+            Ok(val) => val,
+            Err(err) => {
+                return ProcGroupError {
+                    managed_envelope: self.managed_envelope.into_processed(),
+                    error: err,
+                };
+            }
+        }
+    };
 }
 
 pub trait ProcGroup<Group> {
     fn create(inner: Arc<InnerProcessor>, params: ProcGroupParams<Group>) -> Self;
 
-    fn process(self) -> Result<ProcGroupResult, ProcessingError>;
+    fn process(self) -> Result<ProcGroupResult, ProcGroupError>;
 }

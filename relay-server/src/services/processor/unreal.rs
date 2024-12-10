@@ -7,6 +7,7 @@ use relay_config::Config;
 use crate::envelope::ItemType;
 use crate::services::processor::{ErrorGroup, ProcessEnvelopeState, ProcessingError};
 use crate::utils;
+use crate::utils::TypedEnvelope;
 
 /// Expands Unreal 4 items inside an envelope.
 ///
@@ -21,10 +22,10 @@ use crate::utils;
 /// After this, [`crate::services::processor::EnvelopeProcessorService`] should be able to process the envelope the same
 /// way it processes any other envelopes.
 pub fn expand(
-    state: &mut ProcessEnvelopeState<ErrorGroup>,
+    envelope: &mut TypedEnvelope<ErrorGroup>,
     config: &Config,
 ) -> Result<(), ProcessingError> {
-    let envelope = &mut state.envelope_mut();
+    let envelope = &mut envelope.envelope_mut();
 
     if let Some(item) = envelope.take_item_by(|item| item.ty() == &ItemType::UnrealReport) {
         utils::expand_unreal_envelope(item, envelope, config)?;
