@@ -1,6 +1,0 @@
-apiVersion: v2
-name: sentry-relay
-description: A Helm chart for deploying Sentry Relay
-type: application
-version: 0.1.0
-appVersion: "latest"
