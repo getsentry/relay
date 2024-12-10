@@ -182,88 +182,88 @@ impl Getter for Span {
 /// Indexable fields added by sentry (server-side).
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct SentryTags {
-    release: Annotated<String>,
-    user: Annotated<String>,
+    pub release: Annotated<String>,
+    pub user: Annotated<String>,
     #[metastructure(field = "user.id")]
-    user_id: Annotated<String>,
+    pub user_id: Annotated<String>,
     #[metastructure(field = "user.ip")]
-    user_ip: Annotated<String>,
+    pub user_ip: Annotated<String>,
     #[metastructure(field = "user.username")]
-    user_username: Annotated<String>,
+    pub user_username: Annotated<String>,
     #[metastructure(field = "user.email")]
-    user_email: Annotated<String>,
-    environment: Annotated<String>,
-    transaction: Annotated<String>,
+    pub user_email: Annotated<String>,
+    pub environment: Annotated<String>,
+    pub transaction: Annotated<String>,
     #[metastructure(field = "transaction.method")]
-    transaction_method: Annotated<String>,
+    pub transaction_method: Annotated<String>,
     #[metastructure(field = "transaction.op")]
-    transaction_op: Annotated<String>,
+    pub transaction_op: Annotated<String>,
     #[metastructure(field = "browser.name")]
-    browser_name: Annotated<String>,
+    pub browser_name: Annotated<String>,
     #[metastructure(field = "sdk.name")]
-    sdk_name: Annotated<String>,
+    pub sdk_name: Annotated<String>,
     #[metastructure(field = "sdk.version")]
-    sdk_version: Annotated<String>,
-    platform: Annotated<String>,
+    pub sdk_version: Annotated<String>,
+    pub platform: Annotated<String>,
     // `"true"` if the transaction was sent by a mobile SDK(String).
-    mobile: Annotated<String>,
+    pub mobile: Annotated<String>,
     #[metastructure(field = "device.class")]
-    device_class: Annotated<String>,
+    pub device_class: Annotated<String>,
     // Mobile OS the transaction originated from(String).
     #[metastructure(field = "os.name")]
-    os_name: Annotated<String>,
-    action: Annotated<String>,
+    pub os_name: Annotated<String>,
+    pub action: Annotated<String>,
     /// The group of the ancestral span with op ai.pipeline.(String)*
-    ai_pipeline_group: Annotated<String>,
-    category: Annotated<String>,
-    description: Annotated<String>,
-    domain: Annotated<String>,
-    raw_domain: Annotated<String>,
-    group: Annotated<String>,
+    pub ai_pipeline_group: Annotated<String>,
+    pub category: Annotated<String>,
+    pub description: Annotated<String>,
+    pub domain: Annotated<String>,
+    pub raw_domain: Annotated<String>,
+    pub group: Annotated<String>,
     #[metastructure(field = "http.decoded_response_content_length")]
-    http_decoded_response_content_length: Annotated<String>,
+    pub http_decoded_response_content_length: Annotated<String>,
     #[metastructure(field = "http.response_content_length")]
-    http_response_content_length: Annotated<String>,
+    pub http_response_content_length: Annotated<String>,
     #[metastructure(field = "http.response_transfer_size")]
-    http_response_transfer_size: Annotated<String>,
+    pub http_response_transfer_size: Annotated<String>,
     #[metastructure(field = "resource.render_blocking_status")]
-    resource_render_blocking_status: Annotated<String>,
+    pub resource_render_blocking_status: Annotated<String>,
     #[metastructure(field = "op")]
-    span_op: Annotated<String>,
+    pub span_op: Annotated<String>,
     #[metastructure(field = "status")]
-    span_status: Annotated<String>,
-    status_code: Annotated<String>,
-    system: Annotated<String>,
+    pub span_status: Annotated<String>,
+    pub status_code: Annotated<String>,
+    pub system: Annotated<String>,
     /// Contributes to Time-To-Initial-Display(String).
     #[metastructure(field = "ttid")]
-    time_to_initial_display: Annotated<String>,
+    pub time_to_initial_display: Annotated<String>,
     /// Contributes to Time-To-Full-Display(String).
     #[metastructure(field = "ttfd")]
-    time_to_full_display: Annotated<String>,
+    pub time_to_full_display: Annotated<String>,
     /// File extension for resource spans(String).
-    file_extension: Annotated<String>,
+    pub file_extension: Annotated<String>,
     /// Span started on main thread(String).
-    main_thread: Annotated<String>,
+    pub main_thread: Annotated<String>,
     /// The start type of the application when the span occurred(String).
-    app_start_type: Annotated<String>,
-    replay_id: Annotated<String>,
-    cache_hit: Annotated<String>,
-    cache_key: Annotated<String>,
+    pub app_start_type: Annotated<String>,
+    pub replay_id: Annotated<String>,
+    pub cache_hit: Annotated<String>,
+    pub cache_key: Annotated<String>,
     #[metastructure(field = "trace.status")]
-    trace_status: Annotated<String>,
+    pub trace_status: Annotated<String>,
     #[metastructure(field = "messaging.destination.name")]
-    messaging_destination_name: Annotated<String>,
+    pub messaging_destination_name: Annotated<String>,
     #[metastructure(field = "messaging.message.id")]
-    messaging_message_id: Annotated<String>,
+    pub messaging_message_id: Annotated<String>,
     #[metastructure(field = "thread.name")]
-    thread_name: Annotated<String>,
+    pub thread_name: Annotated<String>,
     #[metastructure(field = "thread.id")]
-    thread_id: Annotated<String>,
-    profiler_id: Annotated<String>,
+    pub thread_id: Annotated<String>,
+    pub profiler_id: Annotated<String>,
     #[metastructure(field = "user.geo.country_code")]
-    user_country_code: Annotated<String>,
+    pub user_country_code: Annotated<String>,
     #[metastructure(field = "user.geo.subregion")]
-    user_subregion: Annotated<String>,
+    pub user_subregion: Annotated<String>,
     // no need for an `other` entry here because these fields are added server-side.
     // If an upstream relay does not recognize a field it will be dropped.
 }

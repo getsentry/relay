@@ -10,8 +10,8 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use relay_base_schema::metrics::{DurationUnit, InformationUnit, MetricUnit};
 use relay_event_schema::protocol::{
-    AppContext, BrowserContext, Event, Measurement, OsContext, ProfileContext, Span, Timestamp,
-    TraceContext,
+    AppContext, BrowserContext, Event, Measurement, OsContext, ProfileContext, SentryTags, Span,
+    Timestamp, TraceContext,
 };
 use relay_protocol::{Annotated, Value};
 use sqlparser::ast::Visit;
@@ -160,28 +160,28 @@ pub fn extract_segment_span_tags(event: &Event, spans: &mut [Annotated<Span>]) {
 }
 
 /// Extracts tags shared by every span.
-fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
-    let mut tags = BTreeMap::new();
+fn extract_shared_tags(event: &Event) -> SentryTags {
+    let mut tags = SentryTags::default();
 
     if let Some(release) = event.release.as_str() {
-        tags.insert(SpanTagKey::Release, release.to_owned());
+        tags.release = release.to_owned().into();
     }
 
     if let Some(user) = event.user.value() {
         if let Some(sentry_user) = user.sentry_user.value() {
-            tags.insert(SpanTagKey::User, sentry_user.clone());
+            tags.user = sentry_user.clone().into();
         }
         if let Some(user_id) = user.id.value() {
-            tags.insert(SpanTagKey::UserID, user_id.as_str().to_owned());
+            tags.user_id = user_id.as_str().to_owned().into();
         }
         if let Some(user_ip) = user.ip_address.value() {
-            tags.insert(SpanTagKey::UserIP, user_ip.as_str().to_owned());
+            tags.user_ip = user_ip.as_str().to_owned().into();
         }
         if let Some(user_username) = user.username.value() {
-            tags.insert(SpanTagKey::UserUsername, user_username.as_str().to_owned());
+            tags.user_username = user_username.as_str().to_owned().into();
         }
         if let Some(user_email) = user.email.value() {
-            tags.insert(SpanTagKey::UserEmail, user_email.clone());
+            tags.user_email = user_email.clone().into();
         }
 
         // We only want this on frontend or mobile modules.
@@ -191,21 +191,21 @@ fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
 
         if should_extract_geo {
             if let Some(country_code) = user.geo.value().and_then(|geo| geo.country_code.value()) {
-                tags.insert(SpanTagKey::UserCountryCode, country_code.to_owned());
+                tags.user_country_code = country_code.to_owned().into();
                 if let Some(subregion) = Subregion::from_iso2(country_code.as_str()) {
                     let numerical_subregion = subregion as u8;
-                    tags.insert(SpanTagKey::UserSubregion, numerical_subregion.to_string());
+                    tags.user_subregion = numerical_subregion.to_string().into();
                 }
             }
         }
     }
 
     if let Some(environment) = event.environment.as_str() {
-        tags.insert(SpanTagKey::Environment, environment.to_owned());
+        tags.environment = environment.to_owned().into();
     }
 
     if let Some(transaction_name) = event.transaction.value() {
-        tags.insert(SpanTagKey::Transaction, transaction_name.clone());
+        tags.transaction = transaction_name.clone().into();
 
         let transaction_method_from_request = event
             .request
@@ -216,22 +216,22 @@ fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
         if let Some(transaction_method) = transaction_method_from_request.or_else(|| {
             http_method_from_transaction_name(transaction_name).map(|m| m.to_uppercase())
         }) {
-            tags.insert(SpanTagKey::TransactionMethod, transaction_method);
+            tags.transaction_method = transaction_method.into();
         }
     }
 
     if let Some(trace_context) = event.context::<TraceContext>() {
         if let Some(op) = extract_transaction_op(trace_context) {
-            tags.insert(SpanTagKey::TransactionOp, op.to_lowercase());
+            tags.transaction_op = op.to_lowercase().into();
         }
 
         if let Some(status) = trace_context.status.value() {
-            tags.insert(SpanTagKey::TraceStatus, status.to_string());
+            tags.trace_status = status.to_string().into();
         }
     }
 
     if MOBILE_SDKS.contains(&event.sdk_name()) {
-        tags.insert(SpanTagKey::Mobile, "true".to_owned());
+        tags.mobile = "true".to_owned().into();
 
         // Check if app context exists. This tells us if the span originated from
         // an app (as opposed to mobile browser) since we are currently focused on
@@ -239,47 +239,44 @@ fn extract_shared_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
         if event.context::<AppContext>().is_some() {
             if let Some(os_context) = event.context::<OsContext>() {
                 if let Some(os_name) = os_context.name.value() {
-                    tags.insert(SpanTagKey::OsName, os_name.to_string());
+                    tags.os_name = os_name.to_string().into();
                 }
             }
         }
     }
 
     if let Some(device_class) = event.tag_value("device.class") {
-        tags.insert(SpanTagKey::DeviceClass, device_class.into());
+        tags.device_class = device_class.into().into();
     }
 
     if let Some(browser_name) = event
         .context::<BrowserContext>()
         .and_then(|v| v.name.value())
     {
-        tags.insert(SpanTagKey::BrowserName, browser_name.into());
+        tags.browser_name = browser_name.into().into();
     }
 
     if let Some(profiler_id) = event
         .context::<ProfileContext>()
         .and_then(|profile_context| profile_context.profiler_id.value())
     {
-        tags.insert(SpanTagKey::ProfilerId, profiler_id.to_string());
+        tags.profiler_id = profiler_id.to_string().into();
     }
 
-    tags.insert(SpanTagKey::SdkName, event.sdk_name().into());
-    tags.insert(SpanTagKey::SdkVersion, event.sdk_version().into());
-    tags.insert(
-        SpanTagKey::Platform,
-        event.platform.as_str().unwrap_or("other").into(),
-    );
+    tags.sdk_name = event.sdk_name().into().into();
+    tags.sdk_version = event.sdk_version().into().into();
+    tags.platform = event.platform.as_str().unwrap_or("other").into().into();
 
     if let Some(data) = event
         .context::<TraceContext>()
         .and_then(|trace_context| trace_context.data.value())
     {
         if let Some(thread_id) = data.thread_id.value() {
-            tags.insert(SpanTagKey::ThreadId, thread_id.to_string());
+            tags.thread_id = thread_id.to_string().into();
         }
 
         if let Some(thread_name) = data.thread_name.value() {
-            tags.insert(SpanTagKey::ThreadName, thread_name.to_string());
+            tags.thread_name = thread_name.to_string().into();
         }
     }
 
