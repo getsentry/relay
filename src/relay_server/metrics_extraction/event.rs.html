@@ -1874,9 +1874,7 @@
 <a href="#1873" id="1873">1873</a>
 <a href="#1874" id="1874">1874</a>
 <a href="#1875" id="1875">1875</a>
-<a href="#1876" id="1876">1876</a>
-<a href="#1877" id="1877">1877</a>
-<a href="#1878" id="1878">1878</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
+<a href="#1876" id="1876">1876</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
 <span class="kw">use </span>relay_base_schema::project::ProjectId;
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
@@ -3482,9 +3480,7 @@
     <span class="doccomment">/// Helper function for span metric extraction tests.
     </span><span class="kw">fn </span>extract_span_metrics_mobile(span_op: <span class="kw-2">&amp;</span>str, duration_millis: f64) -&gt; Vec&lt;Bucket&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>span = Span::default();
-        span.sentry_tags
-            .get_or_insert_with(Default::default)
-            .insert(<span class="string">"mobile"</span>.to_owned(), <span class="string">"true"</span>.to_owned().into());
+        span.sentry_tags.get_or_insert_with(Default::default).mobile = <span class="string">"true"</span>.to_owned().into();
         span.timestamp
             .set_value(<span class="prelude-val">Some</span>(Timestamp::from(DateTime::&lt;Utc&gt;::MAX_UTC))); <span class="comment">// whatever
         </span>span.op.set_value(<span class="prelude-val">Some</span>(span_op.into()));

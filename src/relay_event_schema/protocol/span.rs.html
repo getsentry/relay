@@ -969,7 +969,150 @@
 <a href="#968" id="968">968</a>
 <a href="#969" id="969">969</a>
 <a href="#970" id="970">970</a>
-<a href="#971" id="971">971</a></pre></div><pre class="rust"><code><span class="kw">mod </span>convert;
+<a href="#971" id="971">971</a>
+<a href="#972" id="972">972</a>
+<a href="#973" id="973">973</a>
+<a href="#974" id="974">974</a>
+<a href="#975" id="975">975</a>
+<a href="#976" id="976">976</a>
+<a href="#977" id="977">977</a>
+<a href="#978" id="978">978</a>
+<a href="#979" id="979">979</a>
+<a href="#980" id="980">980</a>
+<a href="#981" id="981">981</a>
+<a href="#982" id="982">982</a>
+<a href="#983" id="983">983</a>
+<a href="#984" id="984">984</a>
+<a href="#985" id="985">985</a>
+<a href="#986" id="986">986</a>
+<a href="#987" id="987">987</a>
+<a href="#988" id="988">988</a>
+<a href="#989" id="989">989</a>
+<a href="#990" id="990">990</a>
+<a href="#991" id="991">991</a>
+<a href="#992" id="992">992</a>
+<a href="#993" id="993">993</a>
+<a href="#994" id="994">994</a>
+<a href="#995" id="995">995</a>
+<a href="#996" id="996">996</a>
+<a href="#997" id="997">997</a>
+<a href="#998" id="998">998</a>
+<a href="#999" id="999">999</a>
+<a href="#1000" id="1000">1000</a>
+<a href="#1001" id="1001">1001</a>
+<a href="#1002" id="1002">1002</a>
+<a href="#1003" id="1003">1003</a>
+<a href="#1004" id="1004">1004</a>
+<a href="#1005" id="1005">1005</a>
+<a href="#1006" id="1006">1006</a>
+<a href="#1007" id="1007">1007</a>
+<a href="#1008" id="1008">1008</a>
+<a href="#1009" id="1009">1009</a>
+<a href="#1010" id="1010">1010</a>
+<a href="#1011" id="1011">1011</a>
+<a href="#1012" id="1012">1012</a>
+<a href="#1013" id="1013">1013</a>
+<a href="#1014" id="1014">1014</a>
+<a href="#1015" id="1015">1015</a>
+<a href="#1016" id="1016">1016</a>
+<a href="#1017" id="1017">1017</a>
+<a href="#1018" id="1018">1018</a>
+<a href="#1019" id="1019">1019</a>
+<a href="#1020" id="1020">1020</a>
+<a href="#1021" id="1021">1021</a>
+<a href="#1022" id="1022">1022</a>
+<a href="#1023" id="1023">1023</a>
+<a href="#1024" id="1024">1024</a>
+<a href="#1025" id="1025">1025</a>
+<a href="#1026" id="1026">1026</a>
+<a href="#1027" id="1027">1027</a>
+<a href="#1028" id="1028">1028</a>
+<a href="#1029" id="1029">1029</a>
+<a href="#1030" id="1030">1030</a>
+<a href="#1031" id="1031">1031</a>
+<a href="#1032" id="1032">1032</a>
+<a href="#1033" id="1033">1033</a>
+<a href="#1034" id="1034">1034</a>
+<a href="#1035" id="1035">1035</a>
+<a href="#1036" id="1036">1036</a>
+<a href="#1037" id="1037">1037</a>
+<a href="#1038" id="1038">1038</a>
+<a href="#1039" id="1039">1039</a>
+<a href="#1040" id="1040">1040</a>
+<a href="#1041" id="1041">1041</a>
+<a href="#1042" id="1042">1042</a>
+<a href="#1043" id="1043">1043</a>
+<a href="#1044" id="1044">1044</a>
+<a href="#1045" id="1045">1045</a>
+<a href="#1046" id="1046">1046</a>
+<a href="#1047" id="1047">1047</a>
+<a href="#1048" id="1048">1048</a>
+<a href="#1049" id="1049">1049</a>
+<a href="#1050" id="1050">1050</a>
+<a href="#1051" id="1051">1051</a>
+<a href="#1052" id="1052">1052</a>
+<a href="#1053" id="1053">1053</a>
+<a href="#1054" id="1054">1054</a>
+<a href="#1055" id="1055">1055</a>
+<a href="#1056" id="1056">1056</a>
+<a href="#1057" id="1057">1057</a>
+<a href="#1058" id="1058">1058</a>
+<a href="#1059" id="1059">1059</a>
+<a href="#1060" id="1060">1060</a>
+<a href="#1061" id="1061">1061</a>
+<a href="#1062" id="1062">1062</a>
+<a href="#1063" id="1063">1063</a>
+<a href="#1064" id="1064">1064</a>
+<a href="#1065" id="1065">1065</a>
+<a href="#1066" id="1066">1066</a>
+<a href="#1067" id="1067">1067</a>
+<a href="#1068" id="1068">1068</a>
+<a href="#1069" id="1069">1069</a>
+<a href="#1070" id="1070">1070</a>
+<a href="#1071" id="1071">1071</a>
+<a href="#1072" id="1072">1072</a>
+<a href="#1073" id="1073">1073</a>
+<a href="#1074" id="1074">1074</a>
+<a href="#1075" id="1075">1075</a>
+<a href="#1076" id="1076">1076</a>
+<a href="#1077" id="1077">1077</a>
+<a href="#1078" id="1078">1078</a>
+<a href="#1079" id="1079">1079</a>
+<a href="#1080" id="1080">1080</a>
+<a href="#1081" id="1081">1081</a>
+<a href="#1082" id="1082">1082</a>
+<a href="#1083" id="1083">1083</a>
+<a href="#1084" id="1084">1084</a>
+<a href="#1085" id="1085">1085</a>
+<a href="#1086" id="1086">1086</a>
+<a href="#1087" id="1087">1087</a>
+<a href="#1088" id="1088">1088</a>
+<a href="#1089" id="1089">1089</a>
+<a href="#1090" id="1090">1090</a>
+<a href="#1091" id="1091">1091</a>
+<a href="#1092" id="1092">1092</a>
+<a href="#1093" id="1093">1093</a>
+<a href="#1094" id="1094">1094</a>
+<a href="#1095" id="1095">1095</a>
+<a href="#1096" id="1096">1096</a>
+<a href="#1097" id="1097">1097</a>
+<a href="#1098" id="1098">1098</a>
+<a href="#1099" id="1099">1099</a>
+<a href="#1100" id="1100">1100</a>
+<a href="#1101" id="1101">1101</a>
+<a href="#1102" id="1102">1102</a>
+<a href="#1103" id="1103">1103</a>
+<a href="#1104" id="1104">1104</a>
+<a href="#1105" id="1105">1105</a>
+<a href="#1106" id="1106">1106</a>
+<a href="#1107" id="1107">1107</a>
+<a href="#1108" id="1108">1108</a>
+<a href="#1109" id="1109">1109</a>
+<a href="#1110" id="1110">1110</a>
+<a href="#1111" id="1111">1111</a>
+<a href="#1112" id="1112">1112</a>
+<a href="#1113" id="1113">1113</a>
+<a href="#1114" id="1114">1114</a></pre></div><pre class="rust"><code><span class="kw">mod </span>convert;
 
 <span class="kw">use </span>relay_protocol::{
     Annotated, Array, Empty, Error, FromValue, Getter, IntoValue, Object, Val, Value,
@@ -1053,7 +1196,7 @@
 
     <span class="doccomment">/// Tags generated by Relay. These tags are a superset of the tags set on span metrics.
     </span><span class="attr">#[metastructure(trim = <span class="bool-val">false</span>)]
-    </span><span class="kw">pub </span>sentry_tags: Annotated&lt;Object&lt;String&gt;&gt;,
+    </span><span class="kw">pub </span>sentry_tags: Annotated&lt;SentryTags&gt;,
 
     <span class="doccomment">/// Timestamp when the span has been received by Sentry.
     </span><span class="attr">#[metastructure(trim = <span class="bool-val">false</span>)]
@@ -1119,8 +1262,8 @@
                     } <span class="kw">else if let </span><span class="prelude-val">Some</span>(key) = path.strip_prefix(<span class="string">"data."</span>) {
                         <span class="self">self</span>.attribute(key)<span class="question-mark">?
                     </span>} <span class="kw">else if let </span><span class="prelude-val">Some</span>(key) = path.strip_prefix(<span class="string">"sentry_tags."</span>) {
-                        <span class="self">self</span>.sentry_tags.value()<span class="question-mark">?</span>.get(key)<span class="question-mark">?</span>.as_str()<span class="question-mark">?</span>.into()
-                    } <span class="kw">else if let </span><span class="prelude-val">Some</span>(rest) = path.strip_prefix(<span class="string">"measurements."</span>) {
+                        <span class="self">self</span>.sentry_tags.value()<span class="question-mark">?</span>.get_value(key)<span class="question-mark">?
+                    </span>} <span class="kw">else if let </span><span class="prelude-val">Some</span>(rest) = path.strip_prefix(<span class="string">"measurements."</span>) {
                         <span class="kw">let </span>name = rest.strip_suffix(<span class="string">".value"</span>)<span class="question-mark">?</span>;
                         <span class="self">self</span>.measurements
                             .value()<span class="question-mark">?
@@ -1147,6 +1290,149 @@
             <span class="comment">// TODO: we might want to add additional fields once they are added to the span.
             </span><span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">None</span>,
         })
+    }
+}
+
+<span class="doccomment">/// Indexable fields added by sentry (server-side).
+</span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+</span><span class="kw">pub struct </span>SentryTags {
+    <span class="kw">pub </span>release: Annotated&lt;String&gt;,
+    <span class="attr">#[metastructure(pii = <span class="string">"true"</span>)]
+    </span><span class="kw">pub </span>user: Annotated&lt;String&gt;,
+    <span class="attr">#[metastructure(pii = <span class="string">"true"</span>, field = <span class="string">"user.id"</span>)]
+    </span><span class="kw">pub </span>user_id: Annotated&lt;String&gt;,
+    <span class="attr">#[metastructure(pii = <span class="string">"true"</span>, field = <span class="string">"user.ip"</span>)]
+    </span><span class="kw">pub </span>user_ip: Annotated&lt;String&gt;,
+    <span class="attr">#[metastructure(pii = <span class="string">"true"</span>, field = <span class="string">"user.username"</span>)]
+    </span><span class="kw">pub </span>user_username: Annotated&lt;String&gt;,
+    <span class="attr">#[metastructure(pii = <span class="string">"true"</span>, field = <span class="string">"user.email"</span>)]
+    </span><span class="kw">pub </span>user_email: Annotated&lt;String&gt;,
+    <span class="kw">pub </span>environment: Annotated&lt;String&gt;,
+    <span class="kw">pub </span>transaction: Annotated&lt;String&gt;,
+    <span class="attr">#[metastructure(field = <span class="string">"transaction.method"</span>)]
+    </span><span class="kw">pub </span>transaction_method: Annotated&lt;String&gt;,
+    <span class="attr">#[metastructure(field = <span class="string">"transaction.op"</span>)]
+    </span><span class="kw">pub </span>transaction_op: Annotated&lt;String&gt;,
+    <span class="attr">#[metastructure(field = <span class="string">"browser.name"</span>)]
+    </span><span class="kw">pub </span>browser_name: Annotated&lt;String&gt;,
+    <span class="attr">#[metastructure(field = <span class="string">"sdk.name"</span>)]
+    </span><span class="kw">pub </span>sdk_name: Annotated&lt;String&gt;,
+    <span class="attr">#[metastructure(field = <span class="string">"sdk.version"</span>)]
+    </span><span class="kw">pub </span>sdk_version: Annotated&lt;String&gt;,
+    <span class="kw">pub </span>platform: Annotated&lt;String&gt;,
+    <span class="comment">// `"true"` if the transaction was sent by a mobile SDK(String).
+    </span><span class="kw">pub </span>mobile: Annotated&lt;String&gt;,
+    <span class="attr">#[metastructure(field = <span class="string">"device.class"</span>)]
+    </span><span class="kw">pub </span>device_class: Annotated&lt;String&gt;,
+    <span class="comment">// Mobile OS the transaction originated from(String).
+    </span><span class="attr">#[metastructure(field = <span class="string">"os.name"</span>)]
+    </span><span class="kw">pub </span>os_name: Annotated&lt;String&gt;,
+    <span class="kw">pub </span>action: Annotated&lt;String&gt;,
+    <span class="doccomment">/// The group of the ancestral span with op ai.pipeline.(String)*
+    </span><span class="kw">pub </span>ai_pipeline_group: Annotated&lt;String&gt;,
+    <span class="kw">pub </span>category: Annotated&lt;String&gt;,
+    <span class="kw">pub </span>description: Annotated&lt;String&gt;,
+    <span class="kw">pub </span>domain: Annotated&lt;String&gt;,
+    <span class="kw">pub </span>raw_domain: Annotated&lt;String&gt;,
+    <span class="kw">pub </span>group: Annotated&lt;String&gt;,
+    <span class="attr">#[metastructure(field = <span class="string">"http.decoded_response_content_length"</span>)]
+    </span><span class="kw">pub </span>http_decoded_response_content_length: Annotated&lt;String&gt;,
+    <span class="attr">#[metastructure(field = <span class="string">"http.response_content_length"</span>)]
+    </span><span class="kw">pub </span>http_response_content_length: Annotated&lt;String&gt;,
+    <span class="attr">#[metastructure(field = <span class="string">"http.response_transfer_size"</span>)]
+    </span><span class="kw">pub </span>http_response_transfer_size: Annotated&lt;String&gt;,
+    <span class="attr">#[metastructure(field = <span class="string">"resource.render_blocking_status"</span>)]
+    </span><span class="kw">pub </span>resource_render_blocking_status: Annotated&lt;String&gt;,
+    <span class="kw">pub </span>op: Annotated&lt;String&gt;,
+    <span class="kw">pub </span>status: Annotated&lt;String&gt;,
+    <span class="kw">pub </span>status_code: Annotated&lt;String&gt;,
+    <span class="kw">pub </span>system: Annotated&lt;String&gt;,
+    <span class="doccomment">/// Contributes to Time-To-Initial-Display(String).
+    </span><span class="kw">pub </span>ttid: Annotated&lt;String&gt;,
+    <span class="doccomment">/// Contributes to Time-To-Full-Display(String).
+    </span><span class="kw">pub </span>ttfd: Annotated&lt;String&gt;,
+    <span class="doccomment">/// File extension for resource spans(String).
+    </span><span class="kw">pub </span>file_extension: Annotated&lt;String&gt;,
+    <span class="doccomment">/// Span started on main thread(String).
+    </span><span class="kw">pub </span>main_thread: Annotated&lt;String&gt;,
+    <span class="doccomment">/// The start type of the application when the span occurred(String).
+    </span><span class="kw">pub </span>app_start_type: Annotated&lt;String&gt;,
+    <span class="kw">pub </span>replay_id: Annotated&lt;String&gt;,
+    <span class="kw">pub </span>cache_hit: Annotated&lt;String&gt;,
+    <span class="kw">pub </span>cache_key: Annotated&lt;String&gt;,
+    <span class="attr">#[metastructure(field = <span class="string">"trace.status"</span>)]
+    </span><span class="kw">pub </span>trace_status: Annotated&lt;String&gt;,
+    <span class="attr">#[metastructure(field = <span class="string">"messaging.destination.name"</span>)]
+    </span><span class="kw">pub </span>messaging_destination_name: Annotated&lt;String&gt;,
+    <span class="attr">#[metastructure(field = <span class="string">"messaging.message.id"</span>)]
+    </span><span class="kw">pub </span>messaging_message_id: Annotated&lt;String&gt;,
+    <span class="attr">#[metastructure(field = <span class="string">"thread.name"</span>)]
+    </span><span class="kw">pub </span>thread_name: Annotated&lt;String&gt;,
+    <span class="attr">#[metastructure(field = <span class="string">"thread.id"</span>)]
+    </span><span class="kw">pub </span>thread_id: Annotated&lt;String&gt;,
+    <span class="kw">pub </span>profiler_id: Annotated&lt;String&gt;,
+    <span class="attr">#[metastructure(field = <span class="string">"user.geo.country_code"</span>)]
+    </span><span class="kw">pub </span>user_country_code: Annotated&lt;String&gt;,
+    <span class="attr">#[metastructure(field = <span class="string">"user.geo.subregion"</span>)]
+    </span><span class="kw">pub </span>user_subregion: Annotated&lt;String&gt;,
+    <span class="comment">// no need for an `other` entry here because these fields are added server-side.
+    // If an upstream relay does not recognize a field it will be dropped.
+</span>}
+
+<span class="kw">impl </span>Getter <span class="kw">for </span>SentryTags {
+    <span class="kw">fn </span>get_value(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;Val&lt;<span class="lifetime">'_</span>&gt;&gt; {
+        <span class="kw">let </span>value = <span class="kw">match </span>path {
+            <span class="string">"action" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.action,
+            <span class="string">"ai_pipeline_group" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.ai_pipeline_group,
+            <span class="string">"app_start_type" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.app_start_type,
+            <span class="string">"browser.name" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.browser_name,
+            <span class="string">"cache.hit" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.cache_hit,
+            <span class="string">"cache.key" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.cache_key,
+            <span class="string">"category" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.category,
+            <span class="string">"description" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.description,
+            <span class="string">"device.class" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.device_class,
+            <span class="string">"domain" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.domain,
+            <span class="string">"environment" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.environment,
+            <span class="string">"file_extension" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.file_extension,
+            <span class="string">"group" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.group,
+            <span class="string">"http.decoded_response_content_length" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.http_decoded_response_content_length,
+            <span class="string">"http.response_content_length" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.http_response_content_length,
+            <span class="string">"http.response_transfer_size" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.http_response_transfer_size,
+            <span class="string">"main_thread" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.main_thread,
+            <span class="string">"messaging.destination.name" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.messaging_destination_name,
+            <span class="string">"messaging.message.id" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.messaging_message_id,
+            <span class="string">"mobile" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.mobile,
+            <span class="string">"op" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.op,
+            <span class="string">"os.name" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.os_name,
+            <span class="string">"platform" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.platform,
+            <span class="string">"profiler_id" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.profiler_id,
+            <span class="string">"raw_domain" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.raw_domain,
+            <span class="string">"release" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.release,
+            <span class="string">"replay_id" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.replay_id,
+            <span class="string">"resource.render_blocking_status" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.resource_render_blocking_status,
+            <span class="string">"sdk.name" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.sdk_name,
+            <span class="string">"sdk.version" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.sdk_version,
+            <span class="string">"status_code" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.status_code,
+            <span class="string">"status" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.status,
+            <span class="string">"system" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.system,
+            <span class="string">"thread.id" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.thread_id,
+            <span class="string">"thread.name" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.thread_name,
+            <span class="string">"trace.status" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.trace_status,
+            <span class="string">"transaction.method" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.transaction_method,
+            <span class="string">"transaction.op" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.transaction_op,
+            <span class="string">"transaction" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.transaction,
+            <span class="string">"ttfd" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.ttfd,
+            <span class="string">"ttid" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.ttid,
+            <span class="string">"user.email" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.user_email,
+            <span class="string">"user.geo.country_code" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.user_country_code,
+            <span class="string">"user.geo.subregion" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.user_subregion,
+            <span class="string">"user.id" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.user_id,
+            <span class="string">"user.ip" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.user_ip,
+            <span class="string">"user.username" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.user_username,
+            <span class="string">"user" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.user,
+            <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">None</span>,
+        };
+        <span class="prelude-val">Some</span>(value.as_str()<span class="question-mark">?</span>.into())
     }
 }
 

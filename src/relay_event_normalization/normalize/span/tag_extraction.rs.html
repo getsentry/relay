@@ -2762,43 +2762,7 @@
 <a href="#2761" id="2761">2761</a>
 <a href="#2762" id="2762">2762</a>
 <a href="#2763" id="2763">2763</a>
-<a href="#2764" id="2764">2764</a>
-<a href="#2765" id="2765">2765</a>
-<a href="#2766" id="2766">2766</a>
-<a href="#2767" id="2767">2767</a>
-<a href="#2768" id="2768">2768</a>
-<a href="#2769" id="2769">2769</a>
-<a href="#2770" id="2770">2770</a>
-<a href="#2771" id="2771">2771</a>
-<a href="#2772" id="2772">2772</a>
-<a href="#2773" id="2773">2773</a>
-<a href="#2774" id="2774">2774</a>
-<a href="#2775" id="2775">2775</a>
-<a href="#2776" id="2776">2776</a>
-<a href="#2777" id="2777">2777</a>
-<a href="#2778" id="2778">2778</a>
-<a href="#2779" id="2779">2779</a>
-<a href="#2780" id="2780">2780</a>
-<a href="#2781" id="2781">2781</a>
-<a href="#2782" id="2782">2782</a>
-<a href="#2783" id="2783">2783</a>
-<a href="#2784" id="2784">2784</a>
-<a href="#2785" id="2785">2785</a>
-<a href="#2786" id="2786">2786</a>
-<a href="#2787" id="2787">2787</a>
-<a href="#2788" id="2788">2788</a>
-<a href="#2789" id="2789">2789</a>
-<a href="#2790" id="2790">2790</a>
-<a href="#2791" id="2791">2791</a>
-<a href="#2792" id="2792">2792</a>
-<a href="#2793" id="2793">2793</a>
-<a href="#2794" id="2794">2794</a>
-<a href="#2795" id="2795">2795</a>
-<a href="#2796" id="2796">2796</a>
-<a href="#2797" id="2797">2797</a>
-<a href="#2798" id="2798">2798</a>
-<a href="#2799" id="2799">2799</a>
-<a href="#2800" id="2800">2800</a></pre></div><pre class="rust"><code><span class="doccomment">//! Logic for persisting items into `span.sentry_tags` and `span.measurements` fields.
+<a href="#2764" id="2764">2764</a></pre></div><pre class="rust"><code><span class="doccomment">//! Logic for persisting items into `span.sentry_tags` and `span.measurements` fields.
 //! These are then used for metrics extraction.
 </span><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
@@ -2810,8 +2774,8 @@
 <span class="kw">use </span>regex::Regex;
 <span class="kw">use </span>relay_base_schema::metrics::{DurationUnit, InformationUnit, MetricUnit};
 <span class="kw">use </span>relay_event_schema::protocol::{
-    AppContext, BrowserContext, Event, Measurement, OsContext, ProfileContext, Span, Timestamp,
-    TraceContext,
+    AppContext, BrowserContext, Event, Measurement, OsContext, ProfileContext, SentryTags, Span,
+    Timestamp, TraceContext,
 };
 <span class="kw">use </span>relay_protocol::{Annotated, Value};
 <span class="kw">use </span>sqlparser::ast::Visit;
@@ -2826,130 +2790,6 @@
 <span class="kw">use </span><span class="kw">crate</span>::utils::{
     extract_transaction_op, http_status_code_from_span, MAIN_THREAD_NAME, MOBILE_SDKS,
 };
-
-<span class="doccomment">/// A list of supported span tags for tag extraction.
-</span><span class="attr">#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-#[allow(missing_docs)]
-</span><span class="kw">pub enum </span>SpanTagKey {
-    <span class="comment">// Specific to a transaction
-    </span>Release,
-    User,
-    UserID,
-    UserIP,
-    UserUsername,
-    UserEmail,
-    Environment,
-    Transaction,
-    TransactionMethod,
-    TransactionOp,
-    BrowserName,
-    SdkName,
-    SdkVersion,
-    Platform,
-    <span class="comment">// `"true"` if the transaction was sent by a mobile SDK.
-    </span>Mobile,
-    DeviceClass,
-    <span class="comment">// Mobile OS the transaction originated from.
-    </span>OsName,
-
-    <span class="comment">// Specific to spans
-    </span>Action,
-    <span class="doccomment">/// The group of the ancestral span with op ai.pipeline.*
-    </span>AIPipelineGroup,
-    Category,
-    Description,
-    Domain,
-    RawDomain,
-    Group,
-    HttpDecodedResponseContentLength,
-    HttpResponseContentLength,
-    HttpResponseTransferSize,
-    ResourceRenderBlockingStatus,
-    SpanOp,
-    SpanStatus,
-    StatusCode,
-    System,
-    <span class="doccomment">/// Contributes to Time-To-Initial-Display.
-    </span>TimeToInitialDisplay,
-    <span class="doccomment">/// Contributes to Time-To-Full-Display.
-    </span>TimeToFullDisplay,
-    <span class="doccomment">/// File extension for resource spans.
-    </span>FileExtension,
-    <span class="doccomment">/// Span started on main thread.
-    </span>MainThread,
-    <span class="doccomment">/// The start type of the application when the span occurred.
-    </span>AppStartType,
-    ReplayId,
-    CacheHit,
-    CacheKey,
-    TraceStatus,
-    MessagingDestinationName,
-    MessagingMessageId,
-    ThreadName,
-    ThreadId,
-    ProfilerId,
-    UserCountryCode,
-    UserSubregion,
-}
-
-<span class="kw">impl </span>SpanTagKey {
-    <span class="doccomment">/// The key used to write this tag into `span.sentry_keys`.
-    ///
-    /// This key corresponds to the tag key in the snuba span dataset.
-    </span><span class="kw">pub fn </span>sentry_tag_key(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
-        <span class="kw">match </span><span class="self">self </span>{
-            SpanTagKey::Release =&gt; <span class="string">"release"</span>,
-            SpanTagKey::User =&gt; <span class="string">"user"</span>,
-            SpanTagKey::UserID =&gt; <span class="string">"user.id"</span>,
-            SpanTagKey::UserIP =&gt; <span class="string">"user.ip"</span>,
-            SpanTagKey::UserUsername =&gt; <span class="string">"user.username"</span>,
-            SpanTagKey::UserEmail =&gt; <span class="string">"user.email"</span>,
-            SpanTagKey::UserCountryCode =&gt; <span class="string">"user.geo.country_code"</span>,
-            SpanTagKey::UserSubregion =&gt; <span class="string">"user.geo.subregion"</span>,
-            SpanTagKey::Environment =&gt; <span class="string">"environment"</span>,
-            SpanTagKey::Transaction =&gt; <span class="string">"transaction"</span>,
-            SpanTagKey::TransactionMethod =&gt; <span class="string">"transaction.method"</span>,
-            SpanTagKey::TransactionOp =&gt; <span class="string">"transaction.op"</span>,
-            SpanTagKey::Mobile =&gt; <span class="string">"mobile"</span>,
-            SpanTagKey::DeviceClass =&gt; <span class="string">"device.class"</span>,
-            SpanTagKey::BrowserName =&gt; <span class="string">"browser.name"</span>,
-            SpanTagKey::SdkName =&gt; <span class="string">"sdk.name"</span>,
-            SpanTagKey::SdkVersion =&gt; <span class="string">"sdk.version"</span>,
-            SpanTagKey::Platform =&gt; <span class="string">"platform"</span>,
-
-            SpanTagKey::Action =&gt; <span class="string">"action"</span>,
-            SpanTagKey::AIPipelineGroup =&gt; <span class="string">"ai_pipeline_group"</span>,
-            SpanTagKey::Category =&gt; <span class="string">"category"</span>,
-            SpanTagKey::Description =&gt; <span class="string">"description"</span>,
-            SpanTagKey::Domain =&gt; <span class="string">"domain"</span>,
-            SpanTagKey::RawDomain =&gt; <span class="string">"raw_domain"</span>,
-            SpanTagKey::Group =&gt; <span class="string">"group"</span>,
-            SpanTagKey::HttpDecodedResponseContentLength =&gt; <span class="string">"http.decoded_response_content_length"</span>,
-            SpanTagKey::HttpResponseContentLength =&gt; <span class="string">"http.response_content_length"</span>,
-            SpanTagKey::HttpResponseTransferSize =&gt; <span class="string">"http.response_transfer_size"</span>,
-            SpanTagKey::ResourceRenderBlockingStatus =&gt; <span class="string">"resource.render_blocking_status"</span>,
-            SpanTagKey::SpanOp =&gt; <span class="string">"op"</span>,
-            SpanTagKey::SpanStatus =&gt; <span class="string">"status"</span>,
-            SpanTagKey::StatusCode =&gt; <span class="string">"status_code"</span>,
-            SpanTagKey::System =&gt; <span class="string">"system"</span>,
-            SpanTagKey::TimeToFullDisplay =&gt; <span class="string">"ttfd"</span>,
-            SpanTagKey::TimeToInitialDisplay =&gt; <span class="string">"ttid"</span>,
-            SpanTagKey::FileExtension =&gt; <span class="string">"file_extension"</span>,
-            SpanTagKey::MainThread =&gt; <span class="string">"main_thread"</span>,
-            SpanTagKey::CacheHit =&gt; <span class="string">"cache.hit"</span>,
-            SpanTagKey::CacheKey =&gt; <span class="string">"cache.key"</span>,
-            SpanTagKey::OsName =&gt; <span class="string">"os.name"</span>,
-            SpanTagKey::AppStartType =&gt; <span class="string">"app_start_type"</span>,
-            SpanTagKey::ReplayId =&gt; <span class="string">"replay_id"</span>,
-            SpanTagKey::TraceStatus =&gt; <span class="string">"trace.status"</span>,
-            SpanTagKey::MessagingDestinationName =&gt; <span class="string">"messaging.destination.name"</span>,
-            SpanTagKey::MessagingMessageId =&gt; <span class="string">"messaging.message.id"</span>,
-            SpanTagKey::ThreadName =&gt; <span class="string">"thread.name"</span>,
-            SpanTagKey::ThreadId =&gt; <span class="string">"thread.id"</span>,
-            SpanTagKey::ProfilerId =&gt; <span class="string">"profiler_id"</span>,
-        }
-    }
-}
 
 <span class="doccomment">/// Render-blocking resources are static files, such as fonts, CSS, and JavaScript that block or
 /// delay the browser from rendering page content to the screen.
@@ -3017,7 +2857,8 @@
     // when they have already been extracted by a downstream relay.
     </span><span class="kw">let </span>shared_tags = extract_shared_tags(event);
     <span class="kw">let </span>is_mobile = shared_tags
-        .get(<span class="kw-2">&amp;</span>SpanTagKey::Mobile)
+        .mobile
+        .value()
         .is_some_and(|v| v.as_str() == <span class="string">"true"</span>);
     <span class="kw">let </span>start_type = is_mobile.then(|| get_event_start_type(event)).flatten();
 
@@ -3029,7 +2870,7 @@
             <span class="kw">continue</span>;
         };
 
-        <span class="kw">let </span>tags = extract_tags(
+        <span class="kw">let </span><span class="kw-2">mut </span>tags = extract_tags(
             span,
             max_tag_value_size,
             ttid,
@@ -3039,14 +2880,8 @@
             span_allowed_hosts,
         );
 
-        span.sentry_tags = Annotated::new(
-            shared_tags
-                .clone()
-                .into_iter()
-                .chain(tags)
-                .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
-                .collect(),
-        );
+        shared_tags.copy_into(<span class="kw-2">&amp;mut </span>tags);
+        span.sentry_tags = tags.into();
 
         extract_measurements(span, is_mobile);
     }
@@ -3071,41 +2906,159 @@
                         .map(|(k, v)| (k.clone(), Annotated::new(v.clone()))),
                 );
         }
-        <span class="kw">if </span>!segment_tags.is_empty() {
-            span.sentry_tags
-                .get_or_insert_with(Default::default)
-                .extend(
-                    segment_tags.iter().map(|(k, v)| {
-                        (k.clone().sentry_tag_key().into(), Annotated::new(v.clone()))
-                    }),
-                );
-        }
+        segment_tags.copy_into(span.sentry_tags.get_or_insert_with(Default::default))
+    }
+}
+
+<span class="attr">#[derive(Clone, Debug, Default)]
+</span><span class="kw">struct </span>SharedTags {
+    browser_name: Annotated&lt;String&gt;,
+    device_class: Annotated&lt;String&gt;,
+    environment: Annotated&lt;String&gt;,
+    mobile: Annotated&lt;String&gt;,
+    os_name: Annotated&lt;String&gt;,
+    platform: Annotated&lt;String&gt;,
+    profiler_id: Annotated&lt;String&gt;,
+    release: Annotated&lt;String&gt;,
+    sdk_name: Annotated&lt;String&gt;,
+    sdk_version: Annotated&lt;String&gt;,
+    thread_id: Annotated&lt;String&gt;,
+    thread_name: Annotated&lt;String&gt;,
+    trace_status: Annotated&lt;String&gt;,
+    transaction_method: Annotated&lt;String&gt;,
+    transaction_op: Annotated&lt;String&gt;,
+    transaction: Annotated&lt;String&gt;,
+    user_country_code: Annotated&lt;String&gt;,
+    user_email: Annotated&lt;String&gt;,
+    user_id: Annotated&lt;String&gt;,
+    user_ip: Annotated&lt;String&gt;,
+    user_subregion: Annotated&lt;String&gt;,
+    user_username: Annotated&lt;String&gt;,
+    user: Annotated&lt;String&gt;,
+}
+
+<span class="kw">impl </span>SharedTags {
+    <span class="kw">fn </span>copy_into(<span class="kw-2">&amp;</span><span class="self">self</span>, tags: <span class="kw-2">&amp;mut </span>SentryTags) {
+        <span class="kw">let </span><span class="self">Self </span>{
+            browser_name,
+            device_class,
+            environment,
+            mobile,
+            os_name,
+            platform,
+            profiler_id,
+            release,
+            sdk_name,
+            sdk_version,
+            thread_id,
+            thread_name,
+            trace_status,
+            transaction_method,
+            transaction_op,
+            transaction,
+            user_country_code,
+            user_email,
+            user_id,
+            user_ip,
+            user_subregion,
+            user_username,
+            user,
+        } = <span class="self">self</span>;
+        <span class="kw">if </span>tags.browser_name.value().is_none() {
+            tags.browser_name = browser_name.clone();
+        };
+        <span class="kw">if </span>tags.device_class.value().is_none() {
+            tags.device_class = device_class.clone();
+        };
+        <span class="kw">if </span>tags.environment.value().is_none() {
+            tags.environment = environment.clone();
+        };
+        <span class="kw">if </span>tags.mobile.value().is_none() {
+            tags.mobile = mobile.clone();
+        };
+        <span class="kw">if </span>tags.os_name.value().is_none() {
+            tags.os_name = os_name.clone();
+        };
+        <span class="kw">if </span>tags.platform.value().is_none() {
+            tags.platform = platform.clone();
+        };
+        <span class="kw">if </span>tags.profiler_id.value().is_none() {
+            tags.profiler_id = profiler_id.clone();
+        };
+        <span class="kw">if </span>tags.release.value().is_none() {
+            tags.release = release.clone();
+        };
+        <span class="kw">if </span>tags.sdk_name.value().is_none() {
+            tags.sdk_name = sdk_name.clone();
+        };
+        <span class="kw">if </span>tags.sdk_version.value().is_none() {
+            tags.sdk_version = sdk_version.clone();
+        };
+        <span class="kw">if </span>tags.thread_id.value().is_none() {
+            tags.thread_id = thread_id.clone();
+        };
+        <span class="kw">if </span>tags.thread_name.value().is_none() {
+            tags.thread_name = thread_name.clone();
+        };
+        <span class="kw">if </span>tags.trace_status.value().is_none() {
+            tags.trace_status = trace_status.clone();
+        };
+        <span class="kw">if </span>tags.transaction_method.value().is_none() {
+            tags.transaction_method = transaction_method.clone();
+        };
+        <span class="kw">if </span>tags.transaction_op.value().is_none() {
+            tags.transaction_op = transaction_op.clone();
+        };
+        <span class="kw">if </span>tags.transaction.value().is_none() {
+            tags.transaction = transaction.clone();
+        };
+        <span class="kw">if </span>tags.user_country_code.value().is_none() {
+            tags.user_country_code = user_country_code.clone();
+        };
+        <span class="kw">if </span>tags.user_email.value().is_none() {
+            tags.user_email = user_email.clone();
+        };
+        <span class="kw">if </span>tags.user_id.value().is_none() {
+            tags.user_id = user_id.clone();
+        };
+        <span class="kw">if </span>tags.user_ip.value().is_none() {
+            tags.user_ip = user_ip.clone();
+        };
+        <span class="kw">if </span>tags.user_subregion.value().is_none() {
+            tags.user_subregion = user_subregion.clone();
+        };
+        <span class="kw">if </span>tags.user_username.value().is_none() {
+            tags.user_username = user_username.clone();
+        };
+        <span class="kw">if </span>tags.user.value().is_none() {
+            tags.user = user.clone();
+        };
     }
 }
 
 <span class="doccomment">/// Extracts tags shared by every span.
-</span><span class="kw">fn </span>extract_shared_tags(event: <span class="kw-2">&amp;</span>Event) -&gt; BTreeMap&lt;SpanTagKey, String&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>tags = BTreeMap::new();
+</span><span class="kw">fn </span>extract_shared_tags(event: <span class="kw-2">&amp;</span>Event) -&gt; SharedTags {
+    <span class="kw">let </span><span class="kw-2">mut </span>tags = SharedTags::default();
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(release) = event.release.as_str() {
-        tags.insert(SpanTagKey::Release, release.to_owned());
+        tags.release = release.to_owned().into();
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(user) = event.user.value() {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(sentry_user) = user.sentry_user.value() {
-            tags.insert(SpanTagKey::User, sentry_user.clone());
+            tags.user = sentry_user.clone().into();
         }
         <span class="kw">if let </span><span class="prelude-val">Some</span>(user_id) = user.id.value() {
-            tags.insert(SpanTagKey::UserID, user_id.as_str().to_owned());
+            tags.user_id = user_id.as_str().to_owned().into();
         }
         <span class="kw">if let </span><span class="prelude-val">Some</span>(user_ip) = user.ip_address.value() {
-            tags.insert(SpanTagKey::UserIP, user_ip.as_str().to_owned());
+            tags.user_ip = user_ip.as_str().to_owned().into();
         }
         <span class="kw">if let </span><span class="prelude-val">Some</span>(user_username) = user.username.value() {
-            tags.insert(SpanTagKey::UserUsername, user_username.as_str().to_owned());
+            tags.user_username = user_username.as_str().to_owned().into();
         }
         <span class="kw">if let </span><span class="prelude-val">Some</span>(user_email) = user.email.value() {
-            tags.insert(SpanTagKey::UserEmail, user_email.clone());
+            tags.user_email = user_email.clone().into();
         }
 
         <span class="comment">// We only want this on frontend or mobile modules.
@@ -3115,21 +3068,21 @@
 
         <span class="kw">if </span>should_extract_geo {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(country_code) = user.geo.value().and_then(|geo| geo.country_code.value()) {
-                tags.insert(SpanTagKey::UserCountryCode, country_code.to_owned());
+                tags.user_country_code = country_code.to_owned().into();
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(subregion) = Subregion::from_iso2(country_code.as_str()) {
                     <span class="kw">let </span>numerical_subregion = subregion <span class="kw">as </span>u8;
-                    tags.insert(SpanTagKey::UserSubregion, numerical_subregion.to_string());
+                    tags.user_subregion = numerical_subregion.to_string().into();
                 }
             }
         }
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(environment) = event.environment.as_str() {
-        tags.insert(SpanTagKey::Environment, environment.to_owned());
+        tags.environment = environment.to_owned().into();
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction_name) = event.transaction.value() {
-        tags.insert(SpanTagKey::Transaction, transaction_name.clone());
+        tags.transaction = transaction_name.clone().into();
 
         <span class="kw">let </span>transaction_method_from_request = event
             .request
@@ -3140,22 +3093,22 @@
         <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction_method) = transaction_method_from_request.or_else(|| {
             http_method_from_transaction_name(transaction_name).map(|m| m.to_uppercase())
         }) {
-            tags.insert(SpanTagKey::TransactionMethod, transaction_method);
+            tags.transaction_method = transaction_method.into();
         }
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(trace_context) = event.context::&lt;TraceContext&gt;() {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(op) = extract_transaction_op(trace_context) {
-            tags.insert(SpanTagKey::TransactionOp, op.to_lowercase());
+            tags.transaction_op = op.to_lowercase().into();
         }
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(status) = trace_context.status.value() {
-            tags.insert(SpanTagKey::TraceStatus, status.to_string());
+            tags.trace_status = status.to_string().into();
         }
     }
 
     <span class="kw">if </span>MOBILE_SDKS.contains(<span class="kw-2">&amp;</span>event.sdk_name()) {
-        tags.insert(SpanTagKey::Mobile, <span class="string">"true"</span>.to_owned());
+        tags.mobile = <span class="string">"true"</span>.to_owned().into();
 
         <span class="comment">// Check if app context exists. This tells us if the span originated from
         // an app (as opposed to mobile browser) since we are currently focused on
@@ -3163,47 +3116,44 @@
         </span><span class="kw">if </span>event.context::&lt;AppContext&gt;().is_some() {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(os_context) = event.context::&lt;OsContext&gt;() {
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(os_name) = os_context.name.value() {
-                    tags.insert(SpanTagKey::OsName, os_name.to_string());
+                    tags.os_name = os_name.to_string().into();
                 }
             }
         }
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(device_class) = event.tag_value(<span class="string">"device.class"</span>) {
-        tags.insert(SpanTagKey::DeviceClass, device_class.into());
+        tags.device_class = device_class.to_owned().into();
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(browser_name) = event
         .context::&lt;BrowserContext&gt;()
         .and_then(|v| v.name.value())
     {
-        tags.insert(SpanTagKey::BrowserName, browser_name.into());
+        tags.browser_name = browser_name.to_owned().into();
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(profiler_id) = event
         .context::&lt;ProfileContext&gt;()
         .and_then(|profile_context| profile_context.profiler_id.value())
     {
-        tags.insert(SpanTagKey::ProfilerId, profiler_id.to_string());
+        tags.profiler_id = profiler_id.to_string().into();
     }
 
-    tags.insert(SpanTagKey::SdkName, event.sdk_name().into());
-    tags.insert(SpanTagKey::SdkVersion, event.sdk_version().into());
-    tags.insert(
-        SpanTagKey::Platform,
-        event.platform.as_str().unwrap_or(<span class="string">"other"</span>).into(),
-    );
+    tags.sdk_name = event.sdk_name().to_owned().into();
+    tags.sdk_version = event.sdk_version().to_owned().into();
+    tags.platform = event.platform.as_str().unwrap_or(<span class="string">"other"</span>).to_owned().into();
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(data) = event
         .context::&lt;TraceContext&gt;()
         .and_then(|trace_context| trace_context.data.value())
     {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(thread_id) = data.thread_id.value() {
-            tags.insert(SpanTagKey::ThreadId, thread_id.to_string());
+            tags.thread_id = thread_id.to_string().into();
         }
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(thread_name) = data.thread_name.value() {
-            tags.insert(SpanTagKey::ThreadName, thread_name.to_string());
+            tags.thread_name = thread_name.to_string().into();
         }
     }
 
@@ -3253,29 +3203,33 @@
     measurements
 }
 
+<span class="attr">#[derive(Clone, Debug, Default)]
+</span><span class="kw">struct </span>SegmentTags {
+    messaging_destination_name: Annotated&lt;String&gt;,
+    messaging_message_id: Annotated&lt;String&gt;,
+}
+
+<span class="kw">impl </span>SegmentTags {
+    <span class="kw">fn </span>copy_into(<span class="kw-2">&amp;</span><span class="self">self</span>, tags: <span class="kw-2">&amp;mut </span>SentryTags) {
+        <span class="kw">let </span><span class="self">Self </span>{
+            messaging_destination_name,
+            messaging_message_id,
+        } = <span class="self">self</span>.clone();
+        tags.messaging_destination_name = messaging_destination_name;
+        tags.messaging_message_id = messaging_message_id;
+    }
+}
+
 <span class="doccomment">/// Extract tags that should only be saved on segment spans.
-</span><span class="kw">fn </span>extract_segment_tags(event: <span class="kw-2">&amp;</span>Event) -&gt; BTreeMap&lt;SpanTagKey, String&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>tags = BTreeMap::new();
+</span><span class="kw">fn </span>extract_segment_tags(event: <span class="kw-2">&amp;</span>Event) -&gt; SegmentTags {
+    <span class="kw">let </span><span class="kw-2">mut </span>tags = SegmentTags::default();
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(trace_context) = event.context::&lt;TraceContext&gt;() {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(op) = extract_transaction_op(trace_context) {
             <span class="kw">if </span>op == <span class="string">"queue.publish" </span>|| op == <span class="string">"queue.process" </span>{
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(destination_name) = trace_context
-                    .data
-                    .value()
-                    .and_then(|data| data.messaging_destination_name.as_str())
-                {
-                    tags.insert(
-                        SpanTagKey::MessagingDestinationName,
-                        destination_name.into(),
-                    );
-                }
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(message_id) = trace_context
-                    .data
-                    .value()
-                    .and_then(|data| data.messaging_message_id.as_str())
-                {
-                    tags.insert(SpanTagKey::MessagingMessageId, message_id.into());
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(data) = trace_context.data.value() {
+                    tags.messaging_destination_name = data.messaging_destination_name.clone();
+                    tags.messaging_message_id = data.messaging_message_id.clone();
                 }
             }
         }
@@ -3299,8 +3253,8 @@
     is_mobile: bool,
     start_type: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;,
     span_allowed_hosts: <span class="kw-2">&amp;</span>[String],
-) -&gt; BTreeMap&lt;SpanTagKey, String&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>span_tags: BTreeMap&lt;SpanTagKey, String&gt; = BTreeMap::new();
+) -&gt; SentryTags {
+    <span class="kw">let </span><span class="kw-2">mut </span>span_tags = SentryTags::default();
 
     <span class="kw">let </span>system = span
         .data
@@ -3308,21 +3262,21 @@
         .and_then(|data| data.db_system.value())
         .and_then(|system| system.as_str());
     <span class="kw">if let </span><span class="prelude-val">Some</span>(sys) = system {
-        span_tags.insert(SpanTagKey::System, sys.to_lowercase());
+        span_tags.system = sys.to_lowercase().into();
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(status) = span.status.value() {
-        span_tags.insert(SpanTagKey::SpanStatus, status.as_str().to_owned());
+        span_tags.status = status.as_str().to_owned().into();
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(unsanitized_span_op) = span.op.value() {
         <span class="kw">let </span>span_op = unsanitized_span_op.to_lowercase();
 
-        span_tags.insert(SpanTagKey::SpanOp, span_op.to_owned());
+        span_tags.op = span_op.to_owned().into();
 
         <span class="kw">let </span>category = span_op_to_category(<span class="kw-2">&amp;</span>span_op);
         <span class="kw">if let </span><span class="prelude-val">Some</span>(category) = category {
-            span_tags.insert(SpanTagKey::Category, category.to_owned());
+            span_tags.category = category.to_owned().into();
         }
 
         <span class="kw">let </span>(scrubbed_description, parsed_sql) = scrub_span_description(span, span_allowed_hosts);
@@ -3361,7 +3315,7 @@
         };
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(act) = action {
-            span_tags.insert(SpanTagKey::Action, act);
+            span_tags.action = act.into();
         }
 
         <span class="kw">let </span>domain = <span class="kw">if </span>span_op == <span class="string">"http.client" </span>|| span_op.starts_with(<span class="string">"resource."</span>) {
@@ -3409,10 +3363,7 @@
                         .and_then(|data| data.url_scheme.value())
                         .and_then(|value| value.as_str())
                     {
-                        span_tags.insert(
-                            SpanTagKey::RawDomain,
-                            <span class="macro">format!</span>(<span class="string">"{url_scheme}://{lowercase_address}"</span>),
-                        );
+                        span_tags.raw_domain = <span class="macro">format!</span>(<span class="string">"{url_scheme}://{lowercase_address}"</span>).into();
                     }
 
                     <span class="prelude-val">Some</span>(concatenate_host_and_port(<span class="prelude-val">Some</span>(domain.as_ref()), port).into_owned())
@@ -3457,7 +3408,7 @@
 
         <span class="kw">if </span>!span_op.starts_with(<span class="string">"db.redis"</span>) {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(dom) = domain {
-                span_tags.insert(SpanTagKey::Domain, dom);
+                span_tags.domain = dom.into();
             }
         }
 
@@ -3466,11 +3417,11 @@
                 span.data.value().and_then(|data| data.cache_hit.value())
             {
                 <span class="kw">let </span>tag_value = <span class="kw">if </span><span class="kw-2">*</span>cache_hit { <span class="string">"true" </span>} <span class="kw">else </span>{ <span class="string">"false" </span>};
-                span_tags.insert(SpanTagKey::CacheHit, tag_value.to_owned());
+                span_tags.cache_hit = tag_value.to_owned().into();
             }
             <span class="kw">if let </span><span class="prelude-val">Some</span>(cache_keys) = span.data.value().and_then(|data| data.cache_key.value()) {
                 <span class="kw">if let </span><span class="prelude-val">Ok</span>(cache_keys) = serde_json::to_string(cache_keys) {
-                    span_tags.insert(SpanTagKey::CacheKey, cache_keys);
+                    span_tags.cache_key = cache_keys.into();
                 }
             }
         }
@@ -3481,14 +3432,14 @@
                 .value()
                 .and_then(|data| data.messaging_destination_name.as_str())
             {
-                span_tags.insert(SpanTagKey::MessagingDestinationName, destination.into());
+                span_tags.messaging_destination_name = destination.to_owned().into();
             }
             <span class="kw">if let </span><span class="prelude-val">Some</span>(message_id) = span
                 .data
                 .value()
                 .and_then(|data| data.messaging_message_id.as_str())
             {
-                span_tags.insert(SpanTagKey::MessagingMessageId, message_id.into());
+                span_tags.messaging_message_id = message_id.to_owned().into();
             }
         }
 
@@ -3500,7 +3451,7 @@
 
             </span><span class="kw">let </span><span class="kw-2">mut </span>span_group = <span class="macro">format!</span>(<span class="string">"{:?}"</span>, md5::compute(<span class="kw-2">&amp;</span>scrubbed_desc));
             span_group.truncate(<span class="number">16</span>);
-            span_tags.insert(SpanTagKey::Group, span_group);
+            span_tags.group = span_group.into();
 
             <span class="kw">let </span>truncated = truncate_string(scrubbed_desc, max_tag_value_size);
             <span class="kw">if </span>span_op.starts_with(<span class="string">"resource."</span>) {
@@ -3510,11 +3461,11 @@
                     .and_then(|last_segment| last_segment.rsplit_once(<span class="string">'.'</span>))
                     .map(|(<span class="kw">_</span>, extension)| extension)
                 {
-                    span_tags.insert(SpanTagKey::FileExtension, ext.to_lowercase());
+                    span_tags.file_extension = ext.to_lowercase().into();
                 }
             }
 
-            span_tags.insert(SpanTagKey::Description, truncated);
+            span_tags.description = truncated.into();
         }
 
         <span class="kw">if </span>category == <span class="prelude-val">Some</span>(<span class="string">"ai"</span>) {
@@ -3526,7 +3477,7 @@
             {
                 <span class="kw">let </span><span class="kw-2">mut </span>ai_pipeline_group = <span class="macro">format!</span>(<span class="string">"{:?}"</span>, md5::compute(ai_pipeline_name));
                 ai_pipeline_group.truncate(<span class="number">16</span>);
-                span_tags.insert(SpanTagKey::AIPipelineGroup, ai_pipeline_group);
+                span_tags.ai_pipeline_group = ai_pipeline_group.into();
             }
         }
 
@@ -3538,7 +3489,7 @@
                     .value()
                     .and_then(|v| String::try_from(v).ok())
                 {
-                    span_tags.insert(SpanTagKey::HttpResponseContentLength, value);
+                    span_tags.http_response_content_length = value.into();
                 }
 
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(value) = data
@@ -3546,7 +3497,7 @@
                     .value()
                     .and_then(|v| String::try_from(v).ok())
                 {
-                    span_tags.insert(SpanTagKey::HttpDecodedResponseContentLength, value);
+                    span_tags.http_decoded_response_content_length = value.into();
                 }
 
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(value) = data
@@ -3554,7 +3505,7 @@
                     .value()
                     .and_then(|v| String::try_from(v).ok())
                 {
-                    span_tags.insert(SpanTagKey::HttpResponseTransferSize, value);
+                    span_tags.http_response_transfer_size = value.into();
                 }
             }
 
@@ -3567,7 +3518,7 @@
                 <span class="comment">// Validate that it's a valid status:
                 </span><span class="kw">if let </span><span class="prelude-val">Ok</span>(status) = RenderBlockingStatus::try_from(resource_render_blocking_status)
                 {
-                    span_tags.insert(SpanTagKey::ResourceRenderBlockingStatus, status.to_string());
+                    span_tags.resource_render_blocking_status = status.to_string().into();
                 }
             }
         }
@@ -3580,35 +3531,35 @@
                     .value()
                     .and_then(|data| data.segment_name.as_str())
                 {
-                    span_tags.insert(SpanTagKey::Transaction, transaction.into());
+                    span_tags.transaction = transaction.to_owned().into();
                 }
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(user) = span.data.value().and_then(|data| data.user.as_str()) {
-                    span_tags.insert(SpanTagKey::User, user.into());
+                    span_tags.user = user.to_owned().into();
                 }
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(replay_id) = span.data.value().and_then(|data| data.replay_id.as_str())
                 {
-                    span_tags.insert(SpanTagKey::ReplayId, replay_id.into());
+                    span_tags.replay_id = replay_id.to_owned().into();
                 }
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(environment) =
                     span.data.value().and_then(|data| data.environment.as_str())
                 {
-                    span_tags.insert(SpanTagKey::Environment, environment.into());
+                    span_tags.environment = environment.to_owned().into();
                 }
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(release) = span.data.value().and_then(|data| data.release.as_str()) {
-                    span_tags.insert(SpanTagKey::Release, release.into());
+                    span_tags.release = release.to_owned().into();
                 }
             }
         }
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(status_code) = http_status_code_from_span(span) {
-        span_tags.insert(SpanTagKey::StatusCode, status_code);
+        span_tags.status_code = status_code.into();
     }
 
     <span class="kw">if </span>is_mobile {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(thread_name) = span.data.value().and_then(|data| data.thread_name.as_str()) {
             <span class="kw">if </span>thread_name == MAIN_THREAD_NAME {
-                span_tags.insert(SpanTagKey::MainThread, <span class="string">"true"</span>.to_owned());
+                span_tags.main_thread = <span class="string">"true"</span>.to_owned().into();
             }
         }
 
@@ -3620,36 +3571,36 @@
             .and_then(|data| data.app_start_type.value())
             .and_then(|value| value.as_str())
         {
-            span_tags.insert(SpanTagKey::AppStartType, span_data_start_type.to_owned());
+            span_tags.app_start_type = span_data_start_type.to_owned().into();
         } <span class="kw">else if let </span><span class="prelude-val">Some</span>(start_type) = start_type {
-            span_tags.insert(SpanTagKey::AppStartType, start_type.to_owned());
+            span_tags.app_start_type = start_type.to_owned().into();
         }
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(end_time) = span.timestamp.value() {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(initial_display) = initial_display {
             <span class="kw">if </span>end_time &lt;= <span class="kw-2">&amp;</span>initial_display {
-                span_tags.insert(SpanTagKey::TimeToInitialDisplay, <span class="string">"ttid"</span>.to_owned());
+                span_tags.ttid = <span class="string">"ttid"</span>.to_owned().into();
             }
         }
         <span class="kw">if let </span><span class="prelude-val">Some</span>(full_display) = full_display {
             <span class="kw">if </span>end_time &lt;= <span class="kw-2">&amp;</span>full_display {
-                span_tags.insert(SpanTagKey::TimeToFullDisplay, <span class="string">"ttfd"</span>.to_owned());
+                span_tags.ttfd = <span class="string">"ttfd"</span>.to_owned().into();
             }
         }
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(browser_name) = span.data.value().and_then(|data| data.browser_name.value()) {
-        span_tags.insert(SpanTagKey::BrowserName, browser_name.clone());
+        span_tags.browser_name = browser_name.clone().into();
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(data) = span.data.value() {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(thread_id) = data.thread_id.value() {
-            span_tags.insert(SpanTagKey::ThreadId, thread_id.to_string());
+            span_tags.thread_id = thread_id.to_string().into();
         }
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(thread_name) = data.thread_name.as_str() {
-            span_tags.insert(SpanTagKey::ThreadName, thread_name.into());
+            span_tags.thread_name = thread_name.to_owned().into();
         }
     }
 
@@ -3987,7 +3938,7 @@
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>insta::assert_debug_snapshot;
     <span class="kw">use </span>relay_event_schema::protocol::Request;
-    <span class="kw">use </span>relay_protocol::get_value;
+    <span class="kw">use </span>relay_protocol::{get_value, Getter};
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use </span><span class="kw">crate</span>::span::description::{scrub_queries, Mode};
@@ -4074,8 +4025,8 @@
                         .and_then(|e| e.spans.value())
                         .and_then(|spans| spans[<span class="number">0</span>].value())
                         .and_then(|s| s.sentry_tags.value())
-                        .and_then(|d| d.get(<span class="string">"transaction.method"</span>))
-                        .and_then(|v| v.as_str())
+                        .and_then(|d| d.transaction_method.value())
+                        .map(|v| v.as_str())
                         .unwrap()
                 );
             }
@@ -4296,21 +4247,21 @@ LIMIT 1
         <span class="comment">// First two spans contribute to initial display &amp; full display:
         </span><span class="kw">for </span>span <span class="kw">in </span><span class="kw-2">&amp;</span>spans[..<span class="number">2</span>] {
             <span class="kw">let </span>tags = span.value().unwrap().sentry_tags.value().unwrap();
-            <span class="macro">assert_eq!</span>(tags.get(<span class="string">"ttid"</span>).unwrap().as_str(), <span class="prelude-val">Some</span>(<span class="string">"ttid"</span>));
-            <span class="macro">assert_eq!</span>(tags.get(<span class="string">"ttfd"</span>).unwrap().as_str(), <span class="prelude-val">Some</span>(<span class="string">"ttfd"</span>));
+            <span class="macro">assert_eq!</span>(tags.get_value(<span class="string">"ttid"</span>).unwrap().as_str(), <span class="prelude-val">Some</span>(<span class="string">"ttid"</span>));
+            <span class="macro">assert_eq!</span>(tags.get_value(<span class="string">"ttfd"</span>).unwrap().as_str(), <span class="prelude-val">Some</span>(<span class="string">"ttfd"</span>));
         }
 
         <span class="comment">// First four spans contribute to full display:
         </span><span class="kw">for </span>span <span class="kw">in </span><span class="kw-2">&amp;</span>spans[<span class="number">2</span>..<span class="number">4</span>] {
             <span class="kw">let </span>tags = span.value().unwrap().sentry_tags.value().unwrap();
-            <span class="macro">assert_eq!</span>(tags.get(<span class="string">"ttid"</span>), <span class="prelude-val">None</span>);
-            <span class="macro">assert_eq!</span>(tags.get(<span class="string">"ttfd"</span>).unwrap().as_str(), <span class="prelude-val">Some</span>(<span class="string">"ttfd"</span>));
+            <span class="macro">assert_eq!</span>(tags.get_value(<span class="string">"ttid"</span>), <span class="prelude-val">None</span>);
+            <span class="macro">assert_eq!</span>(tags.get_value(<span class="string">"ttfd"</span>).unwrap().as_str(), <span class="prelude-val">Some</span>(<span class="string">"ttfd"</span>));
         }
 
         <span class="kw">for </span>span <span class="kw">in </span><span class="kw-2">&amp;</span>spans[<span class="number">4</span>..] {
             <span class="kw">let </span>tags = span.value().unwrap().sentry_tags.value().unwrap();
-            <span class="macro">assert_eq!</span>(tags.get(<span class="string">"ttid"</span>), <span class="prelude-val">None</span>);
-            <span class="macro">assert_eq!</span>(tags.get(<span class="string">"ttfd"</span>), <span class="prelude-val">None</span>);
+            <span class="macro">assert_eq!</span>(tags.get_value(<span class="string">"ttid"</span>), <span class="prelude-val">None</span>);
+            <span class="macro">assert_eq!</span>(tags.get_value(<span class="string">"ttfd"</span>), <span class="prelude-val">None</span>);
         }
     }
 
@@ -4357,17 +4308,21 @@ LIMIT 1
 
         <span class="kw">let </span>tags = span.value().unwrap().sentry_tags.value().unwrap();
         <span class="macro">assert_eq!</span>(
-            tags.get(<span class="string">"http.response_content_length"</span>).unwrap().as_str(),
+            tags.get_value(<span class="string">"http.response_content_length"</span>)
+                .unwrap()
+                .as_str(),
             <span class="prelude-val">Some</span>(<span class="string">"1"</span>),
         );
         <span class="macro">assert_eq!</span>(
-            tags.get(<span class="string">"http.decoded_response_content_length"</span>)
+            tags.get_value(<span class="string">"http.decoded_response_content_length"</span>)
                 .unwrap()
                 .as_str(),
             <span class="prelude-val">Some</span>(<span class="string">"2"</span>),
         );
         <span class="macro">assert_eq!</span>(
-            tags.get(<span class="string">"http.response_transfer_size"</span>).unwrap().as_str(),
+            tags.get_value(<span class="string">"http.response_transfer_size"</span>)
+                .unwrap()
+                .as_str(),
             <span class="prelude-val">Some</span>(<span class="string">"3.3"</span>),
         );
 
@@ -4480,14 +4435,11 @@ LIMIT 1
         <span class="kw">let </span>tags_3 = <span class="macro">get_value!</span>(span_3.sentry_tags).unwrap();
 
         <span class="macro">assert_eq!</span>(
-            tags_1.get(<span class="string">"raw_domain"</span>).unwrap().as_str(),
+            tags_1.raw_domain.as_str(),
             <span class="prelude-val">Some</span>(<span class="string">"https://subdomain.example.com:5688"</span>)
         );
-        <span class="macro">assert_eq!</span>(
-            tags_2.get(<span class="string">"raw_domain"</span>).unwrap().as_str(),
-            <span class="prelude-val">Some</span>(<span class="string">"http://example.com"</span>)
-        );
-        <span class="macro">assert!</span>(!tags_3.contains_key(<span class="string">"raw_domain"</span>));
+        <span class="macro">assert_eq!</span>(tags_2.raw_domain.as_str(), <span class="prelude-val">Some</span>(<span class="string">"http://example.com"</span>));
+        <span class="macro">assert!</span>(tags_3.raw_domain.value().is_none());
     }
 
     <span class="attr">#[test]
@@ -4536,7 +4488,7 @@ LIMIT 1
         <span class="kw">let </span>measurements = span.measurements.value().unwrap();
 
         <span class="macro">assert_eq!</span>(
-            tags.get(<span class="string">"ai_pipeline_group"</span>).unwrap().as_str(),
+            tags.get_value(<span class="string">"ai_pipeline_group"</span>).unwrap().as_str(),
             <span class="prelude-val">Some</span>(<span class="string">"68e6cafc5b68d276"</span>)
         );
         <span class="macro">assert_debug_snapshot!</span>(measurements, @<span class="string">r###"
@@ -4642,9 +4594,9 @@ LIMIT 1
 
         <span class="kw">let </span>measurements_1 = span_1.value().unwrap().measurements.value().unwrap();
 
-        <span class="macro">assert_eq!</span>(tags_1.get(<span class="string">"cache.hit"</span>).unwrap().as_str(), <span class="prelude-val">Some</span>(<span class="string">"true"</span>));
-        <span class="macro">assert_eq!</span>(tags_2.get(<span class="string">"cache.hit"</span>).unwrap().as_str(), <span class="prelude-val">Some</span>(<span class="string">"false"</span>));
-        <span class="macro">assert_eq!</span>(tags_3.get(<span class="string">"cache.hit"</span>).unwrap().as_str(), <span class="prelude-val">Some</span>(<span class="string">"false"</span>));
+        <span class="macro">assert_eq!</span>(tags_1.cache_hit.as_str(), <span class="prelude-val">Some</span>(<span class="string">"true"</span>));
+        <span class="macro">assert_eq!</span>(tags_2.cache_hit.as_str(), <span class="prelude-val">Some</span>(<span class="string">"false"</span>));
+        <span class="macro">assert_eq!</span>(tags_3.cache_hit.as_str(), <span class="prelude-val">Some</span>(<span class="string">"false"</span>));
 
         <span class="kw">let </span>keys_1 = Value::Array(<span class="macro">vec!</span>[Annotated::new(Value::String(<span class="string">"my_key"</span>.to_string()))]);
         <span class="kw">let </span>keys_2 = Value::Array(<span class="macro">vec!</span>[
@@ -4653,15 +4605,15 @@ LIMIT 1
         ]);
         <span class="kw">let </span>keys_3 = Value::Array(<span class="macro">vec!</span>[Annotated::new(Value::String(<span class="string">"my_key_2"</span>.to_string()))]);
         <span class="macro">assert_eq!</span>(
-            tags_1.get(<span class="string">"cache.key"</span>).unwrap().as_str(),
+            tags_1.cache_key.as_str(),
             serde_json::to_string(<span class="kw-2">&amp;</span>keys_1).ok().as_deref()
         );
         <span class="macro">assert_eq!</span>(
-            tags_2.get(<span class="string">"cache.key"</span>).unwrap().as_str(),
+            tags_2.cache_key.as_str(),
             serde_json::to_string(<span class="kw-2">&amp;</span>keys_2).ok().as_deref()
         );
         <span class="macro">assert_eq!</span>(
-            tags_3.get(<span class="string">"cache.key"</span>).unwrap().as_str(),
+            tags_3.cache_key.as_str(),
             serde_json::to_string(<span class="kw-2">&amp;</span>keys_3).ok().as_deref()
         );
 
@@ -4765,30 +4717,21 @@ LIMIT 1
 
         <span class="comment">// Allow loopback IPs
         </span><span class="macro">assert_eq!</span>(
-            tags_1.get(<span class="string">"description"</span>).unwrap().as_str(),
+            tags_1.description.as_str(),
             <span class="prelude-val">Some</span>(<span class="string">"POST http://127.0.0.1:10007"</span>)
         );
-        <span class="macro">assert_eq!</span>(
-            tags_1.get(<span class="string">"domain"</span>).unwrap().as_str(),
-            <span class="prelude-val">Some</span>(<span class="string">"127.0.0.1:10007"</span>)
-        );
+        <span class="macro">assert_eq!</span>(tags_1.domain.as_str(), <span class="prelude-val">Some</span>(<span class="string">"127.0.0.1:10007"</span>));
 
         <span class="comment">// Scrub other IPs
-        </span><span class="macro">assert_eq!</span>(
-            tags_2.get(<span class="string">"description"</span>).unwrap().as_str(),
-            <span class="prelude-val">Some</span>(<span class="string">"GET http://*.*.*.*"</span>)
-        );
-        <span class="macro">assert_eq!</span>(tags_2.get(<span class="string">"domain"</span>).unwrap().as_str(), <span class="prelude-val">Some</span>(<span class="string">"*.*.*.*"</span>));
+        </span><span class="macro">assert_eq!</span>(tags_2.description.as_str(), <span class="prelude-val">Some</span>(<span class="string">"GET http://*.*.*.*"</span>));
+        <span class="macro">assert_eq!</span>(tags_2.domain.as_str(), <span class="prelude-val">Some</span>(<span class="string">"*.*.*.*"</span>));
 
         <span class="comment">// Parse ccTLDs
         </span><span class="macro">assert_eq!</span>(
-            tags_3.get(<span class="string">"description"</span>).unwrap().as_str(),
+            tags_3.description.as_str(),
             <span class="prelude-val">Some</span>(<span class="string">"GET http://*.application.co.uk"</span>)
         );
-        <span class="macro">assert_eq!</span>(
-            tags_3.get(<span class="string">"domain"</span>).unwrap().as_str(),
-            <span class="prelude-val">Some</span>(<span class="string">"*.application.co.uk"</span>)
-        );
+        <span class="macro">assert_eq!</span>(tags_3.domain.as_str(), <span class="prelude-val">Some</span>(<span class="string">"*.application.co.uk"</span>));
     }
 
     <span class="attr">#[test]
@@ -4866,21 +4809,33 @@ LIMIT 1
         <span class="kw">let </span>span = <span class="kw-2">&amp;</span>event.spans.value().unwrap()[<span class="number">0</span>];
 
         <span class="kw">let </span>tags = span.value().unwrap().sentry_tags.value().unwrap();
-        <span class="macro">assert_eq!</span>(tags.get(<span class="string">"main_thread"</span>).unwrap().as_str(), <span class="prelude-val">Some</span>(<span class="string">"true"</span>));
-        <span class="macro">assert_eq!</span>(tags.get(<span class="string">"os.name"</span>).unwrap().as_str(), <span class="prelude-val">Some</span>(<span class="string">"Android"</span>));
-        <span class="macro">assert_eq!</span>(tags.get(<span class="string">"app_start_type"</span>).unwrap().as_str(), <span class="prelude-val">Some</span>(<span class="string">"cold"</span>));
+        <span class="macro">assert_eq!</span>(
+            tags.get_value(<span class="string">"main_thread"</span>).unwrap().as_str(),
+            <span class="prelude-val">Some</span>(<span class="string">"true"</span>)
+        );
+        <span class="macro">assert_eq!</span>(tags.get_value(<span class="string">"os.name"</span>).unwrap().as_str(), <span class="prelude-val">Some</span>(<span class="string">"Android"</span>));
+        <span class="macro">assert_eq!</span>(
+            tags.get_value(<span class="string">"app_start_type"</span>).unwrap().as_str(),
+            <span class="prelude-val">Some</span>(<span class="string">"cold"</span>)
+        );
 
         <span class="kw">let </span>span = <span class="kw-2">&amp;</span>event.spans.value().unwrap()[<span class="number">1</span>];
 
         <span class="kw">let </span>tags = span.value().unwrap().sentry_tags.value().unwrap();
-        <span class="macro">assert_eq!</span>(tags.get(<span class="string">"main_thread"</span>), <span class="prelude-val">None</span>);
-        <span class="macro">assert_eq!</span>(tags.get(<span class="string">"app_start_type"</span>).unwrap().as_str(), <span class="prelude-val">Some</span>(<span class="string">"warm"</span>));
+        <span class="macro">assert_eq!</span>(tags.get_value(<span class="string">"main_thread"</span>), <span class="prelude-val">None</span>);
+        <span class="macro">assert_eq!</span>(
+            tags.get_value(<span class="string">"app_start_type"</span>).unwrap().as_str(),
+            <span class="prelude-val">Some</span>(<span class="string">"warm"</span>)
+        );
 
         <span class="kw">let </span>span = <span class="kw-2">&amp;</span>event.spans.value().unwrap()[<span class="number">2</span>];
 
         <span class="kw">let </span>tags = span.value().unwrap().sentry_tags.value().unwrap();
-        <span class="macro">assert_eq!</span>(tags.get(<span class="string">"main_thread"</span>), <span class="prelude-val">None</span>);
-        <span class="macro">assert_eq!</span>(tags.get(<span class="string">"app_start_type"</span>).unwrap().as_str(), <span class="prelude-val">Some</span>(<span class="string">"warm"</span>));
+        <span class="macro">assert_eq!</span>(tags.get_value(<span class="string">"main_thread"</span>), <span class="prelude-val">None</span>);
+        <span class="macro">assert_eq!</span>(
+            tags.get_value(<span class="string">"app_start_type"</span>).unwrap().as_str(),
+            <span class="prelude-val">Some</span>(<span class="string">"warm"</span>)
+        );
     }
 
     <span class="attr">#[test]
@@ -4922,10 +4877,7 @@ LIMIT 1
 
         <span class="kw">let </span>span = <span class="kw-2">&amp;</span>event.spans.value().unwrap()[<span class="number">0</span>];
         <span class="kw">let </span>tags = span.value().unwrap().sentry_tags.value().unwrap();
-        <span class="macro">assert_eq!</span>(
-            tags.get(<span class="string">"browser.name"</span>),
-            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Annotated::new(<span class="string">"Chrome"</span>.to_string()))
-        );
+        <span class="macro">assert_eq!</span>(tags.browser_name.as_str(), <span class="prelude-val">Some</span>(<span class="string">"Chrome"</span>));
     }
 
     <span class="attr">#[test]
@@ -4948,10 +4900,7 @@ LIMIT 1
             .unwrap();
         <span class="kw">let </span>tags = extract_tags(<span class="kw-2">&amp;</span>span, <span class="number">200</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="bool-val">false</span>, <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>[]);
 
-        <span class="macro">assert_eq!</span>(
-            tags.get(<span class="kw-2">&amp;</span>SpanTagKey::BrowserName),
-            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">"Chrome"</span>.to_string())
-        );
+        <span class="macro">assert_eq!</span>(tags.browser_name.value(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">"Chrome"</span>.to_string()));
     }
 
     <span class="attr">#[test]
@@ -4991,10 +4940,7 @@ LIMIT 1
         <span class="kw">let </span>span = <span class="kw-2">&amp;</span>event.spans.value().unwrap()[<span class="number">0</span>];
         <span class="kw">let </span>tags = span.value().unwrap().sentry_tags.value().unwrap();
 
-        <span class="macro">assert_eq!</span>(
-            tags.get(<span class="string">"trace.status"</span>),
-            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Annotated::new(<span class="string">"ok"</span>.to_string()))
-        );
+        <span class="macro">assert_eq!</span>(tags.trace_status.as_str(), <span class="prelude-val">Some</span>(<span class="string">"ok"</span>));
     }
 
     <span class="attr">#[test]
@@ -5020,11 +4966,11 @@ LIMIT 1
         <span class="kw">let </span>tags = extract_tags(<span class="kw-2">&amp;</span>span, <span class="number">200</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="bool-val">false</span>, <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>[]);
 
         <span class="macro">assert_eq!</span>(
-            tags.get(<span class="kw-2">&amp;</span>SpanTagKey::MessagingDestinationName),
+            tags.messaging_destination_name.value(),
             <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">"default"</span>.to_string())
         );
         <span class="macro">assert_eq!</span>(
-            tags.get(<span class="kw-2">&amp;</span>SpanTagKey::MessagingMessageId),
+            tags.messaging_message_id.value(),
             <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">"abc123"</span>.to_string())
         );
     }
@@ -5066,15 +5012,9 @@ LIMIT 1
         <span class="kw">let </span>tags = segment_span.value().unwrap().sentry_tags.value().unwrap();
         <span class="kw">let </span>measurements = segment_span.value().unwrap().measurements.value().unwrap();
 
-        <span class="macro">assert_eq!</span>(
-            tags.get(<span class="string">"messaging.destination.name"</span>),
-            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Annotated::new(<span class="string">"default"</span>.to_string()))
-        );
+        <span class="macro">assert_eq!</span>(tags.messaging_destination_name.as_str(), <span class="prelude-val">Some</span>(<span class="string">"default"</span>));
 
-        <span class="macro">assert_eq!</span>(
-            tags.get(<span class="string">"messaging.message.id"</span>),
-            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>Annotated::new(<span class="string">"abc123"</span>.to_string()))
-        );
+        <span class="macro">assert_eq!</span>(tags.messaging_message_id.as_str(), <span class="prelude-val">Some</span>(<span class="string">"abc123"</span>));
 
         <span class="macro">assert_debug_snapshot!</span>(measurements, @<span class="string">r###"
         Measurements(
@@ -5148,8 +5088,8 @@ LIMIT 1
         <span class="kw">let </span>tags = span.value().unwrap().sentry_tags.value().unwrap();
         <span class="kw">let </span>measurements = span.value().unwrap().measurements.value().unwrap();
 
-        <span class="macro">assert_eq!</span>(tags.get(<span class="string">"messaging.destination.name"</span>), <span class="prelude-val">None</span>);
-        <span class="macro">assert_eq!</span>(tags.get(<span class="string">"messaging.message.id"</span>), <span class="prelude-val">None</span>);
+        <span class="macro">assert_eq!</span>(tags.get_value(<span class="string">"messaging.destination.name"</span>), <span class="prelude-val">None</span>);
+        <span class="macro">assert_eq!</span>(tags.get_value(<span class="string">"messaging.message.id"</span>), <span class="prelude-val">None</span>);
 
         <span class="macro">assert_debug_snapshot!</span>(measurements, @<span class="string">r###"
         Measurements(
@@ -5215,13 +5155,13 @@ LIMIT 1
 
         <span class="kw">let </span>statuses: Vec&lt;<span class="kw">_</span>&gt; = spans
             .iter()
-            .map(|span| <span class="macro">get_value!</span>(span.sentry_tags[<span class="string">"status"</span>]!))
+            .map(|span| <span class="macro">get_value!</span>(span.sentry_tags.<span class="macro">status!</span>))
             .collect();
 
         <span class="macro">assert_eq!</span>(statuses, <span class="macro">vec!</span>[<span class="string">"ok"</span>, <span class="string">"invalid_argument"</span>]);
     }
 
-    <span class="kw">fn </span>extract_tags_supabase(description: <span class="kw">impl </span>Into&lt;String&gt;) -&gt; BTreeMap&lt;SpanTagKey, String&gt; {
+    <span class="kw">fn </span>extract_tags_supabase(description: <span class="kw">impl </span>Into&lt;String&gt;) -&gt; SentryTags {
         <span class="kw">let </span>json = <span class="string">r#"{
             "description": "from(my_table)",
             "op": "db.select",
@@ -5247,13 +5187,10 @@ LIMIT 1
     </span><span class="kw">fn </span>supabase() {
         <span class="kw">let </span>tags = extract_tags_supabase(<span class="string">"from(mytable)"</span>);
         <span class="macro">assert_eq!</span>(
-            tags.get(<span class="kw-2">&amp;</span>SpanTagKey::Description).map(String::as_str),
+            tags.description.value().map(String::as_str),
             <span class="prelude-val">Some</span>(<span class="string">"from(mytable)"</span>)
         );
-        <span class="macro">assert_eq!</span>(
-            tags.get(<span class="kw-2">&amp;</span>SpanTagKey::Domain).map(String::as_str),
-            <span class="prelude-val">Some</span>(<span class="string">"mytable"</span>)
-        );
+        <span class="macro">assert_eq!</span>(tags.domain.value().map(String::as_str), <span class="prelude-val">Some</span>(<span class="string">"mytable"</span>));
     }
 
     <span class="attr">#[test]
@@ -5261,11 +5198,11 @@ LIMIT 1
         <span class="kw">let </span>tags = extract_tags_supabase(<span class="string">"from(my_table00)"</span>);
 
         <span class="macro">assert_eq!</span>(
-            tags.get(<span class="kw-2">&amp;</span>SpanTagKey::Description).map(String::as_str),
+            tags.description.value().map(String::as_str),
             <span class="prelude-val">Some</span>(<span class="string">"from(my_table{%s})"</span>)
         );
         <span class="macro">assert_eq!</span>(
-            tags.get(<span class="kw-2">&amp;</span>SpanTagKey::Domain).map(String::as_str),
+            tags.domain.value().map(String::as_str),
             <span class="prelude-val">Some</span>(<span class="string">"my_table{%s}"</span>)
         );
     }
@@ -5274,8 +5211,8 @@ LIMIT 1
     </span><span class="kw">fn </span>supabase_unsupported() {
         <span class="kw">let </span>tags = extract_tags_supabase(<span class="string">"something else"</span>);
 
-        <span class="macro">assert_eq!</span>(tags.get(<span class="kw-2">&amp;</span>SpanTagKey::Description), <span class="prelude-val">None</span>);
-        <span class="macro">assert_eq!</span>(tags.get(<span class="kw-2">&amp;</span>SpanTagKey::Domain), <span class="prelude-val">None</span>);
+        <span class="macro">assert_eq!</span>(tags.description.value(), <span class="prelude-val">None</span>);
+        <span class="macro">assert_eq!</span>(tags.domain.value(), <span class="prelude-val">None</span>);
     }
 
     <span class="attr">#[test]
@@ -5300,12 +5237,9 @@ LIMIT 1
             .unwrap();
         <span class="kw">let </span>tags = extract_tags(<span class="kw-2">&amp;</span>span, <span class="number">200</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="bool-val">false</span>, <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>[]);
 
-        <span class="macro">assert_eq!</span>(tags.get(<span class="kw-2">&amp;</span>SpanTagKey::Action), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">"FIND"</span>.to_string()));
+        <span class="macro">assert_eq!</span>(tags.action.value(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">"FIND"</span>.to_string()));
 
-        <span class="macro">assert_eq!</span>(
-            tags.get(<span class="kw-2">&amp;</span>SpanTagKey::Domain),
-            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">"documents"</span>.to_string())
-        );
+        <span class="macro">assert_eq!</span>(tags.domain.value(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">"documents"</span>.to_string()));
     }
 
     <span class="attr">#[test]
@@ -5330,10 +5264,7 @@ LIMIT 1
             .unwrap();
         <span class="kw">let </span>tags = extract_tags(<span class="kw-2">&amp;</span>span, <span class="number">200</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="bool-val">false</span>, <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>[]);
 
-        <span class="macro">assert_eq!</span>(
-            tags.get(<span class="kw-2">&amp;</span>SpanTagKey::Domain),
-            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">"documents_{%s}"</span>.to_string())
-        );
+        <span class="macro">assert_eq!</span>(tags.domain.value(), <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">"documents_{%s}"</span>.to_string()));
     }
 
     <span class="attr">#[test]
@@ -5376,7 +5307,7 @@ LIMIT 1
         <span class="kw">let </span>span = <span class="kw-2">&amp;</span>spans[<span class="number">0</span>];
 
         <span class="macro">assert_eq!</span>(
-            <span class="macro">get_value!</span>(span.sentry_tags[<span class="string">"profiler_id"</span>]!),
+            <span class="macro">get_value!</span>(span.sentry_tags.<span class="macro">profiler_id!</span>),
             <span class="string">"ff62a8b040f340bda5d830223def1d81"</span>,
         );
     }
@@ -5433,16 +5364,13 @@ LIMIT 1
         <span class="kw">let </span>spans = <span class="macro">get_value!</span>(event.<span class="macro">spans!</span>);
         <span class="kw">let </span>span = <span class="kw-2">&amp;</span>spans[<span class="number">0</span>];
 
-        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.sentry_tags[<span class="string">"user"</span>]!), <span class="string">"id:1"</span>);
-        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.sentry_tags[<span class="string">"user.id"</span>]!), <span class="string">"1"</span>);
-        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.sentry_tags[<span class="string">"user.ip"</span>]!), <span class="string">"127.0.0.1"</span>);
-        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.sentry_tags[<span class="string">"user.username"</span>]!), <span class="string">"admin"</span>);
-        <span class="macro">assert_eq!</span>(
-            <span class="macro">get_value!</span>(span.sentry_tags[<span class="string">"user.email"</span>]!),
-            <span class="string">"admin@sentry.io"
-        </span>);
-        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.sentry_tags[<span class="string">"user.geo.country_code"</span>]!), <span class="string">"US"</span>);
-        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.sentry_tags[<span class="string">"user.geo.subregion"</span>]!), <span class="string">"21"</span>);
+        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.sentry_tags.<span class="macro">user!</span>), <span class="string">"id:1"</span>);
+        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.sentry_tags.<span class="macro">user_id!</span>), <span class="string">"1"</span>);
+        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.sentry_tags.<span class="macro">user_ip!</span>), <span class="string">"127.0.0.1"</span>);
+        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.sentry_tags.<span class="macro">user_username!</span>), <span class="string">"admin"</span>);
+        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.sentry_tags.<span class="macro">user_email!</span>), <span class="string">"admin@sentry.io"</span>);
+        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.sentry_tags.<span class="macro">user_country_code!</span>), <span class="string">"US"</span>);
+        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.sentry_tags.<span class="macro">user_subregion!</span>), <span class="string">"21"</span>);
     }
 
     <span class="attr">#[test]
@@ -5498,8 +5426,8 @@ LIMIT 1
 
         <span class="kw">let </span>tags = span.value().unwrap().sentry_tags.value().unwrap();
 
-        <span class="macro">assert_eq!</span>(tags.get(<span class="string">"user.geo.subregion"</span>), <span class="prelude-val">None</span>);
-        <span class="macro">assert_eq!</span>(tags.get(<span class="string">"user.geo.country_code"</span>), <span class="prelude-val">None</span>);
+        <span class="macro">assert_eq!</span>(tags.get_value(<span class="string">"user.geo.subregion"</span>), <span class="prelude-val">None</span>);
+        <span class="macro">assert_eq!</span>(tags.get_value(<span class="string">"user.geo.country_code"</span>), <span class="prelude-val">None</span>);
     }
 
     <span class="attr">#[test]
@@ -5546,8 +5474,8 @@ LIMIT 1
         <span class="kw">let </span>spans = <span class="macro">get_value!</span>(event.<span class="macro">spans!</span>);
         <span class="kw">let </span>span = <span class="kw-2">&amp;</span>spans[<span class="number">0</span>];
 
-        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.sentry_tags[<span class="string">"thread.id"</span>]!), <span class="string">"42"</span>,);
-        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.sentry_tags[<span class="string">"thread.name"</span>]!), <span class="string">"main"</span>,);
+        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.sentry_tags.<span class="macro">thread_id!</span>), <span class="string">"42"</span>,);
+        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.sentry_tags.<span class="macro">thread_name!</span>), <span class="string">"main"</span>,);
     }
 
     <span class="attr">#[test]
@@ -5594,8 +5522,8 @@ LIMIT 1
         <span class="kw">let </span>spans = <span class="macro">get_value!</span>(event.<span class="macro">spans!</span>);
         <span class="kw">let </span>span = <span class="kw-2">&amp;</span>spans[<span class="number">0</span>];
 
-        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.sentry_tags[<span class="string">"thread.id"</span>]!), <span class="string">"42"</span>,);
-        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.sentry_tags[<span class="string">"thread.name"</span>]!), <span class="string">"main"</span>,);
+        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.sentry_tags.<span class="macro">thread_id!</span>), <span class="string">"42"</span>,);
+        <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.sentry_tags.<span class="macro">thread_name!</span>), <span class="string">"main"</span>,);
     }
 }
 </code></pre></div></section></main></body></html>

@@ -1384,10 +1384,7 @@
 <a href="#1383" id="1383">1383</a>
 <a href="#1384" id="1384">1384</a>
 <a href="#1385" id="1385">1385</a>
-<a href="#1386" id="1386">1386</a>
-<a href="#1387" id="1387">1387</a>
-<a href="#1388" id="1388">1388</a>
-<a href="#1389" id="1389">1389</a></pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
+<a href="#1386" id="1386">1386</a></pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
 
@@ -2014,11 +2011,7 @@
         <span class="prelude-val">None</span>,
         allowed_hosts,
     );
-    span.sentry_tags = Annotated::new(
-        tags.into_iter()
-            .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
-            .collect(),
-    );
+    span.sentry_tags = Annotated::new(tags);
 
     normalize_performance_score(span, performance_score);
     <span class="kw">if let </span><span class="prelude-val">Some</span>(model_costs_config) = ai_model_costs {
@@ -2156,20 +2149,21 @@
         .ok_or(<span class="macro">anyhow::anyhow!</span>(<span class="string">"missing exclusive_time"</span>))<span class="question-mark">?</span>;
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(sentry_tags) = sentry_tags.value_mut() {
-        sentry_tags.retain(|key, value| <span class="kw">match </span>value.value() {
-            <span class="prelude-val">Some</span>(s) =&gt; {
-                <span class="kw">match </span>key.as_str() {
-                    <span class="string">"group" </span>=&gt; {
-                        <span class="comment">// Only allow up to 16-char hex strings in group.
-                        </span>s.len() &lt;= <span class="number">16 </span>&amp;&amp; s.chars().all(|c| c.is_ascii_hexdigit())
-                    }
-                    <span class="string">"status_code" </span>=&gt; s.parse::&lt;u16&gt;().is_ok(),
-                    <span class="kw">_ </span>=&gt; <span class="bool-val">true</span>,
-                }
-            }
-            <span class="comment">// Drop empty string values.
-            </span><span class="prelude-val">None </span>=&gt; <span class="bool-val">false</span>,
-        });
+        <span class="kw">if </span>sentry_tags
+            .group
+            .value()
+            .is_some_and(|s| s.len() &gt; <span class="number">16 </span>|| s.chars().any(|c| !c.is_ascii_hexdigit()))
+        {
+            sentry_tags.group.set_value(<span class="prelude-val">None</span>);
+        }
+
+        <span class="kw">if </span>sentry_tags
+            .status_code
+            .value()
+            .is_some_and(|s| s.parse::&lt;u16&gt;().is_err())
+        {
+            sentry_tags.group.set_value(<span class="prelude-val">None</span>);
+        }
     }
     <span class="kw">if let </span><span class="prelude-val">Some</span>(tags) = tags.value_mut() {
         tags.retain(|<span class="kw">_</span>, value| !value.value().is_empty())

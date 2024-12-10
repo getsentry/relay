@@ -1745,7 +1745,14 @@
 <a href="#1744" id="1744">1744</a>
 <a href="#1745" id="1745">1745</a>
 <a href="#1746" id="1746">1746</a>
-<a href="#1747" id="1747">1747</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
+<a href="#1747" id="1747">1747</a>
+<a href="#1748" id="1748">1748</a>
+<a href="#1749" id="1749">1749</a>
+<a href="#1750" id="1750">1750</a>
+<a href="#1751" id="1751">1751</a>
+<a href="#1752" id="1752">1752</a>
+<a href="#1753" id="1753">1753</a>
+<a href="#1754" id="1754">1754</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 
 <span class="kw">use </span>once_cell::sync::Lazy;
 <span class="kw">use </span>relay_event_schema::processor::ValueType;
@@ -1768,7 +1775,7 @@
 
 <span class="doccomment">/// Fields that are known to contain IPs. Used for legacy IP scrubbing.
 </span><span class="kw">static </span>KNOWN_IP_FIELDS: Lazy&lt;SelectorSpec&gt; = Lazy::new(|| {
-    <span class="string">"($request.env.REMOTE_ADDR | $user.ip_address | $sdk.client_ip)"
+    <span class="string">"($request.env.REMOTE_ADDR | $user.ip_address | $sdk.client_ip | $span.sentry_tags.'user.ip')"
         </span>.parse()
         .unwrap()
 });
@@ -2036,7 +2043,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "@common:filter",
               "@ip:replace"
             ],
-            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
+            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip || $span.sentry_tags.'user.ip'": [
               "@anything:remove"
             ],
             "*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.__session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies.csrf || *.cookies.xsrf || *.cookies._xsrf || *.cookies._csrf || *.cookies.csrf-token || *.cookies.csrf_token || *.cookies.xsrf-token || *.cookies.xsrf_token || *.cookies.fastcsrf || *.cookies._iris_csrf": [
@@ -2061,7 +2068,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "@common:filter",
               "@ip:replace"
             ],
-            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
+            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip || $span.sentry_tags.'user.ip'": [
               "@anything:remove"
             ],
             "*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.__session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies.csrf || *.cookies.xsrf || *.cookies._xsrf || *.cookies._csrf || *.cookies.csrf-token || *.cookies.csrf_token || *.cookies.xsrf-token || *.cookies.xsrf_token || *.cookies.fastcsrf || *.cookies._iris_csrf": [
@@ -2097,7 +2104,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "@ip:replace",
               "strip-fields"
             ],
-            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
+            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip || $span.sentry_tags.'user.ip'": [
               "@anything:remove"
             ],
             "*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.__session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies.csrf || *.cookies.xsrf || *.cookies._xsrf || *.cookies._csrf || *.cookies.csrf-token || *.cookies.csrf_token || *.cookies.xsrf-token || *.cookies.xsrf_token || *.cookies.fastcsrf || *.cookies._iris_csrf": [
@@ -2122,7 +2129,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "@common:filter",
               "@ip:replace"
             ],
-            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
+            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip || $span.sentry_tags.'user.ip'": [
               "@anything:remove"
             ],
             "*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.__session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies.csrf || *.cookies.xsrf || *.cookies._xsrf || *.cookies._csrf || *.cookies.csrf-token || *.cookies.csrf_token || *.cookies.xsrf-token || *.cookies.xsrf_token || *.cookies.fastcsrf || *.cookies._iris_csrf": [
@@ -2148,7 +2155,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
             "($string || $number || $array || $object) &amp;&amp; !(debug_meta.** || $frame.filename || $frame.abs_path || $logentry.formatted || $error.value || $http.headers.user-agent)": [
               "@ip:replace"
             ],
-            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
+            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip || $span.sentry_tags.'user.ip'": [
               "@anything:remove"
             ]
           }
@@ -2280,7 +2287,14 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
                 },
                 <span class="string">"sdk"</span>: {
                     <span class="string">"client_ip"</span>: <span class="string">"should also be stripped"
-                </span>}
+                </span>},
+                <span class="string">"spans"</span>: [
+                    {
+                        <span class="string">"sentry_tags"</span>: {
+                            <span class="string">"user.ip"</span>: <span class="string">"73.133.27.120"
+                        </span>}
+                    }
+                ]
             })
             .into(),
         );
@@ -3029,7 +3043,7 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
               "@ip:replace",
               "strip-fields"
             ],
-            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
+            "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip || $span.sentry_tags.'user.ip'": [
               "@anything:remove"
             ],
             "*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.__session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies.csrf || *.cookies.xsrf || *.cookies._xsrf || *.cookies._csrf || *.cookies.csrf-token || *.cookies.csrf_token || *.cookies.xsrf-token || *.cookies.xsrf_token || *.cookies.fastcsrf || *.cookies._iris_csrf": [
