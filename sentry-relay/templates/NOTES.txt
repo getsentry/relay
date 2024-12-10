@@ -1,0 +1,16 @@
+Thank you for installing my-sentry-relay!
+
+To test your Relay instance:
+
+1. Port forward the service:
+   kubectl port-forward svc/{{ include "my-sentry-relay.fullname" . }} 3000:3000
+
+2. Update your DSN to point to Relay:
+   Original DSN:  https://<key>@oX.ingest.sentry.io/<project_id>
+   Relay DSN:     http://<key>@localhost:3000/<project_id>
+
+3. Test with sentry-cli:
+   export SENTRY_DSN='http://<key>@localhost:3000/<project_id>'
+   sentry-cli send-event -m 'A test event'
+
+4. Check in your Sentry project for the event.

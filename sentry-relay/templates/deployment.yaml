@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "my-sentry-relay.fullname" . }}
+  labels:
+    app: {{ include "my-sentry-relay.name" . }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ include "my-sentry-relay.name" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "my-sentry-relay.name" . }}
+    spec:
+      containers:
+        - name: relay
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["run"]
+          ports:
+            - containerPort: {{ .Values.relay.port }}
+          volumeMounts:
+            - name: relay-config
+              mountPath: /work/.relay
+            - name: relay-credentials
+              mountPath: /work/.relay
+              readOnly: true
+          resources:
+            requests:
+              cpu: {{ .Values.resources.requests.cpu }}
+              memory: {{ .Values.resources.requests.memory }}
+            limits:
+              cpu: {{ .Values.resources.limits.cpu }}
+              memory: {{ .Values.resources.limits.memory }}
+      volumes:
+        - name: relay-config
+          configMap:
+            name: {{ include "my-sentry-relay.fullname" . }}-config
+        - name: relay-credentials
+          secret:
+            secretName: {{ include "my-sentry-relay.fullname" . }}-credentials
