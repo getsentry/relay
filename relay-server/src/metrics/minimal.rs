@@ -162,14 +162,12 @@ mod tests {
         let summary = min_buckets.iter().map(|b| b.summary()).collect::<Vec<_>>();
         assert_debug_snapshot!(summary, @r###"
         [
-            Transactions {
-                count: 0,
-                has_profile: true,
-            },
-            Transactions {
-                count: 3,
-                has_profile: false,
-            },
+            Transactions(
+                0,
+            ),
+            Transactions(
+                3,
+            ),
             Spans(
                 3,
             ),
