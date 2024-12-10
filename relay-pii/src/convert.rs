@@ -21,7 +21,7 @@ static DATASCRUBBER_IGNORE: Lazy<SelectorSpec> = Lazy::new(|| {
 
 /// Fields that are known to contain IPs. Used for legacy IP scrubbing.
 static KNOWN_IP_FIELDS: Lazy<SelectorSpec> = Lazy::new(|| {
-    "($request.env.REMOTE_ADDR | $user.ip_address | $sdk.client_ip)"
+    "($request.env.REMOTE_ADDR | $user.ip_address | $sdk.client_ip | $span.sentry_tags.'user.ip')"
         .parse()
         .unwrap()
 });
@@ -533,7 +533,14 @@ THd+9FBxiHLGXNKhG/FRSyREXEt+NyYIf/0cyByc9tNksat794ddUqnLOg0vwSkv
                 },
                 "sdk": {
                     "client_ip": "should also be stripped"
-                }
+                },
+                "spans": [
+                    {
+                        "sentry_tags": {
+                            "user.ip": "73.133.27.120"
+                        }
+                    }
+                ]
             })
             .into(),
         );
