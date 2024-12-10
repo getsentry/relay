@@ -135,6 +135,11 @@ enum RelayDataCategory {
    */
   RELAY_DATA_CATEGORY_REPLAY_VIDEO = 20,
   /**
+   * Uptime Monitor
+   *
+   */
+  RELAY_DATA_CATEGORY_UPTIME = 21,
+  /**
    * Any other data category not known by this Relay.
    */
   RELAY_DATA_CATEGORY_UNKNOWN = -1,

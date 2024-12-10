@@ -197,6 +197,7 @@ impl CategoryUnit {
             | DataCategory::MetricBucket
             | DataCategory::UserReportV2
             | DataCategory::ProfileChunk
+            | DataCategory::Uptime
             | DataCategory::MetricSecond => Some(Self::Count),
             DataCategory::Attachment => Some(Self::Bytes),
             DataCategory::Session => Some(Self::Batched),
