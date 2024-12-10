@@ -21,6 +21,7 @@ pub struct MetricsLimiter<Q: AsRef<Vec<Quota>> = Vec<Quota>> {
     scoping: Scoping,
 
     /// The number of performance items (transactions, spans, profiles) contributing to these metrics.
+    #[cfg(feature = "processing")]
     counts: EntityCounts,
 }
 
@@ -115,12 +116,13 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
             .iter()
             .map(|b| to_counts(&b.summary))
             .reduce(|a, b| a + b);
-        if let Some(counts) = total_counts {
+        if let Some(_counts) = total_counts {
             Ok(Self {
                 buckets,
                 quotas,
                 scoping,
-                counts,
+                #[cfg(feature = "processing")]
+                counts: _counts,
             })
         } else {
             Err(buckets.into_iter().map(|s| s.bucket).collect())
