@@ -184,14 +184,15 @@ impl Getter for Span {
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct SentryTags {
     pub release: Annotated<String>,
+    #[metastructure(pii = "true")]
     pub user: Annotated<String>,
-    #[metastructure(field = "user.id")]
+    #[metastructure(pii = "true", field = "user.id")]
     pub user_id: Annotated<String>,
-    #[metastructure(field = "user.ip")]
+    #[metastructure(pii = "true", field = "user.ip")]
     pub user_ip: Annotated<String>,
-    #[metastructure(field = "user.username")]
+    #[metastructure(pii = "true", field = "user.username")]
     pub user_username: Annotated<String>,
-    #[metastructure(field = "user.email")]
+    #[metastructure(pii = "true", field = "user.email")]
     pub user_email: Annotated<String>,
     pub environment: Annotated<String>,
     pub transaction: Annotated<String>,

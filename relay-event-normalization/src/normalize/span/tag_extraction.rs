@@ -1629,7 +1629,7 @@ LIMIT 1
             Some("https://subdomain.example.com:5688")
         );
         assert_eq!(tags_2.raw_domain.as_str(), Some("http://example.com"));
-        assert!(!tags_3.raw_domain.value().is_some());
+        assert!(tags_3.raw_domain.value().is_none());
     }
 
     #[test]
