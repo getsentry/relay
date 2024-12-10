@@ -34,7 +34,7 @@ pub enum TransactionMetric {
     ///
     /// This metric does not have any of the common tags for the performance product, but instead
     /// carries internal information for accounting purposes.
-    Usage { tags: UsageTags },
+    Usage,
     /// An internal counter metric used to compute dynamic sampling biases.
     ///
     /// See '<https://github.com/getsentry/sentry/blob/d3d9ed6cfa6e06aa402ab1d496dedbb22b3eabd7/src/sentry/dynamic_sampling/prioritise_projects.py#L40>'.
@@ -77,11 +77,11 @@ impl IntoMetric for TransactionMetric {
                 MetricUnit::Duration(unit),
                 tags.into(),
             ),
-            Self::Usage { tags } => (
+            Self::Usage => (
                 Cow::Borrowed("usage"),
                 BucketValue::counter(1.into()),
                 MetricUnit::None,
-                tags.into(),
+                Default::default(),
             ),
             Self::CountPerRootProject { tags } => (
                 Cow::Borrowed("count_per_root_project"),
@@ -148,21 +148,6 @@ impl From<LightTransactionTags> for BTreeMap<String, String> {
         }
         if let Some(transaction) = tags.transaction {
             map.insert(CommonTag::Transaction.to_string(), transaction);
-        }
-        map
-    }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Ord, PartialOrd)]
-pub struct UsageTags {
-    pub has_profile: bool,
-}
-
-impl From<UsageTags> for BTreeMap<String, String> {
-    fn from(tags: UsageTags) -> Self {
-        let mut map = BTreeMap::new();
-        if tags.has_profile {
-            map.insert("has_profile".to_owned(), "true".to_owned());
         }
         map
     }
