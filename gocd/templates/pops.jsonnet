@@ -8,7 +8,7 @@ local pipedream_config = {
   name: 'relay-pop',
   auto_deploy: false,
   exclude_regions: [
-    'customer-1'
+    'customer-1',
   ],
   materials: {
     relay_repo: {
