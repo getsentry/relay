@@ -16,8 +16,6 @@ pub struct MinimalTrackableBucket {
     #[serde(flatten)]
     value: MinimalValue,
     #[serde(default)]
-    tags: Tags,
-    #[serde(default)]
     metadata: BucketMetadata,
 }
 
@@ -42,9 +40,7 @@ impl TrackableBucket for MinimalTrackableBucket {
                     MinimalValue::Counter(c) if mri.name == "usage" => c.to_f64() as usize,
                     _ => 0,
                 };
-                let has_profile = matches!(mri.name.as_ref(), "usage" | "duration")
-                    && self.tags.has_profile.is_some();
-                BucketSummary::Transactions { count, has_profile }
+                BucketSummary::Transactions(count)
             }
             MetricNamespace::Spans => BucketSummary::Spans(match self.value {
                 MinimalValue::Counter(c) if mri.name == "usage" => c.to_f64() as usize,
@@ -81,12 +77,6 @@ impl MinimalValue {
             MinimalValue::Gauge(_) => MetricType::Gauge,
         }
     }
-}
-
-#[derive(Clone, Copy, Debug, Default, Deserialize)]
-#[serde(default)]
-struct Tags {
-    has_profile: Option<IgnoredAny>,
 }
 
 #[cfg(test)]

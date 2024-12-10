@@ -2315,11 +2315,7 @@ impl EnvelopeProcessorService {
         let quotas = project_info.config.quotas.clone();
         match MetricsLimiter::create(buckets, quotas, scoping) {
             Ok(mut bucket_limiter) => {
-                bucket_limiter.enforce_limits(
-                    rate_limits,
-                    &self.inner.metric_outcomes,
-                    &self.inner.addrs.outcome_aggregator,
-                );
+                bucket_limiter.enforce_limits(rate_limits, &self.inner.metric_outcomes);
                 bucket_limiter.into_buckets()
             }
             Err(buckets) => buckets,
@@ -2442,11 +2438,8 @@ impl EnvelopeProcessorService {
             }
 
             if rate_limits.is_limited() {
-                let was_enforced = bucket_limiter.enforce_limits(
-                    &rate_limits,
-                    &self.inner.metric_outcomes,
-                    &self.inner.addrs.outcome_aggregator,
-                );
+                let was_enforced =
+                    bucket_limiter.enforce_limits(&rate_limits, &self.inner.metric_outcomes);
 
                 if was_enforced {
                     // Update the rate limits in the project cache.
