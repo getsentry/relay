@@ -1,5 +1,5 @@
 ---
-source: relay-general/src/pii/convert.rs
+source: relay-pii/src/convert.rs
 expression: data
 ---
 {
@@ -28,6 +28,13 @@ expression: data
   "sdk": {
     "client_ip": null
   },
+  "spans": [
+    {
+      "sentry_tags": {
+        "user.ip": null
+      }
+    }
+  ],
   "_meta": {
     "breadcrumbs": {
       "values": {
@@ -75,6 +82,29 @@ expression: data
             ]
           ],
           "val": "should also be stripped"
+        }
+      }
+    },
+    "spans": {
+      "0": {
+        "sentry_tags": {
+          "user.ip": {
+            "": {
+              "rem": [
+                [
+                  "@ip:replace",
+                  "s",
+                  0,
+                  4
+                ],
+                [
+                  "@anything:remove",
+                  "x"
+                ]
+              ],
+              "len": 13
+            }
+          }
         }
       }
     },
