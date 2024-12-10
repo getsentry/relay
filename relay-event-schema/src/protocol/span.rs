@@ -148,7 +148,7 @@ impl Getter for Span {
                     } else if let Some(key) = path.strip_prefix("data.") {
                         self.attribute(key)?
                     } else if let Some(key) = path.strip_prefix("sentry_tags.") {
-                        self.sentry_tags.value()?.get(key)?.as_str()?.into()
+                        self.sentry_tags.value()?.get_value(key)?
                     } else if let Some(rest) = path.strip_prefix("measurements.") {
                         let name = rest.strip_suffix(".value")?;
                         self.measurements
@@ -266,6 +266,63 @@ pub struct SentryTags {
     user_subregion: Annotated<String>,
     // no need for an `other` entry here because these fields are added server-side.
     // If an upstream relay does not recognize a field it will be dropped.
+}
+
+impl Getter for SentryTags {
+    fn get_value(&self, path: &str) -> Option<Val<'_>> {
+        let value = match path {
+            "action" => &self.action,
+            "ai_pipeline_group" => &self.ai_pipeline_group,
+            "app_start_type" => &self.app_start_type,
+            "browser.name" => &self.browser_name,
+            "cache.hit" => &self.cache_hit,
+            "cache.key" => &self.cache_key,
+            "category" => &self.category,
+            "description" => &self.description,
+            "device.class" => &self.device_class,
+            "domain" => &self.domain,
+            "environment" => &self.environment,
+            "file_extension" => &self.file_extension,
+            "group" => &self.group,
+            "http.decoded_response_content_length" => &self.http_decoded_response_content_length,
+            "http.response_content_length" => &self.http_response_content_length,
+            "http.response_transfer_size" => &self.http_response_transfer_size,
+            "main_thread" => &self.main_thread,
+            "messaging.destination.name" => &self.messaging_destination_name,
+            "messaging.message.id" => &self.messaging_message_id,
+            "mobile" => &self.mobile,
+            "op" => &self.span_op,
+            "os.name" => &self.os_name,
+            "platform" => &self.platform,
+            "profiler_id" => &self.profiler_id,
+            "raw_domain" => &self.raw_domain,
+            "release" => &self.release,
+            "replay_id" => &self.replay_id,
+            "resource.render_blocking_status" => &self.resource_render_blocking_status,
+            "sdk.name" => &self.sdk_name,
+            "sdk.version" => &self.sdk_version,
+            "status_code" => &self.status_code,
+            "status" => &self.span_status,
+            "system" => &self.system,
+            "thread.id" => &self.thread_id,
+            "thread.name" => &self.thread_name,
+            "trace.status" => &self.trace_status,
+            "transaction.method" => &self.transaction_method,
+            "transaction.op" => &self.transaction_op,
+            "transaction" => &self.transaction,
+            "ttfd" => &self.time_to_full_display,
+            "ttid" => &self.time_to_initial_display,
+            "user.email" => &self.user_email,
+            "user.geo.country_code" => &self.user_country_code,
+            "user.geo.subregion" => &self.user_subregion,
+            "user.id" => &self.user_id,
+            "user.ip" => &self.user_ip,
+            "user.username" => &self.user_username,
+            "user" => &self.user,
+            _ => return None,
+        };
+        Some(value.as_str()?.into())
+    }
 }
 
 /// Arbitrary additional data on a span.
