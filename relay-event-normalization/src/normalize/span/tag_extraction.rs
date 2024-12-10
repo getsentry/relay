@@ -93,7 +93,8 @@ pub fn extract_span_tags(
     // when they have already been extracted by a downstream relay.
     let shared_tags = extract_shared_tags(event);
     let is_mobile = shared_tags
-        .get(&SpanTagKey::Mobile)
+        .mobile
+        .value()
         .is_some_and(|v| v.as_str() == "true");
     let start_type = is_mobile.then(|| get_event_start_type(event)).flatten();
 
@@ -147,15 +148,7 @@ pub fn extract_segment_span_tags(event: &Event, spans: &mut [Annotated<Span>]) {
                         .map(|(k, v)| (k.clone(), Annotated::new(v.clone()))),
                 );
         }
-        if !segment_tags.is_empty() {
-            span.sentry_tags
-                .get_or_insert_with(Default::default)
-                .extend(
-                    segment_tags.iter().map(|(k, v)| {
-                        (k.clone().sentry_tag_key().into(), Annotated::new(v.clone()))
-                    }),
-                );
-        }
+        segment_tags.copy_into(span.sentry_tags.get_or_insert_with(Default::default))
     }
 }
 
@@ -246,14 +239,14 @@ fn extract_shared_tags(event: &Event) -> SentryTags {
     }
 
     if let Some(device_class) = event.tag_value("device.class") {
-        tags.device_class = device_class.into().into();
+        tags.device_class = device_class.to_owned().into();
     }
 
     if let Some(browser_name) = event
         .context::<BrowserContext>()
         .and_then(|v| v.name.value())
     {
-        tags.browser_name = browser_name.into().into();
+        tags.browser_name = browser_name.to_owned().into();
     }
 
     if let Some(profiler_id) = event
@@ -263,9 +256,9 @@ fn extract_shared_tags(event: &Event) -> SentryTags {
         tags.profiler_id = profiler_id.to_string().into();
     }
 
-    tags.sdk_name = event.sdk_name().into().into();
-    tags.sdk_version = event.sdk_version().into().into();
-    tags.platform = event.platform.as_str().unwrap_or("other").into().into();
+    tags.sdk_name = event.sdk_name().to_owned().into();
+    tags.sdk_version = event.sdk_version().to_owned().into();
+    tags.platform = event.platform.as_str().unwrap_or("other").to_owned().into();
 
     if let Some(data) = event
         .context::<TraceContext>()
@@ -326,29 +319,33 @@ fn extract_segment_measurements(event: &Event) -> BTreeMap<String, Measurement> 
     measurements
 }
 
+#[derive(Clone, Debug, Default)]
+struct SegmentTags {
+    messaging_destination_name: Annotated<String>,
+    messaging_message_id: Annotated<String>,
+}
+
+impl SegmentTags {
+    fn copy_into(&self, tags: &mut SentryTags) {
+        let Self {
+            messaging_destination_name,
+            messaging_message_id,
+        } = self.clone();
+        tags.messaging_destination_name = messaging_destination_name;
+        tags.messaging_message_id = messaging_message_id;
+    }
+}
+
 /// Extract tags that should only be saved on segment spans.
-fn extract_segment_tags(event: &Event) -> BTreeMap<SpanTagKey, String> {
-    let mut tags = BTreeMap::new();
+fn extract_segment_tags(event: &Event) -> SegmentTags {
+    let mut tags = SegmentTags::default();
 
     if let Some(trace_context) = event.context::<TraceContext>() {
         if let Some(op) = extract_transaction_op(trace_context) {
             if op == "queue.publish" || op == "queue.process" {
-                if let Some(destination_name) = trace_context
-                    .data
-                    .value()
-                    .and_then(|data| data.messaging_destination_name.as_str())
-                {
-                    tags.insert(
-                        SpanTagKey::MessagingDestinationName,
-                        destination_name.into(),
-                    );
-                }
-                if let Some(message_id) = trace_context
-                    .data
-                    .value()
-                    .and_then(|data| data.messaging_message_id.as_str())
-                {
-                    tags.insert(SpanTagKey::MessagingMessageId, message_id.into());
+                if let Some(data) = trace_context.data.value() {
+                    tags.messaging_destination_name = data.messaging_destination_name.clone();
+                    tags.messaging_message_id = data.messaging_message_id.clone();
                 }
             }
         }
@@ -372,8 +369,8 @@ pub fn extract_tags(
     is_mobile: bool,
     start_type: Option<&str>,
     span_allowed_hosts: &[String],
-) -> BTreeMap<SpanTagKey, String> {
-    let mut span_tags: BTreeMap<SpanTagKey, String> = BTreeMap::new();
+) -> SentryTags {
+    let mut span_tags = SentryTags::default();
 
     let system = span
         .data
@@ -381,21 +378,21 @@ pub fn extract_tags(
         .and_then(|data| data.db_system.value())
         .and_then(|system| system.as_str());
     if let Some(sys) = system {
-        span_tags.insert(SpanTagKey::System, sys.to_lowercase());
+        span_tags.system = sys.to_lowercase().into();
     }
 
     if let Some(status) = span.status.value() {
-        span_tags.insert(SpanTagKey::SpanStatus, status.as_str().to_owned());
+        span_tags.span_status = status.as_str().to_owned().into();
     }
 
     if let Some(unsanitized_span_op) = span.op.value() {
         let span_op = unsanitized_span_op.to_lowercase();
 
-        span_tags.insert(SpanTagKey::SpanOp, span_op.to_owned());
+        span_tags.span_op = span_op.to_owned().into();
 
         let category = span_op_to_category(&span_op);
         if let Some(category) = category {
-            span_tags.insert(SpanTagKey::Category, category.to_owned());
+            span_tags.category = category.to_owned().into();
         }
 
         let (scrubbed_description, parsed_sql) = scrub_span_description(span, span_allowed_hosts);
@@ -434,7 +431,7 @@ pub fn extract_tags(
         };
 
         if let Some(act) = action {
-            span_tags.insert(SpanTagKey::Action, act);
+            span_tags.action = act.into();
         }
 
         let domain = if span_op == "http.client" || span_op.starts_with("resource.") {
@@ -482,10 +479,7 @@ pub fn extract_tags(
                         .and_then(|data| data.url_scheme.value())
                         .and_then(|value| value.as_str())
                     {
-                        span_tags.insert(
-                            SpanTagKey::RawDomain,
-                            format!("{url_scheme}://{lowercase_address}"),
-                        );
+                        span_tags.raw_domain = format!("{url_scheme}://{lowercase_address}").into();
                     }
 
                     Some(concatenate_host_and_port(Some(domain.as_ref()), port).into_owned())
@@ -530,7 +524,7 @@ pub fn extract_tags(
 
         if !span_op.starts_with("db.redis") {
             if let Some(dom) = domain {
-                span_tags.insert(SpanTagKey::Domain, dom);
+                span_tags.domain = dom.into();
             }
         }
 
@@ -539,11 +533,11 @@ pub fn extract_tags(
                 span.data.value().and_then(|data| data.cache_hit.value())
             {
                 let tag_value = if *cache_hit { "true" } else { "false" };
-                span_tags.insert(SpanTagKey::CacheHit, tag_value.to_owned());
+                span_tags.cache_hit = tag_value.to_owned().into();
             }
             if let Some(cache_keys) = span.data.value().and_then(|data| data.cache_key.value()) {
                 if let Ok(cache_keys) = serde_json::to_string(cache_keys) {
-                    span_tags.insert(SpanTagKey::CacheKey, cache_keys);
+                    span_tags.cache_key = cache_keys.into();
                 }
             }
         }
@@ -554,14 +548,14 @@ pub fn extract_tags(
                 .value()
                 .and_then(|data| data.messaging_destination_name.as_str())
             {
-                span_tags.insert(SpanTagKey::MessagingDestinationName, destination.into());
+                span_tags.messaging_destination_name = destination.to_owned().into();
             }
             if let Some(message_id) = span
                 .data
                 .value()
                 .and_then(|data| data.messaging_message_id.as_str())
             {
-                span_tags.insert(SpanTagKey::MessagingMessageId, message_id.into());
+                span_tags.messaging_message_id = message_id.to_owned().into();
             }
         }
 
@@ -573,7 +567,7 @@ pub fn extract_tags(
 
             let mut span_group = format!("{:?}", md5::compute(&scrubbed_desc));
             span_group.truncate(16);
-            span_tags.insert(SpanTagKey::Group, span_group);
+            span_tags.group = span_group.into();
 
             let truncated = truncate_string(scrubbed_desc, max_tag_value_size);
             if span_op.starts_with("resource.") {
@@ -583,11 +577,11 @@ pub fn extract_tags(
                     .and_then(|last_segment| last_segment.rsplit_once('.'))
                     .map(|(_, extension)| extension)
                 {
-                    span_tags.insert(SpanTagKey::FileExtension, ext.to_lowercase());
+                    span_tags.file_extension = ext.to_lowercase().into();
                 }
             }
 
-            span_tags.insert(SpanTagKey::Description, truncated);
+            span_tags.description = truncated.into();
         }
 
         if category == Some("ai") {
@@ -599,7 +593,7 @@ pub fn extract_tags(
             {
                 let mut ai_pipeline_group = format!("{:?}", md5::compute(ai_pipeline_name));
                 ai_pipeline_group.truncate(16);
-                span_tags.insert(SpanTagKey::AIPipelineGroup, ai_pipeline_group);
+                span_tags.ai_pipeline_group = ai_pipeline_group.into();
             }
         }
 
@@ -611,7 +605,7 @@ pub fn extract_tags(
                     .value()
                     .and_then(|v| String::try_from(v).ok())
                 {
-                    span_tags.insert(SpanTagKey::HttpResponseContentLength, value);
+                    span_tags.http_response_content_length = value.into();
                 }
 
                 if let Some(value) = data
@@ -619,7 +613,7 @@ pub fn extract_tags(
                     .value()
                     .and_then(|v| String::try_from(v).ok())
                 {
-                    span_tags.insert(SpanTagKey::HttpDecodedResponseContentLength, value);
+                    span_tags.http_decoded_response_content_length = value.into();
                 }
 
                 if let Some(value) = data
@@ -627,7 +621,7 @@ pub fn extract_tags(
                     .value()
                     .and_then(|v| String::try_from(v).ok())
                 {
-                    span_tags.insert(SpanTagKey::HttpResponseTransferSize, value);
+                    span_tags.http_response_transfer_size = value.into();
                 }
             }
 
@@ -640,7 +634,7 @@ pub fn extract_tags(
                 // Validate that it's a valid status:
                 if let Ok(status) = RenderBlockingStatus::try_from(resource_render_blocking_status)
                 {
-                    span_tags.insert(SpanTagKey::ResourceRenderBlockingStatus, status.to_string());
+                    span_tags.resource_render_blocking_status = status.to_string().into();
                 }
             }
         }
@@ -653,35 +647,35 @@ pub fn extract_tags(
                     .value()
                     .and_then(|data| data.segment_name.as_str())
                 {
-                    span_tags.insert(SpanTagKey::Transaction, transaction.into());
+                    span_tags.transaction = transaction.to_owned().into();
                 }
                 if let Some(user) = span.data.value().and_then(|data| data.user.as_str()) {
-                    span_tags.insert(SpanTagKey::User, user.into());
+                    span_tags.user = user.to_owned().into();
                 }
                 if let Some(replay_id) = span.data.value().and_then(|data| data.replay_id.as_str())
                 {
-                    span_tags.insert(SpanTagKey::ReplayId, replay_id.into());
+                    span_tags.replay_id = replay_id.to_owned().into();
                 }
                 if let Some(environment) =
                     span.data.value().and_then(|data| data.environment.as_str())
                 {
-                    span_tags.insert(SpanTagKey::Environment, environment.into());
+                    span_tags.environment = environment.to_owned().into();
                 }
                 if let Some(release) = span.data.value().and_then(|data| data.release.as_str()) {
-                    span_tags.insert(SpanTagKey::Release, release.into());
+                    span_tags.release = release.to_owned().into();
                 }
             }
         }
     }
 
     if let Some(status_code) = http_status_code_from_span(span) {
-        span_tags.insert(SpanTagKey::StatusCode, status_code);
+        span_tags.status_code = status_code.into();
     }
 
     if is_mobile {
         if let Some(thread_name) = span.data.value().and_then(|data| data.thread_name.as_str()) {
             if thread_name == MAIN_THREAD_NAME {
-                span_tags.insert(SpanTagKey::MainThread, "true".to_owned());
+                span_tags.main_thread = "true".to_owned().into();
             }
         }
 
@@ -693,36 +687,36 @@ pub fn extract_tags(
             .and_then(|data| data.app_start_type.value())
             .and_then(|value| value.as_str())
         {
-            span_tags.insert(SpanTagKey::AppStartType, span_data_start_type.to_owned());
+            span_tags.app_start_type = span_data_start_type.to_owned().into();
         } else if let Some(start_type) = start_type {
-            span_tags.insert(SpanTagKey::AppStartType, start_type.to_owned());
+            span_tags.app_start_type = start_type.to_owned().into();
         }
     }
 
     if let Some(end_time) = span.timestamp.value() {
         if let Some(initial_display) = initial_display {
             if end_time <= &initial_display {
-                span_tags.insert(SpanTagKey::TimeToInitialDisplay, "ttid".to_owned());
+                span_tags.time_to_initial_display = ttid.to_owned().into();
             }
         }
         if let Some(full_display) = full_display {
             if end_time <= &full_display {
-                span_tags.insert(SpanTagKey::TimeToFullDisplay, "ttfd".to_owned());
+                span_tags.time_to_full_display = ttfd.to_owned().into();
             }
         }
     }
 
     if let Some(browser_name) = span.data.value().and_then(|data| data.browser_name.value()) {
-        span_tags.insert(SpanTagKey::BrowserName, browser_name.clone());
+        span_tags.browser_name = browser_name.clone().into();
     }
 
     if let Some(data) = span.data.value() {
         if let Some(thread_id) = data.thread_id.value() {
-            span_tags.insert(SpanTagKey::ThreadId, thread_id.to_string());
+            span_tags.thread_id = thread_id.to_string().into();
         }
 
         if let Some(thread_name) = data.thread_name.as_str() {
-            span_tags.insert(SpanTagKey::ThreadName, thread_name.into());
+            span_tags.thread_name = thread_name.to_owned().into();
         }
     }
 
@@ -1060,7 +1054,7 @@ fn get_event_start_type(event: &Event) -> Option<&'static str> {
 mod tests {
     use insta::assert_debug_snapshot;
     use relay_event_schema::protocol::Request;
-    use relay_protocol::get_value;
+    use relay_protocol::{get_value, Getter};
 
     use super::*;
     use crate::span::description::{scrub_queries, Mode};
@@ -1147,8 +1141,8 @@ mod tests {
                         .and_then(|e| e.spans.value())
                         .and_then(|spans| spans[0].value())
                         .and_then(|s| s.sentry_tags.value())
-                        .and_then(|d| d.get("transaction.method"))
-                        .and_then(|v| v.as_str())
+                        .and_then(|d| d.transaction_method.value())
+                        .map(|v| v.as_str())
                         .unwrap()
                 );
             }
@@ -1369,21 +1363,21 @@ LIMIT 1
         // First two spans contribute to initial display & full display:
         for span in &spans[..2] {
             let tags = span.value().unwrap().sentry_tags.value().unwrap();
-            assert_eq!(tags.get("ttid").unwrap().as_str(), Some("ttid"));
-            assert_eq!(tags.get("ttfd").unwrap().as_str(), Some("ttfd"));
+            assert_eq!(tags.get_value("ttid").unwrap().as_str(), Some("ttid"));
+            assert_eq!(tags.get_value("ttfd").unwrap().as_str(), Some("ttfd"));
         }
 
         // First four spans contribute to full display:
         for span in &spans[2..4] {
             let tags = span.value().unwrap().sentry_tags.value().unwrap();
-            assert_eq!(tags.get("ttid"), None);
-            assert_eq!(tags.get("ttfd").unwrap().as_str(), Some("ttfd"));
+            assert_eq!(tags.get_value("ttid"), None);
+            assert_eq!(tags.get_value("ttfd").unwrap().as_str(), Some("ttfd"));
         }
 
         for span in &spans[4..] {
             let tags = span.value().unwrap().sentry_tags.value().unwrap();
-            assert_eq!(tags.get("ttid"), None);
-            assert_eq!(tags.get("ttfd"), None);
+            assert_eq!(tags.get_value("ttid"), None);
+            assert_eq!(tags.get_value("ttfd"), None);
         }
     }
 
@@ -1430,17 +1424,21 @@ LIMIT 1
 
         let tags = span.value().unwrap().sentry_tags.value().unwrap();
         assert_eq!(
-            tags.get("http.response_content_length").unwrap().as_str(),
+            tags.get_value("http.response_content_length")
+                .unwrap()
+                .as_str(),
             Some("1"),
         );
         assert_eq!(
-            tags.get("http.decoded_response_content_length")
+            tags.get_value("http.decoded_response_content_length")
                 .unwrap()
                 .as_str(),
             Some("2"),
         );
         assert_eq!(
-            tags.get("http.response_transfer_size").unwrap().as_str(),
+            tags.get_value("http.response_transfer_size")
+                .unwrap()
+                .as_str(),
             Some("3.3"),
         );
 
@@ -1553,14 +1551,11 @@ LIMIT 1
         let tags_3 = get_value!(span_3.sentry_tags).unwrap();
 
         assert_eq!(
-            tags_1.get("raw_domain").unwrap().as_str(),
+            tags_1.raw_domain.as_str(),
             Some("https://subdomain.example.com:5688")
         );
-        assert_eq!(
-            tags_2.get("raw_domain").unwrap().as_str(),
-            Some("http://example.com")
-        );
-        assert!(!tags_3.contains_key("raw_domain"));
+        assert_eq!(tags_2.raw_domain.as_str(), Some("http://example.com"));
+        assert!(!tags_3.raw_domain.value().is_some());
     }
 
     #[test]
@@ -1609,7 +1604,7 @@ LIMIT 1
         let measurements = span.measurements.value().unwrap();
 
         assert_eq!(
-            tags.get("ai_pipeline_group").unwrap().as_str(),
+            tags.get_value("ai_pipeline_group").unwrap().as_str(),
             Some("68e6cafc5b68d276")
         );
         assert_debug_snapshot!(measurements, @r###"
@@ -1715,9 +1710,9 @@ LIMIT 1
 
         let measurements_1 = span_1.value().unwrap().measurements.value().unwrap();
 
-        assert_eq!(tags_1.get("cache.hit").unwrap().as_str(), Some("true"));
-        assert_eq!(tags_2.get("cache.hit").unwrap().as_str(), Some("false"));
-        assert_eq!(tags_3.get("cache.hit").unwrap().as_str(), Some("false"));
+        assert_eq!(tags_1.cache_hit.as_str(), Some("true"));
+        assert_eq!(tags_2.cache_hit.as_str(), Some("false"));
+        assert_eq!(tags_3.cache_hit.as_str(), Some("false"));
 
         let keys_1 = Value::Array(vec![Annotated::new(Value::String("my_key".to_string()))]);
         let keys_2 = Value::Array(vec![
@@ -1726,15 +1721,15 @@ LIMIT 1
         ]);
         let keys_3 = Value::Array(vec![Annotated::new(Value::String("my_key_2".to_string()))]);
         assert_eq!(
-            tags_1.get("cache.key").unwrap().as_str(),
+            tags_1.cache_key.as_str(),
             serde_json::to_string(&keys_1).ok().as_deref()
         );
         assert_eq!(
-            tags_2.get("cache.key").unwrap().as_str(),
+            tags_2.cache_key.as_str(),
             serde_json::to_string(&keys_2).ok().as_deref()
         );
         assert_eq!(
-            tags_3.get("cache.key").unwrap().as_str(),
+            tags_3.cache_key.as_str(),
             serde_json::to_string(&keys_3).ok().as_deref()
         );
 
@@ -1838,30 +1833,21 @@ LIMIT 1
 
         // Allow loopback IPs
         assert_eq!(
-            tags_1.get("description").unwrap().as_str(),
+            tags_1.description.as_str(),
             Some("POST http://127.0.0.1:10007")
         );
-        assert_eq!(
-            tags_1.get("domain").unwrap().as_str(),
-            Some("127.0.0.1:10007")
-        );
+        assert_eq!(tags_1.domain.as_str(), Some("127.0.0.1:10007"));
 
         // Scrub other IPs
-        assert_eq!(
-            tags_2.get("description").unwrap().as_str(),
-            Some("GET http://*.*.*.*")
-        );
-        assert_eq!(tags_2.get("domain").unwrap().as_str(), Some("*.*.*.*"));
+        assert_eq!(tags_2.description.as_str(), Some("GET http://*.*.*.*"));
+        assert_eq!(tags_2.domain.as_str(), Some("*.*.*.*"));
 
         // Parse ccTLDs
         assert_eq!(
-            tags_3.get("description").unwrap().as_str(),
+            tags_3.description.as_str(),
             Some("GET http://*.application.co.uk")
         );
-        assert_eq!(
-            tags_3.get("domain").unwrap().as_str(),
-            Some("*.application.co.uk")
-        );
+        assert_eq!(tags_3.domain.as_str(), Some("*.application.co.uk"));
     }
 
     #[test]
@@ -1939,21 +1925,33 @@ LIMIT 1
         let span = &event.spans.value().unwrap()[0];
 
         let tags = span.value().unwrap().sentry_tags.value().unwrap();
-        assert_eq!(tags.get("main_thread").unwrap().as_str(), Some("true"));
-        assert_eq!(tags.get("os.name").unwrap().as_str(), Some("Android"));
-        assert_eq!(tags.get("app_start_type").unwrap().as_str(), Some("cold"));
+        assert_eq!(
+            tags.get_value("main_thread").unwrap().as_str(),
+            Some("true")
+        );
+        assert_eq!(tags.get_value("os.name").unwrap().as_str(), Some("Android"));
+        assert_eq!(
+            tags.get_value("app_start_type").unwrap().as_str(),
+            Some("cold")
+        );
 
         let span = &event.spans.value().unwrap()[1];
 
         let tags = span.value().unwrap().sentry_tags.value().unwrap();
-        assert_eq!(tags.get("main_thread"), None);
-        assert_eq!(tags.get("app_start_type").unwrap().as_str(), Some("warm"));
+        assert_eq!(tags.get_value("main_thread"), None);
+        assert_eq!(
+            tags.get_value("app_start_type").unwrap().as_str(),
+            Some("warm")
+        );
 
         let span = &event.spans.value().unwrap()[2];
 
         let tags = span.value().unwrap().sentry_tags.value().unwrap();
-        assert_eq!(tags.get("main_thread"), None);
-        assert_eq!(tags.get("app_start_type").unwrap().as_str(), Some("warm"));
+        assert_eq!(tags.get_value("main_thread"), None);
+        assert_eq!(
+            tags.get_value("app_start_type").unwrap().as_str(),
+            Some("warm")
+        );
     }
 
     #[test]
@@ -1995,10 +1993,7 @@ LIMIT 1
 
         let span = &event.spans.value().unwrap()[0];
         let tags = span.value().unwrap().sentry_tags.value().unwrap();
-        assert_eq!(
-            tags.get("browser.name"),
-            Some(&Annotated::new("Chrome".to_string()))
-        );
+        assert_eq!(tags.browser_name.as_str(), Some("Chrome"));
     }
 
     #[test]
@@ -2021,10 +2016,7 @@ LIMIT 1
             .unwrap();
         let tags = extract_tags(&span, 200, None, None, false, None, &[]);
 
-        assert_eq!(
-            tags.get(&SpanTagKey::BrowserName),
-            Some(&"Chrome".to_string())
-        );
+        assert_eq!(tags.browser_name.value(), Some(&"Chrome".to_string()));
     }
 
     #[test]
@@ -2064,10 +2056,7 @@ LIMIT 1
         let span = &event.spans.value().unwrap()[0];
         let tags = span.value().unwrap().sentry_tags.value().unwrap();
 
-        assert_eq!(
-            tags.get("trace.status"),
-            Some(&Annotated::new("ok".to_string()))
-        );
+        assert_eq!(tags.trace_status.as_str(), Some("ok"));
     }
 
     #[test]
@@ -2093,11 +2082,11 @@ LIMIT 1
         let tags = extract_tags(&span, 200, None, None, false, None, &[]);
 
         assert_eq!(
-            tags.get(&SpanTagKey::MessagingDestinationName),
+            tags.messaging_destination_name.value(),
             Some(&"default".to_string())
         );
         assert_eq!(
-            tags.get(&SpanTagKey::MessagingMessageId),
+            tags.messaging_message_id.value(),
             Some(&"abc123".to_string())
         );
     }
@@ -2139,15 +2128,9 @@ LIMIT 1
         let tags = segment_span.value().unwrap().sentry_tags.value().unwrap();
         let measurements = segment_span.value().unwrap().measurements.value().unwrap();
 
-        assert_eq!(
-            tags.get("messaging.destination.name"),
-            Some(&Annotated::new("default".to_string()))
-        );
+        assert_eq!(tags.messaging_destination_name.as_str(), Some("default"));
 
-        assert_eq!(
-            tags.get("messaging.message.id"),
-            Some(&Annotated::new("abc123".to_string()))
-        );
+        assert_eq!(tags.messaging_message_id.as_str(), Some("abc123"));
 
         assert_debug_snapshot!(measurements, @r###"
         Measurements(
@@ -2221,8 +2204,8 @@ LIMIT 1
         let tags = span.value().unwrap().sentry_tags.value().unwrap();
         let measurements = span.value().unwrap().measurements.value().unwrap();
 
-        assert_eq!(tags.get("messaging.destination.name"), None);
-        assert_eq!(tags.get("messaging.message.id"), None);
+        assert_eq!(tags.get_value("messaging.destination.name"), None);
+        assert_eq!(tags.get_value("messaging.message.id"), None);
 
         assert_debug_snapshot!(measurements, @r###"
         Measurements(
@@ -2288,13 +2271,13 @@ LIMIT 1
 
         let statuses: Vec<_> = spans
             .iter()
-            .map(|span| get_value!(span.sentry_tags["status"]!))
+            .map(|span| get_value!(span.sentry_tags.status_code!))
             .collect();
 
         assert_eq!(statuses, vec!["ok", "invalid_argument"]);
     }
 
-    fn extract_tags_supabase(description: impl Into<String>) -> BTreeMap<SpanTagKey, String> {
+    fn extract_tags_supabase(description: impl Into<String>) -> SentryTags {
         let json = r#"{
             "description": "from(my_table)",
             "op": "db.select",
@@ -2320,13 +2303,10 @@ LIMIT 1
     fn supabase() {
         let tags = extract_tags_supabase("from(mytable)");
         assert_eq!(
-            tags.get(&SpanTagKey::Description).map(String::as_str),
+            tags.description.value().map(String::as_str),
             Some("from(mytable)")
         );
-        assert_eq!(
-            tags.get(&SpanTagKey::Domain).map(String::as_str),
-            Some("mytable")
-        );
+        assert_eq!(tags.domain.value().map(String::as_str), Some("mytable"));
     }
 
     #[test]
@@ -2334,11 +2314,11 @@ LIMIT 1
         let tags = extract_tags_supabase("from(my_table00)");
 
         assert_eq!(
-            tags.get(&SpanTagKey::Description).map(String::as_str),
+            tags.description.value().map(String::as_str),
             Some("from(my_table{%s})")
         );
         assert_eq!(
-            tags.get(&SpanTagKey::Domain).map(String::as_str),
+            tags.domain.value().map(String::as_str),
             Some("my_table{%s}")
         );
     }
@@ -2347,8 +2327,8 @@ LIMIT 1
     fn supabase_unsupported() {
         let tags = extract_tags_supabase("something else");
 
-        assert_eq!(tags.get(&SpanTagKey::Description), None);
-        assert_eq!(tags.get(&SpanTagKey::Domain), None);
+        assert_eq!(tags.description.value(), None);
+        assert_eq!(tags.domain.value(), None);
     }
 
     #[test]
@@ -2373,12 +2353,9 @@ LIMIT 1
             .unwrap();
         let tags = extract_tags(&span, 200, None, None, false, None, &[]);
 
-        assert_eq!(tags.get(&SpanTagKey::Action), Some(&"FIND".to_string()));
+        assert_eq!(tags.action.value(), Some(&"FIND".to_string()));
 
-        assert_eq!(
-            tags.get(&SpanTagKey::Domain),
-            Some(&"documents".to_string())
-        );
+        assert_eq!(tags.domain.value(), Some(&"documents".to_string()));
     }
 
     #[test]
@@ -2403,10 +2380,7 @@ LIMIT 1
             .unwrap();
         let tags = extract_tags(&span, 200, None, None, false, None, &[]);
 
-        assert_eq!(
-            tags.get(&SpanTagKey::Domain),
-            Some(&"documents_{%s}".to_string())
-        );
+        assert_eq!(tags.domain.value(), Some(&"documents_{%s}".to_string()));
     }
 
     #[test]
@@ -2449,7 +2423,7 @@ LIMIT 1
         let span = &spans[0];
 
         assert_eq!(
-            get_value!(span.sentry_tags["profiler_id"]!),
+            get_value!(span.sentry_tags.profiler_id!),
             "ff62a8b040f340bda5d830223def1d81",
         );
     }
@@ -2506,16 +2480,13 @@ LIMIT 1
         let spans = get_value!(event.spans!);
         let span = &spans[0];
 
-        assert_eq!(get_value!(span.sentry_tags["user"]!), "id:1");
-        assert_eq!(get_value!(span.sentry_tags["user.id"]!), "1");
-        assert_eq!(get_value!(span.sentry_tags["user.ip"]!), "127.0.0.1");
-        assert_eq!(get_value!(span.sentry_tags["user.username"]!), "admin");
-        assert_eq!(
-            get_value!(span.sentry_tags["user.email"]!),
-            "admin@sentry.io"
-        );
-        assert_eq!(get_value!(span.sentry_tags["user.geo.country_code"]!), "US");
-        assert_eq!(get_value!(span.sentry_tags["user.geo.subregion"]!), "21");
+        assert_eq!(get_value!(span.sentry_tags.user!), "id:1");
+        assert_eq!(get_value!(span.sentry_tags.user_id!), "1");
+        assert_eq!(get_value!(span.sentry_tags.user_ip!), "127.0.0.1");
+        assert_eq!(get_value!(span.sentry_tags.user_username!), "admin");
+        assert_eq!(get_value!(span.sentry_tags.user_email!), "admin@sentry.io");
+        assert_eq!(get_value!(span.sentry_tags.user_country_code!), "US");
+        assert_eq!(get_value!(span.sentry_tags.user_subregion!), "21");
     }
 
     #[test]
@@ -2571,8 +2542,8 @@ LIMIT 1
 
         let tags = span.value().unwrap().sentry_tags.value().unwrap();
 
-        assert_eq!(tags.get("user.geo.subregion"), None);
-        assert_eq!(tags.get("user.geo.country_code"), None);
+        assert_eq!(tags.get_value("user.geo.subregion"), None);
+        assert_eq!(tags.get_value("user.geo.country_code"), None);
     }
 
     #[test]
@@ -2619,8 +2590,8 @@ LIMIT 1
         let spans = get_value!(event.spans!);
         let span = &spans[0];
 
-        assert_eq!(get_value!(span.sentry_tags["thread.id"]!), "42",);
-        assert_eq!(get_value!(span.sentry_tags["thread.name"]!), "main",);
+        assert_eq!(get_value!(span.sentry_tags.thread_id!), "42",);
+        assert_eq!(get_value!(span.sentry_tags.thread_name!), "main",);
     }
 
     #[test]
@@ -2667,7 +2638,7 @@ LIMIT 1
         let spans = get_value!(event.spans!);
         let span = &spans[0];
 
-        assert_eq!(get_value!(span.sentry_tags["thread.id"]!), "42",);
-        assert_eq!(get_value!(span.sentry_tags["thread.name"]!), "main",);
+        assert_eq!(get_value!(span.sentry_tags.thread_id!), "42",);
+        assert_eq!(get_value!(span.sentry_tags.thread_name!), "main",);
     }
 }

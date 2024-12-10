@@ -180,6 +180,7 @@ impl Getter for Span {
 }
 
 /// Indexable fields added by sentry (server-side).
+// TODO: types
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct SentryTags {
     pub release: Annotated<String>,
