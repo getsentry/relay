@@ -28,7 +28,7 @@ services:
       - 127.0.0.1:7899:7899
     command: [run, --config, /etc/relay]
     healthcheck:
-      test: curl -f http://127.0.0.1:7899/api/relay/healthcheck/ready/
+      test: curl -f http://127.0.0.1:7899/api/relay/healthcheck/live/
       interval: 5s
       timeout: 5s
       retries: 3
