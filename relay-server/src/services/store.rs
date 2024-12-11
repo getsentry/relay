@@ -3,6 +3,7 @@
 
 use anyhow::Context;
 use relay_base_schema::organization::OrganizationId;
+use serde::ser::SerializeMap;
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::error::Error;
@@ -24,7 +25,7 @@ use relay_metrics::{
 use relay_quotas::Scoping;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
-use serde::{de, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
 use serde_json::Deserializer;
 use uuid::Uuid;
@@ -1024,25 +1025,23 @@ where
         .serialize(serializer)
 }
 
-pub fn deserialize_btreemap_skip_nulls<'de, D>(
-    deserializer: D,
-) -> Result<Option<BTreeMap<&'de str, String>>, D::Error>
+pub fn serialize_btreemap_skip_nulls<S>(
+    map: &Option<BTreeMap<&str, Option<String>>>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
 where
-    D: de::Deserializer<'de>,
+    S: serde::Serializer,
 {
-    Ok(
-        Option::<BTreeMap<&str, Option<String>>>::deserialize(deserializer)?.map(|with_nulls| {
-            let mut without_nulls: BTreeMap<&'de str, String> = BTreeMap::new();
-
-            with_nulls.into_iter().for_each(|(k, v)| {
-                if let Some(v) = v {
-                    without_nulls.insert(k, v);
-                }
-            });
-
-            without_nulls
-        }),
-    )
+    let Some(map) = map else {
+        return serializer.serialize_none();
+    };
+    let mut m = serializer.serialize_map(Some(map.len()))?;
+    for (key, value) in map.iter() {
+        if let Some(value) = value {
+            m.serialize_entry(key, value)?;
+        }
+    }
+    m.end()
 }
 
 /// Container payload for event messages.
@@ -1273,9 +1272,9 @@ struct SpanKafkaMessage<'a> {
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "deserialize_btreemap_skip_nulls"
+        serialize_with = "serialize_btreemap_skip_nulls"
     )]
-    sentry_tags: Option<BTreeMap<&'a str, String>>,
+    sentry_tags: Option<BTreeMap<&'a str, Option<String>>>,
     span_id: &'a str,
     #[serde(default, skip_serializing_if = "none_or_empty_object")]
     tags: Option<&'a RawValue>,
