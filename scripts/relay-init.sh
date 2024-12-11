@@ -47,11 +47,11 @@ mkdir -p "$CONFIG_PATH"
 echo -e "\n=== Initializing Relay ===\n"
 echo "Initializing Relay configuration in $CONFIG_PATH..."
 docker run --rm -it \
-  -v "$CONFIG_PATH/.relay/:/work/.relay/:z" \
+  -v "$CONFIG_PATH/:/work/.relay/:z" \
   getsentry/relay \
   config init
 
-# The default config is now in $CONFIG_PATH/.relay/config.yml
+# The default config is now in $CONFIG_PATH/config.yml
 echo -e "\n=== Configuring Relay ===\n"
 echo "Updating configuration settings..."
 sed -i '' "s|mode:.*|mode: managed|" "$CONFIG_PATH/config.yml"
@@ -62,7 +62,7 @@ sed -i '' "s|port:.*|port: 3000|" "$CONFIG_PATH/config.yml"
 echo -e "\n=== Retrieving Credentials ===\n"
 echo "Fetching Relay public key..."
 PUBLIC_KEY=$(docker run --rm -it \
-  -v "$CONFIG_PATH/.relay/:/work/.relay/" \
+  -v "$CONFIG_PATH/:/work/.relay/" \
   getsentry/relay \
   credentials show | grep 'public key' | awk '{print $3}')
 
@@ -95,7 +95,7 @@ fi
 echo -e "\n=== Starting Relay ===\n"
 echo "Launching Relay container on port 3000..."
 docker run -d \
-  -v "$CONFIG_PATH/.relay/:/work/.relay/" \
+  -v "$CONFIG_PATH/:/work/.relay/" \
   -p 3000:3000 \
   getsentry/relay \
   run
