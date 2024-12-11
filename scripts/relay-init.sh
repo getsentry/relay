@@ -2,51 +2,94 @@
 
 set -euo pipefail
 
-CONFIG_DIR="config"
-
-# Ensure the config directory is cleaned up on exit
-trap "rm -rf ${CONFIG_DIR}" EXIT
-
-# Prompt the user for the Sentry upstream URL
-read -p "Enter your Sentry upstream URL (e.g. https://oXXXX.ingest.sentry.io): " SENTRY_UPSTREAM
-
-# Create a configuration directory for relay if it doesn't exist
-mkdir -p "${CONFIG_DIR}"
-
-echo "Initializing Relay configuration..."
-# Run relay config init to create config files (.relay/config.yml and credentials.json)
-# We assume you'll choose the default configuration by pressing enter.
-docker run --rm -it \
-  -v "$(pwd)/${CONFIG_DIR}":/work/.relay \
-  getsentry/relay \
-  config init
-
-# At this point, config.yml and credentials.json should be in ${CONFIG_DIR}
-CREDENTIALS_FILE="${CONFIG_DIR}/credentials.json"
-
-if [ ! -f "${CREDENTIALS_FILE}" ]; then
-  echo "Error: ${CREDENTIALS_FILE} not found. Make sure relay config init completed successfully."
+# Usage: ./setup_relay.sh <DSN> <ORG_SLUG> [--open]
+if [[ $# -lt 2 ]]; then
+  echo "Usage: $0 <DSN> <ORG_SLUG> [--open]"
   exit 1
 fi
 
-echo "Reading credentials from ${CREDENTIALS_FILE}..."
-# Parse the credentials file directly with jq
-SECRET_KEY=$(jq -r '.secret_key' "${CREDENTIALS_FILE}")
-PUBLIC_KEY=$(jq -r '.public_key' "${CREDENTIALS_FILE}")
-RELAY_ID=$(jq -r '.id' "${CREDENTIALS_FILE}")
+DSN="$1"
+ORG_SLUG="$2"
+OPEN_PAGE="false"
 
-echo "Credentials and upstream URL obtained successfully."
+if [[ "${3:-}" == "--open" ]]; then
+  OPEN_PAGE="true"
+fi
 
-cat <<EOF
+# Extract the host part from the DSN
+# DSN format could be: https://o[org_id].ingest.us.sentry.io/[project_id]
+# or even just https://o[org_id].ingest.us.sentry.io
+# We'll strip the protocol and any trailing path:
+UPSTREAM_HOST=$(echo "$DSN" | sed -E 's@^https://([^/]+).*@\1@')
+UPSTREAM="https://$UPSTREAM_HOST"
 
-Setup complete!
+if [[ -z "$UPSTREAM_HOST" ]]; then
+  echo "Failed to parse upstream from DSN. Check the DSN format."
+  exit 1
+fi
 
-Your relay chart can now be installed with the following command:
-    helm install sentry-relay ../sentry-relay \\
-      --set relay.upstream="${SENTRY_UPSTREAM}" \\
-      --set credentials.secretKey="${SECRET_KEY}" \\
-      --set credentials.publicKey="${PUBLIC_KEY}" \\
-      --set credentials.relayId="${RELAY_ID}"
+# Create the config directory
+mkdir -p config
 
-Once deployed, you can port-forward and test sending events as noted in the chart's NOTES.txt.
+echo "Initializing Relay configuration..."
+docker run --rm -it \
+  -v "$(pwd)/config/:/work/.relay/:z" \
+  getsentry/relay \
+  config init <<EOF
+1
 EOF
+
+# The default config is now in ./config/.relay/config.yml
+# We'll edit it to set mode=managed, update the upstream, and ensure host/port
+echo "Configuring Relay..."
+sed -i 's/mode: .*/mode: managed/' config/.relay/config.yml
+sed -i "s|upstream:.*|upstream: $UPSTREAM|" config/.relay/config.yml
+sed -i 's|host:.*|host: 0.0.0.0|' config/.relay/config.yml
+sed -i 's|port:.*|port: 3000|' config/.relay/config.yml
+
+echo "Retrieving Relay credentials (public key)..."
+PUBLIC_KEY=$(docker run --rm -it \
+  -v "$(pwd)/config/:/work/.relay/" \
+  getsentry/relay \
+  credentials show | grep 'public key' | awk '{print $3}')
+
+if [[ -z "$PUBLIC_KEY" ]]; then
+  echo "Failed to retrieve Relay public key."
+  exit 1
+fi
+
+echo "Relay public key: $PUBLIC_KEY"
+
+# Optionally open the Relay registration page in the browser
+RELAY_URL="https://${ORG_SLUG}.sentry.io/settings/relay"
+if [[ "$OPEN_PAGE" == "true" ]]; then
+  echo "Opening Relay registration page: $RELAY_URL"
+  if command -v xdg-open &>/dev/null; then
+    xdg-open "$RELAY_URL"
+  elif command -v open &>/dev/null; then
+    open "$RELAY_URL"
+  else
+    echo "Please open the following URL in your browser to register the Relay:"
+    echo "$RELAY_URL"
+  fi
+else
+  echo "To register this Relay, visit:"
+  echo "$RELAY_URL"
+  echo "and add the public key: $PUBLIC_KEY"
+fi
+
+echo "Starting Relay on port 3000..."
+docker run -d \
+  -v "$(pwd)/config/:/work/.relay/" \
+  -p 3000:3000 \
+  getsentry/relay \
+  run
+
+echo "Relay is now running on http://localhost:3000"
+echo "Using DSN: $DSN"
+echo "Upstream is set to: $UPSTREAM"
+echo "Relay public key: $PUBLIC_KEY"
+echo
+echo "To send events through Relay, modify your DSN to point to http://localhost:3000."
+echo "For example, if your original DSN was: $DSN"
+echo "Replace the host part with localhost:3000 (use http, not https)."
