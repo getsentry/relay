@@ -24,7 +24,7 @@ use relay_metrics::{
 use relay_quotas::Scoping;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
-use serde::{Deserialize, Serialize};
+use serde::{de, Deserialize, Serialize};
 use serde_json::value::RawValue;
 use serde_json::Deserializer;
 use uuid::Uuid;
@@ -1024,6 +1024,27 @@ where
         .serialize(serializer)
 }
 
+pub fn deserialize_btreemap_skip_nulls<'de, D>(
+    deserializer: D,
+) -> Result<Option<BTreeMap<&'de str, String>>, D::Error>
+where
+    D: de::Deserializer<'de>,
+{
+    Ok(
+        Option::<BTreeMap<&str, Option<String>>>::deserialize(deserializer)?.map(|with_nulls| {
+            let mut without_nulls: BTreeMap<&'de str, String> = BTreeMap::new();
+
+            with_nulls.into_iter().for_each(|(k, v)| {
+                if let Some(v) = v {
+                    without_nulls.insert(k, v);
+                }
+            });
+
+            without_nulls
+        }),
+    )
+}
+
 /// Container payload for event messages.
 #[derive(Debug, Serialize)]
 struct EventKafkaMessage {
@@ -1249,7 +1270,11 @@ struct SpanKafkaMessage<'a> {
     retention_days: u16,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     segment_id: Option<&'a str>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "deserialize_btreemap_skip_nulls"
+    )]
     sentry_tags: Option<BTreeMap<&'a str, String>>,
     span_id: &'a str,
     #[serde(default, skip_serializing_if = "none_or_empty_object")]
