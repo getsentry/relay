@@ -88,6 +88,15 @@ RELAY_URL="https://${ORG_SLUG}.sentry.io/settings/relay"
 echo -e "\n=== Registration Information ===\n"
 if [[ "$OPEN_PAGE" == "true" ]]; then
   echo "Opening Relay registration page: $RELAY_URL"
+  echo -e "\n📋 Registration Instructions:"
+  echo "------------------------"
+  echo "1. On the Relay page, click 'Register Key'"
+  echo "2. Enter the following public key in the 'Public Key' field:"
+  echo -e "\n$PUBLIC_KEY\n"
+  echo "3. Enter a display name for your Relay"
+  echo "4. Optionally add a description"
+  echo "5. Click 'Register' to complete registration"
+
   if command -v xdg-open &>/dev/null; then
     xdg-open "$RELAY_URL"
   elif command -v open &>/dev/null; then
@@ -97,9 +106,14 @@ if [[ "$OPEN_PAGE" == "true" ]]; then
     echo "$RELAY_URL"
   fi
 else
-  echo "📝 To register this Relay, visit:"
-  echo "$RELAY_URL"
-  echo "and add the public key: $PUBLIC_KEY"
+  echo "📝 To register this Relay:"
+  echo "1. Visit: $RELAY_URL"
+  echo "2. Click 'Register Key'"
+  echo "3. Enter the following public key in the 'Public Key' field:"
+  echo -e "\n$PUBLIC_KEY\n"
+  echo "4. Enter a display name for your Relay"
+  echo "5. Optionally add a description"
+  echo "6. Click 'Register' to complete registration"
 fi
 
 echo -e "\n=== Starting Relay ===\n"
