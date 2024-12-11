@@ -8,7 +8,7 @@ expression: pii_config
       "@common:filter",
       "@ip:replace"
     ],
-    "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip": [
+    "$http.env.REMOTE_ADDR || $user.ip_address || $sdk.client_ip || $span.sentry_tags.'user.ip'": [
       "@anything:remove"
     ],
     "*.cookies.sentrysid || *.cookies.sudo || *.cookies.su || *.cookies.session || *.cookies.__session || *.cookies.sessionid || *.cookies.user_session || *.cookies.symfony || *.cookies.phpsessid || *.cookies.fasthttpsessionid || *.cookies.mysession || *.cookies.irissessionid || *.cookies.csrf || *.cookies.xsrf || *.cookies._xsrf || *.cookies._csrf || *.cookies.csrf-token || *.cookies.csrf_token || *.cookies.xsrf-token || *.cookies.xsrf_token || *.cookies.fastcsrf || *.cookies._iris_csrf": [

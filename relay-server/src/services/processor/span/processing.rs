@@ -625,11 +625,7 @@ fn normalize(
         None,
         allowed_hosts,
     );
-    span.sentry_tags = Annotated::new(
-        tags.into_iter()
-            .map(|(k, v)| (k.sentry_tag_key().to_owned(), Annotated::new(v)))
-            .collect(),
-    );
+    span.sentry_tags = Annotated::new(tags);
 
     normalize_performance_score(span, performance_score);
     if let Some(model_costs_config) = ai_model_costs {
@@ -767,20 +763,21 @@ fn validate(span: &mut Annotated<Span>) -> Result<(), ValidationError> {
         .ok_or(anyhow::anyhow!("missing exclusive_time"))?;
 
     if let Some(sentry_tags) = sentry_tags.value_mut() {
-        sentry_tags.retain(|key, value| match value.value() {
-            Some(s) => {
-                match key.as_str() {
-                    "group" => {
-                        // Only allow up to 16-char hex strings in group.
-                        s.len() <= 16 && s.chars().all(|c| c.is_ascii_hexdigit())
-                    }
-                    "status_code" => s.parse::<u16>().is_ok(),
-                    _ => true,
-                }
-            }
-            // Drop empty string values.
-            None => false,
-        });
+        if sentry_tags
+            .group
+            .value()
+            .is_some_and(|s| s.len() > 16 || s.chars().any(|c| !c.is_ascii_hexdigit()))
+        {
+            sentry_tags.group.set_value(None);
+        }
+
+        if sentry_tags
+            .status_code
+            .value()
+            .is_some_and(|s| s.parse::<u16>().is_err())
+        {
+            sentry_tags.group.set_value(None);
+        }
     }
     if let Some(tags) = tags.value_mut() {
         tags.retain(|_, value| !value.value().is_empty())

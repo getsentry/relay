@@ -1604,9 +1604,7 @@ mod tests {
     /// Helper function for span metric extraction tests.
     fn extract_span_metrics_mobile(span_op: &str, duration_millis: f64) -> Vec<Bucket> {
         let mut span = Span::default();
-        span.sentry_tags
-            .get_or_insert_with(Default::default)
-            .insert("mobile".to_owned(), "true".to_owned().into());
+        span.sentry_tags.get_or_insert_with(Default::default).mobile = "true".to_owned().into();
         span.timestamp
             .set_value(Some(Timestamp::from(DateTime::<Utc>::MAX_UTC))); // whatever
         span.op.set_value(Some(span_op.into()));
