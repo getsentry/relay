@@ -118,11 +118,11 @@ jobs:
 
     services:
       redis: # https://docs.github.com/en/actions/guides/creating-redis-service-containers
-        image: redis
+        image: ghcr.io/getsentry/image-mirror-library-redis:5.0-alpine
         ports:
           - 6379:6379
       redis_secondary:
-        image: redis
+        image: ghcr.io/getsentry/image-mirror-library-redis:5.0-alpine
         ports:
           - 6380:6379
 
@@ -503,11 +503,11 @@ jobs:
 
     services:
       redis: # https://docs.github.com/en/actions/guides/creating-redis-service-containers
-        image: redis
+        image: ghcr.io/getsentry/image-mirror-library-redis:5.0-alpine
         ports:
           - 6379:6379
       redis_secondary:
-        image: redis
+        image: ghcr.io/getsentry/image-mirror-library-redis:5.0-alpine
         ports:
           - 6380:6379
 
@@ -515,12 +515,12 @@ jobs:
       # https://github.com/getsentry/sentry/blob/363509c242aff197409207ce4990fb061f3534a3/.github/actions/setup-sentry/action.yml#L174
 
       zookeeper:
-        image: confluentinc/cp-zookeeper:4.1.0
+        image: ghcr.io/getsentry/image-mirror-confluentinc-cp-zookeeper:6.2.0
         env:
           ZOOKEEPER_CLIENT_PORT: 2181
 
       kafka:
-        image: confluentinc/cp-kafka:5.1.2
+        image: ghcr.io/getsentry/image-mirror-confluentinc-cp-kafka:6.2.0
         env:
           KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
           KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://127.0.0.1:9092
