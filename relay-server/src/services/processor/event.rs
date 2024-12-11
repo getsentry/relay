@@ -39,9 +39,9 @@ use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter};
 ///  5. If none match, `Annotated::empty()`.
 pub fn extract<G: EventProcessing>(
     state: &mut ProcessEnvelopeState<G>,
+    event_fully_normalized: bool,
     config: &Config,
 ) -> Result<(), ProcessingError> {
-    let event_fully_normalized = state.event_fully_normalized;
     let envelope = &mut state.envelope_mut();
 
     // Remove all items first, and then process them. After this function returns, only
@@ -347,6 +347,7 @@ pub fn scrub<G: EventProcessing>(
 
 pub fn serialize<G: EventProcessing>(
     state: &mut ProcessEnvelopeState<G>,
+    event_fully_normalized: bool,
 ) -> Result<(), ProcessingError> {
     if state.event.is_empty() {
         relay_log::error!("Cannot serialize empty event");
@@ -368,7 +369,7 @@ pub fn serialize<G: EventProcessing>(
     // If transaction metrics were extracted, set the corresponding item header
     event_item.set_metrics_extracted(state.event_metrics_extracted);
     event_item.set_spans_extracted(state.spans_extracted);
-    event_item.set_fully_normalized(state.event_fully_normalized);
+    event_item.set_fully_normalized(event_fully_normalized);
 
     state.envelope_mut().add_item(event_item);
 

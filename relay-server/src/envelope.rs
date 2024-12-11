@@ -1174,6 +1174,14 @@ impl Envelope {
         }
     }
 
+    /// Returns `true` whether the event is fully normalized, `false`.
+    pub fn event_fully_normalized(&self) -> bool {
+        self.meta().is_from_internal_relay()
+            && self
+                .items()
+                .any(|item| item.creates_event() && item.fully_normalized())
+    }
+
     /// Returns reference to the [`EnvelopeHeaders`].
     pub fn headers(&self) -> &EnvelopeHeaders {
         &self.headers

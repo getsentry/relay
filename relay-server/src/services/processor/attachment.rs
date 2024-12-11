@@ -23,7 +23,7 @@ use {
 ///
 /// If the event payload was empty before, it is created.
 #[cfg(feature = "processing")]
-pub fn create_placeholders(state: &mut ProcessEnvelopeState<ErrorGroup>) {
+pub fn create_placeholders(state: &mut ProcessEnvelopeState<ErrorGroup>) -> Option<bool> {
     let envelope = state.managed_envelope.envelope();
     let minidump_attachment =
         envelope.get_item_by(|item| item.attachment_type() == Some(&AttachmentType::Minidump));
@@ -34,13 +34,15 @@ pub fn create_placeholders(state: &mut ProcessEnvelopeState<ErrorGroup>) {
         let event = state.event.get_or_insert_with(Event::default);
         state.metrics.bytes_ingested_event_minidump = Annotated::new(item.len() as u64);
         utils::process_minidump(event, &item.payload());
-        state.event_fully_normalized = false;
+        return Some(false);
     } else if let Some(item) = apple_crash_report_attachment {
         let event = state.event.get_or_insert_with(Event::default);
         state.metrics.bytes_ingested_event_applecrashreport = Annotated::new(item.len() as u64);
         utils::process_apple_crash_report(event, &item.payload());
-        state.event_fully_normalized = false;
+        return Some(false);
     }
+
+    None
 }
 
 /// Apply data privacy rules to attachments in the envelope.
