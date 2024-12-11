@@ -941,7 +941,8 @@
 <a href="#940" id="940">940</a>
 <a href="#941" id="941">941</a>
 <a href="#942" id="942">942</a>
-<a href="#943" id="943">943</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
+<a href="#943" id="943">943</a>
+<a href="#944" id="944">944</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
 <span class="kw">use </span>relay_base_schema::metrics::MetricNamespace;
@@ -1140,6 +1141,7 @@
             | DataCategory::MetricBucket
             | DataCategory::UserReportV2
             | DataCategory::ProfileChunk
+            | DataCategory::Uptime
             | DataCategory::MetricSecond =&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::Count),
             DataCategory::Attachment =&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::Bytes),
             DataCategory::Session =&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::Batched),

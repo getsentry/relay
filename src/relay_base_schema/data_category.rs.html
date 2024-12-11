@@ -217,7 +217,11 @@
 <a href="#216" id="216">216</a>
 <a href="#217" id="217">217</a>
 <a href="#218" id="218">218</a>
-<a href="#219" id="219">219</a></pre></div><pre class="rust"><code><span class="doccomment">//! Defines the [`DataCategory`] type that classifies data Relay can handle.
+<a href="#219" id="219">219</a>
+<a href="#220" id="220">220</a>
+<a href="#221" id="221">221</a>
+<a href="#222" id="222">222</a>
+<a href="#223" id="223">223</a></pre></div><pre class="rust"><code><span class="doccomment">//! Defines the [`DataCategory`] type that classifies data Relay can handle.
 
 </span><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
@@ -307,6 +311,8 @@
     ///
     /// This is the data category for Session Replays produced via a video recording.
     </span>ReplayVideo = <span class="number">20</span>,
+    <span class="doccomment">/// This is the data category for Uptime monitors.
+    </span>Uptime = <span class="number">21</span>,
     <span class="comment">//
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
     // `make header` to regenerate the C-binding. This allows using the data category from Python.
@@ -344,6 +350,7 @@
             <span class="string">"profile_chunk" </span>=&gt; <span class="self">Self</span>::ProfileChunk,
             <span class="string">"metric_second" </span>=&gt; <span class="self">Self</span>::MetricSecond,
             <span class="string">"replay_video" </span>=&gt; <span class="self">Self</span>::ReplayVideo,
+            <span class="string">"uptime" </span>=&gt; <span class="self">Self</span>::Uptime,
             <span class="kw">_ </span>=&gt; <span class="self">Self</span>::Unknown,
         }
     }
@@ -373,6 +380,7 @@
             <span class="self">Self</span>::ProfileChunk =&gt; <span class="string">"profile_chunk"</span>,
             <span class="self">Self</span>::MetricSecond =&gt; <span class="string">"metric_second"</span>,
             <span class="self">Self</span>::ReplayVideo =&gt; <span class="string">"replay_video"</span>,
+            <span class="self">Self</span>::Uptime =&gt; <span class="string">"uptime"</span>,
             <span class="self">Self</span>::Unknown =&gt; <span class="string">"unknown"</span>,
         }
     }
