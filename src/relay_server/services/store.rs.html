@@ -1457,11 +1457,36 @@
 <a href="#1456" id="1456">1456</a>
 <a href="#1457" id="1457">1457</a>
 <a href="#1458" id="1458">1458</a>
-<a href="#1459" id="1459">1459</a></pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
+<a href="#1459" id="1459">1459</a>
+<a href="#1460" id="1460">1460</a>
+<a href="#1461" id="1461">1461</a>
+<a href="#1462" id="1462">1462</a>
+<a href="#1463" id="1463">1463</a>
+<a href="#1464" id="1464">1464</a>
+<a href="#1465" id="1465">1465</a>
+<a href="#1466" id="1466">1466</a>
+<a href="#1467" id="1467">1467</a>
+<a href="#1468" id="1468">1468</a>
+<a href="#1469" id="1469">1469</a>
+<a href="#1470" id="1470">1470</a>
+<a href="#1471" id="1471">1471</a>
+<a href="#1472" id="1472">1472</a>
+<a href="#1473" id="1473">1473</a>
+<a href="#1474" id="1474">1474</a>
+<a href="#1475" id="1475">1475</a>
+<a href="#1476" id="1476">1476</a>
+<a href="#1477" id="1477">1477</a>
+<a href="#1478" id="1478">1478</a>
+<a href="#1479" id="1479">1479</a>
+<a href="#1480" id="1480">1480</a>
+<a href="#1481" id="1481">1481</a>
+<a href="#1482" id="1482">1482</a>
+<a href="#1483" id="1483">1483</a></pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses Kafka topics to forward data to Sentry
 
 </span><span class="kw">use </span>anyhow::Context;
 <span class="kw">use </span>relay_base_schema::organization::OrganizationId;
+<span class="kw">use </span>serde::ser::SerializeMap;
 <span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::error::Error;
@@ -2483,6 +2508,25 @@
         </span>.serialize(serializer)
 }
 
+<span class="kw">pub fn </span>serialize_btreemap_skip_nulls&lt;S&gt;(
+    map: <span class="kw-2">&amp;</span><span class="prelude-ty">Option</span>&lt;BTreeMap&lt;<span class="kw-2">&amp;</span>str, <span class="prelude-ty">Option</span>&lt;String&gt;&gt;&gt;,
+    serializer: S,
+) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
+<span class="kw">where
+    </span>S: serde::Serializer,
+{
+    <span class="kw">let </span><span class="prelude-val">Some</span>(map) = map <span class="kw">else </span>{
+        <span class="kw">return </span>serializer.serialize_none();
+    };
+    <span class="kw">let </span><span class="kw-2">mut </span>m = serializer.serialize_map(<span class="prelude-val">Some</span>(map.len()))<span class="question-mark">?</span>;
+    <span class="kw">for </span>(key, value) <span class="kw">in </span>map.iter() {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(value) = value {
+            m.serialize_entry(key, value)<span class="question-mark">?</span>;
+        }
+    }
+    m.end()
+}
+
 <span class="doccomment">/// Container payload for event messages.
 </span><span class="attr">#[derive(Debug, Serialize)]
 </span><span class="kw">struct </span>EventKafkaMessage {
@@ -2708,8 +2752,12 @@
     </span>retention_days: u16,
     <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>segment_id: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str&gt;,
-    <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
-    </span>sentry_tags: <span class="prelude-ty">Option</span>&lt;BTreeMap&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str, String&gt;&gt;,
+    <span class="attr">#[serde(
+        default,
+        skip_serializing_if = <span class="string">"Option::is_none"</span>,
+        serialize_with = <span class="string">"serialize_btreemap_skip_nulls"
+    </span>)]
+    </span>sentry_tags: <span class="prelude-ty">Option</span>&lt;BTreeMap&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str, <span class="prelude-ty">Option</span>&lt;String&gt;&gt;&gt;,
     span_id: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str,
     <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"none_or_empty_object"</span>)]
     </span>tags: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>RawValue&gt;,
