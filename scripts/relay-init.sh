@@ -2,9 +2,9 @@
 
 set -euo pipefail
 
-# Usage: ./setup_relay.sh <DSN> <ORG_SLUG> [--open] [--config-path <path>]
+# Usage: ./setup_relay.sh <DSN> <ORG_SLUG> [--open] [--config-path <path>] [--port <port>] [--host <host>]
 if [[ $# -lt 2 ]]; then
-  echo "Usage: $0 <DSN> <ORG_SLUG> [--open] [--config-path <path>]"
+  echo "Usage: $0 <DSN> <ORG_SLUG> [--open] [--config-path <path>] [--port <port>] [--host <host>]"
   exit 1
 fi
 
@@ -12,6 +12,8 @@ DSN="$1"
 ORG_SLUG="$2"
 OPEN_PAGE="false"
 CONFIG_PATH="$(pwd)/config"
+RELAY_PORT="3000"
+RELAY_HOST="0.0.0.0"
 
 # Parse optional arguments
 shift 2
@@ -23,6 +25,14 @@ while [[ $# -gt 0 ]]; do
       ;;
     --config-path)
       CONFIG_PATH="$2"
+      shift 2
+      ;;
+    --port)
+      RELAY_PORT="$2"
+      shift 2
+      ;;
+    --host)
+      RELAY_HOST="$2"
       shift 2
       ;;
     *)
@@ -56,8 +66,8 @@ echo -e "\n=== Configuring Relay ===\n"
 echo "Updating configuration settings..."
 sed -i '' "s|mode:.*|mode: managed|" "$CONFIG_PATH/config.yml"
 sed -i '' "s|upstream:.*|upstream: $UPSTREAM|" "$CONFIG_PATH/config.yml"
-sed -i '' "s|host:.*|host: 0.0.0.0|" "$CONFIG_PATH/config.yml"
-sed -i '' "s|port:.*|port: 3000|" "$CONFIG_PATH/config.yml"
+sed -i '' "s|host:.*|host: $RELAY_HOST|" "$CONFIG_PATH/config.yml"
+sed -i '' "s|port:.*|port: $RELAY_PORT|" "$CONFIG_PATH/config.yml"
 
 echo -e "\n=== Retrieving Credentials ===\n"
 echo "Fetching Relay public key..."
@@ -93,22 +103,24 @@ else
 fi
 
 echo -e "\n=== Starting Relay ===\n"
-echo "Launching Relay container on port 3000..."
+echo "Launching Relay container on port $RELAY_PORT..."
 docker run -d \
   -v "$CONFIG_PATH/:/work/.relay/" \
-  -p 3000:3000 \
+  -p "$RELAY_PORT:$RELAY_PORT" \
   getsentry/relay \
   run
 
 echo -e "\n=== Setup Complete ===\n"
-echo "✅ Relay is now running on http://localhost:3000"
+echo "✅ Relay is now running on http://$RELAY_HOST:$RELAY_PORT"
 echo "📋 Configuration Summary:"
 echo "------------------------"
 echo "DSN: $DSN"
 echo "Upstream: $UPSTREAM"
 echo "Public Key: $PUBLIC_KEY"
+echo "Local Host: $RELAY_HOST"
+echo "Local Port: $RELAY_PORT"
 echo -e "\n📌 Next Steps:"
 echo "------------------------"
-echo "To send events through Relay, modify your DSN to point to http://localhost:3000"
+echo "To send events through Relay, modify your DSN to point to http://$RELAY_HOST:$RELAY_PORT"
 echo "Example: If your original DSN was: $DSN"
-echo "Replace the host part with localhost:3000 (use http, not https)"
+echo "Replace the host part with $RELAY_HOST:$RELAY_PORT (use http, not https)"
