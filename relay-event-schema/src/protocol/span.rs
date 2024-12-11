@@ -183,83 +183,113 @@ impl Getter for Span {
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
 pub struct SentryTags {
     pub release: Annotated<String>,
-    #[metastructure(pii = "true")]
+    #[metastructure(skip_serialization = "empty", pii = "true")]
     pub user: Annotated<String>,
-    #[metastructure(pii = "true", field = "user.id")]
+    #[metastructure(skip_serialization = "empty", pii = "true", field = "user.id")]
     pub user_id: Annotated<String>,
-    #[metastructure(pii = "true", field = "user.ip")]
+    #[metastructure(skip_serialization = "empty", pii = "true", field = "user.ip")]
     pub user_ip: Annotated<String>,
-    #[metastructure(pii = "true", field = "user.username")]
+    #[metastructure(skip_serialization = "empty", pii = "true", field = "user.username")]
     pub user_username: Annotated<String>,
-    #[metastructure(pii = "true", field = "user.email")]
+    #[metastructure(skip_serialization = "empty", pii = "true", field = "user.email")]
     pub user_email: Annotated<String>,
+    #[metastructure(skip_serialization = "empty")]
     pub environment: Annotated<String>,
+    #[metastructure(skip_serialization = "empty")]
     pub transaction: Annotated<String>,
-    #[metastructure(field = "transaction.method")]
+    #[metastructure(skip_serialization = "empty", field = "transaction.method")]
     pub transaction_method: Annotated<String>,
-    #[metastructure(field = "transaction.op")]
+    #[metastructure(skip_serialization = "empty", field = "transaction.op")]
     pub transaction_op: Annotated<String>,
-    #[metastructure(field = "browser.name")]
+    #[metastructure(skip_serialization = "empty", field = "browser.name")]
     pub browser_name: Annotated<String>,
-    #[metastructure(field = "sdk.name")]
+    #[metastructure(skip_serialization = "empty", field = "sdk.name")]
     pub sdk_name: Annotated<String>,
-    #[metastructure(field = "sdk.version")]
+    #[metastructure(skip_serialization = "empty", field = "sdk.version")]
     pub sdk_version: Annotated<String>,
+    #[metastructure(skip_serialization = "empty")]
     pub platform: Annotated<String>,
     // `"true"` if the transaction was sent by a mobile SDK(String).
+    #[metastructure(skip_serialization = "empty")]
     pub mobile: Annotated<String>,
-    #[metastructure(field = "device.class")]
+    #[metastructure(skip_serialization = "empty", field = "device.class")]
     pub device_class: Annotated<String>,
     // Mobile OS the transaction originated from(String).
-    #[metastructure(field = "os.name")]
+    #[metastructure(skip_serialization = "empty", field = "os.name")]
     pub os_name: Annotated<String>,
+    #[metastructure(skip_serialization = "empty")]
     pub action: Annotated<String>,
     /// The group of the ancestral span with op ai.pipeline.(String)*
+    #[metastructure(skip_serialization = "empty")]
     pub ai_pipeline_group: Annotated<String>,
+    #[metastructure(skip_serialization = "empty")]
     pub category: Annotated<String>,
+    #[metastructure(skip_serialization = "empty")]
     pub description: Annotated<String>,
+    #[metastructure(skip_serialization = "empty")]
     pub domain: Annotated<String>,
+    #[metastructure(skip_serialization = "empty")]
     pub raw_domain: Annotated<String>,
+    #[metastructure(skip_serialization = "empty")]
     pub group: Annotated<String>,
-    #[metastructure(field = "http.decoded_response_content_length")]
+    #[metastructure(
+        skip_serialization = "empty",
+        field = "http.decoded_response_content_length"
+    )]
     pub http_decoded_response_content_length: Annotated<String>,
-    #[metastructure(field = "http.response_content_length")]
+    #[metastructure(skip_serialization = "empty", field = "http.response_content_length")]
     pub http_response_content_length: Annotated<String>,
-    #[metastructure(field = "http.response_transfer_size")]
+    #[metastructure(skip_serialization = "empty", field = "http.response_transfer_size")]
     pub http_response_transfer_size: Annotated<String>,
-    #[metastructure(field = "resource.render_blocking_status")]
+    #[metastructure(
+        skip_serialization = "empty",
+        field = "resource.render_blocking_status"
+    )]
     pub resource_render_blocking_status: Annotated<String>,
+    #[metastructure(skip_serialization = "empty")]
     pub op: Annotated<String>,
+    #[metastructure(skip_serialization = "empty")]
     pub status: Annotated<String>,
+    #[metastructure(skip_serialization = "empty")]
     pub status_code: Annotated<String>,
+    #[metastructure(skip_serialization = "empty")]
     pub system: Annotated<String>,
     /// Contributes to Time-To-Initial-Display(String).
+    #[metastructure(skip_serialization = "empty")]
     pub ttid: Annotated<String>,
     /// Contributes to Time-To-Full-Display(String).
+    #[metastructure(skip_serialization = "empty")]
     pub ttfd: Annotated<String>,
     /// File extension for resource spans(String).
+    #[metastructure(skip_serialization = "empty")]
     pub file_extension: Annotated<String>,
     /// Span started on main thread(String).
+    #[metastructure(skip_serialization = "empty")]
     pub main_thread: Annotated<String>,
     /// The start type of the application when the span occurred(String).
+    #[metastructure(skip_serialization = "empty")]
     pub app_start_type: Annotated<String>,
+    #[metastructure(skip_serialization = "empty")]
     pub replay_id: Annotated<String>,
+    #[metastructure(skip_serialization = "empty")]
     pub cache_hit: Annotated<String>,
+    #[metastructure(skip_serialization = "empty")]
     pub cache_key: Annotated<String>,
-    #[metastructure(field = "trace.status")]
+    #[metastructure(skip_serialization = "empty", field = "trace.status")]
     pub trace_status: Annotated<String>,
-    #[metastructure(field = "messaging.destination.name")]
+    #[metastructure(skip_serialization = "empty", field = "messaging.destination.name")]
     pub messaging_destination_name: Annotated<String>,
-    #[metastructure(field = "messaging.message.id")]
+    #[metastructure(skip_serialization = "empty", field = "messaging.message.id")]
     pub messaging_message_id: Annotated<String>,
-    #[metastructure(field = "thread.name")]
+    #[metastructure(skip_serialization = "empty", field = "thread.name")]
     pub thread_name: Annotated<String>,
-    #[metastructure(field = "thread.id")]
+    #[metastructure(skip_serialization = "empty", field = "thread.id")]
     pub thread_id: Annotated<String>,
+    #[metastructure(skip_serialization = "empty")]
     pub profiler_id: Annotated<String>,
-    #[metastructure(field = "user.geo.country_code")]
+    #[metastructure(skip_serialization = "empty", field = "user.geo.country_code")]
     pub user_country_code: Annotated<String>,
-    #[metastructure(field = "user.geo.subregion")]
+    #[metastructure(skip_serialization = "empty", field = "user.geo.subregion")]
     pub user_subregion: Annotated<String>,
     // no need for an `other` entry here because these fields are added server-side.
     // If an upstream relay does not recognize a field it will be dropped.
@@ -786,6 +816,7 @@ mod tests {
     use chrono::{TimeZone, Utc};
     use relay_base_schema::metrics::{InformationUnit, MetricUnit};
     use relay_protocol::RuleCondition;
+    use serde_json::Deserializer;
     use similar_asserts::assert_eq;
 
     use super::*;
