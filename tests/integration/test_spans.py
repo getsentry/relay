@@ -1873,3 +1873,52 @@ def test_ingest_in_eap(
         spans_consumer.get_span()
 
     spans_consumer.assert_empty()
+
+
+def test_scrubs_ip_addresses(
+    mini_sentry,
+    relay_with_processing,
+    spans_consumer,
+):
+    spans_consumer = spans_consumer()
+
+    relay = relay_with_processing()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "projects:span-metrics-extraction",
+        "organizations:indexed-spans-extraction",
+    ]
+    project_config["config"].setdefault("datascrubbingSettings", {})[
+        "scrubIpAddresses"
+    ] = True
+
+    event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
+    event["user"] = {
+        "id": "unique_id",
+        "username": "my_user",
+        "email": "foo@example.com",
+        "ip_address": "127.0.0.1",
+        "subscription": "basic",
+    }
+    end = datetime.now(timezone.utc) - timedelta(seconds=1)
+    duration = timedelta(milliseconds=500)
+    start = end - duration
+    event["spans"] = [
+        {
+            "description": "GET /api/0/organizations/?member=1",
+            "op": "http",
+            "origin": "manual",
+            "parent_span_id": "aaaaaaaaaaaaaaaa",
+            "span_id": "bbbbbbbbbbbbbbbb",
+            "start_timestamp": start.isoformat(),
+            "status": "success",
+            "timestamp": end.isoformat(),
+            "trace_id": "ff62a8b040f340bda5d830223def1d81",
+        },
+    ]
+
+    relay.send_event(project_id, event)
+    child_spans = spans_consumer.get_spans(n=2)
+    assert child_spans
