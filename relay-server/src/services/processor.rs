@@ -1611,8 +1611,7 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<ErrorGroup>,
     ) -> Result<(), ProcessingError> {
-        let mut event_fully_normalized =
-            EventFullyNormalized::event_fully_normalized(state.envelope());
+        let mut event_fully_normalized = EventFullyNormalized::new(state.envelope());
 
         // Events can also contain user reports.
         report::process_user_reports(state);
@@ -1672,8 +1671,7 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<TransactionGroup>,
     ) -> Result<(), ProcessingError> {
-        let mut event_fully_normalized =
-            EventFullyNormalized::event_fully_normalized(state.envelope());
+        let mut event_fully_normalized = EventFullyNormalized::new(state.envelope());
 
         let global_config = self.inner.global_config.current();
 
