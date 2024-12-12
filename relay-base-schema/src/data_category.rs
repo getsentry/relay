@@ -130,6 +130,7 @@ impl DataCategory {
             "metric_second" => Self::MetricSecond,
             "replay_video" => Self::ReplayVideo,
             "uptime" => Self::Uptime,
+            "attachment_item" => Self::AttachmentItem,
             _ => Self::Unknown,
         }
     }
@@ -160,6 +161,7 @@ impl DataCategory {
             Self::MetricSecond => "metric_second",
             Self::ReplayVideo => "replay_video",
             Self::Uptime => "uptime",
+            Self::AttachmentItem => "attachment_item",
             Self::Unknown => "unknown",
         }
     }
