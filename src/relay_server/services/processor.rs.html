@@ -3858,17 +3858,7 @@
 <a href="#3857" id="3857">3857</a>
 <a href="#3858" id="3858">3858</a>
 <a href="#3859" id="3859">3859</a>
-<a href="#3860" id="3860">3860</a>
-<a href="#3861" id="3861">3861</a>
-<a href="#3862" id="3862">3862</a>
-<a href="#3863" id="3863">3863</a>
-<a href="#3864" id="3864">3864</a>
-<a href="#3865" id="3865">3865</a>
-<a href="#3866" id="3866">3866</a>
-<a href="#3867" id="3867">3867</a>
-<a href="#3868" id="3868">3868</a>
-<a href="#3869" id="3869">3869</a>
-<a href="#3870" id="3870">3870</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
+<a href="#3860" id="3860">3860</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::fmt::{Debug, Display};
@@ -3901,7 +3891,6 @@
 <span class="kw">use </span>relay_filter::FilterStatKey;
 <span class="kw">use </span>relay_metrics::{Bucket, BucketMetadata, BucketView, BucketsView, MetricNamespace};
 <span class="kw">use </span>relay_pii::PiiConfigError;
-<span class="kw">use </span>relay_profiling::ProfileId;
 <span class="kw">use </span>relay_protocol::Annotated;
 <span class="kw">use </span>relay_quotas::{DataCategory, RateLimits, Scoping};
 <span class="kw">use </span>relay_sampling::config::RuleId;
@@ -5215,7 +5204,6 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;,
         sampling_decision: SamplingDecision,
-        profile_id: <span class="prelude-ty">Option</span>&lt;ProfileId&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
         <span class="kw">if </span>state.event_metrics_extracted {
             <span class="kw">return </span><span class="prelude-val">Ok</span>(());
@@ -5315,7 +5303,6 @@
                 transaction_from_dsc,
                 sampling_decision,
                 target_project_id: state.project_id,
-                has_profile: profile_id.is_some(),
             };
 
             state
@@ -5560,9 +5547,9 @@
         <span class="kw">if let </span><span class="prelude-val">Some</span>(outcome) = sampling_result.into_dropped_outcome() {
             <span class="comment">// Process profiles before dropping the transaction, if necessary.
             // Before metric extraction to make sure the profile count is reflected correctly.
-            </span><span class="kw">let </span>profile_id = profile::process(state, <span class="kw-2">&amp;</span>global_config);
+            </span>profile::process(state, <span class="kw-2">&amp;</span>global_config);
             <span class="comment">// Extract metrics here, we're about to drop the event/transaction.
-            </span><span class="self">self</span>.extract_transaction_metrics(state, SamplingDecision::Drop, profile_id)<span class="question-mark">?</span>;
+            </span><span class="self">self</span>.extract_transaction_metrics(state, SamplingDecision::Drop)<span class="question-mark">?</span>;
 
             dynamic_sampling::drop_unsampled_items(state, outcome);
 
@@ -5589,7 +5576,7 @@
             profile::transfer_id(state, profile_id);
 
             <span class="comment">// Always extract metrics in processing Relays for sampled items.
-            </span><span class="self">self</span>.extract_transaction_metrics(state, SamplingDecision::Keep, profile_id)<span class="question-mark">?</span>;
+            </span><span class="self">self</span>.extract_transaction_metrics(state, SamplingDecision::Keep)<span class="question-mark">?</span>;
 
             <span class="kw">if </span>state
                 .project_info
@@ -6185,11 +6172,7 @@
         <span class="kw">let </span>quotas = project_info.config.quotas.clone();
         <span class="kw">match </span>MetricsLimiter::create(buckets, quotas, scoping) {
             <span class="prelude-val">Ok</span>(<span class="kw-2">mut </span>bucket_limiter) =&gt; {
-                bucket_limiter.enforce_limits(
-                    rate_limits,
-                    <span class="kw-2">&amp;</span><span class="self">self</span>.inner.metric_outcomes,
-                    <span class="kw-2">&amp;</span><span class="self">self</span>.inner.addrs.outcome_aggregator,
-                );
+                bucket_limiter.enforce_limits(rate_limits, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.metric_outcomes);
                 bucket_limiter.into_buckets()
             }
             <span class="prelude-val">Err</span>(buckets) =&gt; buckets,
@@ -6312,11 +6295,8 @@
             }
 
             <span class="kw">if </span>rate_limits.is_limited() {
-                <span class="kw">let </span>was_enforced = bucket_limiter.enforce_limits(
-                    <span class="kw-2">&amp;</span>rate_limits,
-                    <span class="kw-2">&amp;</span><span class="self">self</span>.inner.metric_outcomes,
-                    <span class="kw-2">&amp;</span><span class="self">self</span>.inner.addrs.outcome_aggregator,
-                );
+                <span class="kw">let </span>was_enforced =
+                    bucket_limiter.enforce_limits(<span class="kw-2">&amp;</span>rate_limits, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.metric_outcomes);
 
                 <span class="kw">if </span>was_enforced {
                     <span class="comment">// Update the rate limits in the project cache.

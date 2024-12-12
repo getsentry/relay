@@ -2304,26 +2304,7 @@
 <a href="#2303" id="2303">2303</a>
 <a href="#2304" id="2304">2304</a>
 <a href="#2305" id="2305">2305</a>
-<a href="#2306" id="2306">2306</a>
-<a href="#2307" id="2307">2307</a>
-<a href="#2308" id="2308">2308</a>
-<a href="#2309" id="2309">2309</a>
-<a href="#2310" id="2310">2310</a>
-<a href="#2311" id="2311">2311</a>
-<a href="#2312" id="2312">2312</a>
-<a href="#2313" id="2313">2313</a>
-<a href="#2314" id="2314">2314</a>
-<a href="#2315" id="2315">2315</a>
-<a href="#2316" id="2316">2316</a>
-<a href="#2317" id="2317">2317</a>
-<a href="#2318" id="2318">2318</a>
-<a href="#2319" id="2319">2319</a>
-<a href="#2320" id="2320">2320</a>
-<a href="#2321" id="2321">2321</a>
-<a href="#2322" id="2322">2322</a>
-<a href="#2323" id="2323">2323</a>
-<a href="#2324" id="2324">2324</a>
-<a href="#2325" id="2325">2325</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
+<a href="#2306" id="2306">2306</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 
 <span class="kw">use </span>relay_base_schema::events::EventType;
 <span class="kw">use </span>relay_base_schema::project::ProjectId;
@@ -2341,7 +2322,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::generic;
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::transactions::types::{
     CommonTag, CommonTags, ExtractMetricsError, LightTransactionTags, TransactionCPRTags,
-    TransactionMeasurementTags, TransactionMetric, UsageTags,
+    TransactionMeasurementTags, TransactionMetric,
 };
 <span class="kw">use </span><span class="kw">crate</span>::metrics_extraction::IntoMetric;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
@@ -2582,7 +2563,6 @@
     <span class="kw">pub </span>transaction_from_dsc: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>str&gt;,
     <span class="kw">pub </span>sampling_decision: SamplingDecision,
     <span class="kw">pub </span>target_project_id: ProjectId,
-    <span class="kw">pub </span>has_profile: bool,
 }
 
 <span class="kw">impl </span>TransactionExtractor&lt;<span class="lifetime">'_</span>&gt; {
@@ -2714,14 +2694,9 @@
         }
 
         <span class="comment">// Internal usage counter
-        </span>metrics.project_metrics.push(
-            TransactionMetric::Usage {
-                tags: UsageTags {
-                    has_profile: <span class="self">self</span>.has_profile,
-                },
-            }
-            .into_metric(timestamp),
-        );
+        </span>metrics
+            .project_metrics
+            .push(TransactionMetric::Usage.into_metric(timestamp));
 
         <span class="comment">// Duration
         </span><span class="kw">let </span>duration = relay_common::time::chrono_to_positive_millis(end - start);
@@ -2944,7 +2919,6 @@
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_decision: SamplingDecision::Keep,
             target_project_id: ProjectId::new(<span class="number">4711</span>),
-            has_profile: <span class="bool-val">false</span>,
         };
 
         <span class="kw">let </span>extracted = extractor.extract(event.value().unwrap()).unwrap();
@@ -3323,7 +3297,6 @@
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_decision: SamplingDecision::Keep,
             target_project_id: ProjectId::new(<span class="number">4711</span>),
-            has_profile: <span class="bool-val">false</span>,
         };
 
         <span class="kw">let </span>extracted = extractor.extract(event.value().unwrap()).unwrap();
@@ -3499,7 +3472,6 @@
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_decision: SamplingDecision::Keep,
             target_project_id: ProjectId::new(<span class="number">4711</span>),
-            has_profile: <span class="bool-val">false</span>,
         };
 
         <span class="kw">let </span>extracted = extractor.extract(event.value().unwrap()).unwrap();
@@ -3651,7 +3623,6 @@
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_decision: SamplingDecision::Keep,
             target_project_id: ProjectId::new(<span class="number">4711</span>),
-            has_profile: <span class="bool-val">false</span>,
         };
 
         <span class="kw">let </span>extracted = extractor.extract(event.value().unwrap()).unwrap();
@@ -3727,7 +3698,6 @@
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_decision: SamplingDecision::Keep,
             target_project_id: ProjectId::new(<span class="number">4711</span>),
-            has_profile: <span class="bool-val">false</span>,
         };
 
         <span class="kw">let </span>extracted = extractor.extract(event.value().unwrap()).unwrap();
@@ -3893,7 +3863,6 @@
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_decision: SamplingDecision::Keep,
             target_project_id: ProjectId::new(<span class="number">4711</span>),
-            has_profile: <span class="bool-val">false</span>,
         };
 
         <span class="kw">let </span>extracted = extractor.extract(event.value().unwrap()).unwrap();
@@ -3933,7 +3902,6 @@
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_decision: SamplingDecision::Keep,
             target_project_id: ProjectId::new(<span class="number">4711</span>),
-            has_profile: <span class="bool-val">false</span>,
         };
 
         <span class="kw">let </span>extracted = extractor.extract(event.value().unwrap()).unwrap();
@@ -4002,7 +3970,6 @@
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_decision: SamplingDecision::Keep,
             target_project_id: ProjectId::new(<span class="number">4711</span>),
-            has_profile: <span class="bool-val">false</span>,
         };
 
         <span class="kw">let </span>extracted = extractor.extract(event.value().unwrap()).unwrap();
@@ -4109,7 +4076,6 @@
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_decision: SamplingDecision::Keep,
             target_project_id: ProjectId::new(<span class="number">4711</span>),
-            has_profile: <span class="bool-val">false</span>,
         };
 
         <span class="kw">let </span>extracted = extractor.extract(event.value().unwrap()).unwrap();
@@ -4143,7 +4109,6 @@
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_decision: SamplingDecision::Keep,
             target_project_id: ProjectId::new(<span class="number">4711</span>),
-            has_profile: <span class="bool-val">false</span>,
         };
 
         <span class="kw">let </span>extracted = extractor.extract(event.value().unwrap()).unwrap();
@@ -4181,7 +4146,6 @@
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"root_transaction"</span>),
             sampling_decision: SamplingDecision::Keep,
             target_project_id: ProjectId::new(<span class="number">4711</span>),
-            has_profile: <span class="bool-val">false</span>,
         };
 
         <span class="kw">let </span>extracted = extractor.extract(event.value().unwrap()).unwrap();
@@ -4452,7 +4416,6 @@
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_decision: SamplingDecision::Keep,
             target_project_id: ProjectId::new(<span class="number">4711</span>),
-            has_profile: <span class="bool-val">false</span>,
         };
 
         <span class="kw">let </span>extracted = extractor.extract(event.value().unwrap()).unwrap();
@@ -4554,7 +4517,6 @@
             transaction_from_dsc: <span class="prelude-val">Some</span>(<span class="string">"test_transaction"</span>),
             sampling_decision: SamplingDecision::Keep,
             target_project_id: ProjectId::new(<span class="number">4711</span>),
-            has_profile: <span class="bool-val">false</span>,
         };
 
         <span class="kw">let </span>extracted = extractor.extract(event.value().unwrap()).unwrap();

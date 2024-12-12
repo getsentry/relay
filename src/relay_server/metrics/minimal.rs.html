@@ -177,19 +177,7 @@
 <a href="#176" id="176">176</a>
 <a href="#177" id="177">177</a>
 <a href="#178" id="178">178</a>
-<a href="#179" id="179">179</a>
-<a href="#180" id="180">180</a>
-<a href="#181" id="181">181</a>
-<a href="#182" id="182">182</a>
-<a href="#183" id="183">183</a>
-<a href="#184" id="184">184</a>
-<a href="#185" id="185">185</a>
-<a href="#186" id="186">186</a>
-<a href="#187" id="187">187</a>
-<a href="#188" id="188">188</a>
-<a href="#189" id="189">189</a>
-<a href="#190" id="190">190</a>
-<a href="#191" id="191">191</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_metrics::{
+<a href="#179" id="179">179</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_metrics::{
     BucketMetadata, CounterType, MetricName, MetricNamespace, MetricResourceIdentifier, MetricType,
 };
 <span class="kw">use </span>serde::de::IgnoredAny;
@@ -206,8 +194,6 @@
     name: MetricName,
     <span class="attr">#[serde(flatten)]
     </span>value: MinimalValue,
-    <span class="attr">#[serde(default)]
-    </span>tags: Tags,
     <span class="attr">#[serde(default)]
     </span>metadata: BucketMetadata,
 }
@@ -233,9 +219,7 @@
                     MinimalValue::Counter(c) <span class="kw">if </span>mri.name == <span class="string">"usage" </span>=&gt; c.to_f64() <span class="kw">as </span>usize,
                     <span class="kw">_ </span>=&gt; <span class="number">0</span>,
                 };
-                <span class="kw">let </span>has_profile = <span class="macro">matches!</span>(mri.name.as_ref(), <span class="string">"usage" </span>| <span class="string">"duration"</span>)
-                    &amp;&amp; <span class="self">self</span>.tags.has_profile.is_some();
-                BucketSummary::Transactions { count, has_profile }
+                BucketSummary::Transactions(count)
             }
             MetricNamespace::Spans =&gt; BucketSummary::Spans(<span class="kw">match </span><span class="self">self</span>.value {
                 MinimalValue::Counter(c) <span class="kw">if </span>mri.name == <span class="string">"usage" </span>=&gt; c.to_f64() <span class="kw">as </span>usize,
@@ -272,12 +256,6 @@
             MinimalValue::Gauge(<span class="kw">_</span>) =&gt; MetricType::Gauge,
         }
     }
-}
-
-<span class="attr">#[derive(Clone, Copy, Debug, Default, Deserialize)]
-#[serde(default)]
-</span><span class="kw">struct </span>Tags {
-    has_profile: <span class="prelude-ty">Option</span>&lt;IgnoredAny&gt;,
 }
 
 <span class="attr">#[cfg(test)]
@@ -363,14 +341,12 @@
         <span class="kw">let </span>summary = min_buckets.iter().map(|b| b.summary()).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
         <span class="macro">assert_debug_snapshot!</span>(summary, @<span class="string">r###"
         [
-            Transactions {
-                count: 0,
-                has_profile: true,
-            },
-            Transactions {
-                count: 3,
-                has_profile: false,
-            },
+            Transactions(
+                0,
+            ),
+            Transactions(
+                3,
+            ),
             Spans(
                 3,
             ),

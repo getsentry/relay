@@ -265,22 +265,7 @@
 <a href="#264" id="264">264</a>
 <a href="#265" id="265">265</a>
 <a href="#266" id="266">266</a>
-<a href="#267" id="267">267</a>
-<a href="#268" id="268">268</a>
-<a href="#269" id="269">269</a>
-<a href="#270" id="270">270</a>
-<a href="#271" id="271">271</a>
-<a href="#272" id="272">272</a>
-<a href="#273" id="273">273</a>
-<a href="#274" id="274">274</a>
-<a href="#275" id="275">275</a>
-<a href="#276" id="276">276</a>
-<a href="#277" id="277">277</a>
-<a href="#278" id="278">278</a>
-<a href="#279" id="279">279</a>
-<a href="#280" id="280">280</a>
-<a href="#281" id="281">281</a>
-<a href="#282" id="282">282</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
+<a href="#267" id="267">267</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::fmt::Display;
 
@@ -316,7 +301,7 @@
     ///
     /// This metric does not have any of the common tags for the performance product, but instead
     /// carries internal information for accounting purposes.
-    </span>Usage { tags: UsageTags },
+    </span>Usage,
     <span class="doccomment">/// An internal counter metric used to compute dynamic sampling biases.
     ///
     /// See '&lt;https://github.com/getsentry/sentry/blob/d3d9ed6cfa6e06aa402ab1d496dedbb22b3eabd7/src/sentry/dynamic_sampling/prioritise_projects.py#L40&gt;'.
@@ -359,11 +344,11 @@
                 MetricUnit::Duration(unit),
                 tags.into(),
             ),
-            <span class="self">Self</span>::Usage { tags } =&gt; (
+            <span class="self">Self</span>::Usage =&gt; (
                 Cow::Borrowed(<span class="string">"usage"</span>),
                 BucketValue::counter(<span class="number">1</span>.into()),
                 MetricUnit::None,
-                tags.into(),
+                Default::default(),
             ),
             <span class="self">Self</span>::CountPerRootProject { tags } =&gt; (
                 Cow::Borrowed(<span class="string">"count_per_root_project"</span>),
@@ -430,21 +415,6 @@
         }
         <span class="kw">if let </span><span class="prelude-val">Some</span>(transaction) = tags.transaction {
             map.insert(CommonTag::Transaction.to_string(), transaction);
-        }
-        map
-    }
-}
-
-<span class="attr">#[derive(Clone, Debug, PartialEq, Eq, Ord, PartialOrd)]
-</span><span class="kw">pub struct </span>UsageTags {
-    <span class="kw">pub </span>has_profile: bool,
-}
-
-<span class="kw">impl </span>From&lt;UsageTags&gt; <span class="kw">for </span>BTreeMap&lt;String, String&gt; {
-    <span class="kw">fn </span>from(tags: UsageTags) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span><span class="kw-2">mut </span>map = BTreeMap::new();
-        <span class="kw">if </span>tags.has_profile {
-            map.insert(<span class="string">"has_profile"</span>.to_owned(), <span class="string">"true"</span>.to_owned());
         }
         map
     }
