@@ -450,7 +450,6 @@ mod tests {
                 event_metrics_extracted: false,
                 reservoir: dummy_reservoir(),
                 spans_extracted: false,
-                event_fully_normalized: false,
             }
         };
 
@@ -752,7 +751,6 @@ mod tests {
             .try_into()
             .unwrap(),
             reservoir: dummy_reservoir(),
-            event_fully_normalized: false,
         };
 
         run(&mut state)

@@ -789,12 +789,6 @@ struct ProcessEnvelopeState<'a, Group> {
 
     /// Reservoir evaluator that we use for dynamic sampling.
     reservoir: ReservoirEvaluator<'a>,
-
-    /// Track whether the event has already been fully normalized.
-    ///
-    /// If the processing pipeline applies changes to the event, it should
-    /// disable this flag to ensure the event is always normalized.
-    event_fully_normalized: bool,
 }
 
 impl<Group> ProcessEnvelopeState<'_, Group> {
@@ -1156,6 +1150,22 @@ struct InnerProcessor {
     metric_outcomes: MetricOutcomes,
 }
 
+/// New type representing the normalization state of the event.
+#[derive(Copy, Clone)]
+struct EventFullyNormalized(pub bool);
+
+impl EventFullyNormalized {
+    /// Returns `true` if the event is fully normalized, `false` otherwise.
+    pub fn new(envelope: &Envelope) -> Self {
+        let event_fully_normalized = envelope.meta().is_from_internal_relay()
+            && envelope
+                .items()
+                .any(|item| item.creates_event() && item.fully_normalized());
+
+        Self(event_fully_normalized)
+    }
+}
+
 impl EnvelopeProcessorService {
     /// Creates a multi-threaded envelope processor.
     #[cfg_attr(feature = "processing", expect(clippy::too_many_arguments))]
@@ -1276,12 +1286,6 @@ impl EnvelopeProcessorService {
         //  2. The DSN was moved and the envelope sent to the old project ID.
         envelope.meta_mut().set_project_id(project_id);
 
-        // Only trust item headers in envelopes coming from internal relays
-        let event_fully_normalized = envelope.meta().is_from_internal_relay()
-            && envelope
-                .items()
-                .any(|item| item.creates_event() && item.fully_normalized());
-
         #[allow(unused_mut)]
         let mut reservoir = ReservoirEvaluator::new(reservoir_counters);
         #[cfg(feature = "processing")]
@@ -1305,7 +1309,6 @@ impl EnvelopeProcessorService {
             project_id,
             managed_envelope,
             reservoir,
-            event_fully_normalized,
         }
     }
 
@@ -1458,20 +1461,21 @@ impl EnvelopeProcessorService {
     fn normalize_event<G: EventProcessing>(
         &self,
         state: &mut ProcessEnvelopeState<G>,
-    ) -> Result<(), ProcessingError> {
+        mut event_fully_normalized: EventFullyNormalized,
+    ) -> Result<Option<EventFullyNormalized>, ProcessingError> {
         if !state.has_event() {
             // NOTE(iker): only processing relays create events from
             // attachments, so these events won't be normalized in
             // non-processing relays even if the config is set to run full
             // normalization.
-            return Ok(());
+            return Ok(None);
         }
 
         let full_normalization = match self.inner.config.normalization_level() {
             NormalizationLevel::Full => true,
             NormalizationLevel::Default => {
-                if self.inner.config.processing_enabled() && state.event_fully_normalized {
-                    return Ok(());
+                if self.inner.config.processing_enabled() && event_fully_normalized.0 {
+                    return Ok(None);
                 }
 
                 self.inner.config.processing_enabled()
@@ -1594,9 +1598,9 @@ impl EnvelopeProcessorService {
             })
         })?;
 
-        state.event_fully_normalized |= full_normalization;
+        event_fully_normalized.0 |= full_normalization;
 
-        Ok(())
+        Ok(Some(event_fully_normalized))
     }
 
     /// Processes the general errors, and the items which require or create the events.
@@ -1604,6 +1608,8 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<ErrorGroup>,
     ) -> Result<(), ProcessingError> {
+        let mut event_fully_normalized = EventFullyNormalized::new(state.envelope());
+
         // Events can also contain user reports.
         report::process_user_reports(state);
 
@@ -1611,15 +1617,23 @@ impl EnvelopeProcessorService {
             unreal::expand(state, &self.inner.config)?;
         });
 
-        event::extract(state, &self.inner.config)?;
+        event::extract(state, event_fully_normalized, &self.inner.config)?;
 
         if_processing!(self.inner.config, {
-            unreal::process(state)?;
-            attachment::create_placeholders(state);
+            if let Some(inner_event_fully_normalized) = unreal::process(state)? {
+                event_fully_normalized = inner_event_fully_normalized;
+            }
+            if let Some(inner_event_fully_normalized) = attachment::create_placeholders(state) {
+                event_fully_normalized = inner_event_fully_normalized;
+            }
         });
 
         event::finalize(state, &self.inner.config)?;
-        self.normalize_event(state)?;
+        if let Some(inner_event_fully_normalized) =
+            self.normalize_event(state, event_fully_normalized)?
+        {
+            event_fully_normalized = inner_event_fully_normalized;
+        };
         let filter_run = event::filter(state, &self.inner.global_config.current())?;
 
         if self.inner.config.processing_enabled() || matches!(filter_run, FiltersStatus::Ok) {
@@ -1632,13 +1646,13 @@ impl EnvelopeProcessorService {
 
         if state.has_event() {
             event::scrub(state)?;
-            event::serialize(state)?;
+            event::serialize(state, event_fully_normalized)?;
             event::emit_feedback_metrics(state.envelope());
         }
 
         attachment::scrub(state);
 
-        if self.inner.config.processing_enabled() && !state.event_fully_normalized {
+        if self.inner.config.processing_enabled() && !event_fully_normalized.0 {
             relay_log::error!(
                 tags.project = %state.project_id,
                 tags.ty = state.event_type().map(|e| e.to_string()).unwrap_or("none".to_owned()),
@@ -1654,15 +1668,21 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<TransactionGroup>,
     ) -> Result<(), ProcessingError> {
+        let mut event_fully_normalized = EventFullyNormalized::new(state.envelope());
+
         let global_config = self.inner.global_config.current();
 
-        event::extract(state, &self.inner.config)?;
+        event::extract(state, event_fully_normalized, &self.inner.config)?;
 
         let profile_id = profile::filter(state);
         profile::transfer_id(state, profile_id);
 
         event::finalize(state, &self.inner.config)?;
-        self.normalize_event(state)?;
+        if let Some(inner_event_fully_normalized) =
+            self.normalize_event(state, event_fully_normalized)?
+        {
+            event_fully_normalized = inner_event_fully_normalized;
+        }
 
         dynamic_sampling::ensure_dsc(state);
 
@@ -1732,10 +1752,10 @@ impl EnvelopeProcessorService {
 
         // Event may have been dropped because of a quota and the envelope can be empty.
         if state.has_event() {
-            event::serialize(state)?;
+            event::serialize(state, event_fully_normalized)?;
         }
 
-        if self.inner.config.processing_enabled() && !state.event_fully_normalized {
+        if self.inner.config.processing_enabled() && !event_fully_normalized.0 {
             relay_log::error!(
                 tags.project = %state.project_id,
                 tags.ty = state.event_type().map(|e| e.to_string()).unwrap_or("none".to_owned()),
