@@ -1151,6 +1151,22 @@ struct InnerProcessor {
     metric_outcomes: MetricOutcomes,
 }
 
+/// New type representing the normalization state of the event.
+#[derive(Copy, Clone)]
+struct EventFullyNormalized(pub bool);
+
+impl EventFullyNormalized {
+    /// Returns `true` whether the event is fully normalized, `false`.
+    pub fn event_fully_normalized(envelope: &Envelope) -> Self {
+        let event_fully_normalized = envelope.meta().is_from_internal_relay()
+            && envelope
+                .items()
+                .any(|item| item.creates_event() && item.fully_normalized());
+
+        Self(event_fully_normalized)
+    }
+}
+
 impl EnvelopeProcessorService {
     /// Creates a multi-threaded envelope processor.
     #[cfg_attr(feature = "processing", expect(clippy::too_many_arguments))]
@@ -1448,8 +1464,8 @@ impl EnvelopeProcessorService {
     fn normalize_event<G: EventProcessing>(
         &self,
         state: &mut ProcessEnvelopeState<G>,
-        mut event_fully_normalized: bool,
-    ) -> Result<Option<bool>, ProcessingError> {
+        mut event_fully_normalized: EventFullyNormalized,
+    ) -> Result<Option<EventFullyNormalized>, ProcessingError> {
         if !state.has_event() {
             // NOTE(iker): only processing relays create events from
             // attachments, so these events won't be normalized in
@@ -1461,7 +1477,7 @@ impl EnvelopeProcessorService {
         let full_normalization = match self.inner.config.normalization_level() {
             NormalizationLevel::Full => true,
             NormalizationLevel::Default => {
-                if self.inner.config.processing_enabled() && event_fully_normalized {
+                if self.inner.config.processing_enabled() && event_fully_normalized.0 {
                     return Ok(None);
                 }
 
@@ -1585,7 +1601,7 @@ impl EnvelopeProcessorService {
             })
         })?;
 
-        event_fully_normalized |= full_normalization;
+        event_fully_normalized.0 |= full_normalization;
 
         Ok(Some(event_fully_normalized))
     }
@@ -1595,7 +1611,8 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<ErrorGroup>,
     ) -> Result<(), ProcessingError> {
-        let mut event_fully_normalized = state.envelope().event_fully_normalized();
+        let mut event_fully_normalized =
+            EventFullyNormalized::event_fully_normalized(state.envelope());
 
         // Events can also contain user reports.
         report::process_user_reports(state);
@@ -1639,7 +1656,7 @@ impl EnvelopeProcessorService {
 
         attachment::scrub(state);
 
-        if self.inner.config.processing_enabled() && !event_fully_normalized {
+        if self.inner.config.processing_enabled() && !event_fully_normalized.0 {
             relay_log::error!(
                 tags.project = %state.project_id,
                 tags.ty = state.event_type().map(|e| e.to_string()).unwrap_or("none".to_owned()),
@@ -1655,7 +1672,8 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<TransactionGroup>,
     ) -> Result<(), ProcessingError> {
-        let mut event_fully_normalized = state.envelope().event_fully_normalized();
+        let mut event_fully_normalized =
+            EventFullyNormalized::event_fully_normalized(state.envelope());
 
         let global_config = self.inner.global_config.current();
 
@@ -1742,7 +1760,7 @@ impl EnvelopeProcessorService {
             event::serialize(state, event_fully_normalized)?;
         }
 
-        if self.inner.config.processing_enabled() && !event_fully_normalized {
+        if self.inner.config.processing_enabled() && !event_fully_normalized.0 {
             relay_log::error!(
                 tags.project = %state.project_id,
                 tags.ty = state.event_type().map(|e| e.to_string()).unwrap_or("none".to_owned()),

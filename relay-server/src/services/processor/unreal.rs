@@ -5,7 +5,9 @@
 use relay_config::Config;
 
 use crate::envelope::ItemType;
-use crate::services::processor::{ErrorGroup, ProcessEnvelopeState, ProcessingError};
+use crate::services::processor::{
+    ErrorGroup, EventFullyNormalized, ProcessEnvelopeState, ProcessingError,
+};
 use crate::utils;
 
 /// Expands Unreal 4 items inside an envelope.
@@ -39,11 +41,11 @@ pub fn expand(
 /// If there was no event payload prior to this function, it is created.
 pub fn process(
     state: &mut ProcessEnvelopeState<ErrorGroup>,
-) -> Result<Option<bool>, ProcessingError> {
+) -> Result<Option<EventFullyNormalized>, ProcessingError> {
     if utils::process_unreal_envelope(&mut state.event, state.managed_envelope.envelope_mut())
         .map_err(ProcessingError::InvalidUnrealReport)?
     {
-        return Ok(Some(false));
+        return Ok(Some(EventFullyNormalized(false)));
     }
 
     Ok(None)

@@ -24,7 +24,8 @@ use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::services::outcome::Outcome;
 use crate::services::processor::{
-    EventProcessing, ExtractedEvent, ProcessEnvelopeState, ProcessingError, MINIMUM_CLOCK_DRIFT,
+    EventFullyNormalized, EventProcessing, ExtractedEvent, ProcessEnvelopeState, ProcessingError,
+    MINIMUM_CLOCK_DRIFT,
 };
 use crate::statsd::{PlatformTag, RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter};
@@ -39,7 +40,7 @@ use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter};
 ///  5. If none match, `Annotated::empty()`.
 pub fn extract<G: EventProcessing>(
     state: &mut ProcessEnvelopeState<G>,
-    event_fully_normalized: bool,
+    event_fully_normalized: EventFullyNormalized,
     config: &Config,
 ) -> Result<(), ProcessingError> {
     let envelope = &mut state.envelope_mut();
@@ -68,7 +69,7 @@ pub fn extract<G: EventProcessing>(
         return Err(ProcessingError::DuplicateItem(duplicate.ty().clone()));
     }
 
-    let skip_normalization = config.processing_enabled() && event_fully_normalized;
+    let skip_normalization = config.processing_enabled() && event_fully_normalized.0;
 
     let (event, event_len) = if let Some(item) = event_item.or(security_item) {
         relay_log::trace!("processing json event");
@@ -347,7 +348,7 @@ pub fn scrub<G: EventProcessing>(
 
 pub fn serialize<G: EventProcessing>(
     state: &mut ProcessEnvelopeState<G>,
-    event_fully_normalized: bool,
+    event_fully_normalized: EventFullyNormalized,
 ) -> Result<(), ProcessingError> {
     if state.event.is_empty() {
         relay_log::error!("Cannot serialize empty event");
@@ -369,7 +370,7 @@ pub fn serialize<G: EventProcessing>(
     // If transaction metrics were extracted, set the corresponding item header
     event_item.set_metrics_extracted(state.event_metrics_extracted);
     event_item.set_spans_extracted(state.spans_extracted);
-    event_item.set_fully_normalized(event_fully_normalized);
+    event_item.set_fully_normalized(event_fully_normalized.0);
 
     state.envelope_mut().add_item(event_item);
 
