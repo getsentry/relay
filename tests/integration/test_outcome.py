@@ -1174,6 +1174,7 @@ def test_profile_outcomes(
     """
     outcomes_consumer = outcomes_consumer(timeout=5)
     profiles_consumer = profiles_consumer()
+    metrics_consumer = metrics_consumer()
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
