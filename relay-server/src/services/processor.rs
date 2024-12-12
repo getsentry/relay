@@ -1156,7 +1156,7 @@ struct InnerProcessor {
 struct EventFullyNormalized(pub bool);
 
 impl EventFullyNormalized {
-    /// Returns `true` whether the event is fully normalized, `false`.
+    /// Returns `true` if the event is fully normalized, `false` otherwise.
     pub fn new(envelope: &Envelope) -> Self {
         let event_fully_normalized = envelope.meta().is_from_internal_relay()
             && envelope
