@@ -677,7 +677,14 @@
 <a href="#676" id="676">676</a>
 <a href="#677" id="677">677</a>
 <a href="#678" id="678">678</a>
-<a href="#679" id="679">679</a></pre></div><pre class="rust"><code><span class="doccomment">//! A high-level StatsD metric client built on cadence.
+<a href="#679" id="679">679</a>
+<a href="#680" id="680">680</a>
+<a href="#681" id="681">681</a>
+<a href="#682" id="682">682</a>
+<a href="#683" id="683">683</a>
+<a href="#684" id="684">684</a>
+<a href="#685" id="685">685</a>
+<a href="#686" id="686">686</a></pre></div><pre class="rust"><code><span class="doccomment">//! A high-level StatsD metric client built on cadence.
 //!
 //! ## Defining Metrics
 //!
@@ -702,7 +709,7 @@
 //! ```no_run
 //! # use std::collections::BTreeMap;
 //!
-//! relay_statsd::init("myprefix", "localhost:8125", BTreeMap::new(), 1.0);
+//! relay_statsd::init("myprefix", "localhost:8125", BTreeMap::new(), 1.0, true);
 //! ```
 //!
 //! ## Macro Usage
@@ -905,6 +912,7 @@
     host: A,
     default_tags: BTreeMap&lt;String, String&gt;,
     sample_rate: f32,
+    aggregate: bool,
 ) {
     <span class="kw">let </span>addrs: Vec&lt;<span class="kw">_</span>&gt; = host.to_socket_addrs().unwrap().collect();
     <span class="kw">if </span>!addrs.is_empty() {
@@ -922,7 +930,7 @@
         </span>}
     );
 
-    <span class="kw">let </span>statsd_client = {
+    <span class="kw">let </span>statsd_client = <span class="kw">if </span>aggregate {
         <span class="kw">let </span>statsdproxy_sink = StatsdProxyMetricSink::new(<span class="kw">move </span>|| {
             <span class="kw">let </span>upstream = statsdproxy::middleware::upstream::Upstream::new(addrs[<span class="number">0</span>])
                 .expect(<span class="string">"failed to create statsdproxy metric sink"</span>);
@@ -939,6 +947,12 @@
             )
         });
 
+        StatsdClient::from_sink(prefix, statsdproxy_sink)
+    } <span class="kw">else </span>{
+        <span class="kw">let </span>statsdproxy_sink = StatsdProxyMetricSink::new(<span class="kw">move </span>|| {
+            statsdproxy::middleware::upstream::Upstream::new(addrs[<span class="number">0</span>])
+                .expect(<span class="string">"failed to create statsdproxy metric sind"</span>)
+        });
         StatsdClient::from_sink(prefix, statsdproxy_sink)
     };
 
