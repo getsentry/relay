@@ -1157,7 +1157,7 @@ struct EventFullyNormalized(pub bool);
 
 impl EventFullyNormalized {
     /// Returns `true` whether the event is fully normalized, `false`.
-    pub fn event_fully_normalized(envelope: &Envelope) -> Self {
+    pub fn new(envelope: &Envelope) -> Self {
         let event_fully_normalized = envelope.meta().is_from_internal_relay()
             && envelope
                 .items()
