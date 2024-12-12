@@ -108,6 +108,7 @@ fn listen(config: &Config) -> Result<TcpListener, ServerError> {
         SocketAddr::V6(_) => TcpSocket::new_v6(),
     }?;
 
+    #[cfg(all(unix, not(target_os = "solaris"), not(target_os = "illumos")))]
     socket.set_reuseport(true)?;
     socket.bind(addr)?;
     Ok(socket.listen(config.tcp_listen_backlog())?.into_std()?)
