@@ -1,14 +1,11 @@
 //! Quota and rate limiting helpers for metrics and metrics buckets.
 
-use chrono::{DateTime, Utc};
 use itertools::Either;
-use relay_common::time::UnixTimestamp;
 use relay_metrics::Bucket;
 use relay_quotas::{DataCategory, Quota, RateLimits, Scoping};
-use relay_system::Addr;
 
-use crate::metrics::outcomes::{BucketSummary, MetricOutcomes, TrackableBucket, PROFILE_TAG};
-use crate::services::outcome::{Outcome, TrackOutcome};
+use crate::metrics::outcomes::{BucketSummary, MetricOutcomes, TrackableBucket};
+use crate::services::outcome::Outcome;
 use crate::utils;
 
 /// Contains all data necessary to rate limit metrics or metrics buckets.
@@ -24,20 +21,19 @@ pub struct MetricsLimiter<Q: AsRef<Vec<Quota>> = Vec<Quota>> {
     scoping: Scoping,
 
     /// The number of performance items (transactions, spans, profiles) contributing to these metrics.
+    #[cfg(feature = "processing")]
     counts: EntityCounts,
 }
 
 fn to_counts(summary: &BucketSummary) -> EntityCounts {
     match *summary {
-        BucketSummary::Transactions { count, has_profile } => EntityCounts {
+        BucketSummary::Transactions(count) => EntityCounts {
             transactions: Some(count),
             spans: None,
-            profiles: if has_profile { count } else { 0 },
         },
         BucketSummary::Spans(count) => EntityCounts {
             transactions: None,
             spans: Some(count),
-            profiles: 0,
         },
         BucketSummary::None => EntityCounts::default(),
     }
@@ -70,11 +66,6 @@ struct EntityCounts {
     /// The distinction between `None` and `Some(0)` is needed to decide whether or not a rate limit
     /// must be checked.
     spans: Option<usize>,
-    /// The number of profiles represented in the current batch.
-    ///
-    /// We do not explicitly check the rate limiter for profiles, so there is no need to
-    /// distinguish between `None` and `Some(0)`.
-    profiles: usize,
 }
 
 impl std::ops::Add for EntityCounts {
@@ -84,7 +75,6 @@ impl std::ops::Add for EntityCounts {
         Self {
             transactions: add_some(self.transactions, rhs.transactions),
             spans: add_some(self.spans, rhs.spans),
-            profiles: self.profiles + rhs.profiles,
         }
     }
 }
@@ -126,12 +116,13 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
             .iter()
             .map(|b| to_counts(&b.summary))
             .reduce(|a, b| a + b);
-        if let Some(counts) = total_counts {
+        if let Some(_counts) = total_counts {
             Ok(Self {
                 buckets,
                 quotas,
                 scoping,
-                counts,
+                #[cfg(feature = "processing")]
+                counts: _counts,
             })
         } else {
             Err(buckets.into_iter().map(|s| s.bucket).collect())
@@ -187,35 +178,6 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
         metric_outcomes.track(self.scoping, &dropped, outcome);
     }
 
-    fn drop_profiles(
-        &mut self,
-        outcome: Outcome,
-        timestamp: DateTime<Utc>,
-        outcome_aggregator: &Addr<TrackOutcome>,
-    ) {
-        if self.counts.profiles == 0 {
-            return;
-        }
-
-        for SummarizedBucket { bucket, summary } in self.buckets.iter_mut() {
-            if let BucketSummary::Transactions { has_profile, .. } = summary {
-                if *has_profile {
-                    bucket.remove_tag(PROFILE_TAG);
-                }
-            }
-        }
-
-        outcome_aggregator.send(TrackOutcome {
-            timestamp,
-            scoping: self.scoping,
-            outcome,
-            event_id: None,
-            remote_addr: None,
-            category: DataCategory::Profile,
-            quantity: self.counts.profiles as u32,
-        });
-    }
-
     // Drop transaction-related metrics and create outcomes for any active rate limits.
     //
     // Returns true if any metrics were dropped.
@@ -223,7 +185,6 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
         &mut self,
         rate_limits: &RateLimits,
         metric_outcomes: &MetricOutcomes,
-        outcome_aggregator: &Addr<TrackOutcome>,
     ) -> bool {
         for category in [DataCategory::Transaction, DataCategory::Span] {
             let active_rate_limits =
@@ -238,20 +199,6 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
                 );
 
                 return true;
-            } else if category == DataCategory::Transaction {
-                // Also check profiles:
-                let active_rate_limits = rate_limits.check_with_quotas(
-                    self.quotas.as_ref(),
-                    self.scoping.item(DataCategory::Profile),
-                );
-
-                if let Some(limit) = active_rate_limits.longest() {
-                    self.drop_profiles(
-                        Outcome::RateLimited(limit.reason_code.clone()),
-                        UnixTimestamp::now().as_datetime().unwrap_or_else(Utc::now),
-                        outcome_aggregator,
-                    )
-                }
             }
         }
 
@@ -268,8 +215,9 @@ impl<Q: AsRef<Vec<Quota>>> MetricsLimiter<Q> {
 mod tests {
     use relay_base_schema::organization::OrganizationId;
     use relay_base_schema::project::{ProjectId, ProjectKey};
-    use relay_metrics::{BucketMetadata, BucketValue};
+    use relay_metrics::{BucketMetadata, BucketValue, UnixTimestamp};
     use relay_quotas::QuotaScope;
+    use relay_system::Addr;
     use smallvec::smallvec;
 
     use crate::metrics::MetricStats;
@@ -309,7 +257,7 @@ mod tests {
         )
         .unwrap();
 
-        limiter.enforce_limits(&RateLimits::new(), &metric_outcomes, &outcome_sink);
+        limiter.enforce_limits(&RateLimits::new(), &metric_outcomes);
         let metrics = limiter.into_buckets();
 
         rx.close();
@@ -323,137 +271,6 @@ mod tests {
             .collect();
 
         (metrics, outcomes)
-    }
-
-    #[test]
-    fn profiles_limits_are_reported() {
-        let metrics = vec![
-            Bucket {
-                // transaction without profile
-                timestamp: UnixTimestamp::now(),
-                width: 0,
-                name: "d:transactions/duration@millisecond".into(),
-                tags: Default::default(),
-                value: BucketValue::distribution(123.into()),
-                metadata: Default::default(),
-            },
-            Bucket {
-                // transaction with profile
-                timestamp: UnixTimestamp::now(),
-                width: 0,
-                name: "d:transactions/duration@millisecond".into(),
-                tags: [("has_profile".to_string(), "true".to_string())].into(),
-                value: BucketValue::distribution(456.into()),
-                metadata: Default::default(),
-            },
-            Bucket {
-                // transaction without profile
-                timestamp: UnixTimestamp::now(),
-                width: 0,
-                name: "c:transactions/usage@none".into(),
-                tags: Default::default(),
-                value: BucketValue::counter(1.into()),
-                metadata: Default::default(),
-            },
-            Bucket {
-                // transaction with profile
-                timestamp: UnixTimestamp::now(),
-                width: 0,
-                name: "c:transactions/usage@none".into(),
-                tags: [("has_profile".to_string(), "true".to_string())].into(),
-                value: BucketValue::counter(1.into()),
-                metadata: Default::default(),
-            },
-            Bucket {
-                // unrelated metric
-                timestamp: UnixTimestamp::now(),
-                width: 0,
-                name: "something_else".into(),
-                tags: [("has_profile".to_string(), "true".to_string())].into(),
-                value: BucketValue::distribution(123.into()),
-                metadata: Default::default(),
-            },
-        ];
-        let (metrics, outcomes) = run_limiter(metrics, deny(DataCategory::Transaction));
-
-        assert_eq!(metrics.len(), 1);
-        assert_eq!(&*metrics[0].name, "something_else");
-
-        assert_eq!(
-            outcomes,
-            vec![
-                (Outcome::RateLimited(None), DataCategory::Transaction, 2),
-                (Outcome::RateLimited(None), DataCategory::Profile, 1)
-            ]
-        )
-    }
-
-    #[test]
-    fn profiles_quota_is_enforced() {
-        let metrics = vec![
-            Bucket {
-                // transaction without profile
-                timestamp: UnixTimestamp::now(),
-                width: 0,
-                name: "d:transactions/duration@millisecond".into(),
-                tags: Default::default(),
-                value: BucketValue::distribution(123.into()),
-                metadata: Default::default(),
-            },
-            Bucket {
-                // transaction with profile
-                timestamp: UnixTimestamp::now(),
-                width: 0,
-                name: "d:transactions/duration@millisecond".into(),
-                tags: [("has_profile".to_string(), "true".to_string())].into(),
-                value: BucketValue::distribution(456.into()),
-                metadata: Default::default(),
-            },
-            Bucket {
-                // transaction without profile
-                timestamp: UnixTimestamp::now(),
-                width: 0,
-                name: "c:transactions/usage@none".into(),
-                tags: Default::default(),
-                value: BucketValue::counter(1.into()),
-                metadata: Default::default(),
-            },
-            Bucket {
-                // transaction with profile
-                timestamp: UnixTimestamp::now(),
-                width: 0,
-                name: "c:transactions/usage@none".into(),
-                tags: [("has_profile".to_string(), "true".to_string())].into(),
-                value: BucketValue::counter(1.into()),
-                metadata: Default::default(),
-            },
-            Bucket {
-                // unrelated metric
-                timestamp: UnixTimestamp::now(),
-                width: 0,
-                name: "something_else".into(),
-                tags: [("has_profile".to_string(), "true".to_string())].into(),
-                value: BucketValue::distribution(123.into()),
-                metadata: Default::default(),
-            },
-        ];
-
-        let (metrics, outcomes) = run_limiter(metrics, deny(DataCategory::Profile));
-
-        // All metrics have been preserved:
-        assert_eq!(metrics.len(), 5);
-
-        // Profile tag has been removed:
-        assert!(metrics[0].tags.is_empty());
-        assert!(metrics[1].tags.is_empty());
-        assert!(metrics[2].tags.is_empty());
-        assert!(metrics[3].tags.is_empty());
-        assert!(!metrics[4].tags.is_empty()); // unrelated metric still has it
-
-        assert_eq!(
-            outcomes,
-            vec![(Outcome::RateLimited(None), DataCategory::Profile, 1)]
-        );
     }
 
     /// A few different bucket types

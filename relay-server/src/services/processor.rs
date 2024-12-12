@@ -31,7 +31,6 @@ use relay_event_schema::protocol::{
 use relay_filter::FilterStatKey;
 use relay_metrics::{Bucket, BucketMetadata, BucketView, BucketsView, MetricNamespace};
 use relay_pii::PiiConfigError;
-use relay_profiling::ProfileId;
 use relay_protocol::Annotated;
 use relay_quotas::{DataCategory, RateLimits, Scoping};
 use relay_sampling::config::RuleId;
@@ -1345,7 +1344,6 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<TransactionGroup>,
         sampling_decision: SamplingDecision,
-        profile_id: Option<ProfileId>,
     ) -> Result<(), ProcessingError> {
         if state.event_metrics_extracted {
             return Ok(());
@@ -1445,7 +1443,6 @@ impl EnvelopeProcessorService {
                 transaction_from_dsc,
                 sampling_decision,
                 target_project_id: state.project_id,
-                has_profile: profile_id.is_some(),
             };
 
             state
@@ -1690,9 +1687,9 @@ impl EnvelopeProcessorService {
         if let Some(outcome) = sampling_result.into_dropped_outcome() {
             // Process profiles before dropping the transaction, if necessary.
             // Before metric extraction to make sure the profile count is reflected correctly.
-            let profile_id = profile::process(state, &global_config);
+            profile::process(state, &global_config);
             // Extract metrics here, we're about to drop the event/transaction.
-            self.extract_transaction_metrics(state, SamplingDecision::Drop, profile_id)?;
+            self.extract_transaction_metrics(state, SamplingDecision::Drop)?;
 
             dynamic_sampling::drop_unsampled_items(state, outcome);
 
@@ -1719,7 +1716,7 @@ impl EnvelopeProcessorService {
             profile::transfer_id(state, profile_id);
 
             // Always extract metrics in processing Relays for sampled items.
-            self.extract_transaction_metrics(state, SamplingDecision::Keep, profile_id)?;
+            self.extract_transaction_metrics(state, SamplingDecision::Keep)?;
 
             if state
                 .project_info
@@ -2315,11 +2312,7 @@ impl EnvelopeProcessorService {
         let quotas = project_info.config.quotas.clone();
         match MetricsLimiter::create(buckets, quotas, scoping) {
             Ok(mut bucket_limiter) => {
-                bucket_limiter.enforce_limits(
-                    rate_limits,
-                    &self.inner.metric_outcomes,
-                    &self.inner.addrs.outcome_aggregator,
-                );
+                bucket_limiter.enforce_limits(rate_limits, &self.inner.metric_outcomes);
                 bucket_limiter.into_buckets()
             }
             Err(buckets) => buckets,
@@ -2442,11 +2435,8 @@ impl EnvelopeProcessorService {
             }
 
             if rate_limits.is_limited() {
-                let was_enforced = bucket_limiter.enforce_limits(
-                    &rate_limits,
-                    &self.inner.metric_outcomes,
-                    &self.inner.addrs.outcome_aggregator,
-                );
+                let was_enforced =
+                    bucket_limiter.enforce_limits(&rate_limits, &self.inner.metric_outcomes);
 
                 if was_enforced {
                     // Update the rate limits in the project cache.
