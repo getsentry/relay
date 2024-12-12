@@ -12,8 +12,8 @@ use crate::statsd::RelayTimers;
 
 #[cfg(feature = "processing")]
 use {
-    crate::services::processor::ErrorGroup, crate::utils, relay_event_schema::protocol::Event,
-    relay_protocol::Annotated,
+    crate::services::processor::ErrorGroup, crate::services::processor::EventFullyNormalized,
+    crate::utils, relay_event_schema::protocol::Event, relay_protocol::Annotated,
 };
 
 /// Adds processing placeholders for special attachments.
