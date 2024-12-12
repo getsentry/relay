@@ -131,7 +131,7 @@ def test_attachments_ratelimit(
     relay = relay_with_processing()
 
     outcomes_consumer = outcomes_consumer()
-    attachments = [("att_1", "foo.txt", b"")]
+    attachments = [("att_1", "foo.txt", b"this is an attachment")]
 
     # First attachment returns 200 but is rate limited in processing
     relay.send_attachments(project_id, event_id, attachments)

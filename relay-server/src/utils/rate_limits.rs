@@ -330,7 +330,7 @@ pub struct Enforcement {
     pub event: CategoryLimit,
     /// The rate limit for the indexed category of the event.
     pub event_indexed: CategoryLimit,
-    /// The combined attachment item rate limit.
+    /// The combined attachment bytes rate limit.
     pub attachments: CategoryLimit,
     /// The combined session item rate limit.
     pub sessions: CategoryLimit,
@@ -643,9 +643,42 @@ where
             let attachment_limits = self
                 .check
                 .apply(item_scoping, summary.attachment_quantity)?;
-            enforcement.attachments = CategoryLimit::new(
+
+            let mut limits = CategoryLimit::new(
                 DataCategory::Attachment,
                 summary.attachment_quantity,
+                attachment_limits.longest(),
+            );
+
+            if !attachment_limits.is_limited() {
+                let item_scoping = scoping.item(DataCategory::AttachmentItem);
+                let attachment_limits = self
+                    .check
+                    .apply(item_scoping, summary.attachment_item_quantity)?;
+
+                limits = CategoryLimit::new(
+                    DataCategory::AttachmentItem,
+                    summary.attachment_item_quantity,
+                    attachment_limits.longest(),
+                );
+            }
+
+            enforcement.attachments = limits;
+
+            // Only record rate limits for plain attachments. For all other attachments, it's
+            // perfectly "legal" to send them. They will still be discarded in Sentry, but clients
+            // can continue to send them.
+            if summary.has_plain_attachments {
+                rate_limits.merge(attachment_limits);
+            }
+        } else if summary.attachment_item_quantity > 0 {
+            let item_scoping = scoping.item(DataCategory::AttachmentItem);
+            let attachment_limits = self
+                .check
+                .apply(item_scoping, summary.attachment_item_quantity)?;
+            enforcement.attachments = CategoryLimit::new(
+                DataCategory::AttachmentItem,
+                summary.attachment_item_quantity,
                 attachment_limits.longest(),
             );
 
