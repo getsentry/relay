@@ -95,7 +95,11 @@
 <a href="#94" id="94">94</a>
 <a href="#95" id="95">95</a>
 <a href="#96" id="96">96</a>
-<a href="#97" id="97">97</a></pre></div><pre class="rust"><code><span class="doccomment">//! Attachments processor code.
+<a href="#97" id="97">97</a>
+<a href="#98" id="98">98</a>
+<a href="#99" id="99">99</a>
+<a href="#100" id="100">100</a>
+<a href="#101" id="101">101</a></pre></div><pre class="rust"><code><span class="doccomment">//! Attachments processor code.
 
 </span><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::time::Instant;
@@ -109,8 +113,8 @@
 
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">use </span>{
-    <span class="kw">crate</span>::services::processor::ErrorGroup, <span class="kw">crate</span>::utils, relay_event_schema::protocol::Event,
-    relay_protocol::Annotated,
+    <span class="kw">crate</span>::services::processor::ErrorGroup, <span class="kw">crate</span>::services::processor::EventFullyNormalized,
+    <span class="kw">crate</span>::utils, relay_event_schema::protocol::Event, relay_protocol::Annotated,
 };
 
 <span class="doccomment">/// Adds processing placeholders for special attachments.
@@ -120,7 +124,9 @@
 ///
 /// If the event payload was empty before, it is created.
 </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-</span><span class="kw">pub fn </span>create_placeholders(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;ErrorGroup&gt;) {
+</span><span class="kw">pub fn </span>create_placeholders(
+    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;ErrorGroup&gt;,
+) -&gt; <span class="prelude-ty">Option</span>&lt;EventFullyNormalized&gt; {
     <span class="kw">let </span>envelope = state.managed_envelope.envelope();
     <span class="kw">let </span>minidump_attachment =
         envelope.get_item_by(|item| item.attachment_type() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>AttachmentType::Minidump));
@@ -131,14 +137,16 @@
         <span class="kw">let </span>event = state.event.get_or_insert_with(Event::default);
         state.metrics.bytes_ingested_event_minidump = Annotated::new(item.len() <span class="kw">as </span>u64);
         utils::process_minidump(event, <span class="kw-2">&amp;</span>item.payload());
-        state.event_fully_normalized = <span class="bool-val">false</span>;
+        <span class="kw">return </span><span class="prelude-val">Some</span>(EventFullyNormalized(<span class="bool-val">false</span>));
     } <span class="kw">else if let </span><span class="prelude-val">Some</span>(item) = apple_crash_report_attachment {
         <span class="kw">let </span>event = state.event.get_or_insert_with(Event::default);
         state.metrics.bytes_ingested_event_applecrashreport = Annotated::new(item.len() <span class="kw">as </span>u64);
         utils::process_apple_crash_report(event, <span class="kw-2">&amp;</span>item.payload());
-        state.event_fully_normalized = <span class="bool-val">false</span>;
+        <span class="kw">return </span><span class="prelude-val">Some</span>(EventFullyNormalized(<span class="bool-val">false</span>));
     }
-}
+
+    <span class="prelude-val">None
+</span>}
 
 <span class="doccomment">/// Apply data privacy rules to attachments in the envelope.
 ///

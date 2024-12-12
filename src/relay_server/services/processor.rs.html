@@ -3858,7 +3858,27 @@
 <a href="#3857" id="3857">3857</a>
 <a href="#3858" id="3858">3858</a>
 <a href="#3859" id="3859">3859</a>
-<a href="#3860" id="3860">3860</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
+<a href="#3860" id="3860">3860</a>
+<a href="#3861" id="3861">3861</a>
+<a href="#3862" id="3862">3862</a>
+<a href="#3863" id="3863">3863</a>
+<a href="#3864" id="3864">3864</a>
+<a href="#3865" id="3865">3865</a>
+<a href="#3866" id="3866">3866</a>
+<a href="#3867" id="3867">3867</a>
+<a href="#3868" id="3868">3868</a>
+<a href="#3869" id="3869">3869</a>
+<a href="#3870" id="3870">3870</a>
+<a href="#3871" id="3871">3871</a>
+<a href="#3872" id="3872">3872</a>
+<a href="#3873" id="3873">3873</a>
+<a href="#3874" id="3874">3874</a>
+<a href="#3875" id="3875">3875</a>
+<a href="#3876" id="3876">3876</a>
+<a href="#3877" id="3877">3877</a>
+<a href="#3878" id="3878">3878</a>
+<a href="#3879" id="3879">3879</a>
+<a href="#3880" id="3880">3880</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::fmt::{Debug, Display};
@@ -4649,12 +4669,6 @@
 
     <span class="doccomment">/// Reservoir evaluator that we use for dynamic sampling.
     </span>reservoir: ReservoirEvaluator&lt;<span class="lifetime">'a</span>&gt;,
-
-    <span class="doccomment">/// Track whether the event has already been fully normalized.
-    ///
-    /// If the processing pipeline applies changes to the event, it should
-    /// disable this flag to ensure the event is always normalized.
-    </span>event_fully_normalized: bool,
 }
 
 <span class="kw">impl</span>&lt;Group&gt; ProcessEnvelopeState&lt;<span class="lifetime">'_</span>, Group&gt; {
@@ -5016,6 +5030,22 @@
     metric_outcomes: MetricOutcomes,
 }
 
+<span class="doccomment">/// New type representing the normalization state of the event.
+</span><span class="attr">#[derive(Copy, Clone)]
+</span><span class="kw">struct </span>EventFullyNormalized(<span class="kw">pub </span>bool);
+
+<span class="kw">impl </span>EventFullyNormalized {
+    <span class="doccomment">/// Returns `true` if the event is fully normalized, `false` otherwise.
+    </span><span class="kw">pub fn </span>new(envelope: <span class="kw-2">&amp;</span>Envelope) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>event_fully_normalized = envelope.meta().is_from_internal_relay()
+            &amp;&amp; envelope
+                .items()
+                .any(|item| item.creates_event() &amp;&amp; item.fully_normalized());
+
+        <span class="self">Self</span>(event_fully_normalized)
+    }
+}
+
 <span class="kw">impl </span>EnvelopeProcessorService {
     <span class="doccomment">/// Creates a multi-threaded envelope processor.
     </span><span class="attr">#[cfg_attr(feature = <span class="string">"processing"</span>, expect(clippy::too_many_arguments))]
@@ -5136,12 +5166,6 @@
         //  2. The DSN was moved and the envelope sent to the old project ID.
         </span>envelope.meta_mut().set_project_id(project_id);
 
-        <span class="comment">// Only trust item headers in envelopes coming from internal relays
-        </span><span class="kw">let </span>event_fully_normalized = envelope.meta().is_from_internal_relay()
-            &amp;&amp; envelope
-                .items()
-                .any(|item| item.creates_event() &amp;&amp; item.fully_normalized());
-
         <span class="attr">#[allow(unused_mut)]
         </span><span class="kw">let </span><span class="kw-2">mut </span>reservoir = ReservoirEvaluator::new(reservoir_counters);
         <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
@@ -5165,7 +5189,6 @@
             project_id,
             managed_envelope,
             reservoir,
-            event_fully_normalized,
         }
     }
 
@@ -5318,20 +5341,21 @@
     <span class="kw">fn </span>normalize_event&lt;G: EventProcessing&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
+        <span class="kw-2">mut </span>event_fully_normalized: EventFullyNormalized,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;EventFullyNormalized&gt;, ProcessingError&gt; {
         <span class="kw">if </span>!state.has_event() {
             <span class="comment">// NOTE(iker): only processing relays create events from
             // attachments, so these events won't be normalized in
             // non-processing relays even if the config is set to run full
             // normalization.
-            </span><span class="kw">return </span><span class="prelude-val">Ok</span>(());
+            </span><span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>);
         }
 
         <span class="kw">let </span>full_normalization = <span class="kw">match </span><span class="self">self</span>.inner.config.normalization_level() {
             NormalizationLevel::Full =&gt; <span class="bool-val">true</span>,
             NormalizationLevel::Default =&gt; {
-                <span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() &amp;&amp; state.event_fully_normalized {
-                    <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+                <span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() &amp;&amp; event_fully_normalized.<span class="number">0 </span>{
+                    <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>);
                 }
 
                 <span class="self">self</span>.inner.config.processing_enabled()
@@ -5454,9 +5478,9 @@
             })
         })<span class="question-mark">?</span>;
 
-        state.event_fully_normalized |= full_normalization;
+        event_fully_normalized.<span class="number">0 </span>|= full_normalization;
 
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(event_fully_normalized))
     }
 
     <span class="doccomment">/// Processes the general errors, and the items which require or create the events.
@@ -5464,6 +5488,8 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;ErrorGroup&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>event_fully_normalized = EventFullyNormalized::new(state.envelope());
+
         <span class="comment">// Events can also contain user reports.
         </span>report::process_user_reports(state);
 
@@ -5471,15 +5497,23 @@
             unreal::expand(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
         });
 
-        event::extract(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
+        event::extract(state, event_fully_normalized, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
 
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
-            unreal::process(state)<span class="question-mark">?</span>;
-            attachment::create_placeholders(state);
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(inner_event_fully_normalized) = unreal::process(state)<span class="question-mark">? </span>{
+                event_fully_normalized = inner_event_fully_normalized;
+            }
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(inner_event_fully_normalized) = attachment::create_placeholders(state) {
+                event_fully_normalized = inner_event_fully_normalized;
+            }
         });
 
         event::finalize(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
-        <span class="self">self</span>.normalize_event(state)<span class="question-mark">?</span>;
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(inner_event_fully_normalized) =
+            <span class="self">self</span>.normalize_event(state, event_fully_normalized)<span class="question-mark">?
+        </span>{
+            event_fully_normalized = inner_event_fully_normalized;
+        };
         <span class="kw">let </span>filter_run = event::filter(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current())<span class="question-mark">?</span>;
 
         <span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() || <span class="macro">matches!</span>(filter_run, FiltersStatus::Ok) {
@@ -5492,13 +5526,13 @@
 
         <span class="kw">if </span>state.has_event() {
             event::scrub(state)<span class="question-mark">?</span>;
-            event::serialize(state)<span class="question-mark">?</span>;
+            event::serialize(state, event_fully_normalized)<span class="question-mark">?</span>;
             event::emit_feedback_metrics(state.envelope());
         }
 
         attachment::scrub(state);
 
-        <span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() &amp;&amp; !state.event_fully_normalized {
+        <span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() &amp;&amp; !event_fully_normalized.<span class="number">0 </span>{
             <span class="macro">relay_log::error!</span>(
                 tags.project = %state.project_id,
                 tags.ty = state.event_type().map(|e| e.to_string()).unwrap_or(<span class="string">"none"</span>.to_owned()),
@@ -5514,15 +5548,21 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>event_fully_normalized = EventFullyNormalized::new(state.envelope());
+
         <span class="kw">let </span>global_config = <span class="self">self</span>.inner.global_config.current();
 
-        event::extract(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
+        event::extract(state, event_fully_normalized, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
 
         <span class="kw">let </span>profile_id = profile::filter(state);
         profile::transfer_id(state, profile_id);
 
         event::finalize(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
-        <span class="self">self</span>.normalize_event(state)<span class="question-mark">?</span>;
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(inner_event_fully_normalized) =
+            <span class="self">self</span>.normalize_event(state, event_fully_normalized)<span class="question-mark">?
+        </span>{
+            event_fully_normalized = inner_event_fully_normalized;
+        }
 
         dynamic_sampling::ensure_dsc(state);
 
@@ -5592,10 +5632,10 @@
 
         <span class="comment">// Event may have been dropped because of a quota and the envelope can be empty.
         </span><span class="kw">if </span>state.has_event() {
-            event::serialize(state)<span class="question-mark">?</span>;
+            event::serialize(state, event_fully_normalized)<span class="question-mark">?</span>;
         }
 
-        <span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() &amp;&amp; !state.event_fully_normalized {
+        <span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() &amp;&amp; !event_fully_normalized.<span class="number">0 </span>{
             <span class="macro">relay_log::error!</span>(
                 tags.project = %state.project_id,
                 tags.ty = state.event_type().map(|e| e.to_string()).unwrap_or(<span class="string">"none"</span>.to_owned()),

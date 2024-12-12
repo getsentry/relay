@@ -770,9 +770,7 @@
 <a href="#769" id="769">769</a>
 <a href="#770" id="770">770</a>
 <a href="#771" id="771">771</a>
-<a href="#772" id="772">772</a>
-<a href="#773" id="773">773</a>
-<a href="#774" id="774">774</a></pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic sampling processor related code.
+<a href="#772" id="772">772</a></pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic sampling processor related code.
 
 </span><span class="kw">use </span>std::ops::ControlFlow;
 
@@ -1224,7 +1222,6 @@
                 event_metrics_extracted: <span class="bool-val">false</span>,
                 reservoir: dummy_reservoir(),
                 spans_extracted: <span class="bool-val">false</span>,
-                event_fully_normalized: <span class="bool-val">false</span>,
             }
         };
 
@@ -1526,7 +1523,6 @@
             .try_into()
             .unwrap(),
             reservoir: dummy_reservoir(),
-            event_fully_normalized: <span class="bool-val">false</span>,
         };
 
         run(<span class="kw-2">&amp;mut </span>state)
