@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 24.11.2
 
 **Breaking Changes**:
 
@@ -22,6 +22,7 @@
 
 **Internal**:
 
+- Adds the UPTIME DataCategory ([#4363](https://github.com/getsentry/relay/pull/4363))
 - Promote some `span.data` fields to the top level. ([#4298](https://github.com/getsentry/relay/pull/4298))
 - Remove metrics summaries. ([#4278](https://github.com/getsentry/relay/pull/4278), [#4279](https://github.com/getsentry/relay/pull/4279), [#4296](https://github.com/getsentry/relay/pull/4296))
 - Use async `redis` for `projectconfig`. ([#4284](https://github.com/getsentry/relay/pull/4284))

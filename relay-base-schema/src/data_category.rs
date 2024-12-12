@@ -88,6 +88,8 @@ pub enum DataCategory {
     ///
     /// This is the data category for Session Replays produced via a video recording.
     ReplayVideo = 20,
+    /// This is the data category for Uptime monitors.
+    Uptime = 21,
     //
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
     // `make header` to regenerate the C-binding. This allows using the data category from Python.
@@ -125,6 +127,7 @@ impl DataCategory {
             "profile_chunk" => Self::ProfileChunk,
             "metric_second" => Self::MetricSecond,
             "replay_video" => Self::ReplayVideo,
+            "uptime" => Self::Uptime,
             _ => Self::Unknown,
         }
     }
@@ -154,6 +157,7 @@ impl DataCategory {
             Self::ProfileChunk => "profile_chunk",
             Self::MetricSecond => "metric_second",
             Self::ReplayVideo => "replay_video",
+            Self::Uptime => "uptime",
             Self::Unknown => "unknown",
         }
     }
