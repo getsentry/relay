@@ -49,7 +49,7 @@ use relay_quotas::DataCategory;
 use relay_sampling::DynamicSamplingContext;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use smallvec::SmallVec;
+use smallvec::{smallvec, SmallVec};
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::extractors::{PartialMeta, RequestMeta};
@@ -670,13 +670,35 @@ impl Item {
     /// Returns the number used for counting towards rate limits and producing outcomes.
     ///
     /// For attachments, we count the number of bytes. Other items are counted as 1.
-    pub fn quantity(&self) -> usize {
+    pub fn quantities(&self) -> SmallVec<[(DataCategory, usize); 1]> {
         match self.ty() {
-            ItemType::Attachment => self.len().max(1),
-            // NOTE: This is semantically wrong. An otel trace contains may contain many spans,
-            // but we cannot easily count these before converting the trace into a series of spans.
-            ItemType::OtelTracesData => 1,
-            _ => 1,
+            ItemType::Event => smallvec![(DataCategory::Error, 1)],
+            ItemType::Transaction => smallvec![(DataCategory::Transaction, 1)],
+            ItemType::Security | ItemType::RawSecurity => {
+                smallvec![(DataCategory::Security, 1)]
+            }
+            ItemType::Nel => smallvec![],
+            ItemType::UnrealReport => smallvec![(DataCategory::Error, 1)],
+            ItemType::Attachment => smallvec![
+                (DataCategory::Attachment, self.len().max(1)),
+                (DataCategory::AttachmentItem, 1)
+            ],
+            ItemType::Session | ItemType::Sessions => smallvec![],
+            ItemType::Statsd | ItemType::MetricBuckets => smallvec![],
+            ItemType::FormData => smallvec![],
+            ItemType::UserReport => smallvec![],
+            ItemType::UserReportV2 => smallvec![(DataCategory::UserReportV2, 1)],
+            ItemType::Profile => smallvec![(DataCategory::Profile, 1)],
+            ItemType::ReplayEvent | ItemType::ReplayRecording | ItemType::ReplayVideo => {
+                smallvec![(DataCategory::Replay, 1)]
+            }
+            ItemType::ClientReport => smallvec![],
+            ItemType::CheckIn => smallvec![(DataCategory::Monitor, 1)],
+            ItemType::Span | ItemType::OtelSpan => smallvec![(DataCategory::Span, 1)],
+            // NOTE: semantically wrong, but too expensive to parse.
+            ItemType::OtelTracesData => smallvec![(DataCategory::Span, 1)],
+            ItemType::ProfileChunk => smallvec![(DataCategory::ProfileChunk, 1)], // TODO: should be seconds?
+            ItemType::Unknown(_) => smallvec![],
         }
     }
 
@@ -691,31 +713,31 @@ impl Item {
     /// Returns the data category used for generating outcomes.
     ///
     /// Returns `None` if outcomes are not generated for this type (e.g. sessions).
-    pub fn outcome_category(&self) -> Option<DataCategory> {
-        match self.ty() {
-            ItemType::Event => Some(DataCategory::Error),
-            ItemType::Transaction => Some(DataCategory::Transaction),
-            ItemType::Security | ItemType::RawSecurity => Some(DataCategory::Security),
-            ItemType::Nel => None,
-            ItemType::UnrealReport => Some(DataCategory::Error),
-            ItemType::Attachment => Some(DataCategory::Attachment),
-            ItemType::Session | ItemType::Sessions => None,
-            ItemType::Statsd | ItemType::MetricBuckets => None,
-            ItemType::FormData => None,
-            ItemType::UserReport => None,
-            ItemType::UserReportV2 => Some(DataCategory::UserReportV2),
-            ItemType::Profile => Some(DataCategory::Profile),
-            ItemType::ReplayEvent | ItemType::ReplayRecording | ItemType::ReplayVideo => {
-                Some(DataCategory::Replay)
-            }
-            ItemType::ClientReport => None,
-            ItemType::CheckIn => Some(DataCategory::Monitor),
-            ItemType::Span | ItemType::OtelSpan => Some(DataCategory::Span),
-            ItemType::OtelTracesData => None,
-            ItemType::ProfileChunk => Some(DataCategory::ProfileChunk),
-            ItemType::Unknown(_) => None,
-        }
-    }
+    // pub fn outcome_category(&self) -> Option<DataCategory> {
+    //     match self.ty() {
+    //         ItemType::Event => Some(DataCategory::Error),
+    //         ItemType::Transaction => Some(DataCategory::Transaction),
+    //         ItemType::Security | ItemType::RawSecurity => Some(DataCategory::Security),
+    //         ItemType::Nel => None,
+    //         ItemType::UnrealReport => Some(DataCategory::Error),
+    //         ItemType::Attachment => Some(DataCategory::Attachment),
+    //         ItemType::Session | ItemType::Sessions => None,
+    //         ItemType::Statsd | ItemType::MetricBuckets => None,
+    //         ItemType::FormData => None,
+    //         ItemType::UserReport => None,
+    //         ItemType::UserReportV2 => Some(DataCategory::UserReportV2),
+    //         ItemType::Profile => Some(DataCategory::Profile),
+    //         ItemType::ReplayEvent | ItemType::ReplayRecording | ItemType::ReplayVideo => {
+    //             Some(DataCategory::Replay)
+    //         }
+    //         ItemType::ClientReport => None,
+    //         ItemType::CheckIn => Some(DataCategory::Monitor),
+    //         ItemType::Span | ItemType::OtelSpan => Some(DataCategory::Span),
+    //         ItemType::OtelTracesData => None,
+    //         ItemType::ProfileChunk => Some(DataCategory::ProfileChunk),
+    //         ItemType::Unknown(_) => None,
+    //     }
+    // }
 
     /// Returns `true` if this item's payload is empty.
     pub fn is_empty(&self) -> bool {

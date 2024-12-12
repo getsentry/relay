@@ -149,6 +149,9 @@ pub struct EnvelopeSummary {
     /// The quantity of all attachments combined in bytes.
     pub attachment_quantity: usize,
 
+    /// The number of attachments.
+    pub attachment_item_quantity: usize,
+
     /// The number of all session updates.
     pub session_quantity: usize,
 
@@ -159,7 +162,7 @@ pub struct EnvelopeSummary {
     pub replay_quantity: usize,
 
     /// The number of monitor check-ins.
-    pub checkin_quantity: usize,
+    pub monitor_quantity: usize,
 
     /// Secondary number of transactions.
     ///
@@ -218,28 +221,29 @@ impl EnvelopeSummary {
             }
 
             summary.payload_size += item.len();
-            summary.set_quantity(item);
+            for (category, quantity) in item.quantities() {
+                summary.add_quantity(category, quantity);
+            }
         }
 
         summary
     }
 
-    fn set_quantity(&mut self, item: &Item) {
-        let target_quantity = match item.ty() {
-            ItemType::Attachment => &mut self.attachment_quantity,
-            ItemType::Session => &mut self.session_quantity,
-            ItemType::Profile => &mut self.profile_quantity,
-            ItemType::ReplayEvent => &mut self.replay_quantity,
-            ItemType::ReplayRecording => &mut self.replay_quantity,
-            ItemType::ReplayVideo => &mut self.replay_quantity,
-            ItemType::CheckIn => &mut self.checkin_quantity,
-            ItemType::OtelTracesData => &mut self.span_quantity,
-            ItemType::OtelSpan => &mut self.span_quantity,
-            ItemType::Span => &mut self.span_quantity,
-            ItemType::ProfileChunk => &mut self.profile_chunk_quantity,
+    fn add_quantity(&mut self, category: DataCategory, quantity: usize) {
+        let target_quantity = match category {
+            DataCategory::Attachment => &mut self.attachment_quantity,
+            DataCategory::AttachmentItem => &mut self.attachment_item_quantity,
+            DataCategory::Session => &mut self.session_quantity,
+            DataCategory::Profile => &mut self.profile_quantity,
+            DataCategory::Replay => &mut self.replay_quantity,
+            DataCategory::ReplayVideo => &mut self.replay_quantity,
+            DataCategory::Monitor => &mut self.monitor_quantity,
+            DataCategory::Span => &mut self.span_quantity,
+            DataCategory::ProfileChunk => &mut self.profile_chunk_quantity,
+            // TODO: This catch-all return looks dangerous
             _ => return,
         };
-        *target_quantity += item.quantity();
+        *target_quantity += quantity;
     }
 
     /// Infers the appropriate [`DataCategory`] for the envelope [`Item`].
@@ -719,12 +723,12 @@ where
             rate_limits.merge(replay_limits);
         }
 
-        if summary.checkin_quantity > 0 {
+        if summary.monitor_quantity > 0 {
             let item_scoping = scoping.item(DataCategory::Monitor);
-            let checkin_limits = self.check.apply(item_scoping, summary.checkin_quantity)?;
+            let checkin_limits = self.check.apply(item_scoping, summary.monitor_quantity)?;
             enforcement.check_ins = CategoryLimit::new(
                 DataCategory::Monitor,
-                summary.checkin_quantity,
+                summary.monitor_quantity,
                 checkin_limits.longest(),
             );
             rate_limits.merge(checkin_limits);

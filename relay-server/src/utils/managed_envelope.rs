@@ -263,12 +263,13 @@ impl ManagedEnvelope {
             ItemAction::Keep => true,
             ItemAction::DropSilently => false,
             ItemAction::Drop(outcome) => {
-                if let Some(category) = item.outcome_category() {
+                for (category, quantity) in item.quantities() {
                     if let Some(indexed) = category.index_category() {
-                        outcomes.push((outcome.clone(), indexed, item.quantity()));
+                        outcomes.push((outcome.clone(), indexed, quantity));
                     };
-                    outcomes.push((outcome, category, item.quantity()));
-                };
+                    outcomes.push((outcome.clone(), category, quantity));
+                }
+
                 false
             }
         });
@@ -360,7 +361,7 @@ impl ManagedEnvelope {
                     tags.has_transactions = summary.secondary_transaction_quantity > 0,
                     tags.has_span_metrics = summary.secondary_span_quantity > 0,
                     tags.has_replays = summary.replay_quantity > 0,
-                    tags.has_checkins = summary.checkin_quantity > 0,
+                    tags.has_checkins = summary.monitor_quantity > 0,
                     tags.event_category = ?summary.event_category,
                     cached_summary = ?summary,
                     recomputed_summary = ?EnvelopeSummary::compute(self.envelope()),
