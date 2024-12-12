@@ -632,6 +632,14 @@ pub struct Item {
     payload: Bytes,
 }
 
+/// Expresses the purpose of counting quantities.
+///
+/// Sessions are counted for rate limiting enforcement but not for outcome reporting.
+pub enum CountFor {
+    RateLimits,
+    Outcomes,
+}
+
 impl Item {
     /// Creates a new item with the given type.
     pub fn new(ty: ItemType) -> Self {
@@ -670,7 +678,7 @@ impl Item {
     /// Returns the number used for counting towards rate limits and producing outcomes.
     ///
     /// For attachments, we count the number of bytes. Other items are counted as 1.
-    pub fn quantities(&self) -> SmallVec<[(DataCategory, usize); 1]> {
+    pub fn quantities(&self, purpose: CountFor) -> SmallVec<[(DataCategory, usize); 1]> {
         match self.ty() {
             ItemType::Event => smallvec![(DataCategory::Error, 1)],
             ItemType::Transaction => smallvec![(DataCategory::Transaction, 1)],
@@ -683,7 +691,10 @@ impl Item {
                 (DataCategory::Attachment, self.len().max(1)),
                 (DataCategory::AttachmentItem, 1)
             ],
-            ItemType::Session | ItemType::Sessions => smallvec![],
+            ItemType::Session | ItemType::Sessions => match purpose {
+                CountFor::RateLimits => smallvec![(DataCategory::Session, 1)],
+                CountFor::Outcomes => smallvec![],
+            },
             ItemType::Statsd | ItemType::MetricBuckets => smallvec![],
             ItemType::FormData => smallvec![],
             ItemType::UserReport => smallvec![],
@@ -709,35 +720,6 @@ impl Item {
             ItemType::OtelSpan | ItemType::Span | ItemType::OtelTracesData
         )
     }
-
-    /// Returns the data category used for generating outcomes.
-    ///
-    /// Returns `None` if outcomes are not generated for this type (e.g. sessions).
-    // pub fn outcome_category(&self) -> Option<DataCategory> {
-    //     match self.ty() {
-    //         ItemType::Event => Some(DataCategory::Error),
-    //         ItemType::Transaction => Some(DataCategory::Transaction),
-    //         ItemType::Security | ItemType::RawSecurity => Some(DataCategory::Security),
-    //         ItemType::Nel => None,
-    //         ItemType::UnrealReport => Some(DataCategory::Error),
-    //         ItemType::Attachment => Some(DataCategory::Attachment),
-    //         ItemType::Session | ItemType::Sessions => None,
-    //         ItemType::Statsd | ItemType::MetricBuckets => None,
-    //         ItemType::FormData => None,
-    //         ItemType::UserReport => None,
-    //         ItemType::UserReportV2 => Some(DataCategory::UserReportV2),
-    //         ItemType::Profile => Some(DataCategory::Profile),
-    //         ItemType::ReplayEvent | ItemType::ReplayRecording | ItemType::ReplayVideo => {
-    //             Some(DataCategory::Replay)
-    //         }
-    //         ItemType::ClientReport => None,
-    //         ItemType::CheckIn => Some(DataCategory::Monitor),
-    //         ItemType::Span | ItemType::OtelSpan => Some(DataCategory::Span),
-    //         ItemType::OtelTracesData => None,
-    //         ItemType::ProfileChunk => Some(DataCategory::ProfileChunk),
-    //         ItemType::Unknown(_) => None,
-    //     }
-    // }
 
     /// Returns `true` if this item's payload is empty.
     pub fn is_empty(&self) -> bool {

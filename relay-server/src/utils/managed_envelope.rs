@@ -10,7 +10,7 @@ use chrono::{DateTime, Utc};
 use relay_quotas::{DataCategory, Scoping};
 use relay_system::Addr;
 
-use crate::envelope::{Envelope, Item};
+use crate::envelope::{CountFor, Envelope, Item};
 use crate::extractors::RequestMeta;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::{Processed, ProcessingGroup};
@@ -263,7 +263,7 @@ impl ManagedEnvelope {
             ItemAction::Keep => true,
             ItemAction::DropSilently => false,
             ItemAction::Drop(outcome) => {
-                for (category, quantity) in item.quantities() {
+                for (category, quantity) in item.quantities(CountFor::Outcomes) {
                     if let Some(indexed) = category.index_category() {
                         outcomes.push((outcome.clone(), indexed, quantity));
                     };

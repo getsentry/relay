@@ -11,7 +11,7 @@ use relay_sampling::config::RuleType;
 use relay_sampling::evaluation::{ReservoirEvaluator, SamplingEvaluator};
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 
-use crate::envelope::ItemType;
+use crate::envelope::{CountFor, ItemType};
 use crate::services::outcome::Outcome;
 use crate::services::processor::{
     EventProcessing, ProcessEnvelopeState, Sampling, TransactionGroup,
@@ -100,7 +100,7 @@ pub fn drop_unsampled_items(state: &mut ProcessEnvelopeState<TransactionGroup>, 
         .take_items_by(|item| *item.ty() != ItemType::Profile);
 
     for item in dropped_items {
-        for (category, quantity) in item.quantities() {
+        for (category, quantity) in item.quantities(CountFor::Outcomes) {
             // Dynamic sampling only drops indexed items. Upgrade the category to the index
             // category if one exists for this category, for example profiles will be upgraded to profiles indexed,
             // but attachments are still emitted as attachments.

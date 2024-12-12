@@ -5,7 +5,7 @@ use relay_quotas::{
     ReasonCode, Scoping,
 };
 
-use crate::envelope::{Envelope, Item, ItemType};
+use crate::envelope::{CountFor, Envelope, Item, ItemType};
 use crate::services::outcome::Outcome;
 use crate::utils::ManagedEnvelope;
 
@@ -221,7 +221,7 @@ impl EnvelopeSummary {
             }
 
             summary.payload_size += item.len();
-            for (category, quantity) in item.quantities() {
+            for (category, quantity) in item.quantities(CountFor::RateLimits) {
                 summary.add_quantity(category, quantity);
             }
         }
