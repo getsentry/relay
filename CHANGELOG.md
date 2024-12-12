@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+**Bug Fixes**:
+
+- Stop collecting the `has_profile` metrics tag & reporting outcomes for it. ([#4365](https://github.com/getsentry/relay/pull/4365))
+
+**Features**:
+
+- Add data categories for Uptime and Attachment Items. ([#4363](https://github.com/getsentry/relay/pull/4363), [#4374](https://github.com/getsentry/relay/pull/4374))
+
 ## 24.11.2
 
 **Breaking Changes**:
@@ -12,7 +22,6 @@
 - Accept incoming requests even if there was an error fetching their project config. ([#4140](https://github.com/getsentry/relay/pull/4140))
 - Rate limit profiles when transaction was sampled. ([#4195](https://github.com/getsentry/relay/pull/4195))
 - Fix scrubbing user paths in minidump debug module names. ([#4351](https://github.com/getsentry/relay/pull/4351))
-- Stop collecting the `has_profile` metrics tag & reporting outcomes for it. ([#4365](https://github.com/getsentry/relay/pull/4365))
 - Scrub user fields in span.sentry_tags. ([#4364](https://github.com/getsentry/relay/pull/4364)), ([#4370](https://github.com/getsentry/relay/pull/4370))
 
 **Features**:
@@ -22,7 +31,6 @@
 
 **Internal**:
 
-- Adds the UPTIME DataCategory ([#4363](https://github.com/getsentry/relay/pull/4363))
 - Promote some `span.data` fields to the top level. ([#4298](https://github.com/getsentry/relay/pull/4298))
 - Remove metrics summaries. ([#4278](https://github.com/getsentry/relay/pull/4278), [#4279](https://github.com/getsentry/relay/pull/4279), [#4296](https://github.com/getsentry/relay/pull/4296))
 - Use async `redis` for `projectconfig`. ([#4284](https://github.com/getsentry/relay/pull/4284))
