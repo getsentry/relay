@@ -23,7 +23,7 @@
 //! ```no_run
 //! # use std::collections::BTreeMap;
 //!
-//! relay_statsd::init("myprefix", "localhost:8125", BTreeMap::new(), 1.0);
+//! relay_statsd::init("myprefix", "localhost:8125", BTreeMap::new(), 1.0, true);
 //! ```
 //!
 //! ## Macro Usage
@@ -226,6 +226,7 @@ pub fn init<A: ToSocketAddrs>(
     host: A,
     default_tags: BTreeMap<String, String>,
     sample_rate: f32,
+    aggregate: bool,
 ) {
     let addrs: Vec<_> = host.to_socket_addrs().unwrap().collect();
     if !addrs.is_empty() {
@@ -243,7 +244,7 @@ pub fn init<A: ToSocketAddrs>(
         }
     );
 
-    let statsd_client = {
+    let statsd_client = if aggregate {
         let statsdproxy_sink = StatsdProxyMetricSink::new(move || {
             let upstream = statsdproxy::middleware::upstream::Upstream::new(addrs[0])
                 .expect("failed to create statsdproxy metric sink");
@@ -260,6 +261,12 @@ pub fn init<A: ToSocketAddrs>(
             )
         });
 
+        StatsdClient::from_sink(prefix, statsdproxy_sink)
+    } else {
+        let statsdproxy_sink = StatsdProxyMetricSink::new(move || {
+            statsdproxy::middleware::upstream::Upstream::new(addrs[0])
+                .expect("failed to create statsdproxy metric sind")
+        });
         StatsdClient::from_sink(prefix, statsdproxy_sink)
     };
 
