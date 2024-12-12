@@ -546,9 +546,9 @@ pub struct Metrics {
     /// Setting it to `0` seconds disables the periodic metrics.
     /// Defaults to 5 seconds.
     pub periodic_secs: u64,
-    /// Whether local metric aggregation using statdsproxy should be enabled
+    /// Whether local metric aggregation using statdsproxy should be enabled.
     ///
-    /// Defaults to `true`
+    /// Defaults to `true`.
     pub aggregate: bool,
 }
 
