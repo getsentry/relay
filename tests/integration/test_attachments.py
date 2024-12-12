@@ -117,7 +117,7 @@ def test_mixed_attachments_with_processing(
     }
 
 
-@pytest.mark.parametrize("rate_limits", [[], ["attachment"]])
+@pytest.mark.parametrize("rate_limits", [[], ["attachment"], ["attachment_item"]])
 def test_attachments_ratelimit(
     mini_sentry, relay_with_processing, outcomes_consumer, rate_limits
 ):
@@ -182,13 +182,63 @@ def test_attachments_quotas(
     # First attachment returns 200 but is rate limited in processing
     relay.send_attachments(project_id, event_id, attachments)
 
-    outcomes_consumer.assert_rate_limited("attachments_exceeded")
+    outcomes_consumer.assert_rate_limited(
+        "attachments_exceeded", quantity=len(attachment_body)
+    )
 
     # Second attachment returns 429 in endpoint
     with pytest.raises(HTTPError) as excinfo:
         relay.send_attachments(42, event_id, attachments)
     assert excinfo.value.response.status_code == 429
-    outcomes_consumer.assert_rate_limited("attachments_exceeded")
+    outcomes_consumer.assert_rate_limited(
+        "attachments_exceeded", quantity=len(attachment_body)
+    )
+
+
+def test_attachments_quotas_items(
+    mini_sentry,
+    relay_with_processing,
+    attachments_consumer,
+    outcomes_consumer,
+):
+    event_id = "515539018c9b4260a6f999572f1661ee"
+    attachment_body = b"blabla"
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["quotas"] = [
+        {
+            "id": f"test_rate_limiting_{uuid.uuid4().hex}",
+            "categories": ["attachment_item"],
+            "window": 3600,
+            "limit": 5,
+            "reasonCode": "attachments_exceeded",
+        }
+    ]
+    relay = relay_with_processing()
+
+    attachments_consumer = attachments_consumer()
+    outcomes_consumer = outcomes_consumer()
+    attachments = [("att_1", "foo.txt", attachment_body)]
+
+    for i in range(5):
+        relay.send_attachments(
+            project_id, event_id, [("att_1", "%s.txt" % i, attachment_body)]
+        )
+        attachment = attachments_consumer.get_individual_attachment()
+        assert attachment["attachment"]["name"] == "%s.txt" % i
+        assert attachment["attachment"]["data"] == attachment_body
+
+    # First attachment returns 200 but is rate limited in processing
+    relay.send_attachments(project_id, event_id, attachments)
+
+    outcomes_consumer.assert_rate_limited("attachments_exceeded", 1)
+
+    # Second attachment returns 429 in endpoint
+    with pytest.raises(HTTPError) as excinfo:
+        relay.send_attachments(42, event_id, attachments)
+    assert excinfo.value.response.status_code == 429
+    outcomes_consumer.assert_rate_limited("attachments_exceeded", 1)
 
 
 def test_view_hierarchy_processing(
