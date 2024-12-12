@@ -198,7 +198,8 @@ impl CategoryUnit {
             | DataCategory::UserReportV2
             | DataCategory::ProfileChunk
             | DataCategory::Uptime
-            | DataCategory::MetricSecond => Some(Self::Count),
+            | DataCategory::MetricSecond
+            | DataCategory::AttachmentItem => Some(Self::Count),
             DataCategory::Attachment => Some(Self::Bytes),
             DataCategory::Session => Some(Self::Batched),
             DataCategory::ProfileDuration => Some(Self::Milliseconds),

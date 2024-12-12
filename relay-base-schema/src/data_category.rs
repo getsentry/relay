@@ -90,6 +90,8 @@ pub enum DataCategory {
     ReplayVideo = 20,
     /// This is the data category for Uptime monitors.
     Uptime = 21,
+    /// Counts the number of individual attachments, as opposed to the number of bytes in an attachment.
+    AttachmentItem = 22,
     //
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
     // `make header` to regenerate the C-binding. This allows using the data category from Python.
@@ -128,6 +130,7 @@ impl DataCategory {
             "metric_second" => Self::MetricSecond,
             "replay_video" => Self::ReplayVideo,
             "uptime" => Self::Uptime,
+            "attachment_item" => Self::AttachmentItem,
             _ => Self::Unknown,
         }
     }
@@ -158,6 +161,7 @@ impl DataCategory {
             Self::MetricSecond => "metric_second",
             Self::ReplayVideo => "replay_video",
             Self::Uptime => "uptime",
+            Self::AttachmentItem => "attachment_item",
             Self::Unknown => "unknown",
         }
     }
