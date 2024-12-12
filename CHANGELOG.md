@@ -23,6 +23,7 @@
 - Rate limit profiles when transaction was sampled. ([#4195](https://github.com/getsentry/relay/pull/4195))
 - Fix scrubbing user paths in minidump debug module names. ([#4351](https://github.com/getsentry/relay/pull/4351))
 - Scrub user fields in span.sentry_tags. ([#4364](https://github.com/getsentry/relay/pull/4364)), ([#4370](https://github.com/getsentry/relay/pull/4370))
+- Set `SO_REUSEPORT` to enable smooth restarts. ([#4375](https://github.com/getsentry/relay/pull/4375))
 
 **Features**:
 
