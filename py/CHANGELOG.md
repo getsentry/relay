@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.9.4
 
 - **Breaking**: Flatten Linux distribution fields into `os.context`([#4292](https://github.com/getsentry/relay/pull/4292))
 - Add data categories for Uptime and Attachment Items. ([#4363](https://github.com/getsentry/relay/pull/4363), [#4374](https://github.com/getsentry/relay/pull/4374))
