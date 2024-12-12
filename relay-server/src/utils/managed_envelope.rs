@@ -52,7 +52,6 @@ pub enum ItemAction {
     /// Keep the item.
     Keep,
     /// Drop the item and log an outcome for it.
-    /// The outcome will only be logged if the item has a corresponding [`Item::outcome_category()`].
     Drop(Outcome),
     /// Drop the item without logging an outcome.
     DropSilently,
