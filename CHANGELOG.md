@@ -4,6 +4,7 @@
 
 **Bug Fixes**:
 
+- Update user agent parsing rules to fix some user agent identification issues. ([#4385](https://github.com/getsentry/relay/pull/4385))
 - Stop collecting the `has_profile` metrics tag & reporting outcomes for it. ([#4365](https://github.com/getsentry/relay/pull/4365))
 
 **Features**:
