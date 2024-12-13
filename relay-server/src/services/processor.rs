@@ -1838,7 +1838,7 @@ impl EnvelopeProcessorService {
         &self,
         #[allow(unused_variables)] state: &mut ProcessEnvelopeState<CheckInGroup>,
         #[allow(unused_variables)] project_id: ProjectId,
-        project_info: Arc<ProjectInfo>,
+        #[allow(unused_variables)] project_info: Arc<ProjectInfo>,
     ) -> Result<(), ProcessingError> {
         if_processing!(self.inner.config, {
             self.enforce_quotas(state, project_info)?;
@@ -1855,7 +1855,7 @@ impl EnvelopeProcessorService {
         state: &mut ProcessEnvelopeState<SpanGroup>,
         #[allow(unused_variables)] project_id: ProjectId,
         project_info: Arc<ProjectInfo>,
-        sampling_project_info: Option<Arc<ProjectInfo>>,
+        #[allow(unused_variables)] sampling_project_info: Option<Arc<ProjectInfo>>,
         #[allow(unused_variables)] reservoir_counters: ReservoirCounters,
     ) -> Result<(), ProcessingError> {
         span::filter(state, project_info.clone());
