@@ -1895,7 +1895,7 @@ impl EnvelopeProcessorService {
                 .parametrize_dsc_transaction(&sampling_state.config.tx_name_rules);
         }
 
-        macro_rules! call {
+        macro_rules! run {
             ($fn_name:ident ( $($args:expr),* )) => {{
                 let managed_envelope = managed_envelope.try_into()?;
                 let mut state = self.prepare_state(
@@ -1923,44 +1923,18 @@ impl EnvelopeProcessorService {
             }};
         }
 
-        macro_rules! run {
-            ($fn:ident) => {{
-                let managed_envelope = managed_envelope.try_into()?;
-                let mut state = self.prepare_state(
-                    self.inner.config.clone(),
-                    managed_envelope,
-                    project_id,
-                    project_info,
-                    rate_limits,
-                    sampling_project_info,
-                );
-                match self.$fn(&mut state) {
-                    Ok(()) => Ok(ProcessingStateResult {
-                        managed_envelope: state.managed_envelope.into_processed(),
-                        extracted_metrics: state.extracted_metrics.metrics,
-                    }),
-                    Err(e) => {
-                        if let Some(outcome) = e.to_outcome() {
-                            state.managed_envelope.reject(outcome);
-                        }
-                        return Err(e);
-                    }
-                }
-            }};
-        }
-
         relay_log::trace!("Processing {group} group", group = group.variant());
 
         match group {
-            ProcessingGroup::Error => run!(process_errors),
-            ProcessingGroup::Transaction => call!(process_transactions(reservoir_counters)),
-            ProcessingGroup::Session => run!(process_sessions),
-            ProcessingGroup::Standalone => run!(process_standalone),
-            ProcessingGroup::ClientReport => run!(process_client_reports),
-            ProcessingGroup::Replay => run!(process_replays),
-            ProcessingGroup::CheckIn => run!(process_checkins),
-            ProcessingGroup::Span => call!(process_standalone_spans(reservoir_counters)),
-            ProcessingGroup::ProfileChunk => run!(process_profile_chunks),
+            ProcessingGroup::Error => run!(process_errors()),
+            ProcessingGroup::Transaction => run!(process_transactions(reservoir_counters)),
+            ProcessingGroup::Session => run!(process_sessions()),
+            ProcessingGroup::Standalone => run!(process_standalone()),
+            ProcessingGroup::ClientReport => run!(process_client_reports()),
+            ProcessingGroup::Replay => run!(process_replays()),
+            ProcessingGroup::CheckIn => run!(process_checkins()),
+            ProcessingGroup::Span => run!(process_standalone_spans(reservoir_counters)),
+            ProcessingGroup::ProfileChunk => run!(process_profile_chunks()),
             // Currently is not used.
             ProcessingGroup::Metrics => {
                 // In proxy mode we simply forward the metrics.
