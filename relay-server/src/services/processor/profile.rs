@@ -4,6 +4,7 @@ use std::net::IpAddr;
 use relay_dynamic_config::{Feature, GlobalConfig};
 
 use relay_base_schema::events::EventType;
+use relay_base_schema::project::ProjectId;
 use relay_config::Config;
 use relay_event_schema::protocol::{Contexts, Event, ProfileContext};
 use relay_filter::ProjectFiltersConfig;
@@ -18,7 +19,7 @@ use crate::utils::ItemAction;
 /// Filters out invalid and duplicate profiles.
 ///
 /// Returns the profile id of the single remaining profile, if there is one.
-pub fn filter<G>(state: &mut ProcessEnvelopeState<G>) -> Option<ProfileId> {
+pub fn filter<G>(state: &mut ProcessEnvelopeState<G>, project_id: ProjectId) -> Option<ProfileId> {
     let profiling_disabled = state.should_filter(Feature::Profiling);
     let has_transaction = state.event_type() == Some(EventType::Transaction);
     let keep_unsampled_profiles = true;
@@ -38,7 +39,7 @@ pub fn filter<G>(state: &mut ProcessEnvelopeState<G>) -> Option<ProfileId> {
                 return ItemAction::DropSilently;
             }
 
-            match relay_profiling::parse_metadata(&item.payload(), state.project_id) {
+            match relay_profiling::parse_metadata(&item.payload(), project_id) {
                 Ok(id) => {
                     profile_id = Some(id);
                     ItemAction::Keep
