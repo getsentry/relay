@@ -249,7 +249,6 @@ impl BucketEncodings {
         match namespace {
             MetricNamespace::Transactions => self.transactions,
             MetricNamespace::Spans => self.spans,
-            MetricNamespace::Profiles => self.profiles,
             MetricNamespace::Custom => self.custom,
             MetricNamespace::Stats => self.metric_stats,
             // Always force the legacy encoding for sessions,

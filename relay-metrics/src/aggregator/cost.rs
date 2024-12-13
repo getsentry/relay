@@ -145,16 +145,11 @@ mod tests {
         }
         "#);
         cost_tracker.add_cost(MetricNamespace::Custom, project_key1, 50);
-        cost_tracker.add_cost(MetricNamespace::Profiles, project_key1, 50);
         insta::assert_debug_snapshot!(cost_tracker, @r#"
         CostTracker {
             total_cost: 100,
             cost_per_project_key: {
                 ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
-            },
-            cost_per_namespace: {
-                Profiles: 50,
-                Custom: 50,
             },
         }
         "#);
@@ -167,7 +162,6 @@ mod tests {
                 ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
             },
             cost_per_namespace: {
-                Profiles: 50,
                 Custom: 250,
             },
         }
@@ -182,7 +176,6 @@ mod tests {
                 ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
             },
             cost_per_namespace: {
-                Profiles: 50,
                 Custom: 250,
             },
         }
@@ -197,7 +190,6 @@ mod tests {
                 ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
             },
             cost_per_namespace: {
-                Profiles: 50,
                 Custom: 250,
             },
         }
@@ -211,14 +203,12 @@ mod tests {
                 ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 180,
             },
             cost_per_namespace: {
-                Profiles: 50,
                 Custom: 230,
             },
         }
         "#);
 
         // Subtract all
-        cost_tracker.subtract_cost(MetricNamespace::Profiles, project_key1, 50);
         cost_tracker.subtract_cost(MetricNamespace::Custom, project_key1, 50);
         cost_tracker.subtract_cost(MetricNamespace::Custom, project_key2, 180);
         insta::assert_debug_snapshot!(cost_tracker, @r#"
