@@ -1254,50 +1254,6 @@ impl EnvelopeProcessorService {
         })
     }
 
-    /// Creates and initializes the processing state.
-    ///
-    /// This applies defaults to the envelope and initializes empty rate limits.
-    #[allow(clippy::too_many_arguments)]
-    fn prepare_state<G>(
-        &self,
-        config: Arc<Config>,
-        mut managed_envelope: TypedEnvelope<G>,
-        project_id: ProjectId,
-        project_info: Arc<ProjectInfo>,
-        rate_limits: Arc<RateLimits>,
-        sampling_project_info: Option<Arc<ProjectInfo>>,
-    ) -> ProcessEnvelopeState<G> {
-        let envelope = managed_envelope.envelope_mut();
-
-        // Set the event retention. Effectively, this value will only be available in processing
-        // mode when the full project config is queried from the upstream.
-        if let Some(retention) = project_info.config.event_retention {
-            envelope.set_retention(retention);
-        }
-
-        // Ensure the project ID is updated to the stored instance for this project cache. This can
-        // differ in two cases:
-        //  1. The envelope was sent to the legacy `/store/` endpoint without a project ID.
-        //  2. The DSN was moved and the envelope sent to the old project ID.
-        envelope.meta_mut().set_project_id(project_id);
-
-        let extracted_metrics = ProcessingExtractedMetrics::new();
-
-        ProcessEnvelopeState {
-            event: Annotated::empty(),
-            event_metrics_extracted: false,
-            spans_extracted: false,
-            metrics: Metrics::default(),
-            extracted_metrics,
-            project_info,
-            rate_limits,
-            config,
-            sampling_project_info,
-            project_id,
-            managed_envelope,
-        }
-    }
-
     #[cfg(feature = "processing")]
     fn enforce_quotas<G>(
         &self,
@@ -1895,17 +1851,39 @@ impl EnvelopeProcessorService {
                 .parametrize_dsc_transaction(&sampling_state.config.tx_name_rules);
         }
 
+        // Set the event retention. Effectively, this value will only be available in processing
+        // mode when the full project config is queried from the upstream.
+        if let Some(retention) = project_info.config.event_retention {
+            managed_envelope.envelope_mut().set_retention(retention);
+        }
+
+        // Ensure the project ID is updated to the stored instance for this project cache. This can
+        // differ in two cases:
+        //  1. The envelope was sent to the legacy `/store/` endpoint without a project ID.
+        //  2. The DSN was moved and the envelope sent to the old project ID.
+        managed_envelope
+            .envelope_mut()
+            .meta_mut()
+            .set_project_id(project_id);
+
         macro_rules! run {
             ($fn_name:ident $(, $args:expr)*) => {{
                 let managed_envelope = managed_envelope.try_into()?;
-                let mut state = self.prepare_state(
-                    self.inner.config.clone(),
-                    managed_envelope,
-                    project_id,
+
+                let mut state = ProcessEnvelopeState {
+                    event: Annotated::empty(),
+                    event_metrics_extracted: false,
+                    spans_extracted: false,
+                    metrics: Metrics::default(),
+                    extracted_metrics: ProcessingExtractedMetrics::new(),
                     project_info,
                     rate_limits,
+                    config,
                     sampling_project_info,
-                );
+                    project_id,
+                    managed_envelope,
+                };
+
                 // The state is temporarily supplied, until it will be removed.
                 match self.$fn_name(&mut state, $($args),*) {
                     Ok(()) => Ok(ProcessingStateResult {
