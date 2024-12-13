@@ -1793,7 +1793,7 @@ impl EnvelopeProcessorService {
     fn process_checkins(
         &self,
         #[allow(unused_variables)] state: &mut ProcessEnvelopeState<CheckInGroup>,
-        project_id: ProjectId,
+        #[allow(unused_variables)] project_id: ProjectId,
     ) -> Result<(), ProcessingError> {
         if_processing!(self.inner.config, {
             self.enforce_quotas(state)?;
@@ -1808,7 +1808,7 @@ impl EnvelopeProcessorService {
     fn process_standalone_spans(
         &self,
         state: &mut ProcessEnvelopeState<SpanGroup>,
-        project_id: ProjectId,
+        #[allow(unused_variables)] project_id: ProjectId,
         #[allow(unused_variables)] reservoir_counters: ReservoirCounters,
     ) -> Result<(), ProcessingError> {
         span::filter(state);
