@@ -1248,6 +1248,7 @@ impl EnvelopeProcessorService {
     fn enforce_quotas<G>(
         &self,
         state: &mut ProcessEnvelopeState<G>,
+        project_info: Arc<ProjectInfo>,
     ) -> Result<(), ProcessingError> {
         let global_config = self.inner.global_config.current();
         let rate_limiter = match self.inner.rate_limiter.as_ref() {
@@ -1257,10 +1258,11 @@ impl EnvelopeProcessorService {
 
         // Cached quotas first, they are quick to evaluate and some quotas (indexed) are not
         // applied in the fast path, all cached quotas can be applied here.
-        let _ = RateLimiter::Cached.enforce(&global_config, state)?;
+        let _ = RateLimiter::Cached.enforce(&global_config, state, project_info.clone())?;
 
         // Enforce all quotas consistently with Redis.
-        let limits = RateLimiter::Consistent(rate_limiter).enforce(&global_config, state)?;
+        let limits =
+            RateLimiter::Consistent(rate_limiter).enforce(&global_config, state, project_info)?;
 
         // Update cached rate limits with the freshly computed ones.
         if !limits.is_empty() {
@@ -1584,7 +1586,7 @@ impl EnvelopeProcessorService {
         }
 
         if_processing!(self.inner.config, {
-            self.enforce_quotas(state)?;
+            self.enforce_quotas(state, project_info.clone())?;
         });
 
         if state.has_event() {
@@ -1593,7 +1595,7 @@ impl EnvelopeProcessorService {
             event::emit_feedback_metrics(state.envelope());
         }
 
-        attachment::scrub(state, project_info.clone());
+        attachment::scrub(state, project_info);
 
         if self.inner.config.processing_enabled() && !event_fully_normalized.0 {
             relay_log::error!(
@@ -1691,7 +1693,7 @@ impl EnvelopeProcessorService {
             //  - An envelope containing only processed profiles.
             // We need to make sure there are enough quotas for these profiles.
             if_processing!(self.inner.config, {
-                self.enforce_quotas(state)?;
+                self.enforce_quotas(state, project_info.clone())?;
             });
 
             return Ok(());
@@ -1717,12 +1719,17 @@ impl EnvelopeProcessorService {
             )?;
 
             if project_info.has_feature(Feature::ExtractSpansFromEvent) {
-                span::extract_from_event(state, &global_config, server_sample_rate);
+                span::extract_from_event(
+                    state,
+                    project_info.clone(),
+                    &global_config,
+                    server_sample_rate,
+                );
             }
 
-            self.enforce_quotas(state)?;
+            self.enforce_quotas(state, project_info.clone())?;
 
-            span::maybe_discard_transaction(state);
+            span::maybe_discard_transaction(state, project_info);
         });
 
         // Event may have been dropped because of a quota and the envelope can be empty.
@@ -1768,7 +1775,7 @@ impl EnvelopeProcessorService {
         profile::filter(state, project_id, project_info.clone());
 
         if_processing!(self.inner.config, {
-            self.enforce_quotas(state)?;
+            self.enforce_quotas(state, project_info.clone())?;
         });
 
         report::process_user_reports(state);
@@ -1782,9 +1789,9 @@ impl EnvelopeProcessorService {
         state: &mut ProcessEnvelopeState<SessionGroup>,
         project_info: Arc<ProjectInfo>,
     ) -> Result<(), ProcessingError> {
-        session::process(state, project_info, &self.inner.config);
+        session::process(state, project_info.clone(), &self.inner.config);
         if_processing!(self.inner.config, {
-            self.enforce_quotas(state)?;
+            self.enforce_quotas(state, project_info)?;
         });
         Ok(())
     }
@@ -1796,7 +1803,7 @@ impl EnvelopeProcessorService {
         project_info: Arc<ProjectInfo>,
     ) -> Result<(), ProcessingError> {
         if_processing!(self.inner.config, {
-            self.enforce_quotas(state)?;
+            self.enforce_quotas(state, project_info.clone())?;
         });
 
         report::process_client_reports(
@@ -1816,12 +1823,12 @@ impl EnvelopeProcessorService {
     ) -> Result<(), ProcessingError> {
         replay::process(
             state,
-            project_info,
+            project_info.clone(),
             &self.inner.global_config.current(),
             self.inner.geoip_lookup.as_ref(),
         )?;
         if_processing!(self.inner.config, {
-            self.enforce_quotas(state)?;
+            self.enforce_quotas(state, project_info)?;
         });
         Ok(())
     }
@@ -1831,9 +1838,10 @@ impl EnvelopeProcessorService {
         &self,
         #[allow(unused_variables)] state: &mut ProcessEnvelopeState<CheckInGroup>,
         #[allow(unused_variables)] project_id: ProjectId,
+        project_info: Arc<ProjectInfo>,
     ) -> Result<(), ProcessingError> {
         if_processing!(self.inner.config, {
-            self.enforce_quotas(state)?;
+            self.enforce_quotas(state, project_info)?;
             self.process_check_ins(state, project_id);
         });
         Ok(())
@@ -1847,9 +1855,10 @@ impl EnvelopeProcessorService {
         state: &mut ProcessEnvelopeState<SpanGroup>,
         #[allow(unused_variables)] project_id: ProjectId,
         project_info: Arc<ProjectInfo>,
+        sampling_project_info: Option<Arc<ProjectInfo>>,
         #[allow(unused_variables)] reservoir_counters: ReservoirCounters,
     ) -> Result<(), ProcessingError> {
-        span::filter(state, project_info);
+        span::filter(state, project_info.clone());
         span::convert_otel_traces_data(state);
 
         if_processing!(self.inner.config, {
@@ -1862,12 +1871,14 @@ impl EnvelopeProcessorService {
             span::process(
                 state,
                 project_id,
+                project_info.clone(),
+                sampling_project_info,
                 &global_config,
                 self.inner.geoip_lookup.as_ref(),
                 &reservoir,
             );
 
-            self.enforce_quotas(state)?;
+            self.enforce_quotas(state, project_info)?;
         });
         Ok(())
     }
@@ -1962,11 +1973,12 @@ impl EnvelopeProcessorService {
             ProcessingGroup::Standalone => run!(process_standalone, project_id, project_info),
             ProcessingGroup::ClientReport => run!(process_client_reports, project_info),
             ProcessingGroup::Replay => run!(process_replays, project_info),
-            ProcessingGroup::CheckIn => run!(process_checkins, project_id),
+            ProcessingGroup::CheckIn => run!(process_checkins, project_id, project_info),
             ProcessingGroup::Span => run!(
                 process_standalone_spans,
                 project_id,
                 project_info,
+                sampling_project_info,
                 reservoir_counters
             ),
             ProcessingGroup::ProfileChunk => run!(process_profile_chunks, project_info),
