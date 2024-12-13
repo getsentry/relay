@@ -39,6 +39,10 @@ use crate::utils::{self, SamplingResult};
 /// the main project state.
 ///
 /// If there is no transaction event in the envelope, this function will do nothing.
+///
+/// The function will return the sampling project information of the root project for the event. If
+/// no sampling project information is specified, the project information of the event’s project
+/// will be returned.
 pub fn validate_and_set_dsc(
     state: &mut ProcessEnvelopeState<TransactionGroup>,
     project_info: Arc<ProjectInfo>,
