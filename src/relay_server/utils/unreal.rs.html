@@ -551,7 +551,29 @@
 <a href="#550" id="550">550</a>
 <a href="#551" id="551">551</a>
 <a href="#552" id="552">552</a>
-<a href="#553" id="553">553</a></pre></div><pre class="rust"><code><span class="kw">use </span>chrono::{TimeZone, Utc};
+<a href="#553" id="553">553</a>
+<a href="#554" id="554">554</a>
+<a href="#555" id="555">555</a>
+<a href="#556" id="556">556</a>
+<a href="#557" id="557">557</a>
+<a href="#558" id="558">558</a>
+<a href="#559" id="559">559</a>
+<a href="#560" id="560">560</a>
+<a href="#561" id="561">561</a>
+<a href="#562" id="562">562</a>
+<a href="#563" id="563">563</a>
+<a href="#564" id="564">564</a>
+<a href="#565" id="565">565</a>
+<a href="#566" id="566">566</a>
+<a href="#567" id="567">567</a>
+<a href="#568" id="568">568</a>
+<a href="#569" id="569">569</a>
+<a href="#570" id="570">570</a>
+<a href="#571" id="571">571</a>
+<a href="#572" id="572">572</a>
+<a href="#573" id="573">573</a>
+<a href="#574" id="574">574</a></pre></div><pre class="rust"><code><span class="kw">use </span>bytes::Bytes;
+<span class="kw">use </span>chrono::{TimeZone, Utc};
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_event_schema::protocol::{
     AsPair, Breadcrumb, ClientSdkInfo, Context, Contexts, DeviceContext, Event, EventId,
@@ -675,9 +697,10 @@
 }
 
 <span class="doccomment">/// Merge an unreal logs object into event breadcrumbs.
-</span><span class="kw">fn </span>merge_unreal_logs(event: <span class="kw-2">&amp;mut </span>Event, data: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;(), Unreal4Error&gt; {
-    <span class="kw">let </span>logs = Unreal4LogEntry::parse(data, MAX_NUM_UNREAL_LOGS)<span class="question-mark">?</span>;
-
+</span><span class="kw">fn </span>merge_unreal_logs(
+    event: <span class="kw-2">&amp;mut </span>Event,
+    logs: <span class="kw">impl </span>IntoIterator&lt;Item = Bytes&gt;,
+) -&gt; <span class="prelude-ty">Result</span>&lt;(), Unreal4Error&gt; {
     <span class="kw">let </span>breadcrumbs = event
         .breadcrumbs
         .value_mut()
@@ -686,7 +709,25 @@
         .value_mut()
         .get_or_insert_with(Array::default);
 
-    <span class="kw">for </span>log <span class="kw">in </span>logs {
+    <span class="kw">for </span>breadcrumb <span class="kw">in </span>logs
+        .into_iter()
+        .flat_map(parse_unreal_logs)
+        .take(MAX_NUM_UNREAL_LOGS)
+    {
+        breadcrumbs.push(Annotated::new(breadcrumb<span class="question-mark">?</span>));
+    }
+
+    <span class="prelude-val">Ok</span>(())
+}
+
+<span class="doccomment">/// Parses unreal logs into breadcrumbs.
+</span><span class="kw">fn </span>parse_unreal_logs(data: Bytes) -&gt; <span class="kw">impl </span>Iterator&lt;Item = <span class="prelude-ty">Result</span>&lt;Breadcrumb, Unreal4Error&gt;&gt; {
+    <span class="kw">let </span>(logs, err) = <span class="kw">match </span>Unreal4LogEntry::parse(<span class="kw-2">&amp;</span>data, MAX_NUM_UNREAL_LOGS) {
+        <span class="prelude-val">Ok</span>(logs) =&gt; (logs, <span class="prelude-val">None</span>),
+        <span class="prelude-val">Err</span>(err) =&gt; (Vec::new(), <span class="prelude-val">Some</span>(<span class="prelude-val">Err</span>(err))),
+    };
+
+    <span class="kw">let </span>logs = logs.into_iter().map(|log| {
         <span class="kw">let </span>timestamp = log
             .timestamp
             .and_then(|ts| {
@@ -695,15 +736,15 @@
             })
             .map(Timestamp);
 
-        breadcrumbs.push(Annotated::new(Breadcrumb {
+        <span class="prelude-val">Ok</span>(Breadcrumb {
             timestamp: Annotated::from(timestamp),
             category: Annotated::from(log.component),
             message: Annotated::new(log.message),
             ..Breadcrumb::default()
-        }));
-    }
+        })
+    });
 
-    <span class="prelude-val">Ok</span>(())
+    err.into_iter().chain(logs)
 }
 
 <span class="doccomment">/// Parses `UserReport` from unreal user information.
@@ -866,11 +907,14 @@
         .and_then(Value::as_str);
     <span class="kw">let </span>context_item =
         envelope.get_item_by(|item| item.attachment_type() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>AttachmentType::UnrealContext));
-    <span class="kw">let </span>logs_item =
-        envelope.get_item_by(|item| item.attachment_type() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>AttachmentType::UnrealLogs));
+    <span class="kw">let </span><span class="kw-2">mut </span>logs_items = envelope
+        .items()
+        .filter(|item| item.attachment_type() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>AttachmentType::UnrealLogs))
+        .map(|item| item.payload())
+        .peekable();
 
     <span class="comment">// Early exit if there is no information.
-    </span><span class="kw">if </span>user_header.is_none() &amp;&amp; context_item.is_none() &amp;&amp; logs_item.is_none() {
+    </span><span class="kw">if </span>user_header.is_none() &amp;&amp; context_item.is_none() &amp;&amp; logs_items.peek().is_none() {
         <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="bool-val">false</span>);
     }
 
@@ -882,9 +926,7 @@
         merge_unreal_user_info(event, user_info);
     }
 
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(logs_item) = logs_item {
-        merge_unreal_logs(event, <span class="kw-2">&amp;</span>logs_item.payload())<span class="question-mark">?</span>;
-    }
+    merge_unreal_logs(event, logs_items)<span class="question-mark">?</span>;
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(context_item) = context_item {
         <span class="kw">let </span><span class="kw-2">mut </span>context = Unreal4Context::parse(<span class="kw-2">&amp;</span>context_item.payload())<span class="question-mark">?</span>;
@@ -1033,14 +1075,14 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_merge_unreal_logs() {
-        <span class="kw">let </span>logs = <span class="string">br#"Log file open, 10/29/18 17:56:37
+        <span class="kw">let </span>logs = Bytes::from_static(<span class="string">br#"Log file open, 10/29/18 17:56:37
 [2018.10.29-16.56.38:332][  0]LogGameplayTags: Display: UGameplayTagsManager::DoneAddingNativeTags. DelegateIsBound: 0
 [2018.10.29-16.56.39:332][  0]LogStats: UGameplayTagsManager::ConstructGameplayTagTree: ImportINI prefixes -  0.000 s
 [2018.10.29-16.56.40:332][  0]LogStats: UGameplayTagsManager::ConstructGameplayTagTree: Construct from data asset -  0.000 s
-[2018.10.29-16.56.41:332][  0]LogStats: UGameplayTagsManager::ConstructGameplayTagTree: ImportINI -  0.000 s"#</span>;
+[2018.10.29-16.56.41:332][  0]LogStats: UGameplayTagsManager::ConstructGameplayTagTree: ImportINI -  0.000 s"#</span>);
 
         <span class="kw">let </span><span class="kw-2">mut </span>event = Event::default();
-        merge_unreal_logs(<span class="kw-2">&amp;mut </span>event, logs).ok();
+        merge_unreal_logs(<span class="kw-2">&amp;mut </span>event, <span class="prelude-val">Some</span>(logs)).unwrap();
 
         <span class="macro">insta::assert_snapshot!</span>(Annotated::new(event).to_json_pretty().unwrap());
     }
