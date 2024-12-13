@@ -39,28 +39,30 @@ use crate::utils::{self, SamplingResult};
 /// the main project state.
 ///
 /// If there is no transaction event in the envelope, this function will do nothing.
-///
-/// Returns the
-pub fn ensure_dsc(
+pub fn validate_and_set_dsc(
     state: &mut ProcessEnvelopeState<TransactionGroup>,
     project_info: Arc<ProjectInfo>,
     sampling_project_info: Option<Arc<ProjectInfo>>,
-) -> Option<Option<Arc<ProjectInfo>>> {
+) -> Option<Arc<ProjectInfo>> {
     if state.envelope().dsc().is_some() && sampling_project_info.is_some() {
-        return None;
+        return sampling_project_info;
     }
 
     // The DSC can only be computed if there's a transaction event. Note that `dsc_from_event`
     // below already checks for the event type.
-    let event = state.event.value()?;
-    let key_config = project_info.get_public_key_config()?;
+    let Some(event) = state.event.value() else {
+        return sampling_project_info;
+    };
+    let Some(key_config) = project_info.get_public_key_config() else {
+        return sampling_project_info;
+    };
 
     if let Some(dsc) = utils::dsc_from_event(key_config.public_key, event) {
         state.envelope_mut().set_dsc(dsc);
-        return Some(Some(project_info.clone()));
+        return Some(project_info.clone());
     }
 
-    None
+    sampling_project_info
 }
 
 /// Computes the sampling decision on the incoming event

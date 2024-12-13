@@ -1636,11 +1636,11 @@ impl EnvelopeProcessorService {
             event_fully_normalized = inner_event_fully_normalized;
         }
 
-        if let Some(inner_sampling_project_info) =
-            dynamic_sampling::ensure_dsc(state, project_info.clone(), sampling_project_info.clone())
-        {
-            sampling_project_info = inner_sampling_project_info;
-        }
+        sampling_project_info = dynamic_sampling::validate_and_set_dsc(
+            state,
+            project_info.clone(),
+            sampling_project_info.clone(),
+        );
 
         let filter_run = event::filter(
             state,
