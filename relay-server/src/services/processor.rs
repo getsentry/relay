@@ -1869,16 +1869,15 @@ impl EnvelopeProcessorService {
         macro_rules! run {
             ($fn_name:ident $(, $args:expr)*) => {{
                 let managed_envelope = managed_envelope.try_into()?;
-
                 let mut state = ProcessEnvelopeState {
                     event: Annotated::empty(),
                     event_metrics_extracted: false,
                     spans_extracted: false,
                     metrics: Metrics::default(),
                     extracted_metrics: ProcessingExtractedMetrics::new(),
+                    config: self.inner.config.clone(),
                     project_info,
                     rate_limits,
-                    config,
                     sampling_project_info,
                     project_id,
                     managed_envelope,
