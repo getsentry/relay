@@ -762,19 +762,12 @@ struct ProcessEnvelopeState<Group> {
     /// configuration objects in the project config.
     extracted_metrics: ProcessingExtractedMetrics,
 
-    /// The state of the project that this envelope belongs to.
-    project_info: Arc<ProjectInfo>,
-
     /// Currently active cached rate limits of the project this envelope belongs to.
     #[cfg_attr(not(feature = "processing"), expect(dead_code))]
     rate_limits: Arc<RateLimits>,
 
     /// The config of this Relay instance.
     config: Arc<Config>,
-
-    /// The state of the project that initiated the current trace.
-    /// This is the config used for trace-based dynamic sampling.
-    sampling_project_info: Option<Arc<ProjectInfo>>,
 
     /// The managed envelope before processing.
     managed_envelope: TypedEnvelope<Group>,
@@ -826,10 +819,10 @@ impl<Group> ProcessEnvelopeState<Group> {
     /// based on a feature flag.
     ///
     /// If the project config did not come from the upstream, we keep the items.
-    fn should_filter(&self, feature: Feature) -> bool {
+    fn should_filter(&self, feature: Feature, project_info: &ProjectInfo) -> bool {
         match self.config.relay_mode() {
             RelayMode::Proxy | RelayMode::Static | RelayMode::Capture => false,
-            RelayMode::Managed => !self.project_info.has_feature(feature),
+            RelayMode::Managed => !project_info.has_feature(feature),
         }
     }
 }
@@ -1286,6 +1279,7 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<TransactionGroup>,
         project_id: ProjectId,
+        project_info: Arc<ProjectInfo>,
         sampling_decision: SamplingDecision,
     ) -> Result<(), ProcessingError> {
         if state.event_metrics_extracted {
@@ -1300,7 +1294,7 @@ impl EnvelopeProcessorService {
         // it is not present in the actual project config payload.
         let global = self.inner.global_config.current();
         let combined_config = {
-            let config = match &state.project_info.config.metric_extraction {
+            let config = match &project_info.config.metric_extraction {
                 ErrorBoundary::Ok(ref config) if config.is_supported() => config,
                 _ => return Ok(()),
             };
@@ -1325,7 +1319,7 @@ impl EnvelopeProcessorService {
         };
 
         // Require a valid transaction metrics config.
-        let tx_config = match &state.project_info.config.transaction_metrics {
+        let tx_config = match &project_info.config.transaction_metrics {
             Some(ErrorBoundary::Ok(tx_config)) => tx_config,
             Some(ErrorBoundary::Err(e)) => {
                 relay_log::debug!("Failed to parse legacy transaction metrics config: {e}");
@@ -1353,7 +1347,7 @@ impl EnvelopeProcessorService {
 
         // If spans were already extracted for an event, we rely on span processing to extract metrics.
         let extract_spans = !state.spans_extracted
-            && state.project_info.config.features.produces_spans()
+            && project_info.config.features.produces_spans()
             && utils::sample(global.options.span_extraction_sample_rate.unwrap_or(1.0));
 
         let metrics = crate::metrics_extraction::event::extract_metrics(
@@ -1373,7 +1367,7 @@ impl EnvelopeProcessorService {
             .extracted_metrics
             .extend(metrics, Some(sampling_decision));
 
-        if !state.project_info.has_feature(Feature::DiscardTransaction) {
+        if !project_info.has_feature(Feature::DiscardTransaction) {
             let transaction_from_dsc = state
                 .managed_envelope
                 .envelope()
@@ -1402,6 +1396,7 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<G>,
         project_id: ProjectId,
+        project_info: Arc<ProjectInfo>,
         mut event_fully_normalized: EventFullyNormalized,
     ) -> Result<Option<EventFullyNormalized>, ProcessingError> {
         if !state.has_event() {
@@ -1435,8 +1430,7 @@ impl EnvelopeProcessorService {
         let ai_model_costs = global_config.ai_model_costs.clone().ok();
         let http_span_allowed_hosts = global_config.options.http_span_allowed_hosts.as_slice();
 
-        let retention_days: i64 = state
-            .project_info
+        let retention_days: i64 = project_info
             .config
             .event_retention
             .unwrap_or(DEFAULT_EVENT_RETENTION)
@@ -1453,8 +1447,7 @@ impl EnvelopeProcessorService {
                 is_validated: false,
             };
 
-            let key_id = state
-                .project_info
+            let key_id = project_info
                 .get_public_key_config()
                 .and_then(|key| Some(key.numeric_id?.to_string()));
             if full_normalization && key_id.is_none() {
@@ -1469,7 +1462,7 @@ impl EnvelopeProcessorService {
                 client: request_meta.client().map(str::to_owned),
                 key_id,
                 protocol_version: Some(request_meta.version().to_string()),
-                grouping_config: state.project_info.config.grouping_config.clone(),
+                grouping_config: project_info.config.grouping_config.clone(),
                 client_ip: client_ipaddr.as_ref(),
                 client_sample_rate: state
                     .managed_envelope
@@ -1486,21 +1479,16 @@ impl EnvelopeProcessorService {
                         .max_name_length
                         .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
                 ),
-                breakdowns_config: state.project_info.config.breakdowns_v2.as_ref(),
-                performance_score: state.project_info.config.performance_score.as_ref(),
+                breakdowns_config: project_info.config.breakdowns_v2.as_ref(),
+                performance_score: project_info.config.performance_score.as_ref(),
                 normalize_user_agent: Some(true),
                 transaction_name_config: TransactionNameConfig {
-                    rules: &state.project_info.config.tx_name_rules,
+                    rules: &project_info.config.tx_name_rules,
                 },
-                device_class_synthesis_config: state
-                    .project_info
+                device_class_synthesis_config: project_info
                     .has_feature(Feature::DeviceClassSynthesis),
-                enrich_spans: state
-                    .project_info
-                    .has_feature(Feature::ExtractSpansFromEvent)
-                    || state
-                        .project_info
-                        .has_feature(Feature::ExtractCommonSpanMetricsFromEvent),
+                enrich_spans: project_info.has_feature(Feature::ExtractSpansFromEvent)
+                    || project_info.has_feature(Feature::ExtractCommonSpanMetricsFromEvent),
                 max_tag_value_length: self
                     .inner
                     .config
@@ -1510,12 +1498,12 @@ impl EnvelopeProcessorService {
                 is_renormalize: false,
                 remove_other: full_normalization,
                 emit_event_errors: full_normalization,
-                span_description_rules: state.project_info.config.span_description_rules.as_ref(),
+                span_description_rules: project_info.config.span_description_rules.as_ref(),
                 geoip_lookup: self.inner.geoip_lookup.as_ref(),
                 ai_model_costs: ai_model_costs.as_ref(),
                 enable_trimming: true,
                 measurements: Some(CombinedMeasurementsConfig::new(
-                    state.project_info.config().measurements.as_ref(),
+                    project_info.config().measurements.as_ref(),
                     global_config.measurements.as_ref(),
                 )),
                 normalize_spans: true,
@@ -1549,6 +1537,8 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<ErrorGroup>,
         project_id: ProjectId,
+        project_info: Arc<ProjectInfo>,
+        sampling_project_info: Option<Arc<ProjectInfo>>,
     ) -> Result<(), ProcessingError> {
         let mut event_fully_normalized = EventFullyNormalized::new(state.envelope());
 
@@ -1571,15 +1561,26 @@ impl EnvelopeProcessorService {
         });
 
         event::finalize(state, &self.inner.config)?;
-        if let Some(inner_event_fully_normalized) =
-            self.normalize_event(state, project_id, event_fully_normalized)?
-        {
+        if let Some(inner_event_fully_normalized) = self.normalize_event(
+            state,
+            project_id,
+            project_info.clone(),
+            event_fully_normalized,
+        )? {
             event_fully_normalized = inner_event_fully_normalized;
         };
-        let filter_run = event::filter(state, &self.inner.global_config.current())?;
+        let filter_run = event::filter(
+            state,
+            project_info.clone(),
+            &self.inner.global_config.current(),
+        )?;
 
         if self.inner.config.processing_enabled() || matches!(filter_run, FiltersStatus::Ok) {
-            dynamic_sampling::tag_error_with_sampling_decision(state, &self.inner.config);
+            dynamic_sampling::tag_error_with_sampling_decision(
+                state,
+                sampling_project_info,
+                &self.inner.config,
+            );
         }
 
         if_processing!(self.inner.config, {
@@ -1587,12 +1588,12 @@ impl EnvelopeProcessorService {
         });
 
         if state.has_event() {
-            event::scrub(state)?;
+            event::scrub(state, project_info.clone())?;
             event::serialize(state, event_fully_normalized)?;
             event::emit_feedback_metrics(state.envelope());
         }
 
-        attachment::scrub(state);
+        attachment::scrub(state, project_info.clone());
 
         if self.inner.config.processing_enabled() && !event_fully_normalized.0 {
             relay_log::error!(
@@ -1610,6 +1611,8 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<TransactionGroup>,
         project_id: ProjectId,
+        project_info: Arc<ProjectInfo>,
+        mut sampling_project_info: Option<Arc<ProjectInfo>>,
         reservoir_counters: ReservoirCounters,
     ) -> Result<(), ProcessingError> {
         let mut event_fully_normalized = EventFullyNormalized::new(state.envelope());
@@ -1618,19 +1621,30 @@ impl EnvelopeProcessorService {
 
         event::extract(state, event_fully_normalized, &self.inner.config)?;
 
-        let profile_id = profile::filter(state, project_id);
+        let profile_id = profile::filter(state, project_id, project_info.clone());
         profile::transfer_id(state, profile_id);
 
         event::finalize(state, &self.inner.config)?;
-        if let Some(inner_event_fully_normalized) =
-            self.normalize_event(state, project_id, event_fully_normalized)?
-        {
+        if let Some(inner_event_fully_normalized) = self.normalize_event(
+            state,
+            project_id,
+            project_info.clone(),
+            event_fully_normalized,
+        )? {
             event_fully_normalized = inner_event_fully_normalized;
         }
 
-        dynamic_sampling::ensure_dsc(state);
+        if let Some(inner_sampling_project_info) =
+            dynamic_sampling::ensure_dsc(state, project_info.clone(), sampling_project_info.clone())
+        {
+            sampling_project_info = inner_sampling_project_info;
+        }
 
-        let filter_run = event::filter(state, &self.inner.global_config.current())?;
+        let filter_run = event::filter(
+            state,
+            project_info.clone(),
+            &self.inner.global_config.current(),
+        )?;
 
         // Always run dynamic sampling on processing Relays,
         // but delay decision until inbound filters have been fully processed.
@@ -1643,7 +1657,12 @@ impl EnvelopeProcessorService {
         );
 
         let sampling_result = match run_dynamic_sampling {
-            true => dynamic_sampling::run(state, &reservoir),
+            true => dynamic_sampling::run(
+                state,
+                project_info.clone(),
+                sampling_project_info,
+                &reservoir,
+            ),
             false => SamplingResult::Pending,
         };
 
@@ -1656,9 +1675,14 @@ impl EnvelopeProcessorService {
         if let Some(outcome) = sampling_result.into_dropped_outcome() {
             // Process profiles before dropping the transaction, if necessary.
             // Before metric extraction to make sure the profile count is reflected correctly.
-            profile::process(state, &global_config);
+            profile::process(state, project_info.clone(), &global_config);
             // Extract metrics here, we're about to drop the event/transaction.
-            self.extract_transaction_metrics(state, project_id, SamplingDecision::Drop)?;
+            self.extract_transaction_metrics(
+                state,
+                project_id,
+                project_info.clone(),
+                SamplingDecision::Drop,
+            )?;
 
             dynamic_sampling::drop_unsampled_items(state, outcome);
 
@@ -1676,21 +1700,23 @@ impl EnvelopeProcessorService {
         // Need to scrub the transaction before extracting spans.
         //
         // Unconditionally scrub to make sure PII is removed as early as possible.
-        event::scrub(state)?;
-        attachment::scrub(state);
+        event::scrub(state, project_info.clone())?;
+        attachment::scrub(state, project_info.clone());
 
         if_processing!(self.inner.config, {
             // Process profiles before extracting metrics, to make sure they are removed if they are invalid.
-            let profile_id = profile::process(state, &global_config);
+            let profile_id = profile::process(state, project_info.clone(), &global_config);
             profile::transfer_id(state, profile_id);
 
             // Always extract metrics in processing Relays for sampled items.
-            self.extract_transaction_metrics(state, project_id, SamplingDecision::Keep)?;
+            self.extract_transaction_metrics(
+                state,
+                project_id,
+                project_info.clone(),
+                SamplingDecision::Keep,
+            )?;
 
-            if state
-                .project_info
-                .has_feature(Feature::ExtractSpansFromEvent)
-            {
+            if project_info.has_feature(Feature::ExtractSpansFromEvent) {
                 span::extract_from_event(state, &global_config, server_sample_rate);
             }
 
@@ -1718,11 +1744,13 @@ impl EnvelopeProcessorService {
     fn process_profile_chunks(
         &self,
         state: &mut ProcessEnvelopeState<ProfileChunkGroup>,
+        project_info: Arc<ProjectInfo>,
     ) -> Result<(), ProcessingError> {
-        profile_chunk::filter(state);
+        profile_chunk::filter(state, project_info.clone());
         if_processing!(self.inner.config, {
             profile_chunk::process(
                 state,
+                project_info,
                 &self.inner.global_config.current(),
                 &self.inner.config,
             );
@@ -1735,15 +1763,16 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<StandaloneGroup>,
         project_id: ProjectId,
+        project_info: Arc<ProjectInfo>,
     ) -> Result<(), ProcessingError> {
-        profile::filter(state, project_id);
+        profile::filter(state, project_id, project_info.clone());
 
         if_processing!(self.inner.config, {
             self.enforce_quotas(state)?;
         });
 
         report::process_user_reports(state);
-        attachment::scrub(state);
+        attachment::scrub(state, project_info);
         Ok(())
     }
 
@@ -1751,8 +1780,9 @@ impl EnvelopeProcessorService {
     fn process_sessions(
         &self,
         state: &mut ProcessEnvelopeState<SessionGroup>,
+        project_info: Arc<ProjectInfo>,
     ) -> Result<(), ProcessingError> {
-        session::process(state, &self.inner.config);
+        session::process(state, project_info, &self.inner.config);
         if_processing!(self.inner.config, {
             self.enforce_quotas(state)?;
         });
@@ -1763,12 +1793,17 @@ impl EnvelopeProcessorService {
     fn process_client_reports(
         &self,
         state: &mut ProcessEnvelopeState<ClientReportGroup>,
+        project_info: Arc<ProjectInfo>,
     ) -> Result<(), ProcessingError> {
         if_processing!(self.inner.config, {
             self.enforce_quotas(state)?;
         });
 
-        report::process_client_reports(state, self.inner.addrs.outcome_aggregator.clone());
+        report::process_client_reports(
+            state,
+            project_info,
+            self.inner.addrs.outcome_aggregator.clone(),
+        );
 
         Ok(())
     }
@@ -1777,9 +1812,11 @@ impl EnvelopeProcessorService {
     fn process_replays(
         &self,
         state: &mut ProcessEnvelopeState<ReplayGroup>,
+        project_info: Arc<ProjectInfo>,
     ) -> Result<(), ProcessingError> {
         replay::process(
             state,
+            project_info,
             &self.inner.global_config.current(),
             self.inner.geoip_lookup.as_ref(),
         )?;
@@ -1809,9 +1846,10 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<SpanGroup>,
         #[allow(unused_variables)] project_id: ProjectId,
+        project_info: Arc<ProjectInfo>,
         #[allow(unused_variables)] reservoir_counters: ReservoirCounters,
     ) -> Result<(), ProcessingError> {
-        span::filter(state);
+        span::filter(state, project_info);
         span::convert_otel_traces_data(state);
 
         if_processing!(self.inner.config, {
@@ -1881,9 +1919,7 @@ impl EnvelopeProcessorService {
                     metrics: Metrics::default(),
                     extracted_metrics: ProcessingExtractedMetrics::new(),
                     config: self.inner.config.clone(),
-                    project_info,
                     rate_limits,
-                    sampling_project_info,
                     managed_envelope,
                 };
 
@@ -1907,17 +1943,33 @@ impl EnvelopeProcessorService {
         relay_log::trace!("Processing {group} group", group = group.variant());
 
         match group {
-            ProcessingGroup::Error => run!(process_errors, project_id),
+            ProcessingGroup::Error => run!(
+                process_errors,
+                project_id,
+                project_info,
+                sampling_project_info
+            ),
             ProcessingGroup::Transaction => {
-                run!(process_transactions, project_id, reservoir_counters)
+                run!(
+                    process_transactions,
+                    project_id,
+                    project_info,
+                    sampling_project_info,
+                    reservoir_counters
+                )
             }
-            ProcessingGroup::Session => run!(process_sessions),
-            ProcessingGroup::Standalone => run!(process_standalone, project_id),
-            ProcessingGroup::ClientReport => run!(process_client_reports),
-            ProcessingGroup::Replay => run!(process_replays),
+            ProcessingGroup::Session => run!(process_sessions, project_info),
+            ProcessingGroup::Standalone => run!(process_standalone, project_id, project_info),
+            ProcessingGroup::ClientReport => run!(process_client_reports, project_info),
+            ProcessingGroup::Replay => run!(process_replays, project_info),
             ProcessingGroup::CheckIn => run!(process_checkins, project_id),
-            ProcessingGroup::Span => run!(process_standalone_spans, project_id, reservoir_counters),
-            ProcessingGroup::ProfileChunk => run!(process_profile_chunks),
+            ProcessingGroup::Span => run!(
+                process_standalone_spans,
+                project_id,
+                project_info,
+                reservoir_counters
+            ),
+            ProcessingGroup::ProfileChunk => run!(process_profile_chunks, project_info),
             // Currently is not used.
             ProcessingGroup::Metrics => {
                 // In proxy mode we simply forward the metrics.
@@ -2836,12 +2888,13 @@ impl RateLimiter<'_> {
         &self,
         global_config: &GlobalConfig,
         state: &mut ProcessEnvelopeState<G>,
+        project_info: Arc<ProjectInfo>,
     ) -> Result<RateLimits, ProcessingError> {
         if state.envelope().is_empty() && !state.has_event() {
             return Ok(RateLimits::default());
         }
 
-        let quotas = CombinedQuotas::new(global_config, state.project_info.get_quotas());
+        let quotas = CombinedQuotas::new(global_config, project_info.get_quotas());
         if quotas.is_empty() {
             return Ok(RateLimits::default());
         }

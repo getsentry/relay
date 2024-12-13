@@ -1,7 +1,7 @@
 //! Profiles related processor code.
-use std::net::IpAddr;
-
 use relay_dynamic_config::{Feature, GlobalConfig};
+use std::net::IpAddr;
+use std::sync::Arc;
 
 use relay_base_schema::events::EventType;
 use relay_base_schema::project::ProjectId;
@@ -14,13 +14,18 @@ use relay_protocol::Annotated;
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{ProcessEnvelopeState, TransactionGroup};
+use crate::services::projects::project::ProjectInfo;
 use crate::utils::ItemAction;
 
 /// Filters out invalid and duplicate profiles.
 ///
 /// Returns the profile id of the single remaining profile, if there is one.
-pub fn filter<G>(state: &mut ProcessEnvelopeState<G>, project_id: ProjectId) -> Option<ProfileId> {
-    let profiling_disabled = state.should_filter(Feature::Profiling);
+pub fn filter<G>(
+    state: &mut ProcessEnvelopeState<G>,
+    project_id: ProjectId,
+    project_info: Arc<ProjectInfo>,
+) -> Option<ProfileId> {
+    let profiling_disabled = state.should_filter(Feature::Profiling, &project_info);
     let has_transaction = state.event_type() == Some(EventType::Transaction);
     let keep_unsampled_profiles = true;
 
@@ -93,12 +98,13 @@ pub fn transfer_id(
 /// Processes profiles and set the profile ID in the profile context on the transaction if successful.
 pub fn process(
     state: &mut ProcessEnvelopeState<TransactionGroup>,
+    project_info: Arc<ProjectInfo>,
     global_config: &GlobalConfig,
 ) -> Option<ProfileId> {
     let client_ip = state.managed_envelope.envelope().meta().client_addr();
-    let filter_settings = &state.project_info.config.filter_settings;
+    let filter_settings = &project_info.config.filter_settings;
 
-    let profiling_enabled = state.project_info.has_feature(Feature::Profiling);
+    let profiling_enabled = project_info.has_feature(Feature::Profiling);
     let mut profile_id = None;
 
     state.managed_envelope.retain_items(|item| match item.ty() {

@@ -1,8 +1,5 @@
 //! Contains the sessions related processor code.
 
-use std::error::Error;
-use std::net;
-
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 use relay_config::Config;
 use relay_dynamic_config::SessionMetricsConfig;
@@ -12,9 +9,13 @@ use relay_event_schema::protocol::{
 };
 use relay_metrics::Bucket;
 use relay_statsd::metric;
+use std::error::Error;
+use std::net;
+use std::sync::Arc;
 
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::services::processor::{ProcessEnvelopeState, SessionGroup, MINIMUM_CLOCK_DRIFT};
+use crate::services::projects::project::ProjectInfo;
 use crate::statsd::RelayTimers;
 use crate::utils::ItemAction;
 
@@ -22,9 +23,13 @@ use crate::utils::ItemAction;
 ///
 /// Both are removed from the envelope if they contain invalid JSON or if their timestamps
 /// are out of range after clock drift correction.
-pub fn process(state: &mut ProcessEnvelopeState<SessionGroup>, config: &Config) {
+pub fn process(
+    state: &mut ProcessEnvelopeState<SessionGroup>,
+    project_info: Arc<ProjectInfo>,
+    config: &Config,
+) {
     let received = state.managed_envelope.received_at();
-    let metrics_config = state.project_info.config().session_metrics;
+    let metrics_config = project_info.config().session_metrics;
     let envelope = state.managed_envelope.envelope_mut();
     let client = envelope.meta().client().map(|x| x.to_owned());
     let client_addr = envelope.meta().client_addr();

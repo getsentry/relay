@@ -1,8 +1,5 @@
 //! Contains code related to validation and normalization of the user and client reports.
 
-use std::collections::BTreeMap;
-use std::error::Error;
-
 use chrono::{Duration as SignedDuration, Utc};
 use relay_common::time::UnixTimestamp;
 use relay_event_normalization::ClockDriftProcessor;
@@ -11,11 +8,15 @@ use relay_filter::FilterStatKey;
 use relay_quotas::ReasonCode;
 use relay_sampling::evaluation::MatchedRuleIds;
 use relay_system::Addr;
+use std::collections::BTreeMap;
+use std::error::Error;
+use std::sync::Arc;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::envelope::{ContentType, ItemType};
 use crate::services::outcome::{Outcome, RuleCategories, TrackOutcome};
 use crate::services::processor::{ClientReportGroup, ProcessEnvelopeState, MINIMUM_CLOCK_DRIFT};
+use crate::services::projects::project::ProjectInfo;
 use crate::utils::ItemAction;
 
 /// Fields of client reports that map to specific [`Outcome`]s without content.
@@ -41,6 +42,7 @@ pub enum ClientReportField {
 /// system.
 pub fn process_client_reports(
     state: &mut ProcessEnvelopeState<ClientReportGroup>,
+    project_info: Arc<ProjectInfo>,
     outcome_aggregator: Addr<TrackOutcome>,
 ) {
     // if client outcomes are disabled we leave the the client reports unprocessed
@@ -131,8 +133,7 @@ pub fn process_client_reports(
         clock_drift_processor.process_timestamp(timestamp);
     }
 
-    let retention_days = state
-        .project_info
+    let retention_days = project_info
         .config()
         .event_retention
         .unwrap_or(DEFAULT_EVENT_RETENTION);
