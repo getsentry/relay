@@ -1896,7 +1896,7 @@ impl EnvelopeProcessorService {
         }
 
         macro_rules! run {
-            ($fn_name:ident ( $($args:expr),* )) => {{
+            ($fn_name:ident , $($args:expr),*) => {{
                 let managed_envelope = managed_envelope.try_into()?;
                 let mut state = self.prepare_state(
                     self.inner.config.clone(),
@@ -1926,15 +1926,15 @@ impl EnvelopeProcessorService {
         relay_log::trace!("Processing {group} group", group = group.variant());
 
         match group {
-            ProcessingGroup::Error => run!(process_errors()),
-            ProcessingGroup::Transaction => run!(process_transactions(reservoir_counters)),
-            ProcessingGroup::Session => run!(process_sessions()),
-            ProcessingGroup::Standalone => run!(process_standalone()),
-            ProcessingGroup::ClientReport => run!(process_client_reports()),
-            ProcessingGroup::Replay => run!(process_replays()),
-            ProcessingGroup::CheckIn => run!(process_checkins()),
-            ProcessingGroup::Span => run!(process_standalone_spans(reservoir_counters)),
-            ProcessingGroup::ProfileChunk => run!(process_profile_chunks()),
+            ProcessingGroup::Error => run!(process_errors,),
+            ProcessingGroup::Transaction => run!(process_transactions, reservoir_counters),
+            ProcessingGroup::Session => run!(process_sessions,),
+            ProcessingGroup::Standalone => run!(process_standalone,),
+            ProcessingGroup::ClientReport => run!(process_client_reports,),
+            ProcessingGroup::Replay => run!(process_replays,),
+            ProcessingGroup::CheckIn => run!(process_checkins,),
+            ProcessingGroup::Span => run!(process_standalone_spans, reservoir_counters),
+            ProcessingGroup::ProfileChunk => run!(process_profile_chunks,),
             // Currently is not used.
             ProcessingGroup::Metrics => {
                 // In proxy mode we simply forward the metrics.
