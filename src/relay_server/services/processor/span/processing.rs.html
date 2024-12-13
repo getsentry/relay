@@ -1396,6 +1396,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::utils::{sample, ItemAction, ManagedEnvelope};
 <span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>relay_base_schema::events::EventType;
+<span class="kw">use </span>relay_base_schema::project::ProjectId;
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_dynamic_config::{
     CombinedMetricExtractionConfig, ErrorBoundary, Feature, GlobalConfig, ProjectConfig,
@@ -1427,6 +1428,7 @@
 
 <span class="kw">pub fn </span>process(
     state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;SpanGroup&gt;,
+    project_id: ProjectId,
     global_config: <span class="kw-2">&amp;</span>GlobalConfig,
     geo_lookup: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>GeoIpLookup&gt;,
     reservoir_counters: <span class="kw-2">&amp;</span>ReservoirEvaluator,
@@ -1532,7 +1534,7 @@
                     transaction,
                     <span class="number">1</span>,
                     sampling_decision,
-                    state.project_id,
+                    project_id,
                 );
                 state
                     .extracted_metrics
@@ -2178,7 +2180,6 @@
 
     <span class="kw">use </span>bytes::Bytes;
     <span class="kw">use </span>once_cell::sync::Lazy;
-    <span class="kw">use </span>relay_base_schema::project::ProjectId;
     <span class="kw">use </span>relay_event_schema::protocol::{
         Context, ContextInner, EventId, SpanId, Timestamp, TraceContext, TraceId,
     };
@@ -2245,7 +2246,6 @@
             project_info,
             rate_limits: Arc::new(RateLimits::default()),
             sampling_project_info: <span class="prelude-val">None</span>,
-            project_id: ProjectId::new(<span class="number">42</span>),
             managed_envelope: managed_envelope.try_into().unwrap(),
             event_metrics_extracted: <span class="bool-val">false</span>,
             spans_extracted: <span class="bool-val">false</span>,

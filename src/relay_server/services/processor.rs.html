@@ -3880,24 +3880,7 @@
 <a href="#3879" id="3879">3879</a>
 <a href="#3880" id="3880">3880</a>
 <a href="#3881" id="3881">3881</a>
-<a href="#3882" id="3882">3882</a>
-<a href="#3883" id="3883">3883</a>
-<a href="#3884" id="3884">3884</a>
-<a href="#3885" id="3885">3885</a>
-<a href="#3886" id="3886">3886</a>
-<a href="#3887" id="3887">3887</a>
-<a href="#3888" id="3888">3888</a>
-<a href="#3889" id="3889">3889</a>
-<a href="#3890" id="3890">3890</a>
-<a href="#3891" id="3891">3891</a>
-<a href="#3892" id="3892">3892</a>
-<a href="#3893" id="3893">3893</a>
-<a href="#3894" id="3894">3894</a>
-<a href="#3895" id="3895">3895</a>
-<a href="#3896" id="3896">3896</a>
-<a href="#3897" id="3897">3897</a>
-<a href="#3898" id="3898">3898</a>
-<a href="#3899" id="3899">3899</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
+<a href="#3882" id="3882">3882</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::fmt::{Debug, Display};
@@ -4675,13 +4658,6 @@
     /// This is the config used for trace-based dynamic sampling.
     </span>sampling_project_info: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectInfo&gt;&gt;,
 
-    <span class="doccomment">/// The id of the project that this envelope is ingested into.
-    ///
-    /// This identifier can differ from the one stated in the Envelope's DSN if the key was moved to
-    /// a new project or on the legacy endpoint. In that case, normalization will update the project
-    /// ID.
-    </span>project_id: ProjectId,
-
     <span class="doccomment">/// The managed envelope before processing.
     </span>managed_envelope: TypedEnvelope&lt;Group&gt;,
 }
@@ -5129,13 +5105,17 @@
 
     <span class="doccomment">/// Normalize monitor check-ins and remove invalid ones.
     </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-    </span><span class="kw">fn </span>process_check_ins(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;CheckInGroup&gt;) {
+    </span><span class="kw">fn </span>process_check_ins(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;CheckInGroup&gt;,
+        project_id: ProjectId,
+    ) {
         state.managed_envelope.retain_items(|item| {
             <span class="kw">if </span>item.ty() != <span class="kw-2">&amp;</span>ItemType::CheckIn {
                 <span class="kw">return </span>ItemAction::Keep;
             }
 
-            <span class="kw">match </span>relay_monitors::process_check_in(<span class="kw-2">&amp;</span>item.payload(), state.project_id) {
+            <span class="kw">match </span>relay_monitors::process_check_in(<span class="kw-2">&amp;</span>item.payload(), project_id) {
                 <span class="prelude-val">Ok</span>(result) =&gt; {
                     item.set_routing_hint(result.routing_hint);
                     item.set_payload(ContentType::Json, result.payload);
@@ -5151,50 +5131,6 @@
                 }
             }
         })
-    }
-
-    <span class="doccomment">/// Creates and initializes the processing state.
-    ///
-    /// This applies defaults to the envelope and initializes empty rate limits.
-    </span><span class="attr">#[allow(clippy::too_many_arguments)]
-    </span><span class="kw">fn </span>prepare_state&lt;G&gt;(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        config: Arc&lt;Config&gt;,
-        <span class="kw-2">mut </span>managed_envelope: TypedEnvelope&lt;G&gt;,
-        project_id: ProjectId,
-        project_info: Arc&lt;ProjectInfo&gt;,
-        rate_limits: Arc&lt;RateLimits&gt;,
-        sampling_project_info: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectInfo&gt;&gt;,
-    ) -&gt; ProcessEnvelopeState&lt;G&gt; {
-        <span class="kw">let </span>envelope = managed_envelope.envelope_mut();
-
-        <span class="comment">// Set the event retention. Effectively, this value will only be available in processing
-        // mode when the full project config is queried from the upstream.
-        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(retention) = project_info.config.event_retention {
-            envelope.set_retention(retention);
-        }
-
-        <span class="comment">// Ensure the project ID is updated to the stored instance for this project cache. This can
-        // differ in two cases:
-        //  1. The envelope was sent to the legacy `/store/` endpoint without a project ID.
-        //  2. The DSN was moved and the envelope sent to the old project ID.
-        </span>envelope.meta_mut().set_project_id(project_id);
-
-        <span class="kw">let </span>extracted_metrics = ProcessingExtractedMetrics::new();
-
-        ProcessEnvelopeState {
-            event: Annotated::empty(),
-            event_metrics_extracted: <span class="bool-val">false</span>,
-            spans_extracted: <span class="bool-val">false</span>,
-            metrics: Metrics::default(),
-            extracted_metrics,
-            project_info,
-            rate_limits,
-            config,
-            sampling_project_info,
-            project_id,
-            managed_envelope,
-        }
     }
 
     <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
@@ -5231,6 +5167,7 @@
     </span><span class="kw">fn </span>extract_transaction_metrics(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;,
+        project_id: ProjectId,
         sampling_decision: SamplingDecision,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
         <span class="kw">if </span>state.event_metrics_extracted {
@@ -5305,7 +5242,7 @@
             event,
             combined_config,
             sampling_decision,
-            state.project_id,
+            project_id,
             <span class="self">self</span>.inner
                 .config
                 .aggregator_config_for(MetricNamespace::Spans)
@@ -5330,7 +5267,7 @@
                 generic_config: <span class="prelude-val">Some</span>(combined_config),
                 transaction_from_dsc,
                 sampling_decision,
-                target_project_id: state.project_id,
+                target_project_id: project_id,
             };
 
             state
@@ -5346,6 +5283,7 @@
     <span class="kw">fn </span>normalize_event&lt;G: EventProcessing&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;,
+        project_id: ProjectId,
         <span class="kw-2">mut </span>event_fully_normalized: EventFullyNormalized,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;EventFullyNormalized&gt;, ProcessingError&gt; {
         <span class="kw">if </span>!state.has_event() {
@@ -5409,7 +5347,7 @@
             }
 
             <span class="kw">let </span>normalization_config = NormalizationConfig {
-                project_id: <span class="prelude-val">Some</span>(state.project_id.value()),
+                project_id: <span class="prelude-val">Some</span>(project_id.value()),
                 client: request_meta.client().map(str::to_owned),
                 key_id,
                 protocol_version: <span class="prelude-val">Some</span>(request_meta.version().to_string()),
@@ -5492,6 +5430,7 @@
     </span><span class="kw">fn </span>process_errors(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;ErrorGroup&gt;,
+        project_id: ProjectId,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>event_fully_normalized = EventFullyNormalized::new(state.envelope());
 
@@ -5515,7 +5454,7 @@
 
         event::finalize(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
         <span class="kw">if let </span><span class="prelude-val">Some</span>(inner_event_fully_normalized) =
-            <span class="self">self</span>.normalize_event(state, event_fully_normalized)<span class="question-mark">?
+            <span class="self">self</span>.normalize_event(state, project_id, event_fully_normalized)<span class="question-mark">?
         </span>{
             event_fully_normalized = inner_event_fully_normalized;
         };
@@ -5539,7 +5478,7 @@
 
         <span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() &amp;&amp; !event_fully_normalized.<span class="number">0 </span>{
             <span class="macro">relay_log::error!</span>(
-                tags.project = %state.project_id,
+                tags.project = %project_id,
                 tags.ty = state.event_type().map(|e| e.to_string()).unwrap_or(<span class="string">"none"</span>.to_owned()),
                 <span class="string">"ingested event without normalizing"
             </span>);
@@ -5552,6 +5491,7 @@
     </span><span class="kw">fn </span>process_transactions(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;,
+        project_id: ProjectId,
         reservoir_counters: ReservoirCounters,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>event_fully_normalized = EventFullyNormalized::new(state.envelope());
@@ -5560,12 +5500,12 @@
 
         event::extract(state, event_fully_normalized, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>profile_id = profile::filter(state);
+        <span class="kw">let </span>profile_id = profile::filter(state, project_id);
         profile::transfer_id(state, profile_id);
 
         event::finalize(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
         <span class="kw">if let </span><span class="prelude-val">Some</span>(inner_event_fully_normalized) =
-            <span class="self">self</span>.normalize_event(state, event_fully_normalized)<span class="question-mark">?
+            <span class="self">self</span>.normalize_event(state, project_id, event_fully_normalized)<span class="question-mark">?
         </span>{
             event_fully_normalized = inner_event_fully_normalized;
         }
@@ -5600,7 +5540,7 @@
             // Before metric extraction to make sure the profile count is reflected correctly.
             </span>profile::process(state, <span class="kw-2">&amp;</span>global_config);
             <span class="comment">// Extract metrics here, we're about to drop the event/transaction.
-            </span><span class="self">self</span>.extract_transaction_metrics(state, SamplingDecision::Drop)<span class="question-mark">?</span>;
+            </span><span class="self">self</span>.extract_transaction_metrics(state, project_id, SamplingDecision::Drop)<span class="question-mark">?</span>;
 
             dynamic_sampling::drop_unsampled_items(state, outcome);
 
@@ -5627,7 +5567,7 @@
             profile::transfer_id(state, profile_id);
 
             <span class="comment">// Always extract metrics in processing Relays for sampled items.
-            </span><span class="self">self</span>.extract_transaction_metrics(state, SamplingDecision::Keep)<span class="question-mark">?</span>;
+            </span><span class="self">self</span>.extract_transaction_metrics(state, project_id, SamplingDecision::Keep)<span class="question-mark">?</span>;
 
             <span class="kw">if </span>state
                 .project_info
@@ -5648,7 +5588,7 @@
 
         <span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() &amp;&amp; !event_fully_normalized.<span class="number">0 </span>{
             <span class="macro">relay_log::error!</span>(
-                tags.project = %state.project_id,
+                tags.project = %project_id,
                 tags.ty = state.event_type().map(|e| e.to_string()).unwrap_or(<span class="string">"none"</span>.to_owned()),
                 <span class="string">"ingested event without normalizing"
             </span>);
@@ -5676,8 +5616,9 @@
     </span><span class="kw">fn </span>process_standalone(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;StandaloneGroup&gt;,
+        project_id: ProjectId,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
-        profile::filter(state);
+        profile::filter(state, project_id);
 
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
             <span class="self">self</span>.enforce_quotas(state)<span class="question-mark">?</span>;
@@ -5733,11 +5674,12 @@
     <span class="doccomment">/// Processes cron check-ins.
     </span><span class="kw">fn </span>process_checkins(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        _state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;CheckInGroup&gt;,
+        <span class="attr">#[allow(unused_variables)] </span>state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;CheckInGroup&gt;,
+        <span class="attr">#[allow(unused_variables)] </span>project_id: ProjectId,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
-            <span class="self">self</span>.enforce_quotas(_state)<span class="question-mark">?</span>;
-            <span class="self">self</span>.process_check_ins(_state);
+            <span class="self">self</span>.enforce_quotas(state)<span class="question-mark">?</span>;
+            <span class="self">self</span>.process_check_ins(state, project_id);
         });
         <span class="prelude-val">Ok</span>(())
     }
@@ -5748,6 +5690,7 @@
     </span><span class="kw">fn </span>process_standalone_spans(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;SpanGroup&gt;,
+        <span class="attr">#[allow(unused_variables)] </span>project_id: ProjectId,
         <span class="attr">#[allow(unused_variables)] </span>reservoir_counters: ReservoirCounters,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
         span::filter(state);
@@ -5762,6 +5705,7 @@
 
             span::process(
                 state,
+                project_id,
                 <span class="kw-2">&amp;</span>global_config,
                 <span class="self">self</span>.inner.geoip_lookup.as_ref(),
                 <span class="kw-2">&amp;</span>reservoir,
@@ -5794,17 +5738,37 @@
                 .parametrize_dsc_transaction(<span class="kw-2">&amp;</span>sampling_state.config.tx_name_rules);
         }
 
+        <span class="comment">// Set the event retention. Effectively, this value will only be available in processing
+        // mode when the full project config is queried from the upstream.
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(retention) = project_info.config.event_retention {
+            managed_envelope.envelope_mut().set_retention(retention);
+        }
+
+        <span class="comment">// Ensure the project ID is updated to the stored instance for this project cache. This can
+        // differ in two cases:
+        //  1. The envelope was sent to the legacy `/store/` endpoint without a project ID.
+        //  2. The DSN was moved and the envelope sent to the old project ID.
+        </span>managed_envelope
+            .envelope_mut()
+            .meta_mut()
+            .set_project_id(project_id);
+
         <span class="macro">macro_rules!</span> run {
             (<span class="macro-nonterminal">$fn_name</span>:ident $(, <span class="macro-nonterminal">$args</span>:expr)<span class="kw-2">*</span>) =&gt; {{
                 <span class="kw">let </span>managed_envelope = managed_envelope.try_into()<span class="question-mark">?</span>;
-                <span class="kw">let </span><span class="kw-2">mut </span>state = <span class="self">self</span>.prepare_state(
-                    <span class="self">self</span>.inner.config.clone(),
-                    managed_envelope,
-                    project_id,
+                <span class="kw">let </span><span class="kw-2">mut </span>state = ProcessEnvelopeState {
+                    event: Annotated::empty(),
+                    event_metrics_extracted: <span class="bool-val">false</span>,
+                    spans_extracted: <span class="bool-val">false</span>,
+                    metrics: Metrics::default(),
+                    extracted_metrics: ProcessingExtractedMetrics::new(),
+                    config: <span class="self">self</span>.inner.config.clone(),
                     project_info,
                     rate_limits,
                     sampling_project_info,
-                );
+                    managed_envelope,
+                };
+
                 <span class="comment">// The state is temporarily supplied, until it will be removed.
                 </span><span class="kw">match </span><span class="self">self</span>.<span class="macro-nonterminal">$fn_name</span>(<span class="kw-2">&amp;mut </span>state, $(<span class="macro-nonterminal">$args</span>),<span class="kw-2">*</span>) {
                     <span class="prelude-val">Ok</span>(()) =&gt; <span class="prelude-val">Ok</span>(ProcessingStateResult {
@@ -5825,14 +5789,16 @@
         <span class="macro">relay_log::trace!</span>(<span class="string">"Processing {group} group"</span>, group = group.variant());
 
         <span class="kw">match </span>group {
-            ProcessingGroup::Error =&gt; <span class="macro">run!</span>(process_errors),
-            ProcessingGroup::Transaction =&gt; <span class="macro">run!</span>(process_transactions, reservoir_counters),
+            ProcessingGroup::Error =&gt; <span class="macro">run!</span>(process_errors, project_id),
+            ProcessingGroup::Transaction =&gt; {
+                <span class="macro">run!</span>(process_transactions, project_id, reservoir_counters)
+            }
             ProcessingGroup::Session =&gt; <span class="macro">run!</span>(process_sessions),
-            ProcessingGroup::Standalone =&gt; <span class="macro">run!</span>(process_standalone),
+            ProcessingGroup::Standalone =&gt; <span class="macro">run!</span>(process_standalone, project_id),
             ProcessingGroup::ClientReport =&gt; <span class="macro">run!</span>(process_client_reports),
             ProcessingGroup::Replay =&gt; <span class="macro">run!</span>(process_replays),
-            ProcessingGroup::CheckIn =&gt; <span class="macro">run!</span>(process_checkins),
-            ProcessingGroup::Span =&gt; <span class="macro">run!</span>(process_standalone_spans, reservoir_counters),
+            ProcessingGroup::CheckIn =&gt; <span class="macro">run!</span>(process_checkins, project_id),
+            ProcessingGroup::Span =&gt; <span class="macro">run!</span>(process_standalone_spans, project_id, reservoir_counters),
             ProcessingGroup::ProfileChunk =&gt; <span class="macro">run!</span>(process_profile_chunks),
             <span class="comment">// Currently is not used.
             </span>ProcessingGroup::Metrics =&gt; {

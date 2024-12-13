@@ -593,12 +593,14 @@
 <a href="#592" id="592">592</a>
 <a href="#593" id="593">593</a>
 <a href="#594" id="594">594</a>
-<a href="#595" id="595">595</a></pre></div><pre class="rust"><code><span class="doccomment">//! Profiles related processor code.
+<a href="#595" id="595">595</a>
+<a href="#596" id="596">596</a></pre></div><pre class="rust"><code><span class="doccomment">//! Profiles related processor code.
 </span><span class="kw">use </span>std::net::IpAddr;
 
 <span class="kw">use </span>relay_dynamic_config::{Feature, GlobalConfig};
 
 <span class="kw">use </span>relay_base_schema::events::EventType;
+<span class="kw">use </span>relay_base_schema::project::ProjectId;
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_event_schema::protocol::{Contexts, Event, ProfileContext};
 <span class="kw">use </span>relay_filter::ProjectFiltersConfig;
@@ -613,7 +615,7 @@
 <span class="doccomment">/// Filters out invalid and duplicate profiles.
 ///
 /// Returns the profile id of the single remaining profile, if there is one.
-</span><span class="kw">pub fn </span>filter&lt;G&gt;(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;ProfileId&gt; {
+</span><span class="kw">pub fn </span>filter&lt;G&gt;(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;, project_id: ProjectId) -&gt; <span class="prelude-ty">Option</span>&lt;ProfileId&gt; {
     <span class="kw">let </span>profiling_disabled = state.should_filter(Feature::Profiling);
     <span class="kw">let </span>has_transaction = state.event_type() == <span class="prelude-val">Some</span>(EventType::Transaction);
     <span class="kw">let </span>keep_unsampled_profiles = <span class="bool-val">true</span>;
@@ -633,7 +635,7 @@
                 <span class="kw">return </span>ItemAction::DropSilently;
             }
 
-            <span class="kw">match </span>relay_profiling::parse_metadata(<span class="kw-2">&amp;</span>item.payload(), state.project_id) {
+            <span class="kw">match </span>relay_profiling::parse_metadata(<span class="kw-2">&amp;</span>item.payload(), project_id) {
                 <span class="prelude-val">Ok</span>(id) =&gt; {
                     profile_id = <span class="prelude-val">Some</span>(id);
                     ItemAction::Keep
