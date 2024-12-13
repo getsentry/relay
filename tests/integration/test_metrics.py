@@ -1905,44 +1905,6 @@ def test_missing_global_filters_enables_metric_extraction(
     assert metrics_consumer.get_metrics()
 
 
-def test_profiles_metrics(mini_sentry, relay):
-    relay = relay(mini_sentry, options=TEST_CONFIG)
-
-    project_id = 42
-    mini_sentry.add_basic_project_config(project_id)
-
-    timestamp = int(datetime.now(tz=timezone.utc).timestamp())
-    metrics_payload = f"profiles/foo:42|c|T{timestamp}\nprofiles/bar:17|c|T{timestamp}"
-
-    relay.send_metrics(project_id, metrics_payload)
-
-    envelope = mini_sentry.captured_events.get(timeout=3)
-    assert len(envelope.items) == 1
-
-    metrics_item = envelope.items[0]
-    assert metrics_item.type == "metric_buckets"
-
-    received_metrics = metrics_without_keys(
-        json.loads(metrics_item.get_bytes().decode()), keys={"metadata"}
-    )
-    assert received_metrics == [
-        {
-            "timestamp": time_after(timestamp),
-            "width": 1,
-            "name": "c:profiles/bar@none",
-            "value": 17.0,
-            "type": "c",
-        },
-        {
-            "timestamp": time_after(timestamp),
-            "width": 1,
-            "name": "c:profiles/foo@none",
-            "value": 42.0,
-            "type": "c",
-        },
-    ]
-
-
 def test_metrics_with_denied_names(
     mini_sentry, relay_with_processing, metrics_consumer
 ):
