@@ -12,6 +12,7 @@ use crate::services::processor::{
 use crate::utils::{sample, ItemAction, ManagedEnvelope};
 use chrono::{DateTime, Utc};
 use relay_base_schema::events::EventType;
+use relay_base_schema::project::ProjectId;
 use relay_config::Config;
 use relay_dynamic_config::{
     CombinedMetricExtractionConfig, ErrorBoundary, Feature, GlobalConfig, ProjectConfig,
@@ -43,6 +44,7 @@ struct ValidationError(#[from] anyhow::Error);
 
 pub fn process(
     state: &mut ProcessEnvelopeState<SpanGroup>,
+    project_id: ProjectId,
     global_config: &GlobalConfig,
     geo_lookup: Option<&GeoIpLookup>,
     reservoir_counters: &ReservoirEvaluator,
@@ -148,7 +150,7 @@ pub fn process(
                     transaction,
                     1,
                     sampling_decision,
-                    state.project_id,
+                    project_id,
                 );
                 state
                     .extracted_metrics
@@ -794,7 +796,6 @@ mod tests {
 
     use bytes::Bytes;
     use once_cell::sync::Lazy;
-    use relay_base_schema::project::ProjectId;
     use relay_event_schema::protocol::{
         Context, ContextInner, EventId, SpanId, Timestamp, TraceContext, TraceId,
     };
@@ -861,7 +862,6 @@ mod tests {
             project_info,
             rate_limits: Arc::new(RateLimits::default()),
             sampling_project_info: None,
-            project_id: ProjectId::new(42),
             managed_envelope: managed_envelope.try_into().unwrap(),
             event_metrics_extracted: false,
             spans_extracted: false,

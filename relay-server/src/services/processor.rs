@@ -1223,13 +1223,17 @@ impl EnvelopeProcessorService {
 
     /// Normalize monitor check-ins and remove invalid ones.
     #[cfg(feature = "processing")]
-    fn process_check_ins(&self, state: &mut ProcessEnvelopeState<CheckInGroup>) {
+    fn process_check_ins(
+        &self,
+        state: &mut ProcessEnvelopeState<CheckInGroup>,
+        project_id: ProjectId,
+    ) {
         state.managed_envelope.retain_items(|item| {
             if item.ty() != &ItemType::CheckIn {
                 return ItemAction::Keep;
             }
 
-            match relay_monitors::process_check_in(&item.payload(), state.project_id) {
+            match relay_monitors::process_check_in(&item.payload(), project_id) {
                 Ok(result) => {
                     item.set_routing_hint(result.routing_hint);
                     item.set_payload(ContentType::Json, result.payload);
@@ -1788,11 +1792,12 @@ impl EnvelopeProcessorService {
     /// Processes cron check-ins.
     fn process_checkins(
         &self,
-        _state: &mut ProcessEnvelopeState<CheckInGroup>,
+        #[allow(unused_variables)] state: &mut ProcessEnvelopeState<CheckInGroup>,
+        project_id: ProjectId,
     ) -> Result<(), ProcessingError> {
         if_processing!(self.inner.config, {
-            self.enforce_quotas(_state)?;
-            self.process_check_ins(_state);
+            self.enforce_quotas(state)?;
+            self.process_check_ins(state, project_id);
         });
         Ok(())
     }
@@ -1803,6 +1808,7 @@ impl EnvelopeProcessorService {
     fn process_standalone_spans(
         &self,
         state: &mut ProcessEnvelopeState<SpanGroup>,
+        project_id: ProjectId,
         #[allow(unused_variables)] reservoir_counters: ReservoirCounters,
     ) -> Result<(), ProcessingError> {
         span::filter(state);
@@ -1817,6 +1823,7 @@ impl EnvelopeProcessorService {
 
             span::process(
                 state,
+                project_id,
                 &global_config,
                 self.inner.geoip_lookup.as_ref(),
                 &reservoir,
@@ -1908,8 +1915,8 @@ impl EnvelopeProcessorService {
             ProcessingGroup::Standalone => run!(process_standalone, project_id),
             ProcessingGroup::ClientReport => run!(process_client_reports),
             ProcessingGroup::Replay => run!(process_replays),
-            ProcessingGroup::CheckIn => run!(process_checkins),
-            ProcessingGroup::Span => run!(process_standalone_spans, reservoir_counters),
+            ProcessingGroup::CheckIn => run!(process_checkins, project_id),
+            ProcessingGroup::Span => run!(process_standalone_spans, project_id, reservoir_counters),
             ProcessingGroup::ProfileChunk => run!(process_profile_chunks),
             // Currently is not used.
             ProcessingGroup::Metrics => {
