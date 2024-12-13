@@ -640,7 +640,7 @@ where
                 limit.clone_for(DataCategory::Attachment, summary.attachment_quantity);
         } else if summary.attachment_quantity > 0 {
             let item_scoping = scoping.item(DataCategory::Attachment);
-            let attachment_limits = self
+            let mut attachment_limits = self
                 .check
                 .apply(item_scoping, summary.attachment_quantity)?;
 
@@ -652,7 +652,7 @@ where
 
             if !attachment_limits.is_limited() {
                 let item_scoping = scoping.item(DataCategory::AttachmentItem);
-                let attachment_limits = self
+                attachment_limits = self
                     .check
                     .apply(item_scoping, summary.attachment_item_quantity)?;
 
@@ -670,8 +670,10 @@ where
             // can continue to send them.
             if summary.has_plain_attachments {
                 rate_limits.merge(attachment_limits);
+                &rate_limits;
             }
         } else if summary.attachment_item_quantity > 0 {
+            // TODO: remove special case
             let item_scoping = scoping.item(DataCategory::AttachmentItem);
             let attachment_limits = self
                 .check
