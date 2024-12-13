@@ -643,7 +643,10 @@ where
         // Handle attachments.
         if let Some(limit) = enforcement.active_event() {
             let limit1 = limit.clone_for(DataCategory::Attachment, summary.attachment_quantity);
-            let limit2 = limit.clone_for(DataCategory::AttachmentItem, summary.attachment_quantity);
+            let limit2 = limit.clone_for(
+                DataCategory::AttachmentItem,
+                summary.attachment_item_quantity,
+            );
             enforcement.attachments = limit1;
             enforcement.attachment_items = limit2;
         } else {
@@ -1506,6 +1509,7 @@ mod tests {
         assert!(!enforcement.event.is_active());
         assert!(enforcement.event_indexed.is_active());
         assert!(enforcement.attachments.is_active());
+        assert!(enforcement.attachment_items.is_active());
         mock.assert_call(DataCategory::Transaction, 1);
         mock.assert_call(DataCategory::TransactionIndexed, 1);
 
@@ -1513,7 +1517,8 @@ mod tests {
             get_outcomes(enforcement),
             vec![
                 (DataCategory::TransactionIndexed, 1),
-                (DataCategory::Attachment, 10)
+                (DataCategory::Attachment, 10),
+                (DataCategory::AttachmentItem, 1)
             ]
         );
     }
