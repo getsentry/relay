@@ -1,11 +1,11 @@
 use std::borrow::Cow;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap};
 use std::error::Error;
 use std::fmt::{Debug, Display};
 use std::future::Future;
 use std::io::Write;
 use std::pin::Pin;
-use std::sync::{Arc, Mutex, Once};
+use std::sync::{Arc, Once};
 use std::time::Duration;
 
 use anyhow::Context;
@@ -33,31 +33,12 @@ use relay_metrics::{Bucket, BucketMetadata, BucketView, BucketsView, MetricNames
 use relay_pii::PiiConfigError;
 use relay_protocol::Annotated;
 use relay_quotas::{DataCategory, RateLimits, Scoping};
-use relay_sampling::config::RuleId;
 use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator, SamplingDecision};
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
 use reqwest::header;
 use smallvec::{smallvec, SmallVec};
 use zstd::stream::Encoder as ZstdEncoder;
-
-#[cfg(feature = "processing")]
-use {
-    crate::services::store::{Store, StoreEnvelope},
-    crate::utils::{CheckLimits, Enforcement, EnvelopeLimiter, ItemAction},
-    itertools::Itertools,
-    relay_cardinality::{
-        CardinalityLimit, CardinalityLimiter, CardinalityLimitsSplit, RedisSetLimiter,
-        RedisSetLimiterOptions,
-    },
-    relay_dynamic_config::{CardinalityLimiterMode, GlobalConfig, MetricExtractionGroups},
-    relay_quotas::{Quota, RateLimitingError, RedisRateLimiter},
-    relay_redis::{RedisPool, RedisPools},
-    std::iter::Chain,
-    std::slice::Iter,
-    std::time::Instant,
-    symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
-};
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemType};
@@ -81,6 +62,24 @@ use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
     self, InvalidProcessingGroupType, ManagedEnvelope, SamplingResult, ThreadPool, TypedEnvelope,
     WorkerGroup,
+};
+use relay_base_schema::organization::OrganizationId;
+#[cfg(feature = "processing")]
+use {
+    crate::services::store::{Store, StoreEnvelope},
+    crate::utils::{CheckLimits, Enforcement, EnvelopeLimiter, ItemAction},
+    itertools::Itertools,
+    relay_cardinality::{
+        CardinalityLimit, CardinalityLimiter, CardinalityLimitsSplit, RedisSetLimiter,
+        RedisSetLimiterOptions,
+    },
+    relay_dynamic_config::{CardinalityLimiterMode, GlobalConfig, MetricExtractionGroups},
+    relay_quotas::{Quota, RateLimitingError, RedisRateLimiter},
+    relay_redis::{RedisPool, RedisPools},
+    std::iter::Chain,
+    std::slice::Iter,
+    std::time::Instant,
+    symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
 mod attachment;
@@ -1681,13 +1680,10 @@ impl EnvelopeProcessorService {
         let run_dynamic_sampling =
             matches!(filter_run, FiltersStatus::Ok) || self.inner.config.processing_enabled();
 
-        #[allow(unused_mut)]
-        let mut reservoir = ReservoirEvaluator::new(reservoir_counters);
-        #[cfg(feature = "processing")]
-        if let Some(quotas_pool) = self.inner.quotas_pool.as_ref() {
-            let org_id = state.managed_envelope.scoping().organization_id;
-            reservoir.set_redis(org_id, quotas_pool);
-        }
+        let reservoir = self.new_reservoir_evaluator(
+            state.managed_envelope.scoping().organization_id,
+            reservoir_counters,
+        );
 
         let sampling_result = match run_dynamic_sampling {
             true => dynamic_sampling::run(state, &reservoir),
@@ -1853,14 +1849,24 @@ impl EnvelopeProcessorService {
     fn process_standalone_spans(
         &self,
         state: &mut ProcessEnvelopeState<SpanGroup>,
+        reservoir_counters: ReservoirCounters,
     ) -> Result<(), ProcessingError> {
         span::filter(state);
         span::convert_otel_traces_data(state);
 
         if_processing!(self.inner.config, {
             let global_config = self.inner.global_config.current();
+            let reservoir = self.new_reservoir_evaluator(
+                state.managed_envelope.scoping().organization_id,
+                reservoir_counters,
+            );
 
-            span::process(state, &global_config, self.inner.geoip_lookup.as_ref());
+            span::process(
+                state,
+                &global_config,
+                self.inner.geoip_lookup.as_ref(),
+                &reservoir,
+            );
 
             self.enforce_quotas(state)?;
         });
@@ -1874,7 +1880,7 @@ impl EnvelopeProcessorService {
         project_info: Arc<ProjectInfo>,
         rate_limits: Arc<RateLimits>,
         sampling_project_info: Option<Arc<ProjectInfo>>,
-        reservoir_counters: Arc<Mutex<BTreeMap<RuleId, i64>>>,
+        reservoir_counters: ReservoirCounters,
     ) -> Result<ProcessingStateResult, ProcessingError> {
         // Get the group from the managed envelope context, and if it's not set, try to guess it
         // from the contents of the envelope.
@@ -1953,7 +1959,7 @@ impl EnvelopeProcessorService {
             ProcessingGroup::ClientReport => run!(process_client_reports),
             ProcessingGroup::Replay => run!(process_replays),
             ProcessingGroup::CheckIn => run!(process_checkins),
-            ProcessingGroup::Span => run!(process_standalone_spans),
+            ProcessingGroup::Span => call!(process_standalone_spans(reservoir_counters)),
             ProcessingGroup::ProfileChunk => run!(process_profile_chunks),
             // Currently is not used.
             ProcessingGroup::Metrics => {
@@ -2830,6 +2836,21 @@ impl EnvelopeProcessorService {
             EnvelopeProcessor::SubmitClientReports(_) => AppFeature::ClientReports.into(),
         }
     }
+
+    fn new_reservoir_evaluator(
+        &self,
+        organization_id: OrganizationId,
+        reservoir_counters: ReservoirCounters,
+    ) -> ReservoirEvaluator {
+        #[allow(unused_mut)]
+        let mut reservoir = ReservoirEvaluator::new(reservoir_counters);
+        #[cfg(feature = "processing")]
+        if let Some(quotas_pool) = self.inner.quotas_pool.as_ref() {
+            reservoir.set_redis(organization_id, quotas_pool);
+        }
+
+        reservoir
+    }
 }
 
 impl Service for EnvelopeProcessorService {
@@ -3254,6 +3275,7 @@ impl<'a> IntoIterator for CombinedQuotas<'a> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
     use std::env;
 
     use insta::assert_debug_snapshot;

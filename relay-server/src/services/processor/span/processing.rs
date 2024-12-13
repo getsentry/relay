@@ -2,6 +2,14 @@
 
 use std::error::Error;
 
+use crate::envelope::{ContentType, Item, ItemType};
+use crate::metrics_extraction::{event, generic};
+use crate::services::outcome::{DiscardReason, Outcome};
+use crate::services::processor::span::extract_transaction_span;
+use crate::services::processor::{
+    dynamic_sampling, ProcessEnvelopeState, ProcessingError, SpanGroup, TransactionGroup,
+};
+use crate::utils::{sample, ItemAction, ManagedEnvelope};
 use chrono::{DateTime, Utc};
 use relay_base_schema::events::EventType;
 use relay_config::Config;
@@ -25,17 +33,9 @@ use relay_metrics::{FractionUnit, MetricNamespace, MetricUnit, UnixTimestamp};
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Empty, Value};
 use relay_quotas::DataCategory;
+use relay_sampling::evaluation::ReservoirEvaluator;
 use relay_spans::otel_trace::Span as OtelSpan;
 use thiserror::Error;
-
-use crate::envelope::{ContentType, Item, ItemType};
-use crate::metrics_extraction::{event, generic};
-use crate::services::outcome::{DiscardReason, Outcome};
-use crate::services::processor::span::extract_transaction_span;
-use crate::services::processor::{
-    dynamic_sampling, ProcessEnvelopeState, ProcessingError, SpanGroup, TransactionGroup,
-};
-use crate::utils::{sample, ItemAction, ManagedEnvelope};
 
 #[derive(Error, Debug)]
 #[error(transparent)]
@@ -45,12 +45,13 @@ pub fn process(
     state: &mut ProcessEnvelopeState<SpanGroup>,
     global_config: &GlobalConfig,
     geo_lookup: Option<&GeoIpLookup>,
+    reservoir_counters: &ReservoirEvaluator,
 ) {
     use relay_event_normalization::RemoveOtherProcessor;
 
     // We only implement trace-based sampling rules for now, which can be computed
     // once for all spans in the envelope.
-    let sampling_result = dynamic_sampling::run(state);
+    let sampling_result = dynamic_sampling::run(state, reservoir_counters);
 
     let span_metrics_extraction_config = match state.project_info.config.metric_extraction {
         ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),
@@ -800,7 +801,6 @@ mod tests {
     use relay_event_schema::protocol::{Contexts, Event, Span};
     use relay_protocol::get_value;
     use relay_quotas::RateLimits;
-    use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator};
     use relay_system::Addr;
 
     use crate::envelope::Envelope;
@@ -810,7 +810,7 @@ mod tests {
 
     use super::*;
 
-    fn state() -> ProcessEnvelopeState<'static, TransactionGroup> {
+    fn state() -> ProcessEnvelopeState<TransactionGroup> {
         let bytes = Bytes::from(
             r#"{"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","trace":{"trace_id":"89143b0763095bd9c9955e8175d1fb23","public_key":"e12d836b15bb49d7bbf99e64295d995b","sample_rate":"0.2"}}
 {"type":"transaction"}
@@ -865,7 +865,6 @@ mod tests {
             managed_envelope: managed_envelope.try_into().unwrap(),
             event_metrics_extracted: false,
             spans_extracted: false,
-            reservoir: ReservoirEvaluator::new(ReservoirCounters::default()),
         }
     }
 
