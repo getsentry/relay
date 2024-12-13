@@ -651,31 +651,30 @@ where
             if summary.attachment_quantity > 0 {
                 let item_scoping = scoping.item(DataCategory::Attachment);
 
+                let attachment_byte_limits = self
+                    .check
+                    .apply(item_scoping, summary.attachment_quantity)?;
+
                 enforcement.attachments = CategoryLimit::new(
                     DataCategory::Attachment,
                     summary.attachment_quantity,
-                    attachment_limits.longest(),
+                    attachment_byte_limits.longest(),
                 );
-
-                attachment_limits.merge(
-                    self.check
-                        .apply(item_scoping, summary.attachment_quantity)?,
-                );
+                attachment_limits.merge(attachment_byte_limits);
             }
             if !attachment_limits.is_limited() && summary.attachment_item_quantity > 0 {
-                "CHECKING ATTACHMENT ITEM LIMITS";
                 let item_scoping = scoping.item(DataCategory::AttachmentItem);
+
+                let attachment_item_limits = self
+                    .check
+                    .apply(item_scoping, summary.attachment_item_quantity)?;
 
                 enforcement.attachment_items = CategoryLimit::new(
                     DataCategory::AttachmentItem,
                     summary.attachment_item_quantity,
-                    attachment_limits.longest(),
+                    attachment_item_limits.longest(),
                 );
-
-                attachment_limits.merge(
-                    self.check
-                        .apply(item_scoping, summary.attachment_item_quantity)?,
-                );
+                attachment_limits.merge(attachment_item_limits);
             }
 
             // Only record rate limits for plain attachments. For all other attachments, it's
