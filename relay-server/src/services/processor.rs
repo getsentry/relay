@@ -1849,7 +1849,7 @@ impl EnvelopeProcessorService {
     fn process_standalone_spans(
         &self,
         state: &mut ProcessEnvelopeState<SpanGroup>,
-        reservoir_counters: ReservoirCounters,
+        #[allow(unused_variables)] reservoir_counters: ReservoirCounters,
     ) -> Result<(), ProcessingError> {
         span::filter(state);
         span::convert_otel_traces_data(state);
@@ -2839,7 +2839,7 @@ impl EnvelopeProcessorService {
 
     fn new_reservoir_evaluator(
         &self,
-        organization_id: OrganizationId,
+        #[allow(unused_variables)] organization_id: OrganizationId,
         reservoir_counters: ReservoirCounters,
     ) -> ReservoirEvaluator {
         #[allow(unused_mut)]
