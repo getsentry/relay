@@ -201,9 +201,9 @@ impl CategoryUnit {
             | DataCategory::ProfileChunk
             | DataCategory::Uptime
             | DataCategory::MetricSecond
-            | DataCategory::AttachmentItem => Some(Self::Count),
+            | DataCategory::AttachmentItem
+            | DataCategory::Session => Some(Self::Count),
             DataCategory::Attachment => Some(Self::Bytes),
-            DataCategory::Session => None,
             DataCategory::ProfileDuration => Some(Self::Milliseconds),
 
             DataCategory::Unknown => None,
