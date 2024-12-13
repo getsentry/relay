@@ -232,13 +232,13 @@ def test_attachments_quotas_items(
     # First attachment returns 200 but is rate limited in processing
     relay.send_attachments(project_id, event_id, attachments)
 
-    outcomes_consumer.assert_rate_limited("attachments_exceeded", 1)
+    outcomes_consumer.assert_rate_limited("attachments_exceeded", quantity=1)
 
     # Second attachment returns 429 in endpoint
     with pytest.raises(HTTPError) as excinfo:
         relay.send_attachments(42, event_id, attachments)
     assert excinfo.value.response.status_code == 429
-    outcomes_consumer.assert_rate_limited("attachments_exceeded", 1)
+    outcomes_consumer.assert_rate_limited("attachments_exceeded", quantity=1)
 
 
 def test_view_hierarchy_processing(

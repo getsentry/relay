@@ -268,7 +268,7 @@ class OutcomesConsumer(ConsumerBase):
             assert outcome["outcome"] == 2, outcome
             assert outcome["reason"] == reason, outcome["reason"]
             if key_id is not None:
-                assert outcome["key_id"] == key_id
+                assert outcome["key_id"] == key_id, (outcome["key_id"], key_id)
 
         if quantity is not None:
             count = sum(outcome["quantity"] for outcome in outcomes)
