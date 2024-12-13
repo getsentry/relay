@@ -272,7 +272,7 @@ class OutcomesConsumer(ConsumerBase):
 
         if quantity is not None:
             count = sum(outcome["quantity"] for outcome in outcomes)
-            assert count == quantity
+            assert count == quantity, (count, quantity)
 
 
 @pytest.fixture

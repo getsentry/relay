@@ -332,6 +332,8 @@ pub struct Enforcement {
     pub event_indexed: CategoryLimit,
     /// The combined attachment bytes rate limit.
     pub attachments: CategoryLimit,
+    /// The combined attachment item rate limit.
+    pub attachment_items: CategoryLimit,
     /// The combined session item rate limit.
     pub sessions: CategoryLimit,
     /// The combined profile item rate limit.
@@ -377,6 +379,7 @@ impl Enforcement {
             event,
             event_indexed,
             attachments,
+            attachment_items,
             sessions: _, // Do not report outcomes for sessions.
             profiles,
             profiles_indexed,
@@ -392,6 +395,7 @@ impl Enforcement {
             event,
             event_indexed,
             attachments,
+            attachment_items,
             profiles,
             profiles_indexed,
             replays,
@@ -468,7 +472,7 @@ impl Enforcement {
         // to determine whether an item is limited.
         match item.ty() {
             ItemType::Attachment => {
-                if !self.attachments.is_active() {
+                if !(self.attachments.is_active() || self.attachment_items.is_active()) {
                     return true;
                 }
                 if item.creates_event() {
@@ -616,6 +620,7 @@ where
         let mut rate_limits = RateLimits::new();
         let mut enforcement = Enforcement::default();
 
+        // Handle event.
         if let Some(category) = summary.event_category {
             // Check the broad category for limits.
             let mut event_limits = self.check.apply(scoping.item(category), 1)?;
@@ -635,54 +640,43 @@ where
             rate_limits.merge(event_limits);
         }
 
+        // Handle attachments.
         if let Some(limit) = enforcement.active_event() {
-            enforcement.attachments =
-                limit.clone_for(DataCategory::Attachment, summary.attachment_quantity);
-        } else if summary.attachment_quantity > 0 {
-            let item_scoping = scoping.item(DataCategory::Attachment);
-            let mut attachment_limits = self
-                .check
-                .apply(item_scoping, summary.attachment_quantity)?;
+            let limit1 = limit.clone_for(DataCategory::Attachment, summary.attachment_quantity);
+            let limit2 = limit.clone_for(DataCategory::AttachmentItem, summary.attachment_quantity);
+            enforcement.attachments = limit1;
+            enforcement.attachment_items = limit2;
+        } else {
+            let mut attachment_limits = RateLimits::new();
+            if summary.attachment_quantity > 0 {
+                let item_scoping = scoping.item(DataCategory::Attachment);
 
-            let mut limits = CategoryLimit::new(
-                DataCategory::Attachment,
-                summary.attachment_quantity,
-                attachment_limits.longest(),
-            );
+                enforcement.attachments = CategoryLimit::new(
+                    DataCategory::Attachment,
+                    summary.attachment_quantity,
+                    attachment_limits.longest(),
+                );
 
-            if !attachment_limits.is_limited() {
+                attachment_limits.merge(
+                    self.check
+                        .apply(item_scoping, summary.attachment_quantity)?,
+                );
+            }
+            if !attachment_limits.is_limited() && summary.attachment_item_quantity > 0 {
+                "CHECKING ATTACHMENT ITEM LIMITS";
                 let item_scoping = scoping.item(DataCategory::AttachmentItem);
-                attachment_limits = self
-                    .check
-                    .apply(item_scoping, summary.attachment_item_quantity)?;
 
-                limits = CategoryLimit::new(
+                enforcement.attachment_items = CategoryLimit::new(
                     DataCategory::AttachmentItem,
                     summary.attachment_item_quantity,
                     attachment_limits.longest(),
                 );
-            }
 
-            enforcement.attachments = limits;
-
-            // Only record rate limits for plain attachments. For all other attachments, it's
-            // perfectly "legal" to send them. They will still be discarded in Sentry, but clients
-            // can continue to send them.
-            if summary.has_plain_attachments {
-                rate_limits.merge(attachment_limits);
-                &rate_limits;
+                attachment_limits.merge(
+                    self.check
+                        .apply(item_scoping, summary.attachment_item_quantity)?,
+                );
             }
-        } else if summary.attachment_item_quantity > 0 {
-            // TODO: remove special case
-            let item_scoping = scoping.item(DataCategory::AttachmentItem);
-            let attachment_limits = self
-                .check
-                .apply(item_scoping, summary.attachment_item_quantity)?;
-            enforcement.attachments = CategoryLimit::new(
-                DataCategory::AttachmentItem,
-                summary.attachment_item_quantity,
-                attachment_limits.longest(),
-            );
 
             // Only record rate limits for plain attachments. For all other attachments, it's
             // perfectly "legal" to send them. They will still be discarded in Sentry, but clients
@@ -692,6 +686,7 @@ where
             }
         }
 
+        // Handle sessions.
         if summary.session_quantity > 0 {
             let item_scoping = scoping.item(DataCategory::Session);
             let session_limits = self.check.apply(item_scoping, summary.session_quantity)?;
@@ -703,6 +698,7 @@ where
             rate_limits.merge(session_limits);
         }
 
+        // Handle profiles.
         if enforcement.is_event_active() {
             enforcement.profiles = enforcement
                 .event
@@ -747,6 +743,7 @@ where
             rate_limits.merge(profile_limits);
         }
 
+        // Handle replays.
         if summary.replay_quantity > 0 {
             let item_scoping = scoping.item(DataCategory::Replay);
             let replay_limits = self.check.apply(item_scoping, summary.replay_quantity)?;
@@ -758,6 +755,7 @@ where
             rate_limits.merge(replay_limits);
         }
 
+        // Handle monitor checkins.
         if summary.monitor_quantity > 0 {
             let item_scoping = scoping.item(DataCategory::Monitor);
             let checkin_limits = self.check.apply(item_scoping, summary.monitor_quantity)?;
@@ -769,6 +767,7 @@ where
             rate_limits.merge(checkin_limits);
         }
 
+        // Handle spans.
         if enforcement.is_event_active() {
             enforcement.spans = enforcement
                 .event
@@ -803,6 +802,7 @@ where
             rate_limits.merge(span_limits);
         }
 
+        // Handle profile chunks.
         if summary.profile_chunk_quantity > 0 {
             let item_scoping = scoping.item(DataCategory::ProfileChunk);
             let profile_chunk_limits = self
