@@ -5,6 +5,7 @@
 **Bug Fixes**:
 
 - Stop collecting the `has_profile` metrics tag & reporting outcomes for it. ([#4365](https://github.com/getsentry/relay/pull/4365))
+- Parse unreal logs into breadcrumbs from all attached log items not just the first. ([#4384](https://github.com/getsentry/relay/pull/4384))
 
 **Features**:
 
