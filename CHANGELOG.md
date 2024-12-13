@@ -12,6 +12,10 @@
 
 - Add data categories for Uptime and Attachment Items. ([#4363](https://github.com/getsentry/relay/pull/4363), [#4374](https://github.com/getsentry/relay/pull/4374))
 
+**Internal**:
+
+- Remove support for metrics with profile namespace. ([4391](https://github.com/getsentry/relay/pull/4391))
+
 ## 24.11.2
 
 **Breaking Changes**:
