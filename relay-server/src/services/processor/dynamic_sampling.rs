@@ -59,7 +59,10 @@ pub fn ensure_dsc(state: &mut ProcessEnvelopeState<TransactionGroup>) {
 }
 
 /// Computes the sampling decision on the incoming event
-pub fn run<Group>(state: &mut ProcessEnvelopeState<Group>) -> SamplingResult
+pub fn run<Group>(
+    state: &mut ProcessEnvelopeState<Group>,
+    reservoir: &ReservoirEvaluator,
+) -> SamplingResult
 where
     Group: Sampling,
 {
@@ -78,7 +81,7 @@ where
         _ => None,
     };
 
-    let reservoir = Group::supports_reservoir_sampling().then_some(&state.reservoir);
+    let reservoir = Group::supports_reservoir_sampling().then_some(reservoir);
 
     compute_sampling_decision(
         state.config.processing_enabled(),
@@ -448,24 +451,25 @@ mod tests {
                 .try_into()
                 .unwrap(),
                 event_metrics_extracted: false,
-                reservoir: dummy_reservoir(),
                 spans_extracted: false,
             }
         };
 
+        let reservoir = dummy_reservoir();
+
         // None represents no TransactionMetricsConfig, DS will not be run
         let mut state = get_state(None);
-        let sampling_result = run(&mut state);
+        let sampling_result = run(&mut state, &reservoir);
         assert_eq!(sampling_result.decision(), SamplingDecision::Keep);
 
         // Current version is 3, so it won't run DS if it's outdated
         let mut state = get_state(Some(2));
-        let sampling_result = run(&mut state);
+        let sampling_result = run(&mut state, &reservoir);
         assert_eq!(sampling_result.decision(), SamplingDecision::Keep);
 
         // Dynamic sampling is run, as the transactionmetrics version is up to date.
         let mut state = get_state(Some(3));
-        let sampling_result = run(&mut state);
+        let sampling_result = run(&mut state, &reservoir);
         assert_eq!(sampling_result.decision(), SamplingDecision::Drop);
     }
 
@@ -750,10 +754,10 @@ mod tests {
             )
             .try_into()
             .unwrap(),
-            reservoir: dummy_reservoir(),
         };
 
-        run(&mut state)
+        let reservoir = dummy_reservoir();
+        run(&mut state, &reservoir)
     }
 
     #[test]

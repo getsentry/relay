@@ -735,7 +735,7 @@ fn send_metrics(metrics: ExtractedMetrics, envelope: &Envelope, aggregator: &Add
 
 /// A state container for envelope processing.
 #[derive(Debug)]
-struct ProcessEnvelopeState<'a, Group> {
+struct ProcessEnvelopeState<Group> {
     /// The extracted event payload.
     ///
     /// For Envelopes without event payloads, this contains `Annotated::empty`. If a single item has
@@ -786,12 +786,9 @@ struct ProcessEnvelopeState<'a, Group> {
 
     /// The managed envelope before processing.
     managed_envelope: TypedEnvelope<Group>,
-
-    /// Reservoir evaluator that we use for dynamic sampling.
-    reservoir: ReservoirEvaluator<'a>,
 }
 
-impl<Group> ProcessEnvelopeState<'_, Group> {
+impl<Group> ProcessEnvelopeState<Group> {
     /// Returns a reference to the contained [`Envelope`].
     fn envelope(&self) -> &Envelope {
         self.managed_envelope.envelope()
@@ -1270,7 +1267,6 @@ impl EnvelopeProcessorService {
         project_info: Arc<ProjectInfo>,
         rate_limits: Arc<RateLimits>,
         sampling_project_info: Option<Arc<ProjectInfo>>,
-        reservoir_counters: Arc<Mutex<BTreeMap<RuleId, i64>>>,
     ) -> ProcessEnvelopeState<G> {
         let envelope = managed_envelope.envelope_mut();
 
@@ -1286,14 +1282,6 @@ impl EnvelopeProcessorService {
         //  2. The DSN was moved and the envelope sent to the old project ID.
         envelope.meta_mut().set_project_id(project_id);
 
-        #[allow(unused_mut)]
-        let mut reservoir = ReservoirEvaluator::new(reservoir_counters);
-        #[cfg(feature = "processing")]
-        if let Some(quotas_pool) = self.inner.quotas_pool.as_ref() {
-            let org_id = managed_envelope.scoping().organization_id;
-            reservoir.set_redis(org_id, quotas_pool);
-        }
-
         let extracted_metrics = ProcessingExtractedMetrics::new();
 
         ProcessEnvelopeState {
@@ -1308,7 +1296,6 @@ impl EnvelopeProcessorService {
             sampling_project_info,
             project_id,
             managed_envelope,
-            reservoir,
         }
     }
 
@@ -1667,6 +1654,7 @@ impl EnvelopeProcessorService {
     fn process_transactions(
         &self,
         state: &mut ProcessEnvelopeState<TransactionGroup>,
+        reservoir_counters: ReservoirCounters,
     ) -> Result<(), ProcessingError> {
         let mut event_fully_normalized = EventFullyNormalized::new(state.envelope());
 
@@ -1693,8 +1681,16 @@ impl EnvelopeProcessorService {
         let run_dynamic_sampling =
             matches!(filter_run, FiltersStatus::Ok) || self.inner.config.processing_enabled();
 
+        #[allow(unused_mut)]
+        let mut reservoir = ReservoirEvaluator::new(reservoir_counters);
+        #[cfg(feature = "processing")]
+        if let Some(quotas_pool) = self.inner.quotas_pool.as_ref() {
+            let org_id = state.managed_envelope.scoping().organization_id;
+            reservoir.set_redis(org_id, quotas_pool);
+        }
+
         let sampling_result = match run_dynamic_sampling {
-            true => dynamic_sampling::run(state),
+            true => dynamic_sampling::run(state, &reservoir),
             false => SamplingResult::Pending,
         };
 
@@ -1893,6 +1889,34 @@ impl EnvelopeProcessorService {
                 .parametrize_dsc_transaction(&sampling_state.config.tx_name_rules);
         }
 
+        macro_rules! call {
+            ($fn_name:ident ( $($args:expr),* )) => {{
+                let managed_envelope = managed_envelope.try_into()?;
+                let mut state = self.prepare_state(
+                    self.inner.config.clone(),
+                    managed_envelope,
+                    project_id,
+                    project_info,
+                    rate_limits,
+                    sampling_project_info,
+                );
+                // The state is temporarily supplied, until it will be removed.
+                match self.$fn_name(&mut state, $($args),*) {
+                    Ok(()) => Ok(ProcessingStateResult {
+                        managed_envelope: state.managed_envelope.into_processed(),
+                        extracted_metrics: state.extracted_metrics.metrics,
+                    }),
+                    Err(e) => {
+                        if let Some(outcome) = e.to_outcome() {
+                            state.managed_envelope.reject(outcome);
+                        }
+                        return Err(e);
+                    }
+                }
+
+            }};
+        }
+
         macro_rules! run {
             ($fn:ident) => {{
                 let managed_envelope = managed_envelope.try_into()?;
@@ -1903,7 +1927,6 @@ impl EnvelopeProcessorService {
                     project_info,
                     rate_limits,
                     sampling_project_info,
-                    reservoir_counters,
                 );
                 match self.$fn(&mut state) {
                     Ok(()) => Ok(ProcessingStateResult {
@@ -1924,7 +1947,7 @@ impl EnvelopeProcessorService {
 
         match group {
             ProcessingGroup::Error => run!(process_errors),
-            ProcessingGroup::Transaction => run!(process_transactions),
+            ProcessingGroup::Transaction => call!(process_transactions(reservoir_counters)),
             ProcessingGroup::Session => run!(process_sessions),
             ProcessingGroup::Standalone => run!(process_standalone),
             ProcessingGroup::ClientReport => run!(process_client_reports),
