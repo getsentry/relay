@@ -24,8 +24,8 @@ use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::services::outcome::Outcome;
 use crate::services::processor::{
-    EventFullyNormalized, EventProcessing, ExtractedEvent, ProcessEnvelopeState, ProcessingError,
-    MINIMUM_CLOCK_DRIFT,
+    EventFullyNormalized, EventMetricsExtracted, EventProcessing, ExtractedEvent,
+    ProcessEnvelopeState, ProcessingError, SpansExtracted, MINIMUM_CLOCK_DRIFT,
 };
 use crate::services::projects::project::ProjectInfo;
 use crate::statsd::{PlatformTag, RelayCounters, RelayHistograms, RelayTimers};
@@ -43,7 +43,7 @@ pub fn extract<G: EventProcessing>(
     state: &mut ProcessEnvelopeState<G>,
     event_fully_normalized: EventFullyNormalized,
     config: &Config,
-) -> Result<(), ProcessingError> {
+) -> Result<Option<(EventMetricsExtracted, SpansExtracted)>, ProcessingError> {
     let envelope = &mut state.envelope_mut();
 
     // Remove all items first, and then process them. After this function returns, only
@@ -72,6 +72,8 @@ pub fn extract<G: EventProcessing>(
 
     let skip_normalization = config.processing_enabled() && event_fully_normalized.0;
 
+    let mut result = None;
+
     let (event, event_len) = if let Some(item) = event_item.or(security_item) {
         relay_log::trace!("processing json event");
         metric!(timer(RelayTimers::EventProcessingDeserialize), {
@@ -87,8 +89,10 @@ pub fn extract<G: EventProcessing>(
         })
     } else if let Some(item) = transaction_item {
         relay_log::trace!("processing json transaction");
-        state.event_metrics_extracted = item.metrics_extracted();
-        state.spans_extracted = item.spans_extracted();
+        result = Some((
+            EventMetricsExtracted(item.metrics_extracted()),
+            SpansExtracted(item.spans_extracted()),
+        ));
         metric!(timer(RelayTimers::EventProcessingDeserialize), {
             // Transaction items can only contain transaction events. Force the event type to
             // hint to normalization that we're dealing with a transaction now.
@@ -133,7 +137,7 @@ pub fn extract<G: EventProcessing>(
     state.event = event;
     state.metrics.bytes_ingested_event = Annotated::new(event_len as u64);
 
-    Ok(())
+    Ok(result)
 }
 
 pub fn finalize<G: EventProcessing>(
@@ -352,6 +356,8 @@ pub fn scrub<G: EventProcessing>(
 pub fn serialize<G: EventProcessing>(
     state: &mut ProcessEnvelopeState<G>,
     event_fully_normalized: EventFullyNormalized,
+    event_metrics_extracted: EventMetricsExtracted,
+    spans_extracted: SpansExtracted,
 ) -> Result<(), ProcessingError> {
     if state.event.is_empty() {
         relay_log::error!("Cannot serialize empty event");
@@ -371,8 +377,8 @@ pub fn serialize<G: EventProcessing>(
 
     // TODO: The state should simply maintain & update an `ItemHeaders` object.
     // If transaction metrics were extracted, set the corresponding item header
-    event_item.set_metrics_extracted(state.event_metrics_extracted);
-    event_item.set_spans_extracted(state.spans_extracted);
+    event_item.set_metrics_extracted(event_metrics_extracted.0);
+    event_item.set_spans_extracted(spans_extracted.0);
     event_item.set_fully_normalized(event_fully_normalized.0);
 
     state.envelope_mut().add_item(event_item);

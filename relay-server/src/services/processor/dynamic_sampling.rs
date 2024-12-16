@@ -459,8 +459,6 @@ mod tests {
                 )
                 .try_into()
                 .unwrap(),
-                event_metrics_extracted: false,
-                spans_extracted: false,
             };
 
             (state, project_info)
@@ -719,8 +717,6 @@ mod tests {
         let envelope = Envelope::parse_bytes(bytes).unwrap();
         let mut state = ProcessEnvelopeState::<G> {
             event: Annotated::new(Event::default()),
-            event_metrics_extracted: false,
-            spans_extracted: false,
             metrics: Default::default(),
             extracted_metrics: ProcessingExtractedMetrics::new(),
             config: Arc::new(Config::default()),
