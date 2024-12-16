@@ -1288,6 +1288,16 @@ def test_profile_outcomes(
             "reason": "Sampled:3000",
             "source": expected_source,
         },
+        {
+            "category": 22,  # attachment item
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 1,
+            "project_id": 42,
+            "quantity": 1,  # number of attachments
+            "reason": "Sampled:3000",
+            "source": expected_source,
+        },
     ]
     for outcome in outcomes:
         outcome.pop("timestamp")

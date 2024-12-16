@@ -11,7 +11,7 @@ use relay_sampling::config::RuleType;
 use relay_sampling::evaluation::{ReservoirEvaluator, SamplingEvaluator};
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 
-use crate::envelope::ItemType;
+use crate::envelope::{CountFor, ItemType};
 use crate::services::outcome::Outcome;
 use crate::services::processor::{
     EventProcessing, ProcessEnvelopeState, Sampling, TransactionGroup,
@@ -117,18 +117,16 @@ pub fn drop_unsampled_items(state: &mut ProcessEnvelopeState<TransactionGroup>, 
         .take_items_by(|item| *item.ty() != ItemType::Profile);
 
     for item in dropped_items {
-        let Some(category) = item.outcome_category() else {
-            continue;
-        };
+        for (category, quantity) in item.quantities(CountFor::Outcomes) {
+            // Dynamic sampling only drops indexed items. Upgrade the category to the index
+            // category if one exists for this category, for example profiles will be upgraded to profiles indexed,
+            // but attachments are still emitted as attachments.
+            let category = category.index_category().unwrap_or(category);
 
-        // Dynamic sampling only drops indexed items. Upgrade the category to the index
-        // category if one exists for this category, for example profiles will be upgraded to profiles indexed,
-        // but attachments are still emitted as attachments.
-        let category = category.index_category().unwrap_or(category);
-
-        state
-            .managed_envelope
-            .track_outcome(outcome.clone(), category, item.quantity());
+            state
+                .managed_envelope
+                .track_outcome(outcome.clone(), category, quantity);
+        }
     }
 
     // Mark all remaining items in the envelope as un-sampled.
