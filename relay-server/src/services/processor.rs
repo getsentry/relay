@@ -1552,9 +1552,9 @@ impl EnvelopeProcessorService {
         });
 
         // When extracting the event when processing an error, we expect that the result of this
-        // function is unsued since we don't have error metrics and errors are not correlated to
+        // function is unused since we don't have error metrics and errors are not correlated to
         // extracted spans.
-        let _ = event::extract(state, event_fully_normalized, &self.inner.config)?;
+        event::extract(state, event_fully_normalized, &self.inner.config)?;
 
         if_processing!(self.inner.config, {
             if let Some(inner_event_fully_normalized) = unreal::process(state)? {
