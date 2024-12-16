@@ -72,6 +72,7 @@ pub fn validate_and_set_dsc(
 /// Computes the sampling decision on the incoming event
 pub fn run<Group>(
     state: &mut ProcessEnvelopeState<Group>,
+    config: Arc<Config>,
     project_info: Arc<ProjectInfo>,
     sampling_project_info: Option<Arc<ProjectInfo>>,
     reservoir: &ReservoirEvaluator,
@@ -97,7 +98,7 @@ where
     let reservoir = Group::supports_reservoir_sampling().then_some(reservoir);
 
     compute_sampling_decision(
-        state.config.processing_enabled(),
+        config.processing_enabled(),
         reservoir,
         sampling_config,
         state.event.value(),
@@ -451,7 +452,6 @@ mod tests {
                 event: Annotated::from(event),
                 metrics: Default::default(),
                 extracted_metrics: ProcessingExtractedMetrics::new(),
-                config: config.clone(),
                 rate_limits: Default::default(),
                 managed_envelope: ManagedEnvelope::new(
                     envelope,
@@ -470,17 +470,17 @@ mod tests {
 
         // None represents no TransactionMetricsConfig, DS will not be run
         let (mut state, project_info) = get_state(None);
-        let sampling_result = run(&mut state, project_info, None, &reservoir);
+        let sampling_result = run(&mut state, config.clone(), project_info, None, &reservoir);
         assert_eq!(sampling_result.decision(), SamplingDecision::Keep);
 
         // Current version is 3, so it won't run DS if it's outdated
         let (mut state, project_info) = get_state(Some(2));
-        let sampling_result = run(&mut state, project_info, None, &reservoir);
+        let sampling_result = run(&mut state, config.clone(), project_info, None, &reservoir);
         assert_eq!(sampling_result.decision(), SamplingDecision::Keep);
 
         // Dynamic sampling is run, as the transactionmetrics version is up to date.
         let (mut state, project_info) = get_state(Some(3));
-        let sampling_result = run(&mut state, project_info, None, &reservoir);
+        let sampling_result = run(&mut state, config.clone(), project_info, None, &reservoir);
         assert_eq!(sampling_result.decision(), SamplingDecision::Drop);
     }
 
@@ -717,11 +717,11 @@ mod tests {
             r#"{"dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","trace":{"trace_id":"89143b0763095bd9c9955e8175d1fb23","public_key":"e12d836b15bb49d7bbf99e64295d995b"}}"#,
         );
         let envelope = Envelope::parse_bytes(bytes).unwrap();
+        let config = Arc::new(Config::default());
         let mut state = ProcessEnvelopeState::<G> {
             event: Annotated::new(Event::default()),
             metrics: Default::default(),
             extracted_metrics: ProcessingExtractedMetrics::new(),
-            config: Arc::new(Config::default()),
             rate_limits: Default::default(),
             managed_envelope: ManagedEnvelope::new(
                 envelope,
@@ -764,7 +764,13 @@ mod tests {
         };
 
         let reservoir = dummy_reservoir();
-        run(&mut state, project_info, sampling_project_info, &reservoir)
+        run(
+            &mut state,
+            config,
+            project_info,
+            sampling_project_info,
+            &reservoir,
+        )
     }
 
     #[test]

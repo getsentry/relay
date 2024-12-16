@@ -12,7 +12,7 @@ use relay_spans::otel_trace::TracesData;
 
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::services::outcome::{DiscardReason, Outcome};
-use crate::services::processor::SpanGroup;
+use crate::services::processor::{should_filter, SpanGroup};
 use crate::utils::TypedEnvelope;
 use crate::{services::processor::ProcessEnvelopeState, utils::ItemAction};
 
@@ -21,10 +21,15 @@ mod processing;
 use crate::services::projects::project::ProjectInfo;
 #[cfg(feature = "processing")]
 pub use processing::*;
+use relay_config::Config;
 
-pub fn filter(state: &mut ProcessEnvelopeState<SpanGroup>, project_info: Arc<ProjectInfo>) {
-    let disabled = state.should_filter(Feature::StandaloneSpanIngestion, &project_info);
-    let otel_disabled = state.should_filter(Feature::OtelEndpoint, &project_info);
+pub fn filter(
+    state: &mut ProcessEnvelopeState<SpanGroup>,
+    config: Arc<Config>,
+    project_info: Arc<ProjectInfo>,
+) {
+    let disabled = should_filter(&config, Feature::StandaloneSpanIngestion, &project_info);
+    let otel_disabled = should_filter(&config, Feature::OtelEndpoint, &project_info);
 
     state.managed_envelope.retain_items(|item| {
         if disabled && item.is_span() {

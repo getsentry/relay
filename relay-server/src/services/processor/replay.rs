@@ -3,9 +3,18 @@ use std::error::Error;
 use std::net::IpAddr;
 use std::sync::Arc;
 
+use crate::envelope::{ContentType, ItemType};
+use crate::services::outcome::DiscardReason;
+use crate::services::processor::{
+    should_filter, ProcessEnvelopeState, ProcessingError, ReplayGroup,
+};
+use crate::services::projects::project::ProjectInfo;
+use crate::statsd::{RelayCounters, RelayTimers};
+use crate::utils::sample;
 use bytes::Bytes;
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
+use relay_config::Config;
 use relay_dynamic_config::{Feature, GlobalConfig, ProjectConfig};
 use relay_event_normalization::replay::{self, ReplayError};
 use relay_event_normalization::{GeoIpLookup, RawUserAgentInfo};
@@ -17,22 +26,16 @@ use relay_replays::recording::RecordingScrubber;
 use relay_statsd::metric;
 use serde::{Deserialize, Serialize};
 
-use crate::envelope::{ContentType, ItemType};
-use crate::services::outcome::DiscardReason;
-use crate::services::processor::{ProcessEnvelopeState, ProcessingError, ReplayGroup};
-use crate::services::projects::project::ProjectInfo;
-use crate::statsd::{RelayCounters, RelayTimers};
-use crate::utils::sample;
-
 /// Removes replays if the feature flag is not enabled.
 pub fn process(
     state: &mut ProcessEnvelopeState<ReplayGroup>,
-    project_info: Arc<ProjectInfo>,
     global_config: &GlobalConfig,
+    config: Arc<Config>,
+    project_info: Arc<ProjectInfo>,
     geoip_lookup: Option<&GeoIpLookup>,
 ) -> Result<(), ProcessingError> {
-    // If the replay feature is not enabled drop the items silenty.
-    if state.should_filter(Feature::SessionReplay, &project_info) {
+    // If the replay feature is not enabled drop the items silently.
+    if should_filter(&config, Feature::SessionReplay, &project_info) {
         state.managed_envelope.drop_items_silently();
         return Ok(());
     }
@@ -73,7 +76,7 @@ pub fn process(
             .as_ref();
 
         Some(RecordingScrubber::new(
-            state.config.max_replay_uncompressed_size(),
+            config.max_replay_uncompressed_size(),
             rpc.config.pii_config.as_ref(),
             datascrubbing_config,
         ))

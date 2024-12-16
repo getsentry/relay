@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use chrono::{Duration as SignedDuration, Utc};
 use relay_common::time::UnixTimestamp;
+use relay_config::Config;
 use relay_event_normalization::ClockDriftProcessor;
 use relay_event_schema::protocol::{ClientReport, UserReport};
 use relay_filter::FilterStatKey;
@@ -43,12 +44,12 @@ pub enum ClientReportField {
 /// system.
 pub fn process_client_reports(
     state: &mut ProcessEnvelopeState<ClientReportGroup>,
+    config: Arc<Config>,
     project_info: Arc<ProjectInfo>,
     outcome_aggregator: Addr<TrackOutcome>,
 ) {
-    // if client outcomes are disabled we leave the the client reports unprocessed
+    // if client outcomes are disabled we leave the client reports unprocessed
     // and pass them on.
-    let config = &state.config;
     if !config.emit_outcomes().any() || !config.emit_client_outcomes() {
         // if a processing relay has client outcomes disabled we drop them.
         if config.processing_enabled() {
