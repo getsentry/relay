@@ -14,7 +14,7 @@
 
 **Internal**:
 
-- Remove support for metrics with profile namespace. ([4391](https://github.com/getsentry/relay/pull/4391))
+- Remove support for metrics with profile namespace. ([#4391](https://github.com/getsentry/relay/pull/4391))
 
 ## 24.11.2
 
