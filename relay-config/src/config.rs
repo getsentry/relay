@@ -546,6 +546,10 @@ pub struct Metrics {
     /// Setting it to `0` seconds disables the periodic metrics.
     /// Defaults to 5 seconds.
     pub periodic_secs: u64,
+    /// Whether local metric aggregation using statdsproxy should be enabled.
+    ///
+    /// Defaults to `true`.
+    pub aggregate: bool,
 }
 
 impl Default for Metrics {
@@ -557,6 +561,7 @@ impl Default for Metrics {
             hostname_tag: None,
             sample_rate: 1.0,
             periodic_secs: 5,
+            aggregate: true,
         }
     }
 }
@@ -2028,6 +2033,11 @@ impl Config {
     /// Returns the global sample rate for all metrics.
     pub fn metrics_sample_rate(&self) -> f32 {
         self.values.metrics.sample_rate
+    }
+
+    /// Returns whether local metric aggregation should be enabled.
+    pub fn metrics_aggregate(&self) -> bool {
+        self.values.metrics.aggregate
     }
 
     /// Returns the interval for periodic metrics emitted from Relay.

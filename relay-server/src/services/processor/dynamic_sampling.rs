@@ -59,7 +59,10 @@ pub fn ensure_dsc(state: &mut ProcessEnvelopeState<TransactionGroup>) {
 }
 
 /// Computes the sampling decision on the incoming event
-pub fn run<Group>(state: &mut ProcessEnvelopeState<Group>) -> SamplingResult
+pub fn run<Group>(
+    state: &mut ProcessEnvelopeState<Group>,
+    reservoir: &ReservoirEvaluator,
+) -> SamplingResult
 where
     Group: Sampling,
 {
@@ -78,7 +81,7 @@ where
         _ => None,
     };
 
-    let reservoir = Group::supports_reservoir_sampling().then_some(&state.reservoir);
+    let reservoir = Group::supports_reservoir_sampling().then_some(reservoir);
 
     compute_sampling_decision(
         state.config.processing_enabled(),
@@ -231,7 +234,7 @@ mod tests {
 
     use bytes::Bytes;
     use relay_base_schema::events::EventType;
-    use relay_base_schema::project::{ProjectId, ProjectKey};
+    use relay_base_schema::project::ProjectKey;
     use relay_dynamic_config::{MetricExtractionConfig, TransactionMetricsConfig};
     use relay_event_schema::protocol::{EventId, LenientString};
     use relay_protocol::RuleCondition;
@@ -436,7 +439,6 @@ mod tests {
                 project_info,
                 rate_limits: Default::default(),
                 sampling_project_info: None,
-                project_id: ProjectId::new(42),
                 managed_envelope: ManagedEnvelope::new(
                     envelope,
                     outcome_aggregator.clone(),
@@ -446,24 +448,25 @@ mod tests {
                 .try_into()
                 .unwrap(),
                 event_metrics_extracted: false,
-                reservoir: dummy_reservoir(),
                 spans_extracted: false,
             }
         };
 
+        let reservoir = dummy_reservoir();
+
         // None represents no TransactionMetricsConfig, DS will not be run
         let mut state = get_state(None);
-        let sampling_result = run(&mut state);
+        let sampling_result = run(&mut state, &reservoir);
         assert_eq!(sampling_result.decision(), SamplingDecision::Keep);
 
         // Current version is 3, so it won't run DS if it's outdated
         let mut state = get_state(Some(2));
-        let sampling_result = run(&mut state);
+        let sampling_result = run(&mut state, &reservoir);
         assert_eq!(sampling_result.decision(), SamplingDecision::Keep);
 
         // Dynamic sampling is run, as the transactionmetrics version is up to date.
         let mut state = get_state(Some(3));
-        let sampling_result = run(&mut state);
+        let sampling_result = run(&mut state, &reservoir);
         assert_eq!(sampling_result.decision(), SamplingDecision::Drop);
     }
 
@@ -739,7 +742,6 @@ mod tests {
                 }));
                 Some(Arc::new(state))
             },
-            project_id: ProjectId::new(1),
             managed_envelope: ManagedEnvelope::new(
                 envelope,
                 Addr::dummy(),
@@ -748,10 +750,10 @@ mod tests {
             )
             .try_into()
             .unwrap(),
-            reservoir: dummy_reservoir(),
         };
 
-        run(&mut state)
+        let reservoir = dummy_reservoir();
+        run(&mut state, &reservoir)
     }
 
     #[test]

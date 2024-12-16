@@ -1,11 +1,11 @@
 use std::borrow::Cow;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap};
 use std::error::Error;
 use std::fmt::{Debug, Display};
 use std::future::Future;
 use std::io::Write;
 use std::pin::Pin;
-use std::sync::{Arc, Mutex, Once};
+use std::sync::{Arc, Once};
 use std::time::Duration;
 
 use anyhow::Context;
@@ -33,31 +33,12 @@ use relay_metrics::{Bucket, BucketMetadata, BucketView, BucketsView, MetricNames
 use relay_pii::PiiConfigError;
 use relay_protocol::Annotated;
 use relay_quotas::{DataCategory, RateLimits, Scoping};
-use relay_sampling::config::RuleId;
 use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator, SamplingDecision};
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
 use reqwest::header;
 use smallvec::{smallvec, SmallVec};
 use zstd::stream::Encoder as ZstdEncoder;
-
-#[cfg(feature = "processing")]
-use {
-    crate::services::store::{Store, StoreEnvelope},
-    crate::utils::{CheckLimits, Enforcement, EnvelopeLimiter, ItemAction},
-    itertools::Itertools,
-    relay_cardinality::{
-        CardinalityLimit, CardinalityLimiter, CardinalityLimitsSplit, RedisSetLimiter,
-        RedisSetLimiterOptions,
-    },
-    relay_dynamic_config::{CardinalityLimiterMode, GlobalConfig, MetricExtractionGroups},
-    relay_quotas::{Quota, RateLimitingError, RedisRateLimiter},
-    relay_redis::{RedisPool, RedisPools},
-    std::iter::Chain,
-    std::slice::Iter,
-    std::time::Instant,
-    symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
-};
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::envelope::{self, ContentType, Envelope, EnvelopeError, Item, ItemType};
@@ -81,6 +62,24 @@ use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
     self, InvalidProcessingGroupType, ManagedEnvelope, SamplingResult, ThreadPool, TypedEnvelope,
     WorkerGroup,
+};
+use relay_base_schema::organization::OrganizationId;
+#[cfg(feature = "processing")]
+use {
+    crate::services::store::{Store, StoreEnvelope},
+    crate::utils::{CheckLimits, Enforcement, EnvelopeLimiter, ItemAction},
+    itertools::Itertools,
+    relay_cardinality::{
+        CardinalityLimit, CardinalityLimiter, CardinalityLimitsSplit, RedisSetLimiter,
+        RedisSetLimiterOptions,
+    },
+    relay_dynamic_config::{CardinalityLimiterMode, GlobalConfig, MetricExtractionGroups},
+    relay_quotas::{Quota, RateLimitingError, RedisRateLimiter},
+    relay_redis::{RedisPool, RedisPools},
+    std::iter::Chain,
+    std::slice::Iter,
+    std::time::Instant,
+    symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
 mod attachment;
@@ -735,7 +734,7 @@ fn send_metrics(metrics: ExtractedMetrics, envelope: &Envelope, aggregator: &Add
 
 /// A state container for envelope processing.
 #[derive(Debug)]
-struct ProcessEnvelopeState<'a, Group> {
+struct ProcessEnvelopeState<Group> {
     /// The extracted event payload.
     ///
     /// For Envelopes without event payloads, this contains `Annotated::empty`. If a single item has
@@ -777,21 +776,11 @@ struct ProcessEnvelopeState<'a, Group> {
     /// This is the config used for trace-based dynamic sampling.
     sampling_project_info: Option<Arc<ProjectInfo>>,
 
-    /// The id of the project that this envelope is ingested into.
-    ///
-    /// This identifier can differ from the one stated in the Envelope's DSN if the key was moved to
-    /// a new project or on the legacy endpoint. In that case, normalization will update the project
-    /// ID.
-    project_id: ProjectId,
-
     /// The managed envelope before processing.
     managed_envelope: TypedEnvelope<Group>,
-
-    /// Reservoir evaluator that we use for dynamic sampling.
-    reservoir: ReservoirEvaluator<'a>,
 }
 
-impl<Group> ProcessEnvelopeState<'_, Group> {
+impl<Group> ProcessEnvelopeState<Group> {
     /// Returns a reference to the contained [`Envelope`].
     fn envelope(&self) -> &Envelope {
         self.managed_envelope.envelope()
@@ -1234,13 +1223,17 @@ impl EnvelopeProcessorService {
 
     /// Normalize monitor check-ins and remove invalid ones.
     #[cfg(feature = "processing")]
-    fn process_check_ins(&self, state: &mut ProcessEnvelopeState<CheckInGroup>) {
+    fn process_check_ins(
+        &self,
+        state: &mut ProcessEnvelopeState<CheckInGroup>,
+        project_id: ProjectId,
+    ) {
         state.managed_envelope.retain_items(|item| {
             if item.ty() != &ItemType::CheckIn {
                 return ItemAction::Keep;
             }
 
-            match relay_monitors::process_check_in(&item.payload(), state.project_id) {
+            match relay_monitors::process_check_in(&item.payload(), project_id) {
                 Ok(result) => {
                     item.set_routing_hint(result.routing_hint);
                     item.set_payload(ContentType::Json, result.payload);
@@ -1256,60 +1249,6 @@ impl EnvelopeProcessorService {
                 }
             }
         })
-    }
-
-    /// Creates and initializes the processing state.
-    ///
-    /// This applies defaults to the envelope and initializes empty rate limits.
-    #[allow(clippy::too_many_arguments)]
-    fn prepare_state<G>(
-        &self,
-        config: Arc<Config>,
-        mut managed_envelope: TypedEnvelope<G>,
-        project_id: ProjectId,
-        project_info: Arc<ProjectInfo>,
-        rate_limits: Arc<RateLimits>,
-        sampling_project_info: Option<Arc<ProjectInfo>>,
-        reservoir_counters: Arc<Mutex<BTreeMap<RuleId, i64>>>,
-    ) -> ProcessEnvelopeState<G> {
-        let envelope = managed_envelope.envelope_mut();
-
-        // Set the event retention. Effectively, this value will only be available in processing
-        // mode when the full project config is queried from the upstream.
-        if let Some(retention) = project_info.config.event_retention {
-            envelope.set_retention(retention);
-        }
-
-        // Ensure the project ID is updated to the stored instance for this project cache. This can
-        // differ in two cases:
-        //  1. The envelope was sent to the legacy `/store/` endpoint without a project ID.
-        //  2. The DSN was moved and the envelope sent to the old project ID.
-        envelope.meta_mut().set_project_id(project_id);
-
-        #[allow(unused_mut)]
-        let mut reservoir = ReservoirEvaluator::new(reservoir_counters);
-        #[cfg(feature = "processing")]
-        if let Some(quotas_pool) = self.inner.quotas_pool.as_ref() {
-            let org_id = managed_envelope.scoping().organization_id;
-            reservoir.set_redis(org_id, quotas_pool);
-        }
-
-        let extracted_metrics = ProcessingExtractedMetrics::new();
-
-        ProcessEnvelopeState {
-            event: Annotated::empty(),
-            event_metrics_extracted: false,
-            spans_extracted: false,
-            metrics: Metrics::default(),
-            extracted_metrics,
-            project_info,
-            rate_limits,
-            config,
-            sampling_project_info,
-            project_id,
-            managed_envelope,
-            reservoir,
-        }
     }
 
     #[cfg(feature = "processing")]
@@ -1346,6 +1285,7 @@ impl EnvelopeProcessorService {
     fn extract_transaction_metrics(
         &self,
         state: &mut ProcessEnvelopeState<TransactionGroup>,
+        project_id: ProjectId,
         sampling_decision: SamplingDecision,
     ) -> Result<(), ProcessingError> {
         if state.event_metrics_extracted {
@@ -1420,7 +1360,7 @@ impl EnvelopeProcessorService {
             event,
             combined_config,
             sampling_decision,
-            state.project_id,
+            project_id,
             self.inner
                 .config
                 .aggregator_config_for(MetricNamespace::Spans)
@@ -1445,7 +1385,7 @@ impl EnvelopeProcessorService {
                 generic_config: Some(combined_config),
                 transaction_from_dsc,
                 sampling_decision,
-                target_project_id: state.project_id,
+                target_project_id: project_id,
             };
 
             state
@@ -1461,6 +1401,7 @@ impl EnvelopeProcessorService {
     fn normalize_event<G: EventProcessing>(
         &self,
         state: &mut ProcessEnvelopeState<G>,
+        project_id: ProjectId,
         mut event_fully_normalized: EventFullyNormalized,
     ) -> Result<Option<EventFullyNormalized>, ProcessingError> {
         if !state.has_event() {
@@ -1524,7 +1465,7 @@ impl EnvelopeProcessorService {
             }
 
             let normalization_config = NormalizationConfig {
-                project_id: Some(state.project_id.value()),
+                project_id: Some(project_id.value()),
                 client: request_meta.client().map(str::to_owned),
                 key_id,
                 protocol_version: Some(request_meta.version().to_string()),
@@ -1607,6 +1548,7 @@ impl EnvelopeProcessorService {
     fn process_errors(
         &self,
         state: &mut ProcessEnvelopeState<ErrorGroup>,
+        project_id: ProjectId,
     ) -> Result<(), ProcessingError> {
         let mut event_fully_normalized = EventFullyNormalized::new(state.envelope());
 
@@ -1630,7 +1572,7 @@ impl EnvelopeProcessorService {
 
         event::finalize(state, &self.inner.config)?;
         if let Some(inner_event_fully_normalized) =
-            self.normalize_event(state, event_fully_normalized)?
+            self.normalize_event(state, project_id, event_fully_normalized)?
         {
             event_fully_normalized = inner_event_fully_normalized;
         };
@@ -1654,7 +1596,7 @@ impl EnvelopeProcessorService {
 
         if self.inner.config.processing_enabled() && !event_fully_normalized.0 {
             relay_log::error!(
-                tags.project = %state.project_id,
+                tags.project = %project_id,
                 tags.ty = state.event_type().map(|e| e.to_string()).unwrap_or("none".to_owned()),
                 "ingested event without normalizing"
             );
@@ -1667,6 +1609,8 @@ impl EnvelopeProcessorService {
     fn process_transactions(
         &self,
         state: &mut ProcessEnvelopeState<TransactionGroup>,
+        project_id: ProjectId,
+        reservoir_counters: ReservoirCounters,
     ) -> Result<(), ProcessingError> {
         let mut event_fully_normalized = EventFullyNormalized::new(state.envelope());
 
@@ -1674,12 +1618,12 @@ impl EnvelopeProcessorService {
 
         event::extract(state, event_fully_normalized, &self.inner.config)?;
 
-        let profile_id = profile::filter(state);
+        let profile_id = profile::filter(state, project_id);
         profile::transfer_id(state, profile_id);
 
         event::finalize(state, &self.inner.config)?;
         if let Some(inner_event_fully_normalized) =
-            self.normalize_event(state, event_fully_normalized)?
+            self.normalize_event(state, project_id, event_fully_normalized)?
         {
             event_fully_normalized = inner_event_fully_normalized;
         }
@@ -1693,8 +1637,13 @@ impl EnvelopeProcessorService {
         let run_dynamic_sampling =
             matches!(filter_run, FiltersStatus::Ok) || self.inner.config.processing_enabled();
 
+        let reservoir = self.new_reservoir_evaluator(
+            state.managed_envelope.scoping().organization_id,
+            reservoir_counters,
+        );
+
         let sampling_result = match run_dynamic_sampling {
-            true => dynamic_sampling::run(state),
+            true => dynamic_sampling::run(state, &reservoir),
             false => SamplingResult::Pending,
         };
 
@@ -1709,7 +1658,7 @@ impl EnvelopeProcessorService {
             // Before metric extraction to make sure the profile count is reflected correctly.
             profile::process(state, &global_config);
             // Extract metrics here, we're about to drop the event/transaction.
-            self.extract_transaction_metrics(state, SamplingDecision::Drop)?;
+            self.extract_transaction_metrics(state, project_id, SamplingDecision::Drop)?;
 
             dynamic_sampling::drop_unsampled_items(state, outcome);
 
@@ -1736,7 +1685,7 @@ impl EnvelopeProcessorService {
             profile::transfer_id(state, profile_id);
 
             // Always extract metrics in processing Relays for sampled items.
-            self.extract_transaction_metrics(state, SamplingDecision::Keep)?;
+            self.extract_transaction_metrics(state, project_id, SamplingDecision::Keep)?;
 
             if state
                 .project_info
@@ -1757,7 +1706,7 @@ impl EnvelopeProcessorService {
 
         if self.inner.config.processing_enabled() && !event_fully_normalized.0 {
             relay_log::error!(
-                tags.project = %state.project_id,
+                tags.project = %project_id,
                 tags.ty = state.event_type().map(|e| e.to_string()).unwrap_or("none".to_owned()),
                 "ingested event without normalizing"
             );
@@ -1785,8 +1734,9 @@ impl EnvelopeProcessorService {
     fn process_standalone(
         &self,
         state: &mut ProcessEnvelopeState<StandaloneGroup>,
+        project_id: ProjectId,
     ) -> Result<(), ProcessingError> {
-        profile::filter(state);
+        profile::filter(state, project_id);
 
         if_processing!(self.inner.config, {
             self.enforce_quotas(state)?;
@@ -1842,11 +1792,12 @@ impl EnvelopeProcessorService {
     /// Processes cron check-ins.
     fn process_checkins(
         &self,
-        _state: &mut ProcessEnvelopeState<CheckInGroup>,
+        #[allow(unused_variables)] state: &mut ProcessEnvelopeState<CheckInGroup>,
+        #[allow(unused_variables)] project_id: ProjectId,
     ) -> Result<(), ProcessingError> {
         if_processing!(self.inner.config, {
-            self.enforce_quotas(_state)?;
-            self.process_check_ins(_state);
+            self.enforce_quotas(state)?;
+            self.process_check_ins(state, project_id);
         });
         Ok(())
     }
@@ -1857,14 +1808,26 @@ impl EnvelopeProcessorService {
     fn process_standalone_spans(
         &self,
         state: &mut ProcessEnvelopeState<SpanGroup>,
+        #[allow(unused_variables)] project_id: ProjectId,
+        #[allow(unused_variables)] reservoir_counters: ReservoirCounters,
     ) -> Result<(), ProcessingError> {
         span::filter(state);
         span::convert_otel_traces_data(state);
 
         if_processing!(self.inner.config, {
             let global_config = self.inner.global_config.current();
+            let reservoir = self.new_reservoir_evaluator(
+                state.managed_envelope.scoping().organization_id,
+                reservoir_counters,
+            );
 
-            span::process(state, &global_config, self.inner.geoip_lookup.as_ref());
+            span::process(
+                state,
+                project_id,
+                &global_config,
+                self.inner.geoip_lookup.as_ref(),
+                &reservoir,
+            );
 
             self.enforce_quotas(state)?;
         });
@@ -1878,7 +1841,7 @@ impl EnvelopeProcessorService {
         project_info: Arc<ProjectInfo>,
         rate_limits: Arc<RateLimits>,
         sampling_project_info: Option<Arc<ProjectInfo>>,
-        reservoir_counters: Arc<Mutex<BTreeMap<RuleId, i64>>>,
+        reservoir_counters: ReservoirCounters,
     ) -> Result<ProcessingStateResult, ProcessingError> {
         // Get the group from the managed envelope context, and if it's not set, try to guess it
         // from the contents of the envelope.
@@ -1893,19 +1856,39 @@ impl EnvelopeProcessorService {
                 .parametrize_dsc_transaction(&sampling_state.config.tx_name_rules);
         }
 
+        // Set the event retention. Effectively, this value will only be available in processing
+        // mode when the full project config is queried from the upstream.
+        if let Some(retention) = project_info.config.event_retention {
+            managed_envelope.envelope_mut().set_retention(retention);
+        }
+
+        // Ensure the project ID is updated to the stored instance for this project cache. This can
+        // differ in two cases:
+        //  1. The envelope was sent to the legacy `/store/` endpoint without a project ID.
+        //  2. The DSN was moved and the envelope sent to the old project ID.
+        managed_envelope
+            .envelope_mut()
+            .meta_mut()
+            .set_project_id(project_id);
+
         macro_rules! run {
-            ($fn:ident) => {{
+            ($fn_name:ident $(, $args:expr)*) => {{
                 let managed_envelope = managed_envelope.try_into()?;
-                let mut state = self.prepare_state(
-                    self.inner.config.clone(),
-                    managed_envelope,
-                    project_id,
+                let mut state = ProcessEnvelopeState {
+                    event: Annotated::empty(),
+                    event_metrics_extracted: false,
+                    spans_extracted: false,
+                    metrics: Metrics::default(),
+                    extracted_metrics: ProcessingExtractedMetrics::new(),
+                    config: self.inner.config.clone(),
                     project_info,
                     rate_limits,
                     sampling_project_info,
-                    reservoir_counters,
-                );
-                match self.$fn(&mut state) {
+                    managed_envelope,
+                };
+
+                // The state is temporarily supplied, until it will be removed.
+                match self.$fn_name(&mut state, $($args),*) {
                     Ok(()) => Ok(ProcessingStateResult {
                         managed_envelope: state.managed_envelope.into_processed(),
                         extracted_metrics: state.extracted_metrics.metrics,
@@ -1917,20 +1900,23 @@ impl EnvelopeProcessorService {
                         return Err(e);
                     }
                 }
+
             }};
         }
 
         relay_log::trace!("Processing {group} group", group = group.variant());
 
         match group {
-            ProcessingGroup::Error => run!(process_errors),
-            ProcessingGroup::Transaction => run!(process_transactions),
+            ProcessingGroup::Error => run!(process_errors, project_id),
+            ProcessingGroup::Transaction => {
+                run!(process_transactions, project_id, reservoir_counters)
+            }
             ProcessingGroup::Session => run!(process_sessions),
-            ProcessingGroup::Standalone => run!(process_standalone),
+            ProcessingGroup::Standalone => run!(process_standalone, project_id),
             ProcessingGroup::ClientReport => run!(process_client_reports),
             ProcessingGroup::Replay => run!(process_replays),
-            ProcessingGroup::CheckIn => run!(process_checkins),
-            ProcessingGroup::Span => run!(process_standalone_spans),
+            ProcessingGroup::CheckIn => run!(process_checkins, project_id),
+            ProcessingGroup::Span => run!(process_standalone_spans, project_id, reservoir_counters),
             ProcessingGroup::ProfileChunk => run!(process_profile_chunks),
             // Currently is not used.
             ProcessingGroup::Metrics => {
@@ -2807,6 +2793,21 @@ impl EnvelopeProcessorService {
             EnvelopeProcessor::SubmitClientReports(_) => AppFeature::ClientReports.into(),
         }
     }
+
+    fn new_reservoir_evaluator(
+        &self,
+        #[allow(unused_variables)] organization_id: OrganizationId,
+        reservoir_counters: ReservoirCounters,
+    ) -> ReservoirEvaluator {
+        #[allow(unused_mut)]
+        let mut reservoir = ReservoirEvaluator::new(reservoir_counters);
+        #[cfg(feature = "processing")]
+        if let Some(quotas_pool) = self.inner.quotas_pool.as_ref() {
+            reservoir.set_redis(organization_id, quotas_pool);
+        }
+
+        reservoir
+    }
 }
 
 impl Service for EnvelopeProcessorService {
@@ -3231,6 +3232,7 @@ impl<'a> IntoIterator for CombinedQuotas<'a> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
     use std::env;
 
     use insta::assert_debug_snapshot;
