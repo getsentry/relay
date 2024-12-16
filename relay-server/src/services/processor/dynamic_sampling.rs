@@ -1,4 +1,6 @@
 //! Dynamic sampling processor related code.
+use std::ops::ControlFlow;
+use std::sync::Arc;
 
 use chrono::Utc;
 use relay_config::Config;
@@ -8,8 +10,6 @@ use relay_protocol::{Annotated, Empty};
 use relay_sampling::config::RuleType;
 use relay_sampling::evaluation::{ReservoirEvaluator, SamplingEvaluator};
 use relay_sampling::{DynamicSamplingContext, SamplingConfig};
-use std::ops::ControlFlow;
-use std::sync::Arc;
 
 use crate::envelope::ItemType;
 use crate::services::outcome::Outcome;

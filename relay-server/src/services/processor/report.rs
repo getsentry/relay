@@ -1,5 +1,9 @@
 //! Contains code related to validation and normalization of the user and client reports.
 
+use std::collections::BTreeMap;
+use std::error::Error;
+use std::sync::Arc;
+
 use chrono::{Duration as SignedDuration, Utc};
 use relay_common::time::UnixTimestamp;
 use relay_event_normalization::ClockDriftProcessor;
@@ -8,9 +12,6 @@ use relay_filter::FilterStatKey;
 use relay_quotas::ReasonCode;
 use relay_sampling::evaluation::MatchedRuleIds;
 use relay_system::Addr;
-use std::collections::BTreeMap;
-use std::error::Error;
-use std::sync::Arc;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::envelope::{ContentType, ItemType};

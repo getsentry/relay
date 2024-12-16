@@ -1,4 +1,8 @@
 //! Replay related processor code.
+use std::error::Error;
+use std::net::IpAddr;
+use std::sync::Arc;
+
 use bytes::Bytes;
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
@@ -12,9 +16,6 @@ use relay_protocol::Annotated;
 use relay_replays::recording::RecordingScrubber;
 use relay_statsd::metric;
 use serde::{Deserialize, Serialize};
-use std::error::Error;
-use std::net::IpAddr;
-use std::sync::Arc;
 
 use crate::envelope::{ContentType, ItemType};
 use crate::services::outcome::DiscardReason;

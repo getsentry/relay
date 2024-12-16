@@ -3,16 +3,6 @@
 use std::error::Error;
 use std::sync::{Arc, OnceLock};
 
-use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
-use crate::extractors::RequestMeta;
-use crate::services::outcome::Outcome;
-use crate::services::processor::{
-    EventFullyNormalized, EventProcessing, ExtractedEvent, ProcessEnvelopeState, ProcessingError,
-    MINIMUM_CLOCK_DRIFT,
-};
-use crate::services::projects::project::ProjectInfo;
-use crate::statsd::{PlatformTag, RelayCounters, RelayHistograms, RelayTimers};
-use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter};
 use chrono::Duration as SignedDuration;
 use relay_auth::RelayVersion;
 use relay_base_schema::events::EventType;
@@ -29,6 +19,17 @@ use relay_protocol::{Annotated, Array, Empty, Object, Value};
 use relay_quotas::DataCategory;
 use relay_statsd::metric;
 use serde_json::Value as SerdeValue;
+
+use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
+use crate::extractors::RequestMeta;
+use crate::services::outcome::Outcome;
+use crate::services::processor::{
+    EventFullyNormalized, EventProcessing, ExtractedEvent, ProcessEnvelopeState, ProcessingError,
+    MINIMUM_CLOCK_DRIFT,
+};
+use crate::services::projects::project::ProjectInfo;
+use crate::statsd::{PlatformTag, RelayCounters, RelayHistograms, RelayTimers};
+use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter};
 
 /// Extracts the primary event payload from an envelope.
 ///

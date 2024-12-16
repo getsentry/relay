@@ -1,5 +1,9 @@
 //! Contains the sessions related processor code.
 
+use std::error::Error;
+use std::net;
+use std::sync::Arc;
+
 use chrono::{DateTime, Duration as SignedDuration, Utc};
 use relay_config::Config;
 use relay_dynamic_config::SessionMetricsConfig;
@@ -9,9 +13,6 @@ use relay_event_schema::protocol::{
 };
 use relay_metrics::Bucket;
 use relay_statsd::metric;
-use std::error::Error;
-use std::net;
-use std::sync::Arc;
 
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::services::processor::{ProcessEnvelopeState, SessionGroup, MINIMUM_CLOCK_DRIFT};

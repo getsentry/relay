@@ -1,5 +1,8 @@
 //! Contains the processing-only functionality.
 
+use std::error::Error;
+use std::sync::Arc;
+
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::metrics_extraction::{event, generic};
 use crate::services::outcome::{DiscardReason, Outcome};
@@ -35,8 +38,6 @@ use relay_protocol::{Annotated, Empty, Value};
 use relay_quotas::DataCategory;
 use relay_sampling::evaluation::ReservoirEvaluator;
 use relay_spans::otel_trace::Span as OtelSpan;
-use std::error::Error;
-use std::sync::Arc;
 use thiserror::Error;
 
 #[derive(Error, Debug)]

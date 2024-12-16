@@ -1,5 +1,7 @@
 //! Processor code related to standalone spans.
 
+use std::sync::Arc;
+
 use prost::Message;
 use relay_dynamic_config::Feature;
 use relay_event_normalization::span::tag_extraction;
@@ -7,7 +9,6 @@ use relay_event_schema::protocol::{Event, Span};
 use relay_protocol::Annotated;
 use relay_quotas::DataCategory;
 use relay_spans::otel_trace::TracesData;
-use std::sync::Arc;
 
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::services::outcome::{DiscardReason, Outcome};
