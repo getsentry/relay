@@ -663,17 +663,6 @@ impl StoreService {
                 );
                 return Ok(());
             }
-            MetricNamespace::Profiles => {
-                if !self
-                    .global_config
-                    .current()
-                    .options
-                    .profiles_function_generic_metrics_enabled
-                {
-                    return Ok(());
-                }
-                KafkaTopic::MetricsGeneric
-            }
             _ => KafkaTopic::MetricsGeneric,
         };
         let headers = BTreeMap::from([("namespace".to_string(), namespace.to_string())]);
@@ -1346,7 +1335,6 @@ impl Message for KafkaMessage<'_> {
                 MetricNamespace::Sessions => "metric_sessions",
                 MetricNamespace::Transactions => "metric_transactions",
                 MetricNamespace::Spans => "metric_spans",
-                MetricNamespace::Profiles => "metric_profiles",
                 MetricNamespace::Custom => "metric_custom",
                 MetricNamespace::Stats => "metric_metric_stats",
                 MetricNamespace::Unsupported => "metric_unsupported",
