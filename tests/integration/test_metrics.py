@@ -2166,3 +2166,17 @@ def test_metrics_extraction_with_computed_context_filters(
     metrics = metrics_consumer.get_metrics()
     for metric, _ in metrics:
         assert metric["name"] not in metric_names
+
+
+def test_profiles_metrics(mini_sentry, relay):
+    relay = relay(mini_sentry, options=TEST_CONFIG)
+
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
+
+    timestamp = int(datetime.now(tz=timezone.utc).timestamp())
+    metrics_payload = f"profiles/foo:42|c|T{timestamp}\nprofiles/bar:17|c|T{timestamp}"
+
+    relay.send_metrics(project_id, metrics_payload)
+
+    assert mini_sentry.captured_events.empty()
