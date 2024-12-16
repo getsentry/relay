@@ -742,14 +742,6 @@ struct ProcessEnvelopeState<Group> {
     /// extracted.
     event: Annotated<Event>,
 
-    /// Track whether transaction metrics were already extracted.
-    event_metrics_extracted: bool,
-
-    /// Track whether spans and span metrics were already extracted.
-    ///
-    /// Only applies to envelopes with a transaction item.
-    spans_extracted: bool,
-
     /// Partial metrics of the Event during construction.
     ///
     /// The pipeline stages can add to this metrics objects. In `finalize_event`, the metrics are
@@ -1148,6 +1140,14 @@ impl EventFullyNormalized {
     }
 }
 
+/// New type representing whether metrics were extracted from transactions/spans.
+#[derive(Copy, Clone)]
+struct EventMetricsExtracted(pub bool);
+
+/// New type representing whether spans were extracted.
+#[derive(Copy, Clone)]
+struct SpansExtracted(pub bool);
+
 impl EnvelopeProcessorService {
     /// Creates a multi-threaded envelope processor.
     #[cfg_attr(feature = "processing", expect(clippy::too_many_arguments))]
@@ -1283,12 +1283,14 @@ impl EnvelopeProcessorService {
         project_id: ProjectId,
         project_info: Arc<ProjectInfo>,
         sampling_decision: SamplingDecision,
-    ) -> Result<(), ProcessingError> {
-        if state.event_metrics_extracted {
-            return Ok(());
+        event_metrics_extracted: EventMetricsExtracted,
+        spans_extracted: SpansExtracted,
+    ) -> Result<EventMetricsExtracted, ProcessingError> {
+        if event_metrics_extracted.0 {
+            return Ok(event_metrics_extracted);
         }
         let Some(event) = state.event.value_mut() else {
-            return Ok(());
+            return Ok(event_metrics_extracted);
         };
 
         // NOTE: This function requires a `metric_extraction` in the project config. Legacy configs
@@ -1298,7 +1300,7 @@ impl EnvelopeProcessorService {
         let combined_config = {
             let config = match &project_info.config.metric_extraction {
                 ErrorBoundary::Ok(ref config) if config.is_supported() => config,
-                _ => return Ok(()),
+                _ => return Ok(event_metrics_extracted),
             };
             let global_config = match &global.metric_extraction {
                 ErrorBoundary::Ok(global_config) => global_config,
@@ -1313,7 +1315,7 @@ impl EnvelopeProcessorService {
                         // If there's an error with global metrics extraction, it is safe to assume that this
                         // Relay instance is not up-to-date, and we should skip extraction.
                         relay_log::debug!("Failed to parse global extraction config: {e}");
-                        return Ok(());
+                        return Ok(event_metrics_extracted);
                     })
                 }
             };
@@ -1325,11 +1327,11 @@ impl EnvelopeProcessorService {
             Some(ErrorBoundary::Ok(tx_config)) => tx_config,
             Some(ErrorBoundary::Err(e)) => {
                 relay_log::debug!("Failed to parse legacy transaction metrics config: {e}");
-                return Ok(());
+                return Ok(event_metrics_extracted);
             }
             None => {
                 relay_log::debug!("Legacy transaction metrics config is missing");
-                return Ok(());
+                return Ok(event_metrics_extracted);
             }
         };
 
@@ -1344,11 +1346,11 @@ impl EnvelopeProcessorService {
                 }
             });
 
-            return Ok(());
+            return Ok(event_metrics_extracted);
         }
 
         // If spans were already extracted for an event, we rely on span processing to extract metrics.
-        let extract_spans = !state.spans_extracted
+        let extract_spans = !spans_extracted.0
             && project_info.config.features.produces_spans()
             && utils::sample(global.options.span_extraction_sample_rate.unwrap_or(1.0));
 
@@ -1389,9 +1391,7 @@ impl EnvelopeProcessorService {
                 .extend(extractor.extract(event)?, Some(sampling_decision));
         }
 
-        state.event_metrics_extracted = true;
-
-        Ok(())
+        Ok(EventMetricsExtracted(true))
     }
 
     fn normalize_event<G: EventProcessing>(
@@ -1400,20 +1400,20 @@ impl EnvelopeProcessorService {
         project_id: ProjectId,
         project_info: Arc<ProjectInfo>,
         mut event_fully_normalized: EventFullyNormalized,
-    ) -> Result<Option<EventFullyNormalized>, ProcessingError> {
+    ) -> Result<EventFullyNormalized, ProcessingError> {
         if !state.has_event() {
             // NOTE(iker): only processing relays create events from
             // attachments, so these events won't be normalized in
             // non-processing relays even if the config is set to run full
             // normalization.
-            return Ok(None);
+            return Ok(event_fully_normalized);
         }
 
         let full_normalization = match self.inner.config.normalization_level() {
             NormalizationLevel::Full => true,
             NormalizationLevel::Default => {
                 if self.inner.config.processing_enabled() && event_fully_normalized.0 {
-                    return Ok(None);
+                    return Ok(event_fully_normalized);
                 }
 
                 self.inner.config.processing_enabled()
@@ -1531,7 +1531,7 @@ impl EnvelopeProcessorService {
 
         event_fully_normalized.0 |= full_normalization;
 
-        Ok(Some(event_fully_normalized))
+        Ok(event_fully_normalized)
     }
 
     /// Processes the general errors, and the items which require or create the events.
@@ -1551,7 +1551,10 @@ impl EnvelopeProcessorService {
             unreal::expand(state, &self.inner.config)?;
         });
 
-        event::extract(state, event_fully_normalized, &self.inner.config)?;
+        // When extracting the event when processing an error, we expect that the result of this
+        // function is unsued since we don't have error metrics and errors are not correlated to
+        // extracted spans.
+        let _ = event::extract(state, event_fully_normalized, &self.inner.config)?;
 
         if_processing!(self.inner.config, {
             if let Some(inner_event_fully_normalized) = unreal::process(state)? {
@@ -1563,14 +1566,12 @@ impl EnvelopeProcessorService {
         });
 
         event::finalize(state, &self.inner.config)?;
-        if let Some(inner_event_fully_normalized) = self.normalize_event(
+        event_fully_normalized = self.normalize_event(
             state,
             project_id,
             project_info.clone(),
             event_fully_normalized,
-        )? {
-            event_fully_normalized = inner_event_fully_normalized;
-        };
+        )?;
         let filter_run = event::filter(
             state,
             project_info.clone(),
@@ -1591,7 +1592,12 @@ impl EnvelopeProcessorService {
 
         if state.has_event() {
             event::scrub(state, project_info.clone())?;
-            event::serialize(state, event_fully_normalized)?;
+            event::serialize(
+                state,
+                event_fully_normalized,
+                EventMetricsExtracted(false),
+                SpansExtracted(false),
+            )?;
             event::emit_feedback_metrics(state.envelope());
         }
 
@@ -1618,23 +1624,28 @@ impl EnvelopeProcessorService {
         reservoir_counters: ReservoirCounters,
     ) -> Result<(), ProcessingError> {
         let mut event_fully_normalized = EventFullyNormalized::new(state.envelope());
+        let mut event_metrics_extracted = EventMetricsExtracted(false);
+        let mut spans_extracted = SpansExtracted(false);
 
         let global_config = self.inner.global_config.current();
 
-        event::extract(state, event_fully_normalized, &self.inner.config)?;
+        if let Some((inner_event_metrics_extracted, inner_spans_extracted)) =
+            event::extract(state, event_fully_normalized, &self.inner.config)?
+        {
+            event_metrics_extracted = inner_event_metrics_extracted;
+            spans_extracted = inner_spans_extracted;
+        };
 
         let profile_id = profile::filter(state, project_id, project_info.clone());
         profile::transfer_id(state, profile_id);
 
         event::finalize(state, &self.inner.config)?;
-        if let Some(inner_event_fully_normalized) = self.normalize_event(
+        event_fully_normalized = self.normalize_event(
             state,
             project_id,
             project_info.clone(),
             event_fully_normalized,
-        )? {
-            event_fully_normalized = inner_event_fully_normalized;
-        }
+        )?;
 
         sampling_project_info = dynamic_sampling::validate_and_set_dsc(
             state,
@@ -1679,11 +1690,13 @@ impl EnvelopeProcessorService {
             // Before metric extraction to make sure the profile count is reflected correctly.
             profile::process(state, project_info.clone(), &global_config);
             // Extract metrics here, we're about to drop the event/transaction.
-            self.extract_transaction_metrics(
+            event_metrics_extracted = self.extract_transaction_metrics(
                 state,
                 project_id,
                 project_info.clone(),
                 SamplingDecision::Drop,
+                event_metrics_extracted,
+                spans_extracted,
             )?;
 
             dynamic_sampling::drop_unsampled_items(state, outcome);
@@ -1711,11 +1724,13 @@ impl EnvelopeProcessorService {
             profile::transfer_id(state, profile_id);
 
             // Always extract metrics in processing Relays for sampled items.
-            self.extract_transaction_metrics(
+            event_metrics_extracted = self.extract_transaction_metrics(
                 state,
                 project_id,
                 project_info.clone(),
                 SamplingDecision::Keep,
+                event_metrics_extracted,
+                spans_extracted,
             )?;
 
             if project_info.has_feature(Feature::ExtractSpansFromEvent) {
@@ -1734,7 +1749,12 @@ impl EnvelopeProcessorService {
 
         // Event may have been dropped because of a quota and the envelope can be empty.
         if state.has_event() {
-            event::serialize(state, event_fully_normalized)?;
+            event::serialize(
+                state,
+                event_fully_normalized,
+                event_metrics_extracted,
+                spans_extracted,
+            )?;
         }
 
         if self.inner.config.processing_enabled() && !event_fully_normalized.0 {
@@ -1925,8 +1945,6 @@ impl EnvelopeProcessorService {
                 let managed_envelope = managed_envelope.try_into()?;
                 let mut state = ProcessEnvelopeState {
                     event: Annotated::empty(),
-                    event_metrics_extracted: false,
-                    spans_extracted: false,
                     metrics: Metrics::default(),
                     extracted_metrics: ProcessingExtractedMetrics::new(),
                     config: self.inner.config.clone(),
