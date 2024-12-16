@@ -1126,7 +1126,7 @@ struct InnerProcessor {
 
 /// New type representing the normalization state of the event.
 #[derive(Copy, Clone)]
-struct EventFullyNormalized(pub bool);
+struct EventFullyNormalized(bool);
 
 impl EventFullyNormalized {
     /// Returns `true` if the event is fully normalized, `false` otherwise.
@@ -1142,11 +1142,11 @@ impl EventFullyNormalized {
 
 /// New type representing whether metrics were extracted from transactions/spans.
 #[derive(Copy, Clone)]
-struct EventMetricsExtracted(pub bool);
+struct EventMetricsExtracted(bool);
 
 /// New type representing whether spans were extracted.
 #[derive(Copy, Clone)]
-struct SpansExtracted(pub bool);
+struct SpansExtracted(bool);
 
 impl EnvelopeProcessorService {
     /// Creates a multi-threaded envelope processor.
