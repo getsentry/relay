@@ -363,7 +363,7 @@ where
             return Ok(None);
         };
         let project_key_pair = *key;
-        let envelope = stack.pop().await.unwrap().expect("found an empty stack");
+        let envelope = stack.pop().await?.expect("found an empty stack");
 
         let last_received_at = stack.peek().await?;
 
