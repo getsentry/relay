@@ -2170,7 +2170,11 @@
 <a href="#2169" id="2169">2169</a>
 <a href="#2170" id="2170">2170</a>
 <a href="#2171" id="2171">2171</a>
-<a href="#2172" id="2172">2172</a></pre></div><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.
+<a href="#2172" id="2172">2172</a>
+<a href="#2173" id="2173">2173</a>
+<a href="#2174" id="2174">2174</a>
+<a href="#2175" id="2175">2175</a>
+<a href="#2176" id="2176">2176</a></pre></div><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.
 //!
 //! Envelopes are containers for payloads related to Sentry events. Similar to multipart form data
 //! requests, each envelope has global headers and a set of items, such as the event payload, an
@@ -2221,7 +2225,7 @@
 <span class="kw">use </span>relay_sampling::DynamicSamplingContext;
 <span class="kw">use </span>serde::de::DeserializeOwned;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
-<span class="kw">use </span>smallvec::SmallVec;
+<span class="kw">use </span>smallvec::{smallvec, SmallVec};
 
 <span class="kw">use </span><span class="kw">crate</span>::constants::DEFAULT_EVENT_RETENTION;
 <span class="kw">use </span><span class="kw">crate</span>::extractors::{PartialMeta, RequestMeta};
@@ -2804,6 +2808,14 @@
     payload: Bytes,
 }
 
+<span class="doccomment">/// Expresses the purpose of counting quantities.
+///
+/// Sessions are counted for rate limiting enforcement but not for outcome reporting.
+</span><span class="kw">pub enum </span>CountFor {
+    RateLimits,
+    Outcomes,
+}
+
 <span class="kw">impl </span>Item {
     <span class="doccomment">/// Creates a new item with the given type.
     </span><span class="kw">pub fn </span>new(ty: ItemType) -&gt; <span class="self">Self </span>{
@@ -2842,13 +2854,38 @@
     <span class="doccomment">/// Returns the number used for counting towards rate limits and producing outcomes.
     ///
     /// For attachments, we count the number of bytes. Other items are counted as 1.
-    </span><span class="kw">pub fn </span>quantity(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+    </span><span class="kw">pub fn </span>quantities(<span class="kw-2">&amp;</span><span class="self">self</span>, purpose: CountFor) -&gt; SmallVec&lt;[(DataCategory, usize); <span class="number">1</span>]&gt; {
         <span class="kw">match </span><span class="self">self</span>.ty() {
-            ItemType::Attachment =&gt; <span class="self">self</span>.len().max(<span class="number">1</span>),
-            <span class="comment">// NOTE: This is semantically wrong. An otel trace contains may contain many spans,
-            // but we cannot easily count these before converting the trace into a series of spans.
-            </span>ItemType::OtelTracesData =&gt; <span class="number">1</span>,
-            <span class="kw">_ </span>=&gt; <span class="number">1</span>,
+            ItemType::Event =&gt; <span class="macro">smallvec!</span>[(DataCategory::Error, <span class="number">1</span>)],
+            ItemType::Transaction =&gt; <span class="macro">smallvec!</span>[(DataCategory::Transaction, <span class="number">1</span>)],
+            ItemType::Security | ItemType::RawSecurity =&gt; {
+                <span class="macro">smallvec!</span>[(DataCategory::Security, <span class="number">1</span>)]
+            }
+            ItemType::Nel =&gt; <span class="macro">smallvec!</span>[],
+            ItemType::UnrealReport =&gt; <span class="macro">smallvec!</span>[(DataCategory::Error, <span class="number">1</span>)],
+            ItemType::Attachment =&gt; <span class="macro">smallvec!</span>[
+                (DataCategory::Attachment, <span class="self">self</span>.len().max(<span class="number">1</span>)),
+                (DataCategory::AttachmentItem, <span class="number">1</span>)
+            ],
+            ItemType::Session | ItemType::Sessions =&gt; <span class="kw">match </span>purpose {
+                CountFor::RateLimits =&gt; <span class="macro">smallvec!</span>[(DataCategory::Session, <span class="number">1</span>)],
+                CountFor::Outcomes =&gt; <span class="macro">smallvec!</span>[],
+            },
+            ItemType::Statsd | ItemType::MetricBuckets =&gt; <span class="macro">smallvec!</span>[],
+            ItemType::FormData =&gt; <span class="macro">smallvec!</span>[],
+            ItemType::UserReport =&gt; <span class="macro">smallvec!</span>[],
+            ItemType::UserReportV2 =&gt; <span class="macro">smallvec!</span>[(DataCategory::UserReportV2, <span class="number">1</span>)],
+            ItemType::Profile =&gt; <span class="macro">smallvec!</span>[(DataCategory::Profile, <span class="number">1</span>)],
+            ItemType::ReplayEvent | ItemType::ReplayRecording | ItemType::ReplayVideo =&gt; {
+                <span class="macro">smallvec!</span>[(DataCategory::Replay, <span class="number">1</span>)]
+            }
+            ItemType::ClientReport =&gt; <span class="macro">smallvec!</span>[],
+            ItemType::CheckIn =&gt; <span class="macro">smallvec!</span>[(DataCategory::Monitor, <span class="number">1</span>)],
+            ItemType::Span | ItemType::OtelSpan =&gt; <span class="macro">smallvec!</span>[(DataCategory::Span, <span class="number">1</span>)],
+            <span class="comment">// NOTE: semantically wrong, but too expensive to parse.
+            </span>ItemType::OtelTracesData =&gt; <span class="macro">smallvec!</span>[(DataCategory::Span, <span class="number">1</span>)],
+            ItemType::ProfileChunk =&gt; <span class="macro">smallvec!</span>[(DataCategory::ProfileChunk, <span class="number">1</span>)], <span class="comment">// TODO: should be seconds?
+            </span>ItemType::Unknown(<span class="kw">_</span>) =&gt; <span class="macro">smallvec!</span>[],
         }
     }
 
@@ -2858,35 +2895,6 @@
             <span class="self">self</span>.ty(),
             ItemType::OtelSpan | ItemType::Span | ItemType::OtelTracesData
         )
-    }
-
-    <span class="doccomment">/// Returns the data category used for generating outcomes.
-    ///
-    /// Returns `None` if outcomes are not generated for this type (e.g. sessions).
-    </span><span class="kw">pub fn </span>outcome_category(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;DataCategory&gt; {
-        <span class="kw">match </span><span class="self">self</span>.ty() {
-            ItemType::Event =&gt; <span class="prelude-val">Some</span>(DataCategory::Error),
-            ItemType::Transaction =&gt; <span class="prelude-val">Some</span>(DataCategory::Transaction),
-            ItemType::Security | ItemType::RawSecurity =&gt; <span class="prelude-val">Some</span>(DataCategory::Security),
-            ItemType::Nel =&gt; <span class="prelude-val">None</span>,
-            ItemType::UnrealReport =&gt; <span class="prelude-val">Some</span>(DataCategory::Error),
-            ItemType::Attachment =&gt; <span class="prelude-val">Some</span>(DataCategory::Attachment),
-            ItemType::Session | ItemType::Sessions =&gt; <span class="prelude-val">None</span>,
-            ItemType::Statsd | ItemType::MetricBuckets =&gt; <span class="prelude-val">None</span>,
-            ItemType::FormData =&gt; <span class="prelude-val">None</span>,
-            ItemType::UserReport =&gt; <span class="prelude-val">None</span>,
-            ItemType::UserReportV2 =&gt; <span class="prelude-val">Some</span>(DataCategory::UserReportV2),
-            ItemType::Profile =&gt; <span class="prelude-val">Some</span>(DataCategory::Profile),
-            ItemType::ReplayEvent | ItemType::ReplayRecording | ItemType::ReplayVideo =&gt; {
-                <span class="prelude-val">Some</span>(DataCategory::Replay)
-            }
-            ItemType::ClientReport =&gt; <span class="prelude-val">None</span>,
-            ItemType::CheckIn =&gt; <span class="prelude-val">Some</span>(DataCategory::Monitor),
-            ItemType::Span | ItemType::OtelSpan =&gt; <span class="prelude-val">Some</span>(DataCategory::Span),
-            ItemType::OtelTracesData =&gt; <span class="prelude-val">None</span>,
-            ItemType::ProfileChunk =&gt; <span class="prelude-val">Some</span>(DataCategory::ProfileChunk),
-            ItemType::Unknown(<span class="kw">_</span>) =&gt; <span class="prelude-val">None</span>,
-        }
     }
 
     <span class="doccomment">/// Returns `true` if this item's payload is empty.

@@ -583,7 +583,7 @@
 <span class="kw">use </span>relay_quotas::{DataCategory, Scoping};
 <span class="kw">use </span>relay_system::Addr;
 
-<span class="kw">use </span><span class="kw">crate</span>::envelope::{Envelope, Item};
+<span class="kw">use </span><span class="kw">crate</span>::envelope::{CountFor, Envelope, Item};
 <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{Processed, ProcessingGroup};
@@ -625,7 +625,6 @@
     <span class="doccomment">/// Keep the item.
     </span>Keep,
     <span class="doccomment">/// Drop the item and log an outcome for it.
-    /// The outcome will only be logged if the item has a corresponding [`Item::outcome_category()`].
     </span>Drop(Outcome),
     <span class="doccomment">/// Drop the item without logging an outcome.
     </span>DropSilently,
@@ -836,12 +835,13 @@
             ItemAction::Keep =&gt; <span class="bool-val">true</span>,
             ItemAction::DropSilently =&gt; <span class="bool-val">false</span>,
             ItemAction::Drop(outcome) =&gt; {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(category) = item.outcome_category() {
+                <span class="kw">for </span>(category, quantity) <span class="kw">in </span>item.quantities(CountFor::Outcomes) {
                     <span class="kw">if let </span><span class="prelude-val">Some</span>(indexed) = category.index_category() {
-                        outcomes.push((outcome.clone(), indexed, item.quantity()));
+                        outcomes.push((outcome.clone(), indexed, quantity));
                     };
-                    outcomes.push((outcome, category, item.quantity()));
-                };
+                    outcomes.push((outcome.clone(), category, quantity));
+                }
+
                 <span class="bool-val">false
             </span>}
         });
@@ -933,7 +933,7 @@
                     tags.has_transactions = summary.secondary_transaction_quantity &gt; <span class="number">0</span>,
                     tags.has_span_metrics = summary.secondary_span_quantity &gt; <span class="number">0</span>,
                     tags.has_replays = summary.replay_quantity &gt; <span class="number">0</span>,
-                    tags.has_checkins = summary.checkin_quantity &gt; <span class="number">0</span>,
+                    tags.has_checkins = summary.monitor_quantity &gt; <span class="number">0</span>,
                     tags.event_category = <span class="question-mark">?</span>summary.event_category,
                     cached_summary = <span class="question-mark">?</span>summary,
                     recomputed_summary = <span class="question-mark">?</span>EnvelopeSummary::compute(<span class="self">self</span>.envelope()),

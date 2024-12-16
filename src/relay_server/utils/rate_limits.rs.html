@@ -1570,14 +1570,57 @@
 <a href="#1569" id="1569">1569</a>
 <a href="#1570" id="1570">1570</a>
 <a href="#1571" id="1571">1571</a>
-<a href="#1572" id="1572">1572</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt::{<span class="self">self</span>, Write};
+<a href="#1572" id="1572">1572</a>
+<a href="#1573" id="1573">1573</a>
+<a href="#1574" id="1574">1574</a>
+<a href="#1575" id="1575">1575</a>
+<a href="#1576" id="1576">1576</a>
+<a href="#1577" id="1577">1577</a>
+<a href="#1578" id="1578">1578</a>
+<a href="#1579" id="1579">1579</a>
+<a href="#1580" id="1580">1580</a>
+<a href="#1581" id="1581">1581</a>
+<a href="#1582" id="1582">1582</a>
+<a href="#1583" id="1583">1583</a>
+<a href="#1584" id="1584">1584</a>
+<a href="#1585" id="1585">1585</a>
+<a href="#1586" id="1586">1586</a>
+<a href="#1587" id="1587">1587</a>
+<a href="#1588" id="1588">1588</a>
+<a href="#1589" id="1589">1589</a>
+<a href="#1590" id="1590">1590</a>
+<a href="#1591" id="1591">1591</a>
+<a href="#1592" id="1592">1592</a>
+<a href="#1593" id="1593">1593</a>
+<a href="#1594" id="1594">1594</a>
+<a href="#1595" id="1595">1595</a>
+<a href="#1596" id="1596">1596</a>
+<a href="#1597" id="1597">1597</a>
+<a href="#1598" id="1598">1598</a>
+<a href="#1599" id="1599">1599</a>
+<a href="#1600" id="1600">1600</a>
+<a href="#1601" id="1601">1601</a>
+<a href="#1602" id="1602">1602</a>
+<a href="#1603" id="1603">1603</a>
+<a href="#1604" id="1604">1604</a>
+<a href="#1605" id="1605">1605</a>
+<a href="#1606" id="1606">1606</a>
+<a href="#1607" id="1607">1607</a>
+<a href="#1608" id="1608">1608</a>
+<a href="#1609" id="1609">1609</a>
+<a href="#1610" id="1610">1610</a>
+<a href="#1611" id="1611">1611</a>
+<a href="#1612" id="1612">1612</a>
+<a href="#1613" id="1613">1613</a>
+<a href="#1614" id="1614">1614</a>
+<a href="#1615" id="1615">1615</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt::{<span class="self">self</span>, Write};
 
 <span class="kw">use </span>relay_quotas::{
     DataCategories, DataCategory, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits,
     ReasonCode, Scoping,
 };
 
-<span class="kw">use </span><span class="kw">crate</span>::envelope::{Envelope, Item, ItemType};
+<span class="kw">use </span><span class="kw">crate</span>::envelope::{CountFor, Envelope, Item, ItemType};
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::Outcome;
 <span class="kw">use </span><span class="kw">crate</span>::utils::ManagedEnvelope;
 
@@ -1721,6 +1764,9 @@
     <span class="doccomment">/// The quantity of all attachments combined in bytes.
     </span><span class="kw">pub </span>attachment_quantity: usize,
 
+    <span class="doccomment">/// The number of attachments.
+    </span><span class="kw">pub </span>attachment_item_quantity: usize,
+
     <span class="doccomment">/// The number of all session updates.
     </span><span class="kw">pub </span>session_quantity: usize,
 
@@ -1731,7 +1777,7 @@
     </span><span class="kw">pub </span>replay_quantity: usize,
 
     <span class="doccomment">/// The number of monitor check-ins.
-    </span><span class="kw">pub </span>checkin_quantity: usize,
+    </span><span class="kw">pub </span>monitor_quantity: usize,
 
     <span class="doccomment">/// Secondary number of transactions.
     ///
@@ -1790,28 +1836,29 @@
             }
 
             summary.payload_size += item.len();
-            summary.set_quantity(item);
+            <span class="kw">for </span>(category, quantity) <span class="kw">in </span>item.quantities(CountFor::RateLimits) {
+                summary.add_quantity(category, quantity);
+            }
         }
 
         summary
     }
 
-    <span class="kw">fn </span>set_quantity(<span class="kw-2">&amp;mut </span><span class="self">self</span>, item: <span class="kw-2">&amp;</span>Item) {
-        <span class="kw">let </span>target_quantity = <span class="kw">match </span>item.ty() {
-            ItemType::Attachment =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.attachment_quantity,
-            ItemType::Session =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.session_quantity,
-            ItemType::Profile =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.profile_quantity,
-            ItemType::ReplayEvent =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.replay_quantity,
-            ItemType::ReplayRecording =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.replay_quantity,
-            ItemType::ReplayVideo =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.replay_quantity,
-            ItemType::CheckIn =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.checkin_quantity,
-            ItemType::OtelTracesData =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.span_quantity,
-            ItemType::OtelSpan =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.span_quantity,
-            ItemType::Span =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.span_quantity,
-            ItemType::ProfileChunk =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.profile_chunk_quantity,
-            <span class="kw">_ </span>=&gt; <span class="kw">return</span>,
+    <span class="kw">fn </span>add_quantity(<span class="kw-2">&amp;mut </span><span class="self">self</span>, category: DataCategory, quantity: usize) {
+        <span class="kw">let </span>target_quantity = <span class="kw">match </span>category {
+            DataCategory::Attachment =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.attachment_quantity,
+            DataCategory::AttachmentItem =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.attachment_item_quantity,
+            DataCategory::Session =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.session_quantity,
+            DataCategory::Profile =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.profile_quantity,
+            DataCategory::Replay =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.replay_quantity,
+            DataCategory::ReplayVideo =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.replay_quantity,
+            DataCategory::Monitor =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.monitor_quantity,
+            DataCategory::Span =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.span_quantity,
+            DataCategory::ProfileChunk =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.profile_chunk_quantity,
+            <span class="comment">// TODO: This catch-all return looks dangerous
+            </span><span class="kw">_ </span>=&gt; <span class="kw">return</span>,
         };
-        <span class="kw-2">*</span>target_quantity += item.quantity();
+        <span class="kw-2">*</span>target_quantity += quantity;
     }
 
     <span class="doccomment">/// Infers the appropriate [`DataCategory`] for the envelope [`Item`].
@@ -1898,8 +1945,10 @@
     </span><span class="kw">pub </span>event: CategoryLimit,
     <span class="doccomment">/// The rate limit for the indexed category of the event.
     </span><span class="kw">pub </span>event_indexed: CategoryLimit,
-    <span class="doccomment">/// The combined attachment item rate limit.
+    <span class="doccomment">/// The combined attachment bytes rate limit.
     </span><span class="kw">pub </span>attachments: CategoryLimit,
+    <span class="doccomment">/// The combined attachment item rate limit.
+    </span><span class="kw">pub </span>attachment_items: CategoryLimit,
     <span class="doccomment">/// The combined session item rate limit.
     </span><span class="kw">pub </span>sessions: CategoryLimit,
     <span class="doccomment">/// The combined profile item rate limit.
@@ -1945,6 +1994,7 @@
             event,
             event_indexed,
             attachments,
+            attachment_items,
             sessions: <span class="kw">_</span>, <span class="comment">// Do not report outcomes for sessions.
             </span>profiles,
             profiles_indexed,
@@ -1960,6 +2010,7 @@
             event,
             event_indexed,
             attachments,
+            attachment_items,
             profiles,
             profiles_indexed,
             replays,
@@ -2036,7 +2087,7 @@
         // to determine whether an item is limited.
         </span><span class="kw">match </span>item.ty() {
             ItemType::Attachment =&gt; {
-                <span class="kw">if </span>!<span class="self">self</span>.attachments.is_active() {
+                <span class="kw">if </span>!(<span class="self">self</span>.attachments.is_active() || <span class="self">self</span>.attachment_items.is_active()) {
                     <span class="kw">return </span><span class="bool-val">true</span>;
                 }
                 <span class="kw">if </span>item.creates_event() {
@@ -2184,7 +2235,8 @@
         <span class="kw">let </span><span class="kw-2">mut </span>rate_limits = RateLimits::new();
         <span class="kw">let </span><span class="kw-2">mut </span>enforcement = Enforcement::default();
 
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(category) = summary.event_category {
+        <span class="comment">// Handle event.
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(category) = summary.event_category {
             <span class="comment">// Check the broad category for limits.
             </span><span class="kw">let </span><span class="kw-2">mut </span>event_limits = <span class="self">self</span>.check.apply(scoping.item(category), <span class="number">1</span>)<span class="question-mark">?</span>;
             enforcement.event = CategoryLimit::new(category, <span class="number">1</span>, event_limits.longest());
@@ -2203,19 +2255,45 @@
             rate_limits.merge(event_limits);
         }
 
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(limit) = enforcement.active_event() {
-            enforcement.attachments =
-                limit.clone_for(DataCategory::Attachment, summary.attachment_quantity);
-        } <span class="kw">else if </span>summary.attachment_quantity &gt; <span class="number">0 </span>{
-            <span class="kw">let </span>item_scoping = scoping.item(DataCategory::Attachment);
-            <span class="kw">let </span>attachment_limits = <span class="self">self
-                </span>.check
-                .apply(item_scoping, summary.attachment_quantity)<span class="question-mark">?</span>;
-            enforcement.attachments = CategoryLimit::new(
-                DataCategory::Attachment,
-                summary.attachment_quantity,
-                attachment_limits.longest(),
+        <span class="comment">// Handle attachments.
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(limit) = enforcement.active_event() {
+            <span class="kw">let </span>limit1 = limit.clone_for(DataCategory::Attachment, summary.attachment_quantity);
+            <span class="kw">let </span>limit2 = limit.clone_for(
+                DataCategory::AttachmentItem,
+                summary.attachment_item_quantity,
             );
+            enforcement.attachments = limit1;
+            enforcement.attachment_items = limit2;
+        } <span class="kw">else </span>{
+            <span class="kw">let </span><span class="kw-2">mut </span>attachment_limits = RateLimits::new();
+            <span class="kw">if </span>summary.attachment_quantity &gt; <span class="number">0 </span>{
+                <span class="kw">let </span>item_scoping = scoping.item(DataCategory::Attachment);
+
+                <span class="kw">let </span>attachment_byte_limits = <span class="self">self
+                    </span>.check
+                    .apply(item_scoping, summary.attachment_quantity)<span class="question-mark">?</span>;
+
+                enforcement.attachments = CategoryLimit::new(
+                    DataCategory::Attachment,
+                    summary.attachment_quantity,
+                    attachment_byte_limits.longest(),
+                );
+                attachment_limits.merge(attachment_byte_limits);
+            }
+            <span class="kw">if </span>!attachment_limits.is_limited() &amp;&amp; summary.attachment_item_quantity &gt; <span class="number">0 </span>{
+                <span class="kw">let </span>item_scoping = scoping.item(DataCategory::AttachmentItem);
+
+                <span class="kw">let </span>attachment_item_limits = <span class="self">self
+                    </span>.check
+                    .apply(item_scoping, summary.attachment_item_quantity)<span class="question-mark">?</span>;
+
+                enforcement.attachment_items = CategoryLimit::new(
+                    DataCategory::AttachmentItem,
+                    summary.attachment_item_quantity,
+                    attachment_item_limits.longest(),
+                );
+                attachment_limits.merge(attachment_item_limits);
+            }
 
             <span class="comment">// Only record rate limits for plain attachments. For all other attachments, it's
             // perfectly "legal" to send them. They will still be discarded in Sentry, but clients
@@ -2225,7 +2303,8 @@
             }
         }
 
-        <span class="kw">if </span>summary.session_quantity &gt; <span class="number">0 </span>{
+        <span class="comment">// Handle sessions.
+        </span><span class="kw">if </span>summary.session_quantity &gt; <span class="number">0 </span>{
             <span class="kw">let </span>item_scoping = scoping.item(DataCategory::Session);
             <span class="kw">let </span>session_limits = <span class="self">self</span>.check.apply(item_scoping, summary.session_quantity)<span class="question-mark">?</span>;
             enforcement.sessions = CategoryLimit::new(
@@ -2236,7 +2315,8 @@
             rate_limits.merge(session_limits);
         }
 
-        <span class="kw">if </span>enforcement.is_event_active() {
+        <span class="comment">// Handle profiles.
+        </span><span class="kw">if </span>enforcement.is_event_active() {
             enforcement.profiles = enforcement
                 .event
                 .clone_for(DataCategory::Profile, summary.profile_quantity);
@@ -2280,7 +2360,8 @@
             rate_limits.merge(profile_limits);
         }
 
-        <span class="kw">if </span>summary.replay_quantity &gt; <span class="number">0 </span>{
+        <span class="comment">// Handle replays.
+        </span><span class="kw">if </span>summary.replay_quantity &gt; <span class="number">0 </span>{
             <span class="kw">let </span>item_scoping = scoping.item(DataCategory::Replay);
             <span class="kw">let </span>replay_limits = <span class="self">self</span>.check.apply(item_scoping, summary.replay_quantity)<span class="question-mark">?</span>;
             enforcement.replays = CategoryLimit::new(
@@ -2291,18 +2372,20 @@
             rate_limits.merge(replay_limits);
         }
 
-        <span class="kw">if </span>summary.checkin_quantity &gt; <span class="number">0 </span>{
+        <span class="comment">// Handle monitor checkins.
+        </span><span class="kw">if </span>summary.monitor_quantity &gt; <span class="number">0 </span>{
             <span class="kw">let </span>item_scoping = scoping.item(DataCategory::Monitor);
-            <span class="kw">let </span>checkin_limits = <span class="self">self</span>.check.apply(item_scoping, summary.checkin_quantity)<span class="question-mark">?</span>;
+            <span class="kw">let </span>checkin_limits = <span class="self">self</span>.check.apply(item_scoping, summary.monitor_quantity)<span class="question-mark">?</span>;
             enforcement.check_ins = CategoryLimit::new(
                 DataCategory::Monitor,
-                summary.checkin_quantity,
+                summary.monitor_quantity,
                 checkin_limits.longest(),
             );
             rate_limits.merge(checkin_limits);
         }
 
-        <span class="kw">if </span>enforcement.is_event_active() {
+        <span class="comment">// Handle spans.
+        </span><span class="kw">if </span>enforcement.is_event_active() {
             enforcement.spans = enforcement
                 .event
                 .clone_for(DataCategory::Span, summary.span_quantity);
@@ -2336,7 +2419,8 @@
             rate_limits.merge(span_limits);
         }
 
-        <span class="kw">if </span>summary.profile_chunk_quantity &gt; <span class="number">0 </span>{
+        <span class="comment">// Handle profile chunks.
+        </span><span class="kw">if </span>summary.profile_chunk_quantity &gt; <span class="number">0 </span>{
             <span class="kw">let </span>item_scoping = scoping.item(DataCategory::ProfileChunk);
             <span class="kw">let </span>profile_chunk_limits = <span class="self">self
                 </span>.check
@@ -3040,6 +3124,7 @@
         <span class="macro">assert!</span>(!enforcement.event.is_active());
         <span class="macro">assert!</span>(enforcement.event_indexed.is_active());
         <span class="macro">assert!</span>(enforcement.attachments.is_active());
+        <span class="macro">assert!</span>(enforcement.attachment_items.is_active());
         mock.assert_call(DataCategory::Transaction, <span class="number">1</span>);
         mock.assert_call(DataCategory::TransactionIndexed, <span class="number">1</span>);
 
@@ -3047,7 +3132,8 @@
             get_outcomes(enforcement),
             <span class="macro">vec!</span>[
                 (DataCategory::TransactionIndexed, <span class="number">1</span>),
-                (DataCategory::Attachment, <span class="number">10</span>)
+                (DataCategory::Attachment, <span class="number">10</span>),
+                (DataCategory::AttachmentItem, <span class="number">1</span>)
             ]
         );
     }
