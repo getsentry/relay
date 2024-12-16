@@ -11,6 +11,7 @@
 **Features**:
 
 - Add data categories for Uptime and Attachment Items. ([#4363](https://github.com/getsentry/relay/pull/4363), [#4374](https://github.com/getsentry/relay/pull/4374))
+- Add ability to rate limit attachments by count (not just by the number of bytes). ([#4377](https://github.com/getsentry/relay/pull/4377))
 
 ## 24.11.2
 

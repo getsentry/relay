@@ -528,13 +528,13 @@ def test_minidump_ratelimit(
     # First minidump returns 200 but is rate limited in processing
     relay.send_minidump(project_id=project_id, files=attachments)
     outcomes_consumer.assert_rate_limited(
-        "static_disabled_quota", categories=["error", "attachment"]
+        "static_disabled_quota", categories=["error", "attachment", "attachment_item"]
     )
 
     # Minidumps never return rate limits
     relay.send_minidump(project_id=project_id, files=attachments)
     outcomes_consumer.assert_rate_limited(
-        "static_disabled_quota", categories=["error", "attachment"]
+        "static_disabled_quota", categories=["error", "attachment", "attachment_item"]
     )
 
 
