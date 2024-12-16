@@ -1615,6 +1615,7 @@ impl EnvelopeProcessorService {
     }
 
     /// Processes only transactions and transaction-related items.
+    #[allow(unused_assignments)]
     fn process_transactions(
         &self,
         state: &mut ProcessEnvelopeState<TransactionGroup>,
@@ -1734,11 +1735,13 @@ impl EnvelopeProcessorService {
             )?;
 
             if project_info.has_feature(Feature::ExtractSpansFromEvent) {
-                span::extract_from_event(
+                spans_extracted = span::extract_from_event(
                     state,
                     project_info.clone(),
                     &global_config,
                     server_sample_rate,
+                    event_metrics_extracted,
+                    spans_extracted,
                 );
             }
 

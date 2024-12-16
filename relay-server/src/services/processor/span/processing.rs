@@ -8,7 +8,8 @@ use crate::metrics_extraction::{event, generic};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::span::extract_transaction_span;
 use crate::services::processor::{
-    dynamic_sampling, ProcessEnvelopeState, ProcessingError, SpanGroup, TransactionGroup,
+    dynamic_sampling, EventMetricsExtracted, ProcessEnvelopeState, ProcessingError, SpanGroup,
+    SpansExtracted, TransactionGroup,
 };
 use crate::services::projects::project::ProjectInfo;
 use crate::utils::{sample, ItemAction, ManagedEnvelope};
@@ -268,19 +269,21 @@ pub fn extract_from_event(
     project_info: Arc<ProjectInfo>,
     global_config: &GlobalConfig,
     server_sample_rate: Option<f64>,
-) {
+    event_metrics_extracted: EventMetricsExtracted,
+    spans_extracted: SpansExtracted,
+) -> SpansExtracted {
     // Only extract spans from transactions (not errors).
     if state.event_type() != Some(EventType::Transaction) {
-        return;
+        return spans_extracted;
     };
 
-    if state.spans_extracted {
-        return;
+    if spans_extracted.0 {
+        return spans_extracted;
     }
 
     if let Some(sample_rate) = global_config.options.span_extraction_sample_rate {
         if !sample(sample_rate) {
-            return;
+            return spans_extracted;
         }
     }
 
@@ -340,7 +343,7 @@ pub fn extract_from_event(
         let mut item = Item::new(ItemType::Span);
         item.set_payload(ContentType::Json, span);
         // If metrics extraction happened for the event, it also happened for its spans:
-        item.set_metrics_extracted(state.event_metrics_extracted);
+        item.set_metrics_extracted(event_metrics_extracted.0);
         item.set_ingest_span_in_eap(ingest_in_eap);
 
         relay_log::trace!("Adding span to envelope");
@@ -348,7 +351,7 @@ pub fn extract_from_event(
     };
 
     let Some(event) = state.event.value() else {
-        return;
+        return spans_extracted;
     };
 
     let Some(transaction_span) = extract_transaction_span(
@@ -360,7 +363,7 @@ pub fn extract_from_event(
             .max_tag_value_length,
         &[],
     ) else {
-        return;
+        return spans_extracted;
     };
 
     // Add child spans as envelope items.
@@ -387,7 +390,7 @@ pub fn extract_from_event(
 
     add_span(transaction_span);
 
-    state.spans_extracted = true;
+    SpansExtracted(true)
 }
 
 /// Removes the transaction in case the project has made the transition to spans-only.
@@ -865,8 +868,6 @@ mod tests {
             config: Arc::new(Config::default()),
             rate_limits: Arc::new(RateLimits::default()),
             managed_envelope: managed_envelope.try_into().unwrap(),
-            event_metrics_extracted: false,
-            spans_extracted: false,
         };
 
         (state, project_info)
@@ -877,7 +878,14 @@ mod tests {
         let global_config = GlobalConfig::default();
         assert!(global_config.options.span_extraction_sample_rate.is_none());
         let (mut state, project_info) = state();
-        extract_from_event(&mut state, project_info, &global_config, None);
+        extract_from_event(
+            &mut state,
+            project_info,
+            &global_config,
+            None,
+            EventMetricsExtracted(false),
+            SpansExtracted(false),
+        );
         assert!(
             state
                 .envelope()
@@ -893,7 +901,14 @@ mod tests {
         let mut global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = Some(1.0);
         let (mut state, project_info) = state();
-        extract_from_event(&mut state, project_info, &global_config, None);
+        extract_from_event(
+            &mut state,
+            project_info,
+            &global_config,
+            None,
+            EventMetricsExtracted(false),
+            SpansExtracted(false),
+        );
         assert!(
             state
                 .envelope()
@@ -909,7 +924,14 @@ mod tests {
         let mut global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = Some(0.0);
         let (mut state, project_info) = state();
-        extract_from_event(&mut state, project_info, &global_config, None);
+        extract_from_event(
+            &mut state,
+            project_info,
+            &global_config,
+            None,
+            EventMetricsExtracted(false),
+            SpansExtracted(false),
+        );
         assert!(
             !state
                 .envelope()
@@ -925,7 +947,14 @@ mod tests {
         let mut global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = Some(1.0); // force enable
         let (mut state, project_info) = state(); // client sample rate is 0.2
-        extract_from_event(&mut state, project_info, &global_config, Some(0.1));
+        extract_from_event(
+            &mut state,
+            project_info,
+            &global_config,
+            Some(0.1),
+            EventMetricsExtracted(false),
+            SpansExtracted(false),
+        );
 
         let span = state
             .envelope()
