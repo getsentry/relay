@@ -1,6 +1,6 @@
 //! Dynamic sampling processor related code.
-
 use std::ops::ControlFlow;
+use std::sync::Arc;
 
 use chrono::Utc;
 use relay_config::Config;
@@ -16,6 +16,7 @@ use crate::services::outcome::Outcome;
 use crate::services::processor::{
     EventProcessing, ProcessEnvelopeState, Sampling, TransactionGroup,
 };
+use crate::services::projects::project::ProjectInfo;
 use crate::utils::{self, SamplingResult};
 
 /// Ensures there is a valid dynamic sampling context and corresponding project state.
@@ -38,44 +39,56 @@ use crate::utils::{self, SamplingResult};
 /// the main project state.
 ///
 /// If there is no transaction event in the envelope, this function will do nothing.
-pub fn ensure_dsc(state: &mut ProcessEnvelopeState<TransactionGroup>) {
-    if state.envelope().dsc().is_some() && state.sampling_project_info.is_some() {
-        return;
+///
+/// The function will return the sampling project information of the root project for the event. If
+/// no sampling project information is specified, the project information of the event’s project
+/// will be returned.
+pub fn validate_and_set_dsc(
+    state: &mut ProcessEnvelopeState<TransactionGroup>,
+    project_info: Arc<ProjectInfo>,
+    sampling_project_info: Option<Arc<ProjectInfo>>,
+) -> Option<Arc<ProjectInfo>> {
+    if state.envelope().dsc().is_some() && sampling_project_info.is_some() {
+        return sampling_project_info;
     }
 
     // The DSC can only be computed if there's a transaction event. Note that `dsc_from_event`
     // below already checks for the event type.
     let Some(event) = state.event.value() else {
-        return;
+        return sampling_project_info;
     };
-    let Some(key_config) = state.project_info.get_public_key_config() else {
-        return;
+    let Some(key_config) = project_info.get_public_key_config() else {
+        return sampling_project_info;
     };
 
     if let Some(dsc) = utils::dsc_from_event(key_config.public_key, event) {
         state.envelope_mut().set_dsc(dsc);
-        state.sampling_project_info = Some(state.project_info.clone());
+        return Some(project_info.clone());
     }
+
+    sampling_project_info
 }
 
 /// Computes the sampling decision on the incoming event
 pub fn run<Group>(
     state: &mut ProcessEnvelopeState<Group>,
+    project_info: Arc<ProjectInfo>,
+    sampling_project_info: Option<Arc<ProjectInfo>>,
     reservoir: &ReservoirEvaluator,
 ) -> SamplingResult
 where
     Group: Sampling,
 {
-    if !Group::supports_sampling(&state.project_info) {
+    if !Group::supports_sampling(&project_info) {
         return SamplingResult::Pending;
     }
 
-    let sampling_config = match state.project_info.config.sampling {
+    let sampling_config = match project_info.config.sampling {
         Some(ErrorBoundary::Ok(ref config)) if !config.unsupported() => Some(config),
         _ => None,
     };
 
-    let root_state = state.sampling_project_info.as_ref();
+    let root_state = sampling_project_info.as_ref();
     let root_config = match root_state.and_then(|s| s.config.sampling.as_ref()) {
         Some(ErrorBoundary::Ok(ref config)) if !config.unsupported() => Some(config),
         _ => None,
@@ -187,6 +200,7 @@ fn compute_sampling_decision(
 /// only for tagging errors and not for actually sampling incoming events.
 pub fn tag_error_with_sampling_decision<G: EventProcessing>(
     state: &mut ProcessEnvelopeState<G>,
+    sampling_project_info: Option<Arc<ProjectInfo>>,
     config: &Config,
 ) {
     let (Some(dsc), Some(event)) = (
@@ -196,7 +210,7 @@ pub fn tag_error_with_sampling_decision<G: EventProcessing>(
         return;
     };
 
-    let root_state = state.sampling_project_info.as_ref();
+    let root_state = sampling_project_info.as_ref();
     let sampling_config = match root_state.and_then(|s| s.config.sampling.as_ref()) {
         Some(ErrorBoundary::Ok(ref config)) => config,
         _ => return,
@@ -433,14 +447,12 @@ mod tests {
             let project_info = Arc::new(project_info);
             let envelope = new_envelope(false, "foo");
 
-            ProcessEnvelopeState::<TransactionGroup> {
+            let state = ProcessEnvelopeState::<TransactionGroup> {
                 event: Annotated::from(event),
                 metrics: Default::default(),
                 extracted_metrics: ProcessingExtractedMetrics::new(),
                 config: config.clone(),
-                project_info,
                 rate_limits: Default::default(),
-                sampling_project_info: None,
                 managed_envelope: ManagedEnvelope::new(
                     envelope,
                     outcome_aggregator.clone(),
@@ -451,24 +463,26 @@ mod tests {
                 .unwrap(),
                 event_metrics_extracted: false,
                 spans_extracted: false,
-            }
+            };
+
+            (state, project_info)
         };
 
         let reservoir = dummy_reservoir();
 
         // None represents no TransactionMetricsConfig, DS will not be run
-        let mut state = get_state(None);
-        let sampling_result = run(&mut state, &reservoir);
+        let (mut state, project_info) = get_state(None);
+        let sampling_result = run(&mut state, project_info, None, &reservoir);
         assert_eq!(sampling_result.decision(), SamplingDecision::Keep);
 
         // Current version is 3, so it won't run DS if it's outdated
-        let mut state = get_state(Some(2));
-        let sampling_result = run(&mut state, &reservoir);
+        let (mut state, project_info) = get_state(Some(2));
+        let sampling_result = run(&mut state, project_info, None, &reservoir);
         assert_eq!(sampling_result.decision(), SamplingDecision::Keep);
 
         // Dynamic sampling is run, as the transactionmetrics version is up to date.
-        let mut state = get_state(Some(3));
-        let sampling_result = run(&mut state, &reservoir);
+        let (mut state, project_info) = get_state(Some(3));
+        let sampling_result = run(&mut state, project_info, None, &reservoir);
         assert_eq!(sampling_result.decision(), SamplingDecision::Drop);
     }
 
@@ -712,38 +726,7 @@ mod tests {
             metrics: Default::default(),
             extracted_metrics: ProcessingExtractedMetrics::new(),
             config: Arc::new(Config::default()),
-            project_info,
             rate_limits: Default::default(),
-            sampling_project_info: {
-                let mut state = ProjectInfo::default();
-                state.config.metric_extraction =
-                    ErrorBoundary::Ok(MetricExtractionConfig::default());
-                state.config.sampling = Some(ErrorBoundary::Ok(SamplingConfig {
-                    version: 2,
-                    rules: vec![
-                        // Set up a reservoir (only used for transactions):
-                        SamplingRule {
-                            condition: RuleCondition::all(),
-                            sampling_value: SamplingValue::Reservoir { limit: 100 },
-                            ty: RuleType::Trace,
-                            id: RuleId(1),
-                            time_range: Default::default(),
-                            decaying_fn: Default::default(),
-                        },
-                        // Reject everything that does not go into the reservoir:
-                        SamplingRule {
-                            condition: RuleCondition::all(),
-                            sampling_value: SamplingValue::SampleRate { value: 0.0 },
-                            ty: RuleType::Trace,
-                            id: RuleId(2),
-                            time_range: Default::default(),
-                            decaying_fn: Default::default(),
-                        },
-                    ],
-                    rules_v2: vec![],
-                }));
-                Some(Arc::new(state))
-            },
             managed_envelope: ManagedEnvelope::new(
                 envelope,
                 Addr::dummy(),
@@ -754,8 +737,38 @@ mod tests {
             .unwrap(),
         };
 
+        let sampling_project_info = {
+            let mut state = ProjectInfo::default();
+            state.config.metric_extraction = ErrorBoundary::Ok(MetricExtractionConfig::default());
+            state.config.sampling = Some(ErrorBoundary::Ok(SamplingConfig {
+                version: 2,
+                rules: vec![
+                    // Set up a reservoir (only used for transactions):
+                    SamplingRule {
+                        condition: RuleCondition::all(),
+                        sampling_value: SamplingValue::Reservoir { limit: 100 },
+                        ty: RuleType::Trace,
+                        id: RuleId(1),
+                        time_range: Default::default(),
+                        decaying_fn: Default::default(),
+                    },
+                    // Reject everything that does not go into the reservoir:
+                    SamplingRule {
+                        condition: RuleCondition::all(),
+                        sampling_value: SamplingValue::SampleRate { value: 0.0 },
+                        ty: RuleType::Trace,
+                        id: RuleId(2),
+                        time_range: Default::default(),
+                        decaying_fn: Default::default(),
+                    },
+                ],
+                rules_v2: vec![],
+            }));
+            Some(Arc::new(state))
+        };
+
         let reservoir = dummy_reservoir();
-        run(&mut state, &reservoir)
+        run(&mut state, project_info, sampling_project_info, &reservoir)
     }
 
     #[test]

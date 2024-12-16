@@ -1,10 +1,13 @@
 //! Profile chunks processor code.
+
 use relay_dynamic_config::Feature;
+use std::sync::Arc;
 
 use crate::envelope::ItemType;
 use crate::services::processor::ProcessEnvelopeState;
 use crate::utils::ItemAction;
 
+use crate::services::projects::project::ProjectInfo;
 #[cfg(feature = "processing")]
 use {
     crate::envelope::ContentType,
@@ -15,17 +18,13 @@ use {
 };
 
 /// Removes profile chunks from the envelope if the feature is not enabled.
-pub fn filter<G>(state: &mut ProcessEnvelopeState<G>) {
-    let continuous_profiling_enabled = if state
-        .project_info
-        .has_feature(Feature::ContinuousProfilingBetaIngest)
-    {
-        state
-            .project_info
-            .has_feature(Feature::ContinuousProfilingBeta)
-    } else {
-        state.project_info.has_feature(Feature::ContinuousProfiling)
-    };
+pub fn filter<G>(state: &mut ProcessEnvelopeState<G>, project_info: Arc<ProjectInfo>) {
+    let continuous_profiling_enabled =
+        if project_info.has_feature(Feature::ContinuousProfilingBetaIngest) {
+            project_info.has_feature(Feature::ContinuousProfilingBeta)
+        } else {
+            project_info.has_feature(Feature::ContinuousProfiling)
+        };
     state.managed_envelope.retain_items(|item| match item.ty() {
         ItemType::ProfileChunk if !continuous_profiling_enabled => ItemAction::DropSilently,
         _ => ItemAction::Keep,
@@ -36,21 +35,18 @@ pub fn filter<G>(state: &mut ProcessEnvelopeState<G>) {
 #[cfg(feature = "processing")]
 pub fn process(
     state: &mut ProcessEnvelopeState<ProfileChunkGroup>,
+    project_info: Arc<ProjectInfo>,
     global_config: &GlobalConfig,
     config: &Config,
 ) {
     let client_ip = state.managed_envelope.envelope().meta().client_addr();
-    let filter_settings = &state.project_info.config.filter_settings;
-    let continuous_profiling_enabled = if state
-        .project_info
-        .has_feature(Feature::ContinuousProfilingBetaIngest)
-    {
-        state
-            .project_info
-            .has_feature(Feature::ContinuousProfilingBeta)
-    } else {
-        state.project_info.has_feature(Feature::ContinuousProfiling)
-    };
+    let filter_settings = &project_info.config.filter_settings;
+    let continuous_profiling_enabled =
+        if project_info.has_feature(Feature::ContinuousProfilingBetaIngest) {
+            project_info.has_feature(Feature::ContinuousProfilingBeta)
+        } else {
+            project_info.has_feature(Feature::ContinuousProfiling)
+        };
     state.managed_envelope.retain_items(|item| match item.ty() {
         ItemType::ProfileChunk => {
             if !continuous_profiling_enabled {

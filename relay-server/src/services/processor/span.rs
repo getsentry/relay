@@ -1,5 +1,7 @@
 //! Processor code related to standalone spans.
 
+use std::sync::Arc;
+
 use prost::Message;
 use relay_dynamic_config::Feature;
 use relay_event_normalization::span::tag_extraction;
@@ -16,12 +18,13 @@ use crate::{services::processor::ProcessEnvelopeState, utils::ItemAction};
 
 #[cfg(feature = "processing")]
 mod processing;
+use crate::services::projects::project::ProjectInfo;
 #[cfg(feature = "processing")]
 pub use processing::*;
 
-pub fn filter(state: &mut ProcessEnvelopeState<SpanGroup>) {
-    let disabled = state.should_filter(Feature::StandaloneSpanIngestion);
-    let otel_disabled = state.should_filter(Feature::OtelEndpoint);
+pub fn filter(state: &mut ProcessEnvelopeState<SpanGroup>, project_info: Arc<ProjectInfo>) {
+    let disabled = state.should_filter(Feature::StandaloneSpanIngestion, &project_info);
+    let otel_disabled = state.should_filter(Feature::OtelEndpoint, &project_info);
 
     state.managed_envelope.retain_items(|item| {
         if disabled && item.is_span() {

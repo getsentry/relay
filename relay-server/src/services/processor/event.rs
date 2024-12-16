@@ -1,7 +1,7 @@
 //! Event processor related code.
 
 use std::error::Error;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
 use chrono::Duration as SignedDuration;
 use relay_auth::RelayVersion;
@@ -27,6 +27,7 @@ use crate::services::processor::{
     EventFullyNormalized, EventProcessing, ExtractedEvent, ProcessEnvelopeState, ProcessingError,
     MINIMUM_CLOCK_DRIFT,
 };
+use crate::services::projects::project::ProjectInfo;
 use crate::statsd::{PlatformTag, RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter};
 
@@ -275,6 +276,7 @@ pub enum FiltersStatus {
 
 pub fn filter<G: EventProcessing>(
     state: &mut ProcessEnvelopeState<G>,
+    project_info: Arc<ProjectInfo>,
     global_config: &GlobalConfig,
 ) -> Result<FiltersStatus, ProcessingError> {
     let event = match state.event.value_mut() {
@@ -285,7 +287,7 @@ pub fn filter<G: EventProcessing>(
     };
 
     let client_ip = state.managed_envelope.envelope().meta().client_addr();
-    let filter_settings = &state.project_info.config.filter_settings;
+    let filter_settings = &project_info.config.filter_settings;
 
     metric!(timer(RelayTimers::EventProcessingFiltering), {
         relay_filter::should_filter(event, client_ip, filter_settings, global_config.filters())
@@ -304,7 +306,7 @@ pub fn filter<G: EventProcessing>(
     let supported_generic_filters = global_config.filters.is_ok()
         && relay_filter::are_generic_filters_supported(
             global_config.filters().map(|f| f.version),
-            state.project_info.config.filter_settings.generic.version,
+            project_info.config.filter_settings.generic.version,
         );
     if supported_generic_filters {
         Ok(FiltersStatus::Ok)
@@ -318,9 +320,10 @@ pub fn filter<G: EventProcessing>(
 /// This uses both the general `datascrubbing_settings`, as well as the the PII rules.
 pub fn scrub<G: EventProcessing>(
     state: &mut ProcessEnvelopeState<G>,
+    project_info: Arc<ProjectInfo>,
 ) -> Result<(), ProcessingError> {
     let event = &mut state.event;
-    let config = &state.project_info.config;
+    let config = &project_info.config;
 
     if config.datascrubbing_settings.scrub_data {
         if let Some(event) = event.value_mut() {

@@ -1,6 +1,7 @@
 //! Attachments processor code.
 
 use std::error::Error;
+use std::sync::Arc;
 use std::time::Instant;
 
 use relay_pii::PiiAttachmentsProcessor;
@@ -10,6 +11,7 @@ use crate::envelope::{AttachmentType, ContentType};
 use crate::services::processor::ProcessEnvelopeState;
 use crate::statsd::RelayTimers;
 
+use crate::services::projects::project::ProjectInfo;
 #[cfg(feature = "processing")]
 use {
     crate::services::processor::ErrorGroup, crate::services::processor::EventFullyNormalized,
@@ -52,9 +54,9 @@ pub fn create_placeholders(
 /// This only applies the new PII rules that explicitly select `ValueType::Binary` or one of the
 /// attachment types. When special attachments are detected, these are scrubbed with custom
 /// logic; otherwise the entire attachment is treated as a single binary blob.
-pub fn scrub<G>(state: &mut ProcessEnvelopeState<G>) {
+pub fn scrub<G>(state: &mut ProcessEnvelopeState<G>, project_info: Arc<ProjectInfo>) {
     let envelope = state.managed_envelope.envelope_mut();
-    if let Some(ref config) = state.project_info.config.pii_config {
+    if let Some(ref config) = project_info.config.pii_config {
         let minidump = envelope
             .get_item_by_mut(|item| item.attachment_type() == Some(&AttachmentType::Minidump));
 

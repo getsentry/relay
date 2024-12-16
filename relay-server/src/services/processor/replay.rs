@@ -1,6 +1,7 @@
 //! Replay related processor code.
 use std::error::Error;
 use std::net::IpAddr;
+use std::sync::Arc;
 
 use bytes::Bytes;
 use relay_base_schema::organization::OrganizationId;
@@ -19,26 +20,26 @@ use serde::{Deserialize, Serialize};
 use crate::envelope::{ContentType, ItemType};
 use crate::services::outcome::DiscardReason;
 use crate::services::processor::{ProcessEnvelopeState, ProcessingError, ReplayGroup};
+use crate::services::projects::project::ProjectInfo;
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::sample;
 
 /// Removes replays if the feature flag is not enabled.
 pub fn process(
     state: &mut ProcessEnvelopeState<ReplayGroup>,
+    project_info: Arc<ProjectInfo>,
     global_config: &GlobalConfig,
     geoip_lookup: Option<&GeoIpLookup>,
 ) -> Result<(), ProcessingError> {
     // If the replay feature is not enabled drop the items silenty.
-    if state.should_filter(Feature::SessionReplay) {
+    if state.should_filter(Feature::SessionReplay, &project_info) {
         state.managed_envelope.drop_items_silently();
         return Ok(());
     }
 
     // If the replay video feature is not enabled check the envelope items for a
     // replay video event.
-    if state
-        .project_info
-        .has_feature(Feature::SessionReplayVideoDisabled)
+    if project_info.has_feature(Feature::SessionReplayVideoDisabled)
         && count_replay_video_events(state) > 0
     {
         state.managed_envelope.drop_items_silently();
@@ -49,12 +50,12 @@ pub fn process(
         let meta = state.envelope().meta();
 
         ReplayProcessingConfig {
-            config: &state.project_info.config,
+            config: &project_info.config,
             global_config,
             geoip_lookup,
             event_id: state.envelope().event_id(),
-            project_id: state.project_info.project_id,
-            organization_id: state.project_info.organization_id,
+            project_id: project_info.project_id,
+            organization_id: project_info.organization_id,
             client_addr: meta.client_addr(),
             user_agent: RawUserAgentInfo {
                 user_agent: meta.user_agent().map(|s| s.to_owned()),
@@ -63,10 +64,7 @@ pub fn process(
         }
     };
 
-    let mut scrubber = if state
-        .project_info
-        .has_feature(Feature::SessionReplayRecordingScrubbing)
-    {
+    let mut scrubber = if project_info.has_feature(Feature::SessionReplayRecordingScrubbing) {
         let datascrubbing_config = rpc
             .config
             .datascrubbing_settings
@@ -84,10 +82,7 @@ pub fn process(
     };
 
     for item in state.managed_envelope.envelope_mut().items_mut() {
-        if state
-            .project_info
-            .has_feature(Feature::SessionReplayCombinedEnvelopeItems)
-        {
+        if project_info.has_feature(Feature::SessionReplayCombinedEnvelopeItems) {
             item.set_replay_combined_payload(true);
         }
 
