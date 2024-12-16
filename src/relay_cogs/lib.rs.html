@@ -193,10 +193,7 @@
 <a href="#192" id="192">192</a>
 <a href="#193" id="193">193</a>
 <a href="#194" id="194">194</a>
-<a href="#195" id="195">195</a>
-<a href="#196" id="196">196</a>
-<a href="#197" id="197">197</a>
-<a href="#198" id="198">198</a></pre></div><pre class="rust"><code><span class="doccomment">//! Break down the cost of Relay by its components and individual features it handles.
+<a href="#195" id="195">195</a></pre></div><pre class="rust"><code><span class="doccomment">//! Break down the cost of Relay by its components and individual features it handles.
 //!
 //! Relay is a one stop shop for all different kinds of events Sentry supports, Errors,
 //! Performance, Metrics, Replays, Crons and more. A single shared resource.
@@ -334,8 +331,6 @@
     </span>MetricsTransactions,
     <span class="doccomment">/// Metrics in the spans namespace.
     </span>MetricsSpans,
-    <span class="doccomment">/// Metrics in the profiles namespace.
-    </span>MetricsProfiles,
     <span class="doccomment">/// Metrics in the sessions namespace.
     </span>MetricsSessions,
     <span class="doccomment">/// Metrics in the custom namespace.
@@ -365,7 +360,6 @@
             <span class="self">Self</span>::Replays =&gt; <span class="string">"replays"</span>,
             <span class="self">Self</span>::MetricsTransactions =&gt; <span class="string">"metrics_transactions"</span>,
             <span class="self">Self</span>::MetricsSpans =&gt; <span class="string">"metrics_spans"</span>,
-            <span class="self">Self</span>::MetricsProfiles =&gt; <span class="string">"metrics_profiles"</span>,
             <span class="self">Self</span>::MetricsSessions =&gt; <span class="string">"metrics_sessions"</span>,
             <span class="self">Self</span>::MetricsCustom =&gt; <span class="string">"metrics_custom"</span>,
             <span class="self">Self</span>::MetricsStats =&gt; <span class="string">"metrics_metric_stats"</span>,

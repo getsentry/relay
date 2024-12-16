@@ -531,7 +531,8 @@
 <a href="#530" id="530">530</a>
 <a href="#531" id="531">531</a>
 <a href="#532" id="532">532</a>
-<a href="#533" id="533">533</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::btree_map::Entry;
+<a href="#533" id="533">533</a>
+<a href="#534" id="534">534</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::btree_map::Entry;
 <span class="kw">use </span>std::collections::HashMap;
 <span class="kw">use </span>std::fs::File;
 <span class="kw">use </span>std::io::BufReader;
@@ -646,15 +647,6 @@
 </span><span class="attr">#[derive(Default, Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 </span><span class="kw">pub struct </span>Options {
-    <span class="doccomment">/// Kill switch for shutting down profile function metrics
-    /// ingestion in the generic-metrics platform
-    </span><span class="attr">#[serde(
-        rename = <span class="string">"profiling.generic_metrics.functions_ingestion.enabled"</span>,
-        deserialize_with = <span class="string">"default_on_error"</span>,
-        skip_serializing_if = <span class="string">"is_default"
-    </span>)]
-    </span><span class="kw">pub </span>profiles_function_generic_metrics_enabled: bool,
-
     <span class="doccomment">/// Kill switch for controlling the cardinality limiter.
     </span><span class="attr">#[serde(
         rename = <span class="string">"relay.cardinality-limiter.mode"</span>,
@@ -744,6 +736,17 @@
     </span>)]
     </span><span class="kw">pub </span>deprecated2: f32,
 
+    <span class="doccomment">/// Deprecated, still forwarded for older downstream Relays.
+    /// Kill switch for shutting down profile function metrics
+    /// ingestion in the generic-metrics platform.
+    </span><span class="attr">#[doc(hidden)]
+    #[serde(
+        rename = <span class="string">"profiling.generic_metrics.functions_ingestion.enabled"</span>,
+        deserialize_with = <span class="string">"default_on_error"</span>,
+        skip_serializing_if = <span class="string">"is_default"
+    </span>)]
+    </span><span class="kw">pub </span>deprecated3: bool,
+
     <span class="doccomment">/// All other unknown options.
     </span><span class="attr">#[serde(flatten)]
     </span>other: HashMap&lt;String, Value&gt;,
@@ -782,7 +785,6 @@
         <span class="kw">match </span>namespace {
             MetricNamespace::Transactions =&gt; <span class="self">self</span>.transactions,
             MetricNamespace::Spans =&gt; <span class="self">self</span>.spans,
-            MetricNamespace::Profiles =&gt; <span class="self">self</span>.profiles,
             MetricNamespace::Custom =&gt; <span class="self">self</span>.custom,
             MetricNamespace::Stats =&gt; <span class="self">self</span>.metric_stats,
             <span class="comment">// Always force the legacy encoding for sessions,

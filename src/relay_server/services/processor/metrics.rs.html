@@ -245,9 +245,7 @@
 <a href="#244" id="244">244</a>
 <a href="#245" id="245">245</a>
 <a href="#246" id="246">246</a>
-<a href="#247" id="247">247</a>
-<a href="#248" id="248">248</a>
-<a href="#249" id="249">249</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_dynamic_config::{ErrorBoundary, Feature, Metrics};
+<a href="#247" id="247">247</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_dynamic_config::{ErrorBoundary, Feature, Metrics};
 <span class="kw">use </span>relay_filter::FilterStatKey;
 <span class="kw">use </span>relay_metrics::{Bucket, MetricNamespace};
 <span class="kw">use </span>relay_quotas::Scoping;
@@ -267,7 +265,6 @@
         MetricNamespace::Sessions =&gt; <span class="bool-val">true</span>,
         MetricNamespace::Transactions =&gt; <span class="bool-val">true</span>,
         MetricNamespace::Spans =&gt; <span class="bool-val">true</span>,
-        MetricNamespace::Profiles =&gt; <span class="bool-val">true</span>,
         MetricNamespace::Custom =&gt; <span class="bool-val">true</span>,
         MetricNamespace::Stats =&gt; source == BucketSource::Internal,
         MetricNamespace::Unsupported =&gt; <span class="bool-val">false</span>,
@@ -330,7 +327,6 @@
         MetricNamespace::Sessions =&gt; <span class="bool-val">true</span>,
         MetricNamespace::Transactions =&gt; <span class="bool-val">true</span>,
         MetricNamespace::Spans =&gt; state.config.features.produces_spans(),
-        MetricNamespace::Profiles =&gt; <span class="bool-val">true</span>,
         MetricNamespace::Custom =&gt; state.has_feature(Feature::CustomMetrics),
         MetricNamespace::Stats =&gt; <span class="bool-val">true</span>,
         MetricNamespace::Unsupported =&gt; <span class="bool-val">false</span>,

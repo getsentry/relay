@@ -223,14 +223,7 @@
 <a href="#222" id="222">222</a>
 <a href="#223" id="223">223</a>
 <a href="#224" id="224">224</a>
-<a href="#225" id="225">225</a>
-<a href="#226" id="226">226</a>
-<a href="#227" id="227">227</a>
-<a href="#228" id="228">228</a>
-<a href="#229" id="229">229</a>
-<a href="#230" id="230">230</a>
-<a href="#231" id="231">231</a>
-<a href="#232" id="232">232</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
+<a href="#225" id="225">225</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::fmt;
 
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
@@ -377,15 +370,13 @@
         }
         "#</span>);
         cost_tracker.add_cost(MetricNamespace::Custom, project_key1, <span class="number">50</span>);
-        cost_tracker.add_cost(MetricNamespace::Profiles, project_key1, <span class="number">50</span>);
         <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r#"
         CostTracker {
-            total_cost: 100,
+            total_cost: 50,
             cost_per_project_key: {
-                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 50,
             },
             cost_per_namespace: {
-                Profiles: 50,
                 Custom: 50,
             },
         }
@@ -393,13 +384,12 @@
         cost_tracker.add_cost(namespace, project_key2, <span class="number">200</span>);
         <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r#"
         CostTracker {
-            total_cost: 300,
+            total_cost: 250,
             cost_per_project_key: {
-                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 50,
                 ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
             },
             cost_per_namespace: {
-                Profiles: 50,
                 Custom: 250,
             },
         }
@@ -408,13 +398,12 @@
         </span>cost_tracker.subtract_cost(namespace, project_key3, <span class="number">666</span>);
         <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r#"
         CostTracker {
-            total_cost: 300,
+            total_cost: 250,
             cost_per_project_key: {
-                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 50,
                 ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
             },
             cost_per_namespace: {
-                Profiles: 50,
                 Custom: 250,
             },
         }
@@ -423,13 +412,12 @@
         </span>cost_tracker.subtract_cost(namespace, project_key1, <span class="number">666</span>);
         <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r#"
         CostTracker {
-            total_cost: 300,
+            total_cost: 250,
             cost_per_project_key: {
-                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 50,
                 ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 200,
             },
             cost_per_namespace: {
-                Profiles: 50,
                 Custom: 250,
             },
         }
@@ -437,21 +425,19 @@
         cost_tracker.subtract_cost(namespace, project_key2, <span class="number">20</span>);
         <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r#"
         CostTracker {
-            total_cost: 280,
+            total_cost: 230,
             cost_per_project_key: {
-                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 100,
+                ProjectKey("a94ae32be2584e0bbd7a4cbb95971fed"): 50,
                 ProjectKey("a94ae32be2584e0bbd7a4cbb95971fee"): 180,
             },
             cost_per_namespace: {
-                Profiles: 50,
                 Custom: 230,
             },
         }
         "#</span>);
 
         <span class="comment">// Subtract all
-        </span>cost_tracker.subtract_cost(MetricNamespace::Profiles, project_key1, <span class="number">50</span>);
-        cost_tracker.subtract_cost(MetricNamespace::Custom, project_key1, <span class="number">50</span>);
+        </span>cost_tracker.subtract_cost(MetricNamespace::Custom, project_key1, <span class="number">50</span>);
         cost_tracker.subtract_cost(MetricNamespace::Custom, project_key2, <span class="number">180</span>);
         <span class="macro">insta::assert_debug_snapshot!</span>(cost_tracker, @<span class="string">r#"
         CostTracker {
