@@ -754,10 +754,6 @@ struct ProcessEnvelopeState<Group> {
     /// configuration objects in the project config.
     extracted_metrics: ProcessingExtractedMetrics,
 
-    /// Currently active cached rate limits of the project this envelope belongs to.
-    #[cfg_attr(not(feature = "processing"), expect(dead_code))]
-    rate_limits: Arc<RateLimits>,
-
     /// The managed envelope before processing.
     managed_envelope: TypedEnvelope<Group>,
 }
@@ -1246,6 +1242,7 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<G>,
         project_info: Arc<ProjectInfo>,
+        rate_limits: Arc<RateLimits>,
     ) -> Result<(), ProcessingError> {
         let global_config = self.inner.global_config.current();
         let rate_limiter = match self.inner.rate_limiter.as_ref() {
@@ -1255,11 +1252,20 @@ impl EnvelopeProcessorService {
 
         // Cached quotas first, they are quick to evaluate and some quotas (indexed) are not
         // applied in the fast path, all cached quotas can be applied here.
-        let _ = RateLimiter::Cached.enforce(&global_config, state, project_info.clone())?;
+        let _ = RateLimiter::Cached.enforce(
+            &global_config,
+            state,
+            project_info.clone(),
+            rate_limits.clone(),
+        )?;
 
         // Enforce all quotas consistently with Redis.
-        let limits =
-            RateLimiter::Consistent(rate_limiter).enforce(&global_config, state, project_info)?;
+        let limits = RateLimiter::Consistent(rate_limiter).enforce(
+            &global_config,
+            state,
+            project_info,
+            rate_limits,
+        )?;
 
         // Update cached rate limits with the freshly computed ones.
         if !limits.is_empty() {
@@ -1538,6 +1544,7 @@ impl EnvelopeProcessorService {
         project_id: ProjectId,
         project_info: Arc<ProjectInfo>,
         sampling_project_info: Option<Arc<ProjectInfo>>,
+        rate_limits: Arc<RateLimits>,
     ) -> Result<(), ProcessingError> {
         let mut event_fully_normalized = EventFullyNormalized::new(state.envelope());
 
@@ -1584,7 +1591,7 @@ impl EnvelopeProcessorService {
         }
 
         if_processing!(self.inner.config, {
-            self.enforce_quotas(state, project_info.clone())?;
+            self.enforce_quotas(state, project_info.clone(), rate_limits)?;
         });
 
         if state.has_event() {
@@ -1613,6 +1620,7 @@ impl EnvelopeProcessorService {
 
     /// Processes only transactions and transaction-related items.
     #[allow(unused_assignments)]
+    #[allow(clippy::too_many_arguments)]
     fn process_transactions(
         &self,
         state: &mut ProcessEnvelopeState<TransactionGroup>,
@@ -1620,6 +1628,7 @@ impl EnvelopeProcessorService {
         project_id: ProjectId,
         project_info: Arc<ProjectInfo>,
         mut sampling_project_info: Option<Arc<ProjectInfo>>,
+        rate_limits: Arc<RateLimits>,
         reservoir_counters: ReservoirCounters,
     ) -> Result<(), ProcessingError> {
         let mut event_fully_normalized = EventFullyNormalized::new(state.envelope());
@@ -1706,7 +1715,7 @@ impl EnvelopeProcessorService {
             //  - An envelope containing only processed profiles.
             // We need to make sure there are enough quotas for these profiles.
             if_processing!(self.inner.config, {
-                self.enforce_quotas(state, project_info.clone())?;
+                self.enforce_quotas(state, project_info.clone(), rate_limits)?;
             });
 
             return Ok(());
@@ -1746,7 +1755,7 @@ impl EnvelopeProcessorService {
                 );
             }
 
-            self.enforce_quotas(state, project_info.clone())?;
+            self.enforce_quotas(state, project_info.clone(), rate_limits)?;
 
             span::maybe_discard_transaction(state, project_info);
         });
@@ -1796,11 +1805,12 @@ impl EnvelopeProcessorService {
         config: Arc<Config>,
         project_id: ProjectId,
         project_info: Arc<ProjectInfo>,
+        rate_limits: Arc<RateLimits>,
     ) -> Result<(), ProcessingError> {
         profile::filter(state, config, project_id, project_info.clone());
 
         if_processing!(self.inner.config, {
-            self.enforce_quotas(state, project_info.clone())?;
+            self.enforce_quotas(state, project_info.clone(), rate_limits)?;
         });
 
         report::process_user_reports(state);
@@ -1813,10 +1823,11 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<SessionGroup>,
         project_info: Arc<ProjectInfo>,
+        rate_limits: Arc<RateLimits>,
     ) -> Result<(), ProcessingError> {
         session::process(state, project_info.clone(), &self.inner.config);
         if_processing!(self.inner.config, {
-            self.enforce_quotas(state, project_info)?;
+            self.enforce_quotas(state, project_info, rate_limits)?;
         });
         Ok(())
     }
@@ -1827,9 +1838,10 @@ impl EnvelopeProcessorService {
         state: &mut ProcessEnvelopeState<ClientReportGroup>,
         config: Arc<Config>,
         project_info: Arc<ProjectInfo>,
+        rate_limits: Arc<RateLimits>,
     ) -> Result<(), ProcessingError> {
         if_processing!(self.inner.config, {
-            self.enforce_quotas(state, project_info.clone())?;
+            self.enforce_quotas(state, project_info.clone(), rate_limits)?;
         });
 
         report::process_client_reports(
@@ -1848,6 +1860,7 @@ impl EnvelopeProcessorService {
         state: &mut ProcessEnvelopeState<ReplayGroup>,
         config: Arc<Config>,
         project_info: Arc<ProjectInfo>,
+        rate_limits: Arc<RateLimits>,
     ) -> Result<(), ProcessingError> {
         replay::process(
             state,
@@ -1857,7 +1870,7 @@ impl EnvelopeProcessorService {
             self.inner.geoip_lookup.as_ref(),
         )?;
         if_processing!(self.inner.config, {
-            self.enforce_quotas(state, project_info)?;
+            self.enforce_quotas(state, project_info, rate_limits)?;
         });
         Ok(())
     }
@@ -1868,9 +1881,10 @@ impl EnvelopeProcessorService {
         #[allow(unused_variables)] state: &mut ProcessEnvelopeState<CheckInGroup>,
         #[allow(unused_variables)] project_id: ProjectId,
         #[allow(unused_variables)] project_info: Arc<ProjectInfo>,
+        rate_limits: Arc<RateLimits>,
     ) -> Result<(), ProcessingError> {
         if_processing!(self.inner.config, {
-            self.enforce_quotas(state, project_info)?;
+            self.enforce_quotas(state, project_info, rate_limits)?;
             self.process_check_ins(state, project_id);
         });
         Ok(())
@@ -1879,6 +1893,7 @@ impl EnvelopeProcessorService {
     /// Processes standalone spans.
     ///
     /// This function does *not* run for spans extracted from transactions.
+    #[allow(clippy::too_many_arguments)]
     fn process_standalone_spans(
         &self,
         state: &mut ProcessEnvelopeState<SpanGroup>,
@@ -1886,6 +1901,7 @@ impl EnvelopeProcessorService {
         #[allow(unused_variables)] project_id: ProjectId,
         project_info: Arc<ProjectInfo>,
         #[allow(unused_variables)] sampling_project_info: Option<Arc<ProjectInfo>>,
+        rate_limits: Arc<RateLimits>,
         #[allow(unused_variables)] reservoir_counters: ReservoirCounters,
     ) -> Result<(), ProcessingError> {
         span::filter(state, config.clone(), project_info.clone());
@@ -1909,7 +1925,7 @@ impl EnvelopeProcessorService {
                 &reservoir,
             );
 
-            self.enforce_quotas(state, project_info)?;
+            self.enforce_quotas(state, project_info, rate_limits)?;
         });
         Ok(())
     }
@@ -1958,7 +1974,6 @@ impl EnvelopeProcessorService {
                     event: Annotated::empty(),
                     metrics: Metrics::default(),
                     extracted_metrics: ProcessingExtractedMetrics::new(),
-                    rate_limits,
                     managed_envelope,
                 };
 
@@ -1986,7 +2001,8 @@ impl EnvelopeProcessorService {
                 process_errors,
                 project_id,
                 project_info,
-                sampling_project_info
+                sampling_project_info,
+                rate_limits
             ),
             ProcessingGroup::Transaction => {
                 run!(
@@ -1995,31 +2011,42 @@ impl EnvelopeProcessorService {
                     project_id,
                     project_info,
                     sampling_project_info,
+                    rate_limits,
                     reservoir_counters
                 )
             }
-            ProcessingGroup::Session => run!(process_sessions, project_info),
+            ProcessingGroup::Session => run!(process_sessions, project_info, rate_limits),
             ProcessingGroup::Standalone => run!(
                 process_standalone,
                 self.inner.config.clone(),
                 project_id,
-                project_info
+                project_info,
+                rate_limits
             ),
             ProcessingGroup::ClientReport => run!(
                 process_client_reports,
                 self.inner.config.clone(),
-                project_info
+                project_info,
+                rate_limits
             ),
             ProcessingGroup::Replay => {
-                run!(process_replays, self.inner.config.clone(), project_info)
+                run!(
+                    process_replays,
+                    self.inner.config.clone(),
+                    project_info,
+                    rate_limits
+                )
             }
-            ProcessingGroup::CheckIn => run!(process_checkins, project_id, project_info),
+            ProcessingGroup::CheckIn => {
+                run!(process_checkins, project_id, project_info, rate_limits)
+            }
             ProcessingGroup::Span => run!(
                 process_standalone_spans,
                 self.inner.config.clone(),
                 project_id,
                 project_info,
                 sampling_project_info,
+                rate_limits,
                 reservoir_counters
             ),
             ProcessingGroup::ProfileChunk => run!(process_profile_chunks, project_info),
@@ -2942,6 +2969,7 @@ impl RateLimiter<'_> {
         global_config: &GlobalConfig,
         state: &mut ProcessEnvelopeState<G>,
         project_info: Arc<ProjectInfo>,
+        rate_limits: Arc<RateLimits>,
     ) -> Result<RateLimits, ProcessingError> {
         if state.envelope().is_empty() && !state.has_event() {
             return Ok(RateLimits::default());
@@ -2958,7 +2986,7 @@ impl RateLimiter<'_> {
         // remove it from the processing state eventually.
         let mut envelope_limiter =
             EnvelopeLimiter::new(CheckLimits::All, |item_scope, quantity| match self {
-                RateLimiter::Cached => Ok(state.rate_limits.check_with_quotas(quotas, item_scope)),
+                RateLimiter::Cached => Ok(rate_limits.check_with_quotas(quotas, item_scope)),
                 RateLimiter::Consistent(rl) => Ok::<_, ProcessingError>(
                     rl.is_rate_limited(quotas, item_scope, quantity, false)?,
                 ),

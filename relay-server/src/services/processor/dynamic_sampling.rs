@@ -450,7 +450,6 @@ mod tests {
                 event: Annotated::from(event),
                 metrics: Default::default(),
                 extracted_metrics: ProcessingExtractedMetrics::new(),
-                rate_limits: Default::default(),
                 managed_envelope: ManagedEnvelope::new(
                     envelope,
                     outcome_aggregator.clone(),
@@ -476,7 +475,7 @@ mod tests {
         let sampling_result = run(&mut state, config.clone(), project_info, None, &reservoir);
         assert_eq!(sampling_result.decision(), SamplingDecision::Keep);
 
-        // Dynamic sampling is run, as the transactionmetrics version is up to date.
+        // Dynamic sampling is run, as the transaction metrics version is up to date.
         let (mut state, project_info) = get_state(Some(3));
         let sampling_result = run(&mut state, config.clone(), project_info, None, &reservoir);
         assert_eq!(sampling_result.decision(), SamplingDecision::Drop);
@@ -720,7 +719,6 @@ mod tests {
             event: Annotated::new(Event::default()),
             metrics: Default::default(),
             extracted_metrics: ProcessingExtractedMetrics::new(),
-            rate_limits: Default::default(),
             managed_envelope: ManagedEnvelope::new(
                 envelope,
                 Addr::dummy(),

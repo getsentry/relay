@@ -811,7 +811,6 @@ mod tests {
     };
     use relay_event_schema::protocol::{Contexts, Event, Span};
     use relay_protocol::get_value;
-    use relay_quotas::RateLimits;
     use relay_system::Addr;
 
     use crate::envelope::Envelope;
@@ -868,7 +867,6 @@ mod tests {
             event: Annotated::from(event),
             metrics: Default::default(),
             extracted_metrics: ProcessingExtractedMetrics::new(),
-            rate_limits: Arc::new(RateLimits::default()),
             managed_envelope: managed_envelope.try_into().unwrap(),
         };
 
