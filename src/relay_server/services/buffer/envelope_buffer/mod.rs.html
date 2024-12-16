@@ -1441,7 +1441,7 @@
             <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>);
         };
         <span class="kw">let </span>project_key_pair = <span class="kw-2">*</span>key;
-        <span class="kw">let </span>envelope = stack.pop().<span class="kw">await</span>.unwrap().expect(<span class="string">"found an empty stack"</span>);
+        <span class="kw">let </span>envelope = stack.pop().<span class="kw">await</span><span class="question-mark">?</span>.expect(<span class="string">"found an empty stack"</span>);
 
         <span class="kw">let </span>last_received_at = stack.peek().<span class="kw">await</span><span class="question-mark">?</span>;
 
