@@ -367,14 +367,10 @@
 <a href="#366" id="366">366</a>
 <a href="#367" id="367">367</a>
 <a href="#368" id="368">368</a>
-<a href="#369" id="369">369</a>
-<a href="#370" id="370">370</a>
-<a href="#371" id="371">371</a>
-<a href="#372" id="372">372</a>
-<a href="#373" id="373">373</a>
-<a href="#374" id="374">374</a></pre></div><pre class="rust"><code><span class="doccomment">//! Replay related processor code.
+<a href="#369" id="369">369</a></pre></div><pre class="rust"><code><span class="doccomment">//! Replay related processor code.
 </span><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::net::IpAddr;
+<span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>bytes::Bytes;
 <span class="kw">use </span>relay_base_schema::organization::OrganizationId;
@@ -393,26 +389,26 @@
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, ItemType};
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::DiscardReason;
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{ProcessEnvelopeState, ProcessingError, ReplayGroup};
+<span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectInfo;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayTimers};
 <span class="kw">use </span><span class="kw">crate</span>::utils::sample;
 
 <span class="doccomment">/// Removes replays if the feature flag is not enabled.
 </span><span class="kw">pub fn </span>process(
     state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;ReplayGroup&gt;,
+    project_info: Arc&lt;ProjectInfo&gt;,
     global_config: <span class="kw-2">&amp;</span>GlobalConfig,
     geoip_lookup: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>GeoIpLookup&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
     <span class="comment">// If the replay feature is not enabled drop the items silenty.
-    </span><span class="kw">if </span>state.should_filter(Feature::SessionReplay) {
+    </span><span class="kw">if </span>state.should_filter(Feature::SessionReplay, <span class="kw-2">&amp;</span>project_info) {
         state.managed_envelope.drop_items_silently();
         <span class="kw">return </span><span class="prelude-val">Ok</span>(());
     }
 
     <span class="comment">// If the replay video feature is not enabled check the envelope items for a
     // replay video event.
-    </span><span class="kw">if </span>state
-        .project_info
-        .has_feature(Feature::SessionReplayVideoDisabled)
+    </span><span class="kw">if </span>project_info.has_feature(Feature::SessionReplayVideoDisabled)
         &amp;&amp; count_replay_video_events(state) &gt; <span class="number">0
     </span>{
         state.managed_envelope.drop_items_silently();
@@ -423,12 +419,12 @@
         <span class="kw">let </span>meta = state.envelope().meta();
 
         ReplayProcessingConfig {
-            config: <span class="kw-2">&amp;</span>state.project_info.config,
+            config: <span class="kw-2">&amp;</span>project_info.config,
             global_config,
             geoip_lookup,
             event_id: state.envelope().event_id(),
-            project_id: state.project_info.project_id,
-            organization_id: state.project_info.organization_id,
+            project_id: project_info.project_id,
+            organization_id: project_info.organization_id,
             client_addr: meta.client_addr(),
             user_agent: RawUserAgentInfo {
                 user_agent: meta.user_agent().map(|s| s.to_owned()),
@@ -437,10 +433,7 @@
         }
     };
 
-    <span class="kw">let </span><span class="kw-2">mut </span>scrubber = <span class="kw">if </span>state
-        .project_info
-        .has_feature(Feature::SessionReplayRecordingScrubbing)
-    {
+    <span class="kw">let </span><span class="kw-2">mut </span>scrubber = <span class="kw">if </span>project_info.has_feature(Feature::SessionReplayRecordingScrubbing) {
         <span class="kw">let </span>datascrubbing_config = rpc
             .config
             .datascrubbing_settings
@@ -458,10 +451,7 @@
     </span>};
 
     <span class="kw">for </span>item <span class="kw">in </span>state.managed_envelope.envelope_mut().items_mut() {
-        <span class="kw">if </span>state
-            .project_info
-            .has_feature(Feature::SessionReplayCombinedEnvelopeItems)
-        {
+        <span class="kw">if </span>project_info.has_feature(Feature::SessionReplayCombinedEnvelopeItems) {
             item.set_replay_combined_payload(<span class="bool-val">true</span>);
         }
 

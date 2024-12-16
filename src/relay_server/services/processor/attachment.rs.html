@@ -99,9 +99,12 @@
 <a href="#98" id="98">98</a>
 <a href="#99" id="99">99</a>
 <a href="#100" id="100">100</a>
-<a href="#101" id="101">101</a></pre></div><pre class="rust"><code><span class="doccomment">//! Attachments processor code.
+<a href="#101" id="101">101</a>
+<a href="#102" id="102">102</a>
+<a href="#103" id="103">103</a></pre></div><pre class="rust"><code><span class="doccomment">//! Attachments processor code.
 
 </span><span class="kw">use </span>std::error::Error;
+<span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Instant;
 
 <span class="kw">use </span>relay_pii::PiiAttachmentsProcessor;
@@ -111,6 +114,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::ProcessEnvelopeState;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayTimers;
 
+<span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectInfo;
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">use </span>{
     <span class="kw">crate</span>::services::processor::ErrorGroup, <span class="kw">crate</span>::services::processor::EventFullyNormalized,
@@ -153,9 +157,9 @@
 /// This only applies the new PII rules that explicitly select `ValueType::Binary` or one of the
 /// attachment types. When special attachments are detected, these are scrubbed with custom
 /// logic; otherwise the entire attachment is treated as a single binary blob.
-</span><span class="kw">pub fn </span>scrub&lt;G&gt;(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;) {
+</span><span class="kw">pub fn </span>scrub&lt;G&gt;(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;, project_info: Arc&lt;ProjectInfo&gt;) {
     <span class="kw">let </span>envelope = state.managed_envelope.envelope_mut();
-    <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>config) = state.project_info.config.pii_config {
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>config) = project_info.config.pii_config {
         <span class="kw">let </span>minidump = envelope
             .get_item_by_mut(|item| item.attachment_type() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>AttachmentType::Minidump));
 

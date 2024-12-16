@@ -772,9 +772,22 @@
 <a href="#771" id="771">771</a>
 <a href="#772" id="772">772</a>
 <a href="#773" id="773">773</a>
-<a href="#774" id="774">774</a></pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic sampling processor related code.
-
+<a href="#774" id="774">774</a>
+<a href="#775" id="775">775</a>
+<a href="#776" id="776">776</a>
+<a href="#777" id="777">777</a>
+<a href="#778" id="778">778</a>
+<a href="#779" id="779">779</a>
+<a href="#780" id="780">780</a>
+<a href="#781" id="781">781</a>
+<a href="#782" id="782">782</a>
+<a href="#783" id="783">783</a>
+<a href="#784" id="784">784</a>
+<a href="#785" id="785">785</a>
+<a href="#786" id="786">786</a>
+<a href="#787" id="787">787</a></pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic sampling processor related code.
 </span><span class="kw">use </span>std::ops::ControlFlow;
+<span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>chrono::Utc;
 <span class="kw">use </span>relay_config::Config;
@@ -790,6 +803,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{
     EventProcessing, ProcessEnvelopeState, Sampling, TransactionGroup,
 };
+<span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectInfo;
 <span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, SamplingResult};
 
 <span class="doccomment">/// Ensures there is a valid dynamic sampling context and corresponding project state.
@@ -812,44 +826,56 @@
 /// the main project state.
 ///
 /// If there is no transaction event in the envelope, this function will do nothing.
-</span><span class="kw">pub fn </span>ensure_dsc(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;) {
-    <span class="kw">if </span>state.envelope().dsc().is_some() &amp;&amp; state.sampling_project_info.is_some() {
-        <span class="kw">return</span>;
+///
+/// The function will return the sampling project information of the root project for the event. If
+/// no sampling project information is specified, the project information of the event’s project
+/// will be returned.
+</span><span class="kw">pub fn </span>validate_and_set_dsc(
+    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;,
+    project_info: Arc&lt;ProjectInfo&gt;,
+    sampling_project_info: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectInfo&gt;&gt;,
+) -&gt; <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectInfo&gt;&gt; {
+    <span class="kw">if </span>state.envelope().dsc().is_some() &amp;&amp; sampling_project_info.is_some() {
+        <span class="kw">return </span>sampling_project_info;
     }
 
     <span class="comment">// The DSC can only be computed if there's a transaction event. Note that `dsc_from_event`
     // below already checks for the event type.
     </span><span class="kw">let </span><span class="prelude-val">Some</span>(event) = state.event.value() <span class="kw">else </span>{
-        <span class="kw">return</span>;
+        <span class="kw">return </span>sampling_project_info;
     };
-    <span class="kw">let </span><span class="prelude-val">Some</span>(key_config) = state.project_info.get_public_key_config() <span class="kw">else </span>{
-        <span class="kw">return</span>;
+    <span class="kw">let </span><span class="prelude-val">Some</span>(key_config) = project_info.get_public_key_config() <span class="kw">else </span>{
+        <span class="kw">return </span>sampling_project_info;
     };
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(dsc) = utils::dsc_from_event(key_config.public_key, event) {
         state.envelope_mut().set_dsc(dsc);
-        state.sampling_project_info = <span class="prelude-val">Some</span>(state.project_info.clone());
+        <span class="kw">return </span><span class="prelude-val">Some</span>(project_info.clone());
     }
+
+    sampling_project_info
 }
 
 <span class="doccomment">/// Computes the sampling decision on the incoming event
 </span><span class="kw">pub fn </span>run&lt;Group&gt;(
     state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;Group&gt;,
+    project_info: Arc&lt;ProjectInfo&gt;,
+    sampling_project_info: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectInfo&gt;&gt;,
     reservoir: <span class="kw-2">&amp;</span>ReservoirEvaluator,
 ) -&gt; SamplingResult
 <span class="kw">where
     </span>Group: Sampling,
 {
-    <span class="kw">if </span>!Group::supports_sampling(<span class="kw-2">&amp;</span>state.project_info) {
+    <span class="kw">if </span>!Group::supports_sampling(<span class="kw-2">&amp;</span>project_info) {
         <span class="kw">return </span>SamplingResult::Pending;
     }
 
-    <span class="kw">let </span>sampling_config = <span class="kw">match </span>state.project_info.config.sampling {
+    <span class="kw">let </span>sampling_config = <span class="kw">match </span>project_info.config.sampling {
         <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>config)) <span class="kw">if </span>!config.unsupported() =&gt; <span class="prelude-val">Some</span>(config),
         <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
     };
 
-    <span class="kw">let </span>root_state = state.sampling_project_info.as_ref();
+    <span class="kw">let </span>root_state = sampling_project_info.as_ref();
     <span class="kw">let </span>root_config = <span class="kw">match </span>root_state.and_then(|s| s.config.sampling.as_ref()) {
         <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>config)) <span class="kw">if </span>!config.unsupported() =&gt; <span class="prelude-val">Some</span>(config),
         <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
@@ -961,6 +987,7 @@
 /// only for tagging errors and not for actually sampling incoming events.
 </span><span class="kw">pub fn </span>tag_error_with_sampling_decision&lt;G: EventProcessing&gt;(
     state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;,
+    sampling_project_info: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectInfo&gt;&gt;,
     config: <span class="kw-2">&amp;</span>Config,
 ) {
     <span class="kw">let </span>(<span class="prelude-val">Some</span>(dsc), <span class="prelude-val">Some</span>(event)) = (
@@ -970,7 +997,7 @@
         <span class="kw">return</span>;
     };
 
-    <span class="kw">let </span>root_state = state.sampling_project_info.as_ref();
+    <span class="kw">let </span>root_state = sampling_project_info.as_ref();
     <span class="kw">let </span>sampling_config = <span class="kw">match </span>root_state.and_then(|s| s.config.sampling.as_ref()) {
         <span class="prelude-val">Some</span>(ErrorBoundary::Ok(<span class="kw-2">ref </span>config)) =&gt; config,
         <span class="kw">_ </span>=&gt; <span class="kw">return</span>,
@@ -1207,14 +1234,12 @@
             <span class="kw">let </span>project_info = Arc::new(project_info);
             <span class="kw">let </span>envelope = new_envelope(<span class="bool-val">false</span>, <span class="string">"foo"</span>);
 
-            ProcessEnvelopeState::&lt;TransactionGroup&gt; {
+            <span class="kw">let </span>state = ProcessEnvelopeState::&lt;TransactionGroup&gt; {
                 event: Annotated::from(event),
                 metrics: Default::default(),
                 extracted_metrics: ProcessingExtractedMetrics::new(),
                 config: config.clone(),
-                project_info,
                 rate_limits: Default::default(),
-                sampling_project_info: <span class="prelude-val">None</span>,
                 managed_envelope: ManagedEnvelope::new(
                     envelope,
                     outcome_aggregator.clone(),
@@ -1225,24 +1250,26 @@
                 .unwrap(),
                 event_metrics_extracted: <span class="bool-val">false</span>,
                 spans_extracted: <span class="bool-val">false</span>,
-            }
+            };
+
+            (state, project_info)
         };
 
         <span class="kw">let </span>reservoir = dummy_reservoir();
 
         <span class="comment">// None represents no TransactionMetricsConfig, DS will not be run
-        </span><span class="kw">let </span><span class="kw-2">mut </span>state = get_state(<span class="prelude-val">None</span>);
-        <span class="kw">let </span>sampling_result = run(<span class="kw-2">&amp;mut </span>state, <span class="kw-2">&amp;</span>reservoir);
+        </span><span class="kw">let </span>(<span class="kw-2">mut </span>state, project_info) = get_state(<span class="prelude-val">None</span>);
+        <span class="kw">let </span>sampling_result = run(<span class="kw-2">&amp;mut </span>state, project_info, <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>reservoir);
         <span class="macro">assert_eq!</span>(sampling_result.decision(), SamplingDecision::Keep);
 
         <span class="comment">// Current version is 3, so it won't run DS if it's outdated
-        </span><span class="kw">let </span><span class="kw-2">mut </span>state = get_state(<span class="prelude-val">Some</span>(<span class="number">2</span>));
-        <span class="kw">let </span>sampling_result = run(<span class="kw-2">&amp;mut </span>state, <span class="kw-2">&amp;</span>reservoir);
+        </span><span class="kw">let </span>(<span class="kw-2">mut </span>state, project_info) = get_state(<span class="prelude-val">Some</span>(<span class="number">2</span>));
+        <span class="kw">let </span>sampling_result = run(<span class="kw-2">&amp;mut </span>state, project_info, <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>reservoir);
         <span class="macro">assert_eq!</span>(sampling_result.decision(), SamplingDecision::Keep);
 
         <span class="comment">// Dynamic sampling is run, as the transactionmetrics version is up to date.
-        </span><span class="kw">let </span><span class="kw-2">mut </span>state = get_state(<span class="prelude-val">Some</span>(<span class="number">3</span>));
-        <span class="kw">let </span>sampling_result = run(<span class="kw-2">&amp;mut </span>state, <span class="kw-2">&amp;</span>reservoir);
+        </span><span class="kw">let </span>(<span class="kw-2">mut </span>state, project_info) = get_state(<span class="prelude-val">Some</span>(<span class="number">3</span>));
+        <span class="kw">let </span>sampling_result = run(<span class="kw-2">&amp;mut </span>state, project_info, <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>reservoir);
         <span class="macro">assert_eq!</span>(sampling_result.decision(), SamplingDecision::Drop);
     }
 
@@ -1486,38 +1513,7 @@
             metrics: Default::default(),
             extracted_metrics: ProcessingExtractedMetrics::new(),
             config: Arc::new(Config::default()),
-            project_info,
             rate_limits: Default::default(),
-            sampling_project_info: {
-                <span class="kw">let </span><span class="kw-2">mut </span>state = ProjectInfo::default();
-                state.config.metric_extraction =
-                    ErrorBoundary::Ok(MetricExtractionConfig::default());
-                state.config.sampling = <span class="prelude-val">Some</span>(ErrorBoundary::Ok(SamplingConfig {
-                    version: <span class="number">2</span>,
-                    rules: <span class="macro">vec!</span>[
-                        <span class="comment">// Set up a reservoir (only used for transactions):
-                        </span>SamplingRule {
-                            condition: RuleCondition::all(),
-                            sampling_value: SamplingValue::Reservoir { limit: <span class="number">100 </span>},
-                            ty: RuleType::Trace,
-                            id: RuleId(<span class="number">1</span>),
-                            time_range: Default::default(),
-                            decaying_fn: Default::default(),
-                        },
-                        <span class="comment">// Reject everything that does not go into the reservoir:
-                        </span>SamplingRule {
-                            condition: RuleCondition::all(),
-                            sampling_value: SamplingValue::SampleRate { value: <span class="number">0.0 </span>},
-                            ty: RuleType::Trace,
-                            id: RuleId(<span class="number">2</span>),
-                            time_range: Default::default(),
-                            decaying_fn: Default::default(),
-                        },
-                    ],
-                    rules_v2: <span class="macro">vec!</span>[],
-                }));
-                <span class="prelude-val">Some</span>(Arc::new(state))
-            },
             managed_envelope: ManagedEnvelope::new(
                 envelope,
                 Addr::dummy(),
@@ -1528,8 +1524,38 @@
             .unwrap(),
         };
 
+        <span class="kw">let </span>sampling_project_info = {
+            <span class="kw">let </span><span class="kw-2">mut </span>state = ProjectInfo::default();
+            state.config.metric_extraction = ErrorBoundary::Ok(MetricExtractionConfig::default());
+            state.config.sampling = <span class="prelude-val">Some</span>(ErrorBoundary::Ok(SamplingConfig {
+                version: <span class="number">2</span>,
+                rules: <span class="macro">vec!</span>[
+                    <span class="comment">// Set up a reservoir (only used for transactions):
+                    </span>SamplingRule {
+                        condition: RuleCondition::all(),
+                        sampling_value: SamplingValue::Reservoir { limit: <span class="number">100 </span>},
+                        ty: RuleType::Trace,
+                        id: RuleId(<span class="number">1</span>),
+                        time_range: Default::default(),
+                        decaying_fn: Default::default(),
+                    },
+                    <span class="comment">// Reject everything that does not go into the reservoir:
+                    </span>SamplingRule {
+                        condition: RuleCondition::all(),
+                        sampling_value: SamplingValue::SampleRate { value: <span class="number">0.0 </span>},
+                        ty: RuleType::Trace,
+                        id: RuleId(<span class="number">2</span>),
+                        time_range: Default::default(),
+                        decaying_fn: Default::default(),
+                    },
+                ],
+                rules_v2: <span class="macro">vec!</span>[],
+            }));
+            <span class="prelude-val">Some</span>(Arc::new(state))
+        };
+
         <span class="kw">let </span>reservoir = dummy_reservoir();
-        run(<span class="kw-2">&amp;mut </span>state, <span class="kw-2">&amp;</span>reservoir)
+        run(<span class="kw-2">&amp;mut </span>state, project_info, sampling_project_info, <span class="kw-2">&amp;</span>reservoir)
     }
 
     <span class="attr">#[test]

@@ -594,10 +594,16 @@
 <a href="#593" id="593">593</a>
 <a href="#594" id="594">594</a>
 <a href="#595" id="595">595</a>
-<a href="#596" id="596">596</a></pre></div><pre class="rust"><code><span class="doccomment">//! Profiles related processor code.
-</span><span class="kw">use </span>std::net::IpAddr;
-
-<span class="kw">use </span>relay_dynamic_config::{Feature, GlobalConfig};
+<a href="#596" id="596">596</a>
+<a href="#597" id="597">597</a>
+<a href="#598" id="598">598</a>
+<a href="#599" id="599">599</a>
+<a href="#600" id="600">600</a>
+<a href="#601" id="601">601</a>
+<a href="#602" id="602">602</a></pre></div><pre class="rust"><code><span class="doccomment">//! Profiles related processor code.
+</span><span class="kw">use </span>relay_dynamic_config::{Feature, GlobalConfig};
+<span class="kw">use </span>std::net::IpAddr;
+<span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>relay_base_schema::events::EventType;
 <span class="kw">use </span>relay_base_schema::project::ProjectId;
@@ -610,13 +616,18 @@
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Item, ItemType};
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome};
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{ProcessEnvelopeState, TransactionGroup};
+<span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectInfo;
 <span class="kw">use </span><span class="kw">crate</span>::utils::ItemAction;
 
 <span class="doccomment">/// Filters out invalid and duplicate profiles.
 ///
 /// Returns the profile id of the single remaining profile, if there is one.
-</span><span class="kw">pub fn </span>filter&lt;G&gt;(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;, project_id: ProjectId) -&gt; <span class="prelude-ty">Option</span>&lt;ProfileId&gt; {
-    <span class="kw">let </span>profiling_disabled = state.should_filter(Feature::Profiling);
+</span><span class="kw">pub fn </span>filter&lt;G&gt;(
+    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;,
+    project_id: ProjectId,
+    project_info: Arc&lt;ProjectInfo&gt;,
+) -&gt; <span class="prelude-ty">Option</span>&lt;ProfileId&gt; {
+    <span class="kw">let </span>profiling_disabled = state.should_filter(Feature::Profiling, <span class="kw-2">&amp;</span>project_info);
     <span class="kw">let </span>has_transaction = state.event_type() == <span class="prelude-val">Some</span>(EventType::Transaction);
     <span class="kw">let </span>keep_unsampled_profiles = <span class="bool-val">true</span>;
 
@@ -689,12 +700,13 @@
 <span class="doccomment">/// Processes profiles and set the profile ID in the profile context on the transaction if successful.
 </span><span class="kw">pub fn </span>process(
     state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;,
+    project_info: Arc&lt;ProjectInfo&gt;,
     global_config: <span class="kw-2">&amp;</span>GlobalConfig,
 ) -&gt; <span class="prelude-ty">Option</span>&lt;ProfileId&gt; {
     <span class="kw">let </span>client_ip = state.managed_envelope.envelope().meta().client_addr();
-    <span class="kw">let </span>filter_settings = <span class="kw-2">&amp;</span>state.project_info.config.filter_settings;
+    <span class="kw">let </span>filter_settings = <span class="kw-2">&amp;</span>project_info.config.filter_settings;
 
-    <span class="kw">let </span>profiling_enabled = state.project_info.has_feature(Feature::Profiling);
+    <span class="kw">let </span>profiling_enabled = project_info.has_feature(Feature::Profiling);
     <span class="kw">let </span><span class="kw-2">mut </span>profile_id = <span class="prelude-val">None</span>;
 
     state.managed_envelope.retain_items(|item| <span class="kw">match </span>item.ty() {

@@ -866,10 +866,13 @@
 <a href="#865" id="865">865</a>
 <a href="#866" id="866">866</a>
 <a href="#867" id="867">867</a>
-<a href="#868" id="868">868</a></pre></div><pre class="rust"><code><span class="doccomment">//! Event processor related code.
+<a href="#868" id="868">868</a>
+<a href="#869" id="869">869</a>
+<a href="#870" id="870">870</a>
+<a href="#871" id="871">871</a></pre></div><pre class="rust"><code><span class="doccomment">//! Event processor related code.
 
 </span><span class="kw">use </span>std::error::Error;
-<span class="kw">use </span>std::sync::OnceLock;
+<span class="kw">use </span>std::sync::{Arc, OnceLock};
 
 <span class="kw">use </span>chrono::Duration <span class="kw">as </span>SignedDuration;
 <span class="kw">use </span>relay_auth::RelayVersion;
@@ -895,6 +898,7 @@
     EventFullyNormalized, EventProcessing, ExtractedEvent, ProcessEnvelopeState, ProcessingError,
     MINIMUM_CLOCK_DRIFT,
 };
+<span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectInfo;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{PlatformTag, RelayCounters, RelayHistograms, RelayTimers};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, ChunkedFormDataAggregator, FormDataIter};
 
@@ -1143,6 +1147,7 @@
 
 <span class="kw">pub fn </span>filter&lt;G: EventProcessing&gt;(
     state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;,
+    project_info: Arc&lt;ProjectInfo&gt;,
     global_config: <span class="kw-2">&amp;</span>GlobalConfig,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;FiltersStatus, ProcessingError&gt; {
     <span class="kw">let </span>event = <span class="kw">match </span>state.event.value_mut() {
@@ -1153,7 +1158,7 @@
     };
 
     <span class="kw">let </span>client_ip = state.managed_envelope.envelope().meta().client_addr();
-    <span class="kw">let </span>filter_settings = <span class="kw-2">&amp;</span>state.project_info.config.filter_settings;
+    <span class="kw">let </span>filter_settings = <span class="kw-2">&amp;</span>project_info.config.filter_settings;
 
     <span class="macro">metric!</span>(timer(RelayTimers::EventProcessingFiltering), {
         relay_filter::should_filter(event, client_ip, filter_settings, global_config.filters())
@@ -1172,7 +1177,7 @@
     </span><span class="kw">let </span>supported_generic_filters = global_config.filters.is_ok()
         &amp;&amp; relay_filter::are_generic_filters_supported(
             global_config.filters().map(|f| f.version),
-            state.project_info.config.filter_settings.generic.version,
+            project_info.config.filter_settings.generic.version,
         );
     <span class="kw">if </span>supported_generic_filters {
         <span class="prelude-val">Ok</span>(FiltersStatus::Ok)
@@ -1186,9 +1191,10 @@
 /// This uses both the general `datascrubbing_settings`, as well as the the PII rules.
 </span><span class="kw">pub fn </span>scrub&lt;G: EventProcessing&gt;(
     state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;,
+    project_info: Arc&lt;ProjectInfo&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
     <span class="kw">let </span>event = <span class="kw-2">&amp;mut </span>state.event;
-    <span class="kw">let </span>config = <span class="kw-2">&amp;</span>state.project_info.config;
+    <span class="kw">let </span>config = <span class="kw-2">&amp;</span>project_info.config;
 
     <span class="kw">if </span>config.datascrubbing_settings.scrub_data {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(event) = event.value_mut() {

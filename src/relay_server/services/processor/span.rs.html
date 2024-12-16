@@ -111,9 +111,14 @@
 <a href="#110" id="110">110</a>
 <a href="#111" id="111">111</a>
 <a href="#112" id="112">112</a>
-<a href="#113" id="113">113</a></pre></div><pre class="rust"><code><span class="doccomment">//! Processor code related to standalone spans.
+<a href="#113" id="113">113</a>
+<a href="#114" id="114">114</a>
+<a href="#115" id="115">115</a>
+<a href="#116" id="116">116</a></pre></div><pre class="rust"><code><span class="doccomment">//! Processor code related to standalone spans.
 
-</span><span class="kw">use </span>prost::Message;
+</span><span class="kw">use </span>std::sync::Arc;
+
+<span class="kw">use </span>prost::Message;
 <span class="kw">use </span>relay_dynamic_config::Feature;
 <span class="kw">use </span>relay_event_normalization::span::tag_extraction;
 <span class="kw">use </span>relay_event_schema::protocol::{Event, Span};
@@ -129,12 +134,13 @@
 
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">mod </span>processing;
+<span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectInfo;
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">pub use </span>processing::<span class="kw-2">*</span>;
 
-<span class="kw">pub fn </span>filter(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;SpanGroup&gt;) {
-    <span class="kw">let </span>disabled = state.should_filter(Feature::StandaloneSpanIngestion);
-    <span class="kw">let </span>otel_disabled = state.should_filter(Feature::OtelEndpoint);
+<span class="kw">pub fn </span>filter(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;SpanGroup&gt;, project_info: Arc&lt;ProjectInfo&gt;) {
+    <span class="kw">let </span>disabled = state.should_filter(Feature::StandaloneSpanIngestion, <span class="kw-2">&amp;</span>project_info);
+    <span class="kw">let </span>otel_disabled = state.should_filter(Feature::OtelEndpoint, <span class="kw-2">&amp;</span>project_info);
 
     state.managed_envelope.retain_items(|item| {
         <span class="kw">if </span>disabled &amp;&amp; item.is_span() {

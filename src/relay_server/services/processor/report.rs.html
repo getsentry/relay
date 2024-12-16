@@ -656,10 +656,13 @@
 <a href="#655" id="655">655</a>
 <a href="#656" id="656">656</a>
 <a href="#657" id="657">657</a>
-<a href="#658" id="658">658</a></pre></div><pre class="rust"><code><span class="doccomment">//! Contains code related to validation and normalization of the user and client reports.
+<a href="#658" id="658">658</a>
+<a href="#659" id="659">659</a>
+<a href="#660" id="660">660</a></pre></div><pre class="rust"><code><span class="doccomment">//! Contains code related to validation and normalization of the user and client reports.
 
 </span><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::error::Error;
+<span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>chrono::{Duration <span class="kw">as </span>SignedDuration, Utc};
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
@@ -674,6 +677,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, ItemType};
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{Outcome, RuleCategories, TrackOutcome};
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{ClientReportGroup, ProcessEnvelopeState, MINIMUM_CLOCK_DRIFT};
+<span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectInfo;
 <span class="kw">use </span><span class="kw">crate</span>::utils::ItemAction;
 
 <span class="doccomment">/// Fields of client reports that map to specific [`Outcome`]s without content.
@@ -699,6 +703,7 @@
 /// system.
 </span><span class="kw">pub fn </span>process_client_reports(
     state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;ClientReportGroup&gt;,
+    project_info: Arc&lt;ProjectInfo&gt;,
     outcome_aggregator: Addr&lt;TrackOutcome&gt;,
 ) {
     <span class="comment">// if client outcomes are disabled we leave the the client reports unprocessed
@@ -789,8 +794,7 @@
         clock_drift_processor.process_timestamp(timestamp);
     }
 
-    <span class="kw">let </span>retention_days = state
-        .project_info
+    <span class="kw">let </span>retention_days = project_info
         .config()
         .event_retention
         .unwrap_or(DEFAULT_EVENT_RETENTION);
