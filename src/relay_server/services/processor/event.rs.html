@@ -869,7 +869,13 @@
 <a href="#868" id="868">868</a>
 <a href="#869" id="869">869</a>
 <a href="#870" id="870">870</a>
-<a href="#871" id="871">871</a></pre></div><pre class="rust"><code><span class="doccomment">//! Event processor related code.
+<a href="#871" id="871">871</a>
+<a href="#872" id="872">872</a>
+<a href="#873" id="873">873</a>
+<a href="#874" id="874">874</a>
+<a href="#875" id="875">875</a>
+<a href="#876" id="876">876</a>
+<a href="#877" id="877">877</a></pre></div><pre class="rust"><code><span class="doccomment">//! Event processor related code.
 
 </span><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::{Arc, OnceLock};
@@ -895,8 +901,8 @@
 <span class="kw">use </span><span class="kw">crate</span>::extractors::RequestMeta;
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::Outcome;
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{
-    EventFullyNormalized, EventProcessing, ExtractedEvent, ProcessEnvelopeState, ProcessingError,
-    MINIMUM_CLOCK_DRIFT,
+    EventFullyNormalized, EventMetricsExtracted, EventProcessing, ExtractedEvent,
+    ProcessEnvelopeState, ProcessingError, SpansExtracted, MINIMUM_CLOCK_DRIFT,
 };
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectInfo;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{PlatformTag, RelayCounters, RelayHistograms, RelayTimers};
@@ -914,7 +920,7 @@
     state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;,
     event_fully_normalized: EventFullyNormalized,
     config: <span class="kw-2">&amp;</span>Config,
-) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
+) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;(EventMetricsExtracted, SpansExtracted)&gt;, ProcessingError&gt; {
     <span class="kw">let </span>envelope = <span class="kw-2">&amp;mut </span>state.envelope_mut();
 
     <span class="comment">// Remove all items first, and then process them. After this function returns, only
@@ -943,6 +949,8 @@
 
     <span class="kw">let </span>skip_normalization = config.processing_enabled() &amp;&amp; event_fully_normalized.<span class="number">0</span>;
 
+    <span class="kw">let </span><span class="kw-2">mut </span>result = <span class="prelude-val">None</span>;
+
     <span class="kw">let </span>(event, event_len) = <span class="kw">if let </span><span class="prelude-val">Some</span>(item) = event_item.or(security_item) {
         <span class="macro">relay_log::trace!</span>(<span class="string">"processing json event"</span>);
         <span class="macro">metric!</span>(timer(RelayTimers::EventProcessingDeserialize), {
@@ -958,8 +966,10 @@
         })
     } <span class="kw">else if let </span><span class="prelude-val">Some</span>(item) = transaction_item {
         <span class="macro">relay_log::trace!</span>(<span class="string">"processing json transaction"</span>);
-        state.event_metrics_extracted = item.metrics_extracted();
-        state.spans_extracted = item.spans_extracted();
+        result = <span class="prelude-val">Some</span>((
+            EventMetricsExtracted(item.metrics_extracted()),
+            SpansExtracted(item.spans_extracted()),
+        ));
         <span class="macro">metric!</span>(timer(RelayTimers::EventProcessingDeserialize), {
             <span class="comment">// Transaction items can only contain transaction events. Force the event type to
             // hint to normalization that we're dealing with a transaction now.
@@ -1004,7 +1014,7 @@
     state.event = event;
     state.metrics.bytes_ingested_event = Annotated::new(event_len <span class="kw">as </span>u64);
 
-    <span class="prelude-val">Ok</span>(())
+    <span class="prelude-val">Ok</span>(result)
 }
 
 <span class="kw">pub fn </span>finalize&lt;G: EventProcessing&gt;(
@@ -1223,6 +1233,8 @@
 <span class="kw">pub fn </span>serialize&lt;G: EventProcessing&gt;(
     state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;,
     event_fully_normalized: EventFullyNormalized,
+    event_metrics_extracted: EventMetricsExtracted,
+    spans_extracted: SpansExtracted,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
     <span class="kw">if </span>state.event.is_empty() {
         <span class="macro">relay_log::error!</span>(<span class="string">"Cannot serialize empty event"</span>);
@@ -1242,8 +1254,8 @@
 
     <span class="comment">// TODO: The state should simply maintain &amp; update an `ItemHeaders` object.
     // If transaction metrics were extracted, set the corresponding item header
-    </span>event_item.set_metrics_extracted(state.event_metrics_extracted);
-    event_item.set_spans_extracted(state.spans_extracted);
+    </span>event_item.set_metrics_extracted(event_metrics_extracted.<span class="number">0</span>);
+    event_item.set_spans_extracted(spans_extracted.<span class="number">0</span>);
     event_item.set_fully_normalized(event_fully_normalized.<span class="number">0</span>);
 
     state.envelope_mut().add_item(event_item);

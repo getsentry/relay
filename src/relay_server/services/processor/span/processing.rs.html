@@ -1386,7 +1386,36 @@
 <a href="#1385" id="1385">1385</a>
 <a href="#1386" id="1386">1386</a>
 <a href="#1387" id="1387">1387</a>
-<a href="#1388" id="1388">1388</a></pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
+<a href="#1388" id="1388">1388</a>
+<a href="#1389" id="1389">1389</a>
+<a href="#1390" id="1390">1390</a>
+<a href="#1391" id="1391">1391</a>
+<a href="#1392" id="1392">1392</a>
+<a href="#1393" id="1393">1393</a>
+<a href="#1394" id="1394">1394</a>
+<a href="#1395" id="1395">1395</a>
+<a href="#1396" id="1396">1396</a>
+<a href="#1397" id="1397">1397</a>
+<a href="#1398" id="1398">1398</a>
+<a href="#1399" id="1399">1399</a>
+<a href="#1400" id="1400">1400</a>
+<a href="#1401" id="1401">1401</a>
+<a href="#1402" id="1402">1402</a>
+<a href="#1403" id="1403">1403</a>
+<a href="#1404" id="1404">1404</a>
+<a href="#1405" id="1405">1405</a>
+<a href="#1406" id="1406">1406</a>
+<a href="#1407" id="1407">1407</a>
+<a href="#1408" id="1408">1408</a>
+<a href="#1409" id="1409">1409</a>
+<a href="#1410" id="1410">1410</a>
+<a href="#1411" id="1411">1411</a>
+<a href="#1412" id="1412">1412</a>
+<a href="#1413" id="1413">1413</a>
+<a href="#1414" id="1414">1414</a>
+<a href="#1415" id="1415">1415</a>
+<a href="#1416" id="1416">1416</a>
+<a href="#1417" id="1417">1417</a></pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
@@ -1396,7 +1425,8 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome};
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::span::extract_transaction_span;
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{
-    dynamic_sampling, ProcessEnvelopeState, ProcessingError, SpanGroup, TransactionGroup,
+    dynamic_sampling, EventMetricsExtracted, ProcessEnvelopeState, ProcessingError, SpanGroup,
+    SpansExtracted, TransactionGroup,
 };
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectInfo;
 <span class="kw">use </span><span class="kw">crate</span>::utils::{sample, ItemAction, ManagedEnvelope};
@@ -1656,19 +1686,21 @@
     project_info: Arc&lt;ProjectInfo&gt;,
     global_config: <span class="kw-2">&amp;</span>GlobalConfig,
     server_sample_rate: <span class="prelude-ty">Option</span>&lt;f64&gt;,
-) {
+    event_metrics_extracted: EventMetricsExtracted,
+    spans_extracted: SpansExtracted,
+) -&gt; SpansExtracted {
     <span class="comment">// Only extract spans from transactions (not errors).
     </span><span class="kw">if </span>state.event_type() != <span class="prelude-val">Some</span>(EventType::Transaction) {
-        <span class="kw">return</span>;
+        <span class="kw">return </span>spans_extracted;
     };
 
-    <span class="kw">if </span>state.spans_extracted {
-        <span class="kw">return</span>;
+    <span class="kw">if </span>spans_extracted.<span class="number">0 </span>{
+        <span class="kw">return </span>spans_extracted;
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(sample_rate) = global_config.options.span_extraction_sample_rate {
         <span class="kw">if </span>!sample(sample_rate) {
-            <span class="kw">return</span>;
+            <span class="kw">return </span>spans_extracted;
         }
     }
 
@@ -1728,7 +1760,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::Span);
         item.set_payload(ContentType::Json, span);
         <span class="comment">// If metrics extraction happened for the event, it also happened for its spans:
-        </span>item.set_metrics_extracted(state.event_metrics_extracted);
+        </span>item.set_metrics_extracted(event_metrics_extracted.<span class="number">0</span>);
         item.set_ingest_span_in_eap(ingest_in_eap);
 
         <span class="macro">relay_log::trace!</span>(<span class="string">"Adding span to envelope"</span>);
@@ -1736,7 +1768,7 @@
     };
 
     <span class="kw">let </span><span class="prelude-val">Some</span>(event) = state.event.value() <span class="kw">else </span>{
-        <span class="kw">return</span>;
+        <span class="kw">return </span>spans_extracted;
     };
 
     <span class="kw">let </span><span class="prelude-val">Some</span>(transaction_span) = extract_transaction_span(
@@ -1748,7 +1780,7 @@
             .max_tag_value_length,
         <span class="kw-2">&amp;</span>[],
     ) <span class="kw">else </span>{
-        <span class="kw">return</span>;
+        <span class="kw">return </span>spans_extracted;
     };
 
     <span class="comment">// Add child spans as envelope items.
@@ -1775,7 +1807,7 @@
 
     add_span(transaction_span);
 
-    state.spans_extracted = <span class="bool-val">true</span>;
+    SpansExtracted(<span class="bool-val">true</span>)
 }
 
 <span class="doccomment">/// Removes the transaction in case the project has made the transition to spans-only.
@@ -2253,8 +2285,6 @@
             config: Arc::new(Config::default()),
             rate_limits: Arc::new(RateLimits::default()),
             managed_envelope: managed_envelope.try_into().unwrap(),
-            event_metrics_extracted: <span class="bool-val">false</span>,
-            spans_extracted: <span class="bool-val">false</span>,
         };
 
         (state, project_info)
@@ -2265,7 +2295,14 @@
         <span class="kw">let </span>global_config = GlobalConfig::default();
         <span class="macro">assert!</span>(global_config.options.span_extraction_sample_rate.is_none());
         <span class="kw">let </span>(<span class="kw-2">mut </span>state, project_info) = state();
-        extract_from_event(<span class="kw-2">&amp;mut </span>state, project_info, <span class="kw-2">&amp;</span>global_config, <span class="prelude-val">None</span>);
+        extract_from_event(
+            <span class="kw-2">&amp;mut </span>state,
+            project_info,
+            <span class="kw-2">&amp;</span>global_config,
+            <span class="prelude-val">None</span>,
+            EventMetricsExtracted(<span class="bool-val">false</span>),
+            SpansExtracted(<span class="bool-val">false</span>),
+        );
         <span class="macro">assert!</span>(
             state
                 .envelope()
@@ -2281,7 +2318,14 @@
         <span class="kw">let </span><span class="kw-2">mut </span>global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = <span class="prelude-val">Some</span>(<span class="number">1.0</span>);
         <span class="kw">let </span>(<span class="kw-2">mut </span>state, project_info) = state();
-        extract_from_event(<span class="kw-2">&amp;mut </span>state, project_info, <span class="kw-2">&amp;</span>global_config, <span class="prelude-val">None</span>);
+        extract_from_event(
+            <span class="kw-2">&amp;mut </span>state,
+            project_info,
+            <span class="kw-2">&amp;</span>global_config,
+            <span class="prelude-val">None</span>,
+            EventMetricsExtracted(<span class="bool-val">false</span>),
+            SpansExtracted(<span class="bool-val">false</span>),
+        );
         <span class="macro">assert!</span>(
             state
                 .envelope()
@@ -2297,7 +2341,14 @@
         <span class="kw">let </span><span class="kw-2">mut </span>global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = <span class="prelude-val">Some</span>(<span class="number">0.0</span>);
         <span class="kw">let </span>(<span class="kw-2">mut </span>state, project_info) = state();
-        extract_from_event(<span class="kw-2">&amp;mut </span>state, project_info, <span class="kw-2">&amp;</span>global_config, <span class="prelude-val">None</span>);
+        extract_from_event(
+            <span class="kw-2">&amp;mut </span>state,
+            project_info,
+            <span class="kw-2">&amp;</span>global_config,
+            <span class="prelude-val">None</span>,
+            EventMetricsExtracted(<span class="bool-val">false</span>),
+            SpansExtracted(<span class="bool-val">false</span>),
+        );
         <span class="macro">assert!</span>(
             !state
                 .envelope()
@@ -2313,7 +2364,14 @@
         <span class="kw">let </span><span class="kw-2">mut </span>global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = <span class="prelude-val">Some</span>(<span class="number">1.0</span>); <span class="comment">// force enable
         </span><span class="kw">let </span>(<span class="kw-2">mut </span>state, project_info) = state(); <span class="comment">// client sample rate is 0.2
-        </span>extract_from_event(<span class="kw-2">&amp;mut </span>state, project_info, <span class="kw-2">&amp;</span>global_config, <span class="prelude-val">Some</span>(<span class="number">0.1</span>));
+        </span>extract_from_event(
+            <span class="kw-2">&amp;mut </span>state,
+            project_info,
+            <span class="kw-2">&amp;</span>global_config,
+            <span class="prelude-val">Some</span>(<span class="number">0.1</span>),
+            EventMetricsExtracted(<span class="bool-val">false</span>),
+            SpansExtracted(<span class="bool-val">false</span>),
+        );
 
         <span class="kw">let </span>span = state
             .envelope()

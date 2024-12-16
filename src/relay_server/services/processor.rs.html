@@ -3945,7 +3945,28 @@
 <a href="#3944" id="3944">3944</a>
 <a href="#3945" id="3945">3945</a>
 <a href="#3946" id="3946">3946</a>
-<a href="#3947" id="3947">3947</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
+<a href="#3947" id="3947">3947</a>
+<a href="#3948" id="3948">3948</a>
+<a href="#3949" id="3949">3949</a>
+<a href="#3950" id="3950">3950</a>
+<a href="#3951" id="3951">3951</a>
+<a href="#3952" id="3952">3952</a>
+<a href="#3953" id="3953">3953</a>
+<a href="#3954" id="3954">3954</a>
+<a href="#3955" id="3955">3955</a>
+<a href="#3956" id="3956">3956</a>
+<a href="#3957" id="3957">3957</a>
+<a href="#3958" id="3958">3958</a>
+<a href="#3959" id="3959">3959</a>
+<a href="#3960" id="3960">3960</a>
+<a href="#3961" id="3961">3961</a>
+<a href="#3962" id="3962">3962</a>
+<a href="#3963" id="3963">3963</a>
+<a href="#3964" id="3964">3964</a>
+<a href="#3965" id="3965">3965</a>
+<a href="#3966" id="3966">3966</a>
+<a href="#3967" id="3967">3967</a>
+<a href="#3968" id="3968">3968</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::fmt::{Debug, Display};
@@ -4689,14 +4710,6 @@
     /// extracted.
     </span>event: Annotated&lt;Event&gt;,
 
-    <span class="doccomment">/// Track whether transaction metrics were already extracted.
-    </span>event_metrics_extracted: bool,
-
-    <span class="doccomment">/// Track whether spans and span metrics were already extracted.
-    ///
-    /// Only applies to envelopes with a transaction item.
-    </span>spans_extracted: bool,
-
     <span class="doccomment">/// Partial metrics of the Event during construction.
     ///
     /// The pipeline stages can add to this metrics objects. In `finalize_event`, the metrics are
@@ -5081,7 +5094,7 @@
 
 <span class="doccomment">/// New type representing the normalization state of the event.
 </span><span class="attr">#[derive(Copy, Clone)]
-</span><span class="kw">struct </span>EventFullyNormalized(<span class="kw">pub </span>bool);
+</span><span class="kw">struct </span>EventFullyNormalized(bool);
 
 <span class="kw">impl </span>EventFullyNormalized {
     <span class="doccomment">/// Returns `true` if the event is fully normalized, `false` otherwise.
@@ -5094,6 +5107,14 @@
         <span class="self">Self</span>(event_fully_normalized)
     }
 }
+
+<span class="doccomment">/// New type representing whether metrics were extracted from transactions/spans.
+</span><span class="attr">#[derive(Copy, Clone)]
+</span><span class="kw">struct </span>EventMetricsExtracted(bool);
+
+<span class="doccomment">/// New type representing whether spans were extracted.
+</span><span class="attr">#[derive(Copy, Clone)]
+</span><span class="kw">struct </span>SpansExtracted(bool);
 
 <span class="kw">impl </span>EnvelopeProcessorService {
     <span class="doccomment">/// Creates a multi-threaded envelope processor.
@@ -5230,12 +5251,14 @@
         project_id: ProjectId,
         project_info: Arc&lt;ProjectInfo&gt;,
         sampling_decision: SamplingDecision,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
-        <span class="kw">if </span>state.event_metrics_extracted {
-            <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+        event_metrics_extracted: EventMetricsExtracted,
+        spans_extracted: SpansExtracted,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;EventMetricsExtracted, ProcessingError&gt; {
+        <span class="kw">if </span>event_metrics_extracted.<span class="number">0 </span>{
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(event_metrics_extracted);
         }
         <span class="kw">let </span><span class="prelude-val">Some</span>(event) = state.event.value_mut() <span class="kw">else </span>{
-            <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(event_metrics_extracted);
         };
 
         <span class="comment">// NOTE: This function requires a `metric_extraction` in the project config. Legacy configs
@@ -5245,7 +5268,7 @@
         <span class="kw">let </span>combined_config = {
             <span class="kw">let </span>config = <span class="kw">match </span><span class="kw-2">&amp;</span>project_info.config.metric_extraction {
                 ErrorBoundary::Ok(<span class="kw-2">ref </span>config) <span class="kw">if </span>config.is_supported() =&gt; config,
-                <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(()),
+                <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(event_metrics_extracted),
             };
             <span class="kw">let </span>global_config = <span class="kw">match </span><span class="kw-2">&amp;</span>global.metric_extraction {
                 ErrorBoundary::Ok(global_config) =&gt; global_config,
@@ -5260,7 +5283,7 @@
                         <span class="comment">// If there's an error with global metrics extraction, it is safe to assume that this
                         // Relay instance is not up-to-date, and we should skip extraction.
                         </span><span class="macro">relay_log::debug!</span>(<span class="string">"Failed to parse global extraction config: {e}"</span>);
-                        <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+                        <span class="kw">return </span><span class="prelude-val">Ok</span>(event_metrics_extracted);
                     })
                 }
             };
@@ -5272,11 +5295,11 @@
             <span class="prelude-val">Some</span>(ErrorBoundary::Ok(tx_config)) =&gt; tx_config,
             <span class="prelude-val">Some</span>(ErrorBoundary::Err(e)) =&gt; {
                 <span class="macro">relay_log::debug!</span>(<span class="string">"Failed to parse legacy transaction metrics config: {e}"</span>);
-                <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+                <span class="kw">return </span><span class="prelude-val">Ok</span>(event_metrics_extracted);
             }
             <span class="prelude-val">None </span>=&gt; {
                 <span class="macro">relay_log::debug!</span>(<span class="string">"Legacy transaction metrics config is missing"</span>);
-                <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+                <span class="kw">return </span><span class="prelude-val">Ok</span>(event_metrics_extracted);
             }
         };
 
@@ -5291,12 +5314,12 @@
                 }
             });
 
-            <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(event_metrics_extracted);
         }
 
         <span class="comment">// If spans were already extracted for an event, we rely on span processing to extract metrics.
-        </span><span class="kw">let </span>extract_spans = !state.spans_extracted
-            &amp;&amp; project_info.config.features.produces_spans()
+        </span><span class="kw">let </span>extract_spans = !spans_extracted.<span class="number">0
+            </span>&amp;&amp; project_info.config.features.produces_spans()
             &amp;&amp; utils::sample(global.options.span_extraction_sample_rate.unwrap_or(<span class="number">1.0</span>));
 
         <span class="kw">let </span>metrics = <span class="kw">crate</span>::metrics_extraction::event::extract_metrics(
@@ -5336,9 +5359,7 @@
                 .extend(extractor.extract(event)<span class="question-mark">?</span>, <span class="prelude-val">Some</span>(sampling_decision));
         }
 
-        state.event_metrics_extracted = <span class="bool-val">true</span>;
-
-        <span class="prelude-val">Ok</span>(())
+        <span class="prelude-val">Ok</span>(EventMetricsExtracted(<span class="bool-val">true</span>))
     }
 
     <span class="kw">fn </span>normalize_event&lt;G: EventProcessing&gt;(
@@ -5347,20 +5368,20 @@
         project_id: ProjectId,
         project_info: Arc&lt;ProjectInfo&gt;,
         <span class="kw-2">mut </span>event_fully_normalized: EventFullyNormalized,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;EventFullyNormalized&gt;, ProcessingError&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;EventFullyNormalized, ProcessingError&gt; {
         <span class="kw">if </span>!state.has_event() {
             <span class="comment">// NOTE(iker): only processing relays create events from
             // attachments, so these events won't be normalized in
             // non-processing relays even if the config is set to run full
             // normalization.
-            </span><span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>);
+            </span><span class="kw">return </span><span class="prelude-val">Ok</span>(event_fully_normalized);
         }
 
         <span class="kw">let </span>full_normalization = <span class="kw">match </span><span class="self">self</span>.inner.config.normalization_level() {
             NormalizationLevel::Full =&gt; <span class="bool-val">true</span>,
             NormalizationLevel::Default =&gt; {
                 <span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() &amp;&amp; event_fully_normalized.<span class="number">0 </span>{
-                    <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>);
+                    <span class="kw">return </span><span class="prelude-val">Ok</span>(event_fully_normalized);
                 }
 
                 <span class="self">self</span>.inner.config.processing_enabled()
@@ -5478,7 +5499,7 @@
 
         event_fully_normalized.<span class="number">0 </span>|= full_normalization;
 
-        <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(event_fully_normalized))
+        <span class="prelude-val">Ok</span>(event_fully_normalized)
     }
 
     <span class="doccomment">/// Processes the general errors, and the items which require or create the events.
@@ -5498,7 +5519,10 @@
             unreal::expand(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
         });
 
-        event::extract(state, event_fully_normalized, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
+        <span class="comment">// When extracting the event when processing an error, we expect that the result of this
+        // function is unused since we don't have error metrics and errors are not correlated to
+        // extracted spans.
+        </span>event::extract(state, event_fully_normalized, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
 
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
             <span class="kw">if let </span><span class="prelude-val">Some</span>(inner_event_fully_normalized) = unreal::process(state)<span class="question-mark">? </span>{
@@ -5510,14 +5534,12 @@
         });
 
         event::finalize(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(inner_event_fully_normalized) = <span class="self">self</span>.normalize_event(
+        event_fully_normalized = <span class="self">self</span>.normalize_event(
             state,
             project_id,
             project_info.clone(),
             event_fully_normalized,
-        )<span class="question-mark">? </span>{
-            event_fully_normalized = inner_event_fully_normalized;
-        };
+        )<span class="question-mark">?</span>;
         <span class="kw">let </span>filter_run = event::filter(
             state,
             project_info.clone(),
@@ -5538,7 +5560,12 @@
 
         <span class="kw">if </span>state.has_event() {
             event::scrub(state, project_info.clone())<span class="question-mark">?</span>;
-            event::serialize(state, event_fully_normalized)<span class="question-mark">?</span>;
+            event::serialize(
+                state,
+                event_fully_normalized,
+                EventMetricsExtracted(<span class="bool-val">false</span>),
+                SpansExtracted(<span class="bool-val">false</span>),
+            )<span class="question-mark">?</span>;
             event::emit_feedback_metrics(state.envelope());
         }
 
@@ -5556,6 +5583,7 @@
     }
 
     <span class="doccomment">/// Processes only transactions and transaction-related items.
+    </span><span class="attr">#[allow(unused_assignments)]
     </span><span class="kw">fn </span>process_transactions(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;,
@@ -5565,23 +5593,28 @@
         reservoir_counters: ReservoirCounters,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>event_fully_normalized = EventFullyNormalized::new(state.envelope());
+        <span class="kw">let </span><span class="kw-2">mut </span>event_metrics_extracted = EventMetricsExtracted(<span class="bool-val">false</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>spans_extracted = SpansExtracted(<span class="bool-val">false</span>);
 
         <span class="kw">let </span>global_config = <span class="self">self</span>.inner.global_config.current();
 
-        event::extract(state, event_fully_normalized, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
+        <span class="kw">if let </span><span class="prelude-val">Some</span>((inner_event_metrics_extracted, inner_spans_extracted)) =
+            event::extract(state, event_fully_normalized, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?
+        </span>{
+            event_metrics_extracted = inner_event_metrics_extracted;
+            spans_extracted = inner_spans_extracted;
+        };
 
         <span class="kw">let </span>profile_id = profile::filter(state, project_id, project_info.clone());
         profile::transfer_id(state, profile_id);
 
         event::finalize(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(inner_event_fully_normalized) = <span class="self">self</span>.normalize_event(
+        event_fully_normalized = <span class="self">self</span>.normalize_event(
             state,
             project_id,
             project_info.clone(),
             event_fully_normalized,
-        )<span class="question-mark">? </span>{
-            event_fully_normalized = inner_event_fully_normalized;
-        }
+        )<span class="question-mark">?</span>;
 
         sampling_project_info = dynamic_sampling::validate_and_set_dsc(
             state,
@@ -5626,11 +5659,13 @@
             // Before metric extraction to make sure the profile count is reflected correctly.
             </span>profile::process(state, project_info.clone(), <span class="kw-2">&amp;</span>global_config);
             <span class="comment">// Extract metrics here, we're about to drop the event/transaction.
-            </span><span class="self">self</span>.extract_transaction_metrics(
+            </span>event_metrics_extracted = <span class="self">self</span>.extract_transaction_metrics(
                 state,
                 project_id,
                 project_info.clone(),
                 SamplingDecision::Drop,
+                event_metrics_extracted,
+                spans_extracted,
             )<span class="question-mark">?</span>;
 
             dynamic_sampling::drop_unsampled_items(state, outcome);
@@ -5658,19 +5693,23 @@
             profile::transfer_id(state, profile_id);
 
             <span class="comment">// Always extract metrics in processing Relays for sampled items.
-            </span><span class="self">self</span>.extract_transaction_metrics(
+            </span>event_metrics_extracted = <span class="self">self</span>.extract_transaction_metrics(
                 state,
                 project_id,
                 project_info.clone(),
                 SamplingDecision::Keep,
+                event_metrics_extracted,
+                spans_extracted,
             )<span class="question-mark">?</span>;
 
             <span class="kw">if </span>project_info.has_feature(Feature::ExtractSpansFromEvent) {
-                span::extract_from_event(
+                spans_extracted = span::extract_from_event(
                     state,
                     project_info.clone(),
                     <span class="kw-2">&amp;</span>global_config,
                     server_sample_rate,
+                    event_metrics_extracted,
+                    spans_extracted,
                 );
             }
 
@@ -5681,7 +5720,12 @@
 
         <span class="comment">// Event may have been dropped because of a quota and the envelope can be empty.
         </span><span class="kw">if </span>state.has_event() {
-            event::serialize(state, event_fully_normalized)<span class="question-mark">?</span>;
+            event::serialize(
+                state,
+                event_fully_normalized,
+                event_metrics_extracted,
+                spans_extracted,
+            )<span class="question-mark">?</span>;
         }
 
         <span class="kw">if </span><span class="self">self</span>.inner.config.processing_enabled() &amp;&amp; !event_fully_normalized.<span class="number">0 </span>{
@@ -5872,8 +5916,6 @@
                 <span class="kw">let </span>managed_envelope = managed_envelope.try_into()<span class="question-mark">?</span>;
                 <span class="kw">let </span><span class="kw-2">mut </span>state = ProcessEnvelopeState {
                     event: Annotated::empty(),
-                    event_metrics_extracted: <span class="bool-val">false</span>,
-                    spans_extracted: <span class="bool-val">false</span>,
                     metrics: Metrics::default(),
                     extracted_metrics: ProcessingExtractedMetrics::new(),
                     config: <span class="self">self</span>.inner.config.clone(),
