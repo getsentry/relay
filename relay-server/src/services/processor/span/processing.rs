@@ -45,12 +45,14 @@ use thiserror::Error;
 #[error(transparent)]
 struct ValidationError(#[from] anyhow::Error);
 
+#[allow(clippy::too_many_arguments)]
 pub fn process(
     state: &mut ProcessEnvelopeState<SpanGroup>,
+    global_config: &GlobalConfig,
+    config: Arc<Config>,
     project_id: ProjectId,
     project_info: Arc<ProjectInfo>,
     sampling_project_info: Option<Arc<ProjectInfo>>,
-    global_config: &GlobalConfig,
     geo_lookup: Option<&GeoIpLookup>,
     reservoir_counters: &ReservoirEvaluator,
 ) {
@@ -60,6 +62,7 @@ pub fn process(
     // once for all spans in the envelope.
     let sampling_result = dynamic_sampling::run(
         state,
+        config.clone(),
         project_info.clone(),
         sampling_project_info,
         reservoir_counters,
@@ -70,7 +73,7 @@ pub fn process(
         _ => None,
     };
     let normalize_span_config = NormalizeSpanConfig::new(
-        &state.config,
+        &config,
         global_config,
         project_info.config(),
         &state.managed_envelope,
@@ -266,8 +269,9 @@ fn add_sample_rate(measurements: &mut Annotated<Measurements>, name: &str, value
 
 pub fn extract_from_event(
     state: &mut ProcessEnvelopeState<TransactionGroup>,
-    project_info: Arc<ProjectInfo>,
     global_config: &GlobalConfig,
+    config: Arc<Config>,
+    project_info: Arc<ProjectInfo>,
     server_sample_rate: Option<f64>,
     event_metrics_extracted: EventMetricsExtracted,
     spans_extracted: SpansExtracted,
@@ -356,8 +360,7 @@ pub fn extract_from_event(
 
     let Some(transaction_span) = extract_transaction_span(
         event,
-        state
-            .config
+        config
             .aggregator_config_for(MetricNamespace::Spans)
             .aggregator
             .max_tag_value_length,
@@ -865,7 +868,6 @@ mod tests {
             event: Annotated::from(event),
             metrics: Default::default(),
             extracted_metrics: ProcessingExtractedMetrics::new(),
-            config: Arc::new(Config::default()),
             rate_limits: Arc::new(RateLimits::default()),
             managed_envelope: managed_envelope.try_into().unwrap(),
         };
@@ -876,12 +878,14 @@ mod tests {
     #[test]
     fn extract_sampled_default() {
         let global_config = GlobalConfig::default();
+        let config = Arc::new(Config::default());
         assert!(global_config.options.span_extraction_sample_rate.is_none());
         let (mut state, project_info) = state();
         extract_from_event(
             &mut state,
-            project_info,
             &global_config,
+            config,
+            project_info,
             None,
             EventMetricsExtracted(false),
             SpansExtracted(false),
@@ -900,11 +904,13 @@ mod tests {
     fn extract_sampled_explicit() {
         let mut global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = Some(1.0);
+        let config = Arc::new(Config::default());
         let (mut state, project_info) = state();
         extract_from_event(
             &mut state,
-            project_info,
             &global_config,
+            config,
+            project_info,
             None,
             EventMetricsExtracted(false),
             SpansExtracted(false),
@@ -923,11 +929,13 @@ mod tests {
     fn extract_sampled_dropped() {
         let mut global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = Some(0.0);
+        let config = Arc::new(Config::default());
         let (mut state, project_info) = state();
         extract_from_event(
             &mut state,
-            project_info,
             &global_config,
+            config,
+            project_info,
             None,
             EventMetricsExtracted(false),
             SpansExtracted(false),
@@ -946,11 +954,13 @@ mod tests {
     fn extract_sample_rates() {
         let mut global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = Some(1.0); // force enable
+        let config = Arc::new(Config::default());
         let (mut state, project_info) = state(); // client sample rate is 0.2
         extract_from_event(
             &mut state,
-            project_info,
             &global_config,
+            config,
+            project_info,
             Some(0.1),
             EventMetricsExtracted(false),
             SpansExtracted(false),

@@ -1720,7 +1720,8 @@ impl EnvelopeProcessorService {
 
         if_processing!(self.inner.config, {
             // Process profiles before extracting metrics, to make sure they are removed if they are invalid.
-            let profile_id = profile::process(state, &global_config, config, project_info.clone());
+            let profile_id =
+                profile::process(state, &global_config, config.clone(), project_info.clone());
             profile::transfer_id(state, profile_id);
 
             // Always extract metrics in processing Relays for sampled items.
@@ -1736,8 +1737,9 @@ impl EnvelopeProcessorService {
             if project_info.has_feature(Feature::ExtractSpansFromEvent) {
                 spans_extracted = span::extract_from_event(
                     state,
-                    project_info.clone(),
                     &global_config,
+                    config,
+                    project_info.clone(),
                     server_sample_rate,
                     event_metrics_extracted,
                     spans_extracted,
@@ -1886,7 +1888,7 @@ impl EnvelopeProcessorService {
         #[allow(unused_variables)] sampling_project_info: Option<Arc<ProjectInfo>>,
         #[allow(unused_variables)] reservoir_counters: ReservoirCounters,
     ) -> Result<(), ProcessingError> {
-        span::filter(state, config, project_info.clone());
+        span::filter(state, config.clone(), project_info.clone());
         span::convert_otel_traces_data(state);
 
         if_processing!(self.inner.config, {
@@ -1898,10 +1900,11 @@ impl EnvelopeProcessorService {
 
             span::process(
                 state,
+                &global_config,
+                config,
                 project_id,
                 project_info.clone(),
                 sampling_project_info,
-                &global_config,
                 self.inner.geoip_lookup.as_ref(),
                 &reservoir,
             );
