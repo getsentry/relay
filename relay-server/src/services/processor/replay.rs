@@ -35,7 +35,7 @@ pub fn process(
     geoip_lookup: Option<&GeoIpLookup>,
 ) -> Result<(), ProcessingError> {
     // If the replay feature is not enabled drop the items silently.
-    if should_filter(&config, Feature::SessionReplay, &project_info) {
+    if should_filter(&config, &project_info, Feature::SessionReplay) {
         state.managed_envelope.drop_items_silently();
         return Ok(());
     }
