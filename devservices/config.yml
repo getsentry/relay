@@ -31,7 +31,7 @@ services:
       test: curl -f http://127.0.0.1:7899/api/relay/healthcheck/live/
       interval: 5s
       timeout: 5s
-      retries: 3
+      retries: 5
     volumes:
       - ./config/relay.yml:/etc/relay/config.yml
       - ./config/devservices-credentials.json:/etc/relay/credentials.json
