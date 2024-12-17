@@ -948,4 +948,26 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn test_sub_rem_euclid() {
+        for (head, slot, expected) in [
+            // head == slot
+            (253, 253, 0),
+            // head < slot
+            (253, 273, 0),
+            (253, 274, 1),
+            (253, 275, 2),
+            (253, 276, 3),
+            (253, 277, 4),
+            // head > slot
+            (253, 233, 0),
+            (253, 234, 1),
+            (253, 235, 2),
+            (253, 236, 3),
+            (253, 237, 4),
+        ] {
+            assert_eq!(sub_rem_euclid(slot, head, 5), expected);
+        }
+    }
 }
