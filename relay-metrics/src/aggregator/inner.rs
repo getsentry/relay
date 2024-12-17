@@ -340,15 +340,16 @@ impl Inner {
             }
         } % u64::from(self.num_partitions);
 
+        // Calculate the slot of the bucket based on it's time and shift it by its assigned partition.
         let slot = time_slot * u64::from(self.num_partitions) + assigned_partition;
-
-        let slots_len = self.slots.len() as u64;
-        let index = (slot + slots_len).wrapping_sub(self.head % slots_len) % slots_len;
+        // Transform the slot to an offset/index into the ring-buffer, by calculating:
+        // `(slot - self.head).rem_euclid(self.slots.len())`.
+        let index = sub_rem_euclid(slot, self.head, self.slots.len() as u64);
 
         let slot = self
             .slots
             .get_mut(index as usize)
-            .expect("index should always be a valid partition");
+            .expect("index should always be a valid slot index");
 
         debug_assert_eq!(
             u64::from(slot.partition_key),
@@ -520,6 +521,23 @@ impl RelativeRange {
             diff <= self.max_in_future
         }
     }
+}
+
+/// Calculates `(a - b).rem_euclid(mod)` for `u64` values.
+///
+/// Since `a - b` can be negative, you naively need to temporarily change the number space from
+/// unsigned to signed and after the modulo back to unsigned.
+///
+/// This function instead operates purely with unsigned arithmetic and makes sure the subtraction
+/// is always positive.
+fn sub_rem_euclid(a: u64, b: u64, m: u64) -> u64 {
+    (
+        // Shift a by `m`: `[m, inf)`.
+        (a + m)
+        -
+        // Modulo b: `[0, m)`.
+        (b % m)
+    ) % m
 }
 
 fn build_hasher() -> RandomState {
