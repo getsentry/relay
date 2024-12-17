@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 24.12.0
 
 **Bug Fixes**:
 
