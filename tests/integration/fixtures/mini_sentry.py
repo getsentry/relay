@@ -308,7 +308,7 @@ def mini_sentry(request):  # noqa
         if (
             event is not None
             and sentry.fail_on_relay_error
-            and event.level in ("error", "warning")
+            and event.get("level") != "info"
         ):
             error = AssertionError("Relay sent us event: " + get_error_message(event))
             sentry.test_failures.put(("/api/666/envelope/", error))
