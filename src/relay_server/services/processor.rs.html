@@ -3986,7 +3986,35 @@
 <a href="#3985" id="3985">3985</a>
 <a href="#3986" id="3986">3986</a>
 <a href="#3987" id="3987">3987</a>
-<a href="#3988" id="3988">3988</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
+<a href="#3988" id="3988">3988</a>
+<a href="#3989" id="3989">3989</a>
+<a href="#3990" id="3990">3990</a>
+<a href="#3991" id="3991">3991</a>
+<a href="#3992" id="3992">3992</a>
+<a href="#3993" id="3993">3993</a>
+<a href="#3994" id="3994">3994</a>
+<a href="#3995" id="3995">3995</a>
+<a href="#3996" id="3996">3996</a>
+<a href="#3997" id="3997">3997</a>
+<a href="#3998" id="3998">3998</a>
+<a href="#3999" id="3999">3999</a>
+<a href="#4000" id="4000">4000</a>
+<a href="#4001" id="4001">4001</a>
+<a href="#4002" id="4002">4002</a>
+<a href="#4003" id="4003">4003</a>
+<a href="#4004" id="4004">4004</a>
+<a href="#4005" id="4005">4005</a>
+<a href="#4006" id="4006">4006</a>
+<a href="#4007" id="4007">4007</a>
+<a href="#4008" id="4008">4008</a>
+<a href="#4009" id="4009">4009</a>
+<a href="#4010" id="4010">4010</a>
+<a href="#4011" id="4011">4011</a>
+<a href="#4012" id="4012">4012</a>
+<a href="#4013" id="4013">4013</a>
+<a href="#4014" id="4014">4014</a>
+<a href="#4015" id="4015">4015</a>
+<a href="#4016" id="4016">4016</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::fmt::{Debug, Display};
@@ -4742,10 +4770,6 @@
     /// configuration objects in the project config.
     </span>extracted_metrics: ProcessingExtractedMetrics,
 
-    <span class="doccomment">/// Currently active cached rate limits of the project this envelope belongs to.
-    </span><span class="attr">#[cfg_attr(not(feature = <span class="string">"processing"</span>), expect(dead_code))]
-    </span>rate_limits: Arc&lt;RateLimits&gt;,
-
     <span class="doccomment">/// The managed envelope before processing.
     </span>managed_envelope: TypedEnvelope&lt;Group&gt;,
 }
@@ -5234,6 +5258,7 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;,
         project_info: Arc&lt;ProjectInfo&gt;,
+        rate_limits: Arc&lt;RateLimits&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
         <span class="kw">let </span>global_config = <span class="self">self</span>.inner.global_config.current();
         <span class="kw">let </span>rate_limiter = <span class="kw">match </span><span class="self">self</span>.inner.rate_limiter.as_ref() {
@@ -5243,11 +5268,20 @@
 
         <span class="comment">// Cached quotas first, they are quick to evaluate and some quotas (indexed) are not
         // applied in the fast path, all cached quotas can be applied here.
-        </span><span class="kw">let _ </span>= RateLimiter::Cached.enforce(<span class="kw-2">&amp;</span>global_config, state, project_info.clone())<span class="question-mark">?</span>;
+        </span><span class="kw">let _ </span>= RateLimiter::Cached.enforce(
+            <span class="kw-2">&amp;</span>global_config,
+            state,
+            project_info.clone(),
+            rate_limits.clone(),
+        )<span class="question-mark">?</span>;
 
         <span class="comment">// Enforce all quotas consistently with Redis.
-        </span><span class="kw">let </span>limits =
-            RateLimiter::Consistent(rate_limiter).enforce(<span class="kw-2">&amp;</span>global_config, state, project_info)<span class="question-mark">?</span>;
+        </span><span class="kw">let </span>limits = RateLimiter::Consistent(rate_limiter).enforce(
+            <span class="kw-2">&amp;</span>global_config,
+            state,
+            project_info,
+            rate_limits,
+        )<span class="question-mark">?</span>;
 
         <span class="comment">// Update cached rate limits with the freshly computed ones.
         </span><span class="kw">if </span>!limits.is_empty() {
@@ -5526,6 +5560,7 @@
         project_id: ProjectId,
         project_info: Arc&lt;ProjectInfo&gt;,
         sampling_project_info: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectInfo&gt;&gt;,
+        <span class="attr">#[allow(unused_variables)] </span>rate_limits: Arc&lt;RateLimits&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>event_fully_normalized = EventFullyNormalized::new(state.envelope());
 
@@ -5572,7 +5607,7 @@
         }
 
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
-            <span class="self">self</span>.enforce_quotas(state, project_info.clone())<span class="question-mark">?</span>;
+            <span class="self">self</span>.enforce_quotas(state, project_info.clone(), rate_limits)<span class="question-mark">?</span>;
         });
 
         <span class="kw">if </span>state.has_event() {
@@ -5601,6 +5636,7 @@
 
     <span class="doccomment">/// Processes only transactions and transaction-related items.
     </span><span class="attr">#[allow(unused_assignments)]
+    #[allow(clippy::too_many_arguments)]
     </span><span class="kw">fn </span>process_transactions(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;,
@@ -5608,6 +5644,7 @@
         project_id: ProjectId,
         project_info: Arc&lt;ProjectInfo&gt;,
         <span class="kw-2">mut </span>sampling_project_info: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectInfo&gt;&gt;,
+        <span class="attr">#[allow(unused_variables)] </span>rate_limits: Arc&lt;RateLimits&gt;,
         reservoir_counters: ReservoirCounters,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>event_fully_normalized = EventFullyNormalized::new(state.envelope());
@@ -5694,7 +5731,7 @@
             //  - An envelope containing only processed profiles.
             // We need to make sure there are enough quotas for these profiles.
             </span><span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
-                <span class="self">self</span>.enforce_quotas(state, project_info.clone())<span class="question-mark">?</span>;
+                <span class="self">self</span>.enforce_quotas(state, project_info.clone(), rate_limits)<span class="question-mark">?</span>;
             });
 
             <span class="kw">return </span><span class="prelude-val">Ok</span>(());
@@ -5734,7 +5771,7 @@
                 );
             }
 
-            <span class="self">self</span>.enforce_quotas(state, project_info.clone())<span class="question-mark">?</span>;
+            <span class="self">self</span>.enforce_quotas(state, project_info.clone(), rate_limits)<span class="question-mark">?</span>;
 
             span::maybe_discard_transaction(state, project_info);
         });
@@ -5784,11 +5821,12 @@
         config: Arc&lt;Config&gt;,
         project_id: ProjectId,
         project_info: Arc&lt;ProjectInfo&gt;,
+        <span class="attr">#[allow(unused_variables)] </span>rate_limits: Arc&lt;RateLimits&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
         profile::filter(state, config, project_id, project_info.clone());
 
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
-            <span class="self">self</span>.enforce_quotas(state, project_info.clone())<span class="question-mark">?</span>;
+            <span class="self">self</span>.enforce_quotas(state, project_info.clone(), rate_limits)<span class="question-mark">?</span>;
         });
 
         report::process_user_reports(state);
@@ -5801,10 +5839,11 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;SessionGroup&gt;,
         project_info: Arc&lt;ProjectInfo&gt;,
+        <span class="attr">#[allow(unused_variables)] </span>rate_limits: Arc&lt;RateLimits&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
         session::process(state, project_info.clone(), <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config);
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
-            <span class="self">self</span>.enforce_quotas(state, project_info)<span class="question-mark">?</span>;
+            <span class="self">self</span>.enforce_quotas(state, project_info, rate_limits)<span class="question-mark">?</span>;
         });
         <span class="prelude-val">Ok</span>(())
     }
@@ -5815,9 +5854,10 @@
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;ClientReportGroup&gt;,
         config: Arc&lt;Config&gt;,
         project_info: Arc&lt;ProjectInfo&gt;,
+        <span class="attr">#[allow(unused_variables)] </span>rate_limits: Arc&lt;RateLimits&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
-            <span class="self">self</span>.enforce_quotas(state, project_info.clone())<span class="question-mark">?</span>;
+            <span class="self">self</span>.enforce_quotas(state, project_info.clone(), rate_limits)<span class="question-mark">?</span>;
         });
 
         report::process_client_reports(
@@ -5836,6 +5876,7 @@
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;ReplayGroup&gt;,
         config: Arc&lt;Config&gt;,
         project_info: Arc&lt;ProjectInfo&gt;,
+        <span class="attr">#[allow(unused_variables)] </span>rate_limits: Arc&lt;RateLimits&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
         replay::process(
             state,
@@ -5845,7 +5886,7 @@
             <span class="self">self</span>.inner.geoip_lookup.as_ref(),
         )<span class="question-mark">?</span>;
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
-            <span class="self">self</span>.enforce_quotas(state, project_info)<span class="question-mark">?</span>;
+            <span class="self">self</span>.enforce_quotas(state, project_info, rate_limits)<span class="question-mark">?</span>;
         });
         <span class="prelude-val">Ok</span>(())
     }
@@ -5856,9 +5897,10 @@
         <span class="attr">#[allow(unused_variables)] </span>state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;CheckInGroup&gt;,
         <span class="attr">#[allow(unused_variables)] </span>project_id: ProjectId,
         <span class="attr">#[allow(unused_variables)] </span>project_info: Arc&lt;ProjectInfo&gt;,
+        <span class="attr">#[allow(unused_variables)] </span>rate_limits: Arc&lt;RateLimits&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
-            <span class="self">self</span>.enforce_quotas(state, project_info)<span class="question-mark">?</span>;
+            <span class="self">self</span>.enforce_quotas(state, project_info, rate_limits)<span class="question-mark">?</span>;
             <span class="self">self</span>.process_check_ins(state, project_id);
         });
         <span class="prelude-val">Ok</span>(())
@@ -5867,6 +5909,7 @@
     <span class="doccomment">/// Processes standalone spans.
     ///
     /// This function does *not* run for spans extracted from transactions.
+    </span><span class="attr">#[allow(clippy::too_many_arguments)]
     </span><span class="kw">fn </span>process_standalone_spans(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;SpanGroup&gt;,
@@ -5874,6 +5917,7 @@
         <span class="attr">#[allow(unused_variables)] </span>project_id: ProjectId,
         project_info: Arc&lt;ProjectInfo&gt;,
         <span class="attr">#[allow(unused_variables)] </span>sampling_project_info: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectInfo&gt;&gt;,
+        <span class="attr">#[allow(unused_variables)] </span>rate_limits: Arc&lt;RateLimits&gt;,
         <span class="attr">#[allow(unused_variables)] </span>reservoir_counters: ReservoirCounters,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
         span::filter(state, config.clone(), project_info.clone());
@@ -5897,7 +5941,7 @@
                 <span class="kw-2">&amp;</span>reservoir,
             );
 
-            <span class="self">self</span>.enforce_quotas(state, project_info)<span class="question-mark">?</span>;
+            <span class="self">self</span>.enforce_quotas(state, project_info, rate_limits)<span class="question-mark">?</span>;
         });
         <span class="prelude-val">Ok</span>(())
     }
@@ -5946,7 +5990,6 @@
                     event: Annotated::empty(),
                     metrics: Metrics::default(),
                     extracted_metrics: ProcessingExtractedMetrics::new(),
-                    rate_limits,
                     managed_envelope,
                 };
 
@@ -5974,7 +6017,8 @@
                 process_errors,
                 project_id,
                 project_info,
-                sampling_project_info
+                sampling_project_info,
+                rate_limits
             ),
             ProcessingGroup::Transaction =&gt; {
                 <span class="macro">run!</span>(
@@ -5983,31 +6027,42 @@
                     project_id,
                     project_info,
                     sampling_project_info,
+                    rate_limits,
                     reservoir_counters
                 )
             }
-            ProcessingGroup::Session =&gt; <span class="macro">run!</span>(process_sessions, project_info),
+            ProcessingGroup::Session =&gt; <span class="macro">run!</span>(process_sessions, project_info, rate_limits),
             ProcessingGroup::Standalone =&gt; <span class="macro">run!</span>(
                 process_standalone,
                 <span class="self">self</span>.inner.config.clone(),
                 project_id,
-                project_info
+                project_info,
+                rate_limits
             ),
             ProcessingGroup::ClientReport =&gt; <span class="macro">run!</span>(
                 process_client_reports,
                 <span class="self">self</span>.inner.config.clone(),
-                project_info
+                project_info,
+                rate_limits
             ),
             ProcessingGroup::Replay =&gt; {
-                <span class="macro">run!</span>(process_replays, <span class="self">self</span>.inner.config.clone(), project_info)
+                <span class="macro">run!</span>(
+                    process_replays,
+                    <span class="self">self</span>.inner.config.clone(),
+                    project_info,
+                    rate_limits
+                )
             }
-            ProcessingGroup::CheckIn =&gt; <span class="macro">run!</span>(process_checkins, project_id, project_info),
+            ProcessingGroup::CheckIn =&gt; {
+                <span class="macro">run!</span>(process_checkins, project_id, project_info, rate_limits)
+            }
             ProcessingGroup::Span =&gt; <span class="macro">run!</span>(
                 process_standalone_spans,
                 <span class="self">self</span>.inner.config.clone(),
                 project_id,
                 project_info,
                 sampling_project_info,
+                rate_limits,
                 reservoir_counters
             ),
             ProcessingGroup::ProfileChunk =&gt; <span class="macro">run!</span>(process_profile_chunks, project_info),
@@ -6930,6 +6985,7 @@
         global_config: <span class="kw-2">&amp;</span>GlobalConfig,
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;,
         project_info: Arc&lt;ProjectInfo&gt;,
+        rate_limits: Arc&lt;RateLimits&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;RateLimits, ProcessingError&gt; {
         <span class="kw">if </span>state.envelope().is_empty() &amp;&amp; !state.has_event() {
             <span class="kw">return </span><span class="prelude-val">Ok</span>(RateLimits::default());
@@ -6946,7 +7002,7 @@
         // remove it from the processing state eventually.
         </span><span class="kw">let </span><span class="kw-2">mut </span>envelope_limiter =
             EnvelopeLimiter::new(CheckLimits::All, |item_scope, quantity| <span class="kw">match </span><span class="self">self </span>{
-                RateLimiter::Cached =&gt; <span class="prelude-val">Ok</span>(state.rate_limits.check_with_quotas(quotas, item_scope)),
+                RateLimiter::Cached =&gt; <span class="prelude-val">Ok</span>(rate_limits.check_with_quotas(quotas, item_scope)),
                 RateLimiter::Consistent(rl) =&gt; <span class="prelude-val">Ok</span>::&lt;<span class="kw">_</span>, ProcessingError&gt;(
                     rl.is_rate_limited(quotas, item_scope, quantity, <span class="bool-val">false</span>)<span class="question-mark">?</span>,
                 ),
