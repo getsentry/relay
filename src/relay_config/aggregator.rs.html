@@ -143,10 +143,35 @@
 <a href="#142" id="142">142</a>
 <a href="#143" id="143">143</a>
 <a href="#144" id="144">144</a>
-<a href="#145" id="145">145</a></pre></div><pre class="rust"><code><span class="doccomment">//! Metrics aggregator configuration.
+<a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
+<a href="#150" id="150">150</a>
+<a href="#151" id="151">151</a>
+<a href="#152" id="152">152</a>
+<a href="#153" id="153">153</a>
+<a href="#154" id="154">154</a>
+<a href="#155" id="155">155</a>
+<a href="#156" id="156">156</a>
+<a href="#157" id="157">157</a>
+<a href="#158" id="158">158</a>
+<a href="#159" id="159">159</a>
+<a href="#160" id="160">160</a>
+<a href="#161" id="161">161</a>
+<a href="#162" id="162">162</a>
+<a href="#163" id="163">163</a>
+<a href="#164" id="164">164</a>
+<a href="#165" id="165">165</a>
+<a href="#166" id="166">166</a>
+<a href="#167" id="167">167</a>
+<a href="#168" id="168">168</a>
+<a href="#169" id="169">169</a>
+<a href="#170" id="170">170</a></pre></div><pre class="rust"><code><span class="doccomment">//! Metrics aggregator configuration.
 
 </span><span class="kw">use </span>relay_metrics::aggregator::AggregatorConfig;
-<span class="kw">use </span>relay_metrics::MetricNamespace;
+<span class="kw">use </span>relay_metrics::{MetricNamespace, UnixTimestamp};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="doccomment">/// Parameters used for metric aggregation.
@@ -157,27 +182,52 @@
     </span><span class="attr">#[serde(flatten)]
     </span><span class="kw">pub </span>aggregator: AggregatorConfig,
 
+    <span class="doccomment">/// The length the name of a metric is allowed to be.
+    ///
+    /// Defaults to `200` bytes.
+    </span><span class="kw">pub </span>max_name_length: usize,
+
+    <span class="doccomment">/// The length the tag key is allowed to be.
+    ///
+    /// Defaults to `200` bytes.
+    </span><span class="kw">pub </span>max_tag_key_length: usize,
+
+    <span class="doccomment">/// The length the tag value is allowed to be.
+    ///
+    /// Defaults to `200` chars.
+    </span><span class="kw">pub </span>max_tag_value_length: usize,
+
     <span class="doccomment">/// The approximate maximum number of bytes submitted within one flush cycle.
     ///
     /// This controls how big flushed batches of buckets get, depending on the number of buckets,
     /// the cumulative length of their keys, and the number of raw values. Since final serialization
-    /// adds some additional overhead, this number is approxmate and some safety margin should be
+    /// adds some additional overhead, this number is approximate and some safety margin should be
     /// left to hard limits.
     </span><span class="kw">pub </span>max_flush_bytes: usize,
+}
 
-    <span class="doccomment">/// The flushing interval in milliseconds that determines how often the aggregator is polled for
-    /// flushing new buckets.
+<span class="kw">impl </span>AggregatorServiceConfig {
+    <span class="doccomment">/// Returns the valid range for metrics timestamps.
     ///
-    /// Defaults to `100` milliseconds.
-    </span><span class="kw">pub </span>flush_interval_ms: u64,
+    /// Metrics or buckets outside of this range should be discarded.
+    </span><span class="kw">pub fn </span>timestamp_range(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; std::ops::Range&lt;UnixTimestamp&gt; {
+        <span class="kw">let </span>now = UnixTimestamp::now().as_secs();
+        <span class="kw">let </span>min_timestamp =
+            UnixTimestamp::from_secs(now.saturating_sub(<span class="self">self</span>.aggregator.max_secs_in_past));
+        <span class="kw">let </span>max_timestamp =
+            UnixTimestamp::from_secs(now.saturating_add(<span class="self">self</span>.aggregator.max_secs_in_future));
+        min_timestamp..max_timestamp
+    }
 }
 
 <span class="kw">impl </span>Default <span class="kw">for </span>AggregatorServiceConfig {
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             aggregator: AggregatorConfig::default(),
+            max_name_length: <span class="number">200</span>,
+            max_tag_key_length: <span class="number">200</span>,
+            max_tag_value_length: <span class="number">200</span>,
             max_flush_bytes: <span class="number">5_000_000</span>, <span class="comment">// 5 MB
-            </span>flush_interval_ms: <span class="number">100</span>,     <span class="comment">// 100 milliseconds
         </span>}
     }
 }

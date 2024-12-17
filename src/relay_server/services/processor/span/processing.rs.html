@@ -1436,9 +1436,7 @@
 <a href="#1435" id="1435">1435</a>
 <a href="#1436" id="1436">1436</a>
 <a href="#1437" id="1437">1437</a>
-<a href="#1438" id="1438">1438</a>
-<a href="#1439" id="1439">1439</a>
-<a href="#1440" id="1440">1440</a></pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
+<a href="#1438" id="1438">1438</a></pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
@@ -1807,7 +1805,6 @@
         event,
         config
             .aggregator_config_for(MetricNamespace::Spans)
-            .aggregator
             .max_tag_value_length,
         <span class="kw-2">&amp;</span>[],
     ) <span class="kw">else </span>{
@@ -1909,8 +1906,8 @@
 
         <span class="self">Self </span>{
             received_at: managed_envelope.received_at(),
-            timestamp_range: aggregator_config.aggregator.timestamp_range(),
-            max_tag_value_size: aggregator_config.aggregator.max_tag_value_length,
+            timestamp_range: aggregator_config.timestamp_range(),
+            max_tag_value_size: aggregator_config.max_tag_value_length,
             performance_score: project_config.performance_score.as_ref(),
             measurements: <span class="prelude-val">Some</span>(CombinedMeasurementsConfig::new(
                 project_config.measurements.as_ref(),
@@ -1921,7 +1918,6 @@
                 ErrorBoundary::Ok(costs) =&gt; <span class="prelude-val">Some</span>(costs),
             },
             max_name_and_unit_len: aggregator_config
-                .aggregator
                 .max_name_length
                 .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
 

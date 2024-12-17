@@ -4053,19 +4053,7 @@
 <a href="#4052" id="4052">4052</a>
 <a href="#4053" id="4053">4053</a>
 <a href="#4054" id="4054">4054</a>
-<a href="#4055" id="4055">4055</a>
-<a href="#4056" id="4056">4056</a>
-<a href="#4057" id="4057">4057</a>
-<a href="#4058" id="4058">4058</a>
-<a href="#4059" id="4059">4059</a>
-<a href="#4060" id="4060">4060</a>
-<a href="#4061" id="4061">4061</a>
-<a href="#4062" id="4062">4062</a>
-<a href="#4063" id="4063">4063</a>
-<a href="#4064" id="4064">4064</a>
-<a href="#4065" id="4065">4065</a>
-<a href="#4066" id="4066">4066</a>
-<a href="#4067" id="4067">4067</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
+<a href="#4055" id="4055">4055</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::fmt::{Debug, Display};
@@ -5424,7 +5412,6 @@
             <span class="self">self</span>.inner
                 .config
                 .aggregator_config_for(MetricNamespace::Spans)
-                .aggregator
                 .max_tag_value_length,
             extract_spans,
         );
@@ -5505,9 +5492,7 @@
                 received_at: <span class="prelude-val">Some</span>(managed_envelope.received_at()),
                 max_secs_in_past: <span class="prelude-val">Some</span>(retention_days * <span class="number">24 </span>* <span class="number">3600</span>),
                 max_secs_in_future: <span class="prelude-val">Some</span>(<span class="self">self</span>.inner.config.max_secs_in_future()),
-                transaction_timestamp_range: <span class="prelude-val">Some</span>(
-                    transaction_aggregator_config.aggregator.timestamp_range(),
-                ),
+                transaction_timestamp_range: <span class="prelude-val">Some</span>(transaction_aggregator_config.timestamp_range()),
                 is_validated: <span class="bool-val">false</span>,
             };
 
@@ -5538,7 +5523,6 @@
                 },
                 max_name_and_unit_len: <span class="prelude-val">Some</span>(
                     transaction_aggregator_config
-                        .aggregator
                         .max_name_length
                         .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
                 ),
@@ -5556,7 +5540,6 @@
                     </span>.inner
                     .config
                     .aggregator_config_for(MetricNamespace::Spans)
-                    .aggregator
                     .max_tag_value_length,
                 is_renormalize: <span class="bool-val">false</span>,
                 remove_other: full_normalization,
@@ -6857,9 +6840,9 @@
         {
             <span class="kw">let </span>dsn = PartialDsn::outbound(scoping, upstream);
 
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(key) = partition_key {
-                <span class="macro">relay_statsd::metric!</span>(histogram(RelayHistograms::PartitionKeys) = key);
-            }
+            <span class="macro">relay_statsd::metric!</span>(
+                histogram(RelayHistograms::PartitionKeys) = u64::from(partition_key)
+            );
 
             <span class="kw">let </span><span class="kw-2">mut </span>num_batches = <span class="number">0</span>;
             <span class="kw">for </span>batch <span class="kw">in </span>BucketsView::from(buckets).by_size(batch_size) {
@@ -6876,7 +6859,9 @@
                     <span class="self">self</span>.inner.addrs.test_store.clone(),
                     ProcessingGroup::Metrics,
                 );
-                envelope.set_partition_key(partition_key).scope(<span class="kw-2">*</span>scoping);
+                envelope
+                    .set_partition_key(<span class="prelude-val">Some</span>(partition_key))
+                    .scope(<span class="kw-2">*</span>scoping);
 
                 <span class="macro">relay_statsd::metric!</span>(
                     histogram(RelayHistograms::BucketsPerBatch) = batch.len() <span class="kw">as </span>u64
@@ -6893,7 +6878,7 @@
     }
 
     <span class="doccomment">/// Creates a [`SendMetricsRequest`] and sends it to the upstream relay.
-    </span><span class="kw">fn </span>send_global_partition(<span class="kw-2">&amp;</span><span class="self">self</span>, partition_key: <span class="prelude-ty">Option</span>&lt;u64&gt;, partition: <span class="kw-2">&amp;mut </span>Partition&lt;<span class="lifetime">'_</span>&gt;) {
+    </span><span class="kw">fn </span>send_global_partition(<span class="kw-2">&amp;</span><span class="self">self</span>, partition_key: u32, partition: <span class="kw-2">&amp;mut </span>Partition&lt;<span class="lifetime">'_</span>&gt;) {
         <span class="kw">if </span>partition.is_empty() {
             <span class="kw">return</span>;
         }
@@ -6910,7 +6895,7 @@
         };
 
         <span class="kw">let </span>request = SendMetricsRequest {
-            partition_key: partition_key.map(|k| k.to_string()),
+            partition_key: partition_key.to_string(),
             unencoded,
             encoded,
             project_info,
@@ -7337,7 +7322,7 @@
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">struct </span>SendMetricsRequest {
     <span class="doccomment">/// If the partition key is set, the request is marked with `X-Sentry-Relay-Shard`.
-    </span>partition_key: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    </span>partition_key: String,
     <span class="doccomment">/// Serialized metric buckets without encoding applied, used for signing.
     </span>unencoded: Bytes,
     <span class="doccomment">/// Serialized metric buckets with the stated HTTP encoding applied.
@@ -7411,7 +7396,7 @@
 
         builder
             .content_encoding(<span class="self">self</span>.http_encoding)
-            .header_opt(<span class="string">"X-Sentry-Relay-Shard"</span>, <span class="self">self</span>.partition_key.as_ref())
+            .header(<span class="string">"X-Sentry-Relay-Shard"</span>, <span class="self">self</span>.partition_key.as_bytes())
             .header(header::CONTENT_TYPE, <span class="string">b"application/json"</span>)
             .body(<span class="self">self</span>.encoded.clone());
 
@@ -7613,7 +7598,7 @@
             ]);
 
             FlushBuckets {
-                partition_key: <span class="prelude-val">None</span>,
+                partition_key: <span class="number">0</span>,
                 buckets,
             }
         };
@@ -7997,10 +7982,7 @@
             };
             processor.handle_process_metrics(<span class="kw-2">&amp;mut </span>token, message);
 
-            <span class="kw">let </span>value = aggregator_rx.recv().<span class="kw">await</span>.unwrap();
-            <span class="kw">let </span>Aggregator::MergeBuckets(merge_buckets) = value <span class="kw">else </span>{
-                <span class="macro">panic!</span>()
-            };
+            <span class="kw">let </span>Aggregator::MergeBuckets(merge_buckets) = aggregator_rx.recv().<span class="kw">await</span>.unwrap();
             <span class="kw">let </span>buckets = merge_buckets.buckets;
             <span class="macro">assert_eq!</span>(buckets.len(), <span class="number">1</span>);
             <span class="macro">assert_eq!</span>(buckets[<span class="number">0</span>].metadata.received_at, expected_received_at);
@@ -8061,14 +8043,8 @@
         };
         processor.handle_process_batched_metrics(<span class="kw-2">&amp;mut </span>token, message);
 
-        <span class="kw">let </span>value = aggregator_rx.recv().<span class="kw">await</span>.unwrap();
-        <span class="kw">let </span>Aggregator::MergeBuckets(mb1) = value <span class="kw">else </span>{
-            <span class="macro">panic!</span>()
-        };
-        <span class="kw">let </span>value = aggregator_rx.recv().<span class="kw">await</span>.unwrap();
-        <span class="kw">let </span>Aggregator::MergeBuckets(mb2) = value <span class="kw">else </span>{
-            <span class="macro">panic!</span>()
-        };
+        <span class="kw">let </span>Aggregator::MergeBuckets(mb1) = aggregator_rx.recv().<span class="kw">await</span>.unwrap();
+        <span class="kw">let </span>Aggregator::MergeBuckets(mb2) = aggregator_rx.recv().<span class="kw">await</span>.unwrap();
 
         <span class="kw">let </span><span class="kw-2">mut </span>messages = <span class="macro">vec!</span>[mb1, mb2];
         messages.sort_by_key(|mb| mb.project_key);

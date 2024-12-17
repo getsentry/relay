@@ -2539,65 +2539,7 @@
 <a href="#2538" id="2538">2538</a>
 <a href="#2539" id="2539">2539</a>
 <a href="#2540" id="2540">2540</a>
-<a href="#2541" id="2541">2541</a>
-<a href="#2542" id="2542">2542</a>
-<a href="#2543" id="2543">2543</a>
-<a href="#2544" id="2544">2544</a>
-<a href="#2545" id="2545">2545</a>
-<a href="#2546" id="2546">2546</a>
-<a href="#2547" id="2547">2547</a>
-<a href="#2548" id="2548">2548</a>
-<a href="#2549" id="2549">2549</a>
-<a href="#2550" id="2550">2550</a>
-<a href="#2551" id="2551">2551</a>
-<a href="#2552" id="2552">2552</a>
-<a href="#2553" id="2553">2553</a>
-<a href="#2554" id="2554">2554</a>
-<a href="#2555" id="2555">2555</a>
-<a href="#2556" id="2556">2556</a>
-<a href="#2557" id="2557">2557</a>
-<a href="#2558" id="2558">2558</a>
-<a href="#2559" id="2559">2559</a>
-<a href="#2560" id="2560">2560</a>
-<a href="#2561" id="2561">2561</a>
-<a href="#2562" id="2562">2562</a>
-<a href="#2563" id="2563">2563</a>
-<a href="#2564" id="2564">2564</a>
-<a href="#2565" id="2565">2565</a>
-<a href="#2566" id="2566">2566</a>
-<a href="#2567" id="2567">2567</a>
-<a href="#2568" id="2568">2568</a>
-<a href="#2569" id="2569">2569</a>
-<a href="#2570" id="2570">2570</a>
-<a href="#2571" id="2571">2571</a>
-<a href="#2572" id="2572">2572</a>
-<a href="#2573" id="2573">2573</a>
-<a href="#2574" id="2574">2574</a>
-<a href="#2575" id="2575">2575</a>
-<a href="#2576" id="2576">2576</a>
-<a href="#2577" id="2577">2577</a>
-<a href="#2578" id="2578">2578</a>
-<a href="#2579" id="2579">2579</a>
-<a href="#2580" id="2580">2580</a>
-<a href="#2581" id="2581">2581</a>
-<a href="#2582" id="2582">2582</a>
-<a href="#2583" id="2583">2583</a>
-<a href="#2584" id="2584">2584</a>
-<a href="#2585" id="2585">2585</a>
-<a href="#2586" id="2586">2586</a>
-<a href="#2587" id="2587">2587</a>
-<a href="#2588" id="2588">2588</a>
-<a href="#2589" id="2589">2589</a>
-<a href="#2590" id="2590">2590</a>
-<a href="#2591" id="2591">2591</a>
-<a href="#2592" id="2592">2592</a>
-<a href="#2593" id="2593">2593</a>
-<a href="#2594" id="2594">2594</a>
-<a href="#2595" id="2595">2595</a>
-<a href="#2596" id="2596">2596</a>
-<a href="#2597" id="2597">2597</a>
-<a href="#2598" id="2598">2598</a>
-<a href="#2599" id="2599">2599</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
+<a href="#2541" id="2541">2541</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
 <span class="kw">use </span>std::net::{IpAddr, SocketAddr, ToSocketAddrs};
@@ -2614,7 +2556,6 @@
     ConfigError <span class="kw">as </span>KafkaConfigError, KafkaConfigParam, KafkaParams, KafkaTopic, TopicAssignment,
     TopicAssignments,
 };
-<span class="kw">use </span>relay_metrics::aggregator::{AggregatorConfig, FlushBatching};
 <span class="kw">use </span>relay_metrics::MetricNamespace;
 <span class="kw">use </span>serde::de::{DeserializeOwned, Unexpected, Visitor};
 <span class="kw">use </span>serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -5058,63 +4999,6 @@
     <span class="doccomment">/// Resource ID to use for Relay COGS measurements.
     </span><span class="kw">pub fn </span>cogs_relay_resource_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
         <span class="kw-2">&amp;</span><span class="self">self</span>.values.cogs.relay_resource_id
-    }
-
-    <span class="doccomment">/// Creates an [`AggregatorConfig`] that is compatible with every other aggregator.
-    ///
-    /// A lossless aggregator can be put in front of any of the configured aggregators without losing data that the configured aggregator would keep.
-    /// This is useful for pre-aggregating metrics together in a single aggregator instance.
-    </span><span class="kw">pub fn </span>permissive_aggregator_config(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; AggregatorConfig {
-        <span class="kw">let </span>AggregatorConfig {
-            <span class="kw-2">mut </span>bucket_interval,
-            <span class="kw-2">mut </span>max_secs_in_past,
-            <span class="kw-2">mut </span>max_secs_in_future,
-            <span class="kw-2">mut </span>max_name_length,
-            <span class="kw-2">mut </span>max_tag_key_length,
-            <span class="kw-2">mut </span>max_tag_value_length,
-            <span class="kw-2">mut </span>max_project_key_bucket_bytes,
-            <span class="kw-2">mut </span>max_total_bucket_bytes,
-            ..
-        } = <span class="self">self</span>.default_aggregator_config().aggregator;
-
-        <span class="kw">for </span>secondary_config <span class="kw">in </span><span class="self">self</span>.secondary_aggregator_configs() {
-            <span class="kw">let </span>agg = <span class="kw-2">&amp;</span>secondary_config.config.aggregator;
-
-            bucket_interval = bucket_interval.min(agg.bucket_interval);
-            max_secs_in_past = max_secs_in_past.max(agg.max_secs_in_past);
-            max_secs_in_future = max_secs_in_future.max(agg.max_secs_in_future);
-            max_name_length = max_name_length.max(agg.max_name_length);
-            max_tag_key_length = max_tag_key_length.max(agg.max_tag_key_length);
-            max_tag_value_length = max_tag_value_length.max(agg.max_tag_value_length);
-            max_project_key_bucket_bytes =
-                max_project_key_bucket_bytes.max(agg.max_project_key_bucket_bytes);
-            max_total_bucket_bytes = max_total_bucket_bytes.max(agg.max_total_bucket_bytes);
-        }
-
-        <span class="kw">for </span>agg <span class="kw">in </span><span class="self">self
-            </span>.secondary_aggregator_configs()
-            .iter()
-            .map(|sc| <span class="kw-2">&amp;</span>sc.config)
-            .chain(std::iter::once(<span class="self">self</span>.default_aggregator_config()))
-        {
-            <span class="kw">if </span>agg.aggregator.bucket_interval % bucket_interval != <span class="number">0 </span>{
-                <span class="macro">relay_log::error!</span>(<span class="string">"buckets don't align"</span>);
-            }
-        }
-
-        AggregatorConfig {
-            bucket_interval,
-            max_secs_in_past,
-            max_secs_in_future,
-            max_name_length,
-            max_tag_key_length,
-            max_tag_value_length,
-            max_project_key_bucket_bytes,
-            max_total_bucket_bytes,
-            initial_delay: <span class="number">30</span>,
-            flush_partitions: <span class="prelude-val">None</span>,
-            flush_batching: FlushBatching::Project,
-        }
     }
 
     <span class="doccomment">/// Returns configuration for the default metrics aggregator.

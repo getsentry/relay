@@ -1181,14 +1181,12 @@
 <a href="#1180" id="1180">1180</a>
 <a href="#1181" id="1181">1181</a>
 <a href="#1182" id="1182">1182</a>
-<a href="#1183" id="1183">1183</a>
-<a href="#1184" id="1184">1184</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::time::UnixTimestamp;
+<a href="#1183" id="1183">1183</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>serde::ser::{SerializeMap, SerializeSeq};
 <span class="kw">use </span>serde::Serialize;
 
 <span class="kw">use crate</span>::{
-    aggregator, BucketMetadata, CounterType, DistributionType, GaugeValue, MetricName, SetType,
-    SetValue,
+    BucketMetadata, CounterType, DistributionType, GaugeValue, MetricName, SetType, SetValue,
 };
 <span class="kw">use </span>relay_base_schema::metrics::MetricType;
 <span class="kw">use </span>std::collections::BTreeMap;
@@ -1702,7 +1700,7 @@
     /// Note that this does not match the exact size of the serialized payload. Instead, the size is
     /// approximated through tags and a static overhead.
     </span><span class="kw">fn </span>estimated_base_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
-        BUCKET_SIZE + <span class="self">self</span>.name().len() + aggregator::tags_cost(<span class="self">self</span>.tags())
+        BUCKET_SIZE + <span class="self">self</span>.name().len() + <span class="kw">crate</span>::utils::tags_cost(<span class="self">self</span>.tags())
     }
 
     <span class="doccomment">/// Estimates the number of bytes needed to serialize the bucket.

@@ -516,21 +516,132 @@
 <a href="#515" id="515">515</a>
 <a href="#516" id="516">516</a>
 <a href="#517" id="517">517</a>
-<a href="#518" id="518">518</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::atomic::{AtomicBool, Ordering};
+<a href="#518" id="518">518</a>
+<a href="#519" id="519">519</a>
+<a href="#520" id="520">520</a>
+<a href="#521" id="521">521</a>
+<a href="#522" id="522">522</a>
+<a href="#523" id="523">523</a>
+<a href="#524" id="524">524</a>
+<a href="#525" id="525">525</a>
+<a href="#526" id="526">526</a>
+<a href="#527" id="527">527</a>
+<a href="#528" id="528">528</a>
+<a href="#529" id="529">529</a>
+<a href="#530" id="530">530</a>
+<a href="#531" id="531">531</a>
+<a href="#532" id="532">532</a>
+<a href="#533" id="533">533</a>
+<a href="#534" id="534">534</a>
+<a href="#535" id="535">535</a>
+<a href="#536" id="536">536</a>
+<a href="#537" id="537">537</a>
+<a href="#538" id="538">538</a>
+<a href="#539" id="539">539</a>
+<a href="#540" id="540">540</a>
+<a href="#541" id="541">541</a>
+<a href="#542" id="542">542</a>
+<a href="#543" id="543">543</a>
+<a href="#544" id="544">544</a>
+<a href="#545" id="545">545</a>
+<a href="#546" id="546">546</a>
+<a href="#547" id="547">547</a>
+<a href="#548" id="548">548</a>
+<a href="#549" id="549">549</a>
+<a href="#550" id="550">550</a>
+<a href="#551" id="551">551</a>
+<a href="#552" id="552">552</a>
+<a href="#553" id="553">553</a>
+<a href="#554" id="554">554</a>
+<a href="#555" id="555">555</a>
+<a href="#556" id="556">556</a>
+<a href="#557" id="557">557</a>
+<a href="#558" id="558">558</a>
+<a href="#559" id="559">559</a>
+<a href="#560" id="560">560</a>
+<a href="#561" id="561">561</a>
+<a href="#562" id="562">562</a>
+<a href="#563" id="563">563</a>
+<a href="#564" id="564">564</a>
+<a href="#565" id="565">565</a>
+<a href="#566" id="566">566</a>
+<a href="#567" id="567">567</a>
+<a href="#568" id="568">568</a>
+<a href="#569" id="569">569</a>
+<a href="#570" id="570">570</a>
+<a href="#571" id="571">571</a>
+<a href="#572" id="572">572</a>
+<a href="#573" id="573">573</a>
+<a href="#574" id="574">574</a>
+<a href="#575" id="575">575</a>
+<a href="#576" id="576">576</a>
+<a href="#577" id="577">577</a>
+<a href="#578" id="578">578</a>
+<a href="#579" id="579">579</a>
+<a href="#580" id="580">580</a>
+<a href="#581" id="581">581</a>
+<a href="#582" id="582">582</a>
+<a href="#583" id="583">583</a>
+<a href="#584" id="584">584</a>
+<a href="#585" id="585">585</a>
+<a href="#586" id="586">586</a>
+<a href="#587" id="587">587</a>
+<a href="#588" id="588">588</a>
+<a href="#589" id="589">589</a>
+<a href="#590" id="590">590</a>
+<a href="#591" id="591">591</a>
+<a href="#592" id="592">592</a>
+<a href="#593" id="593">593</a>
+<a href="#594" id="594">594</a>
+<a href="#595" id="595">595</a>
+<a href="#596" id="596">596</a>
+<a href="#597" id="597">597</a>
+<a href="#598" id="598">598</a>
+<a href="#599" id="599">599</a>
+<a href="#600" id="600">600</a>
+<a href="#601" id="601">601</a>
+<a href="#602" id="602">602</a>
+<a href="#603" id="603">603</a>
+<a href="#604" id="604">604</a>
+<a href="#605" id="605">605</a>
+<a href="#606" id="606">606</a>
+<a href="#607" id="607">607</a>
+<a href="#608" id="608">608</a>
+<a href="#609" id="609">609</a>
+<a href="#610" id="610">610</a>
+<a href="#611" id="611">611</a>
+<a href="#612" id="612">612</a>
+<a href="#613" id="613">613</a>
+<a href="#614" id="614">614</a>
+<a href="#615" id="615">615</a>
+<a href="#616" id="616">616</a>
+<a href="#617" id="617">617</a>
+<a href="#618" id="618">618</a>
+<a href="#619" id="619">619</a>
+<a href="#620" id="620">620</a>
+<a href="#621" id="621">621</a>
+<a href="#622" id="622">622</a>
+<a href="#623" id="623">623</a>
+<a href="#624" id="624">624</a>
+<a href="#625" id="625">625</a>
+<a href="#626" id="626">626</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::pin::Pin;
+<span class="kw">use </span>std::sync::atomic::{AtomicBool, Ordering};
 <span class="kw">use </span>std::sync::Arc;
-<span class="kw">use </span>std::time::Duration;
+<span class="kw">use </span>std::time::{Duration, SystemTime};
 
+<span class="kw">use </span>hashbrown::hash_map::Entry;
 <span class="kw">use </span>hashbrown::HashMap;
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
 <span class="kw">use </span>relay_config::AggregatorServiceConfig;
-<span class="kw">use </span>relay_metrics::aggregator::{<span class="self">self</span>, AggregateMetricsError, FlushDecision};
-<span class="kw">use </span>relay_metrics::{Bucket, UnixTimestamp};
+<span class="kw">use </span>relay_metrics::aggregator::{<span class="self">self</span>, AggregateMetricsError, AggregatorConfig, Partition};
+<span class="kw">use </span>relay_metrics::Bucket;
 <span class="kw">use </span>relay_quotas::{RateLimits, Scoping};
-<span class="kw">use </span>relay_system::{Controller, FromMessage, Interface, NoResponse, Recipient, Service, Shutdown};
+<span class="kw">use </span>relay_system::{Controller, FromMessage, Interface, NoResponse, Recipient, Service};
+<span class="kw">use </span>tokio::time::{Instant, Sleep};
 
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::cache::ProjectCacheHandle;
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::project::{ProjectInfo, ProjectState};
-<span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms, RelayTimers};
+<span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayTimers};
 
 <span class="doccomment">/// Aggregator for metric buckets.
 ///
@@ -546,10 +657,6 @@
 </span><span class="kw">pub enum </span>Aggregator {
     <span class="doccomment">/// Merge the buckets.
     </span>MergeBuckets(MergeBuckets),
-
-    <span class="doccomment">/// Message is used only for tests to get the current number of buckets in `AggregatorService`.
-    </span><span class="attr">#[cfg(test)]
-    </span>BucketCountInquiry(BucketCountInquiry, relay_system::Sender&lt;usize&gt;),
 }
 
 <span class="kw">impl </span>Aggregator {
@@ -557,8 +664,6 @@
     </span><span class="kw">pub fn </span>variant(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="self">self </span>{
             Aggregator::MergeBuckets(<span class="kw">_</span>) =&gt; <span class="string">"MergeBuckets"</span>,
-            <span class="attr">#[cfg(test)]
-            </span>Aggregator::BucketCountInquiry(<span class="kw">_</span>, <span class="kw">_</span>) =&gt; <span class="string">"BucketCountInquiry"</span>,
         }
     }
 }
@@ -572,19 +677,6 @@
     }
 }
 
-<span class="attr">#[cfg(test)]
-</span><span class="kw">impl </span>FromMessage&lt;BucketCountInquiry&gt; <span class="kw">for </span>Aggregator {
-    <span class="kw">type </span>Response = relay_system::AsyncResponse&lt;usize&gt;;
-    <span class="kw">fn </span>from_message(message: BucketCountInquiry, sender: relay_system::Sender&lt;usize&gt;) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::BucketCountInquiry(message, sender)
-    }
-}
-
-<span class="doccomment">/// Used only for testing the `AggregatorService`.
-</span><span class="attr">#[cfg(test)]
-#[derive(Debug)]
-</span><span class="kw">pub struct </span>BucketCountInquiry;
-
 <span class="doccomment">/// A message containing a vector of buckets to be flushed.
 ///
 /// Handlers must respond to this message with a `Result`:
@@ -594,9 +686,7 @@
 </span><span class="attr">#[derive(Clone, Debug)]
 </span><span class="kw">pub struct </span>FlushBuckets {
     <span class="doccomment">/// The partition to which the buckets belong.
-    ///
-    /// When set to `Some` it means that partitioning was enabled in the [`Aggregator`].
-    </span><span class="kw">pub </span>partition_key: <span class="prelude-ty">Option</span>&lt;u64&gt;,
+    </span><span class="kw">pub </span>partition_key: u32,
     <span class="doccomment">/// The buckets to be flushed.
     </span><span class="kw">pub </span>buckets: HashMap&lt;ProjectKey, ProjectBuckets&gt;,
 }
@@ -620,19 +710,14 @@
     }
 }
 
-<span class="kw">enum </span>AggregatorState {
-    Running,
-    ShuttingDown,
-}
-
 <span class="doccomment">/// Service implementing the [`Aggregator`] interface.
 </span><span class="kw">pub struct </span>AggregatorService {
     aggregator: aggregator::Aggregator,
-    state: AggregatorState,
     receiver: <span class="prelude-ty">Option</span>&lt;Recipient&lt;FlushBuckets, NoResponse&gt;&gt;,
     project_cache: ProjectCacheHandle,
-    flush_interval_ms: u64,
+    config: AggregatorServiceConfig,
     can_accept_metrics: Arc&lt;AtomicBool&gt;,
+    next_flush: Pin&lt;Box&lt;Sleep&gt;&gt;,
 }
 
 <span class="kw">impl </span>AggregatorService {
@@ -655,14 +740,14 @@
         receiver: <span class="prelude-ty">Option</span>&lt;Recipient&lt;FlushBuckets, NoResponse&gt;&gt;,
         project_cache: ProjectCacheHandle,
     ) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span>aggregator = aggregator::Aggregator::named(name, config.aggregator);
+        <span class="kw">let </span>aggregator = aggregator::Aggregator::named(name, <span class="kw-2">&amp;</span>config.aggregator);
         <span class="self">Self </span>{
             receiver,
-            state: AggregatorState::Running,
-            flush_interval_ms: config.flush_interval_ms,
-            can_accept_metrics: Arc::new(AtomicBool::new(!aggregator.totals_cost_exceeded())),
+            config,
+            can_accept_metrics: Arc::new(AtomicBool::new(<span class="bool-val">true</span>)),
             aggregator,
             project_cache,
+            next_flush: Box::pin(tokio::time::sleep(Duration::from_secs(<span class="number">0</span>))),
         }
     }
 
@@ -676,90 +761,100 @@
     /// to the receiver to send the [`MergeBuckets`] message back if buckets could not be flushed
     /// and we require another re-try.
     ///
-    /// If `force` is true, flush all buckets unconditionally and do not attempt to merge back.
-    </span><span class="kw">fn </span>try_flush(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="kw">let </span>force_flush = <span class="macro">matches!</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.state, AggregatorState::ShuttingDown);
+    /// Returns when the next flush should be attempted.
+    </span><span class="kw">fn </span>try_flush(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Duration {
+        <span class="kw">if </span><span class="macro">cfg!</span>(test) {
+            <span class="comment">// Tests are running in a single thread / current thread runtime,
+            // which is required for 'fast-forwarding' and `block_in_place`
+            // requires a multi threaded runtime. Relay always requires a multi
+            // threaded runtime.
+            </span><span class="self">self</span>.do_try_flush()
+        } <span class="kw">else </span>{
+            tokio::task::block_in_place(|| <span class="self">self</span>.do_try_flush())
+        }
+    }
 
-        <span class="kw">let </span>flush_decision = |project_key| {
-            <span class="kw">let </span>project = <span class="self">self</span>.project_cache.get(project_key);
+    <span class="kw">fn </span>do_try_flush(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Duration {
+        <span class="kw">let </span>partition = <span class="kw">match </span><span class="self">self</span>.aggregator.try_flush_next(SystemTime::now()) {
+            <span class="prelude-val">Ok</span>(partition) =&gt; partition,
+            <span class="prelude-val">Err</span>(duration) =&gt; <span class="kw">return </span>duration,
+        };
+        <span class="self">self</span>.can_accept_metrics.store(<span class="bool-val">true</span>, Ordering::Relaxed);
 
-            <span class="kw">let </span>project_info = <span class="kw">match </span>project.state() {
-                ProjectState::Enabled(project_info) =&gt; project_info,
-                ProjectState::Disabled =&gt; <span class="kw">return </span>FlushDecision::Drop,
-                <span class="comment">// Delay the flush, project is not yet ready.
-                //
-                // Querying the project will make sure it is eventually fetched.
-                </span>ProjectState::Pending =&gt; {
-                    <span class="macro">relay_statsd::metric!</span>(
-                        counter(RelayCounters::ProjectStateFlushMetricsNoProject) += <span class="number">1
-                    </span>);
-                    <span class="kw">return </span>FlushDecision::Delay;
+        <span class="self">self</span>.flush_partition(partition);
+
+        <span class="self">self</span>.aggregator.next_flush_at(SystemTime::now())
+    }
+
+    <span class="kw">fn </span>flush_partition(<span class="kw-2">&amp;mut </span><span class="self">self</span>, partition: Partition) {
+        <span class="kw">let </span><span class="prelude-val">Some</span>(receiver) = <span class="kw-2">&amp;</span><span class="self">self</span>.receiver <span class="kw">else </span>{
+            <span class="kw">return</span>;
+        };
+
+        <span class="kw">let </span><span class="kw-2">mut </span>buckets_by_project = hashbrown::HashMap::new();
+
+        <span class="kw">let </span>partition_key = partition.partition_key;
+        <span class="kw">for </span>(project_key, bucket) <span class="kw">in </span>partition {
+            <span class="kw">let </span>s = <span class="kw">match </span>buckets_by_project.entry(project_key) {
+                Entry::Occupied(occupied_entry) =&gt; occupied_entry.into_mut(),
+                Entry::Vacant(vacant_entry) =&gt; {
+                    <span class="kw">let </span>project = <span class="self">self</span>.project_cache.get(project_key);
+
+                    <span class="kw">let </span>project_info = <span class="kw">match </span>project.state() {
+                        ProjectState::Enabled(info) =&gt; Arc::clone(info),
+                        ProjectState::Disabled =&gt; <span class="kw">continue</span>, <span class="comment">// Drop the bucket.
+                        </span>ProjectState::Pending =&gt; {
+                            <span class="comment">// Return to the aggregator, which will assign a new flush time.
+                            </span><span class="kw">if let </span><span class="prelude-val">Err</span>(error) = <span class="self">self</span>.aggregator.merge(project_key, bucket) {
+                                <span class="macro">relay_log::error!</span>(
+                                    tags.aggregator = <span class="self">self</span>.aggregator.name(),
+                                    tags.project_key = project_key.as_str(),
+                                    bucket.error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
+                                    <span class="string">"failed to return metric bucket back to the aggregator"
+                                </span>);
+                            }
+                            <span class="macro">relay_statsd::metric!</span>(
+                                counter(RelayCounters::ProjectStateFlushMetricsNoProject) += <span class="number">1
+                            </span>);
+                            <span class="kw">continue</span>;
+                        }
+                    };
+
+                    <span class="kw">let </span>rate_limits = project.rate_limits().current_limits();
+                    <span class="kw">let </span><span class="prelude-val">Some</span>(scoping) = project_info.scoping(project_key) <span class="kw">else </span>{
+                        <span class="comment">// This should never happen, at this point we should always have a valid
+                        // project with the necessary information to construct a scoping.
+                        //
+                        // Ideally we enforce this through the type system in the future.
+                        </span><span class="macro">relay_log::error!</span>(
+                            tags.project_key = project_key.as_str(),
+                            <span class="string">"dropping buckets because of missing scope"</span>,
+                        );
+                        <span class="kw">continue</span>;
+                    };
+
+                    vacant_entry.insert(ProjectBuckets {
+                        buckets: Vec::new(),
+                        scoping,
+                        project_info,
+                        rate_limits,
+                    })
                 }
             };
 
-            <span class="kw">let </span><span class="prelude-val">Some</span>(scoping) = project_info.scoping(project_key) <span class="kw">else </span>{
-                <span class="comment">// This should never happen, at this point we should always have a valid
-                // project with the necessary information to construct a scoping.
-                //
-                // Ideally we enforce this through the type system in the future.
-                </span><span class="macro">relay_log::error!</span>(
-                    tags.project_key = project_key.as_str(),
-                    <span class="string">"dropping buckets because of missing scope"</span>,
-                );
-                <span class="kw">return </span>FlushDecision::Drop;
-            };
-
-            FlushDecision::Flush(ProjectBuckets {
-                scoping,
-                project_info: Arc::clone(project_info),
-                rate_limits: project.rate_limits().current_limits(),
-                buckets: Vec::new(),
-            })
-        };
-
-        <span class="kw">let </span>partitions = <span class="self">self
-            </span>.aggregator
-            .pop_flush_buckets(force_flush, flush_decision);
-
-        <span class="self">self</span>.can_accept_metrics
-            .store(!<span class="self">self</span>.aggregator.totals_cost_exceeded(), Ordering::Relaxed);
-
-        <span class="kw">if </span>partitions.is_empty() {
-            <span class="kw">return</span>;
+            s.buckets.push(bucket);
         }
 
-        <span class="kw">let </span>partitions_count = partitions.len() <span class="kw">as </span>u64;
-        <span class="macro">relay_log::trace!</span>(<span class="string">"flushing {} partitions to receiver"</span>, partitions_count);
-        <span class="macro">relay_statsd::metric!</span>(
-            histogram(RelayHistograms::PartitionsFlushed) = partitions_count,
-            aggregator = <span class="self">self</span>.aggregator.name(),
-        );
+        <span class="kw">if </span>!buckets_by_project.is_empty() {
+            <span class="macro">relay_log::debug!</span>(
+                <span class="string">"flushing buckets for {} projects in partition {partition_key}"</span>,
+                buckets_by_project.len()
+            );
 
-        <span class="kw">let </span><span class="kw-2">mut </span>total_bucket_count = <span class="number">0u64</span>;
-        <span class="kw">for </span>buckets_by_project <span class="kw">in </span>partitions.values() {
-            <span class="kw">for </span>buckets <span class="kw">in </span>buckets_by_project.values() {
-                <span class="kw">let </span>bucket_count = buckets.buckets.len() <span class="kw">as </span>u64;
-                total_bucket_count += bucket_count;
-
-                <span class="macro">relay_statsd::metric!</span>(
-                    histogram(RelayHistograms::BucketsFlushedPerProject) = bucket_count,
-                    aggregator = <span class="self">self</span>.aggregator.name(),
-                );
-            }
-        }
-
-        <span class="macro">relay_statsd::metric!</span>(
-            histogram(RelayHistograms::BucketsFlushed) = total_bucket_count,
-            aggregator = <span class="self">self</span>.aggregator.name(),
-        );
-
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>receiver) = <span class="self">self</span>.receiver {
-            <span class="kw">for </span>(partition_key, buckets_by_project) <span class="kw">in </span>partitions {
-                receiver.send(FlushBuckets {
-                    partition_key,
-                    buckets: buckets_by_project,
-                })
-            }
+            receiver.send(FlushBuckets {
+                partition_key,
+                buckets: buckets_by_project,
+            });
         }
     }
 
@@ -769,10 +864,13 @@
             buckets,
         } = msg;
 
-        <span class="kw">let </span>now = UnixTimestamp::now();
-        <span class="kw">for </span>bucket <span class="kw">in </span>buckets.into_iter() {
-            <span class="kw">match </span><span class="self">self</span>.aggregator.merge_with_options(project_key, bucket, now) {
-                <span class="comment">// Ignore invalid timestamp errors.
+        <span class="kw">for </span><span class="kw-2">mut </span>bucket <span class="kw">in </span>buckets.into_iter() {
+            <span class="kw">if </span>!validate_bucket(<span class="kw-2">&amp;mut </span>bucket, <span class="kw-2">&amp;</span><span class="self">self</span>.config) {
+                <span class="kw">continue</span>;
+            };
+
+            <span class="kw">match </span><span class="self">self</span>.aggregator.merge(project_key, bucket) {
+                <span class="comment">// Ignore invalid timestamp errors and drop the bucket.
                 </span><span class="prelude-val">Err</span>(AggregateMetricsError::InvalidTimestamp(<span class="kw">_</span>)) =&gt; {}
                 <span class="prelude-val">Err</span>(AggregateMetricsError::TotalLimitExceeded) =&gt; {
                     <span class="macro">relay_log::error!</span>(
@@ -806,17 +904,39 @@
     <span class="kw">fn </span>handle_message(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: Aggregator) {
         <span class="kw">match </span>message {
             Aggregator::MergeBuckets(msg) =&gt; <span class="self">self</span>.handle_merge_buckets(msg),
-            <span class="attr">#[cfg(test)]
-            </span>Aggregator::BucketCountInquiry(<span class="kw">_</span>, sender) =&gt; {
-                sender.send(<span class="self">self</span>.aggregator.bucket_count())
-            }
         }
     }
 
-    <span class="kw">fn </span>handle_shutdown(<span class="kw-2">&amp;mut </span><span class="self">self</span>, message: Shutdown) {
-        <span class="kw">if </span>message.timeout.is_some() {
-            <span class="self">self</span>.state = AggregatorState::ShuttingDown;
+    <span class="kw">fn </span>handle_shutdown(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="macro">relay_log::info!</span>(
+            <span class="string">"Shutting down metrics aggregator {}"</span>,
+            <span class="self">self</span>.aggregator.name()
+        );
+
+        <span class="comment">// Create a new aggregator with very aggressive flush parameters.
+        </span><span class="kw">let </span>aggregator = aggregator::Aggregator::named(
+            <span class="self">self</span>.aggregator.name().to_owned(),
+            <span class="kw-2">&amp;</span>AggregatorConfig {
+                bucket_interval: <span class="number">1</span>,
+                aggregator_size: <span class="number">1</span>,
+                initial_delay: <span class="number">0</span>,
+                ..<span class="self">self</span>.config.aggregator
+            },
+        );
+
+        <span class="kw">let </span>previous = std::mem::replace(<span class="kw-2">&amp;mut </span><span class="self">self</span>.aggregator, aggregator);
+
+        <span class="kw">let </span><span class="kw-2">mut </span>partitions = <span class="number">0</span>;
+        <span class="kw">for </span>partition <span class="kw">in </span>previous.into_partitions() {
+            <span class="self">self</span>.flush_partition(partition);
+            partitions += <span class="number">1</span>;
         }
+        <span class="macro">relay_log::debug!</span>(<span class="string">"Force flushed {partitions} partitions"</span>);
+
+        <span class="comment">// Reset the next flush time, to the time of the new aggregator.
+        </span><span class="self">self</span>.next_flush
+            .as_mut()
+            .reset(Instant::now() + <span class="self">self</span>.aggregator.next_flush_at(SystemTime::now()));
     }
 }
 
@@ -824,8 +944,6 @@
     <span class="kw">type </span>Interface = Aggregator;
 
     <span class="kw">async fn </span>run(<span class="kw-2">mut </span><span class="self">self</span>, <span class="kw-2">mut </span>rx: relay_system::Receiver&lt;<span class="self">Self</span>::Interface&gt;) {
-        <span class="kw">let </span><span class="kw-2">mut </span>ticker = tokio::time::interval(Duration::from_millis(<span class="self">self</span>.flush_interval_ms));
-        ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         <span class="kw">let </span><span class="kw-2">mut </span>shutdown = Controller::shutdown_handle();
 
         <span class="macro">macro_rules!</span> timed {
@@ -840,26 +958,18 @@
             }};
         }
 
-        <span class="comment">// Note that currently this loop never exits and will run till the tokio runtime shuts
-        // down. This is about to change with the refactoring for the shutdown process.
-        </span><span class="kw">loop </span>{
+        <span class="kw">loop </span>{
             <span class="macro">tokio::select!</span> {
                 biased;
 
-                <span class="kw">_ </span>= ticker.tick() =&gt; <span class="macro">timed!</span>(
-                    <span class="string">"try_flush"</span>,
-                    <span class="kw">if </span><span class="macro">cfg!</span>(test) {
-                        <span class="comment">// Tests are running in a single thread / current thread runtime,
-                        // which is required for 'fast-forwarding' and `block_in_place`
-                        // requires a multi threaded runtime. Relay always requires a multi
-                        // threaded runtime.
-                        </span><span class="self">self</span>.try_flush()
-                    } <span class="kw">else </span>{
-                        tokio::task::block_in_place(|| <span class="self">self</span>.try_flush())
+                <span class="kw">_ </span>= <span class="kw-2">&amp;mut </span><span class="self">self</span>.next_flush =&gt; <span class="macro">timed!</span>(
+                    <span class="string">"try_flush"</span>, {
+                        <span class="kw">let </span>next = <span class="self">self</span>.try_flush();
+                        <span class="self">self</span>.next_flush.as_mut().reset(Instant::now() + next);
                     }
                 ),
                 <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; <span class="macro">timed!</span>(message.variant(), <span class="self">self</span>.handle_message(message)),
-                shutdown = shutdown.notified() =&gt; <span class="macro">timed!</span>(<span class="string">"shutdown"</span>, <span class="self">self</span>.handle_shutdown(shutdown)),
+                <span class="kw">_ </span>= shutdown.notified() =&gt; <span class="macro">timed!</span>(<span class="string">"shutdown"</span>, <span class="self">self</span>.handle_shutdown()),
 
                 <span class="kw">else </span>=&gt; <span class="kw">break</span>,
             }
@@ -869,14 +979,13 @@
 
 <span class="kw">impl </span>Drop <span class="kw">for </span>AggregatorService {
     <span class="kw">fn </span>drop(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="kw">let </span>remaining_buckets = <span class="self">self</span>.aggregator.bucket_count();
-        <span class="kw">if </span>remaining_buckets &gt; <span class="number">0 </span>{
+        <span class="kw">if </span>!<span class="self">self</span>.aggregator.is_empty() {
             <span class="macro">relay_log::error!</span>(
                 tags.aggregator = <span class="self">self</span>.aggregator.name(),
-                <span class="string">"metrics aggregator dropping {remaining_buckets} buckets"
+                <span class="string">"metrics aggregator dropping buckets"
             </span>);
             <span class="macro">relay_statsd::metric!</span>(
-                counter(RelayCounters::BucketsDropped) += remaining_buckets <span class="kw">as </span>i64,
+                counter(RelayCounters::BucketsDropped) += <span class="number">1</span>,
                 aggregator = <span class="self">self</span>.aggregator.name(),
             );
         }
@@ -912,6 +1021,35 @@
         <span class="self">self</span>.can_accept_metrics.load(Ordering::Relaxed)
     }
 }
+
+<span class="doccomment">/// Validates the metric name and its tags are correct.
+///
+/// Returns `false` if the metric should be dropped.
+</span><span class="kw">fn </span>validate_bucket(bucket: <span class="kw-2">&amp;mut </span>Bucket, config: <span class="kw-2">&amp;</span>AggregatorServiceConfig) -&gt; bool {
+    <span class="kw">if </span>bucket.name.len() &gt; config.max_name_length {
+        <span class="macro">relay_log::debug!</span>(
+            <span class="string">"Invalid metric name, too long (&gt; {}): {:?}"</span>,
+            config.max_name_length,
+            bucket.name
+        );
+        <span class="kw">return </span><span class="bool-val">false</span>;
+    }
+
+    bucket.tags.retain(|tag_key, tag_value| {
+        <span class="kw">if </span>tag_key.len() &gt; config.max_tag_key_length {
+            <span class="macro">relay_log::debug!</span>(<span class="string">"Invalid metric tag key {tag_key:?}"</span>);
+            <span class="kw">return </span><span class="bool-val">false</span>;
+        }
+        <span class="kw">if </span>bytecount::num_chars(tag_value.as_bytes()) &gt; config.max_tag_value_length {
+            <span class="macro">relay_log::debug!</span>(<span class="string">"Invalid metric tag value"</span>);
+            <span class="kw">return </span><span class="bool-val">false</span>;
+        }
+
+        <span class="bool-val">true
+    </span>});
+
+    <span class="bool-val">true
+</span>}
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
@@ -1022,16 +1160,94 @@
 
         aggregator.send(MergeBuckets::new(project_key, <span class="macro">vec!</span>[bucket]));
 
-        <span class="kw">let </span>buckets_count = aggregator.send(BucketCountInquiry).<span class="kw">await</span>.unwrap();
-        <span class="comment">// Let's check the number of buckets in the aggregator just after sending a
-        // message.
-        </span><span class="macro">assert_eq!</span>(buckets_count, <span class="number">1</span>);
+        <span class="comment">// Nothing flushed.
+        </span><span class="macro">assert_eq!</span>(receiver.bucket_count(), <span class="number">0</span>);
 
         <span class="comment">// Wait until flush delay has passed. It is up to 2s: 1s for the current bucket
         // and 1s for the flush shift. Adding 100ms buffer.
         </span>tokio::time::sleep(Duration::from_millis(<span class="number">2100</span>)).<span class="kw">await</span>;
         <span class="comment">// receiver must have 1 bucket flushed
         </span><span class="macro">assert_eq!</span>(receiver.bucket_count(), <span class="number">1</span>);
+    }
+
+    <span class="kw">fn </span>test_config() -&gt; AggregatorServiceConfig {
+        AggregatorServiceConfig {
+            max_name_length: <span class="number">200</span>,
+            max_tag_key_length: <span class="number">200</span>,
+            max_tag_value_length: <span class="number">200</span>,
+            ..Default::default()
+        }
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_validate_bucket_key_str_length() {
+        relay_test::setup();
+        <span class="kw">let </span><span class="kw-2">mut </span>short_metric = Bucket {
+            timestamp: UnixTimestamp::now(),
+            name: <span class="string">"c:transactions/a_short_metric"</span>.into(),
+            tags: BTreeMap::new(),
+            metadata: Default::default(),
+            width: <span class="number">0</span>,
+            value: BucketValue::Counter(<span class="number">0</span>.into()),
+        };
+        <span class="macro">assert!</span>(validate_bucket(<span class="kw-2">&amp;mut </span>short_metric, <span class="kw-2">&amp;</span>test_config()));
+
+        <span class="kw">let </span><span class="kw-2">mut </span>long_metric = Bucket {
+            timestamp: UnixTimestamp::now(),
+            name: <span class="string">"c:transactions/long_name_a_very_long_name_its_super_long_really_but_like_super_long_probably_the_longest_name_youve_seen_and_even_the_longest_name_ever_its_extremly_long_i_cant_tell_how_long_it_is_because_i_dont_have_that_many_fingers_thus_i_cant_count_the_many_characters_this_long_name_is"</span>.into(),
+            tags: BTreeMap::new(),
+            metadata: Default::default(),
+            width: <span class="number">0</span>,
+            value: BucketValue::Counter(<span class="number">0</span>.into()),
+        };
+        <span class="macro">assert!</span>(!validate_bucket(<span class="kw-2">&amp;mut </span>long_metric, <span class="kw-2">&amp;</span>test_config()));
+
+        <span class="kw">let </span><span class="kw-2">mut </span>short_metric_long_tag_key  = Bucket {
+            timestamp: UnixTimestamp::now(),
+            name: <span class="string">"c:transactions/a_short_metric_with_long_tag_key"</span>.into(),
+            tags: BTreeMap::from([(<span class="string">"i_run_out_of_creativity_so_here_we_go_Lorem_Ipsum_is_simply_dummy_text_of_the_printing_and_typesetting_industry_Lorem_Ipsum_has_been_the_industrys_standard_dummy_text_ever_since_the_1500s_when_an_unknown_printer_took_a_galley_of_type_and_scrambled_it_to_make_a_type_specimen_book"</span>.into(), <span class="string">"tag_value"</span>.into())]),
+            metadata: Default::default(),
+            width: <span class="number">0</span>,
+            value: BucketValue::Counter(<span class="number">0</span>.into()),
+        };
+        <span class="macro">assert!</span>(validate_bucket(
+            <span class="kw-2">&amp;mut </span>short_metric_long_tag_key,
+            <span class="kw-2">&amp;</span>test_config()
+        ));
+        <span class="macro">assert_eq!</span>(short_metric_long_tag_key.tags.len(), <span class="number">0</span>);
+
+        <span class="kw">let </span><span class="kw-2">mut </span>short_metric_long_tag_value  = Bucket {
+            timestamp: UnixTimestamp::now(),
+            name: <span class="string">"c:transactions/a_short_metric_with_long_tag_value"</span>.into(),
+            tags: BTreeMap::from([(<span class="string">"tag_key"</span>.into(), <span class="string">"i_run_out_of_creativity_so_here_we_go_Lorem_Ipsum_is_simply_dummy_text_of_the_printing_and_typesetting_industry_Lorem_Ipsum_has_been_the_industrys_standard_dummy_text_ever_since_the_1500s_when_an_unknown_printer_took_a_galley_of_type_and_scrambled_it_to_make_a_type_specimen_book"</span>.into())]),
+            metadata: Default::default(),
+            width: <span class="number">0</span>,
+            value: BucketValue::Counter(<span class="number">0</span>.into()),
+        };
+        <span class="macro">assert!</span>(validate_bucket(
+            <span class="kw-2">&amp;mut </span>short_metric_long_tag_value,
+            <span class="kw-2">&amp;</span>test_config()
+        ));
+        <span class="macro">assert_eq!</span>(short_metric_long_tag_value.tags.len(), <span class="number">0</span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_validate_tag_values_special_chars() {
+        relay_test::setup();
+
+        <span class="kw">let </span>tag_value = <span class="string">"x"</span>.repeat(<span class="number">199</span>) + <span class="string">"ø"</span>;
+        <span class="macro">assert_eq!</span>(tag_value.chars().count(), <span class="number">200</span>); <span class="comment">// Should be allowed
+
+        </span><span class="kw">let </span><span class="kw-2">mut </span>short_metric = Bucket {
+            timestamp: UnixTimestamp::now(),
+            name: <span class="string">"c:transactions/a_short_metric"</span>.into(),
+            tags: BTreeMap::from([(<span class="string">"foo"</span>.into(), tag_value.clone())]),
+            metadata: Default::default(),
+            width: <span class="number">0</span>,
+            value: BucketValue::Counter(<span class="number">0</span>.into()),
+        };
+        <span class="macro">assert!</span>(validate_bucket(<span class="kw-2">&amp;mut </span>short_metric, <span class="kw-2">&amp;</span>test_config()));
+        <span class="macro">assert_eq!</span>(short_metric.tags[<span class="string">"foo"</span>], tag_value);
     }
 }
 </code></pre></div></section></main></body></html>
