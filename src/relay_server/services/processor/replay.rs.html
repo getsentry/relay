@@ -367,14 +367,26 @@
 <a href="#366" id="366">366</a>
 <a href="#367" id="367">367</a>
 <a href="#368" id="368">368</a>
-<a href="#369" id="369">369</a></pre></div><pre class="rust"><code><span class="doccomment">//! Replay related processor code.
+<a href="#369" id="369">369</a>
+<a href="#370" id="370">370</a>
+<a href="#371" id="371">371</a>
+<a href="#372" id="372">372</a></pre></div><pre class="rust"><code><span class="doccomment">//! Replay related processor code.
 </span><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::net::IpAddr;
 <span class="kw">use </span>std::sync::Arc;
 
+<span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, ItemType};
+<span class="kw">use </span><span class="kw">crate</span>::services::outcome::DiscardReason;
+<span class="kw">use </span><span class="kw">crate</span>::services::processor::{
+    should_filter, ProcessEnvelopeState, ProcessingError, ReplayGroup,
+};
+<span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectInfo;
+<span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayTimers};
+<span class="kw">use </span><span class="kw">crate</span>::utils::sample;
 <span class="kw">use </span>bytes::Bytes;
 <span class="kw">use </span>relay_base_schema::organization::OrganizationId;
 <span class="kw">use </span>relay_base_schema::project::ProjectId;
+<span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_dynamic_config::{Feature, GlobalConfig, ProjectConfig};
 <span class="kw">use </span>relay_event_normalization::replay::{<span class="self">self</span>, ReplayError};
 <span class="kw">use </span>relay_event_normalization::{GeoIpLookup, RawUserAgentInfo};
@@ -386,22 +398,16 @@
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
-<span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, ItemType};
-<span class="kw">use </span><span class="kw">crate</span>::services::outcome::DiscardReason;
-<span class="kw">use </span><span class="kw">crate</span>::services::processor::{ProcessEnvelopeState, ProcessingError, ReplayGroup};
-<span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectInfo;
-<span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayTimers};
-<span class="kw">use </span><span class="kw">crate</span>::utils::sample;
-
 <span class="doccomment">/// Removes replays if the feature flag is not enabled.
 </span><span class="kw">pub fn </span>process(
     state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;ReplayGroup&gt;,
-    project_info: Arc&lt;ProjectInfo&gt;,
     global_config: <span class="kw-2">&amp;</span>GlobalConfig,
+    config: Arc&lt;Config&gt;,
+    project_info: Arc&lt;ProjectInfo&gt;,
     geoip_lookup: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>GeoIpLookup&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
-    <span class="comment">// If the replay feature is not enabled drop the items silenty.
-    </span><span class="kw">if </span>state.should_filter(Feature::SessionReplay, <span class="kw-2">&amp;</span>project_info) {
+    <span class="comment">// If the replay feature is not enabled drop the items silently.
+    </span><span class="kw">if </span>should_filter(<span class="kw-2">&amp;</span>config, <span class="kw-2">&amp;</span>project_info, Feature::SessionReplay) {
         state.managed_envelope.drop_items_silently();
         <span class="kw">return </span><span class="prelude-val">Ok</span>(());
     }
@@ -442,7 +448,7 @@
             </span>.as_ref();
 
         <span class="prelude-val">Some</span>(RecordingScrubber::new(
-            state.config.max_replay_uncompressed_size(),
+            config.max_replay_uncompressed_size(),
             rpc.config.pii_config.as_ref(),
             datascrubbing_config,
         ))

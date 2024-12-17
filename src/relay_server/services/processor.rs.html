@@ -3966,7 +3966,27 @@
 <a href="#3965" id="3965">3965</a>
 <a href="#3966" id="3966">3966</a>
 <a href="#3967" id="3967">3967</a>
-<a href="#3968" id="3968">3968</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
+<a href="#3968" id="3968">3968</a>
+<a href="#3969" id="3969">3969</a>
+<a href="#3970" id="3970">3970</a>
+<a href="#3971" id="3971">3971</a>
+<a href="#3972" id="3972">3972</a>
+<a href="#3973" id="3973">3973</a>
+<a href="#3974" id="3974">3974</a>
+<a href="#3975" id="3975">3975</a>
+<a href="#3976" id="3976">3976</a>
+<a href="#3977" id="3977">3977</a>
+<a href="#3978" id="3978">3978</a>
+<a href="#3979" id="3979">3979</a>
+<a href="#3980" id="3980">3980</a>
+<a href="#3981" id="3981">3981</a>
+<a href="#3982" id="3982">3982</a>
+<a href="#3983" id="3983">3983</a>
+<a href="#3984" id="3984">3984</a>
+<a href="#3985" id="3985">3985</a>
+<a href="#3986" id="3986">3986</a>
+<a href="#3987" id="3987">3987</a>
+<a href="#3988" id="3988">3988</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::fmt::{Debug, Display};
@@ -4726,9 +4746,6 @@
     </span><span class="attr">#[cfg_attr(not(feature = <span class="string">"processing"</span>), expect(dead_code))]
     </span>rate_limits: Arc&lt;RateLimits&gt;,
 
-    <span class="doccomment">/// The config of this Relay instance.
-    </span>config: Arc&lt;Config&gt;,
-
     <span class="doccomment">/// The managed envelope before processing.
     </span>managed_envelope: TypedEnvelope&lt;Group&gt;,
 }
@@ -4774,18 +4791,42 @@
     </span><span class="kw">fn </span>remove_event(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
         <span class="self">self</span>.event = Annotated::empty();
     }
+}
 
-    <span class="doccomment">/// Function for on-off switches that filter specific item types (profiles, spans)
-    /// based on a feature flag.
-    ///
-    /// If the project config did not come from the upstream, we keep the items.
-    </span><span class="kw">fn </span>should_filter(<span class="kw-2">&amp;</span><span class="self">self</span>, feature: Feature, project_info: <span class="kw-2">&amp;</span>ProjectInfo) -&gt; bool {
-        <span class="kw">match </span><span class="self">self</span>.config.relay_mode() {
-            RelayMode::Proxy | RelayMode::Static | RelayMode::Capture =&gt; <span class="bool-val">false</span>,
-            RelayMode::Managed =&gt; !project_info.has_feature(feature),
-        }
+<span class="doccomment">/// Function for on-off switches that filter specific item types (profiles, spans)
+/// based on a feature flag.
+///
+/// If the project config did not come from the upstream, we keep the items.
+</span><span class="kw">fn </span>should_filter(config: <span class="kw-2">&amp;</span>Config, project_info: <span class="kw-2">&amp;</span>ProjectInfo, feature: Feature) -&gt; bool {
+    <span class="kw">match </span>config.relay_mode() {
+        RelayMode::Proxy | RelayMode::Static | RelayMode::Capture =&gt; <span class="bool-val">false</span>,
+        RelayMode::Managed =&gt; !project_info.has_feature(feature),
     }
 }
+
+<span class="doccomment">/// New type representing the normalization state of the event.
+</span><span class="attr">#[derive(Copy, Clone)]
+</span><span class="kw">struct </span>EventFullyNormalized(bool);
+
+<span class="kw">impl </span>EventFullyNormalized {
+    <span class="doccomment">/// Returns `true` if the event is fully normalized, `false` otherwise.
+    </span><span class="kw">pub fn </span>new(envelope: <span class="kw-2">&amp;</span>Envelope) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>event_fully_normalized = envelope.meta().is_from_internal_relay()
+            &amp;&amp; envelope
+                .items()
+                .any(|item| item.creates_event() &amp;&amp; item.fully_normalized());
+
+        <span class="self">Self</span>(event_fully_normalized)
+    }
+}
+
+<span class="doccomment">/// New type representing whether metrics were extracted from transactions/spans.
+</span><span class="attr">#[derive(Copy, Clone)]
+</span><span class="kw">struct </span>EventMetricsExtracted(bool);
+
+<span class="doccomment">/// New type representing whether spans were extracted.
+</span><span class="attr">#[derive(Copy, Clone)]
+</span><span class="kw">struct </span>SpansExtracted(bool);
 
 <span class="doccomment">/// The view out of the [`ProcessEnvelopeState`] after processing.
 </span><span class="attr">#[derive(Debug)]
@@ -5091,30 +5132,6 @@
     </span>cardinality_limiter: <span class="prelude-ty">Option</span>&lt;CardinalityLimiter&gt;,
     metric_outcomes: MetricOutcomes,
 }
-
-<span class="doccomment">/// New type representing the normalization state of the event.
-</span><span class="attr">#[derive(Copy, Clone)]
-</span><span class="kw">struct </span>EventFullyNormalized(bool);
-
-<span class="kw">impl </span>EventFullyNormalized {
-    <span class="doccomment">/// Returns `true` if the event is fully normalized, `false` otherwise.
-    </span><span class="kw">pub fn </span>new(envelope: <span class="kw-2">&amp;</span>Envelope) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span>event_fully_normalized = envelope.meta().is_from_internal_relay()
-            &amp;&amp; envelope
-                .items()
-                .any(|item| item.creates_event() &amp;&amp; item.fully_normalized());
-
-        <span class="self">Self</span>(event_fully_normalized)
-    }
-}
-
-<span class="doccomment">/// New type representing whether metrics were extracted from transactions/spans.
-</span><span class="attr">#[derive(Copy, Clone)]
-</span><span class="kw">struct </span>EventMetricsExtracted(bool);
-
-<span class="doccomment">/// New type representing whether spans were extracted.
-</span><span class="attr">#[derive(Copy, Clone)]
-</span><span class="kw">struct </span>SpansExtracted(bool);
 
 <span class="kw">impl </span>EnvelopeProcessorService {
     <span class="doccomment">/// Creates a multi-threaded envelope processor.
@@ -5587,6 +5604,7 @@
     </span><span class="kw">fn </span>process_transactions(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;,
+        config: Arc&lt;Config&gt;,
         project_id: ProjectId,
         project_info: Arc&lt;ProjectInfo&gt;,
         <span class="kw-2">mut </span>sampling_project_info: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectInfo&gt;&gt;,
@@ -5605,7 +5623,7 @@
             spans_extracted = inner_spans_extracted;
         };
 
-        <span class="kw">let </span>profile_id = profile::filter(state, project_id, project_info.clone());
+        <span class="kw">let </span>profile_id = profile::filter(state, config.clone(), project_id, project_info.clone());
         profile::transfer_id(state, profile_id);
 
         event::finalize(state, <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config)<span class="question-mark">?</span>;
@@ -5641,6 +5659,7 @@
         <span class="kw">let </span>sampling_result = <span class="kw">match </span>run_dynamic_sampling {
             <span class="bool-val">true </span>=&gt; dynamic_sampling::run(
                 state,
+                config.clone(),
                 project_info.clone(),
                 sampling_project_info,
                 <span class="kw-2">&amp;</span>reservoir,
@@ -5657,7 +5676,7 @@
         <span class="kw">if let </span><span class="prelude-val">Some</span>(outcome) = sampling_result.into_dropped_outcome() {
             <span class="comment">// Process profiles before dropping the transaction, if necessary.
             // Before metric extraction to make sure the profile count is reflected correctly.
-            </span>profile::process(state, project_info.clone(), <span class="kw-2">&amp;</span>global_config);
+            </span>profile::process(state, <span class="kw-2">&amp;</span>global_config, config.clone(), project_info.clone());
             <span class="comment">// Extract metrics here, we're about to drop the event/transaction.
             </span>event_metrics_extracted = <span class="self">self</span>.extract_transaction_metrics(
                 state,
@@ -5689,7 +5708,8 @@
 
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
             <span class="comment">// Process profiles before extracting metrics, to make sure they are removed if they are invalid.
-            </span><span class="kw">let </span>profile_id = profile::process(state, project_info.clone(), <span class="kw-2">&amp;</span>global_config);
+            </span><span class="kw">let </span>profile_id =
+                profile::process(state, <span class="kw-2">&amp;</span>global_config, config.clone(), project_info.clone());
             profile::transfer_id(state, profile_id);
 
             <span class="comment">// Always extract metrics in processing Relays for sampled items.
@@ -5705,8 +5725,9 @@
             <span class="kw">if </span>project_info.has_feature(Feature::ExtractSpansFromEvent) {
                 spans_extracted = span::extract_from_event(
                     state,
-                    project_info.clone(),
                     <span class="kw-2">&amp;</span>global_config,
+                    config,
+                    project_info.clone(),
                     server_sample_rate,
                     event_metrics_extracted,
                     spans_extracted,
@@ -5760,10 +5781,11 @@
     </span><span class="kw">fn </span>process_standalone(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;StandaloneGroup&gt;,
+        config: Arc&lt;Config&gt;,
         project_id: ProjectId,
         project_info: Arc&lt;ProjectInfo&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
-        profile::filter(state, project_id, project_info.clone());
+        profile::filter(state, config, project_id, project_info.clone());
 
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
             <span class="self">self</span>.enforce_quotas(state, project_info.clone())<span class="question-mark">?</span>;
@@ -5791,6 +5813,7 @@
     </span><span class="kw">fn </span>process_client_reports(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;ClientReportGroup&gt;,
+        config: Arc&lt;Config&gt;,
         project_info: Arc&lt;ProjectInfo&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
@@ -5799,6 +5822,7 @@
 
         report::process_client_reports(
             state,
+            config,
             project_info,
             <span class="self">self</span>.inner.addrs.outcome_aggregator.clone(),
         );
@@ -5810,12 +5834,14 @@
     </span><span class="kw">fn </span>process_replays(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;ReplayGroup&gt;,
+        config: Arc&lt;Config&gt;,
         project_info: Arc&lt;ProjectInfo&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
         replay::process(
             state,
-            project_info.clone(),
             <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current(),
+            config,
+            project_info.clone(),
             <span class="self">self</span>.inner.geoip_lookup.as_ref(),
         )<span class="question-mark">?</span>;
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
@@ -5844,12 +5870,13 @@
     </span><span class="kw">fn </span>process_standalone_spans(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;SpanGroup&gt;,
+        config: Arc&lt;Config&gt;,
         <span class="attr">#[allow(unused_variables)] </span>project_id: ProjectId,
         project_info: Arc&lt;ProjectInfo&gt;,
         <span class="attr">#[allow(unused_variables)] </span>sampling_project_info: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectInfo&gt;&gt;,
         <span class="attr">#[allow(unused_variables)] </span>reservoir_counters: ReservoirCounters,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
-        span::filter(state, project_info.clone());
+        span::filter(state, config.clone(), project_info.clone());
         span::convert_otel_traces_data(state);
 
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
@@ -5861,10 +5888,11 @@
 
             span::process(
                 state,
+                <span class="kw-2">&amp;</span>global_config,
+                config,
                 project_id,
                 project_info.clone(),
                 sampling_project_info,
-                <span class="kw-2">&amp;</span>global_config,
                 <span class="self">self</span>.inner.geoip_lookup.as_ref(),
                 <span class="kw-2">&amp;</span>reservoir,
             );
@@ -5918,7 +5946,6 @@
                     event: Annotated::empty(),
                     metrics: Metrics::default(),
                     extracted_metrics: ProcessingExtractedMetrics::new(),
-                    config: <span class="self">self</span>.inner.config.clone(),
                     rate_limits,
                     managed_envelope,
                 };
@@ -5952,6 +5979,7 @@
             ProcessingGroup::Transaction =&gt; {
                 <span class="macro">run!</span>(
                     process_transactions,
+                    <span class="self">self</span>.inner.config.clone(),
                     project_id,
                     project_info,
                     sampling_project_info,
@@ -5959,12 +5987,24 @@
                 )
             }
             ProcessingGroup::Session =&gt; <span class="macro">run!</span>(process_sessions, project_info),
-            ProcessingGroup::Standalone =&gt; <span class="macro">run!</span>(process_standalone, project_id, project_info),
-            ProcessingGroup::ClientReport =&gt; <span class="macro">run!</span>(process_client_reports, project_info),
-            ProcessingGroup::Replay =&gt; <span class="macro">run!</span>(process_replays, project_info),
+            ProcessingGroup::Standalone =&gt; <span class="macro">run!</span>(
+                process_standalone,
+                <span class="self">self</span>.inner.config.clone(),
+                project_id,
+                project_info
+            ),
+            ProcessingGroup::ClientReport =&gt; <span class="macro">run!</span>(
+                process_client_reports,
+                <span class="self">self</span>.inner.config.clone(),
+                project_info
+            ),
+            ProcessingGroup::Replay =&gt; {
+                <span class="macro">run!</span>(process_replays, <span class="self">self</span>.inner.config.clone(), project_info)
+            }
             ProcessingGroup::CheckIn =&gt; <span class="macro">run!</span>(process_checkins, project_id, project_info),
             ProcessingGroup::Span =&gt; <span class="macro">run!</span>(
                 process_standalone_spans,
+                <span class="self">self</span>.inner.config.clone(),
                 project_id,
                 project_info,
                 sampling_project_info,

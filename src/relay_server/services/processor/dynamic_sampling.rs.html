@@ -779,7 +779,13 @@
 <a href="#778" id="778">778</a>
 <a href="#779" id="779">779</a>
 <a href="#780" id="780">780</a>
-<a href="#781" id="781">781</a></pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic sampling processor related code.
+<a href="#781" id="781">781</a>
+<a href="#782" id="782">782</a>
+<a href="#783" id="783">783</a>
+<a href="#784" id="784">784</a>
+<a href="#785" id="785">785</a>
+<a href="#786" id="786">786</a>
+<a href="#787" id="787">787</a></pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic sampling processor related code.
 </span><span class="kw">use </span>std::ops::ControlFlow;
 <span class="kw">use </span>std::sync::Arc;
 
@@ -853,6 +859,7 @@
 <span class="doccomment">/// Computes the sampling decision on the incoming event
 </span><span class="kw">pub fn </span>run&lt;Group&gt;(
     state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;Group&gt;,
+    config: Arc&lt;Config&gt;,
     project_info: Arc&lt;ProjectInfo&gt;,
     sampling_project_info: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectInfo&gt;&gt;,
     reservoir: <span class="kw-2">&amp;</span>ReservoirEvaluator,
@@ -878,7 +885,7 @@
     <span class="kw">let </span>reservoir = Group::supports_reservoir_sampling().then_some(reservoir);
 
     compute_sampling_decision(
-        state.config.processing_enabled(),
+        config.processing_enabled(),
         reservoir,
         sampling_config,
         state.event.value(),
@@ -1230,7 +1237,6 @@
                 event: Annotated::from(event),
                 metrics: Default::default(),
                 extracted_metrics: ProcessingExtractedMetrics::new(),
-                config: config.clone(),
                 rate_limits: Default::default(),
                 managed_envelope: ManagedEnvelope::new(
                     envelope,
@@ -1249,17 +1255,17 @@
 
         <span class="comment">// None represents no TransactionMetricsConfig, DS will not be run
         </span><span class="kw">let </span>(<span class="kw-2">mut </span>state, project_info) = get_state(<span class="prelude-val">None</span>);
-        <span class="kw">let </span>sampling_result = run(<span class="kw-2">&amp;mut </span>state, project_info, <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>reservoir);
+        <span class="kw">let </span>sampling_result = run(<span class="kw-2">&amp;mut </span>state, config.clone(), project_info, <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>reservoir);
         <span class="macro">assert_eq!</span>(sampling_result.decision(), SamplingDecision::Keep);
 
         <span class="comment">// Current version is 3, so it won't run DS if it's outdated
         </span><span class="kw">let </span>(<span class="kw-2">mut </span>state, project_info) = get_state(<span class="prelude-val">Some</span>(<span class="number">2</span>));
-        <span class="kw">let </span>sampling_result = run(<span class="kw-2">&amp;mut </span>state, project_info, <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>reservoir);
+        <span class="kw">let </span>sampling_result = run(<span class="kw-2">&amp;mut </span>state, config.clone(), project_info, <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>reservoir);
         <span class="macro">assert_eq!</span>(sampling_result.decision(), SamplingDecision::Keep);
 
         <span class="comment">// Dynamic sampling is run, as the transactionmetrics version is up to date.
         </span><span class="kw">let </span>(<span class="kw-2">mut </span>state, project_info) = get_state(<span class="prelude-val">Some</span>(<span class="number">3</span>));
-        <span class="kw">let </span>sampling_result = run(<span class="kw-2">&amp;mut </span>state, project_info, <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>reservoir);
+        <span class="kw">let </span>sampling_result = run(<span class="kw-2">&amp;mut </span>state, config.clone(), project_info, <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>reservoir);
         <span class="macro">assert_eq!</span>(sampling_result.decision(), SamplingDecision::Drop);
     }
 
@@ -1496,11 +1502,11 @@
             <span class="string">r#"{"dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","trace":{"trace_id":"89143b0763095bd9c9955e8175d1fb23","public_key":"e12d836b15bb49d7bbf99e64295d995b"}}"#</span>,
         );
         <span class="kw">let </span>envelope = Envelope::parse_bytes(bytes).unwrap();
+        <span class="kw">let </span>config = Arc::new(Config::default());
         <span class="kw">let </span><span class="kw-2">mut </span>state = ProcessEnvelopeState::&lt;G&gt; {
             event: Annotated::new(Event::default()),
             metrics: Default::default(),
             extracted_metrics: ProcessingExtractedMetrics::new(),
-            config: Arc::new(Config::default()),
             rate_limits: Default::default(),
             managed_envelope: ManagedEnvelope::new(
                 envelope,
@@ -1543,7 +1549,13 @@
         };
 
         <span class="kw">let </span>reservoir = dummy_reservoir();
-        run(<span class="kw-2">&amp;mut </span>state, project_info, sampling_project_info, <span class="kw-2">&amp;</span>reservoir)
+        run(
+            <span class="kw-2">&amp;mut </span>state,
+            config,
+            project_info,
+            sampling_project_info,
+            <span class="kw-2">&amp;</span>reservoir,
+        )
     }
 
     <span class="attr">#[test]

@@ -1415,7 +1415,17 @@
 <a href="#1414" id="1414">1414</a>
 <a href="#1415" id="1415">1415</a>
 <a href="#1416" id="1416">1416</a>
-<a href="#1417" id="1417">1417</a></pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
+<a href="#1417" id="1417">1417</a>
+<a href="#1418" id="1418">1418</a>
+<a href="#1419" id="1419">1419</a>
+<a href="#1420" id="1420">1420</a>
+<a href="#1421" id="1421">1421</a>
+<a href="#1422" id="1422">1422</a>
+<a href="#1423" id="1423">1423</a>
+<a href="#1424" id="1424">1424</a>
+<a href="#1425" id="1425">1425</a>
+<a href="#1426" id="1426">1426</a>
+<a href="#1427" id="1427">1427</a></pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
@@ -1462,12 +1472,14 @@
 #[error(transparent)]
 </span><span class="kw">struct </span>ValidationError(<span class="attr">#[from] </span>anyhow::Error);
 
-<span class="kw">pub fn </span>process(
+<span class="attr">#[allow(clippy::too_many_arguments)]
+</span><span class="kw">pub fn </span>process(
     state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;SpanGroup&gt;,
+    global_config: <span class="kw-2">&amp;</span>GlobalConfig,
+    config: Arc&lt;Config&gt;,
     project_id: ProjectId,
     project_info: Arc&lt;ProjectInfo&gt;,
     sampling_project_info: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectInfo&gt;&gt;,
-    global_config: <span class="kw-2">&amp;</span>GlobalConfig,
     geo_lookup: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>GeoIpLookup&gt;,
     reservoir_counters: <span class="kw-2">&amp;</span>ReservoirEvaluator,
 ) {
@@ -1477,6 +1489,7 @@
     // once for all spans in the envelope.
     </span><span class="kw">let </span>sampling_result = dynamic_sampling::run(
         state,
+        config.clone(),
         project_info.clone(),
         sampling_project_info,
         reservoir_counters,
@@ -1487,7 +1500,7 @@
         <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
     };
     <span class="kw">let </span>normalize_span_config = NormalizeSpanConfig::new(
-        <span class="kw-2">&amp;</span>state.config,
+        <span class="kw-2">&amp;</span>config,
         global_config,
         project_info.config(),
         <span class="kw-2">&amp;</span>state.managed_envelope,
@@ -1683,8 +1696,9 @@
 
 <span class="kw">pub fn </span>extract_from_event(
     state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;,
-    project_info: Arc&lt;ProjectInfo&gt;,
     global_config: <span class="kw-2">&amp;</span>GlobalConfig,
+    config: Arc&lt;Config&gt;,
+    project_info: Arc&lt;ProjectInfo&gt;,
     server_sample_rate: <span class="prelude-ty">Option</span>&lt;f64&gt;,
     event_metrics_extracted: EventMetricsExtracted,
     spans_extracted: SpansExtracted,
@@ -1773,8 +1787,7 @@
 
     <span class="kw">let </span><span class="prelude-val">Some</span>(transaction_span) = extract_transaction_span(
         event,
-        state
-            .config
+        config
             .aggregator_config_for(MetricNamespace::Spans)
             .aggregator
             .max_tag_value_length,
@@ -2282,7 +2295,6 @@
             event: Annotated::from(event),
             metrics: Default::default(),
             extracted_metrics: ProcessingExtractedMetrics::new(),
-            config: Arc::new(Config::default()),
             rate_limits: Arc::new(RateLimits::default()),
             managed_envelope: managed_envelope.try_into().unwrap(),
         };
@@ -2293,12 +2305,14 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>extract_sampled_default() {
         <span class="kw">let </span>global_config = GlobalConfig::default();
+        <span class="kw">let </span>config = Arc::new(Config::default());
         <span class="macro">assert!</span>(global_config.options.span_extraction_sample_rate.is_none());
         <span class="kw">let </span>(<span class="kw-2">mut </span>state, project_info) = state();
         extract_from_event(
             <span class="kw-2">&amp;mut </span>state,
-            project_info,
             <span class="kw-2">&amp;</span>global_config,
+            config,
+            project_info,
             <span class="prelude-val">None</span>,
             EventMetricsExtracted(<span class="bool-val">false</span>),
             SpansExtracted(<span class="bool-val">false</span>),
@@ -2317,11 +2331,13 @@
     </span><span class="kw">fn </span>extract_sampled_explicit() {
         <span class="kw">let </span><span class="kw-2">mut </span>global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = <span class="prelude-val">Some</span>(<span class="number">1.0</span>);
+        <span class="kw">let </span>config = Arc::new(Config::default());
         <span class="kw">let </span>(<span class="kw-2">mut </span>state, project_info) = state();
         extract_from_event(
             <span class="kw-2">&amp;mut </span>state,
-            project_info,
             <span class="kw-2">&amp;</span>global_config,
+            config,
+            project_info,
             <span class="prelude-val">None</span>,
             EventMetricsExtracted(<span class="bool-val">false</span>),
             SpansExtracted(<span class="bool-val">false</span>),
@@ -2340,11 +2356,13 @@
     </span><span class="kw">fn </span>extract_sampled_dropped() {
         <span class="kw">let </span><span class="kw-2">mut </span>global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = <span class="prelude-val">Some</span>(<span class="number">0.0</span>);
+        <span class="kw">let </span>config = Arc::new(Config::default());
         <span class="kw">let </span>(<span class="kw-2">mut </span>state, project_info) = state();
         extract_from_event(
             <span class="kw-2">&amp;mut </span>state,
-            project_info,
             <span class="kw-2">&amp;</span>global_config,
+            config,
+            project_info,
             <span class="prelude-val">None</span>,
             EventMetricsExtracted(<span class="bool-val">false</span>),
             SpansExtracted(<span class="bool-val">false</span>),
@@ -2363,11 +2381,13 @@
     </span><span class="kw">fn </span>extract_sample_rates() {
         <span class="kw">let </span><span class="kw-2">mut </span>global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = <span class="prelude-val">Some</span>(<span class="number">1.0</span>); <span class="comment">// force enable
-        </span><span class="kw">let </span>(<span class="kw-2">mut </span>state, project_info) = state(); <span class="comment">// client sample rate is 0.2
+        </span><span class="kw">let </span>config = Arc::new(Config::default());
+        <span class="kw">let </span>(<span class="kw-2">mut </span>state, project_info) = state(); <span class="comment">// client sample rate is 0.2
         </span>extract_from_event(
             <span class="kw-2">&amp;mut </span>state,
-            project_info,
             <span class="kw-2">&amp;</span>global_config,
+            config,
+            project_info,
             <span class="prelude-val">Some</span>(<span class="number">0.1</span>),
             EventMetricsExtracted(<span class="bool-val">false</span>),
             SpansExtracted(<span class="bool-val">false</span>),
