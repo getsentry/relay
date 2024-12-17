@@ -782,7 +782,7 @@ mod tests {
         };
 
         let reservoir = dummy_reservoir();
-        run(
+        run::<Group>(
             &mut state,
             &mut managed_envelope,
             config,
