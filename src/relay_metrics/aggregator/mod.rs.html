@@ -520,12 +520,12 @@
 
     <span class="kw">for </span>namespace <span class="kw">in </span>MetricNamespace::all() {
         <span class="macro">relay_statsd::metric!</span>(
-            counter(MetricCounters::MergeHit) += <span class="kw-2">*</span>stats.count_by_namespace.get(namespace),
+            counter(MetricCounters::MergeMiss) += <span class="kw-2">*</span>stats.count_by_namespace.get(namespace),
             namespace = namespace.as_str(),
             aggregator = name,
         );
         <span class="macro">relay_statsd::metric!</span>(
-            counter(MetricCounters::MergeMiss) += <span class="kw-2">*</span>stats.merges_by_namespace.get(namespace),
+            counter(MetricCounters::MergeHit) += <span class="kw-2">*</span>stats.merges_by_namespace.get(namespace),
             namespace = namespace.as_str(),
             aggregator = name,
         );
