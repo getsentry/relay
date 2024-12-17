@@ -11,7 +11,7 @@ use relay_metrics::aggregator::{self, AggregateMetricsError, AggregatorConfig, P
 use relay_metrics::Bucket;
 use relay_quotas::{RateLimits, Scoping};
 use relay_system::{Controller, FromMessage, Interface, NoResponse, Recipient, Service};
-use tokio::time::Sleep;
+use tokio::time::{Instant, Sleep};
 
 use crate::services::projects::cache::ProjectCacheHandle;
 use crate::services::projects::project::{ProjectInfo, ProjectState};
@@ -157,7 +157,7 @@ impl AggregatorService {
 
         self.flush_partition(partition);
 
-        self.aggregator.next_flush(SystemTime::now())
+        self.aggregator.next_flush_at(SystemTime::now())
     }
 
     fn flush_partition(&mut self, partition: Partition) {
@@ -310,7 +310,7 @@ impl AggregatorService {
         // Reset the next flush time, to the time of the new aggregator.
         self.next_flush
             .as_mut()
-            .reset(tokio::time::Instant::now() + self.aggregator.next_flush(SystemTime::now()));
+            .reset(Instant::now() + self.aggregator.next_flush_at(SystemTime::now()));
     }
 }
 
@@ -339,7 +339,7 @@ impl Service for AggregatorService {
                 _ = &mut self.next_flush => timed!(
                     "try_flush", {
                         let next = self.try_flush();
-                        self.next_flush.as_mut().reset(tokio::time::Instant::now() + next);
+                        self.next_flush.as_mut().reset(Instant::now() + next);
                     }
                 ),
                 Some(message) = rx.recv() => timed!(message.variant(), self.handle_message(message)),

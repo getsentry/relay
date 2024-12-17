@@ -128,7 +128,7 @@ impl Aggregator {
     /// After a successful flush, retry immediately until an error is returned with the next flush
     /// time, this makes sure time is eventually synchronized.
     pub fn try_flush_next(&mut self, now: SystemTime) -> Result<Partition, Duration> {
-        let next_flush = SystemTime::UNIX_EPOCH + self.inner.next_flush();
+        let next_flush = SystemTime::UNIX_EPOCH + self.inner.next_flush_at();
 
         if let Err(err) = now.duration_since(next_flush) {
             // The flush time is in the future, return the amount of time to wait before the next flush.
@@ -148,8 +148,8 @@ impl Aggregator {
     }
 
     /// Returns when the next partition is ready to be flushed using [`Self::try_flush_next`].
-    pub fn next_flush(&mut self, now: SystemTime) -> Duration {
-        let next_flush = SystemTime::UNIX_EPOCH + self.inner.next_flush();
+    pub fn next_flush_at(&mut self, now: SystemTime) -> Duration {
+        let next_flush = SystemTime::UNIX_EPOCH + self.inner.next_flush_at();
 
         match now.duration_since(next_flush) {
             Ok(_) => Duration::ZERO,
@@ -178,7 +178,7 @@ pub struct Partition {
     /// The partition key.
     pub partition_key: u32,
     buckets: HashMap<BucketKey, BucketData>,
-    bucket_interval: u32,
+    bucket_interval: u64,
 }
 
 impl IntoIterator for Partition {
@@ -196,7 +196,7 @@ impl IntoIterator for Partition {
 /// Iterator yielded from [`Partition::into_iter`].
 pub struct PartitionIter {
     inner: hashbrown::hash_map::IntoIter<BucketKey, BucketData>,
-    bucket_interval: u32,
+    bucket_interval: u64,
 }
 
 impl Iterator for PartitionIter {
@@ -209,7 +209,7 @@ impl Iterator for PartitionIter {
             key.project_key,
             Bucket {
                 timestamp: key.timestamp,
-                width: u64::from(self.bucket_interval),
+                width: self.bucket_interval,
                 name: key.metric_name,
                 tags: key.tags,
                 value: data.value,
