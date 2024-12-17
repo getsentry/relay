@@ -4,8 +4,7 @@ use relay_dynamic_config::Feature;
 use std::sync::Arc;
 
 use crate::envelope::ItemType;
-use crate::services::processor::ProcessEnvelopeState;
-use crate::utils::ItemAction;
+use crate::utils::{ItemAction, TypedEnvelope};
 
 use crate::services::projects::project::ProjectInfo;
 #[cfg(feature = "processing")]
@@ -18,14 +17,14 @@ use {
 };
 
 /// Removes profile chunks from the envelope if the feature is not enabled.
-pub fn filter<G>(state: &mut ProcessEnvelopeState<G>, project_info: Arc<ProjectInfo>) {
+pub fn filter<Group>(managed_envelope: &mut TypedEnvelope<Group>, project_info: Arc<ProjectInfo>) {
     let continuous_profiling_enabled =
         if project_info.has_feature(Feature::ContinuousProfilingBetaIngest) {
             project_info.has_feature(Feature::ContinuousProfilingBeta)
         } else {
             project_info.has_feature(Feature::ContinuousProfiling)
         };
-    state.managed_envelope.retain_items(|item| match item.ty() {
+    managed_envelope.retain_items(|item| match item.ty() {
         ItemType::ProfileChunk if !continuous_profiling_enabled => ItemAction::DropSilently,
         _ => ItemAction::Keep,
     });
@@ -34,12 +33,12 @@ pub fn filter<G>(state: &mut ProcessEnvelopeState<G>, project_info: Arc<ProjectI
 /// Processes profile chunks.
 #[cfg(feature = "processing")]
 pub fn process(
-    state: &mut ProcessEnvelopeState<ProfileChunkGroup>,
+    managed_envelope: &mut TypedEnvelope<ProfileChunkGroup>,
     project_info: Arc<ProjectInfo>,
     global_config: &GlobalConfig,
     config: &Config,
 ) {
-    let client_ip = state.managed_envelope.envelope().meta().client_addr();
+    let client_ip = managed_envelope.envelope().meta().client_addr();
     let filter_settings = &project_info.config.filter_settings;
     let continuous_profiling_enabled =
         if project_info.has_feature(Feature::ContinuousProfilingBetaIngest) {
@@ -47,7 +46,7 @@ pub fn process(
         } else {
             project_info.has_feature(Feature::ContinuousProfiling)
         };
-    state.managed_envelope.retain_items(|item| match item.ty() {
+    managed_envelope.retain_items(|item| match item.ty() {
         ItemType::ProfileChunk => {
             if !continuous_profiling_enabled {
                 return ItemAction::DropSilently;

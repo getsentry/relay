@@ -13,8 +13,8 @@ use relay_spans::otel_trace::TracesData;
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{should_filter, SpanGroup};
+use crate::utils::ItemAction;
 use crate::utils::TypedEnvelope;
-use crate::{services::processor::ProcessEnvelopeState, utils::ItemAction};
 
 #[cfg(feature = "processing")]
 mod processing;
@@ -24,14 +24,14 @@ pub use processing::*;
 use relay_config::Config;
 
 pub fn filter(
-    state: &mut ProcessEnvelopeState<SpanGroup>,
+    managed_envelope: &mut TypedEnvelope<SpanGroup>,
     config: Arc<Config>,
     project_info: Arc<ProjectInfo>,
 ) {
     let disabled = should_filter(&config, &project_info, Feature::StandaloneSpanIngestion);
     let otel_disabled = should_filter(&config, &project_info, Feature::OtelEndpoint);
 
-    state.managed_envelope.retain_items(|item| {
+    managed_envelope.retain_items(|item| {
         if disabled && item.is_span() {
             relay_log::debug!("dropping span because feature is disabled");
             ItemAction::DropSilently
@@ -44,11 +44,11 @@ pub fn filter(
     });
 }
 
-pub fn convert_otel_traces_data(state: &mut ProcessEnvelopeState<SpanGroup>) {
-    let envelope = state.managed_envelope.envelope_mut();
+pub fn convert_otel_traces_data(managed_envelope: &mut TypedEnvelope<SpanGroup>) {
+    let envelope = managed_envelope.envelope_mut();
 
     for item in envelope.take_items_by(|item| item.ty() == &ItemType::OtelTracesData) {
-        convert_traces_data(item, &mut state.managed_envelope);
+        convert_traces_data(item, managed_envelope);
     }
 }
 

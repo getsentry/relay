@@ -29,7 +29,7 @@ use crate::services::processor::{
 };
 use crate::services::projects::project::ProjectInfo;
 use crate::statsd::{PlatformTag, RelayCounters, RelayHistograms, RelayTimers};
-use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter};
+use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter, TypedEnvelope};
 
 /// Extracts the primary event payload from an envelope.
 ///
@@ -39,12 +39,13 @@ use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter};
 ///  3. Attachments `__sentry-event` and `__sentry-breadcrumb1/2`.
 ///  4. A multipart form data body.
 ///  5. If none match, `Annotated::empty()`.
-pub fn extract<G: EventProcessing>(
-    state: &mut ProcessEnvelopeState<G>,
+pub fn extract<Group: EventProcessing>(
+    state: &mut ProcessEnvelopeState,
+    managed_envelope: &mut TypedEnvelope<Group>,
     event_fully_normalized: EventFullyNormalized,
     config: &Config,
 ) -> Result<Option<(EventMetricsExtracted, SpansExtracted)>, ProcessingError> {
-    let envelope = &mut state.envelope_mut();
+    let envelope = &mut managed_envelope.envelope_mut();
 
     // Remove all items first, and then process them. After this function returns, only
     // attachments can remain in the envelope. The event will be added again at the end of
@@ -140,11 +141,12 @@ pub fn extract<G: EventProcessing>(
     Ok(result)
 }
 
-pub fn finalize<G: EventProcessing>(
-    state: &mut ProcessEnvelopeState<G>,
+pub fn finalize<Group: EventProcessing>(
+    state: &mut ProcessEnvelopeState,
+    managed_envelope: &mut TypedEnvelope<Group>,
     config: &Config,
 ) -> Result<(), ProcessingError> {
-    let envelope = state.managed_envelope.envelope_mut();
+    let envelope = managed_envelope.envelope_mut();
 
     let event = match state.event.value_mut() {
         Some(event) => event,
@@ -235,7 +237,7 @@ pub fn finalize<G: EventProcessing>(
     }
 
     let mut processor =
-        ClockDriftProcessor::new(envelope.sent_at(), state.managed_envelope.received_at())
+        ClockDriftProcessor::new(envelope.sent_at(), managed_envelope.received_at())
             .at_least(MINIMUM_CLOCK_DRIFT);
     processor::process_value(&mut state.event, &mut processor, ProcessingState::root())
         .map_err(|_| ProcessingError::InvalidTransaction)?;
@@ -244,7 +246,7 @@ pub fn finalize<G: EventProcessing>(
     // store processing, which could modify the timestamp if it exceeds a threshold. We are
     // interested in the actual delay before this correction.
     if let Some(timestamp) = state.event.value().and_then(|e| e.timestamp.value()) {
-        let event_delay = state.managed_envelope.received_at() - timestamp.into_inner();
+        let event_delay = managed_envelope.received_at() - timestamp.into_inner();
         if event_delay > SignedDuration::minutes(1) {
             let category = state.event_category().unwrap_or(DataCategory::Unknown);
             metric!(
@@ -278,8 +280,9 @@ pub enum FiltersStatus {
     Unsupported,
 }
 
-pub fn filter<G: EventProcessing>(
-    state: &mut ProcessEnvelopeState<G>,
+pub fn filter<Group: EventProcessing>(
+    state: &mut ProcessEnvelopeState,
+    managed_envelope: &mut TypedEnvelope<Group>,
     project_info: Arc<ProjectInfo>,
     global_config: &GlobalConfig,
 ) -> Result<FiltersStatus, ProcessingError> {
@@ -290,15 +293,13 @@ pub fn filter<G: EventProcessing>(
         None => return Ok(FiltersStatus::Ok),
     };
 
-    let client_ip = state.managed_envelope.envelope().meta().client_addr();
+    let client_ip = managed_envelope.envelope().meta().client_addr();
     let filter_settings = &project_info.config.filter_settings;
 
     metric!(timer(RelayTimers::EventProcessingFiltering), {
         relay_filter::should_filter(event, client_ip, filter_settings, global_config.filters())
             .map_err(|err| {
-                state
-                    .managed_envelope
-                    .reject(Outcome::Filtered(err.clone()));
+                managed_envelope.reject(Outcome::Filtered(err.clone()));
                 ProcessingError::EventFiltered(err)
             })
     })?;
@@ -322,8 +323,8 @@ pub fn filter<G: EventProcessing>(
 /// Apply data privacy rules to the event payload.
 ///
 /// This uses both the general `datascrubbing_settings`, as well as the the PII rules.
-pub fn scrub<G: EventProcessing>(
-    state: &mut ProcessEnvelopeState<G>,
+pub fn scrub(
+    state: &mut ProcessEnvelopeState,
     project_info: Arc<ProjectInfo>,
 ) -> Result<(), ProcessingError> {
     let event = &mut state.event;
@@ -353,8 +354,9 @@ pub fn scrub<G: EventProcessing>(
     Ok(())
 }
 
-pub fn serialize<G: EventProcessing>(
-    state: &mut ProcessEnvelopeState<G>,
+pub fn serialize<Group: EventProcessing>(
+    state: &mut ProcessEnvelopeState,
+    managed_envelope: &mut TypedEnvelope<Group>,
     event_fully_normalized: EventFullyNormalized,
     event_metrics_extracted: EventMetricsExtracted,
     spans_extracted: SpansExtracted,
@@ -381,7 +383,7 @@ pub fn serialize<G: EventProcessing>(
     event_item.set_spans_extracted(spans_extracted.0);
     event_item.set_fully_normalized(event_fully_normalized.0);
 
-    state.envelope_mut().add_item(event_item);
+    managed_envelope.envelope_mut().add_item(event_item);
 
     Ok(())
 }
