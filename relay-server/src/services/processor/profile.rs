@@ -15,13 +15,14 @@ use crate::envelope::{ContentType, Item, ItemType};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{should_filter, ProcessEnvelopeState, TransactionGroup};
 use crate::services::projects::project::ProjectInfo;
-use crate::utils::ItemAction;
+use crate::utils::{ItemAction, TypedEnvelope};
 
 /// Filters out invalid and duplicate profiles.
 ///
 /// Returns the profile id of the single remaining profile, if there is one.
-pub fn filter<G>(
-    state: &mut ProcessEnvelopeState<G>,
+pub fn filter<Group>(
+    state: &mut ProcessEnvelopeState,
+    managed_envelope: &mut TypedEnvelope<Group>,
     config: Arc<Config>,
     project_id: ProjectId,
     project_info: Arc<ProjectInfo>,
@@ -31,7 +32,7 @@ pub fn filter<G>(
     let keep_unsampled_profiles = true;
 
     let mut profile_id = None;
-    state.managed_envelope.retain_items(|item| match item.ty() {
+    managed_envelope.retain_items(|item| match item.ty() {
         // First profile found in the envelope, we'll keep it if metadata are valid.
         ItemType::Profile if profile_id.is_none() => {
             if profiling_disabled {
@@ -70,10 +71,7 @@ pub fn filter<G>(
 /// The profile id may be `None` when the envelope does not contain a profile,
 /// in that case the profile context is removed.
 /// Some SDKs send transactions with profile ids but omit the profile in the envelope.
-pub fn transfer_id(
-    state: &mut ProcessEnvelopeState<TransactionGroup>,
-    profile_id: Option<ProfileId>,
-) {
+pub fn transfer_id(state: &mut ProcessEnvelopeState, profile_id: Option<ProfileId>) {
     let Some(event) = state.event.value_mut() else {
         return;
     };
@@ -98,18 +96,19 @@ pub fn transfer_id(
 
 /// Processes profiles and set the profile ID in the profile context on the transaction if successful.
 pub fn process(
-    state: &mut ProcessEnvelopeState<TransactionGroup>,
+    state: &mut ProcessEnvelopeState,
+    managed_envelope: &mut TypedEnvelope<TransactionGroup>,
     global_config: &GlobalConfig,
     config: Arc<Config>,
     project_info: Arc<ProjectInfo>,
 ) -> Option<ProfileId> {
-    let client_ip = state.managed_envelope.envelope().meta().client_addr();
+    let client_ip = managed_envelope.envelope().meta().client_addr();
     let filter_settings = &project_info.config.filter_settings;
 
     let profiling_enabled = project_info.has_feature(Feature::Profiling);
     let mut profile_id = None;
 
-    state.managed_envelope.retain_items(|item| match item.ty() {
+    managed_envelope.retain_items(|item| match item.ty() {
         ItemType::Profile => {
             if !profiling_enabled {
                 return ItemAction::DropSilently;

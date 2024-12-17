@@ -12,7 +12,7 @@ use crate::services::processor::{
     SpansExtracted, TransactionGroup,
 };
 use crate::services::projects::project::ProjectInfo;
-use crate::utils::{sample, ItemAction, ManagedEnvelope};
+use crate::utils::{sample, ItemAction, ManagedEnvelope, TypedEnvelope};
 use chrono::{DateTime, Utc};
 use relay_base_schema::events::EventType;
 use relay_base_schema::project::ProjectId;
@@ -47,7 +47,8 @@ struct ValidationError(#[from] anyhow::Error);
 
 #[allow(clippy::too_many_arguments)]
 pub fn process(
-    state: &mut ProcessEnvelopeState<SpanGroup>,
+    state: &mut ProcessEnvelopeState,
+    managed_envelope: &mut TypedEnvelope<SpanGroup>,
     global_config: &GlobalConfig,
     config: Arc<Config>,
     project_id: ProjectId,
@@ -62,6 +63,7 @@ pub fn process(
     // once for all spans in the envelope.
     let sampling_result = dynamic_sampling::run(
         state,
+        managed_envelope,
         config.clone(),
         project_info.clone(),
         sampling_project_info,
@@ -76,17 +78,21 @@ pub fn process(
         &config,
         global_config,
         project_info.config(),
-        &state.managed_envelope,
-        state.envelope().meta().client_addr().map(IpAddr::from),
+        managed_envelope,
+        managed_envelope
+            .envelope()
+            .meta()
+            .client_addr()
+            .map(IpAddr::from),
         geo_lookup,
     );
 
-    let client_ip = state.managed_envelope.envelope().meta().client_addr();
+    let client_ip = managed_envelope.envelope().meta().client_addr();
     let filter_settings = &project_info.config.filter_settings;
     let sampling_decision = sampling_result.decision();
 
     let mut span_count = 0;
-    state.managed_envelope.retain_items(|item| {
+    managed_envelope.retain_items(|item| {
         let mut annotated_span = match item.ty() {
             ItemType::OtelSpan => match serde_json::from_slice::<OtelSpan>(&item.payload()) {
                 Ok(otel_span) => Annotated::new(relay_spans::otel_to_sentry_span(otel_span)),
@@ -245,9 +251,7 @@ pub fn process(
     }
 
     if let Some(outcome) = sampling_result.into_dropped_outcome() {
-        state
-            .managed_envelope
-            .track_outcome(outcome, DataCategory::SpanIndexed, span_count);
+        managed_envelope.track_outcome(outcome, DataCategory::SpanIndexed, span_count);
     }
 }
 
@@ -267,8 +271,10 @@ fn add_sample_rate(measurements: &mut Annotated<Measurements>, name: &str, value
         .insert(name.to_owned(), measurement);
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn extract_from_event(
-    state: &mut ProcessEnvelopeState<TransactionGroup>,
+    state: &mut ProcessEnvelopeState,
+    managed_envelope: &mut TypedEnvelope<TransactionGroup>,
     global_config: &GlobalConfig,
     config: Arc<Config>,
     project_info: Arc<ProjectInfo>,
@@ -291,8 +297,7 @@ pub fn extract_from_event(
         }
     }
 
-    let client_sample_rate = state
-        .managed_envelope
+    let client_sample_rate = managed_envelope
         .envelope()
         .dsc()
         .and_then(|ctx| ctx.sample_rate);
@@ -322,7 +327,7 @@ pub fn extract_from_event(
                     "invalid span"
                 );
 
-                state.managed_envelope.track_outcome(
+                managed_envelope.track_outcome(
                     Outcome::Invalid(DiscardReason::InvalidSpan),
                     relay_quotas::DataCategory::SpanIndexed,
                     1,
@@ -335,7 +340,7 @@ pub fn extract_from_event(
             Ok(span) => span,
             Err(e) => {
                 relay_log::error!(error = &e as &dyn Error, "Failed to serialize span");
-                state.managed_envelope.track_outcome(
+                managed_envelope.track_outcome(
                     Outcome::Invalid(DiscardReason::InvalidSpan),
                     relay_quotas::DataCategory::SpanIndexed,
                     1,
@@ -351,7 +356,7 @@ pub fn extract_from_event(
         item.set_ingest_span_in_eap(ingest_in_eap);
 
         relay_log::trace!("Adding span to envelope");
-        state.managed_envelope.envelope_mut().add_item(item);
+        managed_envelope.envelope_mut().add_item(item);
     };
 
     let Some(event) = state.event.value() else {
@@ -398,14 +403,15 @@ pub fn extract_from_event(
 
 /// Removes the transaction in case the project has made the transition to spans-only.
 pub fn maybe_discard_transaction(
-    state: &mut ProcessEnvelopeState<TransactionGroup>,
+    state: &mut ProcessEnvelopeState,
+    managed_envelope: &mut TypedEnvelope<TransactionGroup>,
     project_info: Arc<ProjectInfo>,
 ) {
     if state.event_type() == Some(EventType::Transaction)
         && project_info.has_feature(Feature::DiscardTransaction)
     {
         state.remove_event();
-        state.managed_envelope.update();
+        managed_envelope.update();
     }
 }
 /// Config needed to normalize a standalone span.
@@ -820,7 +826,11 @@ mod tests {
 
     use super::*;
 
-    fn state() -> (ProcessEnvelopeState<TransactionGroup>, Arc<ProjectInfo>) {
+    fn state() -> (
+        ProcessEnvelopeState,
+        TypedEnvelope<TransactionGroup>,
+        Arc<ProjectInfo>,
+    ) {
         let bytes = Bytes::from(
             r#"{"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","trace":{"trace_id":"89143b0763095bd9c9955e8175d1fb23","public_key":"e12d836b15bb49d7bbf99e64295d995b","sample_rate":"0.2"}}
 {"type":"transaction"}
@@ -867,10 +877,11 @@ mod tests {
             event: Annotated::from(event),
             metrics: Default::default(),
             extracted_metrics: ProcessingExtractedMetrics::new(),
-            managed_envelope: managed_envelope.try_into().unwrap(),
         };
 
-        (state, project_info)
+        let managed_envelope = managed_envelope.try_into().unwrap();
+
+        (state, managed_envelope, project_info)
     }
 
     #[test]
@@ -878,9 +889,10 @@ mod tests {
         let global_config = GlobalConfig::default();
         let config = Arc::new(Config::default());
         assert!(global_config.options.span_extraction_sample_rate.is_none());
-        let (mut state, project_info) = state();
+        let (mut state, mut managed_envelope, project_info) = state();
         extract_from_event(
             &mut state,
+            &mut managed_envelope,
             &global_config,
             config,
             project_info,
@@ -889,12 +901,12 @@ mod tests {
             SpansExtracted(false),
         );
         assert!(
-            state
+            managed_envelope
                 .envelope()
                 .items()
                 .any(|item| item.ty() == &ItemType::Span),
             "{:?}",
-            state.envelope()
+            managed_envelope.envelope()
         );
     }
 
@@ -903,9 +915,10 @@ mod tests {
         let mut global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = Some(1.0);
         let config = Arc::new(Config::default());
-        let (mut state, project_info) = state();
+        let (mut state, mut managed_envelope, project_info) = state();
         extract_from_event(
             &mut state,
+            &mut managed_envelope,
             &global_config,
             config,
             project_info,
@@ -914,12 +927,12 @@ mod tests {
             SpansExtracted(false),
         );
         assert!(
-            state
+            managed_envelope
                 .envelope()
                 .items()
                 .any(|item| item.ty() == &ItemType::Span),
             "{:?}",
-            state.envelope()
+            managed_envelope.envelope()
         );
     }
 
@@ -928,9 +941,10 @@ mod tests {
         let mut global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = Some(0.0);
         let config = Arc::new(Config::default());
-        let (mut state, project_info) = state();
+        let (mut state, mut managed_envelope, project_info) = state();
         extract_from_event(
             &mut state,
+            &mut managed_envelope,
             &global_config,
             config,
             project_info,
@@ -939,12 +953,12 @@ mod tests {
             SpansExtracted(false),
         );
         assert!(
-            !state
+            !managed_envelope
                 .envelope()
                 .items()
                 .any(|item| item.ty() == &ItemType::Span),
             "{:?}",
-            state.envelope()
+            managed_envelope.envelope()
         );
     }
 
@@ -953,9 +967,10 @@ mod tests {
         let mut global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = Some(1.0); // force enable
         let config = Arc::new(Config::default());
-        let (mut state, project_info) = state(); // client sample rate is 0.2
+        let (mut state, mut managed_envelope, project_info) = state(); // client sample rate is 0.2
         extract_from_event(
             &mut state,
+            &mut managed_envelope,
             &global_config,
             config,
             project_info,
@@ -964,7 +979,7 @@ mod tests {
             SpansExtracted(false),
         );
 
-        let span = state
+        let span = managed_envelope
             .envelope()
             .items()
             .find(|item| item.ty() == &ItemType::Span)
