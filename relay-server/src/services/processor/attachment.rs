@@ -10,13 +10,14 @@ use relay_statsd::metric;
 use crate::envelope::{AttachmentType, ContentType};
 use crate::statsd::RelayTimers;
 
-use crate::services::processor::ProcessEnvelopeState;
 use crate::services::projects::project::ProjectInfo;
 use crate::utils::TypedEnvelope;
 #[cfg(feature = "processing")]
 use {
-    crate::services::processor::ErrorGroup, crate::services::processor::EventFullyNormalized,
-    crate::utils, relay_event_schema::protocol::Event, relay_protocol::Annotated,
+    crate::services::processor::{ErrorGroup, EventFullyNormalized, ProcessEnvelopeState},
+    crate::utils,
+    relay_event_schema::protocol::Event,
+    relay_protocol::Annotated,
 };
 
 /// Adds processing placeholders for special attachments.
