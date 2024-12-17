@@ -45,7 +45,7 @@ pub fn extract<Group: EventProcessing>(
     event_fully_normalized: EventFullyNormalized,
     config: &Config,
 ) -> Result<Option<(EventMetricsExtracted, SpansExtracted)>, ProcessingError> {
-    let envelope = &mut managed_envelope.envelope_mut();
+    let envelope = managed_envelope.envelope_mut();
 
     // Remove all items first, and then process them. After this function returns, only
     // attachments can remain in the envelope. The event will be added again at the end of
