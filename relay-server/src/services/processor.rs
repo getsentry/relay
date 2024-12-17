@@ -1544,7 +1544,7 @@ impl EnvelopeProcessorService {
         project_id: ProjectId,
         project_info: Arc<ProjectInfo>,
         sampling_project_info: Option<Arc<ProjectInfo>>,
-        rate_limits: Arc<RateLimits>,
+        #[allow(unused_variables)] rate_limits: Arc<RateLimits>,
     ) -> Result<(), ProcessingError> {
         let mut event_fully_normalized = EventFullyNormalized::new(state.envelope());
 
@@ -1628,7 +1628,7 @@ impl EnvelopeProcessorService {
         project_id: ProjectId,
         project_info: Arc<ProjectInfo>,
         mut sampling_project_info: Option<Arc<ProjectInfo>>,
-        rate_limits: Arc<RateLimits>,
+        #[allow(unused_variables)] rate_limits: Arc<RateLimits>,
         reservoir_counters: ReservoirCounters,
     ) -> Result<(), ProcessingError> {
         let mut event_fully_normalized = EventFullyNormalized::new(state.envelope());
@@ -1805,7 +1805,7 @@ impl EnvelopeProcessorService {
         config: Arc<Config>,
         project_id: ProjectId,
         project_info: Arc<ProjectInfo>,
-        rate_limits: Arc<RateLimits>,
+        #[allow(unused_variables)] rate_limits: Arc<RateLimits>,
     ) -> Result<(), ProcessingError> {
         profile::filter(state, config, project_id, project_info.clone());
 
@@ -1823,7 +1823,7 @@ impl EnvelopeProcessorService {
         &self,
         state: &mut ProcessEnvelopeState<SessionGroup>,
         project_info: Arc<ProjectInfo>,
-        rate_limits: Arc<RateLimits>,
+        #[allow(unused_variables)] rate_limits: Arc<RateLimits>,
     ) -> Result<(), ProcessingError> {
         session::process(state, project_info.clone(), &self.inner.config);
         if_processing!(self.inner.config, {
@@ -1838,7 +1838,7 @@ impl EnvelopeProcessorService {
         state: &mut ProcessEnvelopeState<ClientReportGroup>,
         config: Arc<Config>,
         project_info: Arc<ProjectInfo>,
-        rate_limits: Arc<RateLimits>,
+        #[allow(unused_variables)] rate_limits: Arc<RateLimits>,
     ) -> Result<(), ProcessingError> {
         if_processing!(self.inner.config, {
             self.enforce_quotas(state, project_info.clone(), rate_limits)?;
@@ -1860,7 +1860,7 @@ impl EnvelopeProcessorService {
         state: &mut ProcessEnvelopeState<ReplayGroup>,
         config: Arc<Config>,
         project_info: Arc<ProjectInfo>,
-        rate_limits: Arc<RateLimits>,
+        #[allow(unused_variables)] rate_limits: Arc<RateLimits>,
     ) -> Result<(), ProcessingError> {
         replay::process(
             state,
@@ -1881,7 +1881,7 @@ impl EnvelopeProcessorService {
         #[allow(unused_variables)] state: &mut ProcessEnvelopeState<CheckInGroup>,
         #[allow(unused_variables)] project_id: ProjectId,
         #[allow(unused_variables)] project_info: Arc<ProjectInfo>,
-        rate_limits: Arc<RateLimits>,
+        #[allow(unused_variables)] rate_limits: Arc<RateLimits>,
     ) -> Result<(), ProcessingError> {
         if_processing!(self.inner.config, {
             self.enforce_quotas(state, project_info, rate_limits)?;
@@ -1901,7 +1901,7 @@ impl EnvelopeProcessorService {
         #[allow(unused_variables)] project_id: ProjectId,
         project_info: Arc<ProjectInfo>,
         #[allow(unused_variables)] sampling_project_info: Option<Arc<ProjectInfo>>,
-        rate_limits: Arc<RateLimits>,
+        #[allow(unused_variables)] rate_limits: Arc<RateLimits>,
         #[allow(unused_variables)] reservoir_counters: ReservoirCounters,
     ) -> Result<(), ProcessingError> {
         span::filter(state, config.clone(), project_info.clone());
