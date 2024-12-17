@@ -23,6 +23,7 @@ mod stats;
 pub use self::config::*;
 use self::inner::{BucketData, BucketKey};
 
+/// Default amount of partitions per second when there are no partitions configured.
 const DEFAULT_PARTITIONS_PER_SECOND: u32 = 64;
 
 /// Any error that may occur during aggregation.
