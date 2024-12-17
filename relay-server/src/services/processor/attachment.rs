@@ -10,6 +10,7 @@ use relay_statsd::metric;
 use crate::envelope::{AttachmentType, ContentType};
 use crate::statsd::RelayTimers;
 
+use crate::services::processor::ProcessEnvelopeState;
 use crate::services::projects::project::ProjectInfo;
 use crate::utils::TypedEnvelope;
 #[cfg(feature = "processing")]
