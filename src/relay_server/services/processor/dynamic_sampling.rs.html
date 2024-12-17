@@ -783,7 +783,30 @@
 <a href="#782" id="782">782</a>
 <a href="#783" id="783">783</a>
 <a href="#784" id="784">784</a>
-<a href="#785" id="785">785</a></pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic sampling processor related code.
+<a href="#785" id="785">785</a>
+<a href="#786" id="786">786</a>
+<a href="#787" id="787">787</a>
+<a href="#788" id="788">788</a>
+<a href="#789" id="789">789</a>
+<a href="#790" id="790">790</a>
+<a href="#791" id="791">791</a>
+<a href="#792" id="792">792</a>
+<a href="#793" id="793">793</a>
+<a href="#794" id="794">794</a>
+<a href="#795" id="795">795</a>
+<a href="#796" id="796">796</a>
+<a href="#797" id="797">797</a>
+<a href="#798" id="798">798</a>
+<a href="#799" id="799">799</a>
+<a href="#800" id="800">800</a>
+<a href="#801" id="801">801</a>
+<a href="#802" id="802">802</a>
+<a href="#803" id="803">803</a>
+<a href="#804" id="804">804</a>
+<a href="#805" id="805">805</a>
+<a href="#806" id="806">806</a>
+<a href="#807" id="807">807</a>
+<a href="#808" id="808">808</a></pre></div><pre class="rust"><code><span class="doccomment">//! Dynamic sampling processor related code.
 </span><span class="kw">use </span>std::ops::ControlFlow;
 <span class="kw">use </span>std::sync::Arc;
 
@@ -802,7 +825,7 @@
     EventProcessing, ProcessEnvelopeState, Sampling, TransactionGroup,
 };
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectInfo;
-<span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, SamplingResult};
+<span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, SamplingResult, TypedEnvelope};
 
 <span class="doccomment">/// Ensures there is a valid dynamic sampling context and corresponding project state.
 ///
@@ -829,11 +852,12 @@
 /// no sampling project information is specified, the project information of the event’s project
 /// will be returned.
 </span><span class="kw">pub fn </span>validate_and_set_dsc(
-    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;,
+    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState,
+    managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;TransactionGroup&gt;,
     project_info: Arc&lt;ProjectInfo&gt;,
     sampling_project_info: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectInfo&gt;&gt;,
 ) -&gt; <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectInfo&gt;&gt; {
-    <span class="kw">if </span>state.envelope().dsc().is_some() &amp;&amp; sampling_project_info.is_some() {
+    <span class="kw">if </span>managed_envelope.envelope().dsc().is_some() &amp;&amp; sampling_project_info.is_some() {
         <span class="kw">return </span>sampling_project_info;
     }
 
@@ -847,7 +871,7 @@
     };
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(dsc) = utils::dsc_from_event(key_config.public_key, event) {
-        state.envelope_mut().set_dsc(dsc);
+        managed_envelope.envelope_mut().set_dsc(dsc);
         <span class="kw">return </span><span class="prelude-val">Some</span>(project_info.clone());
     }
 
@@ -856,7 +880,8 @@
 
 <span class="doccomment">/// Computes the sampling decision on the incoming event
 </span><span class="kw">pub fn </span>run&lt;Group&gt;(
-    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;Group&gt;,
+    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState,
+    managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;Group&gt;,
     config: Arc&lt;Config&gt;,
     project_info: Arc&lt;ProjectInfo&gt;,
     sampling_project_info: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectInfo&gt;&gt;,
@@ -888,14 +913,18 @@
         sampling_config,
         state.event.value(),
         root_config,
-        state.envelope().dsc(),
+        managed_envelope.envelope().dsc(),
     )
 }
 
 <span class="doccomment">/// Apply the dynamic sampling decision from `compute_sampling_decision`.
-</span><span class="kw">pub fn </span>drop_unsampled_items(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;, outcome: Outcome) {
+</span><span class="kw">pub fn </span>drop_unsampled_items(
+    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState,
+    managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;TransactionGroup&gt;,
+    outcome: Outcome,
+) {
     <span class="comment">// Remove all items from the envelope which need to be dropped due to dynamic sampling.
-    </span><span class="kw">let </span>dropped_items = state
+    </span><span class="kw">let </span>dropped_items = managed_envelope
         .envelope_mut()
         <span class="comment">// Profiles are not dropped by dynamic sampling, they are all forwarded to storage and
         // later processed in Sentry and potentially dropped there.
@@ -908,21 +937,19 @@
             // but attachments are still emitted as attachments.
             </span><span class="kw">let </span>category = category.index_category().unwrap_or(category);
 
-            state
-                .managed_envelope
-                .track_outcome(outcome.clone(), category, quantity);
+            managed_envelope.track_outcome(outcome.clone(), category, quantity);
         }
     }
 
     <span class="comment">// Mark all remaining items in the envelope as un-sampled.
-    </span><span class="kw">for </span>item <span class="kw">in </span>state.envelope_mut().items_mut() {
+    </span><span class="kw">for </span>item <span class="kw">in </span>managed_envelope.envelope_mut().items_mut() {
         item.set_sampled(<span class="bool-val">false</span>);
     }
 
     <span class="comment">// All items have been dropped, now make sure the event is also handled and dropped.
     </span><span class="kw">if let </span><span class="prelude-val">Some</span>(category) = state.event_category() {
         <span class="kw">let </span>category = category.index_category().unwrap_or(category);
-        state.managed_envelope.track_outcome(outcome, category, <span class="number">1</span>)
+        managed_envelope.track_outcome(outcome, category, <span class="number">1</span>)
     }
     state.remove_event();
 }
@@ -982,15 +1009,14 @@
 ///
 /// This execution of dynamic sampling is technically a "simulation" since we will use the result
 /// only for tagging errors and not for actually sampling incoming events.
-</span><span class="kw">pub fn </span>tag_error_with_sampling_decision&lt;G: EventProcessing&gt;(
-    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;,
+</span><span class="kw">pub fn </span>tag_error_with_sampling_decision&lt;Group: EventProcessing&gt;(
+    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState,
+    managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;Group&gt;,
     sampling_project_info: <span class="prelude-ty">Option</span>&lt;Arc&lt;ProjectInfo&gt;&gt;,
     config: <span class="kw-2">&amp;</span>Config,
 ) {
-    <span class="kw">let </span>(<span class="prelude-val">Some</span>(dsc), <span class="prelude-val">Some</span>(event)) = (
-        state.managed_envelope.envelope().dsc(),
-        state.event.value_mut(),
-    ) <span class="kw">else </span>{
+    <span class="kw">let </span>(<span class="prelude-val">Some</span>(dsc), <span class="prelude-val">Some</span>(event)) = (managed_envelope.envelope().dsc(), state.event.value_mut())
+    <span class="kw">else </span>{
         <span class="kw">return</span>;
     };
 
@@ -1231,38 +1257,60 @@
             <span class="kw">let </span>project_info = Arc::new(project_info);
             <span class="kw">let </span>envelope = new_envelope(<span class="bool-val">false</span>, <span class="string">"foo"</span>);
 
-            <span class="kw">let </span>state = ProcessEnvelopeState::&lt;TransactionGroup&gt; {
+            <span class="kw">let </span>state = ProcessEnvelopeState {
                 event: Annotated::from(event),
                 metrics: Default::default(),
                 extracted_metrics: ProcessingExtractedMetrics::new(),
-                managed_envelope: ManagedEnvelope::new(
-                    envelope,
-                    outcome_aggregator.clone(),
-                    test_store.clone(),
-                    ProcessingGroup::Transaction,
-                )
-                .try_into()
-                .unwrap(),
             };
 
-            (state, project_info)
+            <span class="kw">let </span>managed_envelope: TypedEnvelope&lt;TransactionGroup&gt; = ManagedEnvelope::new(
+                envelope,
+                outcome_aggregator.clone(),
+                test_store.clone(),
+                ProcessingGroup::Transaction,
+            )
+            .try_into()
+            .unwrap();
+
+            (state, managed_envelope, project_info)
         };
 
         <span class="kw">let </span>reservoir = dummy_reservoir();
 
         <span class="comment">// None represents no TransactionMetricsConfig, DS will not be run
-        </span><span class="kw">let </span>(<span class="kw-2">mut </span>state, project_info) = get_state(<span class="prelude-val">None</span>);
-        <span class="kw">let </span>sampling_result = run(<span class="kw-2">&amp;mut </span>state, config.clone(), project_info, <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>reservoir);
+        </span><span class="kw">let </span>(<span class="kw-2">mut </span>state, <span class="kw-2">mut </span>managed_envelope, project_info) = get_state(<span class="prelude-val">None</span>);
+        <span class="kw">let </span>sampling_result = run(
+            <span class="kw-2">&amp;mut </span>state,
+            <span class="kw-2">&amp;mut </span>managed_envelope,
+            config.clone(),
+            project_info,
+            <span class="prelude-val">None</span>,
+            <span class="kw-2">&amp;</span>reservoir,
+        );
         <span class="macro">assert_eq!</span>(sampling_result.decision(), SamplingDecision::Keep);
 
         <span class="comment">// Current version is 3, so it won't run DS if it's outdated
-        </span><span class="kw">let </span>(<span class="kw-2">mut </span>state, project_info) = get_state(<span class="prelude-val">Some</span>(<span class="number">2</span>));
-        <span class="kw">let </span>sampling_result = run(<span class="kw-2">&amp;mut </span>state, config.clone(), project_info, <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>reservoir);
+        </span><span class="kw">let </span>(<span class="kw-2">mut </span>state, <span class="kw-2">mut </span>managed_envelope, project_info) = get_state(<span class="prelude-val">Some</span>(<span class="number">2</span>));
+        <span class="kw">let </span>sampling_result = run(
+            <span class="kw-2">&amp;mut </span>state,
+            <span class="kw-2">&amp;mut </span>managed_envelope,
+            config.clone(),
+            project_info,
+            <span class="prelude-val">None</span>,
+            <span class="kw-2">&amp;</span>reservoir,
+        );
         <span class="macro">assert_eq!</span>(sampling_result.decision(), SamplingDecision::Keep);
 
         <span class="comment">// Dynamic sampling is run, as the transaction metrics version is up to date.
-        </span><span class="kw">let </span>(<span class="kw-2">mut </span>state, project_info) = get_state(<span class="prelude-val">Some</span>(<span class="number">3</span>));
-        <span class="kw">let </span>sampling_result = run(<span class="kw-2">&amp;mut </span>state, config.clone(), project_info, <span class="prelude-val">None</span>, <span class="kw-2">&amp;</span>reservoir);
+        </span><span class="kw">let </span>(<span class="kw-2">mut </span>state, <span class="kw-2">mut </span>managed_envelope, project_info) = get_state(<span class="prelude-val">Some</span>(<span class="number">3</span>));
+        <span class="kw">let </span>sampling_result = run(
+            <span class="kw-2">&amp;mut </span>state,
+            <span class="kw-2">&amp;mut </span>managed_envelope,
+            config.clone(),
+            project_info,
+            <span class="prelude-val">None</span>,
+            <span class="kw-2">&amp;</span>reservoir,
+        );
         <span class="macro">assert_eq!</span>(sampling_result.decision(), SamplingDecision::Drop);
     }
 
@@ -1482,9 +1530,9 @@
         <span class="macro">assert_eq!</span>(get_sampling_match(res).sample_rate(), <span class="number">0.2</span>);
     }
 
-    <span class="kw">fn </span>run_with_reservoir_rule&lt;G&gt;(processing_group: ProcessingGroup) -&gt; SamplingResult
+    <span class="kw">fn </span>run_with_reservoir_rule&lt;Group&gt;(processing_group: ProcessingGroup) -&gt; SamplingResult
     <span class="kw">where
-        </span>G: Sampling + TryFrom&lt;ProcessingGroup&gt;,
+        </span>Group: Sampling + TryFrom&lt;ProcessingGroup&gt;,
     {
         <span class="kw">let </span>project_info = {
             <span class="kw">let </span><span class="kw-2">mut </span>info = ProjectInfo::default();
@@ -1500,19 +1548,16 @@
         );
         <span class="kw">let </span>envelope = Envelope::parse_bytes(bytes).unwrap();
         <span class="kw">let </span>config = Arc::new(Config::default());
-        <span class="kw">let </span><span class="kw-2">mut </span>state = ProcessEnvelopeState::&lt;G&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>state = ProcessEnvelopeState {
             event: Annotated::new(Event::default()),
             metrics: Default::default(),
             extracted_metrics: ProcessingExtractedMetrics::new(),
-            managed_envelope: ManagedEnvelope::new(
-                envelope,
-                Addr::dummy(),
-                Addr::dummy(),
-                processing_group,
-            )
-            .try_into()
-            .unwrap(),
         };
+
+        <span class="kw">let </span><span class="kw-2">mut </span>managed_envelope: TypedEnvelope&lt;Group&gt; =
+            ManagedEnvelope::new(envelope, Addr::dummy(), Addr::dummy(), processing_group)
+                .try_into()
+                .unwrap();
 
         <span class="kw">let </span>sampling_project_info = {
             <span class="kw">let </span><span class="kw-2">mut </span>state = ProjectInfo::default();
@@ -1545,8 +1590,9 @@
         };
 
         <span class="kw">let </span>reservoir = dummy_reservoir();
-        run(
+        run::&lt;Group&gt;(
             <span class="kw-2">&amp;mut </span>state,
+            <span class="kw-2">&amp;mut </span>managed_envelope,
             config,
             project_info,
             sampling_project_info,

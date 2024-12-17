@@ -1423,7 +1423,22 @@
 <a href="#1422" id="1422">1422</a>
 <a href="#1423" id="1423">1423</a>
 <a href="#1424" id="1424">1424</a>
-<a href="#1425" id="1425">1425</a></pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
+<a href="#1425" id="1425">1425</a>
+<a href="#1426" id="1426">1426</a>
+<a href="#1427" id="1427">1427</a>
+<a href="#1428" id="1428">1428</a>
+<a href="#1429" id="1429">1429</a>
+<a href="#1430" id="1430">1430</a>
+<a href="#1431" id="1431">1431</a>
+<a href="#1432" id="1432">1432</a>
+<a href="#1433" id="1433">1433</a>
+<a href="#1434" id="1434">1434</a>
+<a href="#1435" id="1435">1435</a>
+<a href="#1436" id="1436">1436</a>
+<a href="#1437" id="1437">1437</a>
+<a href="#1438" id="1438">1438</a>
+<a href="#1439" id="1439">1439</a>
+<a href="#1440" id="1440">1440</a></pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
@@ -1437,7 +1452,7 @@
     SpansExtracted, TransactionGroup,
 };
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectInfo;
-<span class="kw">use </span><span class="kw">crate</span>::utils::{sample, ItemAction, ManagedEnvelope};
+<span class="kw">use </span><span class="kw">crate</span>::utils::{sample, ItemAction, ManagedEnvelope, TypedEnvelope};
 <span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>relay_base_schema::events::EventType;
 <span class="kw">use </span>relay_base_schema::project::ProjectId;
@@ -1472,7 +1487,8 @@
 
 <span class="attr">#[allow(clippy::too_many_arguments)]
 </span><span class="kw">pub fn </span>process(
-    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;SpanGroup&gt;,
+    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState,
+    managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;SpanGroup&gt;,
     global_config: <span class="kw-2">&amp;</span>GlobalConfig,
     config: Arc&lt;Config&gt;,
     project_id: ProjectId,
@@ -1487,6 +1503,7 @@
     // once for all spans in the envelope.
     </span><span class="kw">let </span>sampling_result = dynamic_sampling::run(
         state,
+        managed_envelope,
         config.clone(),
         project_info.clone(),
         sampling_project_info,
@@ -1501,17 +1518,21 @@
         <span class="kw-2">&amp;</span>config,
         global_config,
         project_info.config(),
-        <span class="kw-2">&amp;</span>state.managed_envelope,
-        state.envelope().meta().client_addr().map(IpAddr::from),
+        managed_envelope,
+        managed_envelope
+            .envelope()
+            .meta()
+            .client_addr()
+            .map(IpAddr::from),
         geo_lookup,
     );
 
-    <span class="kw">let </span>client_ip = state.managed_envelope.envelope().meta().client_addr();
+    <span class="kw">let </span>client_ip = managed_envelope.envelope().meta().client_addr();
     <span class="kw">let </span>filter_settings = <span class="kw-2">&amp;</span>project_info.config.filter_settings;
     <span class="kw">let </span>sampling_decision = sampling_result.decision();
 
     <span class="kw">let </span><span class="kw-2">mut </span>span_count = <span class="number">0</span>;
-    state.managed_envelope.retain_items(|item| {
+    managed_envelope.retain_items(|item| {
         <span class="kw">let </span><span class="kw-2">mut </span>annotated_span = <span class="kw">match </span>item.ty() {
             ItemType::OtelSpan =&gt; <span class="kw">match </span>serde_json::from_slice::&lt;OtelSpan&gt;(<span class="kw-2">&amp;</span>item.payload()) {
                 <span class="prelude-val">Ok</span>(otel_span) =&gt; Annotated::new(relay_spans::otel_to_sentry_span(otel_span)),
@@ -1670,9 +1691,7 @@
     }
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(outcome) = sampling_result.into_dropped_outcome() {
-        state
-            .managed_envelope
-            .track_outcome(outcome, DataCategory::SpanIndexed, span_count);
+        managed_envelope.track_outcome(outcome, DataCategory::SpanIndexed, span_count);
     }
 }
 
@@ -1692,8 +1711,10 @@
         .insert(name.to_owned(), measurement);
 }
 
-<span class="kw">pub fn </span>extract_from_event(
-    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;,
+<span class="attr">#[allow(clippy::too_many_arguments)]
+</span><span class="kw">pub fn </span>extract_from_event(
+    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState,
+    managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;TransactionGroup&gt;,
     global_config: <span class="kw-2">&amp;</span>GlobalConfig,
     config: Arc&lt;Config&gt;,
     project_info: Arc&lt;ProjectInfo&gt;,
@@ -1716,8 +1737,7 @@
         }
     }
 
-    <span class="kw">let </span>client_sample_rate = state
-        .managed_envelope
+    <span class="kw">let </span>client_sample_rate = managed_envelope
         .envelope()
         .dsc()
         .and_then(|ctx| ctx.sample_rate);
@@ -1747,7 +1767,7 @@
                     <span class="string">"invalid span"
                 </span>);
 
-                state.managed_envelope.track_outcome(
+                managed_envelope.track_outcome(
                     Outcome::Invalid(DiscardReason::InvalidSpan),
                     relay_quotas::DataCategory::SpanIndexed,
                     <span class="number">1</span>,
@@ -1760,7 +1780,7 @@
             <span class="prelude-val">Ok</span>(span) =&gt; span,
             <span class="prelude-val">Err</span>(e) =&gt; {
                 <span class="macro">relay_log::error!</span>(error = <span class="kw-2">&amp;</span>e <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">"Failed to serialize span"</span>);
-                state.managed_envelope.track_outcome(
+                managed_envelope.track_outcome(
                     Outcome::Invalid(DiscardReason::InvalidSpan),
                     relay_quotas::DataCategory::SpanIndexed,
                     <span class="number">1</span>,
@@ -1776,7 +1796,7 @@
         item.set_ingest_span_in_eap(ingest_in_eap);
 
         <span class="macro">relay_log::trace!</span>(<span class="string">"Adding span to envelope"</span>);
-        state.managed_envelope.envelope_mut().add_item(item);
+        managed_envelope.envelope_mut().add_item(item);
     };
 
     <span class="kw">let </span><span class="prelude-val">Some</span>(event) = state.event.value() <span class="kw">else </span>{
@@ -1823,14 +1843,15 @@
 
 <span class="doccomment">/// Removes the transaction in case the project has made the transition to spans-only.
 </span><span class="kw">pub fn </span>maybe_discard_transaction(
-    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;,
+    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState,
+    managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;TransactionGroup&gt;,
     project_info: Arc&lt;ProjectInfo&gt;,
 ) {
     <span class="kw">if </span>state.event_type() == <span class="prelude-val">Some</span>(EventType::Transaction)
         &amp;&amp; project_info.has_feature(Feature::DiscardTransaction)
     {
         state.remove_event();
-        state.managed_envelope.update();
+        managed_envelope.update();
     }
 }
 <span class="doccomment">/// Config needed to normalize a standalone span.
@@ -2245,7 +2266,11 @@
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
-    <span class="kw">fn </span>state() -&gt; (ProcessEnvelopeState&lt;TransactionGroup&gt;, Arc&lt;ProjectInfo&gt;) {
+    <span class="kw">fn </span>state() -&gt; (
+        ProcessEnvelopeState,
+        TypedEnvelope&lt;TransactionGroup&gt;,
+        Arc&lt;ProjectInfo&gt;,
+    ) {
         <span class="kw">let </span>bytes = Bytes::from(
             <span class="string">r#"{"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","trace":{"trace_id":"89143b0763095bd9c9955e8175d1fb23","public_key":"e12d836b15bb49d7bbf99e64295d995b","sample_rate":"0.2"}}
 {"type":"transaction"}
@@ -2292,10 +2317,11 @@
             event: Annotated::from(event),
             metrics: Default::default(),
             extracted_metrics: ProcessingExtractedMetrics::new(),
-            managed_envelope: managed_envelope.try_into().unwrap(),
         };
 
-        (state, project_info)
+        <span class="kw">let </span>managed_envelope = managed_envelope.try_into().unwrap();
+
+        (state, managed_envelope, project_info)
     }
 
     <span class="attr">#[test]
@@ -2303,9 +2329,10 @@
         <span class="kw">let </span>global_config = GlobalConfig::default();
         <span class="kw">let </span>config = Arc::new(Config::default());
         <span class="macro">assert!</span>(global_config.options.span_extraction_sample_rate.is_none());
-        <span class="kw">let </span>(<span class="kw-2">mut </span>state, project_info) = state();
+        <span class="kw">let </span>(<span class="kw-2">mut </span>state, <span class="kw-2">mut </span>managed_envelope, project_info) = state();
         extract_from_event(
             <span class="kw-2">&amp;mut </span>state,
+            <span class="kw-2">&amp;mut </span>managed_envelope,
             <span class="kw-2">&amp;</span>global_config,
             config,
             project_info,
@@ -2314,12 +2341,12 @@
             SpansExtracted(<span class="bool-val">false</span>),
         );
         <span class="macro">assert!</span>(
-            state
+            managed_envelope
                 .envelope()
                 .items()
                 .any(|item| item.ty() == <span class="kw-2">&amp;</span>ItemType::Span),
             <span class="string">"{:?}"</span>,
-            state.envelope()
+            managed_envelope.envelope()
         );
     }
 
@@ -2328,9 +2355,10 @@
         <span class="kw">let </span><span class="kw-2">mut </span>global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = <span class="prelude-val">Some</span>(<span class="number">1.0</span>);
         <span class="kw">let </span>config = Arc::new(Config::default());
-        <span class="kw">let </span>(<span class="kw-2">mut </span>state, project_info) = state();
+        <span class="kw">let </span>(<span class="kw-2">mut </span>state, <span class="kw-2">mut </span>managed_envelope, project_info) = state();
         extract_from_event(
             <span class="kw-2">&amp;mut </span>state,
+            <span class="kw-2">&amp;mut </span>managed_envelope,
             <span class="kw-2">&amp;</span>global_config,
             config,
             project_info,
@@ -2339,12 +2367,12 @@
             SpansExtracted(<span class="bool-val">false</span>),
         );
         <span class="macro">assert!</span>(
-            state
+            managed_envelope
                 .envelope()
                 .items()
                 .any(|item| item.ty() == <span class="kw-2">&amp;</span>ItemType::Span),
             <span class="string">"{:?}"</span>,
-            state.envelope()
+            managed_envelope.envelope()
         );
     }
 
@@ -2353,9 +2381,10 @@
         <span class="kw">let </span><span class="kw-2">mut </span>global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = <span class="prelude-val">Some</span>(<span class="number">0.0</span>);
         <span class="kw">let </span>config = Arc::new(Config::default());
-        <span class="kw">let </span>(<span class="kw-2">mut </span>state, project_info) = state();
+        <span class="kw">let </span>(<span class="kw-2">mut </span>state, <span class="kw-2">mut </span>managed_envelope, project_info) = state();
         extract_from_event(
             <span class="kw-2">&amp;mut </span>state,
+            <span class="kw-2">&amp;mut </span>managed_envelope,
             <span class="kw-2">&amp;</span>global_config,
             config,
             project_info,
@@ -2364,12 +2393,12 @@
             SpansExtracted(<span class="bool-val">false</span>),
         );
         <span class="macro">assert!</span>(
-            !state
+            !managed_envelope
                 .envelope()
                 .items()
                 .any(|item| item.ty() == <span class="kw-2">&amp;</span>ItemType::Span),
             <span class="string">"{:?}"</span>,
-            state.envelope()
+            managed_envelope.envelope()
         );
     }
 
@@ -2378,9 +2407,10 @@
         <span class="kw">let </span><span class="kw-2">mut </span>global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = <span class="prelude-val">Some</span>(<span class="number">1.0</span>); <span class="comment">// force enable
         </span><span class="kw">let </span>config = Arc::new(Config::default());
-        <span class="kw">let </span>(<span class="kw-2">mut </span>state, project_info) = state(); <span class="comment">// client sample rate is 0.2
+        <span class="kw">let </span>(<span class="kw-2">mut </span>state, <span class="kw-2">mut </span>managed_envelope, project_info) = state(); <span class="comment">// client sample rate is 0.2
         </span>extract_from_event(
             <span class="kw-2">&amp;mut </span>state,
+            <span class="kw-2">&amp;mut </span>managed_envelope,
             <span class="kw-2">&amp;</span>global_config,
             config,
             project_info,
@@ -2389,7 +2419,7 @@
             SpansExtracted(<span class="bool-val">false</span>),
         );
 
-        <span class="kw">let </span>span = state
+        <span class="kw">let </span>span = managed_envelope
             .envelope()
             .items()
             .find(|item| item.ty() == <span class="kw-2">&amp;</span>ItemType::Span)

@@ -101,7 +101,10 @@
 <a href="#100" id="100">100</a>
 <a href="#101" id="101">101</a>
 <a href="#102" id="102">102</a>
-<a href="#103" id="103">103</a></pre></div><pre class="rust"><code><span class="doccomment">//! Attachments processor code.
+<a href="#103" id="103">103</a>
+<a href="#104" id="104">104</a>
+<a href="#105" id="105">105</a>
+<a href="#106" id="106">106</a></pre></div><pre class="rust"><code><span class="doccomment">//! Attachments processor code.
 
 </span><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
@@ -111,14 +114,16 @@
 <span class="kw">use </span>relay_statsd::metric;
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, ContentType};
-<span class="kw">use </span><span class="kw">crate</span>::services::processor::ProcessEnvelopeState;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayTimers;
 
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectInfo;
+<span class="kw">use </span><span class="kw">crate</span>::utils::TypedEnvelope;
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">use </span>{
-    <span class="kw">crate</span>::services::processor::ErrorGroup, <span class="kw">crate</span>::services::processor::EventFullyNormalized,
-    <span class="kw">crate</span>::utils, relay_event_schema::protocol::Event, relay_protocol::Annotated,
+    <span class="kw">crate</span>::services::processor::{ErrorGroup, EventFullyNormalized, ProcessEnvelopeState},
+    <span class="kw">crate</span>::utils,
+    relay_event_schema::protocol::Event,
+    relay_protocol::Annotated,
 };
 
 <span class="doccomment">/// Adds processing placeholders for special attachments.
@@ -129,9 +134,10 @@
 /// If the event payload was empty before, it is created.
 </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">pub fn </span>create_placeholders(
-    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;ErrorGroup&gt;,
+    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState,
+    managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;ErrorGroup&gt;,
 ) -&gt; <span class="prelude-ty">Option</span>&lt;EventFullyNormalized&gt; {
-    <span class="kw">let </span>envelope = state.managed_envelope.envelope();
+    <span class="kw">let </span>envelope = managed_envelope.envelope();
     <span class="kw">let </span>minidump_attachment =
         envelope.get_item_by(|item| item.attachment_type() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>AttachmentType::Minidump));
     <span class="kw">let </span>apple_crash_report_attachment = envelope
@@ -157,8 +163,8 @@
 /// This only applies the new PII rules that explicitly select `ValueType::Binary` or one of the
 /// attachment types. When special attachments are detected, these are scrubbed with custom
 /// logic; otherwise the entire attachment is treated as a single binary blob.
-</span><span class="kw">pub fn </span>scrub&lt;G&gt;(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;, project_info: Arc&lt;ProjectInfo&gt;) {
-    <span class="kw">let </span>envelope = state.managed_envelope.envelope_mut();
+</span><span class="kw">pub fn </span>scrub&lt;Group&gt;(managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;Group&gt;, project_info: Arc&lt;ProjectInfo&gt;) {
+    <span class="kw">let </span>envelope = managed_envelope.envelope_mut();
     <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>config) = project_info.config.pii_config {
         <span class="kw">let </span>minidump = envelope
             .get_item_by_mut(|item| item.attachment_type() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>AttachmentType::Minidump));

@@ -81,15 +81,13 @@
 <a href="#80" id="80">80</a>
 <a href="#81" id="81">81</a>
 <a href="#82" id="82">82</a>
-<a href="#83" id="83">83</a>
-<a href="#84" id="84">84</a></pre></div><pre class="rust"><code><span class="doccomment">//! Profile chunks processor code.
+<a href="#83" id="83">83</a></pre></div><pre class="rust"><code><span class="doccomment">//! Profile chunks processor code.
 
 </span><span class="kw">use </span>relay_dynamic_config::Feature;
 <span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::ItemType;
-<span class="kw">use </span><span class="kw">crate</span>::services::processor::ProcessEnvelopeState;
-<span class="kw">use </span><span class="kw">crate</span>::utils::ItemAction;
+<span class="kw">use </span><span class="kw">crate</span>::utils::{ItemAction, TypedEnvelope};
 
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectInfo;
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
@@ -102,14 +100,14 @@
 };
 
 <span class="doccomment">/// Removes profile chunks from the envelope if the feature is not enabled.
-</span><span class="kw">pub fn </span>filter&lt;G&gt;(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;, project_info: Arc&lt;ProjectInfo&gt;) {
+</span><span class="kw">pub fn </span>filter&lt;Group&gt;(managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;Group&gt;, project_info: Arc&lt;ProjectInfo&gt;) {
     <span class="kw">let </span>continuous_profiling_enabled =
         <span class="kw">if </span>project_info.has_feature(Feature::ContinuousProfilingBetaIngest) {
             project_info.has_feature(Feature::ContinuousProfilingBeta)
         } <span class="kw">else </span>{
             project_info.has_feature(Feature::ContinuousProfiling)
         };
-    state.managed_envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
+    managed_envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
         ItemType::ProfileChunk <span class="kw">if </span>!continuous_profiling_enabled =&gt; ItemAction::DropSilently,
         <span class="kw">_ </span>=&gt; ItemAction::Keep,
     });
@@ -118,12 +116,12 @@
 <span class="doccomment">/// Processes profile chunks.
 </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">pub fn </span>process(
-    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;ProfileChunkGroup&gt;,
+    managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;ProfileChunkGroup&gt;,
     project_info: Arc&lt;ProjectInfo&gt;,
     global_config: <span class="kw-2">&amp;</span>GlobalConfig,
     config: <span class="kw-2">&amp;</span>Config,
 ) {
-    <span class="kw">let </span>client_ip = state.managed_envelope.envelope().meta().client_addr();
+    <span class="kw">let </span>client_ip = managed_envelope.envelope().meta().client_addr();
     <span class="kw">let </span>filter_settings = <span class="kw-2">&amp;</span>project_info.config.filter_settings;
     <span class="kw">let </span>continuous_profiling_enabled =
         <span class="kw">if </span>project_info.has_feature(Feature::ContinuousProfilingBetaIngest) {
@@ -131,7 +129,7 @@
         } <span class="kw">else </span>{
             project_info.has_feature(Feature::ContinuousProfiling)
         };
-    state.managed_envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
+    managed_envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
         ItemType::ProfileChunk =&gt; {
             <span class="kw">if </span>!continuous_profiling_enabled {
                 <span class="kw">return </span>ItemAction::DropSilently;

@@ -875,7 +875,9 @@
 <a href="#874" id="874">874</a>
 <a href="#875" id="875">875</a>
 <a href="#876" id="876">876</a>
-<a href="#877" id="877">877</a></pre></div><pre class="rust"><code><span class="doccomment">//! Event processor related code.
+<a href="#877" id="877">877</a>
+<a href="#878" id="878">878</a>
+<a href="#879" id="879">879</a></pre></div><pre class="rust"><code><span class="doccomment">//! Event processor related code.
 
 </span><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::{Arc, OnceLock};
@@ -906,7 +908,7 @@
 };
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectInfo;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{PlatformTag, RelayCounters, RelayHistograms, RelayTimers};
-<span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, ChunkedFormDataAggregator, FormDataIter};
+<span class="kw">use </span><span class="kw">crate</span>::utils::{<span class="self">self</span>, ChunkedFormDataAggregator, FormDataIter, TypedEnvelope};
 
 <span class="doccomment">/// Extracts the primary event payload from an envelope.
 ///
@@ -916,12 +918,13 @@
 ///  3. Attachments `__sentry-event` and `__sentry-breadcrumb1/2`.
 ///  4. A multipart form data body.
 ///  5. If none match, `Annotated::empty()`.
-</span><span class="kw">pub fn </span>extract&lt;G: EventProcessing&gt;(
-    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;,
+</span><span class="kw">pub fn </span>extract&lt;Group: EventProcessing&gt;(
+    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState,
+    managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;Group&gt;,
     event_fully_normalized: EventFullyNormalized,
     config: <span class="kw-2">&amp;</span>Config,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;(EventMetricsExtracted, SpansExtracted)&gt;, ProcessingError&gt; {
-    <span class="kw">let </span>envelope = <span class="kw-2">&amp;mut </span>state.envelope_mut();
+    <span class="kw">let </span>envelope = managed_envelope.envelope_mut();
 
     <span class="comment">// Remove all items first, and then process them. After this function returns, only
     // attachments can remain in the envelope. The event will be added again at the end of
@@ -1017,11 +1020,12 @@
     <span class="prelude-val">Ok</span>(result)
 }
 
-<span class="kw">pub fn </span>finalize&lt;G: EventProcessing&gt;(
-    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;,
+<span class="kw">pub fn </span>finalize&lt;Group: EventProcessing&gt;(
+    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState,
+    managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;Group&gt;,
     config: <span class="kw-2">&amp;</span>Config,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
-    <span class="kw">let </span>envelope = state.managed_envelope.envelope_mut();
+    <span class="kw">let </span>envelope = managed_envelope.envelope_mut();
 
     <span class="kw">let </span>event = <span class="kw">match </span>state.event.value_mut() {
         <span class="prelude-val">Some</span>(event) =&gt; event,
@@ -1112,7 +1116,7 @@
     }
 
     <span class="kw">let </span><span class="kw-2">mut </span>processor =
-        ClockDriftProcessor::new(envelope.sent_at(), state.managed_envelope.received_at())
+        ClockDriftProcessor::new(envelope.sent_at(), managed_envelope.received_at())
             .at_least(MINIMUM_CLOCK_DRIFT);
     processor::process_value(<span class="kw-2">&amp;mut </span>state.event, <span class="kw-2">&amp;mut </span>processor, ProcessingState::root())
         .map_err(|<span class="kw">_</span>| ProcessingError::InvalidTransaction)<span class="question-mark">?</span>;
@@ -1121,7 +1125,7 @@
     // store processing, which could modify the timestamp if it exceeds a threshold. We are
     // interested in the actual delay before this correction.
     </span><span class="kw">if let </span><span class="prelude-val">Some</span>(timestamp) = state.event.value().and_then(|e| e.timestamp.value()) {
-        <span class="kw">let </span>event_delay = state.managed_envelope.received_at() - timestamp.into_inner();
+        <span class="kw">let </span>event_delay = managed_envelope.received_at() - timestamp.into_inner();
         <span class="kw">if </span>event_delay &gt; SignedDuration::minutes(<span class="number">1</span>) {
             <span class="kw">let </span>category = state.event_category().unwrap_or(DataCategory::Unknown);
             <span class="macro">metric!</span>(
@@ -1155,8 +1159,9 @@
     </span>Unsupported,
 }
 
-<span class="kw">pub fn </span>filter&lt;G: EventProcessing&gt;(
-    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;,
+<span class="kw">pub fn </span>filter&lt;Group: EventProcessing&gt;(
+    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState,
+    managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;Group&gt;,
     project_info: Arc&lt;ProjectInfo&gt;,
     global_config: <span class="kw-2">&amp;</span>GlobalConfig,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;FiltersStatus, ProcessingError&gt; {
@@ -1167,15 +1172,13 @@
         </span><span class="prelude-val">None </span>=&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(FiltersStatus::Ok),
     };
 
-    <span class="kw">let </span>client_ip = state.managed_envelope.envelope().meta().client_addr();
+    <span class="kw">let </span>client_ip = managed_envelope.envelope().meta().client_addr();
     <span class="kw">let </span>filter_settings = <span class="kw-2">&amp;</span>project_info.config.filter_settings;
 
     <span class="macro">metric!</span>(timer(RelayTimers::EventProcessingFiltering), {
         relay_filter::should_filter(event, client_ip, filter_settings, global_config.filters())
             .map_err(|err| {
-                state
-                    .managed_envelope
-                    .reject(Outcome::Filtered(err.clone()));
+                managed_envelope.reject(Outcome::Filtered(err.clone()));
                 ProcessingError::EventFiltered(err)
             })
     })<span class="question-mark">?</span>;
@@ -1199,8 +1202,8 @@
 <span class="doccomment">/// Apply data privacy rules to the event payload.
 ///
 /// This uses both the general `datascrubbing_settings`, as well as the the PII rules.
-</span><span class="kw">pub fn </span>scrub&lt;G: EventProcessing&gt;(
-    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;,
+</span><span class="kw">pub fn </span>scrub(
+    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState,
     project_info: Arc&lt;ProjectInfo&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
     <span class="kw">let </span>event = <span class="kw-2">&amp;mut </span>state.event;
@@ -1230,8 +1233,9 @@
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="kw">pub fn </span>serialize&lt;G: EventProcessing&gt;(
-    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;,
+<span class="kw">pub fn </span>serialize&lt;Group: EventProcessing&gt;(
+    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState,
+    managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;Group&gt;,
     event_fully_normalized: EventFullyNormalized,
     event_metrics_extracted: EventMetricsExtracted,
     spans_extracted: SpansExtracted,
@@ -1258,7 +1262,7 @@
     event_item.set_spans_extracted(spans_extracted.<span class="number">0</span>);
     event_item.set_fully_normalized(event_fully_normalized.<span class="number">0</span>);
 
-    state.envelope_mut().add_item(event_item);
+    managed_envelope.envelope_mut().add_item(event_item);
 
     <span class="prelude-val">Ok</span>(())
 }

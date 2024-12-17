@@ -659,7 +659,8 @@
 <a href="#658" id="658">658</a>
 <a href="#659" id="659">659</a>
 <a href="#660" id="660">660</a>
-<a href="#661" id="661">661</a></pre></div><pre class="rust"><code><span class="doccomment">//! Contains code related to validation and normalization of the user and client reports.
+<a href="#661" id="661">661</a>
+<a href="#662" id="662">662</a></pre></div><pre class="rust"><code><span class="doccomment">//! Contains code related to validation and normalization of the user and client reports.
 
 </span><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::error::Error;
@@ -678,9 +679,9 @@
 <span class="kw">use </span><span class="kw">crate</span>::constants::DEFAULT_EVENT_RETENTION;
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, ItemType};
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{Outcome, RuleCategories, TrackOutcome};
-<span class="kw">use </span><span class="kw">crate</span>::services::processor::{ClientReportGroup, ProcessEnvelopeState, MINIMUM_CLOCK_DRIFT};
+<span class="kw">use </span><span class="kw">crate</span>::services::processor::{ClientReportGroup, MINIMUM_CLOCK_DRIFT};
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectInfo;
-<span class="kw">use </span><span class="kw">crate</span>::utils::ItemAction;
+<span class="kw">use </span><span class="kw">crate</span>::utils::{ItemAction, TypedEnvelope};
 
 <span class="doccomment">/// Fields of client reports that map to specific [`Outcome`]s without content.
 </span><span class="attr">#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -704,7 +705,7 @@
 /// client SDKs.  The outcomes are removed here and sent directly to the outcomes
 /// system.
 </span><span class="kw">pub fn </span>process_client_reports(
-    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;ClientReportGroup&gt;,
+    managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;ClientReportGroup&gt;,
     config: Arc&lt;Config&gt;,
     project_info: Arc&lt;ProjectInfo&gt;,
     outcome_aggregator: Addr&lt;TrackOutcome&gt;,
@@ -714,7 +715,7 @@
     </span><span class="kw">if </span>!config.emit_outcomes().any() || !config.emit_client_outcomes() {
         <span class="comment">// if a processing relay has client outcomes disabled we drop them.
         </span><span class="kw">if </span>config.processing_enabled() {
-            state.managed_envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
+            managed_envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
                 ItemType::ClientReport =&gt; ItemAction::DropSilently,
                 <span class="kw">_ </span>=&gt; ItemAction::Keep,
             });
@@ -724,14 +725,15 @@
 
     <span class="kw">let </span><span class="kw-2">mut </span>timestamp = <span class="prelude-val">None</span>;
     <span class="kw">let </span><span class="kw-2">mut </span>output_events = BTreeMap::new();
-    <span class="kw">let </span>received = state.managed_envelope.received_at();
+    <span class="kw">let </span>received = managed_envelope.received_at();
 
-    <span class="kw">let </span>clock_drift_processor = ClockDriftProcessor::new(state.envelope().sent_at(), received)
-        .at_least(MINIMUM_CLOCK_DRIFT);
+    <span class="kw">let </span>clock_drift_processor =
+        ClockDriftProcessor::new(managed_envelope.envelope().sent_at(), received)
+            .at_least(MINIMUM_CLOCK_DRIFT);
 
     <span class="comment">// we're going through all client reports but we're effectively just merging
     // them into the first one.
-    </span>state.managed_envelope.retain_items(|item| {
+    </span>managed_envelope.retain_items(|item| {
         <span class="kw">if </span>item.ty() != <span class="kw-2">&amp;</span>ItemType::ClientReport {
             <span class="kw">return </span>ItemAction::Keep;
         };
@@ -842,7 +844,7 @@
             // now that the timestamp can be parsed, but just incase we fallback to UTC current
             // `DateTime`.
             </span>timestamp: timestamp.as_datetime().unwrap_or_else(Utc::now),
-            scoping: state.managed_envelope.scoping(),
+            scoping: managed_envelope.scoping(),
             outcome,
             event_id: <span class="prelude-val">None</span>,
             remote_addr: <span class="prelude-val">None</span>, <span class="comment">// omitting the client address allows for better aggregation
@@ -857,8 +859,8 @@
 /// User feedback items are removed from the envelope if they contain invalid JSON or if the
 /// JSON violates the schema (basic type validation). Otherwise, their normalized representation
 /// is written back into the item.
-</span><span class="kw">pub fn </span>process_user_reports&lt;G&gt;(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;) {
-    state.managed_envelope.retain_items(|item| {
+</span><span class="kw">pub fn </span>process_user_reports&lt;Group&gt;(managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;Group&gt;) {
+    managed_envelope.retain_items(|item| {
         <span class="kw">if </span>item.ty() != <span class="kw-2">&amp;</span>ItemType::UserReport {
             <span class="kw">return </span>ItemAction::Keep;
         };

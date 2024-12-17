@@ -466,7 +466,8 @@
 <a href="#465" id="465">465</a>
 <a href="#466" id="466">466</a>
 <a href="#467" id="467">467</a>
-<a href="#468" id="468">468</a></pre></div><pre class="rust"><code><span class="doccomment">//! Contains the sessions related processor code.
+<a href="#468" id="468">468</a>
+<a href="#469" id="469">469</a></pre></div><pre class="rust"><code><span class="doccomment">//! Contains the sessions related processor code.
 
 </span><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::net;
@@ -486,20 +487,21 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{ProcessEnvelopeState, SessionGroup, MINIMUM_CLOCK_DRIFT};
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectInfo;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayTimers;
-<span class="kw">use </span><span class="kw">crate</span>::utils::ItemAction;
+<span class="kw">use </span><span class="kw">crate</span>::utils::{ItemAction, TypedEnvelope};
 
 <span class="doccomment">/// Validates all sessions and session aggregates in the envelope, if any.
 ///
 /// Both are removed from the envelope if they contain invalid JSON or if their timestamps
 /// are out of range after clock drift correction.
 </span><span class="kw">pub fn </span>process(
-    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;SessionGroup&gt;,
+    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState,
+    managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;SessionGroup&gt;,
     project_info: Arc&lt;ProjectInfo&gt;,
     config: <span class="kw-2">&amp;</span>Config,
 ) {
-    <span class="kw">let </span>received = state.managed_envelope.received_at();
+    <span class="kw">let </span>received = managed_envelope.received_at();
     <span class="kw">let </span>metrics_config = project_info.config().session_metrics;
-    <span class="kw">let </span>envelope = state.managed_envelope.envelope_mut();
+    <span class="kw">let </span>envelope = managed_envelope.envelope_mut();
     <span class="kw">let </span>client = envelope.meta().client().map(|x| x.to_owned());
     <span class="kw">let </span>client_addr = envelope.meta().client_addr();
 
@@ -507,7 +509,7 @@
         ClockDriftProcessor::new(envelope.sent_at(), received).at_least(MINIMUM_CLOCK_DRIFT);
 
     <span class="kw">let </span><span class="kw-2">mut </span>extracted_metrics = Vec::new();
-    state.managed_envelope.retain_items(|item| {
+    managed_envelope.retain_items(|item| {
         <span class="kw">let </span>should_keep = <span class="kw">match </span>item.ty() {
             ItemType::Session =&gt; process_session(
                 item,

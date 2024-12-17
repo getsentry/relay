@@ -601,8 +601,7 @@
 <a href="#600" id="600">600</a>
 <a href="#601" id="601">601</a>
 <a href="#602" id="602">602</a>
-<a href="#603" id="603">603</a>
-<a href="#604" id="604">604</a></pre></div><pre class="rust"><code><span class="doccomment">//! Profiles related processor code.
+<a href="#603" id="603">603</a></pre></div><pre class="rust"><code><span class="doccomment">//! Profiles related processor code.
 </span><span class="kw">use </span>relay_dynamic_config::{Feature, GlobalConfig};
 <span class="kw">use </span>std::net::IpAddr;
 <span class="kw">use </span>std::sync::Arc;
@@ -619,13 +618,14 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome};
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{should_filter, ProcessEnvelopeState, TransactionGroup};
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectInfo;
-<span class="kw">use </span><span class="kw">crate</span>::utils::ItemAction;
+<span class="kw">use </span><span class="kw">crate</span>::utils::{ItemAction, TypedEnvelope};
 
 <span class="doccomment">/// Filters out invalid and duplicate profiles.
 ///
 /// Returns the profile id of the single remaining profile, if there is one.
-</span><span class="kw">pub fn </span>filter&lt;G&gt;(
-    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;G&gt;,
+</span><span class="kw">pub fn </span>filter&lt;Group&gt;(
+    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState,
+    managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;Group&gt;,
     config: Arc&lt;Config&gt;,
     project_id: ProjectId,
     project_info: Arc&lt;ProjectInfo&gt;,
@@ -635,7 +635,7 @@
     <span class="kw">let </span>keep_unsampled_profiles = <span class="bool-val">true</span>;
 
     <span class="kw">let </span><span class="kw-2">mut </span>profile_id = <span class="prelude-val">None</span>;
-    state.managed_envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
+    managed_envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
         <span class="comment">// First profile found in the envelope, we'll keep it if metadata are valid.
         </span>ItemType::Profile <span class="kw">if </span>profile_id.is_none() =&gt; {
             <span class="kw">if </span>profiling_disabled {
@@ -674,10 +674,7 @@
 /// The profile id may be `None` when the envelope does not contain a profile,
 /// in that case the profile context is removed.
 /// Some SDKs send transactions with profile ids but omit the profile in the envelope.
-</span><span class="kw">pub fn </span>transfer_id(
-    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;,
-    profile_id: <span class="prelude-ty">Option</span>&lt;ProfileId&gt;,
-) {
+</span><span class="kw">pub fn </span>transfer_id(state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState, profile_id: <span class="prelude-ty">Option</span>&lt;ProfileId&gt;) {
     <span class="kw">let </span><span class="prelude-val">Some</span>(event) = state.event.value_mut() <span class="kw">else </span>{
         <span class="kw">return</span>;
     };
@@ -702,18 +699,19 @@
 
 <span class="doccomment">/// Processes profiles and set the profile ID in the profile context on the transaction if successful.
 </span><span class="kw">pub fn </span>process(
-    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;TransactionGroup&gt;,
+    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState,
+    managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;TransactionGroup&gt;,
     global_config: <span class="kw-2">&amp;</span>GlobalConfig,
     config: Arc&lt;Config&gt;,
     project_info: Arc&lt;ProjectInfo&gt;,
 ) -&gt; <span class="prelude-ty">Option</span>&lt;ProfileId&gt; {
-    <span class="kw">let </span>client_ip = state.managed_envelope.envelope().meta().client_addr();
+    <span class="kw">let </span>client_ip = managed_envelope.envelope().meta().client_addr();
     <span class="kw">let </span>filter_settings = <span class="kw-2">&amp;</span>project_info.config.filter_settings;
 
     <span class="kw">let </span>profiling_enabled = project_info.has_feature(Feature::Profiling);
     <span class="kw">let </span><span class="kw-2">mut </span>profile_id = <span class="prelude-val">None</span>;
 
-    state.managed_envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
+    managed_envelope.retain_items(|item| <span class="kw">match </span>item.ty() {
         ItemType::Profile =&gt; {
             <span class="kw">if </span>!profiling_enabled {
                 <span class="kw">return </span>ItemAction::DropSilently;

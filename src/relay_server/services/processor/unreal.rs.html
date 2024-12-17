@@ -50,7 +50,9 @@
 <a href="#49" id="49">49</a>
 <a href="#50" id="50">50</a>
 <a href="#51" id="51">51</a>
-<a href="#52" id="52">52</a></pre></div><pre class="rust"><code><span class="doccomment">//! Unreal 4 processor related code.
+<a href="#52" id="52">52</a>
+<a href="#53" id="53">53</a>
+<a href="#54" id="54">54</a></pre></div><pre class="rust"><code><span class="doccomment">//! Unreal 4 processor related code.
 //!
 //! These functions are included only in the processing mode.
 
@@ -61,6 +63,7 @@
     ErrorGroup, EventFullyNormalized, ProcessEnvelopeState, ProcessingError,
 };
 <span class="kw">use </span><span class="kw">crate</span>::utils;
+<span class="kw">use </span><span class="kw">crate</span>::utils::TypedEnvelope;
 
 <span class="doccomment">/// Expands Unreal 4 items inside an envelope.
 ///
@@ -75,10 +78,10 @@
 /// After this, [`crate::services::processor::EnvelopeProcessorService`] should be able to process the envelope the same
 /// way it processes any other envelopes.
 </span><span class="kw">pub fn </span>expand(
-    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;ErrorGroup&gt;,
+    managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;ErrorGroup&gt;,
     config: <span class="kw-2">&amp;</span>Config,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
-    <span class="kw">let </span>envelope = <span class="kw-2">&amp;mut </span>state.envelope_mut();
+    <span class="kw">let </span>envelope = <span class="kw-2">&amp;mut </span>managed_envelope.envelope_mut();
 
     <span class="kw">if let </span><span class="prelude-val">Some</span>(item) = envelope.take_item_by(|item| item.ty() == <span class="kw-2">&amp;</span>ItemType::UnrealReport) {
         utils::expand_unreal_envelope(item, envelope, config)<span class="question-mark">?</span>;
@@ -92,9 +95,10 @@
 /// If the event does not contain an unreal context, this function does not perform any action.
 /// If there was no event payload prior to this function, it is created.
 </span><span class="kw">pub fn </span>process(
-    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState&lt;ErrorGroup&gt;,
+    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState,
+    managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;ErrorGroup&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;EventFullyNormalized&gt;, ProcessingError&gt; {
-    <span class="kw">if </span>utils::process_unreal_envelope(<span class="kw-2">&amp;mut </span>state.event, state.managed_envelope.envelope_mut())
+    <span class="kw">if </span>utils::process_unreal_envelope(<span class="kw-2">&amp;mut </span>state.event, managed_envelope.envelope_mut())
         .map_err(ProcessingError::InvalidUnrealReport)<span class="question-mark">?
     </span>{
         <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(EventFullyNormalized(<span class="bool-val">false</span>)));
