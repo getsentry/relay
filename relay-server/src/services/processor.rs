@@ -1357,7 +1357,6 @@ impl EnvelopeProcessorService {
             self.inner
                 .config
                 .aggregator_config_for(MetricNamespace::Spans)
-                .aggregator
                 .max_tag_value_length,
             extract_spans,
         );
@@ -1438,9 +1437,7 @@ impl EnvelopeProcessorService {
                 received_at: Some(managed_envelope.received_at()),
                 max_secs_in_past: Some(retention_days * 24 * 3600),
                 max_secs_in_future: Some(self.inner.config.max_secs_in_future()),
-                transaction_timestamp_range: Some(
-                    transaction_aggregator_config.aggregator.timestamp_range(),
-                ),
+                transaction_timestamp_range: Some(transaction_aggregator_config.timestamp_range()),
                 is_validated: false,
             };
 
@@ -1471,7 +1468,6 @@ impl EnvelopeProcessorService {
                 },
                 max_name_and_unit_len: Some(
                     transaction_aggregator_config
-                        .aggregator
                         .max_name_length
                         .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
                 ),
@@ -1489,7 +1485,6 @@ impl EnvelopeProcessorService {
                     .inner
                     .config
                     .aggregator_config_for(MetricNamespace::Spans)
-                    .aggregator
                     .max_tag_value_length,
                 is_renormalize: false,
                 remove_other: full_normalization,
@@ -2790,9 +2785,9 @@ impl EnvelopeProcessorService {
         {
             let dsn = PartialDsn::outbound(scoping, upstream);
 
-            if let Some(key) = partition_key {
-                relay_statsd::metric!(histogram(RelayHistograms::PartitionKeys) = key);
-            }
+            relay_statsd::metric!(
+                histogram(RelayHistograms::PartitionKeys) = u64::from(partition_key)
+            );
 
             let mut num_batches = 0;
             for batch in BucketsView::from(buckets).by_size(batch_size) {
@@ -2809,7 +2804,9 @@ impl EnvelopeProcessorService {
                     self.inner.addrs.test_store.clone(),
                     ProcessingGroup::Metrics,
                 );
-                envelope.set_partition_key(partition_key).scope(*scoping);
+                envelope
+                    .set_partition_key(Some(partition_key))
+                    .scope(*scoping);
 
                 relay_statsd::metric!(
                     histogram(RelayHistograms::BucketsPerBatch) = batch.len() as u64
@@ -2826,7 +2823,7 @@ impl EnvelopeProcessorService {
     }
 
     /// Creates a [`SendMetricsRequest`] and sends it to the upstream relay.
-    fn send_global_partition(&self, partition_key: Option<u64>, partition: &mut Partition<'_>) {
+    fn send_global_partition(&self, partition_key: u32, partition: &mut Partition<'_>) {
         if partition.is_empty() {
             return;
         }
@@ -2843,7 +2840,7 @@ impl EnvelopeProcessorService {
         };
 
         let request = SendMetricsRequest {
-            partition_key: partition_key.map(|k| k.to_string()),
+            partition_key: partition_key.to_string(),
             unencoded,
             encoded,
             project_info,
@@ -3270,7 +3267,7 @@ impl<'a> Partition<'a> {
 #[derive(Debug)]
 struct SendMetricsRequest {
     /// If the partition key is set, the request is marked with `X-Sentry-Relay-Shard`.
-    partition_key: Option<String>,
+    partition_key: String,
     /// Serialized metric buckets without encoding applied, used for signing.
     unencoded: Bytes,
     /// Serialized metric buckets with the stated HTTP encoding applied.
@@ -3344,7 +3341,7 @@ impl UpstreamRequest for SendMetricsRequest {
 
         builder
             .content_encoding(self.http_encoding)
-            .header_opt("X-Sentry-Relay-Shard", self.partition_key.as_ref())
+            .header("X-Sentry-Relay-Shard", self.partition_key.as_bytes())
             .header(header::CONTENT_TYPE, b"application/json")
             .body(self.encoded.clone());
 
@@ -3546,7 +3543,7 @@ mod tests {
             ]);
 
             FlushBuckets {
-                partition_key: None,
+                partition_key: 0,
                 buckets,
             }
         };
@@ -3930,10 +3927,7 @@ mod tests {
             };
             processor.handle_process_metrics(&mut token, message);
 
-            let value = aggregator_rx.recv().await.unwrap();
-            let Aggregator::MergeBuckets(merge_buckets) = value else {
-                panic!()
-            };
+            let Aggregator::MergeBuckets(merge_buckets) = aggregator_rx.recv().await.unwrap();
             let buckets = merge_buckets.buckets;
             assert_eq!(buckets.len(), 1);
             assert_eq!(buckets[0].metadata.received_at, expected_received_at);
@@ -3994,14 +3988,8 @@ mod tests {
         };
         processor.handle_process_batched_metrics(&mut token, message);
 
-        let value = aggregator_rx.recv().await.unwrap();
-        let Aggregator::MergeBuckets(mb1) = value else {
-            panic!()
-        };
-        let value = aggregator_rx.recv().await.unwrap();
-        let Aggregator::MergeBuckets(mb2) = value else {
-            panic!()
-        };
+        let Aggregator::MergeBuckets(mb1) = aggregator_rx.recv().await.unwrap();
+        let Aggregator::MergeBuckets(mb2) = aggregator_rx.recv().await.unwrap();
 
         let mut messages = vec![mb1, mb2];
         messages.sort_by_key(|mb| mb.project_key);

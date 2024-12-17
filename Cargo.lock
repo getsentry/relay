@@ -3676,6 +3676,7 @@ dependencies = [
 name = "relay-metrics"
 version = "24.11.2"
 dependencies = [
+ "ahash",
  "bytecount",
  "chrono",
  "criterion",
@@ -3889,6 +3890,7 @@ dependencies = [
  "axum-server",
  "backoff",
  "brotli 6.0.0",
+ "bytecount",
  "bytes",
  "bzip2",
  "chrono",

@@ -197,9 +197,7 @@ mod tests {
 
         // We assert that one metric is emitted by metric stats.
         let value = metric_stats_rx.blocking_recv().unwrap();
-        let Aggregator::MergeBuckets(merge_buckets) = value else {
-            panic!();
-        };
+        let Aggregator::MergeBuckets(merge_buckets) = value;
         assert_eq!(merge_buckets.buckets.len(), 1);
         assert_eq!(
             merge_buckets.buckets[0].tags.get("mri").unwrap().as_str(),
@@ -234,9 +232,7 @@ mod tests {
         // We assert that two metrics are emitted by metric stats.
         for _ in 0..2 {
             let value = metric_stats_rx.blocking_recv().unwrap();
-            let Aggregator::MergeBuckets(merge_buckets) = value else {
-                panic!();
-            };
+            let Aggregator::MergeBuckets(merge_buckets) = value;
             assert_eq!(merge_buckets.buckets.len(), 1);
             let BucketValue::Counter(value) = merge_buckets.buckets[0].value else {
                 panic!();

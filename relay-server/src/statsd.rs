@@ -276,25 +276,6 @@ pub enum RelayHistograms {
     PartitionKeys,
     /// Measures how many splits were performed when sending out a partition.
     PartitionSplits,
-    /// The total number of metric buckets flushed in a cycle across all projects.
-    ///
-    /// This metric is tagged with:
-    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
-    BucketsFlushed,
-    /// The number of metric buckets flushed in a cycle for each project.
-    ///
-    /// Relay scans metric buckets in regular intervals and flushes expired buckets. This histogram
-    /// is logged for each project that is being flushed. The count of the histogram values is
-    /// equivalent to the number of projects being flushed.
-    ///
-    /// This metric is tagged with:
-    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
-    BucketsFlushedPerProject,
-    /// The number of metric partitions flushed in a cycle.
-    ///
-    /// This metric is tagged with:
-    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
-    PartitionsFlushed,
 }
 
 impl HistogramMetric for RelayHistograms {
@@ -331,9 +312,6 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::UpstreamMetricsBodySize => "upstream.metrics.body_size",
             RelayHistograms::PartitionKeys => "metrics.buckets.partition_keys",
             RelayHistograms::PartitionSplits => "partition_splits",
-            RelayHistograms::BucketsFlushed => "metrics.buckets.flushed",
-            RelayHistograms::BucketsFlushedPerProject => "metrics.buckets.flushed_per_project",
-            RelayHistograms::PartitionsFlushed => "metrics.partitions.flushed",
         }
     }
 }

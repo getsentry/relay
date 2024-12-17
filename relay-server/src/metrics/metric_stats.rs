@@ -279,9 +279,7 @@ mod tests {
 
         drop(ms);
 
-        let Aggregator::MergeBuckets(mut mb) = receiver.blocking_recv().unwrap() else {
-            panic!();
-        };
+        let Aggregator::MergeBuckets(mut mb) = receiver.blocking_recv().unwrap();
         assert_eq!(mb.project_key, scoping.project_key);
 
         assert_eq!(mb.buckets.len(), 1);
@@ -299,9 +297,7 @@ mod tests {
             )
         );
 
-        let Aggregator::MergeBuckets(mut mb) = receiver.blocking_recv().unwrap() else {
-            panic!();
-        };
+        let Aggregator::MergeBuckets(mut mb) = receiver.blocking_recv().unwrap();
         assert_eq!(mb.project_key, scoping.project_key);
 
         assert_eq!(mb.buckets.len(), 1);
@@ -354,9 +350,7 @@ mod tests {
 
         drop(ms);
 
-        let Aggregator::MergeBuckets(mut mb) = receiver.blocking_recv().unwrap() else {
-            panic!();
-        };
+        let Aggregator::MergeBuckets(mut mb) = receiver.blocking_recv().unwrap();
         assert_eq!(mb.project_key, scoping.project_key);
 
         assert_eq!(mb.buckets.len(), 1);
@@ -420,9 +414,7 @@ mod tests {
 
         drop(ms);
 
-        let Aggregator::MergeBuckets(mut mb) = receiver.blocking_recv().unwrap() else {
-            panic!();
-        };
+        let Aggregator::MergeBuckets(mut mb) = receiver.blocking_recv().unwrap();
         assert_eq!(mb.project_key, scoping.project_key);
 
         assert_eq!(mb.buckets.len(), 1);

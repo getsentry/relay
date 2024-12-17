@@ -6,13 +6,14 @@ use rand::SeedableRng;
 use relay_base_schema::project::ProjectKey;
 use relay_common::time::UnixTimestamp;
 use relay_metrics::{
-    aggregator::{Aggregator, AggregatorConfig, FlushDecision},
+    aggregator::{Aggregator, AggregatorConfig},
     Bucket, BucketValue, DistributionValue, FiniteF64,
 };
 use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::fmt;
 use std::ops::Range;
+use std::time::SystemTime;
 
 struct NumbersGenerator {
     min: usize,
@@ -188,7 +189,7 @@ fn bench_insert_and_flush(c: &mut Criterion) {
                     b.iter_batched(
                         || {
                             let timestamp = UnixTimestamp::now();
-                            let aggregator: Aggregator = Aggregator::new(config.clone());
+                            let aggregator = Aggregator::named("default".to_owned(), &config);
                             (aggregator, input.get_buckets(timestamp))
                         },
                         |(mut aggregator, buckets)| {
@@ -215,7 +216,7 @@ fn bench_insert_and_flush(c: &mut Criterion) {
                 b.iter_batched(
                     || {
                         let timestamp = UnixTimestamp::now();
-                        let mut aggregator: Aggregator = Aggregator::new(config.clone());
+                        let mut aggregator = Aggregator::named("default".to_owned(), &config);
                         for (project_key, bucket) in input.get_buckets(timestamp) {
                             aggregator.merge(project_key, bucket).unwrap();
                         }
@@ -224,9 +225,7 @@ fn bench_insert_and_flush(c: &mut Criterion) {
                     |mut aggregator| {
                         // XXX: Ideally we'd want to test the entire try_flush here, but spawning
                         // a service is too much work here.
-                        black_box(aggregator.pop_flush_buckets(black_box(false), |_| {
-                            FlushDecision::Flush(Vec::new())
-                        }));
+                        let _ = black_box(aggregator.try_flush_next(SystemTime::UNIX_EPOCH));
                     },
                     BatchSize::SmallInput,
                 )

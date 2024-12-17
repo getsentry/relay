@@ -75,6 +75,7 @@ mod bucket;
 mod finite;
 mod protocol;
 mod statsd;
+mod utils;
 mod view;
 
 pub use bucket::*;

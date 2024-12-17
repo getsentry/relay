@@ -1,18 +1,21 @@
+use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
+use hashbrown::hash_map::Entry;
 use hashbrown::HashMap;
 use relay_base_schema::project::ProjectKey;
 use relay_config::AggregatorServiceConfig;
-use relay_metrics::aggregator::{self, AggregateMetricsError, FlushDecision};
-use relay_metrics::{Bucket, UnixTimestamp};
+use relay_metrics::aggregator::{self, AggregateMetricsError, AggregatorConfig, Partition};
+use relay_metrics::Bucket;
 use relay_quotas::{RateLimits, Scoping};
-use relay_system::{Controller, FromMessage, Interface, NoResponse, Recipient, Service, Shutdown};
+use relay_system::{Controller, FromMessage, Interface, NoResponse, Recipient, Service};
+use tokio::time::{Instant, Sleep};
 
 use crate::services::projects::cache::ProjectCacheHandle;
 use crate::services::projects::project::{ProjectInfo, ProjectState};
-use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
+use crate::statsd::{RelayCounters, RelayTimers};
 
 /// Aggregator for metric buckets.
 ///
@@ -28,10 +31,6 @@ use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 pub enum Aggregator {
     /// Merge the buckets.
     MergeBuckets(MergeBuckets),
-
-    /// Message is used only for tests to get the current number of buckets in `AggregatorService`.
-    #[cfg(test)]
-    BucketCountInquiry(BucketCountInquiry, relay_system::Sender<usize>),
 }
 
 impl Aggregator {
@@ -39,8 +38,6 @@ impl Aggregator {
     pub fn variant(&self) -> &'static str {
         match self {
             Aggregator::MergeBuckets(_) => "MergeBuckets",
-            #[cfg(test)]
-            Aggregator::BucketCountInquiry(_, _) => "BucketCountInquiry",
         }
     }
 }
@@ -54,19 +51,6 @@ impl FromMessage<MergeBuckets> for Aggregator {
     }
 }
 
-#[cfg(test)]
-impl FromMessage<BucketCountInquiry> for Aggregator {
-    type Response = relay_system::AsyncResponse<usize>;
-    fn from_message(message: BucketCountInquiry, sender: relay_system::Sender<usize>) -> Self {
-        Self::BucketCountInquiry(message, sender)
-    }
-}
-
-/// Used only for testing the `AggregatorService`.
-#[cfg(test)]
-#[derive(Debug)]
-pub struct BucketCountInquiry;
-
 /// A message containing a vector of buckets to be flushed.
 ///
 /// Handlers must respond to this message with a `Result`:
@@ -76,9 +60,7 @@ pub struct BucketCountInquiry;
 #[derive(Clone, Debug)]
 pub struct FlushBuckets {
     /// The partition to which the buckets belong.
-    ///
-    /// When set to `Some` it means that partitioning was enabled in the [`Aggregator`].
-    pub partition_key: Option<u64>,
+    pub partition_key: u32,
     /// The buckets to be flushed.
     pub buckets: HashMap<ProjectKey, ProjectBuckets>,
 }
@@ -102,19 +84,14 @@ impl Extend<Bucket> for ProjectBuckets {
     }
 }
 
-enum AggregatorState {
-    Running,
-    ShuttingDown,
-}
-
 /// Service implementing the [`Aggregator`] interface.
 pub struct AggregatorService {
     aggregator: aggregator::Aggregator,
-    state: AggregatorState,
     receiver: Option<Recipient<FlushBuckets, NoResponse>>,
     project_cache: ProjectCacheHandle,
-    flush_interval_ms: u64,
+    config: AggregatorServiceConfig,
     can_accept_metrics: Arc<AtomicBool>,
+    next_flush: Pin<Box<Sleep>>,
 }
 
 impl AggregatorService {
@@ -137,14 +114,14 @@ impl AggregatorService {
         receiver: Option<Recipient<FlushBuckets, NoResponse>>,
         project_cache: ProjectCacheHandle,
     ) -> Self {
-        let aggregator = aggregator::Aggregator::named(name, config.aggregator);
+        let aggregator = aggregator::Aggregator::named(name, &config.aggregator);
         Self {
             receiver,
-            state: AggregatorState::Running,
-            flush_interval_ms: config.flush_interval_ms,
-            can_accept_metrics: Arc::new(AtomicBool::new(!aggregator.totals_cost_exceeded())),
+            config,
+            can_accept_metrics: Arc::new(AtomicBool::new(true)),
             aggregator,
             project_cache,
+            next_flush: Box::pin(tokio::time::sleep(Duration::from_secs(0))),
         }
     }
 
@@ -158,90 +135,100 @@ impl AggregatorService {
     /// to the receiver to send the [`MergeBuckets`] message back if buckets could not be flushed
     /// and we require another re-try.
     ///
-    /// If `force` is true, flush all buckets unconditionally and do not attempt to merge back.
-    fn try_flush(&mut self) {
-        let force_flush = matches!(&self.state, AggregatorState::ShuttingDown);
+    /// Returns when the next flush should be attempted.
+    fn try_flush(&mut self) -> Duration {
+        if cfg!(test) {
+            // Tests are running in a single thread / current thread runtime,
+            // which is required for 'fast-forwarding' and `block_in_place`
+            // requires a multi threaded runtime. Relay always requires a multi
+            // threaded runtime.
+            self.do_try_flush()
+        } else {
+            tokio::task::block_in_place(|| self.do_try_flush())
+        }
+    }
 
-        let flush_decision = |project_key| {
-            let project = self.project_cache.get(project_key);
+    fn do_try_flush(&mut self) -> Duration {
+        let partition = match self.aggregator.try_flush_next(SystemTime::now()) {
+            Ok(partition) => partition,
+            Err(duration) => return duration,
+        };
+        self.can_accept_metrics.store(true, Ordering::Relaxed);
 
-            let project_info = match project.state() {
-                ProjectState::Enabled(project_info) => project_info,
-                ProjectState::Disabled => return FlushDecision::Drop,
-                // Delay the flush, project is not yet ready.
-                //
-                // Querying the project will make sure it is eventually fetched.
-                ProjectState::Pending => {
-                    relay_statsd::metric!(
-                        counter(RelayCounters::ProjectStateFlushMetricsNoProject) += 1
-                    );
-                    return FlushDecision::Delay;
+        self.flush_partition(partition);
+
+        self.aggregator.next_flush_at(SystemTime::now())
+    }
+
+    fn flush_partition(&mut self, partition: Partition) {
+        let Some(receiver) = &self.receiver else {
+            return;
+        };
+
+        let mut buckets_by_project = hashbrown::HashMap::new();
+
+        let partition_key = partition.partition_key;
+        for (project_key, bucket) in partition {
+            let s = match buckets_by_project.entry(project_key) {
+                Entry::Occupied(occupied_entry) => occupied_entry.into_mut(),
+                Entry::Vacant(vacant_entry) => {
+                    let project = self.project_cache.get(project_key);
+
+                    let project_info = match project.state() {
+                        ProjectState::Enabled(info) => Arc::clone(info),
+                        ProjectState::Disabled => continue, // Drop the bucket.
+                        ProjectState::Pending => {
+                            // Return to the aggregator, which will assign a new flush time.
+                            if let Err(error) = self.aggregator.merge(project_key, bucket) {
+                                relay_log::error!(
+                                    tags.aggregator = self.aggregator.name(),
+                                    tags.project_key = project_key.as_str(),
+                                    bucket.error = &error as &dyn std::error::Error,
+                                    "failed to return metric bucket back to the aggregator"
+                                );
+                            }
+                            relay_statsd::metric!(
+                                counter(RelayCounters::ProjectStateFlushMetricsNoProject) += 1
+                            );
+                            continue;
+                        }
+                    };
+
+                    let rate_limits = project.rate_limits().current_limits();
+                    let Some(scoping) = project_info.scoping(project_key) else {
+                        // This should never happen, at this point we should always have a valid
+                        // project with the necessary information to construct a scoping.
+                        //
+                        // Ideally we enforce this through the type system in the future.
+                        relay_log::error!(
+                            tags.project_key = project_key.as_str(),
+                            "dropping buckets because of missing scope",
+                        );
+                        continue;
+                    };
+
+                    vacant_entry.insert(ProjectBuckets {
+                        buckets: Vec::new(),
+                        scoping,
+                        project_info,
+                        rate_limits,
+                    })
                 }
             };
 
-            let Some(scoping) = project_info.scoping(project_key) else {
-                // This should never happen, at this point we should always have a valid
-                // project with the necessary information to construct a scoping.
-                //
-                // Ideally we enforce this through the type system in the future.
-                relay_log::error!(
-                    tags.project_key = project_key.as_str(),
-                    "dropping buckets because of missing scope",
-                );
-                return FlushDecision::Drop;
-            };
-
-            FlushDecision::Flush(ProjectBuckets {
-                scoping,
-                project_info: Arc::clone(project_info),
-                rate_limits: project.rate_limits().current_limits(),
-                buckets: Vec::new(),
-            })
-        };
-
-        let partitions = self
-            .aggregator
-            .pop_flush_buckets(force_flush, flush_decision);
-
-        self.can_accept_metrics
-            .store(!self.aggregator.totals_cost_exceeded(), Ordering::Relaxed);
-
-        if partitions.is_empty() {
-            return;
+            s.buckets.push(bucket);
         }
 
-        let partitions_count = partitions.len() as u64;
-        relay_log::trace!("flushing {} partitions to receiver", partitions_count);
-        relay_statsd::metric!(
-            histogram(RelayHistograms::PartitionsFlushed) = partitions_count,
-            aggregator = self.aggregator.name(),
-        );
+        if !buckets_by_project.is_empty() {
+            relay_log::debug!(
+                "flushing buckets for {} projects in partition {partition_key}",
+                buckets_by_project.len()
+            );
 
-        let mut total_bucket_count = 0u64;
-        for buckets_by_project in partitions.values() {
-            for buckets in buckets_by_project.values() {
-                let bucket_count = buckets.buckets.len() as u64;
-                total_bucket_count += bucket_count;
-
-                relay_statsd::metric!(
-                    histogram(RelayHistograms::BucketsFlushedPerProject) = bucket_count,
-                    aggregator = self.aggregator.name(),
-                );
-            }
-        }
-
-        relay_statsd::metric!(
-            histogram(RelayHistograms::BucketsFlushed) = total_bucket_count,
-            aggregator = self.aggregator.name(),
-        );
-
-        if let Some(ref receiver) = self.receiver {
-            for (partition_key, buckets_by_project) in partitions {
-                receiver.send(FlushBuckets {
-                    partition_key,
-                    buckets: buckets_by_project,
-                })
-            }
+            receiver.send(FlushBuckets {
+                partition_key,
+                buckets: buckets_by_project,
+            });
         }
     }
 
@@ -251,10 +238,13 @@ impl AggregatorService {
             buckets,
         } = msg;
 
-        let now = UnixTimestamp::now();
-        for bucket in buckets.into_iter() {
-            match self.aggregator.merge_with_options(project_key, bucket, now) {
-                // Ignore invalid timestamp errors.
+        for mut bucket in buckets.into_iter() {
+            if !validate_bucket(&mut bucket, &self.config) {
+                continue;
+            };
+
+            match self.aggregator.merge(project_key, bucket) {
+                // Ignore invalid timestamp errors and drop the bucket.
                 Err(AggregateMetricsError::InvalidTimestamp(_)) => {}
                 Err(AggregateMetricsError::TotalLimitExceeded) => {
                     relay_log::error!(
@@ -288,17 +278,39 @@ impl AggregatorService {
     fn handle_message(&mut self, message: Aggregator) {
         match message {
             Aggregator::MergeBuckets(msg) => self.handle_merge_buckets(msg),
-            #[cfg(test)]
-            Aggregator::BucketCountInquiry(_, sender) => {
-                sender.send(self.aggregator.bucket_count())
-            }
         }
     }
 
-    fn handle_shutdown(&mut self, message: Shutdown) {
-        if message.timeout.is_some() {
-            self.state = AggregatorState::ShuttingDown;
+    fn handle_shutdown(&mut self) {
+        relay_log::info!(
+            "Shutting down metrics aggregator {}",
+            self.aggregator.name()
+        );
+
+        // Create a new aggregator with very aggressive flush parameters.
+        let aggregator = aggregator::Aggregator::named(
+            self.aggregator.name().to_owned(),
+            &AggregatorConfig {
+                bucket_interval: 1,
+                aggregator_size: 1,
+                initial_delay: 0,
+                ..self.config.aggregator
+            },
+        );
+
+        let previous = std::mem::replace(&mut self.aggregator, aggregator);
+
+        let mut partitions = 0;
+        for partition in previous.into_partitions() {
+            self.flush_partition(partition);
+            partitions += 1;
         }
+        relay_log::debug!("Force flushed {partitions} partitions");
+
+        // Reset the next flush time, to the time of the new aggregator.
+        self.next_flush
+            .as_mut()
+            .reset(Instant::now() + self.aggregator.next_flush_at(SystemTime::now()));
     }
 }
 
@@ -306,8 +318,6 @@ impl Service for AggregatorService {
     type Interface = Aggregator;
 
     async fn run(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
-        let mut ticker = tokio::time::interval(Duration::from_millis(self.flush_interval_ms));
-        ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         let mut shutdown = Controller::shutdown_handle();
 
         macro_rules! timed {
@@ -322,26 +332,18 @@ impl Service for AggregatorService {
             }};
         }
 
-        // Note that currently this loop never exits and will run till the tokio runtime shuts
-        // down. This is about to change with the refactoring for the shutdown process.
         loop {
             tokio::select! {
                 biased;
 
-                _ = ticker.tick() => timed!(
-                    "try_flush",
-                    if cfg!(test) {
-                        // Tests are running in a single thread / current thread runtime,
-                        // which is required for 'fast-forwarding' and `block_in_place`
-                        // requires a multi threaded runtime. Relay always requires a multi
-                        // threaded runtime.
-                        self.try_flush()
-                    } else {
-                        tokio::task::block_in_place(|| self.try_flush())
+                _ = &mut self.next_flush => timed!(
+                    "try_flush", {
+                        let next = self.try_flush();
+                        self.next_flush.as_mut().reset(Instant::now() + next);
                     }
                 ),
                 Some(message) = rx.recv() => timed!(message.variant(), self.handle_message(message)),
-                shutdown = shutdown.notified() => timed!("shutdown", self.handle_shutdown(shutdown)),
+                _ = shutdown.notified() => timed!("shutdown", self.handle_shutdown()),
 
                 else => break,
             }
@@ -351,14 +353,13 @@ impl Service for AggregatorService {
 
 impl Drop for AggregatorService {
     fn drop(&mut self) {
-        let remaining_buckets = self.aggregator.bucket_count();
-        if remaining_buckets > 0 {
+        if !self.aggregator.is_empty() {
             relay_log::error!(
                 tags.aggregator = self.aggregator.name(),
-                "metrics aggregator dropping {remaining_buckets} buckets"
+                "metrics aggregator dropping buckets"
             );
             relay_statsd::metric!(
-                counter(RelayCounters::BucketsDropped) += remaining_buckets as i64,
+                counter(RelayCounters::BucketsDropped) += 1,
                 aggregator = self.aggregator.name(),
             );
         }
@@ -393,6 +394,35 @@ impl AggregatorHandle {
     pub fn can_accept_metrics(&self) -> bool {
         self.can_accept_metrics.load(Ordering::Relaxed)
     }
+}
+
+/// Validates the metric name and its tags are correct.
+///
+/// Returns `false` if the metric should be dropped.
+fn validate_bucket(bucket: &mut Bucket, config: &AggregatorServiceConfig) -> bool {
+    if bucket.name.len() > config.max_name_length {
+        relay_log::debug!(
+            "Invalid metric name, too long (> {}): {:?}",
+            config.max_name_length,
+            bucket.name
+        );
+        return false;
+    }
+
+    bucket.tags.retain(|tag_key, tag_value| {
+        if tag_key.len() > config.max_tag_key_length {
+            relay_log::debug!("Invalid metric tag key {tag_key:?}");
+            return false;
+        }
+        if bytecount::num_chars(tag_value.as_bytes()) > config.max_tag_value_length {
+            relay_log::debug!("Invalid metric tag value");
+            return false;
+        }
+
+        true
+    });
+
+    true
 }
 
 #[cfg(test)]
@@ -504,15 +534,93 @@ mod tests {
 
         aggregator.send(MergeBuckets::new(project_key, vec![bucket]));
 
-        let buckets_count = aggregator.send(BucketCountInquiry).await.unwrap();
-        // Let's check the number of buckets in the aggregator just after sending a
-        // message.
-        assert_eq!(buckets_count, 1);
+        // Nothing flushed.
+        assert_eq!(receiver.bucket_count(), 0);
 
         // Wait until flush delay has passed. It is up to 2s: 1s for the current bucket
         // and 1s for the flush shift. Adding 100ms buffer.
         tokio::time::sleep(Duration::from_millis(2100)).await;
         // receiver must have 1 bucket flushed
         assert_eq!(receiver.bucket_count(), 1);
+    }
+
+    fn test_config() -> AggregatorServiceConfig {
+        AggregatorServiceConfig {
+            max_name_length: 200,
+            max_tag_key_length: 200,
+            max_tag_value_length: 200,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn test_validate_bucket_key_str_length() {
+        relay_test::setup();
+        let mut short_metric = Bucket {
+            timestamp: UnixTimestamp::now(),
+            name: "c:transactions/a_short_metric".into(),
+            tags: BTreeMap::new(),
+            metadata: Default::default(),
+            width: 0,
+            value: BucketValue::Counter(0.into()),
+        };
+        assert!(validate_bucket(&mut short_metric, &test_config()));
+
+        let mut long_metric = Bucket {
+            timestamp: UnixTimestamp::now(),
+            name: "c:transactions/long_name_a_very_long_name_its_super_long_really_but_like_super_long_probably_the_longest_name_youve_seen_and_even_the_longest_name_ever_its_extremly_long_i_cant_tell_how_long_it_is_because_i_dont_have_that_many_fingers_thus_i_cant_count_the_many_characters_this_long_name_is".into(),
+            tags: BTreeMap::new(),
+            metadata: Default::default(),
+            width: 0,
+            value: BucketValue::Counter(0.into()),
+        };
+        assert!(!validate_bucket(&mut long_metric, &test_config()));
+
+        let mut short_metric_long_tag_key  = Bucket {
+            timestamp: UnixTimestamp::now(),
+            name: "c:transactions/a_short_metric_with_long_tag_key".into(),
+            tags: BTreeMap::from([("i_run_out_of_creativity_so_here_we_go_Lorem_Ipsum_is_simply_dummy_text_of_the_printing_and_typesetting_industry_Lorem_Ipsum_has_been_the_industrys_standard_dummy_text_ever_since_the_1500s_when_an_unknown_printer_took_a_galley_of_type_and_scrambled_it_to_make_a_type_specimen_book".into(), "tag_value".into())]),
+            metadata: Default::default(),
+            width: 0,
+            value: BucketValue::Counter(0.into()),
+        };
+        assert!(validate_bucket(
+            &mut short_metric_long_tag_key,
+            &test_config()
+        ));
+        assert_eq!(short_metric_long_tag_key.tags.len(), 0);
+
+        let mut short_metric_long_tag_value  = Bucket {
+            timestamp: UnixTimestamp::now(),
+            name: "c:transactions/a_short_metric_with_long_tag_value".into(),
+            tags: BTreeMap::from([("tag_key".into(), "i_run_out_of_creativity_so_here_we_go_Lorem_Ipsum_is_simply_dummy_text_of_the_printing_and_typesetting_industry_Lorem_Ipsum_has_been_the_industrys_standard_dummy_text_ever_since_the_1500s_when_an_unknown_printer_took_a_galley_of_type_and_scrambled_it_to_make_a_type_specimen_book".into())]),
+            metadata: Default::default(),
+            width: 0,
+            value: BucketValue::Counter(0.into()),
+        };
+        assert!(validate_bucket(
+            &mut short_metric_long_tag_value,
+            &test_config()
+        ));
+        assert_eq!(short_metric_long_tag_value.tags.len(), 0);
+    }
+
+    #[test]
+    fn test_validate_tag_values_special_chars() {
+        relay_test::setup();
+
+        let tag_value = "x".repeat(199) + "ø";
+        assert_eq!(tag_value.chars().count(), 200); // Should be allowed
+
+        let mut short_metric = Bucket {
+            timestamp: UnixTimestamp::now(),
+            name: "c:transactions/a_short_metric".into(),
+            tags: BTreeMap::from([("foo".into(), tag_value.clone())]),
+            metadata: Default::default(),
+            width: 0,
+            value: BucketValue::Counter(0.into()),
+        };
+        assert!(validate_bucket(&mut short_metric, &test_config()));
+        assert_eq!(short_metric.tags["foo"], tag_value);
     }
 }

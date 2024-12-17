@@ -484,6 +484,7 @@ def test_span_ingestion(
                 "bucket_interval": 1,
                 "initial_delay": 0,
                 "max_secs_in_past": 2**64 - 1,
+                "shift_key": "none",
             }
         }
     )

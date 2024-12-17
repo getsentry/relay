@@ -1,0 +1,150 @@
+---
+source: relay-metrics/src/aggregator/inner.rs
+expression: buckets
+---
+[
+    Total {
+        count: 6,
+        count_by_namespace: (unsupported:6),
+        cost: 822,
+        cost_by_namespace: (unsupported:822),
+    },
+    (
+        80,
+        Slot {
+            partition_key: 0,
+            stats: Slot {
+                count: 1,
+                count_by_namespace: (unsupported:1),
+                merges: 1,
+                merges_by_namespace: (unsupported:1),
+                cost: 137,
+                cost_by_namespace: (unsupported:137),
+                cost_by_project: {
+                    ProjectKey("00000000000000000000000000000000"): 137,
+                },
+            },
+            buckets: {
+                80-00000000000000000000000000000000-b: Counter(
+                    3.0,
+                ),
+            },
+        },
+    ),
+    "(80, Slot(1))",
+    (
+        90,
+        Slot {
+            partition_key: 0,
+            stats: Slot {
+                count: 1,
+                count_by_namespace: (unsupported:1),
+                merges: 0,
+                merges_by_namespace: (0),
+                cost: 137,
+                cost_by_namespace: (unsupported:137),
+                cost_by_project: {
+                    ProjectKey("00000000000000000000000000000000"): 137,
+                },
+            },
+            buckets: {
+                30-00000000000000000000000000000000-c: Counter(
+                    1.0,
+                ),
+            },
+        },
+    ),
+    "(90, Slot(1))",
+    (
+        100,
+        Slot {
+            partition_key: 0,
+            stats: Slot {
+                count: 1,
+                count_by_namespace: (unsupported:1),
+                merges: 0,
+                merges_by_namespace: (0),
+                cost: 137,
+                cost_by_namespace: (unsupported:137),
+                cost_by_project: {
+                    ProjectKey("00000000000000000000000000000000"): 137,
+                },
+            },
+            buckets: {
+                40-00000000000000000000000000000000-d: Counter(
+                    1.0,
+                ),
+            },
+        },
+    ),
+    "(100, Slot(1))",
+    (
+        110,
+        Slot {
+            partition_key: 0,
+            stats: Slot {
+                count: 1,
+                count_by_namespace: (unsupported:1),
+                merges: 0,
+                merges_by_namespace: (0),
+                cost: 137,
+                cost_by_namespace: (unsupported:137),
+                cost_by_project: {
+                    ProjectKey("00000000000000000000000000000000"): 137,
+                },
+            },
+            buckets: {
+                170-00000000000000000000000000000000-e: Counter(
+                    1.0,
+                ),
+            },
+        },
+    ),
+    "(110, Slot(1))",
+    "(120, Slot(0))",
+    (
+        120,
+        Slot {
+            partition_key: 1,
+            stats: Slot {
+                count: 1,
+                count_by_namespace: (unsupported:1),
+                merges: 0,
+                merges_by_namespace: (0),
+                cost: 137,
+                cost_by_namespace: (unsupported:137),
+                cost_by_project: {
+                    ProjectKey("00000000000000000000000000000000"): 137,
+                },
+            },
+            buckets: {
+                180-00000000000000000000000000000000-f: Counter(
+                    1.0,
+                ),
+            },
+        },
+    ),
+    (
+        130,
+        Slot {
+            partition_key: 0,
+            stats: Slot {
+                count: 1,
+                count_by_namespace: (unsupported:1),
+                merges: 0,
+                merges_by_namespace: (0),
+                cost: 137,
+                cost_by_namespace: (unsupported:137),
+                cost_by_project: {
+                    ProjectKey("00000000000000000000000000000000"): 137,
+                },
+            },
+            buckets: {
+                70-00000000000000000000000000000000-a: Counter(
+                    1.0,
+                ),
+            },
+        },
+    ),
+    "(130, Slot(1))",
+]

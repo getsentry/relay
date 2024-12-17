@@ -367,7 +367,6 @@ pub fn extract_from_event(
         event,
         config
             .aggregator_config_for(MetricNamespace::Spans)
-            .aggregator
             .max_tag_value_length,
         &[],
     ) else {
@@ -469,8 +468,8 @@ impl<'a> NormalizeSpanConfig<'a> {
 
         Self {
             received_at: managed_envelope.received_at(),
-            timestamp_range: aggregator_config.aggregator.timestamp_range(),
-            max_tag_value_size: aggregator_config.aggregator.max_tag_value_length,
+            timestamp_range: aggregator_config.timestamp_range(),
+            max_tag_value_size: aggregator_config.max_tag_value_length,
             performance_score: project_config.performance_score.as_ref(),
             measurements: Some(CombinedMeasurementsConfig::new(
                 project_config.measurements.as_ref(),
@@ -481,7 +480,6 @@ impl<'a> NormalizeSpanConfig<'a> {
                 ErrorBoundary::Ok(costs) => Some(costs),
             },
             max_name_and_unit_len: aggregator_config
-                .aggregator
                 .max_name_length
                 .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
 
