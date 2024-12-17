@@ -425,16 +425,10 @@ fn emit_envelope_metrics(envelope: &Envelope) {
         relay_log::with_scope(
             |scope| {
                 // Set the organization as user so we can figure out who uses this.
-                scope.set_user(Some(relay_log::sentry::User {
-                    id: Some(
-                        envelope
-                            .meta()
-                            .get_partial_scoping()
-                            .organization_id
-                            .to_string(),
-                    ),
-                    ..Default::default()
-                }));
+                scope.set_tag(
+                    "project_key",
+                    envelope.meta().get_partial_scoping().project_key,
+                );
             },
             || {
                 relay_log::sentry::capture_message(
