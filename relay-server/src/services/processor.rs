@@ -758,9 +758,6 @@ struct ProcessEnvelopeState<Group> {
     #[cfg_attr(not(feature = "processing"), expect(dead_code))]
     rate_limits: Arc<RateLimits>,
 
-    /// The config of this Relay instance.
-    config: Arc<Config>,
-
     /// The managed envelope before processing.
     managed_envelope: TypedEnvelope<Group>,
 }
@@ -806,18 +803,42 @@ impl<Group> ProcessEnvelopeState<Group> {
     fn remove_event(&mut self) {
         self.event = Annotated::empty();
     }
+}
 
-    /// Function for on-off switches that filter specific item types (profiles, spans)
-    /// based on a feature flag.
-    ///
-    /// If the project config did not come from the upstream, we keep the items.
-    fn should_filter(&self, feature: Feature, project_info: &ProjectInfo) -> bool {
-        match self.config.relay_mode() {
-            RelayMode::Proxy | RelayMode::Static | RelayMode::Capture => false,
-            RelayMode::Managed => !project_info.has_feature(feature),
-        }
+/// Function for on-off switches that filter specific item types (profiles, spans)
+/// based on a feature flag.
+///
+/// If the project config did not come from the upstream, we keep the items.
+fn should_filter(config: &Config, project_info: &ProjectInfo, feature: Feature) -> bool {
+    match config.relay_mode() {
+        RelayMode::Proxy | RelayMode::Static | RelayMode::Capture => false,
+        RelayMode::Managed => !project_info.has_feature(feature),
     }
 }
+
+/// New type representing the normalization state of the event.
+#[derive(Copy, Clone)]
+struct EventFullyNormalized(bool);
+
+impl EventFullyNormalized {
+    /// Returns `true` if the event is fully normalized, `false` otherwise.
+    pub fn new(envelope: &Envelope) -> Self {
+        let event_fully_normalized = envelope.meta().is_from_internal_relay()
+            && envelope
+                .items()
+                .any(|item| item.creates_event() && item.fully_normalized());
+
+        Self(event_fully_normalized)
+    }
+}
+
+/// New type representing whether metrics were extracted from transactions/spans.
+#[derive(Copy, Clone)]
+struct EventMetricsExtracted(bool);
+
+/// New type representing whether spans were extracted.
+#[derive(Copy, Clone)]
+struct SpansExtracted(bool);
 
 /// The view out of the [`ProcessEnvelopeState`] after processing.
 #[derive(Debug)]
@@ -1123,30 +1144,6 @@ struct InnerProcessor {
     cardinality_limiter: Option<CardinalityLimiter>,
     metric_outcomes: MetricOutcomes,
 }
-
-/// New type representing the normalization state of the event.
-#[derive(Copy, Clone)]
-struct EventFullyNormalized(bool);
-
-impl EventFullyNormalized {
-    /// Returns `true` if the event is fully normalized, `false` otherwise.
-    pub fn new(envelope: &Envelope) -> Self {
-        let event_fully_normalized = envelope.meta().is_from_internal_relay()
-            && envelope
-                .items()
-                .any(|item| item.creates_event() && item.fully_normalized());
-
-        Self(event_fully_normalized)
-    }
-}
-
-/// New type representing whether metrics were extracted from transactions/spans.
-#[derive(Copy, Clone)]
-struct EventMetricsExtracted(bool);
-
-/// New type representing whether spans were extracted.
-#[derive(Copy, Clone)]
-struct SpansExtracted(bool);
 
 impl EnvelopeProcessorService {
     /// Creates a multi-threaded envelope processor.
@@ -1619,6 +1616,7 @@ impl EnvelopeProcessorService {
     fn process_transactions(
         &self,
         state: &mut ProcessEnvelopeState<TransactionGroup>,
+        config: Arc<Config>,
         project_id: ProjectId,
         project_info: Arc<ProjectInfo>,
         mut sampling_project_info: Option<Arc<ProjectInfo>>,
@@ -1637,7 +1635,7 @@ impl EnvelopeProcessorService {
             spans_extracted = inner_spans_extracted;
         };
 
-        let profile_id = profile::filter(state, project_id, project_info.clone());
+        let profile_id = profile::filter(state, config.clone(), project_id, project_info.clone());
         profile::transfer_id(state, profile_id);
 
         event::finalize(state, &self.inner.config)?;
@@ -1673,6 +1671,7 @@ impl EnvelopeProcessorService {
         let sampling_result = match run_dynamic_sampling {
             true => dynamic_sampling::run(
                 state,
+                config.clone(),
                 project_info.clone(),
                 sampling_project_info,
                 &reservoir,
@@ -1689,7 +1688,7 @@ impl EnvelopeProcessorService {
         if let Some(outcome) = sampling_result.into_dropped_outcome() {
             // Process profiles before dropping the transaction, if necessary.
             // Before metric extraction to make sure the profile count is reflected correctly.
-            profile::process(state, project_info.clone(), &global_config);
+            profile::process(state, &global_config, config.clone(), project_info.clone());
             // Extract metrics here, we're about to drop the event/transaction.
             event_metrics_extracted = self.extract_transaction_metrics(
                 state,
@@ -1721,7 +1720,8 @@ impl EnvelopeProcessorService {
 
         if_processing!(self.inner.config, {
             // Process profiles before extracting metrics, to make sure they are removed if they are invalid.
-            let profile_id = profile::process(state, project_info.clone(), &global_config);
+            let profile_id =
+                profile::process(state, &global_config, config.clone(), project_info.clone());
             profile::transfer_id(state, profile_id);
 
             // Always extract metrics in processing Relays for sampled items.
@@ -1737,8 +1737,9 @@ impl EnvelopeProcessorService {
             if project_info.has_feature(Feature::ExtractSpansFromEvent) {
                 spans_extracted = span::extract_from_event(
                     state,
-                    project_info.clone(),
                     &global_config,
+                    config,
+                    project_info.clone(),
                     server_sample_rate,
                     event_metrics_extracted,
                     spans_extracted,
@@ -1792,10 +1793,11 @@ impl EnvelopeProcessorService {
     fn process_standalone(
         &self,
         state: &mut ProcessEnvelopeState<StandaloneGroup>,
+        config: Arc<Config>,
         project_id: ProjectId,
         project_info: Arc<ProjectInfo>,
     ) -> Result<(), ProcessingError> {
-        profile::filter(state, project_id, project_info.clone());
+        profile::filter(state, config, project_id, project_info.clone());
 
         if_processing!(self.inner.config, {
             self.enforce_quotas(state, project_info.clone())?;
@@ -1823,6 +1825,7 @@ impl EnvelopeProcessorService {
     fn process_client_reports(
         &self,
         state: &mut ProcessEnvelopeState<ClientReportGroup>,
+        config: Arc<Config>,
         project_info: Arc<ProjectInfo>,
     ) -> Result<(), ProcessingError> {
         if_processing!(self.inner.config, {
@@ -1831,6 +1834,7 @@ impl EnvelopeProcessorService {
 
         report::process_client_reports(
             state,
+            config,
             project_info,
             self.inner.addrs.outcome_aggregator.clone(),
         );
@@ -1842,12 +1846,14 @@ impl EnvelopeProcessorService {
     fn process_replays(
         &self,
         state: &mut ProcessEnvelopeState<ReplayGroup>,
+        config: Arc<Config>,
         project_info: Arc<ProjectInfo>,
     ) -> Result<(), ProcessingError> {
         replay::process(
             state,
-            project_info.clone(),
             &self.inner.global_config.current(),
+            config,
+            project_info.clone(),
             self.inner.geoip_lookup.as_ref(),
         )?;
         if_processing!(self.inner.config, {
@@ -1876,12 +1882,13 @@ impl EnvelopeProcessorService {
     fn process_standalone_spans(
         &self,
         state: &mut ProcessEnvelopeState<SpanGroup>,
+        config: Arc<Config>,
         #[allow(unused_variables)] project_id: ProjectId,
         project_info: Arc<ProjectInfo>,
         #[allow(unused_variables)] sampling_project_info: Option<Arc<ProjectInfo>>,
         #[allow(unused_variables)] reservoir_counters: ReservoirCounters,
     ) -> Result<(), ProcessingError> {
-        span::filter(state, project_info.clone());
+        span::filter(state, config.clone(), project_info.clone());
         span::convert_otel_traces_data(state);
 
         if_processing!(self.inner.config, {
@@ -1893,10 +1900,11 @@ impl EnvelopeProcessorService {
 
             span::process(
                 state,
+                &global_config,
+                config,
                 project_id,
                 project_info.clone(),
                 sampling_project_info,
-                &global_config,
                 self.inner.geoip_lookup.as_ref(),
                 &reservoir,
             );
@@ -1950,7 +1958,6 @@ impl EnvelopeProcessorService {
                     event: Annotated::empty(),
                     metrics: Metrics::default(),
                     extracted_metrics: ProcessingExtractedMetrics::new(),
-                    config: self.inner.config.clone(),
                     rate_limits,
                     managed_envelope,
                 };
@@ -1984,6 +1991,7 @@ impl EnvelopeProcessorService {
             ProcessingGroup::Transaction => {
                 run!(
                     process_transactions,
+                    self.inner.config.clone(),
                     project_id,
                     project_info,
                     sampling_project_info,
@@ -1991,12 +1999,24 @@ impl EnvelopeProcessorService {
                 )
             }
             ProcessingGroup::Session => run!(process_sessions, project_info),
-            ProcessingGroup::Standalone => run!(process_standalone, project_id, project_info),
-            ProcessingGroup::ClientReport => run!(process_client_reports, project_info),
-            ProcessingGroup::Replay => run!(process_replays, project_info),
+            ProcessingGroup::Standalone => run!(
+                process_standalone,
+                self.inner.config.clone(),
+                project_id,
+                project_info
+            ),
+            ProcessingGroup::ClientReport => run!(
+                process_client_reports,
+                self.inner.config.clone(),
+                project_info
+            ),
+            ProcessingGroup::Replay => {
+                run!(process_replays, self.inner.config.clone(), project_info)
+            }
             ProcessingGroup::CheckIn => run!(process_checkins, project_id, project_info),
             ProcessingGroup::Span => run!(
                 process_standalone_spans,
+                self.inner.config.clone(),
                 project_id,
                 project_info,
                 sampling_project_info,

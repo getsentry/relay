@@ -13,7 +13,7 @@ use relay_protocol::Annotated;
 
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::services::outcome::{DiscardReason, Outcome};
-use crate::services::processor::{ProcessEnvelopeState, TransactionGroup};
+use crate::services::processor::{should_filter, ProcessEnvelopeState, TransactionGroup};
 use crate::services::projects::project::ProjectInfo;
 use crate::utils::ItemAction;
 
@@ -22,10 +22,11 @@ use crate::utils::ItemAction;
 /// Returns the profile id of the single remaining profile, if there is one.
 pub fn filter<G>(
     state: &mut ProcessEnvelopeState<G>,
+    config: Arc<Config>,
     project_id: ProjectId,
     project_info: Arc<ProjectInfo>,
 ) -> Option<ProfileId> {
-    let profiling_disabled = state.should_filter(Feature::Profiling, &project_info);
+    let profiling_disabled = should_filter(&config, &project_info, Feature::Profiling);
     let has_transaction = state.event_type() == Some(EventType::Transaction);
     let keep_unsampled_profiles = true;
 
@@ -98,8 +99,9 @@ pub fn transfer_id(
 /// Processes profiles and set the profile ID in the profile context on the transaction if successful.
 pub fn process(
     state: &mut ProcessEnvelopeState<TransactionGroup>,
-    project_info: Arc<ProjectInfo>,
     global_config: &GlobalConfig,
+    config: Arc<Config>,
+    project_info: Arc<ProjectInfo>,
 ) -> Option<ProfileId> {
     let client_ip = state.managed_envelope.envelope().meta().client_addr();
     let filter_settings = &project_info.config.filter_settings;
@@ -122,7 +124,7 @@ pub fn process(
             match expand_profile(
                 item,
                 event,
-                &state.config,
+                &config,
                 client_ip,
                 filter_settings,
                 global_config,
