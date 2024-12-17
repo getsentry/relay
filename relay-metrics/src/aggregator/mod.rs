@@ -251,12 +251,12 @@ fn emit_flush_partition_stats(name: &str, stats: inner::PartitionStats) {
 
     for namespace in MetricNamespace::all() {
         relay_statsd::metric!(
-            counter(MetricCounters::MergeHit) += *stats.count_by_namespace.get(namespace),
+            counter(MetricCounters::MergeMiss) += *stats.count_by_namespace.get(namespace),
             namespace = namespace.as_str(),
             aggregator = name,
         );
         relay_statsd::metric!(
-            counter(MetricCounters::MergeMiss) += *stats.merges_by_namespace.get(namespace),
+            counter(MetricCounters::MergeHit) += *stats.merges_by_namespace.get(namespace),
             namespace = namespace.as_str(),
             aggregator = name,
         );
