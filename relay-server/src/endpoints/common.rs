@@ -416,12 +416,35 @@ fn emit_envelope_metrics(envelope: &Envelope) {
         );
     }
 
+    // BEGIN temporary
     if has_transaction && has_attachment {
         metric!(
             counter(RelayCounters::TransactionsWithAttachments) += 1,
             sdk = client_name.name(),
-        )
+        );
+        relay_log::with_scope(
+            |scope| {
+                // Set the organization as user so we can figure out who uses this.
+                scope.set_user(Some(relay_log::sentry::User {
+                    id: Some(
+                        envelope
+                            .meta()
+                            .get_partial_scoping()
+                            .organization_id
+                            .to_string(),
+                    ),
+                    ..Default::default()
+                }));
+            },
+            || {
+                relay_log::sentry::capture_message(
+                    "transaction with attachment",
+                    relay_log::sentry::Level::Info,
+                );
+            },
+        );
     }
+    // END temporary
 }
 
 #[derive(Debug)]
