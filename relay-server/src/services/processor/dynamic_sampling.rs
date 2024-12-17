@@ -722,9 +722,9 @@ mod tests {
         assert_eq!(get_sampling_match(res).sample_rate(), 0.2);
     }
 
-    fn run_with_reservoir_rule<G>(processing_group: ProcessingGroup) -> SamplingResult
+    fn run_with_reservoir_rule<Group>(processing_group: ProcessingGroup) -> SamplingResult
     where
-        G: Sampling + TryFrom<ProcessingGroup>,
+        Group: Sampling + TryFrom<ProcessingGroup>,
     {
         let project_info = {
             let mut info = ProjectInfo::default();
@@ -746,7 +746,7 @@ mod tests {
             extracted_metrics: ProcessingExtractedMetrics::new(),
         };
 
-        let mut managed_envelope: TypedEnvelope<TransactionGroup> =
+        let mut managed_envelope: TypedEnvelope<Group> =
             ManagedEnvelope::new(envelope, Addr::dummy(), Addr::dummy(), processing_group)
                 .try_into()
                 .unwrap();
