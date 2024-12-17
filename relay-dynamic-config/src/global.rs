@@ -202,17 +202,6 @@ pub struct Options {
     )]
     pub deprecated2: f32,
 
-    /// Deprecated, still forwarded for older downstream Relays.
-    /// Kill switch for shutting down profile function metrics
-    /// ingestion in the generic-metrics platform.
-    #[doc(hidden)]
-    #[serde(
-        rename = "profiling.generic_metrics.functions_ingestion.enabled",
-        deserialize_with = "default_on_error",
-        skip_serializing_if = "is_default"
-    )]
-    pub deprecated3: bool,
-
     /// All other unknown options.
     #[serde(flatten)]
     other: HashMap<String, Value>,
