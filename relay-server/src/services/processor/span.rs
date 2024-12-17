@@ -28,8 +28,8 @@ pub fn filter(
     config: Arc<Config>,
     project_info: Arc<ProjectInfo>,
 ) {
-    let disabled = should_filter(&config, Feature::StandaloneSpanIngestion, &project_info);
-    let otel_disabled = should_filter(&config, Feature::OtelEndpoint, &project_info);
+    let disabled = should_filter(&config, &project_info, Feature::StandaloneSpanIngestion);
+    let otel_disabled = should_filter(&config, &project_info, Feature::OtelEndpoint);
 
     state.managed_envelope.retain_items(|item| {
         if disabled && item.is_span() {
