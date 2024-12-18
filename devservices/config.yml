@@ -27,11 +27,11 @@ services:
     ports:
       - 127.0.0.1:7899:7899
     command: [run, --config, /etc/relay]
-    # healthcheck:
-    #   test: echo true
-    #   interval: 5s
-    #   timeout: 5s
-    #   retries: 3
+    healthcheck:
+      test: curl -f http://localhost:7899/api/relay/healthcheck/live/
+      interval: 5s
+      timeout: 5s
+      retries: 3
     volumes:
       - ./config/relay.yml:/etc/relay/config.yml
       - ./config/devservices-credentials.json:/etc/relay/credentials.json
