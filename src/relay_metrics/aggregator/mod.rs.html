@@ -267,7 +267,8 @@
 <a href="#266" id="266">266</a>
 <a href="#267" id="267">267</a>
 <a href="#268" id="268">268</a>
-<a href="#269" id="269">269</a></pre></div><pre class="rust"><code><span class="doccomment">//! Core functionality of metrics aggregation.
+<a href="#269" id="269">269</a>
+<a href="#270" id="270">270</a></pre></div><pre class="rust"><code><span class="doccomment">//! Core functionality of metrics aggregation.
 
 </span><span class="kw">use </span>std::time::{Duration, SystemTime};
 
@@ -355,6 +356,7 @@
                 max_project_key_bucket_bytes: config.max_project_key_bucket_bytes,
                 max_secs_in_past: <span class="prelude-val">Some</span>(config.max_secs_in_past),
                 max_secs_in_future: <span class="prelude-val">Some</span>(config.max_secs_in_future),
+                partition_by: config.flush_batching,
             }),
         }
     }
