@@ -2713,56 +2713,7 @@
 <a href="#2712" id="2712">2712</a>
 <a href="#2713" id="2713">2713</a>
 <a href="#2714" id="2714">2714</a>
-<a href="#2715" id="2715">2715</a>
-<a href="#2716" id="2716">2716</a>
-<a href="#2717" id="2717">2717</a>
-<a href="#2718" id="2718">2718</a>
-<a href="#2719" id="2719">2719</a>
-<a href="#2720" id="2720">2720</a>
-<a href="#2721" id="2721">2721</a>
-<a href="#2722" id="2722">2722</a>
-<a href="#2723" id="2723">2723</a>
-<a href="#2724" id="2724">2724</a>
-<a href="#2725" id="2725">2725</a>
-<a href="#2726" id="2726">2726</a>
-<a href="#2727" id="2727">2727</a>
-<a href="#2728" id="2728">2728</a>
-<a href="#2729" id="2729">2729</a>
-<a href="#2730" id="2730">2730</a>
-<a href="#2731" id="2731">2731</a>
-<a href="#2732" id="2732">2732</a>
-<a href="#2733" id="2733">2733</a>
-<a href="#2734" id="2734">2734</a>
-<a href="#2735" id="2735">2735</a>
-<a href="#2736" id="2736">2736</a>
-<a href="#2737" id="2737">2737</a>
-<a href="#2738" id="2738">2738</a>
-<a href="#2739" id="2739">2739</a>
-<a href="#2740" id="2740">2740</a>
-<a href="#2741" id="2741">2741</a>
-<a href="#2742" id="2742">2742</a>
-<a href="#2743" id="2743">2743</a>
-<a href="#2744" id="2744">2744</a>
-<a href="#2745" id="2745">2745</a>
-<a href="#2746" id="2746">2746</a>
-<a href="#2747" id="2747">2747</a>
-<a href="#2748" id="2748">2748</a>
-<a href="#2749" id="2749">2749</a>
-<a href="#2750" id="2750">2750</a>
-<a href="#2751" id="2751">2751</a>
-<a href="#2752" id="2752">2752</a>
-<a href="#2753" id="2753">2753</a>
-<a href="#2754" id="2754">2754</a>
-<a href="#2755" id="2755">2755</a>
-<a href="#2756" id="2756">2756</a>
-<a href="#2757" id="2757">2757</a>
-<a href="#2758" id="2758">2758</a>
-<a href="#2759" id="2759">2759</a>
-<a href="#2760" id="2760">2760</a>
-<a href="#2761" id="2761">2761</a>
-<a href="#2762" id="2762">2762</a>
-<a href="#2763" id="2763">2763</a>
-<a href="#2764" id="2764">2764</a></pre></div><pre class="rust"><code><span class="doccomment">//! Logic for persisting items into `span.sentry_tags` and `span.measurements` fields.
+<a href="#2715" id="2715">2715</a></pre></div><pre class="rust"><code><span class="doccomment">//! Logic for persisting items into `span.sentry_tags` and `span.measurements` fields.
 //! These are then used for metrics extraction.
 </span><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
@@ -4577,58 +4528,9 @@ LIMIT 1
             }
         "#</span>;
 
-        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json)
-            .unwrap()
-            .into_value()
-            .unwrap();
-
-        extract_span_tags_from_event(<span class="kw-2">&amp;mut </span>event, <span class="number">200</span>, <span class="kw-2">&amp;</span>[]);
-
-        <span class="kw">let </span>span_1 = <span class="kw-2">&amp;</span>event.spans.value().unwrap()[<span class="number">0</span>];
-        <span class="kw">let </span>span_2 = <span class="kw-2">&amp;</span>event.spans.value().unwrap()[<span class="number">1</span>];
-        <span class="kw">let </span>span_3 = <span class="kw-2">&amp;</span>event.spans.value().unwrap()[<span class="number">2</span>];
-
-        <span class="kw">let </span>tags_1 = <span class="macro">get_value!</span>(span_1.sentry_tags).unwrap();
-        <span class="kw">let </span>tags_2 = <span class="macro">get_value!</span>(span_2.sentry_tags).unwrap();
-        <span class="kw">let </span>tags_3 = <span class="macro">get_value!</span>(span_3.sentry_tags).unwrap();
-
-        <span class="kw">let </span>measurements_1 = span_1.value().unwrap().measurements.value().unwrap();
-
-        <span class="macro">assert_eq!</span>(tags_1.cache_hit.as_str(), <span class="prelude-val">Some</span>(<span class="string">"true"</span>));
-        <span class="macro">assert_eq!</span>(tags_2.cache_hit.as_str(), <span class="prelude-val">Some</span>(<span class="string">"false"</span>));
-        <span class="macro">assert_eq!</span>(tags_3.cache_hit.as_str(), <span class="prelude-val">Some</span>(<span class="string">"false"</span>));
-
-        <span class="kw">let </span>keys_1 = Value::Array(<span class="macro">vec!</span>[Annotated::new(Value::String(<span class="string">"my_key"</span>.to_string()))]);
-        <span class="kw">let </span>keys_2 = Value::Array(<span class="macro">vec!</span>[
-            Annotated::new(Value::String(<span class="string">"my_key"</span>.to_string())),
-            Annotated::new(Value::String(<span class="string">"my_key_2"</span>.to_string())),
-        ]);
-        <span class="kw">let </span>keys_3 = Value::Array(<span class="macro">vec!</span>[Annotated::new(Value::String(<span class="string">"my_key_2"</span>.to_string()))]);
-        <span class="macro">assert_eq!</span>(
-            tags_1.cache_key.as_str(),
-            serde_json::to_string(<span class="kw-2">&amp;</span>keys_1).ok().as_deref()
-        );
-        <span class="macro">assert_eq!</span>(
-            tags_2.cache_key.as_str(),
-            serde_json::to_string(<span class="kw-2">&amp;</span>keys_2).ok().as_deref()
-        );
-        <span class="macro">assert_eq!</span>(
-            tags_3.cache_key.as_str(),
-            serde_json::to_string(<span class="kw-2">&amp;</span>keys_3).ok().as_deref()
-        );
-
-        <span class="macro">assert_debug_snapshot!</span>(measurements_1, @<span class="string">r###"
-        Measurements(
-            {
-                "cache.item_size": Measurement {
-                    value: 8.0,
-                    unit: Information(
-                        Byte,
-                    ),
-                },
-            },
-        )
-        "###</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(json).unwrap();
+        extract_span_tags_from_event(event.value_mut().as_mut().unwrap(), <span class="number">200</span>, <span class="kw-2">&amp;</span>[]);
+        <span class="macro">insta::assert_snapshot!</span>(event.to_json_pretty().unwrap());
     }
 
     <span class="attr">#[test]
