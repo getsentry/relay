@@ -558,7 +558,7 @@ def test_enforce_bucket_rate_limits(
             "aggregator": {
                 "bucket_interval": 1,
                 "initial_delay": 0,
-                "shift_key": "bucket",
+                "shift_key": "project",
             },
         }
     )
@@ -591,15 +591,17 @@ def test_enforce_bucket_rate_limits(
             "width": 1,
         }
 
-    relay.send_metrics_buckets(
-        project_id,
-        [
-            make_bucket(f"d:transactions/measurements.lcp{i}@millisecond", "d", [1.0])
-            for i in range(metric_bucket_limit * 2)
-        ],
-    )
+    buckets = [
+        make_bucket(f"d:transactions/measurements.lcp{i}@millisecond", "d", [1.0])
+        for i in range(metric_bucket_limit)
+    ]
 
+    # Send as many metrics as the quota allows.
+    relay.send_metrics_buckets(project_id, buckets)
     metrics_consumer.get_metrics(n=metric_bucket_limit)
+
+    # Send metrics again, at this point the quota is exhausted.
+    relay.send_metrics_buckets(project_id, buckets)
     metrics_consumer.assert_empty()
 
 
