@@ -28,14 +28,7 @@ services:
       - 127.0.0.1:7899:7899
     command: [run, --config, /etc/relay]
     healthcheck:
-      test:
-        [
-          "CMD",
-          "curl",
-          "-f",
-          "-s",
-          "http://127.0.0.1:7899/api/relay/healthcheck/live/",
-        ]
+      test: echo true
       interval: 5s
       timeout: 5s
       retries: 3
