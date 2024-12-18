@@ -30,7 +30,7 @@ services:
     healthcheck:
       test: curl -f http://127.0.0.1:7899/api/relay/healthcheck/live/
       interval: 5s
-      timeout: 5s
+      timeout: 10s
       retries: 5
     volumes:
       - ./config/relay.yml:/etc/relay/config.yml
