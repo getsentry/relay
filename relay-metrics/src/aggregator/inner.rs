@@ -680,6 +680,58 @@ mod tests {
     }
 
     #[test]
+    fn test_merge_flush_project() -> Result<(), AggregateMetricsError> {
+        let mut buckets = Inner::new(Config {
+            bucket_interval: 10,
+            num_time_slots: 1,
+            num_partitions: 2,
+            delay: 0,
+            max_secs_in_past: None,
+            max_secs_in_future: None,
+            max_total_bucket_bytes: None,
+            max_project_key_bucket_bytes: None,
+            start: UnixTimestamp::from_secs(70),
+            partition_by: FlushBatching::Project,
+        });
+
+        for i in 0..1_000 {
+            for j in 0..10 {
+                let bucket = BucketKey {
+                    project_key: ProjectKey::parse(&format!("{i:0width$x}", width = 32)).unwrap(),
+                    ..bucket_key(70, &format!("b_{j}"))
+                };
+                buckets.merge(bucket, counter(1.0))?;
+            }
+        }
+
+        let mut by_project1 = HashMap::new();
+        for (key, _) in buckets.flush_next().buckets {
+            *by_project1.entry(key.project_key).or_insert(0u64) += 1;
+        }
+
+        let mut by_project2 = HashMap::new();
+        for (key, _) in buckets.flush_next().buckets {
+            *by_project2.entry(key.project_key).or_insert(0u64) += 1;
+        }
+
+        assert_eq!(by_project1.len() + by_project2.len(), 1_000);
+        // This assertion needs to be updated when the hashing changes.
+        assert_eq!(by_project1.len(), 509);
+
+        for (pk, v) in by_project1 {
+            // 10 buckets per project.
+            assert_eq!(v, 10);
+            // Make sure the entries do not overlap.
+            assert!(!by_project2.contains_key(&pk));
+        }
+        for (_, v) in by_project2 {
+            assert_eq!(v, 10);
+        }
+
+        Ok(())
+    }
+
+    #[test]
     fn test_merge_flush_cost_limits() -> Result<(), AggregateMetricsError> {
         const ONE_BUCKET_COST: u64 = 137;
 
