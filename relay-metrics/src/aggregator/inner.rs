@@ -253,6 +253,7 @@ impl Inner {
                 });
             }
         }
+        let total_slots = slots.len();
 
         let bucket_interval = u64::from(bucket_interval);
         let num_partitions = u64::from(num_partitions);
@@ -266,7 +267,22 @@ impl Inner {
                 .map_or(u64::MAX, |v| v.div_ceil(bucket_interval)),
         };
 
-        let total_slots = slots.len();
+        // Break down the maximum project cost to a maximum cost per partition.
+        let max_partition_project = {
+            let ratio_per_partition = match config.partition_by {
+                // All buckets in the same timeslot of a project are in the same partition.
+                // -> The total maximum allowed ratio is just determined by the amount of timeslots
+                FlushBatching::None | FlushBatching::Project => u64::from(num_time_slots),
+                // Buckets are evenly distributed across all existing partitions and timeslots.
+                _ => total_slots as u64,
+            };
+
+            config
+                .max_project_key_bucket_bytes
+                .map(|c| c.div_ceil(ratio_per_partition))
+                .unwrap_or(u64::MAX)
+        };
+
         Self {
             slots: VecDeque::from(slots),
             num_partitions,
@@ -276,11 +292,7 @@ impl Inner {
             stats: stats::Total::default(),
             limits: stats::Limits {
                 max_total: config.max_total_bucket_bytes.unwrap_or(u64::MAX),
-                // Break down the maximum project cost to a maximum cost per partition.
-                max_partition_project: config
-                    .max_project_key_bucket_bytes
-                    .map(|c| c.div_ceil(total_slots as u64))
-                    .unwrap_or(u64::MAX),
+                max_partition_project,
             },
             slot_range: slot_diff,
             partition_by: config.partition_by,
