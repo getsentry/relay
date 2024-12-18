@@ -332,7 +332,12 @@ impl FromUserAgentInfo for DeviceContext {
 
 impl FromUserAgentInfo for BrowserContext {
     fn parse_client_hints(client_hints: &ClientHints<&str>) -> Option<Self> {
-        let (browser, version) = browser_from_client_hints(client_hints.sec_ch_ua?)?;
+        let (mut browser, version) = browser_from_client_hints(client_hints.sec_ch_ua?)?;
+
+        // Normalize "Google Chrome" to just "Chrome"
+        if browser == "Google Chrome" {
+            browser = "Chrome".to_owned();
+        }
 
         Some(Self {
             name: Annotated::new(browser),
@@ -342,10 +347,15 @@ impl FromUserAgentInfo for BrowserContext {
     }
 
     fn parse_user_agent(user_agent: &str) -> Option<Self> {
-        let browser = relay_ua::parse_user_agent(user_agent);
+        let mut browser = relay_ua::parse_user_agent(user_agent);
 
         if !is_known(&browser.family) {
             return None;
+        }
+
+        // Normalize "Google Chrome" to just "Chrome"
+        if browser.family == "Google Chrome" {
+            browser.family = "Chrome".into();
         }
 
         Some(Self {
@@ -824,7 +834,7 @@ mod tests {
         insta::assert_debug_snapshot!(browser, @r###"
         BrowserContext {
             browser: ~,
-            name: "Google Chrome",
+            name: "Chrome",
             version: "109",
             other: {},
         }
