@@ -1469,7 +1469,33 @@
 <a href="#1468" id="1468">1468</a>
 <a href="#1469" id="1469">1469</a>
 <a href="#1470" id="1470">1470</a>
-<a href="#1471" id="1471">1471</a></pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
+<a href="#1471" id="1471">1471</a>
+<a href="#1472" id="1472">1472</a>
+<a href="#1473" id="1473">1473</a>
+<a href="#1474" id="1474">1474</a>
+<a href="#1475" id="1475">1475</a>
+<a href="#1476" id="1476">1476</a>
+<a href="#1477" id="1477">1477</a>
+<a href="#1478" id="1478">1478</a>
+<a href="#1479" id="1479">1479</a>
+<a href="#1480" id="1480">1480</a>
+<a href="#1481" id="1481">1481</a>
+<a href="#1482" id="1482">1482</a>
+<a href="#1483" id="1483">1483</a>
+<a href="#1484" id="1484">1484</a>
+<a href="#1485" id="1485">1485</a>
+<a href="#1486" id="1486">1486</a>
+<a href="#1487" id="1487">1487</a>
+<a href="#1488" id="1488">1488</a>
+<a href="#1489" id="1489">1489</a>
+<a href="#1490" id="1490">1490</a>
+<a href="#1491" id="1491">1491</a>
+<a href="#1492" id="1492">1492</a>
+<a href="#1493" id="1493">1493</a>
+<a href="#1494" id="1494">1494</a>
+<a href="#1495" id="1495">1495</a>
+<a href="#1496" id="1496">1496</a>
+<a href="#1497" id="1497">1497</a></pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses Kafka topics to forward data to Sentry
 
 </span><span class="kw">use </span>anyhow::Context;
@@ -1490,8 +1516,8 @@
 
 <span class="kw">use </span>relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
 <span class="kw">use </span>relay_metrics::{
-    Bucket, BucketView, BucketViewValue, BucketsView, FiniteF64, GaugeValue, MetricName,
-    MetricNamespace, SetView,
+    Bucket, BucketView, BucketViewValue, BucketsView, ByNamespace, FiniteF64, GaugeValue,
+    MetricName, MetricNamespace, SetView,
 };
 <span class="kw">use </span>relay_quotas::Scoping;
 <span class="kw">use </span>relay_statsd::metric;
@@ -1508,7 +1534,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::global_config::GlobalConfigHandle;
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::Processed;
-<span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayTimers};
+<span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayGauges, RelayTimers};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{FormDataIter, ThreadPool, TypedEnvelope, WorkerGroup};
 
 <span class="doccomment">/// Fallback name used for attachment items without a `filename` header.
@@ -1861,8 +1887,19 @@
         <span class="kw">let </span>global_config = <span class="self">self</span>.global_config.current();
         <span class="kw">let </span><span class="kw-2">mut </span>encoder = BucketEncoder::new(<span class="kw-2">&amp;</span>global_config);
 
+        <span class="kw">let </span>now = UnixTimestamp::now();
+        <span class="kw">let </span><span class="kw-2">mut </span>delay_stats = ByNamespace::&lt;(u64, u64, u64)&gt;::default();
+
         <span class="kw">for </span><span class="kw-2">mut </span>bucket <span class="kw">in </span>buckets {
             <span class="kw">let </span>namespace = encoder.prepare(<span class="kw-2">&amp;mut </span>bucket);
+
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(received_at) = bucket.metadata.received_at {
+                <span class="kw">let </span>delay = now.as_secs().saturating_sub(received_at.as_secs());
+                <span class="kw">let </span>(total, count, max) = delay_stats.get_mut(namespace);
+                <span class="kw-2">*</span>total += delay;
+                <span class="kw-2">*</span>count += <span class="number">1</span>;
+                <span class="kw-2">*</span>max = (<span class="kw-2">*</span>max).max(delay);
+            }
 
             <span class="comment">// Create a local bucket view to avoid splitting buckets unnecessarily. Since we produce
             // each bucket separately, we only need to split buckets that exceed the size, but not
@@ -1900,6 +1937,21 @@
                 error = <span class="kw-2">&amp;</span>error <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>std::error::Error,
                 <span class="string">"failed to produce metric buckets: {error}"
             </span>);
+        }
+
+        <span class="kw">for </span>(namespace, (total, count, max)) <span class="kw">in </span>delay_stats {
+            <span class="macro">metric!</span>(
+                counter(RelayCounters::MetricDelaySum) += total,
+                namespace = namespace.as_str()
+            );
+            <span class="macro">metric!</span>(
+                counter(RelayCounters::MetricDelayCount) += count,
+                namespace = namespace.as_str()
+            );
+            <span class="macro">metric!</span>(
+                gauge(RelayGauges::MetricDelayMax) = max,
+                namespace = namespace.as_str()
+            );
         }
     }
 

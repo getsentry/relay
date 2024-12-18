@@ -138,7 +138,42 @@
 <a href="#137" id="137">137</a>
 <a href="#138" id="138">138</a>
 <a href="#139" id="139">139</a>
-<a href="#140" id="140">140</a></pre></div><pre class="rust"><code><span class="kw">use </span>core::fmt;
+<a href="#140" id="140">140</a>
+<a href="#141" id="141">141</a>
+<a href="#142" id="142">142</a>
+<a href="#143" id="143">143</a>
+<a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
+<a href="#150" id="150">150</a>
+<a href="#151" id="151">151</a>
+<a href="#152" id="152">152</a>
+<a href="#153" id="153">153</a>
+<a href="#154" id="154">154</a>
+<a href="#155" id="155">155</a>
+<a href="#156" id="156">156</a>
+<a href="#157" id="157">157</a>
+<a href="#158" id="158">158</a>
+<a href="#159" id="159">159</a>
+<a href="#160" id="160">160</a>
+<a href="#161" id="161">161</a>
+<a href="#162" id="162">162</a>
+<a href="#163" id="163">163</a>
+<a href="#164" id="164">164</a>
+<a href="#165" id="165">165</a>
+<a href="#166" id="166">166</a>
+<a href="#167" id="167">167</a>
+<a href="#168" id="168">168</a>
+<a href="#169" id="169">169</a>
+<a href="#170" id="170">170</a>
+<a href="#171" id="171">171</a>
+<a href="#172" id="172">172</a>
+<a href="#173" id="173">173</a>
+<a href="#174" id="174">174</a>
+<a href="#175" id="175">175</a></pre></div><pre class="rust"><code><span class="kw">use </span>core::fmt;
 <span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::ops::{AddAssign, SubAssign};
 
@@ -152,18 +187,26 @@
     tags.iter().map(|(k, v)| k.len() + v.len()).sum()
 }
 
-<span class="attr">#[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+<span class="doccomment">/// Utility to store information for each [`MetricNamespace`].
+</span><span class="attr">#[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 </span><span class="kw">pub struct </span>ByNamespace&lt;T&gt; {
-    <span class="kw">pub </span>sessions: T,
-    <span class="kw">pub </span>transactions: T,
-    <span class="kw">pub </span>spans: T,
-    <span class="kw">pub </span>custom: T,
-    <span class="kw">pub </span>stats: T,
-    <span class="kw">pub </span>unsupported: T,
+    <span class="doccomment">/// Value for the [`MetricNamespace::Sessions`] namespace.
+    </span><span class="kw">pub </span>sessions: T,
+    <span class="doccomment">/// Value for the [`MetricNamespace::Transactions`] namespace.
+    </span><span class="kw">pub </span>transactions: T,
+    <span class="doccomment">/// Value for the [`MetricNamespace::Spans`] namespace.
+    </span><span class="kw">pub </span>spans: T,
+    <span class="doccomment">/// Value for the [`MetricNamespace::Custom`] namespace.
+    </span><span class="kw">pub </span>custom: T,
+    <span class="doccomment">/// Value for the [`MetricNamespace::Stats`] namespace.
+    </span><span class="kw">pub </span>stats: T,
+    <span class="doccomment">/// Value for the [`MetricNamespace::Unsupported`] namespace.
+    </span><span class="kw">pub </span>unsupported: T,
 }
 
 <span class="kw">impl</span>&lt;T&gt; ByNamespace&lt;T&gt; {
-    <span class="kw">pub fn </span>get(<span class="kw-2">&amp;</span><span class="self">self</span>, namespace: MetricNamespace) -&gt; <span class="kw-2">&amp;</span>T {
+    <span class="doccomment">/// Returns a reference for the value stored for `namespace`.
+    </span><span class="kw">pub fn </span>get(<span class="kw-2">&amp;</span><span class="self">self</span>, namespace: MetricNamespace) -&gt; <span class="kw-2">&amp;</span>T {
         <span class="kw">match </span>namespace {
             MetricNamespace::Sessions =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.sessions,
             MetricNamespace::Transactions =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.transactions,
@@ -174,7 +217,8 @@
         }
     }
 
-    <span class="kw">pub fn </span>get_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>, namespace: MetricNamespace) -&gt; <span class="kw-2">&amp;mut </span>T {
+    <span class="doccomment">/// Returns a mutable reference for the value stored for `namespace`.
+    </span><span class="kw">pub fn </span>get_mut(<span class="kw-2">&amp;mut </span><span class="self">self</span>, namespace: MetricNamespace) -&gt; <span class="kw-2">&amp;mut </span>T {
         <span class="kw">match </span>namespace {
             MetricNamespace::Sessions =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.sessions,
             MetricNamespace::Transactions =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.transactions,
@@ -183,6 +227,32 @@
             MetricNamespace::Stats =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.stats,
             MetricNamespace::Unsupported =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.unsupported,
         }
+    }
+}
+
+<span class="kw">impl</span>&lt;T&gt; IntoIterator <span class="kw">for </span>ByNamespace&lt;T&gt; {
+    <span class="kw">type </span>Item = (MetricNamespace, T);
+    <span class="kw">type </span>IntoIter = std::array::IntoIter&lt;(MetricNamespace, T), <span class="number">6</span>&gt;;
+
+    <span class="kw">fn </span>into_iter(<span class="self">self</span>) -&gt; <span class="self">Self</span>::IntoIter {
+        <span class="kw">let </span><span class="self">Self </span>{
+            sessions,
+            transactions,
+            spans,
+            custom,
+            stats,
+            unsupported,
+        } = <span class="self">self</span>;
+
+        [
+            (MetricNamespace::Sessions, sessions),
+            (MetricNamespace::Transactions, transactions),
+            (MetricNamespace::Spans, spans),
+            (MetricNamespace::Custom, custom),
+            (MetricNamespace::Stats, stats),
+            (MetricNamespace::Unsupported, unsupported),
+        ]
+        .into_iter()
     }
 }
 
