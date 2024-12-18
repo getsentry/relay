@@ -558,6 +558,7 @@ def test_enforce_bucket_rate_limits(
             "aggregator": {
                 "bucket_interval": 1,
                 "initial_delay": 0,
+                "shift_key": "bucket",
             },
         }
     )

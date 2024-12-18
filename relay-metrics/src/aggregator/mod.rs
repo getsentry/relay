@@ -86,6 +86,7 @@ impl Aggregator {
                 max_project_key_bucket_bytes: config.max_project_key_bucket_bytes,
                 max_secs_in_past: Some(config.max_secs_in_past),
                 max_secs_in_future: Some(config.max_secs_in_future),
+                partition_by: config.flush_batching,
             }),
         }
     }
