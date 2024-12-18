@@ -244,7 +244,9 @@ pub struct SentryTags {
     /// The start type of the application when the span occurred(String).
     pub app_start_type: Annotated<String>,
     pub replay_id: Annotated<String>,
+    #[metastructure(field = "cache.hit")]
     pub cache_hit: Annotated<String>,
+    #[metastructure(field = "cache.key")]
     pub cache_key: Annotated<String>,
     #[metastructure(field = "trace.status")]
     pub trace_status: Annotated<String>,

@@ -1813,58 +1813,9 @@ LIMIT 1
             }
         "#;
 
-        let mut event = Annotated::<Event>::from_json(json)
-            .unwrap()
-            .into_value()
-            .unwrap();
-
-        extract_span_tags_from_event(&mut event, 200, &[]);
-
-        let span_1 = &event.spans.value().unwrap()[0];
-        let span_2 = &event.spans.value().unwrap()[1];
-        let span_3 = &event.spans.value().unwrap()[2];
-
-        let tags_1 = get_value!(span_1.sentry_tags).unwrap();
-        let tags_2 = get_value!(span_2.sentry_tags).unwrap();
-        let tags_3 = get_value!(span_3.sentry_tags).unwrap();
-
-        let measurements_1 = span_1.value().unwrap().measurements.value().unwrap();
-
-        assert_eq!(tags_1.cache_hit.as_str(), Some("true"));
-        assert_eq!(tags_2.cache_hit.as_str(), Some("false"));
-        assert_eq!(tags_3.cache_hit.as_str(), Some("false"));
-
-        let keys_1 = Value::Array(vec![Annotated::new(Value::String("my_key".to_string()))]);
-        let keys_2 = Value::Array(vec![
-            Annotated::new(Value::String("my_key".to_string())),
-            Annotated::new(Value::String("my_key_2".to_string())),
-        ]);
-        let keys_3 = Value::Array(vec![Annotated::new(Value::String("my_key_2".to_string()))]);
-        assert_eq!(
-            tags_1.cache_key.as_str(),
-            serde_json::to_string(&keys_1).ok().as_deref()
-        );
-        assert_eq!(
-            tags_2.cache_key.as_str(),
-            serde_json::to_string(&keys_2).ok().as_deref()
-        );
-        assert_eq!(
-            tags_3.cache_key.as_str(),
-            serde_json::to_string(&keys_3).ok().as_deref()
-        );
-
-        assert_debug_snapshot!(measurements_1, @r###"
-        Measurements(
-            {
-                "cache.item_size": Measurement {
-                    value: 8.0,
-                    unit: Information(
-                        Byte,
-                    ),
-                },
-            },
-        )
-        "###);
+        let mut event = Annotated::<Event>::from_json(json).unwrap();
+        extract_span_tags_from_event(event.value_mut().as_mut().unwrap(), 200, &[]);
+        insta::assert_snapshot!(event.to_json_pretty().unwrap());
     }
 
     #[test]
