@@ -12,17 +12,25 @@ pub fn tags_cost(tags: &BTreeMap<String, String>) -> usize {
     tags.iter().map(|(k, v)| k.len() + v.len()).sum()
 }
 
+/// Utility to store information for each [`MetricNamespace`].
 #[derive(Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ByNamespace<T> {
+    /// Value for the [`MetricNamespace::Sessions`] namespace.
     pub sessions: T,
+    /// Value for the [`MetricNamespace::Transactions`] namespace.
     pub transactions: T,
+    /// Value for the [`MetricNamespace::Spans`] namespace.
     pub spans: T,
+    /// Value for the [`MetricNamespace::Custom`] namespace.
     pub custom: T,
+    /// Value for the [`MetricNamespace::Stats`] namespace.
     pub stats: T,
+    /// Value for the [`MetricNamespace::Unsupported`] namespace.
     pub unsupported: T,
 }
 
 impl<T> ByNamespace<T> {
+    /// Returns a reference for the value stored for `namespace`.
     pub fn get(&self, namespace: MetricNamespace) -> &T {
         match namespace {
             MetricNamespace::Sessions => &self.sessions,
@@ -34,6 +42,7 @@ impl<T> ByNamespace<T> {
         }
     }
 
+    /// Returns a mutable reference for the value stored for `namespace`.
     pub fn get_mut(&mut self, namespace: MetricNamespace) -> &mut T {
         match namespace {
             MetricNamespace::Sessions => &mut self.sessions,
@@ -43,6 +52,32 @@ impl<T> ByNamespace<T> {
             MetricNamespace::Stats => &mut self.stats,
             MetricNamespace::Unsupported => &mut self.unsupported,
         }
+    }
+}
+
+impl<T> IntoIterator for ByNamespace<T> {
+    type Item = (MetricNamespace, T);
+    type IntoIter = std::array::IntoIter<(MetricNamespace, T), 6>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        let Self {
+            sessions,
+            transactions,
+            spans,
+            custom,
+            stats,
+            unsupported,
+        } = self;
+
+        [
+            (MetricNamespace::Sessions, sessions),
+            (MetricNamespace::Transactions, transactions),
+            (MetricNamespace::Spans, spans),
+            (MetricNamespace::Custom, custom),
+            (MetricNamespace::Stats, stats),
+            (MetricNamespace::Unsupported, unsupported),
+        ]
+        .into_iter()
     }
 }
 
