@@ -166,6 +166,8 @@ pub struct Config {
     pub max_secs_in_past: Option<u64>,
     /// The time in seconds that a timestamp may be in the future.
     pub max_secs_in_future: Option<u64>,
+    /// Determines how partitions are assigned based on the input bucket.
+    pub partition_by: FlushBatching,
 }
 
 /// A metrics aggregator.
@@ -281,7 +283,7 @@ impl Inner {
                     .unwrap_or(u64::MAX),
             },
             slot_range: slot_diff,
-            partition_by: FlushBatching::Partition,
+            partition_by: config.partition_by,
             hasher: build_hasher(),
         }
     }
@@ -590,6 +592,7 @@ mod tests {
             max_total_bucket_bytes: None,
             max_project_key_bucket_bytes: None,
             start: UnixTimestamp::from_secs(70),
+            partition_by: FlushBatching::Partition,
         });
 
         // Within the time range.
@@ -679,6 +682,7 @@ mod tests {
             // Enough for one bucket per partition.
             max_project_key_bucket_bytes: Some(ONE_BUCKET_COST * 3),
             start: UnixTimestamp::from_secs(70),
+            partition_by: FlushBatching::Partition,
         });
 
         buckets.merge(bucket_key(70, "a"), counter(1.0))?;
@@ -794,6 +798,7 @@ mod tests {
             max_secs_in_future: None,
             // Truncated to 60 seconds.
             start: UnixTimestamp::from_secs(63),
+            partition_by: FlushBatching::Partition,
         });
 
         // Add a bucket now -> should be flushed 30 seconds in the future.
@@ -871,6 +876,7 @@ mod tests {
             max_total_bucket_bytes: None,
             max_project_key_bucket_bytes: None,
             start: UnixTimestamp::from_secs(70),
+            partition_by: FlushBatching::Partition,
         });
 
         assert_eq!(buckets.next_flush_at(), Duration::from_secs(75));
@@ -895,6 +901,7 @@ mod tests {
             max_total_bucket_bytes: None,
             max_project_key_bucket_bytes: None,
             start: UnixTimestamp::from_secs(70),
+            partition_by: FlushBatching::Partition,
         });
 
         assert_eq!(buckets.next_flush_at(), Duration::from_secs(78));
@@ -919,6 +926,7 @@ mod tests {
             max_total_bucket_bytes: None,
             max_project_key_bucket_bytes: None,
             start: UnixTimestamp::from_secs(70),
+            partition_by: FlushBatching::Partition,
         });
 
         buckets.merge(bucket_key(70, "a"), counter(1.0))?;
