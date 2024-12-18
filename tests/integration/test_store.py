@@ -552,12 +552,11 @@ def test_enforce_bucket_rate_limits(
 ):
     metrics_consumer = metrics_consumer()
 
-    bucket_interval = 1  # second
     relay = relay_with_processing(
         {
             "processing": {"max_rate_limit": 2 * 86400},
             "aggregator": {
-                "bucket_interval": bucket_interval,
+                "bucket_interval": 1,
                 "initial_delay": 0,
             },
         }
@@ -580,31 +579,22 @@ def test_enforce_bucket_rate_limits(
         }
     ]
 
-    def generate_ticks():
-        # Generate a new timestamp for every bucket, so they do not get merged by the aggregator
-        tick = int(datetime.now(UTC).timestamp() // bucket_interval * bucket_interval)
-        while True:
-            yield tick
-            tick += bucket_interval
-
-    tick = generate_ticks()
-
     def make_bucket(name, type_, values):
         return {
             "org_id": 1,
             "project_id": project_id,
-            "timestamp": next(tick),
+            "timestamp": int(datetime.now(UTC).timestamp()),
             "name": name,
             "type": type_,
             "value": values,
-            "width": bucket_interval,
+            "width": 1,
         }
 
     relay.send_metrics_buckets(
         project_id,
         [
-            make_bucket("d:transactions/measurements.lcp@millisecond", "d", [1.0])
-            for _ in range(metric_bucket_limit * 2)
+            make_bucket(f"d:transactions/measurements.lcp{i}@millisecond", "d", [1.0])
+            for i in range(metric_bucket_limit * 2)
         ],
     )
 

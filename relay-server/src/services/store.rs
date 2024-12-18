@@ -3,6 +3,7 @@
 
 use anyhow::Context;
 use relay_base_schema::organization::OrganizationId;
+use serde::ser::SerializeMap;
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::error::Error;
@@ -662,17 +663,6 @@ impl StoreService {
                 );
                 return Ok(());
             }
-            MetricNamespace::Profiles => {
-                if !self
-                    .global_config
-                    .current()
-                    .options
-                    .profiles_function_generic_metrics_enabled
-                {
-                    return Ok(());
-                }
-                KafkaTopic::MetricsGeneric
-            }
             _ => KafkaTopic::MetricsGeneric,
         };
         let headers = BTreeMap::from([("namespace".to_string(), namespace.to_string())]);
@@ -1024,6 +1014,25 @@ where
         .serialize(serializer)
 }
 
+pub fn serialize_btreemap_skip_nulls<S>(
+    map: &Option<BTreeMap<&str, Option<String>>>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    let Some(map) = map else {
+        return serializer.serialize_none();
+    };
+    let mut m = serializer.serialize_map(Some(map.len()))?;
+    for (key, value) in map.iter() {
+        if let Some(value) = value {
+            m.serialize_entry(key, value)?;
+        }
+    }
+    m.end()
+}
+
 /// Container payload for event messages.
 #[derive(Debug, Serialize)]
 struct EventKafkaMessage {
@@ -1249,8 +1258,12 @@ struct SpanKafkaMessage<'a> {
     retention_days: u16,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     segment_id: Option<&'a str>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    sentry_tags: Option<BTreeMap<&'a str, String>>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "serialize_btreemap_skip_nulls"
+    )]
+    sentry_tags: Option<BTreeMap<&'a str, Option<String>>>,
     span_id: &'a str,
     #[serde(default, skip_serializing_if = "none_or_empty_object")]
     tags: Option<&'a RawValue>,
@@ -1322,7 +1335,6 @@ impl Message for KafkaMessage<'_> {
                 MetricNamespace::Sessions => "metric_sessions",
                 MetricNamespace::Transactions => "metric_transactions",
                 MetricNamespace::Spans => "metric_spans",
-                MetricNamespace::Profiles => "metric_profiles",
                 MetricNamespace::Custom => "metric_custom",
                 MetricNamespace::Stats => "metric_metric_stats",
                 MetricNamespace::Unsupported => "metric_unsupported",

@@ -135,6 +135,14 @@ enum RelayDataCategory {
    */
   RELAY_DATA_CATEGORY_REPLAY_VIDEO = 20,
   /**
+   * This is the data category for Uptime monitors.
+   */
+  RELAY_DATA_CATEGORY_UPTIME = 21,
+  /**
+   * Counts the number of individual attachments, as opposed to the number of bytes in an attachment.
+   */
+  RELAY_DATA_CATEGORY_ATTACHMENT_ITEM = 22,
+  /**
    * Any other data category not known by this Relay.
    */
   RELAY_DATA_CATEGORY_UNKNOWN = -1,
@@ -548,6 +556,15 @@ struct RelayStr relay_err_get_backtrace(void);
 void relay_err_clear(void);
 
 /**
+ * Performs a glob operation on bytes.
+ *
+ * Returns `true` if the glob matches, `false` otherwise.
+ */
+bool relay_is_glob_match(const struct RelayBuf *value,
+                         const struct RelayStr *pat,
+                         GlobFlags flags);
+
+/**
  * Chunks the given text based on remarks.
  */
 struct RelayStr relay_split_chunks(const struct RelayStr *string,
@@ -621,15 +638,6 @@ struct RelayStr relay_pii_selector_suggestions_from_event(const struct RelayStr 
  * A test function that always panics.
  */
 void relay_test_panic(void);
-
-/**
- * Performs a glob operation on bytes.
- *
- * Returns `true` if the glob matches, `false` otherwise.
- */
-bool relay_is_glob_match(const struct RelayBuf *value,
-                         const struct RelayStr *pat,
-                         GlobFlags flags);
 
 /**
  * Parse a sentry release structure from a string.

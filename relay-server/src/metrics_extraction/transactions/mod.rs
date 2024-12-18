@@ -16,7 +16,7 @@ use relay_sampling::evaluation::SamplingDecision;
 use crate::metrics_extraction::generic;
 use crate::metrics_extraction::transactions::types::{
     CommonTag, CommonTags, ExtractMetricsError, LightTransactionTags, TransactionCPRTags,
-    TransactionMeasurementTags, TransactionMetric, UsageTags,
+    TransactionMeasurementTags, TransactionMetric,
 };
 use crate::metrics_extraction::IntoMetric;
 use crate::statsd::RelayCounters;
@@ -257,7 +257,6 @@ pub struct TransactionExtractor<'a> {
     pub transaction_from_dsc: Option<&'a str>,
     pub sampling_decision: SamplingDecision,
     pub target_project_id: ProjectId,
-    pub has_profile: bool,
 }
 
 impl TransactionExtractor<'_> {
@@ -389,14 +388,9 @@ impl TransactionExtractor<'_> {
         }
 
         // Internal usage counter
-        metrics.project_metrics.push(
-            TransactionMetric::Usage {
-                tags: UsageTags {
-                    has_profile: self.has_profile,
-                },
-            }
-            .into_metric(timestamp),
-        );
+        metrics
+            .project_metrics
+            .push(TransactionMetric::Usage.into_metric(timestamp));
 
         // Duration
         let duration = relay_common::time::chrono_to_positive_millis(end - start);
@@ -619,7 +613,6 @@ mod tests {
             transaction_from_dsc: Some("test_transaction"),
             sampling_decision: SamplingDecision::Keep,
             target_project_id: ProjectId::new(4711),
-            has_profile: false,
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
@@ -998,7 +991,6 @@ mod tests {
             transaction_from_dsc: Some("test_transaction"),
             sampling_decision: SamplingDecision::Keep,
             target_project_id: ProjectId::new(4711),
-            has_profile: false,
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
@@ -1174,7 +1166,6 @@ mod tests {
             transaction_from_dsc: Some("test_transaction"),
             sampling_decision: SamplingDecision::Keep,
             target_project_id: ProjectId::new(4711),
-            has_profile: false,
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
@@ -1326,7 +1317,6 @@ mod tests {
             transaction_from_dsc: Some("test_transaction"),
             sampling_decision: SamplingDecision::Keep,
             target_project_id: ProjectId::new(4711),
-            has_profile: false,
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
@@ -1402,7 +1392,6 @@ mod tests {
             transaction_from_dsc: Some("test_transaction"),
             sampling_decision: SamplingDecision::Keep,
             target_project_id: ProjectId::new(4711),
-            has_profile: false,
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
@@ -1568,7 +1557,6 @@ mod tests {
             transaction_from_dsc: Some("test_transaction"),
             sampling_decision: SamplingDecision::Keep,
             target_project_id: ProjectId::new(4711),
-            has_profile: false,
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
@@ -1608,7 +1596,6 @@ mod tests {
             transaction_from_dsc: Some("test_transaction"),
             sampling_decision: SamplingDecision::Keep,
             target_project_id: ProjectId::new(4711),
-            has_profile: false,
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
@@ -1677,7 +1664,6 @@ mod tests {
             transaction_from_dsc: Some("test_transaction"),
             sampling_decision: SamplingDecision::Keep,
             target_project_id: ProjectId::new(4711),
-            has_profile: false,
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
@@ -1784,7 +1770,6 @@ mod tests {
             transaction_from_dsc: Some("test_transaction"),
             sampling_decision: SamplingDecision::Keep,
             target_project_id: ProjectId::new(4711),
-            has_profile: false,
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
@@ -1818,7 +1803,6 @@ mod tests {
             transaction_from_dsc: Some("test_transaction"),
             sampling_decision: SamplingDecision::Keep,
             target_project_id: ProjectId::new(4711),
-            has_profile: false,
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
@@ -1856,7 +1840,6 @@ mod tests {
             transaction_from_dsc: Some("root_transaction"),
             sampling_decision: SamplingDecision::Keep,
             target_project_id: ProjectId::new(4711),
-            has_profile: false,
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
@@ -2127,7 +2110,6 @@ mod tests {
             transaction_from_dsc: Some("test_transaction"),
             sampling_decision: SamplingDecision::Keep,
             target_project_id: ProjectId::new(4711),
-            has_profile: false,
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
@@ -2229,7 +2211,6 @@ mod tests {
             transaction_from_dsc: Some("test_transaction"),
             sampling_decision: SamplingDecision::Keep,
             target_project_id: ProjectId::new(4711),
-            has_profile: false,
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();

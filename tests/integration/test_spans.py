@@ -484,6 +484,7 @@ def test_span_ingestion(
                 "bucket_interval": 1,
                 "initial_delay": 0,
                 "max_secs_in_past": 2**64 - 1,
+                "shift_key": "none",
             }
         }
     )
@@ -1871,5 +1872,151 @@ def test_ingest_in_eap(
     if ingest_in_eap:
         spans_consumer.get_span()
         spans_consumer.get_span()
+
+    spans_consumer.assert_empty()
+
+
+@pytest.mark.parametrize("scrub_ip_addresses", [False, True])
+def test_scrubs_ip_addresses(
+    mini_sentry,
+    relay_with_processing,
+    spans_consumer,
+    scrub_ip_addresses,
+):
+    spans_consumer = spans_consumer()
+
+    relay = relay_with_processing()
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "projects:span-metrics-extraction",
+        "organizations:indexed-spans-extraction",
+    ]
+    project_config["config"].setdefault("datascrubbingSettings", {})[
+        "scrubIpAddresses"
+    ] = scrub_ip_addresses
+
+    event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
+    event["user"] = {
+        "id": "unique_id",
+        "username": "my_user",
+        "email": "foo@example.com",
+        "ip_address": "127.0.0.1",
+        "subscription": "basic",
+    }
+    end = datetime.now(timezone.utc) - timedelta(seconds=1)
+    duration = timedelta(milliseconds=500)
+    start = end - duration
+    event["spans"] = [
+        {
+            "description": "GET /api/0/organizations/?member=1",
+            "op": "http",
+            "origin": "manual",
+            "parent_span_id": "aaaaaaaaaaaaaaaa",
+            "span_id": "bbbbbbbbbbbbbbbb",
+            "start_timestamp": start.isoformat(),
+            "status": "success",
+            "timestamp": end.isoformat(),
+            "trace_id": "ff62a8b040f340bda5d830223def1d81",
+        },
+    ]
+
+    relay.send_event(project_id, event)
+
+    child_span = spans_consumer.get_span()
+    del child_span["received"]
+
+    expected = {
+        "description": "GET /api/0/organizations/?member=1",
+        "duration_ms": int(duration.total_seconds() * 1e3),
+        "event_id": "cbf6960622e14a45abc1f03b2055b186",
+        "exclusive_time_ms": 500.0,
+        "is_segment": False,
+        "organization_id": 1,
+        "origin": "manual",
+        "parent_span_id": "aaaaaaaaaaaaaaaa",
+        "project_id": 42,
+        "retention_days": 90,
+        "segment_id": "968cff94913ebb07",
+        "sentry_tags": {
+            "category": "http",
+            "description": "GET *",
+            "group": "37e3d9fab1ae9162",
+            "op": "http",
+            "platform": "other",
+            "sdk.name": "raven-node",
+            "sdk.version": "2.6.3",
+            "status": "ok",
+            "trace.status": "unknown",
+            "transaction": "hi",
+            "transaction.op": "hi",
+            "user": "id:unique_id",
+            "user.email": "[email]",
+            "user.id": "unique_id",
+            "user.ip": "127.0.0.1",
+            "user.username": "my_user",
+        },
+        "span_id": "bbbbbbbbbbbbbbbb",
+        "start_timestamp_ms": int(start.timestamp() * 1e3),
+        "start_timestamp_precise": start.timestamp(),
+        "end_timestamp_precise": start.timestamp() + duration.total_seconds(),
+        "trace_id": "ff62a8b040f340bda5d830223def1d81",
+    }
+    if scrub_ip_addresses:
+        del expected["sentry_tags"]["user.ip"]
+    assert child_span == expected
+
+    start_timestamp = datetime.fromisoformat(event["start_timestamp"]).replace(
+        tzinfo=timezone.utc
+    )
+    end_timestamp = datetime.fromisoformat(event["timestamp"]).replace(
+        tzinfo=timezone.utc
+    )
+    duration = (end_timestamp - start_timestamp).total_seconds()
+    duration_ms = int(duration * 1e3)
+
+    child_span = spans_consumer.get_span()
+    del child_span["received"]
+
+    expected = {
+        "data": {
+            "sentry.sdk.name": "raven-node",
+            "sentry.sdk.version": "2.6.3",
+            "sentry.segment.name": "hi",
+        },
+        "description": "hi",
+        "duration_ms": duration_ms,
+        "event_id": "cbf6960622e14a45abc1f03b2055b186",
+        "exclusive_time_ms": 2000.0,
+        "is_segment": True,
+        "organization_id": 1,
+        "project_id": 42,
+        "retention_days": 90,
+        "segment_id": "968cff94913ebb07",
+        "sentry_tags": {
+            "op": "hi",
+            "platform": "other",
+            "sdk.name": "raven-node",
+            "sdk.version": "2.6.3",
+            "status": "unknown",
+            "trace.status": "unknown",
+            "transaction": "hi",
+            "transaction.op": "hi",
+            "user": "id:unique_id",
+            "user.email": "[email]",
+            "user.id": "unique_id",
+            "user.ip": "127.0.0.1",
+            "user.username": "my_user",
+        },
+        "span_id": "968cff94913ebb07",
+        "start_timestamp_ms": int(start_timestamp.timestamp() * 1e3),
+        "start_timestamp_precise": start_timestamp.timestamp(),
+        "end_timestamp_precise": start_timestamp.timestamp() + duration,
+        "trace_id": "a0fa8803753e40fd8124b21eeb2986b5",
+    }
+    if scrub_ip_addresses:
+        del expected["sentry_tags"]["user.ip"]
+    assert child_span == expected
 
     spans_consumer.assert_empty()

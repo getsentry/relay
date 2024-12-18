@@ -1,7 +1,7 @@
 //! Event processor related code.
 
 use std::error::Error;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
 use chrono::Duration as SignedDuration;
 use relay_auth::RelayVersion;
@@ -24,10 +24,12 @@ use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::services::outcome::Outcome;
 use crate::services::processor::{
-    EventProcessing, ExtractedEvent, ProcessEnvelopeState, ProcessingError, MINIMUM_CLOCK_DRIFT,
+    EventFullyNormalized, EventMetricsExtracted, EventProcessing, ExtractedEvent,
+    ProcessEnvelopeState, ProcessingError, SpansExtracted, MINIMUM_CLOCK_DRIFT,
 };
+use crate::services::projects::project::ProjectInfo;
 use crate::statsd::{PlatformTag, RelayCounters, RelayHistograms, RelayTimers};
-use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter};
+use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter, TypedEnvelope};
 
 /// Extracts the primary event payload from an envelope.
 ///
@@ -37,12 +39,13 @@ use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter};
 ///  3. Attachments `__sentry-event` and `__sentry-breadcrumb1/2`.
 ///  4. A multipart form data body.
 ///  5. If none match, `Annotated::empty()`.
-pub fn extract<G: EventProcessing>(
-    state: &mut ProcessEnvelopeState<G>,
+pub fn extract<Group: EventProcessing>(
+    state: &mut ProcessEnvelopeState,
+    managed_envelope: &mut TypedEnvelope<Group>,
+    event_fully_normalized: EventFullyNormalized,
     config: &Config,
-) -> Result<(), ProcessingError> {
-    let event_fully_normalized = state.event_fully_normalized;
-    let envelope = &mut state.envelope_mut();
+) -> Result<Option<(EventMetricsExtracted, SpansExtracted)>, ProcessingError> {
+    let envelope = managed_envelope.envelope_mut();
 
     // Remove all items first, and then process them. After this function returns, only
     // attachments can remain in the envelope. The event will be added again at the end of
@@ -68,7 +71,9 @@ pub fn extract<G: EventProcessing>(
         return Err(ProcessingError::DuplicateItem(duplicate.ty().clone()));
     }
 
-    let skip_normalization = config.processing_enabled() && event_fully_normalized;
+    let skip_normalization = config.processing_enabled() && event_fully_normalized.0;
+
+    let mut result = None;
 
     let (event, event_len) = if let Some(item) = event_item.or(security_item) {
         relay_log::trace!("processing json event");
@@ -85,8 +90,10 @@ pub fn extract<G: EventProcessing>(
         })
     } else if let Some(item) = transaction_item {
         relay_log::trace!("processing json transaction");
-        state.event_metrics_extracted = item.metrics_extracted();
-        state.spans_extracted = item.spans_extracted();
+        result = Some((
+            EventMetricsExtracted(item.metrics_extracted()),
+            SpansExtracted(item.spans_extracted()),
+        ));
         metric!(timer(RelayTimers::EventProcessingDeserialize), {
             // Transaction items can only contain transaction events. Force the event type to
             // hint to normalization that we're dealing with a transaction now.
@@ -131,14 +138,15 @@ pub fn extract<G: EventProcessing>(
     state.event = event;
     state.metrics.bytes_ingested_event = Annotated::new(event_len as u64);
 
-    Ok(())
+    Ok(result)
 }
 
-pub fn finalize<G: EventProcessing>(
-    state: &mut ProcessEnvelopeState<G>,
+pub fn finalize<Group: EventProcessing>(
+    state: &mut ProcessEnvelopeState,
+    managed_envelope: &mut TypedEnvelope<Group>,
     config: &Config,
 ) -> Result<(), ProcessingError> {
-    let envelope = state.managed_envelope.envelope_mut();
+    let envelope = managed_envelope.envelope_mut();
 
     let event = match state.event.value_mut() {
         Some(event) => event,
@@ -229,7 +237,7 @@ pub fn finalize<G: EventProcessing>(
     }
 
     let mut processor =
-        ClockDriftProcessor::new(envelope.sent_at(), state.managed_envelope.received_at())
+        ClockDriftProcessor::new(envelope.sent_at(), managed_envelope.received_at())
             .at_least(MINIMUM_CLOCK_DRIFT);
     processor::process_value(&mut state.event, &mut processor, ProcessingState::root())
         .map_err(|_| ProcessingError::InvalidTransaction)?;
@@ -238,7 +246,7 @@ pub fn finalize<G: EventProcessing>(
     // store processing, which could modify the timestamp if it exceeds a threshold. We are
     // interested in the actual delay before this correction.
     if let Some(timestamp) = state.event.value().and_then(|e| e.timestamp.value()) {
-        let event_delay = state.managed_envelope.received_at() - timestamp.into_inner();
+        let event_delay = managed_envelope.received_at() - timestamp.into_inner();
         if event_delay > SignedDuration::minutes(1) {
             let category = state.event_category().unwrap_or(DataCategory::Unknown);
             metric!(
@@ -272,8 +280,10 @@ pub enum FiltersStatus {
     Unsupported,
 }
 
-pub fn filter<G: EventProcessing>(
-    state: &mut ProcessEnvelopeState<G>,
+pub fn filter<Group: EventProcessing>(
+    state: &mut ProcessEnvelopeState,
+    managed_envelope: &mut TypedEnvelope<Group>,
+    project_info: Arc<ProjectInfo>,
     global_config: &GlobalConfig,
 ) -> Result<FiltersStatus, ProcessingError> {
     let event = match state.event.value_mut() {
@@ -283,15 +293,13 @@ pub fn filter<G: EventProcessing>(
         None => return Ok(FiltersStatus::Ok),
     };
 
-    let client_ip = state.managed_envelope.envelope().meta().client_addr();
-    let filter_settings = &state.project_info.config.filter_settings;
+    let client_ip = managed_envelope.envelope().meta().client_addr();
+    let filter_settings = &project_info.config.filter_settings;
 
     metric!(timer(RelayTimers::EventProcessingFiltering), {
         relay_filter::should_filter(event, client_ip, filter_settings, global_config.filters())
             .map_err(|err| {
-                state
-                    .managed_envelope
-                    .reject(Outcome::Filtered(err.clone()));
+                managed_envelope.reject(Outcome::Filtered(err.clone()));
                 ProcessingError::EventFiltered(err)
             })
     })?;
@@ -303,7 +311,7 @@ pub fn filter<G: EventProcessing>(
     let supported_generic_filters = global_config.filters.is_ok()
         && relay_filter::are_generic_filters_supported(
             global_config.filters().map(|f| f.version),
-            state.project_info.config.filter_settings.generic.version,
+            project_info.config.filter_settings.generic.version,
         );
     if supported_generic_filters {
         Ok(FiltersStatus::Ok)
@@ -315,11 +323,12 @@ pub fn filter<G: EventProcessing>(
 /// Apply data privacy rules to the event payload.
 ///
 /// This uses both the general `datascrubbing_settings`, as well as the the PII rules.
-pub fn scrub<G: EventProcessing>(
-    state: &mut ProcessEnvelopeState<G>,
+pub fn scrub(
+    state: &mut ProcessEnvelopeState,
+    project_info: Arc<ProjectInfo>,
 ) -> Result<(), ProcessingError> {
     let event = &mut state.event;
-    let config = &state.project_info.config;
+    let config = &project_info.config;
 
     if config.datascrubbing_settings.scrub_data {
         if let Some(event) = event.value_mut() {
@@ -345,8 +354,12 @@ pub fn scrub<G: EventProcessing>(
     Ok(())
 }
 
-pub fn serialize<G: EventProcessing>(
-    state: &mut ProcessEnvelopeState<G>,
+pub fn serialize<Group: EventProcessing>(
+    state: &mut ProcessEnvelopeState,
+    managed_envelope: &mut TypedEnvelope<Group>,
+    event_fully_normalized: EventFullyNormalized,
+    event_metrics_extracted: EventMetricsExtracted,
+    spans_extracted: SpansExtracted,
 ) -> Result<(), ProcessingError> {
     if state.event.is_empty() {
         relay_log::error!("Cannot serialize empty event");
@@ -366,11 +379,11 @@ pub fn serialize<G: EventProcessing>(
 
     // TODO: The state should simply maintain & update an `ItemHeaders` object.
     // If transaction metrics were extracted, set the corresponding item header
-    event_item.set_metrics_extracted(state.event_metrics_extracted);
-    event_item.set_spans_extracted(state.spans_extracted);
-    event_item.set_fully_normalized(state.event_fully_normalized);
+    event_item.set_metrics_extracted(event_metrics_extracted.0);
+    event_item.set_spans_extracted(spans_extracted.0);
+    event_item.set_fully_normalized(event_fully_normalized.0);
 
-    state.envelope_mut().add_item(event_item);
+    managed_envelope.envelope_mut().add_item(event_item);
 
     Ok(())
 }

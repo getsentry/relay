@@ -10,7 +10,7 @@ use chrono::{DateTime, Utc};
 use relay_quotas::{DataCategory, Scoping};
 use relay_system::Addr;
 
-use crate::envelope::{Envelope, Item};
+use crate::envelope::{CountFor, Envelope, Item};
 use crate::extractors::RequestMeta;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::{Processed, ProcessingGroup};
@@ -52,7 +52,6 @@ pub enum ItemAction {
     /// Keep the item.
     Keep,
     /// Drop the item and log an outcome for it.
-    /// The outcome will only be logged if the item has a corresponding [`Item::outcome_category()`].
     Drop(Outcome),
     /// Drop the item without logging an outcome.
     DropSilently,
@@ -62,7 +61,7 @@ pub enum ItemAction {
 struct EnvelopeContext {
     summary: EnvelopeSummary,
     scoping: Scoping,
-    partition_key: Option<u64>,
+    partition_key: Option<u32>,
     done: bool,
     group: ProcessingGroup,
 }
@@ -263,12 +262,13 @@ impl ManagedEnvelope {
             ItemAction::Keep => true,
             ItemAction::DropSilently => false,
             ItemAction::Drop(outcome) => {
-                if let Some(category) = item.outcome_category() {
+                for (category, quantity) in item.quantities(CountFor::Outcomes) {
                     if let Some(indexed) = category.index_category() {
-                        outcomes.push((outcome.clone(), indexed, item.quantity()));
+                        outcomes.push((outcome.clone(), indexed, quantity));
                     };
-                    outcomes.push((outcome, category, item.quantity()));
-                };
+                    outcomes.push((outcome.clone(), category, quantity));
+                }
+
                 false
             }
         });
@@ -360,7 +360,7 @@ impl ManagedEnvelope {
                     tags.has_transactions = summary.secondary_transaction_quantity > 0,
                     tags.has_span_metrics = summary.secondary_span_quantity > 0,
                     tags.has_replays = summary.replay_quantity > 0,
-                    tags.has_checkins = summary.checkin_quantity > 0,
+                    tags.has_checkins = summary.monitor_quantity > 0,
                     tags.event_category = ?summary.event_category,
                     cached_summary = ?summary,
                     recomputed_summary = ?EnvelopeSummary::compute(self.envelope()),
@@ -463,11 +463,11 @@ impl ManagedEnvelope {
         self.context.scoping
     }
 
-    pub fn partition_key(&self) -> Option<u64> {
+    pub fn partition_key(&self) -> Option<u32> {
         self.context.partition_key
     }
 
-    pub fn set_partition_key(&mut self, partition_key: Option<u64>) -> &mut Self {
+    pub fn set_partition_key(&mut self, partition_key: Option<u32>) -> &mut Self {
         self.context.partition_key = partition_key;
         self
     }

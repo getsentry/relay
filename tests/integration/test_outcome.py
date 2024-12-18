@@ -1173,8 +1173,8 @@ def test_profile_outcomes(
     are properly forwarded up to sentry.
     """
     outcomes_consumer = outcomes_consumer(timeout=5)
-    metrics_consumer = metrics_consumer()
     profiles_consumer = profiles_consumer()
+    metrics_consumer = metrics_consumer()
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
@@ -1288,6 +1288,16 @@ def test_profile_outcomes(
             "reason": "Sampled:3000",
             "source": expected_source,
         },
+        {
+            "category": 22,  # attachment item
+            "key_id": 123,
+            "org_id": 1,
+            "outcome": 1,
+            "project_id": 42,
+            "quantity": 1,  # number of attachments
+            "reason": "Sampled:3000",
+            "source": expected_source,
+        },
     ]
     for outcome in outcomes:
         outcome.pop("timestamp")
@@ -1297,7 +1307,6 @@ def test_profile_outcomes(
         for m, _ in metrics_consumer.get_metrics()
         if m["name"] == "c:transactions/usage@none"
     ]
-    assert all(metric["tags"]["has_profile"] == "true" for metric in metrics)
     assert sum(metric["value"] for metric in metrics) == 2
 
     assert outcomes == expected_outcomes, outcomes
@@ -1406,13 +1415,13 @@ def test_profile_outcomes_too_many(
     mini_sentry,
     relay_with_processing,
     outcomes_consumer,
-    metrics_consumer,
+    profiles_consumer,
 ):
     """
     Tests that Relay reports duplicate profiles as invalid
     """
     outcomes_consumer = outcomes_consumer(timeout=2)
-    metrics_consumer = metrics_consumer()
+    profiles_consumer = profiles_consumer()
 
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)["config"]
@@ -1483,10 +1492,8 @@ def test_profile_outcomes_too_many(
         for category in [6, 11]  # Profile, ProfileIndexed
     ]
 
-    # Make sure one profile will not be counted as accepted
-    metrics = metrics_by_name(metrics_consumer, 4)
-    assert "has_profile" not in metrics["d:transactions/duration@millisecond"]["tags"]
-    assert metrics["c:transactions/usage@none"]["tags"]["has_profile"] == "true"
+    # One profile was accepted
+    assert profiles_consumer.get_profile()
 
 
 def test_profile_outcomes_data_invalid(
