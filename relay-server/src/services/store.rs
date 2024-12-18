@@ -443,6 +443,9 @@ impl StoreService {
         }
 
         for (namespace, (total, count, max)) in delay_stats {
+            if count == 0 {
+                continue;
+            }
             metric!(
                 counter(RelayCounters::MetricDelaySum) += total,
                 namespace = namespace.as_str()
