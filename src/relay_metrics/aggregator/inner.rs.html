@@ -991,7 +991,59 @@
 <a href="#990" id="990">990</a>
 <a href="#991" id="991">991</a>
 <a href="#992" id="992">992</a>
-<a href="#993" id="993">993</a></pre></div><pre class="rust"><code><span class="kw">use </span>core::fmt;
+<a href="#993" id="993">993</a>
+<a href="#994" id="994">994</a>
+<a href="#995" id="995">995</a>
+<a href="#996" id="996">996</a>
+<a href="#997" id="997">997</a>
+<a href="#998" id="998">998</a>
+<a href="#999" id="999">999</a>
+<a href="#1000" id="1000">1000</a>
+<a href="#1001" id="1001">1001</a>
+<a href="#1002" id="1002">1002</a>
+<a href="#1003" id="1003">1003</a>
+<a href="#1004" id="1004">1004</a>
+<a href="#1005" id="1005">1005</a>
+<a href="#1006" id="1006">1006</a>
+<a href="#1007" id="1007">1007</a>
+<a href="#1008" id="1008">1008</a>
+<a href="#1009" id="1009">1009</a>
+<a href="#1010" id="1010">1010</a>
+<a href="#1011" id="1011">1011</a>
+<a href="#1012" id="1012">1012</a>
+<a href="#1013" id="1013">1013</a>
+<a href="#1014" id="1014">1014</a>
+<a href="#1015" id="1015">1015</a>
+<a href="#1016" id="1016">1016</a>
+<a href="#1017" id="1017">1017</a>
+<a href="#1018" id="1018">1018</a>
+<a href="#1019" id="1019">1019</a>
+<a href="#1020" id="1020">1020</a>
+<a href="#1021" id="1021">1021</a>
+<a href="#1022" id="1022">1022</a>
+<a href="#1023" id="1023">1023</a>
+<a href="#1024" id="1024">1024</a>
+<a href="#1025" id="1025">1025</a>
+<a href="#1026" id="1026">1026</a>
+<a href="#1027" id="1027">1027</a>
+<a href="#1028" id="1028">1028</a>
+<a href="#1029" id="1029">1029</a>
+<a href="#1030" id="1030">1030</a>
+<a href="#1031" id="1031">1031</a>
+<a href="#1032" id="1032">1032</a>
+<a href="#1033" id="1033">1033</a>
+<a href="#1034" id="1034">1034</a>
+<a href="#1035" id="1035">1035</a>
+<a href="#1036" id="1036">1036</a>
+<a href="#1037" id="1037">1037</a>
+<a href="#1038" id="1038">1038</a>
+<a href="#1039" id="1039">1039</a>
+<a href="#1040" id="1040">1040</a>
+<a href="#1041" id="1041">1041</a>
+<a href="#1042" id="1042">1042</a>
+<a href="#1043" id="1043">1043</a>
+<a href="#1044" id="1044">1044</a>
+<a href="#1045" id="1045">1045</a></pre></div><pre class="rust"><code><span class="kw">use </span>core::fmt;
 <span class="kw">use </span>std::collections::{BTreeMap, VecDeque};
 <span class="kw">use </span>std::mem;
 <span class="kw">use </span>std::time::Duration;
@@ -1668,6 +1720,58 @@
             cost_by_namespace: (unsupported:822),
         }
         "###</span>);
+
+        <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_merge_flush_project() -&gt; <span class="prelude-ty">Result</span>&lt;(), AggregateMetricsError&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>buckets = Inner::new(Config {
+            bucket_interval: <span class="number">10</span>,
+            num_time_slots: <span class="number">1</span>,
+            num_partitions: <span class="number">2</span>,
+            delay: <span class="number">0</span>,
+            max_secs_in_past: <span class="prelude-val">None</span>,
+            max_secs_in_future: <span class="prelude-val">None</span>,
+            max_total_bucket_bytes: <span class="prelude-val">None</span>,
+            max_project_key_bucket_bytes: <span class="prelude-val">None</span>,
+            start: UnixTimestamp::from_secs(<span class="number">70</span>),
+            partition_by: FlushBatching::Project,
+        });
+
+        <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..<span class="number">1_000 </span>{
+            <span class="kw">for </span>j <span class="kw">in </span><span class="number">0</span>..<span class="number">10 </span>{
+                <span class="kw">let </span>bucket = BucketKey {
+                    project_key: ProjectKey::parse(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"{i:0width$x}"</span>, width = <span class="number">32</span>)).unwrap(),
+                    ..bucket_key(<span class="number">70</span>, <span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"b_{j}"</span>))
+                };
+                buckets.merge(bucket, counter(<span class="number">1.0</span>))<span class="question-mark">?</span>;
+            }
+        }
+
+        <span class="kw">let </span><span class="kw-2">mut </span>by_project1 = HashMap::new();
+        <span class="kw">for </span>(key, <span class="kw">_</span>) <span class="kw">in </span>buckets.flush_next().buckets {
+            <span class="kw-2">*</span>by_project1.entry(key.project_key).or_insert(<span class="number">0u64</span>) += <span class="number">1</span>;
+        }
+
+        <span class="kw">let </span><span class="kw-2">mut </span>by_project2 = HashMap::new();
+        <span class="kw">for </span>(key, <span class="kw">_</span>) <span class="kw">in </span>buckets.flush_next().buckets {
+            <span class="kw-2">*</span>by_project2.entry(key.project_key).or_insert(<span class="number">0u64</span>) += <span class="number">1</span>;
+        }
+
+        <span class="macro">assert_eq!</span>(by_project1.len() + by_project2.len(), <span class="number">1_000</span>);
+        <span class="comment">// This assertion needs to be updated when the hashing changes.
+        </span><span class="macro">assert_eq!</span>(by_project1.len(), <span class="number">509</span>);
+
+        <span class="kw">for </span>(pk, v) <span class="kw">in </span>by_project1 {
+            <span class="comment">// 10 buckets per project.
+            </span><span class="macro">assert_eq!</span>(v, <span class="number">10</span>);
+            <span class="comment">// Make sure the entries do not overlap.
+            </span><span class="macro">assert!</span>(!by_project2.contains_key(<span class="kw-2">&amp;</span>pk));
+        }
+        <span class="kw">for </span>(<span class="kw">_</span>, v) <span class="kw">in </span>by_project2 {
+            <span class="macro">assert_eq!</span>(v, <span class="number">10</span>);
+        }
 
         <span class="prelude-val">Ok</span>(())
     }
