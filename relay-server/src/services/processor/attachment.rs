@@ -30,6 +30,7 @@ use {
 pub fn create_placeholders(
     state: &mut ProcessEnvelopeState,
     managed_envelope: &mut TypedEnvelope<ErrorGroup>,
+    event: &mut Annotated<Event>,
 ) -> Option<EventFullyNormalized> {
     let envelope = managed_envelope.envelope();
     let minidump_attachment =
@@ -38,12 +39,12 @@ pub fn create_placeholders(
         .get_item_by(|item| item.attachment_type() == Some(&AttachmentType::AppleCrashReport));
 
     if let Some(item) = minidump_attachment {
-        let event = state.event.get_or_insert_with(Event::default);
+        let event = event.get_or_insert_with(Event::default);
         state.metrics.bytes_ingested_event_minidump = Annotated::new(item.len() as u64);
         utils::process_minidump(event, &item.payload());
         return Some(EventFullyNormalized(false));
     } else if let Some(item) = apple_crash_report_attachment {
-        let event = state.event.get_or_insert_with(Event::default);
+        let event = event.get_or_insert_with(Event::default);
         state.metrics.bytes_ingested_event_applecrashreport = Annotated::new(item.len() as u64);
         utils::process_apple_crash_report(event, &item.payload());
         return Some(EventFullyNormalized(false));

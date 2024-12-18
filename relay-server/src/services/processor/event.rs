@@ -24,12 +24,20 @@ use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::services::outcome::Outcome;
 use crate::services::processor::{
-    EventFullyNormalized, EventMetricsExtracted, EventProcessing, ExtractedEvent,
-    ProcessEnvelopeState, ProcessingError, SpansExtracted, MINIMUM_CLOCK_DRIFT,
+    event_category, event_type, EventFullyNormalized, EventMetricsExtracted, EventProcessing,
+    ExtractedEvent, ProcessEnvelopeState, ProcessingError, SpansExtracted, MINIMUM_CLOCK_DRIFT,
 };
 use crate::services::projects::project::ProjectInfo;
 use crate::statsd::{PlatformTag, RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter, TypedEnvelope};
+
+/// Result of the extraction of the primary event payload from an envelope.
+#[derive(Debug)]
+pub struct ExtractionResult {
+    pub event: Annotated<Event>,
+    pub event_metrics_extracted: Option<EventMetricsExtracted>,
+    pub spans_extracted: Option<SpansExtracted>,
+}
 
 /// Extracts the primary event payload from an envelope.
 ///
@@ -44,7 +52,7 @@ pub fn extract<Group: EventProcessing>(
     managed_envelope: &mut TypedEnvelope<Group>,
     event_fully_normalized: EventFullyNormalized,
     config: &Config,
-) -> Result<Option<(EventMetricsExtracted, SpansExtracted)>, ProcessingError> {
+) -> Result<ExtractionResult, ProcessingError> {
     let envelope = managed_envelope.envelope_mut();
 
     // Remove all items first, and then process them. After this function returns, only
@@ -73,8 +81,8 @@ pub fn extract<Group: EventProcessing>(
 
     let skip_normalization = config.processing_enabled() && event_fully_normalized.0;
 
-    let mut result = None;
-
+    let mut event_metrics_extracted = None;
+    let mut spans_extracted = None;
     let (event, event_len) = if let Some(item) = event_item.or(security_item) {
         relay_log::trace!("processing json event");
         metric!(timer(RelayTimers::EventProcessingDeserialize), {
@@ -90,10 +98,10 @@ pub fn extract<Group: EventProcessing>(
         })
     } else if let Some(item) = transaction_item {
         relay_log::trace!("processing json transaction");
-        result = Some((
-            EventMetricsExtracted(item.metrics_extracted()),
-            SpansExtracted(item.spans_extracted()),
-        ));
+
+        event_metrics_extracted = Some(EventMetricsExtracted(item.metrics_extracted()));
+        spans_extracted = Some(SpansExtracted(item.spans_extracted()));
+
         metric!(timer(RelayTimers::EventProcessingDeserialize), {
             // Transaction items can only contain transaction events. Force the event type to
             // hint to normalization that we're dealing with a transaction now.
@@ -135,20 +143,24 @@ pub fn extract<Group: EventProcessing>(
         (Annotated::empty(), 0)
     };
 
-    state.event = event;
     state.metrics.bytes_ingested_event = Annotated::new(event_len as u64);
 
-    Ok(result)
+    Ok(ExtractionResult {
+        event,
+        event_metrics_extracted,
+        spans_extracted,
+    })
 }
 
 pub fn finalize<Group: EventProcessing>(
     state: &mut ProcessEnvelopeState,
     managed_envelope: &mut TypedEnvelope<Group>,
+    event: &mut Annotated<Event>,
     config: &Config,
 ) -> Result<(), ProcessingError> {
     let envelope = managed_envelope.envelope_mut();
 
-    let event = match state.event.value_mut() {
+    let inner_event = match event.value_mut() {
         Some(event) => event,
         None if !config.processing_enabled() => return Ok(()),
         None => return Err(ProcessingError::NoEventPayload),
@@ -158,7 +170,7 @@ pub fn finalize<Group: EventProcessing>(
         static MY_VERSION_STRING: OnceLock<String> = OnceLock::new();
         let my_version = MY_VERSION_STRING.get_or_init(|| RelayVersion::current().to_string());
 
-        event
+        inner_event
             .ingest_path
             .get_or_insert_with(Default::default)
             .push(Annotated::new(RelayInfo {
@@ -177,7 +189,7 @@ pub fn finalize<Group: EventProcessing>(
     // Ensure that the event id in the payload is consistent with the envelope. If an event
     // id was ingested, this will already be the case. Otherwise, this will insert a new
     // event id. To be defensive, we always overwrite to ensure consistency.
-    event.id = Annotated::new(event_id);
+    inner_event.id = Annotated::new(event_id);
 
     // In processing mode, also write metrics into the event. Most metrics have already been
     // collected at this state, except for the combined size of all attachments.
@@ -194,28 +206,34 @@ pub fn finalize<Group: EventProcessing>(
             metrics.bytes_ingested_event_attachment = Annotated::new(attachment_size);
         }
 
-        event._metrics = Annotated::new(metrics);
+        inner_event._metrics = Annotated::new(metrics);
 
-        if event.ty.value() == Some(&EventType::Transaction) {
+        if inner_event.ty.value() == Some(&EventType::Transaction) {
             metric!(
                 counter(RelayCounters::EventTransaction) += 1,
-                source = utils::transaction_source_tag(event),
-                platform = PlatformTag::from(event.platform.as_str().unwrap_or("other")).name(),
-                contains_slashes = if event.transaction.as_str().unwrap_or_default().contains('/') {
+                source = utils::transaction_source_tag(inner_event),
+                platform =
+                    PlatformTag::from(inner_event.platform.as_str().unwrap_or("other")).name(),
+                contains_slashes = if inner_event
+                    .transaction
+                    .as_str()
+                    .unwrap_or_default()
+                    .contains('/')
+                {
                     "true"
                 } else {
                     "false"
                 }
             );
 
-            let span_count = event.spans.value().map(Vec::len).unwrap_or(0) as u64;
+            let span_count = inner_event.spans.value().map(Vec::len).unwrap_or(0) as u64;
             metric!(
                 histogram(RelayHistograms::EventSpans) = span_count,
                 sdk = envelope.meta().client_name().name(),
-                platform = event.platform.as_str().unwrap_or("other"),
+                platform = inner_event.platform.as_str().unwrap_or("other"),
             );
 
-            let has_otel = event
+            let has_otel = inner_event
                 .contexts
                 .value()
                 .map_or(false, |contexts| contexts.contains::<OtelContext>());
@@ -224,14 +242,14 @@ pub fn finalize<Group: EventProcessing>(
                 metric!(
                     counter(RelayCounters::OpenTelemetryEvent) += 1,
                     sdk = envelope.meta().client_name().name(),
-                    platform = event.platform.as_str().unwrap_or("other"),
+                    platform = inner_event.platform.as_str().unwrap_or("other"),
                 );
             }
         }
 
         if let Some(dsc) = envelope.dsc() {
             if let Ok(Some(value)) = relay_protocol::to_value(dsc) {
-                event._dsc = Annotated::new(value);
+                inner_event._dsc = Annotated::new(value);
             }
         }
     }
@@ -239,16 +257,16 @@ pub fn finalize<Group: EventProcessing>(
     let mut processor =
         ClockDriftProcessor::new(envelope.sent_at(), managed_envelope.received_at())
             .at_least(MINIMUM_CLOCK_DRIFT);
-    processor::process_value(&mut state.event, &mut processor, ProcessingState::root())
+    processor::process_value(event, &mut processor, ProcessingState::root())
         .map_err(|_| ProcessingError::InvalidTransaction)?;
 
     // Log timestamp delays for all events after clock drift correction. This happens before
     // store processing, which could modify the timestamp if it exceeds a threshold. We are
     // interested in the actual delay before this correction.
-    if let Some(timestamp) = state.event.value().and_then(|e| e.timestamp.value()) {
+    if let Some(timestamp) = event.value().and_then(|e| e.timestamp.value()) {
         let event_delay = managed_envelope.received_at() - timestamp.into_inner();
         if event_delay > SignedDuration::minutes(1) {
-            let category = state.event_category().unwrap_or(DataCategory::Unknown);
+            let category = event_category(event).unwrap_or(DataCategory::Unknown);
             metric!(
                 timer(RelayTimers::TimestampDelay) = event_delay.to_std().unwrap(),
                 category = category.name(),
@@ -281,12 +299,12 @@ pub enum FiltersStatus {
 }
 
 pub fn filter<Group: EventProcessing>(
-    state: &mut ProcessEnvelopeState,
     managed_envelope: &mut TypedEnvelope<Group>,
+    event: &mut Annotated<Event>,
     project_info: Arc<ProjectInfo>,
     global_config: &GlobalConfig,
 ) -> Result<FiltersStatus, ProcessingError> {
-    let event = match state.event.value_mut() {
+    let event = match event.value_mut() {
         Some(event) => event,
         // Some events are created by processing relays (e.g. unreal), so they do not yet
         // exist at this point in non-processing relays.
@@ -324,10 +342,9 @@ pub fn filter<Group: EventProcessing>(
 ///
 /// This uses both the general `datascrubbing_settings`, as well as the the PII rules.
 pub fn scrub(
-    state: &mut ProcessEnvelopeState,
+    event: &mut Annotated<Event>,
     project_info: Arc<ProjectInfo>,
 ) -> Result<(), ProcessingError> {
-    let event = &mut state.event;
     let config = &project_info.config;
 
     if config.datascrubbing_settings.scrub_data {
@@ -355,25 +372,22 @@ pub fn scrub(
 }
 
 pub fn serialize<Group: EventProcessing>(
-    state: &mut ProcessEnvelopeState,
     managed_envelope: &mut TypedEnvelope<Group>,
+    event: &mut Annotated<Event>,
     event_fully_normalized: EventFullyNormalized,
     event_metrics_extracted: EventMetricsExtracted,
     spans_extracted: SpansExtracted,
 ) -> Result<(), ProcessingError> {
-    if state.event.is_empty() {
+    if event.is_empty() {
         relay_log::error!("Cannot serialize empty event");
         return Ok(());
     }
 
     let data = metric!(timer(RelayTimers::EventProcessingSerialization), {
-        state
-            .event
-            .to_json()
-            .map_err(ProcessingError::SerializeFailed)?
+        event.to_json().map_err(ProcessingError::SerializeFailed)?
     });
 
-    let event_type = state.event_type().unwrap_or_default();
+    let event_type = event_type(event).unwrap_or_default();
     let mut event_item = Item::new(ItemType::from_event_type(event_type));
     event_item.set_payload(ContentType::Json, data);
 

@@ -8,8 +8,8 @@ use crate::metrics_extraction::{event, generic};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::span::extract_transaction_span;
 use crate::services::processor::{
-    dynamic_sampling, EventMetricsExtracted, ProcessEnvelopeState, ProcessingError, SpanGroup,
-    SpansExtracted, TransactionGroup,
+    dynamic_sampling, event_type, EventMetricsExtracted, ProcessEnvelopeState, ProcessingError,
+    SpanGroup, SpansExtracted, TransactionGroup,
 };
 use crate::services::projects::project::ProjectInfo;
 use crate::utils::{sample, ItemAction, ManagedEnvelope, TypedEnvelope};
@@ -30,7 +30,7 @@ use relay_event_normalization::{
 };
 use relay_event_schema::processor::{process_value, ProcessingAction, ProcessingState};
 use relay_event_schema::protocol::{
-    BrowserContext, EventId, IpAddr, Measurement, Measurements, Span, SpanData,
+    BrowserContext, Event, EventId, IpAddr, Measurement, Measurements, Span, SpanData,
 };
 use relay_log::protocol::{Attachment, AttachmentType};
 use relay_metrics::{FractionUnit, MetricNamespace, MetricUnit, UnixTimestamp};
@@ -49,6 +49,7 @@ struct ValidationError(#[from] anyhow::Error);
 pub fn process(
     state: &mut ProcessEnvelopeState,
     managed_envelope: &mut TypedEnvelope<SpanGroup>,
+    event: &mut Annotated<Event>,
     global_config: &GlobalConfig,
     config: Arc<Config>,
     project_id: ProjectId,
@@ -62,8 +63,8 @@ pub fn process(
     // We only implement trace-based sampling rules for now, which can be computed
     // once for all spans in the envelope.
     let sampling_result = dynamic_sampling::run(
-        state,
         managed_envelope,
+        event,
         config.clone(),
         project_info.clone(),
         sampling_project_info,
@@ -273,8 +274,8 @@ fn add_sample_rate(measurements: &mut Annotated<Measurements>, name: &str, value
 
 #[allow(clippy::too_many_arguments)]
 pub fn extract_from_event(
-    state: &mut ProcessEnvelopeState,
     managed_envelope: &mut TypedEnvelope<TransactionGroup>,
+    event: &Annotated<Event>,
     global_config: &GlobalConfig,
     config: Arc<Config>,
     project_info: Arc<ProjectInfo>,
@@ -283,7 +284,7 @@ pub fn extract_from_event(
     spans_extracted: SpansExtracted,
 ) -> SpansExtracted {
     // Only extract spans from transactions (not errors).
-    if state.event_type() != Some(EventType::Transaction) {
+    if event_type(event) != Some(EventType::Transaction) {
         return spans_extracted;
     };
 
@@ -359,7 +360,7 @@ pub fn extract_from_event(
         managed_envelope.envelope_mut().add_item(item);
     };
 
-    let Some(event) = state.event.value() else {
+    let Some(event) = event.value() else {
         return spans_extracted;
     };
 
@@ -403,16 +404,18 @@ pub fn extract_from_event(
 
 /// Removes the transaction in case the project has made the transition to spans-only.
 pub fn maybe_discard_transaction(
-    state: &mut ProcessEnvelopeState,
     managed_envelope: &mut TypedEnvelope<TransactionGroup>,
+    event: Annotated<Event>,
     project_info: Arc<ProjectInfo>,
-) {
-    if state.event_type() == Some(EventType::Transaction)
+) -> Annotated<Event> {
+    if event_type(&event) == Some(EventType::Transaction)
         && project_info.has_feature(Feature::DiscardTransaction)
     {
-        state.remove_event();
         managed_envelope.update();
+        return Annotated::empty();
     }
+
+    event
 }
 /// Config needed to normalize a standalone span.
 #[derive(Clone, Debug)]
@@ -820,15 +823,15 @@ mod tests {
     use relay_system::Addr;
 
     use crate::envelope::Envelope;
-    use crate::services::processor::{ProcessingExtractedMetrics, ProcessingGroup};
+    use crate::services::processor::ProcessingGroup;
     use crate::services::projects::project::ProjectInfo;
     use crate::utils::ManagedEnvelope;
 
     use super::*;
 
-    fn state() -> (
-        ProcessEnvelopeState,
+    fn params() -> (
         TypedEnvelope<TransactionGroup>,
+        Annotated<Event>,
         Arc<ProjectInfo>,
     ) {
         let bytes = Bytes::from(
@@ -873,15 +876,11 @@ mod tests {
             ProcessingGroup::Transaction,
         );
 
-        let state = ProcessEnvelopeState {
-            event: Annotated::from(event),
-            metrics: Default::default(),
-            extracted_metrics: ProcessingExtractedMetrics::new(),
-        };
-
         let managed_envelope = managed_envelope.try_into().unwrap();
 
-        (state, managed_envelope, project_info)
+        let event = Annotated::from(event);
+
+        (managed_envelope, event, project_info)
     }
 
     #[test]
@@ -889,10 +888,10 @@ mod tests {
         let global_config = GlobalConfig::default();
         let config = Arc::new(Config::default());
         assert!(global_config.options.span_extraction_sample_rate.is_none());
-        let (mut state, mut managed_envelope, project_info) = state();
+        let (mut managed_envelope, event, project_info) = params();
         extract_from_event(
-            &mut state,
             &mut managed_envelope,
+            &event,
             &global_config,
             config,
             project_info,
@@ -915,10 +914,10 @@ mod tests {
         let mut global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = Some(1.0);
         let config = Arc::new(Config::default());
-        let (mut state, mut managed_envelope, project_info) = state();
+        let (mut managed_envelope, event, project_info) = params();
         extract_from_event(
-            &mut state,
             &mut managed_envelope,
+            &event,
             &global_config,
             config,
             project_info,
@@ -941,10 +940,10 @@ mod tests {
         let mut global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = Some(0.0);
         let config = Arc::new(Config::default());
-        let (mut state, mut managed_envelope, project_info) = state();
+        let (mut managed_envelope, event, project_info) = params();
         extract_from_event(
-            &mut state,
             &mut managed_envelope,
+            &event,
             &global_config,
             config,
             project_info,
@@ -967,10 +966,10 @@ mod tests {
         let mut global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = Some(1.0); // force enable
         let config = Arc::new(Config::default());
-        let (mut state, mut managed_envelope, project_info) = state(); // client sample rate is 0.2
+        let (mut managed_envelope, event, project_info) = params(); // client sample rate is 0.2
         extract_from_event(
-            &mut state,
             &mut managed_envelope,
+            &event,
             &global_config,
             config,
             project_info,
