@@ -3132,7 +3132,6 @@ impl RateLimiter<'_> {
 
         if event_active {
             debug_assert!(managed_envelope.envelope().is_empty());
-            debug_assert!(event.value().is_none());
             return Ok(EnforcementResult::new(Annotated::empty(), rate_limits));
         }
 
