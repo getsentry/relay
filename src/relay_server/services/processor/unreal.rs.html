@@ -51,19 +51,17 @@
 <a href="#50" id="50">50</a>
 <a href="#51" id="51">51</a>
 <a href="#52" id="52">52</a>
-<a href="#53" id="53">53</a>
-<a href="#54" id="54">54</a></pre></div><pre class="rust"><code><span class="doccomment">//! Unreal 4 processor related code.
+<a href="#53" id="53">53</a></pre></div><pre class="rust"><code><span class="doccomment">//! Unreal 4 processor related code.
 //!
 //! These functions are included only in the processing mode.
 
-</span><span class="kw">use </span>relay_config::Config;
-
-<span class="kw">use </span><span class="kw">crate</span>::envelope::ItemType;
-<span class="kw">use </span><span class="kw">crate</span>::services::processor::{
-    ErrorGroup, EventFullyNormalized, ProcessEnvelopeState, ProcessingError,
-};
+</span><span class="kw">use </span><span class="kw">crate</span>::envelope::ItemType;
+<span class="kw">use </span><span class="kw">crate</span>::services::processor::{ErrorGroup, EventFullyNormalized, ProcessingError};
 <span class="kw">use </span><span class="kw">crate</span>::utils;
 <span class="kw">use </span><span class="kw">crate</span>::utils::TypedEnvelope;
+<span class="kw">use </span>relay_config::Config;
+<span class="kw">use </span>relay_event_schema::protocol::Event;
+<span class="kw">use </span>relay_protocol::Annotated;
 
 <span class="doccomment">/// Expands Unreal 4 items inside an envelope.
 ///
@@ -95,10 +93,10 @@
 /// If the event does not contain an unreal context, this function does not perform any action.
 /// If there was no event payload prior to this function, it is created.
 </span><span class="kw">pub fn </span>process(
-    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState,
     managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;ErrorGroup&gt;,
+    event: <span class="kw-2">&amp;mut </span>Annotated&lt;Event&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;EventFullyNormalized&gt;, ProcessingError&gt; {
-    <span class="kw">if </span>utils::process_unreal_envelope(<span class="kw-2">&amp;mut </span>state.event, managed_envelope.envelope_mut())
+    <span class="kw">if </span>utils::process_unreal_envelope(event, managed_envelope.envelope_mut())
         .map_err(ProcessingError::InvalidUnrealReport)<span class="question-mark">?
     </span>{
         <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(EventFullyNormalized(<span class="bool-val">false</span>)));
