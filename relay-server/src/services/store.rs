@@ -19,8 +19,8 @@ use relay_event_schema::protocol::{EventId, VALID_PLATFORMS};
 
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
 use relay_metrics::{
-    Bucket, BucketView, BucketViewValue, BucketsView, FiniteF64, GaugeValue, MetricName,
-    MetricNamespace, SetView,
+    Bucket, BucketView, BucketViewValue, BucketsView, ByNamespace, FiniteF64, GaugeValue,
+    MetricName, MetricNamespace, SetView,
 };
 use relay_quotas::Scoping;
 use relay_statsd::metric;
@@ -37,7 +37,7 @@ use crate::service::ServiceError;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::Processed;
-use crate::statsd::{RelayCounters, RelayTimers};
+use crate::statsd::{RelayCounters, RelayGauges, RelayTimers};
 use crate::utils::{FormDataIter, ThreadPool, TypedEnvelope, WorkerGroup};
 
 /// Fallback name used for attachment items without a `filename` header.
@@ -390,8 +390,19 @@ impl StoreService {
         let global_config = self.global_config.current();
         let mut encoder = BucketEncoder::new(&global_config);
 
+        let now = UnixTimestamp::now();
+        let mut delay_stats = ByNamespace::<(u64, u64, u64)>::default();
+
         for mut bucket in buckets {
             let namespace = encoder.prepare(&mut bucket);
+
+            if let Some(received_at) = bucket.metadata.received_at {
+                let delay = now.as_secs().saturating_sub(received_at.as_secs());
+                let (total, count, max) = delay_stats.get_mut(namespace);
+                *total += delay;
+                *count += 1;
+                *max = (*max).max(delay);
+            }
 
             // Create a local bucket view to avoid splitting buckets unnecessarily. Since we produce
             // each bucket separately, we only need to split buckets that exceed the size, but not
@@ -428,6 +439,21 @@ impl StoreService {
             relay_log::error!(
                 error = &error as &dyn std::error::Error,
                 "failed to produce metric buckets: {error}"
+            );
+        }
+
+        for (namespace, (total, count, max)) in delay_stats {
+            metric!(
+                counter(RelayCounters::MetricDelaySum) += total,
+                namespace = namespace.as_str()
+            );
+            metric!(
+                counter(RelayCounters::MetricDelayCount) += count,
+                namespace = namespace.as_str()
+            );
+            metric!(
+                gauge(RelayGauges::MetricDelayMax) = max,
+                namespace = namespace.as_str()
             );
         }
     }
