@@ -979,7 +979,19 @@
 <a href="#978" id="978">978</a>
 <a href="#979" id="979">979</a>
 <a href="#980" id="980">980</a>
-<a href="#981" id="981">981</a></pre></div><pre class="rust"><code><span class="kw">use </span>core::fmt;
+<a href="#981" id="981">981</a>
+<a href="#982" id="982">982</a>
+<a href="#983" id="983">983</a>
+<a href="#984" id="984">984</a>
+<a href="#985" id="985">985</a>
+<a href="#986" id="986">986</a>
+<a href="#987" id="987">987</a>
+<a href="#988" id="988">988</a>
+<a href="#989" id="989">989</a>
+<a href="#990" id="990">990</a>
+<a href="#991" id="991">991</a>
+<a href="#992" id="992">992</a>
+<a href="#993" id="993">993</a></pre></div><pre class="rust"><code><span class="kw">use </span>core::fmt;
 <span class="kw">use </span>std::collections::{BTreeMap, VecDeque};
 <span class="kw">use </span>std::mem;
 <span class="kw">use </span>std::time::Duration;
@@ -1234,6 +1246,7 @@
                 });
             }
         }
+        <span class="kw">let </span>total_slots = slots.len();
 
         <span class="kw">let </span>bucket_interval = u64::from(bucket_interval);
         <span class="kw">let </span>num_partitions = u64::from(num_partitions);
@@ -1247,7 +1260,22 @@
                 .map_or(u64::MAX, |v| v.div_ceil(bucket_interval)),
         };
 
-        <span class="kw">let </span>total_slots = slots.len();
+        <span class="comment">// Break down the maximum project cost to a maximum cost per partition.
+        </span><span class="kw">let </span>max_partition_project = {
+            <span class="kw">let </span>ratio_per_partition = <span class="kw">match </span>config.partition_by {
+                <span class="comment">// All buckets in the same timeslot of a project are in the same partition.
+                // -&gt; The total maximum allowed ratio is just determined by the amount of timeslots
+                </span>FlushBatching::None | FlushBatching::Project =&gt; u64::from(num_time_slots),
+                <span class="comment">// Buckets are evenly distributed across all existing partitions and timeslots.
+                </span><span class="kw">_ </span>=&gt; total_slots <span class="kw">as </span>u64,
+            };
+
+            config
+                .max_project_key_bucket_bytes
+                .map(|c| c.div_ceil(ratio_per_partition))
+                .unwrap_or(u64::MAX)
+        };
+
         <span class="self">Self </span>{
             slots: VecDeque::from(slots),
             num_partitions,
@@ -1257,11 +1285,7 @@
             stats: stats::Total::default(),
             limits: stats::Limits {
                 max_total: config.max_total_bucket_bytes.unwrap_or(u64::MAX),
-                <span class="comment">// Break down the maximum project cost to a maximum cost per partition.
-                </span>max_partition_project: config
-                    .max_project_key_bucket_bytes
-                    .map(|c| c.div_ceil(total_slots <span class="kw">as </span>u64))
-                    .unwrap_or(u64::MAX),
+                max_partition_project,
             },
             slot_range: slot_diff,
             partition_by: config.partition_by,
