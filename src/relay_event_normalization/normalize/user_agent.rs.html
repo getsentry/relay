@@ -1087,7 +1087,17 @@
 <a href="#1086" id="1086">1086</a>
 <a href="#1087" id="1087">1087</a>
 <a href="#1088" id="1088">1088</a>
-<a href="#1089" id="1089">1089</a></pre></div><pre class="rust"><code><span class="doccomment">//! Generate context data from user agent and client hints.
+<a href="#1089" id="1089">1089</a>
+<a href="#1090" id="1090">1090</a>
+<a href="#1091" id="1091">1091</a>
+<a href="#1092" id="1092">1092</a>
+<a href="#1093" id="1093">1093</a>
+<a href="#1094" id="1094">1094</a>
+<a href="#1095" id="1095">1095</a>
+<a href="#1096" id="1096">1096</a>
+<a href="#1097" id="1097">1097</a>
+<a href="#1098" id="1098">1098</a>
+<a href="#1099" id="1099">1099</a></pre></div><pre class="rust"><code><span class="doccomment">//! Generate context data from user agent and client hints.
 //!
 //! This module is responsible for taking the user agent string parsing it and filling in
 //! the browser, os and device information in the event.
@@ -1421,7 +1431,12 @@
 
 <span class="kw">impl </span>FromUserAgentInfo <span class="kw">for </span>BrowserContext {
     <span class="kw">fn </span>parse_client_hints(client_hints: <span class="kw-2">&amp;</span>ClientHints&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
-        <span class="kw">let </span>(browser, version) = browser_from_client_hints(client_hints.sec_ch_ua<span class="question-mark">?</span>)<span class="question-mark">?</span>;
+        <span class="kw">let </span>(<span class="kw-2">mut </span>browser, version) = browser_from_client_hints(client_hints.sec_ch_ua<span class="question-mark">?</span>)<span class="question-mark">?</span>;
+
+        <span class="comment">// Normalize "Google Chrome" to just "Chrome"
+        </span><span class="kw">if </span>browser == <span class="string">"Google Chrome" </span>{
+            browser = <span class="string">"Chrome"</span>.to_owned();
+        }
 
         <span class="prelude-val">Some</span>(<span class="self">Self </span>{
             name: Annotated::new(browser),
@@ -1431,10 +1446,15 @@
     }
 
     <span class="kw">fn </span>parse_user_agent(user_agent: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="self">Self</span>&gt; {
-        <span class="kw">let </span>browser = relay_ua::parse_user_agent(user_agent);
+        <span class="kw">let </span><span class="kw-2">mut </span>browser = relay_ua::parse_user_agent(user_agent);
 
         <span class="kw">if </span>!is_known(<span class="kw-2">&amp;</span>browser.family) {
             <span class="kw">return </span><span class="prelude-val">None</span>;
+        }
+
+        <span class="comment">// Normalize "Google Chrome" to just "Chrome"
+        </span><span class="kw">if </span>browser.family == <span class="string">"Google Chrome" </span>{
+            browser.family = <span class="string">"Chrome"</span>.into();
         }
 
         <span class="prelude-val">Some</span>(<span class="self">Self </span>{
@@ -1913,7 +1933,7 @@
         <span class="macro">insta::assert_debug_snapshot!</span>(browser, @<span class="string">r###"
         BrowserContext {
             browser: ~,
-            name: "Google Chrome",
+            name: "Chrome",
             version: "109",
             other: {},
         }
