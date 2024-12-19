@@ -4,7 +4,7 @@ use std::error::Error;
 use std::sync::Arc;
 use std::time::Instant;
 
-use relay_pii::PiiAttachmentsProcessor;
+use relay_pii::{PiiAttachmentsProcessor, SelectorSpec};
 use relay_statsd::metric;
 
 use crate::envelope::{AttachmentType, ContentType};
@@ -65,43 +65,73 @@ pub fn scrub<Group>(managed_envelope: &mut TypedEnvelope<Group>, project_info: A
             .get_item_by_mut(|item| item.attachment_type() == Some(&AttachmentType::Minidump));
 
         if let Some(item) = minidump {
-            let filename = item.filename().unwrap_or_default();
-            let mut payload = item.payload().to_vec();
-
-            let processor = PiiAttachmentsProcessor::new(config.compiled());
-
-            // Minidump scrubbing can fail if the minidump cannot be parsed. In this case, we
-            // must be conservative and treat it as a plain attachment. Under extreme
-            // conditions, this could destroy stack memory.
-            let start = Instant::now();
-            match processor.scrub_minidump(filename, &mut payload) {
-                Ok(modified) => {
-                    metric!(
-                        timer(RelayTimers::MinidumpScrubbing) = start.elapsed(),
-                        status = if modified { "ok" } else { "n/a" },
-                    );
-                }
-                Err(scrub_error) => {
-                    metric!(
-                        timer(RelayTimers::MinidumpScrubbing) = start.elapsed(),
-                        status = "error"
-                    );
-                    relay_log::warn!(
-                        error = &scrub_error as &dyn Error,
-                        "failed to scrub minidump",
-                    );
-                    metric!(timer(RelayTimers::AttachmentScrubbing), {
-                        processor.scrub_attachment(filename, &mut payload);
-                    })
-                }
+            scrub_minidump(item, config);
+        } else if has_explicit_attachment_rules(config) {
+            for item in envelope
+                .items_mut()
+                .filter(|item| item.attachment_type().is_some())
+            {
+                scrub_attachment(item, config);
             }
-
-            let content_type = item
-                .content_type()
-                .unwrap_or(&ContentType::Minidump)
-                .clone();
-
-            item.set_payload(content_type, payload);
         }
     }
+}
+
+fn scrub_minidump(item: &mut crate::envelope::Item, config: &relay_pii::PiiConfig) {
+    let filename = item.filename().unwrap_or_default();
+    let mut payload = item.payload().to_vec();
+
+    let processor = PiiAttachmentsProcessor::new(config.compiled());
+
+    // Minidump scrubbing can fail if the minidump cannot be parsed. In this case, we
+    // must be conservative and treat it as a plain attachment. Under extreme
+    // conditions, this could destroy stack memory.
+    let start = Instant::now();
+    match processor.scrub_minidump(filename, &mut payload) {
+        Ok(modified) => {
+            metric!(
+                timer(RelayTimers::MinidumpScrubbing) = start.elapsed(),
+                status = if modified { "ok" } else { "n/a" },
+            );
+        }
+        Err(scrub_error) => {
+            metric!(
+                timer(RelayTimers::MinidumpScrubbing) = start.elapsed(),
+                status = "error"
+            );
+            relay_log::warn!(
+                error = &scrub_error as &dyn Error,
+                "failed to scrub minidump",
+            );
+            metric!(timer(RelayTimers::AttachmentScrubbing), {
+                processor.scrub_attachment(filename, &mut payload);
+            })
+        }
+    }
+
+    let content_type = item
+        .content_type()
+        .unwrap_or(&ContentType::Minidump)
+        .clone();
+
+    item.set_payload(content_type, payload);
+}
+
+fn has_explicit_attachment_rules(config: &relay_pii::PiiConfig) {
+    config
+        .applications
+        .iter()
+        .any(|application| matches!(application, SelectorSpec::Path()));
+}
+
+fn scrub_attachment(item: &mut crate::envelope::Item, config: &relay_pii::PiiConfig) {
+    let filename = item.filename().unwrap_or_default();
+    let mut payload = item.payload().to_vec();
+
+    let processor = PiiAttachmentsProcessor::new(config.compiled());
+    metric!(timer(RelayTimers::AttachmentScrubbing), {
+        processor.scrub_attachment(filename, &mut payload);
+    });
+
+    item.set_payload_without_content_type(payload);
 }
