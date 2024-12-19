@@ -9,6 +9,7 @@
 **Features**:
 
 - Add data categories for Uptime and Attachment Items. ([#4363](https://github.com/getsentry/relay/pull/4363), [#4374](https://github.com/getsentry/relay/pull/4374))
+- Update Chrome inbound filter. ([#4381](https://github.com/getsentry/relay/pull/4381))
 
 ## 24.11.2
 
