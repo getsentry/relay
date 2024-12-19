@@ -1,9 +1,21 @@
 //! Contains the processing-only functionality.
 
 use std::error::Error;
+use std::sync::Arc;
 
+use crate::envelope::{ContentType, Item, ItemType};
+use crate::metrics_extraction::{event, generic};
+use crate::services::outcome::{DiscardReason, Outcome};
+use crate::services::processor::span::extract_transaction_span;
+use crate::services::processor::{
+    dynamic_sampling, event_type, EventMetricsExtracted, ProcessEnvelopeState, ProcessingError,
+    SpanGroup, SpansExtracted, TransactionGroup,
+};
+use crate::services::projects::project::ProjectInfo;
+use crate::utils::{sample, ItemAction, ManagedEnvelope, TypedEnvelope};
 use chrono::{DateTime, Utc};
 use relay_base_schema::events::EventType;
+use relay_base_schema::project::ProjectId;
 use relay_config::Config;
 use relay_dynamic_config::{
     CombinedMetricExtractionConfig, ErrorBoundary, Feature, GlobalConfig, ProjectConfig,
@@ -18,59 +30,70 @@ use relay_event_normalization::{
 };
 use relay_event_schema::processor::{process_value, ProcessingAction, ProcessingState};
 use relay_event_schema::protocol::{
-    BrowserContext, EventId, IpAddr, Measurement, Measurements, Span, SpanData,
+    BrowserContext, Event, EventId, IpAddr, Measurement, Measurements, Span, SpanData,
 };
 use relay_log::protocol::{Attachment, AttachmentType};
 use relay_metrics::{FractionUnit, MetricNamespace, MetricUnit, UnixTimestamp};
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Empty, Value};
 use relay_quotas::DataCategory;
+use relay_sampling::evaluation::ReservoirEvaluator;
 use relay_spans::otel_trace::Span as OtelSpan;
 use thiserror::Error;
-
-use crate::envelope::{ContentType, Item, ItemType};
-use crate::metrics_extraction::{event, generic};
-use crate::services::outcome::{DiscardReason, Outcome};
-use crate::services::processor::span::extract_transaction_span;
-use crate::services::processor::{
-    dynamic_sampling, ProcessEnvelopeState, ProcessingError, SpanGroup, TransactionGroup,
-};
-use crate::utils::{sample, ItemAction, ManagedEnvelope};
 
 #[derive(Error, Debug)]
 #[error(transparent)]
 struct ValidationError(#[from] anyhow::Error);
 
+#[allow(clippy::too_many_arguments)]
 pub fn process(
-    state: &mut ProcessEnvelopeState<SpanGroup>,
+    state: &mut ProcessEnvelopeState,
+    managed_envelope: &mut TypedEnvelope<SpanGroup>,
+    event: &mut Annotated<Event>,
     global_config: &GlobalConfig,
+    config: Arc<Config>,
+    project_id: ProjectId,
+    project_info: Arc<ProjectInfo>,
+    sampling_project_info: Option<Arc<ProjectInfo>>,
     geo_lookup: Option<&GeoIpLookup>,
+    reservoir_counters: &ReservoirEvaluator,
 ) {
     use relay_event_normalization::RemoveOtherProcessor;
 
     // We only implement trace-based sampling rules for now, which can be computed
     // once for all spans in the envelope.
-    let sampling_result = dynamic_sampling::run(state);
+    let sampling_result = dynamic_sampling::run(
+        managed_envelope,
+        event,
+        config.clone(),
+        project_info.clone(),
+        sampling_project_info,
+        reservoir_counters,
+    );
 
-    let span_metrics_extraction_config = match state.project_info.config.metric_extraction {
+    let span_metrics_extraction_config = match project_info.config.metric_extraction {
         ErrorBoundary::Ok(ref config) if config.is_enabled() => Some(config),
         _ => None,
     };
     let normalize_span_config = NormalizeSpanConfig::new(
-        &state.config,
+        &config,
         global_config,
-        state.project_info.config(),
-        &state.managed_envelope,
-        state.envelope().meta().client_addr().map(IpAddr::from),
+        project_info.config(),
+        managed_envelope,
+        managed_envelope
+            .envelope()
+            .meta()
+            .client_addr()
+            .map(IpAddr::from),
         geo_lookup,
     );
 
-    let client_ip = state.managed_envelope.envelope().meta().client_addr();
-    let filter_settings = &state.project_info.config.filter_settings;
+    let client_ip = managed_envelope.envelope().meta().client_addr();
+    let filter_settings = &project_info.config.filter_settings;
     let sampling_decision = sampling_result.decision();
 
     let mut span_count = 0;
-    state.managed_envelope.retain_items(|item| {
+    managed_envelope.retain_items(|item| {
         let mut annotated_span = match item.ty() {
             ItemType::OtelSpan => match serde_json::from_slice::<OtelSpan>(&item.payload()) {
                 Ok(otel_span) => Annotated::new(relay_spans::otel_to_sentry_span(otel_span)),
@@ -136,7 +159,7 @@ pub fn process(
                 .extracted_metrics
                 .extend_project_metrics(metrics, Some(sampling_decision));
 
-            if state.project_info.config.features.produces_spans() {
+            if project_info.config.features.produces_spans() {
                 let transaction = span
                     .data
                     .value()
@@ -147,7 +170,7 @@ pub fn process(
                     transaction,
                     1,
                     sampling_decision,
-                    state.project_id,
+                    project_id,
                 );
                 state
                     .extracted_metrics
@@ -164,7 +187,7 @@ pub fn process(
             return ItemAction::DropSilently;
         }
 
-        if let Err(e) = scrub(&mut annotated_span, &state.project_info.config) {
+        if let Err(e) = scrub(&mut annotated_span, &project_info.config) {
             relay_log::error!("failed to scrub span: {e}");
         }
 
@@ -212,13 +235,8 @@ pub fn process(
         };
         new_item.set_payload(ContentType::Json, payload);
         new_item.set_metrics_extracted(item.metrics_extracted());
-        new_item.set_ingest_span_in_eap(
-            state
-                .project_info
-                .config
-                .features
-                .has(Feature::IngestSpansInEap),
-        );
+        new_item
+            .set_ingest_span_in_eap(project_info.config.features.has(Feature::IngestSpansInEap));
 
         *item = new_item;
 
@@ -234,9 +252,7 @@ pub fn process(
     }
 
     if let Some(outcome) = sampling_result.into_dropped_outcome() {
-        state
-            .managed_envelope
-            .track_outcome(outcome, DataCategory::SpanIndexed, span_count);
+        managed_envelope.track_outcome(outcome, DataCategory::SpanIndexed, span_count);
     }
 }
 
@@ -256,36 +272,37 @@ fn add_sample_rate(measurements: &mut Annotated<Measurements>, name: &str, value
         .insert(name.to_owned(), measurement);
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn extract_from_event(
-    state: &mut ProcessEnvelopeState<TransactionGroup>,
+    managed_envelope: &mut TypedEnvelope<TransactionGroup>,
+    event: &Annotated<Event>,
     global_config: &GlobalConfig,
+    config: Arc<Config>,
+    project_info: Arc<ProjectInfo>,
     server_sample_rate: Option<f64>,
-) {
+    event_metrics_extracted: EventMetricsExtracted,
+    spans_extracted: SpansExtracted,
+) -> SpansExtracted {
     // Only extract spans from transactions (not errors).
-    if state.event_type() != Some(EventType::Transaction) {
-        return;
+    if event_type(event) != Some(EventType::Transaction) {
+        return spans_extracted;
     };
 
-    if state.spans_extracted {
-        return;
+    if spans_extracted.0 {
+        return spans_extracted;
     }
 
     if let Some(sample_rate) = global_config.options.span_extraction_sample_rate {
         if !sample(sample_rate) {
-            return;
+            return spans_extracted;
         }
     }
 
-    let client_sample_rate = state
-        .managed_envelope
+    let client_sample_rate = managed_envelope
         .envelope()
         .dsc()
         .and_then(|ctx| ctx.sample_rate);
-    let ingest_in_eap = state
-        .project_info
-        .config
-        .features
-        .has(Feature::IngestSpansInEap);
+    let ingest_in_eap = project_info.config.features.has(Feature::IngestSpansInEap);
 
     let mut add_span = |mut span: Span| {
         add_sample_rate(
@@ -311,7 +328,7 @@ pub fn extract_from_event(
                     "invalid span"
                 );
 
-                state.managed_envelope.track_outcome(
+                managed_envelope.track_outcome(
                     Outcome::Invalid(DiscardReason::InvalidSpan),
                     relay_quotas::DataCategory::SpanIndexed,
                     1,
@@ -324,7 +341,7 @@ pub fn extract_from_event(
             Ok(span) => span,
             Err(e) => {
                 relay_log::error!(error = &e as &dyn Error, "Failed to serialize span");
-                state.managed_envelope.track_outcome(
+                managed_envelope.track_outcome(
                     Outcome::Invalid(DiscardReason::InvalidSpan),
                     relay_quotas::DataCategory::SpanIndexed,
                     1,
@@ -336,27 +353,25 @@ pub fn extract_from_event(
         let mut item = Item::new(ItemType::Span);
         item.set_payload(ContentType::Json, span);
         // If metrics extraction happened for the event, it also happened for its spans:
-        item.set_metrics_extracted(state.event_metrics_extracted);
+        item.set_metrics_extracted(event_metrics_extracted.0);
         item.set_ingest_span_in_eap(ingest_in_eap);
 
         relay_log::trace!("Adding span to envelope");
-        state.managed_envelope.envelope_mut().add_item(item);
+        managed_envelope.envelope_mut().add_item(item);
     };
 
-    let Some(event) = state.event.value() else {
-        return;
+    let Some(event) = event.value() else {
+        return spans_extracted;
     };
 
     let Some(transaction_span) = extract_transaction_span(
         event,
-        state
-            .config
+        config
             .aggregator_config_for(MetricNamespace::Spans)
-            .aggregator
             .max_tag_value_length,
         &[],
     ) else {
-        return;
+        return spans_extracted;
     };
 
     // Add child spans as envelope items.
@@ -383,17 +398,23 @@ pub fn extract_from_event(
 
     add_span(transaction_span);
 
-    state.spans_extracted = true;
+    SpansExtracted(true)
 }
 
 /// Removes the transaction in case the project has made the transition to spans-only.
-pub fn maybe_discard_transaction(state: &mut ProcessEnvelopeState<TransactionGroup>) {
-    if state.event_type() == Some(EventType::Transaction)
-        && state.project_info.has_feature(Feature::DiscardTransaction)
+pub fn maybe_discard_transaction(
+    managed_envelope: &mut TypedEnvelope<TransactionGroup>,
+    event: Annotated<Event>,
+    project_info: Arc<ProjectInfo>,
+) -> Annotated<Event> {
+    if event_type(&event) == Some(EventType::Transaction)
+        && project_info.has_feature(Feature::DiscardTransaction)
     {
-        state.remove_event();
-        state.managed_envelope.update();
+        managed_envelope.update();
+        return Annotated::empty();
     }
+
+    event
 }
 /// Config needed to normalize a standalone span.
 #[derive(Clone, Debug)]
@@ -450,8 +471,8 @@ impl<'a> NormalizeSpanConfig<'a> {
 
         Self {
             received_at: managed_envelope.received_at(),
-            timestamp_range: aggregator_config.aggregator.timestamp_range(),
-            max_tag_value_size: aggregator_config.aggregator.max_tag_value_length,
+            timestamp_range: aggregator_config.timestamp_range(),
+            max_tag_value_size: aggregator_config.max_tag_value_length,
             performance_score: project_config.performance_score.as_ref(),
             measurements: Some(CombinedMeasurementsConfig::new(
                 project_config.measurements.as_ref(),
@@ -462,7 +483,6 @@ impl<'a> NormalizeSpanConfig<'a> {
                 ErrorBoundary::Ok(costs) => Some(costs),
             },
             max_name_and_unit_len: aggregator_config
-                .aggregator
                 .max_name_length
                 .saturating_sub(MeasurementsConfig::MEASUREMENT_MRI_OVERHEAD),
 
@@ -793,24 +813,25 @@ mod tests {
 
     use bytes::Bytes;
     use once_cell::sync::Lazy;
-    use relay_base_schema::project::ProjectId;
     use relay_event_schema::protocol::{
         Context, ContextInner, EventId, SpanId, Timestamp, TraceContext, TraceId,
     };
     use relay_event_schema::protocol::{Contexts, Event, Span};
     use relay_protocol::get_value;
-    use relay_quotas::RateLimits;
-    use relay_sampling::evaluation::{ReservoirCounters, ReservoirEvaluator};
     use relay_system::Addr;
 
     use crate::envelope::Envelope;
-    use crate::services::processor::{ProcessingExtractedMetrics, ProcessingGroup};
+    use crate::services::processor::ProcessingGroup;
     use crate::services::projects::project::ProjectInfo;
     use crate::utils::ManagedEnvelope;
 
     use super::*;
 
-    fn state() -> ProcessEnvelopeState<'static, TransactionGroup> {
+    fn params() -> (
+        TypedEnvelope<TransactionGroup>,
+        Annotated<Event>,
+        Arc<ProjectInfo>,
+    ) {
         let bytes = Bytes::from(
             r#"{"event_id":"9ec79c33ec9942ab8353589fcb2e04dc","dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42","trace":{"trace_id":"89143b0763095bd9c9955e8175d1fb23","public_key":"e12d836b15bb49d7bbf99e64295d995b","sample_rate":"0.2"}}
 {"type":"transaction"}
@@ -853,35 +874,36 @@ mod tests {
             ProcessingGroup::Transaction,
         );
 
-        ProcessEnvelopeState {
-            event: Annotated::from(event),
-            metrics: Default::default(),
-            extracted_metrics: ProcessingExtractedMetrics::new(),
-            config: Arc::new(Config::default()),
-            project_info,
-            rate_limits: Arc::new(RateLimits::default()),
-            sampling_project_info: None,
-            project_id: ProjectId::new(42),
-            managed_envelope: managed_envelope.try_into().unwrap(),
-            event_metrics_extracted: false,
-            spans_extracted: false,
-            reservoir: ReservoirEvaluator::new(ReservoirCounters::default()),
-        }
+        let managed_envelope = managed_envelope.try_into().unwrap();
+
+        let event = Annotated::from(event);
+
+        (managed_envelope, event, project_info)
     }
 
     #[test]
     fn extract_sampled_default() {
         let global_config = GlobalConfig::default();
+        let config = Arc::new(Config::default());
         assert!(global_config.options.span_extraction_sample_rate.is_none());
-        let mut state = state();
-        extract_from_event(&mut state, &global_config, None);
+        let (mut managed_envelope, event, project_info) = params();
+        extract_from_event(
+            &mut managed_envelope,
+            &event,
+            &global_config,
+            config,
+            project_info,
+            None,
+            EventMetricsExtracted(false),
+            SpansExtracted(false),
+        );
         assert!(
-            state
+            managed_envelope
                 .envelope()
                 .items()
                 .any(|item| item.ty() == &ItemType::Span),
             "{:?}",
-            state.envelope()
+            managed_envelope.envelope()
         );
     }
 
@@ -889,15 +911,25 @@ mod tests {
     fn extract_sampled_explicit() {
         let mut global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = Some(1.0);
-        let mut state = state();
-        extract_from_event(&mut state, &global_config, None);
+        let config = Arc::new(Config::default());
+        let (mut managed_envelope, event, project_info) = params();
+        extract_from_event(
+            &mut managed_envelope,
+            &event,
+            &global_config,
+            config,
+            project_info,
+            None,
+            EventMetricsExtracted(false),
+            SpansExtracted(false),
+        );
         assert!(
-            state
+            managed_envelope
                 .envelope()
                 .items()
                 .any(|item| item.ty() == &ItemType::Span),
             "{:?}",
-            state.envelope()
+            managed_envelope.envelope()
         );
     }
 
@@ -905,15 +937,25 @@ mod tests {
     fn extract_sampled_dropped() {
         let mut global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = Some(0.0);
-        let mut state = state();
-        extract_from_event(&mut state, &global_config, None);
+        let config = Arc::new(Config::default());
+        let (mut managed_envelope, event, project_info) = params();
+        extract_from_event(
+            &mut managed_envelope,
+            &event,
+            &global_config,
+            config,
+            project_info,
+            None,
+            EventMetricsExtracted(false),
+            SpansExtracted(false),
+        );
         assert!(
-            !state
+            !managed_envelope
                 .envelope()
                 .items()
                 .any(|item| item.ty() == &ItemType::Span),
             "{:?}",
-            state.envelope()
+            managed_envelope.envelope()
         );
     }
 
@@ -921,10 +963,20 @@ mod tests {
     fn extract_sample_rates() {
         let mut global_config = GlobalConfig::default();
         global_config.options.span_extraction_sample_rate = Some(1.0); // force enable
-        let mut state = state(); // client sample rate is 0.2
-        extract_from_event(&mut state, &global_config, Some(0.1));
+        let config = Arc::new(Config::default());
+        let (mut managed_envelope, event, project_info) = params(); // client sample rate is 0.2
+        extract_from_event(
+            &mut managed_envelope,
+            &event,
+            &global_config,
+            config,
+            project_info,
+            Some(0.1),
+            EventMetricsExtracted(false),
+            SpansExtracted(false),
+        );
 
-        let span = state
+        let span = managed_envelope
             .envelope()
             .items()
             .find(|item| item.ty() == &ItemType::Span)

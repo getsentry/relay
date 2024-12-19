@@ -1,19 +1,23 @@
 //! Attachments processor code.
 
 use std::error::Error;
+use std::sync::Arc;
 use std::time::Instant;
 
 use relay_pii::PiiAttachmentsProcessor;
 use relay_statsd::metric;
 
 use crate::envelope::{AttachmentType, ContentType};
-use crate::services::processor::ProcessEnvelopeState;
 use crate::statsd::RelayTimers;
 
+use crate::services::projects::project::ProjectInfo;
+use crate::utils::TypedEnvelope;
 #[cfg(feature = "processing")]
 use {
-    crate::services::processor::ErrorGroup, crate::services::processor::EventFullyNormalized,
-    crate::utils, relay_event_schema::protocol::Event, relay_protocol::Annotated,
+    crate::services::processor::{ErrorGroup, EventFullyNormalized, ProcessEnvelopeState},
+    crate::utils,
+    relay_event_schema::protocol::Event,
+    relay_protocol::Annotated,
 };
 
 /// Adds processing placeholders for special attachments.
@@ -24,21 +28,23 @@ use {
 /// If the event payload was empty before, it is created.
 #[cfg(feature = "processing")]
 pub fn create_placeholders(
-    state: &mut ProcessEnvelopeState<ErrorGroup>,
+    state: &mut ProcessEnvelopeState,
+    managed_envelope: &mut TypedEnvelope<ErrorGroup>,
+    event: &mut Annotated<Event>,
 ) -> Option<EventFullyNormalized> {
-    let envelope = state.managed_envelope.envelope();
+    let envelope = managed_envelope.envelope();
     let minidump_attachment =
         envelope.get_item_by(|item| item.attachment_type() == Some(&AttachmentType::Minidump));
     let apple_crash_report_attachment = envelope
         .get_item_by(|item| item.attachment_type() == Some(&AttachmentType::AppleCrashReport));
 
     if let Some(item) = minidump_attachment {
-        let event = state.event.get_or_insert_with(Event::default);
+        let event = event.get_or_insert_with(Event::default);
         state.metrics.bytes_ingested_event_minidump = Annotated::new(item.len() as u64);
         utils::process_minidump(event, &item.payload());
         return Some(EventFullyNormalized(false));
     } else if let Some(item) = apple_crash_report_attachment {
-        let event = state.event.get_or_insert_with(Event::default);
+        let event = event.get_or_insert_with(Event::default);
         state.metrics.bytes_ingested_event_applecrashreport = Annotated::new(item.len() as u64);
         utils::process_apple_crash_report(event, &item.payload());
         return Some(EventFullyNormalized(false));
@@ -52,9 +58,9 @@ pub fn create_placeholders(
 /// This only applies the new PII rules that explicitly select `ValueType::Binary` or one of the
 /// attachment types. When special attachments are detected, these are scrubbed with custom
 /// logic; otherwise the entire attachment is treated as a single binary blob.
-pub fn scrub<G>(state: &mut ProcessEnvelopeState<G>) {
-    let envelope = state.managed_envelope.envelope_mut();
-    if let Some(ref config) = state.project_info.config.pii_config {
+pub fn scrub<Group>(managed_envelope: &mut TypedEnvelope<Group>, project_info: Arc<ProjectInfo>) {
+    let envelope = managed_envelope.envelope_mut();
+    if let Some(ref config) = project_info.config.pii_config {
         let minidump = envelope
             .get_item_by_mut(|item| item.attachment_type() == Some(&AttachmentType::Minidump));
 

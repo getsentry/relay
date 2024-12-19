@@ -113,15 +113,6 @@ fn is_err_or_empty(filters_config: &ErrorBoundary<GenericFiltersConfig>) -> bool
 #[derive(Default, Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
 pub struct Options {
-    /// Kill switch for shutting down profile function metrics
-    /// ingestion in the generic-metrics platform
-    #[serde(
-        rename = "profiling.generic_metrics.functions_ingestion.enabled",
-        deserialize_with = "default_on_error",
-        skip_serializing_if = "is_default"
-    )]
-    pub profiles_function_generic_metrics_enabled: bool,
-
     /// Kill switch for controlling the cardinality limiter.
     #[serde(
         rename = "relay.cardinality-limiter.mode",
@@ -249,7 +240,6 @@ impl BucketEncodings {
         match namespace {
             MetricNamespace::Transactions => self.transactions,
             MetricNamespace::Spans => self.spans,
-            MetricNamespace::Profiles => self.profiles,
             MetricNamespace::Custom => self.custom,
             MetricNamespace::Stats => self.metric_stats,
             // Always force the legacy encoding for sessions,

@@ -210,14 +210,14 @@ def test_metrics_backdated(mini_sentry, relay):
 @pytest.mark.parametrize(
     "metrics_partitions,expected_header",
     [
-        # With no partitions defined, partitioning will not be performed but bucket shift will still be done.
-        (None, None),
+        # With no partitions defined, partition count is auto assigned.
+        (None, "4"),
         # With zero partitions defined, all the buckets will be forwarded to a single partition.
         (0, "0"),
         # With zero partitions defined, all the buckets will be forwarded to a single partition.
         (1, "0"),
         # With more than zero partitions defined, the buckets will be forwarded to one of the partitions.
-        (128, "17"),
+        (128, "4"),
     ],
 )
 def test_metrics_partition_key(mini_sentry, relay, metrics_partitions, expected_header):
@@ -1241,12 +1241,10 @@ def test_graceful_shutdown(mini_sentry, relay):
 
     timestamp = int(datetime.now(tz=timezone.utc).timestamp())
 
-    # Backdated metric will be flushed immediately due to debounce delay
-    past_timestamp = timestamp - 1000
+    past_timestamp = timestamp - 1000 + 30
     metrics_payload = f"transactions/past:42|c|T{past_timestamp}"
     relay.send_metrics(project_id, metrics_payload)
 
-    # Future timestamp will not be flushed regularly, only through force flush
     future_timestamp = timestamp + 30
     metrics_payload = f"transactions/future:17|c|T{future_timestamp}"
     relay.send_metrics(project_id, metrics_payload)
@@ -1259,27 +1257,36 @@ def test_graceful_shutdown(mini_sentry, relay):
     with pytest.raises(requests.ConnectionError):
         relay.send_metrics(project_id, metrics_payload)
 
-    envelope = mini_sentry.captured_events.get(timeout=5)
-    assert len(envelope.items) == 1
-    metrics_item = envelope.items[0]
-    assert metrics_item.type == "metric_buckets"
+    received_metrics = list()
+    for _ in range(2):
+        envelope = mini_sentry.captured_events.get(timeout=5)
+        assert len(envelope.items) == 1
+        metrics_item = envelope.items[0]
+        assert metrics_item.type == "metric_buckets"
 
-    received_metrics = metrics_without_keys(
-        json.loads(metrics_item.get_bytes().decode()), keys={"metadata"}
-    )
+        received_metrics.extend(
+            metrics_without_keys(
+                json.loads(metrics_item.get_bytes().decode()), keys={"metadata"}
+            )
+        )
+
+        if len(received_metrics) == 2:
+            break
+
+    received_metrics.sort(key=lambda x: x["timestamp"])
     assert received_metrics == [
-        {
-            "timestamp": time_within_delta(future_timestamp, timedelta(seconds=1)),
-            "width": 1,
-            "name": "c:transactions/future@none",
-            "value": 17.0,
-            "type": "c",
-        },
         {
             "timestamp": time_within_delta(past_timestamp, timedelta(seconds=1)),
             "width": 1,
             "name": "c:transactions/past@none",
             "value": 42.0,
+            "type": "c",
+        },
+        {
+            "timestamp": time_within_delta(future_timestamp, timedelta(seconds=1)),
+            "width": 1,
+            "name": "c:transactions/future@none",
+            "value": 17.0,
             "type": "c",
         },
     ]
@@ -1905,44 +1912,6 @@ def test_missing_global_filters_enables_metric_extraction(
     assert metrics_consumer.get_metrics()
 
 
-def test_profiles_metrics(mini_sentry, relay):
-    relay = relay(mini_sentry, options=TEST_CONFIG)
-
-    project_id = 42
-    mini_sentry.add_basic_project_config(project_id)
-
-    timestamp = int(datetime.now(tz=timezone.utc).timestamp())
-    metrics_payload = f"profiles/foo:42|c|T{timestamp}\nprofiles/bar:17|c|T{timestamp}"
-
-    relay.send_metrics(project_id, metrics_payload)
-
-    envelope = mini_sentry.captured_events.get(timeout=3)
-    assert len(envelope.items) == 1
-
-    metrics_item = envelope.items[0]
-    assert metrics_item.type == "metric_buckets"
-
-    received_metrics = metrics_without_keys(
-        json.loads(metrics_item.get_bytes().decode()), keys={"metadata"}
-    )
-    assert received_metrics == [
-        {
-            "timestamp": time_after(timestamp),
-            "width": 1,
-            "name": "c:profiles/bar@none",
-            "value": 17.0,
-            "type": "c",
-        },
-        {
-            "timestamp": time_after(timestamp),
-            "width": 1,
-            "name": "c:profiles/foo@none",
-            "value": 42.0,
-            "type": "c",
-        },
-    ]
-
-
 def test_metrics_with_denied_names(
     mini_sentry, relay_with_processing, metrics_consumer
 ):
@@ -2204,3 +2173,17 @@ def test_metrics_extraction_with_computed_context_filters(
     metrics = metrics_consumer.get_metrics()
     for metric, _ in metrics:
         assert metric["name"] not in metric_names
+
+
+def test_profiles_metrics(mini_sentry, relay):
+    relay = relay(mini_sentry, options=TEST_CONFIG)
+
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
+
+    timestamp = int(datetime.now(tz=timezone.utc).timestamp())
+    metrics_payload = f"profiles/foo:42|c|T{timestamp}\nprofiles/bar:17|c|T{timestamp}"
+
+    relay.send_metrics(project_id, metrics_payload)
+
+    assert mini_sentry.captured_events.empty()

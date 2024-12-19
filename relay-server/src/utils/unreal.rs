@@ -1,3 +1,4 @@
+use bytes::Bytes;
 use chrono::{TimeZone, Utc};
 use relay_config::Config;
 use relay_event_schema::protocol::{
@@ -122,9 +123,10 @@ fn merge_unreal_user_info(event: &mut Event, user_info: &str) {
 }
 
 /// Merge an unreal logs object into event breadcrumbs.
-fn merge_unreal_logs(event: &mut Event, data: &[u8]) -> Result<(), Unreal4Error> {
-    let logs = Unreal4LogEntry::parse(data, MAX_NUM_UNREAL_LOGS)?;
-
+fn merge_unreal_logs(
+    event: &mut Event,
+    logs: impl IntoIterator<Item = Bytes>,
+) -> Result<(), Unreal4Error> {
     let breadcrumbs = event
         .breadcrumbs
         .value_mut()
@@ -133,7 +135,25 @@ fn merge_unreal_logs(event: &mut Event, data: &[u8]) -> Result<(), Unreal4Error>
         .value_mut()
         .get_or_insert_with(Array::default);
 
-    for log in logs {
+    for breadcrumb in logs
+        .into_iter()
+        .flat_map(parse_unreal_logs)
+        .take(MAX_NUM_UNREAL_LOGS)
+    {
+        breadcrumbs.push(Annotated::new(breadcrumb?));
+    }
+
+    Ok(())
+}
+
+/// Parses unreal logs into breadcrumbs.
+fn parse_unreal_logs(data: Bytes) -> impl Iterator<Item = Result<Breadcrumb, Unreal4Error>> {
+    let (logs, err) = match Unreal4LogEntry::parse(&data, MAX_NUM_UNREAL_LOGS) {
+        Ok(logs) => (logs, None),
+        Err(err) => (Vec::new(), Some(Err(err))),
+    };
+
+    let logs = logs.into_iter().map(|log| {
         let timestamp = log
             .timestamp
             .and_then(|ts| {
@@ -142,15 +162,15 @@ fn merge_unreal_logs(event: &mut Event, data: &[u8]) -> Result<(), Unreal4Error>
             })
             .map(Timestamp);
 
-        breadcrumbs.push(Annotated::new(Breadcrumb {
+        Ok(Breadcrumb {
             timestamp: Annotated::from(timestamp),
             category: Annotated::from(log.component),
             message: Annotated::new(log.message),
             ..Breadcrumb::default()
-        }));
-    }
+        })
+    });
 
-    Ok(())
+    err.into_iter().chain(logs)
 }
 
 /// Parses `UserReport` from unreal user information.
@@ -313,11 +333,14 @@ pub fn process_unreal_envelope(
         .and_then(Value::as_str);
     let context_item =
         envelope.get_item_by(|item| item.attachment_type() == Some(&AttachmentType::UnrealContext));
-    let logs_item =
-        envelope.get_item_by(|item| item.attachment_type() == Some(&AttachmentType::UnrealLogs));
+    let mut logs_items = envelope
+        .items()
+        .filter(|item| item.attachment_type() == Some(&AttachmentType::UnrealLogs))
+        .map(|item| item.payload())
+        .peekable();
 
     // Early exit if there is no information.
-    if user_header.is_none() && context_item.is_none() && logs_item.is_none() {
+    if user_header.is_none() && context_item.is_none() && logs_items.peek().is_none() {
         return Ok(false);
     }
 
@@ -329,9 +352,7 @@ pub fn process_unreal_envelope(
         merge_unreal_user_info(event, user_info);
     }
 
-    if let Some(logs_item) = logs_item {
-        merge_unreal_logs(event, &logs_item.payload())?;
-    }
+    merge_unreal_logs(event, logs_items)?;
 
     if let Some(context_item) = context_item {
         let mut context = Unreal4Context::parse(&context_item.payload())?;
@@ -480,14 +501,14 @@ mod tests {
 
     #[test]
     fn test_merge_unreal_logs() {
-        let logs = br#"Log file open, 10/29/18 17:56:37
+        let logs = Bytes::from_static(br#"Log file open, 10/29/18 17:56:37
 [2018.10.29-16.56.38:332][  0]LogGameplayTags: Display: UGameplayTagsManager::DoneAddingNativeTags. DelegateIsBound: 0
 [2018.10.29-16.56.39:332][  0]LogStats: UGameplayTagsManager::ConstructGameplayTagTree: ImportINI prefixes -  0.000 s
 [2018.10.29-16.56.40:332][  0]LogStats: UGameplayTagsManager::ConstructGameplayTagTree: Construct from data asset -  0.000 s
-[2018.10.29-16.56.41:332][  0]LogStats: UGameplayTagsManager::ConstructGameplayTagTree: ImportINI -  0.000 s"#;
+[2018.10.29-16.56.41:332][  0]LogStats: UGameplayTagsManager::ConstructGameplayTagTree: ImportINI -  0.000 s"#);
 
         let mut event = Event::default();
-        merge_unreal_logs(&mut event, logs).ok();
+        merge_unreal_logs(&mut event, Some(logs)).unwrap();
 
         insta::assert_snapshot!(Annotated::new(event).to_json_pretty().unwrap());
     }

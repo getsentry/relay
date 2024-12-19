@@ -4,12 +4,30 @@
 
 **Bug Fixes**:
 
+- Fix serialized name of `cache.hit` and `cache.key` span tags. ([#4408](https://github.com/getsentry/relay/pull/4408))
+
+**Features**:
+
+- Update Chrome inbound filter. ([#4381](https://github.com/getsentry/relay/pull/4381))
+
+## 24.12.0
+
+**Bug Fixes**:
+
+- Update user agent parsing rules to fix some user agent identification issues. ([#4385](https://github.com/getsentry/relay/pull/4385))
 - Stop collecting the `has_profile` metrics tag & reporting outcomes for it. ([#4365](https://github.com/getsentry/relay/pull/4365))
+- Parse unreal logs into breadcrumbs from all attached log items not just the first. ([#4384](https://github.com/getsentry/relay/pull/4384))
+- Normalize "Google Chrome" browser name to "Chrome". ([#4386](https://github.com/getsentry/relay/pull/4386))
 
 **Features**:
 
 - Add data categories for Uptime and Attachment Items. ([#4363](https://github.com/getsentry/relay/pull/4363), [#4374](https://github.com/getsentry/relay/pull/4374))
-- Update Chrome inbound filter. ([#4381](https://github.com/getsentry/relay/pull/4381))
+- Add ability to rate limit attachments by count (not just by the number of bytes). ([#4377](https://github.com/getsentry/relay/pull/4377))
+
+**Internal**:
+
+- Rework metrics aggregator to keep internal partitions. ([#4378](https://github.com/getsentry/relay/pull/4378))
+- Remove support for metrics with profile namespace. ([#4391](https://github.com/getsentry/relay/pull/4391))
 
 ## 24.11.2
 

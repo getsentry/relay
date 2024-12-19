@@ -305,7 +305,11 @@ def mini_sentry(request):  # noqa
         envelope = Envelope.deserialize(flask_request.data)
         event = envelope.get_event()
 
-        if event is not None and sentry.fail_on_relay_error:
+        if (
+            event is not None
+            and sentry.fail_on_relay_error
+            and event.get("level") != "info"
+        ):
             error = AssertionError("Relay sent us event: " + get_error_message(event))
             sentry.test_failures.put(("/api/666/envelope/", error))
 

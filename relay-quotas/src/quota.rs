@@ -170,10 +170,12 @@ impl ItemScoping<'_> {
 
 /// The unit in which a data category is measured.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum CategoryUnit {
+pub enum CategoryUnit {
+    /// Counts the number of items.
     Count,
+    /// Counts the number of bytes across items.
     Bytes,
-    Batched,
+    /// Counts the accumulated times across items.
     Milliseconds,
 }
 
@@ -199,9 +201,9 @@ impl CategoryUnit {
             | DataCategory::ProfileChunk
             | DataCategory::Uptime
             | DataCategory::MetricSecond
-            | DataCategory::AttachmentItem => Some(Self::Count),
+            | DataCategory::AttachmentItem
+            | DataCategory::Session => Some(Self::Count),
             DataCategory::Attachment => Some(Self::Bytes),
-            DataCategory::Session => Some(Self::Batched),
             DataCategory::ProfileDuration => Some(Self::Milliseconds),
 
             DataCategory::Unknown => None,

@@ -33,6 +33,15 @@ pub enum RelayGauges {
     ProjectCacheScheduledFetches,
     /// Exposes the amount of currently open and handled connections by the server.
     ServerActiveConnections,
+    /// Maximum delay of a metric bucket in seconds.
+    ///
+    /// The maximum is measured from initial creation of the bucket in an internal Relay
+    /// until it is produced to Kafka.
+    ///
+    /// This metric is tagged with:
+    /// - `namespace`: the metric namespace.
+    #[cfg(feature = "processing")]
+    MetricDelayMax,
 }
 
 impl GaugeMetric for RelayGauges {
@@ -52,6 +61,8 @@ impl GaugeMetric for RelayGauges {
             }
             RelayGauges::ProjectCacheScheduledFetches => "project_cache.fetches.size",
             RelayGauges::ServerActiveConnections => "server.http.connections",
+            #[cfg(feature = "processing")]
+            RelayGauges::MetricDelayMax => "metrics.delay.max",
         }
     }
 }
@@ -276,25 +287,6 @@ pub enum RelayHistograms {
     PartitionKeys,
     /// Measures how many splits were performed when sending out a partition.
     PartitionSplits,
-    /// The total number of metric buckets flushed in a cycle across all projects.
-    ///
-    /// This metric is tagged with:
-    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
-    BucketsFlushed,
-    /// The number of metric buckets flushed in a cycle for each project.
-    ///
-    /// Relay scans metric buckets in regular intervals and flushes expired buckets. This histogram
-    /// is logged for each project that is being flushed. The count of the histogram values is
-    /// equivalent to the number of projects being flushed.
-    ///
-    /// This metric is tagged with:
-    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
-    BucketsFlushedPerProject,
-    /// The number of metric partitions flushed in a cycle.
-    ///
-    /// This metric is tagged with:
-    ///  - `aggregator`: The name of the metrics aggregator (usually `"default"`).
-    PartitionsFlushed,
 }
 
 impl HistogramMetric for RelayHistograms {
@@ -331,9 +323,6 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::UpstreamMetricsBodySize => "upstream.metrics.body_size",
             RelayHistograms::PartitionKeys => "metrics.buckets.partition_keys",
             RelayHistograms::PartitionSplits => "partition_splits",
-            RelayHistograms::BucketsFlushed => "metrics.buckets.flushed",
-            RelayHistograms::BucketsFlushedPerProject => "metrics.buckets.flushed_per_project",
-            RelayHistograms::PartitionsFlushed => "metrics.partitions.flushed",
         }
     }
 }
@@ -834,6 +823,23 @@ pub enum RelayCounters {
     ServerSocketAccept,
     /// Incremented every time the server aborts a connection because of an idle timeout.
     ServerConnectionIdleTimeout,
+    /// The total delay of metric buckets in seconds.
+    ///
+    /// The delay is measured from initial creation of the bucket in an internal Relay
+    /// until it is produced to Kafka.
+    ///
+    /// Use [`Self::MetricDelayCount`] to calculate the average delay.
+    ///
+    /// This metric is tagged with:
+    /// - `namespace`: the metric namespace.
+    #[cfg(feature = "processing")]
+    MetricDelaySum,
+    /// The amount of buckets counted for the [`Self::MetricDelaySum`] metric.
+    ///
+    /// This metric is tagged with:
+    /// - `namespace`: the metric namespace.
+    #[cfg(feature = "processing")]
+    MetricDelayCount,
 }
 
 impl CounterMetric for RelayCounters {
@@ -876,6 +882,10 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ReplayExceededSegmentLimit => "replay.segment_limit_exceeded",
             RelayCounters::ServerSocketAccept => "server.http.accepted",
             RelayCounters::ServerConnectionIdleTimeout => "server.http.idle_timeout",
+            #[cfg(feature = "processing")]
+            RelayCounters::MetricDelaySum => "metrics.delay.sum",
+            #[cfg(feature = "processing")]
+            RelayCounters::MetricDelayCount => "metrics.delay.count",
         }
     }
 }
