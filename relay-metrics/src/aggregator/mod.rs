@@ -136,9 +136,10 @@ impl Aggregator {
             return Err(err.duration());
         }
 
-        let partition = self.inner.flush_next();
-
+        // Emit global stats before flushing to emit the maximum size.
         emit_stats(&self.name, self.inner.stats());
+
+        let partition = self.inner.flush_next();
         emit_flush_partition_stats(&self.name, partition.stats);
 
         Ok(Partition {
