@@ -159,8 +159,8 @@ mod tests {
     #[test]
     fn matches_attachment_selector() {
         let config = r#"{
-            "rules": {},
-            "applications": {"$attachments.'foo.txt'":["0"]}
+            "rules": {"0": {"type": "ip", "redaction": {"method": "remove"}}},
+            "applications": {"$attachments.'foo.txt'": ["0"]}
         }"#;
         let config: PiiConfig = serde_json::from_str(config).unwrap();
         assert!(has_simple_attachment_selector(&config));
