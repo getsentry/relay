@@ -4,7 +4,7 @@ use std::error::Error;
 use std::sync::Arc;
 use std::time::Instant;
 
-use relay_pii::{PiiAttachmentsProcessor, SelectorSpec};
+use relay_pii::{PiiAttachmentsProcessor, SelectorPathItem, SelectorSpec};
 use relay_statsd::metric;
 
 use crate::envelope::{AttachmentType, ContentType};
@@ -66,7 +66,7 @@ pub fn scrub<Group>(managed_envelope: &mut TypedEnvelope<Group>, project_info: A
 
         if let Some(item) = minidump {
             scrub_minidump(item, config);
-        } else if has_explicit_attachment_rules(config) {
+        } else if has_simple_attachment_selector(config) {
             for item in envelope
                 .items_mut()
                 .filter(|item| item.attachment_type().is_some())
@@ -117,11 +117,25 @@ fn scrub_minidump(item: &mut crate::envelope::Item, config: &relay_pii::PiiConfi
     item.set_payload(content_type, payload);
 }
 
-fn has_explicit_attachment_rules(config: &relay_pii::PiiConfig) {
-    config
-        .applications
-        .iter()
-        .any(|application| matches!(application, SelectorSpec::Path()));
+fn has_simple_attachment_selector(config: &relay_pii::PiiConfig) -> bool {
+    for application in &config.applications {
+        match &application.0 {
+            SelectorSpec::Path(vec) => {
+                let Some([a, b]) = vec.get(0..2) else {
+                    continue;
+                };
+                if matches!(
+                    a,
+                    SelectorPathItem::Type(relay_event_schema::processor::ValueType::Attachments)
+                ) && matches!(b, SelectorPathItem::Key(_))
+                {
+                    return true;
+                }
+            }
+            _ => (),
+        }
+    }
+    false
 }
 
 fn scrub_attachment(item: &mut crate::envelope::Item, config: &relay_pii::PiiConfig) {
@@ -134,4 +148,53 @@ fn scrub_attachment(item: &mut crate::envelope::Item, config: &relay_pii::PiiCon
     });
 
     item.set_payload_without_content_type(payload);
+}
+
+#[cfg(test)]
+mod tests {
+    use relay_pii::PiiConfig;
+
+    use super::*;
+
+    #[test]
+    fn matches_attachment_selector() {
+        let config = r#"{
+            "rules": {},
+            "applications": {"$attachments.'foo.txt'":["0"]}
+        }"#;
+        let config: PiiConfig = serde_json::from_str(config).unwrap();
+        assert!(has_simple_attachment_selector(&config));
+    }
+
+    #[test]
+    fn does_not_match_wildcard() {
+        let config = r#"{
+            "rules": {},
+            "applications": {"$attachments.**":["0"]}
+        }"#;
+        let config: PiiConfig = serde_json::from_str(config).unwrap();
+        assert!(!has_simple_attachment_selector(&config));
+    }
+
+    #[test]
+    fn does_not_match_empty() {
+        let config = r#"{
+            "rules": {},
+            "applications": {}
+        }"#;
+        let config: PiiConfig = serde_json::from_str(config).unwrap();
+        assert!(!has_simple_attachment_selector(&config));
+    }
+
+    #[test]
+    fn does_not_match_something_else() {
+        let config = r#"{
+            "rules": {},
+            "applications": {
+                "**": ["0"]
+            }
+        }"#;
+        let config: PiiConfig = serde_json::from_str(config).unwrap();
+        assert!(!has_simple_attachment_selector(&config));
+    }
 }
