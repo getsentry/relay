@@ -268,7 +268,8 @@
 <a href="#267" id="267">267</a>
 <a href="#268" id="268">268</a>
 <a href="#269" id="269">269</a>
-<a href="#270" id="270">270</a></pre></div><pre class="rust"><code><span class="doccomment">//! Core functionality of metrics aggregation.
+<a href="#270" id="270">270</a>
+<a href="#271" id="271">271</a></pre></div><pre class="rust"><code><span class="doccomment">//! Core functionality of metrics aggregation.
 
 </span><span class="kw">use </span>std::time::{Duration, SystemTime};
 
@@ -406,9 +407,10 @@
             </span><span class="kw">return </span><span class="prelude-val">Err</span>(err.duration());
         }
 
-        <span class="kw">let </span>partition = <span class="self">self</span>.inner.flush_next();
+        <span class="comment">// Emit global stats before flushing to emit the maximum size.
+        </span>emit_stats(<span class="kw-2">&amp;</span><span class="self">self</span>.name, <span class="self">self</span>.inner.stats());
 
-        emit_stats(<span class="kw-2">&amp;</span><span class="self">self</span>.name, <span class="self">self</span>.inner.stats());
+        <span class="kw">let </span>partition = <span class="self">self</span>.inner.flush_next();
         emit_flush_partition_stats(<span class="kw-2">&amp;</span><span class="self">self</span>.name, partition.stats);
 
         <span class="prelude-val">Ok</span>(Partition {
