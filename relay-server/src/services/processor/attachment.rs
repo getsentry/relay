@@ -122,20 +122,17 @@ fn scrub_minidump(item: &mut crate::envelope::Item, config: &relay_pii::PiiConfi
 
 fn has_simple_attachment_selector(config: &relay_pii::PiiConfig) -> bool {
     for application in &config.applications {
-        match &application.0 {
-            SelectorSpec::Path(vec) => {
-                let Some([a, b]) = vec.get(0..2) else {
-                    continue;
-                };
-                if matches!(
-                    a,
-                    SelectorPathItem::Type(relay_event_schema::processor::ValueType::Attachments)
-                ) && matches!(b, SelectorPathItem::Key(_))
-                {
-                    return true;
-                }
+        if let SelectorSpec::Path(vec) = &application.0 {
+            let Some([a, b]) = vec.get(0..2) else {
+                continue;
+            };
+            if matches!(
+                a,
+                SelectorPathItem::Type(relay_event_schema::processor::ValueType::Attachments)
+            ) && matches!(b, SelectorPathItem::Key(_))
+            {
+                return true;
             }
-            _ => (),
         }
     }
     false
