@@ -67,6 +67,9 @@ pub fn scrub<Group>(managed_envelope: &mut TypedEnvelope<Group>, project_info: A
         if let Some(item) = minidump {
             scrub_minidump(item, config);
         } else if has_simple_attachment_selector(config) {
+            // We temporarily only scrub attachments to projects that have at least one simple attachment rule,
+            // such as `$attachments.'foo.txt'`.
+            // After we have assessed the impact on performance we can relax this condition.
             for item in envelope
                 .items_mut()
                 .filter(|item| item.attachment_type().is_some())
