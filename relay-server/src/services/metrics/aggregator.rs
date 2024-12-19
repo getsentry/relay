@@ -137,18 +137,6 @@ impl AggregatorService {
     ///
     /// Returns when the next flush should be attempted.
     fn try_flush(&mut self) -> Duration {
-        if cfg!(test) {
-            // Tests are running in a single thread / current thread runtime,
-            // which is required for 'fast-forwarding' and `block_in_place`
-            // requires a multi threaded runtime. Relay always requires a multi
-            // threaded runtime.
-            self.do_try_flush()
-        } else {
-            tokio::task::block_in_place(|| self.do_try_flush())
-        }
-    }
-
-    fn do_try_flush(&mut self) -> Duration {
         let partition = match self.aggregator.try_flush_next(SystemTime::now()) {
             Ok(partition) => partition,
             Err(duration) => return duration,
