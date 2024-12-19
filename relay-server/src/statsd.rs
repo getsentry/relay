@@ -62,7 +62,7 @@ impl GaugeMetric for RelayGauges {
             RelayGauges::ProjectCacheScheduledFetches => "project_cache.fetches.size",
             RelayGauges::ServerActiveConnections => "server.http.connections",
             #[cfg(feature = "processing")]
-            RelayGauges::MetricDelayMax => "metrics.buckets.delay.max",
+            RelayGauges::MetricDelayMax => "metrics.delay.max",
         }
     }
 }
