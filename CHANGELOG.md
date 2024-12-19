@@ -6,6 +6,10 @@
 
 - Fix serialized name of `cache.hit` and `cache.key` span tags. ([#4408](https://github.com/getsentry/relay/pull/4408))
 
+**Features**:
+
+- Update Chrome inbound filter. ([#4381](https://github.com/getsentry/relay/pull/4381))
+
 ## 24.12.0
 
 **Bug Fixes**:
