@@ -120,6 +120,7 @@ impl ProjectCacheService {
                 Err(err) => {
                     relay_log::error!(
                         tags.project_key = fetch.project_key().as_str(),
+                        tags.has_revision = fetch.revision().as_str().is_some(),
                         error = &err as &dyn std::error::Error,
                         "failed to fetch project from source: {fetch:?}"
                     );
