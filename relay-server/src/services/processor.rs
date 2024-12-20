@@ -309,7 +309,7 @@ impl ProcessingGroup {
             ))
         }
 
-        // Exract all metric items.
+        // Extract all metric items.
         //
         // Note: Should only be relevant in proxy mode. In other modes we send metrics through
         // a separate pipeline.
@@ -1846,6 +1846,7 @@ impl EnvelopeProcessorService {
         project_info: Arc<ProjectInfo>,
         #[allow(unused_variables)] rate_limits: Arc<RateLimits>,
     ) -> Result<(), ProcessingError> {
+        println!("PROCESSING ENVELOPE {:?}", managed_envelope);
         profile::filter(
             managed_envelope,
             &Annotated::empty(),

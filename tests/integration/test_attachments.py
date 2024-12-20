@@ -371,3 +371,59 @@ def test_event_with_attachment(
 
     _, event = attachments_consumer.get_event()
     assert event["event_id"] == event_id
+
+
+def test_attachments_with_form_data(
+    mini_sentry, relay_with_processing, attachments_consumer, outcomes_consumer
+):
+    project_id = 42
+    event_id = "515539018c9b4260a6f999572f1661ee"
+
+    mini_sentry.add_full_project_config(project_id)
+    relay = relay_with_processing()
+    attachments_consumer = attachments_consumer()
+    outcomes_consumer = outcomes_consumer()
+
+    # Create attachments with both file content and form data
+    attachments = [
+        ("att_1", "foo.txt", b"file content"),
+        ("form_key", None, b"form value"),  # Form data entry
+    ]
+
+    relay.send_attachments(project_id, event_id, attachments)
+
+    # Check the file attachment
+    attachment = attachments_consumer.get_individual_attachment()
+    assert attachment["attachment"].pop("id")  # ID is random
+    assert attachment == {
+        "type": "attachment",
+        "attachment": {
+            "attachment_type": "event.attachment",
+            "chunks": 0,
+            "data": b"file content",
+            "name": "foo.txt",
+            "size": len(b"file content"),
+            "rate_limited": False,
+        },
+        "event_id": event_id,
+        "project_id": project_id,
+    }
+
+    # Check that form data was processed correctly
+    attachment = attachments_consumer.get_individual_attachment()
+    assert attachment["attachment"].pop("id")  # ID is random
+    assert attachment == {
+        "type": "attachment",
+        "attachment": {
+            "attachment_type": "event.attachment",
+            "chunks": 0,
+            "data": b"form value",
+            "name": "form_key",  # Form field name becomes attachment name
+            "size": len(b"form value"),
+            "rate_limited": False,
+        },
+        "event_id": event_id,
+        "project_id": project_id,
+    }
+
+    outcomes_consumer.assert_empty()
