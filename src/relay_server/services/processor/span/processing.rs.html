@@ -1431,11 +1431,7 @@
 <a href="#1430" id="1430">1430</a>
 <a href="#1431" id="1431">1431</a>
 <a href="#1432" id="1432">1432</a>
-<a href="#1433" id="1433">1433</a>
-<a href="#1434" id="1434">1434</a>
-<a href="#1435" id="1435">1435</a>
-<a href="#1436" id="1436">1436</a>
-<a href="#1437" id="1437">1437</a></pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
+<a href="#1433" id="1433">1433</a></pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
@@ -1445,8 +1441,8 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{DiscardReason, Outcome};
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::span::extract_transaction_span;
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{
-    dynamic_sampling, event_type, EventMetricsExtracted, ProcessEnvelopeState, ProcessingError,
-    SpanGroup, SpansExtracted, TransactionGroup,
+    dynamic_sampling, event_type, EventMetricsExtracted, ProcessingError,
+    ProcessingExtractedMetrics, SpanGroup, SpansExtracted, TransactionGroup,
 };
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectInfo;
 <span class="kw">use </span><span class="kw">crate</span>::utils::{sample, ItemAction, ManagedEnvelope, TypedEnvelope};
@@ -1484,9 +1480,9 @@
 
 <span class="attr">#[allow(clippy::too_many_arguments)]
 </span><span class="kw">pub fn </span>process(
-    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState,
     managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;SpanGroup&gt;,
     event: <span class="kw-2">&amp;mut </span>Annotated&lt;Event&gt;,
+    extracted_metrics: <span class="kw-2">&amp;mut </span>ProcessingExtractedMetrics,
     global_config: <span class="kw-2">&amp;</span>GlobalConfig,
     config: Arc&lt;Config&gt;,
     project_id: ProjectId,
@@ -1592,9 +1588,7 @@
                 CombinedMetricExtractionConfig::new(global_metrics_config, config),
             );
 
-            state
-                .extracted_metrics
-                .extend_project_metrics(metrics, <span class="prelude-val">Some</span>(sampling_decision));
+            extracted_metrics.extend_project_metrics(metrics, <span class="prelude-val">Some</span>(sampling_decision));
 
             <span class="kw">if </span>project_info.config.features.produces_spans() {
                 <span class="kw">let </span>transaction = span
@@ -1609,9 +1603,7 @@
                     sampling_decision,
                     project_id,
                 );
-                state
-                    .extracted_metrics
-                    .extend_sampling_metrics(bucket, <span class="prelude-val">Some</span>(sampling_decision));
+                extracted_metrics.extend_sampling_metrics(bucket, <span class="prelude-val">Some</span>(sampling_decision));
             }
 
             item.set_metrics_extracted(<span class="bool-val">true</span>);

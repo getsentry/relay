@@ -465,9 +465,7 @@
 <a href="#464" id="464">464</a>
 <a href="#465" id="465">465</a>
 <a href="#466" id="466">466</a>
-<a href="#467" id="467">467</a>
-<a href="#468" id="468">468</a>
-<a href="#469" id="469">469</a></pre></div><pre class="rust"><code><span class="doccomment">//! Contains the sessions related processor code.
+<a href="#467" id="467">467</a></pre></div><pre class="rust"><code><span class="doccomment">//! Contains the sessions related processor code.
 
 </span><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::net;
@@ -484,7 +482,7 @@
 <span class="kw">use </span>relay_statsd::metric;
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::{ContentType, Item, ItemType};
-<span class="kw">use </span><span class="kw">crate</span>::services::processor::{ProcessEnvelopeState, SessionGroup, MINIMUM_CLOCK_DRIFT};
+<span class="kw">use </span><span class="kw">crate</span>::services::processor::{ProcessingExtractedMetrics, SessionGroup, MINIMUM_CLOCK_DRIFT};
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectInfo;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayTimers;
 <span class="kw">use </span><span class="kw">crate</span>::utils::{ItemAction, TypedEnvelope};
@@ -494,8 +492,8 @@
 /// Both are removed from the envelope if they contain invalid JSON or if their timestamps
 /// are out of range after clock drift correction.
 </span><span class="kw">pub fn </span>process(
-    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState,
     managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;SessionGroup&gt;,
+    extracted_metrics: <span class="kw-2">&amp;mut </span>ProcessingExtractedMetrics,
     project_info: Arc&lt;ProjectInfo&gt;,
     config: <span class="kw-2">&amp;</span>Config,
 ) {
@@ -508,7 +506,7 @@
     <span class="kw">let </span>clock_drift_processor =
         ClockDriftProcessor::new(envelope.sent_at(), received).at_least(MINIMUM_CLOCK_DRIFT);
 
-    <span class="kw">let </span><span class="kw-2">mut </span>extracted_metrics = Vec::new();
+    <span class="kw">let </span><span class="kw-2">mut </span>session_extracted_metrics = Vec::new();
     managed_envelope.retain_items(|item| {
         <span class="kw">let </span>should_keep = <span class="kw">match </span>item.ty() {
             ItemType::Session =&gt; process_session(
@@ -519,7 +517,7 @@
                 client_addr,
                 metrics_config,
                 <span class="kw-2">&amp;</span>clock_drift_processor,
-                <span class="kw-2">&amp;mut </span>extracted_metrics,
+                <span class="kw-2">&amp;mut </span>session_extracted_metrics,
             ),
             ItemType::Sessions =&gt; process_session_aggregates(
                 item,
@@ -529,7 +527,7 @@
                 client_addr,
                 metrics_config,
                 <span class="kw-2">&amp;</span>clock_drift_processor,
-                <span class="kw-2">&amp;mut </span>extracted_metrics,
+                <span class="kw-2">&amp;mut </span>session_extracted_metrics,
             ),
             <span class="kw">_ </span>=&gt; <span class="bool-val">true</span>, <span class="comment">// Keep all other item types
         </span>};
@@ -540,9 +538,7 @@
         </span>}
     });
 
-    state
-        .extracted_metrics
-        .extend_project_metrics(extracted_metrics, <span class="prelude-val">None</span>);
+    extracted_metrics.extend_project_metrics(session_extracted_metrics, <span class="prelude-val">None</span>);
 }
 
 <span class="doccomment">/// Returns Ok(true) if attributes were modified.

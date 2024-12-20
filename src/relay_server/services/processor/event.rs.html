@@ -904,8 +904,8 @@
 <span class="kw">use </span>relay_event_normalization::{nel, ClockDriftProcessor};
 <span class="kw">use </span>relay_event_schema::processor::{<span class="self">self</span>, ProcessingState};
 <span class="kw">use </span>relay_event_schema::protocol::{
-    Breadcrumb, Csp, Event, ExpectCt, ExpectStaple, Hpkp, LenientString, NetworkReportError,
-    OtelContext, RelayInfo, SecurityReportType, Values,
+    Breadcrumb, Csp, Event, ExpectCt, ExpectStaple, Hpkp, LenientString, Metrics,
+    NetworkReportError, OtelContext, RelayInfo, SecurityReportType, Values,
 };
 <span class="kw">use </span>relay_pii::PiiProcessor;
 <span class="kw">use </span>relay_protocol::{Annotated, Array, Empty, Object, Value};
@@ -918,7 +918,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::Outcome;
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{
     event_category, event_type, EventFullyNormalized, EventMetricsExtracted, EventProcessing,
-    ExtractedEvent, ProcessEnvelopeState, ProcessingError, SpansExtracted, MINIMUM_CLOCK_DRIFT,
+    ExtractedEvent, ProcessingError, SpansExtracted, MINIMUM_CLOCK_DRIFT,
 };
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectInfo;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{PlatformTag, RelayCounters, RelayHistograms, RelayTimers};
@@ -941,8 +941,8 @@
 ///  4. A multipart form data body.
 ///  5. If none match, `Annotated::empty()`.
 </span><span class="kw">pub fn </span>extract&lt;Group: EventProcessing&gt;(
-    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState,
     managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;Group&gt;,
+    metrics: <span class="kw-2">&amp;mut </span>Metrics,
     event_fully_normalized: EventFullyNormalized,
     config: <span class="kw-2">&amp;</span>Config,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;ExtractionResult, ProcessingError&gt; {
@@ -1036,7 +1036,7 @@
         (Annotated::empty(), <span class="number">0</span>)
     };
 
-    state.metrics.bytes_ingested_event = Annotated::new(event_len <span class="kw">as </span>u64);
+    metrics.bytes_ingested_event = Annotated::new(event_len <span class="kw">as </span>u64);
 
     <span class="prelude-val">Ok</span>(ExtractionResult {
         event,
@@ -1046,9 +1046,9 @@
 }
 
 <span class="kw">pub fn </span>finalize&lt;Group: EventProcessing&gt;(
-    state: <span class="kw-2">&amp;mut </span>ProcessEnvelopeState,
     managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;Group&gt;,
     event: <span class="kw-2">&amp;mut </span>Annotated&lt;Event&gt;,
+    metrics: <span class="kw-2">&amp;mut </span>Metrics,
     config: <span class="kw-2">&amp;</span>Config,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), ProcessingError&gt; {
     <span class="kw">let </span>envelope = managed_envelope.envelope_mut();
@@ -1087,7 +1087,7 @@
     <span class="comment">// In processing mode, also write metrics into the event. Most metrics have already been
     // collected at this state, except for the combined size of all attachments.
     </span><span class="kw">if </span>config.processing_enabled() {
-        <span class="kw">let </span><span class="kw-2">mut </span>metrics = std::mem::take(<span class="kw-2">&amp;mut </span>state.metrics);
+        <span class="kw">let </span><span class="kw-2">mut </span>metrics = std::mem::take(metrics);
 
         <span class="kw">let </span>attachment_size = envelope
             .items()
