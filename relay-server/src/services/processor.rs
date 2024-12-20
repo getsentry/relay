@@ -803,11 +803,11 @@ impl ProcessingResult {
     }
 
     /// Returns the components of the [`ProcessingResult`].
-    fn into_inner(self) -> (TypedEnvelope<Processed>, Option<ExtractedMetrics>) {
+    fn into_inner(self) -> (TypedEnvelope<Processed>, ExtractedMetrics) {
         match self.partial {
-            ProcessingPartialResult::NoMetrics => (self.managed_envelope, None),
+            ProcessingPartialResult::NoMetrics => (self.managed_envelope, Default::default()),
             ProcessingPartialResult::WithMetrics { extracted_metrics } => {
-                (self.managed_envelope, Some(extracted_metrics.metrics))
+                (self.managed_envelope, extracted_metrics.metrics)
             }
         }
     }
@@ -2280,8 +2280,8 @@ impl EnvelopeProcessorService {
                         // requires re-computation of the context.
                         managed_envelope.update();
 
-                        let has_metrics = extracted_metrics.is_some();
-                        if let Some(extracted_metrics) = extracted_metrics {
+                        let has_metrics = !extracted_metrics.project_metrics.is_empty();
+                        if has_metrics {
                             send_metrics(
                                 extracted_metrics,
                                 managed_envelope.envelope(),
