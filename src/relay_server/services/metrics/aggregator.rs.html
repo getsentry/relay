@@ -612,19 +612,7 @@
 <a href="#611" id="611">611</a>
 <a href="#612" id="612">612</a>
 <a href="#613" id="613">613</a>
-<a href="#614" id="614">614</a>
-<a href="#615" id="615">615</a>
-<a href="#616" id="616">616</a>
-<a href="#617" id="617">617</a>
-<a href="#618" id="618">618</a>
-<a href="#619" id="619">619</a>
-<a href="#620" id="620">620</a>
-<a href="#621" id="621">621</a>
-<a href="#622" id="622">622</a>
-<a href="#623" id="623">623</a>
-<a href="#624" id="624">624</a>
-<a href="#625" id="625">625</a>
-<a href="#626" id="626">626</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::pin::Pin;
+<a href="#614" id="614">614</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::pin::Pin;
 <span class="kw">use </span>std::sync::atomic::{AtomicBool, Ordering};
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::{Duration, SystemTime};
@@ -763,18 +751,6 @@
     ///
     /// Returns when the next flush should be attempted.
     </span><span class="kw">fn </span>try_flush(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Duration {
-        <span class="kw">if </span><span class="macro">cfg!</span>(test) {
-            <span class="comment">// Tests are running in a single thread / current thread runtime,
-            // which is required for 'fast-forwarding' and `block_in_place`
-            // requires a multi threaded runtime. Relay always requires a multi
-            // threaded runtime.
-            </span><span class="self">self</span>.do_try_flush()
-        } <span class="kw">else </span>{
-            tokio::task::block_in_place(|| <span class="self">self</span>.do_try_flush())
-        }
-    }
-
-    <span class="kw">fn </span>do_try_flush(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Duration {
         <span class="kw">let </span>partition = <span class="kw">match </span><span class="self">self</span>.aggregator.try_flush_next(SystemTime::now()) {
             <span class="prelude-val">Ok</span>(partition) =&gt; partition,
             <span class="prelude-val">Err</span>(duration) =&gt; <span class="kw">return </span>duration,
