@@ -314,7 +314,7 @@ impl EnvelopeBufferService {
                     partition_id = partition_tag
                 );
 
-                Self::pop_and_forward(services, buffer, project_key_pair).await?;
+                Self::pop_and_forward(partition_tag, services, buffer, project_key_pair).await?;
 
                 Duration::ZERO // try next pop immediately
             }
