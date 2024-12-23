@@ -268,35 +268,16 @@ impl ServiceState {
             processor_rx,
         );
 
-        let (envelopes_tx, envelopes_rx) = mpsc::channel(config.spool_max_backpressure_envelopes());
-
         let envelope_buffer = PartitionedEnvelopeBuffer::create(
             config.spool_partitions(),
             config.clone(),
             memory_stat.clone(),
             global_config_rx.clone(),
-            envelopes_tx.clone(),
             project_cache_handle.clone(),
+            processor.clone(),
             outcome_aggregator.clone(),
             test_store.clone(),
             &mut runner,
-        );
-
-        // Keep all the services in one context.
-        let project_cache_services = legacy::Services {
-            envelope_buffer: envelope_buffer.clone(),
-            envelope_processor: processor.clone(),
-            outcome_aggregator: outcome_aggregator.clone(),
-            test_store: test_store.clone(),
-        };
-
-        runner.start_with(
-            legacy::ProjectCacheService::new(
-                project_cache_handle.clone(),
-                project_cache_services,
-                envelopes_rx,
-            ),
-            legacy_project_cache_rx,
         );
 
         let health_check = runner.start(HealthCheckService::new(
