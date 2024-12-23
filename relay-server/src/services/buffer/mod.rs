@@ -307,7 +307,7 @@ impl EnvelopeBufferService {
             Peek::Ready {
                 project_key_pair, ..
             } => {
-                relay_log::trace!("EnvelopeBufferService: popping envelope");
+                relay_log::trace!("EnvelopeBufferService: project(s) of envelope ready");
                 relay_statsd::metric!(
                     counter(RelayCounters::BufferTryPop) += 1,
                     peek_result = "ready",
@@ -446,6 +446,8 @@ impl EnvelopeBufferService {
             return Ok(());
         }
 
+        relay_log::trace!("EnvelopeBufferService: popping envelope");
+
         // We know that both projects are available, so we pop the envelope.
         let envelope = buffer
             .pop()
@@ -463,6 +465,7 @@ impl EnvelopeBufferService {
                     ProcessingGroup::Ungrouped,
                 );
                 managed_envelope.reject(Outcome::Invalid(DiscardReason::ProjectId));
+                println!("REJECTED");
                 return Ok(());
             }
             ProjectState::Pending => {
@@ -733,7 +736,7 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn pop_requires_global_config() {
+    async fn pop_with_global_config_changes() {
         let EnvelopeBufferServiceResult {
             service,
             global_tx,
@@ -766,11 +769,11 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn pop_with_pending_project() {
+    async fn pop_with_project_state_changes() {
         let EnvelopeBufferServiceResult {
             service,
             global_tx: _global_tx,
-            envelope_processor_rx,
+            mut envelope_processor_rx,
             project_cache_handle,
             outcome_aggregator_rx: _outcome_aggregator_rx,
             ..
@@ -797,6 +800,16 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(1000)).await;
 
         assert_eq!(envelope_processor_rx.len(), 1);
+        assert!(envelope_processor_rx.recv().await.is_some());
+
+        let envelope = new_envelope(false, "foo");
+        let project_key = envelope.meta().public_key();
+        project_cache_handle.test_set_project_state(project_key, ProjectState::Disabled);
+        addr.send(EnvelopeBuffer::Push(envelope.clone()));
+
+        tokio::time::sleep(Duration::from_millis(1000)).await;
+
+        assert_eq!(envelope_processor_rx.len(), 0);
     }
 
     #[tokio::test(start_paused = true)]
