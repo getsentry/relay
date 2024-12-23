@@ -129,6 +129,8 @@ fn parse_chunk(payload: &[u8]) -> Result<Chunk, ProfileError> {
     )
     .as_secs_f64();
 
+    // If build_id is not empty but we don't have any DebugImage set,
+    // we create the proper Proguard image and set the uuid.
     if !profile.metadata.build_id.is_empty() && profile.metadata.debug_meta.is_none() {
         profile.metadata.debug_meta = Some(DebugMeta {
             images: vec![get_proguard_image(&profile.metadata.build_id)?],
