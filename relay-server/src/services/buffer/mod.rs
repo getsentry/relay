@@ -411,6 +411,7 @@ impl EnvelopeBufferService {
     }
 
     async fn pop_and_forward<'a>(
+        partition_tag: &str,
         services: &Services,
         buffer: &mut PolymorphicEnvelopeBuffer,
         project_key_pair: ProjectKeyPair,
@@ -443,6 +444,10 @@ impl EnvelopeBufferService {
         // If we have at least one project which was pending, we don't want to pop the envelope and
         // early return.
         if at_least_one_pending {
+            relay_statsd::metric!(
+                counter(RelayCounters::BufferProjectPending) += 1,
+                partition_id = &partition_tag
+            );
             return Ok(());
         }
 
@@ -609,7 +614,7 @@ impl Service for EnvelopeBufferService {
                             },
                             _ => {}
                         };
-                        relay_statsd::metric!(counter(RelayCounters::BufferProjectChangedEvent) += 1);
+                        relay_statsd::metric!(counter(RelayCounters::BufferProjectChangedEvent) += 1, partition_id = &partition_tag);
                         sleep = Duration::ZERO;
                     });
                 }

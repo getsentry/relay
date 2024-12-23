@@ -630,6 +630,9 @@ pub enum RelayCounters {
     BufferUnspooledEnvelopes,
     /// Number of project changed updates received by the buffer.
     BufferProjectChangedEvent,
+    /// Number of times one or more projects of an envelope were pending when trying to pop
+    /// their envelope.
+    BufferProjectPending,
     ///
     /// Number of outcomes and reasons for rejected Envelopes.
     ///
@@ -836,7 +839,8 @@ impl CounterMetric for RelayCounters {
             RelayCounters::BufferTryPop => "buffer.try_pop",
             RelayCounters::BufferSpooledEnvelopes => "buffer.spooled_envelopes",
             RelayCounters::BufferUnspooledEnvelopes => "buffer.unspooled_envelopes",
-            RelayCounters::BufferProjectChangedEvent => "buffer_project_changed_event",
+            RelayCounters::BufferProjectChangedEvent => "buffer.project_changed_event",
+            RelayCounters::BufferProjectPending => "buffer.project_pending",
             RelayCounters::Outcomes => "events.outcomes",
             RelayCounters::ProjectStateRequest => "project_state.request",
             #[cfg(feature = "processing")]
