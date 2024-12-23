@@ -465,7 +465,6 @@ impl EnvelopeBufferService {
                     ProcessingGroup::Ungrouped,
                 );
                 managed_envelope.reject(Outcome::Invalid(DiscardReason::ProjectId));
-                println!("REJECTED");
                 return Ok(());
             }
             ProjectState::Pending => {
