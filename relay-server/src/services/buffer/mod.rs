@@ -336,10 +336,8 @@ impl EnvelopeBufferService {
                 if Instant::now() >= next_project_fetch {
                     relay_log::trace!("EnvelopeBufferService: requesting project(s) update");
 
-                    let ProjectKeyPair {
-                        own_key,
-                        sampling_key,
-                    } = project_key_pair;
+                    let own_key = project_key_pair.own_key();
+                    let sampling_key = project_key_pair.sampling_key_unwrap();
 
                     services.project_cache_handle.fetch(own_key);
                     if sampling_key != own_key {
@@ -417,32 +415,33 @@ impl EnvelopeBufferService {
         buffer: &mut PolymorphicEnvelopeBuffer,
         project_key_pair: ProjectKeyPair,
     ) -> Result<(), EnvelopeBufferError> {
-        let own_project = services.project_cache_handle.get(project_key_pair.own_key);
-        let sampling_project = services
-            .project_cache_handle
-            .get(project_key_pair.sampling_key);
-        let has_different_keys = project_key_pair.own_key != project_key_pair.sampling_key;
-
-        // If at least one project is pending, we can't forward the envelope, so we will
-        // mark the respective project as not ready and schedule a project fetch.
         let mut at_least_one_pending = false;
+
+        let own_key = project_key_pair.own_key();
+        let own_project = services.project_cache_handle.get(own_key);
         if let ProjectState::Pending = own_project.state() {
-            buffer.mark_ready(&project_key_pair.own_key, false);
-            services
-                .project_cache_handle
-                .fetch(project_key_pair.own_key);
-            at_least_one_pending = true;
-        }
-        if let ProjectState::Pending = sampling_project.state() {
-            if has_different_keys {
-                buffer.mark_ready(&project_key_pair.sampling_key, false);
-                services
-                    .project_cache_handle
-                    .fetch(project_key_pair.sampling_key);
-            }
+            buffer.mark_ready(&own_key, false);
+            services.project_cache_handle.fetch(own_key);
             at_least_one_pending = true;
         }
 
+        let mut sampling_project = None;
+        if let Some(sampling_key) = project_key_pair.sampling_key() {
+            let inner_sampling_project = services.project_cache_handle.get(sampling_key);
+            if let ProjectState::Pending = inner_sampling_project.state() {
+                // If the sampling keys are identical, no need to perform duplicate work.
+                if own_key != sampling_key {
+                    buffer.mark_ready(&sampling_key, false);
+                    services.project_cache_handle.fetch(sampling_key);
+                }
+                at_least_one_pending = true;
+            }
+
+            sampling_project = Some(inner_sampling_project);
+        }
+
+        // If we have at least one project which was pending, we don't want to pop the envelope and
+        // early return.
         if at_least_one_pending {
             return Ok(());
         }
@@ -472,25 +471,26 @@ impl EnvelopeBufferService {
         };
 
         // If we have different project keys, we want to extract the sampling project info.
-        let sampling_project_info = if has_different_keys {
-            match sampling_project.state() {
-                ProjectState::Enabled(sampling_project_info) => {
-                    // Only set if it matches the organization id. Otherwise, treat as if there is
-                    // no sampling project.
-                    (sampling_project_info.organization_id == own_project_info.organization_id)
-                        .then_some(sampling_project_info)
+        let sampling_project_info = sampling_project
+            .as_ref()
+            .map(|project| project.state())
+            .and_then(|state| {
+                match state {
+                    ProjectState::Enabled(sampling_project_info) => {
+                        // Only set if it matches the organization id. Otherwise, treat as if there is
+                        // no sampling project.
+                        (sampling_project_info.organization_id == own_project_info.organization_id)
+                            .then_some(sampling_project_info)
+                    }
+                    ProjectState::Pending => {
+                        unreachable!("The sampling project should not be pending after pop");
+                    }
+                    _ => {
+                        // In any other case, we treat it as if there is no sampling project state.
+                        None
+                    }
                 }
-                ProjectState::Pending => {
-                    unreachable!("The sampling project should not be pending after pop");
-                }
-                _ => {
-                    // In any other case, we treat it as if there is no sampling project state.
-                    None
-                }
-            }
-        } else {
-            None
-        };
+            });
 
         for (group, envelope) in ProcessingGroup::split_envelope(*envelope) {
             let managed_envelope = ManagedEnvelope::new(
@@ -607,6 +607,7 @@ impl Service for EnvelopeBufferService {
                             },
                             _ => {}
                         };
+                        relay_statsd::metric!(counter(RelayCounters::BufferProjectChangedEvent) += 1);
                         sleep = Duration::ZERO;
                     });
                 }

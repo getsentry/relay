@@ -65,8 +65,8 @@ impl StackProvider for SqliteStackProvider {
             self.partition_id,
             self.envelope_store.clone(),
             self.batch_size_bytes,
-            project_key_pair.own_key,
-            project_key_pair.sampling_key,
+            project_key_pair.own_key(),
+            project_key_pair.sampling_key_unwrap(),
             // We want to check the disk by default if we are creating the stack for the first time,
             // since we might have some data on disk.
             // On the other hand, if we are recreating a stack, it means that we popped it because
