@@ -18,5 +18,6 @@ pub fn discard_reason(err: ProfileError) -> &'static str {
         ProfileError::DurationIsTooLong => "profiling_duration_is_too_long",
         ProfileError::DurationIsZero => "profiling_duration_is_zero",
         ProfileError::Filtered(_) => "profiling_filtered",
+        ProfileError::InvalidBuildID(_) => "invalid_build_id",
     }
 }

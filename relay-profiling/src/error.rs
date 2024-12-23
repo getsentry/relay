@@ -36,6 +36,8 @@ pub enum ProfileError {
     DurationIsZero,
     #[error("filtered profile")]
     Filtered(FilterStatKey),
+    #[error(transparent)]
+    InvalidBuildID(#[from] uuid::Error),
 }
 
 impl ProfileError {
