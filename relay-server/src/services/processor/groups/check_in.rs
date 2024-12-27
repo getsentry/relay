@@ -1,26 +1,31 @@
 use crate::envelope::{ContentType, ItemType};
-use crate::if_processing;
 #[cfg(feature = "processing")]
 use crate::services::processor::enforce_quotas;
-use crate::services::processor::groups::payload::DefaultPayload;
-use crate::services::processor::groups::{Group, GroupParams, GroupPayload};
-use crate::services::processor::{InnerProcessor, ProcessingError, ProcessingExtractedMetrics};
+use crate::services::processor::groups::payload::BasePayload;
+use crate::services::processor::groups::{Group, GroupParams, GroupPayload, ProcessGroup};
+use crate::services::processor::GroupTypeError;
+use crate::services::processor::{
+    InnerProcessor, ProcessingError, ProcessingExtractedMetrics, ProcessingGroup,
+};
 use crate::services::projects::project::ProjectInfo;
 use crate::utils::ItemAction;
+use crate::{group, if_processing};
 use relay_base_schema::project::ProjectId;
 use relay_quotas::RateLimits;
 use std::error::Error;
 use std::sync::Arc;
 
-pub struct CheckInGroup<'a> {
-    payload: DefaultPayload<'a>,
+group!(CheckIn, CheckIn);
+
+pub struct ProcessCheckIn<'a> {
+    payload: BasePayload<'a, CheckIn>,
     processor: Arc<InnerProcessor>,
     rate_limits: Arc<RateLimits>,
     project_info: Arc<ProjectInfo>,
     project_id: ProjectId,
 }
 
-impl<'a> CheckInGroup<'a> {
+impl ProcessCheckIn<'_> {
     /// Normalize monitor check-ins and remove invalid ones.
     #[cfg(feature = "processing")]
     fn normalize_check_ins(&mut self) {
@@ -48,10 +53,10 @@ impl<'a> CheckInGroup<'a> {
     }
 }
 
-impl<'a> Group<'a> for CheckInGroup<'a> {
-    type Payload = DefaultPayload<'a>;
+impl<'a> ProcessGroup<'a, CheckIn> for ProcessCheckIn<'a> {
+    type Payload = BasePayload<'a, CheckIn>;
 
-    fn create(params: GroupParams<'a>) -> Self {
+    fn create(params: GroupParams<'a, CheckIn>) -> Self {
         Self {
             payload: Self::Payload::no_event(params.managed_envelope),
             processor: params.processor,
@@ -66,7 +71,7 @@ impl<'a> Group<'a> for CheckInGroup<'a> {
         let mut extracted_metrics = ProcessingExtractedMetrics::new();
 
         if_processing!(self.processor.config, {
-            enforce_quotas::<Self>(
+            enforce_quotas(
                 &mut self.payload,
                 &mut extracted_metrics,
                 self.processor.global_config.current().as_ref(),

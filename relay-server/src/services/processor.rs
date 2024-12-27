@@ -52,7 +52,9 @@ use crate::services::global_config::GlobalConfigHandle;
 use crate::services::metrics::{Aggregator, FlushBuckets, MergeBuckets, ProjectBuckets};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::event::FiltersStatus;
-use crate::services::processor::groups::{CheckInGroup, Group, GroupParams, GroupPayload};
+use crate::services::processor::groups::{
+    Group, GroupParams, GroupPayload, ProcessCheckIn, ProcessGroup,
+};
 use crate::services::projects::cache::ProjectCacheHandle;
 use crate::services::projects::project::{ProjectInfo, ProjectState};
 use crate::services::test_store::{Capture, TestStore};
@@ -2033,6 +2035,7 @@ impl EnvelopeProcessorService {
 
         macro_rules! run_new {
             ($group:ident) => {{
+                let mut managed_envelope = managed_envelope.try_into()?;
                 let params = GroupParams {
                     managed_envelope: &mut managed_envelope,
                     processor: self.inner.clone(),
@@ -2044,7 +2047,7 @@ impl EnvelopeProcessorService {
                 let group = $group::create(params);
                 match group.process() {
                     Ok(extracted_metrics) => Ok(ProcessingResult {
-                        managed_envelope: TypedEnvelope::new(managed_envelope, Processed),
+                        managed_envelope: managed_envelope.into_processed(),
                         extracted_metrics: extracted_metrics
                             .map_or(ProcessingExtractedMetrics::new(), |e| e),
                     }),
@@ -2060,7 +2063,7 @@ impl EnvelopeProcessorService {
         }
 
         if let ProcessingGroup::CheckIn = group {
-            return run_new!(CheckInGroup);
+            return run_new!(ProcessCheckIn);
         }
 
         macro_rules! run {
@@ -3055,8 +3058,8 @@ impl Service for EnvelopeProcessorService {
 }
 
 #[cfg(feature = "processing")]
-fn enforce_quotas<'a, G: Group<'a>>(
-    payload: &mut G::Payload,
+fn enforce_quotas<'a, G: Group, P: GroupPayload<'a, G>>(
+    payload: &mut P,
     extracted_metrics: &mut ProcessingExtractedMetrics,
     global_config: &GlobalConfig,
     rate_limiter: Option<&RedisRateLimiter>,
@@ -3071,7 +3074,7 @@ fn enforce_quotas<'a, G: Group<'a>>(
 
     // Cached quotas first, they are quick to evaluate and some quotas (indexed) are not
     // applied in the fast path, all cached quotas can be applied here.
-    RateLimiterNew::Cached.enforce::<G>(
+    RateLimiterNew::Cached.enforce::<G, P>(
         payload,
         extracted_metrics,
         global_config,
@@ -3080,7 +3083,7 @@ fn enforce_quotas<'a, G: Group<'a>>(
     )?;
 
     // Enforce all quotas consistently with Redis.
-    let enforced_rate_limits = RateLimiterNew::Consistent(rate_limiter).enforce::<G>(
+    let enforced_rate_limits = RateLimiterNew::Consistent(rate_limiter).enforce::<G, P>(
         payload,
         extracted_metrics,
         global_config,
@@ -3107,9 +3110,9 @@ enum RateLimiterNew<'a> {
 
 #[cfg(feature = "processing")]
 impl RateLimiterNew<'_> {
-    fn enforce<'a, G: Group<'a>>(
+    fn enforce<'a, G: Group, P: GroupPayload<'a, G>>(
         &self,
-        payload: &mut G::Payload,
+        payload: &mut P,
         extracted_metrics: &mut ProcessingExtractedMetrics,
         global_config: &GlobalConfig,
         project_info: &ProjectInfo,
