@@ -52,6 +52,7 @@ use crate::services::global_config::GlobalConfigHandle;
 use crate::services::metrics::{Aggregator, FlushBuckets, MergeBuckets, ProjectBuckets};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::event::FiltersStatus;
+use crate::services::processor::groups::{CheckInGroup, Group, GroupParams, GroupPayload};
 use crate::services::projects::cache::ProjectCacheHandle;
 use crate::services::projects::project::{ProjectInfo, ProjectState};
 use crate::services::test_store::{Capture, TestStore};
@@ -67,7 +68,7 @@ use relay_base_schema::organization::OrganizationId;
 #[cfg(feature = "processing")]
 use {
     crate::services::store::{Store, StoreEnvelope},
-    crate::utils::{CheckLimits, Enforcement, EnvelopeLimiter, ItemAction},
+    crate::utils::{CheckLimits, Enforcement, EnvelopeLimiter},
     itertools::Itertools,
     relay_cardinality::{
         CardinalityLimit, CardinalityLimiter, CardinalityLimitsSplit, RedisSetLimiter,
@@ -85,6 +86,7 @@ use {
 mod attachment;
 mod dynamic_sampling;
 mod event;
+mod groups;
 mod metrics;
 mod profile;
 mod profile_chunk;
@@ -100,6 +102,7 @@ mod unreal;
 /// Creates the block only if used with `processing` feature.
 ///
 /// Provided code block will be executed only if the provided config has `processing_enabled` set.
+#[macro_export]
 macro_rules! if_processing {
     ($config:expr, $if_true:block) => {
         #[cfg(feature = "processing")] {
@@ -191,7 +194,6 @@ processing_group!(SessionGroup, Session);
 processing_group!(StandaloneGroup, Standalone);
 processing_group!(ClientReportGroup, ClientReport);
 processing_group!(ReplayGroup, Replay);
-processing_group!(CheckInGroup, CheckIn);
 processing_group!(SpanGroup, Span);
 
 impl Sampling for SpanGroup {
@@ -736,7 +738,7 @@ fn send_metrics(metrics: ExtractedMetrics, envelope: &Envelope, aggregator: &Add
 ///
 /// The data category is computed from the event type. Both `Default` and `Error` events map to
 /// the `Error` data category. If there is no Event, `None` is returned.
-fn event_category(event: &Annotated<Event>) -> Option<DataCategory> {
+fn event_category(event: Option<&Event>) -> Option<DataCategory> {
     event_type(event).map(DataCategory::from)
 }
 
@@ -744,10 +746,8 @@ fn event_category(event: &Annotated<Event>) -> Option<DataCategory> {
 ///
 /// If the event does not have a type, `Some(EventType::Default)` is assumed. If, in contrast, there
 /// is no event, `None` is returned.
-fn event_type(event: &Annotated<Event>) -> Option<EventType> {
-    event
-        .value()
-        .map(|event| event.ty.value().copied().unwrap_or_default())
+fn event_type(event: Option<&Event>) -> Option<EventType> {
+    event.map(|event| event.ty.value().copied().unwrap_or_default())
 }
 
 /// Function for on-off switches that filter specific item types (profiles, spans)
@@ -1172,36 +1172,6 @@ impl EnvelopeProcessorService {
         }
     }
 
-    /// Normalize monitor check-ins and remove invalid ones.
-    #[cfg(feature = "processing")]
-    fn normalize_checkins(
-        &self,
-        managed_envelope: &mut TypedEnvelope<CheckInGroup>,
-        project_id: ProjectId,
-    ) {
-        managed_envelope.retain_items(|item| {
-            if item.ty() != &ItemType::CheckIn {
-                return ItemAction::Keep;
-            }
-
-            match relay_monitors::process_check_in(&item.payload(), project_id) {
-                Ok(result) => {
-                    item.set_routing_hint(result.routing_hint);
-                    item.set_payload(ContentType::Json, result.payload);
-                    ItemAction::Keep
-                }
-                Err(error) => {
-                    // TODO: Track an outcome.
-                    relay_log::debug!(
-                        error = &error as &dyn Error,
-                        "dropped invalid monitor check-in"
-                    );
-                    ItemAction::DropSilently
-                }
-            }
-        })
-    }
-
     #[cfg(feature = "processing")]
     fn enforce_quotas<Group>(
         &self,
@@ -1598,7 +1568,7 @@ impl EnvelopeProcessorService {
         if self.inner.config.processing_enabled() && !event_fully_normalized.0 {
             relay_log::error!(
                 tags.project = %project_id,
-                tags.ty = event_type(&event).map(|e| e.to_string()).unwrap_or("none".to_owned()),
+                tags.ty = event_type(event.value()).map(|e| e.to_string()).unwrap_or("none".to_owned()),
                 "ingested event without normalizing"
             );
         }
@@ -1819,7 +1789,7 @@ impl EnvelopeProcessorService {
         if self.inner.config.processing_enabled() && !event_fully_normalized.0 {
             relay_log::error!(
                 tags.project = %project_id,
-                tags.ty = event_type(&event).map(|e| e.to_string()).unwrap_or("none".to_owned()),
+                tags.ty = event_type(event.value()).map(|e| e.to_string()).unwrap_or("none".to_owned()),
                 "ingested event without normalizing"
             );
         };
@@ -1972,31 +1942,6 @@ impl EnvelopeProcessorService {
         Ok(Some(extracted_metrics))
     }
 
-    /// Processes cron check-ins.
-    fn process_checkins(
-        &self,
-        #[allow(unused_variables)] managed_envelope: &mut TypedEnvelope<CheckInGroup>,
-        #[allow(unused_variables)] project_id: ProjectId,
-        #[allow(unused_variables)] project_info: Arc<ProjectInfo>,
-        #[allow(unused_variables)] rate_limits: Arc<RateLimits>,
-    ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
-        #[allow(unused_mut)]
-        let mut extracted_metrics = ProcessingExtractedMetrics::new();
-
-        if_processing!(self.inner.config, {
-            self.enforce_quotas(
-                managed_envelope,
-                Annotated::empty(),
-                &mut extracted_metrics,
-                project_info,
-                rate_limits,
-            )?;
-            self.normalize_checkins(managed_envelope, project_id);
-        });
-
-        Ok(Some(extracted_metrics))
-    }
-
     /// Processes standalone spans.
     ///
     /// This function does *not* run for spans extracted from transactions.
@@ -2086,6 +2031,38 @@ impl EnvelopeProcessorService {
             .meta_mut()
             .set_project_id(project_id);
 
+        macro_rules! run_new {
+            ($group:ident) => {{
+                let params = GroupParams {
+                    managed_envelope: &mut managed_envelope,
+                    processor: self.inner.clone(),
+                    rate_limits: rate_limits.clone(),
+                    project_info: project_info.clone(),
+                    project_id,
+                };
+
+                let group = $group::create(params);
+                match group.process() {
+                    Ok(extracted_metrics) => Ok(ProcessingResult {
+                        managed_envelope: TypedEnvelope::new(managed_envelope, Processed),
+                        extracted_metrics: extracted_metrics
+                            .map_or(ProcessingExtractedMetrics::new(), |e| e),
+                    }),
+                    Err(error) => {
+                        if let Some(outcome) = error.to_outcome() {
+                            managed_envelope.reject(outcome);
+                        }
+
+                        return Err(error);
+                    }
+                }
+            }};
+        }
+
+        if let ProcessingGroup::CheckIn = group {
+            return run_new!(CheckInGroup);
+        }
+
         macro_rules! run {
             ($fn_name:ident $(, $args:expr)*) => {{
                 let mut managed_envelope = managed_envelope.try_into()?;
@@ -2149,9 +2126,6 @@ impl EnvelopeProcessorService {
                     rate_limits
                 )
             }
-            ProcessingGroup::CheckIn => {
-                run!(process_checkins, project_id, project_info, rate_limits)
-            }
             ProcessingGroup::Span => run!(
                 process_standalone_spans,
                 self.inner.config.clone(),
@@ -2196,6 +2170,13 @@ impl EnvelopeProcessorService {
             ProcessingGroup::ForwardUnknown => Ok(ProcessingResult::no_metrics(
                 managed_envelope.into_processed(),
             )),
+            _ => {
+                relay_log::error!("A processing group is not handled in the processor");
+
+                Ok(ProcessingResult::no_metrics(
+                    managed_envelope.into_processed(),
+                ))
+            }
         }
     }
 
@@ -3073,6 +3054,117 @@ impl Service for EnvelopeProcessorService {
     }
 }
 
+#[cfg(feature = "processing")]
+fn enforce_quotas<'a, G: Group<'a>>(
+    payload: &mut G::Payload,
+    extracted_metrics: &mut ProcessingExtractedMetrics,
+    global_config: &GlobalConfig,
+    rate_limiter: Option<&RedisRateLimiter>,
+    rate_limits: &RateLimits,
+    project_cache: &ProjectCacheHandle,
+    project_info: &ProjectInfo,
+) -> Result<(), ProcessingError> {
+    let rate_limiter = match rate_limiter {
+        Some(rate_limiter) => rate_limiter,
+        None => return Ok(()),
+    };
+
+    // Cached quotas first, they are quick to evaluate and some quotas (indexed) are not
+    // applied in the fast path, all cached quotas can be applied here.
+    RateLimiterNew::Cached.enforce::<G>(
+        payload,
+        extracted_metrics,
+        global_config,
+        project_info,
+        rate_limits,
+    )?;
+
+    // Enforce all quotas consistently with Redis.
+    let enforced_rate_limits = RateLimiterNew::Consistent(rate_limiter).enforce::<G>(
+        payload,
+        extracted_metrics,
+        global_config,
+        project_info,
+        rate_limits,
+    )?;
+
+    // Update cached rate limits with the freshly computed ones.
+    if !enforced_rate_limits.is_empty() {
+        project_cache
+            .get(payload.managed_envelope().scoping().project_key)
+            .rate_limits()
+            .merge(enforced_rate_limits);
+    }
+
+    Ok(())
+}
+
+#[cfg(feature = "processing")]
+enum RateLimiterNew<'a> {
+    Cached,
+    Consistent(&'a RedisRateLimiter),
+}
+
+#[cfg(feature = "processing")]
+impl RateLimiterNew<'_> {
+    fn enforce<'a, G: Group<'a>>(
+        &self,
+        payload: &mut G::Payload,
+        extracted_metrics: &mut ProcessingExtractedMetrics,
+        global_config: &GlobalConfig,
+        project_info: &ProjectInfo,
+        rate_limits: &RateLimits,
+    ) -> Result<RateLimits, ProcessingError> {
+        if payload.managed_envelope().envelope().is_empty() && payload.event().is_none() {
+            return Ok(RateLimits::default());
+        }
+
+        let quotas = CombinedQuotas::new(global_config, project_info.get_quotas());
+        if quotas.is_empty() {
+            return Ok(RateLimits::default());
+        }
+
+        let event_category = event_category(payload.event());
+
+        // When invoking the rate limiter, capture if the event item has been rate limited to also
+        // remove it from the processing state eventually.
+        let mut envelope_limiter =
+            EnvelopeLimiter::new(CheckLimits::All, |item_scope, quantity| match self {
+                RateLimiterNew::Cached => Ok(rate_limits.check_with_quotas(quotas, item_scope)),
+                RateLimiterNew::Consistent(rl) => Ok::<_, ProcessingError>(
+                    rl.is_rate_limited(quotas, item_scope, quantity, false)?,
+                ),
+            });
+
+        // Tell the envelope limiter about the event, since it has been removed from the Envelope at
+        // this stage in processing.
+        if let Some(category) = event_category {
+            envelope_limiter.assume_event(category);
+        }
+
+        let scoping = payload.managed_envelope().scoping();
+        let (enforcement, rate_limits) =
+            metric!(timer(RelayTimers::EventProcessingRateLimiting), {
+                envelope_limiter.compute(payload.managed_envelope_mut().envelope_mut(), &scoping)?
+            });
+        let event_active = enforcement.is_event_active();
+
+        // Use the same rate limits as used for the envelope on the metrics.
+        // Those rate limits should not be checked for expiry or similar to ensure a consistent
+        // limiting of envelope items and metrics.
+        extracted_metrics.apply_enforcement(&enforcement, matches!(self, Self::Consistent(_)));
+        enforcement.apply_with_outcomes(payload.managed_envelope_mut());
+
+        if event_active {
+            debug_assert!(payload.managed_envelope().envelope().is_empty());
+            payload.remove_event();
+            return Ok(rate_limits);
+        }
+
+        Ok(rate_limits)
+    }
+}
+
 /// Result of the enforcement of rate limiting.
 ///
 /// If the event is already `None` or it's rate limited, it will be `None`
@@ -3117,7 +3209,7 @@ impl RateLimiter<'_> {
             return Ok(EnforcementResult::new(event, RateLimits::default()));
         }
 
-        let event_category = event_category(&event);
+        let event_category = event_category(event.value());
 
         // When invoking the rate limiter, capture if the event item has been rate limited to also
         // remove it from the processing state eventually.

@@ -81,9 +81,9 @@ impl Display for InvalidProcessingGroupType {
 impl std::error::Error for InvalidProcessingGroupType {}
 
 /// A wrapper for [`ManagedEnvelope`] with assigned processing group type.
-pub struct TypedEnvelope<G>(ManagedEnvelope, PhantomData<G>);
+pub struct TypedEnvelope<Group>(ManagedEnvelope, PhantomData<Group>);
 
-impl<G> TypedEnvelope<G> {
+impl<Group> TypedEnvelope<Group> {
     /// Changes the typed of the current envelope to processed.
     ///
     /// Once it's marked processed it can be submitted to upstream.
@@ -104,8 +104,8 @@ impl<G> TypedEnvelope<G> {
     ///
     /// Note: this method is private to make sure that only `TryFrom` implementation is used, which
     /// requires the check for the error if conversion is failing.
-    fn new(managed_envelope: ManagedEnvelope, _ty: G) -> Self {
-        Self(managed_envelope, PhantomData::<G> {})
+    pub fn new(managed_envelope: ManagedEnvelope, _ty: Group) -> Self {
+        Self(managed_envelope, PhantomData::<Group> {})
     }
 }
 

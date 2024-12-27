@@ -280,7 +280,7 @@ pub fn extract_from_event(
     spans_extracted: SpansExtracted,
 ) -> SpansExtracted {
     // Only extract spans from transactions (not errors).
-    if event_type(event) != Some(EventType::Transaction) {
+    if event_type(event.value()) != Some(EventType::Transaction) {
         return spans_extracted;
     };
 
@@ -403,7 +403,7 @@ pub fn maybe_discard_transaction(
     event: Annotated<Event>,
     project_info: Arc<ProjectInfo>,
 ) -> Annotated<Event> {
-    if event_type(&event) == Some(EventType::Transaction)
+    if event_type(event.value()) == Some(EventType::Transaction)
         && project_info.has_feature(Feature::DiscardTransaction)
     {
         managed_envelope.update();
