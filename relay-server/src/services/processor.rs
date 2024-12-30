@@ -52,9 +52,7 @@ use crate::services::global_config::GlobalConfigHandle;
 use crate::services::metrics::{Aggregator, FlushBuckets, MergeBuckets, ProjectBuckets};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::event::FiltersStatus;
-use crate::services::processor::groups::{
-    Group, GroupParams, GroupPayload, ProcessCheckIn, ProcessGroup,
-};
+use crate::services::processor::groups::{GroupParams, ProcessCheckIn, ProcessGroup};
 use crate::services::projects::cache::ProjectCacheHandle;
 use crate::services::projects::project::{ProjectInfo, ProjectState};
 use crate::services::test_store::{Capture, TestStore};
@@ -69,6 +67,7 @@ use crate::utils::{
 use relay_base_schema::organization::OrganizationId;
 #[cfg(feature = "processing")]
 use {
+    crate::services::processor::groups::{Group, GroupPayload},
     crate::services::store::{Store, StoreEnvelope},
     crate::utils::{CheckLimits, Enforcement, EnvelopeLimiter},
     itertools::Itertools,

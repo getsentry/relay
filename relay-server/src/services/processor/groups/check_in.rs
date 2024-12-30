@@ -1,27 +1,35 @@
-use crate::envelope::{ContentType, ItemType};
-#[cfg(feature = "processing")]
-use crate::services::processor::enforce_quotas;
+use std::sync::Arc;
+
+use relay_base_schema::project::ProjectId;
+use relay_quotas::RateLimits;
+
 use crate::services::processor::groups::payload::BasePayload;
-use crate::services::processor::groups::{Group, GroupParams, GroupPayload, ProcessGroup};
+use crate::services::processor::groups::{Group, GroupParams, ProcessGroup};
 use crate::services::processor::GroupTypeError;
 use crate::services::processor::{
     InnerProcessor, ProcessingError, ProcessingExtractedMetrics, ProcessingGroup,
 };
 use crate::services::projects::project::ProjectInfo;
-use crate::utils::ItemAction;
 use crate::{group, if_processing};
-use relay_base_schema::project::ProjectId;
-use relay_quotas::RateLimits;
-use std::error::Error;
-use std::sync::Arc;
+#[cfg(feature = "processing")]
+use {
+    crate::envelope::ContentType, crate::envelope::ItemType,
+    crate::services::processor::enforce_quotas, crate::services::processor::groups::GroupPayload,
+    crate::utils::ItemAction, std::error::Error,
+};
 
 group!(CheckIn, CheckIn);
 
 pub struct ProcessCheckIn<'a> {
+    #[allow(dead_code)]
     payload: BasePayload<'a, CheckIn>,
+    #[allow(dead_code)]
     processor: Arc<InnerProcessor>,
+    #[allow(dead_code)]
     rate_limits: Arc<RateLimits>,
+    #[allow(dead_code)]
     project_info: Arc<ProjectInfo>,
+    #[allow(dead_code)]
     project_id: ProjectId,
 }
 
@@ -66,7 +74,9 @@ impl<'a> ProcessGroup<'a, CheckIn> for ProcessCheckIn<'a> {
         }
     }
 
-    fn process(mut self) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
+    fn process(
+        #[allow(unused_mut)] mut self,
+    ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
         #[allow(unused_mut)]
         let mut extracted_metrics = ProcessingExtractedMetrics::new();
 
