@@ -2004,10 +2004,6 @@ impl EnvelopeProcessorService {
         sampling_project_info: Option<Arc<ProjectInfo>>,
         reservoir_counters: ReservoirCounters,
     ) -> Result<ProcessingResult, ProcessingError> {
-        // Get the group from the managed envelope context, and if it's not set, try to guess it
-        // from the contents of the envelope.
-        let group = managed_envelope.group();
-
         // Pre-process the envelope headers.
         if let Some(sampling_state) = sampling_project_info.as_ref() {
             // Both transactions and standalone span envelopes need a normalized DSC header
@@ -2031,6 +2027,10 @@ impl EnvelopeProcessorService {
             .envelope_mut()
             .meta_mut()
             .set_project_id(project_id);
+
+        // Get the group from the managed envelope context, and if it's not set, try to guess it
+        // from the contents of the envelope.
+        let group = managed_envelope.group();
 
         // If the group is supported by the new processing logic, we will use the new logic.
         if supports_new_processing(&group) {
