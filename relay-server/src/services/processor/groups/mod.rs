@@ -83,11 +83,10 @@ pub trait GroupPayload<'a, G: Group> {
 /// Types implementing this trait represent the actual processing logic for different
 /// kinds of data that flow through Relay.
 pub trait ProcessGroup<'a> {
-    
     /// The group of this processing group.
     /// Must implement [`Group`].
     type Group: Group;
-    
+
     /// The payload type associated with this processing group.
     /// Must implement [`GroupPayload`].
     type Payload: GroupPayload<'a, Self::Group>;

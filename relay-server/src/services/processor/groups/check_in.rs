@@ -62,9 +62,8 @@ impl ProcessCheckIn<'_> {
 }
 
 impl<'a> ProcessGroup<'a> for ProcessCheckIn<'a> {
-    
     type Group = CheckIn;
-    
+
     type Payload = BasePayload<'a, Self::Group>;
 
     fn create(params: GroupParams<'a, Self::Group>) -> Self {
