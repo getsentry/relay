@@ -20,7 +20,7 @@ pub use check_in::ProcessCheckIn;
 /// implementing the group trait and conversion traits to/from processing group.
 #[macro_export]
 macro_rules! group {
-    ($ty:ident, $variant:ident) => {
+    ($variant:ident, $ty:ident) => {
         #[derive(Clone, Copy, Debug)]
         pub struct $ty;
 

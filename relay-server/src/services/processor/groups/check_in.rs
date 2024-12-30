@@ -18,11 +18,11 @@ use {
     crate::utils::ItemAction, std::error::Error,
 };
 
-group!(CheckIn, CheckIn);
+group!(CheckIn, CheckInGroup);
 
 pub struct ProcessCheckIn<'a> {
     #[allow(dead_code)]
-    payload: BasePayload<'a, CheckIn>,
+    payload: BasePayload<'a, CheckInGroup>,
     #[allow(dead_code)]
     processor: Arc<InnerProcessor>,
     #[allow(dead_code)]
@@ -62,7 +62,7 @@ impl ProcessCheckIn<'_> {
 }
 
 impl<'a> ProcessGroup<'a> for ProcessCheckIn<'a> {
-    type Group = CheckIn;
+    type Group = CheckInGroup;
 
     type Payload = BasePayload<'a, Self::Group>;
 
