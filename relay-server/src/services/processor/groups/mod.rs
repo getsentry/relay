@@ -4,7 +4,9 @@ use relay_base_schema::project::ProjectId;
 use relay_event_schema::protocol::Event;
 use relay_quotas::RateLimits;
 
-use crate::services::processor::{InnerProcessor, ProcessingError, ProcessingExtractedMetrics};
+use crate::services::processor::{
+    InnerProcessor, ProcessingError, ProcessingExtractedMetrics, ProcessingGroup, ProcessingResult,
+};
 use crate::services::projects::project::ProjectInfo;
 use crate::utils::{ManagedEnvelope, TypedEnvelope};
 
@@ -38,6 +40,64 @@ macro_rules! group {
                     return Ok($ty);
                 }
                 return Err(GroupTypeError);
+            }
+        }
+    };
+}
+
+/// A macro that creates a function to process specific group types.
+/// Takes pairs of ([`ProcessingGroup`], [`ProcessGroup`]) identifiers and generates match arms for
+/// each.
+macro_rules! build_process_group {
+    ($(($group:ident, $process_group:ident)),* $(,)?) => {
+        pub fn supports_new_processing(group: &ProcessingGroup) -> bool {
+            $(matches!(group, ProcessingGroup::$group) ||)* false
+        }
+
+        pub fn process_group(
+            group: ProcessingGroup,
+            managed_envelope: ManagedEnvelope,
+            processor: Arc<InnerProcessor>,
+            project_info: Arc<ProjectInfo>,
+            project_id: ProjectId,
+            rate_limits: Arc<RateLimits>,
+        ) -> Result<ProcessingResult, ProcessingError> {
+                match group {
+                    $(
+                        ProcessingGroup::$group => {
+                            let mut managed_envelope = managed_envelope.try_into()?;
+                            let params = GroupParams {
+                                managed_envelope: &mut managed_envelope,
+                                processor: processor.clone(),
+                                rate_limits: rate_limits.clone(),
+                                project_info: project_info.clone(),
+                                project_id,
+                            };
+
+                            let group = $process_group::create(params);
+                            match group.process() {
+                                Ok(extracted_metrics) => Ok(ProcessingResult {
+                                    managed_envelope: managed_envelope.into_processed(),
+                                    extracted_metrics: extracted_metrics
+                                        .map_or(ProcessingExtractedMetrics::new(), |e| e),
+                                }),
+                                Err(error) => {
+                                    if let Some(outcome) = error.to_outcome() {
+                                        managed_envelope.reject(outcome);
+                                    }
+
+                                    return Err(error);
+                                }
+                            }
+                    }
+                )*
+                _ => {
+                    relay_log::error!("unknown processing group");
+
+                    Ok(ProcessingResult::no_metrics(
+                        managed_envelope.into_processed(),
+                    ))
+                }
             }
         }
     };
@@ -100,3 +160,7 @@ pub trait ProcessGroup<'a> {
     /// [`ProcessingError`].
     fn process(self) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError>;
 }
+
+// Invocation of the macro which generates the code for statically dispatching the processing to
+// the respective processing functions.
+build_process_group!((CheckIn, ProcessCheckIn));

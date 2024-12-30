@@ -52,7 +52,7 @@ use crate::services::global_config::GlobalConfigHandle;
 use crate::services::metrics::{Aggregator, FlushBuckets, MergeBuckets, ProjectBuckets};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::event::FiltersStatus;
-use crate::services::processor::groups::{GroupParams, ProcessCheckIn, ProcessGroup};
+use crate::services::processor::groups::{process_group, supports_new_processing};
 use crate::services::projects::cache::ProjectCacheHandle;
 use crate::services::projects::project::{ProjectInfo, ProjectState};
 use crate::services::test_store::{Capture, TestStore};
@@ -2032,37 +2032,16 @@ impl EnvelopeProcessorService {
             .meta_mut()
             .set_project_id(project_id);
 
-        macro_rules! run_new {
-            ($group:ident) => {{
-                let mut managed_envelope = managed_envelope.try_into()?;
-                let params = GroupParams {
-                    managed_envelope: &mut managed_envelope,
-                    processor: self.inner.clone(),
-                    rate_limits: rate_limits.clone(),
-                    project_info: project_info.clone(),
-                    project_id,
-                };
-
-                let group = $group::create(params);
-                match group.process() {
-                    Ok(extracted_metrics) => Ok(ProcessingResult {
-                        managed_envelope: managed_envelope.into_processed(),
-                        extracted_metrics: extracted_metrics
-                            .map_or(ProcessingExtractedMetrics::new(), |e| e),
-                    }),
-                    Err(error) => {
-                        if let Some(outcome) = error.to_outcome() {
-                            managed_envelope.reject(outcome);
-                        }
-
-                        return Err(error);
-                    }
-                }
-            }};
-        }
-
-        if let ProcessingGroup::CheckIn = group {
-            return run_new!(ProcessCheckIn);
+        // If the group is supported by the new processing logic, we will use the new logic.
+        if supports_new_processing(&group) {
+            return process_group(
+                group,
+                managed_envelope,
+                self.inner.clone(),
+                project_info,
+                project_id,
+                rate_limits,
+            );
         }
 
         macro_rules! run {
