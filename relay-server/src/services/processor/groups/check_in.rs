@@ -61,10 +61,13 @@ impl ProcessCheckIn<'_> {
     }
 }
 
-impl<'a> ProcessGroup<'a, CheckIn> for ProcessCheckIn<'a> {
-    type Payload = BasePayload<'a, CheckIn>;
+impl<'a> ProcessGroup<'a> for ProcessCheckIn<'a> {
+    
+    type Group = CheckIn;
+    
+    type Payload = BasePayload<'a, Self::Group>;
 
-    fn create(params: GroupParams<'a, CheckIn>) -> Self {
+    fn create(params: GroupParams<'a, Self::Group>) -> Self {
         Self {
             payload: Self::Payload::no_event(params.managed_envelope),
             processor: params.processor,

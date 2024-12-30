@@ -82,13 +82,18 @@ pub trait GroupPayload<'a, G: Group> {
 /// Defines the processing behavior for a specific group type.
 /// Types implementing this trait represent the actual processing logic for different
 /// kinds of data that flow through Relay.
-pub trait ProcessGroup<'a, G: Group> {
+pub trait ProcessGroup<'a> {
+    
+    /// The group of this processing group.
+    /// Must implement [`Group`].
+    type Group: Group;
+    
     /// The payload type associated with this processing group.
     /// Must implement [`GroupPayload`].
-    type Payload: GroupPayload<'a, G>;
+    type Payload: GroupPayload<'a, Self::Group>;
 
     /// Creates a new instance of the processing group with the given [`GroupParams`].
-    fn create(params: GroupParams<'a, G>) -> Self;
+    fn create(params: GroupParams<'a, Self::Group>) -> Self;
 
     /// Processes the group data and returns extracted metrics if any.
     ///
