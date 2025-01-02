@@ -30,6 +30,7 @@ relay-log = { workspace = true, features = ["init"] }
 relay-server = { workspace = true }
 relay-statsd = { workspace = true }
 relay-kafka = { workspace = true, optional = true }
+reqwest = { workspace = true }
 uuid = { workspace = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]

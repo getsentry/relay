@@ -29,6 +29,63 @@ fn load_config(path: impl AsRef<Path>, require: bool) -> Result<Config> {
     }
 }
 
+/// Represents the registration request payload
+#[derive(Debug)]
+struct RegistrationRequest {
+    auth_token: String,
+    display_name: String,
+    description: Option<String>,
+    public_key: String,
+    relay_id: String,
+}
+
+/// Handle the register command
+async fn register(config: &Config, matches: &ArgMatches) -> Result<()> {
+    if !config.has_credentials() {
+        bail!("No credentials found. Please run 'relay credentials generate' first");
+    }
+
+    let credentials = config.credentials().unwrap();
+
+    let auth_token = matches
+        .get_one::<String>("auth_token")
+        .expect("auth_token is required");
+    let display_name = matches
+        .get_one::<String>("display_name")
+        .expect("display_name is required");
+    let description = matches.get_one::<String>("description").cloned();
+
+    let registration = RegistrationRequest {
+        auth_token: auth_token.clone(),
+        display_name: display_name.clone(),
+        description,
+        public_key: credentials.public_key.to_string(),
+        relay_id: credentials.id.to_string(),
+    };
+
+    // TODO: Replace with actual endpoint URL from config
+    let registration_url = "https://sentry.io/api/0/relays/register/";
+
+    println!("Registering relay with display name: {}", display_name);
+
+    // Create HTTP client
+    let client = Client::new();
+
+    // Prepare the request
+    // Note: This is just the structure - actual implementation would need proper error handling
+    let response = client
+        .post(registration_url)
+        .json(&registration)
+        .header("Authorization", format!("Bearer {}", auth_token))
+        .send()
+        .await?;
+
+    // TODO: Handle the response appropriately
+    println!("Registration status: {}", response.status());
+
+    Ok(())
+}
+
 /// Runs the command line application.
 pub fn execute() -> Result<()> {
     let app = make_app();
@@ -54,7 +111,9 @@ pub fn execute() -> Result<()> {
 
     relay_log::init(config.logging(), config.sentry());
 
-    if let Some(matches) = matches.subcommand_matches("config") {
+    if let Some(matches) = matches.subcommand_matches("register") {
+        register(&config, matches)?;
+    } else if let Some(matches) = matches.subcommand_matches("config") {
         manage_config(&config, matches)
     } else if let Some(matches) = matches.subcommand_matches("credentials") {
         manage_credentials(config, matches)
