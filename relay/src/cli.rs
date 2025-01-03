@@ -8,6 +8,8 @@ use dialoguer::{Confirm, Select};
 use relay_config::{
     Config, ConfigError, ConfigErrorKind, Credentials, MinimalConfig, OverridableConfig, RelayMode,
 };
+use reqwest::blocking::Client;
+use serde::Serialize;
 use uuid::Uuid;
 
 use crate::cliapp::make_app;
@@ -30,22 +32,18 @@ fn load_config(path: impl AsRef<Path>, require: bool) -> Result<Config> {
 }
 
 /// Represents the registration request payload
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 struct RegistrationRequest {
-    auth_token: String,
-    display_name: String,
-    description: Option<String>,
     public_key: String,
-    relay_id: String,
+    name: String,
+    description: Option<String>,
 }
 
 /// Handle the register command
-async fn register(config: &Config, matches: &ArgMatches) -> Result<()> {
-    if !config.has_credentials() {
+fn register(config: &Config, matches: &ArgMatches) -> Result<()> {
+    let Some(credentials) = config.credentials() else {
         bail!("No credentials found. Please run 'relay credentials generate' first");
-    }
-
-    let credentials = config.credentials().unwrap();
+    };
 
     let auth_token = matches
         .get_one::<String>("auth_token")
@@ -56,34 +54,37 @@ async fn register(config: &Config, matches: &ArgMatches) -> Result<()> {
     let description = matches.get_one::<String>("description").cloned();
 
     let registration = RegistrationRequest {
-        auth_token: auth_token.clone(),
-        display_name: display_name.clone(),
-        description,
         public_key: credentials.public_key.to_string(),
-        relay_id: credentials.id.to_string(),
+        name: display_name.clone(),
+        description,
     };
 
-    // TODO: Replace with actual endpoint URL from config
-    let registration_url = "https://sentry.io/api/0/relays/register/";
+    let registration_url = "https://sentry.io/api/0/internal/register-trusted-relay/";
 
-    println!("Registering relay with display name: {}", display_name);
+    println!("🔄 Registering Relay with name '{}'...", display_name);
 
     // Create HTTP client
     let client = Client::new();
 
-    // Prepare the request
-    // Note: This is just the structure - actual implementation would need proper error handling
+    // Send registration request
     let response = client
         .post(registration_url)
         .json(&registration)
         .header("Authorization", format!("Bearer {}", auth_token))
-        .send()
-        .await?;
+        .send()?;
 
-    // TODO: Handle the response appropriately
-    println!("Registration status: {}", response.status());
-
-    Ok(())
+    if response.status().is_success() {
+        let response_data = response.json::<serde_json::Value>()?;
+        println!("\n✅ Registration successful!\n");
+        println!("Registration details:");
+        println!("  • Name: {}", response_data["name"]);
+        println!("  • Description: {}", response_data["description"]);
+        println!("  • Public Key: {}", response_data["public_key"]);
+        Ok(())
+    } else {
+        let error = response.text()?;
+        bail!("❌ Registration failed: {}", error)
+    }
 }
 
 /// Runs the command line application.

@@ -31,6 +31,8 @@ relay-server = { workspace = true }
 relay-statsd = { workspace = true }
 relay-kafka = { workspace = true, optional = true }
 reqwest = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 uuid = { workspace = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
