@@ -113,7 +113,7 @@ pub fn execute() -> Result<()> {
     relay_log::init(config.logging(), config.sentry());
 
     if let Some(matches) = matches.subcommand_matches("register") {
-        register(&config, matches)?;
+        register(&config, matches)
     } else if let Some(matches) = matches.subcommand_matches("config") {
         manage_config(&config, matches)
     } else if let Some(matches) = matches.subcommand_matches("credentials") {
