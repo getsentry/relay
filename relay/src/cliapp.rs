@@ -338,4 +338,32 @@ pub fn make_app() -> Command {
                         )
                 )
         )
+        .subcommand(
+            Command::new("register")
+                .about("Register this relay instance with Sentry")
+                .after_help(
+                    "This command registers the relay instance with Sentry using an authentication token. \
+                     The auth token needs to be generated from the Sentry side first."
+                )
+                .arg(
+                    Arg::new("auth_token")
+                        .long("token")
+                        .short('t')
+                        .required(true)
+                        .help("The authentication token generated from Sentry"),
+                )
+                .arg(
+                    Arg::new("display_name")
+                        .long("name")
+                        .short('n')
+                        .required(true)
+                        .help("Display name for this relay instance"),
+                )
+                .arg(
+                    Arg::new("description")
+                        .long("description")
+                        .short('d')
+                        .help("Optional description of this relay instance"),
+                ),
+        )
 }

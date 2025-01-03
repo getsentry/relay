@@ -8,6 +8,8 @@ use dialoguer::{Confirm, Select};
 use relay_config::{
     Config, ConfigError, ConfigErrorKind, Credentials, MinimalConfig, OverridableConfig, RelayMode,
 };
+use reqwest::blocking::Client;
+use serde::Serialize;
 use uuid::Uuid;
 
 use crate::cliapp::make_app;
@@ -26,6 +28,62 @@ fn load_config(path: impl AsRef<Path>, require: bool) -> Result<Config> {
 
             Err(error)
         }
+    }
+}
+
+/// Represents the registration request payload
+#[derive(Debug, Serialize)]
+struct RegistrationRequest {
+    public_key: String,
+    name: String,
+    description: Option<String>,
+}
+
+/// Handle the register command
+fn register(config: &Config, matches: &ArgMatches) -> Result<()> {
+    let Some(credentials) = config.credentials() else {
+        bail!("No credentials found. Please run 'relay credentials generate' first");
+    };
+
+    let auth_token = matches
+        .get_one::<String>("auth_token")
+        .expect("auth_token is required");
+    let display_name = matches
+        .get_one::<String>("display_name")
+        .expect("display_name is required");
+    let description = matches.get_one::<String>("description").cloned();
+
+    let registration = RegistrationRequest {
+        public_key: credentials.public_key.to_string(),
+        name: display_name.clone(),
+        description,
+    };
+
+    let registration_url = "https://sentry.io/api/0/internal/register-trusted-relay/";
+
+    println!("🔄 Registering Relay with name '{}'...", display_name);
+
+    // Create HTTP client
+    let client = Client::new();
+
+    // Send registration request
+    let response = client
+        .post(registration_url)
+        .json(&registration)
+        .header("Authorization", format!("Bearer {}", auth_token))
+        .send()?;
+
+    if response.status().is_success() {
+        let response_data = response.json::<serde_json::Value>()?;
+        println!("\n✅ Registration successful!\n");
+        println!("Registration details:");
+        println!("  • Name: {}", response_data["name"]);
+        println!("  • Description: {}", response_data["description"]);
+        println!("  • Public Key: {}", response_data["public_key"]);
+        Ok(())
+    } else {
+        let error = response.text()?;
+        bail!("❌ Registration failed: {}", error)
     }
 }
 
@@ -54,7 +112,9 @@ pub fn execute() -> Result<()> {
 
     relay_log::init(config.logging(), config.sentry());
 
-    if let Some(matches) = matches.subcommand_matches("config") {
+    if let Some(matches) = matches.subcommand_matches("register") {
+        register(&config, matches)
+    } else if let Some(matches) = matches.subcommand_matches("config") {
         manage_config(&config, matches)
     } else if let Some(matches) = matches.subcommand_matches("credentials") {
         manage_credentials(config, matches)
