@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- Remove the `spool` command from Relay. ([#4423](https://github.com/getsentry/relay/pull/4423))
+
 ## 24.12.1
 
 **Bug Fixes**:
