@@ -228,10 +228,11 @@ jobs:
         target: ${{ fromJson(needs.build-setup.outputs.targets) }}
 
     name: Build Relay Binary
-    runs-on: ${{fromJson('{
-          "x86_64-unknown-linux-gnu": "ubuntu-20.04",
-          "aarch64-unknown-linux-gnu": "ubuntu-22.04-arm64-relay"
-    }')[matrix.target] }}
+    runs-on: |-
+      ${{fromJson('{
+        "x86_64-unknown-linux-gnu": "ubuntu-20.04",
+        "aarch64-unknown-linux-gnu": "ubuntu-22.04-arm64-relay"
+      }')[matrix.target] }}
 
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
