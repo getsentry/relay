@@ -474,8 +474,8 @@
     <span class="kw">let </span>form_data = form_data.into_inner();
     <span class="kw">if </span>!form_data.is_empty() {
         <span class="kw">let </span><span class="kw-2">mut </span>item = Item::new(ItemType::FormData);
-        <span class="comment">// Content type is Text (since it is not a json object but multiple
-        // json arrays serialized one after the other.
+        <span class="comment">// Content type is `Text` (since it is not a json object but multiple
+        // json arrays serialized one after the other).
         </span>item.set_payload(ContentType::Text, form_data);
         items.push(item);
     }
