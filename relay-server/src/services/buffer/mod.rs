@@ -427,6 +427,8 @@ impl EnvelopeBufferService {
         }
 
         let mut sampling_project = None;
+        // If the keys are not the same, it means we have a different root project for this envelope
+        // , and we need to fetch the project config of the root project.
         if !project_key_pair.same_keys() {
             let sampling_key = project_key_pair.sampling_key();
             let inner_sampling_project = services.project_cache_handle.get(sampling_key);
@@ -449,6 +451,7 @@ impl EnvelopeBufferService {
                 counter(RelayCounters::BufferProjectPending) += 1,
                 partition_id = &partition_tag
             );
+
             return Ok(());
         }
 
