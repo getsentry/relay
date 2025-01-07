@@ -287,7 +287,7 @@ jobs:
         image: ${{ fromJson(needs.build-setup.outputs.images) }}
 
     env:
-      PLATFORMS: "${{ join(fromJson(format('[{0}]', join(fromJson(needs.build-setup.outputs.targets).*.platform, ','))), ',') }}"
+      PLATFORMS: ${{ join(fromJson(format('[{0}]', join(fromJson(needs.build-setup.outputs.targets).*.platform, ','))), ',') }}
       DOCKER_IMAGE: "ghcr.io/getsentry/${{ matrix.image.name }}"
       REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
 
