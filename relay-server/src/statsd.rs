@@ -410,6 +410,10 @@ pub enum RelayTimers {
     /// applied.  Note that minidumps which failed to be parsed (status="error" in
     /// scrubbing.minidumps.duration) will be scrubbed as plain attachments and count
     /// towards this.
+    ///
+    /// This metric is tagged with:
+    ///
+    ///   - `attachment_type`: The type of attachment, e.g. "minidump".
     AttachmentScrubbing,
     /// Total time spent to send request to upstream Relay and handle the response.
     ///
