@@ -407,7 +407,7 @@ where
                                 &mut stack.readiness.own_project_ready,
                             ),
                             (
-                                project_key_pair.sampling_key_unwrap(),
+                                project_key_pair.sampling_key(),
                                 &mut stack.readiness.sampling_project_ready,
                             ),
                         ] {

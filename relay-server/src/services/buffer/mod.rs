@@ -337,7 +337,7 @@ impl EnvelopeBufferService {
                     relay_log::trace!("EnvelopeBufferService: requesting project(s) update");
 
                     let own_key = project_key_pair.own_key();
-                    let sampling_key = project_key_pair.sampling_key_unwrap();
+                    let sampling_key = project_key_pair.sampling_key();
 
                     services.project_cache_handle.fetch(own_key);
                     if sampling_key != own_key {
@@ -427,7 +427,8 @@ impl EnvelopeBufferService {
         }
 
         let mut sampling_project = None;
-        if let Some(sampling_key) = project_key_pair.sampling_key() {
+        if !project_key_pair.same_keys() {
+            let sampling_key = project_key_pair.sampling_key();
             let inner_sampling_project = services.project_cache_handle.get(sampling_key);
             if let ProjectState::Pending = inner_sampling_project.state() {
                 // If the sampling keys are identical, no need to perform duplicate work.
