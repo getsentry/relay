@@ -184,8 +184,8 @@ where
     let form_data = form_data.into_inner();
     if !form_data.is_empty() {
         let mut item = Item::new(ItemType::FormData);
-        // Content type is Text (since it is not a json object but multiple
-        // json arrays serialized one after the other.
+        // Content type is `Text` (since it is not a json object but multiple
+        // json arrays serialized one after the other).
         item.set_payload(ContentType::Text, form_data);
         items.push(item);
     }
