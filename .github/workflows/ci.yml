@@ -21,7 +21,7 @@ env:
 jobs:
   lint:
     name: Lint
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
 
     steps:
       - name: Install libcurl-dev
@@ -53,7 +53,7 @@ jobs:
 
   lint_default:
     name: Lint Rust Default Features
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
 
     steps:
       - name: Install libcurl-dev
@@ -105,14 +105,14 @@ jobs:
 
   test_all:
     timeout-minutes: 15
-    name: Test All Features (ubuntu-22.04)
-    runs-on: ubuntu-22.04
+    name: Test All Features (ubuntu-latest)
+    runs-on: ubuntu-latest
 
     # Skip redundant checks for library releases
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
     # Testing all features requires Docker container operations that are only available on
-    # `ubuntu-22.04`. This `test-all` job is to be seen as complementary to the `test` job. If
+    # `ubuntu-latest`. This `test-all` job is to be seen as complementary to the `test` job. If
     # services become available on other platforms, the jobs should be consolidated. See
     # https://docs.github.com/en/actions/guides/about-service-containers
 
@@ -201,18 +201,26 @@ jobs:
           if [[ "$FULL_CI" == "true" ]]; then
             echo "Running full CI"
             echo 'image_names=["relay", "relay-pop"]' >> $GITHUB_OUTPUT
-            echo 'targets=["x86_64-unknown-linux-gnu", "aarch64-unknown-linux-gnu"]' >> $GITHUB_OUTPUT
-            echo 'platforms=["linux/amd64","linux/arm64"]' >> $GITHUB_OUTPUT
+            echo 'targets=[
+              {
+                "target": "x86_64-unknown-linux-gnu",
+                "runner": "ubuntu-20.04",
+                "platform": "linux/amd64"
+              },
+              {
+                "target": "aarch64-unknown-linux-gnu",
+                "runner": "ubuntu-22.04-arm",
+                "platform": "linux/arm64"
+              }
+            ]' >> $GITHUB_OUTPUT
           else
             echo "Skipping some CI steps"
             echo 'image_names=["relay"]' >> $GITHUB_OUTPUT
-            echo 'targets=["x86_64-unknown-linux-gnu"]' >> $GITHUB_OUTPUT
-            echo 'platforms=["linux/amd64"]' >> $GITHUB_OUTPUT
+            echo 'targets=[{"target":"x86_64-unknown-linux-gnu","runner":"ubuntu-20.04","platform":"linux/amd64"}]' >> $GITHUB_OUTPUT
           fi
     outputs:
       image_names: "${{ steps.set-outputs.outputs.image_names }}"
       targets: "${{ steps.set-outputs.outputs.targets }}"
-      platforms: "${{ steps.set-outputs.outputs.platforms }}"
       full_ci: "${{ steps.set-outputs.outputs.full_ci }}"
 
   build:
@@ -222,10 +230,10 @@ jobs:
     strategy:
       matrix:
         image_name: ${{ fromJson(needs.build-setup.outputs.image_names) }}
-        target: ${{ fromJson(needs.build-setup.outputs.targets) }}
+        include: ${{ fromJson(needs.build-setup.outputs.targets) }}
 
     name: Build Relay Binary
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
 
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
@@ -236,12 +244,7 @@ jobs:
           "relay": "processing,crash-handler",
           "relay-pop": "crash-handler"
         }')[matrix.image_name] }}
-      DOCKER_PLATFORM: |-
-        ${{fromJson('{
-          "x86_64-unknown-linux-gnu": "linux/amd64",
-          "aarch64-unknown-linux-gnu": "linux/arm64"
-        }')[matrix.target] }}
-      # Fix editor: '
+      DOCKER_PLATFORM: ${{ matrix.platform }}
 
     steps:
       - name: Install dependencies
@@ -258,15 +261,9 @@ jobs:
         with:
           key: "${{ github.job }}-${{ matrix.target }}-${{ matrix.image_name }}"
 
-      - name: Install Cross
-        # We need a nightly version of cross for `cross-util`.
-        run: cargo install cross --git https://github.com/cross-rs/cross --rev 085092c
-
       - name: Compile
         run: |
-          export PATH="/home/runner/.cargo/bin/:$PATH"
-
-          cross build --release --locked --features "${FEATURES}" --target "${{ matrix.target }}"
+          cargo build --release --locked --features "${FEATURES}" --target "${{ matrix.target }}"
 
       - name: Split debug info
         run: |
@@ -274,7 +271,7 @@ jobs:
           llvm-objcopy --strip-debug --strip-unneeded "${RELAY_BIN}"
           llvm-objcopy --add-gnu-debuglink "${RELAY_BIN}"{.debug,}
 
-          cross-util run --target "${{ matrix.target }}" -- "sentry-cli difutil bundle-sources ${RELAY_BIN}.debug"
+          sentry-cli difutil bundle-sources "${RELAY_BIN}.debug"
           zip "${RELAY_BIN}-debug.zip" "${RELAY_BIN}.debug"
 
       - name: Prepare Artifacts
@@ -495,7 +492,7 @@ jobs:
 
   test_integration:
     name: Integration Tests
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     timeout-minutes: 30
 
     # Skip redundant checks for library releases
