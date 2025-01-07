@@ -11,8 +11,8 @@ use relay_dynamic_config::GlobalConfig;
 use relay_event_normalization::{nel, ClockDriftProcessor};
 use relay_event_schema::processor::{self, ProcessingState};
 use relay_event_schema::protocol::{
-    Breadcrumb, Csp, Event, ExpectCt, ExpectStaple, Hpkp, LenientString, NetworkReportError,
-    OtelContext, RelayInfo, SecurityReportType, Values,
+    Breadcrumb, Csp, Event, ExpectCt, ExpectStaple, Hpkp, LenientString, Metrics,
+    NetworkReportError, OtelContext, RelayInfo, SecurityReportType, Values,
 };
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Array, Empty, Object, Value};
@@ -25,7 +25,7 @@ use crate::extractors::RequestMeta;
 use crate::services::outcome::Outcome;
 use crate::services::processor::{
     event_category, event_type, EventFullyNormalized, EventMetricsExtracted, EventProcessing,
-    ExtractedEvent, ProcessEnvelopeState, ProcessingError, SpansExtracted, MINIMUM_CLOCK_DRIFT,
+    ExtractedEvent, ProcessingError, SpansExtracted, MINIMUM_CLOCK_DRIFT,
 };
 use crate::services::projects::project::ProjectInfo;
 use crate::statsd::{PlatformTag, RelayCounters, RelayHistograms, RelayTimers};
@@ -48,8 +48,8 @@ pub struct ExtractionResult {
 ///  4. A multipart form data body.
 ///  5. If none match, `Annotated::empty()`.
 pub fn extract<Group: EventProcessing>(
-    state: &mut ProcessEnvelopeState,
     managed_envelope: &mut TypedEnvelope<Group>,
+    metrics: &mut Metrics,
     event_fully_normalized: EventFullyNormalized,
     config: &Config,
 ) -> Result<ExtractionResult, ProcessingError> {
@@ -143,7 +143,7 @@ pub fn extract<Group: EventProcessing>(
         (Annotated::empty(), 0)
     };
 
-    state.metrics.bytes_ingested_event = Annotated::new(event_len as u64);
+    metrics.bytes_ingested_event = Annotated::new(event_len as u64);
 
     Ok(ExtractionResult {
         event,
@@ -153,9 +153,9 @@ pub fn extract<Group: EventProcessing>(
 }
 
 pub fn finalize<Group: EventProcessing>(
-    state: &mut ProcessEnvelopeState,
     managed_envelope: &mut TypedEnvelope<Group>,
     event: &mut Annotated<Event>,
+    metrics: &mut Metrics,
     config: &Config,
 ) -> Result<(), ProcessingError> {
     let envelope = managed_envelope.envelope_mut();
@@ -194,7 +194,7 @@ pub fn finalize<Group: EventProcessing>(
     // In processing mode, also write metrics into the event. Most metrics have already been
     // collected at this state, except for the combined size of all attachments.
     if config.processing_enabled() {
-        let mut metrics = std::mem::take(&mut state.metrics);
+        let mut metrics = std::mem::take(metrics);
 
         let attachment_size = envelope
             .items()

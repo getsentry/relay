@@ -2,13 +2,19 @@
 
 ## Unreleased
 
+**Internal**:
+
+- Remove use of legacy project cache. ([#4419](https://github.com/getsentry/relay/pull/4419))
+
+## 24.12.1
+
 **Bug Fixes**:
 
 - Fix serialized name of `cache.hit` and `cache.key` span tags. ([#4408](https://github.com/getsentry/relay/pull/4408))
 
-**Internal**:
+**Features**:
 
-- Remove use of legacy project cache. ([#4419](https://github.com/getsentry/relay/pull/4419))
+- Update Chrome inbound filter. ([#4381](https://github.com/getsentry/relay/pull/4381))
 
 ## 24.12.0
 
