@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Scrub non-minidump attachments if there are explicit `$attachment` rules. ([#4415](https://github.com/getsentry/relay/pull/4415))
+
 ## 24.12.0
 
 **Bug Fixes**:
