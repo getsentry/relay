@@ -1824,6 +1824,46 @@ mod tests {
     }
 
     #[test]
+    fn test_extract_span_metrics_lcp_performance_score() {
+        let json = r#"
+            {
+                "op": "ui.webvital.lcp",
+                "span_id": "bd429c44b67a3eb4",
+                "start_timestamp": 1597976302.0000000,
+                "timestamp": 1597976302.0000000,
+                "exclusive_time": 0,
+                "trace_id": "ff62a8b040f340bda5d830223def1d81",
+                "sentry_tags": {
+                    "browser.name": "Chrome",
+                    "op": "ui.webvital.lcp"
+                },
+                "measurements": {
+                    "score.total": {"value": 1.0},
+                    "score.lcp": {"value": 1.0},
+                    "score.weight.lcp": {"value": 1.0},
+                    "lcp": {"value": 1200.0}
+                }
+            }
+        "#;
+        let span = Annotated::<Span>::from_json(json).unwrap();
+        let metrics = generic::extract_metrics(
+            span.value().unwrap(),
+            combined_config([Feature::ExtractCommonSpanMetricsFromEvent], None).combined(),
+        );
+
+        for mri in [
+            "d:transactions/measurements.lcp@ratio",
+            "d:transactions/measurements.score.lcp@ratio",
+            "d:transactions/measurements.score.total@ratio",
+            "d:transactions/measurements.score.weight.lcp@ratio",
+        ] {
+            assert!(metrics.iter().any(|b| &*b.name == mri));
+            assert!(metrics.iter().any(|b| b.tags.contains_key("browser.name")));
+            assert!(metrics.iter().any(|b| b.tags.contains_key("span.op")));
+        }
+    }
+
+    #[test]
     fn extracts_span_metrics_from_transaction() {
         let event = r#"
             {
