@@ -200,15 +200,15 @@ jobs:
 
           if [[ "$FULL_CI" == "true" ]]; then
             echo "Running full CI"
-            echo 'image_names=["relay", "relay-pop"]' >> $GITHUB_OUTPUT
+            echo 'images=[{"name":"relay","features":"processing,crash-handler"},{"name":"relay-pop","features":"crash-handler"}]' >> $GITHUB_OUTPUT
             echo 'targets=[{"target":"x86_64-unknown-linux-gnu","runner":"ubuntu-20.04","platform":"linux/amd64"},{"target":"aarch64-unknown-linux-gnu","runner":"ubuntu-22.04-arm","platform":"linux/arm64"}]' >> $GITHUB_OUTPUT
           else
             echo "Skipping some CI steps"
-            echo 'image_names=["relay"]' >> $GITHUB_OUTPUT
+            echo 'images=[{"name":"relay","features":"processing,crash-handler"}]' >> $GITHUB_OUTPUT
             echo 'targets=[{"target":"x86_64-unknown-linux-gnu","runner":"ubuntu-20.04","platform":"linux/amd64"}]' >> $GITHUB_OUTPUT
           fi
     outputs:
-      image_names: "${{ steps.set-outputs.outputs.image_names }}"
+      images: "${{ steps.set-outputs.outputs.images }}"
       targets: "${{ steps.set-outputs.outputs.targets }}"
       full_ci: "${{ steps.set-outputs.outputs.full_ci }}"
 
@@ -219,7 +219,7 @@ jobs:
     strategy:
       matrix:
         target: ${{ fromJson(needs.build-setup.outputs.targets) }}
-        image_name: ${{ fromJson(needs.build-setup.outputs.image_names) }}
+        image: ${{ fromJson(needs.build-setup.outputs.images) }}
 
     name: Build Relay Binary
     runs-on: ${{ matrix.target.runner }}
@@ -228,11 +228,7 @@ jobs:
 
     env:
       RELAY_BIN: "target/${{ matrix.target.target }}/release/relay"
-      FEATURES: |-
-        ${{fromJson('{
-          "relay": "processing,crash-handler",
-          "relay-pop": "crash-handler"
-        }')[matrix.image_name] }}
+      FEATURES: ${{ matrix.image.features }}
       DOCKER_PLATFORM: ${{ matrix.target.platform }}
 
     steps:
@@ -252,7 +248,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: swatinem/rust-cache@v2
         with:
-          key: "${{ github.job }}-${{ matrix.target.target }}-${{ matrix.image_name }}"
+          key: "${{ github.job }}-${{ matrix.target.target }}-${{ matrix.image.name }}"
 
       - name: Compile
         run: |
@@ -276,7 +272,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           retention-days: 1
-          name: ${{ matrix.image_name }}@${{ matrix.target.target }}
+          name: ${{ matrix.image.name }}@${{ matrix.target.target }}
           path: "./artifacts/*"
 
   build-docker:
@@ -288,11 +284,11 @@ jobs:
 
     strategy:
       matrix:
-        image_name: ${{ fromJson(needs.build-setup.outputs.image_names) }}
+        image_name: ${{ fromJson(needs.build-setup.outputs.images) }}
 
     env:
       PLATFORMS: "${{ join(fromJSON(needs.build-setup.outputs.platforms), ',') }}"
-      DOCKER_IMAGE: "ghcr.io/getsentry/${{ matrix.image_name }}"
+      DOCKER_IMAGE: "ghcr.io/getsentry/${{ matrix.image.name }}"
       REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
 
     steps:
@@ -303,7 +299,7 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          pattern: "${{ matrix.image_name }}@*"
+          pattern: "${{ matrix.image.name }}@*"
           merge-multiple: true
 
       - name: Build and push to ghcr.io
@@ -326,7 +322,7 @@ jobs:
             --platform "${PLATFORMS}" \
             --tag "${DOCKER_IMAGE}:${REVISION}" \
             --file Dockerfile.release \
-            --output type=docker,dest=${{ matrix.image_name }}-docker-image \
+            --output type=docker,dest=${{ matrix.image.name }}-docker-image \
             .
 
       - name: Upload docker image
@@ -334,8 +330,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           retention-days: 1
-          name: ${{ matrix.image_name }}-docker-image
-          path: "${{ matrix.image_name }}-docker-image"
+          name: ${{ matrix.image.name }}-docker-image
+          path: "${{ matrix.image.name }}-docker-image"
 
   publish-to-dockerhub:
     needs: [build-setup, build-docker]
@@ -350,8 +346,8 @@ jobs:
     if: ${{ (github.ref_name == 'master') }}
 
     env:
-      GHCR_DOCKER_IMAGE: "ghcr.io/getsentry/${{ matrix.image_name }}"
-      DH_DOCKER_IMAGE: "getsentry/${{ matrix.image_name }}"
+      GHCR_DOCKER_IMAGE: "ghcr.io/getsentry/${{ matrix.image.name }}"
+      DH_DOCKER_IMAGE: "getsentry/${{ matrix.image.name }}"
       REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
 
     steps:
@@ -380,7 +376,7 @@ jobs:
 
     strategy:
       matrix:
-        image_name: ${{ fromJson(needs.build-setup.outputs.image_names) }}
+        image_name: ${{ fromJson(needs.build-setup.outputs.images) }}
 
     # required for google auth
     permissions:
@@ -388,8 +384,8 @@ jobs:
       id-token: "write"
 
     env:
-      GHCR_DOCKER_IMAGE: "ghcr.io/getsentry/${{ matrix.image_name }}"
-      AR_DOCKER_IMAGE: "us-central1-docker.pkg.dev/sentryio/relay/${{ matrix.image_name }}"
+      GHCR_DOCKER_IMAGE: "ghcr.io/getsentry/${{ matrix.image.name }}"
+      AR_DOCKER_IMAGE: "us-central1-docker.pkg.dev/sentryio/relay/${{ matrix.image.name }}"
       REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
 
     # Skip redundant checks for library releases
@@ -431,7 +427,7 @@ jobs:
 
     strategy:
       matrix:
-        image_name: ${{ fromJson(needs.build-setup.outputs.image_names) }}
+        image_name: ${{ fromJson(needs.build-setup.outputs.images) }}
 
     # required for google auth
     permissions:
@@ -439,7 +435,7 @@ jobs:
       id-token: "write"
 
     env:
-      GHCR_DOCKER_IMAGE: "ghcr.io/getsentry/${{ matrix.image_name }}"
+      GHCR_DOCKER_IMAGE: "ghcr.io/getsentry/${{ matrix.image.name }}"
       REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
 
     if: "!startsWith(github.ref, 'refs/heads/release-library/') && !github.event.pull_request.head.repo.fork && github.actor != 'dependabot[bot]' && needs.build-setup.outputs.full_ci == 'true'"
@@ -463,7 +459,7 @@ jobs:
         run: |
           set -euxo pipefail
           VERSION="$(docker run --rm "${GHCR_DOCKER_IMAGE}:${REVISION}" --version | cut -d" " -f2)"
-          echo "${{ matrix.image_name }}@${VERSION}+${REVISION}" > release-name
+          echo "${{ matrix.image.name }}@${VERSION}+${REVISION}" > release-name
 
           docker run --rm --entrypoint cat "${GHCR_DOCKER_IMAGE}:${REVISION}" /opt/relay-debug.zip > relay-debug.zip
           docker run --rm --entrypoint cat "${GHCR_DOCKER_IMAGE}:${REVISION}" /opt/relay.src.zip > relay.src.zip
@@ -479,7 +475,7 @@ jobs:
             /home/runner/.gsutil/tracker-files/upload_TRACKER_*.rc.zip__JSON.url \
           || true
           gsutil -m cp -L gsutil.log ./libs.tar ./relay-debug.zip ./relay.src.zip ./release-name \
-            "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/${{ matrix.image_name }}/" || status=$? && status=$?
+            "gs://dicd-team-devinfra-cd--relay/deployment-assets/${REVISION}/${{ matrix.image.name }}/" || status=$? && status=$?
           cat gsutil.log
           exit "$status"
 
