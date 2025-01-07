@@ -201,7 +201,7 @@ jobs:
           if [[ "$FULL_CI" == "true" ]]; then
             echo "Running full CI"
             echo 'image_names=["relay", "relay-pop"]' >> $GITHUB_OUTPUT
-            echo 'targets=[{"target":"x86_64-unknown-linux-gnu","runner":"ubuntu-20.04"},{"target":"aarch64-unknown-linux-gnu","runner":"ubuntu-22.04-arm"}]' >> $GITHUB_OUTPUT
+            echo 'targets=[{"target":"x86_64-unknown-linux-gnu","runner":"ubuntu-20.04"},{"target":"aarch64-unknown-linux-gnu","runner":"ubuntu-22.04-arm64"}]' >> $GITHUB_OUTPUT
             echo 'platforms=["linux/amd64","linux/arm64"]' >> $GITHUB_OUTPUT
           else
             echo "Skipping some CI steps"
