@@ -284,10 +284,10 @@ jobs:
 
     strategy:
       matrix:
-        image_name: ${{ fromJson(needs.build-setup.outputs.images) }}
+        image: ${{ fromJson(needs.build-setup.outputs.images) }}
 
     env:
-      PLATFORMS: "${{ join(fromJSON(needs.build-setup.outputs.platforms), ',') }}"
+      PLATFORMS: "${{ join(fromJson(format('[{0}]', join(fromJson(needs.build-setup.outputs.targets).*.platform, ','))), ',') }}"
       DOCKER_IMAGE: "ghcr.io/getsentry/${{ matrix.image.name }}"
       REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
 
@@ -341,7 +341,7 @@ jobs:
 
     strategy:
       matrix:
-        image_name: [relay] # Don't publish relay-pop (for now)
+        image: [{"name": "relay", "features": "processing,crash-handler"}] # Don't publish relay-pop (for now)
 
     if: ${{ (github.ref_name == 'master') }}
 
@@ -376,7 +376,7 @@ jobs:
 
     strategy:
       matrix:
-        image_name: ${{ fromJson(needs.build-setup.outputs.images) }}
+        image: ${{ fromJson(needs.build-setup.outputs.images) }}
 
     # required for google auth
     permissions:
@@ -427,7 +427,7 @@ jobs:
 
     strategy:
       matrix:
-        image_name: ${{ fromJson(needs.build-setup.outputs.images) }}
+        image: ${{ fromJson(needs.build-setup.outputs.images) }}
 
     # required for google auth
     permissions:
