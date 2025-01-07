@@ -225,7 +225,11 @@ jobs:
         target: ${{ fromJson(needs.build-setup.outputs.targets) }}
 
     name: Build Relay Binary
-    runs-on: ubuntu-latest
+    runs-on: |-
+      ${{fromJson('{
+        "x86_64-unknown-linux-gnu": "ubuntu-20.04",
+        "aarch64-unknown-linux-gnu": "ubuntu-22.04-arm64-relay"
+      }')[matrix.target] }}
 
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
@@ -241,13 +245,16 @@ jobs:
           "x86_64-unknown-linux-gnu": "linux/amd64",
           "aarch64-unknown-linux-gnu": "linux/arm64"
         }')[matrix.target] }}
-      # Fix editor: '
 
     steps:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y llvm
+          sudo apt-get install -y llvm curl
+
+      - name: Install sentry-cli
+        run: |
+          curl -sL https://sentry.io/get-cli/ | bash
 
       - uses: actions/checkout@v4
         with:
@@ -258,15 +265,9 @@ jobs:
         with:
           key: "${{ github.job }}-${{ matrix.target }}-${{ matrix.image_name }}"
 
-      - name: Install Cross
-        # We need a nightly version of cross for `cross-util`.
-        run: cargo install cross --git https://github.com/cross-rs/cross --rev 085092c
-
       - name: Compile
         run: |
-          export PATH="/home/runner/.cargo/bin/:$PATH"
-
-          cross build --release --locked --features "${FEATURES}" --target "${{ matrix.target }}"
+          cargo build --release --locked --features "${FEATURES}" --target "${{ matrix.target }}"
 
       - name: Split debug info
         run: |
@@ -274,7 +275,7 @@ jobs:
           llvm-objcopy --strip-debug --strip-unneeded "${RELAY_BIN}"
           llvm-objcopy --add-gnu-debuglink "${RELAY_BIN}"{.debug,}
 
-          cross-util run --target "${{ matrix.target }}" -- "sentry-cli difutil bundle-sources ${RELAY_BIN}.debug"
+          sentry-cli difutil bundle-sources "${RELAY_BIN}.debug"
           zip "${RELAY_BIN}-debug.zip" "${RELAY_BIN}.debug"
 
       - name: Prepare Artifacts
@@ -301,7 +302,7 @@ jobs:
         image_name: ${{ fromJson(needs.build-setup.outputs.image_names) }}
 
     env:
-      PLATFORMS: "${{ join(fromJSON(needs.build-setup.outputs.platforms), ',') }}"
+      PLATFORMS: "${{ join(fromJson(needs.build-setup.outputs.platforms), ',') }}"
       DOCKER_IMAGE: "ghcr.io/getsentry/${{ matrix.image_name }}"
       REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
 
@@ -355,7 +356,7 @@ jobs:
 
     strategy:
       matrix:
-        image_name: [relay] # Don't publish relay-pop (for now)
+        image_name: ["relay"] # Don't publish relay-pop (for now)
 
     if: ${{ (github.ref_name == 'master') }}
 
