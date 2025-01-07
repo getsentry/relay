@@ -649,7 +649,7 @@ jobs:
   validate-devservices-config:
       runs-on: ubuntu-24.04
       needs: files-changed
-      if: ${{ needs.files-changed.outputs.devservices_files_changed == 'true' }}
+      if: ${{ needs.files-changed.outputs.devservices-files-changed == 'true' }}
       steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         name: Checkout repository
