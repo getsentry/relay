@@ -94,6 +94,7 @@ mod session;
 mod span;
 pub use span::extract_transaction_span;
 
+mod standalone;
 #[cfg(feature = "processing")]
 mod unreal;
 
@@ -1846,7 +1847,8 @@ impl EnvelopeProcessorService {
         project_info: Arc<ProjectInfo>,
         #[allow(unused_variables)] rate_limits: Arc<RateLimits>,
     ) -> Result<(), ProcessingError> {
-        println!("PROCESSING ENVELOPE {:?}", managed_envelope);
+        standalone::process(managed_envelope);
+
         profile::filter(
             managed_envelope,
             &Annotated::empty(),

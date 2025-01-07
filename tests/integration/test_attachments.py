@@ -373,26 +373,28 @@ def test_event_with_attachment(
     assert event["event_id"] == event_id
 
 
-def test_attachments_with_form_data(
+def test_form_data_is_rejected(
     mini_sentry, relay_with_processing, attachments_consumer, outcomes_consumer
 ):
+    """
+    Test that form data entries (those without filenames) are rejected and generate outcomes.
+    """
     project_id = 42
     event_id = "515539018c9b4260a6f999572f1661ee"
 
     mini_sentry.add_full_project_config(project_id)
     relay = relay_with_processing()
     attachments_consumer = attachments_consumer()
-    outcomes_consumer = outcomes_consumer()
 
     # Create attachments with both file content and form data
     attachments = [
-        ("att_1", "foo.txt", b"file content"),
-        ("form_key", None, b"form value"),  # Form data entry
+        ("att_1", "foo.txt", b"file content"),  # Valid file attachment
+        ("form_key", None, b"form value"),  # Form data that should be rejected
     ]
 
     relay.send_attachments(project_id, event_id, attachments)
 
-    # Check the file attachment
+    # Check that only the file attachment was processed
     attachment = attachments_consumer.get_individual_attachment()
     assert attachment["attachment"].pop("id")  # ID is random
     assert attachment == {
@@ -409,21 +411,5 @@ def test_attachments_with_form_data(
         "project_id": project_id,
     }
 
-    # Check that form data was processed correctly
-    attachment = attachments_consumer.get_individual_attachment()
-    assert attachment["attachment"].pop("id")  # ID is random
-    assert attachment == {
-        "type": "attachment",
-        "attachment": {
-            "attachment_type": "event.attachment",
-            "chunks": 0,
-            "data": b"form value",
-            "name": "form_key",  # Form field name becomes attachment name
-            "size": len(b"form value"),
-            "rate_limited": False,
-        },
-        "event_id": event_id,
-        "project_id": project_id,
-    }
-
-    outcomes_consumer.assert_empty()
+    # Verify no more attachments were processed
+    attachments_consumer.assert_empty()
