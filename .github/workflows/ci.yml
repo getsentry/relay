@@ -200,15 +200,15 @@ jobs:
 
           if [[ "$FULL_CI" == "true" ]]; then
             echo "Running full CI"
-            echo 'images=[{"name":"relay","features":"processing,crash-handler"},{"name":"relay-pop","features":"crash-handler"}]' >> $GITHUB_OUTPUT
+            echo 'image_names=["relay", "relay-pop"]' >> $GITHUB_OUTPUT
             echo 'targets=[{"target":"x86_64-unknown-linux-gnu","runner":"ubuntu-20.04","platform":"linux/amd64"},{"target":"aarch64-unknown-linux-gnu","runner":"ubuntu-22.04-arm","platform":"linux/arm64"}]' >> $GITHUB_OUTPUT
           else
             echo "Skipping some CI steps"
-            echo 'images=[{"name":"relay","features":"processing,crash-handler"}]' >> $GITHUB_OUTPUT
+            echo 'image_names=["relay"]' >> $GITHUB_OUTPUT
             echo 'targets=[{"target":"x86_64-unknown-linux-gnu","runner":"ubuntu-20.04","platform":"linux/amd64"}]' >> $GITHUB_OUTPUT
           fi
     outputs:
-      images: "${{ steps.set-outputs.outputs.images }}"
+      image_names: "${{ steps.set-outputs.outputs.image_names }}"
       targets: "${{ steps.set-outputs.outputs.targets }}"
       full_ci: "${{ steps.set-outputs.outputs.full_ci }}"
 
@@ -219,7 +219,7 @@ jobs:
     strategy:
       matrix:
         target: ${{ fromJson(needs.build-setup.outputs.targets) }}
-        image: ${{ fromJson(needs.build-setup.outputs.images) }}
+        image_name: ${{ fromJson(needs.build-setup.outputs.image_names) }}
 
     name: Build Relay Binary
     runs-on: ${{ matrix.target.runner }}
@@ -228,7 +228,11 @@ jobs:
 
     env:
       RELAY_BIN: "target/${{ matrix.target.target }}/release/relay"
-      FEATURES: ${{ matrix.image.features }}
+      FEATURES: |-
+        ${{fromJson('{
+          "relay": "processing,crash-handler",
+          "relay-pop": "crash-handler"
+        }')[matrix.image_name] }}
       DOCKER_PLATFORM: ${{ matrix.target.platform }}
 
     steps:
@@ -248,7 +252,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: swatinem/rust-cache@v2
         with:
-          key: "${{ github.job }}-${{ matrix.target.target }}-${{ matrix.image.name }}"
+          key: "${{ github.job }}-${{ matrix.target.target }}-${{ matrix.image_name }}"
 
       - name: Compile
         run: |
@@ -272,7 +276,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           retention-days: 1
-          name: ${{ matrix.image.name }}@${{ matrix.target.target }}
+          name: ${{ matrix.image_name }}@${{ matrix.target.target }}
           path: "./artifacts/*"
 
   build-docker:
@@ -284,11 +288,11 @@ jobs:
 
     strategy:
       matrix:
-        image: ${{ fromJson(needs.build-setup.outputs.images) }}
+        image_name: ${{ fromJson(needs.build-setup.outputs.image_names) }}
 
     env:
       PLATFORMS: ${{ join(fromJson(format('[{0}]', join(fromJson(needs.build-setup.outputs.targets).*.platform, ','))), ',') }}
-      DOCKER_IMAGE: "ghcr.io/getsentry/${{ matrix.image.name }}"
+      DOCKER_IMAGE: "ghcr.io/getsentry/${{ matrix.image_name }}"
       REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
 
     steps:
@@ -299,7 +303,7 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          pattern: "${{ matrix.image.name }}@*"
+          pattern: "${{ matrix.image_name }}@*"
           merge-multiple: true
 
       - name: Build and push to ghcr.io
@@ -322,7 +326,7 @@ jobs:
             --platform "${PLATFORMS}" \
             --tag "${DOCKER_IMAGE}:${REVISION}" \
             --file Dockerfile.release \
-            --output type=docker,dest=${{ matrix.image.name }}-docker-image \
+            --output type=docker,dest=${{ matrix.image_name }}-docker-image \
             .
 
       - name: Upload docker image
@@ -330,8 +334,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           retention-days: 1
-          name: ${{ matrix.image.name }}-docker-image
-          path: "${{ matrix.image.name }}-docker-image"
+          name: ${{ matrix.image_name }}-docker-image
+          path: "${{ matrix.image_name }}-docker-image"
 
   publish-to-dockerhub:
     needs: [build-setup, build-docker]
@@ -341,7 +345,7 @@ jobs:
 
     strategy:
       matrix:
-        image: [{"name": "relay", "features": "processing,crash-handler"}] # Don't publish relay-pop (for now)
+        image_name: ["relay"] # Don't publish relay-pop (for now)
 
     if: ${{ (github.ref_name == 'master') }}
 
