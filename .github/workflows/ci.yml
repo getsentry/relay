@@ -201,15 +201,18 @@ jobs:
           if [[ "$FULL_CI" == "true" ]]; then
             echo "Running full CI"
             echo 'image_names=["relay", "relay-pop"]' >> $GITHUB_OUTPUT
-            echo 'targets=[{"target":"x86_64-unknown-linux-gnu","runner":"ubuntu-20.04","platform":"linux/amd64"},{"target":"aarch64-unknown-linux-gnu","runner":"ubuntu-22.04-arm","platform":"linux/arm64"}]' >> $GITHUB_OUTPUT
+            echo 'targets=[{"target":"x86_64-unknown-linux-gnu","runner":"ubuntu-20.04"},{"target":"aarch64-unknown-linux-gnu","runner":"ubuntu-22.04-arm"}]' >> $GITHUB_OUTPUT
+            echo 'platforms=["linux/amd64","linux/arm64"]' >> $GITHUB_OUTPUT
           else
             echo "Skipping some CI steps"
             echo 'image_names=["relay"]' >> $GITHUB_OUTPUT
-            echo 'targets=[{"target":"x86_64-unknown-linux-gnu","runner":"ubuntu-20.04","platform":"linux/amd64"}]' >> $GITHUB_OUTPUT
+            echo 'targets=[{"target":"x86_64-unknown-linux-gnu","runner":"ubuntu-20.04"}]' >> $GITHUB_OUTPUT
+            echo 'platforms=["linux/amd64"]' >> $GITHUB_OUTPUT
           fi
     outputs:
       image_names: "${{ steps.set-outputs.outputs.image_names }}"
       targets: "${{ steps.set-outputs.outputs.targets }}"
+      platforms: "${{ steps.set-outputs.outputs.platforms }}"
       full_ci: "${{ steps.set-outputs.outputs.full_ci }}"
 
   build:
@@ -218,8 +221,8 @@ jobs:
 
     strategy:
       matrix:
-        target: ${{ fromJson(needs.build-setup.outputs.targets) }}
         image_name: ${{ fromJson(needs.build-setup.outputs.image_names) }}
+        target: ${{ fromJson(needs.build-setup.outputs.targets) }}
 
     name: Build Relay Binary
     runs-on: ${{ matrix.target.runner }}
@@ -233,7 +236,11 @@ jobs:
           "relay": "processing,crash-handler",
           "relay-pop": "crash-handler"
         }')[matrix.image_name] }}
-      DOCKER_PLATFORM: ${{ matrix.target.platform }}
+      DOCKER_PLATFORM: |-
+        ${{fromJson('{
+          "x86_64-unknown-linux-gnu": "linux/amd64",
+          "aarch64-unknown-linux-gnu": "linux/arm64"
+        }')[matrix.target.target] }}
 
     steps:
       - name: Install dependencies
@@ -291,7 +298,7 @@ jobs:
         image_name: ${{ fromJson(needs.build-setup.outputs.image_names) }}
 
     env:
-      PLATFORMS: ${{ join(fromJson(format('[{0}]', join(fromJson(needs.build-setup.outputs.targets).*.platform, ','))), ',') }}
+      PLATFORMS: "${{ join(fromJson(needs.build-setup.outputs.platforms), ',') }}"
       DOCKER_IMAGE: "ghcr.io/getsentry/${{ matrix.image_name }}"
       REVISION: "${{ github.event.pull_request.head.sha || github.sha }}"
 
