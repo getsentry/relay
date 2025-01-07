@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- Remove the `spool` command from Relay. ([#4423](https://github.com/getsentry/relay/pull/4423))
+- Bump `sentry-native` to `0.7.17` and remove cross compilation in CI. ([#4427](https://github.com/getsentry/relay/pull/4427))
+- Remove `form_data` envelope items from standalone envelopes. ([#4428](https://github.com/getsentry/relay/pull/4428))
+
 ## 24.12.1
 
 **Bug Fixes**:

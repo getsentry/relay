@@ -97,6 +97,7 @@ mod session;
 mod span;
 pub use span::extract_transaction_span;
 
+mod standalone;
 #[cfg(feature = "processing")]
 mod unreal;
 
@@ -312,7 +313,7 @@ impl ProcessingGroup {
             ))
         }
 
-        // Exract all metric items.
+        // Extract all metric items.
         //
         // Note: Should only be relevant in proxy mode. In other modes we send metrics through
         // a separate pipeline.
@@ -1827,6 +1828,8 @@ impl EnvelopeProcessorService {
     ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
         #[allow(unused_mut)]
         let mut extracted_metrics = ProcessingExtractedMetrics::new();
+
+        standalone::process(managed_envelope);
 
         profile::filter(
             managed_envelope,
