@@ -81,6 +81,7 @@ pub fn scrub<Group>(managed_envelope: &mut TypedEnvelope<Group>, project_info: A
 }
 
 fn scrub_minidump(item: &mut crate::envelope::Item, config: &relay_pii::PiiConfig) {
+    debug_assert_eq!(item.attachment_type(), Some(&AttachmentType::Minidump));
     let filename = item.filename().unwrap_or_default();
     let mut payload = item.payload().to_vec();
 
@@ -106,9 +107,13 @@ fn scrub_minidump(item: &mut crate::envelope::Item, config: &relay_pii::PiiConfi
                 error = &scrub_error as &dyn Error,
                 "failed to scrub minidump",
             );
-            metric!(timer(RelayTimers::AttachmentScrubbing), {
-                processor.scrub_attachment(filename, &mut payload);
-            })
+            metric!(
+                timer(RelayTimers::AttachmentScrubbing),
+                attachment_type = "minidump",
+                {
+                    processor.scrub_attachment(filename, &mut payload);
+                }
+            )
         }
     }
 
@@ -143,9 +148,17 @@ fn scrub_attachment(item: &mut crate::envelope::Item, config: &relay_pii::PiiCon
     let mut payload = item.payload().to_vec();
 
     let processor = PiiAttachmentsProcessor::new(config.compiled());
-    metric!(timer(RelayTimers::AttachmentScrubbing), {
-        processor.scrub_attachment(filename, &mut payload);
-    });
+    let attachment_type_tag = match item.attachment_type() {
+        Some(t) => t.to_string(),
+        None => "".to_owned(),
+    };
+    metric!(
+        timer(RelayTimers::AttachmentScrubbing),
+        attachment_type = &attachment_type_tag,
+        {
+            processor.scrub_attachment(filename, &mut payload);
+        }
+    );
 
     item.set_payload_without_content_type(payload);
 }
