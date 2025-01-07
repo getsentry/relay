@@ -216,7 +216,13 @@ jobs:
           else
             echo "Skipping some CI steps"
             echo 'image_names=["relay"]' >> $GITHUB_OUTPUT
-            echo 'targets=[{"target":"x86_64-unknown-linux-gnu","runner":"ubuntu-20.04","platform":"linux/amd64"}]' >> $GITHUB_OUTPUT
+            echo 'targets=[
+              {
+                "target": "x86_64-unknown-linux-gnu",
+                "runner": "ubuntu-20.04",
+                "platform": "linux/amd64"
+              }
+            ]' >> $GITHUB_OUTPUT
           fi
     outputs:
       image_names: "${{ steps.set-outputs.outputs.image_names }}"
@@ -229,28 +235,32 @@ jobs:
 
     strategy:
       matrix:
+        target: ${{ fromJson(needs.build-setup.outputs.targets) }}
         image_name: ${{ fromJson(needs.build-setup.outputs.image_names) }}
-        include: ${{ fromJson(needs.build-setup.outputs.targets) }}
 
     name: Build Relay Binary
-    runs-on: ${{ matrix.runner }}
+    runs-on: ${{ matrix.target.runner }}
 
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
     env:
-      RELAY_BIN: "target/${{ matrix.target }}/release/relay"
+      RELAY_BIN: "target/${{ matrix.target.target }}/release/relay"
       FEATURES: |-
         ${{fromJson('{
           "relay": "processing,crash-handler",
           "relay-pop": "crash-handler"
         }')[matrix.image_name] }}
-      DOCKER_PLATFORM: ${{ matrix.platform }}
+      DOCKER_PLATFORM: ${{ matrix.target.platform }}
 
     steps:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y llvm
+          sudo apt-get install -y llvm curl
+
+      - name: Install sentry-cli
+        run: |
+          curl -sL https://sentry.io/get-cli/ | bash
 
       - uses: actions/checkout@v4
         with:
@@ -259,11 +269,11 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: swatinem/rust-cache@v2
         with:
-          key: "${{ github.job }}-${{ matrix.target }}-${{ matrix.image_name }}"
+          key: "${{ github.job }}-${{ matrix.target.target }}-${{ matrix.image_name }}"
 
       - name: Compile
         run: |
-          cargo build --release --locked --features "${FEATURES}" --target "${{ matrix.target }}"
+          cargo build --release --locked --features "${FEATURES}" --target "${{ matrix.target.target }}"
 
       - name: Split debug info
         run: |
@@ -283,7 +293,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           retention-days: 1
-          name: ${{ matrix.image_name }}@${{ matrix.target }}
+          name: ${{ matrix.image_name }}@${{ matrix.target.target }}
           path: "./artifacts/*"
 
   build-docker:
