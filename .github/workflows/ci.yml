@@ -105,14 +105,14 @@ jobs:
 
   test_all:
     timeout-minutes: 15
-    name: Test All Features (ubuntu-latest)
-    runs-on: ubuntu-latest
+    name: Test All Features (ubuntu-22.04)
+    runs-on: ubuntu-22.04
 
     # Skip redundant checks for library releases
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
 
     # Testing all features requires Docker container operations that are only available on
-    # `ubuntu-latest`. This `test-all` job is to be seen as complementary to the `test` job. If
+    # `ubuntu-22.04`. This `test-all` job is to be seen as complementary to the `test` job. If
     # services become available on other platforms, the jobs should be consolidated. See
     # https://docs.github.com/en/actions/guides/about-service-containers
 
@@ -495,7 +495,7 @@ jobs:
 
   test_integration:
     name: Integration Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     timeout-minutes: 30
 
     # Skip redundant checks for library releases
