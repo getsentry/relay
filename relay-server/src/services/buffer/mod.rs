@@ -157,10 +157,10 @@ impl PartitionedEnvelopeBuffer {
     fn build_hasher() -> RandomState {
         // Fixed seeds for the AHash algorithm, chosen randomly but kept constant
         // to ensure consistent partitioning across all Relay instances.
-        const K0: u64 = 0xd34db33f11223344; // Unique pattern starting with 0xd34d ("dead")
-        const K1: u64 = 0xc0ffee0987654321; // Incorporates 0xc0ffee
-        const K2: u64 = 0xdeadbeef55667788; // Classic 0xdeadbeef pattern
-        const K3: u64 = 0xbadc0de901234567; // Incorporates 0xbadc0de
+        const K0: u64 = 0xd34db33f11223344;
+        const K1: u64 = 0xc0ffee0987654321;
+        const K2: u64 = 0xdeadbeef55667788;
+        const K3: u64 = 0xbadc0de901234567;
 
         RandomState::with_seeds(K0, K1, K2, K3)
     }
