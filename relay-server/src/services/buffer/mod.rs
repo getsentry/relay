@@ -10,13 +10,11 @@ use std::time::Duration;
 use ahash::RandomState;
 use chrono::DateTime;
 use chrono::Utc;
-use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 use relay_system::{Controller, Shutdown};
 use relay_system::{Receiver, ServiceRunner};
-use tokio::sync::mpsc::Permit;
-use tokio::sync::{mpsc, watch};
+use tokio::sync::watch;
 use tokio::time::{timeout, Instant};
 
 use crate::envelope::Envelope;
@@ -25,11 +23,11 @@ use crate::services::global_config;
 use crate::services::outcome::DiscardReason;
 use crate::services::outcome::Outcome;
 use crate::services::outcome::TrackOutcome;
-use crate::services::processor::ProcessingGroup;
-use crate::services::projects::cache::{legacy, ProjectCacheHandle, ProjectChange};
+use crate::services::processor::{EnvelopeProcessor, ProcessEnvelope, ProcessingGroup};
+use crate::services::projects::cache::{CheckedEnvelope, ProjectCacheHandle, ProjectChange};
 use crate::services::test_store::TestStore;
+use crate::statsd::RelayCounters;
 use crate::statsd::RelayTimers;
-use crate::statsd::{RelayCounters, RelayHistograms};
 use crate::utils::ManagedEnvelope;
 use crate::MemoryChecker;
 use crate::MemoryStat;
@@ -45,6 +43,7 @@ pub use envelope_stack::EnvelopeStack;
 // pub for benchmarks
 pub use envelope_store::sqlite::SqliteEnvelopeStore;
 
+use crate::services::projects::project::ProjectState;
 pub use common::ProjectKeyPair;
 
 mod common;
@@ -62,18 +61,12 @@ const PARTITIONING_HASHING_SEED: usize = 0;
 pub enum EnvelopeBuffer {
     /// A fresh envelope that gets pushed into the buffer by the request handler.
     Push(Box<Envelope>),
-    /// Informs the service that a project has no valid project state and must be marked as not ready.
-    ///
-    /// This happens when an envelope was sent to the project cache, but one of the necessary project
-    /// state has expired. The envelope is pushed back into the envelope buffer.
-    NotReady(ProjectKey, Box<Envelope>),
 }
 
 impl EnvelopeBuffer {
     fn name(&self) -> &'static str {
         match &self {
             EnvelopeBuffer::Push(_) => "push",
-            EnvelopeBuffer::NotReady(..) => "project_not_ready",
         }
     }
 }
@@ -104,8 +97,8 @@ impl PartitionedEnvelopeBuffer {
         config: Arc<Config>,
         memory_stat: MemoryStat,
         global_config_rx: watch::Receiver<global_config::Status>,
-        envelopes_tx: mpsc::Sender<legacy::DequeuedEnvelope>,
         project_cache_handle: ProjectCacheHandle,
+        envelope_processor: Addr<EnvelopeProcessor>,
         outcome_aggregator: Addr<TrackOutcome>,
         test_store: Addr<TestStore>,
         runner: &mut ServiceRunner,
@@ -118,8 +111,8 @@ impl PartitionedEnvelopeBuffer {
                 memory_stat.clone(),
                 global_config_rx.clone(),
                 Services {
-                    envelopes_tx: envelopes_tx.clone(),
                     project_cache_handle: project_cache_handle.clone(),
+                    envelope_processor: envelope_processor.clone(),
                     outcome_aggregator: outcome_aggregator.clone(),
                     test_store: test_store.clone(),
                 },
@@ -189,8 +182,8 @@ impl ObservableEnvelopeBuffer {
 pub struct Services {
     /// Bounded channel used exclusively to handle backpressure when sending envelopes to the
     /// project cache.
-    pub envelopes_tx: mpsc::Sender<legacy::DequeuedEnvelope>,
     pub project_cache_handle: ProjectCacheHandle,
+    pub envelope_processor: Addr<EnvelopeProcessor>,
     pub outcome_aggregator: Addr<TrackOutcome>,
     pub test_store: Addr<TestStore>,
 }
@@ -242,18 +235,12 @@ impl EnvelopeBufferService {
     }
 
     /// Wait for the configured amount of time and make sure the project cache is ready to receive.
-    async fn ready_to_pop(
-        &mut self,
-        buffer: &PolymorphicEnvelopeBuffer,
-        dequeue: bool,
-    ) -> Option<Permit<legacy::DequeuedEnvelope>> {
+    async fn ready_to_pop(&mut self, buffer: &PolymorphicEnvelopeBuffer, dequeue: bool) {
         self.system_ready(buffer, dequeue).await;
 
         if self.sleep > Duration::ZERO {
             tokio::time::sleep(self.sleep).await;
         }
-
-        self.services.envelopes_tx.reserve().await.ok()
     }
 
     /// Waits until preconditions for unspooling are met.
@@ -286,7 +273,6 @@ impl EnvelopeBufferService {
         config: &Config,
         buffer: &mut PolymorphicEnvelopeBuffer,
         services: &Services,
-        envelopes_tx_permit: Permit<'a, legacy::DequeuedEnvelope>,
     ) -> Result<Duration, EnvelopeBufferError> {
         let sleep = match buffer.peek().await? {
             Peek::Empty => {
@@ -298,7 +284,9 @@ impl EnvelopeBufferService {
 
                 DEFAULT_SLEEP // wait for reset by `handle_message`.
             }
-            Peek::Ready { last_received_at }
+            Peek::Ready {
+                last_received_at, ..
+            }
             | Peek::NotReady {
                 last_received_at, ..
             } if is_expired(last_received_at, config) => {
@@ -316,18 +304,17 @@ impl EnvelopeBufferService {
 
                 Duration::ZERO // try next pop immediately
             }
-            Peek::Ready { .. } => {
-                relay_log::trace!("EnvelopeBufferService: popping envelope");
+            Peek::Ready {
+                project_key_pair, ..
+            } => {
+                relay_log::trace!("EnvelopeBufferService: project(s) of envelope ready");
                 relay_statsd::metric!(
                     counter(RelayCounters::BufferTryPop) += 1,
                     peek_result = "ready",
                     partition_id = partition_tag
                 );
-                let envelope = buffer
-                    .pop()
-                    .await?
-                    .expect("Element disappeared despite exclusive excess");
-                envelopes_tx_permit.send(legacy::DequeuedEnvelope(envelope));
+
+                Self::pop_and_forward(partition_tag, services, buffer, project_key_pair).await?;
 
                 Duration::ZERO // try next pop immediately
             }
@@ -349,10 +336,8 @@ impl EnvelopeBufferService {
                 if Instant::now() >= next_project_fetch {
                     relay_log::trace!("EnvelopeBufferService: requesting project(s) update");
 
-                    let ProjectKeyPair {
-                        own_key,
-                        sampling_key,
-                    } = project_key_pair;
+                    let own_key = project_key_pair.own_key;
+                    let sampling_key = project_key_pair.sampling_key;
 
                     services.project_cache_handle.fetch(own_key);
                     if sampling_key != own_key {
@@ -381,12 +366,7 @@ impl EnvelopeBufferService {
         managed_envelope.reject(Outcome::Invalid(DiscardReason::Timestamp));
     }
 
-    async fn handle_message(
-        partition_tag: &str,
-        buffer: &mut PolymorphicEnvelopeBuffer,
-        services: &Services,
-        message: EnvelopeBuffer,
-    ) {
+    async fn handle_message(buffer: &mut PolymorphicEnvelopeBuffer, message: EnvelopeBuffer) {
         match message {
             EnvelopeBuffer::Push(envelope) => {
                 // NOTE: This function assumes that a project state update for the relevant
@@ -395,19 +375,6 @@ impl EnvelopeBufferService {
                 // once buffer V1 has been removed.
                 relay_log::trace!("EnvelopeBufferService: received push message");
                 Self::push(buffer, envelope).await;
-            }
-            EnvelopeBuffer::NotReady(project_key, envelope) => {
-                relay_log::trace!(
-                    "EnvelopeBufferService: received project not ready message for project key {}",
-                    &project_key
-                );
-                relay_statsd::metric!(
-                    counter(RelayCounters::BufferEnvelopesReturned) += 1,
-                    partition_id = partition_tag
-                );
-                Self::push(buffer, envelope).await;
-                let project = services.project_cache_handle.get(project_key);
-                buffer.mark_ready(&project_key, !project.state().is_pending());
             }
         };
     }
@@ -441,6 +408,106 @@ impl EnvelopeBufferService {
                 "failed to push envelope"
             );
         }
+    }
+
+    async fn pop_and_forward<'a>(
+        partition_tag: &str,
+        services: &Services,
+        buffer: &mut PolymorphicEnvelopeBuffer,
+        project_key_pair: ProjectKeyPair,
+    ) -> Result<(), EnvelopeBufferError> {
+        let own_key = project_key_pair.own_key;
+        let own_project = services.project_cache_handle.get(own_key);
+        // We try to load the own project state and bail in case it's pending.
+        let own_project_info = match own_project.state() {
+            ProjectState::Enabled(info) => Some(info.clone()),
+            ProjectState::Disabled => None,
+            ProjectState::Pending => {
+                buffer.mark_ready(&own_key, false);
+                relay_statsd::metric!(
+                    counter(RelayCounters::BufferProjectPending) += 1,
+                    partition_id = &partition_tag
+                );
+
+                return Ok(());
+            }
+        };
+
+        let sampling_key = project_key_pair.sampling_key;
+        // If the projects are different, we load the project key of the sampling project. On the
+        // other hand, if they are the same, we just reuse the own project.
+        let sampling_project_info = if project_key_pair.has_distinct_sampling_key() {
+            // We try to load the sampling project state and bail in case it's pending.
+            match services.project_cache_handle.get(sampling_key).state() {
+                ProjectState::Enabled(info) => Some(info.clone()),
+                ProjectState::Disabled => None,
+                ProjectState::Pending => {
+                    buffer.mark_ready(&sampling_key, false);
+                    relay_statsd::metric!(
+                        counter(RelayCounters::BufferProjectPending) += 1,
+                        partition_id = &partition_tag
+                    );
+
+                    return Ok(());
+                }
+            }
+        } else {
+            own_project_info.clone()
+        };
+
+        relay_log::trace!("EnvelopeBufferService: popping envelope");
+
+        // If we arrived here, know that both projects are available, so we pop the envelope.
+        let envelope = buffer
+            .pop()
+            .await?
+            .expect("Element disappeared despite exclusive excess");
+
+        // If the own project state is disabled, we want to drop the envelope and early return since
+        // we can't do much about it.
+        let Some(own_project_info) = own_project_info else {
+            let mut managed_envelope = ManagedEnvelope::new(
+                envelope,
+                services.outcome_aggregator.clone(),
+                services.test_store.clone(),
+                ProcessingGroup::Ungrouped,
+            );
+            managed_envelope.reject(Outcome::Invalid(DiscardReason::ProjectId));
+
+            return Ok(());
+        };
+
+        // We only extract the sampling project info if both projects belong to the same org.
+        let sampling_project_info = sampling_project_info
+            .filter(|info| info.organization_id == own_project_info.organization_id);
+
+        for (group, envelope) in ProcessingGroup::split_envelope(*envelope) {
+            let managed_envelope = ManagedEnvelope::new(
+                envelope,
+                services.outcome_aggregator.clone(),
+                services.test_store.clone(),
+                group,
+            );
+
+            let Ok(CheckedEnvelope {
+                envelope: Some(managed_envelope),
+                ..
+            }) = own_project.check_envelope(managed_envelope)
+            else {
+                continue; // Outcomes are emitted by `check_envelope`.
+            };
+
+            let reservoir_counters = own_project.reservoir_counters().clone();
+            services.envelope_processor.send(ProcessEnvelope {
+                envelope: managed_envelope,
+                project_info: own_project_info.clone(),
+                rate_limits: own_project.rate_limits().current_limits(),
+                sampling_project_info: sampling_project_info.clone(),
+                reservoir_counters,
+            });
+        }
+
+        Ok(())
     }
 
     fn update_observable_state(&self, buffer: &mut PolymorphicEnvelopeBuffer) {
@@ -495,13 +562,6 @@ impl Service for EnvelopeBufferService {
 
         relay_log::info!("EnvelopeBufferService {}: starting", self.partition_id);
         loop {
-            let used_capacity =
-                self.services.envelopes_tx.max_capacity() - self.services.envelopes_tx.capacity();
-            relay_statsd::metric!(
-                histogram(RelayHistograms::BufferBackpressureEnvelopesCount) = used_capacity as u64,
-                partition_id = &partition_tag,
-            );
-
             let mut sleep = DEFAULT_SLEEP;
             let start = Instant::now();
             tokio::select! {
@@ -509,10 +569,10 @@ impl Service for EnvelopeBufferService {
                 // On the one hand, we might want to prioritize dequeuing over enqueuing
                 // so we do not exceed the buffer capacity by starving the dequeue.
                 // on the other hand, prioritizing old messages violates the LIFO design.
-                Some(permit) = self.ready_to_pop(&buffer, dequeue.load(Ordering::Relaxed)) => {
+                _ = self.ready_to_pop(&buffer, dequeue.load(Ordering::Relaxed)) => {
                     relay_statsd::metric!(timer(RelayTimers::BufferIdle) = start.elapsed(), input = "pop", partition_id = &partition_tag);
                     relay_statsd::metric!(timer(RelayTimers::BufferBusy), input = "pop", partition_id = &partition_tag, {
-                        match Self::try_pop(&partition_tag, &config, &mut buffer, &services, permit).await {
+                        match Self::try_pop(&partition_tag, &config, &mut buffer, &services).await {
                             Ok(new_sleep) => {
                                 sleep = new_sleep;
                             }
@@ -527,9 +587,16 @@ impl Service for EnvelopeBufferService {
                 change = project_changes.recv() => {
                     relay_statsd::metric!(timer(RelayTimers::BufferIdle) = start.elapsed(), input = "project_change", partition_id = &partition_tag);
                     relay_statsd::metric!(timer(RelayTimers::BufferBusy), input = "project_change", partition_id = &partition_tag, {
-                        if let Ok(ProjectChange::Ready(project_key)) = change {
-                            buffer.mark_ready(&project_key, true);
-                        }
+                        match change {
+                            Ok(ProjectChange::Ready(project_key)) => {
+                                buffer.mark_ready(&project_key, true);
+                            },
+                            Ok(ProjectChange::Evicted(project_key)) => {
+                                buffer.mark_ready(&project_key, false);
+                            },
+                            _ => {}
+                        };
+                        relay_statsd::metric!(counter(RelayCounters::BufferProjectChangedEvent) += 1, partition_id = &partition_tag);
                         sleep = Duration::ZERO;
                     });
                 }
@@ -537,7 +604,7 @@ impl Service for EnvelopeBufferService {
                     relay_statsd::metric!(timer(RelayTimers::BufferIdle) = start.elapsed(), input = "handle_message", partition_id = &partition_tag);
                     let message_name = message.name();
                     relay_statsd::metric!(timer(RelayTimers::BufferBusy), input = message_name, partition_id = &partition_tag, {
-                        Self::handle_message(&partition_tag, &mut buffer, &services, message).await;
+                        Self::handle_message(&mut buffer, message).await;
                         sleep = Duration::ZERO;
                     });
                 }
@@ -569,23 +636,23 @@ impl Service for EnvelopeBufferService {
 
 #[cfg(test)]
 mod tests {
+    use crate::services::projects::project::{ProjectInfo, ProjectState};
+    use crate::testutils::new_envelope;
+    use crate::MemoryStat;
     use chrono::Utc;
+    use relay_base_schema::project::ProjectKey;
     use relay_dynamic_config::GlobalConfig;
     use relay_quotas::DataCategory;
     use std::time::Duration;
     use tokio::sync::mpsc;
     use uuid::Uuid;
 
-    use crate::services::projects::project::ProjectState;
-    use crate::testutils::new_envelope;
-    use crate::MemoryStat;
-
     use super::*;
 
     struct EnvelopeBufferServiceResult {
         service: EnvelopeBufferService,
         global_tx: watch::Sender<global_config::Status>,
-        envelopes_rx: mpsc::Receiver<legacy::DequeuedEnvelope>,
+        envelope_processor_rx: mpsc::UnboundedReceiver<EnvelopeProcessor>,
         project_cache_handle: ProjectCacheHandle,
         outcome_aggregator_rx: mpsc::UnboundedReceiver<TrackOutcome>,
     }
@@ -602,9 +669,9 @@ mod tests {
 
         let memory_stat = MemoryStat::default();
         let (global_tx, global_rx) = watch::channel(global_config_status);
-        let (envelopes_tx, envelopes_rx) = mpsc::channel(5);
         let (outcome_aggregator, outcome_aggregator_rx) = Addr::custom();
         let project_cache_handle = ProjectCacheHandle::for_test();
+        let (envelope_processor, envelope_processor_rx) = Addr::custom();
 
         let envelope_buffer_service = EnvelopeBufferService::new(
             0,
@@ -612,8 +679,8 @@ mod tests {
             memory_stat,
             global_rx,
             Services {
-                envelopes_tx,
                 project_cache_handle: project_cache_handle.clone(),
+                envelope_processor,
                 outcome_aggregator,
                 test_store: Addr::dummy(),
             },
@@ -622,7 +689,7 @@ mod tests {
         EnvelopeBufferServiceResult {
             service: envelope_buffer_service,
             global_tx,
-            envelopes_rx,
+            envelope_processor_rx,
             project_cache_handle,
             outcome_aggregator_rx,
         }
@@ -633,7 +700,7 @@ mod tests {
         let EnvelopeBufferServiceResult {
             service,
             global_tx: _global_tx,
-            envelopes_rx: _envelopes_rx,
+            envelope_processor_rx: _envelope_processor_rx,
             project_cache_handle,
             outcome_aggregator_rx: _outcome_aggregator_rx,
         } = envelope_buffer_service(None, global_config::Status::Pending);
@@ -655,11 +722,11 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn pop_requires_global_config() {
+    async fn pop_with_global_config_changes() {
         let EnvelopeBufferServiceResult {
             service,
             global_tx,
-            envelopes_rx,
+            envelope_processor_rx,
             project_cache_handle,
             outcome_aggregator_rx: _outcome_aggregator_rx,
             ..
@@ -669,12 +736,14 @@ mod tests {
 
         let envelope = new_envelope(false, "foo");
         let project_key = envelope.meta().public_key();
+        let project_info = Arc::new(ProjectInfo::default());
+        project_cache_handle
+            .test_set_project_state(project_key, ProjectState::Enabled(project_info));
         addr.send(EnvelopeBuffer::Push(envelope.clone()));
-        project_cache_handle.test_set_project_state(project_key, ProjectState::Disabled);
 
         tokio::time::sleep(Duration::from_millis(1000)).await;
 
-        assert_eq!(envelopes_rx.len(), 0);
+        assert_eq!(envelope_processor_rx.len(), 0);
 
         global_tx.send_replace(global_config::Status::Ready(Arc::new(
             GlobalConfig::default(),
@@ -682,14 +751,58 @@ mod tests {
 
         tokio::time::sleep(Duration::from_millis(1000)).await;
 
-        assert_eq!(envelopes_rx.len(), 1);
+        assert_eq!(envelope_processor_rx.len(), 1);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn pop_with_project_state_changes() {
+        let EnvelopeBufferServiceResult {
+            service,
+            global_tx: _global_tx,
+            mut envelope_processor_rx,
+            project_cache_handle,
+            outcome_aggregator_rx: _outcome_aggregator_rx,
+            ..
+        } = envelope_buffer_service(
+            None,
+            global_config::Status::Ready(Arc::new(GlobalConfig::default())),
+        );
+
+        let addr = service.start_detached();
+
+        let envelope = new_envelope(false, "foo");
+        let project_key = envelope.meta().public_key();
+        project_cache_handle.test_set_project_state(project_key, ProjectState::Pending);
+        addr.send(EnvelopeBuffer::Push(envelope.clone()));
+
+        tokio::time::sleep(Duration::from_millis(1000)).await;
+
+        assert_eq!(envelope_processor_rx.len(), 0);
+
+        let project_info = Arc::new(ProjectInfo::default());
+        project_cache_handle
+            .test_set_project_state(project_key, ProjectState::Enabled(project_info));
+
+        tokio::time::sleep(Duration::from_millis(1000)).await;
+
+        assert_eq!(envelope_processor_rx.len(), 1);
+        assert!(envelope_processor_rx.recv().await.is_some());
+
+        let envelope = new_envelope(false, "foo");
+        let project_key = envelope.meta().public_key();
+        project_cache_handle.test_set_project_state(project_key, ProjectState::Disabled);
+        addr.send(EnvelopeBuffer::Push(envelope.clone()));
+
+        tokio::time::sleep(Duration::from_millis(1000)).await;
+
+        assert_eq!(envelope_processor_rx.len(), 0);
     }
 
     #[tokio::test(start_paused = true)]
     async fn pop_requires_memory_capacity() {
         let EnvelopeBufferServiceResult {
             service,
-            envelopes_rx,
+            envelope_processor_rx,
             project_cache_handle,
             outcome_aggregator_rx: _outcome_aggregator_rx,
             global_tx: _global_tx,
@@ -717,14 +830,14 @@ mod tests {
 
         tokio::time::sleep(Duration::from_millis(1000)).await;
 
-        assert_eq!(envelopes_rx.len(), 0);
+        assert_eq!(envelope_processor_rx.len(), 0);
     }
 
     #[tokio::test(start_paused = true)]
     async fn old_envelope_is_dropped() {
         let EnvelopeBufferServiceResult {
             service,
-            envelopes_rx,
+            envelope_processor_rx,
             project_cache_handle: _project_cache_handle,
             mut outcome_aggregator_rx,
             global_tx: _global_tx,
@@ -753,95 +866,11 @@ mod tests {
 
         tokio::time::sleep(Duration::from_millis(100)).await;
 
-        assert_eq!(envelopes_rx.len(), 0);
+        assert_eq!(envelope_processor_rx.len(), 0);
 
         let outcome = outcome_aggregator_rx.try_recv().unwrap();
         assert_eq!(outcome.category, DataCategory::TransactionIndexed);
         assert_eq!(outcome.quantity, 1);
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn test_update_project() {
-        let EnvelopeBufferServiceResult {
-            service,
-            mut envelopes_rx,
-            project_cache_handle,
-            global_tx: _global_tx,
-            outcome_aggregator_rx: _outcome_aggregator_rx,
-        } = envelope_buffer_service(
-            None,
-            global_config::Status::Ready(Arc::new(GlobalConfig::default())),
-        );
-
-        let addr = service.start_detached();
-
-        let envelope = new_envelope(false, "foo");
-        let project_key = envelope.meta().public_key();
-
-        tokio::time::sleep(Duration::from_secs(1)).await;
-
-        addr.send(EnvelopeBuffer::Push(envelope.clone()));
-        tokio::time::sleep(Duration::from_secs(3)).await;
-
-        let legacy::DequeuedEnvelope(envelope) = envelopes_rx.recv().await.unwrap();
-
-        addr.send(EnvelopeBuffer::NotReady(project_key, envelope));
-
-        tokio::time::sleep(Duration::from_millis(200)).await;
-        assert_eq!(project_cache_handle.test_num_fetches(), 2);
-
-        tokio::time::sleep(Duration::from_millis(1300)).await;
-        assert_eq!(project_cache_handle.test_num_fetches(), 3);
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn output_is_throttled() {
-        let EnvelopeBufferServiceResult {
-            service,
-            mut envelopes_rx,
-            project_cache_handle,
-            global_tx: _global_tx,
-            outcome_aggregator_rx: _outcome_aggregator_rx,
-            ..
-        } = envelope_buffer_service(
-            None,
-            global_config::Status::Ready(Arc::new(GlobalConfig::default())),
-        );
-
-        let addr = service.start_detached();
-
-        let envelope = new_envelope(false, "foo");
-        let project_key = envelope.meta().public_key();
-        for _ in 0..10 {
-            addr.send(EnvelopeBuffer::Push(envelope.clone()));
-        }
-        project_cache_handle.test_set_project_state(project_key, ProjectState::Disabled);
-
-        tokio::time::sleep(Duration::from_millis(100)).await;
-
-        let mut messages = vec![];
-        envelopes_rx.recv_many(&mut messages, 100).await;
-
-        assert_eq!(
-            messages
-                .iter()
-                .filter(|message| matches!(message, legacy::DequeuedEnvelope(..)))
-                .count(),
-            5
-        );
-
-        tokio::time::sleep(Duration::from_millis(100)).await;
-
-        let mut messages = vec![];
-        envelopes_rx.recv_many(&mut messages, 100).await;
-
-        assert_eq!(
-            messages
-                .iter()
-                .filter(|message| matches!(message, legacy::DequeuedEnvelope(..)))
-                .count(),
-            5
-        );
     }
 
     #[tokio::test(start_paused = true)]
@@ -850,13 +879,13 @@ mod tests {
         let (_global_tx, global_rx) = watch::channel(global_config::Status::Ready(Arc::new(
             GlobalConfig::default(),
         )));
-        let (envelopes_tx, mut envelopes_rx) = mpsc::channel(10);
         let (outcome_aggregator, _outcome_rx) = Addr::custom();
         let project_cache_handle = ProjectCacheHandle::for_test();
+        let (envelope_processor, mut envelope_processor_rx) = Addr::custom();
 
         // Create common services for both buffers
         let services = Services {
-            envelopes_tx,
+            envelope_processor,
             project_cache_handle: project_cache_handle.clone(),
             outcome_aggregator,
             test_store: Addr::dummy(),
@@ -891,7 +920,16 @@ mod tests {
 
         // Create two envelopes with different project keys
         let envelope1 = new_envelope(false, "foo");
+        let project_key = envelope1.meta().public_key();
+        let project_info = Arc::new(ProjectInfo::default());
+        project_cache_handle
+            .test_set_project_state(project_key, ProjectState::Enabled(project_info));
+
         let envelope2 = new_envelope(false, "bar");
+        let project_key = envelope2.meta().public_key();
+        let project_info = Arc::new(ProjectInfo::default());
+        project_cache_handle
+            .test_set_project_state(project_key, ProjectState::Enabled(project_info));
 
         // Send envelopes to their respective buffers
         let buffer1 = &partitioned.buffers[0];
@@ -901,8 +939,8 @@ mod tests {
         buffer2.addr().send(EnvelopeBuffer::Push(envelope2));
 
         // Verify both envelopes were received
-        assert!(envelopes_rx.recv().await.is_some());
-        assert!(envelopes_rx.recv().await.is_some());
-        assert!(envelopes_rx.is_empty());
+        assert!(envelope_processor_rx.recv().await.is_some());
+        assert!(envelope_processor_rx.recv().await.is_some());
+        assert!(envelope_processor_rx.is_empty());
     }
 }

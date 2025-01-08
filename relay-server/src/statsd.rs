@@ -182,9 +182,6 @@ pub enum RelayHistograms {
     /// This metric is tagged with:
     /// - `storage_type`: The type of storage used in the envelope buffer.
     BufferEnvelopesCount,
-    /// Number of envelopes in the backpressure buffer between the envelope buffer
-    /// and the project cache.
-    BufferBackpressureEnvelopesCount,
     /// The amount of bytes in the item payloads of an envelope pushed to the envelope buffer.
     ///
     /// This is not quite the same as the actual size of a serialized envelope, because it ignores
@@ -297,9 +294,6 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::BatchesPerPartition => "metrics.buckets.batches_per_partition",
             RelayHistograms::BucketsPerBatch => "metrics.buckets.per_batch",
             RelayHistograms::BufferEnvelopesCount => "buffer.envelopes_count",
-            RelayHistograms::BufferBackpressureEnvelopesCount => {
-                "buffer.backpressure_envelopes_count"
-            }
             RelayHistograms::BufferEnvelopeBodySize => "buffer.envelope_body_size",
             RelayHistograms::BufferEnvelopeSize => "buffer.envelope_size",
             RelayHistograms::BufferEnvelopeSizeCompressed => "buffer.envelope_size.compressed",
@@ -473,14 +467,6 @@ pub enum RelayTimers {
     /// This metric is tagged with:
     /// - `task`: The type of the task the project cache does.
     ProjectCacheTaskDuration,
-    /// Timing in milliseconds for processing a task in the legacy project cache service.
-    ///
-    /// A task is a unit of work the service does. Each branch of the
-    /// `tokio::select` is a different task type.
-    ///
-    /// This metric is tagged with:
-    /// - `task`: The type of the task the project cache does.
-    LegacyProjectCacheTaskDuration,
     /// Timing in milliseconds for handling and responding to a health check request.
     ///
     /// This metric is tagged with:
@@ -581,7 +567,6 @@ impl TimerMetric for RelayTimers {
             RelayTimers::GlobalConfigRequestDuration => "global_config.requests.duration",
             RelayTimers::ProcessMessageDuration => "processor.message.duration",
             RelayTimers::ProjectCacheTaskDuration => "project_cache.task.duration",
-            RelayTimers::LegacyProjectCacheTaskDuration => "legacy_project_cache.task.duration",
             RelayTimers::HealthCheckDuration => "health.message.duration",
             #[cfg(feature = "processing")]
             RelayTimers::RateLimitBucketsDuration => "processor.rate_limit_buckets",
@@ -641,17 +626,17 @@ pub enum RelayCounters {
     EnvelopeItemBytes,
     /// Number of transactions with attachments seen in the request handler.
     TransactionsWithAttachments,
-    /// Number of envelopes that were returned to the envelope buffer by the project cache.
-    ///
-    /// This happens when the envelope buffer falsely assumes that the envelope's projects are loaded
-    /// in the cache and sends the envelope onward, even though the project cache cannot handle it.
-    BufferEnvelopesReturned,
     /// Number of times an envelope from the buffer is trying to be popped.
     BufferTryPop,
     /// Number of envelopes spool to disk.
     BufferSpooledEnvelopes,
     /// Number of envelopes unspooled from disk.
     BufferUnspooledEnvelopes,
+    /// Number of project changed updates received by the buffer.
+    BufferProjectChangedEvent,
+    /// Number of times one or more projects of an envelope were pending when trying to pop
+    /// their envelope.
+    BufferProjectPending,
     ///
     /// Number of outcomes and reasons for rejected Envelopes.
     ///
@@ -855,10 +840,11 @@ impl CounterMetric for RelayCounters {
             RelayCounters::EnvelopeItems => "event.items",
             RelayCounters::TransactionsWithAttachments => "transactions_with_attachments",
             RelayCounters::EnvelopeItemBytes => "event.item_bytes",
-            RelayCounters::BufferEnvelopesReturned => "buffer.envelopes_returned",
             RelayCounters::BufferTryPop => "buffer.try_pop",
             RelayCounters::BufferSpooledEnvelopes => "buffer.spooled_envelopes",
             RelayCounters::BufferUnspooledEnvelopes => "buffer.unspooled_envelopes",
+            RelayCounters::BufferProjectChangedEvent => "buffer.project_changed_event",
+            RelayCounters::BufferProjectPending => "buffer.project_pending",
             RelayCounters::Outcomes => "events.outcomes",
             RelayCounters::ProjectStateRequest => "project_state.request",
             #[cfg(feature = "processing")]

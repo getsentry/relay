@@ -13,7 +13,7 @@ use crate::services::metrics::RouterService;
 use crate::services::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
 use crate::services::outcome_aggregator::OutcomeAggregator;
 use crate::services::processor::{self, EnvelopeProcessor, EnvelopeProcessorService};
-use crate::services::projects::cache::{legacy, ProjectCacheHandle, ProjectCacheService};
+use crate::services::projects::cache::{ProjectCacheHandle, ProjectCacheService};
 use crate::services::projects::source::ProjectSource;
 use crate::services::relays::{RelayCache, RelayCacheService};
 use crate::services::stats::RelayStats;
@@ -39,7 +39,6 @@ use relay_redis::AsyncRedisConnection;
 #[cfg(feature = "processing")]
 use relay_redis::{PooledClient, RedisError, RedisPool, RedisPools, RedisScripts};
 use relay_system::{channel, Addr, Service, ServiceRunner};
-use tokio::sync::mpsc;
 
 /// Indicates the type of failure of the server.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, thiserror::Error)]
@@ -68,7 +67,6 @@ pub struct Registry {
     pub test_store: Addr<TestStore>,
     pub relay_cache: Addr<RelayCache>,
     pub global_config: Addr<GlobalConfigManager>,
-    pub legacy_project_cache: Addr<legacy::ProjectCache>,
     pub upstream_relay: Addr<UpstreamRelay>,
     pub envelope_buffer: PartitionedEnvelopeBuffer,
 
@@ -197,9 +195,6 @@ impl ServiceState {
         // service fail if the service is not running.
         let global_config = runner.start(global_config);
 
-        let (legacy_project_cache, legacy_project_cache_rx) =
-            channel(legacy::ProjectCacheService::name());
-
         let project_source = ProjectSource::start_in(
             &mut runner,
             Arc::clone(&config),
@@ -268,35 +263,16 @@ impl ServiceState {
             processor_rx,
         );
 
-        let (envelopes_tx, envelopes_rx) = mpsc::channel(config.spool_max_backpressure_envelopes());
-
         let envelope_buffer = PartitionedEnvelopeBuffer::create(
             config.spool_partitions(),
             config.clone(),
             memory_stat.clone(),
             global_config_rx.clone(),
-            envelopes_tx.clone(),
             project_cache_handle.clone(),
+            processor.clone(),
             outcome_aggregator.clone(),
             test_store.clone(),
             &mut runner,
-        );
-
-        // Keep all the services in one context.
-        let project_cache_services = legacy::Services {
-            envelope_buffer: envelope_buffer.clone(),
-            envelope_processor: processor.clone(),
-            outcome_aggregator: outcome_aggregator.clone(),
-            test_store: test_store.clone(),
-        };
-
-        runner.start_with(
-            legacy::ProjectCacheService::new(
-                project_cache_handle.clone(),
-                project_cache_services,
-                envelopes_rx,
-            ),
-            legacy_project_cache_rx,
         );
 
         let health_check = runner.start(HealthCheckService::new(
@@ -328,7 +304,6 @@ impl ServiceState {
             test_store,
             relay_cache,
             global_config,
-            legacy_project_cache,
             project_cache_handle,
             upstream_relay,
             envelope_buffer,
@@ -363,11 +338,6 @@ impl ServiceState {
     /// Returns the V2 envelope buffer, if present.
     pub fn envelope_buffer(&self, project_key_pair: ProjectKeyPair) -> &ObservableEnvelopeBuffer {
         self.inner.registry.envelope_buffer.buffer(project_key_pair)
-    }
-
-    /// Returns the address of the [`legacy::ProjectCache`] service.
-    pub fn legacy_project_cache(&self) -> &Addr<legacy::ProjectCache> {
-        &self.inner.registry.legacy_project_cache
     }
 
     /// Returns a [`ProjectCacheHandle`].

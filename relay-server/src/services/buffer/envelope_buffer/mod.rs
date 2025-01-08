@@ -345,7 +345,10 @@ where
 
         Ok(match (stack.peek().await?, ready) {
             (None, _) => Peek::Empty,
-            (Some(last_received_at), true) => Peek::Ready { last_received_at },
+            (Some(last_received_at), true) => Peek::Ready {
+                project_key_pair: *project_key_pair,
+                last_received_at,
+            },
             (Some(last_received_at), false) => Peek::NotReady {
                 project_key_pair: *project_key_pair,
                 next_project_fetch: *next_project_fetch,
@@ -561,6 +564,7 @@ where
 pub enum Peek {
     Empty,
     Ready {
+        project_key_pair: ProjectKeyPair,
         last_received_at: DateTime<Utc>,
     },
     NotReady {
@@ -574,7 +578,9 @@ impl Peek {
     pub fn last_received_at(&self) -> Option<DateTime<Utc>> {
         match self {
             Self::Empty => None,
-            Self::Ready { last_received_at }
+            Self::Ready {
+                last_received_at, ..
+            }
             | Self::NotReady {
                 last_received_at, ..
             } => Some(*last_received_at),
