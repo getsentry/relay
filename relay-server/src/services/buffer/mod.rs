@@ -931,6 +931,7 @@ mod tests {
 
         let partitioned = PartitionedEnvelopeBuffer {
             buffers: Arc::new(vec![observable1, observable2]),
+            random_state: PartitionedEnvelopeBuffer::build_hasher(),
         };
 
         // Create two envelopes with different project keys
