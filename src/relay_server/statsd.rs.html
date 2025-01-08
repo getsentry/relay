@@ -1036,7 +1036,11 @@
 <a href="#1035" id="1035">1035</a>
 <a href="#1036" id="1036">1036</a>
 <a href="#1037" id="1037">1037</a>
-<a href="#1038" id="1038">1038</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
+<a href="#1038" id="1038">1038</a>
+<a href="#1039" id="1039">1039</a>
+<a href="#1040" id="1040">1040</a>
+<a href="#1041" id="1041">1041</a>
+<a href="#1042" id="1042">1042</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 <span class="attr">#[cfg(doc)]
 </span><span class="kw">use </span>relay_system::RuntimeMetrics;
 
@@ -1459,6 +1463,10 @@
     /// applied.  Note that minidumps which failed to be parsed (status="error" in
     /// scrubbing.minidumps.duration) will be scrubbed as plain attachments and count
     /// towards this.
+    ///
+    /// This metric is tagged with:
+    ///
+    ///   - `attachment_type`: The type of attachment, e.g. "minidump".
     </span>AttachmentScrubbing,
     <span class="doccomment">/// Total time spent to send request to upstream Relay and handle the response.
     ///
