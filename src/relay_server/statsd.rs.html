@@ -1026,21 +1026,7 @@
 <a href="#1025" id="1025">1025</a>
 <a href="#1026" id="1026">1026</a>
 <a href="#1027" id="1027">1027</a>
-<a href="#1028" id="1028">1028</a>
-<a href="#1029" id="1029">1029</a>
-<a href="#1030" id="1030">1030</a>
-<a href="#1031" id="1031">1031</a>
-<a href="#1032" id="1032">1032</a>
-<a href="#1033" id="1033">1033</a>
-<a href="#1034" id="1034">1034</a>
-<a href="#1035" id="1035">1035</a>
-<a href="#1036" id="1036">1036</a>
-<a href="#1037" id="1037">1037</a>
-<a href="#1038" id="1038">1038</a>
-<a href="#1039" id="1039">1039</a>
-<a href="#1040" id="1040">1040</a>
-<a href="#1041" id="1041">1041</a>
-<a href="#1042" id="1042">1042</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
+<a href="#1028" id="1028">1028</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 <span class="attr">#[cfg(doc)]
 </span><span class="kw">use </span>relay_system::RuntimeMetrics;
 
@@ -1224,9 +1210,6 @@
     /// This metric is tagged with:
     /// - `storage_type`: The type of storage used in the envelope buffer.
     </span>BufferEnvelopesCount,
-    <span class="doccomment">/// Number of envelopes in the backpressure buffer between the envelope buffer
-    /// and the project cache.
-    </span>BufferBackpressureEnvelopesCount,
     <span class="doccomment">/// The amount of bytes in the item payloads of an envelope pushed to the envelope buffer.
     ///
     /// This is not quite the same as the actual size of a serialized envelope, because it ignores
@@ -1339,9 +1322,6 @@
             RelayHistograms::BatchesPerPartition =&gt; <span class="string">"metrics.buckets.batches_per_partition"</span>,
             RelayHistograms::BucketsPerBatch =&gt; <span class="string">"metrics.buckets.per_batch"</span>,
             RelayHistograms::BufferEnvelopesCount =&gt; <span class="string">"buffer.envelopes_count"</span>,
-            RelayHistograms::BufferBackpressureEnvelopesCount =&gt; {
-                <span class="string">"buffer.backpressure_envelopes_count"
-            </span>}
             RelayHistograms::BufferEnvelopeBodySize =&gt; <span class="string">"buffer.envelope_body_size"</span>,
             RelayHistograms::BufferEnvelopeSize =&gt; <span class="string">"buffer.envelope_size"</span>,
             RelayHistograms::BufferEnvelopeSizeCompressed =&gt; <span class="string">"buffer.envelope_size.compressed"</span>,
@@ -1515,14 +1495,6 @@
     /// This metric is tagged with:
     /// - `task`: The type of the task the project cache does.
     </span>ProjectCacheTaskDuration,
-    <span class="doccomment">/// Timing in milliseconds for processing a task in the legacy project cache service.
-    ///
-    /// A task is a unit of work the service does. Each branch of the
-    /// `tokio::select` is a different task type.
-    ///
-    /// This metric is tagged with:
-    /// - `task`: The type of the task the project cache does.
-    </span>LegacyProjectCacheTaskDuration,
     <span class="doccomment">/// Timing in milliseconds for handling and responding to a health check request.
     ///
     /// This metric is tagged with:
@@ -1623,7 +1595,6 @@
             RelayTimers::GlobalConfigRequestDuration =&gt; <span class="string">"global_config.requests.duration"</span>,
             RelayTimers::ProcessMessageDuration =&gt; <span class="string">"processor.message.duration"</span>,
             RelayTimers::ProjectCacheTaskDuration =&gt; <span class="string">"project_cache.task.duration"</span>,
-            RelayTimers::LegacyProjectCacheTaskDuration =&gt; <span class="string">"legacy_project_cache.task.duration"</span>,
             RelayTimers::HealthCheckDuration =&gt; <span class="string">"health.message.duration"</span>,
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>RelayTimers::RateLimitBucketsDuration =&gt; <span class="string">"processor.rate_limit_buckets"</span>,
@@ -1683,17 +1654,17 @@
     </span>EnvelopeItemBytes,
     <span class="doccomment">/// Number of transactions with attachments seen in the request handler.
     </span>TransactionsWithAttachments,
-    <span class="doccomment">/// Number of envelopes that were returned to the envelope buffer by the project cache.
-    ///
-    /// This happens when the envelope buffer falsely assumes that the envelope's projects are loaded
-    /// in the cache and sends the envelope onward, even though the project cache cannot handle it.
-    </span>BufferEnvelopesReturned,
     <span class="doccomment">/// Number of times an envelope from the buffer is trying to be popped.
     </span>BufferTryPop,
     <span class="doccomment">/// Number of envelopes spool to disk.
     </span>BufferSpooledEnvelopes,
     <span class="doccomment">/// Number of envelopes unspooled from disk.
     </span>BufferUnspooledEnvelopes,
+    <span class="doccomment">/// Number of project changed updates received by the buffer.
+    </span>BufferProjectChangedEvent,
+    <span class="doccomment">/// Number of times one or more projects of an envelope were pending when trying to pop
+    /// their envelope.
+    </span>BufferProjectPending,
     <span class="doccomment">///
     /// Number of outcomes and reasons for rejected Envelopes.
     ///
@@ -1897,10 +1868,11 @@
             RelayCounters::EnvelopeItems =&gt; <span class="string">"event.items"</span>,
             RelayCounters::TransactionsWithAttachments =&gt; <span class="string">"transactions_with_attachments"</span>,
             RelayCounters::EnvelopeItemBytes =&gt; <span class="string">"event.item_bytes"</span>,
-            RelayCounters::BufferEnvelopesReturned =&gt; <span class="string">"buffer.envelopes_returned"</span>,
             RelayCounters::BufferTryPop =&gt; <span class="string">"buffer.try_pop"</span>,
             RelayCounters::BufferSpooledEnvelopes =&gt; <span class="string">"buffer.spooled_envelopes"</span>,
             RelayCounters::BufferUnspooledEnvelopes =&gt; <span class="string">"buffer.unspooled_envelopes"</span>,
+            RelayCounters::BufferProjectChangedEvent =&gt; <span class="string">"buffer.project_changed_event"</span>,
+            RelayCounters::BufferProjectPending =&gt; <span class="string">"buffer.project_pending"</span>,
             RelayCounters::Outcomes =&gt; <span class="string">"events.outcomes"</span>,
             RelayCounters::ProjectStateRequest =&gt; <span class="string">"project_state.request"</span>,
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]

@@ -906,7 +906,45 @@
 <a href="#905" id="905">905</a>
 <a href="#906" id="906">906</a>
 <a href="#907" id="907">907</a>
-<a href="#908" id="908">908</a></pre></div><pre class="rust"><code><span class="doccomment">//! Types for buffering envelopes.
+<a href="#908" id="908">908</a>
+<a href="#909" id="909">909</a>
+<a href="#910" id="910">910</a>
+<a href="#911" id="911">911</a>
+<a href="#912" id="912">912</a>
+<a href="#913" id="913">913</a>
+<a href="#914" id="914">914</a>
+<a href="#915" id="915">915</a>
+<a href="#916" id="916">916</a>
+<a href="#917" id="917">917</a>
+<a href="#918" id="918">918</a>
+<a href="#919" id="919">919</a>
+<a href="#920" id="920">920</a>
+<a href="#921" id="921">921</a>
+<a href="#922" id="922">922</a>
+<a href="#923" id="923">923</a>
+<a href="#924" id="924">924</a>
+<a href="#925" id="925">925</a>
+<a href="#926" id="926">926</a>
+<a href="#927" id="927">927</a>
+<a href="#928" id="928">928</a>
+<a href="#929" id="929">929</a>
+<a href="#930" id="930">930</a>
+<a href="#931" id="931">931</a>
+<a href="#932" id="932">932</a>
+<a href="#933" id="933">933</a>
+<a href="#934" id="934">934</a>
+<a href="#935" id="935">935</a>
+<a href="#936" id="936">936</a>
+<a href="#937" id="937">937</a>
+<a href="#938" id="938">938</a>
+<a href="#939" id="939">939</a>
+<a href="#940" id="940">940</a>
+<a href="#941" id="941">941</a>
+<a href="#942" id="942">942</a>
+<a href="#943" id="943">943</a>
+<a href="#944" id="944">944</a>
+<a href="#945" id="945">945</a>
+<a href="#946" id="946">946</a></pre></div><pre class="rust"><code><span class="doccomment">//! Types for buffering envelopes.
 
 </span><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::num::NonZeroU8;
@@ -918,13 +956,11 @@
 <span class="kw">use </span>ahash::RandomState;
 <span class="kw">use </span>chrono::DateTime;
 <span class="kw">use </span>chrono::Utc;
-<span class="kw">use </span>relay_base_schema::project::ProjectKey;
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 <span class="kw">use </span>relay_system::{Controller, Shutdown};
 <span class="kw">use </span>relay_system::{Receiver, ServiceRunner};
-<span class="kw">use </span>tokio::sync::mpsc::Permit;
-<span class="kw">use </span>tokio::sync::{mpsc, watch};
+<span class="kw">use </span>tokio::sync::watch;
 <span class="kw">use </span>tokio::time::{timeout, Instant};
 
 <span class="kw">use </span><span class="kw">crate</span>::envelope::Envelope;
@@ -933,11 +969,11 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::DiscardReason;
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::Outcome;
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::TrackOutcome;
-<span class="kw">use </span><span class="kw">crate</span>::services::processor::ProcessingGroup;
-<span class="kw">use </span><span class="kw">crate</span>::services::projects::cache::{legacy, ProjectCacheHandle, ProjectChange};
+<span class="kw">use </span><span class="kw">crate</span>::services::processor::{EnvelopeProcessor, ProcessEnvelope, ProcessingGroup};
+<span class="kw">use </span><span class="kw">crate</span>::services::projects::cache::{CheckedEnvelope, ProjectCacheHandle, ProjectChange};
 <span class="kw">use </span><span class="kw">crate</span>::services::test_store::TestStore;
+<span class="kw">use </span><span class="kw">crate</span>::statsd::RelayCounters;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayTimers;
-<span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms};
 <span class="kw">use </span><span class="kw">crate</span>::utils::ManagedEnvelope;
 <span class="kw">use </span><span class="kw">crate</span>::MemoryChecker;
 <span class="kw">use </span><span class="kw">crate</span>::MemoryStat;
@@ -953,6 +989,7 @@
 <span class="comment">// pub for benchmarks
 </span><span class="kw">pub use </span>envelope_store::sqlite::SqliteEnvelopeStore;
 
+<span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectState;
 <span class="kw">pub use </span>common::ProjectKeyPair;
 
 <span class="kw">mod </span>common;
@@ -970,18 +1007,12 @@
 </span><span class="kw">pub enum </span>EnvelopeBuffer {
     <span class="doccomment">/// A fresh envelope that gets pushed into the buffer by the request handler.
     </span>Push(Box&lt;Envelope&gt;),
-    <span class="doccomment">/// Informs the service that a project has no valid project state and must be marked as not ready.
-    ///
-    /// This happens when an envelope was sent to the project cache, but one of the necessary project
-    /// state has expired. The envelope is pushed back into the envelope buffer.
-    </span>NotReady(ProjectKey, Box&lt;Envelope&gt;),
 }
 
 <span class="kw">impl </span>EnvelopeBuffer {
     <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self </span>{
             EnvelopeBuffer::Push(<span class="kw">_</span>) =&gt; <span class="string">"push"</span>,
-            EnvelopeBuffer::NotReady(..) =&gt; <span class="string">"project_not_ready"</span>,
         }
     }
 }
@@ -1012,8 +1043,8 @@
         config: Arc&lt;Config&gt;,
         memory_stat: MemoryStat,
         global_config_rx: watch::Receiver&lt;global_config::Status&gt;,
-        envelopes_tx: mpsc::Sender&lt;legacy::DequeuedEnvelope&gt;,
         project_cache_handle: ProjectCacheHandle,
+        envelope_processor: Addr&lt;EnvelopeProcessor&gt;,
         outcome_aggregator: Addr&lt;TrackOutcome&gt;,
         test_store: Addr&lt;TestStore&gt;,
         runner: <span class="kw-2">&amp;mut </span>ServiceRunner,
@@ -1026,8 +1057,8 @@
                 memory_stat.clone(),
                 global_config_rx.clone(),
                 Services {
-                    envelopes_tx: envelopes_tx.clone(),
                     project_cache_handle: project_cache_handle.clone(),
+                    envelope_processor: envelope_processor.clone(),
                     outcome_aggregator: outcome_aggregator.clone(),
                     test_store: test_store.clone(),
                 },
@@ -1097,8 +1128,8 @@
 </span><span class="kw">pub struct </span>Services {
     <span class="doccomment">/// Bounded channel used exclusively to handle backpressure when sending envelopes to the
     /// project cache.
-    </span><span class="kw">pub </span>envelopes_tx: mpsc::Sender&lt;legacy::DequeuedEnvelope&gt;,
-    <span class="kw">pub </span>project_cache_handle: ProjectCacheHandle,
+    </span><span class="kw">pub </span>project_cache_handle: ProjectCacheHandle,
+    <span class="kw">pub </span>envelope_processor: Addr&lt;EnvelopeProcessor&gt;,
     <span class="kw">pub </span>outcome_aggregator: Addr&lt;TrackOutcome&gt;,
     <span class="kw">pub </span>test_store: Addr&lt;TestStore&gt;,
 }
@@ -1150,18 +1181,12 @@
     }
 
     <span class="doccomment">/// Wait for the configured amount of time and make sure the project cache is ready to receive.
-    </span><span class="kw">async fn </span>ready_to_pop(
-        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
-        buffer: <span class="kw-2">&amp;</span>PolymorphicEnvelopeBuffer,
-        dequeue: bool,
-    ) -&gt; <span class="prelude-ty">Option</span>&lt;Permit&lt;legacy::DequeuedEnvelope&gt;&gt; {
+    </span><span class="kw">async fn </span>ready_to_pop(<span class="kw-2">&amp;mut </span><span class="self">self</span>, buffer: <span class="kw-2">&amp;</span>PolymorphicEnvelopeBuffer, dequeue: bool) {
         <span class="self">self</span>.system_ready(buffer, dequeue).<span class="kw">await</span>;
 
         <span class="kw">if </span><span class="self">self</span>.sleep &gt; Duration::ZERO {
             tokio::time::sleep(<span class="self">self</span>.sleep).<span class="kw">await</span>;
         }
-
-        <span class="self">self</span>.services.envelopes_tx.reserve().<span class="kw">await</span>.ok()
     }
 
     <span class="doccomment">/// Waits until preconditions for unspooling are met.
@@ -1194,7 +1219,6 @@
         config: <span class="kw-2">&amp;</span>Config,
         buffer: <span class="kw-2">&amp;mut </span>PolymorphicEnvelopeBuffer,
         services: <span class="kw-2">&amp;</span>Services,
-        envelopes_tx_permit: Permit&lt;<span class="lifetime">'a</span>, legacy::DequeuedEnvelope&gt;,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Duration, EnvelopeBufferError&gt; {
         <span class="kw">let </span>sleep = <span class="kw">match </span>buffer.peek().<span class="kw">await</span><span class="question-mark">? </span>{
             Peek::Empty =&gt; {
@@ -1206,7 +1230,9 @@
 
                 DEFAULT_SLEEP <span class="comment">// wait for reset by `handle_message`.
             </span>}
-            Peek::Ready { last_received_at }
+            Peek::Ready {
+                last_received_at, ..
+            }
             | Peek::NotReady {
                 last_received_at, ..
             } <span class="kw">if </span>is_expired(last_received_at, config) =&gt; {
@@ -1224,18 +1250,17 @@
 
                 Duration::ZERO <span class="comment">// try next pop immediately
             </span>}
-            Peek::Ready { .. } =&gt; {
-                <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService: popping envelope"</span>);
+            Peek::Ready {
+                project_key_pair, ..
+            } =&gt; {
+                <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService: project(s) of envelope ready"</span>);
                 <span class="macro">relay_statsd::metric!</span>(
                     counter(RelayCounters::BufferTryPop) += <span class="number">1</span>,
                     peek_result = <span class="string">"ready"</span>,
                     partition_id = partition_tag
                 );
-                <span class="kw">let </span>envelope = buffer
-                    .pop()
-                    .<span class="kw">await</span><span class="question-mark">?
-                    </span>.expect(<span class="string">"Element disappeared despite exclusive excess"</span>);
-                envelopes_tx_permit.send(legacy::DequeuedEnvelope(envelope));
+
+                <span class="self">Self</span>::pop_and_forward(partition_tag, services, buffer, project_key_pair).<span class="kw">await</span><span class="question-mark">?</span>;
 
                 Duration::ZERO <span class="comment">// try next pop immediately
             </span>}
@@ -1257,10 +1282,8 @@
                 </span><span class="kw">if </span>Instant::now() &gt;= next_project_fetch {
                     <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService: requesting project(s) update"</span>);
 
-                    <span class="kw">let </span>ProjectKeyPair {
-                        own_key,
-                        sampling_key,
-                    } = project_key_pair;
+                    <span class="kw">let </span>own_key = project_key_pair.own_key;
+                    <span class="kw">let </span>sampling_key = project_key_pair.sampling_key;
 
                     services.project_cache_handle.fetch(own_key);
                     <span class="kw">if </span>sampling_key != own_key {
@@ -1289,12 +1312,7 @@
         managed_envelope.reject(Outcome::Invalid(DiscardReason::Timestamp));
     }
 
-    <span class="kw">async fn </span>handle_message(
-        partition_tag: <span class="kw-2">&amp;</span>str,
-        buffer: <span class="kw-2">&amp;mut </span>PolymorphicEnvelopeBuffer,
-        services: <span class="kw-2">&amp;</span>Services,
-        message: EnvelopeBuffer,
-    ) {
+    <span class="kw">async fn </span>handle_message(buffer: <span class="kw-2">&amp;mut </span>PolymorphicEnvelopeBuffer, message: EnvelopeBuffer) {
         <span class="kw">match </span>message {
             EnvelopeBuffer::Push(envelope) =&gt; {
                 <span class="comment">// NOTE: This function assumes that a project state update for the relevant
@@ -1303,19 +1321,6 @@
                 // once buffer V1 has been removed.
                 </span><span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService: received push message"</span>);
                 <span class="self">Self</span>::push(buffer, envelope).<span class="kw">await</span>;
-            }
-            EnvelopeBuffer::NotReady(project_key, envelope) =&gt; {
-                <span class="macro">relay_log::trace!</span>(
-                    <span class="string">"EnvelopeBufferService: received project not ready message for project key {}"</span>,
-                    <span class="kw-2">&amp;</span>project_key
-                );
-                <span class="macro">relay_statsd::metric!</span>(
-                    counter(RelayCounters::BufferEnvelopesReturned) += <span class="number">1</span>,
-                    partition_id = partition_tag
-                );
-                <span class="self">Self</span>::push(buffer, envelope).<span class="kw">await</span>;
-                <span class="kw">let </span>project = services.project_cache_handle.get(project_key);
-                buffer.mark_ready(<span class="kw-2">&amp;</span>project_key, !project.state().is_pending());
             }
         };
     }
@@ -1349,6 +1354,106 @@
                 <span class="string">"failed to push envelope"
             </span>);
         }
+    }
+
+    <span class="kw">async fn </span>pop_and_forward&lt;<span class="lifetime">'a</span>&gt;(
+        partition_tag: <span class="kw-2">&amp;</span>str,
+        services: <span class="kw-2">&amp;</span>Services,
+        buffer: <span class="kw-2">&amp;mut </span>PolymorphicEnvelopeBuffer,
+        project_key_pair: ProjectKeyPair,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), EnvelopeBufferError&gt; {
+        <span class="kw">let </span>own_key = project_key_pair.own_key;
+        <span class="kw">let </span>own_project = services.project_cache_handle.get(own_key);
+        <span class="comment">// We try to load the own project state and bail in case it's pending.
+        </span><span class="kw">let </span>own_project_info = <span class="kw">match </span>own_project.state() {
+            ProjectState::Enabled(info) =&gt; <span class="prelude-val">Some</span>(info.clone()),
+            ProjectState::Disabled =&gt; <span class="prelude-val">None</span>,
+            ProjectState::Pending =&gt; {
+                buffer.mark_ready(<span class="kw-2">&amp;</span>own_key, <span class="bool-val">false</span>);
+                <span class="macro">relay_statsd::metric!</span>(
+                    counter(RelayCounters::BufferProjectPending) += <span class="number">1</span>,
+                    partition_id = <span class="kw-2">&amp;</span>partition_tag
+                );
+
+                <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+            }
+        };
+
+        <span class="kw">let </span>sampling_key = project_key_pair.sampling_key;
+        <span class="comment">// If the projects are different, we load the project key of the sampling project. On the
+        // other hand, if they are the same, we just reuse the own project.
+        </span><span class="kw">let </span>sampling_project_info = <span class="kw">if </span>project_key_pair.has_distinct_sampling_key() {
+            <span class="comment">// We try to load the sampling project state and bail in case it's pending.
+            </span><span class="kw">match </span>services.project_cache_handle.get(sampling_key).state() {
+                ProjectState::Enabled(info) =&gt; <span class="prelude-val">Some</span>(info.clone()),
+                ProjectState::Disabled =&gt; <span class="prelude-val">None</span>,
+                ProjectState::Pending =&gt; {
+                    buffer.mark_ready(<span class="kw-2">&amp;</span>sampling_key, <span class="bool-val">false</span>);
+                    <span class="macro">relay_statsd::metric!</span>(
+                        counter(RelayCounters::BufferProjectPending) += <span class="number">1</span>,
+                        partition_id = <span class="kw-2">&amp;</span>partition_tag
+                    );
+
+                    <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+                }
+            }
+        } <span class="kw">else </span>{
+            own_project_info.clone()
+        };
+
+        <span class="macro">relay_log::trace!</span>(<span class="string">"EnvelopeBufferService: popping envelope"</span>);
+
+        <span class="comment">// If we arrived here, know that both projects are available, so we pop the envelope.
+        </span><span class="kw">let </span>envelope = buffer
+            .pop()
+            .<span class="kw">await</span><span class="question-mark">?
+            </span>.expect(<span class="string">"Element disappeared despite exclusive excess"</span>);
+
+        <span class="comment">// If the own project state is disabled, we want to drop the envelope and early return since
+        // we can't do much about it.
+        </span><span class="kw">let </span><span class="prelude-val">Some</span>(own_project_info) = own_project_info <span class="kw">else </span>{
+            <span class="kw">let </span><span class="kw-2">mut </span>managed_envelope = ManagedEnvelope::new(
+                envelope,
+                services.outcome_aggregator.clone(),
+                services.test_store.clone(),
+                ProcessingGroup::Ungrouped,
+            );
+            managed_envelope.reject(Outcome::Invalid(DiscardReason::ProjectId));
+
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+        };
+
+        <span class="comment">// We only extract the sampling project info if both projects belong to the same org.
+        </span><span class="kw">let </span>sampling_project_info = sampling_project_info
+            .filter(|info| info.organization_id == own_project_info.organization_id);
+
+        <span class="kw">for </span>(group, envelope) <span class="kw">in </span>ProcessingGroup::split_envelope(<span class="kw-2">*</span>envelope) {
+            <span class="kw">let </span>managed_envelope = ManagedEnvelope::new(
+                envelope,
+                services.outcome_aggregator.clone(),
+                services.test_store.clone(),
+                group,
+            );
+
+            <span class="kw">let </span><span class="prelude-val">Ok</span>(CheckedEnvelope {
+                envelope: <span class="prelude-val">Some</span>(managed_envelope),
+                ..
+            }) = own_project.check_envelope(managed_envelope)
+            <span class="kw">else </span>{
+                <span class="kw">continue</span>; <span class="comment">// Outcomes are emitted by `check_envelope`.
+            </span>};
+
+            <span class="kw">let </span>reservoir_counters = own_project.reservoir_counters().clone();
+            services.envelope_processor.send(ProcessEnvelope {
+                envelope: managed_envelope,
+                project_info: own_project_info.clone(),
+                rate_limits: own_project.rate_limits().current_limits(),
+                sampling_project_info: sampling_project_info.clone(),
+                reservoir_counters,
+            });
+        }
+
+        <span class="prelude-val">Ok</span>(())
     }
 
     <span class="kw">fn </span>update_observable_state(<span class="kw-2">&amp;</span><span class="self">self</span>, buffer: <span class="kw-2">&amp;mut </span>PolymorphicEnvelopeBuffer) {
@@ -1403,13 +1508,6 @@
 
         <span class="macro">relay_log::info!</span>(<span class="string">"EnvelopeBufferService {}: starting"</span>, <span class="self">self</span>.partition_id);
         <span class="kw">loop </span>{
-            <span class="kw">let </span>used_capacity =
-                <span class="self">self</span>.services.envelopes_tx.max_capacity() - <span class="self">self</span>.services.envelopes_tx.capacity();
-            <span class="macro">relay_statsd::metric!</span>(
-                histogram(RelayHistograms::BufferBackpressureEnvelopesCount) = used_capacity <span class="kw">as </span>u64,
-                partition_id = <span class="kw-2">&amp;</span>partition_tag,
-            );
-
             <span class="kw">let </span><span class="kw-2">mut </span>sleep = DEFAULT_SLEEP;
             <span class="kw">let </span>start = Instant::now();
             <span class="macro">tokio::select!</span> {
@@ -1417,10 +1515,10 @@
                 // On the one hand, we might want to prioritize dequeuing over enqueuing
                 // so we do not exceed the buffer capacity by starving the dequeue.
                 // on the other hand, prioritizing old messages violates the LIFO design.
-                </span><span class="prelude-val">Some</span>(permit) = <span class="self">self</span>.ready_to_pop(<span class="kw-2">&amp;</span>buffer, dequeue.load(Ordering::Relaxed)) =&gt; {
+                </span><span class="kw">_ </span>= <span class="self">self</span>.ready_to_pop(<span class="kw-2">&amp;</span>buffer, dequeue.load(Ordering::Relaxed)) =&gt; {
                     <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::BufferIdle) = start.elapsed(), input = <span class="string">"pop"</span>, partition_id = <span class="kw-2">&amp;</span>partition_tag);
                     <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::BufferBusy), input = <span class="string">"pop"</span>, partition_id = <span class="kw-2">&amp;</span>partition_tag, {
-                        <span class="kw">match </span><span class="self">Self</span>::try_pop(<span class="kw-2">&amp;</span>partition_tag, <span class="kw-2">&amp;</span>config, <span class="kw-2">&amp;mut </span>buffer, <span class="kw-2">&amp;</span>services, permit).<span class="kw">await </span>{
+                        <span class="kw">match </span><span class="self">Self</span>::try_pop(<span class="kw-2">&amp;</span>partition_tag, <span class="kw-2">&amp;</span>config, <span class="kw-2">&amp;mut </span>buffer, <span class="kw-2">&amp;</span>services).<span class="kw">await </span>{
                             <span class="prelude-val">Ok</span>(new_sleep) =&gt; {
                                 sleep = new_sleep;
                             }
@@ -1435,9 +1533,16 @@
                 change = project_changes.recv() =&gt; {
                     <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::BufferIdle) = start.elapsed(), input = <span class="string">"project_change"</span>, partition_id = <span class="kw-2">&amp;</span>partition_tag);
                     <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::BufferBusy), input = <span class="string">"project_change"</span>, partition_id = <span class="kw-2">&amp;</span>partition_tag, {
-                        <span class="kw">if let </span><span class="prelude-val">Ok</span>(ProjectChange::Ready(project_key)) = change {
-                            buffer.mark_ready(<span class="kw-2">&amp;</span>project_key, <span class="bool-val">true</span>);
-                        }
+                        <span class="kw">match </span>change {
+                            <span class="prelude-val">Ok</span>(ProjectChange::Ready(project_key)) =&gt; {
+                                buffer.mark_ready(<span class="kw-2">&amp;</span>project_key, <span class="bool-val">true</span>);
+                            },
+                            <span class="prelude-val">Ok</span>(ProjectChange::Evicted(project_key)) =&gt; {
+                                buffer.mark_ready(<span class="kw-2">&amp;</span>project_key, <span class="bool-val">false</span>);
+                            },
+                            <span class="kw">_ </span>=&gt; {}
+                        };
+                        <span class="macro">relay_statsd::metric!</span>(counter(RelayCounters::BufferProjectChangedEvent) += <span class="number">1</span>, partition_id = <span class="kw-2">&amp;</span>partition_tag);
                         sleep = Duration::ZERO;
                     });
                 }
@@ -1445,7 +1550,7 @@
                     <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::BufferIdle) = start.elapsed(), input = <span class="string">"handle_message"</span>, partition_id = <span class="kw-2">&amp;</span>partition_tag);
                     <span class="kw">let </span>message_name = message.name();
                     <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::BufferBusy), input = message_name, partition_id = <span class="kw-2">&amp;</span>partition_tag, {
-                        <span class="self">Self</span>::handle_message(<span class="kw-2">&amp;</span>partition_tag, <span class="kw-2">&amp;mut </span>buffer, <span class="kw-2">&amp;</span>services, message).<span class="kw">await</span>;
+                        <span class="self">Self</span>::handle_message(<span class="kw-2">&amp;mut </span>buffer, message).<span class="kw">await</span>;
                         sleep = Duration::ZERO;
                     });
                 }
@@ -1477,23 +1582,23 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
+    <span class="kw">use </span><span class="kw">crate</span>::services::projects::project::{ProjectInfo, ProjectState};
+    <span class="kw">use </span><span class="kw">crate</span>::testutils::new_envelope;
+    <span class="kw">use </span><span class="kw">crate</span>::MemoryStat;
     <span class="kw">use </span>chrono::Utc;
+    <span class="kw">use </span>relay_base_schema::project::ProjectKey;
     <span class="kw">use </span>relay_dynamic_config::GlobalConfig;
     <span class="kw">use </span>relay_quotas::DataCategory;
     <span class="kw">use </span>std::time::Duration;
     <span class="kw">use </span>tokio::sync::mpsc;
     <span class="kw">use </span>uuid::Uuid;
 
-    <span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectState;
-    <span class="kw">use </span><span class="kw">crate</span>::testutils::new_envelope;
-    <span class="kw">use </span><span class="kw">crate</span>::MemoryStat;
-
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
     <span class="kw">struct </span>EnvelopeBufferServiceResult {
         service: EnvelopeBufferService,
         global_tx: watch::Sender&lt;global_config::Status&gt;,
-        envelopes_rx: mpsc::Receiver&lt;legacy::DequeuedEnvelope&gt;,
+        envelope_processor_rx: mpsc::UnboundedReceiver&lt;EnvelopeProcessor&gt;,
         project_cache_handle: ProjectCacheHandle,
         outcome_aggregator_rx: mpsc::UnboundedReceiver&lt;TrackOutcome&gt;,
     }
@@ -1510,9 +1615,9 @@
 
         <span class="kw">let </span>memory_stat = MemoryStat::default();
         <span class="kw">let </span>(global_tx, global_rx) = watch::channel(global_config_status);
-        <span class="kw">let </span>(envelopes_tx, envelopes_rx) = mpsc::channel(<span class="number">5</span>);
         <span class="kw">let </span>(outcome_aggregator, outcome_aggregator_rx) = Addr::custom();
         <span class="kw">let </span>project_cache_handle = ProjectCacheHandle::for_test();
+        <span class="kw">let </span>(envelope_processor, envelope_processor_rx) = Addr::custom();
 
         <span class="kw">let </span>envelope_buffer_service = EnvelopeBufferService::new(
             <span class="number">0</span>,
@@ -1520,8 +1625,8 @@
             memory_stat,
             global_rx,
             Services {
-                envelopes_tx,
                 project_cache_handle: project_cache_handle.clone(),
+                envelope_processor,
                 outcome_aggregator,
                 test_store: Addr::dummy(),
             },
@@ -1530,7 +1635,7 @@
         EnvelopeBufferServiceResult {
             service: envelope_buffer_service,
             global_tx,
-            envelopes_rx,
+            envelope_processor_rx,
             project_cache_handle,
             outcome_aggregator_rx,
         }
@@ -1541,7 +1646,7 @@
         <span class="kw">let </span>EnvelopeBufferServiceResult {
             service,
             global_tx: _global_tx,
-            envelopes_rx: _envelopes_rx,
+            envelope_processor_rx: _envelope_processor_rx,
             project_cache_handle,
             outcome_aggregator_rx: _outcome_aggregator_rx,
         } = envelope_buffer_service(<span class="prelude-val">None</span>, global_config::Status::Pending);
@@ -1563,11 +1668,11 @@
     }
 
     <span class="attr">#[tokio::test(start_paused = <span class="bool-val">true</span>)]
-    </span><span class="kw">async fn </span>pop_requires_global_config() {
+    </span><span class="kw">async fn </span>pop_with_global_config_changes() {
         <span class="kw">let </span>EnvelopeBufferServiceResult {
             service,
             global_tx,
-            envelopes_rx,
+            envelope_processor_rx,
             project_cache_handle,
             outcome_aggregator_rx: _outcome_aggregator_rx,
             ..
@@ -1577,12 +1682,14 @@
 
         <span class="kw">let </span>envelope = new_envelope(<span class="bool-val">false</span>, <span class="string">"foo"</span>);
         <span class="kw">let </span>project_key = envelope.meta().public_key();
+        <span class="kw">let </span>project_info = Arc::new(ProjectInfo::default());
+        project_cache_handle
+            .test_set_project_state(project_key, ProjectState::Enabled(project_info));
         addr.send(EnvelopeBuffer::Push(envelope.clone()));
-        project_cache_handle.test_set_project_state(project_key, ProjectState::Disabled);
 
         tokio::time::sleep(Duration::from_millis(<span class="number">1000</span>)).<span class="kw">await</span>;
 
-        <span class="macro">assert_eq!</span>(envelopes_rx.len(), <span class="number">0</span>);
+        <span class="macro">assert_eq!</span>(envelope_processor_rx.len(), <span class="number">0</span>);
 
         global_tx.send_replace(global_config::Status::Ready(Arc::new(
             GlobalConfig::default(),
@@ -1590,14 +1697,58 @@
 
         tokio::time::sleep(Duration::from_millis(<span class="number">1000</span>)).<span class="kw">await</span>;
 
-        <span class="macro">assert_eq!</span>(envelopes_rx.len(), <span class="number">1</span>);
+        <span class="macro">assert_eq!</span>(envelope_processor_rx.len(), <span class="number">1</span>);
+    }
+
+    <span class="attr">#[tokio::test(start_paused = <span class="bool-val">true</span>)]
+    </span><span class="kw">async fn </span>pop_with_project_state_changes() {
+        <span class="kw">let </span>EnvelopeBufferServiceResult {
+            service,
+            global_tx: _global_tx,
+            <span class="kw-2">mut </span>envelope_processor_rx,
+            project_cache_handle,
+            outcome_aggregator_rx: _outcome_aggregator_rx,
+            ..
+        } = envelope_buffer_service(
+            <span class="prelude-val">None</span>,
+            global_config::Status::Ready(Arc::new(GlobalConfig::default())),
+        );
+
+        <span class="kw">let </span>addr = service.start_detached();
+
+        <span class="kw">let </span>envelope = new_envelope(<span class="bool-val">false</span>, <span class="string">"foo"</span>);
+        <span class="kw">let </span>project_key = envelope.meta().public_key();
+        project_cache_handle.test_set_project_state(project_key, ProjectState::Pending);
+        addr.send(EnvelopeBuffer::Push(envelope.clone()));
+
+        tokio::time::sleep(Duration::from_millis(<span class="number">1000</span>)).<span class="kw">await</span>;
+
+        <span class="macro">assert_eq!</span>(envelope_processor_rx.len(), <span class="number">0</span>);
+
+        <span class="kw">let </span>project_info = Arc::new(ProjectInfo::default());
+        project_cache_handle
+            .test_set_project_state(project_key, ProjectState::Enabled(project_info));
+
+        tokio::time::sleep(Duration::from_millis(<span class="number">1000</span>)).<span class="kw">await</span>;
+
+        <span class="macro">assert_eq!</span>(envelope_processor_rx.len(), <span class="number">1</span>);
+        <span class="macro">assert!</span>(envelope_processor_rx.recv().<span class="kw">await</span>.is_some());
+
+        <span class="kw">let </span>envelope = new_envelope(<span class="bool-val">false</span>, <span class="string">"foo"</span>);
+        <span class="kw">let </span>project_key = envelope.meta().public_key();
+        project_cache_handle.test_set_project_state(project_key, ProjectState::Disabled);
+        addr.send(EnvelopeBuffer::Push(envelope.clone()));
+
+        tokio::time::sleep(Duration::from_millis(<span class="number">1000</span>)).<span class="kw">await</span>;
+
+        <span class="macro">assert_eq!</span>(envelope_processor_rx.len(), <span class="number">0</span>);
     }
 
     <span class="attr">#[tokio::test(start_paused = <span class="bool-val">true</span>)]
     </span><span class="kw">async fn </span>pop_requires_memory_capacity() {
         <span class="kw">let </span>EnvelopeBufferServiceResult {
             service,
-            envelopes_rx,
+            envelope_processor_rx,
             project_cache_handle,
             outcome_aggregator_rx: _outcome_aggregator_rx,
             global_tx: _global_tx,
@@ -1625,14 +1776,14 @@
 
         tokio::time::sleep(Duration::from_millis(<span class="number">1000</span>)).<span class="kw">await</span>;
 
-        <span class="macro">assert_eq!</span>(envelopes_rx.len(), <span class="number">0</span>);
+        <span class="macro">assert_eq!</span>(envelope_processor_rx.len(), <span class="number">0</span>);
     }
 
     <span class="attr">#[tokio::test(start_paused = <span class="bool-val">true</span>)]
     </span><span class="kw">async fn </span>old_envelope_is_dropped() {
         <span class="kw">let </span>EnvelopeBufferServiceResult {
             service,
-            envelopes_rx,
+            envelope_processor_rx,
             project_cache_handle: _project_cache_handle,
             <span class="kw-2">mut </span>outcome_aggregator_rx,
             global_tx: _global_tx,
@@ -1661,95 +1812,11 @@
 
         tokio::time::sleep(Duration::from_millis(<span class="number">100</span>)).<span class="kw">await</span>;
 
-        <span class="macro">assert_eq!</span>(envelopes_rx.len(), <span class="number">0</span>);
+        <span class="macro">assert_eq!</span>(envelope_processor_rx.len(), <span class="number">0</span>);
 
         <span class="kw">let </span>outcome = outcome_aggregator_rx.try_recv().unwrap();
         <span class="macro">assert_eq!</span>(outcome.category, DataCategory::TransactionIndexed);
         <span class="macro">assert_eq!</span>(outcome.quantity, <span class="number">1</span>);
-    }
-
-    <span class="attr">#[tokio::test(start_paused = <span class="bool-val">true</span>)]
-    </span><span class="kw">async fn </span>test_update_project() {
-        <span class="kw">let </span>EnvelopeBufferServiceResult {
-            service,
-            <span class="kw-2">mut </span>envelopes_rx,
-            project_cache_handle,
-            global_tx: _global_tx,
-            outcome_aggregator_rx: _outcome_aggregator_rx,
-        } = envelope_buffer_service(
-            <span class="prelude-val">None</span>,
-            global_config::Status::Ready(Arc::new(GlobalConfig::default())),
-        );
-
-        <span class="kw">let </span>addr = service.start_detached();
-
-        <span class="kw">let </span>envelope = new_envelope(<span class="bool-val">false</span>, <span class="string">"foo"</span>);
-        <span class="kw">let </span>project_key = envelope.meta().public_key();
-
-        tokio::time::sleep(Duration::from_secs(<span class="number">1</span>)).<span class="kw">await</span>;
-
-        addr.send(EnvelopeBuffer::Push(envelope.clone()));
-        tokio::time::sleep(Duration::from_secs(<span class="number">3</span>)).<span class="kw">await</span>;
-
-        <span class="kw">let </span>legacy::DequeuedEnvelope(envelope) = envelopes_rx.recv().<span class="kw">await</span>.unwrap();
-
-        addr.send(EnvelopeBuffer::NotReady(project_key, envelope));
-
-        tokio::time::sleep(Duration::from_millis(<span class="number">200</span>)).<span class="kw">await</span>;
-        <span class="macro">assert_eq!</span>(project_cache_handle.test_num_fetches(), <span class="number">2</span>);
-
-        tokio::time::sleep(Duration::from_millis(<span class="number">1300</span>)).<span class="kw">await</span>;
-        <span class="macro">assert_eq!</span>(project_cache_handle.test_num_fetches(), <span class="number">3</span>);
-    }
-
-    <span class="attr">#[tokio::test(start_paused = <span class="bool-val">true</span>)]
-    </span><span class="kw">async fn </span>output_is_throttled() {
-        <span class="kw">let </span>EnvelopeBufferServiceResult {
-            service,
-            <span class="kw-2">mut </span>envelopes_rx,
-            project_cache_handle,
-            global_tx: _global_tx,
-            outcome_aggregator_rx: _outcome_aggregator_rx,
-            ..
-        } = envelope_buffer_service(
-            <span class="prelude-val">None</span>,
-            global_config::Status::Ready(Arc::new(GlobalConfig::default())),
-        );
-
-        <span class="kw">let </span>addr = service.start_detached();
-
-        <span class="kw">let </span>envelope = new_envelope(<span class="bool-val">false</span>, <span class="string">"foo"</span>);
-        <span class="kw">let </span>project_key = envelope.meta().public_key();
-        <span class="kw">for _ in </span><span class="number">0</span>..<span class="number">10 </span>{
-            addr.send(EnvelopeBuffer::Push(envelope.clone()));
-        }
-        project_cache_handle.test_set_project_state(project_key, ProjectState::Disabled);
-
-        tokio::time::sleep(Duration::from_millis(<span class="number">100</span>)).<span class="kw">await</span>;
-
-        <span class="kw">let </span><span class="kw-2">mut </span>messages = <span class="macro">vec!</span>[];
-        envelopes_rx.recv_many(<span class="kw-2">&amp;mut </span>messages, <span class="number">100</span>).<span class="kw">await</span>;
-
-        <span class="macro">assert_eq!</span>(
-            messages
-                .iter()
-                .filter(|message| <span class="macro">matches!</span>(message, legacy::DequeuedEnvelope(..)))
-                .count(),
-            <span class="number">5
-        </span>);
-
-        tokio::time::sleep(Duration::from_millis(<span class="number">100</span>)).<span class="kw">await</span>;
-
-        <span class="kw">let </span><span class="kw-2">mut </span>messages = <span class="macro">vec!</span>[];
-        envelopes_rx.recv_many(<span class="kw-2">&amp;mut </span>messages, <span class="number">100</span>).<span class="kw">await</span>;
-
-        <span class="macro">assert_eq!</span>(
-            messages
-                .iter()
-                .filter(|message| <span class="macro">matches!</span>(message, legacy::DequeuedEnvelope(..)))
-                .count(),
-            <span class="number">5
-        </span>);
     }
 
     <span class="attr">#[tokio::test(start_paused = <span class="bool-val">true</span>)]
@@ -1758,13 +1825,13 @@
         <span class="kw">let </span>(_global_tx, global_rx) = watch::channel(global_config::Status::Ready(Arc::new(
             GlobalConfig::default(),
         )));
-        <span class="kw">let </span>(envelopes_tx, <span class="kw-2">mut </span>envelopes_rx) = mpsc::channel(<span class="number">10</span>);
         <span class="kw">let </span>(outcome_aggregator, _outcome_rx) = Addr::custom();
         <span class="kw">let </span>project_cache_handle = ProjectCacheHandle::for_test();
+        <span class="kw">let </span>(envelope_processor, <span class="kw-2">mut </span>envelope_processor_rx) = Addr::custom();
 
         <span class="comment">// Create common services for both buffers
         </span><span class="kw">let </span>services = Services {
-            envelopes_tx,
+            envelope_processor,
             project_cache_handle: project_cache_handle.clone(),
             outcome_aggregator,
             test_store: Addr::dummy(),
@@ -1799,7 +1866,16 @@
 
         <span class="comment">// Create two envelopes with different project keys
         </span><span class="kw">let </span>envelope1 = new_envelope(<span class="bool-val">false</span>, <span class="string">"foo"</span>);
+        <span class="kw">let </span>project_key = envelope1.meta().public_key();
+        <span class="kw">let </span>project_info = Arc::new(ProjectInfo::default());
+        project_cache_handle
+            .test_set_project_state(project_key, ProjectState::Enabled(project_info));
+
         <span class="kw">let </span>envelope2 = new_envelope(<span class="bool-val">false</span>, <span class="string">"bar"</span>);
+        <span class="kw">let </span>project_key = envelope2.meta().public_key();
+        <span class="kw">let </span>project_info = Arc::new(ProjectInfo::default());
+        project_cache_handle
+            .test_set_project_state(project_key, ProjectState::Enabled(project_info));
 
         <span class="comment">// Send envelopes to their respective buffers
         </span><span class="kw">let </span>buffer1 = <span class="kw-2">&amp;</span>partitioned.buffers[<span class="number">0</span>];
@@ -1809,9 +1885,9 @@
         buffer2.addr().send(EnvelopeBuffer::Push(envelope2));
 
         <span class="comment">// Verify both envelopes were received
-        </span><span class="macro">assert!</span>(envelopes_rx.recv().<span class="kw">await</span>.is_some());
-        <span class="macro">assert!</span>(envelopes_rx.recv().<span class="kw">await</span>.is_some());
-        <span class="macro">assert!</span>(envelopes_rx.is_empty());
+        </span><span class="macro">assert!</span>(envelope_processor_rx.recv().<span class="kw">await</span>.is_some());
+        <span class="macro">assert!</span>(envelope_processor_rx.recv().<span class="kw">await</span>.is_some());
+        <span class="macro">assert!</span>(envelope_processor_rx.is_empty());
     }
 }
 </code></pre></div></section></main></body></html>

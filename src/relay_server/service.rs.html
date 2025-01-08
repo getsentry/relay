@@ -504,37 +504,7 @@
 <a href="#503" id="503">503</a>
 <a href="#504" id="504">504</a>
 <a href="#505" id="505">505</a>
-<a href="#506" id="506">506</a>
-<a href="#507" id="507">507</a>
-<a href="#508" id="508">508</a>
-<a href="#509" id="509">509</a>
-<a href="#510" id="510">510</a>
-<a href="#511" id="511">511</a>
-<a href="#512" id="512">512</a>
-<a href="#513" id="513">513</a>
-<a href="#514" id="514">514</a>
-<a href="#515" id="515">515</a>
-<a href="#516" id="516">516</a>
-<a href="#517" id="517">517</a>
-<a href="#518" id="518">518</a>
-<a href="#519" id="519">519</a>
-<a href="#520" id="520">520</a>
-<a href="#521" id="521">521</a>
-<a href="#522" id="522">522</a>
-<a href="#523" id="523">523</a>
-<a href="#524" id="524">524</a>
-<a href="#525" id="525">525</a>
-<a href="#526" id="526">526</a>
-<a href="#527" id="527">527</a>
-<a href="#528" id="528">528</a>
-<a href="#529" id="529">529</a>
-<a href="#530" id="530">530</a>
-<a href="#531" id="531">531</a>
-<a href="#532" id="532">532</a>
-<a href="#533" id="533">533</a>
-<a href="#534" id="534">534</a>
-<a href="#535" id="535">535</a>
-<a href="#536" id="536">536</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
+<a href="#506" id="506">506</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
@@ -549,7 +519,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome_aggregator::OutcomeAggregator;
 <span class="kw">use </span><span class="kw">crate</span>::services::processor::{<span class="self">self</span>, EnvelopeProcessor, EnvelopeProcessorService};
-<span class="kw">use </span><span class="kw">crate</span>::services::projects::cache::{legacy, ProjectCacheHandle, ProjectCacheService};
+<span class="kw">use </span><span class="kw">crate</span>::services::projects::cache::{ProjectCacheHandle, ProjectCacheService};
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::source::ProjectSource;
 <span class="kw">use </span><span class="kw">crate</span>::services::relays::{RelayCache, RelayCacheService};
 <span class="kw">use </span><span class="kw">crate</span>::services::stats::RelayStats;
@@ -575,7 +545,6 @@
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">use </span>relay_redis::{PooledClient, RedisError, RedisPool, RedisPools, RedisScripts};
 <span class="kw">use </span>relay_system::{channel, Addr, Service, ServiceRunner};
-<span class="kw">use </span>tokio::sync::mpsc;
 
 <span class="doccomment">/// Indicates the type of failure of the server.
 </span><span class="attr">#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, thiserror::Error)]
@@ -604,7 +573,6 @@
     <span class="kw">pub </span>test_store: Addr&lt;TestStore&gt;,
     <span class="kw">pub </span>relay_cache: Addr&lt;RelayCache&gt;,
     <span class="kw">pub </span>global_config: Addr&lt;GlobalConfigManager&gt;,
-    <span class="kw">pub </span>legacy_project_cache: Addr&lt;legacy::ProjectCache&gt;,
     <span class="kw">pub </span>upstream_relay: Addr&lt;UpstreamRelay&gt;,
     <span class="kw">pub </span>envelope_buffer: PartitionedEnvelopeBuffer,
 
@@ -733,9 +701,6 @@
         // service fail if the service is not running.
         </span><span class="kw">let </span>global_config = runner.start(global_config);
 
-        <span class="kw">let </span>(legacy_project_cache, legacy_project_cache_rx) =
-            channel(legacy::ProjectCacheService::name());
-
         <span class="kw">let </span>project_source = ProjectSource::start_in(
             <span class="kw-2">&amp;mut </span>runner,
             Arc::clone(<span class="kw-2">&amp;</span>config),
@@ -804,35 +769,16 @@
             processor_rx,
         );
 
-        <span class="kw">let </span>(envelopes_tx, envelopes_rx) = mpsc::channel(config.spool_max_backpressure_envelopes());
-
         <span class="kw">let </span>envelope_buffer = PartitionedEnvelopeBuffer::create(
             config.spool_partitions(),
             config.clone(),
             memory_stat.clone(),
             global_config_rx.clone(),
-            envelopes_tx.clone(),
             project_cache_handle.clone(),
+            processor.clone(),
             outcome_aggregator.clone(),
             test_store.clone(),
             <span class="kw-2">&amp;mut </span>runner,
-        );
-
-        <span class="comment">// Keep all the services in one context.
-        </span><span class="kw">let </span>project_cache_services = legacy::Services {
-            envelope_buffer: envelope_buffer.clone(),
-            envelope_processor: processor.clone(),
-            outcome_aggregator: outcome_aggregator.clone(),
-            test_store: test_store.clone(),
-        };
-
-        runner.start_with(
-            legacy::ProjectCacheService::new(
-                project_cache_handle.clone(),
-                project_cache_services,
-                envelopes_rx,
-            ),
-            legacy_project_cache_rx,
         );
 
         <span class="kw">let </span>health_check = runner.start(HealthCheckService::new(
@@ -864,7 +810,6 @@
             test_store,
             relay_cache,
             global_config,
-            legacy_project_cache,
             project_cache_handle,
             upstream_relay,
             envelope_buffer,
@@ -899,11 +844,6 @@
     <span class="doccomment">/// Returns the V2 envelope buffer, if present.
     </span><span class="kw">pub fn </span>envelope_buffer(<span class="kw-2">&amp;</span><span class="self">self</span>, project_key_pair: ProjectKeyPair) -&gt; <span class="kw-2">&amp;</span>ObservableEnvelopeBuffer {
         <span class="self">self</span>.inner.registry.envelope_buffer.buffer(project_key_pair)
-    }
-
-    <span class="doccomment">/// Returns the address of the [`legacy::ProjectCache`] service.
-    </span><span class="kw">pub fn </span>legacy_project_cache(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Addr&lt;legacy::ProjectCache&gt; {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.inner.registry.legacy_project_cache
     }
 
     <span class="doccomment">/// Returns a [`ProjectCacheHandle`].
