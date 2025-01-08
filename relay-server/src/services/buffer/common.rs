@@ -5,8 +5,8 @@ use crate::Envelope;
 /// Struct that represents two project keys.
 #[derive(Debug, Clone, Copy, Eq, Hash, Ord, PartialOrd, PartialEq)]
 pub struct ProjectKeyPair {
-    own_key: ProjectKey,
-    sampling_key: ProjectKey,
+    pub own_key: ProjectKey,
+    pub sampling_key: ProjectKey,
 }
 
 impl ProjectKeyPair {
@@ -17,16 +17,8 @@ impl ProjectKeyPair {
         }
     }
 
-    pub fn own_key(&self) -> ProjectKey {
-        self.own_key
-    }
-
-    pub fn sampling_key(&self) -> ProjectKey {
-        self.sampling_key
-    }
-
-    pub fn same_keys(&self) -> bool {
-        self.own_key == self.sampling_key
+    pub fn has_distinct_sampling_key(&self) -> bool {
+        self.own_key != self.sampling_key
     }
 
     pub fn from_envelope(envelope: &Envelope) -> Self {
@@ -57,8 +49,8 @@ mod tests {
         let sampling = ProjectKey::parse("b94ae32be2584e0bbd7a4cbb95971fee").unwrap();
 
         let pair = ProjectKeyPair::new(own, sampling);
-        assert_eq!(pair.own_key(), own);
-        assert_eq!(pair.sampling_key(), sampling);
+        assert_eq!(pair.own_key, own);
+        assert_eq!(pair.sampling_key, sampling);
     }
 
     #[test]

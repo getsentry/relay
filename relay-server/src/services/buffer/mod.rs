@@ -336,8 +336,8 @@ impl EnvelopeBufferService {
                 if Instant::now() >= next_project_fetch {
                     relay_log::trace!("EnvelopeBufferService: requesting project(s) update");
 
-                    let own_key = project_key_pair.own_key();
-                    let sampling_key = project_key_pair.sampling_key();
+                    let own_key = project_key_pair.own_key;
+                    let sampling_key = project_key_pair.sampling_key;
 
                     services.project_cache_handle.fetch(own_key);
                     if sampling_key != own_key {
@@ -416,57 +416,63 @@ impl EnvelopeBufferService {
         buffer: &mut PolymorphicEnvelopeBuffer,
         project_key_pair: ProjectKeyPair,
     ) -> Result<(), EnvelopeBufferError> {
-        let mut at_least_one_pending = false;
-
-        let own_key = project_key_pair.own_key();
+        let own_key = project_key_pair.own_key;
         let own_project = services.project_cache_handle.get(own_key);
-        if let ProjectState::Pending = own_project.state() {
-            buffer.mark_ready(&own_key, false);
-            services.project_cache_handle.fetch(own_key);
-            at_least_one_pending = true;
-        }
+        // We try to load the project state and bail in case it's pending.
+        let own_project_info = match own_project.state() {
+            ProjectState::Enabled(info) => Some(info),
+            ProjectState::Disabled => None,
+            ProjectState::Pending => {
+                buffer.mark_ready(&own_key, false);
+                relay_statsd::metric!(
+                    counter(RelayCounters::BufferProjectPending) += 1,
+                    partition_id = &partition_tag
+                );
 
-        let mut sampling_project = None;
-        // If the keys are not the same, it means we have a different root project for this envelope
-        // , and we need to fetch the project config of the root project.
-        if !project_key_pair.same_keys() {
-            let sampling_key = project_key_pair.sampling_key();
-            let inner_sampling_project = services.project_cache_handle.get(sampling_key);
-            if let ProjectState::Pending = inner_sampling_project.state() {
-                // If the sampling keys are identical, no need to perform duplicate work.
-                if own_key != sampling_key {
-                    buffer.mark_ready(&sampling_key, false);
-                    services.project_cache_handle.fetch(sampling_key);
-                }
-                at_least_one_pending = true;
+                return Ok(());
             }
+        };
 
-            sampling_project = Some(inner_sampling_project);
+        let sampling_key = project_key_pair.sampling_key;
+        let mut sampling_project = None;
+        // If the keys are not the same, it means we have a different root project for this
+        // envelope, and we need to fetch the project config of the root project.
+        if project_key_pair.has_distinct_sampling_key() {
+            sampling_project = Some(services.project_cache_handle.get(sampling_key));
         }
 
-        // If we have at least one project which was pending, we don't want to pop the envelope and
-        // early return.
-        if at_least_one_pending {
-            relay_statsd::metric!(
-                counter(RelayCounters::BufferProjectPending) += 1,
-                partition_id = &partition_tag
-            );
+        // We try to load the project state and bail in case it's pending.
+        let sampling_project_info =
+            if let Some(sampling_project_state) = sampling_project.as_ref().map(|p| p.state()) {
+                match sampling_project_state {
+                    ProjectState::Enabled(info) => Some(info),
+                    ProjectState::Disabled => None,
+                    ProjectState::Pending => {
+                        buffer.mark_ready(&sampling_key, false);
+                        relay_statsd::metric!(
+                            counter(RelayCounters::BufferProjectPending) += 1,
+                            partition_id = &partition_tag
+                        );
 
-            return Ok(());
-        }
+                        return Ok(());
+                    }
+                }
+            } else {
+                None
+            };
 
         relay_log::trace!("EnvelopeBufferService: popping envelope");
 
-        // We know that both projects are available, so we pop the envelope.
+        // If we arrived here, know that both projects are available, so we pop the envelope.
         let envelope = buffer
             .pop()
             .await?
             .expect("Element disappeared despite exclusive excess");
 
-        // We extract the project info for the main project of the envelope.
-        let own_project_info = match own_project.state() {
-            ProjectState::Enabled(info) => info,
-            ProjectState::Disabled => {
+        // If the project state is disabled, we want to drop the envelope and early return.
+        let own_project_info = match own_project_info {
+            Some(info) => info,
+            None => {
                 let mut managed_envelope = ManagedEnvelope::new(
                     envelope,
                     services.outcome_aggregator.clone(),
@@ -474,34 +480,28 @@ impl EnvelopeBufferService {
                     ProcessingGroup::Ungrouped,
                 );
                 managed_envelope.reject(Outcome::Invalid(DiscardReason::ProjectId));
+
                 return Ok(());
-            }
-            ProjectState::Pending => {
-                unreachable!("The own project should not be pending after pop");
             }
         };
 
-        // If we have different project keys, we want to extract the sampling project info.
-        let sampling_project_info = sampling_project
-            .as_ref()
-            .map(|project| project.state())
-            .and_then(|state| {
-                match state {
-                    ProjectState::Enabled(sampling_project_info) => {
-                        // Only set if it matches the organization id. Otherwise, treat as if there is
-                        // no sampling project.
-                        (sampling_project_info.organization_id == own_project_info.organization_id)
-                            .then_some(sampling_project_info)
-                    }
-                    ProjectState::Pending => {
-                        unreachable!("The sampling project should not be pending after pop");
-                    }
-                    _ => {
-                        // In any other case, we treat it as if there is no sampling project state.
-                        None
-                    }
+        // If we have the sampling project info because the project keys are different, we want to
+        // extract the project info of
+        let sampling_project_info = match sampling_project_info {
+            Some(info) => {
+                // Only set if it matches the organization id. Otherwise, treat as if there is
+                // no sampling project.
+                if info.organization_id == own_project_info.organization_id {
+                    sampling_project_info
+                } else {
+                    None
                 }
-            });
+            }
+            None => {
+                // We treat this case as if there is no sampling project state.
+                None
+            }
+        };
 
         for (group, envelope) in ProcessingGroup::split_envelope(*envelope) {
             let managed_envelope = ManagedEnvelope::new(

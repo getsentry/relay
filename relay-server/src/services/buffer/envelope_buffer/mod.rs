@@ -403,11 +403,11 @@ where
                         let mut found = false;
                         for (subkey, readiness) in [
                             (
-                                project_key_pair.own_key(),
+                                project_key_pair.own_key,
                                 &mut stack.readiness.own_project_ready,
                             ),
                             (
-                                project_key_pair.sampling_key(),
+                                project_key_pair.sampling_key,
                                 &mut stack.readiness.sampling_project_ready,
                             ),
                         ] {
