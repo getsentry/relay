@@ -497,10 +497,7 @@ impl EnvelopeBufferService {
                     None
                 }
             }
-            None => {
-                // We treat this case as if there is no sampling project state.
-                None
-            }
+            None => None,
         };
 
         for (group, envelope) in ProcessingGroup::split_envelope(*envelope) {
