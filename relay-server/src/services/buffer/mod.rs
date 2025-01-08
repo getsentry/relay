@@ -53,9 +53,6 @@ mod envelope_store;
 mod stack_provider;
 mod testutils;
 
-/// Seed used for hashing the project key pairs.
-const PARTITIONING_HASHING_SEED: usize = 0;
-
 /// Message interface for [`EnvelopeBufferService`].
 #[derive(Debug)]
 pub enum EnvelopeBuffer {
@@ -86,6 +83,7 @@ impl FromMessage<Self> for EnvelopeBuffer {
 #[derive(Debug, Clone)]
 pub struct PartitionedEnvelopeBuffer {
     buffers: Arc<Vec<ObservableEnvelopeBuffer>>,
+    hasher: RandomState,
 }
 
 impl PartitionedEnvelopeBuffer {
@@ -124,6 +122,7 @@ impl PartitionedEnvelopeBuffer {
 
         Self {
             buffers: Arc::new(envelope_buffers),
+            hasher: Self::build_hasher(),
         }
     }
 
@@ -133,8 +132,8 @@ impl PartitionedEnvelopeBuffer {
     /// The rationale of using this partitioning strategy is to reduce memory usage across buffers
     /// since each individual buffer will only take care of a subset of projects.
     pub fn buffer(&self, project_key_pair: ProjectKeyPair) -> &ObservableEnvelopeBuffer {
-        let state = RandomState::with_seed(PARTITIONING_HASHING_SEED);
-        let buffer_index = (state.hash_one(project_key_pair) % self.buffers.len() as u64) as usize;
+        let buffer_index =
+            (self.hasher.hash_one(project_key_pair) % self.buffers.len() as u64) as usize;
         self.buffers
             .get(buffer_index)
             .expect("buffers should not be empty")
@@ -150,6 +149,16 @@ impl PartitionedEnvelopeBuffer {
         }
 
         self.buffers.iter().all(|buffer| buffer.has_capacity())
+    }
+
+    /// Builds a hasher with fixed seeds for consistent partitioning across Relay instances.
+    fn build_hasher() -> RandomState {
+        const K0: u64 = 0xd34db33f11223344;
+        const K1: u64 = 0xc0ffee0987654321;
+        const K2: u64 = 0xdeadbeef55667788;
+        const K3: u64 = 0xbadc0de901234567;
+
+        RandomState::with_seeds(K0, K1, K2, K3)
     }
 }
 
@@ -916,6 +925,7 @@ mod tests {
 
         let partitioned = PartitionedEnvelopeBuffer {
             buffers: Arc::new(vec![observable1, observable2]),
+            hasher: PartitionedEnvelopeBuffer::build_hasher(),
         };
 
         // Create two envelopes with different project keys
