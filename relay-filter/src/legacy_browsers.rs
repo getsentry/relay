@@ -41,7 +41,7 @@ fn matches(user_agent: &str, browsers: &BTreeSet<LegacyBrowser>) -> bool {
             LegacyBrowser::Android => filter_browser(family, &user_agent, "Android", |x| x < 4),
             LegacyBrowser::Safari => filter_browser(family, &user_agent, "Safari", |x| x < 12),
             LegacyBrowser::Edge => filter_browser(family, &user_agent, "Edge", |x| x < 79),
-            LegacyBrowser::Chrome => filter_browser(family, &user_agent, "Chrome", |x| x < 63),
+            LegacyBrowser::Chrome => filter_browser(family, &user_agent, "Chrome", |x| x < 64),
             LegacyBrowser::Firefox => filter_browser(family, &user_agent, "Firefox", |x| x < 67),
             LegacyBrowser::Unknown(_) => {
                 // unknown browsers should not be filtered

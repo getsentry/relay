@@ -6,6 +6,22 @@
 
 - Scrub non-minidump attachments if there are explicit `$attachment` rules. ([#4415](https://github.com/getsentry/relay/pull/4415))
 
+**Internal**:
+
+- Remove the `spool` command from Relay. ([#4423](https://github.com/getsentry/relay/pull/4423))
+- Bump `sentry-native` to `0.7.17` and remove cross compilation in CI. ([#4427](https://github.com/getsentry/relay/pull/4427))
+- Remove `form_data` envelope items from standalone envelopes. ([#4428](https://github.com/getsentry/relay/pull/4428))
+
+## 24.12.1
+
+**Bug Fixes**:
+
+- Fix serialized name of `cache.hit` and `cache.key` span tags. ([#4408](https://github.com/getsentry/relay/pull/4408))
+
+**Features**:
+
+- Update Chrome inbound filter. ([#4381](https://github.com/getsentry/relay/pull/4381))
+
 ## 24.12.0
 
 **Bug Fixes**:

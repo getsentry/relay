@@ -1,0 +1,126 @@
+---
+source: relay-event-normalization/src/normalize/span/tag_extraction.rs
+expression: event.to_json_pretty().unwrap()
+---
+{
+  "spans": [
+    {
+      "timestamp": 1694732408.3145,
+      "start_timestamp": 1694732407.8367,
+      "exclusive_time": 477.800131,
+      "op": "cache.get_item",
+      "span_id": "97c0ef9770a02f9d",
+      "parent_span_id": "9756d8d7b2b364ff",
+      "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
+      "description": "get my_key",
+      "data": {
+        "cache.hit": true,
+        "cache.key": [
+          "my_key"
+        ],
+        "cache.item_size": 8,
+        "thread.name": "Thread-4 (process_request_thread)",
+        "thread.id": "6286962688"
+      },
+      "sentry_tags": {
+        "sdk.name": "unknown",
+        "sdk.version": "unknown",
+        "platform": "other",
+        "category": "cache",
+        "description": "GET *",
+        "group": "37e3d9fab1ae9162",
+        "op": "cache.get_item",
+        "cache.hit": "true",
+        "cache.key": "[\"my_key\"]",
+        "thread.name": "Thread-4 (process_request_thread)",
+        "thread.id": "6286962688"
+      },
+      "measurements": {
+        "cache.item_size": {
+          "value": 8.0,
+          "unit": "byte"
+        }
+      },
+      "hash": "e2fae740cccd3781"
+    },
+    {
+      "timestamp": 1694732409.3145,
+      "start_timestamp": 1694732408.8367,
+      "exclusive_time": 477.800131,
+      "op": "cache.get_item",
+      "span_id": "97c0ef9770a02f9d",
+      "parent_span_id": "9756d8d7b2b364ff",
+      "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
+      "description": "mget my_key my_key_2",
+      "data": {
+        "cache.hit": false,
+        "cache.key": [
+          "my_key",
+          "my_key_2"
+        ],
+        "cache.item_size": 8,
+        "thread.name": "Thread-4 (process_request_thread)",
+        "thread.id": "6286962688"
+      },
+      "sentry_tags": {
+        "sdk.name": "unknown",
+        "sdk.version": "unknown",
+        "platform": "other",
+        "category": "cache",
+        "description": "MGET *",
+        "group": "8383eea37ec89fb1",
+        "op": "cache.get_item",
+        "cache.hit": "false",
+        "cache.key": "[\"my_key\",\"my_key_2\"]",
+        "thread.name": "Thread-4 (process_request_thread)",
+        "thread.id": "6286962688"
+      },
+      "measurements": {
+        "cache.item_size": {
+          "value": 8.0,
+          "unit": "byte"
+        }
+      },
+      "hash": "e2fae740cccd3781"
+    },
+    {
+      "timestamp": 1694732409.3145,
+      "start_timestamp": 1694732408.8367,
+      "exclusive_time": 477.800131,
+      "op": "cache.get",
+      "span_id": "97c0ef9770a02f9d",
+      "parent_span_id": "9756d8d7b2b364ff",
+      "trace_id": "77aeb1c16bb544a4a39b8d42944947a3",
+      "description": "get my_key_2",
+      "data": {
+        "cache.hit": false,
+        "cache.key": [
+          "my_key_2"
+        ],
+        "cache.item_size": 8,
+        "thread.name": "Thread-4 (process_request_thread)",
+        "thread.id": "6286962688"
+      },
+      "sentry_tags": {
+        "sdk.name": "unknown",
+        "sdk.version": "unknown",
+        "platform": "other",
+        "category": "cache",
+        "description": "GET *",
+        "group": "37e3d9fab1ae9162",
+        "op": "cache.get",
+        "cache.hit": "false",
+        "cache.key": "[\"my_key_2\"]",
+        "thread.name": "Thread-4 (process_request_thread)",
+        "thread.id": "6286962688"
+      },
+      "measurements": {
+        "cache.item_size": {
+          "value": 8.0,
+          "unit": "byte"
+        }
+      },
+      "hash": "e2fae740cccd3781"
+    }
+  ]
+}

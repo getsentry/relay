@@ -8,8 +8,8 @@ use crate::metrics_extraction::{event, generic};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::span::extract_transaction_span;
 use crate::services::processor::{
-    dynamic_sampling, event_type, EventMetricsExtracted, ProcessEnvelopeState, ProcessingError,
-    SpanGroup, SpansExtracted, TransactionGroup,
+    dynamic_sampling, event_type, EventMetricsExtracted, ProcessingError,
+    ProcessingExtractedMetrics, SpanGroup, SpansExtracted, TransactionGroup,
 };
 use crate::services::projects::project::ProjectInfo;
 use crate::utils::{sample, ItemAction, ManagedEnvelope, TypedEnvelope};
@@ -47,9 +47,9 @@ struct ValidationError(#[from] anyhow::Error);
 
 #[allow(clippy::too_many_arguments)]
 pub fn process(
-    state: &mut ProcessEnvelopeState,
     managed_envelope: &mut TypedEnvelope<SpanGroup>,
     event: &mut Annotated<Event>,
+    extracted_metrics: &mut ProcessingExtractedMetrics,
     global_config: &GlobalConfig,
     config: Arc<Config>,
     project_id: ProjectId,
@@ -155,9 +155,7 @@ pub fn process(
                 CombinedMetricExtractionConfig::new(global_metrics_config, config),
             );
 
-            state
-                .extracted_metrics
-                .extend_project_metrics(metrics, Some(sampling_decision));
+            extracted_metrics.extend_project_metrics(metrics, Some(sampling_decision));
 
             if project_info.config.features.produces_spans() {
                 let transaction = span
@@ -172,9 +170,7 @@ pub fn process(
                     sampling_decision,
                     project_id,
                 );
-                state
-                    .extracted_metrics
-                    .extend_sampling_metrics(bucket, Some(sampling_decision));
+                extracted_metrics.extend_sampling_metrics(bucket, Some(sampling_decision));
             }
 
             item.set_metrics_extracted(true);

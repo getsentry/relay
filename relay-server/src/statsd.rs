@@ -33,6 +33,15 @@ pub enum RelayGauges {
     ProjectCacheScheduledFetches,
     /// Exposes the amount of currently open and handled connections by the server.
     ServerActiveConnections,
+    /// Maximum delay of a metric bucket in seconds.
+    ///
+    /// The maximum is measured from initial creation of the bucket in an internal Relay
+    /// until it is produced to Kafka.
+    ///
+    /// This metric is tagged with:
+    /// - `namespace`: the metric namespace.
+    #[cfg(feature = "processing")]
+    MetricDelayMax,
 }
 
 impl GaugeMetric for RelayGauges {
@@ -52,6 +61,8 @@ impl GaugeMetric for RelayGauges {
             }
             RelayGauges::ProjectCacheScheduledFetches => "project_cache.fetches.size",
             RelayGauges::ServerActiveConnections => "server.http.connections",
+            #[cfg(feature = "processing")]
+            RelayGauges::MetricDelayMax => "metrics.delay.max",
         }
     }
 }
@@ -816,6 +827,23 @@ pub enum RelayCounters {
     ServerSocketAccept,
     /// Incremented every time the server aborts a connection because of an idle timeout.
     ServerConnectionIdleTimeout,
+    /// The total delay of metric buckets in seconds.
+    ///
+    /// The delay is measured from initial creation of the bucket in an internal Relay
+    /// until it is produced to Kafka.
+    ///
+    /// Use [`Self::MetricDelayCount`] to calculate the average delay.
+    ///
+    /// This metric is tagged with:
+    /// - `namespace`: the metric namespace.
+    #[cfg(feature = "processing")]
+    MetricDelaySum,
+    /// The amount of buckets counted for the [`Self::MetricDelaySum`] metric.
+    ///
+    /// This metric is tagged with:
+    /// - `namespace`: the metric namespace.
+    #[cfg(feature = "processing")]
+    MetricDelayCount,
 }
 
 impl CounterMetric for RelayCounters {
@@ -858,6 +886,10 @@ impl CounterMetric for RelayCounters {
             RelayCounters::ReplayExceededSegmentLimit => "replay.segment_limit_exceeded",
             RelayCounters::ServerSocketAccept => "server.http.accepted",
             RelayCounters::ServerConnectionIdleTimeout => "server.http.idle_timeout",
+            #[cfg(feature = "processing")]
+            RelayCounters::MetricDelaySum => "metrics.delay.sum",
+            #[cfg(feature = "processing")]
+            RelayCounters::MetricDelayCount => "metrics.delay.count",
         }
     }
 }

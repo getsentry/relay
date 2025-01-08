@@ -15,7 +15,7 @@ use relay_metrics::Bucket;
 use relay_statsd::metric;
 
 use crate::envelope::{ContentType, Item, ItemType};
-use crate::services::processor::{ProcessEnvelopeState, SessionGroup, MINIMUM_CLOCK_DRIFT};
+use crate::services::processor::{ProcessingExtractedMetrics, SessionGroup, MINIMUM_CLOCK_DRIFT};
 use crate::services::projects::project::ProjectInfo;
 use crate::statsd::RelayTimers;
 use crate::utils::{ItemAction, TypedEnvelope};
@@ -25,8 +25,8 @@ use crate::utils::{ItemAction, TypedEnvelope};
 /// Both are removed from the envelope if they contain invalid JSON or if their timestamps
 /// are out of range after clock drift correction.
 pub fn process(
-    state: &mut ProcessEnvelopeState,
     managed_envelope: &mut TypedEnvelope<SessionGroup>,
+    extracted_metrics: &mut ProcessingExtractedMetrics,
     project_info: Arc<ProjectInfo>,
     config: &Config,
 ) {
@@ -39,7 +39,7 @@ pub fn process(
     let clock_drift_processor =
         ClockDriftProcessor::new(envelope.sent_at(), received).at_least(MINIMUM_CLOCK_DRIFT);
 
-    let mut extracted_metrics = Vec::new();
+    let mut session_extracted_metrics = Vec::new();
     managed_envelope.retain_items(|item| {
         let should_keep = match item.ty() {
             ItemType::Session => process_session(
@@ -50,7 +50,7 @@ pub fn process(
                 client_addr,
                 metrics_config,
                 &clock_drift_processor,
-                &mut extracted_metrics,
+                &mut session_extracted_metrics,
             ),
             ItemType::Sessions => process_session_aggregates(
                 item,
@@ -60,7 +60,7 @@ pub fn process(
                 client_addr,
                 metrics_config,
                 &clock_drift_processor,
-                &mut extracted_metrics,
+                &mut session_extracted_metrics,
             ),
             _ => true, // Keep all other item types
         };
@@ -71,9 +71,7 @@ pub fn process(
         }
     });
 
-    state
-        .extracted_metrics
-        .extend_project_metrics(extracted_metrics, None);
+    extracted_metrics.extend_project_metrics(session_extracted_metrics, None);
 }
 
 /// Returns Ok(true) if attributes were modified.
