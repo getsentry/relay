@@ -152,10 +152,6 @@ impl PartitionedEnvelopeBuffer {
     }
 
     /// Builds a hasher with fixed seeds for consistent partitioning across Relay instances.
-    ///
-    /// The seeds are chosen to be random 64-bit integers that are unlikely to have any
-    /// special mathematical properties. This helps ensure good distribution of hashes.
-    /// The values are fixed to maintain consistent partitioning behavior across restarts.
     fn build_hasher() -> RandomState {
         const K0: u64 = 0xd34db33f11223344;
         const K1: u64 = 0xc0ffee0987654321;
