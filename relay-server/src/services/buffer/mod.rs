@@ -83,6 +83,7 @@ impl FromMessage<Self> for EnvelopeBuffer {
 #[derive(Debug, Clone)]
 pub struct PartitionedEnvelopeBuffer {
     buffers: Arc<Vec<ObservableEnvelopeBuffer>>,
+    random_state: RandomState,
 }
 
 impl PartitionedEnvelopeBuffer {
@@ -121,6 +122,7 @@ impl PartitionedEnvelopeBuffer {
 
         Self {
             buffers: Arc::new(envelope_buffers),
+            random_state: Self::build_hasher(),
         }
     }
 
@@ -130,8 +132,8 @@ impl PartitionedEnvelopeBuffer {
     /// The rationale of using this partitioning strategy is to reduce memory usage across buffers
     /// since each individual buffer will only take care of a subset of projects.
     pub fn buffer(&self, project_key_pair: ProjectKeyPair) -> &ObservableEnvelopeBuffer {
-        let state = Self::build_hasher();
-        let buffer_index = (state.hash_one(project_key_pair) % self.buffers.len() as u64) as usize;
+        let buffer_index =
+            (self.random_state.hash_one(project_key_pair) % self.buffers.len() as u64) as usize;
         self.buffers
             .get(buffer_index)
             .expect("buffers should not be empty")
