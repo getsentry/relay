@@ -145,6 +145,38 @@ def test_attachments_ratelimit(
     outcomes_consumer.assert_rate_limited("static_disabled_quota")
 
 
+def test_attachments_pii(mini_sentry, relay):
+    event_id = "515539018c9b4260a6f999572f1661ee"
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["piiConfig"] = {
+        "rules": {"0": {"type": "ip", "redaction": {"method": "remove"}}},
+        "applications": {"$attachments.'foo.txt'": ["0"]},
+    }
+    relay = relay(mini_sentry)
+
+    attachments = [
+        ("att_1", "foo.txt", b"here's an IP that should get masked -> 127.0.0.1 <-"),
+        (
+            "att_2",
+            "bar.txt",
+            b"here's an IP that should not get scrubbed -> 127.0.0.1 <-",
+        ),
+    ]
+
+    for attachment in attachments:
+        relay.send_attachments(project_id, event_id, [attachment])
+
+    payloads = {
+        mini_sentry.captured_events.get().items[0].payload.bytes for _ in range(2)
+    }
+    assert payloads == {
+        b"here's an IP that should get masked -> ********* <-",
+        b"here's an IP that should not get scrubbed -> 127.0.0.1 <-",
+    }
+
+
 def test_attachments_quotas(
     mini_sentry,
     relay_with_processing,
