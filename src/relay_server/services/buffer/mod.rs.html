@@ -944,7 +944,17 @@
 <a href="#943" id="943">943</a>
 <a href="#944" id="944">944</a>
 <a href="#945" id="945">945</a>
-<a href="#946" id="946">946</a></pre></div><pre class="rust"><code><span class="doccomment">//! Types for buffering envelopes.
+<a href="#946" id="946">946</a>
+<a href="#947" id="947">947</a>
+<a href="#948" id="948">948</a>
+<a href="#949" id="949">949</a>
+<a href="#950" id="950">950</a>
+<a href="#951" id="951">951</a>
+<a href="#952" id="952">952</a>
+<a href="#953" id="953">953</a>
+<a href="#954" id="954">954</a>
+<a href="#955" id="955">955</a>
+<a href="#956" id="956">956</a></pre></div><pre class="rust"><code><span class="doccomment">//! Types for buffering envelopes.
 
 </span><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::num::NonZeroU8;
@@ -999,9 +1009,6 @@
 <span class="kw">mod </span>stack_provider;
 <span class="kw">mod </span>testutils;
 
-<span class="doccomment">/// Seed used for hashing the project key pairs.
-</span><span class="kw">const </span>PARTITIONING_HASHING_SEED: usize = <span class="number">0</span>;
-
 <span class="doccomment">/// Message interface for [`EnvelopeBufferService`].
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub enum </span>EnvelopeBuffer {
@@ -1032,6 +1039,7 @@
 </span><span class="attr">#[derive(Debug, Clone)]
 </span><span class="kw">pub struct </span>PartitionedEnvelopeBuffer {
     buffers: Arc&lt;Vec&lt;ObservableEnvelopeBuffer&gt;&gt;,
+    hasher: RandomState,
 }
 
 <span class="kw">impl </span>PartitionedEnvelopeBuffer {
@@ -1070,6 +1078,7 @@
 
         <span class="self">Self </span>{
             buffers: Arc::new(envelope_buffers),
+            hasher: <span class="self">Self</span>::build_hasher(),
         }
     }
 
@@ -1079,8 +1088,8 @@
     /// The rationale of using this partitioning strategy is to reduce memory usage across buffers
     /// since each individual buffer will only take care of a subset of projects.
     </span><span class="kw">pub fn </span>buffer(<span class="kw-2">&amp;</span><span class="self">self</span>, project_key_pair: ProjectKeyPair) -&gt; <span class="kw-2">&amp;</span>ObservableEnvelopeBuffer {
-        <span class="kw">let </span>state = RandomState::with_seed(PARTITIONING_HASHING_SEED);
-        <span class="kw">let </span>buffer_index = (state.hash_one(project_key_pair) % <span class="self">self</span>.buffers.len() <span class="kw">as </span>u64) <span class="kw">as </span>usize;
+        <span class="kw">let </span>buffer_index =
+            (<span class="self">self</span>.hasher.hash_one(project_key_pair) % <span class="self">self</span>.buffers.len() <span class="kw">as </span>u64) <span class="kw">as </span>usize;
         <span class="self">self</span>.buffers
             .get(buffer_index)
             .expect(<span class="string">"buffers should not be empty"</span>)
@@ -1096,6 +1105,16 @@
         }
 
         <span class="self">self</span>.buffers.iter().all(|buffer| buffer.has_capacity())
+    }
+
+    <span class="doccomment">/// Builds a hasher with fixed seeds for consistent partitioning across Relay instances.
+    </span><span class="kw">fn </span>build_hasher() -&gt; RandomState {
+        <span class="kw">const </span>K0: u64 = <span class="number">0xd34db33f11223344</span>;
+        <span class="kw">const </span>K1: u64 = <span class="number">0xc0ffee0987654321</span>;
+        <span class="kw">const </span>K2: u64 = <span class="number">0xdeadbeef55667788</span>;
+        <span class="kw">const </span>K3: u64 = <span class="number">0xbadc0de901234567</span>;
+
+        RandomState::with_seeds(K0, K1, K2, K3)
     }
 }
 
@@ -1862,6 +1881,7 @@
 
         <span class="kw">let </span>partitioned = PartitionedEnvelopeBuffer {
             buffers: Arc::new(<span class="macro">vec!</span>[observable1, observable2]),
+            hasher: PartitionedEnvelopeBuffer::build_hasher(),
         };
 
         <span class="comment">// Create two envelopes with different project keys
