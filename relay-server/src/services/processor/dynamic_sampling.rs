@@ -47,6 +47,7 @@ pub fn validate_and_set_dsc(
     project_info: Arc<ProjectInfo>,
     sampling_project_info: Option<Arc<ProjectInfo>>,
 ) -> Option<Arc<ProjectInfo>> {
+    println!("ENVELOPE {:?}", managed_envelope.envelope().dsc());
     if managed_envelope.envelope().dsc().is_some() && sampling_project_info.is_some() {
         return sampling_project_info;
     }

@@ -420,7 +420,7 @@ impl EnvelopeBufferService {
         let own_project = services.project_cache_handle.get(own_key);
         // We try to load the project state and bail in case it's pending.
         let own_project_info = match own_project.state() {
-            ProjectState::Enabled(info) => Some(info),
+            ProjectState::Enabled(info) => Some(info.clone()),
             ProjectState::Disabled => None,
             ProjectState::Pending => {
                 buffer.mark_ready(&own_key, false);
@@ -434,32 +434,26 @@ impl EnvelopeBufferService {
         };
 
         let sampling_key = project_key_pair.sampling_key;
-        let mut sampling_project = None;
-        // If the keys are not the same, it means we have a different root project for this
-        // envelope, and we need to fetch the project config of the root project.
-        if project_key_pair.has_distinct_sampling_key() {
-            sampling_project = Some(services.project_cache_handle.get(sampling_key));
-        }
+        // If the projects are different, we load the project key of the sampling project. On the
+        // other hand, if they are the same, we just reuse the same project.
+        let sampling_project_info = if project_key_pair.has_distinct_sampling_key() {
+            // We try to load the project state and bail in case it's pending.
+            match services.project_cache_handle.get(sampling_key).state() {
+                ProjectState::Enabled(info) => Some(info.clone()),
+                ProjectState::Disabled => None,
+                ProjectState::Pending => {
+                    buffer.mark_ready(&sampling_key, false);
+                    relay_statsd::metric!(
+                        counter(RelayCounters::BufferProjectPending) += 1,
+                        partition_id = &partition_tag
+                    );
 
-        // We try to load the project state and bail in case it's pending.
-        let sampling_project_info =
-            if let Some(sampling_project_state) = sampling_project.as_ref().map(|p| p.state()) {
-                match sampling_project_state {
-                    ProjectState::Enabled(info) => Some(info),
-                    ProjectState::Disabled => None,
-                    ProjectState::Pending => {
-                        buffer.mark_ready(&sampling_key, false);
-                        relay_statsd::metric!(
-                            counter(RelayCounters::BufferProjectPending) += 1,
-                            partition_id = &partition_tag
-                        );
-
-                        return Ok(());
-                    }
+                    return Ok(());
                 }
-            } else {
-                None
-            };
+            }
+        } else {
+            own_project_info.clone()
+        };
 
         relay_log::trace!("EnvelopeBufferService: popping envelope");
 
@@ -507,7 +501,7 @@ impl EnvelopeBufferService {
                 envelope: managed_envelope,
                 project_info: own_project_info.clone(),
                 rate_limits: own_project.rate_limits().current_limits(),
-                sampling_project_info: sampling_project_info.cloned(),
+                sampling_project_info: sampling_project_info.clone(),
                 reservoir_counters,
             });
         }
