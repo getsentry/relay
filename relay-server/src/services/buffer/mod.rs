@@ -470,35 +470,21 @@ impl EnvelopeBufferService {
             .expect("Element disappeared despite exclusive excess");
 
         // If the project state is disabled, we want to drop the envelope and early return.
-        let own_project_info = match own_project_info {
-            Some(info) => info,
-            None => {
-                let mut managed_envelope = ManagedEnvelope::new(
-                    envelope,
-                    services.outcome_aggregator.clone(),
-                    services.test_store.clone(),
-                    ProcessingGroup::Ungrouped,
-                );
-                managed_envelope.reject(Outcome::Invalid(DiscardReason::ProjectId));
+        let Some(own_project_info) = own_project_info else {
+            let mut managed_envelope = ManagedEnvelope::new(
+                envelope,
+                services.outcome_aggregator.clone(),
+                services.test_store.clone(),
+                ProcessingGroup::Ungrouped,
+            );
+            managed_envelope.reject(Outcome::Invalid(DiscardReason::ProjectId));
 
-                return Ok(());
-            }
+            return Ok(());
         };
 
-        // If we have the sampling project info because the project keys are different, we want to
-        // extract the project info of
-        let sampling_project_info = match sampling_project_info {
-            Some(info) => {
-                // Only set if it matches the organization id. Otherwise, treat as if there is
-                // no sampling project.
-                if info.organization_id == own_project_info.organization_id {
-                    sampling_project_info
-                } else {
-                    None
-                }
-            }
-            None => None,
-        };
+        // We only extract the sampling project info if both projects belong to the same org.
+        let sampling_project_info = sampling_project_info
+            .filter(|info| info.organization_id == own_project_info.organization_id);
 
         for (group, envelope) in ProcessingGroup::split_envelope(*envelope) {
             let managed_envelope = ManagedEnvelope::new(
