@@ -418,7 +418,7 @@ impl EnvelopeBufferService {
     ) -> Result<(), EnvelopeBufferError> {
         let own_key = project_key_pair.own_key;
         let own_project = services.project_cache_handle.get(own_key);
-        // We try to load the project state and bail in case it's pending.
+        // We try to load the own project state and bail in case it's pending.
         let own_project_info = match own_project.state() {
             ProjectState::Enabled(info) => Some(info.clone()),
             ProjectState::Disabled => None,
@@ -435,9 +435,9 @@ impl EnvelopeBufferService {
 
         let sampling_key = project_key_pair.sampling_key;
         // If the projects are different, we load the project key of the sampling project. On the
-        // other hand, if they are the same, we just reuse the same project.
+        // other hand, if they are the same, we just reuse the own project.
         let sampling_project_info = if project_key_pair.has_distinct_sampling_key() {
-            // We try to load the project state and bail in case it's pending.
+            // We try to load the sampling project state and bail in case it's pending.
             match services.project_cache_handle.get(sampling_key).state() {
                 ProjectState::Enabled(info) => Some(info.clone()),
                 ProjectState::Disabled => None,
@@ -463,7 +463,8 @@ impl EnvelopeBufferService {
             .await?
             .expect("Element disappeared despite exclusive excess");
 
-        // If the project state is disabled, we want to drop the envelope and early return.
+        // If the own project state is disabled, we want to drop the envelope and early return since
+        // we can't do much about it.
         let Some(own_project_info) = own_project_info else {
             let mut managed_envelope = ManagedEnvelope::new(
                 envelope,
