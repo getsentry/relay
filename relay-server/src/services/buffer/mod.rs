@@ -83,7 +83,7 @@ impl FromMessage<Self> for EnvelopeBuffer {
 #[derive(Debug, Clone)]
 pub struct PartitionedEnvelopeBuffer {
     buffers: Arc<Vec<ObservableEnvelopeBuffer>>,
-    random_state: RandomState,
+    hasher: RandomState,
 }
 
 impl PartitionedEnvelopeBuffer {
@@ -122,7 +122,7 @@ impl PartitionedEnvelopeBuffer {
 
         Self {
             buffers: Arc::new(envelope_buffers),
-            random_state: Self::build_hasher(),
+            hasher: Self::build_hasher(),
         }
     }
 
@@ -133,7 +133,7 @@ impl PartitionedEnvelopeBuffer {
     /// since each individual buffer will only take care of a subset of projects.
     pub fn buffer(&self, project_key_pair: ProjectKeyPair) -> &ObservableEnvelopeBuffer {
         let buffer_index =
-            (self.random_state.hash_one(project_key_pair) % self.buffers.len() as u64) as usize;
+            (self.hasher.hash_one(project_key_pair) % self.buffers.len() as u64) as usize;
         self.buffers
             .get(buffer_index)
             .expect("buffers should not be empty")
@@ -157,8 +157,6 @@ impl PartitionedEnvelopeBuffer {
     /// special mathematical properties. This helps ensure good distribution of hashes.
     /// The values are fixed to maintain consistent partitioning behavior across restarts.
     fn build_hasher() -> RandomState {
-        // Fixed seeds for the AHash algorithm, chosen randomly but kept constant
-        // to ensure consistent partitioning across all Relay instances.
         const K0: u64 = 0xd34db33f11223344;
         const K1: u64 = 0xc0ffee0987654321;
         const K2: u64 = 0xdeadbeef55667788;
@@ -931,7 +929,7 @@ mod tests {
 
         let partitioned = PartitionedEnvelopeBuffer {
             buffers: Arc::new(vec![observable1, observable2]),
-            random_state: PartitionedEnvelopeBuffer::build_hasher(),
+            hasher: PartitionedEnvelopeBuffer::build_hasher(),
         };
 
         // Create two envelopes with different project keys
