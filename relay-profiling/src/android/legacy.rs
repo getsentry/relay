@@ -14,6 +14,7 @@ use data_encoding::BASE64_NOPAD;
 use relay_event_schema::protocol::{EventId, SpanId};
 use serde::{Deserialize, Serialize};
 
+use crate::debug_image::get_proguard_image;
 use crate::measurements::LegacyMeasurement;
 use crate::sample::v1::SampleProfile;
 use crate::transaction_metadata::TransactionMetadata;
@@ -253,6 +254,14 @@ pub fn parse_android_profile(
     };
     profile.metadata.transaction_metadata = transaction_metadata;
     profile.metadata.transaction_tags = transaction_tags;
+
+    // If build_id is not empty but we don't have any DebugImage set,
+    // we create the proper Proguard image and set the uuid.
+    if !profile.metadata.build_id.is_empty() && profile.metadata.debug_meta.is_none() {
+        profile.metadata.debug_meta = Some(DebugMeta {
+            images: vec![get_proguard_image(&profile.metadata.build_id)?],
+        })
+    }
 
     serde_json::to_vec(&profile).map_err(|_| ProfileError::CannotSerializePayload)
 }
