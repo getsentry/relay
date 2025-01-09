@@ -4,6 +4,7 @@
 
 **Features**:
 
+- Increase stacktrace function and symbol length limits to 512 chars. ([#4436](https://github.com/getsentry/relay/pull/4436))
 - Scrub non-minidump attachments if there are explicit `$attachment` rules. ([#4415](https://github.com/getsentry/relay/pull/4415))
 
 **Internal**:
