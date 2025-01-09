@@ -41,7 +41,7 @@ In those cases then we cannot reliably trim down the function any more at a late
 because the more valuable information has been removed.</p>
 <p>The logic to be applied is that an intelligently trimmed function name should be stored in
 <code>function</code> and the value before trimming is stored in this field instead.  However also this
-field will be capped at 256 characters at the moment which often means that not the entire
+field will be capped at 512 characters at the moment which often means that not the entire
 original value can be stored.</p>
 </div><span id="structfield.symbol" class="structfield section-header"><a href="#structfield.symbol" class="anchor field">§</a><code>symbol: Annotated&lt;<a class="struct" href="https://doc.rust-lang.org/1.83.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>&gt;</code></span><div class="docblock"><p>Potentially mangled name of the symbol as it appears in an executable.</p>
 <p>This is different from a function name by generally being the mangled

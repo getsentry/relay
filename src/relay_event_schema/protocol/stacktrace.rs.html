@@ -817,7 +817,7 @@
     ///
     /// This function name may be shortened or demangled. If not, Sentry will demangle and shorten
     /// it for some platforms. The original function name will be stored in `raw_function`.
-    </span><span class="attr">#[metastructure(max_chars = <span class="number">256</span>, max_chars_allowance = <span class="number">20</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="number">512</span>, max_chars_allowance = <span class="number">20</span>)]
     #[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>function: Annotated&lt;String&gt;,
 
@@ -834,9 +834,9 @@
     ///
     /// The logic to be applied is that an intelligently trimmed function name should be stored in
     /// `function` and the value before trimming is stored in this field instead.  However also this
-    /// field will be capped at 256 characters at the moment which often means that not the entire
+    /// field will be capped at 512 characters at the moment which often means that not the entire
     /// original value can be stored.
-    </span><span class="attr">#[metastructure(max_chars = <span class="number">256</span>, max_chars_allowance = <span class="number">20</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="number">512</span>, max_chars_allowance = <span class="number">20</span>)]
     #[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>raw_function: Annotated&lt;String&gt;,
 
@@ -847,7 +847,7 @@
     /// like Swift, C++ or Rust.
     </span><span class="comment">// XXX(markus): How is this different from just storing the mangled function name in
     // `function`?
-    </span><span class="attr">#[metastructure(max_chars = <span class="number">256</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="number">512</span>)]
     </span><span class="kw">pub </span>symbol: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Name of the module the frame is contained in.
