@@ -5,6 +5,7 @@
 **Features**:
 
 - Scrub non-minidump attachments if there are explicit `$attachment` rules. ([#4415](https://github.com/getsentry/relay/pull/4415))
+- Include blocked domain in CSP reports as a tag. ([#4435](https://github.com/getsentry/relay/pull/4435))
 
 **Internal**:
 
