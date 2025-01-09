@@ -167,7 +167,16 @@
 <a href="#166" id="166">166</a>
 <a href="#167" id="167">167</a>
 <a href="#168" id="168">168</a>
-<a href="#169" id="169">169</a></pre></div><pre class="rust"><code><span class="doccomment">//! Android Format
+<a href="#169" id="169">169</a>
+<a href="#170" id="170">170</a>
+<a href="#171" id="171">171</a>
+<a href="#172" id="172">172</a>
+<a href="#173" id="173">173</a>
+<a href="#174" id="174">174</a>
+<a href="#175" id="175">175</a>
+<a href="#176" id="176">176</a>
+<a href="#177" id="177">177</a>
+<a href="#178" id="178">178</a></pre></div><pre class="rust"><code><span class="doccomment">//! Android Format
 //!
 //! Relay is expecting a JSON object with some mandatory metadata and a `sampled_profile` key
 //! containing the raw Android profile.
@@ -184,6 +193,7 @@
 <span class="kw">use </span>relay_event_schema::protocol::EventId;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
+<span class="kw">use </span><span class="kw">crate</span>::debug_image::get_proguard_image;
 <span class="kw">use </span><span class="kw">crate</span>::measurements::ChunkMeasurement;
 <span class="kw">use </span><span class="kw">crate</span>::sample::v2::ProfileData;
 <span class="kw">use </span><span class="kw">crate</span>::types::{ClientSdk, DebugMeta};
@@ -296,6 +306,14 @@
             .unwrap_or_default() <span class="kw">as </span>u64,
     )
     .as_secs_f64();
+
+    <span class="comment">// If build_id is not empty but we don't have any DebugImage set,
+    // we create the proper Proguard image and set the uuid.
+    </span><span class="kw">if </span>!profile.metadata.build_id.is_empty() &amp;&amp; profile.metadata.debug_meta.is_none() {
+        profile.metadata.debug_meta = <span class="prelude-val">Some</span>(DebugMeta {
+            images: <span class="macro">vec!</span>[get_proguard_image(<span class="kw-2">&amp;</span>profile.metadata.build_id)<span class="question-mark">?</span>],
+        })
+    }
 
     <span class="prelude-val">Ok</span>(profile)
 }

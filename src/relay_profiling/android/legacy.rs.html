@@ -367,7 +367,16 @@
 <a href="#366" id="366">366</a>
 <a href="#367" id="367">367</a>
 <a href="#368" id="368">368</a>
-<a href="#369" id="369">369</a></pre></div><pre class="rust"><code><span class="doccomment">//! Android Format
+<a href="#369" id="369">369</a>
+<a href="#370" id="370">370</a>
+<a href="#371" id="371">371</a>
+<a href="#372" id="372">372</a>
+<a href="#373" id="373">373</a>
+<a href="#374" id="374">374</a>
+<a href="#375" id="375">375</a>
+<a href="#376" id="376">376</a>
+<a href="#377" id="377">377</a>
+<a href="#378" id="378">378</a></pre></div><pre class="rust"><code><span class="doccomment">//! Android Format
 //!
 //! Relay is expecting a JSON object with some mandatory metadata and a `sampled_profile` key
 //! containing the raw Android profile.
@@ -383,6 +392,7 @@
 <span class="kw">use </span>relay_event_schema::protocol::{EventId, SpanId};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 
+<span class="kw">use </span><span class="kw">crate</span>::debug_image::get_proguard_image;
 <span class="kw">use </span><span class="kw">crate</span>::measurements::LegacyMeasurement;
 <span class="kw">use </span><span class="kw">crate</span>::sample::v1::SampleProfile;
 <span class="kw">use </span><span class="kw">crate</span>::transaction_metadata::TransactionMetadata;
@@ -622,6 +632,14 @@
     };
     profile.metadata.transaction_metadata = transaction_metadata;
     profile.metadata.transaction_tags = transaction_tags;
+
+    <span class="comment">// If build_id is not empty but we don't have any DebugImage set,
+    // we create the proper Proguard image and set the uuid.
+    </span><span class="kw">if </span>!profile.metadata.build_id.is_empty() &amp;&amp; profile.metadata.debug_meta.is_none() {
+        profile.metadata.debug_meta = <span class="prelude-val">Some</span>(DebugMeta {
+            images: <span class="macro">vec!</span>[get_proguard_image(<span class="kw-2">&amp;</span>profile.metadata.build_id)<span class="question-mark">?</span>],
+        })
+    }
 
     serde_json::to_vec(<span class="kw-2">&amp;</span>profile).map_err(|<span class="kw">_</span>| ProfileError::CannotSerializePayload)
 }

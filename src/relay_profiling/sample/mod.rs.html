@@ -110,7 +110,7 @@
 <a href="#109" id="109">109</a>
 <a href="#110" id="110">110</a></pre></div><pre class="rust"><code><span class="kw">use </span>serde::{Deserialize, Serialize};
 
-<span class="kw">use </span><span class="kw">crate</span>::native_debug_image::NativeDebugImage;
+<span class="kw">use </span><span class="kw">crate</span>::debug_image::DebugImage;
 <span class="kw">use </span>relay_event_schema::protocol::Addr;
 
 <span class="kw">pub mod </span>v1;
@@ -200,7 +200,7 @@
 </span><span class="kw">pub struct </span>DebugMeta {
     <span class="doccomment">/// A list of debug files needed to symbolicate/deobfuscate this profile.
     /// Useful to pass source maps, ProGuard files or image libraries.
-    </span><span class="kw">pub </span>images: Vec&lt;NativeDebugImage&gt;,
+    </span><span class="kw">pub </span>images: Vec&lt;DebugImage&gt;,
 }
 
 <span class="kw">impl </span>DebugMeta {

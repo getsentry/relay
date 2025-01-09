@@ -18,12 +18,12 @@
 <a href="#17" id="17">17</a>
 <a href="#18" id="18">18</a></pre></div><pre class="rust"><code><span class="kw">use </span>serde::{Deserialize, Serialize};
 
-<span class="kw">use </span><span class="kw">crate</span>::native_debug_image::NativeDebugImage;
+<span class="kw">use </span><span class="kw">crate</span>::debug_image::DebugImage;
 
 <span class="doccomment">/// This is a serde-friendly version of &lt;https://github.com/getsentry/relay/blob/52bc345871b4e5cca19ed73c17730eeef092028b/relay-event-schema/src/protocol/debugmeta.rs#L516&gt;
 </span><span class="attr">#[derive(Default, Debug, Serialize, Deserialize, Clone)]
 </span><span class="kw">pub struct </span>DebugMeta {
-    images: Vec&lt;NativeDebugImage&gt;,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) images: Vec&lt;DebugImage&gt;,
 }
 
 <span class="doccomment">/// This is a serde-friendly version of &lt;https://github.com/getsentry/relay/blob/52bc345871b4e5cca19ed73c17730eeef092028b/relay-event-schema/src/protocol/clientsdk.rs#L8&gt;
