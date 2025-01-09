@@ -52,7 +52,7 @@ use crate::services::global_config::GlobalConfigHandle;
 use crate::services::metrics::{Aggregator, FlushBuckets, MergeBuckets, ProjectBuckets};
 use crate::services::outcome::{DiscardReason, Outcome, TrackOutcome};
 use crate::services::processor::event::FiltersStatus;
-use crate::services::processor::groups::{process_group, supports_new_processing};
+use crate::services::processor::groups::{build_process_group, GroupParams};
 use crate::services::projects::cache::ProjectCacheHandle;
 use crate::services::projects::project::{ProjectInfo, ProjectState};
 use crate::services::test_store::{Capture, TestStore};
@@ -67,7 +67,7 @@ use crate::utils::{
 use relay_base_schema::organization::OrganizationId;
 #[cfg(feature = "processing")]
 use {
-    crate::services::processor::groups::{Group, GroupPayload},
+    crate::services::processor::groups::GroupPayload,
     crate::services::store::{Store, StoreEnvelope},
     crate::utils::{CheckLimits, Enforcement, EnvelopeLimiter},
     itertools::Itertools,
@@ -2035,16 +2035,19 @@ impl EnvelopeProcessorService {
         // from the contents of the envelope.
         let group = managed_envelope.group();
 
+        let grop_params = GroupParams {
+            managed_envelope: &mut managed_envelope,
+            processor: self.inner.clone(),
+            rate_limits: rate_limits.clone(),
+            project_info: project_info.clone(),
+            project_id,
+        };
         // If the group is supported by the new processing logic, we will use the new logic.
-        if supports_new_processing(&group) {
-            return process_group(
-                group,
-                managed_envelope,
-                self.inner.clone(),
-                project_info,
-                project_id,
-                rate_limits,
-            );
+        if let Some(process_group) = build_process_group(group, grop_params) {
+            let result = process_group.process()?;
+        } else {
+            // TODO: once everything is migrated, the fallback should be handled instead of trying
+            //  with the old mechanism.
         }
 
         macro_rules! run {
@@ -3039,7 +3042,7 @@ impl Service for EnvelopeProcessorService {
 }
 
 #[cfg(feature = "processing")]
-fn enforce_quotas<'a, G: Group, P: GroupPayload<'a, G>>(
+fn enforce_quotas<'a, P: GroupPayload<'a>>(
     payload: &mut P,
     extracted_metrics: &mut ProcessingExtractedMetrics,
     global_config: &GlobalConfig,
@@ -3055,7 +3058,7 @@ fn enforce_quotas<'a, G: Group, P: GroupPayload<'a, G>>(
 
     // Cached quotas first, they are quick to evaluate and some quotas (indexed) are not
     // applied in the fast path, all cached quotas can be applied here.
-    RateLimiterNew::Cached.enforce::<G, P>(
+    RateLimiterNew::Cached.enforce(
         payload,
         extracted_metrics,
         global_config,
@@ -3064,7 +3067,7 @@ fn enforce_quotas<'a, G: Group, P: GroupPayload<'a, G>>(
     )?;
 
     // Enforce all quotas consistently with Redis.
-    let enforced_rate_limits = RateLimiterNew::Consistent(rate_limiter).enforce::<G, P>(
+    let enforced_rate_limits = RateLimiterNew::Consistent(rate_limiter).enforce(
         payload,
         extracted_metrics,
         global_config,
@@ -3091,7 +3094,7 @@ enum RateLimiterNew<'a> {
 
 #[cfg(feature = "processing")]
 impl RateLimiterNew<'_> {
-    fn enforce<'a, G: Group, P: GroupPayload<'a, G>>(
+    fn enforce<'a, P: GroupPayload<'a>>(
         &self,
         payload: &mut P,
         extracted_metrics: &mut ProcessingExtractedMetrics,

@@ -58,27 +58,8 @@
 //! - Generate the processing logic to handle your group type
 //! - Wire up error handling and metrics extraction
 
-use std::sync::Arc;
-
-use relay_base_schema::project::ProjectId;
-use relay_quotas::RateLimits;
-
-use crate::build_process_group;
-use crate::services::processor::groups::check_in::ProcessCheckIn;
-use crate::services::processor::InnerProcessor;
-use crate::services::processor::{
-    ProcessingError, ProcessingExtractedMetrics, ProcessingGroup, ProcessingResult,
-};
-use crate::services::projects::project::ProjectInfo;
-use crate::utils::ManagedEnvelope;
-
 mod base;
+mod base_payload;
 mod check_in;
-mod payload;
 
 pub use base::*;
-
-// Macro invocation for the function that wires up processing.
-//
-// Add here any (ProcessingGroup -> ProcessGroup) mappings.
-build_process_group!((CheckIn, ProcessCheckIn));

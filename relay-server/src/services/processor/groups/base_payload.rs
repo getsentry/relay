@@ -1,5 +1,5 @@
-use crate::services::processor::groups::{Group, GroupPayload};
-use crate::utils::{ManagedEnvelope, TypedEnvelope};
+use crate::services::processor::groups::GroupPayload;
+use crate::utils::ManagedEnvelope;
 use relay_event_schema::protocol::Event;
 use relay_protocol::Annotated;
 
@@ -7,16 +7,16 @@ use relay_protocol::Annotated;
 ///
 /// This struct holds a reference to a typed envelope and an optional event. It provides
 /// the basic functionality required by the [`GroupPayload`] trait.
-pub struct BasePayload<'a, G: Group> {
-    managed_envelope: &'a mut TypedEnvelope<G>,
+pub struct BasePayload<'a> {
+    managed_envelope: &'a mut ManagedEnvelope,
     event: Option<&'a mut Annotated<Event>>,
 }
 
-impl<'a, G: Group> BasePayload<'a, G> {
+impl<'a> BasePayload<'a> {
     /// Creates a new [`BasePayload`] without an event.
     ///
     /// This is useful when processing envelopes that don't contain event data.
-    pub fn no_event(managed_envelope: &'a mut TypedEnvelope<G>) -> Self {
+    pub fn no_event(managed_envelope: &'a mut ManagedEnvelope) -> Self {
         Self {
             managed_envelope,
             event: None,
@@ -24,7 +24,7 @@ impl<'a, G: Group> BasePayload<'a, G> {
     }
 }
 
-impl<'a, G: Group> GroupPayload<'a, G> for BasePayload<'a, G> {
+impl<'a> GroupPayload<'a> for BasePayload<'a> {
     fn managed_envelope_mut(&mut self) -> &mut ManagedEnvelope {
         self.managed_envelope
     }

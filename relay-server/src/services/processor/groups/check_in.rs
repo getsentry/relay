@@ -3,14 +3,11 @@ use std::sync::Arc;
 use relay_base_schema::project::ProjectId;
 use relay_quotas::RateLimits;
 
-use crate::services::processor::groups::payload::BasePayload;
-use crate::services::processor::groups::{Group, GroupParams, ProcessGroup};
-use crate::services::processor::GroupTypeError;
-use crate::services::processor::{
-    InnerProcessor, ProcessingError, ProcessingExtractedMetrics, ProcessingGroup,
-};
+use crate::if_processing;
+use crate::services::processor::groups::base_payload::BasePayload;
+use crate::services::processor::groups::{GroupParams, GroupResult, ProcessGroup};
+use crate::services::processor::{InnerProcessor, ProcessingError, ProcessingExtractedMetrics};
 use crate::services::projects::project::ProjectInfo;
-use crate::{group, if_processing};
 #[cfg(feature = "processing")]
 use {
     crate::envelope::ContentType, crate::envelope::ItemType,
@@ -18,11 +15,9 @@ use {
     crate::utils::ItemAction, std::error::Error,
 };
 
-group!(CheckIn, CheckInGroup);
-
 pub struct ProcessCheckIn<'a> {
     #[allow(dead_code)]
-    payload: BasePayload<'a, CheckInGroup>,
+    payload: BasePayload<'a>,
     #[allow(dead_code)]
     processor: Arc<InnerProcessor>,
     #[allow(dead_code)]
@@ -62,13 +57,9 @@ impl ProcessCheckIn<'_> {
 }
 
 impl<'a> ProcessGroup<'a> for ProcessCheckIn<'a> {
-    type Group = CheckInGroup;
-
-    type Payload = BasePayload<'a, Self::Group>;
-
-    fn create(params: GroupParams<'a, Self::Group>) -> Self {
+    fn create(params: GroupParams<'a>) -> Self {
         Self {
-            payload: Self::Payload::no_event(params.managed_envelope),
+            payload: BasePayload::no_event(params.managed_envelope),
             processor: params.processor,
             rate_limits: params.rate_limits,
             project_info: params.project_info,
@@ -76,9 +67,7 @@ impl<'a> ProcessGroup<'a> for ProcessCheckIn<'a> {
         }
     }
 
-    fn process(
-        #[allow(unused_mut)] mut self,
-    ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
+    fn process(#[allow(unused_mut)] mut self) -> Result<GroupResult, ProcessingError> {
         #[allow(unused_mut)]
         let mut extracted_metrics = ProcessingExtractedMetrics::new();
 
@@ -95,6 +84,6 @@ impl<'a> ProcessGroup<'a> for ProcessCheckIn<'a> {
             self.normalize_check_ins();
         });
 
-        Ok(Some(extracted_metrics))
+        Ok(GroupResult::new(Some(extracted_metrics)))
     }
 }
