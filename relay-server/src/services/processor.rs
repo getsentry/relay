@@ -2043,8 +2043,22 @@ impl EnvelopeProcessorService {
             project_id,
         };
         // If the group is supported by the new processing logic, we will use the new logic.
-        if let Some(process_group) = build_process_group(group, grop_params) {
-            let result = process_group.process()?;
+        if let Some(result) = build_process_group(group, grop_params).map(|g| g.process()) {
+            return match result {
+                Ok(group_result) => Ok(ProcessingResult {
+                    managed_envelope: managed_envelope.into_processed(),
+                    extracted_metrics: group_result
+                        .extracted_metrics
+                        .map_or(ProcessingExtractedMetrics::new(), |e| e),
+                }),
+                Err(error) => {
+                    if let Some(outcome) = error.to_outcome() {
+                        managed_envelope.reject(outcome);
+                    }
+
+                    Err(error)
+                }
+            };
         } else {
             // TODO: once everything is migrated, the fallback should be handled instead of trying
             //  with the old mechanism.

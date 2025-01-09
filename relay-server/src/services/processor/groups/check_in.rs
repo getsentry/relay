@@ -4,7 +4,7 @@ use relay_base_schema::project::ProjectId;
 use relay_quotas::RateLimits;
 
 use crate::if_processing;
-use crate::services::processor::groups::base_payload::BasePayload;
+use crate::services::processor::groups::payloads::BasePayload;
 use crate::services::processor::groups::{GroupParams, GroupResult, ProcessGroup};
 use crate::services::processor::{InnerProcessor, ProcessingError, ProcessingExtractedMetrics};
 use crate::services::projects::project::ProjectInfo;

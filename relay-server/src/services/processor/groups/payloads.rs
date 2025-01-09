@@ -41,3 +41,6 @@ impl<'a> GroupPayload<'a> for BasePayload<'a> {
         self.event = None;
     }
 }
+
+// TODO: implement a macro to generate a new type payload from the base payload which forwards the
+//  methods.

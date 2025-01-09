@@ -59,7 +59,7 @@
 //! - Wire up error handling and metrics extraction
 
 mod base;
-mod base_payload;
 mod check_in;
+mod payloads;
 
 pub use base::*;

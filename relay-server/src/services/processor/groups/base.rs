@@ -23,13 +23,13 @@ pub struct GroupParams<'a> {
 
 /// Result of a [`ProcessGroup`].
 pub struct GroupResult {
-    pub metrics: Option<ProcessingExtractedMetrics>,
+    pub extracted_metrics: Option<ProcessingExtractedMetrics>,
 }
 
 impl GroupResult {
     /// Creates a new [`GroupResult`].
-    pub fn new(metrics: Option<ProcessingExtractedMetrics>) -> Self {
-        Self { metrics }
+    pub fn new(extracted_metrics: Option<ProcessingExtractedMetrics>) -> Self {
+        Self { extracted_metrics }
     }
 }
 
