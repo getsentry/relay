@@ -758,6 +758,40 @@ mod tests {
                 timestamp: UnixTimestamp(1619420400),
                 width: 0,
                 name: MetricName(
+                    "d:transactions/measurements.score.ratio.lcp@ratio",
+                ),
+                value: Distribution(
+                    [
+                        0.0,
+                    ],
+                ),
+                tags: {
+                    "browser.name": "Chrome",
+                    "dist": "foo",
+                    "environment": "fake_environment",
+                    "fOO": "bar",
+                    "geo.country_code": "US",
+                    "http.method": "POST",
+                    "os.name": "Windows",
+                    "platform": "javascript",
+                    "release": "1.2.3",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.op": "mYOp",
+                    "transaction.status": "ok",
+                    "user.geo.subregion": "21",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
+                    extracted_from_indexed: false,
+                },
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
+                name: MetricName(
                     "d:transactions/measurements.score.total@ratio",
                 ),
                 value: Distribution(
