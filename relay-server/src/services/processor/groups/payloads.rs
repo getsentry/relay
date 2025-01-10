@@ -3,6 +3,8 @@ use crate::utils::ManagedEnvelope;
 use relay_event_schema::protocol::Event;
 use relay_protocol::Annotated;
 
+// TODO: use a concrete type of payload over a generic G.
+
 /// A base implementation of a payload that can be processed by a group processor.
 ///
 /// This struct holds a reference to a typed envelope and an optional event. It provides
