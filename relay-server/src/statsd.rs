@@ -624,8 +624,6 @@ pub enum RelayCounters {
     EnvelopeItems,
     /// Number of bytes we processed per envelope item.
     EnvelopeItemBytes,
-    /// Number of transactions with attachments seen in the request handler.
-    TransactionsWithAttachments,
     /// Number of times an envelope from the buffer is trying to be popped.
     BufferTryPop,
     /// Number of envelopes spool to disk.
@@ -838,7 +836,6 @@ impl CounterMetric for RelayCounters {
             RelayCounters::EnvelopeAccepted => "event.accepted",
             RelayCounters::EnvelopeRejected => "event.rejected",
             RelayCounters::EnvelopeItems => "event.items",
-            RelayCounters::TransactionsWithAttachments => "transactions_with_attachments",
             RelayCounters::EnvelopeItemBytes => "event.item_bytes",
             RelayCounters::BufferTryPop => "buffer.try_pop",
             RelayCounters::BufferSpooledEnvelopes => "buffer.spooled_envelopes",

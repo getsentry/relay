@@ -395,11 +395,7 @@ pub async fn handle_envelope(
 
 fn emit_envelope_metrics(envelope: &Envelope) {
     let client_name = envelope.meta().client_name();
-    let mut has_transaction = false;
-    let mut has_attachment = false;
     for item in envelope.items() {
-        has_transaction |= item.ty() == &ItemType::Transaction;
-        has_attachment |= item.ty() == &ItemType::Attachment;
         metric!(
             histogram(RelayHistograms::EnvelopeItemSize) = item.payload().len() as u64,
             item_type = item.ty().name()
@@ -415,30 +411,6 @@ fn emit_envelope_metrics(envelope: &Envelope) {
             sdk = client_name.name(),
         );
     }
-
-    // BEGIN temporary
-    if has_transaction && has_attachment {
-        metric!(
-            counter(RelayCounters::TransactionsWithAttachments) += 1,
-            sdk = client_name.name(),
-        );
-        relay_log::with_scope(
-            |scope| {
-                // Set the organization as user so we can figure out who uses this.
-                scope.set_tag(
-                    "project_key",
-                    envelope.meta().get_partial_scoping().project_key,
-                );
-            },
-            || {
-                relay_log::sentry::capture_message(
-                    "transaction with attachment",
-                    relay_log::sentry::Level::Info,
-                );
-            },
-        );
-    }
-    // END temporary
 }
 
 #[derive(Debug)]
