@@ -486,7 +486,7 @@ impl FromRequestParts<ServiceState> for PartialMeta {
                 .config()
                 .static_relays()
                 .get(&relay_id)
-                .map_or(false, |ri| ri.internal);
+                .is_some_and(|ri| ri.internal);
         }
 
         let ReceivedAt(received_at) = ReceivedAt::from_request_parts(parts, state).await?;
