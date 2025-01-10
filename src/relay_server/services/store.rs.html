@@ -1495,10 +1495,7 @@
 <a href="#1494" id="1494">1494</a>
 <a href="#1495" id="1495">1495</a>
 <a href="#1496" id="1496">1496</a>
-<a href="#1497" id="1497">1497</a>
-<a href="#1498" id="1498">1498</a>
-<a href="#1499" id="1499">1499</a>
-<a href="#1500" id="1500">1500</a></pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
+<a href="#1497" id="1497">1497</a></pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses Kafka topics to forward data to Sentry
 
 </span><span class="kw">use </span>anyhow::Context;
@@ -2413,11 +2410,8 @@
         span.start_timestamp_ms = (span.start_timestamp_precise * <span class="number">1e3</span>) <span class="kw">as </span>u64;
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(measurements) = <span class="kw-2">&amp;mut </span>span.measurements {
-            measurements.retain(|<span class="kw">_</span>, v| {
-                v.as_ref()
-                    .and_then(|v| v.value)
-                    .map_or(<span class="bool-val">false</span>, f64::is_finite)
-            });
+            measurements
+                .retain(|<span class="kw">_</span>, v| v.as_ref().and_then(|v| v.value).is_some_and(f64::is_finite));
         }
 
         <span class="self">self</span>.produce(

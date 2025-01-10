@@ -1233,7 +1233,7 @@
                 .config()
                 .static_relays()
                 .get(<span class="kw-2">&amp;</span>relay_id)
-                .map_or(<span class="bool-val">false</span>, |ri| ri.internal);
+                .is_some_and(|ri| ri.internal);
         }
 
         <span class="kw">let </span>ReceivedAt(received_at) = ReceivedAt::from_request_parts(parts, state).<span class="kw">await</span><span class="question-mark">?</span>;

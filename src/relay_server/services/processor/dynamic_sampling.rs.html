@@ -952,8 +952,8 @@
         <span class="kw">return </span>SamplingResult::NoMatch;
     }
 
-    <span class="kw">if </span>sampling_config.map_or(<span class="bool-val">false</span>, |config| config.unsupported())
-        || root_sampling_config.map_or(<span class="bool-val">false</span>, |config| config.unsupported())
+    <span class="kw">if </span>sampling_config.is_some_and(|config| config.unsupported())
+        || root_sampling_config.is_some_and(|config| config.unsupported())
     {
         <span class="kw">if </span>processing_enabled {
             <span class="macro">relay_log::error!</span>(<span class="string">"found unsupported rules even as processing relay"</span>);

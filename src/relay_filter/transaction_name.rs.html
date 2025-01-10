@@ -263,7 +263,7 @@
 <span class="kw">use crate</span>::{FilterStatKey, Filterable, IgnoreTransactionsFilterConfig};
 
 <span class="kw">fn </span>matches(transaction: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;, patterns: <span class="kw-2">&amp;</span>Patterns) -&gt; bool {
-    transaction.map_or(<span class="bool-val">false</span>, |transaction| patterns.is_match(transaction))
+    transaction.is_some_and(|transaction| patterns.is_match(transaction))
 }
 
 <span class="doccomment">/// Filters [Transaction](relay_event_schema::protocol::EventType::Transaction) events based on a list of provided transaction

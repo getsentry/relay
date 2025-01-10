@@ -144,7 +144,7 @@
     };
 
     <span class="kw">let </span>new_source = transaction_source_tag(inner);
-    <span class="kw">let </span>is_404 = extract_http_status_code(inner).map_or(<span class="bool-val">false</span>, |s| s == <span class="string">"404"</span>);
+    <span class="kw">let </span>is_404 = extract_http_status_code(inner).is_some_and(|s| s == <span class="string">"404"</span>);
 
     <span class="macro">relay_statsd::metric!</span>(
         counter(RelayCounters::TransactionNameChanges) += <span class="number">1</span>,

@@ -1129,7 +1129,7 @@
             <span class="kw">let </span>has_otel = inner_event
                 .contexts
                 .value()
-                .map_or(<span class="bool-val">false</span>, |contexts| contexts.contains::&lt;OtelContext&gt;());
+                .is_some_and(|contexts| contexts.contains::&lt;OtelContext&gt;());
 
             <span class="kw">if </span>has_otel {
                 <span class="macro">metric!</span>(

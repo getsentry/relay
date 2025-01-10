@@ -282,8 +282,7 @@
 <a href="#281" id="281">281</a>
 <a href="#282" id="282">282</a>
 <a href="#283" id="283">283</a>
-<a href="#284" id="284">284</a>
-<a href="#285" id="285">285</a></pre></div><pre class="rust"><code><span class="attr">#![doc(
+<a href="#284" id="284">284</a></pre></div><pre class="rust"><code><span class="attr">#![doc(
     html_logo_url = <span class="string">"https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"</span>,
     html_favicon_url = <span class="string">"https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 </span>)]
@@ -319,8 +318,7 @@
         <span class="kw">if </span>!entry.path().to_string_lossy().contains(<span class="string">"src"</span>) {
             <span class="kw">continue</span>;
         }
-        <span class="kw">if </span>entry.file_type().is_file() &amp;&amp; entry.path().extension().map_or(<span class="bool-val">false</span>, |ext| ext == <span class="string">"rs"</span>)
-        {
+        <span class="kw">if </span>entry.file_type().is_file() &amp;&amp; entry.path().extension().is_some_and(|ext| ext == <span class="string">"rs"</span>) {
             rs_files.push(entry.into_path());
         }
     }

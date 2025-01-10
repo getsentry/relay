@@ -1571,7 +1571,7 @@
         <span class="kw">let </span>state = response.token.unpack(secret, max_age)<span class="question-mark">?</span>;
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(header) = state.public_key().verify_meta(data, signature) {
-            <span class="kw">if </span>max_age.map_or(<span class="bool-val">false</span>, |m| header.expired(m)) {
+            <span class="kw">if </span>max_age.is_some_and(|m| header.expired(m)) {
                 <span class="kw">return </span><span class="prelude-val">Err</span>(UnpackError::SignatureExpired);
             }
         } <span class="kw">else </span>{

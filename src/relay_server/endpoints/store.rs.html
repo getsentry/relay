@@ -215,7 +215,7 @@
     // character substitution on the input stream but only if we detect a Python agent.
     //
     // This is done here so that the rest of the code can assume valid JSON.
-    </span><span class="kw">let </span>is_legacy_python_json = meta.client().map_or(<span class="bool-val">false</span>, |agent| {
+    </span><span class="kw">let </span>is_legacy_python_json = meta.client().is_some_and(|agent| {
         agent.starts_with(<span class="string">"raven-python/"</span>) || agent.starts_with(<span class="string">"sentry-python/"</span>)
     });
 

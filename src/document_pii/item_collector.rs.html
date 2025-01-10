@@ -696,7 +696,7 @@
 ) -&gt; anyhow::Result&lt;bool&gt; {
     <span class="kw">let </span>path = entry.path();
 
-    <span class="kw">if </span>path.is_file() &amp;&amp; path.extension().map_or(<span class="bool-val">false</span>, |ext| ext == <span class="string">"rs"</span>) &amp;&amp; path != <span class="kw-2">*</span>file_path {
+    <span class="kw">if </span>path.is_file() &amp;&amp; path.extension().is_some_and(|ext| ext == <span class="string">"rs"</span>) &amp;&amp; path != <span class="kw-2">*</span>file_path {
         <span class="comment">// Read the file and search for the same declaration pattern: "pub mod" and file stem.
         </span><span class="kw">let </span>file = fs::File::open(path)<span class="question-mark">?</span>;
         <span class="kw">let </span>reader = std::io::BufReader::new(file);

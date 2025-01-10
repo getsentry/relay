@@ -227,7 +227,7 @@
 
 <span class="kw">fn </span>host_matches_or_is_subdomain_of(host: <span class="kw-2">&amp;</span>str, domain: <span class="kw-2">&amp;</span>str) -&gt; bool {
     host.strip_suffix(domain)
-        .map_or(<span class="bool-val">false</span>, |s| s.is_empty() || s.ends_with(<span class="string">'.'</span>))
+        .is_some_and(|s| s.is_empty() || s.ends_with(<span class="string">'.'</span>))
 }
 
 <span class="doccomment">/// Filters events originating from the local host.

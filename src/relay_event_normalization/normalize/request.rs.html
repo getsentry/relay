@@ -677,7 +677,7 @@
             .values()
             .next()
             .and_then(Annotated::&lt;Value&gt;::as_str)
-            .map_or(<span class="bool-val">false</span>, |s| !<span class="macro">matches!</span>(s, <span class="string">"" </span>| <span class="string">"="</span>));
+            .is_some_and(|s| !<span class="macro">matches!</span>(s, <span class="string">"" </span>| <span class="string">"="</span>));
 
     <span class="kw">if </span>is_valid {
         <span class="prelude-val">Some</span>(Value::Object(object))

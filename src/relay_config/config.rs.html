@@ -2975,7 +2975,7 @@
         <span class="kw">return </span><span class="bool-val">true</span>;
     }
 
-    fs::read_to_string(<span class="string">"/proc/self/cgroup"</span>).map_or(<span class="bool-val">false</span>, |s| s.contains(<span class="string">"/docker"</span>))
+    fs::read_to_string(<span class="string">"/proc/self/cgroup"</span>).is_ok_and(|s| s.contains(<span class="string">"/docker"</span>))
 }
 
 <span class="doccomment">/// Default value for the "bind" configuration.

@@ -2620,7 +2620,7 @@
                     </span>|| name
                         .strip_prefix(<span class="string">"score.weight."</span>)
                         .or_else(|| name.strip_prefix(<span class="string">"score."</span>))
-                        .map_or(<span class="bool-val">false</span>, |suffix| measurement_names.contains(suffix));
+                        .is_some_and(|suffix| measurement_names.contains(suffix));
 
                 <span class="kw">let </span>measurement_tags = TransactionMeasurementTags {
                     measurement_rating: get_measurement_rating(name, value.to_f64()),

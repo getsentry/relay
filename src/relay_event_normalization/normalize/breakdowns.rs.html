@@ -403,10 +403,7 @@
 <a href="#402" id="402">402</a>
 <a href="#403" id="403">403</a>
 <a href="#404" id="404">404</a>
-<a href="#405" id="405">405</a>
-<a href="#406" id="406">406</a>
-<a href="#407" id="407">407</a>
-<a href="#408" id="408">408</a></pre></div><pre class="rust"><code><span class="doccomment">//! Computation of breakdowns from event data.
+<a href="#405" id="405">405</a></pre></div><pre class="rust"><code><span class="doccomment">//! Computation of breakdowns from event data.
 //!
 //! Breakdowns are product-defined numbers that are indirectly reported by the client, and are
 //! materialized during ingestion. They are usually an aggregation over data present in the event.
@@ -497,10 +494,7 @@
             <span class="kw">return </span><span class="prelude-val">None</span>;
         }
 
-        <span class="kw">let </span>spans = <span class="kw">match </span>event.spans.value() {
-            <span class="prelude-val">None </span>=&gt; <span class="kw">return </span><span class="prelude-val">None</span>,
-            <span class="prelude-val">Some</span>(spans) =&gt; spans,
-        };
+        <span class="kw">let </span>spans = event.spans.value()<span class="question-mark">?</span>;
 
         <span class="comment">// Generate span operation breakdowns
         </span><span class="kw">let </span><span class="kw-2">mut </span>intervals = HashMap::new();

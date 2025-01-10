@@ -797,7 +797,7 @@
 </span><span class="kw">fn </span>matches&lt;F: Getter&gt;(item: <span class="kw-2">&amp;</span>F, condition: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>RuleCondition&gt;) -&gt; bool {
     <span class="comment">// TODO: the condition DSL needs to be extended to support more complex semantics, such as
     //  collections operations.
-    </span>condition.map_or(<span class="bool-val">false</span>, |condition| condition.matches(item))
+    </span>condition.is_some_and(|condition| condition.matches(item))
 }
 
 <span class="doccomment">/// Filters events by any generic condition.

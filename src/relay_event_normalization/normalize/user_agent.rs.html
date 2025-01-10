@@ -1096,8 +1096,7 @@
 <a href="#1095" id="1095">1095</a>
 <a href="#1096" id="1096">1096</a>
 <a href="#1097" id="1097">1097</a>
-<a href="#1098" id="1098">1098</a>
-<a href="#1099" id="1099">1099</a></pre></div><pre class="rust"><code><span class="doccomment">//! Generate context data from user agent and client hints.
+<a href="#1098" id="1098">1098</a></pre></div><pre class="rust"><code><span class="doccomment">//! Generate context data from user agent and client hints.
 //!
 //! This module is responsible for taking the user agent string parsing it and filling in
 //! the browser, os and device information in the event.
@@ -1474,6 +1473,8 @@
 ///
 /// Returns None if no browser field detected.
 </span><span class="kw">pub fn </span>browser_from_client_hints(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;(String, String)&gt; {
+    <span class="kw">static </span>UA_RE: OnceLock&lt;Regex&gt; = OnceLock::new();
+    <span class="kw">let </span>regex = UA_RE.get_or_init(|| Regex::new(<span class="string">r#""([^"]*)";v="([^"]*)""#</span>).unwrap());
     <span class="kw">for </span>item <span class="kw">in </span>s.split(<span class="string">','</span>) {
         <span class="comment">// if it contains one of these then we can know it isn't a browser field. atm chromium
         // browsers are the only ones supporting client hints.
@@ -1484,9 +1485,6 @@
         {
             <span class="kw">continue</span>;
         }
-
-        <span class="kw">static </span>UA_RE: OnceLock&lt;Regex&gt; = OnceLock::new();
-        <span class="kw">let </span>regex = UA_RE.get_or_init(|| Regex::new(<span class="string">r#""([^"]*)";v="([^"]*)""#</span>).unwrap());
 
         <span class="kw">let </span>captures = regex.captures(item)<span class="question-mark">?</span>;
 

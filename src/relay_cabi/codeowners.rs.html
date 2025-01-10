@@ -234,7 +234,7 @@
 
     <span class="kw">let </span>anchored = pattern
         .find(<span class="string">'/'</span>)
-        .map_or(<span class="bool-val">false</span>, |pos| pos != pattern.len() - <span class="number">1</span>);
+        .is_some_and(|pos| pos != pattern.len() - <span class="number">1</span>);
 
     <span class="kw">if </span>anchored {
         regex += <span class="string">r"\A"</span>;
