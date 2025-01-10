@@ -200,7 +200,9 @@ path=c:\Users\yan\mylogfile.txt
 password=mysupersecretpassword123"""
 
     envelope = Envelope()
-    item = Item(payload=attachment, type="attachment")
+    item = Item(
+        payload=attachment, type="attachment", headers={"filename": "logfile.txt"}
+    )
     envelope.add_item(item)
 
     relay.send_envelope(project_id, envelope)
