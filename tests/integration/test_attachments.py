@@ -178,8 +178,6 @@ def test_attachments_pii(mini_sentry, relay):
 
 
 def test_attachments_pii_logfile(mini_sentry, relay):
-    event_id = "515539018c9b4260a6f999572f1661ee"
-
     project_id = 42
     project_config = mini_sentry.add_full_project_config(project_id)
     project_config["config"]["piiConfig"] = {
@@ -191,10 +189,7 @@ def test_attachments_pii_logfile(mini_sentry, relay):
     }
     relay = relay(mini_sentry)
 
-    attachment = (
-        "att_1",
-        "logfile.txt",
-        rb"""Alice Johnson
+    attachment = r"""Alice Johnson
 alice.johnson@example.com
 +1234567890
 4111 1111 1111 1111
@@ -202,10 +197,13 @@ Bob Smith bob.smith@example.net +9876543210 5500 0000 0000 0004
 Charlie Brown charlie.brown@example.org +1928374650 3782 822463 10005
 Dana White dana.white@example.co.uk +1029384756 6011 0009 9013 9424
 path=c:\Users\yan\mylogfile.txt
-password=mysupersecretpassword123""",
-    )
+password=mysupersecretpassword123"""
 
-    relay.send_attachments(project_id, event_id, [attachment])
+    envelope = Envelope()
+    item = Item(payload=attachment, type="attachment")
+    envelope.add_item(item)
+
+    relay.send_envelope(project_id, envelope)
 
     scrubbed_payload = mini_sentry.captured_events.get().items[0].payload.bytes
 
