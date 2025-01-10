@@ -81,7 +81,7 @@ impl Remark {
 
     /// Indicates if the remark refers to an empty range
     pub fn is_empty(&self) -> bool {
-        self.len().map_or(false, |l| l == 0)
+        self.len() == Some(0)
     }
 
     /// Returns the type.
@@ -578,7 +578,7 @@ impl Meta {
 
     /// Indicates whether this field has errors.
     pub fn has_errors(&self) -> bool {
-        self.0.as_ref().map_or(false, |x| !x.errors.is_empty())
+        self.0.as_ref().is_some_and(|x| !x.errors.is_empty())
     }
 
     /// Indicates whether this field has meta data attached.

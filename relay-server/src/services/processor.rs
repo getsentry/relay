@@ -556,7 +556,7 @@ impl ProcessingError {
 
     fn is_unexpected(&self) -> bool {
         self.to_outcome()
-            .map_or(false, |outcome| outcome.is_unexpected())
+            .is_some_and(|outcome| outcome.is_unexpected())
     }
 }
 

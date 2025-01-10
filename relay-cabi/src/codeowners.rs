@@ -21,7 +21,7 @@ fn translate_codeowners_pattern(pattern: &str) -> Option<Regex> {
 
     let anchored = pattern
         .find('/')
-        .map_or(false, |pos| pos != pattern.len() - 1);
+        .is_some_and(|pos| pos != pattern.len() - 1);
 
     if anchored {
         regex += r"\A";

@@ -913,11 +913,8 @@ impl StoreService {
         span.start_timestamp_ms = (span.start_timestamp_precise * 1e3) as u64;
 
         if let Some(measurements) = &mut span.measurements {
-            measurements.retain(|_, v| {
-                v.as_ref()
-                    .and_then(|v| v.value)
-                    .map_or(false, f64::is_finite)
-            });
+            measurements
+                .retain(|_, v| v.as_ref().and_then(|v| v.value).is_some_and(f64::is_finite));
         }
 
         self.produce(

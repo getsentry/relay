@@ -89,10 +89,7 @@ impl EmitBreakdowns for SpanOperationsConfig {
             return None;
         }
 
-        let spans = match event.spans.value() {
-            None => return None,
-            Some(spans) => spans,
-        };
+        let spans = event.spans.value()?;
 
         // Generate span operation breakdowns
         let mut intervals = HashMap::new();
