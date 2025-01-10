@@ -49,6 +49,10 @@
     [
       "blocked-uri",
       "http://evilhackerscripts.com"
+    ],
+    [
+      "blocked-host",
+      "evilhackerscripts.com"
     ]
   ],
   "key_id": "123",
