@@ -3648,6 +3648,10 @@ mod tests {
             "value": 0.8999999314038525,
             "unit": "ratio",
           },
+          "score.ratio.lcp": {
+            "value": 0.8999999314038525,
+            "unit": "ratio",
+          },
           "score.total": {
             "value": 0.8999999314038525,
             "unit": "ratio",
