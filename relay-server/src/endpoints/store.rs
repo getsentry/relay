@@ -67,7 +67,7 @@ fn parse_event(
     // character substitution on the input stream but only if we detect a Python agent.
     //
     // This is done here so that the rest of the code can assume valid JSON.
-    let is_legacy_python_json = meta.client().map_or(false, |agent| {
+    let is_legacy_python_json = meta.client().is_some_and(|agent| {
         agent.starts_with("raven-python/") || agent.starts_with("sentry-python/")
     });
 

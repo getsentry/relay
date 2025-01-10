@@ -375,6 +375,8 @@ impl FromUserAgentInfo for BrowserContext {
 ///
 /// Returns None if no browser field detected.
 pub fn browser_from_client_hints(s: &str) -> Option<(String, String)> {
+    static UA_RE: OnceLock<Regex> = OnceLock::new();
+    let regex = UA_RE.get_or_init(|| Regex::new(r#""([^"]*)";v="([^"]*)""#).unwrap());
     for item in s.split(',') {
         // if it contains one of these then we can know it isn't a browser field. atm chromium
         // browsers are the only ones supporting client hints.
@@ -385,9 +387,6 @@ pub fn browser_from_client_hints(s: &str) -> Option<(String, String)> {
         {
             continue;
         }
-
-        static UA_RE: OnceLock<Regex> = OnceLock::new();
-        let regex = UA_RE.get_or_init(|| Regex::new(r#""([^"]*)";v="([^"]*)""#).unwrap());
 
         let captures = regex.captures(item)?;
 

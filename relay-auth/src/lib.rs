@@ -661,7 +661,7 @@ impl RegisterResponse {
         let state = response.token.unpack(secret, max_age)?;
 
         if let Some(header) = state.public_key().verify_meta(data, signature) {
-            if max_age.map_or(false, |m| header.expired(m)) {
+            if max_age.is_some_and(|m| header.expired(m)) {
                 return Err(UnpackError::SignatureExpired);
             }
         } else {

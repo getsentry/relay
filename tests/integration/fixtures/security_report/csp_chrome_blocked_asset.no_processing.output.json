@@ -55,6 +55,10 @@
     [
       "blocked-uri",
       "http://notlocalhost:8000/lol.css"
+    ],
+    [
+      "blocked-host",
+      "notlocalhost"
     ]
   ],
   "user": {

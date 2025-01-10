@@ -118,7 +118,7 @@ impl<'r> TransactionsProcessor<'r> {
         matches!(
             source,
             Some(&TransactionSource::Url | &TransactionSource::Sanitized)
-        ) || (source.is_none() && event.transaction.value().map_or(false, |t| t.contains('/')))
+        ) || (source.is_none() && event.transaction.value().is_some_and(|t| t.contains('/')))
     }
 
     fn normalize_transaction_name(&self, event: &mut Event) {

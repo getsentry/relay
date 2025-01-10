@@ -314,7 +314,7 @@ impl TransactionExtractor<'_> {
                     || name
                         .strip_prefix("score.weight.")
                         .or_else(|| name.strip_prefix("score."))
-                        .map_or(false, |suffix| measurement_names.contains(suffix));
+                        .is_some_and(|suffix| measurement_names.contains(suffix));
 
                 let measurement_tags = TransactionMeasurementTags {
                     measurement_rating: get_measurement_rating(name, value.to_f64()),

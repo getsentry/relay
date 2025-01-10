@@ -158,8 +158,8 @@ fn compute_sampling_decision(
         return SamplingResult::NoMatch;
     }
 
-    if sampling_config.map_or(false, |config| config.unsupported())
-        || root_sampling_config.map_or(false, |config| config.unsupported())
+    if sampling_config.is_some_and(|config| config.unsupported())
+        || root_sampling_config.is_some_and(|config| config.unsupported())
     {
         if processing_enabled {
             relay_log::error!("found unsupported rules even as processing relay");

@@ -236,7 +236,7 @@ pub fn finalize<Group: EventProcessing>(
             let has_otel = inner_event
                 .contexts
                 .value()
-                .map_or(false, |contexts| contexts.contains::<OtelContext>());
+                .is_some_and(|contexts| contexts.contains::<OtelContext>());
 
             if has_otel {
                 metric!(

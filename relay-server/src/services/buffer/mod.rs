@@ -277,7 +277,7 @@ impl EnvelopeBufferService {
     }
 
     /// Tries to pop an envelope for a ready project.
-    async fn try_pop<'a>(
+    async fn try_pop(
         partition_tag: &str,
         config: &Config,
         buffer: &mut PolymorphicEnvelopeBuffer,
@@ -419,7 +419,7 @@ impl EnvelopeBufferService {
         }
     }
 
-    async fn pop_and_forward<'a>(
+    async fn pop_and_forward(
         partition_tag: &str,
         services: &Services,
         buffer: &mut PolymorphicEnvelopeBuffer,
