@@ -34,8 +34,7 @@ fn find_rs_files(dir: &PathBuf) -> Vec<std::path::PathBuf> {
         if !entry.path().to_string_lossy().contains("src") {
             continue;
         }
-        if entry.file_type().is_file() && entry.path().extension().map_or(false, |ext| ext == "rs")
-        {
+        if entry.file_type().is_file() && entry.path().extension().is_some_and(|ext| ext == "rs") {
             rs_files.push(entry.into_path());
         }
     }
