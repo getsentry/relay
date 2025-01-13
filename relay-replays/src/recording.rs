@@ -27,7 +27,7 @@ use relay_protocol::Meta;
 use serde::{de, ser, Deserializer};
 use serde_json::value::RawValue;
 
-use crate::transform::Transform;
+use relay_pii::transform::Transform;
 
 /// Paths to fields on which datascrubbing rules should be applied.
 ///
@@ -94,7 +94,7 @@ impl From<serde_json::Error> for ParseRecordingError {
 /// The [`Transform`] implementation for data scrubbing.
 ///
 /// This is used by [`EventStreamVisitor`] and [`ScrubbedValue`] to scrub recording events.
-struct ScrubberTransform<'a> {
+pub struct ScrubberTransform<'a> {
     /// PII processors that are applied one by one on each value.
     processor1: Option<PiiProcessor<'a>>,
     processor2: Option<PiiProcessor<'a>>,
@@ -171,7 +171,7 @@ impl<'de> Transform<'de> for &'_ mut ScrubberTransform<'_> {
 ///
 /// This is used by [`EventStreamVisitor`] to serialize recording events on-the-fly from a stream.
 /// It uses a [`ScrubberTransform`] holding all state to perform the actual work.
-struct ScrubbedValue<'a, 'b>(&'a RawValue, Rc<RefCell<ScrubberTransform<'b>>>);
+pub struct ScrubbedValue<'a, 'b>(&'a RawValue, Rc<RefCell<ScrubberTransform<'b>>>);
 
 impl serde::Serialize for ScrubbedValue<'_, '_> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -180,7 +180,7 @@ impl serde::Serialize for ScrubbedValue<'_, '_> {
     {
         let mut transform = self.1.borrow_mut();
         let mut deserializer = serde_json::Deserializer::from_str(self.0.get());
-        let scrubber = crate::transform::Deserializer::new(&mut deserializer, &mut *transform);
+        let scrubber = relay_pii::transform::Deserializer::new(&mut deserializer, &mut *transform);
         serde_transcode::transcode(scrubber, serializer)
     }
 }

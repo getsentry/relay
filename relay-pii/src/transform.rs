@@ -839,7 +839,8 @@ where
     where
         S: de::DeserializeSeed<'de>,
     {
-        self.0.next_element_seed(DeserializeValueSeed(seed, self.1))
+        self.0
+            .next_element_seed(DeserializeSeqValueSeed(seed, self.1))
     }
 }
 
@@ -886,6 +887,24 @@ where
             .deserialize(Deserializer::borrowed(deserializer, self.1));
         self.1.pop_path();
         res
+    }
+}
+
+struct DeserializeSeqValueSeed<'a, D, T>(D, &'a mut T);
+
+impl<'de, D, T> de::DeserializeSeed<'de> for DeserializeSeqValueSeed<'_, D, T>
+where
+    D: de::DeserializeSeed<'de>,
+    T: Transform<'de>,
+{
+    type Value = D::Value;
+
+    fn deserialize<X>(self, deserializer: X) -> Result<Self::Value, X::Error>
+    where
+        X: serde::Deserializer<'de>,
+    {
+        self.0
+            .deserialize(Deserializer::borrowed(deserializer, self.1))
     }
 }
 

@@ -3737,8 +3737,9 @@ dependencies = [
 
 [[package]]
 name = "relay-pii"
-version = "24.12.1"
+version = "24.12.0"
 dependencies = [
+ "bytes",
  "hmac",
  "insta",
  "itertools 0.13.0",
@@ -3754,6 +3755,7 @@ dependencies = [
  "relay-log",
  "relay-protocol",
  "serde",
+ "serde-transcode",
  "serde_json",
  "sha1",
  "similar-asserts",
