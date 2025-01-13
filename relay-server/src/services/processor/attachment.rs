@@ -10,6 +10,7 @@ use relay_statsd::metric;
 use crate::envelope::{AttachmentType, ContentType};
 use crate::statsd::RelayTimers;
 
+use crate::services::processor::payload;
 use crate::services::projects::project::ProjectInfo;
 use crate::utils::TypedEnvelope;
 #[cfg(feature = "processing")]
@@ -28,29 +29,28 @@ use {
 /// If the event payload was empty before, it is created.
 #[cfg(feature = "processing")]
 pub fn create_placeholders(
-    managed_envelope: &mut TypedEnvelope<ErrorGroup>,
-    event: &mut Annotated<Event>,
+    mut payload: payload::WithEvent<ErrorGroup>,
     metrics: &mut Metrics,
-) -> Option<EventFullyNormalized> {
-    let envelope = managed_envelope.envelope();
+) -> (payload::WithEvent<ErrorGroup>, Option<EventFullyNormalized>) {
+    let envelope = payload.managed_envelope.envelope();
     let minidump_attachment =
         envelope.get_item_by(|item| item.attachment_type() == Some(&AttachmentType::Minidump));
     let apple_crash_report_attachment = envelope
         .get_item_by(|item| item.attachment_type() == Some(&AttachmentType::AppleCrashReport));
 
     if let Some(item) = minidump_attachment {
-        let event = event.get_or_insert_with(Event::default);
+        let event = payload.event.get_or_insert_with(Event::default);
         metrics.bytes_ingested_event_minidump = Annotated::new(item.len() as u64);
         utils::process_minidump(event, &item.payload());
-        return Some(EventFullyNormalized(false));
+        return (payload, Some(EventFullyNormalized(false)));
     } else if let Some(item) = apple_crash_report_attachment {
-        let event = event.get_or_insert_with(Event::default);
+        let event = payload.event.get_or_insert_with(Event::default);
         metrics.bytes_ingested_event_applecrashreport = Annotated::new(item.len() as u64);
         utils::process_apple_crash_report(event, &item.payload());
-        return Some(EventFullyNormalized(false));
+        return (payload, Some(EventFullyNormalized(false)));
     }
 
-    None
+    (payload, None)
 }
 
 /// Apply data privacy rules to attachments in the envelope.
@@ -58,7 +58,7 @@ pub fn create_placeholders(
 /// This only applies the new PII rules that explicitly select `ValueType::Binary` or one of the
 /// attachment types. When special attachments are detected, these are scrubbed with custom
 /// logic; otherwise the entire attachment is treated as a single binary blob.
-pub fn scrub<Group>(managed_envelope: &mut TypedEnvelope<Group>, project_info: Arc<ProjectInfo>) {
+pub fn scrub<G>(managed_envelope: &mut TypedEnvelope<G>, project_info: Arc<ProjectInfo>) {
     let envelope = managed_envelope.envelope_mut();
     if let Some(ref config) = project_info.config.pii_config {
         let minidump = envelope

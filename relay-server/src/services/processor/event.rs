@@ -24,8 +24,8 @@ use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::services::outcome::Outcome;
 use crate::services::processor::{
-    event_category, event_type, EventFullyNormalized, EventMetricsExtracted, EventProcessing,
-    ExtractedEvent, ProcessingError, SpansExtracted, MINIMUM_CLOCK_DRIFT,
+    event_category, event_type, payload, EventFullyNormalized, EventMetricsExtracted,
+    EventProcessing, ExtractedEvent, ProcessingError, SpansExtracted, MINIMUM_CLOCK_DRIFT,
 };
 use crate::services::projects::project::ProjectInfo;
 use crate::statsd::{PlatformTag, RelayCounters, RelayHistograms, RelayTimers};
@@ -33,8 +33,8 @@ use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter, TypedEnvelope}
 
 /// Result of the extraction of the primary event payload from an envelope.
 #[derive(Debug)]
-pub struct ExtractionResult {
-    pub event: Annotated<Event>,
+pub struct ExtractionResult<G> {
+    pub payload: payload::WithEvent<G>,
     pub event_metrics_extracted: Option<EventMetricsExtracted>,
     pub spans_extracted: Option<SpansExtracted>,
 }
@@ -47,13 +47,13 @@ pub struct ExtractionResult {
 ///  3. Attachments `__sentry-event` and `__sentry-breadcrumb1/2`.
 ///  4. A multipart form data body.
 ///  5. If none match, `Annotated::empty()`.
-pub fn extract<Group: EventProcessing>(
-    managed_envelope: &mut TypedEnvelope<Group>,
+pub fn extract<G: EventProcessing>(
+    mut payload: payload::NoEvent<G>,
     metrics: &mut Metrics,
     event_fully_normalized: EventFullyNormalized,
     config: &Config,
-) -> Result<ExtractionResult, ProcessingError> {
-    let envelope = managed_envelope.envelope_mut();
+) -> Result<ExtractionResult<G>, ProcessingError> {
+    let envelope = payload.managed_envelope.envelope_mut();
 
     // Remove all items first, and then process them. After this function returns, only
     // attachments can remain in the envelope. The event will be added again at the end of
@@ -146,21 +146,20 @@ pub fn extract<Group: EventProcessing>(
     metrics.bytes_ingested_event = Annotated::new(event_len as u64);
 
     Ok(ExtractionResult {
-        event,
+        payload: payload.add_event(event),
         event_metrics_extracted,
         spans_extracted,
     })
 }
 
-pub fn finalize<Group: EventProcessing>(
-    managed_envelope: &mut TypedEnvelope<Group>,
-    event: &mut Annotated<Event>,
+pub fn finalize<G: EventProcessing>(
+    payload: &mut payload::WithEvent<G>,
     metrics: &mut Metrics,
     config: &Config,
 ) -> Result<(), ProcessingError> {
-    let envelope = managed_envelope.envelope_mut();
+    let envelope = payload.managed_envelope.envelope_mut();
 
-    let inner_event = match event.value_mut() {
+    let inner_event = match payload.event.value_mut() {
         Some(event) => event,
         None if !config.processing_enabled() => return Ok(()),
         None => return Err(ProcessingError::NoEventPayload),
@@ -255,18 +254,18 @@ pub fn finalize<Group: EventProcessing>(
     }
 
     let mut processor =
-        ClockDriftProcessor::new(envelope.sent_at(), managed_envelope.received_at())
+        ClockDriftProcessor::new(envelope.sent_at(), payload.managed_envelope.received_at())
             .at_least(MINIMUM_CLOCK_DRIFT);
-    processor::process_value(event, &mut processor, ProcessingState::root())
+    processor::process_value(&mut payload.event, &mut processor, ProcessingState::root())
         .map_err(|_| ProcessingError::InvalidTransaction)?;
 
     // Log timestamp delays for all events after clock drift correction. This happens before
     // store processing, which could modify the timestamp if it exceeds a threshold. We are
     // interested in the actual delay before this correction.
-    if let Some(timestamp) = event.value().and_then(|e| e.timestamp.value()) {
-        let event_delay = managed_envelope.received_at() - timestamp.into_inner();
+    if let Some(timestamp) = payload.event.value().and_then(|e| e.timestamp.value()) {
+        let event_delay = payload.managed_envelope.received_at() - timestamp.into_inner();
         if event_delay > SignedDuration::minutes(1) {
-            let category = event_category(event).unwrap_or(DataCategory::Unknown);
+            let category = event_category(&payload.event).unwrap_or(DataCategory::Unknown);
             metric!(
                 timer(RelayTimers::TimestampDelay) = event_delay.to_std().unwrap(),
                 category = category.name(),
@@ -298,26 +297,27 @@ pub enum FiltersStatus {
     Unsupported,
 }
 
-pub fn filter<Group: EventProcessing>(
-    managed_envelope: &mut TypedEnvelope<Group>,
-    event: &mut Annotated<Event>,
+pub fn filter<G: EventProcessing>(
+    payload: &mut payload::WithEvent<G>,
     project_info: Arc<ProjectInfo>,
     global_config: &GlobalConfig,
 ) -> Result<FiltersStatus, ProcessingError> {
-    let event = match event.value_mut() {
+    let event = match payload.event.value_mut() {
         Some(event) => event,
         // Some events are created by processing relays (e.g. unreal), so they do not yet
         // exist at this point in non-processing relays.
         None => return Ok(FiltersStatus::Ok),
     };
 
-    let client_ip = managed_envelope.envelope().meta().client_addr();
+    let client_ip = payload.managed_envelope.envelope().meta().client_addr();
     let filter_settings = &project_info.config.filter_settings;
 
     metric!(timer(RelayTimers::EventProcessingFiltering), {
         relay_filter::should_filter(event, client_ip, filter_settings, global_config.filters())
             .map_err(|err| {
-                managed_envelope.reject(Outcome::Filtered(err.clone()));
+                payload
+                    .managed_envelope
+                    .reject(Outcome::Filtered(err.clone()));
                 ProcessingError::EventFiltered(err)
             })
     })?;
