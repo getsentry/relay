@@ -65,7 +65,6 @@ use cadence::{Metric, MetricBuilder, StatsdClient};
 use parking_lot::RwLock;
 use rand::distributions::{Distribution, Uniform};
 use statsdproxy::cadence::StatsdProxyMetricSink;
-use statsdproxy::config::AggregateMetricsConfig;
 
 /// Maximum number of metric events that can be queued before we start dropping them
 const METRICS_MAX_QUEUE_SIZE: usize = 100_000;
@@ -226,7 +225,6 @@ pub fn init<A: ToSocketAddrs>(
     host: A,
     default_tags: BTreeMap<String, String>,
     sample_rate: f32,
-    aggregate: bool,
 ) {
     let addrs: Vec<_> = host.to_socket_addrs().unwrap().collect();
     if !addrs.is_empty() {
@@ -244,25 +242,7 @@ pub fn init<A: ToSocketAddrs>(
         }
     );
 
-    let statsd_client = if aggregate {
-        let statsdproxy_sink = StatsdProxyMetricSink::new(move || {
-            let upstream = statsdproxy::middleware::upstream::Upstream::new(addrs[0])
-                .expect("failed to create statsdproxy metric sink");
-
-            statsdproxy::middleware::aggregate::AggregateMetrics::new(
-                AggregateMetricsConfig {
-                    aggregate_gauges: true,
-                    aggregate_counters: true,
-                    flush_interval: 1,
-                    flush_offset: 0,
-                    max_map_size: None,
-                },
-                upstream,
-            )
-        });
-
-        StatsdClient::from_sink(prefix, statsdproxy_sink)
-    } else {
+    let statsd_client = {
         let statsdproxy_sink = StatsdProxyMetricSink::new(move || {
             statsdproxy::middleware::upstream::Upstream::new(addrs[0])
                 .expect("failed to create statsdproxy metric sind")

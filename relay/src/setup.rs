@@ -87,7 +87,6 @@ pub fn init_metrics(config: &Config) -> Result<()> {
         &addrs[..],
         default_tags,
         config.metrics_sample_rate(),
-        config.metrics_aggregate(),
     );
 
     Ok(())
