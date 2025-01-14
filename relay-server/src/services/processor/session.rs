@@ -15,7 +15,9 @@ use relay_metrics::Bucket;
 use relay_statsd::metric;
 
 use crate::envelope::{ContentType, Item, ItemType};
-use crate::services::processor::{ProcessingExtractedMetrics, SessionGroup, MINIMUM_CLOCK_DRIFT};
+use crate::services::processor::{
+    payload, ProcessingExtractedMetrics, SessionGroup, MINIMUM_CLOCK_DRIFT,
+};
 use crate::services::projects::project::ProjectInfo;
 use crate::statsd::RelayTimers;
 use crate::utils::{ItemAction, TypedEnvelope};
@@ -25,14 +27,14 @@ use crate::utils::{ItemAction, TypedEnvelope};
 /// Both are removed from the envelope if they contain invalid JSON or if their timestamps
 /// are out of range after clock drift correction.
 pub fn process(
-    managed_envelope: &mut TypedEnvelope<SessionGroup>,
+    payload: &mut payload::NoEvent<SessionGroup>,
     extracted_metrics: &mut ProcessingExtractedMetrics,
     project_info: Arc<ProjectInfo>,
     config: &Config,
 ) {
-    let received = managed_envelope.received_at();
+    let received = payload.managed_envelope.received_at();
     let metrics_config = project_info.config().session_metrics;
-    let envelope = managed_envelope.envelope_mut();
+    let envelope = payload.managed_envelope.envelope_mut();
     let client = envelope.meta().client().map(|x| x.to_owned());
     let client_addr = envelope.meta().client_addr();
 
@@ -40,7 +42,7 @@ pub fn process(
         ClockDriftProcessor::new(envelope.sent_at(), received).at_least(MINIMUM_CLOCK_DRIFT);
 
     let mut session_extracted_metrics = Vec::new();
-    managed_envelope.retain_items(|item| {
+    payload.managed_envelope.retain_items(|item| {
         let should_keep = match item.ty() {
             ItemType::Session => process_session(
                 item,

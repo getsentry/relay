@@ -8,7 +8,7 @@ use crate::metrics_extraction::{event, generic};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::span::extract_transaction_span;
 use crate::services::processor::{
-    dynamic_sampling, event_type, EventMetricsExtracted, ProcessingError,
+    dynamic_sampling, event_type, payload, EventMetricsExtracted, ProcessingError,
     ProcessingExtractedMetrics, SpanGroup, SpansExtracted, TransactionGroup,
 };
 use crate::services::projects::project::ProjectInfo;
@@ -47,8 +47,7 @@ struct ValidationError(#[from] anyhow::Error);
 
 #[allow(clippy::too_many_arguments)]
 pub fn process(
-    managed_envelope: &mut TypedEnvelope<SpanGroup>,
-    event: &mut Annotated<Event>,
+    payload: &mut payload::NoEvent<SpanGroup>,
     extracted_metrics: &mut ProcessingExtractedMetrics,
     global_config: &GlobalConfig,
     config: Arc<Config>,
@@ -63,8 +62,7 @@ pub fn process(
     // We only implement trace-based sampling rules for now, which can be computed
     // once for all spans in the envelope.
     let sampling_result = dynamic_sampling::run(
-        managed_envelope,
-        event,
+        payload.into(),
         config.clone(),
         project_info.clone(),
         sampling_project_info,
@@ -79,8 +77,9 @@ pub fn process(
         &config,
         global_config,
         project_info.config(),
-        managed_envelope,
-        managed_envelope
+        &payload.managed_envelope,
+        payload
+            .managed_envelope
             .envelope()
             .meta()
             .client_addr()
@@ -88,12 +87,12 @@ pub fn process(
         geo_lookup,
     );
 
-    let client_ip = managed_envelope.envelope().meta().client_addr();
+    let client_ip = payload.managed_envelope.envelope().meta().client_addr();
     let filter_settings = &project_info.config.filter_settings;
     let sampling_decision = sampling_result.decision();
 
     let mut span_count = 0;
-    managed_envelope.retain_items(|item| {
+    payload.managed_envelope.retain_items(|item| {
         let mut annotated_span = match item.ty() {
             ItemType::OtelSpan => match serde_json::from_slice::<OtelSpan>(&item.payload()) {
                 Ok(otel_span) => Annotated::new(relay_spans::otel_to_sentry_span(otel_span)),
@@ -248,7 +247,9 @@ pub fn process(
     }
 
     if let Some(outcome) = sampling_result.into_dropped_outcome() {
-        managed_envelope.track_outcome(outcome, DataCategory::SpanIndexed, span_count);
+        payload
+            .managed_envelope
+            .track_outcome(outcome, DataCategory::SpanIndexed, span_count);
     }
 }
 
@@ -270,8 +271,7 @@ fn add_sample_rate(measurements: &mut Annotated<Measurements>, name: &str, value
 
 #[allow(clippy::too_many_arguments)]
 pub fn extract_from_event(
-    managed_envelope: &mut TypedEnvelope<TransactionGroup>,
-    event: &Annotated<Event>,
+    payload: &mut payload::WithEvent<TransactionGroup>,
     global_config: &GlobalConfig,
     config: Arc<Config>,
     project_info: Arc<ProjectInfo>,
@@ -399,18 +399,20 @@ pub fn extract_from_event(
 
 /// Removes the transaction in case the project has made the transition to spans-only.
 pub fn maybe_discard_transaction(
-    managed_envelope: &mut TypedEnvelope<TransactionGroup>,
-    event: Annotated<Event>,
+    payload: impl Into<payload::Any<TransactionGroup>>,
     project_info: Arc<ProjectInfo>,
-) -> Annotated<Event> {
-    if event_type(&event) == Some(EventType::Transaction)
+) -> payload::Any<TransactionGroup> {
+    let mut payload = payload.into();
+
+    let (managed_envelope, event) = payload.get_mut();
+    if event.and_then(|e| event_type(e)) == Some(EventType::Transaction)
         && project_info.has_feature(Feature::DiscardTransaction)
     {
         managed_envelope.update();
-        return Annotated::empty();
+        return payload.remove_event();
     }
 
-    event
+    payload
 }
 /// Config needed to normalize a standalone span.
 #[derive(Clone, Debug)]

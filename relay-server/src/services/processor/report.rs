@@ -42,12 +42,15 @@ pub enum ClientReportField {
 /// At the moment client reports are primarily used to transfer outcomes from
 /// client SDKs.  The outcomes are removed here and sent directly to the outcomes
 /// system.
-pub fn process_client_reports(
-    managed_envelope: &mut TypedEnvelope<ClientReportGroup>,
+pub fn process_client_reports<'a>(
+    payload: impl Into<payload::AnyRefMut<'a, ClientReportGroup>>,
     config: Arc<Config>,
     project_info: Arc<ProjectInfo>,
     outcome_aggregator: Addr<TrackOutcome>,
 ) {
+    let mut payload = payload.into();
+
+    let (managed_envelope, _) = payload.get_mut();
     // if client outcomes are disabled we leave the client reports unprocessed
     // and pass them on.
     if !config.emit_outcomes().any() || !config.emit_client_outcomes() {
@@ -197,7 +200,7 @@ pub fn process_client_reports(
 /// User feedback items are removed from the envelope if they contain invalid JSON or if the
 /// JSON violates the schema (basic type validation). Otherwise, their normalized representation
 /// is written back into the item.
-pub fn process_user_reports<'a, G: 'a>(mut payload: impl Into<payload::AnyRefMut<'a, G>>) {
+pub fn process_user_reports<'a, G: 'a>(payload: impl Into<payload::AnyRefMut<'a, G>>) {
     payload.into().managed_envelope_mut().retain_items(|item| {
         if item.ty() != &ItemType::UserReport {
             return ItemAction::Keep;

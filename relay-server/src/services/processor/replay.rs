@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use crate::envelope::{ContentType, ItemType};
 use crate::services::outcome::DiscardReason;
-use crate::services::processor::{should_filter, ProcessingError, ReplayGroup};
+use crate::services::processor::{payload, should_filter, ProcessingError, ReplayGroup};
 use crate::services::projects::project::ProjectInfo;
 use crate::statsd::{RelayCounters, RelayTimers};
 use crate::utils::{sample, TypedEnvelope};
@@ -26,7 +26,7 @@ use serde::{Deserialize, Serialize};
 
 /// Removes replays if the feature flag is not enabled.
 pub fn process(
-    managed_envelope: &mut TypedEnvelope<ReplayGroup>,
+    payload: &mut payload::NoEvent<ReplayGroup>,
     global_config: &GlobalConfig,
     config: Arc<Config>,
     project_info: Arc<ProjectInfo>,
@@ -34,27 +34,27 @@ pub fn process(
 ) -> Result<(), ProcessingError> {
     // If the replay feature is not enabled drop the items silently.
     if should_filter(&config, &project_info, Feature::SessionReplay) {
-        managed_envelope.drop_items_silently();
+        payload.managed_envelope.drop_items_silently();
         return Ok(());
     }
 
     // If the replay video feature is not enabled check the envelope items for a
     // replay video event.
     if project_info.has_feature(Feature::SessionReplayVideoDisabled)
-        && count_replay_video_events(managed_envelope) > 0
+        && count_replay_video_events(payload) > 0
     {
-        managed_envelope.drop_items_silently();
+        payload.managed_envelope.drop_items_silently();
         return Ok(());
     }
 
     let rpc = {
-        let meta = managed_envelope.envelope().meta();
+        let meta = payload.managed_envelope.envelope().meta();
 
         ReplayProcessingConfig {
             config: &project_info.config,
             global_config,
             geoip_lookup,
-            event_id: managed_envelope.envelope().event_id(),
+            event_id: payload.managed_envelope.envelope().event_id(),
             project_id: project_info.project_id,
             organization_id: project_info.organization_id,
             client_addr: meta.client_addr(),
@@ -82,7 +82,7 @@ pub fn process(
         None
     };
 
-    for item in managed_envelope.envelope_mut().items_mut() {
+    for item in payload.managed_envelope.envelope_mut().items_mut() {
         if project_info.has_feature(Feature::SessionReplayCombinedEnvelopeItems) {
             item.set_replay_combined_payload(true);
         }
@@ -360,8 +360,9 @@ fn handle_replay_video_item(
 
 // Pre-processors
 
-fn count_replay_video_events(managed_envelope: &mut TypedEnvelope<ReplayGroup>) -> usize {
-    managed_envelope
+fn count_replay_video_events(payload: &mut payload::NoEvent<ReplayGroup>) -> usize {
+    payload
+        .managed_envelope
         .envelope()
         .items()
         .filter(|item| item.ty() == &ItemType::ReplayVideo)

@@ -12,7 +12,7 @@ use relay_spans::otel_trace::TracesData;
 
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::services::outcome::{DiscardReason, Outcome};
-use crate::services::processor::{should_filter, SpanGroup};
+use crate::services::processor::{payload, should_filter, SpanGroup};
 use crate::utils::ItemAction;
 use crate::utils::TypedEnvelope;
 
@@ -24,14 +24,14 @@ pub use processing::*;
 use relay_config::Config;
 
 pub fn filter(
-    managed_envelope: &mut TypedEnvelope<SpanGroup>,
+    payload: &mut payload::NoEvent<SpanGroup>,
     config: Arc<Config>,
     project_info: Arc<ProjectInfo>,
 ) {
     let disabled = should_filter(&config, &project_info, Feature::StandaloneSpanIngestion);
     let otel_disabled = should_filter(&config, &project_info, Feature::OtelEndpoint);
 
-    managed_envelope.retain_items(|item| {
+    payload.managed_envelope.retain_items(|item| {
         if disabled && item.is_span() {
             relay_log::debug!("dropping span because feature is disabled");
             ItemAction::DropSilently
@@ -44,21 +44,21 @@ pub fn filter(
     });
 }
 
-pub fn convert_otel_traces_data(managed_envelope: &mut TypedEnvelope<SpanGroup>) {
-    let envelope = managed_envelope.envelope_mut();
+pub fn convert_otel_traces_data(payload: &mut payload::NoEvent<SpanGroup>) {
+    let envelope = payload.managed_envelope.envelope_mut();
 
     for item in envelope.take_items_by(|item| item.ty() == &ItemType::OtelTracesData) {
-        convert_traces_data(item, managed_envelope);
+        convert_traces_data(payload, item);
     }
 }
 
-fn convert_traces_data(item: Item, managed_envelope: &mut TypedEnvelope<SpanGroup>) {
+fn convert_traces_data(payload: &mut payload::NoEvent<SpanGroup>, item: Item) {
     let traces_data = match parse_traces_data(item) {
         Ok(traces_data) => traces_data,
         Err(reason) => {
             // NOTE: logging quantity=1 is semantically wrong, but we cannot know the real quantity
             // without parsing.
-            track_invalid(managed_envelope, reason);
+            track_invalid(payload, reason);
             return;
         }
     };
@@ -66,22 +66,26 @@ fn convert_traces_data(item: Item, managed_envelope: &mut TypedEnvelope<SpanGrou
         for scope in resource.scope_spans {
             for span in scope.spans {
                 // TODO: resources and scopes contain attributes, should denormalize into spans?
-                let Ok(payload) = serde_json::to_vec(&span) else {
-                    track_invalid(managed_envelope, DiscardReason::Internal);
+                let Ok(serialized_payload) = serde_json::to_vec(&span) else {
+                    track_invalid(payload, DiscardReason::Internal);
                     continue;
                 };
                 let mut item = Item::new(ItemType::OtelSpan);
-                item.set_payload(ContentType::Json, payload);
-                managed_envelope.envelope_mut().add_item(item);
+                item.set_payload(ContentType::Json, serialized_payload);
+                payload.managed_envelope.envelope_mut().add_item(item);
             }
         }
     }
-    managed_envelope.update(); // update envelope summary
+    payload.managed_envelope.update(); // update envelope summary
 }
 
-fn track_invalid(managed_envelope: &mut TypedEnvelope<SpanGroup>, reason: DiscardReason) {
-    managed_envelope.track_outcome(Outcome::Invalid(reason), DataCategory::Span, 1);
-    managed_envelope.track_outcome(Outcome::Invalid(reason), DataCategory::SpanIndexed, 1);
+fn track_invalid(payload: &mut payload::NoEvent<SpanGroup>, reason: DiscardReason) {
+    payload
+        .managed_envelope
+        .track_outcome(Outcome::Invalid(reason), DataCategory::Span, 1);
+    payload
+        .managed_envelope
+        .track_outcome(Outcome::Invalid(reason), DataCategory::SpanIndexed, 1);
 }
 
 fn parse_traces_data(item: Item) -> Result<TracesData, DiscardReason> {

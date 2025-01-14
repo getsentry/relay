@@ -13,22 +13,24 @@ use relay_protocol::Annotated;
 
 use crate::envelope::{ContentType, Item, ItemType};
 use crate::services::outcome::{DiscardReason, Outcome};
-use crate::services::processor::{event_type, should_filter, TransactionGroup};
+use crate::services::processor::{event_type, payload, should_filter, TransactionGroup};
 use crate::services::projects::project::ProjectInfo;
 use crate::utils::{ItemAction, TypedEnvelope};
 
 /// Filters out invalid and duplicate profiles.
 ///
 /// Returns the profile id of the single remaining profile, if there is one.
-pub fn filter<Group>(
-    managed_envelope: &mut TypedEnvelope<Group>,
-    event: &Annotated<Event>,
+pub fn filter<'a, G: 'a>(
+    payload: impl Into<payload::AnyRefMut<'a, G>>,
     config: Arc<Config>,
     project_id: ProjectId,
     project_info: Arc<ProjectInfo>,
 ) -> Option<ProfileId> {
+    let mut payload = payload.into();
+
+    let (managed_envelope, event) = payload.get_mut();
     let profiling_disabled = should_filter(&config, &project_info, Feature::Profiling);
-    let has_transaction = event_type(event) == Some(EventType::Transaction);
+    let has_transaction = event.and_then(|e| event_type(e)) == Some(EventType::Transaction);
     let keep_unsampled_profiles = true;
 
     let mut profile_id = None;
@@ -71,8 +73,14 @@ pub fn filter<Group>(
 /// The profile id may be `None` when the envelope does not contain a profile,
 /// in that case the profile context is removed.
 /// Some SDKs send transactions with profile ids but omit the profile in the envelope.
-pub fn transfer_id(event: &mut Annotated<Event>, profile_id: Option<ProfileId>) {
-    let Some(event) = event.value_mut() else {
+pub fn transfer_id<'a, G: 'a>(
+    payload: impl Into<payload::AnyRefMut<'a, G>>,
+    profile_id: Option<ProfileId>,
+) {
+    let mut payload = payload.into();
+
+    let (_, event) = payload.get_mut();
+    let Some(event) = event.and_then(|e| e.value_mut().as_mut()) else {
         return;
     };
 
@@ -95,13 +103,15 @@ pub fn transfer_id(event: &mut Annotated<Event>, profile_id: Option<ProfileId>) 
 }
 
 /// Processes profiles and set the profile ID in the profile context on the transaction if successful.
-pub fn process(
-    managed_envelope: &mut TypedEnvelope<TransactionGroup>,
-    event: &mut Annotated<Event>,
+pub fn process<'a, G: 'a>(
+    payload: impl Into<payload::AnyRefMut<'a, G>>,
     global_config: &GlobalConfig,
     config: Arc<Config>,
     project_info: Arc<ProjectInfo>,
 ) -> Option<ProfileId> {
+    let mut payload = payload.into();
+
+    let (managed_envelope, event) = payload.get_mut();
     let client_ip = managed_envelope.envelope().meta().client_addr();
     let filter_settings = &project_info.config.filter_settings;
 
@@ -116,7 +126,7 @@ pub fn process(
 
             // There should always be an event/transaction available at this stage.
             // It is required to expand the profile. If it's missing, drop the item.
-            let Some(event) = event.value() else {
+            let Some(event) = event.as_ref().and_then(|e| e.value()) else {
                 return ItemAction::DropSilently;
             };
 

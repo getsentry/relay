@@ -1,8 +1,16 @@
+use crate::utils::ManagedEnvelope;
 use relay_event_schema::protocol::Event;
 use relay_protocol::Annotated;
 use std::marker::PhantomData;
 
-use crate::utils::ManagedEnvelope;
+// NoEvent -> used when you have a code path that must not have an event.
+// WithEvent -> used when you must have an event, even if you don't use the event in the function. This
+//  is a way.
+// Any -> used when you want an owned type that can be both with or without an event.
+// AnyRefMut -> used when you want a mutable reference but don't care whether the function is called in a context that has event.
+// AnyRef -> used when you want a reference but don't care whether the function is called in a context that has event.
+// The whole idea is that the type defines the expectation, so if we don't use event but we want this function
+// to be called only when an event is generated, we use WithEvent.
 
 /// A payload type that can either contain an event or not, allowing ownership and type changes.
 ///
@@ -58,6 +66,13 @@ impl<G> Any<G> {
         match self {
             Any::WithEvent(with_event) => Any::NoEvent(with_event.remove_event()),
             Any::NoEvent(no_event) => Any::NoEvent(no_event),
+        }
+    }
+
+    pub fn into_inner(self) -> (ManagedEnvelope, Option<Annotated<Event>>) {
+        match self {
+            Any::WithEvent(with_event) => (with_event.managed_envelope, Some(with_event.event)),
+            Any::NoEvent(no_event) => (no_event.managed_envelope, None),
         }
     }
 }
@@ -203,6 +218,8 @@ pub struct WithEvent<G> {
 impl<G> WithEvent<G> {
     /// Creates a new WithEvent payload containing the given envelope and event.
     pub fn new(managed_envelope: ManagedEnvelope, event: Annotated<Event>) -> Self {
+        debug_assert!(event.value().is_some());
+
         Self {
             managed_envelope,
             event,
@@ -244,11 +261,6 @@ impl<G> NoEvent<G> {
             managed_envelope,
             _1: PhantomData,
         }
-    }
-
-    /// Returns true if this payload's envelope is empty.
-    pub fn has_empty_envelope(&self) -> bool {
-        self.managed_envelope.envelope().is_empty()
     }
 
     /// Adds an event to this payload, converting it into a WithEvent variant.

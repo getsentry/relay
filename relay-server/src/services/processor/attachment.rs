@@ -63,6 +63,7 @@ pub fn scrub<'a, G: 'a>(
     project_info: Arc<ProjectInfo>,
 ) {
     let mut payload = payload.into();
+
     let envelope = payload.managed_envelope_mut().envelope_mut();
     if let Some(ref config) = project_info.config.pii_config {
         let minidump = envelope

@@ -44,18 +44,17 @@ use crate::utils::{self, SamplingResult, TypedEnvelope};
 /// no sampling project information is specified, the project information of the event’s project
 /// will be returned.
 pub fn validate_and_set_dsc(
-    managed_envelope: &mut TypedEnvelope<TransactionGroup>,
-    event: &mut Annotated<Event>,
+    payload: &mut payload::WithEvent<TransactionGroup>,
     project_info: Arc<ProjectInfo>,
     sampling_project_info: Option<Arc<ProjectInfo>>,
 ) -> Option<Arc<ProjectInfo>> {
-    if managed_envelope.envelope().dsc().is_some() && sampling_project_info.is_some() {
+    if payload.managed_envelope.envelope().dsc().is_some() && sampling_project_info.is_some() {
         return sampling_project_info;
     }
 
     // The DSC can only be computed if there's a transaction event. Note that `dsc_from_event`
     // below already checks for the event type.
-    let Some(event) = event.value() else {
+    let Some(event) = payload.event.value() else {
         return sampling_project_info;
     };
     let Some(key_config) = project_info.get_public_key_config() else {
@@ -63,7 +62,7 @@ pub fn validate_and_set_dsc(
     };
 
     if let Some(dsc) = utils::dsc_from_event(key_config.public_key, event) {
-        managed_envelope.envelope_mut().set_dsc(dsc);
+        payload.managed_envelope.envelope_mut().set_dsc(dsc);
         return Some(project_info.clone());
     }
 
@@ -71,18 +70,17 @@ pub fn validate_and_set_dsc(
 }
 
 /// Computes the sampling decision on the incoming event
-pub fn run<Group>(
-    managed_envelope: &mut TypedEnvelope<Group>,
-    event: &mut Annotated<Event>,
+pub fn run<G>(
+    payload: &mut payload::WithEvent<G>,
     config: Arc<Config>,
     project_info: Arc<ProjectInfo>,
     sampling_project_info: Option<Arc<ProjectInfo>>,
     reservoir: &ReservoirEvaluator,
 ) -> SamplingResult
 where
-    Group: Sampling,
+    G: Sampling,
 {
-    if !Group::supports_sampling(&project_info) {
+    if !G::supports_sampling(&project_info) {
         return SamplingResult::Pending;
     }
 
@@ -97,26 +95,23 @@ where
         _ => None,
     };
 
-    let reservoir = Group::supports_reservoir_sampling().then_some(reservoir);
+    let reservoir = G::supports_reservoir_sampling().then_some(reservoir);
 
     compute_sampling_decision(
         config.processing_enabled(),
         reservoir,
         sampling_config,
-        event.value(),
+        payload.event.value(),
         root_config,
-        managed_envelope.envelope().dsc(),
+        payload.managed_envelope.envelope().dsc(),
     )
 }
 
 /// Apply the dynamic sampling decision from `compute_sampling_decision`.
-pub fn drop_unsampled_items(
-    managed_envelope: &mut TypedEnvelope<TransactionGroup>,
-    event: Annotated<Event>,
-    outcome: Outcome,
-) {
+pub fn drop_unsampled_items(payload: &mut payload::WithEvent<TransactionGroup>, outcome: Outcome) {
     // Remove all items from the envelope which need to be dropped due to dynamic sampling.
-    let dropped_items = managed_envelope
+    let dropped_items = payload
+        .managed_envelope
         .envelope_mut()
         // Profiles are not dropped by dynamic sampling, they are all forwarded to storage and
         // later processed in Sentry and potentially dropped there.
@@ -129,19 +124,21 @@ pub fn drop_unsampled_items(
             // but attachments are still emitted as attachments.
             let category = category.index_category().unwrap_or(category);
 
-            managed_envelope.track_outcome(outcome.clone(), category, quantity);
+            payload
+                .managed_envelope
+                .track_outcome(outcome.clone(), category, quantity);
         }
     }
 
     // Mark all remaining items in the envelope as un-sampled.
-    for item in managed_envelope.envelope_mut().items_mut() {
+    for item in payload.managed_envelope.envelope_mut().items_mut() {
         item.set_sampled(false);
     }
 
     // All items have been dropped, now make sure the event is also handled and dropped.
-    if let Some(category) = event_category(&event) {
+    if let Some(category) = event_category(&payload.event) {
         let category = category.index_category().unwrap_or(category);
-        managed_envelope.track_outcome(outcome, category, 1)
+        payload.managed_envelope.track_outcome(outcome, category, 1)
     }
 }
 
