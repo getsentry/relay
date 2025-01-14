@@ -220,7 +220,7 @@
 <span class="kw">use </span>relay_pii::{PiiAttachmentsProcessor, SelectorPathItem, SelectorSpec};
 <span class="kw">use </span>relay_statsd::metric;
 
-<span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, ContentType};
+<span class="kw">use </span><span class="kw">crate</span>::envelope::{AttachmentType, ContentType, ItemType};
 <span class="kw">use </span><span class="kw">crate</span>::statsd::RelayTimers;
 
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectInfo;
@@ -285,7 +285,7 @@
             // After we have assessed the impact on performance we can relax this condition.
             </span><span class="kw">for </span>item <span class="kw">in </span>envelope
                 .items_mut()
-                .filter(|item| item.attachment_type().is_some())
+                .filter(|item| item.ty() == <span class="kw-2">&amp;</span>ItemType::Attachment)
             {
                 scrub_attachment(item, config);
             }
