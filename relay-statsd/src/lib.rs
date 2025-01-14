@@ -56,7 +56,7 @@
 //! ```
 //!
 //! [Metric Types]: https://github.com/statsd/statsd/blob/master/docs/metric_types.md
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
 use std::net::ToSocketAddrs;
 use std::ops::Deref;
@@ -270,6 +270,7 @@ struct AggregationKey {
 }
 
 type AggregatedCounters = FxHashMap<AggregationKey, i64>;
+type AggregatedSets = FxHashMap<AggregationKey, BTreeSet<u64>>;
 type AggregatedDistributions = FxHashMap<AggregationKey, Vec<f64>>;
 
 pub trait IntoDistributionValue {
@@ -307,6 +308,8 @@ pub struct LocalAggregator {
     buf: String,
     /// A map of all the `counter` and `gauge` metrics we have aggregated thus far.
     aggregated_counters: AggregatedCounters,
+    /// A map of all the `set` metrics we have aggregated thus far.
+    aggregated_sets: AggregatedSets,
     /// A map of all the `timer` and `histogram` metrics we have aggregated thus far.
     aggregated_distributions: AggregatedDistributions,
 }
@@ -345,6 +348,20 @@ impl LocalAggregator {
 
         let aggregation = self.aggregated_counters.entry(key).or_default();
         *aggregation += value;
+    }
+
+    /// Emit a `set` metric, which is aggregated in a set.
+    pub fn emit_set(&mut self, name: &'static str, value: u64, tags: &[(&'static str, &str)]) {
+        let tags = self.format_tags(tags);
+
+        let key = AggregationKey {
+            ty: "|s",
+            name,
+            tags,
+        };
+
+        let aggregation = self.aggregated_sets.entry(key).or_default();
+        aggregation.insert(value);
     }
 
     /// Emit a `gauge` metric, for which only the latest value is retained.
@@ -448,35 +465,45 @@ where
 #[macro_export]
 macro_rules! metric {
     // counters
-    (counter($id:expr) += $value:expr $(, $k:ident = $v:expr)* $(,)?) => {{
+    (counter($id:expr) += $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
         $crate::with_client(|local| {
             let tags: &[(&'static str, &str)] = &[
-                $(($k, $v)),*
+                $((stringify!($k), $v)),*
             ];
             local.emit_count(&$crate::types::CounterMetric::name(&$id), $value, tags);
         });
-    }};
+    };
+
+    // counters
+    (set($id:expr) = $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
+        $crate::with_client(|local| {
+            let tags: &[(&'static str, &str)] = &[
+                $((stringify!($k), $v)),*
+            ];
+            local.emit_set(&$crate::types::SetMetric::name(&$id), $value, tags);
+        });
+    };
 
     // gauges
-    (gauge($id:expr) = $value:expr $(, $k:ident = $v:expr)* $(,)?) => {{
+    (gauge($id:expr) = $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
         $crate::with_client(|local| {
             let tags: &[(&'static str, &str)] = &[
-                $(($k, $v)),*
+                $((stringify!($k), $v)),*
             ];
             local.emit_gauge(&$crate::types::GaugeMetric::name(&$id), $value, tags);
-        });
-    }};
+        })
+    };
 
     // timers
-    (timer($id:expr) = $value:expr $(, $k:ident = $v:expr)* $(,)?) => {{
+    (timer($id:expr) = $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
         $crate::with_client(|local| {
             let tags: &[(&'static str, &str)] = &[
-                $(($k, $v)),*
+                $((stringify!($k), $v)),*
             ];
             use $crate::IntoDistributionValue;
             local.emit_timer(&$crate::types::TimerMetric::name(&$id), ($value).into_value(), tags);
         });
-    }};
+    };
 
     // timed block
     (timer($id:expr), $($k:ident = $v:expr,)* $block:block) => {{
@@ -484,33 +511,33 @@ macro_rules! metric {
         let rv = {$block};
         $crate::with_client(|local| {
             let tags: &[(&'static str, &str)] = &[
-                $(($k, $v)),*
+                $((stringify!($k), $v)),*
             ];
             use $crate::IntoDistributionValue;
-            local.emit_timer(&$crate::types::TimerMetric::name(&$id), now.elapsed(), tags);
+            local.emit_timer(&$crate::types::TimerMetric::name(&$id), now.elapsed().into_value(), tags);
         });
         rv
     }};
 
     // we use statsd timers to send things such as filesizes as well.
-    (time_raw($id:expr) = $value:expr $(, $k:ident = $v:expr)* $(,)?) => {{
+    (time_raw($id:expr) = $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
         $crate::with_client(|local| {
             let tags: &[(&'static str, &str)] = &[
-                $(($k, $v)),*
+                $((stringify!($k), $v)),*
             ];
             use $crate::IntoDistributionValue;
             local.emit_timer(&$crate::types::TimerMetric::name(&$id), ($value).into_value(), tags);
         });
-    }};
+    };
 
     // histograms
-    (histogram($id:expr) = $value:expr $(, $k:ident = $v:expr)* $(,)?) => {{
+    (histogram($id:expr) = $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
         $crate::with_client(|local| {
             let tags: &[(&'static str, &str)] = &[
-                $(($k, $v)),*
+                $((stringify!($k), $v)),*
             ];
             use $crate::IntoDistributionValue;
             local.emit_histogram(&$crate::types::HistogramMetric::name(&$id), ($value).into_value(), tags);
         });
-    }};
+    };
 }

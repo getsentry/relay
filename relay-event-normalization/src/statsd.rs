@@ -1,4 +1,4 @@
-use relay_statsd::TimerMetric;
+use relay_statsd::types::TimerMetric;
 
 pub enum Timers {
     /// Measures how log normalization of SQL queries in span description take.
