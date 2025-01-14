@@ -1,4 +1,4 @@
-use relay_statsd::{CounterMetric, HistogramMetric, SetMetric, TimerMetric};
+use relay_statsd::types::{CounterMetric, HistogramMetric, SetMetric, TimerMetric};
 
 /// Counter metrics for the Relay Cardinality Limiter.
 pub enum CardinalityLimiterCounters {

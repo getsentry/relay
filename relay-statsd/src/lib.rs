@@ -57,612 +57,460 @@
 //!
 //! [Metric Types]: https://github.com/statsd/statsd/blob/master/docs/metric_types.md
 use std::collections::BTreeMap;
+use std::fmt::Write;
 use std::net::ToSocketAddrs;
-use std::ops::{Deref, DerefMut};
-use std::sync::Arc;
+use std::ops::Deref;
+use std::sync::{Arc, Mutex, OnceLock};
+use std::thread;
+use std::time::Duration;
 
-use cadence::{Metric, MetricBuilder, StatsdClient};
-use parking_lot::RwLock;
-use rand::distributions::{Distribution, Uniform};
-use statsdproxy::cadence::StatsdProxyMetricSink;
+use cadence::{BufferedUdpMetricSink, MetricSink, QueuingMetricSink, StatsdClient};
+use crossbeam_utils::CachePadded;
+use rustc_hash::FxHashMap;
+use thread_local::ThreadLocal;
 
-mod wrapper;
+pub mod types;
 
-/// Maximum number of metric events that can be queued before we start dropping them
-const METRICS_MAX_QUEUE_SIZE: usize = 100_000;
+static METRICS_CLIENT: OnceLock<MetricsWrapper> = OnceLock::new();
 
-/// Client configuration object to store globally.
-#[derive(Debug)]
-pub struct MetricsClient {
-    /// The raw statsd client.
-    pub statsd_client: StatsdClient,
-    /// Default tags to apply to every metric.
-    pub default_tags: BTreeMap<String, String>,
-    /// Global sample rate.
-    pub sample_rate: f32,
-    /// Receiver for external listeners.
-    ///
-    /// Only available when the client was initialized with `init_basic`.
-    pub rx: Option<crossbeam_channel::Receiver<Vec<u8>>>,
+#[derive(Debug, Clone)]
+struct Sink(Arc<QueuingMetricSink>);
+
+impl MetricSink for Sink {
+    fn emit(&self, metric: &str) -> std::io::Result<usize> {
+        self.0.emit(metric)
+    }
+    fn flush(&self) -> std::io::Result<()> {
+        self.0.flush()
+    }
 }
 
-impl Deref for MetricsClient {
+type LocalAggregators = Arc<ThreadLocal<CachePadded<Mutex<LocalAggregator>>>>;
+
+/// The globally configured Metrics, including a `cadence` client, and a local aggregator.
+#[derive(Debug)]
+pub struct MetricsWrapper {
+    /// The raw `cadence` client.
+    statsd_client: StatsdClient,
+
+    /// A thread local aggregator.
+    local_aggregator: LocalAggregators,
+}
+
+impl MetricsWrapper {
+    /// Invokes the provided callback with a mutable reference to a thread-local [`LocalAggregator`].
+    fn with_local_aggregator(&self, f: impl FnOnce(&mut LocalAggregator)) {
+        let mut local_aggregator = self
+            .local_aggregator
+            .get_or(Default::default)
+            .lock()
+            .unwrap();
+        f(&mut local_aggregator)
+    }
+}
+
+impl Deref for MetricsWrapper {
     type Target = StatsdClient;
 
-    fn deref(&self) -> &StatsdClient {
+    fn deref(&self) -> &Self::Target {
         &self.statsd_client
     }
 }
 
-impl DerefMut for MetricsClient {
-    fn deref_mut(&mut self) -> &mut StatsdClient {
-        &mut self.statsd_client
-    }
-}
+/// We are not (yet) aggregating distributions, but keeping every value.
+/// To not overwhelm downstream services, we send them in batches instead of all at once.
+const DISTRIBUTION_BATCH_SIZE: usize = 1;
 
-impl MetricsClient {
-    /// Send a metric with the default tags defined on this `MetricsClient`.
-    #[inline(always)]
-    pub fn send_metric<'a, T>(&'a self, mut metric: MetricBuilder<'a, '_, T>)
-    where
-        T: Metric + From<String>,
-    {
-        if !self._should_send() {
-            return;
-        }
+/// The interval in which to flush out metrics.
+/// NOTE: In particular for timer metrics, we have observed that for some reason, *some* of the timer
+/// metrics are getting lost (interestingly enough, not all of them) and are not being aggregated into the `.count`
+/// sub-metric collected by `veneur`. Lets just flush a lot more often in order to emit less metrics per-flush.
+const SEND_INTERVAL: Duration = Duration::from_millis(125);
 
-        for (k, v) in &self.default_tags {
-            metric = metric.with_tag(k, v);
-        }
+/// Creates [`LocalAggregators`] and starts a thread that will periodically
+/// send aggregated metrics upstream to the `sink`.
+fn make_aggregator(prefix: &str, formatted_global_tags: String, sink: Sink) -> LocalAggregators {
+    let local_aggregators = LocalAggregators::default();
 
-        if let Err(error) = metric.try_send() {
-            relay_log::error!(
-                error = &error as &dyn std::error::Error,
-                maximum_capacity = METRICS_MAX_QUEUE_SIZE,
-                "Error sending a metric",
-            );
-        }
-    }
-
-    fn _should_send(&self) -> bool {
-        if self.sample_rate <= 0.0 {
-            false
-        } else if self.sample_rate >= 1.0 {
-            true
-        } else {
-            // Using thread local RNG and uniform distribution here because Rng::gen_range is
-            // "optimized for the case that only a single sample is made from the given range".
-            // See https://docs.rs/rand/0.7.3/rand/distributions/uniform/struct.Uniform.html for more
-            // details.
-            let mut rng = rand::thread_rng();
-            RNG_UNIFORM_DISTRIBUTION
-                .with(|uniform_dist| uniform_dist.sample(&mut rng) <= self.sample_rate)
-        }
-    }
-}
-
-static METRICS_CLIENT: RwLock<Option<Arc<MetricsClient>>> = RwLock::new(None);
-
-thread_local! {
-    static CURRENT_CLIENT: std::cell::RefCell<Option<Arc<MetricsClient>>>  = METRICS_CLIENT.read().clone().into();
-    static RNG_UNIFORM_DISTRIBUTION: Uniform<f32> = Uniform::new(0.0, 1.0);
-}
-
-/// Internal prelude for the macro
-#[doc(hidden)]
-pub mod _pred {
-    pub use cadence::prelude::*;
-}
-
-/// The metrics prelude that is necessary to use the client.
-pub mod prelude {
-    pub use cadence::prelude::*;
-}
-
-/// Set a new statsd client.
-pub fn set_client(client: MetricsClient) {
-    *METRICS_CLIENT.write() = Some(Arc::new(client));
-    CURRENT_CLIENT.with(|cell| cell.replace(METRICS_CLIENT.read().clone()));
-}
-
-/// Set a test client for the period of the called function (only affects the current thread).
-// TODO: replace usages with `init_basic`
-pub fn with_capturing_test_client(f: impl FnOnce()) -> Vec<String> {
-    let (rx, sink) = cadence::SpyMetricSink::new();
-    let test_client = MetricsClient {
-        statsd_client: StatsdClient::from_sink("", sink),
-        default_tags: Default::default(),
-        sample_rate: 1.0,
-        rx: None,
+    let aggregators = Arc::clone(&local_aggregators);
+    let prefix = if prefix.is_empty() {
+        String::new()
+    } else {
+        format!("{}.", prefix.trim_end_matches('.'))
     };
 
-    CURRENT_CLIENT.with(|cell| {
-        let old_client = cell.replace(Some(Arc::new(test_client)));
-        f();
-        cell.replace(old_client);
-    });
+    let thread_fn = move || {
+        // to avoid reallocation, just reserve some space.
+        // the size is rather arbitrary, but should be large enough for formatted metrics.
+        let mut formatted_metric = String::with_capacity(256);
+        let mut suffix = String::with_capacity(128);
 
-    rx.iter().map(|x| String::from_utf8(x).unwrap()).collect()
-}
+        loop {
+            thread::sleep(SEND_INTERVAL);
 
-// Setup a simple metrics listener.
-//
-// Returns `None` if the global metrics client has already been configured.
-pub fn init_basic() -> Option<crossbeam_channel::Receiver<Vec<u8>>> {
-    CURRENT_CLIENT.with(|cell| {
-        if cell.borrow().is_none() {
-            // Setup basic observable metrics sink.
-            let (receiver, sink) = cadence::SpyMetricSink::new();
-            let test_client = MetricsClient {
-                statsd_client: StatsdClient::from_sink("", sink),
-                default_tags: Default::default(),
-                sample_rate: 1.0,
-                rx: Some(receiver.clone()),
-            };
-            cell.replace(Some(Arc::new(test_client)));
-        }
-    });
+            let (total_counters, total_distributions) = aggregate_all(&aggregators);
 
-    CURRENT_CLIENT.with(|cell| {
-        cell.borrow()
-            .as_deref()
-            .and_then(|client| match &client.rx {
-                Some(rx) => Some(rx.clone()),
-                None => {
-                    relay_log::error!("Metrics client was already set up.");
-                    None
+            // send all the aggregated "counter like" metrics
+            for (AggregationKey { ty, name, tags }, value) in total_counters {
+                formatted_metric.push_str(&prefix);
+                formatted_metric.push_str(name);
+
+                let _ = write!(&mut formatted_metric, ":{value}{ty}{formatted_global_tags}");
+
+                if let Some(tags) = tags {
+                    if formatted_global_tags.is_empty() {
+                        formatted_metric.push_str("|#");
+                    } else {
+                        formatted_metric.push(',');
+                    }
+                    formatted_metric.push_str(&tags);
                 }
-            })
-    })
+
+                let _ = sink.emit(&formatted_metric);
+
+                formatted_metric.clear();
+            }
+
+            // send all the aggregated "distribution like" metrics
+            // we do this in a batched manner, as we do not actually *aggregate* them,
+            // but still send each value individually.
+            for (AggregationKey { ty, name, tags }, value) in total_distributions {
+                suffix.push_str(&formatted_global_tags);
+                if let Some(tags) = tags {
+                    if formatted_global_tags.is_empty() {
+                        suffix.push_str("|#");
+                    } else {
+                        suffix.push(',');
+                    }
+                    suffix.push_str(&tags);
+                }
+
+                for batch in value.chunks(DISTRIBUTION_BATCH_SIZE) {
+                    formatted_metric.push_str(&prefix);
+                    formatted_metric.push_str(name);
+
+                    for value in batch {
+                        let _ = write!(&mut formatted_metric, ":{value}");
+                    }
+
+                    formatted_metric.push_str(ty);
+                    formatted_metric.push_str(&suffix);
+
+                    let _ = sink.emit(&formatted_metric);
+                    formatted_metric.clear();
+                }
+
+                suffix.clear();
+            }
+        }
+    };
+
+    thread::Builder::new()
+        .name("metrics-aggregator".into())
+        .spawn(thread_fn)
+        .unwrap();
+
+    local_aggregators
 }
 
-/// Disable the client again.
-pub fn disable() {
-    *METRICS_CLIENT.write() = None;
+fn aggregate_all(aggregators: &LocalAggregators) -> (AggregatedCounters, AggregatedDistributions) {
+    let mut total_counters = AggregatedCounters::default();
+    let mut total_distributions = AggregatedDistributions::default();
+
+    for local_aggregator in aggregators.iter() {
+        let (local_counters, local_distributions) = {
+            let mut local_aggregator = local_aggregator.lock().unwrap();
+            (
+                std::mem::take(&mut local_aggregator.aggregated_counters),
+                std::mem::take(&mut local_aggregator.aggregated_distributions),
+            )
+        };
+
+        // aggregate all the "counter like" metrics
+        if total_counters.is_empty() {
+            total_counters = local_counters;
+        } else {
+            for (key, value) in local_counters {
+                let ty = key.ty;
+                let aggregated_value = total_counters.entry(key).or_default();
+                if ty == "|c" {
+                    *aggregated_value += value;
+                } else if ty == "|g" {
+                    // FIXME: when aggregating multiple thread-locals,
+                    // we don’t really know which one is the "latest".
+                    // But it also does not really matter that much?
+                    *aggregated_value = value;
+                }
+            }
+        }
+
+        // aggregate all the "distribution like" metrics
+        if total_distributions.is_empty() {
+            total_distributions = local_distributions;
+        } else {
+            for (key, value) in local_distributions {
+                let aggregated_value = total_distributions.entry(key).or_default();
+                aggregated_value.extend(value);
+            }
+        }
+    }
+
+    (total_counters, total_distributions)
+}
+
+/// The key by which we group/aggregate metrics.
+#[derive(Eq, Ord, PartialEq, PartialOrd, Hash, Debug)]
+struct AggregationKey {
+    /// The metric type, pre-formatted as a statsd suffix such as `|c`.
+    ty: &'static str,
+    /// The name of the metric.
+    name: &'static str,
+    /// The metric tags, pre-formatted as a statsd suffix, excluding the `|#` prefix.
+    tags: Option<Box<str>>,
+}
+
+type AggregatedCounters = FxHashMap<AggregationKey, i64>;
+type AggregatedDistributions = FxHashMap<AggregationKey, Vec<f64>>;
+
+pub trait IntoDistributionValue {
+    fn into_value(self) -> f64;
+}
+
+impl IntoDistributionValue for Duration {
+    fn into_value(self) -> f64 {
+        self.as_secs_f64() * 1_000.
+    }
+}
+
+impl IntoDistributionValue for usize {
+    fn into_value(self) -> f64 {
+        self as f64
+    }
+}
+
+impl IntoDistributionValue for u64 {
+    fn into_value(self) -> f64 {
+        self as f64
+    }
+}
+
+impl IntoDistributionValue for i32 {
+    fn into_value(self) -> f64 {
+        self as f64
+    }
+}
+
+/// The `thread_local` aggregator which pre-aggregates metrics per-thread.
+#[derive(Default, Debug)]
+pub struct LocalAggregator {
+    /// A mutable scratch-buffer that is reused to format tags into it.
+    buf: String,
+    /// A map of all the `counter` and `gauge` metrics we have aggregated thus far.
+    aggregated_counters: AggregatedCounters,
+    /// A map of all the `timer` and `histogram` metrics we have aggregated thus far.
+    aggregated_distributions: AggregatedDistributions,
+}
+
+impl LocalAggregator {
+    /// Formats the `tags` into a `statsd` like format with the help of our scratch buffer.
+    fn format_tags(&mut self, tags: &[(&str, &str)]) -> Option<Box<str>> {
+        if tags.is_empty() {
+            return None;
+        }
+
+        // to avoid reallocation, just reserve some space.
+        // the size is rather arbitrary, but should be large enough for reasonable tags.
+        self.buf.reserve(128);
+        for (key, value) in tags {
+            if !self.buf.is_empty() {
+                self.buf.push(',');
+            }
+            let _ = write!(&mut self.buf, "{key}:{value}");
+        }
+        let formatted_tags = self.buf.as_str().into();
+        self.buf.clear();
+
+        Some(formatted_tags)
+    }
+
+    /// Emit a `count` metric, which is aggregated by summing up all values.
+    pub fn emit_count(&mut self, name: &'static str, value: i64, tags: &[(&'static str, &str)]) {
+        let tags = self.format_tags(tags);
+
+        let key = AggregationKey {
+            ty: "|c",
+            name,
+            tags,
+        };
+
+        let aggregation = self.aggregated_counters.entry(key).or_default();
+        *aggregation += value;
+    }
+
+    /// Emit a `gauge` metric, for which only the latest value is retained.
+    pub fn emit_gauge(&mut self, name: &'static str, value: u64, tags: &[(&'static str, &str)]) {
+        let tags = self.format_tags(tags);
+
+        let key = AggregationKey {
+            // TODO: maybe we want to give gauges their own aggregations?
+            ty: "|g",
+            name,
+            tags,
+        };
+
+        let aggregation = self.aggregated_counters.entry(key).or_default();
+        *aggregation = value as i64;
+    }
+
+    /// Emit a `timer` metric, for which every value is accumulated
+    pub fn emit_timer(&mut self, name: &'static str, value: f64, tags: &[(&'static str, &str)]) {
+        let tags = self.format_tags(tags);
+        self.emit_distribution_inner("|ms", name, value, tags)
+    }
+
+    /// Emit a `histogram` metric, for which every value is accumulated
+    pub fn emit_histogram(
+        &mut self,
+        name: &'static str,
+        value: f64,
+        tags: &[(&'static str, &str)],
+    ) {
+        let tags = self.format_tags(tags);
+        self.emit_distribution_inner("|h", name, value, tags)
+    }
+
+    /// Emit a distribution metric, which is aggregated by appending to a list of values.
+    fn emit_distribution_inner(
+        &mut self,
+        ty: &'static str,
+        name: &'static str,
+        value: f64,
+        tags: Option<Box<str>>,
+    ) {
+        let key = AggregationKey { ty, name, tags };
+
+        let aggregation = self.aggregated_distributions.entry(key).or_default();
+        aggregation.push(value);
+    }
 }
 
 /// Tell the metrics system to report to statsd.
-pub fn init<A: ToSocketAddrs>(
-    prefix: &str,
-    host: A,
-    default_tags: BTreeMap<String, String>,
-    sample_rate: f32,
-) {
+pub fn configure_statsd<A: ToSocketAddrs>(prefix: &str, host: A, tags: BTreeMap<String, String>) {
     let addrs: Vec<_> = host.to_socket_addrs().unwrap().collect();
-    if !addrs.is_empty() {
-        relay_log::info!("reporting metrics to statsd at {}", addrs[0]);
-    }
 
-    // Normalize sample_rate
-    let sample_rate = sample_rate.clamp(0., 1.);
-    relay_log::debug!(
-        "metrics sample rate is set to {sample_rate}{}",
-        if sample_rate == 0.0 {
-            ", no metrics will be reported"
+    let socket = std::net::UdpSocket::bind("0.0.0.0:0").unwrap();
+    socket.set_nonblocking(true).unwrap();
+    let udp_sink = BufferedUdpMetricSink::from(&addrs[..], socket).unwrap();
+    let queuing_sink = QueuingMetricSink::from(udp_sink);
+    let sink = Sink(Arc::new(queuing_sink));
+
+    let mut builder = StatsdClient::builder(prefix, sink.clone());
+
+    // pre-format the global tags in `statsd` format, including a leading `|#`.
+    let mut formatted_global_tags = String::new();
+    for (key, value) in tags {
+        if formatted_global_tags.is_empty() {
+            formatted_global_tags.push_str("|#");
         } else {
-            ""
+            formatted_global_tags.push(',');
         }
-    );
+        let _ = write!(&mut formatted_global_tags, "{key}:{value}");
 
-    let statsd_client = {
-        let statsdproxy_sink = StatsdProxyMetricSink::new(move || {
-            statsdproxy::middleware::upstream::Upstream::new(addrs[0])
-                .expect("failed to create statsdproxy metric sind")
-        });
-        StatsdClient::from_sink(prefix, statsdproxy_sink)
+        builder = builder.with_tag(key, value)
+    }
+    let statsd_client = builder.build();
+
+    let local_aggregator = make_aggregator(prefix, formatted_global_tags, sink);
+
+    let wrapper = MetricsWrapper {
+        statsd_client,
+        local_aggregator,
     };
 
-    set_client(MetricsClient {
-        statsd_client,
-        default_tags,
-        sample_rate,
-        rx: None,
-    });
+    METRICS_CLIENT.set(wrapper).unwrap();
 }
 
-/// Invoke a callback with the current statsd client.
+/// Invoke a callback with the current [`MetricsWrapper`] and [`LocalAggregator`].
 ///
-/// If statsd is not configured the callback is not invoked.  For the most part
-/// the [`metric!`] macro should be used instead.
+/// If metrics have not been configured, the callback is not invoked.
+/// For the most part the [`metric!`](crate::metric) macro should be used instead.
 #[inline(always)]
-pub fn with_client<F, R>(f: F) -> R
+pub fn with_client<F>(f: F)
 where
-    F: FnOnce(&MetricsClient) -> R,
-    R: Default,
+    F: FnOnce(&mut LocalAggregator),
 {
-    CURRENT_CLIENT.with(|client| {
-        if let Some(client) = client.borrow().as_deref() {
-            f(client)
-        } else {
-            R::default()
-        }
-    })
-}
-
-/// A metric for capturing timings.
-///
-/// Timings are a positive number of milliseconds between a start and end time. Examples include
-/// time taken to render a web page or time taken for a database call to return.
-///
-/// ## Example
-///
-/// ```
-/// use relay_statsd::{metric, TimerMetric};
-///
-/// enum MyTimer {
-///     ProcessA,
-///     ProcessB,
-/// }
-///
-/// impl TimerMetric for MyTimer {
-///     fn name(&self) -> &'static str {
-///         match self {
-///             Self::ProcessA => "process_a",
-///             Self::ProcessB => "process_b",
-///         }
-///     }
-/// }
-///
-/// # fn process_a() {}
-///
-/// // measure time by explicitly setting a std::timer::Duration
-/// # use std::time::Instant;
-/// let start_time = Instant::now();
-/// process_a();
-/// metric!(timer(MyTimer::ProcessA) = start_time.elapsed());
-///
-/// // provide tags to a timer
-/// metric!(
-///     timer(MyTimer::ProcessA) = start_time.elapsed(),
-///     server = "server1",
-///     host = "host1",
-/// );
-///
-/// // measure time implicitly by enclosing a code block in a metric
-/// metric!(timer(MyTimer::ProcessA), {
-///     process_a();
-/// });
-///
-/// // measure block and also provide tags
-/// metric!(
-///     timer(MyTimer::ProcessB),
-///     server = "server1",
-///     host = "host1",
-///     {
-///         process_a();
-///     }
-/// );
-///
-/// ```
-pub trait TimerMetric {
-    /// Returns the timer metric name that will be sent to statsd.
-    fn name(&self) -> &'static str;
-}
-
-/// A metric for capturing counters.
-///
-/// Counters are simple values incremented or decremented by a client. The rates at which these
-/// events occur or average values will be determined by the server receiving them. Examples of
-/// counter uses include number of logins to a system or requests received.
-///
-/// ## Example
-///
-/// ```
-/// use relay_statsd::{metric, CounterMetric};
-///
-/// enum MyCounter {
-///     TotalRequests,
-///     TotalBytes,
-/// }
-///
-/// impl CounterMetric for MyCounter {
-///     fn name(&self) -> &'static str {
-///         match self {
-///             Self::TotalRequests => "total_requests",
-///             Self::TotalBytes => "total_bytes",
-///         }
-///     }
-/// }
-///
-/// # let buffer = &[(), ()];
-///
-/// // add to the counter
-/// metric!(counter(MyCounter::TotalRequests) += 1);
-/// metric!(counter(MyCounter::TotalBytes) += buffer.len() as i64);
-///
-/// // add to the counter and provide tags
-/// metric!(
-///     counter(MyCounter::TotalRequests) += 1,
-///     server = "s1",
-///     host = "h1"
-/// );
-///
-/// // subtract from the counter
-/// metric!(counter(MyCounter::TotalRequests) -= 1);
-///
-/// // subtract from the counter and provide tags
-/// metric!(
-///     counter(MyCounter::TotalRequests) -= 1,
-///     server = "s1",
-///     host = "h1"
-/// );
-/// ```
-pub trait CounterMetric {
-    /// Returns the counter metric name that will be sent to statsd.
-    fn name(&self) -> &'static str;
-}
-
-/// A metric for capturing histograms.
-///
-/// Histograms are values whose distribution is calculated by the server. The distribution
-/// calculated for histograms is often similar to that of timers. Histograms can be thought of as a
-/// more general (not limited to timing things) form of timers.
-///
-/// ## Example
-///
-/// ```
-/// use relay_statsd::{metric, HistogramMetric};
-///
-/// struct QueueSize;
-///
-/// impl HistogramMetric for QueueSize {
-///     fn name(&self) -> &'static str {
-///         "queue_size"
-///     }
-/// }
-///
-/// # use std::collections::VecDeque;
-/// let queue = VecDeque::new();
-/// # let _hint: &VecDeque<()> = &queue;
-///
-/// // record a histogram value
-/// metric!(histogram(QueueSize) = queue.len() as u64);
-///
-/// // record with tags
-/// metric!(
-///     histogram(QueueSize) = queue.len() as u64,
-///     server = "server1",
-///     host = "host1",
-/// );
-/// ```
-pub trait HistogramMetric {
-    /// Returns the histogram metric name that will be sent to statsd.
-    fn name(&self) -> &'static str;
-}
-
-/// A metric for capturing sets.
-///
-/// Sets count the number of unique elements in a group. You can use them to, for example, count the
-/// unique visitors to your site.
-///
-/// ## Example
-///
-/// ```
-/// use relay_statsd::{metric, SetMetric};
-///
-/// enum MySet {
-///     UniqueProjects,
-///     UniqueUsers,
-/// }
-///
-/// impl SetMetric for MySet {
-///     fn name(&self) -> &'static str {
-///         match self {
-///             MySet::UniqueProjects => "unique_projects",
-///             MySet::UniqueUsers => "unique_users",
-///         }
-///     }
-/// }
-///
-/// # use std::collections::HashSet;
-/// let users = HashSet::new();
-/// # let _hint: &HashSet<()> = &users;
-///
-/// // use a set metric
-/// metric!(set(MySet::UniqueUsers) = users.len() as i64);
-///
-/// // use a set metric with tags
-/// metric!(
-///     set(MySet::UniqueUsers) = users.len() as i64,
-///     server = "server1",
-///     host = "host1",
-/// );
-/// ```
-pub trait SetMetric {
-    /// Returns the set metric name that will be sent to statsd.
-    fn name(&self) -> &'static str;
-}
-
-/// A metric for capturing gauges.
-///
-/// Gauge values are an instantaneous measurement of a value determined by the client. They do not
-/// change unless changed by the client. Examples include things like load average or how many
-/// connections are active.
-///
-/// ## Example
-///
-/// ```
-/// use relay_statsd::{metric, GaugeMetric};
-///
-/// struct QueueSize;
-///
-/// impl GaugeMetric for QueueSize {
-///     fn name(&self) -> &'static str {
-///         "queue_size"
-///     }
-/// }
-///
-/// # use std::collections::VecDeque;
-/// let queue = VecDeque::new();
-/// # let _hint: &VecDeque<()> = &queue;
-///
-/// // a simple gauge value
-/// metric!(gauge(QueueSize) = queue.len() as u64);
-///
-/// // a gauge with tags
-/// metric!(
-///     gauge(QueueSize) = queue.len() as u64,
-///     server = "server1",
-///     host = "host1"
-/// );
-/// ```
-pub trait GaugeMetric {
-    /// Returns the gauge metric name that will be sent to statsd.
-    fn name(&self) -> &'static str;
+    if let Some(client) = METRICS_CLIENT.get() {
+        client.with_local_aggregator(f)
+    }
 }
 
 /// Emits a metric.
-///
-/// See [crate-level documentation](self) for examples.
 #[macro_export]
 macro_rules! metric {
-    // counter increment
-    (counter($id:expr) += $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
-        match $value {
-            value if value != 0 => {
-                $crate::with_client(|client| {
-                    use $crate::_pred::*;
-                    client.send_metric(
-                        client.count_with_tags(&$crate::CounterMetric::name(&$id), value)
-                        $(.with_tag(stringify!($k), $v))*
-                    )
-                })
-            },
-            _ => {},
-        };
-    };
+    // counters
+    (counter($id:expr) += $value:expr $(, $k:ident = $v:expr)* $(,)?) => {{
+        $crate::with_client(|local| {
+            let tags: &[(&'static str, &str)] = &[
+                $(($k, $v)),*
+            ];
+            local.emit_count(&$crate::types::CounterMetric::name(&$id), $value, tags);
+        });
+    }};
 
-    // counter decrement
-    (counter($id:expr) -= $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
-        match $value {
-            value if value != 0 => {
-                $crate::with_client(|client| {
-                    use $crate::_pred::*;
-                    client.send_metric(
-                        client.count_with_tags(&$crate::CounterMetric::name(&$id), -value)
-                            $(.with_tag(stringify!($k), $v))*
-                    )
-                })
-            },
-            _ => {},
-        };
-    };
+    // gauges
+    (gauge($id:expr) = $value:expr $(, $k:ident = $v:expr)* $(,)?) => {{
+        $crate::with_client(|local| {
+            let tags: &[(&'static str, &str)] = &[
+                $(($k, $v)),*
+            ];
+            local.emit_gauge(&$crate::types::GaugeMetric::name(&$id), $value, tags);
+        });
+    }};
 
-    // gauge set
-    (gauge($id:expr) = $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
-        $crate::with_client(|client| {
-            use $crate::_pred::*;
-            client.send_metric(
-                client.gauge_with_tags(&$crate::GaugeMetric::name(&$id), $value)
-                    $(.with_tag(stringify!($k), $v))*
-            )
-        })
-    };
-
-    // histogram
-    (histogram($id:expr) = $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
-        $crate::with_client(|client| {
-            use $crate::_pred::*;
-            client.send_metric(
-                client.histogram_with_tags(&$crate::HistogramMetric::name(&$id), $value)
-                    $(.with_tag(stringify!($k), $v))*
-            )
-        })
-    };
-
-    // sets (count unique occurrences of a value per time interval)
-    (set($id:expr) = $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
-        $crate::with_client(|client| {
-            use $crate::_pred::*;
-            client.send_metric(
-                client.set_with_tags(&$crate::SetMetric::name(&$id), $value)
-                    $(.with_tag(stringify!($k), $v))*
-            )
-        })
-    };
-
-    // timer value (duration)
-    (timer($id:expr) = $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
-        $crate::with_client(|client| {
-            use $crate::_pred::*;
-            client.send_metric(
-                client.time_with_tags(&$crate::TimerMetric::name(&$id), $value)
-                    $(.with_tag(stringify!($k), $v))*
-            )
-        })
-    };
+    // timers
+    (timer($id:expr) = $value:expr $(, $k:ident = $v:expr)* $(,)?) => {{
+        $crate::with_client(|local| {
+            let tags: &[(&'static str, &str)] = &[
+                $(($k, $v)),*
+            ];
+            use $crate::IntoDistributionValue;
+            local.emit_timer(&$crate::types::TimerMetric::name(&$id), ($value).into_value(), tags);
+        });
+    }};
 
     // timed block
     (timer($id:expr), $($k:ident = $v:expr,)* $block:block) => {{
         let now = std::time::Instant::now();
         let rv = {$block};
-        $crate::with_client(|client| {
-            use $crate::_pred::*;
-            client.send_metric(
-                client.time_with_tags(&$crate::TimerMetric::name(&$id), now.elapsed())
-                    $(.with_tag(stringify!($k), $v))*
-            )
+        $crate::with_client(|local| {
+            let tags: &[(&'static str, &str)] = &[
+                $(($k, $v)),*
+            ];
+            use $crate::IntoDistributionValue;
+            local.emit_timer(&$crate::types::TimerMetric::name(&$id), now.elapsed(), tags);
         });
         rv
     }};
-}
 
-#[cfg(test)]
-mod tests {
-    use cadence::{NopMetricSink, StatsdClient};
-
-    use crate::{set_client, with_capturing_test_client, with_client, GaugeMetric, MetricsClient};
-
-    enum TestGauges {
-        Foo,
-        Bar,
-    }
-
-    impl GaugeMetric for TestGauges {
-        fn name(&self) -> &'static str {
-            match self {
-                Self::Foo => "foo",
-                Self::Bar => "bar",
-            }
-        }
-    }
-
-    #[test]
-    fn test_capturing_client() {
-        let captures = with_capturing_test_client(|| {
-            metric!(
-                gauge(TestGauges::Foo) = 123,
-                server = "server1",
-                host = "host1"
-            );
-            metric!(
-                gauge(TestGauges::Bar) = 456,
-                server = "server2",
-                host = "host2"
-            );
+    // we use statsd timers to send things such as filesizes as well.
+    (time_raw($id:expr) = $value:expr $(, $k:ident = $v:expr)* $(,)?) => {{
+        $crate::with_client(|local| {
+            let tags: &[(&'static str, &str)] = &[
+                $(($k, $v)),*
+            ];
+            use $crate::IntoDistributionValue;
+            local.emit_timer(&$crate::types::TimerMetric::name(&$id), ($value).into_value(), tags);
         });
+    }};
 
-        assert_eq!(
-            captures,
-            [
-                "foo:123|g|#server:server1,host:host1",
-                "bar:456|g|#server:server2,host:host2"
-            ]
-        )
-    }
-
-    #[test]
-    fn current_client_is_global_client() {
-        let client1 = with_client(|c| format!("{c:?}"));
-        set_client(MetricsClient {
-            statsd_client: StatsdClient::from_sink("", NopMetricSink),
-            default_tags: Default::default(),
-            sample_rate: 1.0,
-            rx: None,
+    // histograms
+    (histogram($id:expr) = $value:expr $(, $k:ident = $v:expr)* $(,)?) => {{
+        $crate::with_client(|local| {
+            let tags: &[(&'static str, &str)] = &[
+                $(($k, $v)),*
+            ];
+            use $crate::IntoDistributionValue;
+            local.emit_histogram(&$crate::types::HistogramMetric::name(&$id), ($value).into_value(), tags);
         });
-        let client2 = with_client(|c| format!("{c:?}"));
-
-        // After setting the global client,the current client must change:
-        assert_ne!(client1, client2);
-    }
+    }};
 }

@@ -1,4 +1,4 @@
-use relay_statsd::{CounterMetric, GaugeMetric};
+use relay_statsd::types::{CounterMetric, GaugeMetric};
 
 /// Counter metrics for Relay system components.
 pub enum SystemCounters {
