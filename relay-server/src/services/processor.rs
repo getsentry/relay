@@ -453,9 +453,6 @@ pub enum ProcessingError {
     #[error("invalid unreal crash report")]
     InvalidUnrealReport(#[source] Unreal4Error),
 
-    #[error("invalid payload")]
-    InvalidPayload(#[from] payload::PayloadError),
-
     #[error("event payload too large")]
     PayloadTooLarge,
 
@@ -1210,11 +1207,13 @@ impl EnvelopeProcessorService {
     #[cfg(feature = "processing")]
     fn enforce_quotas<G>(
         &self,
-        payload: payload::AnyRefMut<G>,
+        payload: impl Into<payload::Any<G>>,
         extracted_metrics: &mut ProcessingExtractedMetrics,
         project_info: Arc<ProjectInfo>,
         rate_limits: Arc<RateLimits>,
-    ) -> Result<payload::AnyRefMut<G>, ProcessingError> {
+    ) -> Result<payload::Any<G>, ProcessingError> {
+        let payload = payload.into();
+
         let global_config = self.inner.global_config.current();
         let rate_limiter = match self.inner.rate_limiter.as_ref() {
             Some(rate_limiter) => rate_limiter,
@@ -1517,13 +1516,8 @@ impl EnvelopeProcessorService {
         project_info: Arc<ProjectInfo>,
         sampling_project_info: Option<Arc<ProjectInfo>>,
         #[allow(unused_variables)] rate_limits: Arc<RateLimits>,
-    ) -> Result<
-        (
-            payload::AnyRefMut<ErrorGroup>,
-            Option<ProcessingExtractedMetrics>,
-        ),
-        ProcessingError,
-    > {
+    ) -> Result<(payload::Any<ErrorGroup>, Option<ProcessingExtractedMetrics>), ProcessingError>
+    {
         let mut payload = payload::NoEvent::new(managed_envelope);
 
         let mut event_fully_normalized =
@@ -1584,34 +1578,40 @@ impl EnvelopeProcessorService {
             );
         }
 
+        let mut payload: payload::Any<ErrorGroup> = payload.into();
         if_processing!(self.inner.config, {
-            event = self.enforce_quotas(
-                managed_envelope,
-                event,
+            payload = self.enforce_quotas(
+                payload,
                 &mut extracted_metrics,
                 project_info.clone(),
                 rate_limits,
             )?;
         });
 
-        if event.value().is_some() {
-            event::scrub(&mut event, project_info.clone())?;
+        if let payload::Any::WithEvent(payload) = &mut payload {
+            event::scrub(payload, project_info.clone())?;
             event::serialize(
-                managed_envelope,
-                &mut event,
+                payload,
                 event_fully_normalized,
                 EventMetricsExtracted(false),
                 SpansExtracted(false),
             )?;
-            event::emit_feedback_metrics(managed_envelope.envelope());
+            event::emit_feedback_metrics(payload);
         }
 
-        attachment::scrub(managed_envelope, project_info);
+        attachment::scrub(&mut payload, project_info);
 
         if self.inner.config.processing_enabled() && !event_fully_normalized.0 {
+            let ty = payload
+                .get()
+                .1
+                .and_then(|e| event_category(e))
+                .map(|e| e.to_string())
+                .unwrap_or("none".to_owned());
+
             relay_log::error!(
                 tags.project = %project_id,
-                tags.ty = event_type(&event).map(|e| e.to_string()).unwrap_or("none".to_owned()),
+                tags.ty = ty,
                 "ingested event without normalizing"
             );
         }
@@ -3094,14 +3094,14 @@ impl Service for EnvelopeProcessorService {
 /// within the [`Annotated`].
 #[cfg(feature = "processing")]
 struct EnforcementResult<G> {
-    payload: payload::AnyRefMut<G>,
+    payload: payload::Any<G>,
     rate_limits: RateLimits,
 }
 
 #[cfg(feature = "processing")]
 impl<G> EnforcementResult<G> {
     /// Creates a new [`EnforcementResult`].
-    pub fn new(payload: payload::AnyRefMut<G>, rate_limits: RateLimits) -> Self {
+    pub fn new(payload: payload::Any<G>, rate_limits: RateLimits) -> Self {
         Self {
             payload,
             rate_limits,
@@ -3119,13 +3119,17 @@ enum RateLimiter<'a> {
 impl RateLimiter<'_> {
     fn enforce<G>(
         &self,
-        mut payload: payload::AnyRefMut<G>,
+        payload: impl Into<payload::Any<G>>,
         extracted_metrics: &mut ProcessingExtractedMetrics,
         global_config: &GlobalConfig,
         project_info: Arc<ProjectInfo>,
         rate_limits: Arc<RateLimits>,
     ) -> Result<EnforcementResult<G>, ProcessingError> {
-        if payload.has_empty_envelope() && !payload.has_event() {
+        let mut payload = payload.into();
+        let has_event = payload.has_event();
+        let (managed_envelope, event) = payload.get_mut();
+
+        if managed_envelope.envelope().is_empty() && has_event {
             return Ok(EnforcementResult::new(payload, RateLimits::default()));
         }
 
@@ -3146,15 +3150,15 @@ impl RateLimiter<'_> {
 
         // Tell the envelope limiter about the event, since it has been removed from the Envelope at
         // this stage in processing.
-        let event_category = payload.event().and_then(|e| event_category(e));
+        let event_category = event.as_ref().and_then(|e| event_category(e));
         if let Some(category) = event_category {
             envelope_limiter.assume_event(category);
         }
 
-        let scoping = payload.managed_envelope().scoping();
+        let scoping = managed_envelope.scoping();
         let (enforcement, rate_limits) =
             metric!(timer(RelayTimers::EventProcessingRateLimiting), {
-                envelope_limiter.compute(payload.managed_envelope_mut().envelope_mut(), &scoping)?
+                envelope_limiter.compute(managed_envelope.envelope_mut(), &scoping)?
             });
         let event_active = enforcement.is_event_active();
 
@@ -3162,7 +3166,7 @@ impl RateLimiter<'_> {
         // Those rate limits should not be checked for expiry or similar to ensure a consistent
         // limiting of envelope items and metrics.
         extracted_metrics.apply_enforcement(&enforcement, matches!(self, Self::Consistent(_)));
-        enforcement.apply_with_outcomes(payload.managed_envelope_mut());
+        enforcement.apply_with_outcomes(managed_envelope);
 
         if event_active {
             debug_assert!(payload.managed_envelope().envelope().is_empty());

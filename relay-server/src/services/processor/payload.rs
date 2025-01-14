@@ -1,28 +1,147 @@
-use std::marker::PhantomData;
-
 use relay_event_schema::protocol::Event;
 use relay_protocol::Annotated;
+use std::marker::PhantomData;
 
 use crate::utils::ManagedEnvelope;
 
-#[derive(Debug, thiserror::Error)]
-pub enum PayloadError {
-    #[error("the payload has an event but no event is expected")]
-    HasEvent,
-    #[error("the payload has no event but an event is expected")]
-    NoEvent,
+/// A payload type that can either contain an event or not, allowing ownership and type changes.
+///
+/// This enum is used when you need to take ownership of the payload and potentially change
+/// its type (e.g., converting from `WithEvent` to `NoEvent` or vice versa). This is useful
+/// in processing pipelines where events may be added or removed from the payload.
+#[derive(Debug)]
+pub enum Any<G> {
+    WithEvent(WithEvent<G>),
+    NoEvent(NoEvent<G>),
 }
 
-// The usage is:
-// Any -> no enforcement of what has to be there
-// NoEvent -> must have no event set
-// WithEvent -> needs to enforce that the event is set meaning that withEvent was created (ambiguity of Annotated makes this iffy)
+impl<G> Any<G> {
+    pub fn managed_envelope(&self) -> &ManagedEnvelope {
+        match self {
+            Any::WithEvent(with_event) => &with_event.managed_envelope,
+            Any::NoEvent(no_event) => &no_event.managed_envelope,
+        }
+    }
 
-/// A payload type that can either contain an event or not.
+    pub fn managed_envelope_mut(&mut self) -> &mut ManagedEnvelope {
+        match self {
+            Any::WithEvent(with_event) => &mut with_event.managed_envelope,
+            Any::NoEvent(no_event) => &mut no_event.managed_envelope,
+        }
+    }
+
+    pub fn get(&self) -> (&ManagedEnvelope, Option<&Annotated<Event>>) {
+        match self {
+            Any::WithEvent(with_event) => (&with_event.managed_envelope, Some(&with_event.event)),
+            Any::NoEvent(no_event) => (&no_event.managed_envelope, None),
+        }
+    }
+
+    pub fn get_mut(&mut self) -> (&mut ManagedEnvelope, Option<&mut Annotated<Event>>) {
+        match self {
+            Any::WithEvent(with_event) => (
+                &mut with_event.managed_envelope,
+                Some(&mut with_event.event),
+            ),
+            Any::NoEvent(no_event) => (&mut no_event.managed_envelope, None),
+        }
+    }
+
+    pub fn has_event(&self) -> bool {
+        match self {
+            Any::WithEvent(with_event) => with_event.event.value().is_some(),
+            Any::NoEvent(_) => false,
+        }
+    }
+
+    pub fn remove_event(self) -> Self {
+        match self {
+            Any::WithEvent(with_event) => Any::NoEvent(with_event.remove_event()),
+            Any::NoEvent(no_event) => Any::NoEvent(no_event),
+        }
+    }
+}
+
+impl<G> From<WithEvent<G>> for Any<G> {
+    fn from(with_event: WithEvent<G>) -> Self {
+        Any::WithEvent(with_event)
+    }
+}
+
+impl<G> From<NoEvent<G>> for Any<G> {
+    fn from(no_event: NoEvent<G>) -> Self {
+        Any::NoEvent(no_event)
+    }
+}
+
+/// A payload type that provides read-only access to data that may or may not contain an event.
 ///
-/// This enum is used in functions that are agnostic about whether an event is present.
-/// In contrast, the [`WithEvent`] and [`NoEvent`] variants should be used directly when
-/// there must be a strict invariant about event presence/absence.
+/// This enum is used when you need to inspect the payload contents without modifying them.
+/// It borrows the underlying data immutably, making it suitable for validation or analysis
+/// operations that don't require modifications.
+#[derive(Debug)]
+pub enum AnyRef<'a, G> {
+    WithEvent(&'a WithEvent<G>),
+    NoEvent(&'a NoEvent<G>),
+}
+
+impl<'a, G> AnyRef<'a, G> {
+    pub fn managed_envelope(&self) -> &ManagedEnvelope {
+        match self {
+            AnyRef::WithEvent(with_event) => &with_event.managed_envelope,
+            AnyRef::NoEvent(no_event) => &no_event.managed_envelope,
+        }
+    }
+
+    pub fn get(&self) -> (&ManagedEnvelope, Option<&Annotated<Event>>) {
+        match self {
+            AnyRef::WithEvent(with_event) => {
+                (&with_event.managed_envelope, Some(&with_event.event))
+            }
+            AnyRef::NoEvent(no_event) => (&no_event.managed_envelope, None),
+        }
+    }
+}
+
+impl<'a, G> From<&'a WithEvent<G>> for AnyRef<'a, G> {
+    fn from(with_event: &'a WithEvent<G>) -> Self {
+        AnyRef::WithEvent(with_event)
+    }
+}
+
+impl<'a, G> From<&'a NoEvent<G>> for AnyRef<'a, G> {
+    fn from(no_event: &'a NoEvent<G>) -> Self {
+        AnyRef::NoEvent(no_event)
+    }
+}
+
+impl<'a, G> From<&'a mut WithEvent<G>> for AnyRef<'a, G> {
+    fn from(with_event: &'a mut WithEvent<G>) -> Self {
+        AnyRef::WithEvent(with_event)
+    }
+}
+
+impl<'a, G> From<&'a mut NoEvent<G>> for AnyRef<'a, G> {
+    fn from(no_event: &'a mut NoEvent<G>) -> Self {
+        AnyRef::NoEvent(no_event)
+    }
+}
+
+impl<'a, G> From<&'a Any<G>> for AnyRef<'a, G> {
+    fn from(any: &'a Any<G>) -> Self {
+        match any {
+            Any::WithEvent(with_event) => AnyRef::WithEvent(with_event),
+            Any::NoEvent(no_event) => AnyRef::NoEvent(no_event),
+        }
+    }
+}
+
+/// A payload type that provides mutable access to data that may or may not contain an event.
+///
+/// This enum is used when you need to modify the payload contents in-place without changing
+/// its type (i.e., without converting between WithEvent and NoEvent). It's useful for
+/// operations that update event data or envelope contents while maintaining the current
+/// event presence state.
 #[derive(Debug)]
 pub enum AnyRefMut<'a, G> {
     WithEvent(&'a mut WithEvent<G>),
@@ -60,48 +179,20 @@ impl<'a, G> From<&'a mut NoEvent<G>> for AnyRefMut<'a, G> {
     }
 }
 
-/// A payload type that can either contain an event or not.
-///
-/// This enum is used in functions that are agnostic about whether an event is present,
-/// providing immutable access to the underlying payload.
-#[derive(Debug)]
-pub enum Any<'a, G> {
-    WithEvent(&'a WithEvent<G>),
-    NoEvent(&'a NoEvent<G>),
-}
-
-impl<'a, G> Any<'a, G> {
-    pub fn managed_envelope(&self) -> &ManagedEnvelope {
-        match self {
-            Any::WithEvent(with_event) => &with_event.managed_envelope,
-            Any::NoEvent(no_event) => &no_event.managed_envelope,
+impl<'a, G> From<&'a mut Any<G>> for AnyRefMut<'a, G> {
+    fn from(any: &'a mut Any<G>) -> Self {
+        match any {
+            Any::WithEvent(with_event) => AnyRefMut::WithEvent(with_event),
+            Any::NoEvent(no_event) => AnyRefMut::NoEvent(no_event),
         }
-    }
-
-    pub fn get(&self) -> (&ManagedEnvelope, Option<&Annotated<Event>>) {
-        match self {
-            Any::WithEvent(with_event) => (&with_event.managed_envelope, Some(&with_event.event)),
-            Any::NoEvent(no_event) => (&no_event.managed_envelope, None),
-        }
-    }
-}
-
-impl<'a, G> From<&'a WithEvent<G>> for Any<'a, G> {
-    fn from(with_event: &'a WithEvent<G>) -> Self {
-        Any::WithEvent(with_event)
-    }
-}
-
-impl<'a, G> From<&'a NoEvent<G>> for Any<'a, G> {
-    fn from(no_event: &'a NoEvent<G>) -> Self {
-        Any::NoEvent(no_event)
     }
 }
 
 /// A payload type that must contain an event.
 ///
-/// This type enforces at compile-time that an event is present. Use this type
-/// when your code requires an event to be available.
+/// This type enforces at compile-time that an event is present, providing strong guarantees
+/// for code that requires event data. Use this type when your processing logic specifically
+/// needs to work with events and should fail if no event is available.
 #[derive(Debug)]
 pub struct WithEvent<G> {
     pub managed_envelope: ManagedEnvelope,
@@ -137,8 +228,9 @@ impl<G> WithEvent<G> {
 
 /// A payload type that must not contain an event.
 ///
-/// This type enforces at compile-time that no event is present. Use this type
-/// when your code requires that no event is available.
+/// This type enforces at compile-time that no event is present, providing strong guarantees
+/// for code that must operate only on non-event data. Use this type when your processing
+/// logic specifically handles non-event payloads and should fail if an event is present.
 #[derive(Debug)]
 pub struct NoEvent<G> {
     pub managed_envelope: ManagedEnvelope,

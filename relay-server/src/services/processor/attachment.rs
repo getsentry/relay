@@ -58,8 +58,12 @@ pub fn create_placeholders(
 /// This only applies the new PII rules that explicitly select `ValueType::Binary` or one of the
 /// attachment types. When special attachments are detected, these are scrubbed with custom
 /// logic; otherwise the entire attachment is treated as a single binary blob.
-pub fn scrub<G>(managed_envelope: &mut TypedEnvelope<G>, project_info: Arc<ProjectInfo>) {
-    let envelope = managed_envelope.envelope_mut();
+pub fn scrub<'a, G: 'a>(
+    payload: impl Into<payload::AnyRefMut<'a, G>>,
+    project_info: Arc<ProjectInfo>,
+) {
+    let mut payload = payload.into();
+    let envelope = payload.managed_envelope_mut().envelope_mut();
     if let Some(ref config) = project_info.config.pii_config {
         let minidump = envelope
             .get_item_by_mut(|item| item.attachment_type() == Some(&AttachmentType::Minidump));

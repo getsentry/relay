@@ -340,15 +340,15 @@ pub fn filter<G: EventProcessing>(
 
 /// Apply data privacy rules to the event payload.
 ///
-/// This uses both the general `datascrubbing_settings`, as well as the the PII rules.
-pub fn scrub(
-    event: &mut Annotated<Event>,
+/// This uses both the general `datascrubbing_settings` and the PII rules.
+pub fn scrub<G>(
+    payload: &mut payload::WithEvent<G>,
     project_info: Arc<ProjectInfo>,
 ) -> Result<(), ProcessingError> {
     let config = &project_info.config;
 
     if config.datascrubbing_settings.scrub_data {
-        if let Some(event) = event.value_mut() {
+        if let Some(event) = payload.event.value_mut() {
             relay_pii::scrub_graphql(event);
         }
     }
@@ -356,7 +356,7 @@ pub fn scrub(
     metric!(timer(RelayTimers::EventProcessingPii), {
         if let Some(ref config) = config.pii_config {
             let mut processor = PiiProcessor::new(config.compiled());
-            processor::process_value(event, &mut processor, ProcessingState::root())?;
+            processor::process_value(&mut payload.event, &mut processor, ProcessingState::root())?;
         }
         let pii_config = config
             .datascrubbing_settings
@@ -364,30 +364,32 @@ pub fn scrub(
             .map_err(|e| ProcessingError::PiiConfigError(e.clone()))?;
         if let Some(config) = pii_config {
             let mut processor = PiiProcessor::new(config.compiled());
-            processor::process_value(event, &mut processor, ProcessingState::root())?;
+            processor::process_value(&mut payload.event, &mut processor, ProcessingState::root())?;
         }
     });
 
     Ok(())
 }
 
-pub fn serialize<Group: EventProcessing>(
-    managed_envelope: &mut TypedEnvelope<Group>,
-    event: &mut Annotated<Event>,
+pub fn serialize<G: EventProcessing>(
+    payload: &mut payload::WithEvent<G>,
     event_fully_normalized: EventFullyNormalized,
     event_metrics_extracted: EventMetricsExtracted,
     spans_extracted: SpansExtracted,
 ) -> Result<(), ProcessingError> {
-    if event.is_empty() {
+    if payload.event.is_empty() {
         relay_log::error!("Cannot serialize empty event");
         return Ok(());
     }
 
     let data = metric!(timer(RelayTimers::EventProcessingSerialization), {
-        event.to_json().map_err(ProcessingError::SerializeFailed)?
+        payload
+            .event
+            .to_json()
+            .map_err(ProcessingError::SerializeFailed)?
     });
 
-    let event_type = event_type(event).unwrap_or_default();
+    let event_type = event_type(&payload.event).unwrap_or_default();
     let mut event_item = Item::new(ItemType::from_event_type(event_type));
     event_item.set_payload(ContentType::Json, data);
 
@@ -397,7 +399,7 @@ pub fn serialize<Group: EventProcessing>(
     event_item.set_spans_extracted(spans_extracted.0);
     event_item.set_fully_normalized(event_fully_normalized.0);
 
-    managed_envelope.envelope_mut().add_item(event_item);
+    payload.managed_envelope.envelope_mut().add_item(event_item);
 
     Ok(())
 }
@@ -420,16 +422,17 @@ pub fn has_unprintable_fields(event: &Annotated<Event>) -> bool {
 }
 
 /// Computes and emits metrics for monitoring user feedback (UserReportV2) ingest
-pub fn emit_feedback_metrics(envelope: &Envelope) {
+pub fn emit_feedback_metrics<'a, G: 'a>(payload: impl Into<payload::AnyRef<'a, G>>) {
     let mut has_feedback = false;
     let mut num_attachments = 0;
-    for item in envelope.items() {
+    for item in payload.into().managed_envelope().envelope().items() {
         match item.ty() {
             ItemType::UserReportV2 => has_feedback = true,
             ItemType::Attachment => num_attachments += 1,
             _ => (),
         }
     }
+
     if has_feedback {
         metric!(counter(RelayCounters::FeedbackAttachments) += num_attachments);
     }
