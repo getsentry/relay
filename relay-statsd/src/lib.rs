@@ -66,6 +66,8 @@ use parking_lot::RwLock;
 use rand::distributions::{Distribution, Uniform};
 use statsdproxy::cadence::StatsdProxyMetricSink;
 
+mod wrapper;
+
 /// Maximum number of metric events that can be queued before we start dropping them
 const METRICS_MAX_QUEUE_SIZE: usize = 100_000;
 
