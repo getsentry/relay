@@ -891,6 +891,16 @@ pub fn normalize_performance_score(
                             component.p10,
                             component.p50,
                         );
+
+                        measurements.insert(
+                            format!("score.ratio.{}", component.measurement),
+                            Measurement {
+                                value: cdf.into(),
+                                unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
+                            }
+                            .into(),
+                        );
+
                         let component_score = cdf * normalized_component_weight;
                         score_total += component_score;
                         should_add_total = true;
@@ -2393,6 +2403,22 @@ mod tests {
               "value": 0.009238896571386584,
               "unit": "ratio",
             },
+            "score.ratio.cls": {
+              "value": 0.8745668242977945,
+              "unit": "ratio",
+            },
+            "score.ratio.fcp": {
+              "value": 0.7167236962527221,
+              "unit": "ratio",
+            },
+            "score.ratio.fid": {
+              "value": 0.6552453782760849,
+              "unit": "ratio",
+            },
+            "score.ratio.lcp": {
+              "value": 0.03079632190462195,
+              "unit": "ratio",
+            },
             "score.total": {
               "value": 0.531962770566569,
               "unit": "ratio",
@@ -2541,6 +2567,22 @@ mod tests {
               "value": 0.009238896571386584,
               "unit": "ratio",
             },
+            "score.ratio.cls": {
+              "value": 0.8745668242977945,
+              "unit": "ratio",
+            },
+            "score.ratio.fcp": {
+              "value": 0.7167236962527221,
+              "unit": "ratio",
+            },
+            "score.ratio.fid": {
+              "value": 0.6552453782760849,
+              "unit": "ratio",
+            },
+            "score.ratio.lcp": {
+              "value": 0.03079632190462195,
+              "unit": "ratio",
+            },
             "score.total": {
               "value": 0.531962770566569,
               "unit": "ratio",
@@ -2687,6 +2729,22 @@ mod tests {
             },
             "score.lcp": {
               "value": 0.009238896571386584,
+              "unit": "ratio",
+            },
+            "score.ratio.cls": {
+              "value": 0.8745668242977945,
+              "unit": "ratio",
+            },
+            "score.ratio.fcp": {
+              "value": 0.7167236962527221,
+              "unit": "ratio",
+            },
+            "score.ratio.fid": {
+              "value": 0.6552453782760849,
+              "unit": "ratio",
+            },
+            "score.ratio.lcp": {
+              "value": 0.03079632190462195,
               "unit": "ratio",
             },
             "score.total": {
@@ -2882,6 +2940,14 @@ mod tests {
               "value": 0.66666415149198,
               "unit": "ratio",
             },
+            "score.ratio.a": {
+              "value": 0.9999964593987591,
+              "unit": "ratio",
+            },
+            "score.ratio.b": {
+              "value": 0.9999962272379699,
+              "unit": "ratio",
+            },
             "score.total": {
               "value": 0.9999963046248997,
               "unit": "ratio",
@@ -2999,6 +3065,10 @@ mod tests {
           "timestamp": 1619420405.0,
           "start_timestamp": 1619420400.0,
           "measurements": {
+            "score.ratio.ttfb": {
+              "value": 1.0,
+              "unit": "ratio",
+            },
             "score.total": {
               "value": 1.0,
               "unit": "ratio",
@@ -3144,6 +3214,10 @@ mod tests {
               "value": 120.0,
             },
             "score.inp": {
+              "value": 0.0,
+              "unit": "ratio",
+            },
+            "score.ratio.inp": {
               "value": 0.0,
               "unit": "ratio",
             },
@@ -3376,6 +3450,10 @@ mod tests {
             "value": 0.0,
             "unit": "ratio",
           },
+          "score.ratio.inp": {
+            "value": 0.0,
+            "unit": "ratio",
+          },
           "score.total": {
             "value": 0.0,
             "unit": "ratio",
@@ -3462,6 +3540,10 @@ mod tests {
             "unit": "none",
           },
           "score.cls": {
+            "value": 0.16615877613713903,
+            "unit": "ratio",
+          },
+          "score.ratio.cls": {
             "value": 0.16615877613713903,
             "unit": "ratio",
           },
@@ -3563,6 +3645,10 @@ mod tests {
             "unit": "millisecond",
           },
           "score.lcp": {
+            "value": 0.8999999314038525,
+            "unit": "ratio",
+          },
+          "score.ratio.lcp": {
             "value": 0.8999999314038525,
             "unit": "ratio",
           },
@@ -3739,6 +3825,14 @@ mod tests {
               "value": 0.66666415149198,
               "unit": "ratio",
             },
+            "score.ratio.a": {
+              "value": 0.9999964593987591,
+              "unit": "ratio",
+            },
+            "score.ratio.b": {
+              "value": 0.9999962272379699,
+              "unit": "ratio",
+            },
             "score.total": {
               "value": 0.9999963046248997,
               "unit": "ratio",
@@ -3898,6 +3992,14 @@ mod tests {
             },
             "score.b": {
               "value": 0.3024363365482667,
+              "unit": "ratio",
+            },
+            "score.ratio.a": {
+              "value": 0.45365450482239994,
+              "unit": "ratio",
+            },
+            "score.ratio.b": {
+              "value": 0.45365450482239994,
               "unit": "ratio",
             },
             "score.total": {
