@@ -617,6 +617,8 @@ pub struct Limits {
     /// The maximum payload size for a profile
     pub max_profile_size: ByteSize,
     /// The maximum payload size for a span.
+    pub max_log_size: ByteSize,
+    /// The maximum payload size for a span.
     pub max_span_size: ByteSize,
     /// The maximum payload size for a statsd metric.
     pub max_statsd_size: ByteSize,
@@ -677,6 +679,7 @@ impl Default for Limits {
             max_api_file_upload_size: ByteSize::mebibytes(40),
             max_api_chunk_upload_size: ByteSize::mebibytes(100),
             max_profile_size: ByteSize::mebibytes(50),
+            max_log_size: ByteSize::mebibytes(1),
             max_span_size: ByteSize::mebibytes(1),
             max_statsd_size: ByteSize::mebibytes(1),
             max_metric_buckets_size: ByteSize::mebibytes(1),
@@ -2204,6 +2207,11 @@ impl Config {
     /// Returns the maximum payload size of a monitor check-in in bytes.
     pub fn max_check_in_size(&self) -> usize {
         self.values.limits.max_check_in_size.as_bytes()
+    }
+
+    /// Returns the maximum payload size of a log in bytes.
+    pub fn max_log_size(&self) -> usize {
+        self.values.limits.max_log_size.as_bytes()
     }
 
     /// Returns the maximum payload size of a span in bytes.

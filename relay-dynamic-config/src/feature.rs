@@ -102,7 +102,11 @@ pub enum Feature {
     /// Serialized as `organizations:ingest-spans-in-eap`
     #[serde(rename = "organizations:ingest-spans-in-eap")]
     IngestSpansInEap,
-
+    /// Enable log ingestion for our log product (this is not internal logging).
+    ///
+    /// Serialized as `organizations:ourlogs-ingestion`.
+    #[serde(rename = "organizations:ourlogs-ingestion")]
+    OurLogsIngestion,
     /// This feature has graduated and is hard-coded for external Relays.
     #[doc(hidden)]
     #[serde(rename = "projects:profiling-ingest-unsampled-profiles")]

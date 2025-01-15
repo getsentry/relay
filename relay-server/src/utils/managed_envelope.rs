@@ -414,6 +414,21 @@ impl ManagedEnvelope {
             );
         }
 
+        if self.context.summary.log_count_quantity > 0 {
+            self.track_outcome(
+                outcome.clone(),
+                DataCategory::LogCount,
+                self.context.summary.log_count_quantity,
+            );
+        }
+        if self.context.summary.log_bytes_quantity > 0 {
+            self.track_outcome(
+                outcome.clone(),
+                DataCategory::LogBytes,
+                self.context.summary.log_bytes_quantity,
+            );
+        }
+
         // Track outcomes for attached secondary transactions, e.g. extracted from metrics.
         //
         // Primary transaction count is already tracked through the event category

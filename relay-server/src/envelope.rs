@@ -117,6 +117,10 @@ pub enum ItemType {
     ReplayVideo,
     /// Monitor check-in encoded as JSON.
     CheckIn,
+    /// A log from the [OTEL Log format](https://opentelemetry.io/docs/specs/otel/logs/data-model/#log-and-event-record-definition)
+    OtelLog,
+    /// A log for the log product, not internal logs.
+    Log,
     /// A standalone span.
     Span,
     /// A standalone OpenTelemetry span serialized as JSON.
@@ -174,6 +178,8 @@ impl ItemType {
             Self::ReplayRecording => "replay_recording",
             Self::ReplayVideo => "replay_video",
             Self::CheckIn => "check_in",
+            Self::Log => "log",
+            Self::OtelLog => "otel_log",
             Self::Span => "span",
             Self::OtelSpan => "otel_span",
             Self::OtelTracesData => "otel_traces_data",
@@ -227,6 +233,8 @@ impl std::str::FromStr for ItemType {
             "replay_recording" => Self::ReplayRecording,
             "replay_video" => Self::ReplayVideo,
             "check_in" => Self::CheckIn,
+            "log" => Self::Log,
+            "otel_log" => Self::OtelLog,
             "span" => Self::Span,
             "otel_span" => Self::OtelSpan,
             "otel_traces_data" => Self::OtelTracesData,
@@ -696,6 +704,7 @@ impl Item {
                 CountFor::Outcomes => smallvec![],
             },
             ItemType::Statsd | ItemType::MetricBuckets => smallvec![],
+            ItemType::Log | ItemType::OtelLog => smallvec![],
             ItemType::FormData => smallvec![],
             ItemType::UserReport => smallvec![],
             ItemType::UserReportV2 => smallvec![(DataCategory::UserReportV2, 1)],
@@ -952,6 +961,8 @@ impl Item {
             | ItemType::Profile
             | ItemType::CheckIn
             | ItemType::Span
+            | ItemType::Log
+            | ItemType::OtelLog
             | ItemType::OtelSpan
             | ItemType::OtelTracesData
             | ItemType::ProfileChunk => false,
@@ -986,6 +997,7 @@ impl Item {
             ItemType::Profile => true,
             ItemType::CheckIn => false,
             ItemType::Span => false,
+            ItemType::Log | ItemType::OtelLog => false,
             ItemType::OtelSpan => false,
             ItemType::OtelTracesData => false,
             ItemType::ProfileChunk => false,

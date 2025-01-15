@@ -457,6 +457,9 @@ pub enum DiscardReason {
     /// (Relay) Profiling related discard reasons
     Profiling(&'static str),
 
+    /// (Relay) A log that is not valid after normalization.
+    InvalidLog,
+
     /// (Relay) A span is not valid after normalization.
     InvalidSpan,
 
@@ -506,6 +509,7 @@ impl DiscardReason {
             DiscardReason::InvalidReplayRecordingEvent => "invalid_replay_recording",
             DiscardReason::InvalidReplayVideoEvent => "invalid_replay_video",
             DiscardReason::Profiling(reason) => reason,
+            DiscardReason::InvalidLog => "invalid_log",
             DiscardReason::InvalidSpan => "invalid_span",
             DiscardReason::FeatureDisabled(_) => "feature_disabled",
         }

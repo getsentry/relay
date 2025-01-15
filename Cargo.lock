@@ -2804,6 +2804,7 @@ dependencies = [
  "opentelemetry",
  "percent-encoding",
  "rand",
+ "serde_json",
  "thiserror",
 ]
 
@@ -3718,6 +3719,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "relay-ourlogs"
+version = "24.12.1"
+dependencies = [
+ "chrono",
+ "hex",
+ "insta",
+ "once_cell",
+ "opentelemetry-proto",
+ "relay-event-schema",
+ "relay-protocol",
+ "serde_json",
+]
+
+[[package]]
 name = "relay-pattern"
 version = "24.12.2"
 dependencies = [
@@ -3934,6 +3949,7 @@ dependencies = [
  "relay-log",
  "relay-metrics",
  "relay-monitors",
+ "relay-ourlogs",
  "relay-pii",
  "relay-profiling",
  "relay-protocol",
