@@ -266,7 +266,7 @@ pub fn finalize<Group: EventProcessing>(
     if let Some(timestamp) = event.value().and_then(|e| e.timestamp.value()) {
         let event_delay = managed_envelope.received_at() - timestamp.into_inner();
         if event_delay > SignedDuration::minutes(1) {
-            let category = event_category(event).unwrap_or(DataCategory::Unknown);
+            let category = event_category(event.value()).unwrap_or(DataCategory::Unknown);
             metric!(
                 timer(RelayTimers::TimestampDelay) = event_delay.to_std().unwrap(),
                 category = category.name(),
@@ -387,7 +387,7 @@ pub fn serialize<Group: EventProcessing>(
         event.to_json().map_err(ProcessingError::SerializeFailed)?
     });
 
-    let event_type = event_type(event).unwrap_or_default();
+    let event_type = event_type(event.value()).unwrap_or_default();
     let mut event_item = Item::new(ItemType::from_event_type(event_type));
     event_item.set_payload(ContentType::Json, data);
 
