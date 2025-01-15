@@ -95,7 +95,6 @@ pub trait TimerMetric {
 ///     server = "s1",
 ///     host = "h1"
 /// );
-
 /// ```
 pub trait CounterMetric {
     /// Returns the counter metric name that will be sent to statsd.
