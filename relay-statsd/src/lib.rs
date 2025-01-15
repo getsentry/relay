@@ -17,8 +17,7 @@
 //! or the [`metric!`] macro will become a noop. Only when configured, metrics will actually be
 //! collected.
 //!
-//! To initialize the client, either use [`set_client`] to pass a custom client, or use
-//! [`init`] to create a default client with known arguments:
+//! To initialize the client use [`init`] to create a default client with known arguments:
 //!
 //! ```no_run
 //! # use std::collections::BTreeMap;
