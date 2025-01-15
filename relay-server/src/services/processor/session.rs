@@ -20,18 +20,20 @@ use crate::services::processor::{
 };
 use crate::services::projects::project::ProjectInfo;
 use crate::statsd::RelayTimers;
-use crate::utils::{ItemAction, TypedEnvelope};
+use crate::utils::{ItemAction};
 
 /// Validates all sessions and session aggregates in the envelope, if any.
 ///
 /// Both are removed from the envelope if they contain invalid JSON or if their timestamps
 /// are out of range after clock drift correction.
-pub fn process(
-    payload: &mut payload::NoEvent<SessionGroup>,
+pub fn process<'a>(
+    payload: impl Into<payload::NoEventRefMut<'a, SessionGroup>>,
     extracted_metrics: &mut ProcessingExtractedMetrics,
     project_info: Arc<ProjectInfo>,
     config: &Config,
 ) {
+    let payload = payload.into();
+
     let received = payload.managed_envelope.received_at();
     let metrics_config = project_info.config().session_metrics;
     let envelope = payload.managed_envelope.envelope_mut();

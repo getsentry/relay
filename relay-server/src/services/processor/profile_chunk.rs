@@ -4,7 +4,7 @@ use relay_dynamic_config::Feature;
 use std::sync::Arc;
 
 use crate::envelope::ItemType;
-use crate::utils::{ItemAction, TypedEnvelope};
+use crate::utils::{ItemAction};
 
 use crate::services::processor::payload;
 use crate::services::projects::project::ProjectInfo;
@@ -18,7 +18,12 @@ use {
 };
 
 /// Removes profile chunks from the envelope if the feature is not enabled.
-pub fn filter<G>(payload: &mut payload::NoEvent<G>, project_info: Arc<ProjectInfo>) {
+pub fn filter<'a, G>(
+    payload: impl Into<payload::NoEventRefMut<'a, G>>,
+    project_info: Arc<ProjectInfo>,
+) {
+    let payload = payload.into();
+
     let continuous_profiling_enabled =
         if project_info.has_feature(Feature::ContinuousProfilingBetaIngest) {
             project_info.has_feature(Feature::ContinuousProfilingBeta)
@@ -36,12 +41,14 @@ pub fn filter<G>(payload: &mut payload::NoEvent<G>, project_info: Arc<ProjectInf
 
 /// Processes profile chunks.
 #[cfg(feature = "processing")]
-pub fn process(
-    payload: &mut payload::NoEvent<ProfileChunkGroup>,
+pub fn process<'a>(
+    payload: impl Into<payload::NoEventRefMut<'a, ProfileChunkGroup>>,
     project_info: Arc<ProjectInfo>,
     global_config: &GlobalConfig,
     config: &Config,
 ) {
+    let payload = payload.into();
+
     let client_ip = payload.managed_envelope.envelope().meta().client_addr();
     let filter_settings = &project_info.config.filter_settings;
     let continuous_profiling_enabled =

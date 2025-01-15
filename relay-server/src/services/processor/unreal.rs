@@ -27,6 +27,7 @@ pub fn expand<'a>(
     config: &Config,
 ) -> Result<(), ProcessingError> {
     let payload = payload.into();
+
     let envelope = payload.managed_envelope.envelope_mut();
 
     if let Some(item) = envelope.take_item_by(|item| item.ty() == &ItemType::UnrealReport) {

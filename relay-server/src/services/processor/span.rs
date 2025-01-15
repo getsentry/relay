@@ -14,7 +14,6 @@ use crate::envelope::{ContentType, Item, ItemType};
 use crate::services::outcome::{DiscardReason, Outcome};
 use crate::services::processor::{payload, should_filter, SpanGroup};
 use crate::utils::ItemAction;
-use crate::utils::TypedEnvelope;
 
 #[cfg(feature = "processing")]
 mod processing;

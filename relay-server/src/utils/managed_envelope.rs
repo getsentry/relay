@@ -104,7 +104,7 @@ impl<G> TypedEnvelope<G> {
     ///
     /// Note: this method is private to make sure that only `TryFrom` implementation is used, which
     /// requires the check for the error if conversion is failing.
-    fn new(managed_envelope: ManagedEnvelope, _ty: G) -> Self {
+    pub fn new(managed_envelope: ManagedEnvelope, _ty: G) -> Self {
         Self(managed_envelope, PhantomData::<G> {})
     }
 }

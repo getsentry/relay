@@ -20,7 +20,7 @@ use relay_quotas::DataCategory;
 use relay_statsd::metric;
 use serde_json::Value as SerdeValue;
 
-use crate::envelope::{AttachmentType, ContentType, Envelope, Item, ItemType};
+use crate::envelope::{AttachmentType, ContentType, Item, ItemType};
 use crate::extractors::RequestMeta;
 use crate::services::outcome::Outcome;
 use crate::services::processor::{
@@ -29,7 +29,7 @@ use crate::services::processor::{
 };
 use crate::services::projects::project::ProjectInfo;
 use crate::statsd::{PlatformTag, RelayCounters, RelayHistograms, RelayTimers};
-use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter, TypedEnvelope};
+use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter};
 
 /// Result of the extraction of the primary event payload from an envelope.
 #[derive(Debug)]
@@ -258,7 +258,7 @@ pub fn finalize<'a, G: EventProcessing>(
     let mut processor =
         ClockDriftProcessor::new(envelope.sent_at(), payload.managed_envelope.received_at())
             .at_least(MINIMUM_CLOCK_DRIFT);
-    processor::process_value(&mut payload.event, &mut processor, ProcessingState::root())
+    processor::process_value(payload.event, &mut processor, ProcessingState::root())
         .map_err(|_| ProcessingError::InvalidTransaction)?;
 
     // Log timestamp delays for all events after clock drift correction. This happens before

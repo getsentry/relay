@@ -406,7 +406,7 @@ pub fn maybe_discard_transaction<'a>(
     project_info: Arc<ProjectInfo>,
 ) -> payload::MaybeEvent<'a, TransactionGroup> {
     let payload = payload.into();
-    
+
     if payload.event.as_ref().and_then(|e| event_type(e)) == Some(EventType::Transaction)
         && project_info.has_feature(Feature::DiscardTransaction)
     {

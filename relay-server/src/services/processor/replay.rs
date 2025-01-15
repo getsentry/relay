@@ -8,7 +8,7 @@ use crate::services::outcome::DiscardReason;
 use crate::services::processor::{payload, should_filter, ProcessingError, ReplayGroup};
 use crate::services::projects::project::ProjectInfo;
 use crate::statsd::{RelayCounters, RelayTimers};
-use crate::utils::{sample, TypedEnvelope};
+use crate::utils::{sample, ManagedEnvelope};
 use bytes::Bytes;
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
@@ -25,8 +25,8 @@ use relay_statsd::metric;
 use serde::{Deserialize, Serialize};
 
 /// Removes replays if the feature flag is not enabled.
-pub fn process(
-    payload: &mut payload::NoEvent<ReplayGroup>,
+pub fn process<'a>(
+    mut payload: payload::NoEventRefMut<'a, ReplayGroup>,
     global_config: &GlobalConfig,
     config: Arc<Config>,
     project_info: Arc<ProjectInfo>,
@@ -41,7 +41,7 @@ pub fn process(
     // If the replay video feature is not enabled check the envelope items for a
     // replay video event.
     if project_info.has_feature(Feature::SessionReplayVideoDisabled)
-        && count_replay_video_events(payload) > 0
+        && count_replay_video_events(payload.managed_envelope) > 0
     {
         payload.managed_envelope.drop_items_silently();
         return Ok(());
@@ -360,9 +360,10 @@ fn handle_replay_video_item(
 
 // Pre-processors
 
-fn count_replay_video_events(payload: &mut payload::NoEvent<ReplayGroup>) -> usize {
-    payload
-        .managed_envelope
+fn count_replay_video_events<'a>(
+    managed_envelope: &mut ManagedEnvelope
+) -> usize {
+    managed_envelope
         .envelope()
         .items()
         .filter(|item| item.ty() == &ItemType::ReplayVideo)

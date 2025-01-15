@@ -1,5 +1,4 @@
 use crate::utils::ManagedEnvelope;
-use futures::sink::With;
 use relay_event_schema::protocol::Event;
 use relay_protocol::Annotated;
 use std::marker::PhantomData;
@@ -20,7 +19,7 @@ impl<'a, G> MaybeEvent<'a, G> {
             _group: PhantomData,
         }
     }
-    
+
     pub fn remove_event(self) -> MaybeEvent<'a, G> {
         MaybeEvent::new(self.managed_envelope, None)
     }
@@ -95,6 +94,10 @@ impl<'a, G> NoEvent<'a, G> {
             _group: PhantomData,
         }
     }
+    
+    pub fn as_maybe(&'a mut self) -> MaybeEventRefMut<'a, G> {
+        MaybeEventRefMut::new(self.managed_envelope, None)
+    }
 }
 
 /// A payload type that may contain an event, with mutable references
@@ -130,8 +133,8 @@ impl<'a, G> From<&'a mut WithEvent<'a, G>> for MaybeEventRefMut<'a, G> {
     }
 }
 
-impl<'a, G> From<&'a mut NoEvent<'a, G>> for MaybeEventRefMut<'a, G> {
-    fn from(no_event: &'a mut NoEvent<'a, G>) -> Self {
+impl<'a, G> From<&mut NoEvent<'a, G>> for MaybeEventRefMut<'a, G> {
+    fn from(no_event: &mut NoEvent<'a, G>) -> Self {
         MaybeEventRefMut::new(no_event.managed_envelope, None)
     }
 }
@@ -199,5 +202,11 @@ impl<'a, G> NoEventRefMut<'a, G> {
 impl<'a, G> From<&'a mut NoEvent<'a, G>> for NoEventRefMut<'a, G> {
     fn from(no_event: &'a mut NoEvent<'a, G>) -> Self {
         NoEventRefMut::new(no_event.managed_envelope)
+    }
+}
+
+impl <'a, 'b: 'a, G> From<&'b mut NoEventRefMut<'a, G>> for NoEventRefMut<'a, G> {
+    fn from(no_event_ref_mut: &'b mut NoEventRefMut<'a, G>) -> Self {
+        NoEventRefMut::new(no_event_ref_mut.managed_envelope)
     }
 }

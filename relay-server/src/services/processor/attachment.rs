@@ -12,7 +12,6 @@ use crate::statsd::RelayTimers;
 
 use crate::services::processor::payload;
 use crate::services::projects::project::ProjectInfo;
-use crate::utils::TypedEnvelope;
 #[cfg(feature = "processing")]
 use {
     crate::services::processor::{ErrorGroup, EventFullyNormalized},
