@@ -1207,13 +1207,13 @@ impl EnvelopeProcessorService {
     }
 
     #[cfg(feature = "processing")]
-    fn enforce_quotas<G>(
+    fn enforce_quotas<'a, G>(
         &self,
-        payload: impl Into<payload::Any<G>>,
+        payload: impl Into<payload::MaybeEvent<'a, G>>,
         extracted_metrics: &mut ProcessingExtractedMetrics,
         project_info: Arc<ProjectInfo>,
         rate_limits: Arc<RateLimits>,
-    ) -> Result<payload::Any<G>, ProcessingError> {
+    ) -> Result<payload::MaybeEvent<'a, G>, ProcessingError> {
         let payload = payload.into();
 
         let global_config = self.inner.global_config.current();
@@ -1263,7 +1263,7 @@ impl EnvelopeProcessorService {
     #[allow(clippy::too_many_arguments)]
     fn extract_transaction_metrics<'a>(
         &self,
-        payload: impl Into<payload::AnyRefMut<'a, TransactionGroup>>,
+        payload: impl Into<payload::WithEventRefMut<'a, TransactionGroup>>,
         extracted_metrics: &mut ProcessingExtractedMetrics,
         project_id: ProjectId,
         project_info: Arc<ProjectInfo>,
@@ -1271,14 +1271,13 @@ impl EnvelopeProcessorService {
         event_metrics_extracted: EventMetricsExtracted,
         spans_extracted: SpansExtracted,
     ) -> Result<EventMetricsExtracted, ProcessingError> {
-        let mut payload = payload.into();
+        let payload = payload.into();
 
         if event_metrics_extracted.0 {
             return Ok(event_metrics_extracted);
         }
 
-        let (managed_envelope, event) = payload.get_mut();
-        let Some(event) = event.and_then(|e| e.value_mut().as_mut()) else {
+        let Some(event) = payload.event.value_mut() else {
             return Ok(event_metrics_extracted);
         };
 
@@ -1358,7 +1357,8 @@ impl EnvelopeProcessorService {
         extracted_metrics.extend(metrics, Some(sampling_decision));
 
         if !project_info.has_feature(Feature::DiscardTransaction) {
-            let transaction_from_dsc = managed_envelope
+            let transaction_from_dsc = payload
+                .managed_envelope
                 .envelope()
                 .dsc()
                 .and_then(|dsc| dsc.transaction.as_deref());
@@ -1377,13 +1377,15 @@ impl EnvelopeProcessorService {
         Ok(EventMetricsExtracted(true))
     }
 
-    fn normalize_event<G: EventProcessing>(
+    fn normalize_event<'a, G: EventProcessing>(
         &self,
-        payload: &mut payload::WithEvent<G>,
+        payload: impl Into<payload::WithEventRefMut<'a, G>>,
         project_id: ProjectId,
         project_info: Arc<ProjectInfo>,
         mut event_fully_normalized: EventFullyNormalized,
     ) -> Result<EventFullyNormalized, ProcessingError> {
+        let payload = payload.into();
+
         if payload.event.value().is_empty() {
             // NOTE(iker): only processing relays create events from
             // attachments, so these events won't be normalized in
@@ -1421,7 +1423,7 @@ impl EnvelopeProcessorService {
             .unwrap_or(DEFAULT_EVENT_RETENTION)
             .into();
 
-        utils::log_transaction_name_metrics(&mut payload.event, |event| {
+        utils::log_transaction_name_metrics(payload.event, |event| {
             let event_validation_config = EventValidationConfig {
                 received_at: Some(payload.managed_envelope.received_at()),
                 max_secs_in_past: Some(retention_days * 24 * 3600),
@@ -1521,8 +1523,7 @@ impl EnvelopeProcessorService {
         project_info: Arc<ProjectInfo>,
         sampling_project_info: Option<Arc<ProjectInfo>>,
         #[allow(unused_variables)] rate_limits: Arc<RateLimits>,
-    ) -> Result<(payload::Any<ErrorGroup>, Option<ProcessingExtractedMetrics>), ProcessingError>
-    {
+    ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
         let mut payload = payload::NoEvent::new(managed_envelope);
 
         let mut event_fully_normalized =
@@ -1548,18 +1549,16 @@ impl EnvelopeProcessorService {
         .payload;
 
         if_processing!(self.inner.config, {
-            let (payload_, event_fully_normalized_) = unreal::process(payload)?;
+            let event_fully_normalized_ = unreal::process(&mut payload)?;
             if let Some(event_fully_normalized_) = event_fully_normalized_ {
                 event_fully_normalized = event_fully_normalized_;
             }
-            payload = payload_;
 
-            let (payload_, event_fully_normalized_) =
-                attachment::create_placeholders(payload, &mut metrics);
+            let event_fully_normalized_ =
+                attachment::create_placeholders(&mut payload, &mut metrics);
             if let Some(event_fully_normalized_) = event_fully_normalized_ {
                 event_fully_normalized = event_fully_normalized_;
             }
-            payload = payload_.into();
         });
 
         event::finalize(&mut payload, &mut metrics, &self.inner.config)?;
@@ -1583,7 +1582,7 @@ impl EnvelopeProcessorService {
             );
         }
 
-        let mut payload: payload::Any<ErrorGroup> = payload.into();
+        let mut payload: payload::MaybeEvent<ErrorGroup> = payload.into();
         if_processing!(self.inner.config, {
             payload = self.enforce_quotas(
                 payload,
@@ -1593,23 +1592,23 @@ impl EnvelopeProcessorService {
             )?;
         });
 
-        if let payload::Any::WithEvent(payload) = &mut payload {
-            event::scrub(payload, project_info.clone())?;
+        if let Ok(mut with_event) = payload::WithEventRefMut::try_from(&mut payload) {
+            event::scrub(&mut with_event, project_info.clone())?;
             event::serialize(
-                payload,
+                &mut with_event,
                 event_fully_normalized,
                 EventMetricsExtracted(false),
                 SpansExtracted(false),
             )?;
-            event::emit_feedback_metrics(payload);
-        }
+            event::emit_feedback_metrics(&mut with_event);
+        };
 
         attachment::scrub(&mut payload, project_info);
 
         if self.inner.config.processing_enabled() && !event_fully_normalized.0 {
             let ty = payload
-                .get()
-                .1
+                .event
+                .as_ref()
                 .and_then(|e| event_type(e))
                 .map(|e| e.to_string())
                 .unwrap_or("none".to_owned());
@@ -1621,7 +1620,7 @@ impl EnvelopeProcessorService {
             );
         }
 
-        Ok((payload, Some(extracted_metrics)))
+        Ok(Some(extracted_metrics))
     }
 
     /// Processes only transactions and transaction-related items.
@@ -1636,13 +1635,7 @@ impl EnvelopeProcessorService {
         mut sampling_project_info: Option<Arc<ProjectInfo>>,
         #[allow(unused_variables)] rate_limits: Arc<RateLimits>,
         reservoir_counters: ReservoirCounters,
-    ) -> Result<
-        (
-            payload::Any<TransactionGroup>,
-            Option<ProcessingExtractedMetrics>,
-        ),
-        ProcessingError,
-    > {
+    ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
         let payload = payload::NoEvent::new(managed_envelope);
 
         let mut event_fully_normalized =
@@ -1749,7 +1742,7 @@ impl EnvelopeProcessorService {
 
             dynamic_sampling::drop_unsampled_items(&mut payload, outcome);
 
-            // We remove the event since we don't need it and we don't want it to be counted when
+            // We remove the event since we don't need it, and we don't want it to be counted when
             // enforcing quotas.
             let payload = payload.remove_event();
 
@@ -1757,9 +1750,8 @@ impl EnvelopeProcessorService {
             //  - An empty envelope.
             //  - An envelope containing only processed profiles.
             // We need to make sure there are enough quotas for these profiles.
-            let mut payload: payload::Any<TransactionGroup> = payload.into();
             if_processing!(self.inner.config, {
-                payload = self.enforce_quotas(
+                self.enforce_quotas(
                     payload,
                     &mut extracted_metrics,
                     project_info.clone(),
@@ -1767,7 +1759,7 @@ impl EnvelopeProcessorService {
                 )?;
             });
 
-            return Ok((payload, Some(extracted_metrics)));
+            return Ok(Some(extracted_metrics));
         }
 
         // Need to scrub the transaction before extracting spans.
@@ -1822,9 +1814,10 @@ impl EnvelopeProcessorService {
         });
 
         // Event may have been dropped because of a quota and the envelope can be empty.
-        if let payload::Any::WithEvent(payload) = &mut payload {
+        if let Ok(with_event) = payload::WithEventRefMut::<TransactionGroup>::try_from(&mut payload)
+        {
             event::serialize(
-                payload,
+                with_event,
                 event_fully_normalized,
                 event_metrics_extracted,
                 spans_extracted,
@@ -1833,8 +1826,7 @@ impl EnvelopeProcessorService {
 
         if self.inner.config.processing_enabled() && !event_fully_normalized.0 {
             let ty = payload
-                .get()
-                .1
+                .event
                 .and_then(|e| event_type(e))
                 .map(|e| e.to_string())
                 .unwrap_or("none".to_owned());
@@ -3134,8 +3126,8 @@ impl Service for EnvelopeProcessorService {
 /// If the event is already `None` or it's rate limited, it will be `None`
 /// within the [`Annotated`].
 #[cfg(feature = "processing")]
-struct EnforcementResult<G> {
-    payload: payload::Any<G>,
+struct EnforcementResult<'a, G> {
+    payload: payload::MaybeEvent<'a, G>,
     rate_limits: RateLimits,
 }
 
@@ -3158,14 +3150,14 @@ enum RateLimiter<'a> {
 
 #[cfg(feature = "processing")]
 impl RateLimiter<'_> {
-    fn enforce<G>(
+    fn enforce<'a, G>(
         &self,
-        payload: impl Into<payload::Any<G>>,
+        payload: impl Into<payload::MaybeEvent<'a, G>>,
         extracted_metrics: &mut ProcessingExtractedMetrics,
         global_config: &GlobalConfig,
         project_info: Arc<ProjectInfo>,
         rate_limits: Arc<RateLimits>,
-    ) -> Result<EnforcementResult<G>, ProcessingError> {
+    ) -> Result<EnforcementResult<'a, G>, ProcessingError> {
         let mut payload = payload.into();
 
         let has_event = payload.has_event();

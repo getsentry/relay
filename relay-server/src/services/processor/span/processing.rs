@@ -270,8 +270,8 @@ fn add_sample_rate(measurements: &mut Annotated<Measurements>, name: &str, value
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn extract_from_event(
-    payload: &mut payload::WithEvent<TransactionGroup>,
+pub fn extract_from_event<'a>(
+    payload: impl Into<payload::WithEventRefMut<'a, TransactionGroup>>,
     global_config: &GlobalConfig,
     config: Arc<Config>,
     project_info: Arc<ProjectInfo>,
@@ -279,8 +279,10 @@ pub fn extract_from_event(
     event_metrics_extracted: EventMetricsExtracted,
     spans_extracted: SpansExtracted,
 ) -> SpansExtracted {
+    let payload = payload.into();
+
     // Only extract spans from transactions (not errors).
-    if event_type(event) != Some(EventType::Transaction) {
+    if event_type(payload.event) != Some(EventType::Transaction) {
         return spans_extracted;
     };
 
@@ -294,7 +296,8 @@ pub fn extract_from_event(
         }
     }
 
-    let client_sample_rate = managed_envelope
+    let client_sample_rate = payload
+        .managed_envelope
         .envelope()
         .dsc()
         .and_then(|ctx| ctx.sample_rate);
@@ -324,7 +327,7 @@ pub fn extract_from_event(
                     "invalid span"
                 );
 
-                managed_envelope.track_outcome(
+                payload.managed_envelope.track_outcome(
                     Outcome::Invalid(DiscardReason::InvalidSpan),
                     relay_quotas::DataCategory::SpanIndexed,
                     1,
@@ -337,7 +340,7 @@ pub fn extract_from_event(
             Ok(span) => span,
             Err(e) => {
                 relay_log::error!(error = &e as &dyn Error, "Failed to serialize span");
-                managed_envelope.track_outcome(
+                payload.managed_envelope.track_outcome(
                     Outcome::Invalid(DiscardReason::InvalidSpan),
                     relay_quotas::DataCategory::SpanIndexed,
                     1,
@@ -353,10 +356,10 @@ pub fn extract_from_event(
         item.set_ingest_span_in_eap(ingest_in_eap);
 
         relay_log::trace!("Adding span to envelope");
-        managed_envelope.envelope_mut().add_item(item);
+        payload.managed_envelope.envelope_mut().add_item(item);
     };
 
-    let Some(event) = event.value() else {
+    let Some(event) = payload.event.value() else {
         return spans_extracted;
     };
 
@@ -398,17 +401,16 @@ pub fn extract_from_event(
 }
 
 /// Removes the transaction in case the project has made the transition to spans-only.
-pub fn maybe_discard_transaction(
-    payload: impl Into<payload::Any<TransactionGroup>>,
+pub fn maybe_discard_transaction<'a>(
+    payload: impl Into<payload::MaybeEvent<'a, TransactionGroup>>,
     project_info: Arc<ProjectInfo>,
-) -> payload::Any<TransactionGroup> {
-    let mut payload = payload.into();
-
-    let (managed_envelope, event) = payload.get_mut();
-    if event.and_then(|e| event_type(e)) == Some(EventType::Transaction)
+) -> payload::MaybeEvent<'a, TransactionGroup> {
+    let payload = payload.into();
+    
+    if payload.event.as_ref().and_then(|e| event_type(e)) == Some(EventType::Transaction)
         && project_info.has_feature(Feature::DiscardTransaction)
     {
-        managed_envelope.update();
+        payload.managed_envelope.update();
         return payload.remove_event();
     }
 

@@ -23,12 +23,11 @@ use relay_protocol::Annotated;
 /// After this, [`crate::services::processor::EnvelopeProcessorService`] should be able to process the envelope the same
 /// way it processes any other envelopes.
 pub fn expand<'a>(
-    payload: impl Into<payload::AnyRefMut<'a, ErrorGroup>>,
+    payload: impl Into<payload::NoEventRefMut<'a, ErrorGroup>>,
     config: &Config,
 ) -> Result<(), ProcessingError> {
-    let mut payload = payload.into();
-
-    let envelope = payload.managed_envelope_mut().envelope_mut();
+    let payload = payload.into();
+    let envelope = payload.managed_envelope.envelope_mut();
 
     if let Some(item) = envelope.take_item_by(|item| item.ty() == &ItemType::UnrealReport) {
         utils::expand_unreal_envelope(item, envelope, config)?;
@@ -41,14 +40,16 @@ pub fn expand<'a>(
 ///
 /// If the event does not contain an unreal context, this function does not perform any action.
 /// If there was no event payload prior to this function, it is created.
-pub fn process(
-    mut payload: payload::WithEvent<ErrorGroup>,
-) -> Result<(payload::WithEvent<ErrorGroup>, Option<EventFullyNormalized>), ProcessingError> {
-    if utils::process_unreal_envelope(payload.managed_envelope.envelope_mut(), &mut payload.event)
+pub fn process<'a>(
+    payload: impl Into<payload::WithEventRefMut<'a, ErrorGroup>>,
+) -> Result<Option<EventFullyNormalized>, ProcessingError> {
+    let payload = payload.into();
+
+    if utils::process_unreal_envelope(payload.managed_envelope.envelope_mut(), payload.event)
         .map_err(ProcessingError::InvalidUnrealReport)?
     {
-        return Ok((payload, Some(EventFullyNormalized(false))));
+        return Ok(Some(EventFullyNormalized(false)));
     }
 
-    Ok((payload, None))
+    Ok(None)
 }

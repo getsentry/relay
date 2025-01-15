@@ -20,50 +20,52 @@ use crate::utils::{ItemAction, TypedEnvelope};
 /// Filters out invalid and duplicate profiles.
 ///
 /// Returns the profile id of the single remaining profile, if there is one.
-pub fn filter<'a, G: 'a>(
-    payload: impl Into<payload::AnyRefMut<'a, G>>,
+pub fn filter<'a, G>(
+    payload: impl Into<payload::MaybeEventRefMut<'a, G>>,
     config: Arc<Config>,
     project_id: ProjectId,
     project_info: Arc<ProjectInfo>,
 ) -> Option<ProfileId> {
-    let mut payload = payload.into();
+    let payload = payload.into();
 
-    let (managed_envelope, event) = payload.get_mut();
     let profiling_disabled = should_filter(&config, &project_info, Feature::Profiling);
-    let has_transaction = event.and_then(|e| event_type(e)) == Some(EventType::Transaction);
+    let has_transaction = payload.event.and_then(|e| event_type(e)) == Some(EventType::Transaction);
     let keep_unsampled_profiles = true;
 
     let mut profile_id = None;
-    managed_envelope.retain_items(|item| match item.ty() {
-        // First profile found in the envelope, we'll keep it if metadata are valid.
-        ItemType::Profile if profile_id.is_none() => {
-            if profiling_disabled {
-                return ItemAction::DropSilently;
-            }
-
-            // Drop profile without a transaction in the same envelope,
-            // except if unsampled profiles are allowed for this project.
-            let profile_allowed = has_transaction || (keep_unsampled_profiles && !item.sampled());
-            if !profile_allowed {
-                return ItemAction::DropSilently;
-            }
-
-            match relay_profiling::parse_metadata(&item.payload(), project_id) {
-                Ok(id) => {
-                    profile_id = Some(id);
-                    ItemAction::Keep
+    payload
+        .managed_envelope
+        .retain_items(|item| match item.ty() {
+            // First profile found in the envelope, we'll keep it if metadata are valid.
+            ItemType::Profile if profile_id.is_none() => {
+                if profiling_disabled {
+                    return ItemAction::DropSilently;
                 }
-                Err(err) => ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
-                    relay_profiling::discard_reason(err),
-                ))),
+
+                // Drop profile without a transaction in the same envelope,
+                // except if unsampled profiles are allowed for this project.
+                let profile_allowed =
+                    has_transaction || (keep_unsampled_profiles && !item.sampled());
+                if !profile_allowed {
+                    return ItemAction::DropSilently;
+                }
+
+                match relay_profiling::parse_metadata(&item.payload(), project_id) {
+                    Ok(id) => {
+                        profile_id = Some(id);
+                        ItemAction::Keep
+                    }
+                    Err(err) => ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
+                        relay_profiling::discard_reason(err),
+                    ))),
+                }
             }
-        }
-        // We found another profile, we'll drop it.
-        ItemType::Profile => ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
-            relay_profiling::discard_reason(ProfileError::TooManyProfiles),
-        ))),
-        _ => ItemAction::Keep,
-    });
+            // We found another profile, we'll drop it.
+            ItemType::Profile => ItemAction::Drop(Outcome::Invalid(DiscardReason::Profiling(
+                relay_profiling::discard_reason(ProfileError::TooManyProfiles),
+            ))),
+            _ => ItemAction::Keep,
+        });
 
     profile_id
 }
@@ -73,14 +75,13 @@ pub fn filter<'a, G: 'a>(
 /// The profile id may be `None` when the envelope does not contain a profile,
 /// in that case the profile context is removed.
 /// Some SDKs send transactions with profile ids but omit the profile in the envelope.
-pub fn transfer_id<'a, G: 'a>(
-    payload: impl Into<payload::AnyRefMut<'a, G>>,
+pub fn transfer_id<'a, G>(
+    payload: impl Into<payload::MaybeEventRefMut<'a, G>>,
     profile_id: Option<ProfileId>,
 ) {
-    let mut payload = payload.into();
+    let payload = payload.into();
 
-    let (_, event) = payload.get_mut();
-    let Some(event) = event.and_then(|e| e.value_mut().as_mut()) else {
+    let Some(event) = payload.event.and_then(|e| e.value_mut().as_mut()) else {
         return;
     };
 
@@ -103,50 +104,51 @@ pub fn transfer_id<'a, G: 'a>(
 }
 
 /// Processes profiles and set the profile ID in the profile context on the transaction if successful.
-pub fn process<'a, G: 'a>(
-    payload: impl Into<payload::AnyRefMut<'a, G>>,
+pub fn process<'a, G>(
+    payload: impl Into<payload::MaybeEventRefMut<'a, G>>,
     global_config: &GlobalConfig,
     config: Arc<Config>,
     project_info: Arc<ProjectInfo>,
 ) -> Option<ProfileId> {
-    let mut payload = payload.into();
+    let payload = payload.into();
 
-    let (managed_envelope, event) = payload.get_mut();
-    let client_ip = managed_envelope.envelope().meta().client_addr();
+    let client_ip = payload.managed_envelope.envelope().meta().client_addr();
     let filter_settings = &project_info.config.filter_settings;
 
     let profiling_enabled = project_info.has_feature(Feature::Profiling);
     let mut profile_id = None;
 
-    managed_envelope.retain_items(|item| match item.ty() {
-        ItemType::Profile => {
-            if !profiling_enabled {
-                return ItemAction::DropSilently;
-            }
-
-            // There should always be an event/transaction available at this stage.
-            // It is required to expand the profile. If it's missing, drop the item.
-            let Some(event) = event.as_ref().and_then(|e| e.value()) else {
-                return ItemAction::DropSilently;
-            };
-
-            match expand_profile(
-                item,
-                event,
-                &config,
-                client_ip,
-                filter_settings,
-                global_config,
-            ) {
-                Ok(id) => {
-                    profile_id = Some(id);
-                    ItemAction::Keep
+    payload
+        .managed_envelope
+        .retain_items(|item| match item.ty() {
+            ItemType::Profile => {
+                if !profiling_enabled {
+                    return ItemAction::DropSilently;
                 }
-                Err(outcome) => ItemAction::Drop(outcome),
+
+                // There should always be an event/transaction available at this stage.
+                // It is required to expand the profile. If it's missing, drop the item.
+                let Some(event) = payload.event.as_ref().and_then(|e| e.value()) else {
+                    return ItemAction::DropSilently;
+                };
+
+                match expand_profile(
+                    item,
+                    event,
+                    &config,
+                    client_ip,
+                    filter_settings,
+                    global_config,
+                ) {
+                    Ok(id) => {
+                        profile_id = Some(id);
+                        ItemAction::Keep
+                    }
+                    Err(outcome) => ItemAction::Drop(outcome),
+                }
             }
-        }
-        _ => ItemAction::Keep,
-    });
+            _ => ItemAction::Keep,
+        });
 
     profile_id
 }

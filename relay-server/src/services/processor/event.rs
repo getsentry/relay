@@ -33,8 +33,8 @@ use crate::utils::{self, ChunkedFormDataAggregator, FormDataIter, TypedEnvelope}
 
 /// Result of the extraction of the primary event payload from an envelope.
 #[derive(Debug)]
-pub struct ExtractionResult<G> {
-    pub payload: payload::WithEvent<G>,
+pub struct ExtractionResult<'a, G> {
+    pub payload: payload::WithEvent<'a, G>,
     pub event_metrics_extracted: Option<EventMetricsExtracted>,
     pub spans_extracted: Option<SpansExtracted>,
 }
@@ -47,12 +47,12 @@ pub struct ExtractionResult<G> {
 ///  3. Attachments `__sentry-event` and `__sentry-breadcrumb1/2`.
 ///  4. A multipart form data body.
 ///  5. If none match, `Annotated::empty()`.
-pub fn extract<G: EventProcessing>(
-    mut payload: payload::NoEvent<G>,
+pub fn extract<'a, G: EventProcessing>(
+    payload: payload::NoEvent<'a, G>,
     metrics: &mut Metrics,
     event_fully_normalized: EventFullyNormalized,
     config: &Config,
-) -> Result<ExtractionResult<G>, ProcessingError> {
+) -> Result<ExtractionResult<'a, G>, ProcessingError> {
     let envelope = payload.managed_envelope.envelope_mut();
 
     // Remove all items first, and then process them. After this function returns, only
@@ -152,11 +152,13 @@ pub fn extract<G: EventProcessing>(
     })
 }
 
-pub fn finalize<G: EventProcessing>(
-    payload: &mut payload::WithEvent<G>,
+pub fn finalize<'a, G: EventProcessing>(
+    payload: impl Into<payload::WithEventRefMut<'a, G>>,
     metrics: &mut Metrics,
     config: &Config,
 ) -> Result<(), ProcessingError> {
+    let payload = payload.into();
+
     let envelope = payload.managed_envelope.envelope_mut();
 
     let inner_event = match payload.event.value_mut() {
@@ -297,11 +299,13 @@ pub enum FiltersStatus {
     Unsupported,
 }
 
-pub fn filter<G: EventProcessing>(
-    payload: &mut payload::WithEvent<G>,
+pub fn filter<'a, G: EventProcessing>(
+    payload: impl Into<payload::WithEventRefMut<'a, G>>,
     project_info: Arc<ProjectInfo>,
     global_config: &GlobalConfig,
 ) -> Result<FiltersStatus, ProcessingError> {
+    let payload = payload.into();
+
     let event = match payload.event.value_mut() {
         Some(event) => event,
         // Some events are created by processing relays (e.g. unreal), so they do not yet
@@ -341,10 +345,12 @@ pub fn filter<G: EventProcessing>(
 /// Apply data privacy rules to the event payload.
 ///
 /// This uses both the general `datascrubbing_settings` and the PII rules.
-pub fn scrub<G>(
-    payload: &mut payload::WithEvent<G>,
+pub fn scrub<'a, G>(
+    payload: impl Into<payload::WithEventRefMut<'a, G>>,
     project_info: Arc<ProjectInfo>,
 ) -> Result<(), ProcessingError> {
+    let payload = payload.into();
+
     let config = &project_info.config;
 
     if config.datascrubbing_settings.scrub_data {
@@ -356,7 +362,7 @@ pub fn scrub<G>(
     metric!(timer(RelayTimers::EventProcessingPii), {
         if let Some(ref config) = config.pii_config {
             let mut processor = PiiProcessor::new(config.compiled());
-            processor::process_value(&mut payload.event, &mut processor, ProcessingState::root())?;
+            processor::process_value(payload.event, &mut processor, ProcessingState::root())?;
         }
         let pii_config = config
             .datascrubbing_settings
@@ -364,19 +370,21 @@ pub fn scrub<G>(
             .map_err(|e| ProcessingError::PiiConfigError(e.clone()))?;
         if let Some(config) = pii_config {
             let mut processor = PiiProcessor::new(config.compiled());
-            processor::process_value(&mut payload.event, &mut processor, ProcessingState::root())?;
+            processor::process_value(payload.event, &mut processor, ProcessingState::root())?;
         }
     });
 
     Ok(())
 }
 
-pub fn serialize<G: EventProcessing>(
-    payload: &mut payload::WithEvent<G>,
+pub fn serialize<'a, G: EventProcessing>(
+    payload: impl Into<payload::WithEventRefMut<'a, G>>,
     event_fully_normalized: EventFullyNormalized,
     event_metrics_extracted: EventMetricsExtracted,
     spans_extracted: SpansExtracted,
 ) -> Result<(), ProcessingError> {
+    let payload = payload.into();
+
     if payload.event.is_empty() {
         relay_log::error!("Cannot serialize empty event");
         return Ok(());
@@ -422,10 +430,12 @@ pub fn has_unprintable_fields(event: &Annotated<Event>) -> bool {
 }
 
 /// Computes and emits metrics for monitoring user feedback (UserReportV2) ingest
-pub fn emit_feedback_metrics<'a, G: 'a>(payload: impl Into<payload::AnyRef<'a, G>>) {
+pub fn emit_feedback_metrics<'a, G>(payload: impl Into<payload::WithEventRefMut<'a, G>>) {
+    let payload = payload.into();
+
     let mut has_feedback = false;
     let mut num_attachments = 0;
-    for item in payload.into().managed_envelope().envelope().items() {
+    for item in payload.managed_envelope.envelope().items() {
         match item.ty() {
             ItemType::UserReportV2 => has_feedback = true,
             ItemType::Attachment => num_attachments += 1,

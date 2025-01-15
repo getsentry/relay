@@ -200,8 +200,8 @@ pub fn process_client_reports<'a>(
 /// User feedback items are removed from the envelope if they contain invalid JSON or if the
 /// JSON violates the schema (basic type validation). Otherwise, their normalized representation
 /// is written back into the item.
-pub fn process_user_reports<'a, G: 'a>(payload: impl Into<payload::AnyRefMut<'a, G>>) {
-    payload.into().managed_envelope_mut().retain_items(|item| {
+pub fn process_user_reports<'a, G>(payload: impl Into<payload::MaybeEventRefMut<'a, G>>) {
+    payload.into().managed_envelope.retain_items(|item| {
         if item.ty() != &ItemType::UserReport {
             return ItemAction::Keep;
         };

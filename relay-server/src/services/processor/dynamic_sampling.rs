@@ -43,11 +43,13 @@ use crate::utils::{self, SamplingResult, TypedEnvelope};
 /// The function will return the sampling project information of the root project for the event. If
 /// no sampling project information is specified, the project information of the event’s project
 /// will be returned.
-pub fn validate_and_set_dsc(
-    payload: &mut payload::WithEvent<TransactionGroup>,
+pub fn validate_and_set_dsc<'a>(
+    payload: impl Into<payload::WithEventRefMut<'a, TransactionGroup>>,
     project_info: Arc<ProjectInfo>,
     sampling_project_info: Option<Arc<ProjectInfo>>,
 ) -> Option<Arc<ProjectInfo>> {
+    let payload = payload.into();
+
     if payload.managed_envelope.envelope().dsc().is_some() && sampling_project_info.is_some() {
         return sampling_project_info;
     }
@@ -70,8 +72,8 @@ pub fn validate_and_set_dsc(
 }
 
 /// Computes the sampling decision on the incoming event
-pub fn run<G>(
-    payload: &mut payload::WithEvent<G>,
+pub fn run<'a, G>(
+    payload: impl Into<payload::WithEventRefMut<'a, G>>,
     config: Arc<Config>,
     project_info: Arc<ProjectInfo>,
     sampling_project_info: Option<Arc<ProjectInfo>>,
@@ -80,6 +82,8 @@ pub fn run<G>(
 where
     G: Sampling,
 {
+    let payload = payload.into();
+
     if !G::supports_sampling(&project_info) {
         return SamplingResult::Pending;
     }
@@ -108,7 +112,12 @@ where
 }
 
 /// Apply the dynamic sampling decision from `compute_sampling_decision`.
-pub fn drop_unsampled_items(payload: &mut payload::WithEvent<TransactionGroup>, outcome: Outcome) {
+pub fn drop_unsampled_items<'a>(
+    payload: impl Into<payload::WithEventRefMut<'a, TransactionGroup>>,
+    outcome: Outcome,
+) {
+    let payload = payload.into();
+
     // Remove all items from the envelope which need to be dropped due to dynamic sampling.
     let dropped_items = payload
         .managed_envelope
@@ -197,11 +206,13 @@ fn compute_sampling_decision(
 ///
 /// This execution of dynamic sampling is technically a "simulation" since we will use the result
 /// only for tagging errors and not for actually sampling incoming events.
-pub fn tag_error_with_sampling_decision<G: EventProcessing>(
-    payload: &mut payload::WithEvent<G>,
+pub fn tag_error_with_sampling_decision<'a, G: EventProcessing>(
+    payload: impl Into<payload::WithEventRefMut<'a, G>>,
     sampling_project_info: Option<Arc<ProjectInfo>>,
     config: &Config,
 ) {
+    let payload = payload.into();
+
     let (Some(dsc), Some(event)) = (
         payload.managed_envelope.envelope().dsc(),
         payload.event.value_mut(),

@@ -28,10 +28,12 @@ use {
 ///
 /// If the event payload was empty before, it is created.
 #[cfg(feature = "processing")]
-pub fn create_placeholders(
-    mut payload: payload::WithEvent<ErrorGroup>,
+pub fn create_placeholders<'a>(
+    payload: impl Into<payload::WithEventRefMut<'a, ErrorGroup>>,
     metrics: &mut Metrics,
-) -> (payload::WithEvent<ErrorGroup>, Option<EventFullyNormalized>) {
+) -> Option<EventFullyNormalized> {
+    let payload = payload.into();
+
     let envelope = payload.managed_envelope.envelope();
     let minidump_attachment =
         envelope.get_item_by(|item| item.attachment_type() == Some(&AttachmentType::Minidump));
@@ -42,15 +44,15 @@ pub fn create_placeholders(
         let event = payload.event.get_or_insert_with(Event::default);
         metrics.bytes_ingested_event_minidump = Annotated::new(item.len() as u64);
         utils::process_minidump(event, &item.payload());
-        return (payload, Some(EventFullyNormalized(false)));
+        return Some(EventFullyNormalized(false));
     } else if let Some(item) = apple_crash_report_attachment {
         let event = payload.event.get_or_insert_with(Event::default);
         metrics.bytes_ingested_event_applecrashreport = Annotated::new(item.len() as u64);
         utils::process_apple_crash_report(event, &item.payload());
-        return (payload, Some(EventFullyNormalized(false)));
+        return Some(EventFullyNormalized(false));
     }
 
-    (payload, None)
+    None
 }
 
 /// Apply data privacy rules to attachments in the envelope.
@@ -58,13 +60,13 @@ pub fn create_placeholders(
 /// This only applies the new PII rules that explicitly select `ValueType::Binary` or one of the
 /// attachment types. When special attachments are detected, these are scrubbed with custom
 /// logic; otherwise the entire attachment is treated as a single binary blob.
-pub fn scrub<'a, G: 'a>(
-    payload: impl Into<payload::AnyRefMut<'a, G>>,
+pub fn scrub<'a, G>(
+    payload: impl Into<payload::MaybeEventRefMut<'a, G>>,
     project_info: Arc<ProjectInfo>,
 ) {
-    let mut payload = payload.into();
+    let payload = payload.into();
 
-    let envelope = payload.managed_envelope_mut().envelope_mut();
+    let envelope = payload.managed_envelope.envelope_mut();
     if let Some(ref config) = project_info.config.pii_config {
         let minidump = envelope
             .get_item_by_mut(|item| item.attachment_type() == Some(&AttachmentType::Minidump));
