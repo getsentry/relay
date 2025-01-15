@@ -153,10 +153,16 @@ fn make_aggregator(prefix: &str, formatted_global_tags: String, sink: Sink) -> L
         loop {
             thread::sleep(SEND_INTERVAL);
 
-            let (total_counters, total_distributions) = aggregate_all(&aggregators);
+            let LocalAggregator {
+                buf: _,
+                integers,
+                floats,
+                sets,
+                distributions,
+            } = aggregate_all(&aggregators);
 
             // send all the aggregated "counter like" metrics
-            for (AggregationKey { ty, name, tags }, value) in total_counters {
+            for (AggregationKey { ty, name, tags }, value) in integers {
                 formatted_metric.push_str(&prefix);
                 formatted_metric.push_str(name);
 
@@ -179,7 +185,7 @@ fn make_aggregator(prefix: &str, formatted_global_tags: String, sink: Sink) -> L
             // send all the aggregated "distribution like" metrics
             // we do this in a batched manner, as we do not actually *aggregate* them,
             // but still send each value individually.
-            for (AggregationKey { ty, name, tags }, value) in total_distributions {
+            for (AggregationKey { ty, name, tags }, value) in distributions {
                 suffix.push_str(&formatted_global_tags);
                 if let Some(tags) = tags {
                     if formatted_global_tags.is_empty() {
@@ -218,49 +224,70 @@ fn make_aggregator(prefix: &str, formatted_global_tags: String, sink: Sink) -> L
     local_aggregators
 }
 
-fn aggregate_all(aggregators: &LocalAggregators) -> (AggregatedCounters, AggregatedDistributions) {
-    let mut total_counters = AggregatedCounters::default();
-    let mut total_distributions = AggregatedDistributions::default();
+fn aggregate_all(aggregators: &LocalAggregators) -> LocalAggregator {
+    let mut total = LocalAggregator::default();
 
     for local_aggregator in aggregators.iter() {
-        let (local_counters, local_distributions) = {
-            let mut local_aggregator = local_aggregator.lock().unwrap();
-            (
-                std::mem::take(&mut local_aggregator.aggregated_counters),
-                std::mem::take(&mut local_aggregator.aggregated_distributions),
-            )
-        };
+        let LocalAggregator {
+            buf: _,
+            integers,
+            floats,
+            sets,
+            distributions,
+        } = local_aggregator.lock().unwrap().take();
 
         // aggregate all the "counter like" metrics
-        if total_counters.is_empty() {
-            total_counters = local_counters;
+        if total.integers.is_empty() {
+            total.integers = integers;
         } else {
-            for (key, value) in local_counters {
+            for (key, value) in integers {
                 let ty = key.ty;
-                let aggregated_value = total_counters.entry(key).or_default();
+                let aggregated_value = total.integers.entry(key).or_default();
                 if ty == "|c" {
                     *aggregated_value += value;
                 } else if ty == "|g" {
-                    // FIXME: when aggregating multiple thread-locals,
-                    // we don’t really know which one is the "latest".
-                    // But it also does not really matter that much?
+                    *aggregated_value = value;
+                }
+            }
+        }
+
+        // aggregate all the "counter like" metrics
+        if total.floats.is_empty() {
+            total.floats = floats;
+        } else {
+            for (key, value) in floats {
+                let ty = key.ty;
+                let aggregated_value = total.floats.entry(key).or_default();
+                if ty == "|c" {
+                    *aggregated_value += value;
+                } else if ty == "|g" {
                     *aggregated_value = value;
                 }
             }
         }
 
         // aggregate all the "distribution like" metrics
-        if total_distributions.is_empty() {
-            total_distributions = local_distributions;
+        if total.distributions.is_empty() {
+            total.distributions = distributions;
         } else {
-            for (key, value) in local_distributions {
-                let aggregated_value = total_distributions.entry(key).or_default();
+            for (key, value) in distributions {
+                let aggregated_value = total.distributions.entry(key).or_default();
+                aggregated_value.extend(value);
+            }
+        }
+
+        // aggregate all the "distribution like" metrics
+        if total.sets.is_empty() {
+            total.sets = sets;
+        } else {
+            for (key, value) in sets {
+                let aggregated_value = total.sets.entry(key).or_default();
                 aggregated_value.extend(value);
             }
         }
     }
 
-    (total_counters, total_distributions)
+    total
 }
 
 /// The key by which we group/aggregate metrics.
@@ -274,7 +301,8 @@ struct AggregationKey {
     tags: Option<Box<str>>,
 }
 
-type AggregatedCounters = FxHashMap<AggregationKey, i64>;
+type AggregatedIntegers = FxHashMap<AggregationKey, i64>;
+type AggregatedFloats = FxHashMap<AggregationKey, f64>;
 type AggregatedSets = FxHashMap<AggregationKey, BTreeSet<u64>>;
 type AggregatedDistributions = FxHashMap<AggregationKey, Vec<f64>>;
 
@@ -318,14 +346,26 @@ pub struct LocalAggregator {
     /// A mutable scratch-buffer that is reused to format tags into it.
     buf: String,
     /// A map of all the `counter` and `gauge` metrics we have aggregated thus far.
-    aggregated_counters: AggregatedCounters,
+    integers: AggregatedIntegers,
+    /// A map of all the `counter` and `gauge` metrics we have aggregated thus far.
+    floats: AggregatedFloats,
     /// A map of all the `set` metrics we have aggregated thus far.
-    aggregated_sets: AggregatedSets,
+    sets: AggregatedSets,
     /// A map of all the `timer` and `histogram` metrics we have aggregated thus far.
-    aggregated_distributions: AggregatedDistributions,
+    distributions: AggregatedDistributions,
 }
 
 impl LocalAggregator {
+    fn take(&mut self) -> Self {
+        Self {
+            buf: String::new(),
+            integers: std::mem::take(&mut self.integers),
+            floats: std::mem::take(&mut self.floats),
+            sets: std::mem::take(&mut self.sets),
+            distributions: std::mem::take(&mut self.distributions),
+        }
+    }
+
     /// Formats the `tags` into a `statsd` like format with the help of our scratch buffer.
     fn format_tags(&mut self, tags: &[(&str, &str)]) -> Option<Box<str>> {
         if tags.is_empty() {
@@ -357,7 +397,7 @@ impl LocalAggregator {
             tags,
         };
 
-        let aggregation = self.aggregated_counters.entry(key).or_default();
+        let aggregation = self.integers.entry(key).or_default();
         *aggregation += value;
     }
 
@@ -371,7 +411,7 @@ impl LocalAggregator {
             tags,
         };
 
-        let aggregation = self.aggregated_sets.entry(key).or_default();
+        let aggregation = self.sets.entry(key).or_default();
         aggregation.insert(value);
     }
 
@@ -386,8 +426,27 @@ impl LocalAggregator {
             tags,
         };
 
-        let aggregation = self.aggregated_counters.entry(key).or_default();
+        let aggregation = self.integers.entry(key).or_default();
         *aggregation = value as i64;
+    }
+
+    /// Emit a `gauge` metric, for which only the latest value is retained.
+    pub fn emit_gauge_float(
+        &mut self,
+        name: &'static str,
+        value: f64,
+        tags: &[(&'static str, &str)],
+    ) {
+        let tags = self.format_tags(tags);
+
+        let key = AggregationKey {
+            ty: "|g",
+            name,
+            tags,
+        };
+
+        let aggregation = self.floats.entry(key).or_default();
+        *aggregation = value;
     }
 
     /// Emit a `timer` metric, for which every value is accumulated
@@ -417,7 +476,7 @@ impl LocalAggregator {
     ) {
         let key = AggregationKey { ty, name, tags };
 
-        let aggregation = self.aggregated_distributions.entry(key).or_default();
+        let aggregation = self.distributions.entry(key).or_default();
         aggregation.push(value);
     }
 }
@@ -502,6 +561,16 @@ macro_rules! metric {
                 $((stringify!($k), $v)),*
             ];
             local.emit_gauge(&$crate::GaugeMetric::name(&$id), $value, tags);
+        })
+    };
+
+    // floating point gauges
+    (gauge_f($id:expr) = $value:expr $(, $k:ident = $v:expr)* $(,)?) => {
+        $crate::with_client(|local| {
+            let tags: &[(&'static str, &str)] = &[
+                $((stringify!($k), $v)),*
+            ];
+            local.emit_gauge_float(&$crate::GaugeMetric::name(&$id), $value, tags);
         })
     };
 

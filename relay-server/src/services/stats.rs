@@ -67,7 +67,7 @@ impl RelayStats {
                 worker = &worker_name,
             );
             metric!(
-                gauge(RuntimeGauges::WorkerMeanPollTime) =
+                gauge_f(RuntimeGauges::WorkerMeanPollTime) =
                     self.runtime.worker_mean_poll_time(worker).as_secs_f64(),
                 worker = &worker_name,
             );
