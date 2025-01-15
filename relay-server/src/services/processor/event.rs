@@ -209,11 +209,11 @@ pub fn finalize<Group: EventProcessing>(
         inner_event._metrics = Annotated::new(metrics);
 
         if inner_event.ty.value() == Some(&EventType::Transaction) {
+            let platform = PlatformTag::from(inner_event.platform.as_str().unwrap_or("other"));
             metric!(
                 counter(RelayCounters::EventTransaction) += 1,
                 source = utils::transaction_source_tag(inner_event),
-                platform =
-                    PlatformTag::from(inner_event.platform.as_str().unwrap_or("other")).name(),
+                platform = platform.name(),
                 contains_slashes = if inner_event
                     .transaction
                     .as_str()

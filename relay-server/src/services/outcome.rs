@@ -866,9 +866,10 @@ impl FromMessage<TrackRawOutcome> for OutcomeProducer {
 }
 
 fn send_outcome_metric(message: &impl TrackOutcomeLike, to: &'static str) {
+    let reason = message.reason();
     metric!(
         counter(RelayCounters::Outcomes) += 1,
-        reason = message.reason().as_deref().unwrap_or(""),
+        reason = reason.as_deref().unwrap_or(""),
         outcome = message.tag_name(),
         to = to,
     );

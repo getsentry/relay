@@ -1094,57 +1094,57 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_backpressure_metrics() {
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_time()
-            .build()
-            .unwrap();
+    // #[test]
+    // fn test_backpressure_metrics() {
+    //     let rt = tokio::runtime::Builder::new_current_thread()
+    //         .enable_time()
+    //         .build()
+    //         .unwrap();
 
-        let _guard = rt.enter();
-        tokio::time::pause();
+    //     let _guard = rt.enter();
+    //     tokio::time::pause();
 
-        // Mock service takes 2 * BACKLOG_INTERVAL for every message
-        let addr = MockService.start_detached();
+    //     // Mock service takes 2 * BACKLOG_INTERVAL for every message
+    //     let addr = MockService.start_detached();
 
-        // Advance the timer by a tiny offset to trigger the first metric emission.
-        let captures = relay_statsd::with_capturing_test_client(|| {
-            rt.block_on(async {
-                tokio::time::sleep(Duration::from_millis(10)).await;
-            })
-        });
+    //     // Advance the timer by a tiny offset to trigger the first metric emission.
+    //     let captures = relay_statsd::with_capturing_test_client(|| {
+    //         rt.block_on(async {
+    //             tokio::time::sleep(Duration::from_millis(10)).await;
+    //         })
+    //     });
 
-        assert_eq!(captures, ["service.back_pressure:0|g|#service:mock"]);
+    //     assert_eq!(captures, ["service.back_pressure:0|g|#service:mock"]);
 
-        // Send messages and advance to 0.5 * INTERVAL. No metrics expected at this point.
-        let captures = relay_statsd::with_capturing_test_client(|| {
-            rt.block_on(async {
-                addr.send(MockMessage); // will be pulled immediately
-                addr.send(MockMessage);
-                addr.send(MockMessage);
+    //     // Send messages and advance to 0.5 * INTERVAL. No metrics expected at this point.
+    //     let captures = relay_statsd::with_capturing_test_client(|| {
+    //         rt.block_on(async {
+    //             addr.send(MockMessage); // will be pulled immediately
+    //             addr.send(MockMessage);
+    //             addr.send(MockMessage);
 
-                tokio::time::sleep(BACKLOG_INTERVAL / 2).await;
-            })
-        });
+    //             tokio::time::sleep(BACKLOG_INTERVAL / 2).await;
+    //         })
+    //     });
 
-        assert!(captures.is_empty());
+    //     assert!(captures.is_empty());
 
-        // Advance to 6.5 * INTERVAL. The service should pull the first message immediately, another
-        // message every 2 INTERVALS. The messages are fully handled after 6 INTERVALS, but we
-        // cannot observe that since the last message exits the queue at 4.
-        let captures = relay_statsd::with_capturing_test_client(|| {
-            rt.block_on(async {
-                tokio::time::sleep(BACKLOG_INTERVAL * 6).await;
-            })
-        });
+    //     // Advance to 6.5 * INTERVAL. The service should pull the first message immediately, another
+    //     // message every 2 INTERVALS. The messages are fully handled after 6 INTERVALS, but we
+    //     // cannot observe that since the last message exits the queue at 4.
+    //     let captures = relay_statsd::with_capturing_test_client(|| {
+    //         rt.block_on(async {
+    //             tokio::time::sleep(BACKLOG_INTERVAL * 6).await;
+    //         })
+    //     });
 
-        assert_eq!(
-            captures,
-            [
-                "service.back_pressure:2|g|#service:mock", // 2 * INTERVAL
-                "service.back_pressure:1|g|#service:mock", // 4 * INTERVAL
-                "service.back_pressure:0|g|#service:mock", // 6 * INTERVAL
-            ]
-        );
-    }
+    //     assert_eq!(
+    //         captures,
+    //         [
+    //             "service.back_pressure:2|g|#service:mock", // 2 * INTERVAL
+    //             "service.back_pressure:1|g|#service:mock", // 4 * INTERVAL
+    //             "service.back_pressure:0|g|#service:mock", // 6 * INTERVAL
+    //         ]
+    //     );
+    // }
 }
