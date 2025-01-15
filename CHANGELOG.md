@@ -5,6 +5,7 @@
 **Internal**
 
 - Updates performance score calculation on spans and events to also store cdf values as measurements. ([#4438](https://github.com/getsentry/relay/pull/4438))
+- Allow log ingestion behind a flag, only for internal use currently. ([#4448](https://github.com/getsentry/relay/pull/4448))
 
 ## 24.12.2
 
