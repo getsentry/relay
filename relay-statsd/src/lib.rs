@@ -48,12 +48,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
 use std::net::ToSocketAddrs;
-use std::ops::Deref;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
 use std::time::Duration;
 
-use cadence::{BufferedUdpMetricSink, MetricSink, QueuingMetricSink, StatsdClient};
+use cadence::{BufferedUdpMetricSink, MetricSink, QueuingMetricSink};
 use crossbeam_utils::CachePadded;
 use rustc_hash::FxHashMap;
 use thread_local::ThreadLocal;
@@ -80,9 +79,6 @@ type LocalAggregators = Arc<ThreadLocal<CachePadded<Mutex<LocalAggregator>>>>;
 /// The globally configured Metrics, including a `cadence` client, and a local aggregator.
 #[derive(Debug)]
 pub struct MetricsWrapper {
-    /// The raw `cadence` client.
-    statsd_client: StatsdClient,
-
     /// A thread local aggregator.
     local_aggregator: LocalAggregators,
 }
@@ -96,14 +92,6 @@ impl MetricsWrapper {
             .lock()
             .unwrap();
         f(&mut local_aggregator)
-    }
-}
-
-impl Deref for MetricsWrapper {
-    type Target = StatsdClient;
-
-    fn deref(&self) -> &Self::Target {
-        &self.statsd_client
     }
 }
 
@@ -524,8 +512,6 @@ pub fn init<A: ToSocketAddrs>(prefix: &str, host: A, tags: BTreeMap<String, Stri
     let queuing_sink = QueuingMetricSink::from(udp_sink);
     let sink = Sink(Arc::new(queuing_sink));
 
-    let mut builder = StatsdClient::builder(prefix, sink.clone());
-
     // pre-format the global tags in `statsd` format, including a leading `|#`.
     let mut formatted_global_tags = String::new();
     for (key, value) in tags {
@@ -535,17 +521,11 @@ pub fn init<A: ToSocketAddrs>(prefix: &str, host: A, tags: BTreeMap<String, Stri
             formatted_global_tags.push(',');
         }
         let _ = write!(&mut formatted_global_tags, "{key}:{value}");
-
-        builder = builder.with_tag(key, value)
     }
-    let statsd_client = builder.build();
 
     let local_aggregator = make_aggregator(prefix, formatted_global_tags, sink);
 
-    let wrapper = MetricsWrapper {
-        statsd_client,
-        local_aggregator,
-    };
+    let wrapper = MetricsWrapper { local_aggregator };
 
     METRICS_CLIENT.set(wrapper).unwrap();
 }
