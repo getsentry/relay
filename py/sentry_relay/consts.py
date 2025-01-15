@@ -8,7 +8,6 @@ __all__ = ["DataCategory", "SPAN_STATUS_CODE_TO_NAME", "SPAN_STATUS_NAME_TO_CODE
 
 
 class DataCategory(IntEnum):
-    # begin generated
     DEFAULT = 0
     ERROR = 1
     TRANSACTION = 2
@@ -32,6 +31,8 @@ class DataCategory(IntEnum):
     REPLAY_VIDEO = 20
     UPTIME = 21
     ATTACHMENT_ITEM = 22
+    LOG_COUNT = 23
+    LOG_BYTES = 24
     UNKNOWN = -1
     # end generated
 
