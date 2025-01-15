@@ -2025,14 +2025,13 @@ impl EnvelopeProcessorService {
         managed_envelope: &mut TypedEnvelope<LogGroup>,
         project_info: Arc<ProjectInfo>,
     ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
-        ourlog::filter(managed_envelope);
+        ourlog::filter(
+            managed_envelope,
+            self.inner.config.clone(),
+            project_info.clone(),
+        );
         if_processing!(self.inner.config, {
-            ourlog::process(
-                managed_envelope,
-                project_info,
-                &self.inner.global_config.current(),
-                &self.inner.config,
-            );
+            ourlog::process(managed_envelope, &self.inner.config, project_info.clone());
         });
         Ok(None)
     }

@@ -1,12 +1,13 @@
 //! Log processing code.
-
 use std::sync::Arc;
 
+use crate::envelope::Item;
 use relay_config::Config;
-use relay_dynamic_config::GlobalConfig;
+use relay_dynamic_config::Feature;
 use relay_event_schema::protocol::OurLog;
 
 use crate::envelope::ItemType;
+use crate::services::processor::should_filter;
 use crate::services::projects::project::ProjectInfo;
 use crate::utils::{ItemAction, TypedEnvelope};
 
@@ -21,22 +22,34 @@ use {
 };
 
 /// Removes logs from the envelope if the feature is not enabled.
-pub fn filter<Group>(managed_envelope: &mut TypedEnvelope<Group>) {
-    // All log types are currently kept
-    managed_envelope.retain_items(|_| ItemAction::Keep);
+pub fn filter<Group>(
+    managed_envelope: &mut TypedEnvelope<Group>,
+    config: Arc<Config>,
+    project_info: Arc<ProjectInfo>,
+) {
+    let logging_disabled = should_filter(&config, &project_info, Feature::OurLogsIngestion);
+    managed_envelope.retain_items(|_| {
+        if logging_disabled {
+            ItemAction::DropSilently
+        } else {
+            ItemAction::Keep
+        }
+    });
 }
 
 /// Processes logs.
 #[cfg(feature = "processing")]
 pub fn process(
     managed_envelope: &mut TypedEnvelope<LogGroup>,
-    _project_info: Arc<ProjectInfo>,
-    _global_config: &GlobalConfig,
-    _config: &Config,
+    config: &Config,
+    project_info: Arc<ProjectInfo>,
 ) {
-    use crate::envelope::Item;
-
+    let logging_disabled = should_filter(config, &project_info, Feature::OurLogsIngestion);
     managed_envelope.retain_items(|item| {
+        if logging_disabled {
+            return ItemAction::DropSilently;
+        }
+
         let annotated_log = match item.ty() {
             ItemType::OtelLog => match serde_json::from_slice::<OtelLog>(&item.payload()) {
                 Ok(otel_log) => Annotated::new(relay_ourlogs::otel_to_sentry_log(otel_log)),
