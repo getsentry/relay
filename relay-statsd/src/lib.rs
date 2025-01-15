@@ -69,7 +69,8 @@ use crossbeam_utils::CachePadded;
 use rustc_hash::FxHashMap;
 use thread_local::ThreadLocal;
 
-pub mod types;
+mod types;
+pub use types::{CounterMetric, GaugeMetric, HistogramMetric, SetMetric, TimerMetric};
 
 static METRICS_CLIENT: OnceLock<MetricsWrapper> = OnceLock::new();
 
@@ -86,6 +87,10 @@ impl MetricSink for Sink {
 }
 
 type LocalAggregators = Arc<ThreadLocal<CachePadded<Mutex<LocalAggregator>>>>;
+
+pub fn with_capturing_test_client(f: impl FnOnce()) -> Vec<String> {
+    todo!()
+}
 
 /// The globally configured Metrics, including a `cadence` client, and a local aggregator.
 #[derive(Debug)]
@@ -301,6 +306,12 @@ impl IntoDistributionValue for i32 {
     }
 }
 
+impl IntoDistributionValue for f64 {
+    fn into_value(self) -> f64 {
+        self
+    }
+}
+
 /// The `thread_local` aggregator which pre-aggregates metrics per-thread.
 #[derive(Default, Debug)]
 pub struct LocalAggregator {
@@ -470,7 +481,7 @@ macro_rules! metric {
             let tags: &[(&'static str, &str)] = &[
                 $((stringify!($k), $v)),*
             ];
-            local.emit_count(&$crate::types::CounterMetric::name(&$id), $value, tags);
+            local.emit_count(&$crate::CounterMetric::name(&$id), $value as i64, tags);
         });
     };
 
@@ -480,7 +491,7 @@ macro_rules! metric {
             let tags: &[(&'static str, &str)] = &[
                 $((stringify!($k), $v)),*
             ];
-            local.emit_set(&$crate::types::SetMetric::name(&$id), $value, tags);
+            local.emit_set(&$crate::SetMetric::name(&$id), $value, tags);
         });
     };
 
@@ -490,7 +501,7 @@ macro_rules! metric {
             let tags: &[(&'static str, &str)] = &[
                 $((stringify!($k), $v)),*
             ];
-            local.emit_gauge(&$crate::types::GaugeMetric::name(&$id), $value, tags);
+            local.emit_gauge(&$crate::GaugeMetric::name(&$id), $value, tags);
         })
     };
 
@@ -501,7 +512,7 @@ macro_rules! metric {
                 $((stringify!($k), $v)),*
             ];
             use $crate::IntoDistributionValue;
-            local.emit_timer(&$crate::types::TimerMetric::name(&$id), ($value).into_value(), tags);
+            local.emit_timer(&$crate::TimerMetric::name(&$id), ($value).into_value(), tags);
         });
     };
 
@@ -514,7 +525,7 @@ macro_rules! metric {
                 $((stringify!($k), $v)),*
             ];
             use $crate::IntoDistributionValue;
-            local.emit_timer(&$crate::types::TimerMetric::name(&$id), now.elapsed().into_value(), tags);
+            local.emit_timer(&$crate::TimerMetric::name(&$id), now.elapsed().into_value(), tags);
         });
         rv
     }};
@@ -526,7 +537,7 @@ macro_rules! metric {
                 $((stringify!($k), $v)),*
             ];
             use $crate::IntoDistributionValue;
-            local.emit_timer(&$crate::types::TimerMetric::name(&$id), ($value).into_value(), tags);
+            local.emit_timer(&$crate::TimerMetric::name(&$id), ($value).into_value(), tags);
         });
     };
 
@@ -537,7 +548,7 @@ macro_rules! metric {
                 $((stringify!($k), $v)),*
             ];
             use $crate::IntoDistributionValue;
-            local.emit_histogram(&$crate::types::HistogramMetric::name(&$id), ($value).into_value(), tags);
+            local.emit_histogram(&$crate::HistogramMetric::name(&$id), ($value).into_value(), tags);
         });
     };
 }

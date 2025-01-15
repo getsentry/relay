@@ -1,4 +1,4 @@
-use relay_statsd::types::{CounterMetric, GaugeMetric, HistogramMetric};
+use relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric};
 
 pub enum KafkaCounters {
     /// Number of producer errors occurred after an envelope was already enqueued for sending to
