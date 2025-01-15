@@ -157,12 +157,33 @@ fn make_aggregator(prefix: &str, formatted_global_tags: String, sink: Sink) -> L
                 buf: _,
                 integers,
                 floats,
-                sets,
                 distributions,
+                sets,
             } = aggregate_all(&aggregators);
 
             // send all the aggregated "counter like" metrics
             for (AggregationKey { ty, name, tags }, value) in integers {
+                formatted_metric.push_str(&prefix);
+                formatted_metric.push_str(name);
+
+                let _ = write!(&mut formatted_metric, ":{value}{ty}{formatted_global_tags}");
+
+                if let Some(tags) = tags {
+                    if formatted_global_tags.is_empty() {
+                        formatted_metric.push_str("|#");
+                    } else {
+                        formatted_metric.push(',');
+                    }
+                    formatted_metric.push_str(&tags);
+                }
+
+                let _ = sink.emit(&formatted_metric);
+
+                formatted_metric.clear();
+            }
+
+            // send all the aggregated "counter like" metrics
+            for (AggregationKey { ty, name, tags }, value) in floats {
                 formatted_metric.push_str(&prefix);
                 formatted_metric.push_str(name);
 
@@ -203,6 +224,33 @@ fn make_aggregator(prefix: &str, formatted_global_tags: String, sink: Sink) -> L
                     for value in batch {
                         let _ = write!(&mut formatted_metric, ":{value}");
                     }
+
+                    formatted_metric.push_str(ty);
+                    formatted_metric.push_str(&suffix);
+
+                    let _ = sink.emit(&formatted_metric);
+                    formatted_metric.clear();
+                }
+
+                suffix.clear();
+            }
+
+            for (AggregationKey { ty, name, tags }, value) in sets {
+                suffix.push_str(&formatted_global_tags);
+                if let Some(tags) = tags {
+                    if formatted_global_tags.is_empty() {
+                        suffix.push_str("|#");
+                    } else {
+                        suffix.push(',');
+                    }
+                    suffix.push_str(&tags);
+                }
+
+                for value in value {
+                    formatted_metric.push_str(&prefix);
+                    formatted_metric.push_str(name);
+
+                    let _ = write!(&mut formatted_metric, ":{value}");
 
                     formatted_metric.push_str(ty);
                     formatted_metric.push_str(&suffix);
@@ -349,10 +397,10 @@ pub struct LocalAggregator {
     integers: AggregatedIntegers,
     /// A map of all the `counter` and `gauge` metrics we have aggregated thus far.
     floats: AggregatedFloats,
-    /// A map of all the `set` metrics we have aggregated thus far.
-    sets: AggregatedSets,
     /// A map of all the `timer` and `histogram` metrics we have aggregated thus far.
     distributions: AggregatedDistributions,
+    /// A map of all the `set` metrics we have aggregated thus far.
+    sets: AggregatedSets,
 }
 
 impl LocalAggregator {
