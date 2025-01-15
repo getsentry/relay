@@ -28,7 +28,7 @@ pub fn filter<Group>(
     project_info: Arc<ProjectInfo>,
 ) -> Option<ProfileId> {
     let profiling_disabled = should_filter(&config, &project_info, Feature::Profiling);
-    let has_transaction = event_type(event) == Some(EventType::Transaction);
+    let has_transaction = event_type(event.value()) == Some(EventType::Transaction);
     let keep_unsampled_profiles = true;
 
     let mut profile_id = None;

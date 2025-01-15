@@ -137,7 +137,7 @@ pub fn drop_unsampled_items(
     }
 
     // All items have been dropped, now make sure the event is also handled and dropped.
-    if let Some(category) = event_category(&event) {
+    if let Some(category) = event_category(event.value()) {
         let category = category.index_category().unwrap_or(category);
         managed_envelope.track_outcome(outcome, category, 1)
     }
