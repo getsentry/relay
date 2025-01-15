@@ -13,7 +13,9 @@ use relay_sampling::{DynamicSamplingContext, SamplingConfig};
 
 use crate::envelope::{CountFor, ItemType};
 use crate::services::outcome::Outcome;
-use crate::services::processor::{event_category, EventProcessing, Sampling, TransactionGroup};
+use crate::services::processor::{
+    event_category, payload, EventProcessing, Sampling, TransactionGroup,
+};
 use crate::services::projects::project::ProjectInfo;
 use crate::utils::{self, SamplingResult, TypedEnvelope};
 
@@ -198,13 +200,15 @@ fn compute_sampling_decision(
 ///
 /// This execution of dynamic sampling is technically a "simulation" since we will use the result
 /// only for tagging errors and not for actually sampling incoming events.
-pub fn tag_error_with_sampling_decision<Group: EventProcessing>(
-    managed_envelope: &mut TypedEnvelope<Group>,
-    event: &mut Annotated<Event>,
+pub fn tag_error_with_sampling_decision<G: EventProcessing>(
+    payload: &mut payload::WithEvent<G>,
     sampling_project_info: Option<Arc<ProjectInfo>>,
     config: &Config,
 ) {
-    let (Some(dsc), Some(event)) = (managed_envelope.envelope().dsc(), event.value_mut()) else {
+    let (Some(dsc), Some(event)) = (
+        payload.managed_envelope.envelope().dsc(),
+        payload.event.value_mut(),
+    ) else {
         return;
     };
 

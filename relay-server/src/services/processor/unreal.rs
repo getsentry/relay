@@ -3,7 +3,7 @@
 //! These functions are included only in the processing mode.
 
 use crate::envelope::ItemType;
-use crate::services::processor::{ErrorGroup, EventFullyNormalized, ProcessingError};
+use crate::services::processor::{payload, ErrorGroup, EventFullyNormalized, ProcessingError};
 use crate::utils;
 use crate::utils::TypedEnvelope;
 use relay_config::Config;
@@ -22,11 +22,12 @@ use relay_protocol::Annotated;
 ///
 /// After this, [`crate::services::processor::EnvelopeProcessorService`] should be able to process the envelope the same
 /// way it processes any other envelopes.
-pub fn expand(
-    managed_envelope: &mut TypedEnvelope<ErrorGroup>,
+pub fn expand<'a>(
+    payload: impl Into<payload::AnyRefMut<'a, ErrorGroup>>,
     config: &Config,
 ) -> Result<(), ProcessingError> {
-    let envelope = &mut managed_envelope.envelope_mut();
+    let mut payload = payload.into();
+    let envelope = payload.managed_envelope_mut().envelope_mut();
 
     if let Some(item) = envelope.take_item_by(|item| item.ty() == &ItemType::UnrealReport) {
         utils::expand_unreal_envelope(item, envelope, config)?;
@@ -40,14 +41,13 @@ pub fn expand(
 /// If the event does not contain an unreal context, this function does not perform any action.
 /// If there was no event payload prior to this function, it is created.
 pub fn process(
-    managed_envelope: &mut TypedEnvelope<ErrorGroup>,
-    event: &mut Annotated<Event>,
-) -> Result<Option<EventFullyNormalized>, ProcessingError> {
-    if utils::process_unreal_envelope(event, managed_envelope.envelope_mut())
+    mut payload: payload::WithEvent<ErrorGroup>,
+) -> Result<(payload::WithEvent<ErrorGroup>, Option<EventFullyNormalized>), ProcessingError> {
+    if utils::process_unreal_envelope(payload.managed_envelope.envelope_mut(), &mut payload.event)
         .map_err(ProcessingError::InvalidUnrealReport)?
     {
-        return Ok(Some(EventFullyNormalized(false)));
+        return Ok((payload, Some(EventFullyNormalized(false))));
     }
 
-    Ok(None)
+    Ok((payload, None))
 }

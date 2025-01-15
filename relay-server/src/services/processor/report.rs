@@ -17,7 +17,7 @@ use relay_system::Addr;
 use crate::constants::DEFAULT_EVENT_RETENTION;
 use crate::envelope::{ContentType, ItemType};
 use crate::services::outcome::{Outcome, RuleCategories, TrackOutcome};
-use crate::services::processor::{ClientReportGroup, MINIMUM_CLOCK_DRIFT};
+use crate::services::processor::{payload, ClientReportGroup, MINIMUM_CLOCK_DRIFT};
 use crate::services::projects::project::ProjectInfo;
 use crate::utils::{ItemAction, TypedEnvelope};
 
@@ -197,8 +197,8 @@ pub fn process_client_reports(
 /// User feedback items are removed from the envelope if they contain invalid JSON or if the
 /// JSON violates the schema (basic type validation). Otherwise, their normalized representation
 /// is written back into the item.
-pub fn process_user_reports<Group>(managed_envelope: &mut TypedEnvelope<Group>) {
-    managed_envelope.retain_items(|item| {
+pub fn process_user_reports<'a, G>(mut payload: impl Into<payload::AnyRefMut<'a, G>>) {
+    payload.envelope_mut().retain_items(|item| {
         if item.ty() != &ItemType::UserReport {
             return ItemAction::Keep;
         };

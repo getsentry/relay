@@ -94,6 +94,7 @@ mod session;
 mod span;
 pub use span::extract_transaction_span;
 
+mod payload;
 mod standalone;
 #[cfg(feature = "processing")]
 mod unreal;
@@ -451,6 +452,9 @@ pub enum ProcessingError {
     #[cfg(feature = "processing")]
     #[error("invalid unreal crash report")]
     InvalidUnrealReport(#[source] Unreal4Error),
+
+    #[error("invalid payload")]
+    InvalidPayload(#[from] payload::PayloadError),
 
     #[error("event payload too large")]
     PayloadTooLarge,
@@ -1204,25 +1208,23 @@ impl EnvelopeProcessorService {
     }
 
     #[cfg(feature = "processing")]
-    fn enforce_quotas<Group>(
+    fn enforce_quotas<G>(
         &self,
-        managed_envelope: &mut TypedEnvelope<Group>,
-        event: Annotated<Event>,
+        payload: payload::AnyRefMut<G>,
         extracted_metrics: &mut ProcessingExtractedMetrics,
         project_info: Arc<ProjectInfo>,
         rate_limits: Arc<RateLimits>,
-    ) -> Result<Annotated<Event>, ProcessingError> {
+    ) -> Result<payload::AnyRefMut<G>, ProcessingError> {
         let global_config = self.inner.global_config.current();
         let rate_limiter = match self.inner.rate_limiter.as_ref() {
             Some(rate_limiter) => rate_limiter,
-            None => return Ok(event),
+            None => return Ok(payload),
         };
 
         // Cached quotas first, they are quick to evaluate and some quotas (indexed) are not
         // applied in the fast path, all cached quotas can be applied here.
         let cached_result = RateLimiter::Cached.enforce(
-            managed_envelope,
-            event,
+            payload,
             extracted_metrics,
             &global_config,
             project_info.clone(),
@@ -1231,8 +1233,7 @@ impl EnvelopeProcessorService {
 
         // Enforce all quotas consistently with Redis.
         let consistent_result = RateLimiter::Consistent(rate_limiter).enforce(
-            managed_envelope,
-            cached_result.event,
+            cached_result.payload,
             extracted_metrics,
             &global_config,
             project_info,
@@ -1243,12 +1244,18 @@ impl EnvelopeProcessorService {
         if !consistent_result.rate_limits.is_empty() {
             self.inner
                 .project_cache
-                .get(managed_envelope.scoping().project_key)
+                .get(
+                    consistent_result
+                        .payload
+                        .managed_envelope()
+                        .scoping()
+                        .project_key,
+                )
                 .rate_limits()
                 .merge(consistent_result.rate_limits);
         }
 
-        Ok(consistent_result.event)
+        Ok(consistent_result.payload)
     }
 
     /// Extract transaction metrics.
@@ -1366,15 +1373,14 @@ impl EnvelopeProcessorService {
         Ok(EventMetricsExtracted(true))
     }
 
-    fn normalize_event<Group: EventProcessing>(
+    fn normalize_event<G: EventProcessing>(
         &self,
-        managed_envelope: &mut TypedEnvelope<Group>,
-        event: &mut Annotated<Event>,
+        payload: &mut payload::WithEvent<G>,
         project_id: ProjectId,
         project_info: Arc<ProjectInfo>,
         mut event_fully_normalized: EventFullyNormalized,
     ) -> Result<EventFullyNormalized, ProcessingError> {
-        if event.value().is_empty() {
+        if payload.event.value().is_empty() {
             // NOTE(iker): only processing relays create events from
             // attachments, so these events won't be normalized in
             // non-processing relays even if the config is set to run full
@@ -1393,7 +1399,7 @@ impl EnvelopeProcessorService {
             }
         };
 
-        let request_meta = managed_envelope.envelope().meta();
+        let request_meta = payload.managed_envelope.envelope().meta();
         let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
 
         let transaction_aggregator_config = self
@@ -1411,9 +1417,9 @@ impl EnvelopeProcessorService {
             .unwrap_or(DEFAULT_EVENT_RETENTION)
             .into();
 
-        utils::log_transaction_name_metrics(event, |event| {
+        utils::log_transaction_name_metrics(&mut payload.event, |event| {
             let event_validation_config = EventValidationConfig {
-                received_at: Some(managed_envelope.received_at()),
+                received_at: Some(payload.managed_envelope.received_at()),
                 max_secs_in_past: Some(retention_days * 24 * 3600),
                 max_secs_in_future: Some(self.inner.config.max_secs_in_future()),
                 transaction_timestamp_range: Some(transaction_aggregator_config.timestamp_range()),
@@ -1426,7 +1432,7 @@ impl EnvelopeProcessorService {
             if full_normalization && key_id.is_none() {
                 relay_log::error!(
                     "project state for key {} is missing key id",
-                    managed_envelope.envelope().meta().public_key()
+                    payload.managed_envelope.envelope().meta().public_key()
                 );
             }
 
@@ -1437,7 +1443,8 @@ impl EnvelopeProcessorService {
                 protocol_version: Some(request_meta.version().to_string()),
                 grouping_config: project_info.config.grouping_config.clone(),
                 client_ip: client_ipaddr.as_ref(),
-                client_sample_rate: managed_envelope
+                client_sample_rate: payload
+                    .managed_envelope
                     .envelope()
                     .dsc()
                     .and_then(|ctx| ctx.sample_rate),
@@ -1477,7 +1484,8 @@ impl EnvelopeProcessorService {
                     global_config.measurements.as_ref(),
                 )),
                 normalize_spans: true,
-                replay_id: managed_envelope
+                replay_id: payload
+                    .managed_envelope
                     .envelope()
                     .dsc()
                     .and_then(|ctx| ctx.replay_id),
@@ -1504,69 +1512,73 @@ impl EnvelopeProcessorService {
     /// Processes the general errors, and the items which require or create the events.
     fn process_errors(
         &self,
-        managed_envelope: &mut TypedEnvelope<ErrorGroup>,
+        managed_envelope: ManagedEnvelope,
         project_id: ProjectId,
         project_info: Arc<ProjectInfo>,
         sampling_project_info: Option<Arc<ProjectInfo>>,
         #[allow(unused_variables)] rate_limits: Arc<RateLimits>,
-    ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
-        let mut event_fully_normalized = EventFullyNormalized::new(managed_envelope.envelope());
+    ) -> Result<
+        (
+            payload::AnyRefMut<ErrorGroup>,
+            Option<ProcessingExtractedMetrics>,
+        ),
+        ProcessingError,
+    > {
+        let mut payload = payload::NoEvent::new(managed_envelope);
+
+        let mut event_fully_normalized =
+            EventFullyNormalized::new(payload.managed_envelope.envelope());
         let mut metrics = Metrics::default();
         #[allow(unused_mut)]
         let mut extracted_metrics = ProcessingExtractedMetrics::new();
 
         // Events can also contain user reports.
-        report::process_user_reports(managed_envelope);
+        report::process_user_reports(&mut payload);
 
         if_processing!(self.inner.config, {
-            unreal::expand(managed_envelope, &self.inner.config)?;
+            unreal::expand(&mut payload, &self.inner.config)?;
         });
 
-        let extraction_result = event::extract(
-            managed_envelope,
+        // We extract the event and put it the payload.
+        let mut payload = event::extract(
+            payload,
             &mut metrics,
             event_fully_normalized,
             &self.inner.config,
-        )?;
-        let mut event = extraction_result.event;
+        )?
+        .payload;
 
         if_processing!(self.inner.config, {
-            if let Some(inner_event_fully_normalized) =
-                unreal::process(managed_envelope, &mut event)?
-            {
-                event_fully_normalized = inner_event_fully_normalized;
+            let (payload_, event_fully_normalized_) = unreal::process(payload)?;
+            if let Some(event_fully_normalized_) = event_fully_normalized_ {
+                event_fully_normalized = event_fully_normalized_;
             }
-            if let Some(inner_event_fully_normalized) =
-                attachment::create_placeholders(managed_envelope, &mut event, &mut metrics)
-            {
-                event_fully_normalized = inner_event_fully_normalized;
+            payload = payload_;
+
+            let (payload_, event_fully_normalized_) =
+                attachment::create_placeholders(payload, &mut metrics);
+            if let Some(event_fully_normalized_) = event_fully_normalized_ {
+                event_fully_normalized = event_fully_normalized_;
             }
+            payload = payload_.into();
         });
 
-        event::finalize(
-            managed_envelope,
-            &mut event,
-            &mut metrics,
-            &self.inner.config,
-        )?;
+        event::finalize(&mut payload, &mut metrics, &self.inner.config)?;
         event_fully_normalized = self.normalize_event(
-            managed_envelope,
-            &mut event,
+            &mut payload,
             project_id,
             project_info.clone(),
             event_fully_normalized,
         )?;
         let filter_run = event::filter(
-            managed_envelope,
-            &mut event,
+            &mut payload,
             project_info.clone(),
             &self.inner.global_config.current(),
         )?;
 
         if self.inner.config.processing_enabled() || matches!(filter_run, FiltersStatus::Ok) {
             dynamic_sampling::tag_error_with_sampling_decision(
-                managed_envelope,
-                &mut event,
+                &mut payload,
                 sampling_project_info,
                 &self.inner.config,
             );
@@ -1604,7 +1616,7 @@ impl EnvelopeProcessorService {
             );
         }
 
-        Ok(Some(extracted_metrics))
+        Ok((payload, Some(extracted_metrics)))
     }
 
     /// Processes only transactions and transaction-related items.
@@ -3081,16 +3093,19 @@ impl Service for EnvelopeProcessorService {
 /// If the event is already `None` or it's rate limited, it will be `None`
 /// within the [`Annotated`].
 #[cfg(feature = "processing")]
-struct EnforcementResult {
-    event: Annotated<Event>,
+struct EnforcementResult<G> {
+    payload: payload::AnyRefMut<G>,
     rate_limits: RateLimits,
 }
 
 #[cfg(feature = "processing")]
-impl EnforcementResult {
+impl<G> EnforcementResult<G> {
     /// Creates a new [`EnforcementResult`].
-    pub fn new(event: Annotated<Event>, rate_limits: RateLimits) -> Self {
-        Self { event, rate_limits }
+    pub fn new(payload: payload::AnyRefMut<G>, rate_limits: RateLimits) -> Self {
+        Self {
+            payload,
+            rate_limits,
+        }
     }
 }
 
@@ -3102,25 +3117,22 @@ enum RateLimiter<'a> {
 
 #[cfg(feature = "processing")]
 impl RateLimiter<'_> {
-    fn enforce<Group>(
+    fn enforce<G>(
         &self,
-        managed_envelope: &mut TypedEnvelope<Group>,
-        event: Annotated<Event>,
+        mut payload: payload::AnyRefMut<G>,
         extracted_metrics: &mut ProcessingExtractedMetrics,
         global_config: &GlobalConfig,
         project_info: Arc<ProjectInfo>,
         rate_limits: Arc<RateLimits>,
-    ) -> Result<EnforcementResult, ProcessingError> {
-        if managed_envelope.envelope().is_empty() && event.value().is_none() {
-            return Ok(EnforcementResult::new(event, RateLimits::default()));
+    ) -> Result<EnforcementResult<G>, ProcessingError> {
+        if payload.has_empty_envelope() && !payload.has_event() {
+            return Ok(EnforcementResult::new(payload, RateLimits::default()));
         }
 
         let quotas = CombinedQuotas::new(global_config, project_info.get_quotas());
         if quotas.is_empty() {
-            return Ok(EnforcementResult::new(event, RateLimits::default()));
+            return Ok(EnforcementResult::new(payload, RateLimits::default()));
         }
-
-        let event_category = event_category(&event);
 
         // When invoking the rate limiter, capture if the event item has been rate limited to also
         // remove it from the processing state eventually.
@@ -3134,14 +3146,15 @@ impl RateLimiter<'_> {
 
         // Tell the envelope limiter about the event, since it has been removed from the Envelope at
         // this stage in processing.
+        let event_category = payload.event().and_then(|e| event_category(e));
         if let Some(category) = event_category {
             envelope_limiter.assume_event(category);
         }
 
-        let scoping = managed_envelope.scoping();
+        let scoping = payload.managed_envelope().scoping();
         let (enforcement, rate_limits) =
             metric!(timer(RelayTimers::EventProcessingRateLimiting), {
-                envelope_limiter.compute(managed_envelope.envelope_mut(), &scoping)?
+                envelope_limiter.compute(payload.managed_envelope_mut().envelope_mut(), &scoping)?
             });
         let event_active = enforcement.is_event_active();
 
@@ -3149,14 +3162,14 @@ impl RateLimiter<'_> {
         // Those rate limits should not be checked for expiry or similar to ensure a consistent
         // limiting of envelope items and metrics.
         extracted_metrics.apply_enforcement(&enforcement, matches!(self, Self::Consistent(_)));
-        enforcement.apply_with_outcomes(managed_envelope);
+        enforcement.apply_with_outcomes(payload.managed_envelope_mut());
 
         if event_active {
-            debug_assert!(managed_envelope.envelope().is_empty());
-            return Ok(EnforcementResult::new(Annotated::empty(), rate_limits));
+            debug_assert!(payload.managed_envelope().envelope().is_empty());
+            return Ok(EnforcementResult::new(payload.remove_event(), rate_limits));
         }
 
-        Ok(EnforcementResult::new(event, rate_limits))
+        Ok(EnforcementResult::new(payload, rate_limits))
     }
 }
 

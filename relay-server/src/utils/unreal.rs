@@ -325,8 +325,8 @@ fn merge_unreal_context(event: &mut Event, context: Unreal4Context) {
 /// This function returns either the processing error, or a boolean indicating
 /// whether the envelope contained an unreal item.
 pub fn process_unreal_envelope(
-    event: &mut Annotated<Event>,
     envelope: &mut Envelope,
+    event: &mut Annotated<Event>,
 ) -> Result<bool, Unreal4Error> {
     let user_header = envelope
         .get_header(UNREAL_USER_HEADER)
