@@ -23,7 +23,7 @@
 //! ```no_run
 //! # use std::collections::BTreeMap;
 //!
-//! relay_statsd::init("myprefix", "localhost:8125", BTreeMap::new(), 1.0, true);
+//! relay_statsd::init("myprefix", "localhost:8125", BTreeMap::new());
 //! ```
 //!
 //! ## Macro Usage
@@ -43,16 +43,6 @@
 //! }
 //!
 //! metric!(counter(MyCounter) += 1);
-//! ```
-//!
-//! ## Manual Usage
-//!
-//! ```
-//! use relay_statsd::prelude::*;
-//!
-//! relay_statsd::with_client(|client| {
-//!     client.count("mymetric", 1).ok();
-//! });
 //! ```
 //!
 //! [Metric Types]: https://github.com/statsd/statsd/blob/master/docs/metric_types.md
@@ -526,7 +516,7 @@ impl LocalAggregator {
 }
 
 /// Tell the metrics system to report to statsd.
-pub fn configure_statsd<A: ToSocketAddrs>(prefix: &str, host: A, tags: BTreeMap<String, String>) {
+pub fn init<A: ToSocketAddrs>(prefix: &str, host: A, tags: BTreeMap<String, String>) {
     let addrs: Vec<_> = host.to_socket_addrs().unwrap().collect();
 
     let socket = std::net::UdpSocket::bind("0.0.0.0:0").unwrap();
@@ -594,7 +584,7 @@ macro_rules! metric {
             let tags: &[(&'static str, &str)] = &[
                 $((stringify!($k), $v)),*
             ];
-            local.emit_set(&$crate::SetMetric::name(&$id), $value, tags);
+            local.emit_set(&$crate::SetMetric::name(&$id), $value as u64, tags);
         });
     };
 

@@ -95,16 +95,7 @@ pub trait TimerMetric {
 ///     server = "s1",
 ///     host = "h1"
 /// );
-///
-/// // subtract from the counter
-/// metric!(counter(MyCounter::TotalRequests) -= 1);
-///
-/// // subtract from the counter and provide tags
-/// metric!(
-///     counter(MyCounter::TotalRequests) -= 1,
-///     server = "s1",
-///     host = "h1"
-/// );
+
 /// ```
 pub trait CounterMetric {
     /// Returns the counter metric name that will be sent to statsd.
@@ -178,11 +169,11 @@ pub trait HistogramMetric {
 /// # let _hint: &HashSet<()> = &users;
 ///
 /// // use a set metric
-/// metric!(set(MySet::UniqueUsers) = users.len() as i64);
+/// metric!(set(MySet::UniqueUsers) = users.len());
 ///
 /// // use a set metric with tags
 /// metric!(
-///     set(MySet::UniqueUsers) = users.len() as i64,
+///     set(MySet::UniqueUsers) = users.len(),
 ///     server = "server1",
 ///     host = "host1",
 /// );
