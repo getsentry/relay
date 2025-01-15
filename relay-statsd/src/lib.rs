@@ -88,10 +88,6 @@ impl MetricSink for Sink {
 
 type LocalAggregators = Arc<ThreadLocal<CachePadded<Mutex<LocalAggregator>>>>;
 
-pub fn with_capturing_test_client(f: impl FnOnce()) -> Vec<String> {
-    todo!()
-}
-
 /// The globally configured Metrics, including a `cadence` client, and a local aggregator.
 #[derive(Debug)]
 pub struct MetricsWrapper {
