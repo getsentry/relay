@@ -3789,7 +3789,6 @@ dependencies = [
 name = "relay-pii"
 version = "25.1.0"
 dependencies = [
- "bytes",
  "hmac",
  "insta",
  "itertools 0.13.0",

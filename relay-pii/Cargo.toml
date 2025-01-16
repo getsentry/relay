@@ -13,7 +13,6 @@ publish = false
 workspace = true
 
 [dependencies]
-bytes = { workspace = true }
 hmac = { workspace = true }
 minidump = { workspace = true }
 num-traits = { workspace = true }
