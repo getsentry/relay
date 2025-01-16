@@ -107,63 +107,63 @@ impl<T: Future> Future for Task<T> {
     }
 }
 
-// #[cfg(test)]
-// mod tests {
-//     use insta::assert_debug_snapshot;
+#[cfg(test)]
+mod tests {
+    use insta::assert_debug_snapshot;
 
-//     use crate::{Service, TaskId};
+    use crate::{Service, TaskId};
 
-//     #[test]
-//     fn test_spawn_spawns_a_future() {
-//         let rt = tokio::runtime::Builder::new_current_thread()
-//             .build()
-//             .unwrap();
+    #[test]
+    fn test_spawn_spawns_a_future() {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
 
-//         let captures = relay_statsd::with_capturing_test_client(|| {
-//             rt.block_on(async {
-//                 let _ = crate::spawn!(async {}).await;
-//             })
-//         });
+        let captures = relay_statsd::with_capturing_test_client(|| {
+            rt.block_on(async {
+                let _ = crate::spawn!(async {}).await;
+            })
+        });
 
-//         #[cfg(not(windows))]
-//         assert_debug_snapshot!(captures, @r###"
-//         [
-//             "runtime.task.spawn.created:1|c|#id:relay-system/src/runtime/spawn.rs:124,file:relay-system/src/runtime/spawn.rs,line:124",
-//             "runtime.task.spawn.terminated:1|c|#id:relay-system/src/runtime/spawn.rs:124,file:relay-system/src/runtime/spawn.rs,line:124",
-//         ]
-//         "###);
-//         #[cfg(windows)]
-//         assert_debug_snapshot!(captures, @r###"
-//         [
-//             "runtime.task.spawn.created:1|c|#id:relay-system\\src\\runtime\\spawn.rs:124,file:relay-system\\src\\runtime\\spawn.rs,line:124",
-//             "runtime.task.spawn.terminated:1|c|#id:relay-system\\src\\runtime\\spawn.rs:124,file:relay-system\\src\\runtime\\spawn.rs,line:124",
-//         ]
-//         "###);
-//     }
+        #[cfg(not(windows))]
+        assert_debug_snapshot!(captures, @r###"
+        [
+            "runtime.task.spawn.created:1|c|#id:relay-system/src/runtime/spawn.rs:124,file:relay-system/src/runtime/spawn.rs,line:124",
+            "runtime.task.spawn.terminated:1|c|#id:relay-system/src/runtime/spawn.rs:124,file:relay-system/src/runtime/spawn.rs,line:124",
+        ]
+        "###);
+        #[cfg(windows)]
+        assert_debug_snapshot!(captures, @r###"
+        [
+            "runtime.task.spawn.created:1|c|#id:relay-system\\src\\runtime\\spawn.rs:124,file:relay-system\\src\\runtime\\spawn.rs,line:124",
+            "runtime.task.spawn.terminated:1|c|#id:relay-system\\src\\runtime\\spawn.rs:124,file:relay-system\\src\\runtime\\spawn.rs,line:124",
+        ]
+        "###);
+    }
 
-//     #[test]
-//     fn test_spawn_with_custom_id() {
-//         struct Foo;
-//         impl Service for Foo {
-//             type Interface = ();
-//             async fn run(self, _rx: crate::Receiver<Self::Interface>) {}
-//         }
+    #[test]
+    fn test_spawn_with_custom_id() {
+        struct Foo;
+        impl Service for Foo {
+            type Interface = ();
+            async fn run(self, _rx: crate::Receiver<Self::Interface>) {}
+        }
 
-//         let rt = tokio::runtime::Builder::new_current_thread()
-//             .build()
-//             .unwrap();
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
 
-//         let captures = relay_statsd::with_capturing_test_client(|| {
-//             rt.block_on(async {
-//                 let _ = crate::spawn(TaskId::for_service::<Foo>(), async {}).await;
-//             })
-//         });
+        let captures = relay_statsd::with_capturing_test_client(|| {
+            rt.block_on(async {
+                let _ = crate::spawn(TaskId::for_service::<Foo>(), async {}).await;
+            })
+        });
 
-//         assert_debug_snapshot!(captures, @r###"
-//         [
-//             "runtime.task.spawn.created:1|c|#id:relay_system::runtime::spawn::tests::test_spawn_with_custom_id::Foo,file:,line:",
-//             "runtime.task.spawn.terminated:1|c|#id:relay_system::runtime::spawn::tests::test_spawn_with_custom_id::Foo,file:,line:",
-//         ]
-//         "###);
-//     }
-// }
+        assert_debug_snapshot!(captures, @r###"
+        [
+            "runtime.task.spawn.created:1|c|#id:relay_system::runtime::spawn::tests::test_spawn_with_custom_id::Foo,file:,line:",
+            "runtime.task.spawn.terminated:1|c|#id:relay_system::runtime::spawn::tests::test_spawn_with_custom_id::Foo,file:,line:",
+        ]
+        "###);
+    }
+}
