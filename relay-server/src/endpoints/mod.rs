@@ -36,11 +36,11 @@ const BATCH_JSON_BODY_LIMIT: usize = 50_000_000; // 50 MB
 pub fn routes(config: &Config) -> Router<ServiceState>{
     // Relay-internal routes pointing to /api/relay/
     let internal_routes = Router::new()
-        .route("/api/relay/healthcheck/:kind/", get(health_check::handle))
-        .route("/api/relay/events/:event_id/", get(events::handle));
+        .route("/api/relay/healthcheck/{kind}/", get(health_check::handle))
+        .route("/api/relay/events/{event_id}/", get(events::handle));
     let internal_routes = internal_routes
         // Fallback route, but with a name, and just on `/api/relay/*`.
-        .route("/api/relay/*not_found", any(statics::not_found));
+        .route("/api/relay/{*not_found}", any(statics::not_found));
 
     // Sentry Web API routes pointing to /api/0/relays/
     let web_routes = Router::new()
@@ -60,22 +60,22 @@ pub fn routes(config: &Config) -> Router<ServiceState>{
         // Legacy store path that is missing the project parameter.
         .route("/api/store/", store::route(config))
         // cron monitor level routes.  These are user facing APIs and as such support trailing slashes.
-        .route("/api/:project_id/cron/:monitor_slug/:sentry_key", monitor::route(config))
-        .route("/api/:project_id/cron/:monitor_slug/:sentry_key/", monitor::route(config))
-        .route("/api/:project_id/cron/:monitor_slug", monitor::route(config))
-        .route("/api/:project_id/cron/:monitor_slug/", monitor::route(config))
+        .route("/api/{project_id}/cron/{monitor_slug}/{sentry_key}", monitor::route(config))
+        .route("/api/{project_id}/cron/{monitor_slug}/{sentry_key}/", monitor::route(config))
+        .route("/api/{project_id}/cron/{monitor_slug}", monitor::route(config))
+        .route("/api/{project_id}/cron/{monitor_slug}/", monitor::route(config))
 
-        .route("/api/:project_id/store/", store::route(config))
-        .route("/api/:project_id/envelope/", envelope::route(config))
-        .route("/api/:project_id/security/", security_report::route(config))
-        .route("/api/:project_id/csp-report/", security_report::route(config))
-        .route("/api/:project_id/nel/", nel::route(config))
+        .route("/api/{project_id}/store/", store::route(config))
+        .route("/api/{project_id}/envelope/", envelope::route(config))
+        .route("/api/{project_id}/security/", security_report::route(config))
+        .route("/api/{project_id}/csp-report/", security_report::route(config))
+        .route("/api/{project_id}/nel/", nel::route(config))
         // No mandatory trailing slash here because people already use it like this.
-        .route("/api/:project_id/minidump", minidump::route(config))
-        .route("/api/:project_id/minidump/", minidump::route(config))
-        .route("/api/:project_id/events/:event_id/attachments/", post(attachments::handle))
-        .route("/api/:project_id/unreal/:sentry_key/", unreal::route(config))
-        .route("/api/:project_id/otlp/v1/traces/", traces::route(config))
+        .route("/api/{project_id}/minidump", minidump::route(config))
+        .route("/api/{project_id}/minidump/", minidump::route(config))
+        .route("/api/{project_id}/events/{event_id}/attachments/", post(attachments::handle))
+        .route("/api/{project_id}/unreal/{sentry_key}/", unreal::route(config))
+        .route("/api/{project_id}/otlp/v1/traces/", traces::route(config))
         // NOTE: If you add a new (non-experimental) route here, please also list it in
         // https://github.com/getsentry/sentry-docs/blob/master/docs/product/relay/operating-guidelines.mdx
         .route_layer(middlewares::cors());

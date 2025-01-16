@@ -7,7 +7,7 @@ use std::time::Instant;
 use relay_pii::{JsonScrubVisitor, PiiAttachmentsProcessor, SelectorPathItem, SelectorSpec};
 use relay_statsd::metric;
 
-use crate::envelope::{AttachmentType, ContentType};
+use crate::envelope::{AttachmentType, ContentType, ItemType};
 use crate::statsd::RelayTimers;
 
 use crate::services::projects::project::ProjectInfo;
@@ -74,6 +74,9 @@ pub fn scrub<Group>(managed_envelope: &mut TypedEnvelope<Group>, project_info: A
             } else if item.attachment_type() == Some(&AttachmentType::Minidump) {
                 scrub_minidump(item, config)
             } else if has_simple_attachment_selector(config) && item.attachment_type().is_some() {
+                // We temporarily only scrub attachments to projects that have at least one simple attachment rule,
+                // such as `$attachments.'foo.txt'`.
+                // After we have assessed the impact on performance we can relax this condition.
                 scrub_attachment(item, config)
             }
         }

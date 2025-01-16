@@ -252,9 +252,36 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "edca88bc138befd0323b20752846e6587272d3b03b0343c8ea28a6f819e6e71f"
 dependencies = [
  "async-trait",
- "axum-core",
+ "axum-core 0.4.5",
+ "bytes",
+ "futures-util",
+ "http",
+ "http-body",
+ "http-body-util",
+ "itoa",
+ "matchit 0.7.3",
+ "memchr",
+ "mime",
+ "percent-encoding",
+ "pin-project-lite",
+ "rustversion",
+ "serde",
+ "sync_wrapper",
+ "tower 0.5.2",
+ "tower-layer",
+ "tower-service",
+]
+
+[[package]]
+name = "axum"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6d6fd624c75e18b3b4c6b9caf42b1afe24437daaee904069137d8bab077be8b8"
+dependencies = [
+ "axum-core 0.5.0",
  "axum-macros",
  "bytes",
+ "form_urlencoded",
  "futures-util",
  "http",
  "http-body",
@@ -262,7 +289,7 @@ dependencies = [
  "hyper",
  "hyper-util",
  "itoa",
- "matchit",
+ "matchit 0.8.4",
  "memchr",
  "mime",
  "percent-encoding",
@@ -272,9 +299,9 @@ dependencies = [
  "serde_json",
  "serde_path_to_error",
  "serde_urlencoded",
- "sync_wrapper 1.0.2",
+ "sync_wrapper",
  "tokio",
- "tower 0.5.1",
+ "tower 0.5.2",
  "tower-layer",
  "tower-service",
  "tracing",
@@ -295,7 +322,26 @@ dependencies = [
  "mime",
  "pin-project-lite",
  "rustversion",
- "sync_wrapper 1.0.2",
+ "sync_wrapper",
+ "tower-layer",
+ "tower-service",
+]
+
+[[package]]
+name = "axum-core"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df1362f362fd16024ae199c1970ce98f9661bf5ef94b9808fee734bc3698b733"
+dependencies = [
+ "bytes",
+ "futures-util",
+ "http",
+ "http-body",
+ "http-body-util",
+ "mime",
+ "pin-project-lite",
+ "rustversion",
+ "sync_wrapper",
  "tower-layer",
  "tower-service",
  "tracing",
@@ -303,32 +349,30 @@ dependencies = [
 
 [[package]]
 name = "axum-extra"
-version = "0.9.6"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c794b30c904f0a1c2fb7740f7df7f7972dfaa14ef6f57cb6178dc63e5dca2f04"
+checksum = "460fc6f625a1f7705c6cf62d0d070794e94668988b1c38111baeec177c715f7b"
 dependencies = [
- "axum",
- "axum-core",
+ "axum 0.8.1",
+ "axum-core 0.5.0",
  "bytes",
- "fastrand",
  "futures-util",
  "http",
  "http-body",
  "http-body-util",
  "mime",
- "multer",
  "pin-project-lite",
  "serde",
- "tower 0.5.1",
+ "tower 0.5.2",
  "tower-layer",
  "tower-service",
 ]
 
 [[package]]
 name = "axum-macros"
-version = "0.4.2"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57d123550fa8d071b7255cb0cc04dc302baa6c8c4a79f55701552684d8399bce"
+checksum = "604fde5e028fea851ce1d8570bbdc034bec850d157f7569d10f347d06808c05c"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -438,7 +482,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "regex",
- "rustc-hash",
+ "rustc-hash 1.1.0",
  "shlex",
  "syn",
 ]
@@ -882,9 +926,9 @@ dependencies = [
 
 [[package]]
 name = "crossbeam-channel"
-version = "0.5.13"
+version = "0.5.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "33480d6946193aa8033910124896ca395333cae7e2d1113d1fef6c3272217df2"
+checksum = "06ba6d68e24814cb8de6bb986db8222d3a027d15872cabc0d18817bc3c0e4471"
 dependencies = [
  "crossbeam-utils",
 ]
@@ -919,9 +963,9 @@ dependencies = [
 
 [[package]]
 name = "crossbeam-utils"
-version = "0.8.20"
+version = "0.8.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22ec99545bb0ed0ea7bb9b8e1e9122ea386ff8a48c0922e43f36d45ab09e0e80"
+checksum = "d0a5c400df2834b80a4c3327b3aad3a4c4cd4de0629063962b03235697506a28"
 
 [[package]]
 name = "crunchy"
@@ -2363,6 +2407,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0e7465ac9959cc2b1404e8e2367b43684a6d13790fe23056cc8c6c5a6b7bcb94"
 
 [[package]]
+name = "matchit"
+version = "0.8.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "47e1ffaa40ddd1f3ed91f717a33c8c0ee23fff369e3aa8772b9605cc1d22f4c3"
+
+[[package]]
 name = "maxminddb"
 version = "0.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3377,7 +3427,7 @@ checksum = "2b15c43186be67a4fd63bee50d0303afffcef381492ebe2c5d87f324e1b8815c"
 
 [[package]]
 name = "relay"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -3396,7 +3446,7 @@ dependencies = [
 
 [[package]]
 name = "relay-auth"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "chrono",
  "data-encoding",
@@ -3413,7 +3463,7 @@ dependencies = [
 
 [[package]]
 name = "relay-base-schema"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "regex",
  "relay-common",
@@ -3452,7 +3502,7 @@ dependencies = [
 
 [[package]]
 name = "relay-cardinality"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "criterion",
  "hash32",
@@ -3471,11 +3521,11 @@ dependencies = [
 
 [[package]]
 name = "relay-cogs"
-version = "24.12.1"
+version = "25.1.0"
 
 [[package]]
 name = "relay-common"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "chrono",
  "criterion",
@@ -3489,7 +3539,7 @@ dependencies = [
 
 [[package]]
 name = "relay-config"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "anyhow",
  "human-size",
@@ -3511,7 +3561,7 @@ dependencies = [
 
 [[package]]
 name = "relay-crash"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "bindgen",
  "cmake",
@@ -3519,7 +3569,7 @@ dependencies = [
 
 [[package]]
 name = "relay-dynamic-config"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "anyhow",
  "relay-auth",
@@ -3542,7 +3592,7 @@ dependencies = [
 
 [[package]]
 name = "relay-event-derive"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3552,7 +3602,7 @@ dependencies = [
 
 [[package]]
 name = "relay-event-normalization"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "bytecount",
  "chrono",
@@ -3586,7 +3636,7 @@ dependencies = [
 
 [[package]]
 name = "relay-event-schema"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "bytecount",
  "chrono",
@@ -3609,7 +3659,7 @@ dependencies = [
 
 [[package]]
 name = "relay-ffi"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "anyhow",
  "relay-ffi-macros",
@@ -3617,7 +3667,7 @@ dependencies = [
 
 [[package]]
 name = "relay-ffi-macros"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "quote",
  "syn",
@@ -3625,7 +3675,7 @@ dependencies = [
 
 [[package]]
 name = "relay-filter"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "indexmap 2.7.0",
  "insta",
@@ -3644,7 +3694,7 @@ dependencies = [
 
 [[package]]
 name = "relay-kafka"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "rdkafka",
  "rdkafka-sys",
@@ -3660,7 +3710,7 @@ dependencies = [
 
 [[package]]
 name = "relay-log"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "console",
  "relay-common",
@@ -3674,7 +3724,7 @@ dependencies = [
 
 [[package]]
 name = "relay-metrics"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "ahash",
  "bytecount",
@@ -3707,7 +3757,7 @@ dependencies = [
 
 [[package]]
 name = "relay-monitors"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "relay-base-schema",
  "serde",
@@ -3719,7 +3769,7 @@ dependencies = [
 
 [[package]]
 name = "relay-pattern"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "criterion",
  "memchr",
@@ -3729,7 +3779,7 @@ dependencies = [
 
 [[package]]
 name = "relay-pattern-fuzz"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "libfuzzer-sys",
  "relay-pattern",
@@ -3737,9 +3787,8 @@ dependencies = [
 
 [[package]]
 name = "relay-pii"
-version = "24.12.0"
+version = "25.1.0"
 dependencies = [
- "bytes",
  "hmac",
  "insta",
  "itertools 0.13.0",
@@ -3755,7 +3804,6 @@ dependencies = [
  "relay-log",
  "relay-protocol",
  "serde",
- "serde-transcode",
  "serde_json",
  "sha1",
  "similar-asserts",
@@ -3766,7 +3814,7 @@ dependencies = [
 
 [[package]]
 name = "relay-profiling"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "android_trace_log",
  "chrono",
@@ -3790,7 +3838,7 @@ dependencies = [
 
 [[package]]
 name = "relay-protocol"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "insta",
  "num-traits",
@@ -3807,7 +3855,7 @@ dependencies = [
 
 [[package]]
 name = "relay-protocol-derive"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3817,7 +3865,7 @@ dependencies = [
 
 [[package]]
 name = "relay-quotas"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "hashbrown 0.14.5",
  "insta",
@@ -3835,7 +3883,7 @@ dependencies = [
 
 [[package]]
 name = "relay-redis"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "r2d2",
  "redis",
@@ -3847,7 +3895,7 @@ dependencies = [
 
 [[package]]
 name = "relay-replays"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "criterion",
  "flate2",
@@ -3864,7 +3912,7 @@ dependencies = [
 
 [[package]]
 name = "relay-sampling"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3883,12 +3931,12 @@ dependencies = [
 
 [[package]]
 name = "relay-server"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "ahash",
  "anyhow",
  "arc-swap",
- "axum",
+ "axum 0.8.1",
  "axum-extra",
  "axum-server",
  "backoff",
@@ -3951,7 +3999,6 @@ dependencies = [
  "rmp-serde",
  "semver",
  "serde",
- "serde-transcode",
  "serde_bytes",
  "serde_json",
  "serde_path_to_error",
@@ -3965,7 +4012,7 @@ dependencies = [
  "tempfile",
  "thiserror",
  "tokio",
- "tower 0.4.13",
+ "tower 0.5.2",
  "tower-http",
  "url",
  "uuid",
@@ -3974,7 +4021,7 @@ dependencies = [
 
 [[package]]
 name = "relay-spans"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "chrono",
  "hex",
@@ -3988,19 +4035,22 @@ dependencies = [
 
 [[package]]
 name = "relay-statsd"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "cadence",
  "crossbeam-channel",
+ "crossbeam-utils",
  "parking_lot",
  "rand",
  "relay-log",
+ "rustc-hash 2.1.0",
  "statsdproxy",
+ "thread_local",
 ]
 
 [[package]]
 name = "relay-system"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "futures",
  "insta",
@@ -4013,7 +4063,7 @@ dependencies = [
 
 [[package]]
 name = "relay-test"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "relay-log",
  "relay-system",
@@ -4022,7 +4072,7 @@ dependencies = [
 
 [[package]]
 name = "relay-ua"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "once_cell",
  "uaparser",
@@ -4062,7 +4112,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_urlencoded",
- "sync_wrapper 1.0.2",
+ "sync_wrapper",
  "system-configuration",
  "tokio",
  "tokio-native-tls",
@@ -4165,6 +4215,12 @@ name = "rustc-hash"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "08d43f7aa6b08d49f382cde6a7982047c3426db949b1424bc4b7ec9ae12c6ce2"
+
+[[package]]
+name = "rustc-hash"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c7fb8039b3032c191086b10f11f319a6e99e1e82889c5cc6046f515c9db1d497"
 
 [[package]]
 name = "rustc_version"
@@ -5042,12 +5098,6 @@ dependencies = [
 
 [[package]]
 name = "sync_wrapper"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2047c6ded9c721764247e62cd3b03c09ffc529b2ba5b10ec482ae507a4a70160"
-
-[[package]]
-name = "sync_wrapper"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0bf256ce5efdfa370213c1dabab5935a12e49f2c58d15e9eac2870d3b4f27263"
@@ -5338,7 +5388,7 @@ checksum = "877c5b330756d856ffcc4553ab34a5684481ade925ecc54bcd1bf02b1d0d4d52"
 dependencies = [
  "async-stream",
  "async-trait",
- "axum",
+ "axum 0.7.9",
  "base64 0.22.1",
  "bytes",
  "h2",
@@ -5382,14 +5432,14 @@ dependencies = [
 
 [[package]]
 name = "tower"
-version = "0.5.1"
+version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2873938d487c3cfb9aed7546dc9f2711d867c9f90c46b889989a2cb84eba6b4f"
+checksum = "d039ad9159c98b70ecfd540b2573b97f7f52c3e8d9f8ad57a24b916a536975f9"
 dependencies = [
  "futures-core",
  "futures-util",
  "pin-project-lite",
- "sync_wrapper 0.1.2",
+ "sync_wrapper",
  "tokio",
  "tower-layer",
  "tower-service",
@@ -5398,9 +5448,9 @@ dependencies = [
 
 [[package]]
 name = "tower-http"
-version = "0.5.2"
+version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e9cd434a998747dd2c4276bc96ee2e0c7a2eadf3cae88e52be55a05fa9053f5"
+checksum = "403fa3b783d4b626a8ad51d766ab03cb6d2dbfc46b1c5d4448395e6628dc9697"
 dependencies = [
  "async-compression",
  "bitflags 2.6.0",
