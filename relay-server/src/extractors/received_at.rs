@@ -15,7 +15,6 @@ impl ReceivedAt {
     }
 }
 
-#[axum::async_trait]
 impl<S> FromRequestParts<S> for ReceivedAt
 where
     S: Send + Sync,

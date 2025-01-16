@@ -92,12 +92,12 @@ pub enum DataCategory {
     Uptime = 21,
     /// Counts the number of individual attachments, as opposed to the number of bytes in an attachment.
     AttachmentItem = 22,
-    /// LogCount
+    /// LogItem
     ///
     /// This is the category for logs for which we store the count log events for users for measuring
     /// missing breadcrumbs, and count of logs for rate limiting purposes.
     LogItem = 23,
-    /// LogBytes
+    /// LogByte
     ///
     /// This is the category for logs for which we store log event total bytes for users.
     LogByte = 24,

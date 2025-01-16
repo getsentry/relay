@@ -21,7 +21,6 @@ use crate::utils::{self, ApiErrorResponse};
 /// use crate::extractors::Remote;
 ///
 /// // Derive `FromRequest` for `bool` for illustration purposes:
-/// #[axum::async_trait]
 /// impl<S> axum::extract::FromRequest<S> for Remote<bool> {
 ///     type Rejection = Remote<Infallible>;
 ///
@@ -45,7 +44,6 @@ impl<T> From<T> for Remote<T> {
     }
 }
 
-#[axum::async_trait]
 impl FromRequest<ServiceState> for Remote<Multipart<'static>> {
     type Rejection = Remote<multer::Error>;
 

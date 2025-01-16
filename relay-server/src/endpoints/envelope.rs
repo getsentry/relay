@@ -69,7 +69,6 @@ impl EnvelopeParams {
     }
 }
 
-#[axum::async_trait]
 impl FromRequest<ServiceState> for EnvelopeParams {
     type Rejection = BadEnvelopeParams;
 
