@@ -3789,6 +3789,7 @@ dependencies = [
 name = "relay-pii"
 version = "25.1.0"
 dependencies = [
+ "bytes",
  "hmac",
  "insta",
  "itertools 0.13.0",
@@ -3804,6 +3805,7 @@ dependencies = [
  "relay-log",
  "relay-protocol",
  "serde",
+ "serde-transcode",
  "serde_json",
  "sha1",
  "similar-asserts",
@@ -3999,6 +4001,7 @@ dependencies = [
  "rmp-serde",
  "semver",
  "serde",
+ "serde-transcode",
  "serde_bytes",
  "serde_json",
  "serde_path_to_error",

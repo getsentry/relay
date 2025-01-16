@@ -411,6 +411,11 @@ pub enum RelayTimers {
     /// Time spent on view hierarchy scrubbing.
     ///
     /// This is the total time spent on parsing and scrubbing the view hierarchy json file.
+    ///
+    /// This metric is tagged with:
+    ///
+    /// - `status`: "ok" means successful scrubbed, "error" means there was an error during
+    ///             scrubbing
     ViewHierarchyScrubbing,
     /// Time spend on attachment scrubbing.
     ///

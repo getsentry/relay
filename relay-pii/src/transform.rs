@@ -839,6 +839,8 @@ where
     where
         S: de::DeserializeSeed<'de>,
     {
+        // We want to use a special ValueSeed for sequences that does not call pop_path
+        // because sequences cannot be described as a path in pii rules
         self.0
             .next_element_seed(DeserializeSeqValueSeed(seed, self.1))
     }
@@ -865,8 +867,6 @@ where
     where
         V: de::DeserializeSeed<'de>,
     {
-        // We want to use a special ValueSeed for sequences that does not call pop_path
-        // because sequences cannot be described as a path in pii rules
         self.0.next_value_seed(DeserializeValueSeed(seed, self.1))
     }
 }

@@ -73,7 +73,7 @@ pub fn scrub<Group>(managed_envelope: &mut TypedEnvelope<Group>, project_info: A
                 scrub_view_hierarchy(item, config)
             } else if item.attachment_type() == Some(&AttachmentType::Minidump) {
                 scrub_minidump(item, config)
-            } else if has_simple_attachment_selector(config) && item.attachment_type().is_some() {
+            } else if has_simple_attachment_selector(config) && item.ty() == &ItemType::Attachment {
                 // We temporarily only scrub attachments to projects that have at least one simple attachment rule,
                 // such as `$attachments.'foo.txt'`.
                 // After we have assessed the impact on performance we can relax this condition.
@@ -143,7 +143,7 @@ fn scrub_view_hierarchy(item: &mut crate::envelope::Item, config: &relay_pii::Pi
             item.set_payload(content_type, output);
         }
         Err(e) => {
-            relay_log::warn!(error = &e as &dyn Error, "failed to scrub minidump",);
+            relay_log::warn!(error = &e as &dyn Error, "failed to scrub view hierarchy",);
             metric!(
                 timer(RelayTimers::ViewHierarchyScrubbing) = start.elapsed(),
                 status = "error"
