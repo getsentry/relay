@@ -167,10 +167,10 @@ pub struct EnvelopeSummary {
     pub monitor_quantity: usize,
 
     /// The number of log for the log product sent.
-    pub log_count_quantity: usize,
+    pub log_item_quantity: usize,
 
     /// The number of log bytes for the log product sent, in bytes
-    pub log_bytes_quantity: usize,
+    pub log_byte_quantity: usize,
 
     /// Secondary number of transactions.
     ///
@@ -247,8 +247,8 @@ impl EnvelopeSummary {
             DataCategory::ReplayVideo => &mut self.replay_quantity,
             DataCategory::Monitor => &mut self.monitor_quantity,
             DataCategory::Span => &mut self.span_quantity,
-            DataCategory::LogCount => &mut self.log_count_quantity,
-            DataCategory::LogBytes => &mut self.log_bytes_quantity,
+            DataCategory::LogItem => &mut self.log_item_quantity,
+            DataCategory::LogByte => &mut self.log_byte_quantity,
             DataCategory::ProfileChunk => &mut self.profile_chunk_quantity,
             // TODO: This catch-all return looks dangerous
             _ => return,
@@ -717,22 +717,22 @@ where
         }
 
         // Handle logs.
-        if summary.log_count_quantity > 0 {
-            let item_scoping = scoping.item(DataCategory::LogCount);
-            let log_limits = self.check.apply(item_scoping, summary.log_count_quantity)?;
+        if summary.log_item_quantity > 0 {
+            let item_scoping = scoping.item(DataCategory::LogItem);
+            let log_limits = self.check.apply(item_scoping, summary.log_item_quantity)?;
             enforcement.logs = CategoryLimit::new(
-                DataCategory::LogCount,
-                summary.log_count_quantity,
+                DataCategory::LogItem,
+                summary.log_item_quantity,
                 log_limits.longest(),
             );
             rate_limits.merge(log_limits);
         }
-        if summary.log_bytes_quantity > 0 {
-            let item_scoping = scoping.item(DataCategory::LogBytes);
-            let log_limits = self.check.apply(item_scoping, summary.log_bytes_quantity)?;
+        if summary.log_byte_quantity > 0 {
+            let item_scoping = scoping.item(DataCategory::LogByte);
+            let log_limits = self.check.apply(item_scoping, summary.log_byte_quantity)?;
             enforcement.logs = CategoryLimit::new(
-                DataCategory::LogBytes,
-                summary.log_bytes_quantity,
+                DataCategory::LogByte,
+                summary.log_byte_quantity,
                 log_limits.longest(),
             );
             rate_limits.merge(log_limits);
@@ -1655,30 +1655,27 @@ mod tests {
     fn test_enforce_limit_logs_count() {
         let mut envelope = envelope![Log, Log];
 
-        let mut mock = MockLimiter::default().deny(DataCategory::LogCount);
+        let mut mock = MockLimiter::default().deny(DataCategory::LogItem);
         let (enforcement, limits) = enforce_and_apply(&mut mock, &mut envelope, None);
 
         assert!(limits.is_limited());
         assert_eq!(envelope.envelope().len(), 0);
-        mock.assert_call(DataCategory::LogCount, 2);
+        mock.assert_call(DataCategory::LogItem, 2);
 
-        assert_eq!(get_outcomes(enforcement), vec![(DataCategory::LogCount, 2)]);
+        assert_eq!(get_outcomes(enforcement), vec![(DataCategory::LogItem, 2)]);
     }
 
     #[test]
     fn test_enforce_limit_logs_bytes() {
         let mut envelope = envelope![Log, Log];
 
-        let mut mock = MockLimiter::default().deny(DataCategory::LogBytes);
+        let mut mock = MockLimiter::default().deny(DataCategory::LogByte);
         let (enforcement, limits) = enforce_and_apply(&mut mock, &mut envelope, None);
 
         assert!(limits.is_limited());
         assert_eq!(envelope.envelope().len(), 0);
-        mock.assert_call(DataCategory::LogBytes, 20);
+        mock.assert_call(DataCategory::LogByte, 20);
 
-        assert_eq!(
-            get_outcomes(enforcement),
-            vec![(DataCategory::LogBytes, 20)]
-        );
+        assert_eq!(get_outcomes(enforcement), vec![(DataCategory::LogByte, 20)]);
     }
 }

@@ -963,7 +963,7 @@ impl StoreService {
                     "failed to parse log"
                 );
                 self.outcome_aggregator.send(TrackOutcome {
-                    category: DataCategory::LogCount,
+                    category: DataCategory::LogItem,
                     event_id: None,
                     outcome: Outcome::Invalid(DiscardReason::InvalidLog),
                     quantity: 1,
@@ -972,7 +972,7 @@ impl StoreService {
                     timestamp: received_at,
                 });
                 self.outcome_aggregator.send(TrackOutcome {
-                    category: DataCategory::LogBytes,
+                    category: DataCategory::LogByte,
                     event_id: None,
                     outcome: Outcome::Invalid(DiscardReason::InvalidLog),
                     quantity: payload.len() as u32,
@@ -1001,7 +1001,7 @@ impl StoreService {
 
         // We need to track the count and bytes separately for possible rate limits and quotas on both counts and bytes.
         self.outcome_aggregator.send(TrackOutcome {
-            category: DataCategory::LogCount,
+            category: DataCategory::LogItem,
             event_id: None,
             outcome: Outcome::Accepted,
             quantity: 1,
@@ -1010,7 +1010,7 @@ impl StoreService {
             timestamp: received_at,
         });
         self.outcome_aggregator.send(TrackOutcome {
-            category: DataCategory::LogBytes,
+            category: DataCategory::LogByte,
             event_id: None,
             outcome: Outcome::Accepted,
             quantity: payload.len() as u32,

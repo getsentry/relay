@@ -96,11 +96,11 @@ pub enum DataCategory {
     ///
     /// This is the category for logs for which we store the count log events for users for measuring
     /// missing breadcrumbs, and count of logs for rate limiting purposes.
-    LogCount = 23,
+    LogItem = 23,
     /// LogBytes
     ///
     /// This is the category for logs for which we store log event total bytes for users.
-    LogBytes = 24,
+    LogByte = 24,
     //
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
     // `make header` to regenerate the C-binding. This allows using the data category from Python.
@@ -129,8 +129,8 @@ impl DataCategory {
             "transaction_indexed" => Self::TransactionIndexed,
             "monitor" => Self::Monitor,
             "span" => Self::Span,
-            "log_count" => Self::LogCount,
-            "log_bytes" => Self::LogBytes,
+            "log_item" => Self::LogItem,
+            "log_byte" => Self::LogByte,
             "monitor_seat" => Self::MonitorSeat,
             "feedback" => Self::UserReportV2,
             "user_report_v2" => Self::UserReportV2,
@@ -163,8 +163,8 @@ impl DataCategory {
             Self::TransactionIndexed => "transaction_indexed",
             Self::Monitor => "monitor",
             Self::Span => "span",
-            Self::LogCount => "log_count",
-            Self::LogBytes => "log_bytes",
+            Self::LogItem => "log_item",
+            Self::LogByte => "log_byte",
             Self::MonitorSeat => "monitor_seat",
             Self::UserReportV2 => "feedback",
             Self::MetricBucket => "metric_bucket",

@@ -414,18 +414,18 @@ impl ManagedEnvelope {
             );
         }
 
-        if self.context.summary.log_count_quantity > 0 {
+        if self.context.summary.log_item_quantity > 0 {
             self.track_outcome(
                 outcome.clone(),
-                DataCategory::LogCount,
-                self.context.summary.log_count_quantity,
+                DataCategory::LogItem,
+                self.context.summary.log_item_quantity,
             );
         }
-        if self.context.summary.log_bytes_quantity > 0 {
+        if self.context.summary.log_byte_quantity > 0 {
             self.track_outcome(
                 outcome.clone(),
-                DataCategory::LogBytes,
-                self.context.summary.log_bytes_quantity,
+                DataCategory::LogByte,
+                self.context.summary.log_byte_quantity,
             );
         }
 

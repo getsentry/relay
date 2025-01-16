@@ -192,8 +192,8 @@ impl CategoryUnit {
             | DataCategory::ProfileIndexed
             | DataCategory::TransactionProcessed
             | DataCategory::TransactionIndexed
-            | DataCategory::LogCount
-            | DataCategory::LogBytes
+            | DataCategory::LogItem
+            | DataCategory::LogByte
             | DataCategory::Span
             | DataCategory::SpanIndexed
             | DataCategory::MonitorSeat
