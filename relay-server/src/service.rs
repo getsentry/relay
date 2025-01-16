@@ -496,7 +496,6 @@ fn initialize_redis_scripts(
     Ok(())
 }
 
-#[axum::async_trait]
 impl FromRequestParts<Self> for ServiceState {
     type Rejection = Infallible;
 

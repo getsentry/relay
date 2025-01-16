@@ -66,8 +66,8 @@ android_trace_log = { version = "0.3.0", features = ["serde"] }
 # which will increase processing time for transactions massively.
 # Keep it pinned until it's possible to disable backtrace.
 anyhow = "=1.0.69"
-axum = "0.7.9"
-axum-extra = "0.9.6"
+axum = "0.8.1"
+axum-extra = "0.10.0"
 axum-server = "0.7.1"
 arc-swap = "1.7.1"
 backoff = "0.4.0"

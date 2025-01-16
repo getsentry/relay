@@ -71,7 +71,6 @@ pub struct SignedBytes {
     pub relay: RelayInfo,
 }
 
-#[axum::async_trait]
 impl FromRequest<ServiceState> for SignedBytes {
     type Rejection = SignatureError;
 
@@ -105,7 +104,6 @@ pub struct SignedJson<T> {
     pub relay: RelayInfo,
 }
 
-#[axum::async_trait]
 impl<T> FromRequest<ServiceState> for SignedJson<T>
 where
     T: DeserializeOwned,

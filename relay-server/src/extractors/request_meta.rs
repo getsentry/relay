@@ -460,7 +460,6 @@ impl PartialMeta {
     }
 }
 
-#[axum::async_trait]
 impl FromRequestParts<ServiceState> for PartialMeta {
     type Rejection = Infallible;
 
@@ -622,7 +621,6 @@ struct StorePath {
     sentry_key: Option<String>,
 }
 
-#[axum::async_trait]
 impl FromRequestParts<ServiceState> for RequestMeta {
     type Rejection = BadEventMeta;
 
