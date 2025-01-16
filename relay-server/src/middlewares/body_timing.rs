@@ -45,7 +45,7 @@ impl<S> BodyTiming<S> {
     }
 }
 
-impl<S> Service<Request<Body>> for BodyTiming<S>
+impl<S: Send + Sync> Service<Request<Body>> for BodyTiming<S>
 where
     S: Service<Request<Body>>,
 {

@@ -256,7 +256,7 @@ where
     H: Into<Arc<Hub>>,
 {
     provider: P,
-    _hub: PhantomData<(H, Request)>,
+    _hub: PhantomData<fn() -> (H, Request)>,
 }
 
 impl<S, P, H, Request> Layer<S> for SentryLayer<P, H, Request>
@@ -296,7 +296,7 @@ where
 {
     service: S,
     provider: P,
-    _hub: PhantomData<(H, Request)>,
+    _hub: PhantomData<fn() -> (H, Request)>,
 }
 
 impl<S, Request, P, H> Service<Request> for SentryService<S, P, H, Request>
