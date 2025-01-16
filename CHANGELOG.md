@@ -1,11 +1,17 @@
 # Changelog
 
-## Unreleased
+## 25.1.0
+
+**Internal**
+
+- Updates performance score calculation on spans and events to also store cdf values as measurements. ([#4438](https://github.com/getsentry/relay/pull/4438))
+
+## 24.12.2
 
 **Features**:
 
 - Increase stacktrace function and symbol length limits to 512 chars. ([#4436](https://github.com/getsentry/relay/pull/4436))
-- Scrub non-minidump attachments if there are explicit `$attachment` rules. ([#4415](https://github.com/getsentry/relay/pull/4415))
+- Scrub non-minidump attachments if there are explicit `$attachment` rules. ([#4415](https://github.com/getsentry/relay/pull/4415), [#4441](https://github.com/getsentry/relay/pull/4441))
 - Include blocked domain in CSP reports as a tag. ([#4435](https://github.com/getsentry/relay/pull/4435))
 
 **Internal**:

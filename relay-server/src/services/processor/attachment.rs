@@ -7,7 +7,7 @@ use std::time::Instant;
 use relay_pii::{PiiAttachmentsProcessor, SelectorPathItem, SelectorSpec};
 use relay_statsd::metric;
 
-use crate::envelope::{AttachmentType, ContentType};
+use crate::envelope::{AttachmentType, ContentType, ItemType};
 use crate::statsd::RelayTimers;
 
 use crate::services::projects::project::ProjectInfo;
@@ -72,7 +72,7 @@ pub fn scrub<Group>(managed_envelope: &mut TypedEnvelope<Group>, project_info: A
             // After we have assessed the impact on performance we can relax this condition.
             for item in envelope
                 .items_mut()
-                .filter(|item| item.attachment_type().is_some())
+                .filter(|item| item.ty() == &ItemType::Attachment)
             {
                 scrub_attachment(item, config);
             }

@@ -1074,6 +1074,84 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                             .always(), // already guarded by condition on metric
                     ],
                 },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: "d:transactions/measurements.score.lcp@ratio".into(),
+                    field: Some("span.measurements.score.lcp.value".into()),
+                    condition: Some(is_allowed_browser.clone()),
+                    tags: vec![
+                        Tag::with_key("span.op")
+                            .from_field("span.sentry_tags.op")
+                            .always(),
+                        Tag::with_key("transaction")
+                            .from_field("span.sentry_tags.transaction")
+                            .always(),
+                        Tag::with_key("environment")
+                            .from_field("span.sentry_tags.environment")
+                            .always(),
+                        Tag::with_key("release")
+                            .from_field("span.sentry_tags.release")
+                            .always(),
+                        Tag::with_key("browser.name")
+                            .from_field("span.sentry_tags.browser.name")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("user.geo.subregion")
+                            .from_field("span.sentry_tags.user.geo.subregion")
+                            .always(), // already guarded by condition on metric
+                    ],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: "d:transactions/measurements.score.weight.lcp@ratio".into(),
+                    field: Some("span.measurements.score.weight.lcp.value".into()),
+                    condition: Some(is_allowed_browser.clone()),
+                    tags: vec![
+                        Tag::with_key("span.op")
+                            .from_field("span.sentry_tags.op")
+                            .always(),
+                        Tag::with_key("transaction")
+                            .from_field("span.sentry_tags.transaction")
+                            .always(),
+                        Tag::with_key("environment")
+                            .from_field("span.sentry_tags.environment")
+                            .always(),
+                        Tag::with_key("release")
+                            .from_field("span.sentry_tags.release")
+                            .always(),
+                        Tag::with_key("browser.name")
+                            .from_field("span.sentry_tags.browser.name")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("user.geo.subregion")
+                            .from_field("span.sentry_tags.user.geo.subregion")
+                            .always(), // already guarded by condition on metric
+                    ],
+                },
+                MetricSpec {
+                    category: DataCategory::Span,
+                    mri: "d:transactions/measurements.lcp@ratio".into(),
+                    field: Some("span.measurements.lcp.value".into()),
+                    condition: Some(is_allowed_browser.clone()),
+                    tags: vec![
+                        Tag::with_key("span.op")
+                            .from_field("span.sentry_tags.op")
+                            .always(),
+                        Tag::with_key("transaction")
+                            .from_field("span.sentry_tags.transaction")
+                            .always(),
+                        Tag::with_key("environment")
+                            .from_field("span.sentry_tags.environment")
+                            .always(),
+                        Tag::with_key("release")
+                            .from_field("span.sentry_tags.release")
+                            .always(),
+                        Tag::with_key("browser.name")
+                            .from_field("span.sentry_tags.browser.name")
+                            .always(), // already guarded by condition on metric
+                        Tag::with_key("user.geo.subregion")
+                            .from_field("span.sentry_tags.user.geo.subregion")
+                            .always(), // already guarded by condition on metric
+                    ],
+                },
             ],
             vec![],
         ),
