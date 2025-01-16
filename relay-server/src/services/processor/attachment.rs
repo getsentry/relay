@@ -4,16 +4,15 @@ use std::error::Error;
 use std::sync::Arc;
 use std::time::Instant;
 
-use relay_pii::{JsonScrubVisitor, PiiAttachmentsProcessor, SelectorPathItem, SelectorSpec};
+use relay_pii::{PiiAttachmentsProcessor, SelectorPathItem, SelectorSpec};
 use relay_statsd::metric;
 
 use crate::envelope::{AttachmentType, ContentType, ItemType};
 use crate::statsd::RelayTimers;
 
 use crate::services::projects::project::ProjectInfo;
-use crate::utils::{ManagedEnvelope, TypedEnvelope};
+use crate::utils::TypedEnvelope;
 use relay_dynamic_config::Feature;
-use relay_pii::transform::Deserializer;
 #[cfg(feature = "processing")]
 use {
     crate::services::processor::{ErrorGroup, EventFullyNormalized},

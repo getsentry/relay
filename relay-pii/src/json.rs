@@ -98,15 +98,14 @@ impl<'de> Transform<'de> for JsonScrubVisitor<'de> {
     }
 }
 
+#[cfg(test)]
 mod test {
     use crate::{PiiAttachmentsProcessor, PiiConfig};
-    use bytes::Bytes;
     use serde_json::Value;
 
     #[test]
-    pub fn test_vh() {
-        let payload = Bytes::from(
-            r#"
+    pub fn test_view_hierarchy() {
+        let payload = r#"
         {
           "rendering_system": "UIKIT",
           "identifier": "192.45.128.54",
@@ -124,8 +123,8 @@ mod test {
             }
           ]
         }
-        "#,
-        );
+        "#
+        .as_bytes();
         let config = serde_json::from_str::<PiiConfig>(
             r#"
             {
@@ -143,9 +142,8 @@ mod test {
     }
 
     #[test]
-    pub fn test_vh_nested() {
-        let payload = Bytes::from(
-            r#"
+    pub fn test_view_hierarchy_nested_path_rule() {
+        let payload = r#"
            {
                "nested": {
                     "stuff": {
@@ -153,8 +151,8 @@ mod test {
                     }
                }
            }
-        "#,
-        );
+        "#
+        .as_bytes();
         let config = serde_json::from_str::<PiiConfig>(
             r#"
             {
@@ -173,9 +171,8 @@ mod test {
     }
 
     #[test]
-    pub fn test_vh_not_existing_path() {
-        let payload = Bytes::from(
-            r#"
+    pub fn test_view_hierarchy_not_existing_path() {
+        let payload = r#"
            {
                "nested": {
                     "stuff": {
@@ -183,8 +180,8 @@ mod test {
                     }
                }
            }
-        "#,
-        );
+        "#
+        .as_bytes();
         let config = serde_json::from_str::<PiiConfig>(
             r#"
             {
@@ -206,15 +203,14 @@ mod test {
     }
 
     #[test]
-    pub fn test_vh_password() {
-        let payload = Bytes::from(
-            r#"
+    pub fn test_view_hierarchy_remove_password() {
+        let payload = r#"
                 {
                     "rendering_system": "UIKIT",
                     "password": "hunter42"
                 }
-            "#,
-        );
+            "#
+        .as_bytes();
         let config = serde_json::from_str::<PiiConfig>(
             r#"
             {
