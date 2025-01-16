@@ -29,7 +29,7 @@ pub struct OurLog {
     pub trace_flags: Annotated<f64>,
 
     /// This is the original string representation of the severity as it is known at the source
-    #[metastructure(required = false, max_chars = 32, pii = "maybe", trim = false)]
+    #[metastructure(required = false, max_chars = 32, pii = "true", trim = false)]
     pub severity_text: Annotated<String>,
 
     /// Numerical representation of the severity level
@@ -37,11 +37,11 @@ pub struct OurLog {
     pub severity_number: Annotated<i64>,
 
     /// Log body.
-    #[metastructure(required = true, pii = "maybe", trim = false)]
+    #[metastructure(required = true, pii = "true", trim = false)]
     pub body: Annotated<String>,
 
     /// Arbitrary attributes on a log.
-    #[metastructure(pii = "maybe", trim = false)]
+    #[metastructure(pii = "true", trim = false)]
     pub attributes: Annotated<Object<AttributeValue>>,
 
     /// Additional arbitrary fields for forwards compatibility.
