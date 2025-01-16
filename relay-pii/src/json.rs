@@ -1,8 +1,7 @@
 use crate::transform::Transform;
-use crate::{CompiledPiiConfig, PiiAttachmentsProcessor, PiiProcessor};
+use crate::{CompiledPiiConfig, PiiProcessor};
 use relay_event_schema::processor::{FieldAttrs, Pii, ProcessingState, Processor, ValueType};
 use relay_protocol::Meta;
-use serde_json::Deserializer;
 use std::borrow::Cow;
 
 const FIELD_ATTRS_PII_TRUE: FieldAttrs = FieldAttrs::new().pii(Pii::True);
@@ -14,29 +13,6 @@ pub enum ScrubViewHierarchyError {
     /// is invalid.
     #[error("transcoding view hierarchy json failed")]
     TranscodeFailed,
-}
-
-impl PiiAttachmentsProcessor<'_> {
-    /// Applies PII rules to the given JSON.
-    ///
-    /// This function will perform PII scrubbing using `serde_transcode`, which means that it
-    /// does not have to lead the entire document in memory but will rather perform in on a
-    /// per-item basis using a streaming approach.
-    ///
-    /// Returns a scrubbed copy of the JSON document.
-    pub fn scrub_json(&self, payload: &[u8]) -> Result<Vec<u8>, ScrubViewHierarchyError> {
-        let output = Vec::new();
-
-        let visitor = JsonScrubVisitor::new(self.compiled_config);
-
-        let mut deserializer_inner = Deserializer::from_slice(payload);
-        let deserializer = crate::transform::Deserializer::new(&mut deserializer_inner, visitor);
-
-        let mut serializer = serde_json::Serializer::new(output);
-        serde_transcode::transcode(deserializer, &mut serializer)
-            .map_err(|_| ScrubViewHierarchyError::TranscodeFailed)?;
-        Ok(serializer.into_inner())
-    }
 }
 
 /// Visitor for JSON file scrubbing. It will be used to walk through the structure and scrub
