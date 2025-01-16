@@ -2,9 +2,11 @@
 
 ## 25.1.0
 
-**Internal**
+**Internal**:
 
 - Updates performance score calculation on spans and events to also store cdf values as measurements. ([#4438](https://github.com/getsentry/relay/pull/4438))
+- Use symbolicator-style metrics aggregation. ([#4446](https://github.com/getsentry/relay/pull/4446))
+
 
 ## 24.12.2
 
@@ -1684,7 +1686,6 @@ Monitors:
 - Normalize `breadcrumb.ty` into `breadcrumb.type` for broken Python SDK versions. ([#824](https://github.com/getsentry/relay/pull/824))
 - Add the client SDK interface for unreal crashes and set the name to `unreal.crashreporter`. ([#828](https://github.com/getsentry/relay/pull/828))
 - Fine-tune the selectors for minidump PII scrubbing. ([#818](https://github.com/getsentry/relay/pull/818), [#830](https://github.com/getsentry/relay/pull/830))
-- Use symbolicator-style metrics aggregation. ([#4446](https://github.com/getsentry/relay/pull/4446))
 
 ## 20.10.1
 
