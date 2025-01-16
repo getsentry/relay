@@ -7,13 +7,23 @@ use std::borrow::Cow;
 
 const FIELD_ATTRS_PII_TRUE: FieldAttrs = FieldAttrs::new().pii(Pii::True);
 
+/// Describes the error cases that can happen during ViewHierarchy scrubbing.
 #[derive(Debug, thiserror::Error)]
 pub enum ScrubViewHierarchyError {
-    #[error("transcoding view hierarchy json failed, maybe json is invalid")]
+    /// If the transcoding process fails. This will most likely happen if a JSON document
+    /// is invalid.
+    #[error("transcoding view hierarchy json failed")]
     TranscodeFailed,
 }
 
 impl PiiAttachmentsProcessor<'_> {
+    /// Applies PII rules to the given JSON.
+    ///
+    /// This function will perform PII scrubbing using `serde_transcode`, which means that it
+    /// does not have to lead the entire document in memory but will rather perform in on a
+    /// per-item basis using a streaming approach.
+    ///
+    /// Returns a scrubbed copy of the JSON document.
     pub fn scrub_json(&self, payload: &[u8]) -> Result<Vec<u8>, ScrubViewHierarchyError> {
         let output = Vec::new();
 
@@ -29,6 +39,8 @@ impl PiiAttachmentsProcessor<'_> {
     }
 }
 
+/// Visitor for JSON file scrubbing. It will be used to walk through the structure and scrub
+/// PII based on the config defined in the processor.
 pub struct JsonScrubVisitor<'a> {
     processor: PiiProcessor<'a>,
     /// The state encoding the current path, which is fed by `push_path` and `pop_path`.
@@ -39,6 +51,7 @@ pub struct JsonScrubVisitor<'a> {
 }
 
 impl<'a> JsonScrubVisitor<'a> {
+    /// Creates a new [`JsonScrubVisitor`] using the  supplied config.
     pub fn new(config: &'a CompiledPiiConfig) -> Self {
         let processor = PiiProcessor::new(config);
         Self {

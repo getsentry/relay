@@ -49,6 +49,7 @@ use serde::de;
 ///     }
 /// }
 /// ```
+#[allow(missing_docs)]
 pub trait Transform<'de> {
     fn push_path(&mut self, _key: &'de str) {}
 
