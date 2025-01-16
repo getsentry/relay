@@ -584,9 +584,8 @@ jobs:
         uses: ./.github/actions/setup-sentry
         with:
           workdir: sentry
-          snuba: true
-          kafka: true
-          symbolicator: true
+          use-new-devservices: true
+          mode: symbolicator
 
       - name: Download Docker Image
         if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
