@@ -1102,11 +1102,11 @@
         inner_event._metrics = Annotated::new(metrics);
 
         <span class="kw">if </span>inner_event.ty.value() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>EventType::Transaction) {
-            <span class="kw">let </span>platform = PlatformTag::from(inner_event.platform.as_str().unwrap_or(<span class="string">"other"</span>));
             <span class="macro">metric!</span>(
                 counter(RelayCounters::EventTransaction) += <span class="number">1</span>,
                 source = utils::transaction_source_tag(inner_event),
-                platform = platform.name(),
+                platform =
+                    PlatformTag::from(inner_event.platform.as_str().unwrap_or(<span class="string">"other"</span>)).name(),
                 contains_slashes = <span class="kw">if </span>inner_event
                     .transaction
                     .as_str()

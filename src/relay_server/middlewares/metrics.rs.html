@@ -42,8 +42,7 @@
 <a href="#41" id="41">41</a>
 <a href="#42" id="42">42</a>
 <a href="#43" id="43">43</a>
-<a href="#44" id="44">44</a>
-<a href="#45" id="45">45</a></pre></div><pre class="rust"><code><span class="kw">use </span>axum::extract::{MatchedPath, Request};
+<a href="#44" id="44">44</a></pre></div><pre class="rust"><code><span class="kw">use </span>axum::extract::{MatchedPath, Request};
 <span class="kw">use </span>axum::middleware::Next;
 <span class="kw">use </span>axum::response::Response;
 <span class="kw">use </span>axum::RequestExt;
@@ -78,10 +77,9 @@
         route = route,
         method = method.as_str(),
     );
-    <span class="kw">let </span>status = response.status();
     <span class="macro">relay_statsd::metric!</span>(
         counter(RelayCounters::ResponsesStatusCodes) += <span class="number">1</span>,
-        status_code = status.as_str(),
+        status_code = response.status().as_str(),
         route = route,
         method = method.as_str(),
     );

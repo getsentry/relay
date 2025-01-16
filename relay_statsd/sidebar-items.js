@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["init","with_client"],"macro":["metric"],"struct":["LocalAggregator","MetricsWrapper"],"trait":["CounterMetric","GaugeMetric","HistogramMetric","IntoDistributionValue","SetMetric","TimerMetric"]};
+window.SIDEBAR_ITEMS = {"fn":["disable","init","init_basic","set_client","with_capturing_test_client","with_client"],"macro":["metric"],"mod":["prelude"],"struct":["MetricsClient"],"trait":["CounterMetric","GaugeMetric","HistogramMetric","SetMetric","TimerMetric"]};

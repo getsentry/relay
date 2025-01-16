@@ -2244,58 +2244,58 @@
         </span>}
     }
 
-    <span class="comment">// #[test]
-    // fn test_backpressure_metrics() {
-    //     let rt = tokio::runtime::Builder::new_current_thread()
-    //         .enable_time()
-    //         .build()
-    //         .unwrap();
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_backpressure_metrics() {
+        <span class="kw">let </span>rt = tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .build()
+            .unwrap();
 
-    //     let _guard = rt.enter();
-    //     tokio::time::pause();
+        <span class="kw">let </span>_guard = rt.enter();
+        tokio::time::pause();
 
-    //     // Mock service takes 2 * BACKLOG_INTERVAL for every message
-    //     let addr = MockService.start_detached();
+        <span class="comment">// Mock service takes 2 * BACKLOG_INTERVAL for every message
+        </span><span class="kw">let </span>addr = MockService.start_detached();
 
-    //     // Advance the timer by a tiny offset to trigger the first metric emission.
-    //     let captures = relay_statsd::with_capturing_test_client(|| {
-    //         rt.block_on(async {
-    //             tokio::time::sleep(Duration::from_millis(10)).await;
-    //         })
-    //     });
+        <span class="comment">// Advance the timer by a tiny offset to trigger the first metric emission.
+        </span><span class="kw">let </span>captures = relay_statsd::with_capturing_test_client(|| {
+            rt.block_on(<span class="kw">async </span>{
+                tokio::time::sleep(Duration::from_millis(<span class="number">10</span>)).<span class="kw">await</span>;
+            })
+        });
 
-    //     assert_eq!(captures, ["service.back_pressure:0|g|#service:mock"]);
+        <span class="macro">assert_eq!</span>(captures, [<span class="string">"service.back_pressure:0|g|#service:mock"</span>]);
 
-    //     // Send messages and advance to 0.5 * INTERVAL. No metrics expected at this point.
-    //     let captures = relay_statsd::with_capturing_test_client(|| {
-    //         rt.block_on(async {
-    //             addr.send(MockMessage); // will be pulled immediately
-    //             addr.send(MockMessage);
-    //             addr.send(MockMessage);
+        <span class="comment">// Send messages and advance to 0.5 * INTERVAL. No metrics expected at this point.
+        </span><span class="kw">let </span>captures = relay_statsd::with_capturing_test_client(|| {
+            rt.block_on(<span class="kw">async </span>{
+                addr.send(MockMessage); <span class="comment">// will be pulled immediately
+                </span>addr.send(MockMessage);
+                addr.send(MockMessage);
 
-    //             tokio::time::sleep(BACKLOG_INTERVAL / 2).await;
-    //         })
-    //     });
+                tokio::time::sleep(BACKLOG_INTERVAL / <span class="number">2</span>).<span class="kw">await</span>;
+            })
+        });
 
-    //     assert!(captures.is_empty());
+        <span class="macro">assert!</span>(captures.is_empty());
 
-    //     // Advance to 6.5 * INTERVAL. The service should pull the first message immediately, another
-    //     // message every 2 INTERVALS. The messages are fully handled after 6 INTERVALS, but we
-    //     // cannot observe that since the last message exits the queue at 4.
-    //     let captures = relay_statsd::with_capturing_test_client(|| {
-    //         rt.block_on(async {
-    //             tokio::time::sleep(BACKLOG_INTERVAL * 6).await;
-    //         })
-    //     });
+        <span class="comment">// Advance to 6.5 * INTERVAL. The service should pull the first message immediately, another
+        // message every 2 INTERVALS. The messages are fully handled after 6 INTERVALS, but we
+        // cannot observe that since the last message exits the queue at 4.
+        </span><span class="kw">let </span>captures = relay_statsd::with_capturing_test_client(|| {
+            rt.block_on(<span class="kw">async </span>{
+                tokio::time::sleep(BACKLOG_INTERVAL * <span class="number">6</span>).<span class="kw">await</span>;
+            })
+        });
 
-    //     assert_eq!(
-    //         captures,
-    //         [
-    //             "service.back_pressure:2|g|#service:mock", // 2 * INTERVAL
-    //             "service.back_pressure:1|g|#service:mock", // 4 * INTERVAL
-    //             "service.back_pressure:0|g|#service:mock", // 6 * INTERVAL
-    //         ]
-    //     );
-    // }
-</span>}
+        <span class="macro">assert_eq!</span>(
+            captures,
+            [
+                <span class="string">"service.back_pressure:2|g|#service:mock"</span>, <span class="comment">// 2 * INTERVAL
+                </span><span class="string">"service.back_pressure:1|g|#service:mock"</span>, <span class="comment">// 4 * INTERVAL
+                </span><span class="string">"service.back_pressure:0|g|#service:mock"</span>, <span class="comment">// 6 * INTERVAL
+            </span>]
+        );
+    }
+}
 </code></pre></div></section></main></body></html>

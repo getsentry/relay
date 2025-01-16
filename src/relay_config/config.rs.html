@@ -2529,7 +2529,17 @@
 <a href="#2528" id="2528">2528</a>
 <a href="#2529" id="2529">2529</a>
 <a href="#2530" id="2530">2530</a>
-<a href="#2531" id="2531">2531</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
+<a href="#2531" id="2531">2531</a>
+<a href="#2532" id="2532">2532</a>
+<a href="#2533" id="2533">2533</a>
+<a href="#2534" id="2534">2534</a>
+<a href="#2535" id="2535">2535</a>
+<a href="#2536" id="2536">2536</a>
+<a href="#2537" id="2537">2537</a>
+<a href="#2538" id="2538">2538</a>
+<a href="#2539" id="2539">2539</a>
+<a href="#2540" id="2540">2540</a>
+<a href="#2541" id="2541">2541</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
 <span class="kw">use </span>std::net::{IpAddr, SocketAddr, ToSocketAddrs};
@@ -3076,6 +3086,10 @@
     /// Setting it to `0` seconds disables the periodic metrics.
     /// Defaults to 5 seconds.
     </span><span class="kw">pub </span>periodic_secs: u64,
+    <span class="doccomment">/// Whether local metric aggregation using statdsproxy should be enabled.
+    ///
+    /// Defaults to `true`.
+    </span><span class="kw">pub </span>aggregate: bool,
 }
 
 <span class="kw">impl </span>Default <span class="kw">for </span>Metrics {
@@ -3087,6 +3101,7 @@
             hostname_tag: <span class="prelude-val">None</span>,
             sample_rate: <span class="number">1.0</span>,
             periodic_secs: <span class="number">5</span>,
+            aggregate: <span class="bool-val">true</span>,
         }
     }
 }
@@ -4558,6 +4573,11 @@
     <span class="doccomment">/// Returns the global sample rate for all metrics.
     </span><span class="kw">pub fn </span>metrics_sample_rate(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; f32 {
         <span class="self">self</span>.values.metrics.sample_rate
+    }
+
+    <span class="doccomment">/// Returns whether local metric aggregation should be enabled.
+    </span><span class="kw">pub fn </span>metrics_aggregate(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.values.metrics.aggregate
     }
 
     <span class="doccomment">/// Returns the interval for periodic metrics emitted from Relay.

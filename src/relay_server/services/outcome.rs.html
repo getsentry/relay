@@ -1069,8 +1069,7 @@
 <a href="#1068" id="1068">1068</a>
 <a href="#1069" id="1069">1069</a>
 <a href="#1070" id="1070">1070</a>
-<a href="#1071" id="1071">1071</a>
-<a href="#1072" id="1072">1072</a></pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that tracks outcomes.
+<a href="#1071" id="1071">1071</a></pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that tracks outcomes.
 //!
 //! Outcomes describe the final "fate" of an envelope item. As such, for every item exactly one
 //! outcome must be emitted in the entire ingestion pipeline. Since Relay is only one part in this
@@ -1938,10 +1937,9 @@
 }
 
 <span class="kw">fn </span>send_outcome_metric(message: <span class="kw-2">&amp;</span><span class="kw">impl </span>TrackOutcomeLike, to: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str) {
-    <span class="kw">let </span>reason = message.reason();
     <span class="macro">metric!</span>(
         counter(RelayCounters::Outcomes) += <span class="number">1</span>,
-        reason = reason.as_deref().unwrap_or(<span class="string">""</span>),
+        reason = message.reason().as_deref().unwrap_or(<span class="string">""</span>),
         outcome = message.tag_name(),
         to = to,
     );

@@ -4140,7 +4140,10 @@
 <a href="#4139" id="4139">4139</a>
 <a href="#4140" id="4140">4140</a>
 <a href="#4141" id="4141">4141</a>
-<a href="#4142" id="4142">4142</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
+<a href="#4142" id="4142">4142</a>
+<a href="#4143" id="4143">4143</a>
+<a href="#4144" id="4144">4144</a>
+<a href="#4145" id="4145">4145</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::fmt::{Debug, Display};
@@ -7651,7 +7654,10 @@
 
     <span class="kw">use </span>insta::assert_debug_snapshot;
     <span class="kw">use </span>relay_base_schema::metrics::{DurationUnit, MetricUnit};
+    <span class="kw">use </span>relay_common::glob2::LazyGlob;
     <span class="kw">use </span>relay_dynamic_config::ProjectConfig;
+    <span class="kw">use </span>relay_event_normalization::{RedactionRule, TransactionNameRule};
+    <span class="kw">use </span>relay_event_schema::protocol::TransactionSource;
     <span class="kw">use </span>relay_pii::DataScrubbingConfig;
     <span class="kw">use </span>similar_asserts::assert_eq;
 
@@ -7983,109 +7989,109 @@
         "###</span>);
     }
 
-    <span class="comment">// fn capture_test_event(transaction_name: &amp;str, source: TransactionSource) -&gt; Vec&lt;String&gt; {
-    //     let mut event = Annotated::&lt;Event&gt;::from_json(
-    //         r#"
-    //         {
-    //             "type": "transaction",
-    //             "transaction": "/foo/",
-    //             "timestamp": 946684810.0,
-    //             "start_timestamp": 946684800.0,
-    //             "contexts": {
-    //                 "trace": {
-    //                     "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-    //                     "span_id": "fa90fdead5f74053",
-    //                     "op": "http.server",
-    //                     "type": "trace"
-    //                 }
-    //             },
-    //             "transaction_info": {
-    //                 "source": "url"
-    //             }
-    //         }
-    //         "#,
-    //     )
-    //     .unwrap();
-    //     let e = event.value_mut().as_mut().unwrap();
-    //     e.transaction.set_value(Some(transaction_name.into()));
+    <span class="kw">fn </span>capture_test_event(transaction_name: <span class="kw-2">&amp;</span>str, source: TransactionSource) -&gt; Vec&lt;String&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>event = Annotated::&lt;Event&gt;::from_json(
+            <span class="string">r#"
+            {
+                "type": "transaction",
+                "transaction": "/foo/",
+                "timestamp": 946684810.0,
+                "start_timestamp": 946684800.0,
+                "contexts": {
+                    "trace": {
+                        "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                        "span_id": "fa90fdead5f74053",
+                        "op": "http.server",
+                        "type": "trace"
+                    }
+                },
+                "transaction_info": {
+                    "source": "url"
+                }
+            }
+            "#</span>,
+        )
+        .unwrap();
+        <span class="kw">let </span>e = event.value_mut().as_mut().unwrap();
+        e.transaction.set_value(<span class="prelude-val">Some</span>(transaction_name.into()));
 
-    //     e.transaction_info
-    //         .value_mut()
-    //         .as_mut()
-    //         .unwrap()
-    //         .source
-    //         .set_value(Some(source));
+        e.transaction_info
+            .value_mut()
+            .as_mut()
+            .unwrap()
+            .source
+            .set_value(<span class="prelude-val">Some</span>(source));
 
-    // relay_statsd::with_capturing_test_client(|| {
-    //     utils::log_transaction_name_metrics(&amp;mut event, |event| {
-    //         let config = NormalizationConfig {
-    //             transaction_name_config: TransactionNameConfig {
-    //                 rules: &amp;[TransactionNameRule {
-    //                     pattern: LazyGlob::new("/foo/*/**".to_owned()),
-    //                     expiry: DateTime::&lt;Utc&gt;::MAX_UTC,
-    //                     redaction: RedactionRule::Replace {
-    //                         substitution: "*".to_owned(),
-    //                     },
-    //                 }],
-    //             },
-    //             ..Default::default()
-    //         };
-    //         normalize_event(event, &amp;config)
-    //     });
-    // })
-    // }
+        relay_statsd::with_capturing_test_client(|| {
+            utils::log_transaction_name_metrics(<span class="kw-2">&amp;mut </span>event, |event| {
+                <span class="kw">let </span>config = NormalizationConfig {
+                    transaction_name_config: TransactionNameConfig {
+                        rules: <span class="kw-2">&amp;</span>[TransactionNameRule {
+                            pattern: LazyGlob::new(<span class="string">"/foo/*/**"</span>.to_owned()),
+                            expiry: DateTime::&lt;Utc&gt;::MAX_UTC,
+                            redaction: RedactionRule::Replace {
+                                substitution: <span class="string">"*"</span>.to_owned(),
+                            },
+                        }],
+                    },
+                    ..Default::default()
+                };
+                normalize_event(event, <span class="kw-2">&amp;</span>config)
+            });
+        })
+    }
 
-    // #[test]
-    // fn test_log_transaction_metrics_none() {
-    //     let captures = capture_test_event("/nothing", TransactionSource::Url);
-    //     insta::assert_debug_snapshot!(captures, @r#"
-    //     [
-    //         "event.transaction_name_changes:1|c|#source_in:url,changes:none,source_out:sanitized,is_404:false",
-    //     ]
-    //     "#);
-    // }
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_log_transaction_metrics_none() {
+        <span class="kw">let </span>captures = capture_test_event(<span class="string">"/nothing"</span>, TransactionSource::Url);
+        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r#"
+        [
+            "event.transaction_name_changes:1|c|#source_in:url,changes:none,source_out:sanitized,is_404:false",
+        ]
+        "#</span>);
+    }
 
-    // #[test]
-    // fn test_log_transaction_metrics_rule() {
-    //     let captures = capture_test_event("/foo/john/denver", TransactionSource::Url);
-    //     insta::assert_debug_snapshot!(captures, @r#"
-    //     [
-    //         "event.transaction_name_changes:1|c|#source_in:url,changes:rule,source_out:sanitized,is_404:false",
-    //     ]
-    //     "#);
-    // }
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_log_transaction_metrics_rule() {
+        <span class="kw">let </span>captures = capture_test_event(<span class="string">"/foo/john/denver"</span>, TransactionSource::Url);
+        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r#"
+        [
+            "event.transaction_name_changes:1|c|#source_in:url,changes:rule,source_out:sanitized,is_404:false",
+        ]
+        "#</span>);
+    }
 
-    // #[test]
-    // fn test_log_transaction_metrics_pattern() {
-    //     let captures = capture_test_event("/something/12345", TransactionSource::Url);
-    //     insta::assert_debug_snapshot!(captures, @r#"
-    //     [
-    //         "event.transaction_name_changes:1|c|#source_in:url,changes:pattern,source_out:sanitized,is_404:false",
-    //     ]
-    //     "#);
-    // }
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_log_transaction_metrics_pattern() {
+        <span class="kw">let </span>captures = capture_test_event(<span class="string">"/something/12345"</span>, TransactionSource::Url);
+        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r#"
+        [
+            "event.transaction_name_changes:1|c|#source_in:url,changes:pattern,source_out:sanitized,is_404:false",
+        ]
+        "#</span>);
+    }
 
-    // #[test]
-    // fn test_log_transaction_metrics_both() {
-    //     let captures = capture_test_event("/foo/john/12345", TransactionSource::Url);
-    //     insta::assert_debug_snapshot!(captures, @r#"
-    //     [
-    //         "event.transaction_name_changes:1|c|#source_in:url,changes:both,source_out:sanitized,is_404:false",
-    //     ]
-    //     "#);
-    // }
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_log_transaction_metrics_both() {
+        <span class="kw">let </span>captures = capture_test_event(<span class="string">"/foo/john/12345"</span>, TransactionSource::Url);
+        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r#"
+        [
+            "event.transaction_name_changes:1|c|#source_in:url,changes:both,source_out:sanitized,is_404:false",
+        ]
+        "#</span>);
+    }
 
-    // #[test]
-    // fn test_log_transaction_metrics_no_match() {
-    //     let captures = capture_test_event("/foo/john/12345", TransactionSource::Route);
-    //     insta::assert_debug_snapshot!(captures, @r#"
-    //     [
-    //         "event.transaction_name_changes:1|c|#source_in:route,changes:none,source_out:route,is_404:false",
-    //     ]
-    //     "#);
-    // }
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_log_transaction_metrics_no_match() {
+        <span class="kw">let </span>captures = capture_test_event(<span class="string">"/foo/john/12345"</span>, TransactionSource::Route);
+        <span class="macro">insta::assert_debug_snapshot!</span>(captures, @<span class="string">r#"
+        [
+            "event.transaction_name_changes:1|c|#source_in:route,changes:none,source_out:route,is_404:false",
+        ]
+        "#</span>);
+    }
 
-    </span><span class="doccomment">/// Confirms that the hardcoded value we use for the fixed length of the measurement MRI is
+    <span class="doccomment">/// Confirms that the hardcoded value we use for the fixed length of the measurement MRI is
     /// correct. Unit test is placed here because it has dependencies to relay-server and therefore
     /// cannot be called from relay-metrics.
     </span><span class="attr">#[test]
