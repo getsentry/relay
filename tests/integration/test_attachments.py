@@ -1,5 +1,3 @@
-from pyexpat import features
-
 import pytest
 import uuid
 import json
