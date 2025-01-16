@@ -557,6 +557,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: build-docker
+    env:
+      USE_NEW_DEVSERVICES: true
 
     # Skip redundant checks for library releases
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
