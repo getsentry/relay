@@ -136,7 +136,7 @@ mod test {
         )
         .unwrap();
         let processor = PiiAttachmentsProcessor::new(config.compiled());
-        let result = processor.scrub_json(&payload).unwrap();
+        let result = processor.scrub_json(payload).unwrap();
         let parsed: Value = serde_json::from_slice(&result).unwrap();
         assert_eq!("[ip]", parsed["identifier"].as_str().unwrap());
     }
@@ -165,7 +165,7 @@ mod test {
         .unwrap();
 
         let processor = PiiAttachmentsProcessor::new(config.compiled());
-        let result = processor.scrub_json(&payload).unwrap();
+        let result = processor.scrub_json(payload).unwrap();
         let parsed: Value = serde_json::from_slice(&result).unwrap();
         assert_eq!("[ip]", parsed["nested"]["stuff"]["ident"].as_str().unwrap());
     }
@@ -194,7 +194,7 @@ mod test {
         .unwrap();
 
         let processor = PiiAttachmentsProcessor::new(config.compiled());
-        let result = processor.scrub_json(&payload).unwrap();
+        let result = processor.scrub_json(payload).unwrap();
         let parsed: Value = serde_json::from_slice(&result).unwrap();
         assert_eq!(
             "10.0.0.1",
@@ -223,7 +223,7 @@ mod test {
         .unwrap();
 
         let processor = PiiAttachmentsProcessor::new(config.compiled());
-        let result = processor.scrub_json(&payload).unwrap();
+        let result = processor.scrub_json(payload).unwrap();
         let parsed: Value = serde_json::from_slice(&result).unwrap();
         assert_eq!("", parsed["password"]);
         assert_eq!("UIKIT", parsed["rendering_system"]);
