@@ -94,7 +94,7 @@ impl From<serde_json::Error> for ParseRecordingError {
 /// The [`Transform`] implementation for data scrubbing.
 ///
 /// This is used by [`EventStreamVisitor`] and [`ScrubbedValue`] to scrub recording events.
-pub struct ScrubberTransform<'a> {
+struct ScrubberTransform<'a> {
     /// PII processors that are applied one by one on each value.
     processor1: Option<PiiProcessor<'a>>,
     processor2: Option<PiiProcessor<'a>>,
@@ -171,7 +171,7 @@ impl<'de> Transform<'de> for &'_ mut ScrubberTransform<'_> {
 ///
 /// This is used by [`EventStreamVisitor`] to serialize recording events on-the-fly from a stream.
 /// It uses a [`ScrubberTransform`] holding all state to perform the actual work.
-pub struct ScrubbedValue<'a, 'b>(&'a RawValue, Rc<RefCell<ScrubberTransform<'b>>>);
+struct ScrubbedValue<'a, 'b>(&'a RawValue, Rc<RefCell<ScrubberTransform<'b>>>);
 
 impl serde::Serialize for ScrubbedValue<'_, '_> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
