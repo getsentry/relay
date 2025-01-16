@@ -22,12 +22,6 @@ use {
     relay_protocol::Annotated,
 };
 
-enum ScrubAction {
-    Minidump,
-    ViewHierarchy,
-    Attachment,
-}
-
 /// Adds processing placeholders for special attachments.
 ///
 /// If special attachments are present in the envelope, this adds placeholder payloads to the
@@ -59,21 +53,6 @@ pub fn create_placeholders(
     }
 
     None
-}
-
-fn determine_scrub_action<Group>(
-    managed_envelope: &mut TypedEnvelope<Group>,
-    project_info: Arc<ProjectInfo>,
-) {
-    let envelope = managed_envelope.envelope();
-    if project_info
-        .config
-        .features
-        .has(Feature::ViewHierarchyScrubbing)
-        && envelope
-            .items()
-            .any(|item| item.attachment_type() == Some(&AttachmentType::ViewHierarchy))
-    {}
 }
 
 /// Apply data privacy rules to attachments in the envelope.
