@@ -153,8 +153,8 @@ fn size_category(size: usize) -> &'static str {
 mod tests {
     use super::*;
     use axum::body::HttpBody;
-    // use futures::task::noop_waker_ref;
-    // use relay_statsd::with_capturing_test_client;
+    use futures::task::noop_waker_ref;
+    use relay_statsd::with_capturing_test_client;
 
     struct ErrorBody;
 
@@ -170,107 +170,107 @@ mod tests {
         }
     }
 
-    // #[test]
-    // fn test_empty_body() {
-    //     let captures = with_capturing_test_client(|| {
-    //         let waker = noop_waker_ref();
-    //         let mut cx = Context::from_waker(waker);
+    #[test]
+    fn test_empty_body() {
+        let captures = with_capturing_test_client(|| {
+            let waker = noop_waker_ref();
+            let mut cx = Context::from_waker(waker);
 
-    //         let empty_body = Body::from(vec![]);
-    //         let mut timed_body = TimedBody::new(empty_body, None);
-    //         let pinned = Pin::new(&mut timed_body);
+            let empty_body = Body::from(vec![]);
+            let mut timed_body = TimedBody::new(empty_body, None);
+            let pinned = Pin::new(&mut timed_body);
 
-    //         let _ = pinned.poll_frame(&mut cx);
-    //     });
-    //     assert_eq!(
-    //         captures,
-    //         ["requests.body_read.duration:0|ms|#route:unknown,size:lt1KB,status:completed"]
-    //     );
-    // }
+            let _ = pinned.poll_frame(&mut cx);
+        });
+        assert_eq!(
+            captures,
+            ["requests.body_read.duration:0|ms|#route:unknown,size:lt1KB,status:completed"]
+        );
+    }
 
-    // #[test]
-    // fn test_body() {
-    //     let captures = with_capturing_test_client(|| {
-    //         let waker = noop_waker_ref();
-    //         let mut cx = Context::from_waker(waker);
+    #[test]
+    fn test_body() {
+        let captures = with_capturing_test_client(|| {
+            let waker = noop_waker_ref();
+            let mut cx = Context::from_waker(waker);
 
-    //         let body = Body::new("cool test".to_string());
-    //         let mut timed_body = TimedBody::new(body, None);
-    //         let mut pinned = Pin::new(&mut timed_body);
+            let body = Body::new("cool test".to_string());
+            let mut timed_body = TimedBody::new(body, None);
+            let mut pinned = Pin::new(&mut timed_body);
 
-    //         let _ = pinned.as_mut().poll_frame(&mut cx);
-    //         let _ = pinned.as_mut().poll_frame(&mut cx);
-    //     });
-    //     assert_eq!(
-    //         captures,
-    //         ["requests.body_read.duration:0|ms|#route:unknown,size:lt1KB,status:completed"]
-    //     );
-    // }
+            let _ = pinned.as_mut().poll_frame(&mut cx);
+            let _ = pinned.as_mut().poll_frame(&mut cx);
+        });
+        assert_eq!(
+            captures,
+            ["requests.body_read.duration:0|ms|#route:unknown,size:lt1KB,status:completed"]
+        );
+    }
 
-    // #[test]
-    // fn test_dropped_while_reading() {
-    //     let captures = with_capturing_test_client(|| {
-    //         let waker = noop_waker_ref();
-    //         let mut cx = Context::from_waker(waker);
+    #[test]
+    fn test_dropped_while_reading() {
+        let captures = with_capturing_test_client(|| {
+            let waker = noop_waker_ref();
+            let mut cx = Context::from_waker(waker);
 
-    //         let body = Body::new("just calling this once".to_string());
-    //         let mut timed_body = TimedBody::new(body, None);
-    //         let pinned = Pin::new(&mut timed_body);
+            let body = Body::new("just calling this once".to_string());
+            let mut timed_body = TimedBody::new(body, None);
+            let pinned = Pin::new(&mut timed_body);
 
-    //         let _ = pinned.poll_frame(&mut cx);
-    //     });
-    //     assert_eq!(
-    //         captures,
-    //         ["requests.body_read.duration:0|ms|#route:unknown,size:lt1KB,status:dropped"]
-    //     )
-    // }
+            let _ = pinned.poll_frame(&mut cx);
+        });
+        assert_eq!(
+            captures,
+            ["requests.body_read.duration:0|ms|#route:unknown,size:lt1KB,status:dropped"]
+        )
+    }
 
-    // #[test]
-    // fn test_dropped_before_reading() {
-    //     let captures = with_capturing_test_client(|| {
-    //         let body = Body::new("dropped".to_string());
-    //         let _ = TimedBody::new(body, None);
-    //     });
-    //     assert_eq!(captures.len(), 0);
-    // }
+    #[test]
+    fn test_dropped_before_reading() {
+        let captures = with_capturing_test_client(|| {
+            let body = Body::new("dropped".to_string());
+            let _ = TimedBody::new(body, None);
+        });
+        assert_eq!(captures.len(), 0);
+    }
 
-    // #[test]
-    // fn test_failed_body() {
-    //     let captures = with_capturing_test_client(|| {
-    //         let waker = noop_waker_ref();
-    //         let mut cx = Context::from_waker(waker);
+    #[test]
+    fn test_failed_body() {
+        let captures = with_capturing_test_client(|| {
+            let waker = noop_waker_ref();
+            let mut cx = Context::from_waker(waker);
 
-    //         let body = Body::new(ErrorBody {});
-    //         let mut timed_body = TimedBody::new(body, None);
+            let body = Body::new(ErrorBody {});
+            let mut timed_body = TimedBody::new(body, None);
 
-    //         let pinned = Pin::new(&mut timed_body);
-    //         let _ = pinned.poll_frame(&mut cx);
-    //     });
-    //     assert_eq!(
-    //         captures,
-    //         ["requests.body_read.duration:0|ms|#route:unknown,size:lt1KB,status:failed"]
-    //     )
-    // }
+            let pinned = Pin::new(&mut timed_body);
+            let _ = pinned.poll_frame(&mut cx);
+        });
+        assert_eq!(
+            captures,
+            ["requests.body_read.duration:0|ms|#route:unknown,size:lt1KB,status:failed"]
+        )
+    }
 
-    // #[test]
-    // fn test_large_body() {
-    //     let captures = with_capturing_test_client(|| {
-    //         let waker = noop_waker_ref();
-    //         let mut cx = Context::from_waker(waker);
+    #[test]
+    fn test_large_body() {
+        let captures = with_capturing_test_client(|| {
+            let waker = noop_waker_ref();
+            let mut cx = Context::from_waker(waker);
 
-    //         let data = (0..2000).map(|i| i as u8).collect::<Vec<u8>>();
+            let data = (0..2000).map(|i| i as u8).collect::<Vec<u8>>();
 
-    //         let body = Body::from(data);
-    //         let mut timed_body = TimedBody::new(body, None);
+            let body = Body::from(data);
+            let mut timed_body = TimedBody::new(body, None);
 
-    //         let mut pinned = Pin::new(&mut timed_body);
-    //         while let Poll::Ready(Some(Ok(_))) = pinned.as_mut().poll_frame(&mut cx) {}
-    //     });
-    //     assert_eq!(
-    //         captures,
-    //         ["requests.body_read.duration:0|ms|#route:unknown,size:lt10KB,status:completed"]
-    //     )
-    // }
+            let mut pinned = Pin::new(&mut timed_body);
+            while let Poll::Ready(Some(Ok(_))) = pinned.as_mut().poll_frame(&mut cx) {}
+        });
+        assert_eq!(
+            captures,
+            ["requests.body_read.duration:0|ms|#route:unknown,size:lt10KB,status:completed"]
+        )
+    }
 
     #[test]
     fn test_size_category() {
