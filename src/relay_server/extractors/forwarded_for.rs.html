@@ -201,8 +201,7 @@
 <a href="#200" id="200">200</a>
 <a href="#201" id="201">201</a>
 <a href="#202" id="202">202</a>
-<a href="#203" id="203">203</a>
-<a href="#204" id="204">204</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
+<a href="#203" id="203">203</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::net::SocketAddr;
 
 <span class="kw">use </span>axum::extract::{ConnectInfo, FromRequestParts};
@@ -278,8 +277,7 @@
     }
 }
 
-<span class="attr">#[axum::async_trait]
-</span><span class="kw">impl</span>&lt;S&gt; FromRequestParts&lt;S&gt; <span class="kw">for </span>ForwardedFor
+<span class="kw">impl</span>&lt;S&gt; FromRequestParts&lt;S&gt; <span class="kw">for </span>ForwardedFor
 <span class="kw">where
     </span>S: Send + Sync,
 {

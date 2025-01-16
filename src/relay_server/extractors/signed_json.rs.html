@@ -116,9 +116,7 @@
 <a href="#115" id="115">115</a>
 <a href="#116" id="116">116</a>
 <a href="#117" id="117">117</a>
-<a href="#118" id="118">118</a>
-<a href="#119" id="119">119</a>
-<a href="#120" id="120">120</a></pre></div><pre class="rust"><code><span class="kw">use </span>axum::extract::rejection::BytesRejection;
+<a href="#118" id="118">118</a></pre></div><pre class="rust"><code><span class="kw">use </span>axum::extract::rejection::BytesRejection;
 <span class="kw">use </span>axum::extract::{FromRequest, Request};
 <span class="kw">use </span>axum::http::StatusCode;
 <span class="kw">use </span>axum::response::{IntoResponse, Response};
@@ -191,8 +189,7 @@
     <span class="kw">pub </span>relay: RelayInfo,
 }
 
-<span class="attr">#[axum::async_trait]
-</span><span class="kw">impl </span>FromRequest&lt;ServiceState&gt; <span class="kw">for </span>SignedBytes {
+<span class="kw">impl </span>FromRequest&lt;ServiceState&gt; <span class="kw">for </span>SignedBytes {
     <span class="kw">type </span>Rejection = SignatureError;
 
     <span class="kw">async fn </span>from_request(request: Request, state: <span class="kw-2">&amp;</span>ServiceState) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Rejection&gt; {
@@ -225,8 +222,7 @@
     <span class="kw">pub </span>relay: RelayInfo,
 }
 
-<span class="attr">#[axum::async_trait]
-</span><span class="kw">impl</span>&lt;T&gt; FromRequest&lt;ServiceState&gt; <span class="kw">for </span>SignedJson&lt;T&gt;
+<span class="kw">impl</span>&lt;T&gt; FromRequest&lt;ServiceState&gt; <span class="kw">for </span>SignedJson&lt;T&gt;
 <span class="kw">where
     </span>T: DeserializeOwned,
 {

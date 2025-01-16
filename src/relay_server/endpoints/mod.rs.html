@@ -125,11 +125,11 @@
 </span><span class="kw">pub fn </span>routes(config: <span class="kw-2">&amp;</span>Config) -&gt; Router&lt;ServiceState&gt;{
     <span class="comment">// Relay-internal routes pointing to /api/relay/
     </span><span class="kw">let </span>internal_routes = Router::new()
-        .route(<span class="string">"/api/relay/healthcheck/:kind/"</span>, get(health_check::handle))
-        .route(<span class="string">"/api/relay/events/:event_id/"</span>, get(events::handle));
+        .route(<span class="string">"/api/relay/healthcheck/{kind}/"</span>, get(health_check::handle))
+        .route(<span class="string">"/api/relay/events/{event_id}/"</span>, get(events::handle));
     <span class="kw">let </span>internal_routes = internal_routes
         <span class="comment">// Fallback route, but with a name, and just on `/api/relay/*`.
-        </span>.route(<span class="string">"/api/relay/*not_found"</span>, any(statics::not_found));
+        </span>.route(<span class="string">"/api/relay/{*not_found}"</span>, any(statics::not_found));
 
     <span class="comment">// Sentry Web API routes pointing to /api/0/relays/
     </span><span class="kw">let </span>web_routes = Router::new()
@@ -149,22 +149,22 @@
         <span class="comment">// Legacy store path that is missing the project parameter.
         </span>.route(<span class="string">"/api/store/"</span>, store::route(config))
         <span class="comment">// cron monitor level routes.  These are user facing APIs and as such support trailing slashes.
-        </span>.route(<span class="string">"/api/:project_id/cron/:monitor_slug/:sentry_key"</span>, monitor::route(config))
-        .route(<span class="string">"/api/:project_id/cron/:monitor_slug/:sentry_key/"</span>, monitor::route(config))
-        .route(<span class="string">"/api/:project_id/cron/:monitor_slug"</span>, monitor::route(config))
-        .route(<span class="string">"/api/:project_id/cron/:monitor_slug/"</span>, monitor::route(config))
+        </span>.route(<span class="string">"/api/{project_id}/cron/{monitor_slug}/{sentry_key}"</span>, monitor::route(config))
+        .route(<span class="string">"/api/{project_id}/cron/{monitor_slug}/{sentry_key}/"</span>, monitor::route(config))
+        .route(<span class="string">"/api/{project_id}/cron/{monitor_slug}"</span>, monitor::route(config))
+        .route(<span class="string">"/api/{project_id}/cron/{monitor_slug}/"</span>, monitor::route(config))
 
-        .route(<span class="string">"/api/:project_id/store/"</span>, store::route(config))
-        .route(<span class="string">"/api/:project_id/envelope/"</span>, envelope::route(config))
-        .route(<span class="string">"/api/:project_id/security/"</span>, security_report::route(config))
-        .route(<span class="string">"/api/:project_id/csp-report/"</span>, security_report::route(config))
-        .route(<span class="string">"/api/:project_id/nel/"</span>, nel::route(config))
+        .route(<span class="string">"/api/{project_id}/store/"</span>, store::route(config))
+        .route(<span class="string">"/api/{project_id}/envelope/"</span>, envelope::route(config))
+        .route(<span class="string">"/api/{project_id}/security/"</span>, security_report::route(config))
+        .route(<span class="string">"/api/{project_id}/csp-report/"</span>, security_report::route(config))
+        .route(<span class="string">"/api/{project_id}/nel/"</span>, nel::route(config))
         <span class="comment">// No mandatory trailing slash here because people already use it like this.
-        </span>.route(<span class="string">"/api/:project_id/minidump"</span>, minidump::route(config))
-        .route(<span class="string">"/api/:project_id/minidump/"</span>, minidump::route(config))
-        .route(<span class="string">"/api/:project_id/events/:event_id/attachments/"</span>, post(attachments::handle))
-        .route(<span class="string">"/api/:project_id/unreal/:sentry_key/"</span>, unreal::route(config))
-        .route(<span class="string">"/api/:project_id/otlp/v1/traces/"</span>, traces::route(config))
+        </span>.route(<span class="string">"/api/{project_id}/minidump"</span>, minidump::route(config))
+        .route(<span class="string">"/api/{project_id}/minidump/"</span>, minidump::route(config))
+        .route(<span class="string">"/api/{project_id}/events/{event_id}/attachments/"</span>, post(attachments::handle))
+        .route(<span class="string">"/api/{project_id}/unreal/{sentry_key}/"</span>, unreal::route(config))
+        .route(<span class="string">"/api/{project_id}/otlp/v1/traces/"</span>, traces::route(config))
         <span class="comment">// NOTE: If you add a new (non-experimental) route here, please also list it in
         // https://github.com/getsentry/sentry-docs/blob/master/docs/product/relay/operating-guidelines.mdx
         </span>.route_layer(middlewares::cors());

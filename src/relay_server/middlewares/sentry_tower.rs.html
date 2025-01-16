@@ -605,7 +605,7 @@
     H: Into&lt;Arc&lt;Hub&gt;&gt;,
 {
     provider: P,
-    _hub: PhantomData&lt;(H, Request)&gt;,
+    _hub: PhantomData&lt;<span class="kw">fn</span>() -&gt; (H, Request)&gt;,
 }
 
 <span class="kw">impl</span>&lt;S, P, H, Request&gt; Layer&lt;S&gt; <span class="kw">for </span>SentryLayer&lt;P, H, Request&gt;
@@ -645,7 +645,7 @@
 {
     service: S,
     provider: P,
-    _hub: PhantomData&lt;(H, Request)&gt;,
+    _hub: PhantomData&lt;<span class="kw">fn</span>() -&gt; (H, Request)&gt;,
 }
 
 <span class="kw">impl</span>&lt;S, Request, P, H&gt; Service&lt;Request&gt; <span class="kw">for </span>SentryService&lt;S, P, H, Request&gt;

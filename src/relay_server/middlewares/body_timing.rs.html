@@ -331,7 +331,7 @@
     }
 }
 
-<span class="kw">impl</span>&lt;S&gt; Service&lt;Request&lt;Body&gt;&gt; <span class="kw">for </span>BodyTiming&lt;S&gt;
+<span class="kw">impl</span>&lt;S: Send + Sync&gt; Service&lt;Request&lt;Body&gt;&gt; <span class="kw">for </span>BodyTiming&lt;S&gt;
 <span class="kw">where
     </span>S: Service&lt;Request&lt;Body&gt;&gt;,
 {
