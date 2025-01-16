@@ -558,7 +558,7 @@ jobs:
     timeout-minutes: 30
     needs: build-docker
     env:
-      USE_NEW_DEVSERVICES: true
+      USE_NEW_DEVSERVICES: 1
 
     # Skip redundant checks for library releases
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
