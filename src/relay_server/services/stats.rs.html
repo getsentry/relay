@@ -247,7 +247,7 @@
                 worker = <span class="kw-2">&amp;</span>worker_name,
             );
             <span class="macro">metric!</span>(
-                gauge(RuntimeGauges::WorkerMeanPollTime) =
+                gauge_f(RuntimeGauges::WorkerMeanPollTime) =
                     <span class="self">self</span>.runtime.worker_mean_poll_time(worker).as_secs_f64(),
                 worker = <span class="kw-2">&amp;</span>worker_name,
             );
