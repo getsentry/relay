@@ -3951,6 +3951,7 @@ dependencies = [
  "rmp-serde",
  "semver",
  "serde",
+ "serde-transcode",
  "serde_bytes",
  "serde_json",
  "serde_path_to_error",

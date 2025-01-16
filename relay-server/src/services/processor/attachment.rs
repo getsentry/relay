@@ -4,14 +4,16 @@ use std::error::Error;
 use std::sync::Arc;
 use std::time::Instant;
 
-use relay_pii::{PiiAttachmentsProcessor, SelectorPathItem, SelectorSpec};
+use relay_pii::{JsonScrubVisitor, PiiAttachmentsProcessor, SelectorPathItem, SelectorSpec};
 use relay_statsd::metric;
 
 use crate::envelope::{AttachmentType, ContentType};
 use crate::statsd::RelayTimers;
 
 use crate::services::projects::project::ProjectInfo;
-use crate::utils::TypedEnvelope;
+use crate::utils::{ManagedEnvelope, TypedEnvelope};
+use relay_dynamic_config::Feature;
+use relay_pii::transform::Deserializer;
 #[cfg(feature = "processing")]
 use {
     crate::services::processor::{ErrorGroup, EventFullyNormalized},
@@ -19,6 +21,12 @@ use {
     relay_event_schema::protocol::{Event, Metrics},
     relay_protocol::Annotated,
 };
+
+enum ScrubAction {
+    Minidump,
+    ViewHierarchy,
+    Attachment,
+}
 
 /// Adds processing placeholders for special attachments.
 ///
@@ -53,6 +61,21 @@ pub fn create_placeholders(
     None
 }
 
+fn determine_scrub_action<Group>(
+    managed_envelope: &mut TypedEnvelope<Group>,
+    project_info: Arc<ProjectInfo>,
+) {
+    let envelope = managed_envelope.envelope();
+    if project_info
+        .config
+        .features
+        .has(Feature::ViewHierarchyScrubbing)
+        && envelope
+            .items()
+            .any(|item| item.attachment_type() == Some(&AttachmentType::ViewHierarchy))
+    {}
+}
+
 /// Apply data privacy rules to attachments in the envelope.
 ///
 /// This only applies the new PII rules that explicitly select `ValueType::Binary` or one of the
@@ -61,20 +84,18 @@ pub fn create_placeholders(
 pub fn scrub<Group>(managed_envelope: &mut TypedEnvelope<Group>, project_info: Arc<ProjectInfo>) {
     let envelope = managed_envelope.envelope_mut();
     if let Some(ref config) = project_info.config.pii_config {
-        let minidump = envelope
-            .get_item_by_mut(|item| item.attachment_type() == Some(&AttachmentType::Minidump));
-
-        if let Some(item) = minidump {
-            scrub_minidump(item, config);
-        } else if has_simple_attachment_selector(config) {
-            // We temporarily only scrub attachments to projects that have at least one simple attachment rule,
-            // such as `$attachments.'foo.txt'`.
-            // After we have assessed the impact on performance we can relax this condition.
-            for item in envelope
-                .items_mut()
-                .filter(|item| item.attachment_type().is_some())
+        for item in envelope.items_mut() {
+            if project_info
+                .config
+                .features
+                .has(Feature::ViewHierarchyScrubbing)
+                && item.attachment_type() == Some(&AttachmentType::ViewHierarchy)
             {
-                scrub_attachment(item, config);
+                scrub_view_hierarchy(item, config)
+            } else if item.attachment_type() == Some(&AttachmentType::Minidump) {
+                scrub_minidump(item, config)
+            } else if has_simple_attachment_selector(config) && item.attachment_type().is_some() {
+                scrub_attachment(item, config)
             }
         }
     }
@@ -123,6 +144,30 @@ fn scrub_minidump(item: &mut crate::envelope::Item, config: &relay_pii::PiiConfi
         .clone();
 
     item.set_payload(content_type, payload);
+}
+
+fn scrub_view_hierarchy(item: &mut crate::envelope::Item, config: &relay_pii::PiiConfig) {
+    let processor = PiiAttachmentsProcessor::new(config.compiled());
+
+    let payload = item.payload();
+    let start = Instant::now();
+    match processor.scrub_json(&payload) {
+        Ok(output) => {
+            metric!(
+                timer(RelayTimers::ViewHierarchyScrubbing) = start.elapsed(),
+                status = "ok"
+            );
+            let content_type = item.content_type().unwrap_or(&ContentType::Json).clone();
+            item.set_payload(content_type, output);
+        }
+        Err(e) => {
+            relay_log::warn!(error = &e as &dyn Error, "failed to scrub minidump",);
+            metric!(
+                timer(RelayTimers::ViewHierarchyScrubbing) = start.elapsed(),
+                status = "error"
+            )
+        }
+    }
 }
 
 fn has_simple_attachment_selector(config: &relay_pii::PiiConfig) -> bool {

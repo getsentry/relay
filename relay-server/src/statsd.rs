@@ -408,6 +408,10 @@ pub enum RelayTimers {
     ///       was an error during scrubbing and finally "n/a" means scrubbing was successful
     ///       but no scurbbing rules applied.
     MinidumpScrubbing,
+    /// Time spent on view hierarchy scrubbing.
+    ///
+    /// This is the total time spent on parsing and scrubbing the view hierarchy json file.
+    ViewHierarchyScrubbing,
     /// Time spend on attachment scrubbing.
     ///
     /// This represents the total time spent on evaluating the scrubbing rules for an
@@ -559,6 +563,7 @@ impl TimerMetric for RelayTimers {
             RelayTimers::ProjectStateDecompression => "project_state.decompression",
             RelayTimers::RequestsDuration => "requests.duration",
             RelayTimers::MinidumpScrubbing => "scrubbing.minidumps.duration",
+            RelayTimers::ViewHierarchyScrubbing => "scrubbing.view_hierarchy_scrubbing.duration",
             RelayTimers::AttachmentScrubbing => "scrubbing.attachments.duration",
             RelayTimers::UpstreamRequestsDuration => "upstream.requests.duration",
             RelayTimers::TimestampDelay => "requests.timestamp_delay",

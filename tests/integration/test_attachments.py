@@ -1,3 +1,5 @@
+from pyexpat import features
+
 import pytest
 import uuid
 import json
@@ -177,6 +179,121 @@ def test_attachments_pii(mini_sentry, relay):
     }
 
 
+@pytest.mark.parametrize(
+    "feature_flags, expected",
+    [
+        ([], "************"),
+        (["organizations:view-hierarchy-scrubbing"], "************"),
+    ],
+)
+def test_view_hierarchy_scrubbing(mini_sentry, relay, feature_flags, expected):
+    event_id = "515539018c9b4260a6f999572f1661ee"
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = feature_flags
+    project_config["config"]["piiConfig"] = {
+        "rules": {"0": {"type": "ip", "redaction": {"method": "mask"}}},
+        "applications": {"$attachments.'view-hierarchy.json'": ["0"], "$string": ["0"]},
+    }
+    relay = relay(mini_sentry)
+
+    json_payload = {
+        "rendering_system": "UIKIT",
+        "identifier": "129.16.41.92",
+    }
+
+    envelope = Envelope(headers=[["event_id", event_id]])
+    envelope.add_item(
+        Item(
+            headers=[["attachment_type", "event.view_hierarchy"]],
+            type="attachment",
+            payload=PayloadRef(json=json_payload),
+            filename="view-hierarchy.json",
+        )
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    relay.send_envelope(project_id, envelope)
+    payload = json.loads(mini_sentry.captured_events.get().items[0].payload.bytes)
+    assert payload == {"rendering_system": "UIKIT", "identifier": expected}
+
+
+@pytest.mark.parametrize(
+    "feature_flags, expected",
+    [
+        ([], b"**************************************************"),
+        (
+            ["organizations:view-hierarchy-scrubbing"],
+            b'{"rendering_system":"UIKIT","password":""}',
+        ),
+    ],
+)
+def test_attachment_scrubbing_with_fallback(
+    mini_sentry, relay, feature_flags, expected
+):
+    """
+    If the feature flag is disabled, it will be scrubbed as binary file so it masks the entire attachment.
+    If the feature flag is enabled, it will understand that it's json and only remove the password content
+    """
+    event_id = "515539018c9b4260a6f999572f1661ee"
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = feature_flags
+    project_config["config"]["piiConfig"] = {
+        "rules": {"0": {"type": "password", "redaction": {"method": "remove"}}},
+        "applications": {
+            "$string": ["@password:remove"],
+            "$attachments.'view-hierarchy.json'": ["0"],
+        },
+    }
+
+    relay = relay(mini_sentry)
+    json_payload = {
+        "rendering_system": "UIKIT",
+        "password": "hunter42",
+    }
+
+    envelope = Envelope(headers=[["event_id", event_id]])
+    envelope.add_item(
+        Item(
+            headers=[["attachment_type", "event.view_hierarchy"]],
+            type="attachment",
+            payload=PayloadRef(json=json_payload),
+            filename="view-hierarchy.json",
+        )
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    payload = mini_sentry.captured_events.get().items[0].payload.bytes
+    assert payload == expected
+
+
+def test_view_hierarchy_not_scrubbed_without_config(mini_sentry, relay):
+    event_id = "515539018c9b4260a6f999572f1661ee"
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["piiConfig"] = {}
+    relay = relay(mini_sentry)
+
+    json_payload = {"rendering_system": "UIKIT", "identifier": "129.16.41.92"}
+
+    envelope = Envelope(headers=[["event_id", event_id]])
+    envelope.add_item(
+        Item(
+            headers=[["attachment_type", "event.view_hierarchy"]],
+            type="attachment",
+            payload=PayloadRef(json=json_payload),
+            filename="view-hierarchy.json",
+        )
+    )
+
+    relay.send_envelope(project_id, envelope)
+    payload = json.loads(mini_sentry.captured_events.get().items[0].payload.bytes)
+    assert payload == json_payload
+
+
 def test_attachments_quotas(
     mini_sentry,
     relay_with_processing,
@@ -290,7 +407,8 @@ def test_view_hierarchy_processing(
     outcomes_consumer = outcomes_consumer()
 
     json_payload = {"rendering_system": "compose", "windows": []}
-    expected_payload = json.dumps(json_payload).encode()
+    # separators are used to produce json without whitespaces
+    expected_payload = json.dumps(json_payload, separators=(",", ":")).encode()
 
     envelope = Envelope(headers=[["event_id", event_id]])
     envelope.add_item(

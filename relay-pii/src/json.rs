@@ -1,35 +1,36 @@
 use crate::transform::Transform;
-use crate::{PiiAttachmentsProcessor, PiiProcessor};
-use bytes::Bytes;
+use crate::{CompiledPiiConfig, PiiAttachmentsProcessor, PiiProcessor};
 use relay_event_schema::processor::{FieldAttrs, Pii, ProcessingState, Processor, ValueType};
 use relay_protocol::Meta;
-use serde::de;
-use serde::de::Error;
 use serde_json::Deserializer;
-use std::borrow::BorrowMut;
 use std::borrow::Cow;
-use std::fmt::Formatter;
 
 const FIELD_ATTRS_PII_TRUE: FieldAttrs = FieldAttrs::new().pii(Pii::True);
 
+#[derive(Debug, thiserror::Error)]
+pub enum ScrubViewHierarchyError {
+    #[error("transcoding view hierarchy json failed, maybe json is invalid")]
+    TranscodeFailed,
+}
+
 impl PiiAttachmentsProcessor<'_> {
-    pub fn scrub_json(&self, payload: Bytes) -> Vec<u8> {
-        let slice = payload.as_ref();
+    pub fn scrub_json(&self, payload: &[u8]) -> Result<Vec<u8>, ScrubViewHierarchyError> {
         let output = Vec::new();
 
-        let visitor = JsonScrubVisitor::new(Some(PiiProcessor::new(self.compiled_config)));
+        let visitor = JsonScrubVisitor::new(self.compiled_config);
 
-        let mut deserializer_inner = Deserializer::from_slice(slice);
+        let mut deserializer_inner = Deserializer::from_slice(payload);
         let deserializer = crate::transform::Deserializer::new(&mut deserializer_inner, visitor);
 
         let mut serializer = serde_json::Serializer::new(output);
-        serde_transcode::transcode(deserializer, &mut serializer).unwrap();
-        serializer.into_inner()
+        serde_transcode::transcode(deserializer, &mut serializer)
+            .map_err(|_| ScrubViewHierarchyError::TranscodeFailed)?;
+        Ok(serializer.into_inner())
     }
 }
 
 pub struct JsonScrubVisitor<'a> {
-    processor: Option<PiiProcessor<'a>>,
+    processor: PiiProcessor<'a>,
     /// The state encoding the current path, which is fed by `push_path` and `pop_path`.
     state: ProcessingState<'a>,
     /// The current path. This is redundant with `state`, which also contains the full path,
@@ -38,7 +39,8 @@ pub struct JsonScrubVisitor<'a> {
 }
 
 impl<'a> JsonScrubVisitor<'a> {
-    pub fn new(processor: Option<PiiProcessor<'a>>) -> Self {
+    pub fn new(config: &'a CompiledPiiConfig) -> Self {
+        let processor = PiiProcessor::new(config);
         Self {
             processor,
             state: ProcessingState::new_root(None, None),
@@ -47,44 +49,8 @@ impl<'a> JsonScrubVisitor<'a> {
     }
 }
 
-// impl<'de> de::Visitor<'de> for JsonScrubVisitor<'_> {
-//     type Value = serde_json::Value;
-//
-//     fn expecting(&self, formatter: &mut Formatter) -> std::fmt::Result {
-//         formatter.write_str("a JSON document")
-//     }
-//
-//     fn visit_str<E>(mut self, v: &str) -> Result<Self::Value, E>
-//     where
-//         E: Error
-//     {
-//         let mut owned = v.to_owned();
-//         let mut meta = Meta::default();
-//         if let Some(mut processor) = self.processor {
-//             processor.process_string(&mut owned, &mut meta, ProcessingState::root()).map_err(E::custom)?;
-//         }
-//         Ok(serde_json::from_str(&owned).map_err(E::custom)?)
-//     }
-//
-//     fn visit_string<E>(mut self, v: String) -> Result<Self::Value, E>
-//     where
-//         E: Error
-//     {
-//         let mut v = v;
-//         let mut meta = Meta::default();
-//
-//         if let Some(ref mut processor) = self.processor {
-//             let state  = ProcessingState::root();
-//             state.enter_nothing(Some(Cow::Owned(FieldAttrs::new().pii(Pii::True))));
-//             processor.process_string(&mut v, &mut meta, state).map_err(E::custom)?;
-//         }
-//         Ok(serde_json::from_str(&v).map_err(E::custom)?)
-//     }
-// }
-
 impl<'de> Transform<'de> for JsonScrubVisitor<'de> {
     fn push_path(&mut self, key: &'de str) {
-        dbg!(&key);
         self.path.push(key.to_owned());
 
         self.state = std::mem::take(&mut self.state).enter_owned(
@@ -98,33 +64,24 @@ impl<'de> Transform<'de> for JsonScrubVisitor<'de> {
         if let Ok(Some(parent)) = std::mem::take(&mut self.state).try_into_parent() {
             self.state = parent;
         }
-        dbg!(&self.path);
         let popped = self.path.pop();
-        dbg!(&popped);
         debug_assert!(popped.is_some()); // pop_path should never be called on an empty state.
     }
 
     fn transform_str<'a>(&mut self, v: &'a str) -> Cow<'a, str> {
-        let mut owned = v.to_owned();
-        let mut meta = Meta::default();
-        if let Some(ref mut processor) = self.processor.borrow_mut() {
-            if let Ok(_) = processor.process_string(&mut owned, &mut meta, &self.state) {
-                dbg!(&owned);
-                return Cow::Owned(owned);
-            }
-        }
-        Cow::Borrowed("")
+        self.transform_string(v.to_owned())
     }
 
     fn transform_string(&mut self, mut v: String) -> Cow<'static, str> {
         let mut meta = Meta::default();
-        if let Some(ref mut processor) = self.processor.borrow_mut() {
-            if let Ok(_) = processor.process_string(&mut v, &mut meta, &self.state) {
-                dbg!(&v);
-                return Cow::Owned(v);
-            }
+        if self
+            .processor
+            .process_string(&mut v, &mut meta, &self.state)
+            .is_err()
+        {
+            return Cow::Borrowed("");
         }
-        Cow::Borrowed("")
+        Cow::Owned(v)
     }
 }
 
@@ -132,7 +89,6 @@ mod test {
     use crate::{PiiAttachmentsProcessor, PiiConfig};
     use bytes::Bytes;
     use serde_json::Value;
-    use std::collections::HashMap;
 
     #[test]
     pub fn test_vh() {
@@ -144,6 +100,7 @@ mod test {
           "windows": [
             {
               "type": "UIWindow",
+              "identifier": "123.123.123.123",
               "width": 414,
               "height": 896,
               "x": 0,
@@ -167,8 +124,99 @@ mod test {
         )
         .unwrap();
         let processor = PiiAttachmentsProcessor::new(config.compiled());
-        let result = processor.scrub_json(payload);
-        let parsed: Result<HashMap<String, Value>, _> = serde_json::from_slice(&result);
-        let map = parsed.expect("failed to parse scrubbed");
+        let result = processor.scrub_json(&payload).unwrap();
+        let parsed: Value = serde_json::from_slice(&result).unwrap();
+        assert_eq!("[ip]", parsed["identifier"].as_str().unwrap());
+    }
+
+    #[test]
+    pub fn test_vh_nested() {
+        let payload = Bytes::from(
+            r#"
+           {
+               "nested": {
+                    "stuff": {
+                        "ident": "10.0.0.1"
+                    }
+               }
+           }
+        "#,
+        );
+        let config = serde_json::from_str::<PiiConfig>(
+            r#"
+            {
+                "applications": {
+                    "nested.stuff.ident": ["@ip"]
+                }
+            }
+        "#,
+        )
+        .unwrap();
+
+        let processor = PiiAttachmentsProcessor::new(config.compiled());
+        let result = processor.scrub_json(&payload).unwrap();
+        let parsed: Value = serde_json::from_slice(&result).unwrap();
+        assert_eq!("[ip]", parsed["nested"]["stuff"]["ident"].as_str().unwrap());
+    }
+
+    #[test]
+    pub fn test_vh_not_existing_path() {
+        let payload = Bytes::from(
+            r#"
+           {
+               "nested": {
+                    "stuff": {
+                        "ident": "10.0.0.1"
+                    }
+               }
+           }
+        "#,
+        );
+        let config = serde_json::from_str::<PiiConfig>(
+            r#"
+            {
+                "applications": {
+                    "non.existent.path": ["@ip"]
+                }
+            }
+        "#,
+        )
+        .unwrap();
+
+        let processor = PiiAttachmentsProcessor::new(config.compiled());
+        let result = processor.scrub_json(&payload).unwrap();
+        let parsed: Value = serde_json::from_slice(&result).unwrap();
+        assert_eq!(
+            "10.0.0.1",
+            parsed["nested"]["stuff"]["ident"].as_str().unwrap()
+        );
+    }
+
+    #[test]
+    pub fn test_vh_password() {
+        let payload = Bytes::from(
+            r#"
+                {
+                    "rendering_system": "UIKIT",
+                    "password": "hunter42"
+                }
+            "#,
+        );
+        let config = serde_json::from_str::<PiiConfig>(
+            r#"
+            {
+                "applications": {
+                    "$string": ["@password:remove"]
+                }
+            }
+        "#,
+        )
+        .unwrap();
+
+        let processor = PiiAttachmentsProcessor::new(config.compiled());
+        let result = processor.scrub_json(&payload).unwrap();
+        let parsed: Value = serde_json::from_slice(&result).unwrap();
+        assert_eq!("", parsed["password"]);
+        assert_eq!("UIKIT", parsed["rendering_system"]);
     }
 }
