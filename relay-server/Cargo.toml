@@ -97,7 +97,6 @@ rmp-serde = { workspace = true }
 serde = { workspace = true }
 serde_bytes = { workspace = true }
 serde_json = { workspace = true }
-serde-transcode = { workspace = true }
 smallvec = { workspace = true, features = ["drain_filter"] }
 socket2 = { workspace = true }
 sqlx = { workspace = true, features = [
