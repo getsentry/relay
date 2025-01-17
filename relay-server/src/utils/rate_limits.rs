@@ -161,6 +161,9 @@ pub struct EnvelopeSummary {
     /// The number of replays.
     pub replay_quantity: usize,
 
+    /// The number of replay videos.
+    pub replay_video_quantity: usize,
+
     /// The number of monitor check-ins.
     pub monitor_quantity: usize,
 
@@ -236,7 +239,7 @@ impl EnvelopeSummary {
             DataCategory::Session => &mut self.session_quantity,
             DataCategory::Profile => &mut self.profile_quantity,
             DataCategory::Replay => &mut self.replay_quantity,
-            DataCategory::ReplayVideo => &mut self.replay_quantity,
+            DataCategory::ReplayVideo => &mut self.replay_video_quantity,
             DataCategory::Monitor => &mut self.monitor_quantity,
             DataCategory::Span => &mut self.span_quantity,
             DataCategory::ProfileChunk => &mut self.profile_chunk_quantity,
@@ -342,6 +345,8 @@ pub struct Enforcement {
     pub profiles_indexed: CategoryLimit,
     /// The combined replay item rate limit.
     pub replays: CategoryLimit,
+    /// The combined replay video item rate limit.
+    pub replay_videos: CategoryLimit,
     /// The combined check-in item rate limit.
     pub check_ins: CategoryLimit,
     /// The combined spans rate limit.
@@ -384,6 +389,7 @@ impl Enforcement {
             profiles,
             profiles_indexed,
             replays,
+            replay_videos,
             check_ins,
             spans,
             spans_indexed,
@@ -399,6 +405,7 @@ impl Enforcement {
             profiles,
             profiles_indexed,
             replays,
+            replay_videos,
             check_ins,
             spans,
             spans_indexed,
@@ -485,7 +492,7 @@ impl Enforcement {
             ItemType::Session => !self.sessions.is_active(),
             ItemType::Profile => !self.profiles_indexed.is_active(),
             ItemType::ReplayEvent => !self.replays.is_active(),
-            ItemType::ReplayVideo => !self.replays.is_active(),
+            ItemType::ReplayVideo => !self.replay_videos.is_active(),
             ItemType::ReplayRecording => !self.replays.is_active(),
             ItemType::CheckIn => !self.check_ins.is_active(),
             ItemType::Span | ItemType::OtelSpan | ItemType::OtelTracesData => {
@@ -752,6 +759,21 @@ where
             enforcement.replays = CategoryLimit::new(
                 DataCategory::Replay,
                 summary.replay_quantity,
+                replay_limits.longest(),
+            );
+            rate_limits.merge(replay_limits);
+        }
+
+        // Handle replay video.
+        // Remove: 2025-04-06
+        if summary.replay_video_quantity > 0 {
+            let item_scoping = scoping.item(DataCategory::ReplayVideo);
+            let replay_limits = self
+                .check
+                .apply(item_scoping, summary.replay_video_quantity)?;
+            enforcement.replays = CategoryLimit::new(
+                DataCategory::ReplayVideo,
+                summary.replay_video_quantity,
                 replay_limits.longest(),
             );
             rate_limits.merge(replay_limits);
