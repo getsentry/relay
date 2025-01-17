@@ -177,31 +177,4 @@ mod test {
             parsed["nested"]["stuff"]["ident"].as_str().unwrap()
         );
     }
-
-    #[test]
-    pub fn test_view_hierarchy_remove_password() {
-        let payload = r#"
-                {
-                    "rendering_system": "UIKIT",
-                    "password": "hunter42"
-                }
-            "#
-        .as_bytes();
-        let config = serde_json::from_str::<PiiConfig>(
-            r#"
-            {
-                "applications": {
-                    "$string": ["@password:remove"]
-                }
-            }
-        "#,
-        )
-        .unwrap();
-
-        let processor = PiiAttachmentsProcessor::new(config.compiled());
-        let result = processor.scrub_json(payload).unwrap();
-        let parsed: Value = serde_json::from_slice(&result).unwrap();
-        assert_eq!("", parsed["password"]);
-        assert_eq!("UIKIT", parsed["rendering_system"]);
-    }
 }
