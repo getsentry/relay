@@ -229,6 +229,7 @@ impl EnvelopeSummary {
             }
 
             summary.payload_size += item.len();
+
             for (category, quantity) in item.quantities(CountFor::RateLimits) {
                 summary.add_quantity(category, quantity);
             }
@@ -355,7 +356,9 @@ pub struct Enforcement {
     /// The combined check-in item rate limit.
     pub check_ins: CategoryLimit,
     /// The combined logs (our product logs) rate limit.
-    pub logs: CategoryLimit,
+    pub log_items: CategoryLimit,
+    /// The combined logs (our product logs) rate limit.
+    pub log_bytes: CategoryLimit,
     /// The combined spans rate limit.
     pub spans: CategoryLimit,
     /// The rate limit for the indexed span category.
@@ -397,7 +400,8 @@ impl Enforcement {
             profiles_indexed,
             replays,
             check_ins,
-            logs,
+            log_items,
+            log_bytes,
             spans,
             spans_indexed,
             user_reports_v2,
@@ -413,7 +417,8 @@ impl Enforcement {
             profiles_indexed,
             replays,
             check_ins,
-            logs,
+            log_items,
+            log_bytes,
             spans,
             spans_indexed,
             user_reports_v2,
@@ -502,8 +507,9 @@ impl Enforcement {
             ItemType::ReplayVideo => !self.replays.is_active(),
             ItemType::ReplayRecording => !self.replays.is_active(),
             ItemType::CheckIn => !self.check_ins.is_active(),
-            ItemType::OtelLog => !self.logs.is_active(),
-            ItemType::Log => !self.logs.is_active(),
+            ItemType::OtelLog | ItemType::Log => {
+                !(self.log_items.is_active() || self.log_bytes.is_active())
+            }
             ItemType::Span | ItemType::OtelSpan | ItemType::OtelTracesData => {
                 !self.spans_indexed.is_active()
             }
@@ -720,7 +726,7 @@ where
         if summary.log_item_quantity > 0 {
             let item_scoping = scoping.item(DataCategory::LogItem);
             let log_limits = self.check.apply(item_scoping, summary.log_item_quantity)?;
-            enforcement.logs = CategoryLimit::new(
+            enforcement.log_items = CategoryLimit::new(
                 DataCategory::LogItem,
                 summary.log_item_quantity,
                 log_limits.longest(),
@@ -730,7 +736,7 @@ where
         if summary.log_byte_quantity > 0 {
             let item_scoping = scoping.item(DataCategory::LogByte);
             let log_limits = self.check.apply(item_scoping, summary.log_byte_quantity)?;
-            enforcement.logs = CategoryLimit::new(
+            enforcement.log_bytes = CategoryLimit::new(
                 DataCategory::LogByte,
                 summary.log_byte_quantity,
                 log_limits.longest(),
@@ -1661,6 +1667,7 @@ mod tests {
         assert!(limits.is_limited());
         assert_eq!(envelope.envelope().len(), 0);
         mock.assert_call(DataCategory::LogItem, 2);
+        mock.assert_call(DataCategory::LogByte, 20);
 
         assert_eq!(get_outcomes(enforcement), vec![(DataCategory::LogItem, 2)]);
     }
@@ -1674,6 +1681,7 @@ mod tests {
 
         assert!(limits.is_limited());
         assert_eq!(envelope.envelope().len(), 0);
+        mock.assert_call(DataCategory::LogItem, 2);
         mock.assert_call(DataCategory::LogByte, 20);
 
         assert_eq!(get_outcomes(enforcement), vec![(DataCategory::LogByte, 20)]);

@@ -704,7 +704,10 @@ impl Item {
                 CountFor::Outcomes => smallvec![],
             },
             ItemType::Statsd | ItemType::MetricBuckets => smallvec![],
-            ItemType::Log | ItemType::OtelLog => smallvec![],
+            ItemType::Log | ItemType::OtelLog => smallvec![
+                (DataCategory::LogByte, self.len().max(1)),
+                (DataCategory::LogItem, 1)
+            ],
             ItemType::FormData => smallvec![],
             ItemType::UserReport => smallvec![],
             ItemType::UserReportV2 => smallvec![(DataCategory::UserReportV2, 1)],

@@ -2024,16 +2024,26 @@ impl EnvelopeProcessorService {
         &self,
         managed_envelope: &mut TypedEnvelope<LogGroup>,
         project_info: Arc<ProjectInfo>,
+        #[allow(unused_variables)] rate_limits: Arc<RateLimits>,
     ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
+        let mut extracted_metrics = ProcessingExtractedMetrics::new();
+
         ourlog::filter(
             managed_envelope,
             self.inner.config.clone(),
             project_info.clone(),
         );
         if_processing!(self.inner.config, {
+            self.enforce_quotas(
+                managed_envelope,
+                Annotated::empty(),
+                &mut extracted_metrics,
+                project_info.clone(),
+                rate_limits,
+            )?;
             ourlog::process(managed_envelope, project_info.clone());
         });
-        Ok(None)
+        Ok(Some(extracted_metrics))
     }
 
     /// Processes standalone spans.
@@ -2191,7 +2201,7 @@ impl EnvelopeProcessorService {
             ProcessingGroup::CheckIn => {
                 run!(process_checkins, project_id, project_info, rate_limits)
             }
-            ProcessingGroup::Log => run!(process_logs, project_info),
+            ProcessingGroup::Log => run!(process_logs, project_info, rate_limits),
             ProcessingGroup::Span => run!(
                 process_standalone_spans,
                 self.inner.config.clone(),
