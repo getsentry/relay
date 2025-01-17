@@ -25,7 +25,7 @@ use {
 };
 
 /// Removes logs from the envelope if the feature is not enabled.
-pub fn filter<LogGroup>(
+pub fn filter(
     managed_envelope: &mut TypedEnvelope<LogGroup>,
     config: Arc<Config>,
     project_info: Arc<ProjectInfo>,
