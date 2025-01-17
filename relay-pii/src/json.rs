@@ -6,7 +6,7 @@ use std::borrow::Cow;
 
 const FIELD_ATTRS_PII_TRUE: FieldAttrs = FieldAttrs::new().pii(Pii::True);
 
-/// Describes the error cases that can happen during ViewHierarchy scrubbing.
+/// Describes the error cases that can happen during JSON scrubbing.
 #[derive(Debug, thiserror::Error)]
 pub enum JsonScrubError {
     /// If the transcoding process fails. This will most likely happen if a JSON document
