@@ -3509,7 +3509,10 @@ mod tests {
 
     use insta::assert_debug_snapshot;
     use relay_base_schema::metrics::{DurationUnit, MetricUnit};
+    use relay_common::glob2::LazyGlob;
     use relay_dynamic_config::ProjectConfig;
+    use relay_event_normalization::{RedactionRule, TransactionNameRule};
+    use relay_event_schema::protocol::TransactionSource;
     use relay_pii::DataScrubbingConfig;
     use similar_asserts::assert_eq;
 
@@ -3841,107 +3844,107 @@ mod tests {
         "###);
     }
 
-    // fn capture_test_event(transaction_name: &str, source: TransactionSource) -> Vec<String> {
-    //     let mut event = Annotated::<Event>::from_json(
-    //         r#"
-    //         {
-    //             "type": "transaction",
-    //             "transaction": "/foo/",
-    //             "timestamp": 946684810.0,
-    //             "start_timestamp": 946684800.0,
-    //             "contexts": {
-    //                 "trace": {
-    //                     "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-    //                     "span_id": "fa90fdead5f74053",
-    //                     "op": "http.server",
-    //                     "type": "trace"
-    //                 }
-    //             },
-    //             "transaction_info": {
-    //                 "source": "url"
-    //             }
-    //         }
-    //         "#,
-    //     )
-    //     .unwrap();
-    //     let e = event.value_mut().as_mut().unwrap();
-    //     e.transaction.set_value(Some(transaction_name.into()));
+    fn capture_test_event(transaction_name: &str, source: TransactionSource) -> Vec<String> {
+        let mut event = Annotated::<Event>::from_json(
+            r#"
+            {
+                "type": "transaction",
+                "transaction": "/foo/",
+                "timestamp": 946684810.0,
+                "start_timestamp": 946684800.0,
+                "contexts": {
+                    "trace": {
+                        "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                        "span_id": "fa90fdead5f74053",
+                        "op": "http.server",
+                        "type": "trace"
+                    }
+                },
+                "transaction_info": {
+                    "source": "url"
+                }
+            }
+            "#,
+        )
+        .unwrap();
+        let e = event.value_mut().as_mut().unwrap();
+        e.transaction.set_value(Some(transaction_name.into()));
 
-    //     e.transaction_info
-    //         .value_mut()
-    //         .as_mut()
-    //         .unwrap()
-    //         .source
-    //         .set_value(Some(source));
+        e.transaction_info
+            .value_mut()
+            .as_mut()
+            .unwrap()
+            .source
+            .set_value(Some(source));
 
-    // relay_statsd::with_capturing_test_client(|| {
-    //     utils::log_transaction_name_metrics(&mut event, |event| {
-    //         let config = NormalizationConfig {
-    //             transaction_name_config: TransactionNameConfig {
-    //                 rules: &[TransactionNameRule {
-    //                     pattern: LazyGlob::new("/foo/*/**".to_owned()),
-    //                     expiry: DateTime::<Utc>::MAX_UTC,
-    //                     redaction: RedactionRule::Replace {
-    //                         substitution: "*".to_owned(),
-    //                     },
-    //                 }],
-    //             },
-    //             ..Default::default()
-    //         };
-    //         normalize_event(event, &config)
-    //     });
-    // })
-    // }
+        relay_statsd::with_capturing_test_client(|| {
+            utils::log_transaction_name_metrics(&mut event, |event| {
+                let config = NormalizationConfig {
+                    transaction_name_config: TransactionNameConfig {
+                        rules: &[TransactionNameRule {
+                            pattern: LazyGlob::new("/foo/*/**".to_owned()),
+                            expiry: DateTime::<Utc>::MAX_UTC,
+                            redaction: RedactionRule::Replace {
+                                substitution: "*".to_owned(),
+                            },
+                        }],
+                    },
+                    ..Default::default()
+                };
+                normalize_event(event, &config)
+            });
+        })
+    }
 
-    // #[test]
-    // fn test_log_transaction_metrics_none() {
-    //     let captures = capture_test_event("/nothing", TransactionSource::Url);
-    //     insta::assert_debug_snapshot!(captures, @r#"
-    //     [
-    //         "event.transaction_name_changes:1|c|#source_in:url,changes:none,source_out:sanitized,is_404:false",
-    //     ]
-    //     "#);
-    // }
+    #[test]
+    fn test_log_transaction_metrics_none() {
+        let captures = capture_test_event("/nothing", TransactionSource::Url);
+        insta::assert_debug_snapshot!(captures, @r#"
+        [
+            "event.transaction_name_changes:1|c|#source_in:url,changes:none,source_out:sanitized,is_404:false",
+        ]
+        "#);
+    }
 
-    // #[test]
-    // fn test_log_transaction_metrics_rule() {
-    //     let captures = capture_test_event("/foo/john/denver", TransactionSource::Url);
-    //     insta::assert_debug_snapshot!(captures, @r#"
-    //     [
-    //         "event.transaction_name_changes:1|c|#source_in:url,changes:rule,source_out:sanitized,is_404:false",
-    //     ]
-    //     "#);
-    // }
+    #[test]
+    fn test_log_transaction_metrics_rule() {
+        let captures = capture_test_event("/foo/john/denver", TransactionSource::Url);
+        insta::assert_debug_snapshot!(captures, @r#"
+        [
+            "event.transaction_name_changes:1|c|#source_in:url,changes:rule,source_out:sanitized,is_404:false",
+        ]
+        "#);
+    }
 
-    // #[test]
-    // fn test_log_transaction_metrics_pattern() {
-    //     let captures = capture_test_event("/something/12345", TransactionSource::Url);
-    //     insta::assert_debug_snapshot!(captures, @r#"
-    //     [
-    //         "event.transaction_name_changes:1|c|#source_in:url,changes:pattern,source_out:sanitized,is_404:false",
-    //     ]
-    //     "#);
-    // }
+    #[test]
+    fn test_log_transaction_metrics_pattern() {
+        let captures = capture_test_event("/something/12345", TransactionSource::Url);
+        insta::assert_debug_snapshot!(captures, @r#"
+        [
+            "event.transaction_name_changes:1|c|#source_in:url,changes:pattern,source_out:sanitized,is_404:false",
+        ]
+        "#);
+    }
 
-    // #[test]
-    // fn test_log_transaction_metrics_both() {
-    //     let captures = capture_test_event("/foo/john/12345", TransactionSource::Url);
-    //     insta::assert_debug_snapshot!(captures, @r#"
-    //     [
-    //         "event.transaction_name_changes:1|c|#source_in:url,changes:both,source_out:sanitized,is_404:false",
-    //     ]
-    //     "#);
-    // }
+    #[test]
+    fn test_log_transaction_metrics_both() {
+        let captures = capture_test_event("/foo/john/12345", TransactionSource::Url);
+        insta::assert_debug_snapshot!(captures, @r#"
+        [
+            "event.transaction_name_changes:1|c|#source_in:url,changes:both,source_out:sanitized,is_404:false",
+        ]
+        "#);
+    }
 
-    // #[test]
-    // fn test_log_transaction_metrics_no_match() {
-    //     let captures = capture_test_event("/foo/john/12345", TransactionSource::Route);
-    //     insta::assert_debug_snapshot!(captures, @r#"
-    //     [
-    //         "event.transaction_name_changes:1|c|#source_in:route,changes:none,source_out:route,is_404:false",
-    //     ]
-    //     "#);
-    // }
+    #[test]
+    fn test_log_transaction_metrics_no_match() {
+        let captures = capture_test_event("/foo/john/12345", TransactionSource::Route);
+        insta::assert_debug_snapshot!(captures, @r#"
+        [
+            "event.transaction_name_changes:1|c|#source_in:route,changes:none,source_out:route,is_404:false",
+        ]
+        "#);
+    }
 
     /// Confirms that the hardcoded value we use for the fixed length of the measurement MRI is
     /// correct. Unit test is placed here because it has dependencies to relay-server and therefore

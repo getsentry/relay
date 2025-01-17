@@ -9,8 +9,6 @@
 **Internal**:
 
 - Updates performance score calculation on spans and events to also store cdf values as measurements. ([#4438](https://github.com/getsentry/relay/pull/4438))
-- Use symbolicator-style metrics aggregation. ([#4446](https://github.com/getsentry/relay/pull/4446))
-
 
 ## 24.12.2
 

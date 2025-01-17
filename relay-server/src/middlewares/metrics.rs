@@ -33,10 +33,9 @@ pub async fn metrics(mut request: Request, next: Next) -> Response {
         route = route,
         method = method.as_str(),
     );
-    let status = response.status();
     relay_statsd::metric!(
         counter(RelayCounters::ResponsesStatusCodes) += 1,
-        status_code = status.as_str(),
+        status_code = response.status().as_str(),
         route = route,
         method = method.as_str(),
     );

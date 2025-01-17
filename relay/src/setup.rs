@@ -82,7 +82,13 @@ pub fn init_metrics(config: &Config) -> Result<()> {
             default_tags.insert(hostname_tag.to_owned(), hostname);
         }
     }
-    relay_statsd::init(config.metrics_prefix(), &addrs[..], default_tags);
+    relay_statsd::init(
+        config.metrics_prefix(),
+        &addrs[..],
+        default_tags,
+        config.metrics_sample_rate(),
+        config.metrics_aggregate(),
+    );
 
     Ok(())
 }
