@@ -9,7 +9,7 @@ use utf16string::{LittleEndian, WStr};
 
 use crate::compiledconfig::RuleRef;
 use crate::regexes::{get_regex_for_rule_type, ReplaceBehavior};
-use crate::{utils, CompiledPiiConfig, JsonScrubVisitor, Redaction, ScrubViewHierarchyError};
+use crate::{utils, CompiledPiiConfig, JsonScrubError, JsonScrubVisitor, Redaction};
 
 /// The minimum length a string needs to be in a binary blob.
 ///
@@ -517,11 +517,11 @@ impl<'a> PiiAttachmentsProcessor<'a> {
     /// Applies PII rules to the given JSON.
     ///
     /// This function will perform PII scrubbing using `serde_transcode`, which means that it
-    /// does not have to lead the entire document in memory but will rather perform in on a
+    /// does not have to read the entire document in memory but will rather perform in on a
     /// per-item basis using a streaming approach.
     ///
     /// Returns a scrubbed copy of the JSON document.
-    pub fn scrub_json(&self, payload: &[u8]) -> Result<Vec<u8>, ScrubViewHierarchyError> {
+    pub fn scrub_json(&self, payload: &[u8]) -> Result<Vec<u8>, JsonScrubError> {
         let output = Vec::new();
 
         let visitor = JsonScrubVisitor::new(self.compiled_config);
@@ -531,7 +531,7 @@ impl<'a> PiiAttachmentsProcessor<'a> {
 
         let mut serializer = serde_json::Serializer::new(output);
         serde_transcode::transcode(deserializer, &mut serializer)
-            .map_err(|_| ScrubViewHierarchyError::TranscodeFailed)?;
+            .map_err(|_| JsonScrubError::TranscodeFailed)?;
         Ok(serializer.into_inner())
     }
 }

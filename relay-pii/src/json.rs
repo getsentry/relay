@@ -8,7 +8,7 @@ const FIELD_ATTRS_PII_TRUE: FieldAttrs = FieldAttrs::new().pii(Pii::True);
 
 /// Describes the error cases that can happen during ViewHierarchy scrubbing.
 #[derive(Debug, thiserror::Error)]
-pub enum ScrubViewHierarchyError {
+pub enum JsonScrubError {
     /// If the transcoding process fails. This will most likely happen if a JSON document
     /// is invalid.
     #[error("transcoding view hierarchy json failed")]
