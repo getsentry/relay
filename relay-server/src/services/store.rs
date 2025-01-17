@@ -1511,9 +1511,6 @@ impl Message for KafkaMessage<'_> {
             KafkaMessage::ReplayEvent(message) => serde_json::to_vec(message)
                 .map(Cow::Owned)
                 .map_err(ClientError::InvalidJson),
-            KafkaMessage::Log { message, .. } => serde_json::to_vec(message)
-                .map(Cow::Owned)
-                .map_err(ClientError::InvalidJson),
             KafkaMessage::Span { message, .. } => serde_json::to_vec(message)
                 .map(Cow::Owned)
                 .map_err(ClientError::InvalidJson),
