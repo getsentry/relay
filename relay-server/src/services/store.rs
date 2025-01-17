@@ -953,51 +953,18 @@ impl StoreService {
     ) -> Result<(), StoreError> {
         relay_log::trace!("Producing log");
         let payload = item.payload();
-        let d = &mut Deserializer::from_slice(&payload);
+        let payload_len = payload.len();
 
-        let mut log: LogKafkaMessage = match serde_path_to_error::deserialize(d) {
-            Ok(log) => log,
-            Err(error) => {
-                relay_log::error!(
-                    error = &error as &dyn std::error::Error,
-                    "failed to parse log"
-                );
-                self.outcome_aggregator.send(TrackOutcome {
-                    category: DataCategory::LogItem,
-                    event_id: None,
-                    outcome: Outcome::Invalid(DiscardReason::InvalidLog),
-                    quantity: 1,
-                    remote_addr: None,
-                    scoping,
-                    timestamp: received_at,
-                });
-                self.outcome_aggregator.send(TrackOutcome {
-                    category: DataCategory::LogByte,
-                    event_id: None,
-                    outcome: Outcome::Invalid(DiscardReason::InvalidLog),
-                    quantity: payload.len() as u32,
-                    remote_addr: None,
-                    scoping,
-                    timestamp: received_at,
-                });
-                return Ok(());
-            }
-        };
-
-        log.organization_id = scoping.organization_id.value();
-        log.project_id = scoping.project_id.value();
-        log.retention_days = retention_days;
-
-        self.produce(
-            KafkaTopic::Logs,
-            KafkaMessage::Log {
-                headers: BTreeMap::from([(
-                    "project_id".to_string(),
-                    scoping.project_id.to_string(),
-                )]),
-                message: log,
+        let message = KafkaMessage::Log {
+            headers: BTreeMap::from([("project_id".to_string(), scoping.project_id.to_string())]),
+            message: LogKafkaMessage {
+                payload,
+                organization_id: scoping.organization_id.value(),
+                project_id: scoping.project_id.value(),
+                retention_days,
+                received: safe_timestamp(received_at),
             },
-        )?;
+        };
 
         // We need to track the count and bytes separately for possible rate limits and quotas on both counts and bytes.
         self.outcome_aggregator.send(TrackOutcome {
@@ -1013,11 +980,13 @@ impl StoreService {
             category: DataCategory::LogByte,
             event_id: None,
             outcome: Outcome::Accepted,
-            quantity: payload.len() as u32,
+            quantity: payload_len as u32,
             remote_addr: None,
             scoping,
             timestamp: received_at,
         });
+
+        self.produce(KafkaTopic::Logs, message)?;
 
         Ok(())
     }
@@ -1385,30 +1354,14 @@ struct SpanKafkaMessage<'a> {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-struct LogKafkaMessage<'a> {
-    #[serde(default)]
+struct LogKafkaMessage {
+    /// Raw log payload.
+    payload: Bytes,
     organization_id: u64,
-    #[serde(default)]
     project_id: u64,
     /// Number of days until these data should be deleted.
-    #[serde(default)]
     retention_days: u16,
-    #[serde(default)]
-    timestamp_nanos: u64,
-    #[serde(default)]
-    observed_timestamp_nanos: u64,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    severity_number: Option<i32>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    severity_text: Option<&'a str>,
-    body: &'a RawValue,
-    #[serde(default, skip_serializing_if = "none_or_empty_object")]
-    attributes: Option<&'a RawValue>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    span_id: Option<&'a str>,
-    trace_id: EventId,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    flags: Option<u8>,
+    received: u64,
 }
 
 fn none_or_empty_object(value: &Option<&RawValue>) -> bool {
@@ -1456,7 +1409,7 @@ enum KafkaMessage<'a> {
         #[serde(skip)]
         headers: BTreeMap<String, String>,
         #[serde(flatten)]
-        message: LogKafkaMessage<'a>,
+        message: LogKafkaMessage,
     },
     ProfileChunk(ProfileChunkKafkaMessage),
 }
