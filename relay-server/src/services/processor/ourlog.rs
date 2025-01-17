@@ -64,7 +64,7 @@ pub fn process(managed_envelope: &mut TypedEnvelope<LogGroup>, project_info: Arc
         };
 
         if let Err(e) = scrub(&mut annotated_log, &project_info.config) {
-            relay_log::debug!("failed to scrub pii from log: {}", e);
+            relay_log::error!("failed to scrub pii from log: {}", e);
             return ItemAction::Drop(Outcome::Invalid(DiscardReason::Internal));
         }
 
