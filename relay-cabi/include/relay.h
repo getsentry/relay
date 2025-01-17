@@ -143,14 +143,14 @@ enum RelayDataCategory {
    */
   RELAY_DATA_CATEGORY_ATTACHMENT_ITEM = 22,
   /**
-   * LogCount
+   * LogItem
    *
    * This is the category for logs for which we store the count log events for users for measuring
    * missing breadcrumbs, and count of logs for rate limiting purposes.
    */
   RELAY_DATA_CATEGORY_LOG_ITEM = 23,
   /**
-   * LogBytes
+   * LogByte
    *
    * This is the category for logs for which we store log event total bytes for users.
    */

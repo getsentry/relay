@@ -26,6 +26,7 @@ pub fn otel_to_sentry_log(otel_log: OtelLog) -> OurLog {
             _ => None,
         })
         .unwrap_or_else(String::new);
+
     let mut attribute_data = Object::new();
 
     for attribute in attributes.into_iter() {
@@ -72,7 +73,7 @@ pub fn otel_to_sentry_log(otel_log: OtelLog) -> OurLog {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use relay_protocol::get_path;
+    use relay_protocol::{get_path, get_value};
 
     #[test]
     fn parse_log() {
@@ -196,7 +197,7 @@ mod tests {
             Some(&Annotated::new("Database query executed".into()))
         );
         assert_eq!(
-            get_value!(annotated_log.attributes["db.statement"]!).string_value()
+            get_value!(annotated_log.attributes["db.statement"]!).string_value(),
             Some(&"SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s".into())
         );
     }

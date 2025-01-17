@@ -60,6 +60,7 @@ def processing_config(get_topic_name):
                 "metrics_generic": metrics_topic,
                 "replay_events": get_topic_name("replay_events"),
                 "replay_recordings": get_topic_name("replay_recordings"),
+                "ourlogs": get_topic_name("ourlogs"),
                 "monitors": get_topic_name("monitors"),
                 "spans": get_topic_name("spans"),
                 "profiles": get_topic_name("profiles"),
@@ -349,6 +350,11 @@ def spans_consumer(consumer_fixture):
 
 
 @pytest.fixture
+def ourlogs_consumer(consumer_fixture):
+    yield from consumer_fixture(OurLogsConsumer, "ourlogs")
+
+
+@pytest.fixture
 def profiles_consumer(consumer_fixture):
     yield from consumer_fixture(ProfileConsumer, "profiles")
 
@@ -506,6 +512,25 @@ class SpansConsumer(ConsumerBase):
             spans.append(json.loads(message.value()))
 
         return spans
+
+
+class OurLogsConsumer(ConsumerBase):
+    def get_ourlog(self):
+        message = self.poll()
+        assert message is not None
+        assert message.error() is None
+
+        message_dict = msgpack.unpackb(message.value(), raw=False, use_list=False)
+        return json.loads(message_dict["payload"].decode("utf8")), message_dict
+
+    def get_ourlogs(self):
+        ourlogs = []
+        for message in self.poll_many():
+            assert message is not None
+            assert message.error() is None
+            message_dict = msgpack.unpackb(message.value(), raw=False, use_list=False)
+            ourlogs.append(json.loads(message_dict["payload"].decode("utf8")))
+        return ourlogs
 
 
 class ProfileConsumer(ConsumerBase):
