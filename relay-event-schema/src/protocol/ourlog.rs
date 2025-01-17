@@ -118,16 +118,6 @@ impl IntoValue for AttributeValue {
 }
 
 impl AttributeValue {
-    /// Returns the string representation of this attribute value.
-    pub fn as_str(&self) -> String {
-        match self {
-            AttributeValue::StringValue(s) => s.clone(),
-            AttributeValue::IntValue(s) => s.to_string(),
-            AttributeValue::DoubleValue(s) => s.to_string(),
-            AttributeValue::BoolValue(s) => s.to_string(),
-            AttributeValue::Unknown(s) => s.clone(),
-        }
-    }
     pub fn string_value(&self) -> Option<&String> {
         match self {
             AttributeValue::StringValue(s) => Some(s),
