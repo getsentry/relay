@@ -4,7 +4,7 @@ use std::sync::Arc;
 use crate::envelope::Item;
 use relay_config::Config;
 use relay_dynamic_config::{Feature, ProjectConfig};
-use relay_event_schema::processor::{process_value, ProcessingAction, ProcessingState};
+use relay_event_schema::processor::{process_value, ProcessingState};
 use relay_event_schema::protocol::OurLog;
 
 use crate::envelope::ItemType;
@@ -25,8 +25,8 @@ use {
 };
 
 /// Removes logs from the envelope if the feature is not enabled.
-pub fn filter<Group>(
-    managed_envelope: &mut TypedEnvelope<Group>,
+pub fn filter<LogGroup>(
+    managed_envelope: &mut TypedEnvelope<LogGroup>,
     config: Arc<Config>,
     project_info: Arc<ProjectInfo>,
 ) {
