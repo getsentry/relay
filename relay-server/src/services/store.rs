@@ -966,6 +966,8 @@ impl StoreService {
             },
         };
 
+        self.produce(KafkaTopic::Logs, message)?;
+
         // We need to track the count and bytes separately for possible rate limits and quotas on both counts and bytes.
         self.outcome_aggregator.send(TrackOutcome {
             category: DataCategory::LogItem,
@@ -985,8 +987,6 @@ impl StoreService {
             scoping,
             timestamp: received_at,
         });
-
-        self.produce(KafkaTopic::Logs, message)?;
 
         Ok(())
     }
