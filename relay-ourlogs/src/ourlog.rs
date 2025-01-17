@@ -2,7 +2,7 @@ use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
 
 use crate::OtelLog;
 use relay_event_schema::protocol::{AttributeValue, OurLog, SpanId, TraceId};
-use relay_protocol::{Annotated, Object, Value};
+use relay_protocol::{Annotated, Object};
 
 /// Transform an OtelLog to a Sentry log.
 pub fn otel_to_sentry_log(otel_log: OtelLog) -> OurLog {
@@ -34,52 +34,22 @@ pub fn otel_to_sentry_log(otel_log: OtelLog) -> OurLog {
             match value {
                 OtelValue::ArrayValue(_) => {}
                 OtelValue::BoolValue(v) => {
-                    attribute_data.insert(
-                        key,
-                        Annotated::new(AttributeValue {
-                            bool_value: Annotated::new(Value::Bool(v)),
-                            ..Default::default()
-                        }),
-                    );
+                    attribute_data.insert(key, Annotated::new(AttributeValue::BoolValue(v)));
                 }
                 OtelValue::BytesValue(v) => {
                     if let Ok(v) = String::from_utf8(v) {
-                        attribute_data.insert(
-                            key,
-                            Annotated::new(AttributeValue {
-                                string_value: Annotated::new(Value::String(v)),
-                                ..Default::default()
-                            }),
-                        );
+                        attribute_data.insert(key, Annotated::new(AttributeValue::StringValue(v)));
                     }
                 }
                 OtelValue::DoubleValue(v) => {
-                    attribute_data.insert(
-                        key,
-                        Annotated::new(AttributeValue {
-                            double_value: Annotated::new(Value::F64(v)),
-                            ..Default::default()
-                        }),
-                    );
+                    attribute_data.insert(key, Annotated::new(AttributeValue::DoubleValue(v)));
                 }
                 OtelValue::IntValue(v) => {
-                    attribute_data.insert(
-                        key,
-                        Annotated::new(AttributeValue {
-                            int_value: Annotated::new(Value::I64(v)),
-                            ..Default::default()
-                        }),
-                    );
+                    attribute_data.insert(key, Annotated::new(AttributeValue::IntValue(v)));
                 }
                 OtelValue::KvlistValue(_) => {}
                 OtelValue::StringValue(v) => {
-                    attribute_data.insert(
-                        key,
-                        Annotated::new(AttributeValue {
-                            string_value: Annotated::new(Value::String(v)),
-                            ..Default::default()
-                        }),
-                    );
+                    attribute_data.insert(key, Annotated::new(AttributeValue::StringValue(v)));
                 }
             }
         }
@@ -226,10 +196,10 @@ mod tests {
             Some(&Annotated::new("Database query executed".into()))
         );
         assert_eq!(
-            get_path!(annotated_log.attributes["db.statement"].string_value),
-            Some(&Annotated::new(
-                "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s".into()
-            ))
+            get_path!(annotated_log.attributes["db.statement"])
+                .and_then(|v| v.value())
+                .and_then(|v| v.string_value()),
+            Some(&"SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s".into())
         );
     }
 }

@@ -1,4 +1,6 @@
-use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
+use relay_protocol::{
+    Annotated, Empty, Error, FromValue, IntoValue, Object, SkipSerialization, Value,
+};
 
 use crate::processor::ProcessValue;
 use crate::protocol::{SpanId, TraceId};
@@ -47,12 +49,135 @@ pub struct OurLog {
     pub other: Object<Value>,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-pub struct AttributeValue {
-    pub string_value: Annotated<Value>,
-    pub int_value: Annotated<Value>,
-    pub double_value: Annotated<Value>,
-    pub bool_value: Annotated<Value>,
+#[derive(Debug, Clone, PartialEq, ProcessValue)]
+pub enum AttributeValue {
+    #[metastructure(field = "string_value", pii = "true")]
+    StringValue(String),
+    #[metastructure(field = "int_value", pii = "true")]
+    IntValue(i64),
+    #[metastructure(field = "double_value", pii = "true")]
+    DoubleValue(f64),
+    #[metastructure(field = "bool_value", pii = "true")]
+    BoolValue(bool),
+    /// Any other unknown attribute value.
+    ///
+    /// This exists to ensure other attribute values such as array and object can be added in the future.
+    Unknown(String),
+}
+
+impl IntoValue for AttributeValue {
+    fn into_value(self) -> Value {
+        let mut map = Object::new();
+        match self {
+            AttributeValue::StringValue(v) => {
+                map.insert("string_value".to_string(), Annotated::new(Value::String(v)));
+            }
+            AttributeValue::IntValue(v) => {
+                map.insert("int_value".to_string(), Annotated::new(Value::I64(v)));
+            }
+            AttributeValue::DoubleValue(v) => {
+                map.insert("double_value".to_string(), Annotated::new(Value::F64(v)));
+            }
+            AttributeValue::BoolValue(v) => {
+                map.insert("bool_value".to_string(), Annotated::new(Value::Bool(v)));
+            }
+            AttributeValue::Unknown(v) => {
+                map.insert("unknown".to_string(), Annotated::new(Value::String(v)));
+            }
+        }
+        Value::Object(map)
+    }
+
+    fn serialize_payload<S>(&self, s: S, _behavior: SkipSerialization) -> Result<S::Ok, S::Error>
+    where
+        Self: Sized,
+        S: serde::Serializer,
+    {
+        match self {
+            AttributeValue::StringValue(v) => s.serialize_str(v),
+            AttributeValue::IntValue(v) => s.serialize_i64(*v),
+            AttributeValue::DoubleValue(v) => s.serialize_f64(*v),
+            AttributeValue::BoolValue(v) => s.serialize_bool(*v),
+            AttributeValue::Unknown(v) => s.serialize_str(v),
+        }
+    }
+}
+
+impl AttributeValue {
+    /// Returns the string representation of this attribute value.
+    pub fn as_str(&self) -> String {
+        match self {
+            AttributeValue::StringValue(s) => s.clone(),
+            AttributeValue::IntValue(s) => s.to_string(),
+            AttributeValue::DoubleValue(s) => s.to_string(),
+            AttributeValue::BoolValue(s) => s.to_string(),
+            AttributeValue::Unknown(s) => s.clone(),
+        }
+    }
+
+    /// Returns the string value if this is a StringValue variant
+    pub fn string_value(&self) -> Option<&String> {
+        match self {
+            AttributeValue::StringValue(s) => Some(s),
+            _ => None,
+        }
+    }
+
+    /// Returns the int value if this is an IntValue variant
+    pub fn int_value(&self) -> Option<i64> {
+        match self {
+            AttributeValue::IntValue(i) => Some(*i),
+            _ => None,
+        }
+    }
+
+    /// Returns the double value if this is a DoubleValue variant
+    pub fn double_value(&self) -> Option<f64> {
+        match self {
+            AttributeValue::DoubleValue(d) => Some(*d),
+            _ => None,
+        }
+    }
+
+    /// Returns the bool value if this is a BoolValue variant
+    pub fn bool_value(&self) -> Option<bool> {
+        match self {
+            AttributeValue::BoolValue(b) => Some(*b),
+            _ => None,
+        }
+    }
+}
+
+impl Empty for AttributeValue {
+    #[inline]
+    fn is_empty(&self) -> bool {
+        matches!(self, Self::Unknown(_))
+    }
+}
+
+impl FromValue for AttributeValue {
+    fn from_value(value: Annotated<Value>) -> Annotated<Self> {
+        match value {
+            Annotated(Some(Value::String(value)), meta) => {
+                Annotated(Some(AttributeValue::StringValue(value)), meta)
+            }
+            Annotated(Some(Value::I64(value)), meta) => {
+                Annotated(Some(AttributeValue::IntValue(value)), meta)
+            }
+            Annotated(Some(Value::F64(value)), meta) => {
+                Annotated(Some(AttributeValue::DoubleValue(value)), meta)
+            }
+            Annotated(Some(Value::Bool(value)), meta) => {
+                Annotated(Some(AttributeValue::BoolValue(value)), meta)
+            }
+            Annotated(Some(value), mut meta) => {
+                meta.add_error(Error::expected("a primitive value"));
+                meta.set_original_value(Some(value));
+                Annotated(None, meta)
+            }
+            Annotated(None, meta) => Annotated(None, meta),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -88,31 +213,19 @@ mod tests {
         let mut attributes = Object::new();
         attributes.insert(
             "string.attribute".into(),
-            Annotated::new(AttributeValue {
-                string_value: Annotated::new(Value::String("some string".into())),
-                ..Default::default()
-            }),
+            Annotated::new(AttributeValue::StringValue("some string".into())),
         );
         attributes.insert(
             "boolean.attribute".into(),
-            Annotated::new(AttributeValue {
-                bool_value: Annotated::new(Value::Bool(true)),
-                ..Default::default()
-            }),
+            Annotated::new(AttributeValue::BoolValue(true)),
         );
         attributes.insert(
             "int.attribute".into(),
-            Annotated::new(AttributeValue {
-                int_value: Annotated::new(Value::I64(10)),
-                ..Default::default()
-            }),
+            Annotated::new(AttributeValue::IntValue(10)),
         );
         attributes.insert(
             "double.attribute".into(),
-            Annotated::new(AttributeValue {
-                double_value: Annotated::new(Value::F64(637.704)),
-                ..Default::default()
-            }),
+            Annotated::new(AttributeValue::DoubleValue(637.704)),
         );
 
         let log = Annotated::new(OurLog {
@@ -127,10 +240,7 @@ mod tests {
             ..Default::default()
         });
 
-        let expected: serde_json::Value = serde_json::from_str(json).unwrap();
-        let actual: serde_json::Value =
-            serde_json::from_str(&log.to_json_pretty().unwrap()).unwrap();
-        assert_eq!(expected, actual);
+        assert_eq!(json, log.to_json_pretty().unwrap());
 
         let log_from_string = Annotated::<OurLog>::from_json(json).unwrap();
         assert_eq!(log, log_from_string);
