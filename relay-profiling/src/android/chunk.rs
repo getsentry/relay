@@ -40,7 +40,6 @@ pub struct Metadata {
 
     #[serde(default)]
     duration_ns: u64,
-    #[serde(default)]
     timestamp: f64,
 }
 
@@ -120,14 +119,6 @@ fn parse_chunk(payload: &[u8]) -> Result<Chunk, ProfileError> {
 
     // Use duration given by the profiler and not reported by the SDK.
     profile.metadata.duration_ns = profile.profile.elapsed_time.as_nanos() as u64;
-    profile.metadata.timestamp = Duration::from_nanos(
-        profile
-            .profile
-            .start_time
-            .timestamp_nanos_opt()
-            .unwrap_or_default() as u64,
-    )
-    .as_secs_f64();
 
     // If build_id is not empty but we don't have any DebugImage set,
     // we create the proper Proguard image and set the uuid.
