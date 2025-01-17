@@ -83,6 +83,7 @@ pub fn process(managed_envelope: &mut TypedEnvelope<LogGroup>, project_info: Arc
     });
 }
 
+#[cfg(feature = "processing")]
 fn scrub(
     annotated_log: &mut Annotated<OurLog>,
     project_config: &ProjectConfig,

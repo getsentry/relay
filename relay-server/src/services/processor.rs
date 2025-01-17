@@ -2026,6 +2026,7 @@ impl EnvelopeProcessorService {
         project_info: Arc<ProjectInfo>,
         #[allow(unused_variables)] rate_limits: Arc<RateLimits>,
     ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
+        #[allow(unused_mut)]
         let mut extracted_metrics = ProcessingExtractedMetrics::new();
 
         ourlog::filter(
