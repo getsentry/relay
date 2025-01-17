@@ -2,6 +2,10 @@
 
 ## 25.1.0
 
+**Features**:
+
+- Add support for view hierarchy attachment scrubbing. ([#4452](https://github.com/getsentry/relay/pull/4452))
+
 **Internal**:
 
 - Updates performance score calculation on spans and events to also store cdf values as measurements. ([#4438](https://github.com/getsentry/relay/pull/4438))
