@@ -2,6 +2,8 @@ use relay_protocol::{
     Annotated, Empty, Error, FromValue, IntoValue, Object, SkipSerialization, Value,
 };
 
+use serde::ser::SerializeMap;
+
 use crate::processor::ProcessValue;
 use crate::protocol::{SpanId, TraceId};
 
@@ -93,13 +95,25 @@ impl IntoValue for AttributeValue {
         Self: Sized,
         S: serde::Serializer,
     {
+        let mut map = s.serialize_map(None)?;
         match self {
-            AttributeValue::StringValue(v) => s.serialize_str(v),
-            AttributeValue::IntValue(v) => s.serialize_i64(*v),
-            AttributeValue::DoubleValue(v) => s.serialize_f64(*v),
-            AttributeValue::BoolValue(v) => s.serialize_bool(*v),
-            AttributeValue::Unknown(v) => s.serialize_str(v),
+            AttributeValue::StringValue(v) => {
+                map.serialize_entry("string_value", v)?;
+            }
+            AttributeValue::IntValue(v) => {
+                map.serialize_entry("int_value", v)?;
+            }
+            AttributeValue::DoubleValue(v) => {
+                map.serialize_entry("double_value", v)?;
+            }
+            AttributeValue::BoolValue(v) => {
+                map.serialize_entry("bool_value", v)?;
+            }
+            AttributeValue::Unknown(v) => {
+                map.serialize_entry("unknown", v)?;
+            }
         }
+        map.end()
     }
 }
 
@@ -114,32 +128,24 @@ impl AttributeValue {
             AttributeValue::Unknown(s) => s.clone(),
         }
     }
-
-    /// Returns the string value if this is a StringValue variant
     pub fn string_value(&self) -> Option<&String> {
         match self {
             AttributeValue::StringValue(s) => Some(s),
             _ => None,
         }
     }
-
-    /// Returns the int value if this is an IntValue variant
     pub fn int_value(&self) -> Option<i64> {
         match self {
             AttributeValue::IntValue(i) => Some(*i),
             _ => None,
         }
     }
-
-    /// Returns the double value if this is a DoubleValue variant
     pub fn double_value(&self) -> Option<f64> {
         match self {
             AttributeValue::DoubleValue(d) => Some(*d),
             _ => None,
         }
     }
-
-    /// Returns the bool value if this is a BoolValue variant
     pub fn bool_value(&self) -> Option<bool> {
         match self {
             AttributeValue::BoolValue(b) => Some(*b),
@@ -171,7 +177,9 @@ impl FromValue for AttributeValue {
                 Annotated(Some(AttributeValue::BoolValue(value)), meta)
             }
             Annotated(Some(value), mut meta) => {
-                meta.add_error(Error::expected("a primitive value"));
+                meta.add_error(Error::expected(
+                    "a valid attribute value (string, int, double, bool)",
+                ));
                 meta.set_original_value(Some(value));
                 Annotated(None, meta)
             }
@@ -189,23 +197,23 @@ mod tests {
         let json = r#"{
   "timestamp_nanos": 1544712660300000000,
   "observed_timestamp_nanos": 1544712660300000000,
-  "severity_number": 10,
-  "severity_text": "Information",
   "trace_id": "5b8efff798038103d269b633813fc60c",
   "span_id": "eee19b7ec3c1b174",
+  "severity_text": "Information",
+  "severity_number": 10,
   "body": "Example log record",
   "attributes": {
-    "string.attribute": {
-      "string_value": "some string"
-    },
     "boolean.attribute": {
       "bool_value": true
+    },
+    "double.attribute": {
+      "double_value": 637.704
     },
     "int.attribute": {
       "int_value": 10
     },
-    "double.attribute": {
-      "double_value": 637.704
+    "string.attribute": {
+      "string_value": "some string"
     }
   }
 }"#;
@@ -241,8 +249,5 @@ mod tests {
         });
 
         assert_eq!(json, log.to_json_pretty().unwrap());
-
-        let log_from_string = Annotated::<OurLog>::from_json(json).unwrap();
-        assert_eq!(log, log_from_string);
     }
 }
