@@ -39,12 +39,7 @@ pub fn filter<Group>(
 
 /// Processes logs.
 #[cfg(feature = "processing")]
-pub fn process(
-    managed_envelope: &mut TypedEnvelope<LogGroup>,
-    config: &Config,
-    project_info: Arc<ProjectInfo>,
-) {
-    let logging_disabled = should_filter(config, &project_info, Feature::OurLogsIngestion);
+pub fn process(managed_envelope: &mut TypedEnvelope<LogGroup>) {
     managed_envelope.retain_items(|item| {
         let annotated_log = match item.ty() {
             ItemType::OtelLog => match serde_json::from_slice::<OtelLog>(&item.payload()) {

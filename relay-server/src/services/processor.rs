@@ -2031,7 +2031,7 @@ impl EnvelopeProcessorService {
             project_info.clone(),
         );
         if_processing!(self.inner.config, {
-            ourlog::process(managed_envelope, &self.inner.config, project_info.clone());
+            ourlog::process(managed_envelope);
         });
         Ok(None)
     }
