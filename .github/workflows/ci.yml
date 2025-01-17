@@ -576,6 +576,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: build-docker
+    env:
+      USE_NEW_DEVSERVICES: 1
 
     # Skip redundant checks for library releases
     if: "!startsWith(github.ref, 'refs/heads/release-library/')"
@@ -603,9 +605,8 @@ jobs:
         uses: ./.github/actions/setup-sentry
         with:
           workdir: sentry
-          snuba: true
-          kafka: true
-          symbolicator: true
+          use-new-devservices: true
+          mode: symbolicator
 
       - name: Download Docker Image
         if: "github.event.pull_request.head.repo.fork || github.actor == 'dependabot[bot]'"
