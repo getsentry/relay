@@ -165,9 +165,9 @@ impl SampleProfile {
 
     /// Checks if the last sample was recorded within the max profile duration.
     fn is_above_max_duration(&self) -> bool {
-        self.samples.last().map_or(false, |sample| {
-            sample.elapsed_since_start_ns > MAX_PROFILE_DURATION_NS
-        })
+        self.samples
+            .last()
+            .is_some_and(|sample| sample.elapsed_since_start_ns > MAX_PROFILE_DURATION_NS)
     }
 
     fn remove_unreferenced_threads(&mut self) {

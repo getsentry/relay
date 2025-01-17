@@ -28,7 +28,7 @@ pub fn are_generic_filters_supported(
 fn matches<F: Getter>(item: &F, condition: Option<&RuleCondition>) -> bool {
     // TODO: the condition DSL needs to be extended to support more complex semantics, such as
     //  collections operations.
-    condition.map_or(false, |condition| condition.matches(item))
+    condition.is_some_and(|condition| condition.matches(item))
 }
 
 /// Filters events by any generic condition.

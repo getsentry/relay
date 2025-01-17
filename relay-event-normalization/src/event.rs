@@ -891,6 +891,16 @@ pub fn normalize_performance_score(
                             component.p10,
                             component.p50,
                         );
+
+                        measurements.insert(
+                            format!("score.ratio.{}", component.measurement),
+                            Measurement {
+                                value: cdf.into(),
+                                unit: (MetricUnit::Fraction(FractionUnit::Ratio)).into(),
+                            }
+                            .into(),
+                        );
+
                         let component_score = cdf * normalized_component_weight;
                         score_total += component_score;
                         should_add_total = true;
@@ -2393,6 +2403,22 @@ mod tests {
               "value": 0.009238896571386584,
               "unit": "ratio",
             },
+            "score.ratio.cls": {
+              "value": 0.8745668242977945,
+              "unit": "ratio",
+            },
+            "score.ratio.fcp": {
+              "value": 0.7167236962527221,
+              "unit": "ratio",
+            },
+            "score.ratio.fid": {
+              "value": 0.6552453782760849,
+              "unit": "ratio",
+            },
+            "score.ratio.lcp": {
+              "value": 0.03079632190462195,
+              "unit": "ratio",
+            },
             "score.total": {
               "value": 0.531962770566569,
               "unit": "ratio",
@@ -2541,6 +2567,22 @@ mod tests {
               "value": 0.009238896571386584,
               "unit": "ratio",
             },
+            "score.ratio.cls": {
+              "value": 0.8745668242977945,
+              "unit": "ratio",
+            },
+            "score.ratio.fcp": {
+              "value": 0.7167236962527221,
+              "unit": "ratio",
+            },
+            "score.ratio.fid": {
+              "value": 0.6552453782760849,
+              "unit": "ratio",
+            },
+            "score.ratio.lcp": {
+              "value": 0.03079632190462195,
+              "unit": "ratio",
+            },
             "score.total": {
               "value": 0.531962770566569,
               "unit": "ratio",
@@ -2687,6 +2729,22 @@ mod tests {
             },
             "score.lcp": {
               "value": 0.009238896571386584,
+              "unit": "ratio",
+            },
+            "score.ratio.cls": {
+              "value": 0.8745668242977945,
+              "unit": "ratio",
+            },
+            "score.ratio.fcp": {
+              "value": 0.7167236962527221,
+              "unit": "ratio",
+            },
+            "score.ratio.fid": {
+              "value": 0.6552453782760849,
+              "unit": "ratio",
+            },
+            "score.ratio.lcp": {
+              "value": 0.03079632190462195,
               "unit": "ratio",
             },
             "score.total": {
@@ -2882,6 +2940,14 @@ mod tests {
               "value": 0.66666415149198,
               "unit": "ratio",
             },
+            "score.ratio.a": {
+              "value": 0.9999964593987591,
+              "unit": "ratio",
+            },
+            "score.ratio.b": {
+              "value": 0.9999962272379699,
+              "unit": "ratio",
+            },
             "score.total": {
               "value": 0.9999963046248997,
               "unit": "ratio",
@@ -2999,6 +3065,10 @@ mod tests {
           "timestamp": 1619420405.0,
           "start_timestamp": 1619420400.0,
           "measurements": {
+            "score.ratio.ttfb": {
+              "value": 1.0,
+              "unit": "ratio",
+            },
             "score.total": {
               "value": 1.0,
               "unit": "ratio",
@@ -3144,6 +3214,10 @@ mod tests {
               "value": 120.0,
             },
             "score.inp": {
+              "value": 0.0,
+              "unit": "ratio",
+            },
+            "score.ratio.inp": {
               "value": 0.0,
               "unit": "ratio",
             },
@@ -3376,6 +3450,10 @@ mod tests {
             "value": 0.0,
             "unit": "ratio",
           },
+          "score.ratio.inp": {
+            "value": 0.0,
+            "unit": "ratio",
+          },
           "score.total": {
             "value": 0.0,
             "unit": "ratio",
@@ -3465,6 +3543,10 @@ mod tests {
             "value": 0.16615877613713903,
             "unit": "ratio",
           },
+          "score.ratio.cls": {
+            "value": 0.16615877613713903,
+            "unit": "ratio",
+          },
           "score.total": {
             "value": 0.16615877613713903,
             "unit": "ratio",
@@ -3479,6 +3561,111 @@ mod tests {
           },
           "score.weight.lcp": {
             "value": 0.0,
+            "unit": "ratio",
+          },
+          "score.weight.ttfb": {
+            "value": 0.0,
+            "unit": "ratio",
+          },
+        }
+        "###);
+    }
+
+    #[test]
+    fn test_computes_standalone_lcp_performance_score() {
+        let json = r#"
+        {
+            "type": "transaction",
+            "timestamp": "2021-04-26T08:00:05+0100",
+            "start_timestamp": "2021-04-26T08:00:00+0100",
+            "measurements": {
+                "lcp": {"value": 1200.0}
+            }
+        }
+        "#;
+
+        let mut event = Annotated::<Event>::from_json(json).unwrap().0.unwrap();
+
+        let performance_score: PerformanceScoreConfig = serde_json::from_value(json!({
+            "profiles": [
+            {
+                "name": "Default",
+                "scoreComponents": [
+                    {
+                        "measurement": "fcp",
+                        "weight": 0.15,
+                        "p10": 900.0,
+                        "p50": 1600.0,
+                        "optional": true,
+                    },
+                    {
+                        "measurement": "lcp",
+                        "weight": 0.30,
+                        "p10": 1200.0,
+                        "p50": 2400.0,
+                        "optional": true,
+                    },
+                    {
+                        "measurement": "cls",
+                        "weight": 0.15,
+                        "p10": 0.1,
+                        "p50": 0.25,
+                        "optional": true,
+                    },
+                    {
+                        "measurement": "ttfb",
+                        "weight": 0.10,
+                        "p10": 200.0,
+                        "p50": 400.0,
+                        "optional": true,
+                    },
+                ],
+                "condition": {
+                    "op": "and",
+                    "inner": [],
+                },
+            }
+            ]
+        }))
+        .unwrap();
+
+        normalize(
+            &mut event,
+            &mut Meta::default(),
+            &NormalizationConfig {
+                performance_score: Some(&performance_score),
+                ..Default::default()
+            },
+        );
+
+        insta::assert_ron_snapshot!(SerializableAnnotated(&event.measurements), {}, @r###"
+        {
+          "lcp": {
+            "value": 1200.0,
+            "unit": "millisecond",
+          },
+          "score.lcp": {
+            "value": 0.8999999314038525,
+            "unit": "ratio",
+          },
+          "score.ratio.lcp": {
+            "value": 0.8999999314038525,
+            "unit": "ratio",
+          },
+          "score.total": {
+            "value": 0.8999999314038525,
+            "unit": "ratio",
+          },
+          "score.weight.cls": {
+            "value": 0.0,
+            "unit": "ratio",
+          },
+          "score.weight.fcp": {
+            "value": 0.0,
+            "unit": "ratio",
+          },
+          "score.weight.lcp": {
+            "value": 1.0,
             "unit": "ratio",
           },
           "score.weight.ttfb": {
@@ -3636,6 +3823,14 @@ mod tests {
             },
             "score.b": {
               "value": 0.66666415149198,
+              "unit": "ratio",
+            },
+            "score.ratio.a": {
+              "value": 0.9999964593987591,
+              "unit": "ratio",
+            },
+            "score.ratio.b": {
+              "value": 0.9999962272379699,
               "unit": "ratio",
             },
             "score.total": {
@@ -3797,6 +3992,14 @@ mod tests {
             },
             "score.b": {
               "value": 0.3024363365482667,
+              "unit": "ratio",
+            },
+            "score.ratio.a": {
+              "value": 0.45365450482239994,
+              "unit": "ratio",
+            },
+            "score.ratio.b": {
+              "value": 0.45365450482239994,
               "unit": "ratio",
             },
             "score.total": {

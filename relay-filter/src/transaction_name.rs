@@ -7,7 +7,7 @@ use relay_pattern::Patterns;
 use crate::{FilterStatKey, Filterable, IgnoreTransactionsFilterConfig};
 
 fn matches(transaction: Option<&str>, patterns: &Patterns) -> bool {
-    transaction.map_or(false, |transaction| patterns.is_match(transaction))
+    transaction.is_some_and(|transaction| patterns.is_match(transaction))
 }
 
 /// Filters [Transaction](relay_event_schema::protocol::EventType::Transaction) events based on a list of provided transaction

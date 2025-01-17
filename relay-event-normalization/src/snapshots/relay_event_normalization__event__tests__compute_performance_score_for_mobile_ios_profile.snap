@@ -21,6 +21,18 @@ expression: "SerializableAnnotated(&Annotated::new(event))"
       "value": 0.000016961769767009915,
       "unit": "ratio",
     },
+    "score.ratio.app_start_warm": {
+      "value": 0.000050885309301029746,
+      "unit": "ratio",
+    },
+    "score.ratio.time_to_full_display": {
+      "value": 0.024374448803942572,
+      "unit": "ratio",
+    },
+    "score.ratio.time_to_initial_display": {
+      "value": 0.006641015685528939,
+      "unit": "ratio",
+    },
     "score.time_to_full_display": {
       "value": 0.008124816267980856,
       "unit": "ratio",

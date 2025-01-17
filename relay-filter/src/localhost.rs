@@ -34,7 +34,7 @@ fn matches<F: Filterable>(item: &F) -> bool {
 
 fn host_matches_or_is_subdomain_of(host: &str, domain: &str) -> bool {
     host.strip_suffix(domain)
-        .map_or(false, |s| s.is_empty() || s.ends_with('.'))
+        .is_some_and(|s| s.is_empty() || s.ends_with('.'))
 }
 
 /// Filters events originating from the local host.
