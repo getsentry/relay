@@ -46,10 +46,6 @@ pub fn process(
 ) {
     let logging_disabled = should_filter(config, &project_info, Feature::OurLogsIngestion);
     managed_envelope.retain_items(|item| {
-        if logging_disabled {
-            return ItemAction::DropSilently;
-        }
-
         let annotated_log = match item.ty() {
             ItemType::OtelLog => match serde_json::from_slice::<OtelLog>(&item.payload()) {
                 Ok(otel_log) => Annotated::new(relay_ourlogs::otel_to_sentry_log(otel_log)),
