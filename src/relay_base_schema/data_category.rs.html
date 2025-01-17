@@ -225,7 +225,20 @@
 <a href="#224" id="224">224</a>
 <a href="#225" id="225">225</a>
 <a href="#226" id="226">226</a>
-<a href="#227" id="227">227</a></pre></div><pre class="rust"><code><span class="doccomment">//! Defines the [`DataCategory`] type that classifies data Relay can handle.
+<a href="#227" id="227">227</a>
+<a href="#228" id="228">228</a>
+<a href="#229" id="229">229</a>
+<a href="#230" id="230">230</a>
+<a href="#231" id="231">231</a>
+<a href="#232" id="232">232</a>
+<a href="#233" id="233">233</a>
+<a href="#234" id="234">234</a>
+<a href="#235" id="235">235</a>
+<a href="#236" id="236">236</a>
+<a href="#237" id="237">237</a>
+<a href="#238" id="238">238</a>
+<a href="#239" id="239">239</a>
+<a href="#240" id="240">240</a></pre></div><pre class="rust"><code><span class="doccomment">//! Defines the [`DataCategory`] type that classifies data Relay can handle.
 
 </span><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
@@ -319,6 +332,15 @@
     </span>Uptime = <span class="number">21</span>,
     <span class="doccomment">/// Counts the number of individual attachments, as opposed to the number of bytes in an attachment.
     </span>AttachmentItem = <span class="number">22</span>,
+    <span class="doccomment">/// LogItem
+    ///
+    /// This is the category for logs for which we store the count log events for users for measuring
+    /// missing breadcrumbs, and count of logs for rate limiting purposes.
+    </span>LogItem = <span class="number">23</span>,
+    <span class="doccomment">/// LogByte
+    ///
+    /// This is the category for logs for which we store log event total bytes for users.
+    </span>LogByte = <span class="number">24</span>,
     <span class="comment">//
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
     // `make header` to regenerate the C-binding. This allows using the data category from Python.
@@ -347,6 +369,8 @@
             <span class="string">"transaction_indexed" </span>=&gt; <span class="self">Self</span>::TransactionIndexed,
             <span class="string">"monitor" </span>=&gt; <span class="self">Self</span>::Monitor,
             <span class="string">"span" </span>=&gt; <span class="self">Self</span>::Span,
+            <span class="string">"log_item" </span>=&gt; <span class="self">Self</span>::LogItem,
+            <span class="string">"log_byte" </span>=&gt; <span class="self">Self</span>::LogByte,
             <span class="string">"monitor_seat" </span>=&gt; <span class="self">Self</span>::MonitorSeat,
             <span class="string">"feedback" </span>=&gt; <span class="self">Self</span>::UserReportV2,
             <span class="string">"user_report_v2" </span>=&gt; <span class="self">Self</span>::UserReportV2,
@@ -379,6 +403,8 @@
             <span class="self">Self</span>::TransactionIndexed =&gt; <span class="string">"transaction_indexed"</span>,
             <span class="self">Self</span>::Monitor =&gt; <span class="string">"monitor"</span>,
             <span class="self">Self</span>::Span =&gt; <span class="string">"span"</span>,
+            <span class="self">Self</span>::LogItem =&gt; <span class="string">"log_item"</span>,
+            <span class="self">Self</span>::LogByte =&gt; <span class="string">"log_byte"</span>,
             <span class="self">Self</span>::MonitorSeat =&gt; <span class="string">"monitor_seat"</span>,
             <span class="self">Self</span>::UserReportV2 =&gt; <span class="string">"feedback"</span>,
             <span class="self">Self</span>::MetricBucket =&gt; <span class="string">"metric_bucket"</span>,
