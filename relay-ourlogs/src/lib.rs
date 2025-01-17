@@ -1,4 +1,4 @@
-//! Structs and functions needed to ingest OpenTelemetry spans.
+//! Structs and functions needed to ingest OpenTelemetry logs.
 
 #![warn(missing_docs)]
 #![doc(
