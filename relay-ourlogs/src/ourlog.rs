@@ -196,9 +196,7 @@ mod tests {
             Some(&Annotated::new("Database query executed".into()))
         );
         assert_eq!(
-            get_path!(annotated_log.attributes["db.statement"])
-                .and_then(|v| v.value())
-                .and_then(|v| v.string_value()),
+            get_value!(annotated_log.attributes["db.statement"]!).string_value()
             Some(&"SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s".into())
         );
     }
