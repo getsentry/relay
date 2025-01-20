@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+**Internal**:
+
+- Add data categories for LogItem and LogByte. ([#4455](https://github.com/getsentry/relay/pull/4455))
+
 ## 25.1.0
 
 **Features**:
