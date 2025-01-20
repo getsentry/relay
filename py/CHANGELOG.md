@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Add data categories for LogItem and LogByte. ([#4455](https://github.com/getsentry/relay/pull/4455))
+
 ## 0.9.4
 
 - **Breaking**: Flatten Linux distribution fields into `os.context`([#4292](https://github.com/getsentry/relay/pull/4292))
