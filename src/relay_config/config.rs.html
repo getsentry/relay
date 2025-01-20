@@ -2539,7 +2539,19 @@
 <a href="#2538" id="2538">2538</a>
 <a href="#2539" id="2539">2539</a>
 <a href="#2540" id="2540">2540</a>
-<a href="#2541" id="2541">2541</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
+<a href="#2541" id="2541">2541</a>
+<a href="#2542" id="2542">2542</a>
+<a href="#2543" id="2543">2543</a>
+<a href="#2544" id="2544">2544</a>
+<a href="#2545" id="2545">2545</a>
+<a href="#2546" id="2546">2546</a>
+<a href="#2547" id="2547">2547</a>
+<a href="#2548" id="2548">2548</a>
+<a href="#2549" id="2549">2549</a>
+<a href="#2550" id="2550">2550</a>
+<a href="#2551" id="2551">2551</a>
+<a href="#2552" id="2552">2552</a>
+<a href="#2553" id="2553">2553</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
 <span class="kw">use </span>std::net::{IpAddr, SocketAddr, ToSocketAddrs};
@@ -3192,6 +3204,12 @@
     ///
     /// By default there is no idle timeout.
     </span><span class="kw">pub </span>idle_timeout: <span class="prelude-ty">Option</span>&lt;u64&gt;,
+    <span class="doccomment">/// Sets the maximum number of concurrent connections.
+    ///
+    /// Upon reaching the limit, the server will stop accepting connections.
+    ///
+    /// By default there is no limit.
+    </span><span class="kw">pub </span>max_connections: <span class="prelude-ty">Option</span>&lt;usize&gt;,
     <span class="doccomment">/// The TCP listen backlog.
     ///
     /// Configures the TCP listen backlog for the listening socket of Relay.
@@ -3229,6 +3247,7 @@
             shutdown_timeout: <span class="number">10</span>,
             keepalive_timeout: <span class="number">5</span>,
             idle_timeout: <span class="prelude-val">None</span>,
+            max_connections: <span class="prelude-val">None</span>,
             tcp_listen_backlog: <span class="number">1024</span>,
         }
     }
@@ -4852,6 +4871,11 @@
     <span class="doccomment">/// Returns the server idle timeout in seconds.
     </span><span class="kw">pub fn </span>idle_timeout(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Duration&gt; {
         <span class="self">self</span>.values.limits.idle_timeout.map(Duration::from_secs)
+    }
+
+    <span class="doccomment">/// Returns the maximum connections.
+    </span><span class="kw">pub fn </span>max_connections(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;usize&gt; {
+        <span class="self">self</span>.values.limits.max_connections
     }
 
     <span class="doccomment">/// TCP listen backlog to configure on Relay's listening socket.

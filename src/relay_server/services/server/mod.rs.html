@@ -216,7 +216,12 @@
 <a href="#215" id="215">215</a>
 <a href="#216" id="216">216</a>
 <a href="#217" id="217">217</a>
-<a href="#218" id="218">218</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::net::{SocketAddr, TcpListener};
+<a href="#218" id="218">218</a>
+<a href="#219" id="219">219</a>
+<a href="#220" id="220">220</a>
+<a href="#221" id="221">221</a>
+<a href="#222" id="222">222</a>
+<a href="#223" id="223">223</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::net::{SocketAddr, TcpListener};
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
@@ -242,6 +247,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayGauges};
 
 <span class="kw">mod </span>acceptor;
+<span class="kw">mod </span>concurrency_limit;
 <span class="kw">mod </span>io;
 
 <span class="doccomment">/// Set the number of keep-alive retransmissions to be carried out before declaring that remote end
@@ -358,7 +364,11 @@
         .timer(TokioTimer::new())
         .keep_alive_timeout(config.keepalive_timeout());
 
-    <span class="kw">let </span>service = ServiceExt::&lt;Request&gt;::into_make_service_with_connect_info::&lt;SocketAddr&gt;(app);
+    <span class="kw">let </span>service = ServiceBuilder::new()
+        .layer(concurrency_limit::ConcurrencyLimitLayer::new(
+            config.max_connections(),
+        ))
+        .service(ServiceExt::&lt;Request&gt;::into_make_service_with_connect_info::&lt;SocketAddr&gt;(app));
 
     <span class="macro">relay_system::spawn!</span>(emit_active_connections_metric(
         config.metrics_periodic_interval(),
