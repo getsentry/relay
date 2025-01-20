@@ -9,7 +9,7 @@ use utf16string::{LittleEndian, WStr};
 
 use crate::compiledconfig::RuleRef;
 use crate::regexes::{get_regex_for_rule_type, ReplaceBehavior};
-use crate::{utils, CompiledPiiConfig, JsonScrubError, JsonScrubVisitor, Redaction};
+use crate::{transform, utils, CompiledPiiConfig, JsonScrubError, JsonScrubVisitor, Redaction};
 
 /// The minimum length a string needs to be in a binary blob.
 ///
@@ -526,8 +526,8 @@ impl<'a> PiiAttachmentsProcessor<'a> {
 
         let visitor = JsonScrubVisitor::new(self.compiled_config);
 
-        let mut deserializer_inner = Deserializer::from_slice(payload);
-        let deserializer = crate::transform::Deserializer::new(&mut deserializer_inner, visitor);
+        let mut deserializer_inner = serde_json::Deserializer::from_slice(payload);
+        let deserializer = transform::Deserializer::new(&mut deserializer_inner, visitor);
 
         let mut serializer = serde_json::Serializer::new(output);
         serde_transcode::transcode(deserializer, &mut serializer)

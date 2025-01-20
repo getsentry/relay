@@ -91,14 +91,12 @@ pub trait Transform<'de> {
         v
     }
 
-    serde::serde_if_integer128! {
-        fn transform_i128(&mut self, v: i128) -> i128 {
-            v
-        }
+    fn transform_i128(&mut self, v: i128) -> i128 {
+        v
+    }
 
-        fn transform_u128(&mut self, v: u128) -> u128 {
-            v
-        }
+    fn transform_u128(&mut self, v: u128) -> u128 {
+        v
     }
 
     fn transform_f32(&mut self, v: f32) -> f32 {
@@ -321,20 +319,26 @@ where
         ))
     }
 
-    serde::serde_if_integer128! {
-        fn deserialize_i128<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: de::Visitor<'de>,
-        {
-            self.inner.deserialize_i128(Visitor { inner: visitor, transformer: self.transformer.as_mut(), is_key: self.is_key })
-        }
+    fn deserialize_i128<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: de::Visitor<'de>,
+    {
+        self.inner.deserialize_i128(Visitor {
+            inner: visitor,
+            transformer: self.transformer.as_mut(),
+            is_key: self.is_key,
+        })
+    }
 
-        fn deserialize_u128<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: de::Visitor<'de>,
-        {
-            self.inner.deserialize_u128(Visitor { inner: visitor, transformer: self.transformer.as_mut(), is_key: self.is_key })
-        }
+    fn deserialize_u128<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: de::Visitor<'de>,
+    {
+        self.inner.deserialize_u128(Visitor {
+            inner: visitor,
+            transformer: self.transformer.as_mut(),
+            is_key: self.is_key,
+        })
     }
 
     fn deserialize_f32<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
@@ -681,18 +685,18 @@ where
         self.inner.visit_u64(self.transformer.transform_u64(v))
     }
 
-    serde::serde_if_integer128! {
-        fn visit_i128<E>(self, v: i128) -> Result<Self::Value, E>
-            where E: de::Error
-        {
-            self.inner.visit_i128(self.transformer.transform_i128(v))
-        }
+    fn visit_i128<E>(self, v: i128) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        self.inner.visit_i128(self.transformer.transform_i128(v))
+    }
 
-        fn visit_u128<E>(self, v: u128) -> Result<Self::Value, E>
-            where E: de::Error
-        {
-            self.inner.visit_u128(self.transformer.transform_u128(v))
-        }
+    fn visit_u128<E>(self, v: u128) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        self.inner.visit_u128(self.transformer.transform_u128(v))
     }
 
     fn visit_f32<E>(self, v: f32) -> Result<Self::Value, E>
