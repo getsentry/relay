@@ -1,7 +1,6 @@
 use regex::bytes::RegexBuilder as BytesRegexBuilder;
 use regex::{Match, Regex};
 use relay_event_schema::processor::{FieldAttrs, Pii, ProcessingState, ValueType};
-use serde_json::Deserializer;
 use smallvec::SmallVec;
 use std::borrow::Cow;
 use std::iter::FusedIterator;
