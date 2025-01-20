@@ -6,6 +6,10 @@
 
 - Add configuration option to limit the amount of concurrent http connections. ([#4453](https://github.com/getsentry/relay/pull/4453))
 
+**Internal**:
+
+- Add data categories for LogItem and LogByte. ([#4455](https://github.com/getsentry/relay/pull/4455))
+
 ## 25.1.0
 
 **Internal**
