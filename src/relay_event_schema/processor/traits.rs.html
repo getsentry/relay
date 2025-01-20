@@ -174,7 +174,9 @@
 <a href="#173" id="173">173</a>
 <a href="#174" id="174">174</a>
 <a href="#175" id="175">175</a>
-<a href="#176" id="176">176</a></pre></div><pre class="rust"><code><span class="comment">// This module only defines traits, every parameter is used by definition
+<a href="#176" id="176">176</a>
+<a href="#177" id="177">177</a>
+<a href="#178" id="178">178</a></pre></div><pre class="rust"><code><span class="comment">// This module only defines traits, every parameter is used by definition
 </span><span class="attr">#![allow(unused_variables)]
 
 </span><span class="kw">use </span>std::fmt::Debug;
@@ -284,10 +286,12 @@
     <span class="macro">process_method!</span>(process_breadcrumb, <span class="kw">crate</span>::protocol::Breadcrumb);
     <span class="macro">process_method!</span>(process_template_info, <span class="kw">crate</span>::protocol::TemplateInfo);
     <span class="macro">process_method!</span>(process_header_name, <span class="kw">crate</span>::protocol::HeaderName);
+    <span class="macro">process_method!</span>(process_ourlog, <span class="kw">crate</span>::protocol::OurLog);
     <span class="macro">process_method!</span>(process_span, <span class="kw">crate</span>::protocol::Span);
     <span class="macro">process_method!</span>(process_trace_context, <span class="kw">crate</span>::protocol::TraceContext);
     <span class="macro">process_method!</span>(process_native_image_path, <span class="kw">crate</span>::protocol::NativeImagePath);
     <span class="macro">process_method!</span>(process_contexts, <span class="kw">crate</span>::protocol::Contexts);
+    <span class="macro">process_method!</span>(process_attribute_value, <span class="kw">crate</span>::protocol::AttributeValue);
 
     <span class="kw">fn </span>process_other(
         <span class="kw-2">&amp;mut </span><span class="self">self</span>,

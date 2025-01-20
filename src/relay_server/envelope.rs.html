@@ -2174,7 +2174,22 @@
 <a href="#2173" id="2173">2173</a>
 <a href="#2174" id="2174">2174</a>
 <a href="#2175" id="2175">2175</a>
-<a href="#2176" id="2176">2176</a></pre></div><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.
+<a href="#2176" id="2176">2176</a>
+<a href="#2177" id="2177">2177</a>
+<a href="#2178" id="2178">2178</a>
+<a href="#2179" id="2179">2179</a>
+<a href="#2180" id="2180">2180</a>
+<a href="#2181" id="2181">2181</a>
+<a href="#2182" id="2182">2182</a>
+<a href="#2183" id="2183">2183</a>
+<a href="#2184" id="2184">2184</a>
+<a href="#2185" id="2185">2185</a>
+<a href="#2186" id="2186">2186</a>
+<a href="#2187" id="2187">2187</a>
+<a href="#2188" id="2188">2188</a>
+<a href="#2189" id="2189">2189</a>
+<a href="#2190" id="2190">2190</a>
+<a href="#2191" id="2191">2191</a></pre></div><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.
 //!
 //! Envelopes are containers for payloads related to Sentry events. Similar to multipart form data
 //! requests, each envelope has global headers and a set of items, such as the event payload, an
@@ -2293,6 +2308,10 @@
     </span>ReplayVideo,
     <span class="doccomment">/// Monitor check-in encoded as JSON.
     </span>CheckIn,
+    <span class="doccomment">/// A log from the [OTEL Log format](https://opentelemetry.io/docs/specs/otel/logs/data-model/#log-and-event-record-definition)
+    </span>OtelLog,
+    <span class="doccomment">/// A log for the log product, not internal logs.
+    </span>Log,
     <span class="doccomment">/// A standalone span.
     </span>Span,
     <span class="doccomment">/// A standalone OpenTelemetry span serialized as JSON.
@@ -2350,6 +2369,8 @@
             <span class="self">Self</span>::ReplayRecording =&gt; <span class="string">"replay_recording"</span>,
             <span class="self">Self</span>::ReplayVideo =&gt; <span class="string">"replay_video"</span>,
             <span class="self">Self</span>::CheckIn =&gt; <span class="string">"check_in"</span>,
+            <span class="self">Self</span>::Log =&gt; <span class="string">"log"</span>,
+            <span class="self">Self</span>::OtelLog =&gt; <span class="string">"otel_log"</span>,
             <span class="self">Self</span>::Span =&gt; <span class="string">"span"</span>,
             <span class="self">Self</span>::OtelSpan =&gt; <span class="string">"otel_span"</span>,
             <span class="self">Self</span>::OtelTracesData =&gt; <span class="string">"otel_traces_data"</span>,
@@ -2403,6 +2424,8 @@
             <span class="string">"replay_recording" </span>=&gt; <span class="self">Self</span>::ReplayRecording,
             <span class="string">"replay_video" </span>=&gt; <span class="self">Self</span>::ReplayVideo,
             <span class="string">"check_in" </span>=&gt; <span class="self">Self</span>::CheckIn,
+            <span class="string">"log" </span>=&gt; <span class="self">Self</span>::Log,
+            <span class="string">"otel_log" </span>=&gt; <span class="self">Self</span>::OtelLog,
             <span class="string">"span" </span>=&gt; <span class="self">Self</span>::Span,
             <span class="string">"otel_span" </span>=&gt; <span class="self">Self</span>::OtelSpan,
             <span class="string">"otel_traces_data" </span>=&gt; <span class="self">Self</span>::OtelTracesData,
@@ -2872,6 +2895,10 @@
                 CountFor::Outcomes =&gt; <span class="macro">smallvec!</span>[],
             },
             ItemType::Statsd | ItemType::MetricBuckets =&gt; <span class="macro">smallvec!</span>[],
+            ItemType::Log | ItemType::OtelLog =&gt; <span class="macro">smallvec!</span>[
+                (DataCategory::LogByte, <span class="self">self</span>.len().max(<span class="number">1</span>)),
+                (DataCategory::LogItem, <span class="number">1</span>)
+            ],
             ItemType::FormData =&gt; <span class="macro">smallvec!</span>[],
             ItemType::UserReport =&gt; <span class="macro">smallvec!</span>[],
             ItemType::UserReportV2 =&gt; <span class="macro">smallvec!</span>[(DataCategory::UserReportV2, <span class="number">1</span>)],
@@ -3128,6 +3155,8 @@
             | ItemType::Profile
             | ItemType::CheckIn
             | ItemType::Span
+            | ItemType::Log
+            | ItemType::OtelLog
             | ItemType::OtelSpan
             | ItemType::OtelTracesData
             | ItemType::ProfileChunk =&gt; <span class="bool-val">false</span>,
@@ -3162,6 +3191,7 @@
             ItemType::Profile =&gt; <span class="bool-val">true</span>,
             ItemType::CheckIn =&gt; <span class="bool-val">false</span>,
             ItemType::Span =&gt; <span class="bool-val">false</span>,
+            ItemType::Log | ItemType::OtelLog =&gt; <span class="bool-val">false</span>,
             ItemType::OtelSpan =&gt; <span class="bool-val">false</span>,
             ItemType::OtelTracesData =&gt; <span class="bool-val">false</span>,
             ItemType::ProfileChunk =&gt; <span class="bool-val">false</span>,
