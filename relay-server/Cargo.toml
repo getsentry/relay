@@ -112,7 +112,8 @@ symbolic-unreal = { workspace = true, optional = true, default-features = false,
 sysinfo = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true, features = ["sync", "time"] }
-tower = { workspace = true, default-features = false }
+tokio-util = { workspace = true, default-features = false }
+tower = { workspace = true, default-features = false, features = ["limit"] }
 tower-http = { workspace = true, default-features = false, features = [
     "catch-panic",
     "compression-br",
