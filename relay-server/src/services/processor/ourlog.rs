@@ -3,24 +3,24 @@ use std::sync::Arc;
 
 use crate::services::processor::LogGroup;
 use relay_config::Config;
-use relay_dynamic_config::{Feature, ProjectConfig};
-use relay_event_schema::processor::{process_value, ProcessingState};
-use relay_event_schema::protocol::OurLog;
+use relay_dynamic_config::Feature;
 
 use crate::services::processor::should_filter;
-use crate::services::processor::ProcessingError;
 use crate::services::projects::project::ProjectInfo;
 use crate::utils::{ItemAction, TypedEnvelope};
-
-use relay_pii::PiiProcessor;
-use relay_protocol::Annotated;
 
 #[cfg(feature = "processing")]
 use {
     crate::envelope::ContentType,
     crate::envelope::{Item, ItemType},
     crate::services::outcome::{DiscardReason, Outcome},
+    crate::services::processor::ProcessingError,
+    relay_dynamic_config::ProjectConfig,
+    relay_event_schema::processor::{process_value, ProcessingState},
+    relay_event_schema::protocol::OurLog,
     relay_ourlogs::OtelLog,
+    relay_pii::PiiProcessor,
+    relay_protocol::Annotated,
 };
 
 /// Removes logs from the envelope if the feature is not enabled.
