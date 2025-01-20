@@ -742,16 +742,16 @@
 //! ```
 //!
 //! [Metric Types]: https://github.com/statsd/statsd/blob/master/docs/metric_types.md
-</span><span class="kw">use </span>std::collections::BTreeMap;
-<span class="kw">use </span>std::net::ToSocketAddrs;
-<span class="kw">use </span>std::ops::{Deref, DerefMut};
-<span class="kw">use </span>std::sync::Arc;
-
-<span class="kw">use </span>cadence::{Metric, MetricBuilder, StatsdClient};
+</span><span class="kw">use </span>cadence::{Metric, MetricBuilder, StatsdClient};
 <span class="kw">use </span>parking_lot::RwLock;
 <span class="kw">use </span>rand::distributions::{Distribution, Uniform};
 <span class="kw">use </span>statsdproxy::cadence::StatsdProxyMetricSink;
 <span class="kw">use </span>statsdproxy::config::AggregateMetricsConfig;
+<span class="kw">use </span>std::collections::BTreeMap;
+<span class="kw">use </span>std::net::ToSocketAddrs;
+<span class="kw">use </span>std::ops::{Deref, DerefMut};
+<span class="kw">use </span>std::sync::Arc;
+<span class="kw">use </span>std::time::Duration;
 
 <span class="doccomment">/// Maximum number of metric events that can be queued before we start dropping them
 </span><span class="kw">const </span>METRICS_MAX_QUEUE_SIZE: usize = <span class="number">100_000</span>;
@@ -939,7 +939,7 @@
                 AggregateMetricsConfig {
                     aggregate_gauges: <span class="bool-val">true</span>,
                     aggregate_counters: <span class="bool-val">true</span>,
-                    flush_interval: <span class="number">1</span>,
+                    flush_interval: Duration::from_millis(<span class="number">125</span>),
                     flush_offset: <span class="number">0</span>,
                     max_map_size: <span class="prelude-val">None</span>,
                 },
