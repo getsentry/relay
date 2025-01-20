@@ -2854,6 +2854,7 @@ dependencies = [
  "opentelemetry",
  "percent-encoding",
  "rand",
+ "serde_json",
  "thiserror",
 ]
 
@@ -3768,6 +3769,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "relay-ourlogs"
+version = "24.12.1"
+dependencies = [
+ "chrono",
+ "hex",
+ "insta",
+ "once_cell",
+ "opentelemetry-proto",
+ "relay-event-schema",
+ "relay-protocol",
+ "serde_json",
+]
+
+[[package]]
 name = "relay-pattern"
 version = "25.1.0"
 dependencies = [
@@ -3984,6 +3999,7 @@ dependencies = [
  "relay-log",
  "relay-metrics",
  "relay-monitors",
+ "relay-ourlogs",
  "relay-pii",
  "relay-profiling",
  "relay-protocol",
@@ -4460,15 +4476,16 @@ dependencies = [
 
 [[package]]
 name = "sentry-kafka-schemas"
-version = "0.1.122"
+version = "0.1.129"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6636bbc9fda2c104d326386bf8fdcc36d4031bca525a74a970ad8bbecb7570d2"
+checksum = "790627715d4ea0e58e252dcb657a44146fde401b5520bbbc3b6500764ef71c86"
 dependencies = [
  "jsonschema",
  "serde",
  "serde_json",
  "serde_yaml",
  "thiserror",
+ "url",
 ]
 
 [[package]]

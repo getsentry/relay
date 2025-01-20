@@ -108,10 +108,12 @@ pub trait Processor: Sized {
     process_method!(process_breadcrumb, crate::protocol::Breadcrumb);
     process_method!(process_template_info, crate::protocol::TemplateInfo);
     process_method!(process_header_name, crate::protocol::HeaderName);
+    process_method!(process_ourlog, crate::protocol::OurLog);
     process_method!(process_span, crate::protocol::Span);
     process_method!(process_trace_context, crate::protocol::TraceContext);
     process_method!(process_native_image_path, crate::protocol::NativeImagePath);
     process_method!(process_contexts, crate::protocol::Contexts);
+    process_method!(process_attribute_value, crate::protocol::AttributeValue);
 
     fn process_other(
         &mut self,
