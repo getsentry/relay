@@ -7,7 +7,6 @@
 //! unpack it before it's forwarded down the line.
 //!
 use std::collections::HashMap;
-use std::time::Duration;
 
 use android_trace_log::chrono::Utc;
 use android_trace_log::{AndroidTraceLog, Clock, Vm};
