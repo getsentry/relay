@@ -21,27 +21,27 @@ impl super::DefaultContext for FlagContext {
 
     fn from_context(context: super::Context) -> Option<Self> {
         match context {
-            super::Context::Flag(c) => Some(*c),
+            super::Context::Flags(c) => Some(*c),
             _ => None,
         }
     }
 
     fn cast(context: &super::Context) -> Option<&Self> {
         match context {
-            super::Context::Flag(c) => Some(c),
+            super::Context::Flags(c) => Some(c),
             _ => None,
         }
     }
 
     fn cast_mut(context: &mut super::Context) -> Option<&mut Self> {
         match context {
-            super::Context::Flag(c) => Some(c),
+            super::Context::Flags(c) => Some(c),
             _ => None,
         }
     }
 
     fn into_context(self) -> super::Context {
-        super::Context::Flag(Box::new(self))
+        super::Context::Flags(Box::new(self))
     }
 }
 
@@ -51,20 +51,19 @@ mod test {
     use crate::protocol::Context;
 
     #[test]
-    fn test_deserializing_flag_context() {
+    fn test_deserializing_feature_context() {
         let json = r#"{
-  "flags": {
-    "values": [
-      {
-        "flag": "abc",
-        "result": true
-      },
-      {
-        "flag": "def",
-        "result": false
-      }
-    ]
-  }
+  "values": [
+    {
+      "flag": "abc",
+      "result": true
+    },
+    {
+      "flag": "def",
+      "result": false
+    }
+  ],
+  "type": "flags"
 }"#;
 
         let flags = vec![
@@ -78,25 +77,11 @@ mod test {
             }),
         ];
 
-        let context = Annotated::new(Context::Flag(Box::new(FlagContext {
+        let context = Annotated::new(Context::Flags(Box::new(FlagContext {
             values: Annotated::new(flags),
         })));
 
-        let transformed = r#"{
-  "values": [
-    {
-      "flag": "abc",
-      "result": true
-    },
-    {
-      "flag": "def",
-      "result": false
-    }
-  ],
-  "type": "Flag"
-}"#;
-
         assert_eq!(context, Annotated::from_json(json).unwrap());
-        assert_eq!(transformed, context.to_json_pretty().unwrap());
+        assert_eq!(json, context.to_json_pretty().unwrap());
     }
 }

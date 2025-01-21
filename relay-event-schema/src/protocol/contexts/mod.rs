@@ -71,7 +71,7 @@ pub enum Context {
     /// Information related to Replay.
     Replay(Box<ReplayContext>),
     /// Information related to Feature flags.
-    Flag(Box<flag::FlagContext>),
+    Flags(Box<flag::FlagContext>),
     /// Information related to User Report V2. TODO:(jferg): rename to UserFeedbackContext
     #[metastructure(tag = "feedback")]
     UserReportV2(Box<UserReportV2Context>),
