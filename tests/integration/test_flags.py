@@ -1,19 +1,17 @@
-import json
 import uuid
 
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
 
 
-def test_user_report_with_event(relay_with_processing, mini_sentry):
-    project_id = 42
-    relay = relay_with_processing()
-    mini_sentry.add_full_project_config(project_id)
+def test_event_with_flags(relay, mini_sentry):
+    mini_sentry.add_full_project_config(42)
+    relay = relay(mini_sentry)
 
     event_id = uuid.uuid1().hex
     error_payload = {
         "event_id": event_id,
         "message": "test",
-        "context": {"flags": {"values": [{"flag": "hello", "result": "world"}]}},
+        "contexts": {"flags": {"values": [{"flag": "hello", "result": "world"}]}},
         "type": "error",
         "environment": "production",
         "release": "foo@1.2.3",
@@ -22,7 +20,14 @@ def test_user_report_with_event(relay_with_processing, mini_sentry):
     envelope = Envelope(headers={"event_id": event_id})
     envelope.add_item(Item(PayloadRef(json=error_payload), type="event"))
 
-    relay.send_envelope(project_id, envelope)
+    relay.send_envelope(42, envelope)
 
     envelope = mini_sentry.captured_events.get(timeout=1)
     assert envelope
+    assert envelope.items[0].payload.json["contexts"] == {
+        "flags": {
+            "values": [{"flag": "hello", "result": "world"}],
+            "type": "flags",
+        }
+    }
+    assert mini_sentry.captured_events.empty()
