@@ -1292,16 +1292,34 @@ mod tests {
     /// Limit replays.
     #[test]
     fn test_enforce_limit_replays() {
-        let mut envelope = envelope![ReplayEvent, ReplayRecording, ReplayVideo];
+        let mut envelope = envelope![ReplayEvent, ReplayRecording];
 
         let mut mock = MockLimiter::default().deny(DataCategory::Replay);
         let (enforcement, limits) = enforce_and_apply(&mut mock, &mut envelope, None);
 
         assert!(limits.is_limited());
         assert_eq!(envelope.envelope().len(), 0);
-        mock.assert_call(DataCategory::Replay, 3);
+        mock.assert_call(DataCategory::Replay, 2);
 
-        assert_eq!(get_outcomes(enforcement), vec![(DataCategory::Replay, 3),]);
+        assert_eq!(get_outcomes(enforcement), vec![(DataCategory::Replay, 2),]);
+    }
+
+    /// Limit replays.
+    #[test]
+    fn test_enforce_limit_replay_video() {
+        let mut envelope = envelope![ReplayVideo];
+
+        let mut mock = MockLimiter::default().deny(DataCategory::ReplayVideo);
+        let (enforcement, limits) = enforce_and_apply(&mut mock, &mut envelope, None);
+
+        assert!(limits.is_limited());
+        assert_eq!(envelope.envelope().len(), 0);
+        mock.assert_call(DataCategory::ReplayVideo, 1);
+
+        assert_eq!(
+            get_outcomes(enforcement),
+            vec![(DataCategory::ReplayVideo, 1),]
+        );
     }
 
     /// Limit monitor checkins.
