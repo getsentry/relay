@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["otel_to_sentry_log"],"struct":["OtelLog"]};
