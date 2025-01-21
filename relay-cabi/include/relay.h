@@ -156,7 +156,7 @@ enum RelayDataCategory {
    */
   RELAY_DATA_CATEGORY_LOG_BYTE = 24,
   /**
-   * ProfileDurationUI
+   * ProfileDurationUi
    *
    * This data category is used to count the number of milliseconds per indexed UI profile
    * chunk.
