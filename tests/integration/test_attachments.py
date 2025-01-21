@@ -372,14 +372,21 @@ def test_view_hierarchy_processing(
     outcomes_consumer.assert_empty()
 
 
+@pytest.mark.parametrize("drop_transaction_attachments", [False, True])
 def test_event_with_attachment(
     mini_sentry,
     relay_with_processing,
     attachments_consumer,
     outcomes_consumer,
+    drop_transaction_attachments,
 ):
     project_id = 42
     event_id = "515539018c9b4260a6f999572f1661ee"
+
+    if drop_transaction_attachments:
+        mini_sentry.global_config["options"][
+            "relay.drop-transaction-attachments"
+        ] = True
 
     mini_sentry.add_full_project_config(project_id)
     relay = relay_with_processing()
@@ -438,30 +445,17 @@ def test_event_with_attachment(
         "rate_limited": False,
     }
 
-    attachments_consumer.assert_empty()
+    attachment = attachments_consumer.get_individual_attachment()
+    assert attachment["attachment"].pop("id")
+    assert attachment == {
+        "type": "attachment",
+        "attachment": expected_attachment,
+        "event_id": event_id,
+        "project_id": project_id,
+    }
 
-    assert outcomes_consumer.get_outcomes() == [
-        {
-            "timestamp": "2025-01-21T12:23:27.000000Z",
-            "org_id": 1,
-            "project_id": 42,
-            "key_id": 123,
-            "outcome": 3,
-            "reason": "transaction_attachment",
-            "category": 4,
-            "quantity": 22,
-        },
-        {
-            "timestamp": "2025-01-21T12:23:27.000000Z",
-            "org_id": 1,
-            "project_id": 42,
-            "key_id": 123,
-            "outcome": 3,
-            "reason": "transaction_attachment",
-            "category": 22,
-            "quantity": 1,
-        },
-    ]
+    _, event = attachments_consumer.get_event()
+    assert event["event_id"] == event_id
 
 
 def test_form_data_is_rejected(

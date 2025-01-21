@@ -186,7 +186,7 @@ pub struct Options {
 
     /// Whether or not relay should drop attachments submitted with transactions.
     #[serde(
-        rename = "relay.processing.drop-transaction-attachments",
+        rename = "relay.drop-transaction-attachments",
         deserialize_with = "default_on_error",
         skip_serializing_if = "is_default"
     )]

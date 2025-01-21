@@ -1762,13 +1762,6 @@ impl EnvelopeProcessorService {
         event::scrub(&mut event, project_info.clone())?;
 
         if_processing!(self.inner.config, {
-            managed_envelope.retain_items(|item| match item.ty() {
-                &ItemType::Attachment => {
-                    ItemAction::Drop(Outcome::Invalid(DiscardReason::TransactionAttachment))
-                }
-                _ => ItemAction::Keep,
-            });
-
             // Process profiles before extracting metrics, to make sure they are removed if they are invalid.
             let profile_id = profile::process(
                 managed_envelope,
