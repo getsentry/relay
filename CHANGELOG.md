@@ -5,6 +5,7 @@
 **Features**:
 
 - Add configuration option to limit the amount of concurrent http connections. ([#4453](https://github.com/getsentry/relay/pull/4453))
+- Add flags context to event schema. ([#4458](https://github.com/getsentry/relay/pull/4458))
 
 **Internal**:
 
