@@ -1,5 +1,5 @@
 use crate::processor::ProcessValue;
-use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Value};
+use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Object, Value};
 
 /// Flags context.
 ///
@@ -10,6 +10,9 @@ use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Value};
 pub struct FlagsContext {
     /// An list of flag evaluation results in the order they were evaluated.
     pub values: Annotated<Vec<Annotated<FlagsContextItem>>>,
+    /// Additional arbitrary fields for forwards compatibility.
+    #[metastructure(additional_properties, retain = true, pii = "maybe")]
+    pub other: Object<Value>,
 }
 
 /// Flags context item.
@@ -25,6 +28,9 @@ pub struct FlagsContextItem {
     /// type.
     #[metastructure(max_chars = 200, deny_chars = "\n")]
     pub result: Annotated<Value>,
+    /// Additional arbitrary fields for forwards compatibility.
+    #[metastructure(additional_properties, retain = true, pii = "maybe")]
+    pub other: Object<Value>,
 }
 
 impl super::DefaultContext for FlagsContext {
@@ -92,6 +98,7 @@ mod test {
 
         let context = Annotated::new(Context::Flags(Box::new(FlagsContext {
             values: Annotated::new(flags),
+            other: Object::default(),
         })));
 
         assert_eq!(context, Annotated::from_json(json).unwrap());
