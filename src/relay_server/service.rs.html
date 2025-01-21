@@ -546,7 +546,7 @@
 <span class="kw">use </span>relay_system::{channel, Addr, Service, ServiceRunner};
 
 <span class="doccomment">/// Indicates the type of failure of the server.
-</span><span class="attr">#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, thiserror::Error)]
+</span><span class="attr">#[derive(Debug, thiserror::Error)]
 </span><span class="kw">pub enum </span>ServiceError {
     <span class="doccomment">/// GeoIp construction failed.
     </span><span class="attr">#[error(<span class="string">"could not load the Geoip Db"</span>)]
@@ -554,8 +554,8 @@
 
     <span class="doccomment">/// Initializing the Kafka producer failed.
     </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-    #[error(<span class="string">"could not initialize kafka producer"</span>)]
-    </span>Kafka,
+    #[error(<span class="string">"could not initialize kafka producer: {0}"</span>)]
+    </span>Kafka(String),
 
     <span class="doccomment">/// Initializing the Redis cluster client failed.
     </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]

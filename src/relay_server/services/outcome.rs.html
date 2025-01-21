@@ -1083,8 +1083,6 @@
 <span class="kw">use </span>std::time::Duration;
 <span class="kw">use </span>std::{fmt, mem};
 
-<span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-</span><span class="kw">use </span>anyhow::Context;
 <span class="kw">use </span>chrono::{DateTime, SecondsFormat, Utc};
 <span class="kw">use </span>relay_base_schema::organization::OrganizationId;
 <span class="kw">use </span>relay_base_schema::project::ProjectId;
@@ -1888,10 +1886,12 @@
         <span class="kw">let </span><span class="kw-2">mut </span>client_builder = KafkaClient::builder();
 
         <span class="kw">for </span>topic <span class="kw">in </span><span class="kw-2">&amp;</span>[KafkaTopic::Outcomes, KafkaTopic::OutcomesBilling] {
-            <span class="kw">let </span>kafka_config = <span class="kw-2">&amp;</span>config.kafka_config(<span class="kw-2">*</span>topic).context(ServiceError::Kafka)<span class="question-mark">?</span>;
+            <span class="kw">let </span>kafka_config = <span class="kw-2">&amp;</span>config
+                .kafka_config(<span class="kw-2">*</span>topic)
+                .map_err(|e| ServiceError::Kafka(e.to_string()))<span class="question-mark">?</span>;
             client_builder = client_builder
                 .add_kafka_topic_config(<span class="kw-2">*</span>topic, kafka_config, config.kafka_validate_topics())
-                .context(ServiceError::Kafka)<span class="question-mark">?</span>;
+                .map_err(|e| ServiceError::Kafka(e.to_string()))<span class="question-mark">?</span>;
         }
 
         <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
