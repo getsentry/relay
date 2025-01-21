@@ -56,7 +56,7 @@ def test_event_with_flags_approximate(relay, mini_sentry):
     envelope = mini_sentry.captured_events.get(timeout=1)
     assert envelope
     assert envelope.items[0].payload.json["contexts"] == {
-        "flags": {"values": [{}], "type": "flags"}
+        "flags": {"values": [{"key": "k", "value": "v"}], "type": "flags"}
     }
     assert mini_sentry.captured_events.empty()
 
