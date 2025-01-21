@@ -1,7 +1,6 @@
 //! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses Kafka topics to forward data to Sentry
 
-use anyhow::Context;
 use relay_base_schema::organization::OrganizationId;
 use serde::ser::SerializeMap;
 use std::borrow::Cow;

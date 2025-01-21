@@ -12,7 +12,6 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::{fmt, mem};
 
-#[cfg(feature = "processing")]
 use chrono::{DateTime, SecondsFormat, Utc};
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
