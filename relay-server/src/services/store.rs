@@ -290,7 +290,6 @@ impl StoreService {
                 ItemType::Span => {
                     self.produce_span(scoping, received_at, event_id, retention, item)?
                 }
-                ItemType::Log => self.produce_log(scoping, received_at, retention, item)?,
                 ItemType::ProfileChunk => self.produce_profile_chunk(
                     scoping.organization_id,
                     scoping.project_id,
@@ -941,52 +940,6 @@ impl StoreService {
             scoping,
             timestamp: received_at,
         });
-        Ok(())
-    }
-
-    fn produce_log(
-        &self,
-        scoping: Scoping,
-        received_at: DateTime<Utc>,
-        retention_days: u16,
-        item: &Item,
-    ) -> Result<(), StoreError> {
-        relay_log::trace!("Producing log");
-        let payload = item.payload();
-        let payload_len = payload.len();
-
-        let message = KafkaMessage::Log {
-            headers: BTreeMap::from([("project_id".to_string(), scoping.project_id.to_string())]),
-            message: LogKafkaMessage {
-                payload,
-                organization_id: scoping.organization_id.value(),
-                project_id: scoping.project_id.value(),
-                retention_days,
-                received: safe_timestamp(received_at),
-            },
-        };
-
-        self.produce(KafkaTopic::OurLogs, message)?;
-
-        // We need to track the count and bytes separately for possible rate limits and quotas on both counts and bytes.
-        self.outcome_aggregator.send(TrackOutcome {
-            category: DataCategory::LogItem,
-            event_id: None,
-            outcome: Outcome::Accepted,
-            quantity: 1,
-            remote_addr: None,
-            scoping,
-            timestamp: received_at,
-        });
-        self.outcome_aggregator.send(TrackOutcome {
-            category: DataCategory::LogByte,
-            event_id: None,
-            outcome: Outcome::Accepted,
-            quantity: payload_len as u32,
-            remote_addr: None,
-            scoping,
-            timestamp: received_at,
-        });
 
         Ok(())
     }
@@ -1353,17 +1306,6 @@ struct SpanKafkaMessage<'a> {
     platform: Cow<'a, str>, // We only use this for logging for now
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-struct LogKafkaMessage {
-    /// Raw log payload.
-    payload: Bytes,
-    organization_id: u64,
-    project_id: u64,
-    /// Number of days until these data should be deleted.
-    retention_days: u16,
-    received: u64,
-}
-
 fn none_or_empty_object(value: &Option<&RawValue>) -> bool {
     match value {
         None => true,
@@ -1405,12 +1347,6 @@ enum KafkaMessage<'a> {
         #[serde(flatten)]
         message: SpanKafkaMessage<'a>,
     },
-    Log {
-        #[serde(skip)]
-        headers: BTreeMap<String, String>,
-        #[serde(flatten)]
-        message: LogKafkaMessage,
-    },
     ProfileChunk(ProfileChunkKafkaMessage),
 }
 
@@ -1433,7 +1369,6 @@ impl Message for KafkaMessage<'_> {
             KafkaMessage::ReplayEvent(_) => "replay_event",
             KafkaMessage::ReplayRecordingNotChunked(_) => "replay_recording_not_chunked",
             KafkaMessage::CheckIn(_) => "check_in",
-            KafkaMessage::Log { .. } => "log",
             KafkaMessage::Span { .. } => "span",
             KafkaMessage::ProfileChunk(_) => "profile_chunk",
         }
@@ -1457,7 +1392,6 @@ impl Message for KafkaMessage<'_> {
             // Random partitioning
             Self::Profile(_)
             | Self::Span { .. }
-            | Self::Log { .. }
             | Self::ReplayRecordingNotChunked(_)
             | Self::ProfileChunk(_) => Uuid::nil(),
 
@@ -1483,12 +1417,6 @@ impl Message for KafkaMessage<'_> {
             KafkaMessage::Profile(profile) => {
                 if !profile.headers.is_empty() {
                     return Some(&profile.headers);
-                }
-                None
-            }
-            KafkaMessage::Log { headers, .. } => {
-                if !headers.is_empty() {
-                    return Some(headers);
                 }
                 None
             }
