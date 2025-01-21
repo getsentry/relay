@@ -2,7 +2,7 @@ mod app;
 mod browser;
 mod cloud_resource;
 mod device;
-mod flag;
+mod flags;
 mod gpu;
 mod monitor;
 mod nel;
@@ -71,7 +71,7 @@ pub enum Context {
     /// Information related to Replay.
     Replay(Box<ReplayContext>),
     /// Information related to Feature flags.
-    Flags(Box<flag::FlagContext>),
+    Flags(Box<flags::FlagsContext>),
     /// Information related to User Report V2. TODO:(jferg): rename to UserFeedbackContext
     #[metastructure(tag = "feedback")]
     UserReportV2(Box<UserReportV2Context>),

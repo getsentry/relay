@@ -1,20 +1,33 @@
 use crate::processor::ProcessValue;
 use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Value};
 
+/// Flags context.
+///
+/// The flags context is a collection of flag evaluations performed during the lifetime
+/// of a process. The flags are submitted in the order they were evaluated to preserve
+/// the state transformations taking place in the application.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-pub struct FlagContext {
-    pub values: Annotated<Vec<Annotated<FlagContextItem>>>,
+pub struct FlagsContext {
+    /// An list of flag evaluation results in the order they were evaluated.
+    pub values: Annotated<Vec<Annotated<FlagsContextItem>>>,
 }
 
+/// Flags context item.
+///
+/// A flag context item represents an individual flag evaluation result. It contains
+/// the name of the flag and its evaluation result.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-pub struct FlagContextItem {
+pub struct FlagsContextItem {
+    /// The name of the evaluated flag.
     #[metastructure(max_chars = 200, allow_chars = "a-zA-Z0-9_.:-")]
     pub flag: Annotated<String>,
+    /// The result of the flag evaluation. Evaluation results can be any valid JSON
+    /// type.
     #[metastructure(max_chars = 200, deny_chars = "\n")]
     pub result: Annotated<Value>,
 }
 
-impl super::DefaultContext for FlagContext {
+impl super::DefaultContext for FlagsContext {
     fn default_key() -> &'static str {
         "flags"
     }
@@ -67,17 +80,17 @@ mod test {
 }"#;
 
         let flags = vec![
-            Annotated::new(FlagContextItem {
+            Annotated::new(FlagsContextItem {
                 flag: Annotated::new("abc".to_string()),
                 result: Annotated::new(Value::Bool(true)),
             }),
-            Annotated::new(FlagContextItem {
+            Annotated::new(FlagsContextItem {
                 flag: Annotated::new("def".to_string()),
                 result: Annotated::new(Value::Bool(false)),
             }),
         ];
 
-        let context = Annotated::new(Context::Flags(Box::new(FlagContext {
+        let context = Annotated::new(Context::Flags(Box::new(FlagsContext {
             values: Annotated::new(flags),
         })));
 
