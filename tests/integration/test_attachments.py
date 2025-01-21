@@ -1,3 +1,4 @@
+from unittest import mock
 import pytest
 import uuid
 import json
@@ -445,17 +446,42 @@ def test_event_with_attachment(
         "rate_limited": False,
     }
 
-    attachment = attachments_consumer.get_individual_attachment()
-    assert attachment["attachment"].pop("id")
-    assert attachment == {
-        "type": "attachment",
-        "attachment": expected_attachment,
-        "event_id": event_id,
-        "project_id": project_id,
-    }
+    if drop_transaction_attachments:
+        attachments_consumer.assert_empty()
+        assert outcomes_consumer.get_outcomes() == [
+            {
+                "timestamp": mock.ANY,
+                "org_id": 1,
+                "project_id": 42,
+                "key_id": 123,
+                "outcome": 3,
+                "reason": "transaction_attachment",
+                "category": 4,
+                "quantity": 22,
+            },
+            {
+                "timestamp": mock.ANY,
+                "org_id": 1,
+                "project_id": 42,
+                "key_id": 123,
+                "outcome": 3,
+                "reason": "transaction_attachment",
+                "category": 22,
+                "quantity": 1,
+            },
+        ]
+    else:
+        attachment = attachments_consumer.get_individual_attachment()
+        assert attachment["attachment"].pop("id")
+        assert attachment == {
+            "type": "attachment",
+            "attachment": expected_attachment,
+            "event_id": event_id,
+            "project_id": project_id,
+        }
 
-    _, event = attachments_consumer.get_event()
-    assert event["event_id"] == event_id
+        _, event = attachments_consumer.get_event()
+        assert event["event_id"] == event_id
 
 
 def test_form_data_is_rejected(
