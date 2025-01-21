@@ -51,7 +51,7 @@ mod test {
     use crate::protocol::Context;
 
     #[test]
-    fn test_deserializing_feature_context() {
+    fn test_deserializing_flag_context() {
         let json = r#"{
   "values": [
     {
