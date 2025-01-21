@@ -92,6 +92,7 @@ mod replay;
 mod report;
 mod session;
 mod span;
+mod transaction;
 pub use span::extract_transaction_span;
 
 mod standalone;
@@ -1628,6 +1629,8 @@ impl EnvelopeProcessorService {
 
         let global_config = self.inner.global_config.current();
 
+        transaction::drop_invalid_items(managed_envelope, &global_config);
+
         // We extract the main event from the envelope.
         let extraction_result = event::extract(
             managed_envelope,
@@ -1759,12 +1762,6 @@ impl EnvelopeProcessorService {
         event::scrub(&mut event, project_info.clone())?;
 
         if_processing!(self.inner.config, {
-            // Drop attachments in transaction envelopes.
-
-            // NOTE: it would be more efficient to do this in the first Relay in the chain,
-            // but we might need the flexibility to change this behavior in the near future.
-            // We could have this flexibility with a global option, but that would make the
-            // store processor even more complicated.
             managed_envelope.retain_items(|item| match item.ty() {
                 &ItemType::Attachment => {
                     ItemAction::Drop(Outcome::Invalid(DiscardReason::TransactionAttachment))

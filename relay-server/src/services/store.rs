@@ -211,7 +211,7 @@ impl StoreService {
             KafkaTopic::Events
         };
 
-        let send_individual_attachments = event_type.is_none();
+        let send_individual_attachments = matches!(event_type, None | Some(&ItemType::Transaction));
 
         let mut attachments = Vec::new();
         let mut replay_event = None;
@@ -583,7 +583,7 @@ impl StoreService {
         // When sending individual attachments, and we have a single chunk, we want to send the
         // `data` inline in the `attachment` message.
         // This avoids a needless roundtrip through the attachments cache on the Sentry side.
-        let inlined_data = if send_individual_attachments && size < max_chunk_size {
+        let data = if send_individual_attachments && size < max_chunk_size {
             (size > 0).then_some(payload)
         } else {
             let mut offset = 0;
@@ -623,7 +623,7 @@ impl StoreService {
                 .map(|content_type| content_type.as_str().to_owned()),
             attachment_type: item.attachment_type().cloned().unwrap_or_default(),
             chunks: chunk_index,
-            data: inlined_data,
+            data,
             size: Some(size),
             rate_limited: Some(item.rate_limited()),
         };
