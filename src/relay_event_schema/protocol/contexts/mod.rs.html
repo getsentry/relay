@@ -399,10 +399,14 @@
 <a href="#398" id="398">398</a>
 <a href="#399" id="399">399</a>
 <a href="#400" id="400">400</a>
-<a href="#401" id="401">401</a></pre></div><pre class="rust"><code><span class="kw">mod </span>app;
+<a href="#401" id="401">401</a>
+<a href="#402" id="402">402</a>
+<a href="#403" id="403">403</a>
+<a href="#404" id="404">404</a></pre></div><pre class="rust"><code><span class="kw">mod </span>app;
 <span class="kw">mod </span>browser;
 <span class="kw">mod </span>cloud_resource;
 <span class="kw">mod </span>device;
+<span class="kw">mod </span>flags;
 <span class="kw">mod </span>gpu;
 <span class="kw">mod </span>monitor;
 <span class="kw">mod </span>nel;
@@ -470,6 +474,8 @@
     </span>Profile(Box&lt;ProfileContext&gt;),
     <span class="doccomment">/// Information related to Replay.
     </span>Replay(Box&lt;ReplayContext&gt;),
+    <span class="doccomment">/// Information related to Feature flags.
+    </span>Flags(Box&lt;flags::FlagsContext&gt;),
     <span class="doccomment">/// Information related to User Report V2. TODO:(jferg): rename to UserFeedbackContext
     </span><span class="attr">#[metastructure(tag = <span class="string">"feedback"</span>)]
     </span>UserReportV2(Box&lt;UserReportV2Context&gt;),
