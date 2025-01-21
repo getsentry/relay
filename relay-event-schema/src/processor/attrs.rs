@@ -46,7 +46,6 @@ pub enum ValueType {
     Message,
     Thread,
     Breadcrumb,
-    OurLog,
     Span,
     ClientSdkInfo,
 
@@ -85,7 +84,6 @@ relay_common::derive_fromstr_and_display!(ValueType, UnknownValueTypeError, {
     ValueType::Message => "message",
     ValueType::Thread => "thread",
     ValueType::Breadcrumb => "breadcrumb",
-    ValueType::OurLog => "ourlog",
     ValueType::Span => "span",
     ValueType::ClientSdkInfo => "sdk",
     ValueType::Minidump => "minidump",
