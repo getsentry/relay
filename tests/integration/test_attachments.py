@@ -438,17 +438,30 @@ def test_event_with_attachment(
         "rate_limited": False,
     }
 
-    attachment = attachments_consumer.get_individual_attachment()
-    assert attachment["attachment"].pop("id")
-    assert attachment == {
-        "type": "attachment",
-        "attachment": expected_attachment,
-        "event_id": event_id,
-        "project_id": project_id,
-    }
+    attachments_consumer.assert_empty()
 
-    _, event = attachments_consumer.get_event()
-    assert event["event_id"] == event_id
+    assert outcomes_consumer.get_outcomes() == [
+        {
+            "timestamp": "2025-01-21T12:23:27.000000Z",
+            "org_id": 1,
+            "project_id": 42,
+            "key_id": 123,
+            "outcome": 3,
+            "reason": "transaction_attachment",
+            "category": 4,
+            "quantity": 22,
+        },
+        {
+            "timestamp": "2025-01-21T12:23:27.000000Z",
+            "org_id": 1,
+            "project_id": 42,
+            "key_id": 123,
+            "outcome": 3,
+            "reason": "transaction_attachment",
+            "category": 22,
+            "quantity": 1,
+        },
+    ]
 
 
 def test_form_data_is_rejected(
