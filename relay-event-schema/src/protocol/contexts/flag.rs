@@ -2,46 +2,46 @@ use crate::processor::ProcessValue;
 use relay_protocol::{Annotated, Empty, FromValue, IntoValue, Value};
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-pub struct FeatureContext {
-    pub values: Annotated<Vec<Annotated<FeatureContextItem>>>,
+pub struct FlagContext {
+    pub values: Annotated<Vec<Annotated<FlagContextItem>>>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-pub struct FeatureContextItem {
+pub struct FlagContextItem {
     #[metastructure(max_chars = 200, allow_chars = "a-zA-Z0-9_.:-")]
     pub flag: Annotated<String>,
     #[metastructure(max_chars = 200, deny_chars = "\n")]
     pub result: Annotated<Value>,
 }
 
-impl super::DefaultContext for FeatureContext {
+impl super::DefaultContext for FlagContext {
     fn default_key() -> &'static str {
         "replay"
     }
 
     fn from_context(context: super::Context) -> Option<Self> {
         match context {
-            super::Context::Feature(c) => Some(*c),
+            super::Context::Flag(c) => Some(*c),
             _ => None,
         }
     }
 
     fn cast(context: &super::Context) -> Option<&Self> {
         match context {
-            super::Context::Feature(c) => Some(c),
+            super::Context::Flag(c) => Some(c),
             _ => None,
         }
     }
 
     fn cast_mut(context: &mut super::Context) -> Option<&mut Self> {
         match context {
-            super::Context::Feature(c) => Some(c),
+            super::Context::Flag(c) => Some(c),
             _ => None,
         }
     }
 
     fn into_context(self) -> super::Context {
-        super::Context::Feature(Box::new(self))
+        super::Context::Flag(Box::new(self))
     }
 }
 
@@ -51,7 +51,7 @@ mod test {
     use crate::protocol::Context;
 
     #[test]
-    fn test_deserializing_feature_context() {
+    fn test_deserializing_flag_context() {
         let json = r#"{
   "flags": {
     "values": [
@@ -68,17 +68,17 @@ mod test {
 }"#;
 
         let flags = vec![
-            Annotated::new(FeatureContextItem {
+            Annotated::new(FlagContextItem {
                 flag: Annotated::new("abc".to_string()),
                 result: Annotated::new(Value::Bool(true)),
             }),
-            Annotated::new(FeatureContextItem {
+            Annotated::new(FlagContextItem {
                 flag: Annotated::new("def".to_string()),
                 result: Annotated::new(Value::Bool(false)),
             }),
         ];
 
-        let context = Annotated::new(Context::Feature(Box::new(FeatureContext {
+        let context = Annotated::new(Context::Flag(Box::new(FlagContext {
             values: Annotated::new(flags),
         })));
 
@@ -93,7 +93,7 @@ mod test {
       "result": false
     }
   ],
-  "type": "feature"
+  "type": "Flag"
 }"#;
 
         assert_eq!(context, Annotated::from_json(json).unwrap());
