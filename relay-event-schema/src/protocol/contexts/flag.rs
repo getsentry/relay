@@ -16,7 +16,7 @@ pub struct FlagContextItem {
 
 impl super::DefaultContext for FlagContext {
     fn default_key() -> &'static str {
-        "replay"
+        "flags"
     }
 
     fn from_context(context: super::Context) -> Option<Self> {
