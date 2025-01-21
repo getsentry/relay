@@ -74,7 +74,6 @@ impl From<ForwardedFor> for String {
     }
 }
 
-#[axum::async_trait]
 impl<S> FromRequestParts<S> for ForwardedFor
 where
     S: Send + Sync,

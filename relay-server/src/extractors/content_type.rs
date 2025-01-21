@@ -20,8 +20,7 @@ impl AsRef<str> for RawContentType {
     }
 }
 
-#[axum::async_trait]
-impl<S> FromRequestParts<S> for RawContentType {
+impl<S: Send + Sync> FromRequestParts<S> for RawContentType {
     type Rejection = Infallible;
 
     async fn from_request_parts(parts: &mut Parts, _: &S) -> Result<Self, Self::Rejection> {
