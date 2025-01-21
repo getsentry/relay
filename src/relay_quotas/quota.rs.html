@@ -947,7 +947,9 @@
 <a href="#946" id="946">946</a>
 <a href="#947" id="947">947</a>
 <a href="#948" id="948">948</a>
-<a href="#949" id="949">949</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
+<a href="#949" id="949">949</a>
+<a href="#950" id="950">950</a>
+<a href="#951" id="951">951</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
 
 <span class="kw">use </span>relay_base_schema::metrics::MetricNamespace;
@@ -1155,7 +1157,9 @@
             | DataCategory::AttachmentItem
             | DataCategory::Session =&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::Count),
             DataCategory::Attachment =&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::Bytes),
-            DataCategory::ProfileDuration =&gt; <span class="prelude-val">Some</span>(<span class="self">Self</span>::Milliseconds),
+            DataCategory::ProfileDuration | DataCategory::ProfileDurationUi =&gt; {
+                <span class="prelude-val">Some</span>(<span class="self">Self</span>::Milliseconds)
+            }
 
             DataCategory::Unknown =&gt; <span class="prelude-val">None</span>,
         }

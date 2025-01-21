@@ -238,7 +238,15 @@
 <a href="#237" id="237">237</a>
 <a href="#238" id="238">238</a>
 <a href="#239" id="239">239</a>
-<a href="#240" id="240">240</a></pre></div><pre class="rust"><code><span class="doccomment">//! Defines the [`DataCategory`] type that classifies data Relay can handle.
+<a href="#240" id="240">240</a>
+<a href="#241" id="241">241</a>
+<a href="#242" id="242">242</a>
+<a href="#243" id="243">243</a>
+<a href="#244" id="244">244</a>
+<a href="#245" id="245">245</a>
+<a href="#246" id="246">246</a>
+<a href="#247" id="247">247</a>
+<a href="#248" id="248">248</a></pre></div><pre class="rust"><code><span class="doccomment">//! Defines the [`DataCategory`] type that classifies data Relay can handle.
 
 </span><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::str::FromStr;
@@ -310,8 +318,8 @@
     </span>SpanIndexed = <span class="number">16</span>,
     <span class="doccomment">/// ProfileDuration
     ///
-    /// This data category is used to count the number of milliseconds we have per indexed profile chunk.
-    /// We will then bill per second.
+    /// This data category is used to count the number of milliseconds per indexed profile chunk,
+    /// excluding UI profile chunks.
     </span>ProfileDuration = <span class="number">17</span>,
     <span class="doccomment">/// ProfileChunk
     ///
@@ -341,6 +349,12 @@
     ///
     /// This is the category for logs for which we store log event total bytes for users.
     </span>LogByte = <span class="number">24</span>,
+    <span class="doccomment">/// ProfileDurationUi
+    ///
+    /// This data category is used to count the number of milliseconds per indexed UI profile
+    /// chunk.
+    </span>ProfileDurationUi = <span class="number">25</span>,
+
     <span class="comment">//
     // IMPORTANT: After adding a new entry to DataCategory, go to the `relay-cabi` subfolder and run
     // `make header` to regenerate the C-binding. This allows using the data category from Python.
@@ -377,6 +391,7 @@
             <span class="string">"metric_bucket" </span>=&gt; <span class="self">Self</span>::MetricBucket,
             <span class="string">"span_indexed" </span>=&gt; <span class="self">Self</span>::SpanIndexed,
             <span class="string">"profile_duration" </span>=&gt; <span class="self">Self</span>::ProfileDuration,
+            <span class="string">"profile_duration_ui" </span>=&gt; <span class="self">Self</span>::ProfileDurationUi,
             <span class="string">"profile_chunk" </span>=&gt; <span class="self">Self</span>::ProfileChunk,
             <span class="string">"metric_second" </span>=&gt; <span class="self">Self</span>::MetricSecond,
             <span class="string">"replay_video" </span>=&gt; <span class="self">Self</span>::ReplayVideo,
@@ -410,6 +425,7 @@
             <span class="self">Self</span>::MetricBucket =&gt; <span class="string">"metric_bucket"</span>,
             <span class="self">Self</span>::SpanIndexed =&gt; <span class="string">"span_indexed"</span>,
             <span class="self">Self</span>::ProfileDuration =&gt; <span class="string">"profile_duration"</span>,
+            <span class="self">Self</span>::ProfileDurationUi =&gt; <span class="string">"profile_duration_ui"</span>,
             <span class="self">Self</span>::ProfileChunk =&gt; <span class="string">"profile_chunk"</span>,
             <span class="self">Self</span>::MetricSecond =&gt; <span class="string">"metric_second"</span>,
             <span class="self">Self</span>::ReplayVideo =&gt; <span class="string">"replay_video"</span>,
