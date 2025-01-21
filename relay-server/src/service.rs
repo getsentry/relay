@@ -41,7 +41,7 @@ use relay_redis::{PooledClient, RedisError, RedisPool, RedisPools, RedisScripts}
 use relay_system::{channel, Addr, Service, ServiceRunner};
 
 /// Indicates the type of failure of the server.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, thiserror::Error)]
+#[derive(Debug, thiserror::Error)]
 pub enum ServiceError {
     /// GeoIp construction failed.
     #[error("could not load the Geoip Db")]
@@ -49,8 +49,8 @@ pub enum ServiceError {
 
     /// Initializing the Kafka producer failed.
     #[cfg(feature = "processing")]
-    #[error("could not initialize kafka producer")]
-    Kafka,
+    #[error("could not initialize kafka producer: {0}")]
+    Kafka(String),
 
     /// Initializing the Redis cluster client failed.
     #[cfg(feature = "processing")]

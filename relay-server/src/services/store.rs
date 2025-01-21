@@ -69,7 +69,7 @@ impl Producer {
             let kafka_config = &config.kafka_config(*topic)?;
             client_builder = client_builder
                 .add_kafka_topic_config(*topic, kafka_config, config.kafka_validate_topics())
-                .context(ServiceError::Kafka)?;
+                .map_err(|e| ServiceError::Kafka(e.to_string()))?;
         }
 
         Ok(Self {
