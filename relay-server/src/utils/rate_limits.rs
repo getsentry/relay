@@ -771,7 +771,7 @@ where
             let replay_limits = self
                 .check
                 .apply(item_scoping, summary.replay_video_quantity)?;
-            enforcement.replays = CategoryLimit::new(
+            enforcement.replay_videos = CategoryLimit::new(
                 DataCategory::ReplayVideo,
                 summary.replay_video_quantity,
                 replay_limits.longest(),
