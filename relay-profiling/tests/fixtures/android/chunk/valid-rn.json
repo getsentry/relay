@@ -1,6 +1,7 @@
 {
     "build_id": "607a1d40-1d13-4360-a2a2-069a2e0068fb",
     "chunk_id": "5f2dae120baa43679198f369c7df69c8",
+    "timestamp":123.456789,
     "profiler_id": "79ba28b85eb542ce9d7f008d1c26a5f3",
     "environment": "dev",
     "platform": "android",

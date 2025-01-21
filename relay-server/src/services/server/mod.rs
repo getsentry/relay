@@ -24,6 +24,7 @@ use crate::service::ServiceState;
 use crate::statsd::{RelayCounters, RelayGauges};
 
 mod acceptor;
+mod concurrency_limit;
 mod io;
 
 /// Set the number of keep-alive retransmissions to be carried out before declaring that remote end
@@ -140,7 +141,11 @@ async fn serve(listener: TcpListener, app: App, config: Arc<Config>) {
         .timer(TokioTimer::new())
         .keep_alive_timeout(config.keepalive_timeout());
 
-    let service = ServiceExt::<Request>::into_make_service_with_connect_info::<SocketAddr>(app);
+    let service = ServiceBuilder::new()
+        .layer(concurrency_limit::ConcurrencyLimitLayer::new(
+            config.max_connections(),
+        ))
+        .service(ServiceExt::<Request>::into_make_service_with_connect_info::<SocketAddr>(app));
 
     relay_system::spawn!(emit_active_connections_metric(
         config.metrics_periodic_interval(),
