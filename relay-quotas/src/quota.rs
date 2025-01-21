@@ -206,7 +206,9 @@ impl CategoryUnit {
             | DataCategory::AttachmentItem
             | DataCategory::Session => Some(Self::Count),
             DataCategory::Attachment => Some(Self::Bytes),
-            DataCategory::ProfileDuration => Some(Self::Milliseconds),
+            DataCategory::ProfileDuration | DataCategory::ProfileDurationUi => {
+                Some(Self::Milliseconds)
+            }
 
             DataCategory::Unknown => None,
         }
