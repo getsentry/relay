@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.9.6
 
 - Add a new data category for UI profiling. ([#4468](https://github.com/getsentry/relay/pull/4468))
 
