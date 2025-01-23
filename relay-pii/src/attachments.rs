@@ -1,15 +1,14 @@
-use std::borrow::Cow;
-use std::iter::FusedIterator;
-
 use regex::bytes::RegexBuilder as BytesRegexBuilder;
 use regex::{Match, Regex};
 use relay_event_schema::processor::{FieldAttrs, Pii, ProcessingState, ValueType};
 use smallvec::SmallVec;
+use std::borrow::Cow;
+use std::iter::FusedIterator;
 use utf16string::{LittleEndian, WStr};
 
 use crate::compiledconfig::RuleRef;
 use crate::regexes::{get_regex_for_rule_type, ReplaceBehavior};
-use crate::{utils, CompiledPiiConfig, Redaction};
+use crate::{transform, utils, CompiledPiiConfig, JsonScrubError, JsonScrubVisitor, Redaction};
 
 /// The minimum length a string needs to be in a binary blob.
 ///
@@ -512,6 +511,27 @@ impl<'a> PiiAttachmentsProcessor<'a> {
         } else {
             false
         }
+    }
+
+    /// Applies PII rules to the given JSON.
+    ///
+    /// This function will perform PII scrubbing using `serde_transcode`, which means that it
+    /// does not have to read the entire document in memory but will rather perform in on a
+    /// per-item basis using a streaming approach.
+    ///
+    /// Returns a scrubbed copy of the JSON document.
+    pub fn scrub_json(&self, payload: &[u8]) -> Result<Vec<u8>, JsonScrubError> {
+        let output = Vec::new();
+
+        let visitor = JsonScrubVisitor::new(self.compiled_config);
+
+        let mut deserializer_inner = serde_json::Deserializer::from_slice(payload);
+        let deserializer = transform::Deserializer::new(&mut deserializer_inner, visitor);
+
+        let mut serializer = serde_json::Serializer::new(output);
+        serde_transcode::transcode(deserializer, &mut serializer)
+            .map_err(|_| JsonScrubError::TranscodeFailed)?;
+        Ok(serializer.into_inner())
     }
 }
 

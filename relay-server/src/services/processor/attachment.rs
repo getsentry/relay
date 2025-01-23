@@ -12,6 +12,7 @@ use crate::statsd::RelayTimers;
 
 use crate::services::projects::project::ProjectInfo;
 use crate::utils::TypedEnvelope;
+use relay_dynamic_config::Feature;
 #[cfg(feature = "processing")]
 use {
     crate::services::processor::{ErrorGroup, EventFullyNormalized},
@@ -61,20 +62,22 @@ pub fn create_placeholders(
 pub fn scrub<Group>(managed_envelope: &mut TypedEnvelope<Group>, project_info: Arc<ProjectInfo>) {
     let envelope = managed_envelope.envelope_mut();
     if let Some(ref config) = project_info.config.pii_config {
-        let minidump = envelope
-            .get_item_by_mut(|item| item.attachment_type() == Some(&AttachmentType::Minidump));
-
-        if let Some(item) = minidump {
-            scrub_minidump(item, config);
-        } else if has_simple_attachment_selector(config) {
-            // We temporarily only scrub attachments to projects that have at least one simple attachment rule,
-            // such as `$attachments.'foo.txt'`.
-            // After we have assessed the impact on performance we can relax this condition.
-            for item in envelope
-                .items_mut()
-                .filter(|item| item.ty() == &ItemType::Attachment)
+        let view_hierarchy_scrubbing_enabled = project_info
+            .config
+            .features
+            .has(Feature::ViewHierarchyScrubbing);
+        for item in envelope.items_mut() {
+            if view_hierarchy_scrubbing_enabled
+                && item.attachment_type() == Some(&AttachmentType::ViewHierarchy)
             {
-                scrub_attachment(item, config);
+                scrub_view_hierarchy(item, config)
+            } else if item.attachment_type() == Some(&AttachmentType::Minidump) {
+                scrub_minidump(item, config)
+            } else if item.ty() == &ItemType::Attachment && has_simple_attachment_selector(config) {
+                // We temporarily only scrub attachments to projects that have at least one simple attachment rule,
+                // such as `$attachments.'foo.txt'`.
+                // After we have assessed the impact on performance we can relax this condition.
+                scrub_attachment(item, config)
             }
         }
     }
@@ -123,6 +126,30 @@ fn scrub_minidump(item: &mut crate::envelope::Item, config: &relay_pii::PiiConfi
         .clone();
 
     item.set_payload(content_type, payload);
+}
+
+fn scrub_view_hierarchy(item: &mut crate::envelope::Item, config: &relay_pii::PiiConfig) {
+    let processor = PiiAttachmentsProcessor::new(config.compiled());
+
+    let payload = item.payload();
+    let start = Instant::now();
+    match processor.scrub_json(&payload) {
+        Ok(output) => {
+            metric!(
+                timer(RelayTimers::ViewHierarchyScrubbing) = start.elapsed(),
+                status = "ok"
+            );
+            let content_type = item.content_type().unwrap_or(&ContentType::Json).clone();
+            item.set_payload(content_type, output);
+        }
+        Err(e) => {
+            relay_log::warn!(error = &e as &dyn Error, "failed to scrub view hierarchy",);
+            metric!(
+                timer(RelayTimers::ViewHierarchyScrubbing) = start.elapsed(),
+                status = "error"
+            )
+        }
+    }
 }
 
 fn has_simple_attachment_selector(config: &relay_pii::PiiConfig) -> bool {

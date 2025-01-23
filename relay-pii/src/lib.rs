@@ -12,6 +12,7 @@ mod compiledconfig;
 mod config;
 mod convert;
 mod generate_selectors;
+mod json;
 mod legacy;
 mod minidumps;
 mod processor;
@@ -20,10 +21,13 @@ mod regexes;
 mod selector;
 mod utils;
 
+pub mod transform;
+
 pub use self::attachments::*;
 pub use self::compiledconfig::*;
 pub use self::config::*;
 pub use self::generate_selectors::selector_suggestions_from_value;
+pub use self::json::*;
 pub use self::legacy::*;
 pub use self::minidumps::*;
 pub use self::processor::*;
