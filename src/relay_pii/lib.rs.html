@@ -29,7 +29,11 @@
 <a href="#28" id="28">28</a>
 <a href="#29" id="29">29</a>
 <a href="#30" id="30">30</a>
-<a href="#31" id="31">31</a></pre></div><pre class="rust"><code><span class="doccomment">//! Scrubbing of personally identifiable information (PII) from events
+<a href="#31" id="31">31</a>
+<a href="#32" id="32">32</a>
+<a href="#33" id="33">33</a>
+<a href="#34" id="34">34</a>
+<a href="#35" id="35">35</a></pre></div><pre class="rust"><code><span class="doccomment">//! Scrubbing of personally identifiable information (PII) from events
 
 </span><span class="attr">#![warn(missing_docs)]
 #![doc(
@@ -43,6 +47,7 @@
 <span class="kw">mod </span>config;
 <span class="kw">mod </span>convert;
 <span class="kw">mod </span>generate_selectors;
+<span class="kw">mod </span>json;
 <span class="kw">mod </span>legacy;
 <span class="kw">mod </span>minidumps;
 <span class="kw">mod </span>processor;
@@ -51,10 +56,13 @@
 <span class="kw">mod </span>selector;
 <span class="kw">mod </span>utils;
 
+<span class="kw">pub mod </span>transform;
+
 <span class="kw">pub use </span><span class="self">self</span>::attachments::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="self">self</span>::compiledconfig::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="self">self</span>::config::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="self">self</span>::generate_selectors::selector_suggestions_from_value;
+<span class="kw">pub use </span><span class="self">self</span>::json::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="self">self</span>::legacy::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="self">self</span>::minidumps::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="self">self</span>::processor::<span class="kw-2">*</span>;

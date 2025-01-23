@@ -1023,7 +1023,17 @@
 <a href="#1022" id="1022">1022</a>
 <a href="#1023" id="1023">1023</a>
 <a href="#1024" id="1024">1024</a>
-<a href="#1025" id="1025">1025</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
+<a href="#1025" id="1025">1025</a>
+<a href="#1026" id="1026">1026</a>
+<a href="#1027" id="1027">1027</a>
+<a href="#1028" id="1028">1028</a>
+<a href="#1029" id="1029">1029</a>
+<a href="#1030" id="1030">1030</a>
+<a href="#1031" id="1031">1031</a>
+<a href="#1032" id="1032">1032</a>
+<a href="#1033" id="1033">1033</a>
+<a href="#1034" id="1034">1034</a>
+<a href="#1035" id="1035">1035</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 <span class="attr">#[cfg(doc)]
 </span><span class="kw">use </span>relay_system::RuntimeMetrics;
 
@@ -1433,6 +1443,15 @@
     ///       was an error during scrubbing and finally "n/a" means scrubbing was successful
     ///       but no scurbbing rules applied.
     </span>MinidumpScrubbing,
+    <span class="doccomment">/// Time spent on view hierarchy scrubbing.
+    ///
+    /// This is the total time spent on parsing and scrubbing the view hierarchy json file.
+    ///
+    /// This metric is tagged with:
+    ///
+    /// - `status`: "ok" means successful scrubbed, "error" means there was an error during
+    ///             scrubbing
+    </span>ViewHierarchyScrubbing,
     <span class="doccomment">/// Time spend on attachment scrubbing.
     ///
     /// This represents the total time spent on evaluating the scrubbing rules for an
@@ -1584,6 +1603,7 @@
             </span>RelayTimers::ProjectStateDecompression =&gt; <span class="string">"project_state.decompression"</span>,
             RelayTimers::RequestsDuration =&gt; <span class="string">"requests.duration"</span>,
             RelayTimers::MinidumpScrubbing =&gt; <span class="string">"scrubbing.minidumps.duration"</span>,
+            RelayTimers::ViewHierarchyScrubbing =&gt; <span class="string">"scrubbing.view_hierarchy_scrubbing.duration"</span>,
             RelayTimers::AttachmentScrubbing =&gt; <span class="string">"scrubbing.attachments.duration"</span>,
             RelayTimers::UpstreamRequestsDuration =&gt; <span class="string">"upstream.requests.duration"</span>,
             RelayTimers::TimestampDelay =&gt; <span class="string">"requests.timestamp_delay"</span>,

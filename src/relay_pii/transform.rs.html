@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-replays/src/transform.rs`."><title>transform.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-42caa33d.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_replays" data-themes="" data-resource-suffix="" data-rustdoc-version="1.84.0 (9fc6b4312 2025-01-07)" data-channel="1.84.0" data-search-js="search-92e6798f.js" data-settings-js="settings-0f613d39.js" ><script src="../../static.files/storage-59e33391.js"></script><script defer src="../../static.files/src-script-56102188.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-893ab5e7.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">relay_replays/</div>transform.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `relay-pii/src/transform.rs`."><title>transform.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-42caa33d.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="relay_pii" data-themes="" data-resource-suffix="" data-rustdoc-version="1.84.0 (9fc6b4312 2025-01-07)" data-channel="1.84.0" data-search-js="search-92e6798f.js" data-settings-js="settings-0f613d39.js" ><script src="../../static.files/storage-59e33391.js"></script><script defer src="../../static.files/src-script-56102188.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-893ab5e7.css"></noscript><link rel="icon" href="https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">relay_pii/</div>transform.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers">
 <a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
@@ -905,7 +905,33 @@
 <a href="#904" id="904">904</a>
 <a href="#905" id="905">905</a>
 <a href="#906" id="906">906</a>
-<a href="#907" id="907">907</a></pre></div><pre class="rust"><code><span class="doccomment">//! A transforming `serde` Deserializer`.
+<a href="#907" id="907">907</a>
+<a href="#908" id="908">908</a>
+<a href="#909" id="909">909</a>
+<a href="#910" id="910">910</a>
+<a href="#911" id="911">911</a>
+<a href="#912" id="912">912</a>
+<a href="#913" id="913">913</a>
+<a href="#914" id="914">914</a>
+<a href="#915" id="915">915</a>
+<a href="#916" id="916">916</a>
+<a href="#917" id="917">917</a>
+<a href="#918" id="918">918</a>
+<a href="#919" id="919">919</a>
+<a href="#920" id="920">920</a>
+<a href="#921" id="921">921</a>
+<a href="#922" id="922">922</a>
+<a href="#923" id="923">923</a>
+<a href="#924" id="924">924</a>
+<a href="#925" id="925">925</a>
+<a href="#926" id="926">926</a>
+<a href="#927" id="927">927</a>
+<a href="#928" id="928">928</a>
+<a href="#929" id="929">929</a>
+<a href="#930" id="930">930</a>
+<a href="#931" id="931">931</a>
+<a href="#932" id="932">932</a>
+<a href="#933" id="933">933</a></pre></div><pre class="rust"><code><span class="doccomment">//! A transforming `serde` Deserializer`.
 
 </span><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::fmt;
@@ -956,6 +982,7 @@
 ///     }
 /// }
 /// ```
+</span><span class="attr">#[allow(missing_docs)]
 </span><span class="kw">pub trait </span>Transform&lt;<span class="lifetime">'de</span>&gt; {
     <span class="kw">fn </span>push_path(<span class="kw-2">&amp;mut </span><span class="self">self</span>, _key: <span class="kw-2">&amp;</span><span class="lifetime">'de </span>str) {}
 
@@ -997,14 +1024,12 @@
         v
     }
 
-    <span class="macro">serde::serde_if_integer128!</span> {
-        <span class="kw">fn </span>transform_i128(<span class="kw-2">&amp;mut </span><span class="self">self</span>, v: i128) -&gt; i128 {
-            v
-        }
+    <span class="kw">fn </span>transform_i128(<span class="kw-2">&amp;mut </span><span class="self">self</span>, v: i128) -&gt; i128 {
+        v
+    }
 
-        <span class="kw">fn </span>transform_u128(<span class="kw-2">&amp;mut </span><span class="self">self</span>, v: u128) -&gt; u128 {
-            v
-        }
+    <span class="kw">fn </span>transform_u128(<span class="kw-2">&amp;mut </span><span class="self">self</span>, v: u128) -&gt; u128 {
+        v
     }
 
     <span class="kw">fn </span>transform_f32(<span class="kw-2">&amp;mut </span><span class="self">self</span>, v: f32) -&gt; f32 {
@@ -1227,20 +1252,26 @@
         ))
     }
 
-    <span class="macro">serde::serde_if_integer128!</span> {
-        <span class="kw">fn </span>deserialize_i128&lt;V&gt;(<span class="kw-2">mut </span><span class="self">self</span>, visitor: V) -&gt; <span class="prelude-ty">Result</span>&lt;V::Value, <span class="self">Self</span>::Error&gt;
-        <span class="kw">where
-            </span>V: de::Visitor&lt;<span class="lifetime">'de</span>&gt;,
-        {
-            <span class="self">self</span>.inner.deserialize_i128(Visitor { inner: visitor, transformer: <span class="self">self</span>.transformer.as_mut(), is_key: <span class="self">self</span>.is_key })
-        }
+    <span class="kw">fn </span>deserialize_i128&lt;V&gt;(<span class="kw-2">mut </span><span class="self">self</span>, visitor: V) -&gt; <span class="prelude-ty">Result</span>&lt;V::Value, <span class="self">Self</span>::Error&gt;
+    <span class="kw">where
+        </span>V: de::Visitor&lt;<span class="lifetime">'de</span>&gt;,
+    {
+        <span class="self">self</span>.inner.deserialize_i128(Visitor {
+            inner: visitor,
+            transformer: <span class="self">self</span>.transformer.as_mut(),
+            is_key: <span class="self">self</span>.is_key,
+        })
+    }
 
-        <span class="kw">fn </span>deserialize_u128&lt;V&gt;(<span class="kw-2">mut </span><span class="self">self</span>, visitor: V) -&gt; <span class="prelude-ty">Result</span>&lt;V::Value, <span class="self">Self</span>::Error&gt;
-        <span class="kw">where
-            </span>V: de::Visitor&lt;<span class="lifetime">'de</span>&gt;,
-        {
-            <span class="self">self</span>.inner.deserialize_u128(Visitor { inner: visitor, transformer: <span class="self">self</span>.transformer.as_mut(), is_key: <span class="self">self</span>.is_key })
-        }
+    <span class="kw">fn </span>deserialize_u128&lt;V&gt;(<span class="kw-2">mut </span><span class="self">self</span>, visitor: V) -&gt; <span class="prelude-ty">Result</span>&lt;V::Value, <span class="self">Self</span>::Error&gt;
+    <span class="kw">where
+        </span>V: de::Visitor&lt;<span class="lifetime">'de</span>&gt;,
+    {
+        <span class="self">self</span>.inner.deserialize_u128(Visitor {
+            inner: visitor,
+            transformer: <span class="self">self</span>.transformer.as_mut(),
+            is_key: <span class="self">self</span>.is_key,
+        })
     }
 
     <span class="kw">fn </span>deserialize_f32&lt;V&gt;(<span class="kw-2">mut </span><span class="self">self</span>, visitor: V) -&gt; <span class="prelude-ty">Result</span>&lt;V::Value, <span class="self">Self</span>::Error&gt;
@@ -1587,18 +1618,18 @@
         <span class="self">self</span>.inner.visit_u64(<span class="self">self</span>.transformer.transform_u64(v))
     }
 
-    <span class="macro">serde::serde_if_integer128!</span> {
-        <span class="kw">fn </span>visit_i128&lt;E&gt;(<span class="self">self</span>, v: i128) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>::Value, E&gt;
-            <span class="kw">where </span>E: de::Error
-        {
-            <span class="self">self</span>.inner.visit_i128(<span class="self">self</span>.transformer.transform_i128(v))
-        }
+    <span class="kw">fn </span>visit_i128&lt;E&gt;(<span class="self">self</span>, v: i128) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>::Value, E&gt;
+    <span class="kw">where
+        </span>E: de::Error,
+    {
+        <span class="self">self</span>.inner.visit_i128(<span class="self">self</span>.transformer.transform_i128(v))
+    }
 
-        <span class="kw">fn </span>visit_u128&lt;E&gt;(<span class="self">self</span>, v: u128) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>::Value, E&gt;
-            <span class="kw">where </span>E: de::Error
-        {
-            <span class="self">self</span>.inner.visit_u128(<span class="self">self</span>.transformer.transform_u128(v))
-        }
+    <span class="kw">fn </span>visit_u128&lt;E&gt;(<span class="self">self</span>, v: u128) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>::Value, E&gt;
+    <span class="kw">where
+        </span>E: de::Error,
+    {
+        <span class="self">self</span>.inner.visit_u128(<span class="self">self</span>.transformer.transform_u128(v))
     }
 
     <span class="kw">fn </span>visit_f32&lt;E&gt;(<span class="self">self</span>, v: f32) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>::Value, E&gt;
@@ -1746,7 +1777,10 @@
     <span class="kw">where
         </span>S: de::DeserializeSeed&lt;<span class="lifetime">'de</span>&gt;,
     {
-        <span class="self">self</span>.<span class="number">0</span>.next_element_seed(DeserializeValueSeed(seed, <span class="self">self</span>.<span class="number">1</span>))
+        <span class="comment">// We want to use a special ValueSeed for sequences that does not call pop_path
+        // because we don't push paths when entering sequences right now.
+        </span><span class="self">self</span>.<span class="number">0
+            </span>.next_element_seed(DeserializeSeqValueSeed(seed, <span class="self">self</span>.<span class="number">1</span>))
     }
 }
 
@@ -1793,6 +1827,24 @@
             </span>.deserialize(Deserializer::borrowed(deserializer, <span class="self">self</span>.<span class="number">1</span>));
         <span class="self">self</span>.<span class="number">1</span>.pop_path();
         res
+    }
+}
+
+<span class="kw">struct </span>DeserializeSeqValueSeed&lt;<span class="lifetime">'a</span>, D, T&gt;(D, <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="kw-2">mut </span>T);
+
+<span class="kw">impl</span>&lt;<span class="lifetime">'de</span>, D, T&gt; de::DeserializeSeed&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span>DeserializeSeqValueSeed&lt;<span class="lifetime">'_</span>, D, T&gt;
+<span class="kw">where
+    </span>D: de::DeserializeSeed&lt;<span class="lifetime">'de</span>&gt;,
+    T: Transform&lt;<span class="lifetime">'de</span>&gt;,
+{
+    <span class="kw">type </span>Value = D::Value;
+
+    <span class="kw">fn </span>deserialize&lt;X&gt;(<span class="self">self</span>, deserializer: X) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>::Value, X::Error&gt;
+    <span class="kw">where
+        </span>X: serde::Deserializer&lt;<span class="lifetime">'de</span>&gt;,
+    {
+        <span class="self">self</span>.<span class="number">0
+            </span>.deserialize(Deserializer::borrowed(deserializer, <span class="self">self</span>.<span class="number">1</span>))
     }
 }
 

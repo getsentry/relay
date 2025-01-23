@@ -211,7 +211,34 @@
 <a href="#210" id="210">210</a>
 <a href="#211" id="211">211</a>
 <a href="#212" id="212">212</a>
-<a href="#213" id="213">213</a></pre></div><pre class="rust"><code><span class="doccomment">//! Attachments processor code.
+<a href="#213" id="213">213</a>
+<a href="#214" id="214">214</a>
+<a href="#215" id="215">215</a>
+<a href="#216" id="216">216</a>
+<a href="#217" id="217">217</a>
+<a href="#218" id="218">218</a>
+<a href="#219" id="219">219</a>
+<a href="#220" id="220">220</a>
+<a href="#221" id="221">221</a>
+<a href="#222" id="222">222</a>
+<a href="#223" id="223">223</a>
+<a href="#224" id="224">224</a>
+<a href="#225" id="225">225</a>
+<a href="#226" id="226">226</a>
+<a href="#227" id="227">227</a>
+<a href="#228" id="228">228</a>
+<a href="#229" id="229">229</a>
+<a href="#230" id="230">230</a>
+<a href="#231" id="231">231</a>
+<a href="#232" id="232">232</a>
+<a href="#233" id="233">233</a>
+<a href="#234" id="234">234</a>
+<a href="#235" id="235">235</a>
+<a href="#236" id="236">236</a>
+<a href="#237" id="237">237</a>
+<a href="#238" id="238">238</a>
+<a href="#239" id="239">239</a>
+<a href="#240" id="240">240</a></pre></div><pre class="rust"><code><span class="doccomment">//! Attachments processor code.
 
 </span><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
@@ -225,6 +252,7 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::project::ProjectInfo;
 <span class="kw">use </span><span class="kw">crate</span>::utils::TypedEnvelope;
+<span class="kw">use </span>relay_dynamic_config::Feature;
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">use </span>{
     <span class="kw">crate</span>::services::processor::{ErrorGroup, EventFullyNormalized},
@@ -274,20 +302,22 @@
 </span><span class="kw">pub fn </span>scrub&lt;Group&gt;(managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;Group&gt;, project_info: Arc&lt;ProjectInfo&gt;) {
     <span class="kw">let </span>envelope = managed_envelope.envelope_mut();
     <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>config) = project_info.config.pii_config {
-        <span class="kw">let </span>minidump = envelope
-            .get_item_by_mut(|item| item.attachment_type() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>AttachmentType::Minidump));
-
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(item) = minidump {
-            scrub_minidump(item, config);
-        } <span class="kw">else if </span>has_simple_attachment_selector(config) {
-            <span class="comment">// We temporarily only scrub attachments to projects that have at least one simple attachment rule,
-            // such as `$attachments.'foo.txt'`.
-            // After we have assessed the impact on performance we can relax this condition.
-            </span><span class="kw">for </span>item <span class="kw">in </span>envelope
-                .items_mut()
-                .filter(|item| item.ty() == <span class="kw-2">&amp;</span>ItemType::Attachment)
+        <span class="kw">let </span>view_hierarchy_scrubbing_enabled = project_info
+            .config
+            .features
+            .has(Feature::ViewHierarchyScrubbing);
+        <span class="kw">for </span>item <span class="kw">in </span>envelope.items_mut() {
+            <span class="kw">if </span>view_hierarchy_scrubbing_enabled
+                &amp;&amp; item.attachment_type() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>AttachmentType::ViewHierarchy)
             {
-                scrub_attachment(item, config);
+                scrub_view_hierarchy(item, config)
+            } <span class="kw">else if </span>item.attachment_type() == <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>AttachmentType::Minidump) {
+                scrub_minidump(item, config)
+            } <span class="kw">else if </span>item.ty() == <span class="kw-2">&amp;</span>ItemType::Attachment &amp;&amp; has_simple_attachment_selector(config) {
+                <span class="comment">// We temporarily only scrub attachments to projects that have at least one simple attachment rule,
+                // such as `$attachments.'foo.txt'`.
+                // After we have assessed the impact on performance we can relax this condition.
+                </span>scrub_attachment(item, config)
             }
         }
     }
@@ -336,6 +366,30 @@
         .clone();
 
     item.set_payload(content_type, payload);
+}
+
+<span class="kw">fn </span>scrub_view_hierarchy(item: <span class="kw-2">&amp;mut </span><span class="kw">crate</span>::envelope::Item, config: <span class="kw-2">&amp;</span>relay_pii::PiiConfig) {
+    <span class="kw">let </span>processor = PiiAttachmentsProcessor::new(config.compiled());
+
+    <span class="kw">let </span>payload = item.payload();
+    <span class="kw">let </span>start = Instant::now();
+    <span class="kw">match </span>processor.scrub_json(<span class="kw-2">&amp;</span>payload) {
+        <span class="prelude-val">Ok</span>(output) =&gt; {
+            <span class="macro">metric!</span>(
+                timer(RelayTimers::ViewHierarchyScrubbing) = start.elapsed(),
+                status = <span class="string">"ok"
+            </span>);
+            <span class="kw">let </span>content_type = item.content_type().unwrap_or(<span class="kw-2">&amp;</span>ContentType::Json).clone();
+            item.set_payload(content_type, output);
+        }
+        <span class="prelude-val">Err</span>(e) =&gt; {
+            <span class="macro">relay_log::warn!</span>(error = <span class="kw-2">&amp;</span>e <span class="kw">as </span><span class="kw-2">&amp;</span><span class="kw">dyn </span>Error, <span class="string">"failed to scrub view hierarchy"</span>,);
+            <span class="macro">metric!</span>(
+                timer(RelayTimers::ViewHierarchyScrubbing) = start.elapsed(),
+                status = <span class="string">"error"
+            </span>)
+        }
+    }
 }
 
 <span class="kw">fn </span>has_simple_attachment_selector(config: <span class="kw-2">&amp;</span>relay_pii::PiiConfig) -&gt; bool {

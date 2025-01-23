@@ -711,7 +711,7 @@
 <span class="kw">use </span>serde::{de, ser, Deserializer};
 <span class="kw">use </span>serde_json::value::RawValue;
 
-<span class="kw">use </span><span class="kw">crate</span>::transform::Transform;
+<span class="kw">use </span>relay_pii::transform::Transform;
 
 <span class="doccomment">/// Paths to fields on which datascrubbing rules should be applied.
 ///
@@ -864,7 +864,7 @@
     {
         <span class="kw">let </span><span class="kw-2">mut </span>transform = <span class="self">self</span>.<span class="number">1</span>.borrow_mut();
         <span class="kw">let </span><span class="kw-2">mut </span>deserializer = serde_json::Deserializer::from_str(<span class="self">self</span>.<span class="number">0</span>.get());
-        <span class="kw">let </span>scrubber = <span class="kw">crate</span>::transform::Deserializer::new(<span class="kw-2">&amp;mut </span>deserializer, <span class="kw-2">&amp;mut *</span>transform);
+        <span class="kw">let </span>scrubber = relay_pii::transform::Deserializer::new(<span class="kw-2">&amp;mut </span>deserializer, <span class="kw-2">&amp;mut *</span>transform);
         serde_transcode::transcode(scrubber, serializer)
     }
 }
