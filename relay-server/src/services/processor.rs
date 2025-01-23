@@ -86,6 +86,7 @@ mod attachment;
 mod dynamic_sampling;
 mod event;
 mod metrics;
+mod ourlog;
 mod profile;
 mod profile_chunk;
 mod replay;
@@ -193,6 +194,7 @@ processing_group!(StandaloneGroup, Standalone);
 processing_group!(ClientReportGroup, ClientReport);
 processing_group!(ReplayGroup, Replay);
 processing_group!(CheckInGroup, CheckIn);
+processing_group!(LogGroup, Log);
 processing_group!(SpanGroup, Span);
 
 impl Sampling for SpanGroup {
@@ -240,6 +242,8 @@ pub enum ProcessingGroup {
     Replay,
     /// Crons.
     CheckIn,
+    /// Logs.
+    Log,
     /// Spans.
     Span,
     /// Metrics.
@@ -303,10 +307,22 @@ impl ProcessingGroup {
                 &ItemType::Span | &ItemType::OtelSpan | &ItemType::OtelTracesData
             )
         });
+
         if !span_items.is_empty() {
             grouped_envelopes.push((
                 ProcessingGroup::Span,
                 Envelope::from_parts(headers.clone(), span_items),
+            ))
+        }
+
+        // Extract logs.
+        let logs_items =
+            envelope.take_items_by(|item| matches!(item.ty(), &ItemType::Log | &ItemType::OtelLog));
+
+        if !logs_items.is_empty() {
+            grouped_envelopes.push((
+                ProcessingGroup::Log,
+                Envelope::from_parts(headers.clone(), logs_items),
             ))
         }
 
@@ -411,6 +427,7 @@ impl ProcessingGroup {
             ProcessingGroup::ClientReport => "client_report",
             ProcessingGroup::Replay => "replay",
             ProcessingGroup::CheckIn => "check_in",
+            ProcessingGroup::Log => "log",
             ProcessingGroup::Span => "span",
             ProcessingGroup::Metrics => "metrics",
             ProcessingGroup::ProfileChunk => "profile_chunk",
@@ -430,6 +447,7 @@ impl From<ProcessingGroup> for AppFeature {
             ProcessingGroup::ClientReport => AppFeature::ClientReports,
             ProcessingGroup::Replay => AppFeature::Replays,
             ProcessingGroup::CheckIn => AppFeature::CheckIns,
+            ProcessingGroup::Log => AppFeature::Logs,
             ProcessingGroup::Span => AppFeature::Spans,
             ProcessingGroup::Metrics => AppFeature::UnattributedMetrics,
             ProcessingGroup::ProfileChunk => AppFeature::Profiles,
@@ -2000,6 +2018,35 @@ impl EnvelopeProcessorService {
         Ok(Some(extracted_metrics))
     }
 
+    /// Process logs
+    ///
+    fn process_logs(
+        &self,
+        managed_envelope: &mut TypedEnvelope<LogGroup>,
+        project_info: Arc<ProjectInfo>,
+        #[allow(unused_variables)] rate_limits: Arc<RateLimits>,
+    ) -> Result<Option<ProcessingExtractedMetrics>, ProcessingError> {
+        #[allow(unused_mut)]
+        let mut extracted_metrics = ProcessingExtractedMetrics::new();
+
+        ourlog::filter(
+            managed_envelope,
+            self.inner.config.clone(),
+            project_info.clone(),
+        );
+        if_processing!(self.inner.config, {
+            self.enforce_quotas(
+                managed_envelope,
+                Annotated::empty(),
+                &mut extracted_metrics,
+                project_info.clone(),
+                rate_limits,
+            )?;
+            ourlog::process(managed_envelope, project_info.clone());
+        });
+        Ok(Some(extracted_metrics))
+    }
+
     /// Processes standalone spans.
     ///
     /// This function does *not* run for spans extracted from transactions.
@@ -2155,6 +2202,7 @@ impl EnvelopeProcessorService {
             ProcessingGroup::CheckIn => {
                 run!(process_checkins, project_id, project_info, rate_limits)
             }
+            ProcessingGroup::Log => run!(process_logs, project_info, rate_limits),
             ProcessingGroup::Span => run!(
                 process_standalone_spans,
                 self.inner.config.clone(),

@@ -8,7 +8,7 @@ __all__ = ["DataCategory", "SPAN_STATUS_CODE_TO_NAME", "SPAN_STATUS_NAME_TO_CODE
 
 
 class DataCategory(IntEnum):
-    # begin generated
+    # start generated
     DEFAULT = 0
     ERROR = 1
     TRANSACTION = 2

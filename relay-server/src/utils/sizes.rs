@@ -15,6 +15,7 @@ use crate::utils::{ItemAction, ManagedEnvelope};
 ///  - `max_attachments_size`
 ///  - `max_check_in_size`
 ///  - `max_event_size`
+///  - `max_log_size`
 ///  - `max_metric_buckets_size`
 ///  - `max_profile_size`
 ///  - `max_replay_compressed_size`
@@ -61,6 +62,8 @@ pub fn check_envelope_size_limits(config: &Config, envelope: &Envelope) -> Resul
             ItemType::UserReport => NO_LIMIT,
             ItemType::Statsd => config.max_statsd_size(),
             ItemType::MetricBuckets => config.max_metric_buckets_size(),
+            ItemType::Log => config.max_log_size(),
+            ItemType::OtelLog => config.max_log_size(),
             ItemType::Span | ItemType::OtelSpan => config.max_span_size(),
             ItemType::OtelTracesData => config.max_event_size(), // a spans container similar to `Transaction`
             ItemType::ProfileChunk => config.max_profile_size(),
