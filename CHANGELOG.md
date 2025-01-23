@@ -5,6 +5,7 @@
 **Features**:
 
 - Add configuration option to limit the amount of concurrent http connections. ([#4453](https://github.com/getsentry/relay/pull/4453))
+- Add flags context to event schema. ([#4458](https://github.com/getsentry/relay/pull/4458))
 - Add support for view hierarchy attachment scrubbing. ([#4452](https://github.com/getsentry/relay/pull/4452))
 
 **Internal**:
@@ -12,6 +13,10 @@
 - Add data categories for LogItem and LogByte. ([#4455](https://github.com/getsentry/relay/pull/4455))
 
 ## 25.1.0
+
+**Features**:
+
+- Use a separate rate-limit enforcement category for replay-video envelope items. ([#4459](https://github.com/getsentry/relay/pull/4459))
 
 **Internal**:
 

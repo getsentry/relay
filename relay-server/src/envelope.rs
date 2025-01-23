@@ -700,9 +700,10 @@ impl Item {
             ItemType::UserReport => smallvec![],
             ItemType::UserReportV2 => smallvec![(DataCategory::UserReportV2, 1)],
             ItemType::Profile => smallvec![(DataCategory::Profile, 1)],
-            ItemType::ReplayEvent | ItemType::ReplayRecording | ItemType::ReplayVideo => {
+            ItemType::ReplayEvent | ItemType::ReplayRecording => {
                 smallvec![(DataCategory::Replay, 1)]
             }
+            ItemType::ReplayVideo => smallvec![(DataCategory::ReplayVideo, 1)],
             ItemType::ClientReport => smallvec![],
             ItemType::CheckIn => smallvec![(DataCategory::Monitor, 1)],
             ItemType::Span | ItemType::OtelSpan => smallvec![(DataCategory::Span, 1)],

@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.9.6
+
+- Add a new data category for UI profiling. ([#4468](https://github.com/getsentry/relay/pull/4468))
+
+## 0.9.5
 
 - Add data categories for LogItem and LogByte. ([#4455](https://github.com/getsentry/relay/pull/4455))
 
