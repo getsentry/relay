@@ -504,7 +504,19 @@
 <a href="#503" id="503">503</a>
 <a href="#504" id="504">504</a>
 <a href="#505" id="505">505</a>
-<a href="#506" id="506">506</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
+<a href="#506" id="506">506</a>
+<a href="#507" id="507">507</a>
+<a href="#508" id="508">508</a>
+<a href="#509" id="509">509</a>
+<a href="#510" id="510">510</a>
+<a href="#511" id="511">511</a>
+<a href="#512" id="512">512</a>
+<a href="#513" id="513">513</a>
+<a href="#514" id="514">514</a>
+<a href="#515" id="515">515</a>
+<a href="#516" id="516">516</a>
+<a href="#517" id="517">517</a>
+<a href="#518" id="518">518</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::fmt::Debug;
 <span class="kw">use </span>std::{fmt, str};
 
@@ -771,12 +783,10 @@
 
             <span class="attr">#[inline]
             </span><span class="kw">fn </span>visit_u64&lt;E&gt;(<span class="self">self</span>, value: u64) -&gt; <span class="prelude-ty">Result</span>&lt;Value, E&gt; {
-                <span class="kw">let </span>signed_value = value <span class="kw">as </span>i64;
-                <span class="kw">if </span>signed_value <span class="kw">as </span>u64 == value {
-                    <span class="prelude-val">Ok</span>(Value::I64(signed_value))
-                } <span class="kw">else </span>{
-                    <span class="prelude-val">Ok</span>(Value::U64(value))
-                }
+                <span class="prelude-val">Ok</span>(value
+                    .try_into()
+                    .map(Value::I64)
+                    .unwrap_or(Value::U64(value)))
             }
 
             <span class="attr">#[inline]
@@ -1008,6 +1018,20 @@
             (<span class="self">Self</span>::Object(<span class="kw">_</span>), <span class="self">Self</span>::Object(<span class="kw">_</span>)) =&gt; <span class="bool-val">false</span>,
             <span class="kw">_ </span>=&gt; <span class="bool-val">false</span>,
         }
+    }
+}
+
+<span class="attr">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_unsigned_signed() {
+        <span class="kw">let </span>v: Value = serde_json::from_str(<span class="string">"9223372036854775816"</span>).unwrap();
+        <span class="macro">assert_eq!</span>(v, Value::U64(<span class="number">9223372036854775816</span>));
+
+        <span class="kw">let </span>v: Value = serde_json::from_str(<span class="string">"123"</span>).unwrap();
+        <span class="macro">assert_eq!</span>(v, Value::I64(<span class="number">123</span>));
     }
 }
 </code></pre></div></section></main></body></html>
