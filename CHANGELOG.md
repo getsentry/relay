@@ -10,6 +10,10 @@
 - Add flags context to event schema. ([#4458](https://github.com/getsentry/relay/pull/4458))
 - Add support for view hierarchy attachment scrubbing. ([#4452](https://github.com/getsentry/relay/pull/4452))
 
+**Bug Fixes**:
+
+- Fix a bug where parsing large unsigned integers would fail incorrectly. ([#4472](https://github.com/getsentry/relay/pull/4472))
+
 **Internal**:
 
 - Add data categories for LogItem and LogByte. ([#4455](https://github.com/getsentry/relay/pull/4455))
