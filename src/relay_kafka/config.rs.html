@@ -332,7 +332,10 @@
 <a href="#331" id="331">331</a>
 <a href="#332" id="332">332</a>
 <a href="#333" id="333">333</a>
-<a href="#334" id="334">334</a></pre></div><pre class="rust"><code><span class="doccomment">//! Configuration primitives to configure the kafka producer and properly set up the connection.
+<a href="#334" id="334">334</a>
+<a href="#335" id="335">335</a>
+<a href="#336" id="336">336</a>
+<a href="#337" id="337">337</a></pre></div><pre class="rust"><code><span class="doccomment">//! Configuration primitives to configure the kafka producer and properly set up the connection.
 //!
 //! The configuration can be either;
 //! - [`TopicAssignment::Primary`] - the main and default kafka configuration,
@@ -451,7 +454,10 @@
     };
 }
 
-<span class="macro">define_topic_assignments!</span> {
+<span class="comment">// WARNING: When adding a topic here, make sure that the kafka topic exists or can be auto-created.
+// Failure to do so will result in Relay crashing (if the `kafka_validate_topics` config flag is enabled),
+// or event loss in the store service.
+</span><span class="macro">define_topic_assignments!</span> {
     events: (KafkaTopic::Events, <span class="string">"ingest-events"</span>, <span class="string">"Simple events topic name."</span>),
     attachments: (KafkaTopic::Attachments, <span class="string">"ingest-attachments"</span>, <span class="string">"Events with attachments topic name."</span>),
     transactions: (KafkaTopic::Transactions, <span class="string">"ingest-transactions"</span>, <span class="string">"Transaction events topic name."</span>),
