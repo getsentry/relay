@@ -4143,7 +4143,12 @@
 <a href="#4142" id="4142">4142</a>
 <a href="#4143" id="4143">4143</a>
 <a href="#4144" id="4144">4144</a>
-<a href="#4145" id="4145">4145</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
+<a href="#4145" id="4145">4145</a>
+<a href="#4146" id="4146">4146</a>
+<a href="#4147" id="4147">4147</a>
+<a href="#4148" id="4148">4148</a>
+<a href="#4149" id="4149">4149</a>
+<a href="#4150" id="4150">4150</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::fmt::{Debug, Display};
@@ -4237,6 +4242,7 @@
 <span class="kw">mod </span>report;
 <span class="kw">mod </span>session;
 <span class="kw">mod </span>span;
+<span class="kw">mod </span>transaction;
 <span class="kw">pub use </span>span::extract_transaction_span;
 
 <span class="kw">mod </span>standalone;
@@ -5773,6 +5779,8 @@
 
         <span class="kw">let </span>global_config = <span class="self">self</span>.inner.global_config.current();
 
+        transaction::drop_invalid_items(managed_envelope, <span class="kw-2">&amp;</span>global_config);
+
         <span class="comment">// We extract the main event from the envelope.
         </span><span class="kw">let </span>extraction_result = event::extract(
             managed_envelope,
@@ -5902,7 +5910,9 @@
         //
         // Unconditionally scrub to make sure PII is removed as early as possible.
         </span>event::scrub(<span class="kw-2">&amp;mut </span>event, project_info.clone())<span class="question-mark">?</span>;
-        attachment::scrub(managed_envelope, project_info.clone());
+
+        <span class="comment">// TODO: remove once `relay.drop-transaction-attachments` has graduated.
+        </span>attachment::scrub(managed_envelope, project_info.clone());
 
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
             <span class="comment">// Process profiles before extracting metrics, to make sure they are removed if they are invalid.
