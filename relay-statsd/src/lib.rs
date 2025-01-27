@@ -253,7 +253,7 @@ pub fn init<A: ToSocketAddrs>(
                 AggregateMetricsConfig {
                     aggregate_gauges: true,
                     aggregate_counters: true,
-                    flush_interval: Duration::from_millis(125),
+                    flush_interval: Duration::from_millis(50),
                     flush_offset: 0,
                     max_map_size: None,
                 },
