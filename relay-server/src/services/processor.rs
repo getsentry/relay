@@ -1761,6 +1761,9 @@ impl EnvelopeProcessorService {
         // Unconditionally scrub to make sure PII is removed as early as possible.
         event::scrub(&mut event, project_info.clone())?;
 
+        // TODO: remove once `relay.drop-transaction-attachments` has graduated.
+        attachment::scrub(managed_envelope, project_info.clone());
+
         if_processing!(self.inner.config, {
             // Process profiles before extracting metrics, to make sure they are removed if they are invalid.
             let profile_id = profile::process(
