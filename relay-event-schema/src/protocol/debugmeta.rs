@@ -523,6 +523,11 @@ pub struct DebugMeta {
     #[metastructure(skip_serialization = "empty")]
     pub images: Annotated<Array<DebugImage>>,
 
+    /// Path to the root of the app generating the event.
+    #[metastructure(max_chars = 256, max_chars_allowance = 40)]
+    #[metastructure(skip_serialization = "empty", pii = "maybe")]
+    pub project_root: Annotated<String>,
+
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties)]
     pub other: Object<Value>,
