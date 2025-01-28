@@ -17,6 +17,7 @@
 **Internal**:
 
 - Add data categories for LogItem and LogByte. ([#4455](https://github.com/getsentry/relay/pull/4455))
+- Add option to drop transaction attachments. ([#4466](https://github.com/getsentry/relay/pull/4466))
 
 ## 25.1.0
 

@@ -93,6 +93,7 @@ mod replay;
 mod report;
 mod session;
 mod span;
+mod transaction;
 pub use span::extract_transaction_span;
 
 mod standalone;
@@ -1646,6 +1647,8 @@ impl EnvelopeProcessorService {
 
         let global_config = self.inner.global_config.current();
 
+        transaction::drop_invalid_items(managed_envelope, &global_config);
+
         // We extract the main event from the envelope.
         let extraction_result = event::extract(
             managed_envelope,
@@ -1775,6 +1778,8 @@ impl EnvelopeProcessorService {
         //
         // Unconditionally scrub to make sure PII is removed as early as possible.
         event::scrub(&mut event, project_info.clone())?;
+
+        // TODO: remove once `relay.drop-transaction-attachments` has graduated.
         attachment::scrub(managed_envelope, project_info.clone());
 
         if_processing!(self.inner.config, {

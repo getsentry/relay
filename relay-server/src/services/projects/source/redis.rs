@@ -1,6 +1,6 @@
 use relay_base_schema::project::ProjectKey;
 use relay_config::Config;
-use relay_redis::{AsyncRedisConnection, RedisError};
+use relay_redis::{AsyncRedisClient, RedisError};
 use relay_statsd::metric;
 use std::fmt::Debug;
 use std::sync::Arc;
@@ -13,7 +13,7 @@ use relay_redis::redis::cmd;
 #[derive(Clone, Debug)]
 pub struct RedisProjectSource {
     config: Arc<Config>,
-    redis: AsyncRedisConnection,
+    redis: AsyncRedisClient,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -50,7 +50,7 @@ fn parse_redis_response(raw_response: &[u8]) -> Result<ParsedProjectState, Redis
 }
 
 impl RedisProjectSource {
-    pub fn new(config: Arc<Config>, redis: AsyncRedisConnection) -> Self {
+    pub fn new(config: Arc<Config>, redis: AsyncRedisClient) -> Self {
         RedisProjectSource { config, redis }
     }
 
@@ -63,11 +63,14 @@ impl RedisProjectSource {
         key: ProjectKey,
         revision: Revision,
     ) -> Result<SourceProjectState, RedisProjectError> {
+        let mut connection = self.redis.get_connection();
         // Only check for the revision if we were passed a revision.
         if let Some(revision) = revision.as_str() {
-            let mut cmd = cmd("GET");
-            cmd.arg(self.get_redis_rev_key(key));
-            let current_revision: Option<String> = self.redis.query_async(cmd).await?;
+            let current_revision: Option<String> = cmd("GET")
+                .arg(self.get_redis_rev_key(key))
+                .query_async(&mut connection)
+                .await
+                .map_err(RedisError::Redis)?;
 
             relay_log::trace!(
                 "Redis revision {current_revision:?}, requested revision {revision:?}"
@@ -81,9 +84,11 @@ impl RedisProjectSource {
             }
         }
 
-        let mut raw_cmd = cmd("GET");
-        raw_cmd.arg(self.get_redis_project_config_key(key));
-        let raw_response_opt: Option<Vec<u8>> = self.redis.query_async(raw_cmd).await?;
+        let raw_response_opt: Option<Vec<u8>> = cmd("GET")
+            .arg(self.get_redis_project_config_key(key))
+            .query_async(&mut connection)
+            .await
+            .map_err(RedisError::Redis)?;
 
         let Some(response) = raw_response_opt else {
             metric!(

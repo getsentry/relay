@@ -120,6 +120,9 @@ macro_rules! define_topic_assignments {
     };
 }
 
+// WARNING: When adding a topic here, make sure that the kafka topic exists or can be auto-created.
+// Failure to do so will result in Relay crashing (if the `kafka_validate_topics` config flag is enabled),
+// or event loss in the store service.
 define_topic_assignments! {
     events: (KafkaTopic::Events, "ingest-events", "Simple events topic name."),
     attachments: (KafkaTopic::Attachments, "ingest-attachments", "Events with attachments topic name."),

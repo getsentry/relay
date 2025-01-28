@@ -463,6 +463,9 @@ pub enum DiscardReason {
 
     /// (Relay) A required feature is not enabled.
     FeatureDisabled(Feature),
+
+    /// An attachment was submitted with a transaction.
+    TransactionAttachment,
 }
 
 impl DiscardReason {
@@ -510,6 +513,7 @@ impl DiscardReason {
             DiscardReason::InvalidLog => "invalid_log",
             DiscardReason::InvalidSpan => "invalid_span",
             DiscardReason::FeatureDisabled(_) => "feature_disabled",
+            DiscardReason::TransactionAttachment => "transaction_attachment",
         }
     }
 }
