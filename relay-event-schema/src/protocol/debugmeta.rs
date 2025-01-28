@@ -528,7 +528,9 @@ pub struct DebugMeta {
     #[metastructure(skip_serialization = "empty", pii = "maybe")]
     pub project_root: Annotated<String>,
 
-    /// Additional arbitrary fields for forwards compatibility.
+    /// Additional arbitrary fields for forwards compatibility. Note that they may still get
+    /// normalized out of the event, depending on the value of `remove_other` passed to the
+    /// normalizer.
     #[metastructure(additional_properties)]
     pub other: Object<Value>,
 }
