@@ -184,7 +184,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayGauges, RuntimeCounters, RuntimeGauges};
 <span class="kw">use </span>relay_config::{Config, RelayMode};
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-</span><span class="kw">use </span>relay_redis::AsyncRedisConnection;
+</span><span class="kw">use </span>relay_redis::AsyncRedisClient;
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">use </span>relay_redis::{RedisPool, RedisPools, Stats};
 <span class="kw">use </span>relay_statsd::metric;
@@ -306,8 +306,8 @@
     }
 
     <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-    </span><span class="kw">fn </span>async_redis_connection(conn: <span class="kw-2">&amp;</span>AsyncRedisConnection, name: <span class="kw-2">&amp;</span>str) {
-        <span class="self">Self</span>::stats_metrics(conn.stats(), name);
+    </span><span class="kw">fn </span>async_redis_connection(client: <span class="kw-2">&amp;</span>AsyncRedisClient, name: <span class="kw-2">&amp;</span>str) {
+        <span class="self">Self</span>::stats_metrics(client.stats(), name);
     }
 
     <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]

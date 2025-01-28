@@ -540,7 +540,7 @@
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">use </span>relay_redis::redis::Script;
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-</span><span class="kw">use </span>relay_redis::AsyncRedisConnection;
+</span><span class="kw">use </span>relay_redis::AsyncRedisClient;
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">use </span>relay_redis::{PooledClient, RedisError, RedisPool, RedisPools, RedisScripts};
 <span class="kw">use </span>relay_system::{channel, Addr, Service, ServiceRunner};
@@ -952,14 +952,14 @@
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">async fn </span>create_async_connection(
     config: <span class="kw-2">&amp;</span>RedisConfigRef&lt;<span class="lifetime">'_</span>&gt;,
-) -&gt; <span class="prelude-ty">Result</span>&lt;AsyncRedisConnection, RedisError&gt; {
+) -&gt; <span class="prelude-ty">Result</span>&lt;AsyncRedisClient, RedisError&gt; {
     <span class="kw">match </span>config {
         RedisConfigRef::Cluster {
             cluster_nodes,
             options,
-        } =&gt; AsyncRedisConnection::cluster(cluster_nodes.iter().map(|s| s.as_str()), options).<span class="kw">await</span>,
+        } =&gt; AsyncRedisClient::cluster(cluster_nodes.iter().map(|s| s.as_str()), options).<span class="kw">await</span>,
         RedisConfigRef::Single { server, options } =&gt; {
-            AsyncRedisConnection::single(server, options).<span class="kw">await
+            AsyncRedisClient::single(server, options).<span class="kw">await
         </span>}
         RedisConfigRef::MultiWrite { .. } =&gt; {
             <span class="prelude-val">Err</span>(RedisError::MultiWriteNotSupported(<span class="string">"projectconfig"</span>))

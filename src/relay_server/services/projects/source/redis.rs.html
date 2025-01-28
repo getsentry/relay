@@ -146,9 +146,14 @@
 <a href="#145" id="145">145</a>
 <a href="#146" id="146">146</a>
 <a href="#147" id="147">147</a>
-<a href="#148" id="148">148</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::project::ProjectKey;
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
+<a href="#150" id="150">150</a>
+<a href="#151" id="151">151</a>
+<a href="#152" id="152">152</a>
+<a href="#153" id="153">153</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_base_schema::project::ProjectKey;
 <span class="kw">use </span>relay_config::Config;
-<span class="kw">use </span>relay_redis::{AsyncRedisConnection, RedisError};
+<span class="kw">use </span>relay_redis::{AsyncRedisClient, RedisError};
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>std::fmt::Debug;
 <span class="kw">use </span>std::sync::Arc;
@@ -161,7 +166,7 @@
 <span class="attr">#[derive(Clone, Debug)]
 </span><span class="kw">pub struct </span>RedisProjectSource {
     config: Arc&lt;Config&gt;,
-    redis: AsyncRedisConnection,
+    redis: AsyncRedisClient,
 }
 
 <span class="attr">#[derive(Debug, thiserror::Error)]
@@ -198,7 +203,7 @@
 }
 
 <span class="kw">impl </span>RedisProjectSource {
-    <span class="kw">pub fn </span>new(config: Arc&lt;Config&gt;, redis: AsyncRedisConnection) -&gt; <span class="self">Self </span>{
+    <span class="kw">pub fn </span>new(config: Arc&lt;Config&gt;, redis: AsyncRedisClient) -&gt; <span class="self">Self </span>{
         RedisProjectSource { config, redis }
     }
 
@@ -211,11 +216,14 @@
         key: ProjectKey,
         revision: Revision,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;SourceProjectState, RedisProjectError&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>connection = <span class="self">self</span>.redis.get_connection();
         <span class="comment">// Only check for the revision if we were passed a revision.
         </span><span class="kw">if let </span><span class="prelude-val">Some</span>(revision) = revision.as_str() {
-            <span class="kw">let </span><span class="kw-2">mut </span>cmd = cmd(<span class="string">"GET"</span>);
-            cmd.arg(<span class="self">self</span>.get_redis_rev_key(key));
-            <span class="kw">let </span>current_revision: <span class="prelude-ty">Option</span>&lt;String&gt; = <span class="self">self</span>.redis.query_async(cmd).<span class="kw">await</span><span class="question-mark">?</span>;
+            <span class="kw">let </span>current_revision: <span class="prelude-ty">Option</span>&lt;String&gt; = cmd(<span class="string">"GET"</span>)
+                .arg(<span class="self">self</span>.get_redis_rev_key(key))
+                .query_async(<span class="kw-2">&amp;mut </span>connection)
+                .<span class="kw">await
+                </span>.map_err(RedisError::Redis)<span class="question-mark">?</span>;
 
             <span class="macro">relay_log::trace!</span>(
                 <span class="string">"Redis revision {current_revision:?}, requested revision {revision:?}"
@@ -229,9 +237,11 @@
             }
         }
 
-        <span class="kw">let </span><span class="kw-2">mut </span>raw_cmd = cmd(<span class="string">"GET"</span>);
-        raw_cmd.arg(<span class="self">self</span>.get_redis_project_config_key(key));
-        <span class="kw">let </span>raw_response_opt: <span class="prelude-ty">Option</span>&lt;Vec&lt;u8&gt;&gt; = <span class="self">self</span>.redis.query_async(raw_cmd).<span class="kw">await</span><span class="question-mark">?</span>;
+        <span class="kw">let </span>raw_response_opt: <span class="prelude-ty">Option</span>&lt;Vec&lt;u8&gt;&gt; = cmd(<span class="string">"GET"</span>)
+            .arg(<span class="self">self</span>.get_redis_project_config_key(key))
+            .query_async(<span class="kw-2">&amp;mut </span>connection)
+            .<span class="kw">await
+            </span>.map_err(RedisError::Redis)<span class="question-mark">?</span>;
 
         <span class="kw">let </span><span class="prelude-val">Some</span>(response) = raw_response_opt <span class="kw">else </span>{
             <span class="macro">metric!</span>(
