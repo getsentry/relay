@@ -39,8 +39,7 @@ impl IntoResponse for MimeError {
     }
 }
 
-#[axum::async_trait]
-impl<S> FromRequestParts<S> for Mime {
+impl<S: Send + Sync> FromRequestParts<S> for Mime {
     type Rejection = MimeError;
 
     async fn from_request_parts(parts: &mut Parts, _: &S) -> Result<Self, Self::Rejection> {

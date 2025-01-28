@@ -252,9 +252,36 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "edca88bc138befd0323b20752846e6587272d3b03b0343c8ea28a6f819e6e71f"
 dependencies = [
  "async-trait",
- "axum-core",
+ "axum-core 0.4.5",
+ "bytes",
+ "futures-util",
+ "http",
+ "http-body",
+ "http-body-util",
+ "itoa",
+ "matchit 0.7.3",
+ "memchr",
+ "mime",
+ "percent-encoding",
+ "pin-project-lite",
+ "rustversion",
+ "serde",
+ "sync_wrapper",
+ "tower 0.5.2",
+ "tower-layer",
+ "tower-service",
+]
+
+[[package]]
+name = "axum"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6d6fd624c75e18b3b4c6b9caf42b1afe24437daaee904069137d8bab077be8b8"
+dependencies = [
+ "axum-core 0.5.0",
  "axum-macros",
  "bytes",
+ "form_urlencoded",
  "futures-util",
  "http",
  "http-body",
@@ -262,7 +289,7 @@ dependencies = [
  "hyper",
  "hyper-util",
  "itoa",
- "matchit",
+ "matchit 0.8.4",
  "memchr",
  "mime",
  "percent-encoding",
@@ -272,9 +299,9 @@ dependencies = [
  "serde_json",
  "serde_path_to_error",
  "serde_urlencoded",
- "sync_wrapper 1.0.2",
+ "sync_wrapper",
  "tokio",
- "tower 0.5.1",
+ "tower 0.5.2",
  "tower-layer",
  "tower-service",
  "tracing",
@@ -295,7 +322,26 @@ dependencies = [
  "mime",
  "pin-project-lite",
  "rustversion",
- "sync_wrapper 1.0.2",
+ "sync_wrapper",
+ "tower-layer",
+ "tower-service",
+]
+
+[[package]]
+name = "axum-core"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df1362f362fd16024ae199c1970ce98f9661bf5ef94b9808fee734bc3698b733"
+dependencies = [
+ "bytes",
+ "futures-util",
+ "http",
+ "http-body",
+ "http-body-util",
+ "mime",
+ "pin-project-lite",
+ "rustversion",
+ "sync_wrapper",
  "tower-layer",
  "tower-service",
  "tracing",
@@ -303,32 +349,30 @@ dependencies = [
 
 [[package]]
 name = "axum-extra"
-version = "0.9.6"
+version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c794b30c904f0a1c2fb7740f7df7f7972dfaa14ef6f57cb6178dc63e5dca2f04"
+checksum = "460fc6f625a1f7705c6cf62d0d070794e94668988b1c38111baeec177c715f7b"
 dependencies = [
- "axum",
- "axum-core",
+ "axum 0.8.1",
+ "axum-core 0.5.0",
  "bytes",
- "fastrand",
  "futures-util",
  "http",
  "http-body",
  "http-body-util",
  "mime",
- "multer",
  "pin-project-lite",
  "serde",
- "tower 0.5.1",
+ "tower 0.5.2",
  "tower-layer",
  "tower-service",
 ]
 
 [[package]]
 name = "axum-macros"
-version = "0.4.2"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57d123550fa8d071b7255cb0cc04dc302baa6c8c4a79f55701552684d8399bce"
+checksum = "604fde5e028fea851ce1d8570bbdc034bec850d157f7569d10f347d06808c05c"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1622,9 +1666,9 @@ checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "hickory-proto"
-version = "0.24.1"
+version = "0.24.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "07698b8420e2f0d6447a436ba999ec85d8fbf2a398bbd737b82cac4a2e96e512"
+checksum = "447afdcdb8afb9d0a852af6dc65d9b285ce720ed7a59e42a8bf2e931c67bc1b5"
 dependencies = [
  "async-trait",
  "cfg-if",
@@ -1633,7 +1677,7 @@ dependencies = [
  "futures-channel",
  "futures-io",
  "futures-util",
- "idna 0.4.0",
+ "idna",
  "ipnet",
  "once_cell",
  "rand",
@@ -2001,16 +2045,6 @@ checksum = "b9e0384b61958566e926dc50660321d12159025e767c18e043daf26b70104c39"
 
 [[package]]
 name = "idna"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7d20d6b07bfbc108882d88ed8e37d39636dcc260e15e30c45e6ba089610b917c"
-dependencies = [
- "unicode-bidi",
- "unicode-normalization",
-]
-
-[[package]]
-name = "idna"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "686f825264d630750a544639377bae737628043f20d38bbc029e8f29ea968a7e"
@@ -2237,7 +2271,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc2f4eb4bc735547cfed7c0a4922cbd04a4655978c09b54f1f7b228750664c34"
 dependencies = [
  "cfg-if",
- "windows-targets 0.52.6",
+ "windows-targets 0.48.5",
 ]
 
 [[package]]
@@ -2361,6 +2395,12 @@ name = "matchit"
 version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0e7465ac9959cc2b1404e8e2367b43684a6d13790fe23056cc8c6c5a6b7bcb94"
+
+[[package]]
+name = "matchit"
+version = "0.8.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "47e1ffaa40ddd1f3ed91f717a33c8c0ee23fff369e3aa8772b9605cc1d22f4c3"
 
 [[package]]
 name = "maxminddb"
@@ -3377,7 +3417,7 @@ checksum = "2b15c43186be67a4fd63bee50d0303afffcef381492ebe2c5d87f324e1b8815c"
 
 [[package]]
 name = "relay"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "anyhow",
  "clap",
@@ -3396,7 +3436,7 @@ dependencies = [
 
 [[package]]
 name = "relay-auth"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "chrono",
  "data-encoding",
@@ -3413,7 +3453,7 @@ dependencies = [
 
 [[package]]
 name = "relay-base-schema"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "regex",
  "relay-common",
@@ -3424,7 +3464,7 @@ dependencies = [
 
 [[package]]
 name = "relay-cabi"
-version = "0.9.4"
+version = "0.9.6"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3452,7 +3492,7 @@ dependencies = [
 
 [[package]]
 name = "relay-cardinality"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "criterion",
  "hash32",
@@ -3471,11 +3511,11 @@ dependencies = [
 
 [[package]]
 name = "relay-cogs"
-version = "24.12.1"
+version = "25.1.0"
 
 [[package]]
 name = "relay-common"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "chrono",
  "criterion",
@@ -3489,7 +3529,7 @@ dependencies = [
 
 [[package]]
 name = "relay-config"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "anyhow",
  "human-size",
@@ -3511,7 +3551,7 @@ dependencies = [
 
 [[package]]
 name = "relay-crash"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "bindgen",
  "cmake",
@@ -3519,7 +3559,7 @@ dependencies = [
 
 [[package]]
 name = "relay-dynamic-config"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "anyhow",
  "relay-auth",
@@ -3542,7 +3582,7 @@ dependencies = [
 
 [[package]]
 name = "relay-event-derive"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3552,7 +3592,7 @@ dependencies = [
 
 [[package]]
 name = "relay-event-normalization"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "bytecount",
  "chrono",
@@ -3586,7 +3626,7 @@ dependencies = [
 
 [[package]]
 name = "relay-event-schema"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "bytecount",
  "chrono",
@@ -3609,7 +3649,7 @@ dependencies = [
 
 [[package]]
 name = "relay-ffi"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "anyhow",
  "relay-ffi-macros",
@@ -3617,7 +3657,7 @@ dependencies = [
 
 [[package]]
 name = "relay-ffi-macros"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "quote",
  "syn",
@@ -3625,7 +3665,7 @@ dependencies = [
 
 [[package]]
 name = "relay-filter"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "indexmap 2.7.0",
  "insta",
@@ -3644,7 +3684,7 @@ dependencies = [
 
 [[package]]
 name = "relay-kafka"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "rdkafka",
  "rdkafka-sys",
@@ -3660,7 +3700,7 @@ dependencies = [
 
 [[package]]
 name = "relay-log"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "console",
  "relay-common",
@@ -3674,7 +3714,7 @@ dependencies = [
 
 [[package]]
 name = "relay-metrics"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "ahash",
  "bytecount",
@@ -3707,7 +3747,7 @@ dependencies = [
 
 [[package]]
 name = "relay-monitors"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "relay-base-schema",
  "serde",
@@ -3719,7 +3759,7 @@ dependencies = [
 
 [[package]]
 name = "relay-pattern"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "criterion",
  "memchr",
@@ -3729,7 +3769,7 @@ dependencies = [
 
 [[package]]
 name = "relay-pattern-fuzz"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "libfuzzer-sys",
  "relay-pattern",
@@ -3737,7 +3777,7 @@ dependencies = [
 
 [[package]]
 name = "relay-pii"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "hmac",
  "insta",
@@ -3754,6 +3794,7 @@ dependencies = [
  "relay-log",
  "relay-protocol",
  "serde",
+ "serde-transcode",
  "serde_json",
  "sha1",
  "similar-asserts",
@@ -3764,7 +3805,7 @@ dependencies = [
 
 [[package]]
 name = "relay-profiling"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "android_trace_log",
  "chrono",
@@ -3783,11 +3824,12 @@ dependencies = [
  "serde_path_to_error",
  "thiserror",
  "url",
+ "uuid",
 ]
 
 [[package]]
 name = "relay-protocol"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "insta",
  "num-traits",
@@ -3804,7 +3846,7 @@ dependencies = [
 
 [[package]]
 name = "relay-protocol-derive"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3814,7 +3856,7 @@ dependencies = [
 
 [[package]]
 name = "relay-quotas"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "hashbrown 0.14.5",
  "insta",
@@ -3832,7 +3874,7 @@ dependencies = [
 
 [[package]]
 name = "relay-redis"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "r2d2",
  "redis",
@@ -3844,7 +3886,7 @@ dependencies = [
 
 [[package]]
 name = "relay-replays"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "criterion",
  "flate2",
@@ -3861,7 +3903,7 @@ dependencies = [
 
 [[package]]
 name = "relay-sampling"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3880,12 +3922,12 @@ dependencies = [
 
 [[package]]
 name = "relay-server"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "ahash",
  "anyhow",
  "arc-swap",
- "axum",
+ "axum 0.8.1",
  "axum-extra",
  "axum-server",
  "backoff",
@@ -3961,7 +4003,8 @@ dependencies = [
  "tempfile",
  "thiserror",
  "tokio",
- "tower 0.4.13",
+ "tokio-util",
+ "tower 0.5.2",
  "tower-http",
  "url",
  "uuid",
@@ -3970,7 +4013,7 @@ dependencies = [
 
 [[package]]
 name = "relay-spans"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "chrono",
  "hex",
@@ -3984,7 +4027,7 @@ dependencies = [
 
 [[package]]
 name = "relay-statsd"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "cadence",
  "crossbeam-channel",
@@ -3996,7 +4039,7 @@ dependencies = [
 
 [[package]]
 name = "relay-system"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "futures",
  "insta",
@@ -4009,7 +4052,7 @@ dependencies = [
 
 [[package]]
 name = "relay-test"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "relay-log",
  "relay-system",
@@ -4018,7 +4061,7 @@ dependencies = [
 
 [[package]]
 name = "relay-ua"
-version = "24.12.1"
+version = "25.1.0"
 dependencies = [
  "once_cell",
  "uaparser",
@@ -4026,9 +4069,9 @@ dependencies = [
 
 [[package]]
 name = "reqwest"
-version = "0.12.9"
+version = "0.12.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a77c62af46e79de0a562e1a9849205ffcb7fc1238876e9bd743357570e04046f"
+checksum = "43e734407157c3c2034e0258f5e4473ddb361b1e85f95a66690d67264d7cd1da"
 dependencies = [
  "async-compression",
  "base64 0.22.1",
@@ -4058,11 +4101,12 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_urlencoded",
- "sync_wrapper 1.0.2",
+ "sync_wrapper",
  "system-configuration",
  "tokio",
  "tokio-native-tls",
  "tokio-util",
+ "tower 0.5.2",
  "tower-service",
  "url",
  "wasm-bindgen",
@@ -4946,8 +4990,7 @@ checksum = "a8f112729512f8e442d81f95a8a7ddf2b7c6b8a1a6f509a95864142b30cab2d3"
 [[package]]
 name = "statsdproxy"
 version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6e1331025d2b2fd51955ddba105a3b66b558d5979c54fd690ec26f06f215abd2"
+source = "git+https://github.com/getsentry/statsdproxy?rev=50155c5c5dc103fb1557e5ccde6b2cf6dfe82b9f#50155c5c5dc103fb1557e5ccde6b2cf6dfe82b9f"
 dependencies = [
  "anyhow",
  "cadence",
@@ -5035,12 +5078,6 @@ dependencies = [
  "quote",
  "unicode-ident",
 ]
-
-[[package]]
-name = "sync_wrapper"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2047c6ded9c721764247e62cd3b03c09ffc529b2ba5b10ec482ae507a4a70160"
 
 [[package]]
 name = "sync_wrapper"
@@ -5223,9 +5260,9 @@ dependencies = [
 
 [[package]]
 name = "tinyvec"
-version = "1.8.0"
+version = "1.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "445e881f4f6d382d5f27c034e25eb92edd7c784ceab92a0937db7f2e9471b938"
+checksum = "022db8904dfa342efe721985167e9fcd16c29b226db4397ed752a761cfce81e8"
 dependencies = [
  "tinyvec_macros",
 ]
@@ -5334,7 +5371,7 @@ checksum = "877c5b330756d856ffcc4553ab34a5684481ade925ecc54bcd1bf02b1d0d4d52"
 dependencies = [
  "async-stream",
  "async-trait",
- "axum",
+ "axum 0.7.9",
  "base64 0.22.1",
  "bytes",
  "h2",
@@ -5378,15 +5415,16 @@ dependencies = [
 
 [[package]]
 name = "tower"
-version = "0.5.1"
+version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2873938d487c3cfb9aed7546dc9f2711d867c9f90c46b889989a2cb84eba6b4f"
+checksum = "d039ad9159c98b70ecfd540b2573b97f7f52c3e8d9f8ad57a24b916a536975f9"
 dependencies = [
  "futures-core",
  "futures-util",
  "pin-project-lite",
- "sync_wrapper 0.1.2",
+ "sync_wrapper",
  "tokio",
+ "tokio-util",
  "tower-layer",
  "tower-service",
  "tracing",
@@ -5394,9 +5432,9 @@ dependencies = [
 
 [[package]]
 name = "tower-http"
-version = "0.5.2"
+version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e9cd434a998747dd2c4276bc96ee2e0c7a2eadf3cae88e52be55a05fa9053f5"
+checksum = "403fa3b783d4b626a8ad51d766ab03cb6d2dbfc46b1c5d4448395e6628dc9697"
 dependencies = [
  "async-compression",
  "bitflags 2.6.0",
@@ -5560,9 +5598,9 @@ checksum = "7e51b68083f157f853b6379db119d1c1be0e6e4dec98101079dec41f6f5cf6df"
 
 [[package]]
 name = "unicode-bidi"
-version = "0.3.17"
+version = "0.3.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5ab17db44d7388991a428b2ee655ce0c212e862eff1768a455c58f9aad6e7893"
+checksum = "5c1cb5db39152898a79168971543b1cb5020dff7fe43c8dc468b0885f5e29df5"
 
 [[package]]
 name = "unicode-ident"
@@ -5635,7 +5673,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32f8b686cadd1473f4bd0117a5d28d36b1ade384ea9b5069a1c40aefed7fda60"
 dependencies = [
  "form_urlencoded",
- "idna 1.0.3",
+ "idna",
  "percent-encoding",
  "serde",
 ]

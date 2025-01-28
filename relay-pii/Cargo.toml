@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Scrubbing of personally identifiable information (PII) from events"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "24.12.1"
+version = "25.1.0"
 edition = "2021"
 license-file = "../LICENSE.md"
 publish = false
@@ -25,6 +25,8 @@ relay-event-schema = { workspace = true }
 relay-log = { workspace = true }
 relay-protocol = { workspace = true }
 serde = { workspace = true }
+serde_json = { workspace = true }
+serde-transcode = { workspace = true }
 sha1 = { workspace = true }
 smallvec = { workspace = true }
 thiserror = { workspace = true }

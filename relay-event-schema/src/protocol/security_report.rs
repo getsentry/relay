@@ -463,7 +463,7 @@ impl CspRaw {
     }
 
     fn get_tags(&self, effective_directive: CspDirective) -> Tags {
-        Tags(PairList::from(vec![
+        let mut tags = vec![
             Annotated::new(TagEntry(
                 Annotated::new("effective-directive".to_string()),
                 Annotated::new(effective_directive.to_string()),
@@ -472,7 +472,18 @@ impl CspRaw {
                 Annotated::new("blocked-uri".to_string()),
                 Annotated::new(self.sanitized_blocked_uri()),
             )),
-        ]))
+        ];
+
+        if let Ok(url) = Url::parse(&self.blocked_uri) {
+            if let ("http" | "https", Some(host)) = (url.scheme(), url.host_str()) {
+                tags.push(Annotated::new(TagEntry(
+                    Annotated::new("blocked-host".to_string()),
+                    Annotated::new(host.to_owned()),
+                )));
+            }
+        }
+
+        Tags(PairList::from(tags))
     }
 
     fn get_request(&self) -> Request {
@@ -1251,7 +1262,7 @@ mod tests {
         let mut event = Event::default();
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
 
-        assert_annotated_snapshot!(Annotated::new(event), @r#"
+        assert_annotated_snapshot!(Annotated::new(event), @r###"
         {
           "culprit": "style-src cdn.example.com",
           "logentry": {
@@ -1268,6 +1279,10 @@ mod tests {
             [
               "blocked-uri",
               "http://example.com/lol.css"
+            ],
+            [
+              "blocked-host",
+              "example.com"
             ]
           ],
           "csp": {
@@ -1278,7 +1293,7 @@ mod tests {
             "violated_directive": "style-src cdn.example.com"
           }
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -1337,7 +1352,7 @@ mod tests {
         let mut event = Event::default();
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
 
-        assert_annotated_snapshot!(Annotated::new(event), @r#"
+        assert_annotated_snapshot!(Annotated::new(event), @r###"
         {
           "culprit": "default-src self",
           "logentry": {
@@ -1360,6 +1375,10 @@ mod tests {
             [
               "blocked-uri",
               "http://evilhackerscripts.com"
+            ],
+            [
+              "blocked-host",
+              "evilhackerscripts.com"
             ]
           ],
           "csp": {
@@ -1371,7 +1390,7 @@ mod tests {
             "violated_directive": "default-src self"
           }
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -1396,7 +1415,7 @@ mod tests {
         let mut event = Event::default();
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
 
-        assert_annotated_snapshot!(Annotated::new(event), @r#"
+        assert_annotated_snapshot!(Annotated::new(event), @r###"
         {
           "culprit": "script-src",
           "logentry": {
@@ -1419,6 +1438,10 @@ mod tests {
             [
               "blocked-uri",
               "http://baddomain.com/test.js?_=1515535030116"
+            ],
+            [
+              "blocked-host",
+              "baddomain.com"
             ]
           ],
           "csp": {
@@ -1436,7 +1459,7 @@ mod tests {
             "disposition": "enforce"
           }
         }
-        "#);
+        "###);
     }
 
     #[test]
@@ -1559,7 +1582,7 @@ mod tests {
 
         let mut event = Event::default();
         Csp::apply_to_event(json.as_bytes(), &mut event).unwrap();
-        insta::assert_debug_snapshot!(event.tags, @r#"
+        insta::assert_debug_snapshot!(event.tags, @r###"
         Tags(
             PairList(
                 [
@@ -1571,10 +1594,14 @@ mod tests {
                         "blocked-uri",
                         "https://api.stripe.com/v1/tokens",
                     ),
+                    TagEntry(
+                        "blocked-host",
+                        "api.stripe.com",
+                    ),
                 ],
             ),
         )
-        "#);
+        "###);
     }
 
     #[test]

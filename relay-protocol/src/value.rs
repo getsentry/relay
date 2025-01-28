@@ -265,12 +265,10 @@ impl<'de> Deserialize<'de> for Value {
 
             #[inline]
             fn visit_u64<E>(self, value: u64) -> Result<Value, E> {
-                let signed_value = value as i64;
-                if signed_value as u64 == value {
-                    Ok(Value::I64(signed_value))
-                } else {
-                    Ok(Value::U64(value))
-                }
+                Ok(value
+                    .try_into()
+                    .map(Value::I64)
+                    .unwrap_or(Value::U64(value)))
             }
 
             #[inline]
@@ -502,5 +500,19 @@ impl PartialEq for Val<'_> {
             (Self::Object(_), Self::Object(_)) => false,
             _ => false,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_unsigned_signed() {
+        let v: Value = serde_json::from_str("9223372036854775816").unwrap();
+        assert_eq!(v, Value::U64(9223372036854775816));
+
+        let v: Value = serde_json::from_str("123").unwrap();
+        assert_eq!(v, Value::I64(123));
     }
 }

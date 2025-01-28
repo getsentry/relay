@@ -434,7 +434,7 @@ fn is_docker() -> bool {
         return true;
     }
 
-    fs::read_to_string("/proc/self/cgroup").map_or(false, |s| s.contains("/docker"))
+    fs::read_to_string("/proc/self/cgroup").is_ok_and(|s| s.contains("/docker"))
 }
 
 /// Default value for the "bind" configuration.
@@ -651,6 +651,12 @@ pub struct Limits {
     ///
     /// By default there is no idle timeout.
     pub idle_timeout: Option<u64>,
+    /// Sets the maximum number of concurrent connections.
+    ///
+    /// Upon reaching the limit, the server will stop accepting connections.
+    ///
+    /// By default there is no limit.
+    pub max_connections: Option<usize>,
     /// The TCP listen backlog.
     ///
     /// Configures the TCP listen backlog for the listening socket of Relay.
@@ -688,6 +694,7 @@ impl Default for Limits {
             shutdown_timeout: 10,
             keepalive_timeout: 5,
             idle_timeout: None,
+            max_connections: None,
             tcp_listen_backlog: 1024,
         }
     }
@@ -2311,6 +2318,11 @@ impl Config {
     /// Returns the server idle timeout in seconds.
     pub fn idle_timeout(&self) -> Option<Duration> {
         self.values.limits.idle_timeout.map(Duration::from_secs)
+    }
+
+    /// Returns the maximum connections.
+    pub fn max_connections(&self) -> Option<usize> {
+        self.values.limits.max_connections
     }
 
     /// TCP listen backlog to configure on Relay's listening socket.

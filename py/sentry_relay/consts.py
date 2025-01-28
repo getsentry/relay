@@ -32,6 +32,9 @@ class DataCategory(IntEnum):
     REPLAY_VIDEO = 20
     UPTIME = 21
     ATTACHMENT_ITEM = 22
+    LOG_ITEM = 23
+    LOG_BYTE = 24
+    PROFILE_DURATION_UI = 25
     UNKNOWN = -1
     # end generated
 

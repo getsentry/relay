@@ -56,16 +56,16 @@
 //! ```
 //!
 //! [Metric Types]: https://github.com/statsd/statsd/blob/master/docs/metric_types.md
-use std::collections::BTreeMap;
-use std::net::ToSocketAddrs;
-use std::ops::{Deref, DerefMut};
-use std::sync::Arc;
-
 use cadence::{Metric, MetricBuilder, StatsdClient};
 use parking_lot::RwLock;
 use rand::distributions::{Distribution, Uniform};
 use statsdproxy::cadence::StatsdProxyMetricSink;
 use statsdproxy::config::AggregateMetricsConfig;
+use std::collections::BTreeMap;
+use std::net::ToSocketAddrs;
+use std::ops::{Deref, DerefMut};
+use std::sync::Arc;
+use std::time::Duration;
 
 /// Maximum number of metric events that can be queued before we start dropping them
 const METRICS_MAX_QUEUE_SIZE: usize = 100_000;
@@ -253,7 +253,7 @@ pub fn init<A: ToSocketAddrs>(
                 AggregateMetricsConfig {
                     aggregate_gauges: true,
                     aggregate_counters: true,
-                    flush_interval: 1,
+                    flush_interval: Duration::from_millis(50),
                     flush_offset: 0,
                     max_map_size: None,
                 },

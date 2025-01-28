@@ -22,7 +22,7 @@ pub struct Frame {
     ///
     /// This function name may be shortened or demangled. If not, Sentry will demangle and shorten
     /// it for some platforms. The original function name will be stored in `raw_function`.
-    #[metastructure(max_chars = 256, max_chars_allowance = 20)]
+    #[metastructure(max_chars = 512, max_chars_allowance = 20)]
     #[metastructure(skip_serialization = "empty")]
     pub function: Annotated<String>,
 
@@ -39,9 +39,9 @@ pub struct Frame {
     ///
     /// The logic to be applied is that an intelligently trimmed function name should be stored in
     /// `function` and the value before trimming is stored in this field instead.  However also this
-    /// field will be capped at 256 characters at the moment which often means that not the entire
+    /// field will be capped at 512 characters at the moment which often means that not the entire
     /// original value can be stored.
-    #[metastructure(max_chars = 256, max_chars_allowance = 20)]
+    #[metastructure(max_chars = 512, max_chars_allowance = 20)]
     #[metastructure(skip_serialization = "empty")]
     pub raw_function: Annotated<String>,
 
@@ -52,7 +52,7 @@ pub struct Frame {
     /// like Swift, C++ or Rust.
     // XXX(markus): How is this different from just storing the mangled function name in
     // `function`?
-    #[metastructure(max_chars = 256)]
+    #[metastructure(max_chars = 512)]
     pub symbol: Annotated<String>,
 
     /// Name of the module the frame is contained in.

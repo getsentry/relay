@@ -1,3 +1,4 @@
+from unittest import mock
 import pytest
 import uuid
 import json
@@ -145,6 +146,199 @@ def test_attachments_ratelimit(
     outcomes_consumer.assert_rate_limited("static_disabled_quota")
 
 
+def test_attachments_pii(mini_sentry, relay):
+    event_id = "515539018c9b4260a6f999572f1661ee"
+
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["piiConfig"] = {
+        "rules": {"0": {"type": "ip", "redaction": {"method": "remove"}}},
+        "applications": {"$attachments.'foo.txt'": ["0"]},
+    }
+    relay = relay(mini_sentry)
+
+    attachments = [
+        ("att_1", "foo.txt", b"here's an IP that should get masked -> 127.0.0.1 <-"),
+        (
+            "att_2",
+            "bar.txt",
+            b"here's an IP that should not get scrubbed -> 127.0.0.1 <-",
+        ),
+    ]
+
+    for attachment in attachments:
+        relay.send_attachments(project_id, event_id, [attachment])
+
+    payloads = {
+        mini_sentry.captured_events.get().items[0].payload.bytes for _ in range(2)
+    }
+    assert payloads == {
+        b"here's an IP that should get masked -> ********* <-",
+        b"here's an IP that should not get scrubbed -> 127.0.0.1 <-",
+    }
+
+
+@pytest.mark.parametrize(
+    "feature_flags, expected",
+    [
+        ([], "************"),
+        (["organizations:view-hierarchy-scrubbing"], "************"),
+    ],
+)
+def test_view_hierarchy_scrubbing(mini_sentry, relay, feature_flags, expected):
+    event_id = "515539018c9b4260a6f999572f1661ee"
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = feature_flags
+    project_config["config"]["piiConfig"] = {
+        "rules": {"0": {"type": "ip", "redaction": {"method": "mask"}}},
+        "applications": {"$attachments.'view-hierarchy.json'": ["0"], "$string": ["0"]},
+    }
+    relay = relay(mini_sentry)
+
+    json_payload = {
+        "rendering_system": "UIKIT",
+        "identifier": "129.16.41.92",
+    }
+
+    envelope = Envelope(headers=[["event_id", event_id]])
+    envelope.add_item(
+        Item(
+            headers=[["attachment_type", "event.view_hierarchy"]],
+            type="attachment",
+            payload=PayloadRef(json=json_payload),
+            filename="view-hierarchy.json",
+        )
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    relay.send_envelope(project_id, envelope)
+    payload = json.loads(mini_sentry.captured_events.get().items[0].payload.bytes)
+    assert payload == {"rendering_system": "UIKIT", "identifier": expected}
+
+
+@pytest.mark.parametrize(
+    "feature_flags, expected",
+    [
+        ([], b"**************************************************"),
+        (
+            ["organizations:view-hierarchy-scrubbing"],
+            b'{"rendering_system":"UIKIT","password":""}',
+        ),
+    ],
+)
+def test_attachment_scrubbing_with_fallback(
+    mini_sentry, relay, feature_flags, expected
+):
+    """
+    If the feature flag is disabled, it will be scrubbed as binary file so it masks the entire attachment.
+    If the feature flag is enabled, it will understand that it's json and only remove the password content
+    """
+    event_id = "515539018c9b4260a6f999572f1661ee"
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = feature_flags
+    project_config["config"]["piiConfig"] = {
+        "rules": {"0": {"type": "password", "redaction": {"method": "remove"}}},
+        "applications": {
+            "$string": ["@password:remove"],
+            "$attachments.'view-hierarchy.json'": ["0"],
+        },
+    }
+
+    relay = relay(mini_sentry)
+    json_payload = {
+        "rendering_system": "UIKIT",
+        "password": "hunter42",
+    }
+
+    envelope = Envelope(headers=[["event_id", event_id]])
+    envelope.add_item(
+        Item(
+            headers=[["attachment_type", "event.view_hierarchy"]],
+            type="attachment",
+            payload=PayloadRef(json=json_payload),
+            filename="view-hierarchy.json",
+        )
+    )
+
+    relay.send_envelope(project_id, envelope)
+
+    payload = mini_sentry.captured_events.get().items[0].payload.bytes
+    assert payload == expected
+
+
+def test_view_hierarchy_not_scrubbed_without_config(mini_sentry, relay):
+    event_id = "515539018c9b4260a6f999572f1661ee"
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["piiConfig"] = {}
+    relay = relay(mini_sentry)
+
+    json_payload = {"rendering_system": "UIKIT", "identifier": "129.16.41.92"}
+
+    envelope = Envelope(headers=[["event_id", event_id]])
+    envelope.add_item(
+        Item(
+            headers=[["attachment_type", "event.view_hierarchy"]],
+            type="attachment",
+            payload=PayloadRef(json=json_payload),
+            filename="view-hierarchy.json",
+        )
+    )
+
+    relay.send_envelope(project_id, envelope)
+    payload = json.loads(mini_sentry.captured_events.get().items[0].payload.bytes)
+    assert payload == json_payload
+
+
+def test_attachments_pii_logfile(mini_sentry, relay):
+    project_id = 42
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["piiConfig"] = {
+        "rules": {
+            "0": {"type": "email", "redaction": {"method": "mask"}},
+            "1": {"type": "userpath", "redaction": {"method": "remove"}},
+        },
+        "applications": {"$attachments.'logfile.txt'": ["0", "1"]},
+    }
+    relay = relay(mini_sentry)
+
+    attachment = r"""Alice Johnson
+alice.johnson@example.com
++1234567890
+4111 1111 1111 1111
+Bob Smith bob.smith@example.net +9876543210 5500 0000 0000 0004
+Charlie Brown charlie.brown@example.org +1928374650 3782 822463 10005
+Dana White dana.white@example.co.uk +1029384756 6011 0009 9013 9424
+path=c:\Users\yan\mylogfile.txt
+password=mysupersecretpassword123"""
+
+    envelope = Envelope()
+    item = Item(
+        payload=attachment, type="attachment", headers={"filename": "logfile.txt"}
+    )
+    envelope.add_item(item)
+
+    relay.send_envelope(project_id, envelope)
+
+    scrubbed_payload = mini_sentry.captured_events.get().items[0].payload.bytes
+
+    assert (
+        scrubbed_payload
+        == rb"""Alice Johnson
+*************************
++1234567890
+4111 1111 1111 1111
+Bob Smith ********************* +9876543210 5500 0000 0000 0004
+Charlie Brown ************************* +1928374650 3782 822463 10005
+Dana White ************************ +1029384756 6011 0009 9013 9424
+path=c:\Users\***\mylogfile.txt
+password=mysupersecretpassword123"""
+    )
+
+
 def test_attachments_quotas(
     mini_sentry,
     relay_with_processing,
@@ -258,7 +452,8 @@ def test_view_hierarchy_processing(
     outcomes_consumer = outcomes_consumer()
 
     json_payload = {"rendering_system": "compose", "windows": []}
-    expected_payload = json.dumps(json_payload).encode()
+    # separators are used to produce json without whitespaces
+    expected_payload = json.dumps(json_payload, separators=(",", ":")).encode()
 
     envelope = Envelope(headers=[["event_id", event_id]])
     envelope.add_item(
@@ -294,14 +489,21 @@ def test_view_hierarchy_processing(
     outcomes_consumer.assert_empty()
 
 
+@pytest.mark.parametrize("drop_transaction_attachments", [False, True])
 def test_event_with_attachment(
     mini_sentry,
     relay_with_processing,
     attachments_consumer,
     outcomes_consumer,
+    drop_transaction_attachments,
 ):
     project_id = 42
     event_id = "515539018c9b4260a6f999572f1661ee"
+
+    if drop_transaction_attachments:
+        mini_sentry.global_config["options"][
+            "relay.drop-transaction-attachments"
+        ] = True
 
     mini_sentry.add_full_project_config(project_id)
     relay = relay_with_processing()
@@ -360,14 +562,81 @@ def test_event_with_attachment(
         "rate_limited": False,
     }
 
+    if drop_transaction_attachments:
+        attachments_consumer.assert_empty()
+        assert outcomes_consumer.get_outcomes() == [
+            {
+                "timestamp": mock.ANY,
+                "org_id": 1,
+                "project_id": 42,
+                "key_id": 123,
+                "outcome": 3,
+                "reason": "transaction_attachment",
+                "category": 4,
+                "quantity": 22,
+            },
+            {
+                "timestamp": mock.ANY,
+                "org_id": 1,
+                "project_id": 42,
+                "key_id": 123,
+                "outcome": 3,
+                "reason": "transaction_attachment",
+                "category": 22,
+                "quantity": 1,
+            },
+        ]
+    else:
+        attachment = attachments_consumer.get_individual_attachment()
+        assert attachment["attachment"].pop("id")
+        assert attachment == {
+            "type": "attachment",
+            "attachment": expected_attachment,
+            "event_id": event_id,
+            "project_id": project_id,
+        }
+
+        _, event = attachments_consumer.get_event()
+        assert event["event_id"] == event_id
+
+
+def test_form_data_is_rejected(
+    mini_sentry, relay_with_processing, attachments_consumer, outcomes_consumer
+):
+    """
+    Test that form data entries (those without filenames) are rejected and generate outcomes.
+    """
+    project_id = 42
+    event_id = "515539018c9b4260a6f999572f1661ee"
+
+    mini_sentry.add_full_project_config(project_id)
+    relay = relay_with_processing()
+    attachments_consumer = attachments_consumer()
+
+    # Create attachments with both file content and form data
+    attachments = [
+        ("att_1", "foo.txt", b"file content"),  # Valid file attachment
+        ("form_key", None, b"form value"),  # Form data that should be rejected
+    ]
+
+    relay.send_attachments(project_id, event_id, attachments)
+
+    # Check that only the file attachment was processed
     attachment = attachments_consumer.get_individual_attachment()
-    assert attachment["attachment"].pop("id")
+    assert attachment["attachment"].pop("id")  # ID is random
     assert attachment == {
         "type": "attachment",
-        "attachment": expected_attachment,
+        "attachment": {
+            "attachment_type": "event.attachment",
+            "chunks": 0,
+            "data": b"file content",
+            "name": "foo.txt",
+            "size": len(b"file content"),
+            "rate_limited": False,
+        },
         "event_id": event_id,
         "project_id": project_id,
     }
 
-    _, event = attachments_consumer.get_event()
-    assert event["event_id"] == event_id
+    # Verify no more attachments were processed
+    attachments_consumer.assert_empty()

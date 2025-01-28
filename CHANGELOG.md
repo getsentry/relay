@@ -1,5 +1,47 @@
 # Changelog
 
+## Unreleased
+
+**Features**:
+
+- Add configuration option to limit the amount of concurrent http connections. ([#4453](https://github.com/getsentry/relay/pull/4453))
+- Add flags context to event schema. ([#4458](https://github.com/getsentry/relay/pull/4458))
+- Add support for view hierarchy attachment scrubbing. ([#4452](https://github.com/getsentry/relay/pull/4452))
+
+**Bug Fixes**:
+
+- Fix a bug where parsing large unsigned integers would fail incorrectly. ([#4472](https://github.com/getsentry/relay/pull/4472))
+
+**Internal**:
+
+- Add data categories for LogItem and LogByte. ([#4455](https://github.com/getsentry/relay/pull/4455))
+- Add option to drop transaction attachments. ([#4466](https://github.com/getsentry/relay/pull/4466))
+
+## 25.1.0
+
+**Features**:
+
+- Use a separate rate-limit enforcement category for replay-video envelope items. ([#4459](https://github.com/getsentry/relay/pull/4459))
+
+**Internal**:
+
+- Updates performance score calculation on spans and events to also store cdf values as measurements. ([#4438](https://github.com/getsentry/relay/pull/4438))
+
+## 24.12.2
+
+**Features**:
+
+- Increase stacktrace function and symbol length limits to 512 chars. ([#4436](https://github.com/getsentry/relay/pull/4436))
+- Scrub non-minidump attachments if there are explicit `$attachment` rules. ([#4415](https://github.com/getsentry/relay/pull/4415), [#4441](https://github.com/getsentry/relay/pull/4441))
+- Include blocked domain in CSP reports as a tag. ([#4435](https://github.com/getsentry/relay/pull/4435))
+
+**Internal**:
+
+- Remove the `spool` command from Relay. ([#4423](https://github.com/getsentry/relay/pull/4423))
+- Bump `sentry-native` to `0.7.17` and remove cross compilation in CI. ([#4427](https://github.com/getsentry/relay/pull/4427))
+- Remove `form_data` envelope items from standalone envelopes. ([#4428](https://github.com/getsentry/relay/pull/4428))
+- Remove use of legacy project cache. ([#4419](https://github.com/getsentry/relay/pull/4419))
+
 ## 24.12.1
 
 **Bug Fixes**:

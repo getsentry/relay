@@ -12,8 +12,6 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::{fmt, mem};
 
-#[cfg(feature = "processing")]
-use anyhow::Context;
 use chrono::{DateTime, SecondsFormat, Utc};
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
@@ -462,6 +460,9 @@ pub enum DiscardReason {
 
     /// (Relay) A required feature is not enabled.
     FeatureDisabled(Feature),
+
+    /// An attachment was submitted with a transaction.
+    TransactionAttachment,
 }
 
 impl DiscardReason {
@@ -508,6 +509,7 @@ impl DiscardReason {
             DiscardReason::Profiling(reason) => reason,
             DiscardReason::InvalidSpan => "invalid_span",
             DiscardReason::FeatureDisabled(_) => "feature_disabled",
+            DiscardReason::TransactionAttachment => "transaction_attachment",
         }
     }
 }
@@ -817,10 +819,12 @@ impl KafkaOutcomesProducer {
         let mut client_builder = KafkaClient::builder();
 
         for topic in &[KafkaTopic::Outcomes, KafkaTopic::OutcomesBilling] {
-            let kafka_config = &config.kafka_config(*topic).context(ServiceError::Kafka)?;
+            let kafka_config = &config
+                .kafka_config(*topic)
+                .map_err(|e| ServiceError::Kafka(e.to_string()))?;
             client_builder = client_builder
                 .add_kafka_topic_config(*topic, kafka_config, config.kafka_validate_topics())
-                .context(ServiceError::Kafka)?;
+                .map_err(|e| ServiceError::Kafka(e.to_string()))?;
         }
 
         Ok(Self {

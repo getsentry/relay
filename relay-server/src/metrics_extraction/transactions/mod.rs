@@ -314,7 +314,7 @@ impl TransactionExtractor<'_> {
                     || name
                         .strip_prefix("score.weight.")
                         .or_else(|| name.strip_prefix("score."))
-                        .map_or(false, |suffix| measurement_names.contains(suffix));
+                        .is_some_and(|suffix| measurement_names.contains(suffix));
 
                 let measurement_tags = TransactionMeasurementTags {
                     measurement_rating: get_measurement_rating(name, value.to_f64()),
@@ -744,6 +744,40 @@ mod tests {
                     "sentry.score_profile_version": "alpha",
                     "transaction": "gEt /api/:version/users/",
                     "transaction.op": "mYOp",
+                    "user.geo.subregion": "21",
+                },
+                metadata: BucketMetadata {
+                    merges: 1,
+                    received_at: Some(
+                        UnixTimestamp(0),
+                    ),
+                    extracted_from_indexed: false,
+                },
+            },
+            Bucket {
+                timestamp: UnixTimestamp(1619420400),
+                width: 0,
+                name: MetricName(
+                    "d:transactions/measurements.score.ratio.lcp@ratio",
+                ),
+                value: Distribution(
+                    [
+                        0.0,
+                    ],
+                ),
+                tags: {
+                    "browser.name": "Chrome",
+                    "dist": "foo",
+                    "environment": "fake_environment",
+                    "fOO": "bar",
+                    "geo.country_code": "US",
+                    "http.method": "POST",
+                    "os.name": "Windows",
+                    "platform": "javascript",
+                    "release": "1.2.3",
+                    "transaction": "gEt /api/:version/users/",
+                    "transaction.op": "mYOp",
+                    "transaction.status": "ok",
                     "user.geo.subregion": "21",
                 },
                 metadata: BucketMetadata {

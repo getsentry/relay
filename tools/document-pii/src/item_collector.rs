@@ -328,7 +328,7 @@ fn is_file_declared_from_other_file(
 ) -> anyhow::Result<bool> {
     let path = entry.path();
 
-    if path.is_file() && path.extension().map_or(false, |ext| ext == "rs") && path != *file_path {
+    if path.is_file() && path.extension().is_some_and(|ext| ext == "rs") && path != *file_path {
         // Read the file and search for the same declaration pattern: "pub mod" and file stem.
         let file = fs::File::open(path)?;
         let reader = std::io::BufReader::new(file);

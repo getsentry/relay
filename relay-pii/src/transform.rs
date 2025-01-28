@@ -49,6 +49,7 @@ use serde::de;
 ///     }
 /// }
 /// ```
+#[allow(missing_docs)]
 pub trait Transform<'de> {
     fn push_path(&mut self, _key: &'de str) {}
 
@@ -90,14 +91,12 @@ pub trait Transform<'de> {
         v
     }
 
-    serde::serde_if_integer128! {
-        fn transform_i128(&mut self, v: i128) -> i128 {
-            v
-        }
+    fn transform_i128(&mut self, v: i128) -> i128 {
+        v
+    }
 
-        fn transform_u128(&mut self, v: u128) -> u128 {
-            v
-        }
+    fn transform_u128(&mut self, v: u128) -> u128 {
+        v
     }
 
     fn transform_f32(&mut self, v: f32) -> f32 {
@@ -320,20 +319,26 @@ where
         ))
     }
 
-    serde::serde_if_integer128! {
-        fn deserialize_i128<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: de::Visitor<'de>,
-        {
-            self.inner.deserialize_i128(Visitor { inner: visitor, transformer: self.transformer.as_mut(), is_key: self.is_key })
-        }
+    fn deserialize_i128<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: de::Visitor<'de>,
+    {
+        self.inner.deserialize_i128(Visitor {
+            inner: visitor,
+            transformer: self.transformer.as_mut(),
+            is_key: self.is_key,
+        })
+    }
 
-        fn deserialize_u128<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
-        where
-            V: de::Visitor<'de>,
-        {
-            self.inner.deserialize_u128(Visitor { inner: visitor, transformer: self.transformer.as_mut(), is_key: self.is_key })
-        }
+    fn deserialize_u128<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: de::Visitor<'de>,
+    {
+        self.inner.deserialize_u128(Visitor {
+            inner: visitor,
+            transformer: self.transformer.as_mut(),
+            is_key: self.is_key,
+        })
     }
 
     fn deserialize_f32<V>(mut self, visitor: V) -> Result<V::Value, Self::Error>
@@ -680,18 +685,18 @@ where
         self.inner.visit_u64(self.transformer.transform_u64(v))
     }
 
-    serde::serde_if_integer128! {
-        fn visit_i128<E>(self, v: i128) -> Result<Self::Value, E>
-            where E: de::Error
-        {
-            self.inner.visit_i128(self.transformer.transform_i128(v))
-        }
+    fn visit_i128<E>(self, v: i128) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        self.inner.visit_i128(self.transformer.transform_i128(v))
+    }
 
-        fn visit_u128<E>(self, v: u128) -> Result<Self::Value, E>
-            where E: de::Error
-        {
-            self.inner.visit_u128(self.transformer.transform_u128(v))
-        }
+    fn visit_u128<E>(self, v: u128) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        self.inner.visit_u128(self.transformer.transform_u128(v))
     }
 
     fn visit_f32<E>(self, v: f32) -> Result<Self::Value, E>
@@ -839,7 +844,10 @@ where
     where
         S: de::DeserializeSeed<'de>,
     {
-        self.0.next_element_seed(DeserializeValueSeed(seed, self.1))
+        // We want to use a special ValueSeed for sequences that does not call pop_path
+        // because we don't push paths when entering sequences right now.
+        self.0
+            .next_element_seed(DeserializeSeqValueSeed(seed, self.1))
     }
 }
 
@@ -886,6 +894,24 @@ where
             .deserialize(Deserializer::borrowed(deserializer, self.1));
         self.1.pop_path();
         res
+    }
+}
+
+struct DeserializeSeqValueSeed<'a, D, T>(D, &'a mut T);
+
+impl<'de, D, T> de::DeserializeSeed<'de> for DeserializeSeqValueSeed<'_, D, T>
+where
+    D: de::DeserializeSeed<'de>,
+    T: Transform<'de>,
+{
+    type Value = D::Value;
+
+    fn deserialize<X>(self, deserializer: X) -> Result<Self::Value, X::Error>
+    where
+        X: serde::Deserializer<'de>,
+    {
+        self.0
+            .deserialize(Deserializer::borrowed(deserializer, self.1))
     }
 }
 

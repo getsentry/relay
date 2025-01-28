@@ -65,7 +65,7 @@ where
     };
 
     let new_source = transaction_source_tag(inner);
-    let is_404 = extract_http_status_code(inner).map_or(false, |s| s == "404");
+    let is_404 = extract_http_status_code(inner).is_some_and(|s| s == "404");
 
     relay_statsd::metric!(
         counter(RelayCounters::TransactionNameChanges) += 1,

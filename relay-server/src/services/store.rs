@@ -1,7 +1,6 @@
 //! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses Kafka topics to forward data to Sentry
 
-use anyhow::Context;
 use relay_base_schema::organization::OrganizationId;
 use serde::ser::SerializeMap;
 use std::borrow::Cow;
@@ -69,7 +68,7 @@ impl Producer {
             let kafka_config = &config.kafka_config(*topic)?;
             client_builder = client_builder
                 .add_kafka_topic_config(*topic, kafka_config, config.kafka_validate_topics())
-                .context(ServiceError::Kafka)?;
+                .map_err(|e| ServiceError::Kafka(e.to_string()))?;
         }
 
         Ok(Self {
@@ -913,11 +912,8 @@ impl StoreService {
         span.start_timestamp_ms = (span.start_timestamp_precise * 1e3) as u64;
 
         if let Some(measurements) = &mut span.measurements {
-            measurements.retain(|_, v| {
-                v.as_ref()
-                    .and_then(|v| v.value)
-                    .map_or(false, f64::is_finite)
-            });
+            measurements
+                .retain(|_, v| v.as_ref().and_then(|v| v.value).is_some_and(f64::is_finite));
         }
 
         self.produce(

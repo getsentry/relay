@@ -27,7 +27,7 @@ use relay_protocol::Meta;
 use serde::{de, ser, Deserializer};
 use serde_json::value::RawValue;
 
-use crate::transform::Transform;
+use relay_pii::transform::Transform;
 
 /// Paths to fields on which datascrubbing rules should be applied.
 ///
@@ -180,7 +180,7 @@ impl serde::Serialize for ScrubbedValue<'_, '_> {
     {
         let mut transform = self.1.borrow_mut();
         let mut deserializer = serde_json::Deserializer::from_str(self.0.get());
-        let scrubber = crate::transform::Deserializer::new(&mut deserializer, &mut *transform);
+        let scrubber = relay_pii::transform::Deserializer::new(&mut deserializer, &mut *transform);
         serde_transcode::transcode(scrubber, serializer)
     }
 }

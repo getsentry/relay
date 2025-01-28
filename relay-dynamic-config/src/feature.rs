@@ -115,6 +115,9 @@ pub enum Feature {
     #[doc(hidden)]
     #[serde(rename = "organizations:performance-queries-mongodb-extraction")]
     ScrubMongoDbDescriptions,
+    #[doc(hidden)]
+    #[serde(rename = "organizations:view-hierarchy-scrubbing")]
+    ViewHierarchyScrubbing,
     /// Forward compatibility.
     #[doc(hidden)]
     #[serde(other)]

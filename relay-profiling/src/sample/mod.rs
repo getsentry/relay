@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::native_debug_image::NativeDebugImage;
+use crate::debug_image::DebugImage;
 use relay_event_schema::protocol::Addr;
 
 pub mod v1;
@@ -90,7 +90,7 @@ impl Frame {
 pub struct DebugMeta {
     /// A list of debug files needed to symbolicate/deobfuscate this profile.
     /// Useful to pass source maps, ProGuard files or image libraries.
-    pub images: Vec<NativeDebugImage>,
+    pub images: Vec<DebugImage>,
 }
 
 impl DebugMeta {

@@ -66,7 +66,7 @@ pub fn should_filter<F: Filterable>(
     }
 
     let browsers = &config.browsers;
-    if item.user_agent().map_or(false, |ua| matches(ua, browsers)) {
+    if item.user_agent().is_some_and(|ua| matches(ua, browsers)) {
         Err(FilterStatKey::LegacyBrowsers)
     } else {
         Ok(())

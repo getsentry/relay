@@ -58,10 +58,10 @@ pub use crate::error::ProfileError;
 pub use crate::outcomes::discard_reason;
 
 mod android;
+mod debug_image;
 mod error;
 mod extract_from_transaction;
 mod measurements;
-mod native_debug_image;
 mod outcomes;
 mod sample;
 mod transaction_metadata;
