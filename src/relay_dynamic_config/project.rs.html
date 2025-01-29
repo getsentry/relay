@@ -211,7 +211,22 @@
 <a href="#210" id="210">210</a>
 <a href="#211" id="211">211</a>
 <a href="#212" id="212">212</a>
-<a href="#213" id="213">213</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_auth::PublicKey;
+<a href="#213" id="213">213</a>
+<a href="#214" id="214">214</a>
+<a href="#215" id="215">215</a>
+<a href="#216" id="216">216</a>
+<a href="#217" id="217">217</a>
+<a href="#218" id="218">218</a>
+<a href="#219" id="219">219</a>
+<a href="#220" id="220">220</a>
+<a href="#221" id="221">221</a>
+<a href="#222" id="222">222</a>
+<a href="#223" id="223">223</a>
+<a href="#224" id="224">224</a>
+<a href="#225" id="225">225</a>
+<a href="#226" id="226">226</a>
+<a href="#227" id="227">227</a>
+<a href="#228" id="228">228</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_auth::PublicKey;
 <span class="kw">use </span>relay_event_normalization::{
     BreakdownsConfig, MeasurementsConfig, PerformanceScoreConfig, SpanDescriptionRule,
     TransactionNameRule,
@@ -315,6 +330,21 @@
 
         <span class="kw">for </span>flag <span class="kw">in </span>GRADUATED_FEATURE_FLAGS {
             <span class="self">self</span>.features.<span class="number">0</span>.insert(<span class="kw-2">*</span>flag);
+        }
+
+        <span class="comment">// Check if indexed and non-indexed are double-counting towards the same ID.
+        // This is probably not intended behavior.
+        </span><span class="kw">for </span>quota <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.quotas {
+            <span class="kw">for </span>category <span class="kw">in </span><span class="kw-2">&amp;</span>quota.categories {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(indexed) = category.index_category() {
+                    <span class="kw">if </span>quota.categories.contains(<span class="kw-2">&amp;</span>indexed) {
+                        <span class="macro">relay_log::error!</span>(
+                            id = <span class="question-mark">?</span>quota.id,
+                            <span class="string">"Categories {category} and {indexed} share the same quota ID. This will double-count items."</span>,
+                        );
+                    }
+                }
+            }
         }
     }
 }
