@@ -578,7 +578,9 @@
 <a href="#577" id="577">577</a>
 <a href="#578" id="578">578</a>
 <a href="#579" id="579">579</a>
-<a href="#580" id="580">580</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
+<a href="#580" id="580">580</a>
+<a href="#581" id="581">581</a>
+<a href="#582" id="582">582</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::ops::{Deref, RangeInclusive};
 
@@ -626,6 +628,7 @@
     Message,
     Thread,
     Breadcrumb,
+    OurLog,
     Span,
     ClientSdkInfo,
 
@@ -664,6 +667,7 @@
     ValueType::Message =&gt; <span class="string">"message"</span>,
     ValueType::Thread =&gt; <span class="string">"thread"</span>,
     ValueType::Breadcrumb =&gt; <span class="string">"breadcrumb"</span>,
+    ValueType::OurLog =&gt; <span class="string">"ourlog"</span>,
     ValueType::Span =&gt; <span class="string">"span"</span>,
     ValueType::ClientSdkInfo =&gt; <span class="string">"sdk"</span>,
     ValueType::Minidump =&gt; <span class="string">"minidump"</span>,

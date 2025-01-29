@@ -193,7 +193,10 @@
 <a href="#192" id="192">192</a>
 <a href="#193" id="193">193</a>
 <a href="#194" id="194">194</a>
-<a href="#195" id="195">195</a></pre></div><pre class="rust"><code><span class="doccomment">//! Break down the cost of Relay by its components and individual features it handles.
+<a href="#195" id="195">195</a>
+<a href="#196" id="196">196</a>
+<a href="#197" id="197">197</a>
+<a href="#198" id="198">198</a></pre></div><pre class="rust"><code><span class="doccomment">//! Break down the cost of Relay by its components and individual features it handles.
 //!
 //! Relay is a one stop shop for all different kinds of events Sentry supports, Errors,
 //! Performance, Metrics, Replays, Crons and more. A single shared resource.
@@ -312,6 +315,8 @@
     </span>Transactions,
     <span class="doccomment">/// Errors.
     </span>Errors,
+    <span class="doccomment">/// Logs.
+    </span>Logs,
     <span class="doccomment">/// Spans.
     </span>Spans,
     <span class="doccomment">/// Sessions.
@@ -354,6 +359,7 @@
             <span class="self">Self</span>::Transactions =&gt; <span class="string">"transactions"</span>,
             <span class="self">Self</span>::Errors =&gt; <span class="string">"errors"</span>,
             <span class="self">Self</span>::Spans =&gt; <span class="string">"spans"</span>,
+            <span class="self">Self</span>::Logs =&gt; <span class="string">"our_logs"</span>,
             <span class="self">Self</span>::Sessions =&gt; <span class="string">"sessions"</span>,
             <span class="self">Self</span>::ClientReports =&gt; <span class="string">"client_reports"</span>,
             <span class="self">Self</span>::CheckIns =&gt; <span class="string">"check_ins"</span>,

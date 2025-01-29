@@ -891,7 +891,9 @@
 <a href="#890" id="890">890</a>
 <a href="#891" id="891">891</a>
 <a href="#892" id="892">892</a>
-<a href="#893" id="893">893</a></pre></div><pre class="rust"><code><span class="doccomment">//! Event processor related code.
+<a href="#893" id="893">893</a>
+<a href="#894" id="894">894</a>
+<a href="#895" id="895">895</a></pre></div><pre class="rust"><code><span class="doccomment">//! Event processor related code.
 
 </span><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::{Arc, OnceLock};
@@ -1361,6 +1363,8 @@
         ItemType::ReplayRecording =&gt; <span class="bool-val">false</span>,
         ItemType::ReplayVideo =&gt; <span class="bool-val">false</span>,
         ItemType::CheckIn =&gt; <span class="bool-val">false</span>,
+        ItemType::Log =&gt; <span class="bool-val">false</span>,
+        ItemType::OtelLog =&gt; <span class="bool-val">false</span>,
         ItemType::Span =&gt; <span class="bool-val">false</span>,
         ItemType::OtelSpan =&gt; <span class="bool-val">false</span>,
         ItemType::OtelTracesData =&gt; <span class="bool-val">false</span>,
