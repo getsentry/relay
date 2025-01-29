@@ -12,7 +12,6 @@ mod decompression;
 mod handle_panic;
 mod metrics;
 mod normalize_path;
-mod sentry_tower;
 mod trace;
 
 mod body_timing;
@@ -23,5 +22,4 @@ pub use self::decompression::*;
 pub use self::handle_panic::*;
 pub use self::metrics::*;
 pub use self::normalize_path::*;
-pub use self::sentry_tower::*;
 pub use self::trace::*;

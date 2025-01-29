@@ -605,7 +605,6 @@ jobs:
         uses: ./.github/actions/setup-sentry
         with:
           workdir: sentry
-          use-new-devservices: true
           mode: symbolicator
 
       - name: Download Docker Image
