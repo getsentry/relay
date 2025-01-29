@@ -1407,7 +1407,7 @@ struct LogKafkaMessage<'a> {
     #[serde(default, skip_serializing_if = "none_or_empty_object")]
     attributes: Option<&'a RawValue>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    flags: Option<u8>,
+    trace_flags: Option<u64>,
 }
 
 fn none_or_empty_object(value: &Option<&RawValue>) -> bool {

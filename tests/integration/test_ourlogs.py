@@ -72,12 +72,15 @@ def test_ourlog_extraction(
 
     ourlogs = ourlogs_consumer.get_ourlogs()
     assert len(ourlogs) == 1
-    expected_0 = {
+    expected = {
+        "organization_id": 1,
+        "project_id": 42,
+        "retention_days": 90,
         "timestamp_nanos": int(start.timestamp() * 1e9),
         "observed_timestamp_nanos": int(end.timestamp() * 1e9),
         "trace_id": "5b8efff798038103d269b633813fc60c",
         "body": "Example log record",
-        "trace_flags": 0.0,
+        "trace_flags": 0,
         "span_id": "eee19b7ec3c1b174",
         "severity_text": "Information",
         "severity_number": 10,
@@ -88,7 +91,9 @@ def test_ourlog_extraction(
             "double.attribute": {"double_value": 637.704},
         },
     }
-    assert ourlogs[0] == expected_0
+
+    del ourlogs[0]["received"]
+    assert ourlogs[0] == expected
 
     ourlogs_consumer.assert_empty()
 

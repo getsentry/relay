@@ -28,7 +28,7 @@ pub struct OurLog {
 
     /// Trace flag bitfield.
     #[metastructure(required = false)]
-    pub trace_flags: Annotated<f64>,
+    pub trace_flags: Annotated<u64>,
 
     /// This is the original string representation of the severity as it is known at the source
     #[metastructure(required = false, max_chars = 32, pii = "true", trim = false)]

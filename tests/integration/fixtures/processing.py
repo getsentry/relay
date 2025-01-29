@@ -520,16 +520,14 @@ class OurLogsConsumer(ConsumerBase):
         assert message is not None
         assert message.error() is None
 
-        message_dict = msgpack.unpackb(message.value(), raw=False, use_list=False)
-        return json.loads(message_dict["payload"].decode("utf8")), message_dict
+        return json.loads(message.value())
 
     def get_ourlogs(self):
         ourlogs = []
         for message in self.poll_many():
             assert message is not None
             assert message.error() is None
-            message_dict = msgpack.unpackb(message.value(), raw=False, use_list=False)
-            ourlogs.append(json.loads(message_dict["payload"].decode("utf8")))
+            ourlogs.append(json.loads(message.value()))
         return ourlogs
 
 

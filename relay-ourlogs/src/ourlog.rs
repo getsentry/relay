@@ -61,7 +61,7 @@ pub fn otel_to_sentry_log(otel_log: OtelLog) -> OurLog {
         observed_timestamp_nanos: Annotated::new(otel_log.observed_time_unix_nano),
         trace_id: TraceId(trace_id).into(),
         span_id: Annotated::new(SpanId(span_id)),
-        trace_flags: Annotated::new(0.0),
+        trace_flags: Annotated::new(0),
         severity_text: severity_text.into(),
         severity_number: Annotated::new(severity_number as i64),
         attributes: attribute_data.into(),
