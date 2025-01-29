@@ -1400,8 +1400,8 @@ struct LogKafkaMessage<'a> {
     trace_id: EventId,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     span_id: Option<&'a str>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    severity_text: Option<&'a str>,
+    #[serde(borrow, default, skip_serializing_if = "Option::is_none")]
+    severity_text: Option<Cow<'a, str>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     severity_number: Option<i32>,
     #[serde(default, skip_serializing_if = "none_or_empty_object")]
