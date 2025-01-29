@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Allow log ingestion behind a flag, only for internal use currently. ([#4471](https://github.com/getsentry/relay/pull/4471))
+
 **Features**:
 
 - Add configuration option to limit the amount of concurrent http connections. ([#4453](https://github.com/getsentry/relay/pull/4453))
