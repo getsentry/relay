@@ -232,6 +232,7 @@
 <span class="kw">use </span>hyper_util::rt::TokioTimer;
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_system::{Controller, Service, Shutdown};
+<span class="kw">use </span>sentry::integrations::tower::{NewSentryLayer, SentryHttpLayer};
 <span class="kw">use </span>tokio::net::TcpSocket;
 <span class="kw">use </span>tower::ServiceBuilder;
 <span class="kw">use </span>tower_http::compression::predicate::SizeAbove;
@@ -240,8 +241,7 @@
 
 <span class="kw">use </span><span class="kw">crate</span>::constants;
 <span class="kw">use </span><span class="kw">crate</span>::middlewares::{
-    <span class="self">self</span>, BodyTimingLayer, CatchPanicLayer, NewSentryLayer, NormalizePath,
-    RequestDecompressionLayer, SentryHttpLayer,
+    <span class="self">self</span>, BodyTimingLayer, CatchPanicLayer, NormalizePath, RequestDecompressionLayer,
 };
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayGauges};

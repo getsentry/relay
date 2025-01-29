@@ -23,9 +23,7 @@
 <a href="#22" id="22">22</a>
 <a href="#23" id="23">23</a>
 <a href="#24" id="24">24</a>
-<a href="#25" id="25">25</a>
-<a href="#26" id="26">26</a>
-<a href="#27" id="27">27</a></pre></div><pre class="rust"><code><span class="doccomment">//! Middlewares for the HTTP server.
+<a href="#25" id="25">25</a></pre></div><pre class="rust"><code><span class="doccomment">//! Middlewares for the HTTP server.
 //!
 //! This module exposes tower [layers](tower::Layer) and related utilities to configure the
 //! axum/hyper HTTP server. Most of the middlewares should be registered as a layer on the
@@ -39,7 +37,6 @@
 <span class="kw">mod </span>handle_panic;
 <span class="kw">mod </span>metrics;
 <span class="kw">mod </span>normalize_path;
-<span class="kw">mod </span>sentry_tower;
 <span class="kw">mod </span>trace;
 
 <span class="kw">mod </span>body_timing;
@@ -50,6 +47,5 @@
 <span class="kw">pub use </span><span class="self">self</span>::handle_panic::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="self">self</span>::metrics::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="self">self</span>::normalize_path::<span class="kw-2">*</span>;
-<span class="kw">pub use </span><span class="self">self</span>::sentry_tower::<span class="kw-2">*</span>;
 <span class="kw">pub use </span><span class="self">self</span>::trace::<span class="kw-2">*</span>;
 </code></pre></div></section></main></body></html>
