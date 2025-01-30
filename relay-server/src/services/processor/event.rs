@@ -14,6 +14,7 @@ use relay_event_schema::protocol::{
     Breadcrumb, Csp, Event, ExpectCt, ExpectStaple, Hpkp, LenientString, Metrics,
     NetworkReportError, OtelContext, RelayInfo, SecurityReportType, Values,
 };
+use relay_ourlogs::breadcrumbs_to_ourlogs;
 use relay_pii::PiiProcessor;
 use relay_protocol::{Annotated, Array, Empty, Object, Value};
 use relay_quotas::DataCategory;
@@ -25,7 +26,7 @@ use crate::extractors::RequestMeta;
 use crate::services::outcome::Outcome;
 use crate::services::processor::{
     event_category, event_type, EventFullyNormalized, EventMetricsExtracted, EventProcessing,
-    ExtractedEvent, ProcessingError, SpansExtracted, MINIMUM_CLOCK_DRIFT,
+    ExtractedEvent, OurLogsExtracted, ProcessingError, SpansExtracted, MINIMUM_CLOCK_DRIFT,
 };
 use crate::services::projects::project::ProjectInfo;
 use crate::statsd::{PlatformTag, RelayCounters, RelayHistograms, RelayTimers};
@@ -37,6 +38,7 @@ pub struct ExtractionResult {
     pub event: Annotated<Event>,
     pub event_metrics_extracted: Option<EventMetricsExtracted>,
     pub spans_extracted: Option<SpansExtracted>,
+    pub ourlogs_extracted: Option<OurLogsExtracted>,
 }
 
 /// Extracts the primary event payload from an envelope.
@@ -52,6 +54,7 @@ pub fn extract<Group: EventProcessing>(
     metrics: &mut Metrics,
     event_fully_normalized: EventFullyNormalized,
     config: &Config,
+    global_config: &GlobalConfig,
 ) -> Result<ExtractionResult, ProcessingError> {
     let envelope = managed_envelope.envelope_mut();
 
@@ -83,6 +86,7 @@ pub fn extract<Group: EventProcessing>(
 
     let mut event_metrics_extracted = None;
     let mut spans_extracted = None;
+    let mut ourlogs_extracted = None;
     let (event, event_len) = if let Some(item) = event_item.or(security_item) {
         relay_log::trace!("processing json event");
         metric!(timer(RelayTimers::EventProcessingDeserialize), {
@@ -145,10 +149,37 @@ pub fn extract<Group: EventProcessing>(
 
     metrics.bytes_ingested_event = Annotated::new(event_len as u64);
 
+    if let Some(event_value) = event.value() {
+        let convert_breadcrumbs_to_logs = utils::sample(
+            global_config
+                .options
+                .ourlogs_breadcrumb_extraction_sample_rate
+                .unwrap_or(0.0),
+        );
+
+        if convert_breadcrumbs_to_logs {
+            relay_log::trace!("extracting breadcrumbs to logs");
+            let ourlogs: Vec<relay_event_schema::protocol::OurLog> =
+                breadcrumbs_to_ourlogs(event_value, config.max_breadcrumbs_converted());
+
+            if !ourlogs.is_empty() {
+                for ourlog in ourlogs {
+                    let mut log_item = Item::new(ItemType::Log);
+                    if let Ok(payload) = Annotated::new(ourlog).to_json() {
+                        log_item.set_payload(ContentType::Json, payload);
+                        envelope.add_item(log_item);
+                    }
+                }
+                ourlogs_extracted = Some(OurLogsExtracted(true));
+            }
+        }
+    }
+
     Ok(ExtractionResult {
         event,
         event_metrics_extracted,
         spans_extracted,
+        ourlogs_extracted,
     })
 }
 
@@ -377,6 +408,7 @@ pub fn serialize<Group: EventProcessing>(
     event_fully_normalized: EventFullyNormalized,
     event_metrics_extracted: EventMetricsExtracted,
     spans_extracted: SpansExtracted,
+    ourlogs_extracted: OurLogsExtracted,
 ) -> Result<(), ProcessingError> {
     if event.is_empty() {
         relay_log::error!("Cannot serialize empty event");
@@ -396,6 +428,7 @@ pub fn serialize<Group: EventProcessing>(
     event_item.set_metrics_extracted(event_metrics_extracted.0);
     event_item.set_spans_extracted(spans_extracted.0);
     event_item.set_fully_normalized(event_fully_normalized.0);
+    event_item.set_ourlogs_extracted(ourlogs_extracted.0);
 
     managed_envelope.envelope_mut().add_item(event_item);
 

@@ -21,6 +21,7 @@ opentelemetry-proto = { workspace = true, features = [
   "with-serde",
   "logs",
 ] }
+relay-log = { workspace = true }
 relay-event-schema = { workspace = true }
 relay-protocol = { workspace = true }
 serde_json = { workspace = true }

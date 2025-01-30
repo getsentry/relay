@@ -174,6 +174,18 @@ pub struct Options {
     )]
     pub span_extraction_sample_rate: Option<f32>,
 
+    /// Extract logs from breadrumbs for a fraction of sent breadcrumbs.
+    ///
+    /// `None` is the default and interpreted as extract nothing.
+    ///
+    /// Note: Any value below 1.0 will cause the product to break, so use with caution.
+    #[serde(
+        rename = "relay.ourlogs-breadcrumb-extraction.sample-rate",
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "is_default"
+    )]
+    pub ourlogs_breadcrumb_extraction_sample_rate: Option<f32>,
+
     /// List of values on span description that are allowed to be sent to Sentry without being scrubbed.
     ///
     /// At this point, it doesn't accept IP addresses in CIDR format.. yet.

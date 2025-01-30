@@ -1,7 +1,9 @@
 import json
 from datetime import datetime, timedelta, timezone
 
+import pytest
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
+from .test_store import make_transaction
 
 
 TEST_CONFIG = {
@@ -120,4 +122,46 @@ def test_ourlog_extraction_is_disabled_without_feature(
     ourlogs = ourlogs_consumer.get_ourlogs()
     assert len(ourlogs) == 0
 
+    ourlogs_consumer.assert_empty()
+
+
+@pytest.mark.parametrize(
+    "sample_rate,expected_ourlogs",
+    [
+        (None, 0),
+        (1.0, 1),
+        (0.0, 0),
+    ],
+)
+def test_ourlog_breadcrumb_extraction_sample_rate(
+    mini_sentry,
+    relay_with_processing,
+    ourlogs_consumer,
+    sample_rate,
+    expected_ourlogs,
+):
+    ourlogs_consumer = ourlogs_consumer()
+    project_id = 42
+
+    mini_sentry.global_config["options"] = {
+        "relay.ourlogs-breadcrumb-extraction.sample-rate": sample_rate
+    }
+
+    def send_event_with_breadcrumb(relay):
+        event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
+        event["breadcrumbs"] = [
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "message": "Test breadcrumb",
+                "category": "test",
+                "level": "info",
+            }
+        ]
+        relay.send_event(project_id, event)
+
+    relay = relay_with_processing(options=TEST_CONFIG)
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = ["organizations:ourlogs-ingestion"]
+    send_event_with_breadcrumb(relay)
+    assert len(ourlogs_consumer.get_ourlogs()) == expected_ourlogs
     ourlogs_consumer.assert_empty()

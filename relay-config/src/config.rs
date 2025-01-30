@@ -667,6 +667,11 @@ pub struct Limits {
     ///
     /// Defaults to `1024`, a value [google has been using for a long time](https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=19f92a030ca6d772ab44b22ee6a01378a8cb32d4).
     pub tcp_listen_backlog: u32,
+    /// The maximum number of breadcrumbs to convert to OurLogs.
+    ///
+    /// When converting breadcrumbs to OurLogs, only up to this many breadcrumbs will be converted.
+    /// Defaults to 100.
+    pub max_breadcrumbs_converted: usize,
 }
 
 impl Default for Limits {
@@ -699,6 +704,7 @@ impl Default for Limits {
             idle_timeout: None,
             max_connections: None,
             tcp_listen_backlog: 1024,
+            max_breadcrumbs_converted: 100,
         }
     }
 }
@@ -2509,6 +2515,11 @@ impl Config {
     pub fn accept_unknown_items(&self) -> bool {
         let forward = self.values.routing.accept_unknown_items;
         forward.unwrap_or_else(|| !self.processing_enabled())
+    }
+
+    /// Returns the maximum number of breadcrumbs that should be converted to OurLogs.
+    pub fn max_breadcrumbs_converted(&self) -> usize {
+        self.values.limits.max_breadcrumbs_converted
     }
 }
 

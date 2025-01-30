@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Preliminary breadcrumb to log conversion. ([#4479](https://github.com/getsentry/relay/pull/4479))
 - Allow log ingestion behind a flag, only for internal use currently. ([#4471](https://github.com/getsentry/relay/pull/4471))
 
 **Features**:

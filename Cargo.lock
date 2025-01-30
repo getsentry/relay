@@ -3768,6 +3768,7 @@ dependencies = [
  "once_cell",
  "opentelemetry-proto",
  "relay-event-schema",
+ "relay-log",
  "relay-protocol",
  "serde_json",
 ]

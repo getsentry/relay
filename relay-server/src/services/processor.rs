@@ -805,6 +805,10 @@ struct EventMetricsExtracted(bool);
 #[derive(Debug, Copy, Clone)]
 struct SpansExtracted(bool);
 
+/// New type representing whether logs were extracted.
+#[derive(Debug, Copy, Clone)]
+struct OurLogsExtracted(bool);
+
 /// The result of the envelope processing containing the processed envelope along with the partial
 /// result.
 #[derive(Debug)]
@@ -1546,6 +1550,7 @@ impl EnvelopeProcessorService {
             &mut metrics,
             event_fully_normalized,
             &self.inner.config,
+            &self.inner.global_config.current(),
         )?;
         let mut event = extraction_result.event;
 
@@ -1609,6 +1614,7 @@ impl EnvelopeProcessorService {
                 event_fully_normalized,
                 EventMetricsExtracted(false),
                 SpansExtracted(false),
+                OurLogsExtracted(false),
             )?;
             event::emit_feedback_metrics(managed_envelope.envelope());
         }
@@ -1642,6 +1648,7 @@ impl EnvelopeProcessorService {
         let mut event_fully_normalized = EventFullyNormalized::new(managed_envelope.envelope());
         let mut event_metrics_extracted = EventMetricsExtracted(false);
         let mut spans_extracted = SpansExtracted(false);
+        let mut ourlogs_extracted = OurLogsExtracted(false);
         let mut metrics = Metrics::default();
         let mut extracted_metrics = ProcessingExtractedMetrics::new();
 
@@ -1655,6 +1662,7 @@ impl EnvelopeProcessorService {
             &mut metrics,
             event_fully_normalized,
             &self.inner.config,
+            &global_config,
         )?;
 
         // If metrics were extracted we mark that.
@@ -1663,6 +1671,9 @@ impl EnvelopeProcessorService {
         }
         if let Some(inner_spans_extracted) = extraction_result.spans_extracted {
             spans_extracted = inner_spans_extracted;
+        };
+        if let Some(inner_ourlogs_extracted) = extraction_result.ourlogs_extracted {
+            ourlogs_extracted = inner_ourlogs_extracted;
         };
 
         // We take the main event out of the result.
@@ -1837,6 +1848,7 @@ impl EnvelopeProcessorService {
                 event_fully_normalized,
                 event_metrics_extracted,
                 spans_extracted,
+                ourlogs_extracted,
             )?;
         }
 

@@ -6,6 +6,7 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
+pub use crate::ourlog::breadcrumbs_to_ourlogs;
 pub use crate::ourlog::otel_to_sentry_log;
 
 pub use opentelemetry_proto::tonic::logs::v1::LogRecord as OtelLog;
