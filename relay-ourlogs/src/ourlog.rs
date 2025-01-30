@@ -375,12 +375,6 @@ mod tests {
 }"#;
 
         let timestamp = Utc.with_ymd_and_hms(2020, 1, 1, 0, 0, 0).unwrap();
-        let mut breadcrumb = Breadcrumb::default();
-        breadcrumb.message = Annotated::new("test message".to_string());
-        breadcrumb.category = Annotated::new("test category".to_string());
-        breadcrumb.timestamp = Annotated::new(timestamp.into());
-        breadcrumb.level = Annotated::new(Level::Info);
-
         let mut data = Object::new();
         data.insert(
             "string_key".to_string(),
@@ -389,13 +383,23 @@ mod tests {
         data.insert("bool_key".to_string(), Annotated::new(Value::Bool(true)));
         data.insert("int_key".to_string(), Annotated::new(Value::I64(42)));
         data.insert("float_key".to_string(), Annotated::new(Value::F64(42.5)));
-        breadcrumb.data = Annotated::new(data);
 
-        let mut event = Event::default();
-        event.breadcrumbs = Annotated::new(Values {
-            values: Annotated::new(vec![Annotated::new(breadcrumb)]),
-            other: Object::default(),
-        });
+        let breadcrumb = Breadcrumb {
+            message: Annotated::new("test message".to_string()),
+            category: Annotated::new("test category".to_string()),
+            timestamp: Annotated::new(timestamp.into()),
+            level: Annotated::new(Level::Info),
+            data: Annotated::new(data),
+            ..Default::default()
+        };
+
+        let event = Event {
+            breadcrumbs: Annotated::new(Values {
+                values: Annotated::new(vec![Annotated::new(breadcrumb)]),
+                other: Object::default(),
+            }),
+            ..Default::default()
+        };
 
         let ourlogs = breadcrumbs_to_ourlogs(&event, 100);
         assert_eq!(ourlogs.len(), 1);
@@ -409,17 +413,21 @@ mod tests {
         let mut breadcrumbs = Vec::new();
         for i in 0..5 {
             let timestamp = Utc.with_ymd_and_hms(2020, 1, 1, 0, 0, i).unwrap();
-            let mut breadcrumb = Breadcrumb::default();
-            breadcrumb.message = Annotated::new(format!("message {}", i));
-            breadcrumb.timestamp = Annotated::new(timestamp.into());
+            let breadcrumb = Breadcrumb {
+                message: Annotated::new(format!("message {}", i)),
+                timestamp: Annotated::new(timestamp.into()),
+                ..Default::default()
+            };
             breadcrumbs.push(Annotated::new(breadcrumb));
         }
 
-        let mut event = Event::default();
-        event.breadcrumbs = Annotated::new(Values {
-            values: Annotated::new(breadcrumbs),
-            other: Object::default(),
-        });
+        let event = Event {
+            breadcrumbs: Annotated::new(Values {
+                values: Annotated::new(breadcrumbs),
+                other: Object::default(),
+            }),
+            ..Default::default()
+        };
 
         let ourlogs = breadcrumbs_to_ourlogs(&event, 3);
         assert_eq!(ourlogs.len(), 3, "Limited to 3 breadcrumbs");
@@ -458,11 +466,6 @@ mod tests {
 }"#;
 
         let timestamp = Utc.with_ymd_and_hms(2025, 1, 30, 4, 0, 57).unwrap();
-        let mut breadcrumb = Breadcrumb::default();
-        breadcrumb.ty = Annotated::new("http".to_string());
-        breadcrumb.category = Annotated::new("fetch".to_string());
-        breadcrumb.timestamp = Annotated::new(timestamp.into());
-
         let mut data = Object::new();
         data.insert(
             "__span".to_string(),
@@ -479,13 +482,22 @@ mod tests {
                 "/api/0/organizations/sentry/issues/".to_string(),
             )),
         );
-        breadcrumb.data = Annotated::new(data);
 
-        let mut event = Event::default();
-        event.breadcrumbs = Annotated::new(Values {
-            values: Annotated::new(vec![Annotated::new(breadcrumb)]),
-            other: Object::default(),
-        });
+        let breadcrumb = Breadcrumb {
+            ty: Annotated::new("http".to_string()),
+            category: Annotated::new("fetch".to_string()),
+            timestamp: Annotated::new(timestamp.into()),
+            data: Annotated::new(data),
+            ..Default::default()
+        };
+
+        let event = Event {
+            breadcrumbs: Annotated::new(Values {
+                values: Annotated::new(vec![Annotated::new(breadcrumb)]),
+                other: Object::default(),
+            }),
+            ..Default::default()
+        };
 
         let ourlogs = breadcrumbs_to_ourlogs(&event, 100);
         assert_eq!(ourlogs.len(), 1);
