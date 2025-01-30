@@ -226,7 +226,9 @@
 <a href="#225" id="225">225</a>
 <a href="#226" id="226">226</a>
 <a href="#227" id="227">227</a>
-<a href="#228" id="228">228</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_auth::PublicKey;
+<a href="#228" id="228">228</a>
+<a href="#229" id="229">229</a>
+<a href="#230" id="230">230</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_auth::PublicKey;
 <span class="kw">use </span>relay_event_normalization::{
     BreakdownsConfig, MeasurementsConfig, PerformanceScoreConfig, SpanDescriptionRule,
     TransactionNameRule,
@@ -335,13 +337,15 @@
         <span class="comment">// Check if indexed and non-indexed are double-counting towards the same ID.
         // This is probably not intended behavior.
         </span><span class="kw">for </span>quota <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.quotas {
-            <span class="kw">for </span>category <span class="kw">in </span><span class="kw-2">&amp;</span>quota.categories {
-                <span class="kw">if let </span><span class="prelude-val">Some</span>(indexed) = category.index_category() {
-                    <span class="kw">if </span>quota.categories.contains(<span class="kw-2">&amp;</span>indexed) {
-                        <span class="macro">relay_log::error!</span>(
-                            id = <span class="question-mark">?</span>quota.id,
-                            <span class="string">"Categories {category} and {indexed} share the same quota ID. This will double-count items."</span>,
-                        );
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(id) = <span class="kw-2">&amp;</span>quota.id {
+                <span class="kw">for </span>category <span class="kw">in </span><span class="kw-2">&amp;</span>quota.categories {
+                    <span class="kw">if let </span><span class="prelude-val">Some</span>(indexed) = category.index_category() {
+                        <span class="kw">if </span>quota.categories.contains(<span class="kw-2">&amp;</span>indexed) {
+                            <span class="macro">relay_log::error!</span>(
+                                tags.id = id,
+                                <span class="string">"Categories {category} and {indexed} share the same quota ID. This will double-count items."</span>,
+                            );
+                        }
                     }
                 }
             }
