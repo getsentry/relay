@@ -9,6 +9,7 @@ use crate::services::buffer::{
 use crate::services::cogs::{CogsService, CogsServiceRecorder};
 use crate::services::global_config::{GlobalConfigManager, GlobalConfigService};
 use crate::services::health_check::{HealthCheck, HealthCheckService};
+use crate::services::internal_metrics::{InternalMetricsMessage, RelayMetricsService};
 use crate::services::metrics::RouterService;
 use crate::services::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
 use crate::services::outcome_aggregator::OutcomeAggregator;
@@ -71,6 +72,7 @@ pub struct Registry {
     pub envelope_buffer: PartitionedEnvelopeBuffer,
 
     pub project_cache_handle: ProjectCacheHandle,
+    pub internal_metrics: Addr<InternalMetricsMessage>,
 }
 
 /// Constructs a Tokio [`relay_system::Runtime`] configured for running [services](relay_system::Service).
@@ -296,6 +298,8 @@ impl ServiceState {
             upstream_relay.clone(),
         ));
 
+        let internal_metrics = runner.start(RelayMetricsService::new(memory_stat.clone()));
+
         let registry = Registry {
             processor,
             health_check,
@@ -307,6 +311,7 @@ impl ServiceState {
             project_cache_handle,
             upstream_relay,
             envelope_buffer,
+            internal_metrics,
         };
 
         let state = StateInner {
@@ -333,6 +338,10 @@ impl ServiceState {
     /// thresholds set in the [`Config`].
     pub fn memory_checker(&self) -> &MemoryChecker {
         &self.inner.memory_checker
+    }
+
+    pub fn keda_metrics(&self) -> &Addr<InternalMetricsMessage> {
+        &self.inner.registry.internal_metrics
     }
 
     /// Returns the V2 envelope buffer, if present.

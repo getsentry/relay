@@ -11,6 +11,7 @@ mod envelope;
 mod events;
 mod forward;
 mod health_check;
+mod internal_metrics;
 mod minidump;
 mod monitor;
 mod nel;
@@ -37,8 +38,8 @@ pub fn routes(config: &Config) -> Router<ServiceState>{
     // Relay-internal routes pointing to /api/relay/
     let internal_routes = Router::new()
         .route("/api/relay/healthcheck/{kind}/", get(health_check::handle))
-        .route("/api/relay/events/{event_id}/", get(events::handle));
-    let internal_routes = internal_routes
+        .route("/api/relay/events/{event_id}/", get(events::handle))
+        .route("/api/relay/internal-metrics", any(internal_metrics::handle))
         // Fallback route, but with a name, and just on `/api/relay/*`.
         .route("/api/relay/{*not_found}", any(statics::not_found));
 
