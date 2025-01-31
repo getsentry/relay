@@ -43,7 +43,7 @@ pub fn check_envelope_size_limits(config: &Config, envelope: &Envelope) -> Resul
                 event_size += item.len();
                 NO_LIMIT
             }
-            ItemType::Attachment | ItemType::UnrealReport => {
+            ItemType::Attachment | ItemType::UnrealReport | ItemType::UserReport => {
                 attachments_size += item.len();
                 config.max_attachment_size()
             }
@@ -59,7 +59,6 @@ pub fn check_envelope_size_limits(config: &Config, envelope: &Envelope) -> Resul
             }
             ItemType::Profile => config.max_profile_size(),
             ItemType::CheckIn => config.max_check_in_size(),
-            ItemType::UserReport => NO_LIMIT,
             ItemType::Statsd => config.max_statsd_size(),
             ItemType::MetricBuckets => config.max_metric_buckets_size(),
             ItemType::Log => config.max_log_size(),
