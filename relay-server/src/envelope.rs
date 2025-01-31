@@ -568,15 +568,6 @@ pub struct ItemHeaders {
     #[serde(default, skip_serializing_if = "is_false")]
     spans_extracted: bool,
 
-    /// Whether or not logs have been extracted from the item.
-    ///
-    /// In order to only extract logs once from an item while through a
-    /// chain of Relays, a Relay that extracts logs from an item (typically
-    /// the first Relay) MUST set this flag to true so that upstream Relays do
-    /// not extract the logs again causing double counting of the logs.
-    #[serde(default, skip_serializing_if = "is_false")]
-    ourlogs_extracted: bool,
-
     /// Whether the event has been _fully_ normalized.
     ///
     /// If the event has been partially normalized, this flag is false. By
@@ -674,7 +665,6 @@ impl Item {
                 other: BTreeMap::new(),
                 metrics_extracted: false,
                 spans_extracted: false,
-                ourlogs_extracted: false,
                 sampled: true,
                 fully_normalized: false,
                 ingest_span_in_eap: false,
@@ -874,16 +864,6 @@ impl Item {
     /// Sets the spans extracted flag.
     pub fn set_spans_extracted(&mut self, spans_extracted: bool) {
         self.headers.spans_extracted = spans_extracted;
-    }
-
-    /// Returns the ourlogs extracted flag.
-    pub fn ourlogs_extracted(&self) -> bool {
-        self.headers.ourlogs_extracted
-    }
-
-    /// Sets the ourlogs extracted flag.
-    pub fn set_ourlogs_extracted(&mut self, ourlogs_extracted: bool) {
-        self.headers.ourlogs_extracted = ourlogs_extracted;
     }
 
     /// Returns the fully normalized flag.

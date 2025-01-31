@@ -186,6 +186,17 @@ pub struct Options {
     )]
     pub ourlogs_breadcrumb_extraction_sample_rate: Option<f32>,
 
+    /// The maximum number of breadcrumbs to convert to OurLogs.
+    ///
+    /// When converting breadcrumbs to OurLogs, only up to this many breadcrumbs will be converted.
+    /// Defaults to 100.
+    #[serde(
+        rename = "relay.ourlogs-breadcrumb-extraction.max-breadcrumbs-converted",
+        deserialize_with = "default_on_error",
+        skip_serializing_if = "is_default"
+    )]
+    pub ourlogs_breadcrumb_extraction_max_breadcrumbs_converted: usize,
+
     /// List of values on span description that are allowed to be sent to Sentry without being scrubbed.
     ///
     /// At this point, it doesn't accept IP addresses in CIDR format.. yet.

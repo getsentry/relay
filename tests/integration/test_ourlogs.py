@@ -143,13 +143,20 @@ def test_ourlog_breadcrumb_extraction_sample_rate(
     ourlogs_consumer = ourlogs_consumer()
     project_id = 42
 
+    project_config = mini_sentry.add_full_project_config(project_id)
+    project_config["config"]["features"] = [
+        "projects:ourlogs-breadcrumb-extraction",
+        "organizations:ourlogs-ingestion",
+    ]
+
     mini_sentry.global_config["options"] = {
-        "relay.ourlogs-breadcrumb-extraction.sample-rate": sample_rate
+        "relay.ourlogs-breadcrumb-extraction.sample-rate": sample_rate,
+        "relay.ourlogs-breadcrumb-extraction.max-breadcrumbs-converted": 100,
     }
 
-    def send_event_with_breadcrumb(relay):
-        event = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
-        event["breadcrumbs"] = [
+    def send_transaction_with_breadcrumb(upstream):
+        transaction = make_transaction({"event_id": "cbf6960622e14a45abc1f03b2055b186"})
+        transaction["breadcrumbs"] = [
             {
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "message": "Test breadcrumb",
@@ -157,11 +164,11 @@ def test_ourlog_breadcrumb_extraction_sample_rate(
                 "level": "info",
             }
         ]
-        relay.send_event(project_id, event)
+        envelope = Envelope()
+        envelope.add_transaction(transaction)
+        upstream.send_envelope(project_id, envelope)
 
     relay = relay_with_processing(options=TEST_CONFIG)
-    project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = ["organizations:ourlogs-ingestion"]
-    send_event_with_breadcrumb(relay)
+    send_transaction_with_breadcrumb(relay)
     assert len(ourlogs_consumer.get_ourlogs()) == expected_ourlogs
     ourlogs_consumer.assert_empty()

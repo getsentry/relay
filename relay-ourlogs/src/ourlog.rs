@@ -1,9 +1,8 @@
+use crate::OtelLog;
 use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
 use relay_event_schema::protocol::{
-    AttributeValue, Breadcrumb, Event, OurLog, SpanId, TraceContext, TraceId,
+    AttributeValue, Breadcrumb, Event, Level, OurLog, SpanId, TraceContext, TraceId,
 };
-
-use crate::OtelLog;
 use relay_protocol::{Annotated, Object, Value};
 
 /// Transform an OtelLog to a Sentry log.
@@ -75,129 +74,117 @@ pub fn otel_to_sentry_log(otel_log: OtelLog) -> OurLog {
 /// Transform event breadcrumbs to OurLogs.
 ///
 /// Only converts up to `max_breadcrumbs` breadcrumbs.
-pub fn breadcrumbs_to_ourlogs(event: &Event, max_breadcrumbs: usize) -> Vec<OurLog> {
+pub fn breadcrumbs_to_ourlogs(event: &Event, max_breadcrumbs: usize) -> Option<Vec<OurLog>> {
     let event_trace_id = event
         .context::<TraceContext>()
-        .and_then(|trace_ctx| trace_ctx.trace_id.value())
-        .cloned();
+        .and_then(|trace_ctx| trace_ctx.trace_id.value());
 
-    let breadcrumbs = match event.breadcrumbs.value() {
-        Some(breadcrumbs) => breadcrumbs,
-        None => return Vec::new(),
-    };
+    let breadcrumbs = event.breadcrumbs.value()?;
+    let values = breadcrumbs.values.value()?;
 
-    let values = match breadcrumbs.values.value() {
-        Some(values) => values,
-        None => return Vec::new(),
-    };
+    Some(
+        values
+            .iter()
+            .take(max_breadcrumbs)
+            .filter_map(|breadcrumb| {
+                let breadcrumb = breadcrumb.value()?;
 
-    values
-        .iter()
-        .take(max_breadcrumbs)
-        .filter_map(|breadcrumb| {
-            let breadcrumb = breadcrumb.value()?;
+                // Convert to nanoseconds
+                let timestamp_nanos = breadcrumb
+                    .timestamp
+                    .value()?
+                    .into_inner()
+                    .timestamp_nanos_opt()
+                    .map(|t| t as u64)?;
 
-            // Convert to nanoseconds
-            let timestamp_nanos = breadcrumb
-                .timestamp
-                .value()?
-                .into_inner()
-                .timestamp_nanos_opt()
-                .unwrap() as u64;
-            let mut attribute_data = Object::new();
+                let mut attribute_data = Object::new();
 
-            if let Some(category) = breadcrumb.category.value() {
-                // Add category as sentry.category attribute if present, since the protocol doesn't have an equivalent field.
-                attribute_data.insert(
-                    "sentry.category".to_string(),
-                    Annotated::new(AttributeValue::StringValue(category.to_string())),
-                );
-            }
+                if let Some(category) = breadcrumb.category.value() {
+                    // Add category as sentry.category attribute if present, since the protocol doesn't have an equivalent field.
+                    attribute_data.insert(
+                        "sentry.category".to_string(),
+                        Annotated::new(AttributeValue::StringValue(category.to_string())),
+                    );
+                }
 
-            // Get span_id from data field if it exists and we have a trace_id from context, otherwise ignore it.
-            let span_id = if event_trace_id.is_some() {
-                breadcrumb
-                    .data
-                    .value()
-                    .and_then(|data| data["__span"].value())
-                    .and_then(|span| match span {
-                        Value::String(s) => Some(Annotated::new(SpanId(s.clone()))),
-                        _ => None,
-                    })
-                    .unwrap_or_else(Annotated::empty)
-            } else {
-                Annotated::empty()
-            };
+                // Get span_id from data field if it exists and we have a trace_id from context, otherwise ignore it.
+                let span_id = if event_trace_id.is_some() {
+                    breadcrumb
+                        .data
+                        .value()
+                        .and_then(|data| data.get("__span").and_then(|span| span.value()))
+                        .and_then(|span| match span {
+                            Value::String(s) => Some(Annotated::new(SpanId(s.clone()))),
+                            _ => None,
+                        })
+                        .unwrap_or_else(Annotated::empty)
+                } else {
+                    Annotated::empty()
+                };
 
-            // Convert breadcrumb data fields to primitive attributes
-            if let Some(data) = breadcrumb.data.value() {
-                for (key, value) in data.iter() {
-                    if let Some(value) = value.value() {
-                        let attribute = match value {
-                            Value::String(s) => Some(AttributeValue::StringValue(s.clone())),
-                            Value::Bool(b) => Some(AttributeValue::BoolValue(*b)),
-                            Value::I64(i) => Some(AttributeValue::IntValue(*i)),
-                            Value::F64(f) => Some(AttributeValue::DoubleValue(*f)),
-                            _ => None, // Complex types will be supported once consumers are updated to ingest them.
-                        };
+                // Convert breadcrumb data fields to primitive attributes
+                if let Some(data) = breadcrumb.data.value() {
+                    for (key, value) in data.iter() {
+                        if let Some(value) = value.value() {
+                            let attribute = match value {
+                                Value::String(s) => Some(AttributeValue::StringValue(s.clone())),
+                                Value::Bool(b) => Some(AttributeValue::BoolValue(*b)),
+                                Value::I64(i) => Some(AttributeValue::IntValue(*i)),
+                                Value::F64(f) => Some(AttributeValue::DoubleValue(*f)),
+                                _ => None, // Complex types will be supported once consumers are updated to ingest them.
+                            };
 
-                        if let Some(attr) = attribute {
-                            attribute_data.insert(key.clone(), Annotated::new(attr));
+                            if let Some(attr) = attribute {
+                                attribute_data.insert(key.clone(), Annotated::new(attr));
+                            }
                         }
                     }
                 }
-            }
 
-            let (body, level) = match breadcrumb.ty.value().map(|ty| ty.as_str()) {
-                Some("http") => format_http_breadcrumb(breadcrumb)?,
-                Some(_) | None => format_default_breadcrumb(breadcrumb)?,
-            };
+                let (body, level) = match breadcrumb.ty.value().map(|ty| ty.as_str()) {
+                    Some("http") => {
+                        let (body, level) = format_http_breadcrumb(breadcrumb)?;
+                        (Annotated::new(body), Annotated::new(level))
+                    }
+                    Some(_) | None => format_default_breadcrumb(breadcrumb)?,
+                };
 
-            Some(OurLog {
-                timestamp_nanos: Annotated::new(timestamp_nanos),
-                observed_timestamp_nanos: Annotated::new(timestamp_nanos),
-                trace_id: event_trace_id
-                    .clone()
-                    .map(Annotated::new)
-                    .unwrap_or_else(Annotated::empty),
-                span_id,
-                trace_flags: Annotated::new(0),
-                severity_text: level,
-                severity_number: Annotated::empty(),
-                body,
-                attributes: Annotated::new(attribute_data),
-                ..Default::default()
+                Some(OurLog {
+                    timestamp_nanos: Annotated::new(timestamp_nanos),
+                    observed_timestamp_nanos: Annotated::new(timestamp_nanos),
+                    trace_id: event_trace_id
+                        .cloned()
+                        .map(Annotated::new)
+                        .unwrap_or_else(Annotated::empty),
+                    span_id,
+                    trace_flags: Annotated::new(0),
+                    severity_text: level,
+                    severity_number: Annotated::empty(),
+                    body,
+                    attributes: Annotated::new(attribute_data),
+                    ..Default::default()
+                })
             })
-        })
-        .collect()
+            .collect(),
+    )
 }
 
-fn format_http_breadcrumb(
-    breadcrumb: &Breadcrumb,
-) -> Option<(Annotated<String>, Annotated<String>)> {
+fn format_http_breadcrumb(breadcrumb: &Breadcrumb) -> Option<(String, String)> {
     let data = breadcrumb.data.value().cloned().unwrap_or_default();
+    let method = data.get("method").and_then(|v| v.value())?;
+    let url = data.get("url").and_then(|v| v.value())?;
+    let status_code = data
+        .get("status_code")
+        .and_then(|v| v.value())
+        .and_then(|v| match v {
+            Value::I64(i) => Some(i),
+            _ => None,
+        })?;
 
-    match (
-        data.get("method").and_then(|v| v.value()),
-        data.get("status_code").and_then(|v| v.value()),
-        data.get("url").and_then(|v| v.value()),
-    ) {
-        (Some(Value::String(method)), Some(Value::I64(status)), Some(Value::String(url))) => {
-            Some((
-                Annotated::new(format!("[{}] - {} {}", status, method, url)),
-                Annotated::new("info".to_string()),
-            ))
-        }
-        _ => {
-            relay_log::trace!(
-                "Missing body in log when converting breadcrumb missing required fields: method={}, status={}, url={}",
-                data.contains_key("method"),
-                data.contains_key("status_code"),
-                data.contains_key("url")
-            );
-            None
-        }
-    }
+    Some((
+        format!("[{}] - {} {}", status_code, method.as_str()?, url.as_str()?),
+        Level::Info.to_string(),
+    ))
 }
 
 fn format_default_breadcrumb(
@@ -401,7 +388,7 @@ mod tests {
             ..Default::default()
         };
 
-        let ourlogs = breadcrumbs_to_ourlogs(&event, 100);
+        let ourlogs = breadcrumbs_to_ourlogs(&event, 100).unwrap();
         assert_eq!(ourlogs.len(), 1);
 
         let annotated_log = Annotated::new(ourlogs[0].clone());
@@ -429,11 +416,11 @@ mod tests {
             ..Default::default()
         };
 
-        let ourlogs = breadcrumbs_to_ourlogs(&event, 3);
+        let ourlogs = breadcrumbs_to_ourlogs(&event, 3).unwrap();
         assert_eq!(ourlogs.len(), 3, "Limited to 3 breadcrumbs");
         assert_eq!(ourlogs[2].body.value().unwrap(), "message 2");
 
-        let ourlogs = breadcrumbs_to_ourlogs(&event, 10);
+        let ourlogs = breadcrumbs_to_ourlogs(&event, 10).unwrap();
         assert_eq!(ourlogs.len(), 5, "No limit");
         assert_eq!(ourlogs[4].body.value().unwrap(), "message 4");
     }
@@ -499,7 +486,7 @@ mod tests {
             ..Default::default()
         };
 
-        let ourlogs = breadcrumbs_to_ourlogs(&event, 100);
+        let ourlogs = breadcrumbs_to_ourlogs(&event, 100).unwrap();
         assert_eq!(ourlogs.len(), 1);
 
         let annotated_log = Annotated::new(ourlogs[0].clone());

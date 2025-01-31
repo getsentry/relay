@@ -107,6 +107,11 @@ pub enum Feature {
     /// Serialized as `organizations:ourlogs-ingestion`.
     #[serde(rename = "organizations:ourlogs-ingestion")]
     OurLogsIngestion,
+
+    /// Enables extracting logs from breadcrumbs for our log product.
+    #[serde(rename = "projects:ourlogs-breadcrumb-extraction")]
+    OurLogsBreadcrumbExtraction,
+
     /// This feature has graduated and is hard-coded for external Relays.
     #[doc(hidden)]
     #[serde(rename = "projects:profiling-ingest-unsampled-profiles")]

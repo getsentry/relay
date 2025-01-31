@@ -14,11 +14,12 @@ use {
     crate::envelope::ContentType,
     crate::envelope::{Item, ItemType},
     crate::services::outcome::{DiscardReason, Outcome},
-    crate::services::processor::ProcessingError,
-    relay_dynamic_config::ProjectConfig,
+    crate::services::processor::{EventProcessing, ProcessingError},
+    crate::utils::{self},
+    relay_dynamic_config::{GlobalConfig, ProjectConfig},
     relay_event_schema::processor::{process_value, ProcessingState},
-    relay_event_schema::protocol::OurLog,
-    relay_ourlogs::OtelLog,
+    relay_event_schema::protocol::{Event, OurLog},
+    relay_ourlogs::{breadcrumbs_to_ourlogs, OtelLog},
     relay_pii::PiiProcessor,
     relay_protocol::Annotated,
 };
@@ -102,4 +103,44 @@ fn scrub(
     }
 
     Ok(())
+}
+
+/// Extract breadcrumbs from an event and convert them to logs.
+#[cfg(feature = "processing")]
+pub fn extract_from_event<Group: EventProcessing>(
+    managed_envelope: &mut TypedEnvelope<Group>,
+    event: &Annotated<Event>,
+    global_config: &GlobalConfig,
+) {
+    let Some(event) = event.value() else {
+        return;
+    };
+
+    let convert_breadcrumbs_to_logs = utils::sample(
+        global_config
+            .options
+            .ourlogs_breadcrumb_extraction_sample_rate
+            .unwrap_or(0.0),
+    );
+
+    if convert_breadcrumbs_to_logs {
+        relay_log::trace!("extracting breadcrumbs to logs");
+        let ourlogs = breadcrumbs_to_ourlogs(
+            event,
+            global_config
+                .options
+                .ourlogs_breadcrumb_extraction_max_breadcrumbs_converted,
+        );
+
+        if let Some(ourlogs) = ourlogs {
+            for ourlog in ourlogs {
+                let mut log_item = Item::new(ItemType::Log);
+                if let Ok(payload) = Annotated::new(ourlog).to_json() {
+                    log_item.set_payload(ContentType::Json, payload);
+                    relay_log::trace!("Adding log to envelope");
+                    managed_envelope.envelope_mut().add_item(log_item);
+                }
+            }
+        }
+    }
 }

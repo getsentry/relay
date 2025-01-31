@@ -2,11 +2,10 @@
 
 ## Unreleased
 
-- Preliminary breadcrumb to log conversion. ([#4479](https://github.com/getsentry/relay/pull/4479))
-- Allow log ingestion behind a flag, only for internal use currently. ([#4471](https://github.com/getsentry/relay/pull/4471))
-
 **Features**:
 
+- Preliminary breadcrumb to log conversion. ([#4479](https://github.com/getsentry/relay/pull/4479))
+- Allow log ingestion behind a flag, only for internal use currently. ([#4471](https://github.com/getsentry/relay/pull/4471))
 - Add configuration option to limit the amount of concurrent http connections. ([#4453](https://github.com/getsentry/relay/pull/4453))
 - Add flags context to event schema. ([#4458](https://github.com/getsentry/relay/pull/4458))
 - Add support for view hierarchy attachment scrubbing. ([#4452](https://github.com/getsentry/relay/pull/4452))
