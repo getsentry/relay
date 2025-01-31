@@ -1,7 +1,7 @@
 use crate::OtelLog;
 use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
 use relay_event_schema::protocol::{
-    AttributeValue, Breadcrumb, Event, Level, OurLog, SpanId, TraceContext, TraceId,
+    AttributeValue, Breadcrumb, Event, Level, OurLog, OurLogsContext, SpanId, TraceContext, TraceId,
 };
 use relay_protocol::{Annotated, Object, Value};
 
@@ -75,6 +75,14 @@ pub fn otel_to_sentry_log(otel_log: OtelLog) -> OurLog {
 ///
 /// Only converts up to `max_breadcrumbs` breadcrumbs.
 pub fn breadcrumbs_to_ourlogs(event: &Event, max_breadcrumbs: usize) -> Option<Vec<OurLog>> {
+    let deduplicated_breadcrumbs = event
+        .context::<OurLogsContext>()
+        .and_then(|ctx| ctx.deduplicated_breadcrumbs.value())?;
+    if !deduplicated_breadcrumbs {
+        // Only deduplicated breadcrumbs are supported.
+        return None;
+    }
+
     let event_trace_id = event
         .context::<TraceContext>()
         .and_then(|trace_ctx| trace_ctx.trace_id.value());
@@ -204,7 +212,7 @@ fn format_default_breadcrumb(
 mod tests {
     use super::*;
     use chrono::{TimeZone, Utc};
-    use relay_event_schema::protocol::{Breadcrumb, Level, Values};
+    use relay_event_schema::protocol::{Breadcrumb, Contexts, Level, Values};
     use relay_protocol::{get_path, get_value};
 
     #[test]
@@ -380,11 +388,18 @@ mod tests {
             ..Default::default()
         };
 
+        let mut contexts = Contexts::new();
+        contexts.add(OurLogsContext {
+            deduplicated_breadcrumbs: Annotated::new(true),
+            other: Object::default(),
+        });
+
         let event = Event {
             breadcrumbs: Annotated::new(Values {
                 values: Annotated::new(vec![Annotated::new(breadcrumb)]),
                 other: Object::default(),
             }),
+            contexts: Annotated::new(contexts),
             ..Default::default()
         };
 
@@ -408,11 +423,18 @@ mod tests {
             breadcrumbs.push(Annotated::new(breadcrumb));
         }
 
+        let mut contexts = Contexts::new();
+        contexts.add(OurLogsContext {
+            deduplicated_breadcrumbs: Annotated::new(true),
+            other: Object::default(),
+        });
+
         let event = Event {
             breadcrumbs: Annotated::new(Values {
                 values: Annotated::new(breadcrumbs),
                 other: Object::default(),
             }),
+            contexts: Annotated::new(contexts),
             ..Default::default()
         };
 
@@ -478,11 +500,18 @@ mod tests {
             ..Default::default()
         };
 
+        let mut contexts = Contexts::new();
+        contexts.add(OurLogsContext {
+            deduplicated_breadcrumbs: Annotated::new(true),
+            other: Object::default(),
+        });
+
         let event = Event {
             breadcrumbs: Annotated::new(Values {
                 values: Annotated::new(vec![Annotated::new(breadcrumb)]),
                 other: Object::default(),
             }),
+            contexts: Annotated::new(contexts),
             ..Default::default()
         };
 
@@ -491,5 +520,43 @@ mod tests {
 
         let annotated_log = Annotated::new(ourlogs[0].clone());
         assert_eq!(json, annotated_log.to_json_pretty().unwrap());
+    }
+
+    #[test]
+    fn test_no_breadcrumbs_without_deduplicated_flag() {
+        let timestamp = Utc.with_ymd_and_hms(2020, 1, 1, 0, 0, 0).unwrap();
+        let breadcrumb = Breadcrumb {
+            message: Annotated::new("test message".to_string()),
+            timestamp: Annotated::new(timestamp.into()),
+            ..Default::default()
+        };
+
+        let mut contexts = Contexts::new();
+        contexts.add(OurLogsContext {
+            deduplicated_breadcrumbs: Annotated::new(false),
+            other: Object::default(),
+        });
+
+        let event = Event {
+            breadcrumbs: Annotated::new(Values {
+                values: Annotated::new(vec![Annotated::new(breadcrumb.clone())]),
+                other: Object::default(),
+            }),
+            contexts: Annotated::new(contexts),
+            ..Default::default()
+        };
+
+        assert!(breadcrumbs_to_ourlogs(&event, 100).is_none());
+
+        // Check unset
+        let event = Event {
+            breadcrumbs: Annotated::new(Values {
+                values: Annotated::new(vec![Annotated::new(breadcrumb)]),
+                other: Object::default(),
+            }),
+            ..Default::default()
+        };
+
+        assert!(breadcrumbs_to_ourlogs(&event, 100).is_none());
     }
 }

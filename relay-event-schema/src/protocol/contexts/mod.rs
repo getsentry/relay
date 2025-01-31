@@ -8,6 +8,7 @@ mod monitor;
 mod nel;
 mod os;
 mod otel;
+mod our_logs;
 mod performance_score;
 mod profile;
 mod replay;
@@ -25,6 +26,7 @@ pub use monitor::*;
 pub use nel::*;
 pub use os::*;
 pub use otel::*;
+pub use our_logs::*;
 pub use performance_score::*;
 pub use profile::*;
 pub use replay::*;
@@ -90,6 +92,9 @@ pub enum Context {
     Nel(Box<NelContext>),
     /// Performance score information.
     PerformanceScore(Box<PerformanceScoreContext>),
+    /// Ourlogs (logs product) information.
+    #[metastructure(tag = "sentry_logs")]
+    OurLogs(Box<OurLogsContext>),
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(fallback_variant)]
     Other(#[metastructure(pii = "true")] Object<Value>),

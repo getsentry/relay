@@ -164,6 +164,10 @@ def test_ourlog_breadcrumb_extraction_sample_rate(
                 "level": "info",
             }
         ]
+        transaction["contexts"]["sentry_logs"] = {
+            "deduplicated_breadcrumbs": True,
+            "type": "sentry_logs",
+        }
         envelope = Envelope()
         envelope.add_transaction(transaction)
         upstream.send_envelope(project_id, envelope)
