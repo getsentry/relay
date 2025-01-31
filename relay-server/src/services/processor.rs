@@ -1601,14 +1601,6 @@ impl EnvelopeProcessorService {
             )?;
         });
 
-        if_processing!(self.inner.config, {
-            ourlog::extract_from_event(
-                managed_envelope,
-                &event,
-                &self.inner.global_config.current(),
-            );
-        });
-
         if event.value().is_some() {
             event::scrub(&mut event, project_info.clone())?;
             event::serialize(
@@ -1621,7 +1613,17 @@ impl EnvelopeProcessorService {
             event::emit_feedback_metrics(managed_envelope.envelope());
         }
 
-        attachment::scrub(managed_envelope, project_info);
+        attachment::scrub(managed_envelope, project_info.clone());
+
+        if_processing!(self.inner.config, {
+            if project_info.has_feature(Feature::OurLogsBreadcrumbExtraction) {
+                ourlog::extract_from_event(
+                    managed_envelope,
+                    &event,
+                    &self.inner.global_config.current(),
+                );
+            }
+        });
 
         if self.inner.config.processing_enabled() && !event_fully_normalized.0 {
             relay_log::error!(
@@ -1914,7 +1916,7 @@ impl EnvelopeProcessorService {
         });
 
         report::process_user_reports(managed_envelope);
-        attachment::scrub(managed_envelope, project_info);
+        attachment::scrub(managed_envelope, project_info.clone());
 
         Ok(Some(extracted_metrics))
     }

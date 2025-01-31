@@ -114,7 +114,7 @@ impl From<Context> for ContextInner {
 /// name is `contexts`.
 ///
 /// The `contexts` type can be used to define arbitrary contextual data on the event. It accepts an
-/// object of key/value pairs. The key is the “alias” of the context and can be freely chosen.
+/// object of key/value pairs. The key is the "alias" of the context and can be freely chosen.
 /// However, as per policy, it should match the type of the context unless there are two values for
 /// a type. You can omit `type` if the key name is the type.
 ///
