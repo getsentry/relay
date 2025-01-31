@@ -1,4 +1,5 @@
 use crate::MemoryStat;
+use ahash::{HashMap, HashMapExt};
 use relay_system::{AsyncResponse, FromMessage, Interface, Sender, Service};
 use serde::Serialize;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -8,6 +9,8 @@ pub struct RelayMetricsService {
     memory_stat: MemoryStat,
     /// A single number value only for testing
     value: AtomicU64,
+
+    tags: HashMap<String, String>,
 }
 
 impl RelayMetricsService {
@@ -15,6 +18,7 @@ impl RelayMetricsService {
         Self {
             memory_stat,
             value: AtomicU64::new(0),
+            tags: HashMap::new(),
         }
     }
 }
@@ -29,10 +33,7 @@ impl Service for RelayMetricsService {
                     let memory = self.memory_stat.memory();
                     let memory_percentage =
                         ((memory.used as f64 / memory.total as f64) * 100.0) as u64;
-                    sender.send(KedaMetricsData::new(
-                        memory_percentage,
-                        self.value.load(Ordering::SeqCst),
-                    ));
+                    sender.send(KedaMetricsData::new(memory_percentage));
                 }
                 InternalMetricsMessage::Add => {
                     self.value.fetch_add(1, Ordering::AcqRel);
@@ -76,15 +77,12 @@ impl FromMessage<KedaMetricsMessageKind> for InternalMetricsMessage {
 pub struct KedaMetricsData {
     /// Memory usage percentage as integer. e.g. 72
     memory_usage_percentage: u64,
-    /// A random test value that represents something that is being tracked
-    value: u64,
 }
 
 impl KedaMetricsData {
-    pub fn new(memory_usage_percentage: u64, value: u64) -> Self {
+    pub fn new(memory_usage_percentage: u64) -> Self {
         Self {
             memory_usage_percentage,
-            value,
         }
     }
 }
