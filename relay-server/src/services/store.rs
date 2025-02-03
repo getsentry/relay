@@ -289,6 +289,7 @@ impl StoreService {
                 ItemType::Span => {
                     self.produce_span(scoping, received_at, event_id, retention, item)?
                 }
+                ItemType::Log => self.produce_log(scoping, received_at, retention, item)?,
                 ItemType::ProfileChunk => self.produce_profile_chunk(
                     scoping.organization_id,
                     scoping.project_id,
@@ -939,6 +940,81 @@ impl StoreService {
             scoping,
             timestamp: received_at,
         });
+        Ok(())
+    }
+
+    fn produce_log(
+        &self,
+        scoping: Scoping,
+        received_at: DateTime<Utc>,
+        retention_days: u16,
+        item: &Item,
+    ) -> Result<(), StoreError> {
+        relay_log::trace!("Producing log");
+        let payload = item.payload();
+        let payload_len = payload.len();
+
+        let d = &mut Deserializer::from_slice(&payload);
+
+        let mut log: LogKafkaMessage = match serde_path_to_error::deserialize(d) {
+            Ok(log) => log,
+            Err(error) => {
+                relay_log::error!(
+                    error = &error as &dyn std::error::Error,
+                    "failed to parse log"
+                );
+                self.outcome_aggregator.send(TrackOutcome {
+                    category: DataCategory::LogItem,
+                    event_id: None,
+                    outcome: Outcome::Invalid(DiscardReason::InvalidLog),
+                    quantity: 1,
+                    remote_addr: None,
+                    scoping,
+                    timestamp: received_at,
+                });
+                self.outcome_aggregator.send(TrackOutcome {
+                    category: DataCategory::LogByte,
+                    event_id: None,
+                    outcome: Outcome::Invalid(DiscardReason::InvalidLog),
+                    quantity: payload.len() as u32,
+                    remote_addr: None,
+                    scoping,
+                    timestamp: received_at,
+                });
+                return Ok(());
+            }
+        };
+
+        log.organization_id = scoping.organization_id.value();
+        log.project_id = scoping.project_id.value();
+        log.retention_days = retention_days;
+        log.received = safe_timestamp(received_at);
+        let message = KafkaMessage::Log {
+            headers: BTreeMap::from([("project_id".to_string(), scoping.project_id.to_string())]),
+            message: log,
+        };
+
+        self.produce(KafkaTopic::OurLogs, message)?;
+
+        // We need to track the count and bytes separately for possible rate limits and quotas on both counts and bytes.
+        self.outcome_aggregator.send(TrackOutcome {
+            category: DataCategory::LogItem,
+            event_id: None,
+            outcome: Outcome::Accepted,
+            quantity: 1,
+            remote_addr: None,
+            scoping,
+            timestamp: received_at,
+        });
+        self.outcome_aggregator.send(TrackOutcome {
+            category: DataCategory::LogByte,
+            event_id: None,
+            outcome: Outcome::Accepted,
+            quantity: payload_len as u32,
+            remote_addr: None,
+            scoping,
+            timestamp: received_at,
+        });
 
         Ok(())
     }
@@ -1305,6 +1381,35 @@ struct SpanKafkaMessage<'a> {
     platform: Cow<'a, str>, // We only use this for logging for now
 }
 
+#[derive(Debug, Deserialize, Serialize)]
+struct LogKafkaMessage<'a> {
+    #[serde(default)]
+    organization_id: u64,
+    #[serde(default)]
+    project_id: u64,
+    #[serde(default)]
+    timestamp_nanos: u64,
+    #[serde(default)]
+    observed_timestamp_nanos: u64,
+    #[serde(default)]
+    retention_days: u16,
+    #[serde(default)]
+    received: u64,
+    body: &'a RawValue,
+
+    trace_id: EventId,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    span_id: Option<&'a str>,
+    #[serde(borrow, default, skip_serializing_if = "Option::is_none")]
+    severity_text: Option<Cow<'a, str>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    severity_number: Option<i32>,
+    #[serde(default, skip_serializing_if = "none_or_empty_object")]
+    attributes: Option<&'a RawValue>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    trace_flags: Option<u64>,
+}
+
 fn none_or_empty_object(value: &Option<&RawValue>) -> bool {
     match value {
         None => true,
@@ -1346,6 +1451,12 @@ enum KafkaMessage<'a> {
         #[serde(flatten)]
         message: SpanKafkaMessage<'a>,
     },
+    Log {
+        #[serde(skip)]
+        headers: BTreeMap<String, String>,
+        #[serde(flatten)]
+        message: LogKafkaMessage<'a>,
+    },
     ProfileChunk(ProfileChunkKafkaMessage),
 }
 
@@ -1368,6 +1479,7 @@ impl Message for KafkaMessage<'_> {
             KafkaMessage::ReplayEvent(_) => "replay_event",
             KafkaMessage::ReplayRecordingNotChunked(_) => "replay_recording_not_chunked",
             KafkaMessage::CheckIn(_) => "check_in",
+            KafkaMessage::Log { .. } => "log",
             KafkaMessage::Span { .. } => "span",
             KafkaMessage::ProfileChunk(_) => "profile_chunk",
         }
@@ -1391,6 +1503,7 @@ impl Message for KafkaMessage<'_> {
             // Random partitioning
             Self::Profile(_)
             | Self::Span { .. }
+            | Self::Log { .. }
             | Self::ReplayRecordingNotChunked(_)
             | Self::ProfileChunk(_) => Uuid::nil(),
 
@@ -1419,6 +1532,12 @@ impl Message for KafkaMessage<'_> {
                 }
                 None
             }
+            KafkaMessage::Log { headers, .. } => {
+                if !headers.is_empty() {
+                    return Some(headers);
+                }
+                None
+            }
             KafkaMessage::Span { headers, .. } => {
                 if !headers.is_empty() {
                     return Some(headers);
@@ -1439,6 +1558,9 @@ impl Message for KafkaMessage<'_> {
                 .map(Cow::Owned)
                 .map_err(ClientError::InvalidJson),
             KafkaMessage::Span { message, .. } => serde_json::to_vec(message)
+                .map(Cow::Owned)
+                .map_err(ClientError::InvalidJson),
+            KafkaMessage::Log { message, .. } => serde_json::to_vec(message)
                 .map(Cow::Owned)
                 .map_err(ClientError::InvalidJson),
             _ => rmp_serde::to_vec_named(&self)

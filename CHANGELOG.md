@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Allow log ingestion behind a flag, only for internal use currently. ([#4471](https://github.com/getsentry/relay/pull/4471))
+
 **Features**:
 
 - Add configuration option to limit the amount of concurrent http connections. ([#4453](https://github.com/getsentry/relay/pull/4453))
@@ -11,6 +13,7 @@
 **Bug Fixes**:
 
 - Fix a bug where parsing large unsigned integers would fail incorrectly. ([#4472](https://github.com/getsentry/relay/pull/4472))
+- Set size limit for UserReport attachments so it gets properly reported as too large. ([#4482](https://github.com/getsentry/relay/pull/4482)) 
 
 **Internal**:
 

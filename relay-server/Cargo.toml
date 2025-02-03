@@ -13,16 +13,16 @@ publish = false
 [features]
 default = []
 processing = [
-    "dep:minidump",
-    "dep:symbolic-common",
-    "dep:symbolic-unreal",
-    "relay-cardinality/redis",
-    "relay-config/processing",
-    "relay-kafka/producer",
-    "relay-metrics/redis",
-    "relay-quotas/redis",
-    "relay-redis/impl",
-    "relay-sampling/redis",
+  "dep:minidump",
+  "dep:symbolic-common",
+  "dep:symbolic-unreal",
+  "relay-cardinality/redis",
+  "relay-config/processing",
+  "relay-kafka/producer",
+  "relay-metrics/redis",
+  "relay-quotas/redis",
+  "relay-redis/impl",
+  "relay-sampling/redis",
 ]
 
 [lints]
@@ -75,6 +75,7 @@ relay-event-schema = { workspace = true }
 relay-filter = { workspace = true }
 relay-kafka = { workspace = true, optional = true }
 relay-log = { workspace = true, features = ["sentry"] }
+relay-ourlogs = { workspace = true }
 relay-metrics = { workspace = true }
 relay-monitors = { workspace = true }
 relay-pii = { workspace = true }
@@ -88,12 +89,13 @@ relay-spans = { workspace = true }
 relay-statsd = { workspace = true }
 relay-system = { workspace = true }
 reqwest = { workspace = true, features = [
-    "gzip",
-    "hickory-dns",
-    "stream",
-    "native-tls-vendored",
+  "gzip",
+  "hickory-dns",
+  "stream",
+  "native-tls-vendored",
 ] }
 rmp-serde = { workspace = true }
+sentry = { workspace = true, features = ["tower-http"] }
 serde = { workspace = true }
 serde_bytes = { workspace = true }
 serde_json = { workspace = true }
@@ -101,14 +103,14 @@ serde_prometheus = { workspace = true }
 smallvec = { workspace = true, features = ["drain_filter"] }
 socket2 = { workspace = true }
 sqlx = { workspace = true, features = [
-    "macros",
-    "migrate",
-    "sqlite",
-    "runtime-tokio",
+  "macros",
+  "migrate",
+  "sqlite",
+  "runtime-tokio",
 ], default-features = false }
 symbolic-common = { workspace = true, optional = true, default-features = false }
 symbolic-unreal = { workspace = true, optional = true, default-features = false, features = [
-    "serde",
+  "serde",
 ] }
 sysinfo = { workspace = true }
 thiserror = { workspace = true }
@@ -116,18 +118,18 @@ tokio = { workspace = true, features = ["sync", "time"] }
 tokio-util = { workspace = true, default-features = false }
 tower = { workspace = true, default-features = false, features = ["limit"] }
 tower-http = { workspace = true, default-features = false, features = [
-    "catch-panic",
-    "compression-br",
-    "compression-deflate",
-    "compression-gzip",
-    "compression-zstd",
-    "cors",
-    "decompression-br",
-    "decompression-deflate",
-    "decompression-gzip",
-    "decompression-zstd",
-    "set-header",
-    "trace",
+  "catch-panic",
+  "compression-br",
+  "compression-deflate",
+  "compression-gzip",
+  "compression-zstd",
+  "cors",
+  "decompression-br",
+  "decompression-deflate",
+  "decompression-gzip",
+  "decompression-zstd",
+  "set-header",
+  "trace",
 ] }
 url = { workspace = true, features = ["serde"] }
 uuid = { workspace = true, features = ["v5"] }

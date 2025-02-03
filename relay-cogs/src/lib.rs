@@ -117,6 +117,8 @@ pub enum AppFeature {
     Transactions,
     /// Errors.
     Errors,
+    /// Logs.
+    Logs,
     /// Spans.
     Spans,
     /// Sessions.
@@ -159,6 +161,7 @@ impl AppFeature {
             Self::Transactions => "transactions",
             Self::Errors => "errors",
             Self::Spans => "spans",
+            Self::Logs => "our_logs",
             Self::Sessions => "sessions",
             Self::ClientReports => "client_reports",
             Self::CheckIns => "check_ins",

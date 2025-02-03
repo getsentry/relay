@@ -9,6 +9,7 @@ use axum_server::Handle;
 use hyper_util::rt::TokioTimer;
 use relay_config::Config;
 use relay_system::{Controller, Service, Shutdown};
+use sentry::integrations::tower::{NewSentryLayer, SentryHttpLayer};
 use tokio::net::TcpSocket;
 use tower::ServiceBuilder;
 use tower_http::compression::predicate::SizeAbove;
@@ -17,8 +18,7 @@ use tower_http::set_header::SetResponseHeaderLayer;
 
 use crate::constants;
 use crate::middlewares::{
-    self, BodyTimingLayer, CatchPanicLayer, NewSentryLayer, NormalizePath,
-    RequestDecompressionLayer, SentryHttpLayer,
+    self, BodyTimingLayer, CatchPanicLayer, NormalizePath, RequestDecompressionLayer,
 };
 use crate::service::ServiceState;
 use crate::statsd::{RelayCounters, RelayGauges};
