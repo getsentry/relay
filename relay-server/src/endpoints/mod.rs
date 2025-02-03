@@ -39,7 +39,7 @@ pub fn routes(config: &Config) -> Router<ServiceState>{
     let internal_routes = Router::new()
         .route("/api/relay/healthcheck/{kind}/", get(health_check::handle))
         .route("/api/relay/events/{event_id}/", get(events::handle))
-        .route("/api/relay/internal-metrics", any(internal_metrics::handle))
+        .route("/api/relay/internal-metrics.{content_type}", get(internal_metrics::handle))
         // Fallback route, but with a name, and just on `/api/relay/*`.
         .route("/api/relay/{*not_found}", any(statics::not_found));
 
