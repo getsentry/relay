@@ -9,6 +9,7 @@
 - Add configuration option to limit the amount of concurrent http connections. ([#4453](https://github.com/getsentry/relay/pull/4453))
 - Add flags context to event schema. ([#4458](https://github.com/getsentry/relay/pull/4458))
 - Add support for view hierarchy attachment scrubbing. ([#4452](https://github.com/getsentry/relay/pull/4452))
+- Allow configuration of Relay's log format via an environment variable. ([#4484](https://github.com/getsentry/relay/pull/4484))
 
 **Bug Fixes**:
 

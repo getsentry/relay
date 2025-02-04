@@ -226,6 +226,8 @@ pub struct OverridableConfig {
     pub instance: Option<String>,
     /// The log level of this relay.
     pub log_level: Option<String>,
+    /// The log format of this relay.
+    pub log_format: Option<String>,
     /// The upstream relay or sentry instance.
     pub upstream: Option<String>,
     /// Alternate upstream provided through a Sentry DSN. Key and project will be ignored.
@@ -1639,6 +1641,10 @@ impl Config {
 
         if let Some(log_level) = overrides.log_level {
             self.values.logging.level = log_level.parse()?;
+        }
+
+        if let Some(log_format) = overrides.log_format {
+            self.values.logging.format = log_format.parse()?;
         }
 
         if let Some(upstream) = overrides.upstream {
