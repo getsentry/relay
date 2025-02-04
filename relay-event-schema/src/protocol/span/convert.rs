@@ -59,6 +59,7 @@ impl From<&Event> for Span {
                 .map(|c| c.profile_id.clone())
                 .unwrap_or_default(),
             data,
+            links: trace.map(|c| c.links.clone()).unwrap_or_default(),
             sentry_tags: Default::default(),
             received: received.clone(),
             measurements: measurements.clone(),
@@ -99,7 +100,18 @@ mod tests {
                         "parent_span_id": "FA90FDEAD5F74051",
                         "data": {
                             "custom_attribute": 42
-                        }
+                        },
+                        "links": [
+                            {
+                                "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
+                                "span_id": "fa90fdead5f74052",
+                                "parent_span_id": "fa90fdead5f74053",
+                                "sampled": true,
+                                "attributes": {
+                                    "sentry.link.type": "previous_trace"
+                                }
+                            }
+                        ]
                     }
                 },
                 "measurements": {
@@ -217,6 +229,26 @@ mod tests {
                     ),
                 },
             },
+            links: [
+                SpanLink {
+                    trace_id: TraceId(
+                        "4c79f60c11214eb38604f4ae0781bfb2",
+                    ),
+                    span_id: SpanId(
+                        "fa90fdead5f74052",
+                    ),
+                    parent_span_id: SpanId(
+                        "fa90fdead5f74053",
+                    ),
+                    sampled: true,
+                    attributes: {
+                        "sentry.link.type": String(
+                            "previous_trace",
+                        ),
+                    },
+                    other: {},
+                },
+            ],
             sentry_tags: ~,
             received: ~,
             measurements: Measurements(
