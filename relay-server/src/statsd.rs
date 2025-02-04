@@ -11,6 +11,11 @@ pub enum RelayGauges {
     ///
     /// Per combination of `(own_key, sampling_key)`, a new stack is created.
     BufferStackCount,
+    /// Number of elements in the envelope buffer across all the stacks.
+    ///
+    /// This metric is tagged with:
+    /// - `storage_type`: The type of storage used in the envelope buffer.
+    BufferEnvelopeCount,
     /// The used disk for the buffer.
     BufferDiskUsed,
     /// The currently used memory by the entire system.
@@ -48,6 +53,7 @@ impl GaugeMetric for RelayGauges {
     fn name(&self) -> &'static str {
         match self {
             RelayGauges::NetworkOutage => "upstream.network_outage",
+            RelayGauges::BufferEnvelopeCount => "buffer.envelopes_count",
             RelayGauges::BufferStackCount => "buffer.stack_count",
             RelayGauges::BufferDiskUsed => "buffer.disk_used",
             RelayGauges::SystemMemoryUsed => "health.system_memory.used",
@@ -177,11 +183,6 @@ pub enum RelayHistograms {
     /// Metric is tagged by the item type.
     EnvelopeItemSize,
 
-    /// Number of elements in the envelope buffer across all the stacks.
-    ///
-    /// This metric is tagged with:
-    /// - `storage_type`: The type of storage used in the envelope buffer.
-    BufferEnvelopesCount,
     /// The amount of bytes in the item payloads of an envelope pushed to the envelope buffer.
     ///
     /// This is not quite the same as the actual size of a serialized envelope, because it ignores
@@ -293,7 +294,6 @@ impl HistogramMetric for RelayHistograms {
             RelayHistograms::EventSpans => "event.spans",
             RelayHistograms::BatchesPerPartition => "metrics.buckets.batches_per_partition",
             RelayHistograms::BucketsPerBatch => "metrics.buckets.per_batch",
-            RelayHistograms::BufferEnvelopesCount => "buffer.envelopes_count",
             RelayHistograms::BufferEnvelopeBodySize => "buffer.envelope_body_size",
             RelayHistograms::BufferEnvelopeSize => "buffer.envelope_size",
             RelayHistograms::BufferEnvelopeSizeCompressed => "buffer.envelope_size.compressed",

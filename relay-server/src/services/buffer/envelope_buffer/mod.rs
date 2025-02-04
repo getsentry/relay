@@ -552,7 +552,7 @@ where
             false => "false",
         };
         relay_statsd::metric!(
-            histogram(RelayHistograms::BufferEnvelopesCount) = total_count,
+            gauge(RelayGauges::BufferEnvelopeCount) = total_count,
             initialized = initialized,
             stack_type = self.stack_provider.stack_type(),
             partition_id = &self.partition_tag
