@@ -307,7 +307,13 @@
 <a href="#306" id="306">306</a>
 <a href="#307" id="307">307</a>
 <a href="#308" id="308">308</a>
-<a href="#309" id="309">309</a></pre></div><pre class="rust"><code><span class="doccomment">//! This module implements the definition of the command line app.
+<a href="#309" id="309">309</a>
+<a href="#310" id="310">310</a>
+<a href="#311" id="311">311</a>
+<a href="#312" id="312">312</a>
+<a href="#313" id="313">313</a>
+<a href="#314" id="314">314</a>
+<a href="#315" id="315">315</a></pre></div><pre class="rust"><code><span class="doccomment">//! This module implements the definition of the command line app.
 
 </span><span class="kw">use </span>clap::builder::ValueParser;
 <span class="kw">use </span>clap::{Arg, ArgAction, ArgGroup, Command, ValueHint};
@@ -351,6 +357,12 @@
                         .long(<span class="string">"log-level"</span>)
                         .help(<span class="string">"The relay log level"</span>)
                         .value_parser([<span class="string">"info"</span>, <span class="string">"warn"</span>, <span class="string">"error"</span>, <span class="string">"debug"</span>, <span class="string">"trace"</span>]),
+                )
+                .arg(
+                    Arg::new(<span class="string">"log_format"</span>)
+                        .long(<span class="string">"log-format"</span>)
+                        .help(<span class="string">"The relay log format"</span>)
+                        .value_parser([<span class="string">"auto"</span>, <span class="string">"pretty"</span>, <span class="string">"simplified"</span>, <span class="string">"json"</span>]),
                 )
                 .arg(
                     Arg::new(<span class="string">"secret_key"</span>)

@@ -358,7 +358,40 @@
 <a href="#357" id="357">357</a>
 <a href="#358" id="358">358</a>
 <a href="#359" id="359">359</a>
-<a href="#360" id="360">360</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
+<a href="#360" id="360">360</a>
+<a href="#361" id="361">361</a>
+<a href="#362" id="362">362</a>
+<a href="#363" id="363">363</a>
+<a href="#364" id="364">364</a>
+<a href="#365" id="365">365</a>
+<a href="#366" id="366">366</a>
+<a href="#367" id="367">367</a>
+<a href="#368" id="368">368</a>
+<a href="#369" id="369">369</a>
+<a href="#370" id="370">370</a>
+<a href="#371" id="371">371</a>
+<a href="#372" id="372">372</a>
+<a href="#373" id="373">373</a>
+<a href="#374" id="374">374</a>
+<a href="#375" id="375">375</a>
+<a href="#376" id="376">376</a>
+<a href="#377" id="377">377</a>
+<a href="#378" id="378">378</a>
+<a href="#379" id="379">379</a>
+<a href="#380" id="380">380</a>
+<a href="#381" id="381">381</a>
+<a href="#382" id="382">382</a>
+<a href="#383" id="383">383</a>
+<a href="#384" id="384">384</a>
+<a href="#385" id="385">385</a>
+<a href="#386" id="386">386</a>
+<a href="#387" id="387">387</a>
+<a href="#388" id="388">388</a>
+<a href="#389" id="389">389</a>
+<a href="#390" id="390">390</a>
+<a href="#391" id="391">391</a>
+<a href="#392" id="392">392</a>
+<a href="#393" id="393">393</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::env;
 <span class="kw">use </span>std::fmt::{<span class="self">self</span>, Display};
@@ -409,6 +442,39 @@
     /// ```
     </span>Json,
 }
+
+<span class="doccomment">/// The logging format parse error.
+</span><span class="attr">#[derive(Clone, Debug)]
+</span><span class="kw">pub struct </span>FormatParseError(String);
+
+<span class="kw">impl </span>Display <span class="kw">for </span>FormatParseError {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>std::fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; std::fmt::Result {
+        <span class="macro">write!</span>(
+            f,
+            <span class="string">r#"error parsing "{}" as format: expected one of "auto", "pretty", "simplified", "json""#</span>,
+            <span class="self">self</span>.<span class="number">0
+        </span>)
+    }
+}
+
+<span class="kw">impl </span>FromStr <span class="kw">for </span>LogFormat {
+    <span class="kw">type </span><span class="prelude-val">Err </span>= FormatParseError;
+
+    <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
+        <span class="kw">let </span>result = <span class="kw">match </span>s {
+            <span class="string">"" </span>=&gt; LogFormat::Auto,
+            s <span class="kw">if </span>s.eq_ignore_ascii_case(<span class="string">"auto"</span>) =&gt; LogFormat::Auto,
+            s <span class="kw">if </span>s.eq_ignore_ascii_case(<span class="string">"pretty"</span>) =&gt; LogFormat::Pretty,
+            s <span class="kw">if </span>s.eq_ignore_ascii_case(<span class="string">"simplified"</span>) =&gt; LogFormat::Simplified,
+            s <span class="kw">if </span>s.eq_ignore_ascii_case(<span class="string">"json"</span>) =&gt; LogFormat::Json,
+            s =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(FormatParseError(s.into())),
+        };
+
+        <span class="prelude-val">Ok</span>(result)
+    }
+}
+
+<span class="kw">impl </span>std::error::Error <span class="kw">for </span>FormatParseError {}
 
 <span class="doccomment">/// The logging level parse error.
 </span><span class="attr">#[derive(Clone, Debug)]

@@ -2559,7 +2559,13 @@
 <a href="#2558" id="2558">2558</a>
 <a href="#2559" id="2559">2559</a>
 <a href="#2560" id="2560">2560</a>
-<a href="#2561" id="2561">2561</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
+<a href="#2561" id="2561">2561</a>
+<a href="#2562" id="2562">2562</a>
+<a href="#2563" id="2563">2563</a>
+<a href="#2564" id="2564">2564</a>
+<a href="#2565" id="2565">2565</a>
+<a href="#2566" id="2566">2566</a>
+<a href="#2567" id="2567">2567</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
 <span class="kw">use </span>std::net::{IpAddr, SocketAddr, ToSocketAddrs};
@@ -2787,6 +2793,8 @@
     </span><span class="kw">pub </span>instance: <span class="prelude-ty">Option</span>&lt;String&gt;,
     <span class="doccomment">/// The log level of this relay.
     </span><span class="kw">pub </span>log_level: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    <span class="doccomment">/// The log format of this relay.
+    </span><span class="kw">pub </span>log_format: <span class="prelude-ty">Option</span>&lt;String&gt;,
     <span class="doccomment">/// The upstream relay or sentry instance.
     </span><span class="kw">pub </span>upstream: <span class="prelude-ty">Option</span>&lt;String&gt;,
     <span class="doccomment">/// Alternate upstream provided through a Sentry DSN. Key and project will be ignored.
@@ -4200,6 +4208,10 @@
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(log_level) = overrides.log_level {
             <span class="self">self</span>.values.logging.level = log_level.parse()<span class="question-mark">?</span>;
+        }
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(log_format) = overrides.log_format {
+            <span class="self">self</span>.values.logging.format = log_format.parse()<span class="question-mark">?</span>;
         }
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(upstream) = overrides.upstream {

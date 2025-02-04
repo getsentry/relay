@@ -350,7 +350,9 @@
 <a href="#349" id="349">349</a>
 <a href="#350" id="350">350</a>
 <a href="#351" id="351">351</a>
-<a href="#352" id="352">352</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::path::{Path, PathBuf};
+<a href="#352" id="352">352</a>
+<a href="#353" id="353">353</a>
+<a href="#354" id="354">354</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::path::{Path, PathBuf};
 <span class="kw">use </span>std::{env, io};
 
 <span class="kw">use </span>anyhow::{anyhow, bail, <span class="prelude-ty">Result</span>};
@@ -433,6 +435,7 @@
     OverridableConfig {
         mode: matches.get_one(<span class="string">"mode"</span>).cloned(),
         log_level: matches.get_one(<span class="string">"log_level"</span>).cloned(),
+        log_format: matches.get_one(<span class="string">"log_format"</span>).cloned(),
         upstream: matches.get_one(<span class="string">"upstream"</span>).cloned(),
         upstream_dsn: matches.get_one(<span class="string">"upstream_dsn"</span>).cloned(),
         host: matches.get_one(<span class="string">"host"</span>).cloned(),
@@ -455,6 +458,7 @@
     OverridableConfig {
         mode: env::var(<span class="string">"RELAY_MODE"</span>).ok(),
         log_level: env::var(<span class="string">"RELAY_LOG_LEVEL"</span>).ok(),
+        log_format: env::var(<span class="string">"RELAY_LOG_FORMAT"</span>).ok(),
         upstream: env::var(<span class="string">"RELAY_UPSTREAM_URL"</span>).ok(),
         upstream_dsn: env::var(<span class="string">"RELAY_UPSTREAM_DSN"</span>).ok(),
         host: env::var(<span class="string">"RELAY_HOST"</span>).ok(),
