@@ -206,12 +206,12 @@ mod tests {
   },
   "links": [
     {
-      "trace_id": "4c79f60c11214eb38604f4ae0781bfb2",
-      "span_id": "fa90fdead5f74052",
-      "parent_span_id": "fa90fdead5f74053",
+      "trace_id": "3c79f60c11214eb38604f4ae0781bfb2",
+      "span_id": "ea90fdead5f74052",
+      "parent_span_id": "ea90fdead5f74053",
       "sampled": true,
       "attributes": {
-          "sentry.link.type": "previous_trace"
+        "sentry.link.type": "previous_trace"
       }
     }
   ],
@@ -250,9 +250,9 @@ mod tests {
                 ..Default::default()
             }),
             links: Annotated::new(Array::from(vec![Annotated::new(SpanLink {
-                trace_id: Annotated::new(TraceId("4c79f60c11214eb38604f4ae0781bfb2".into())),
-                span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
-                parent_span_id: Annotated::new(SpanId("fa90fdead5f74052".into())),
+                trace_id: Annotated::new(TraceId("3c79f60c11214eb38604f4ae0781bfb2".into())),
+                span_id: Annotated::new(SpanId("ea90fdead5f74052".into())),
+                parent_span_id: Annotated::new(SpanId("ea90fdead5f74053".into())),
                 sampled: Annotated::new(true),
                 attributes: Annotated::new({
                     let mut map: std::collections::BTreeMap<String, Annotated<Value>> =
