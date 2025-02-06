@@ -537,7 +537,7 @@ mod tests {
         let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         let span_from_otel = otel_to_sentry_span(otel_span);
 
-        insta::assert_debug_snapshot!(span_from_otel, @r###"
+        insta::assert_debug_snapshot!(span_from_otel, @r#"
         Span {
             timestamp: Timestamp(
                 1970-01-01T00:02:03.500Z,
@@ -639,6 +639,7 @@ mod tests {
                 lcp_url: ~,
                 other: {},
             },
+            links: ~,
             sentry_tags: ~,
             received: ~,
             measurements: ~,
@@ -646,7 +647,7 @@ mod tests {
             was_transaction: ~,
             other: {},
         }
-        "###);
+        "#);
     }
 
     #[test]
