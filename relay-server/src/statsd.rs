@@ -509,11 +509,6 @@ pub enum RelayTimers {
     StoreServiceDuration,
     /// Timing in milliseconds for the time it takes for initialize the buffer.
     BufferInitialization,
-    /// Timing in milliseconds for the time the buffer service spends handling input.
-    ///
-    /// This metric is tagged with:
-    /// - `input`: The type of input that the service is handling.
-    BufferBusy,
     /// Timing in milliseconds for the time it takes for the buffer to pack & spool a batch.
     ///
     /// Contains the time it takes to pack multiple envelopes into a single memory blob.
@@ -580,7 +575,6 @@ impl TimerMetric for RelayTimers {
             #[cfg(feature = "processing")]
             RelayTimers::StoreServiceDuration => "store.message.duration",
             RelayTimers::BufferInitialization => "buffer.initialization.duration",
-            RelayTimers::BufferBusy => "buffer.busy",
             RelayTimers::BufferSpool => "buffer.spool.duration",
             RelayTimers::BufferSqlWrite => "buffer.write.duration",
             RelayTimers::BufferUnspool => "buffer.unspool.duration",
@@ -639,6 +633,12 @@ pub enum RelayCounters {
     /// Number of times one or more projects of an envelope were pending when trying to pop
     /// their envelope.
     BufferProjectPending,
+    /// Timing in nanoseconds for the time the buffer service spends handling input.
+    ///
+    /// This metric is tagged with:
+    /// - `input`: The type of input that the service is handling.
+    /// - `partition_id`: The ID of the buffer shard (0, 1, 2, ...)
+    BufferBusy,
     ///
     /// Number of outcomes and reasons for rejected Envelopes.
     ///
@@ -846,6 +846,7 @@ impl CounterMetric for RelayCounters {
             RelayCounters::BufferUnspooledEnvelopes => "buffer.unspooled_envelopes",
             RelayCounters::BufferProjectChangedEvent => "buffer.project_changed_event",
             RelayCounters::BufferProjectPending => "buffer.project_pending",
+            RelayCounters::BufferBusy => "buffer.busy",
             RelayCounters::Outcomes => "events.outcomes",
             RelayCounters::ProjectStateRequest => "project_state.request",
             #[cfg(feature = "processing")]
