@@ -509,11 +509,6 @@ pub enum RelayTimers {
     StoreServiceDuration,
     /// Timing in milliseconds for the time it takes for initialize the buffer.
     BufferInitialization,
-    /// Timing in milliseconds for the time the buffer service is waiting for input.
-    ///
-    /// This metric is tagged with:
-    /// - `input`: The type of input that broke the idling.
-    BufferIdle,
     /// Timing in milliseconds for the time the buffer service spends handling input.
     ///
     /// This metric is tagged with:
@@ -585,7 +580,6 @@ impl TimerMetric for RelayTimers {
             #[cfg(feature = "processing")]
             RelayTimers::StoreServiceDuration => "store.message.duration",
             RelayTimers::BufferInitialization => "buffer.initialization.duration",
-            RelayTimers::BufferIdle => "buffer.idle",
             RelayTimers::BufferBusy => "buffer.busy",
             RelayTimers::BufferSpool => "buffer.spool.duration",
             RelayTimers::BufferSqlWrite => "buffer.write.duration",
