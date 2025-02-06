@@ -17,7 +17,7 @@ impl RelayMetricsService {
     pub fn new(memory_stat: MemoryStat) -> Self {
         Self {
             memory_stat,
-            value: AtomicU64::new(0),
+            value: AtomicU64::new(3),
             tags: HashMap::new(),
         }
     }
@@ -33,10 +33,13 @@ impl Service for RelayMetricsService {
                     let memory = self.memory_stat.memory();
                     let memory_percentage =
                         ((memory.used as f64 / memory.total as f64) * 100.0) as u64;
-                    sender.send(KedaMetricsData::new(memory_percentage));
+                    sender.send(KedaMetricsData::new(
+                        memory_percentage,
+                        self.value.load(Ordering::Relaxed),
+                    ));
                 }
                 InternalMetricsMessage::Add => {
-                    self.value.fetch_add(1, Ordering::AcqRel);
+                    self.value.fetch_sub(1, Ordering::AcqRel);
                 }
             }
         }
@@ -49,6 +52,10 @@ pub enum KedaMetricsMessageKind {
     Check,
 
     Add,
+
+    InflightRequestsAdd,
+
+    InflightRequestsSub,
 }
 
 /// Wrapper for internal messages that will either modify the value or return all stored values.
@@ -77,12 +84,19 @@ impl FromMessage<KedaMetricsMessageKind> for InternalMetricsMessage {
 pub struct KedaMetricsData {
     /// Memory usage percentage as integer. e.g. 72
     memory_usage_percentage: u64,
+
+    value: u64,
 }
 
 impl KedaMetricsData {
-    pub fn new(memory_usage_percentage: u64) -> Self {
+    pub fn new(memory_usage_percentage: u64, value: u64) -> Self {
         Self {
             memory_usage_percentage,
+            value,
         }
+    }
+
+    pub fn safe_for_shutdown(&self) -> bool {
+        self.value == 0
     }
 }
