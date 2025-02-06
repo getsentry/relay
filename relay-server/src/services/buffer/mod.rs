@@ -572,14 +572,12 @@ impl Service for EnvelopeBufferService {
         relay_log::info!("EnvelopeBufferService {}: starting", self.partition_id);
         loop {
             let mut sleep = DEFAULT_SLEEP;
-            let start = Instant::now();
             tokio::select! {
                 // NOTE: we do not select a bias here.
                 // On the one hand, we might want to prioritize dequeuing over enqueuing
                 // so we do not exceed the buffer capacity by starving the dequeue.
                 // on the other hand, prioritizing old messages violates the LIFO design.
                 _ = self.ready_to_pop(&buffer, dequeue.load(Ordering::Relaxed)) => {
-                    relay_statsd::metric!(timer(RelayTimers::BufferIdle) = start.elapsed(), input = "pop", partition_id = &partition_tag);
                     relay_statsd::metric!(timer(RelayTimers::BufferBusy), input = "pop", partition_id = &partition_tag, {
                         match Self::try_pop(&partition_tag, &config, &mut buffer, &services).await {
                             Ok(new_sleep) => {
@@ -594,7 +592,6 @@ impl Service for EnvelopeBufferService {
                     }});
                 }
                 change = project_changes.recv() => {
-                    relay_statsd::metric!(timer(RelayTimers::BufferIdle) = start.elapsed(), input = "project_change", partition_id = &partition_tag);
                     relay_statsd::metric!(timer(RelayTimers::BufferBusy), input = "project_change", partition_id = &partition_tag, {
                         match change {
                             Ok(ProjectChange::Ready(project_key)) => {
@@ -610,7 +607,6 @@ impl Service for EnvelopeBufferService {
                     });
                 }
                 Some(message) = rx.recv() => {
-                    relay_statsd::metric!(timer(RelayTimers::BufferIdle) = start.elapsed(), input = "handle_message", partition_id = &partition_tag);
                     let message_name = message.name();
                     relay_statsd::metric!(timer(RelayTimers::BufferBusy), input = message_name, partition_id = &partition_tag, {
                         Self::handle_message(&mut buffer, message).await;
@@ -618,7 +614,6 @@ impl Service for EnvelopeBufferService {
                     });
                 }
                 shutdown = shutdown.notified() => {
-                    relay_statsd::metric!(timer(RelayTimers::BufferIdle) = start.elapsed(), input = "shutdown", partition_id = &partition_tag);
                     relay_statsd::metric!(timer(RelayTimers::BufferBusy), input = "shutdown", partition_id = &partition_tag, {
                         // In case the shutdown was handled, we break out of the loop signaling that
                         // there is no need to process anymore envelopes.
@@ -628,7 +623,6 @@ impl Service for EnvelopeBufferService {
                     });
                 }
                 Ok(()) = global_config_rx.changed() => {
-                    relay_statsd::metric!(timer(RelayTimers::BufferIdle) = start.elapsed(), input = "global_config_change", partition_id = &partition_tag);
                     sleep = Duration::ZERO;
 
                 }
