@@ -948,13 +948,7 @@
 <a href="#947" id="947">947</a>
 <a href="#948" id="948">948</a>
 <a href="#949" id="949">949</a>
-<a href="#950" id="950">950</a>
-<a href="#951" id="951">951</a>
-<a href="#952" id="952">952</a>
-<a href="#953" id="953">953</a>
-<a href="#954" id="954">954</a>
-<a href="#955" id="955">955</a>
-<a href="#956" id="956">956</a></pre></div><pre class="rust"><code><span class="doccomment">//! Types for buffering envelopes.
+<a href="#950" id="950">950</a></pre></div><pre class="rust"><code><span class="doccomment">//! Types for buffering envelopes.
 
 </span><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::num::NonZeroU8;
@@ -1528,14 +1522,12 @@
         <span class="macro">relay_log::info!</span>(<span class="string">"EnvelopeBufferService {}: starting"</span>, <span class="self">self</span>.partition_id);
         <span class="kw">loop </span>{
             <span class="kw">let </span><span class="kw-2">mut </span>sleep = DEFAULT_SLEEP;
-            <span class="kw">let </span>start = Instant::now();
             <span class="macro">tokio::select!</span> {
                 <span class="comment">// NOTE: we do not select a bias here.
                 // On the one hand, we might want to prioritize dequeuing over enqueuing
                 // so we do not exceed the buffer capacity by starving the dequeue.
                 // on the other hand, prioritizing old messages violates the LIFO design.
                 </span><span class="kw">_ </span>= <span class="self">self</span>.ready_to_pop(<span class="kw-2">&amp;</span>buffer, dequeue.load(Ordering::Relaxed)) =&gt; {
-                    <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::BufferIdle) = start.elapsed(), input = <span class="string">"pop"</span>, partition_id = <span class="kw-2">&amp;</span>partition_tag);
                     <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::BufferBusy), input = <span class="string">"pop"</span>, partition_id = <span class="kw-2">&amp;</span>partition_tag, {
                         <span class="kw">match </span><span class="self">Self</span>::try_pop(<span class="kw-2">&amp;</span>partition_tag, <span class="kw-2">&amp;</span>config, <span class="kw-2">&amp;mut </span>buffer, <span class="kw-2">&amp;</span>services).<span class="kw">await </span>{
                             <span class="prelude-val">Ok</span>(new_sleep) =&gt; {
@@ -1550,7 +1542,6 @@
                     }});
                 }
                 change = project_changes.recv() =&gt; {
-                    <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::BufferIdle) = start.elapsed(), input = <span class="string">"project_change"</span>, partition_id = <span class="kw-2">&amp;</span>partition_tag);
                     <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::BufferBusy), input = <span class="string">"project_change"</span>, partition_id = <span class="kw-2">&amp;</span>partition_tag, {
                         <span class="kw">match </span>change {
                             <span class="prelude-val">Ok</span>(ProjectChange::Ready(project_key)) =&gt; {
@@ -1566,7 +1557,6 @@
                     });
                 }
                 <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; {
-                    <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::BufferIdle) = start.elapsed(), input = <span class="string">"handle_message"</span>, partition_id = <span class="kw-2">&amp;</span>partition_tag);
                     <span class="kw">let </span>message_name = message.name();
                     <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::BufferBusy), input = message_name, partition_id = <span class="kw-2">&amp;</span>partition_tag, {
                         <span class="self">Self</span>::handle_message(<span class="kw-2">&amp;mut </span>buffer, message).<span class="kw">await</span>;
@@ -1574,7 +1564,6 @@
                     });
                 }
                 shutdown = shutdown.notified() =&gt; {
-                    <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::BufferIdle) = start.elapsed(), input = <span class="string">"shutdown"</span>, partition_id = <span class="kw-2">&amp;</span>partition_tag);
                     <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::BufferBusy), input = <span class="string">"shutdown"</span>, partition_id = <span class="kw-2">&amp;</span>partition_tag, {
                         <span class="comment">// In case the shutdown was handled, we break out of the loop signaling that
                         // there is no need to process anymore envelopes.
@@ -1584,7 +1573,6 @@
                     });
                 }
                 <span class="prelude-val">Ok</span>(()) = global_config_rx.changed() =&gt; {
-                    <span class="macro">relay_statsd::metric!</span>(timer(RelayTimers::BufferIdle) = start.elapsed(), input = <span class="string">"global_config_change"</span>, partition_id = <span class="kw-2">&amp;</span>partition_tag);
                     sleep = Duration::ZERO;
 
                 }

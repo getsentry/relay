@@ -1027,13 +1027,7 @@
 <a href="#1026" id="1026">1026</a>
 <a href="#1027" id="1027">1027</a>
 <a href="#1028" id="1028">1028</a>
-<a href="#1029" id="1029">1029</a>
-<a href="#1030" id="1030">1030</a>
-<a href="#1031" id="1031">1031</a>
-<a href="#1032" id="1032">1032</a>
-<a href="#1033" id="1033">1033</a>
-<a href="#1034" id="1034">1034</a>
-<a href="#1035" id="1035">1035</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
+<a href="#1029" id="1029">1029</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 <span class="attr">#[cfg(doc)]
 </span><span class="kw">use </span>relay_system::RuntimeMetrics;
 
@@ -1544,11 +1538,6 @@
     </span>StoreServiceDuration,
     <span class="doccomment">/// Timing in milliseconds for the time it takes for initialize the buffer.
     </span>BufferInitialization,
-    <span class="doccomment">/// Timing in milliseconds for the time the buffer service is waiting for input.
-    ///
-    /// This metric is tagged with:
-    /// - `input`: The type of input that broke the idling.
-    </span>BufferIdle,
     <span class="doccomment">/// Timing in milliseconds for the time the buffer service spends handling input.
     ///
     /// This metric is tagged with:
@@ -1620,7 +1609,6 @@
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>RelayTimers::StoreServiceDuration =&gt; <span class="string">"store.message.duration"</span>,
             RelayTimers::BufferInitialization =&gt; <span class="string">"buffer.initialization.duration"</span>,
-            RelayTimers::BufferIdle =&gt; <span class="string">"buffer.idle"</span>,
             RelayTimers::BufferBusy =&gt; <span class="string">"buffer.busy"</span>,
             RelayTimers::BufferSpool =&gt; <span class="string">"buffer.spool.duration"</span>,
             RelayTimers::BufferSqlWrite =&gt; <span class="string">"buffer.write.duration"</span>,
