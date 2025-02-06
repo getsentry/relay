@@ -2338,7 +2338,8 @@
 <a href="#2337" id="2337">2337</a>
 <a href="#2338" id="2338">2338</a>
 <a href="#2339" id="2339">2339</a>
-<a href="#2340" id="2340">2340</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
+<a href="#2340" id="2340">2340</a>
+<a href="#2341" id="2341">2341</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 
 <span class="kw">use </span>relay_base_schema::events::EventType;
 <span class="kw">use </span>relay_base_schema::project::ProjectId;
@@ -2956,7 +2957,7 @@
         };
 
         <span class="kw">let </span>extracted = extractor.extract(event.value().unwrap()).unwrap();
-        <span class="macro">insta::assert_debug_snapshot!</span>(event.value().unwrap().spans, @<span class="string">r###"
+        <span class="macro">insta::assert_debug_snapshot!</span>(event.value().unwrap().spans, @<span class="string">r#"
         [
             Span {
                 timestamp: Timestamp(
@@ -2984,6 +2985,7 @@
                 origin: ~,
                 profile_id: ~,
                 data: ~,
+                links: ~,
                 sentry_tags: ~,
                 received: ~,
                 measurements: ~,
@@ -2992,7 +2994,7 @@
                 other: {},
             },
         ]
-        "###</span>);
+        "#</span>);
 
         <span class="macro">insta::assert_debug_snapshot!</span>(extracted.project_metrics, @<span class="string">r###"
         [

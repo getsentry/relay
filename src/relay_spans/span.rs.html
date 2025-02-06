@@ -658,7 +658,8 @@
 <a href="#657" id="657">657</a>
 <a href="#658" id="658">658</a>
 <a href="#659" id="659">659</a>
-<a href="#660" id="660">660</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::str::FromStr;
+<a href="#660" id="660">660</a>
+<a href="#661" id="661">661</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::str::FromStr;
 
 <span class="kw">use </span>chrono::{TimeZone, Utc};
 <span class="kw">use </span>opentelemetry_proto::tonic::common::v1::any_value::Value <span class="kw">as </span>OtelValue;
@@ -1197,7 +1198,7 @@
         <span class="kw">let </span>otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         <span class="kw">let </span>span_from_otel = otel_to_sentry_span(otel_span);
 
-        <span class="macro">insta::assert_debug_snapshot!</span>(span_from_otel, @<span class="string">r###"
+        <span class="macro">insta::assert_debug_snapshot!</span>(span_from_otel, @<span class="string">r#"
         Span {
             timestamp: Timestamp(
                 1970-01-01T00:02:03.500Z,
@@ -1299,6 +1300,7 @@
                 lcp_url: ~,
                 other: {},
             },
+            links: ~,
             sentry_tags: ~,
             received: ~,
             measurements: ~,
@@ -1306,7 +1308,7 @@
             was_transaction: ~,
             other: {},
         }
-        "###</span>);
+        "#</span>);
     }
 
     <span class="attr">#[test]
