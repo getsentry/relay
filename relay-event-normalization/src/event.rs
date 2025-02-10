@@ -461,13 +461,12 @@ pub fn normalize_ip_addresses(
         // auto is already handled above
         if user.ip_address.value().is_none() {
             // Only assume that empty means {{auto}} if there is no remark that the IP address has been removed.
-            let pii_remark_count = user
+            let scrubbed_before = user
                 .ip_address
                 .meta()
                 .iter_remarks()
-                .filter(|r| r.ty == RemarkType::Removed && r.rule_id() == "pii:ip_address")
-                .count();
-            if pii_remark_count == 0 {
+                .any(|r| r.ty == RemarkType::Removed && r.rule_id() == "pii:ip_address");
+            if !scrubbed_before {
                 // In an ideal world all SDKs would set {{auto}} explicitly.
                 if let Some("javascript") | Some("cocoa") | Some("objc") = platform {
                     user.ip_address = Annotated::new(client_ip.to_owned());
