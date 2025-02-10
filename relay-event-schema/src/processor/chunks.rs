@@ -162,13 +162,18 @@ where
 {
     let chunks = split_chunks(value, meta.iter_remarks());
     let (new_value, remarks) = join_chunks(f(chunks));
+    dbg!(&value);
+    dbg!(&new_value);
+    dbg!(&remarks);
 
     if new_value != *value {
+        dbg!(new_value != *value);
         meta.clear_remarks();
         for remark in remarks.into_iter() {
             meta.add_remark(remark);
         }
         meta.set_original_length(Some(bytecount::num_chars(value.as_bytes())));
+        dbg!(&meta);
         *value = new_value;
     }
 }

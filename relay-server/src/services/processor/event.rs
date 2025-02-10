@@ -346,6 +346,7 @@ pub fn scrub(
     project_info: Arc<ProjectInfo>,
 ) -> Result<(), ProcessingError> {
     let config = &project_info.config;
+    dbg!(&config);
 
     if config.datascrubbing_settings.scrub_data {
         if let Some(event) = event.value_mut() {
@@ -355,6 +356,7 @@ pub fn scrub(
 
     metric!(timer(RelayTimers::EventProcessingPii), {
         if let Some(ref config) = config.pii_config {
+            dbg!(&config);
             let mut processor = PiiProcessor::new(config.compiled());
             processor::process_value(event, &mut processor, ProcessingState::root())?;
         }
@@ -362,6 +364,7 @@ pub fn scrub(
             .datascrubbing_settings
             .pii_config()
             .map_err(|e| ProcessingError::PiiConfigError(e.clone()))?;
+        dbg!(&pii_config);
         if let Some(config) = pii_config {
             let mut processor = PiiProcessor::new(config.compiled());
             processor::process_value(event, &mut processor, ProcessingState::root())?;
@@ -386,6 +389,8 @@ pub fn serialize<Group: EventProcessing>(
     let data = metric!(timer(RelayTimers::EventProcessingSerialization), {
         event.to_json().map_err(ProcessingError::SerializeFailed)?
     });
+
+    dbg!(&data);
 
     let event_type = event_type(event).unwrap_or_default();
     let mut event_item = Item::new(ItemType::from_event_type(event_type));

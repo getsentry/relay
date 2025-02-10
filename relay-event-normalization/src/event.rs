@@ -421,10 +421,13 @@ pub fn normalize_ip_addresses(
     // back into one function. If a desire to split this code up overcomes you, put this in a
     // new processor and make sure all of it runs before the rest of normalization.
 
+    dbg!(&user);
+    dbg!(client_ip);
     // Resolve {{auto}}
     if let Some(client_ip) = client_ip {
         if let Some(ref mut request) = request.value_mut() {
             if let Some(ref mut env) = request.env.value_mut() {
+                dbg!(env.get_mut("REMOTE_ADDR"));
                 if let Some(&mut Value::String(ref mut http_ip)) = env
                     .get_mut("REMOTE_ADDR")
                     .and_then(|annotated| annotated.value_mut().as_mut())
@@ -438,12 +441,15 @@ pub fn normalize_ip_addresses(
 
         if let Some(ref mut user) = user.value_mut() {
             if let Some(ref mut user_ip) = user.ip_address.value_mut() {
+                dbg!(&user_ip);
                 if user_ip.is_auto() {
                     client_ip.clone_into(user_ip)
                 }
             }
         }
     }
+
+    dbg!(&client_ip);
 
     // Copy IPs from request interface to user, and resolve platform-specific backfilling
     let http_ip = request
@@ -453,16 +459,30 @@ pub fn normalize_ip_addresses(
         .and_then(Annotated::<Value>::as_str)
         .and_then(|ip| IpAddr::parse(ip).ok());
 
+    dbg!(&http_ip);
+
     if let Some(http_ip) = http_ip {
         let user = user.value_mut().get_or_insert_with(User::default);
         user.ip_address.value_mut().get_or_insert(http_ip);
     } else if let Some(client_ip) = client_ip {
+        dbg!(&client_ip);
         let user = user.value_mut().get_or_insert_with(User::default);
         // auto is already handled above
         if user.ip_address.value().is_none() {
-            // In an ideal world all SDKs would set {{auto}} explicitly.
-            if let Some("javascript") | Some("cocoa") | Some("objc") = platform {
-                user.ip_address = Annotated::new(client_ip.to_owned());
+            // Only assume that empty means {{auto}} if there is no remark that the IP address has been removed.
+            let pii_remark_count = user
+                .ip_address
+                .meta()
+                .iter_remarks()
+                .filter(|r| r.ty == RemarkType::Removed && r.rule_id() == "pii:ip_address")
+                .count();
+            dbg!(pii_remark_count);
+            if pii_remark_count == 0 {
+                // In an ideal world all SDKs would set {{auto}} explicitly.
+                dbg!(platform);
+                if let Some("javascript") | Some("cocoa") | Some("objc") = platform {
+                    user.ip_address = Annotated::new(client_ip.to_owned());
+                }
             }
         }
     }

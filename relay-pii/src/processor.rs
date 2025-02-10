@@ -48,6 +48,7 @@ impl<'a> PiiProcessor<'a> {
                 #[allow(clippy::needless_option_as_deref)]
                 for rule in rules {
                     let reborrowed_value = value.as_deref_mut();
+                    dbg!(&reborrowed_value);
                     apply_rule_to_value(meta, rule, state.path().key(), reborrowed_value)?;
                 }
             }
@@ -225,8 +226,14 @@ impl Processor for PiiProcessor<'_> {
         // If there are any other fields set that take priority over the IP for uniquely
         // identifying a user (has_other_fields), we do not want to do anything. The value will be
         // wiped out in renormalization anyway.
+        dbg!(ip_was_valid && !has_other_fields && !ip_is_still_valid);
         if ip_was_valid && !has_other_fields && !ip_is_still_valid {
             user.id = mem::take(&mut user.ip_address).map_value(|ip| ip.into_inner().into());
+            user.ip_address.meta_mut().add_remark(Remark::new(
+                RemarkType::Removed,
+                "pii:ip_address".to_string(),
+            ));
+            dbg!(&user.ip_address);
         }
 
         Ok(())
@@ -403,6 +410,7 @@ fn apply_rule_to_value(
     }
 
     for (pattern_type, regex, replace_behavior) in regexes::get_regex_for_rule_type(&rule.ty) {
+        dbg!(pattern_type);
         match pattern_type {
             PatternType::KeyValue => {
                 if regex.is_match(key.unwrap_or("")) {
@@ -442,6 +450,7 @@ fn apply_regex_to_chunks<'a>(
     let mut search_string = String::new();
     let mut has_text = false;
     for chunk in &chunks {
+        dbg!(&chunk);
         match chunk {
             Chunk::Text { text } => {
                 has_text = true;
@@ -502,6 +511,8 @@ fn apply_regex_to_chunks<'a>(
     let mut pos = 0;
     let mut rv = Vec::with_capacity(replacement_chunks.len());
 
+    dbg!(&replace_behavior);
+
     match replace_behavior {
         ReplaceBehavior::Groups(ref groups) => {
             for m in captures_iter {
@@ -529,6 +540,8 @@ fn apply_regex_to_chunks<'a>(
             insert_replacement_chunks(rule, &search_string, &mut rv);
         }
     }
+
+    dbg!(&rv);
 
     rv
 }
