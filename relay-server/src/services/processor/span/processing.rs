@@ -579,8 +579,6 @@ fn normalize(
         return Err(ProcessingError::NoEventPayload);
     };
 
-    dbg!(&client_ip);
-
     // Replace missing / {{auto}} IPs:
     // Transaction and error events require an explicit `{{auto}}` to derive the IP, but
     // for spans we derive it by default:
@@ -590,7 +588,6 @@ fn normalize(
             span.data
                 .get_or_insert_with(Default::default)
                 .client_address = Annotated::new(client_ip.clone());
-            dbg!(&span.data);
         }
     }
 

@@ -1515,8 +1515,6 @@ impl EnvelopeProcessorService {
             })
         })?;
 
-        dbg!(&event.value().unwrap().user);
-
         event_fully_normalized.0 |= full_normalization;
 
         Ok(event_fully_normalized)
@@ -1614,8 +1612,6 @@ impl EnvelopeProcessorService {
             )?;
             event::emit_feedback_metrics(managed_envelope.envelope());
         }
-
-        dbg!(&event.value().unwrap().user);
 
         attachment::scrub(managed_envelope, project_info);
 
@@ -1778,14 +1774,10 @@ impl EnvelopeProcessorService {
             return Ok(Some(extracted_metrics));
         }
 
-        dbg!(&event);
-
         // Need to scrub the transaction before extracting spans.
         //
         // Unconditionally scrub to make sure PII is removed as early as possible.
         event::scrub(&mut event, project_info.clone())?;
-
-        dbg!(&event);
 
         // TODO: remove once `relay.drop-transaction-attachments` has graduated.
         attachment::scrub(managed_envelope, project_info.clone());
@@ -2518,11 +2510,9 @@ impl EnvelopeProcessorService {
         // possible so that we avoid internal delays.
         envelope.envelope_mut().set_sent_at(Utc::now());
 
-        dbg!(envelope.envelope().items());
         relay_log::trace!("sending envelope to sentry endpoint");
         let http_encoding = self.inner.config.http_encoding();
         let result = envelope.envelope().to_vec().and_then(|v| {
-            dbg!(String::from_utf8(v.clone()));
             encode_payload(&v.into(), http_encoding).map_err(EnvelopeError::PayloadIoFailed)
         });
 
