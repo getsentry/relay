@@ -465,7 +465,7 @@ pub fn normalize_ip_addresses(
                 .ip_address
                 .meta()
                 .iter_remarks()
-                .any(|r| r.ty == RemarkType::Removed && r.rule_id() == "pii:ip_address");
+                .any(|r| r.ty == RemarkType::Removed);
             if !scrubbed_before {
                 // In an ideal world all SDKs would set {{auto}} explicitly.
                 if let Some("javascript") | Some("cocoa") | Some("objc") = platform {
