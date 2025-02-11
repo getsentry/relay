@@ -390,3 +390,4 @@ def test_ip_normalization_with_remove_remark(mini_sentry, relay_chain):
     envelope = mini_sentry.captured_events.get(timeout=1)
     event = envelope.get_event()
     assert event["user"]["ip_address"] is None
+    assert event["user"]["id"] == "AE12FE3B5F129B5CC4CDD2B136B7B7947C4D2741"
