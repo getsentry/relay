@@ -183,6 +183,12 @@ make format
 make lint
 ```
 
+### Debugging
+
+Developer builds do not include debug information by default. Before attaching a
+debugger to your local relay, first change `debug` to `true` under
+`[profile.dev]` in Cargo.toml.
+
 ### Python and C-ABI
 
 Potentially, new functionality also needs to be added to the Python package.
