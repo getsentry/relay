@@ -1023,7 +1023,13 @@
 <a href="#1022" id="1022">1022</a>
 <a href="#1023" id="1023">1023</a>
 <a href="#1024" id="1024">1024</a>
-<a href="#1025" id="1025">1025</a></pre></div><pre class="rust"><code><span class="doccomment">//! Logic for scrubbing and normalizing span descriptions that contain SQL queries.
+<a href="#1025" id="1025">1025</a>
+<a href="#1026" id="1026">1026</a>
+<a href="#1027" id="1027">1027</a>
+<a href="#1028" id="1028">1028</a>
+<a href="#1029" id="1029">1029</a>
+<a href="#1030" id="1030">1030</a>
+<a href="#1031" id="1031">1031</a></pre></div><pre class="rust"><code><span class="doccomment">//! Logic for scrubbing and normalizing span descriptions that contain SQL queries.
 </span><span class="kw">mod </span>parser;
 
 <span class="kw">use </span>std::borrow::Cow;
@@ -1035,7 +1041,7 @@
 <span class="kw">use </span>regex::Regex;
 
 <span class="doccomment">/// Removes SQL comments starting with "--" or "#".
-</span><span class="kw">static </span>COMMENTS: Lazy&lt;Regex&gt; = Lazy::new(|| Regex::new(<span class="string">r"(?:--|#).*(?P&lt;newline&gt;\n)"</span>).unwrap());
+</span><span class="kw">static </span>COMMENTS: Lazy&lt;Regex&gt; = Lazy::new(|| Regex::new(<span class="string">r"(?:--|#).*(?P&lt;newline&gt;\n|$)"</span>).unwrap());
 
 <span class="doccomment">/// Removes MySQL inline comments.
 </span><span class="kw">static </span>INLINE_COMMENTS: Lazy&lt;Regex&gt; = Lazy::new(|| Regex::new(<span class="string">r"/\*(?:.|\n)*?\*/"</span>).unwrap());
@@ -1724,6 +1730,12 @@
             inner join foo on foo.id = foo_id
         "</span>,
         <span class="string">"SELECT .. FROM (SELECT * FROM (SELECT .. FROM x WHERE foo = %s) AS srpe WHERE x = %s) AS srpe JOIN foo ON id = foo_id"
+    </span>);
+
+    <span class="macro">scrub_sql_test!</span>(
+        comment_after_named_param_without_ending_line_break,
+        <span class="string">"SELECT * FROM comments LIMIT %(param_1)s -- comment"</span>,
+        <span class="string">"SELECT * FROM comments LIMIT %s"
     </span>);
 
     <span class="macro">scrub_sql_test!</span>(
