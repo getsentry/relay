@@ -186,7 +186,7 @@ make lint
 ### Debugging
 
 Developer builds do not include debug information by default. Before attaching a
-debugger to your local relay, first change `debug` to `true` under
+debugger to your local Relay, first change `debug` to `true` under
 `[profile.dev]` in Cargo.toml and rebuild.
 
 ### Python and C-ABI
