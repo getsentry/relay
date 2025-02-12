@@ -460,9 +460,17 @@ pub fn normalize_ip_addresses(
         let user = user.value_mut().get_or_insert_with(User::default);
         // auto is already handled above
         if user.ip_address.value().is_none() {
-            // In an ideal world all SDKs would set {{auto}} explicitly.
-            if let Some("javascript") | Some("cocoa") | Some("objc") = platform {
-                user.ip_address = Annotated::new(client_ip.to_owned());
+            // Only assume that empty means {{auto}} if there is no remark that the IP address has been removed.
+            let scrubbed_before = user
+                .ip_address
+                .meta()
+                .iter_remarks()
+                .any(|r| r.ty == RemarkType::Removed);
+            if !scrubbed_before {
+                // In an ideal world all SDKs would set {{auto}} explicitly.
+                if let Some("javascript") | Some("cocoa") | Some("objc") = platform {
+                    user.ip_address = Annotated::new(client_ip.to_owned());
+                }
             }
         }
     }
