@@ -1,3 +1,4 @@
+use crate::statsd::RelayGauges;
 use relay_system::{AsyncResponse, FromMessage, Interface, Sender, Service};
 use serde::Serialize;
 use std::time::{Duration, Instant};
@@ -41,6 +42,10 @@ impl Service for RelayMetricsService {
                             self.busy_time as f64 / elapsed.as_micros() as f64;
                         self.busy_time = 0;
                         self.last_utilization_check = Instant::now();
+                        relay_statsd::metric!(
+                            gauge(RelayGauges::EnvelopeProcessorUtilization) =
+                                self.processor_utilization
+                        );
                     }
                 }
             }
