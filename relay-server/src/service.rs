@@ -9,7 +9,7 @@ use crate::services::buffer::{
 use crate::services::cogs::{CogsService, CogsServiceRecorder};
 use crate::services::global_config::{GlobalConfigManager, GlobalConfigService};
 use crate::services::health_check::{HealthCheck, HealthCheckService};
-use crate::services::internal_metrics::{InternalMetricsMessage, RelayMetricsService};
+use crate::services::internal_metrics::{InternalMetrics, RelayMetricsService};
 use crate::services::metrics::RouterService;
 use crate::services::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
 use crate::services::outcome_aggregator::OutcomeAggregator;
@@ -72,7 +72,7 @@ pub struct Registry {
     pub envelope_buffer: PartitionedEnvelopeBuffer,
 
     pub project_cache_handle: ProjectCacheHandle,
-    pub internal_metrics: Addr<InternalMetricsMessage>,
+    pub internal_metrics: Addr<InternalMetrics>,
 }
 
 /// Constructs a Tokio [`relay_system::Runtime`] configured for running [services](relay_system::Service).
@@ -189,7 +189,7 @@ impl ServiceState {
         let outcome_aggregator =
             runner.start(OutcomeAggregator::new(&config, outcome_producer.clone()));
 
-        let internal_metrics = runner.start(RelayMetricsService::new(memory_stat.clone()));
+        let internal_metrics = runner.start(RelayMetricsService::new());
 
         let (global_config, global_config_rx) =
             GlobalConfigService::new(config.clone(), upstream_relay.clone());
@@ -276,7 +276,6 @@ impl ServiceState {
             project_cache_handle.clone(),
             processor.clone(),
             outcome_aggregator.clone(),
-            internal_metrics.clone(),
             test_store.clone(),
             &mut runner,
         );
@@ -342,7 +341,7 @@ impl ServiceState {
         &self.inner.memory_checker
     }
 
-    pub fn keda_metrics(&self) -> &Addr<InternalMetricsMessage> {
+    pub fn internal_metrics(&self) -> &Addr<InternalMetrics> {
         &self.inner.registry.internal_metrics
     }
 

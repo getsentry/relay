@@ -38,7 +38,6 @@ use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
 use reqwest::header;
 use smallvec::{smallvec, SmallVec};
-use tokio::time::sleep;
 use zstd::stream::Encoder as ZstdEncoder;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
@@ -95,9 +94,7 @@ mod report;
 mod session;
 mod span;
 mod transaction;
-use crate::services::internal_metrics::{
-    InternalMetricsMessage, KedaMetricsData, KedaMetricsMessageKind,
-};
+use crate::services::internal_metrics::{InternalMetrics, InternalMetricsMessageKind};
 pub use span::extract_transaction_span;
 
 mod standalone;
@@ -1098,7 +1095,7 @@ pub struct Addrs {
     #[cfg(feature = "processing")]
     pub store_forwarder: Option<Addr<Store>>,
     pub aggregator: Addr<Aggregator>,
-    pub internal_metrics: Addr<InternalMetricsMessage>,
+    pub internal_metrics: Addr<InternalMetrics>,
 }
 
 impl Default for Addrs {
@@ -3137,7 +3134,7 @@ impl Service for EnvelopeProcessorService {
                 .inner
                 .addrs
                 .internal_metrics
-                .send(KedaMetricsMessageKind::ProcessorBusyTime(elapsed))
+                .send(InternalMetricsMessageKind::ProcessorBusyTime(elapsed))
                 .await;
         }
     }

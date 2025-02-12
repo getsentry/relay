@@ -43,9 +43,6 @@ pub use envelope_stack::EnvelopeStack;
 // pub for benchmarks
 pub use envelope_store::sqlite::SqliteEnvelopeStore;
 
-use crate::services::internal_metrics::{
-    InternalMetricsMessage, KedaMetricsMessageKind, RelayMetricsService,
-};
 use crate::services::projects::project::ProjectState;
 pub use common::ProjectKeyPair;
 
@@ -101,7 +98,6 @@ impl PartitionedEnvelopeBuffer {
         project_cache_handle: ProjectCacheHandle,
         envelope_processor: Addr<EnvelopeProcessor>,
         outcome_aggregator: Addr<TrackOutcome>,
-        internal_metrics: Addr<InternalMetricsMessage>,
         test_store: Addr<TestStore>,
         runner: &mut ServiceRunner,
     ) -> Self {
@@ -117,7 +113,6 @@ impl PartitionedEnvelopeBuffer {
                     envelope_processor: envelope_processor.clone(),
                     outcome_aggregator: outcome_aggregator.clone(),
                     test_store: test_store.clone(),
-                    internal_metrics: internal_metrics.clone(),
                 },
             )
             .start_in(runner);
@@ -200,7 +195,6 @@ pub struct Services {
     pub envelope_processor: Addr<EnvelopeProcessor>,
     pub outcome_aggregator: Addr<TrackOutcome>,
     pub test_store: Addr<TestStore>,
-    pub internal_metrics: Addr<InternalMetricsMessage>,
 }
 
 /// Spool V2 service which buffers envelopes and forwards them to the project cache when a project
@@ -316,10 +310,6 @@ impl EnvelopeBufferService {
                     .expect("Element disappeared despite exclusive excess");
 
                 Self::drop_expired(envelope, services);
-                let _ = services
-                    .internal_metrics
-                    .send(KedaMetricsMessageKind::EnvelopePop)
-                    .await;
 
                 Duration::ZERO // try next pop immediately
             }
@@ -492,10 +482,6 @@ impl EnvelopeBufferService {
                 ProcessingGroup::Ungrouped,
             );
             managed_envelope.reject(Outcome::Invalid(DiscardReason::ProjectId));
-            let _ = services
-                .internal_metrics
-                .send(KedaMetricsMessageKind::EnvelopePop)
-                .await;
 
             return Ok(());
         };
@@ -528,10 +514,6 @@ impl EnvelopeBufferService {
                 sampling_project_info: sampling_project_info.clone(),
                 reservoir_counters,
             });
-            let _ = services
-                .internal_metrics
-                .send(KedaMetricsMessageKind::EnvelopePop)
-                .await;
         }
 
         Ok(())
@@ -644,7 +626,6 @@ impl Service for EnvelopeBufferService {
                     let message_name = message.name();
                     measure_busy!(message_name, {
                         Self::handle_message(&mut buffer, message).await;
-                        let _ = self.services.internal_metrics.send(KedaMetricsMessageKind::EnvelopePush).await;
                         sleep = Duration::ZERO;
                     });
                 }
@@ -721,7 +702,6 @@ mod tests {
                 envelope_processor,
                 outcome_aggregator,
                 test_store: Addr::dummy(),
-                internal_metrics: Addr::dummy(),
             },
         );
 
@@ -928,7 +908,6 @@ mod tests {
             project_cache_handle: project_cache_handle.clone(),
             outcome_aggregator,
             test_store: Addr::dummy(),
-            internal_metrics: Addr::dummy(),
         };
 
         // Create two buffer services
