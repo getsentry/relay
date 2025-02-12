@@ -1715,6 +1715,7 @@ mod tests {
                 origin: ~,
                 profile_id: ~,
                 data: ~,
+                links: ~,
                 sentry_tags: ~,
                 received: ~,
                 measurements: ~,
@@ -1741,7 +1742,7 @@ mod tests {
             ..Default::default()
         };
         normalize_app_start_spans(&mut event);
-        assert_debug_snapshot!(event.spans, @r###"
+        assert_debug_snapshot!(event.spans, @r#"
         [
             Span {
                 timestamp: ~,
@@ -1759,6 +1760,7 @@ mod tests {
                 origin: ~,
                 profile_id: ~,
                 data: ~,
+                links: ~,
                 sentry_tags: ~,
                 received: ~,
                 measurements: ~,
@@ -1767,7 +1769,7 @@ mod tests {
                 other: {},
             },
         ]
-        "###);
+        "#);
     }
 
     #[test]
@@ -1785,7 +1787,7 @@ mod tests {
             ..Default::default()
         };
         normalize_app_start_spans(&mut event);
-        assert_debug_snapshot!(event.spans, @r###"
+        assert_debug_snapshot!(event.spans, @r#"
         [
             Span {
                 timestamp: ~,
@@ -1803,6 +1805,7 @@ mod tests {
                 origin: ~,
                 profile_id: ~,
                 data: ~,
+                links: ~,
                 sentry_tags: ~,
                 received: ~,
                 measurements: ~,
@@ -1811,6 +1814,6 @@ mod tests {
                 other: {},
             },
         ]
-        "###);
+        "#);
     }
 }

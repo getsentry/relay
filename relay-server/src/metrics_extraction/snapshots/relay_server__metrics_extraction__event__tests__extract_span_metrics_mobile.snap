@@ -28,6 +28,7 @@ expression: "(&event.value().unwrap().spans, metrics.project_metrics)"
             origin: ~,
             profile_id: ~,
             data: ~,
+            links: ~,
             sentry_tags: SentryTags {
                 release: "1.2.3",
                 user: "id:user123",
@@ -185,6 +186,7 @@ expression: "(&event.value().unwrap().spans, metrics.project_metrics)"
                 lcp_url: ~,
                 other: {},
             },
+            links: ~,
             sentry_tags: SentryTags {
                 release: "1.2.3",
                 user: "id:user123",
@@ -286,6 +288,7 @@ expression: "(&event.value().unwrap().spans, metrics.project_metrics)"
             origin: ~,
             profile_id: ~,
             data: ~,
+            links: ~,
             sentry_tags: SentryTags {
                 release: "1.2.3",
                 user: "id:user123",
@@ -366,6 +369,7 @@ expression: "(&event.value().unwrap().spans, metrics.project_metrics)"
             origin: ~,
             profile_id: ~,
             data: ~,
+            links: ~,
             sentry_tags: SentryTags {
                 release: "1.2.3",
                 user: "id:user123",
@@ -446,6 +450,7 @@ expression: "(&event.value().unwrap().spans, metrics.project_metrics)"
             origin: ~,
             profile_id: ~,
             data: ~,
+            links: ~,
             sentry_tags: SentryTags {
                 release: "1.2.3",
                 user: "id:user123",
@@ -526,6 +531,7 @@ expression: "(&event.value().unwrap().spans, metrics.project_metrics)"
             origin: ~,
             profile_id: ~,
             data: ~,
+            links: ~,
             sentry_tags: SentryTags {
                 release: "1.2.3",
                 user: "id:user123",
@@ -677,6 +683,7 @@ expression: "(&event.value().unwrap().spans, metrics.project_metrics)"
                 lcp_url: ~,
                 other: {},
             },
+            links: ~,
             sentry_tags: SentryTags {
                 release: "1.2.3",
                 user: "id:user123",
@@ -828,6 +835,7 @@ expression: "(&event.value().unwrap().spans, metrics.project_metrics)"
                 lcp_url: ~,
                 other: {},
             },
+            links: ~,
             sentry_tags: SentryTags {
                 release: "1.2.3",
                 user: "id:user123",
@@ -908,6 +916,7 @@ expression: "(&event.value().unwrap().spans, metrics.project_metrics)"
             origin: ~,
             profile_id: ~,
             data: ~,
+            links: ~,
             sentry_tags: SentryTags {
                 release: "1.2.3",
                 user: "id:user123",
@@ -1059,6 +1068,7 @@ expression: "(&event.value().unwrap().spans, metrics.project_metrics)"
                 lcp_url: ~,
                 other: {},
             },
+            links: ~,
             sentry_tags: SentryTags {
                 release: "1.2.3",
                 user: "id:user123",
@@ -1210,6 +1220,7 @@ expression: "(&event.value().unwrap().spans, metrics.project_metrics)"
                 lcp_url: ~,
                 other: {},
             },
+            links: ~,
             sentry_tags: SentryTags {
                 release: "1.2.3",
                 user: "id:user123",

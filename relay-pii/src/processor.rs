@@ -533,7 +533,6 @@ fn apply_regex_to_chunks<'a>(
             insert_replacement_chunks(rule, &search_string, &mut rv);
         }
     }
-
     rv
 }
 

@@ -9,11 +9,15 @@
 - Add configuration option to limit the amount of concurrent http connections. ([#4453](https://github.com/getsentry/relay/pull/4453))
 - Add flags context to event schema. ([#4458](https://github.com/getsentry/relay/pull/4458))
 - Add support for view hierarchy attachment scrubbing. ([#4452](https://github.com/getsentry/relay/pull/4452))
+- Allow configuration of Relay's log format via an environment variable. ([#4484](https://github.com/getsentry/relay/pull/4484))
+- Add span links to event schema. ([#4486](https://github.com/getsentry/relay/pull/4486))
 
 **Bug Fixes**:
 
 - Fix a bug where parsing large unsigned integers would fail incorrectly. ([#4472](https://github.com/getsentry/relay/pull/4472))
-- Set size limit for UserReport attachments so it gets properly reported as too large. ([#4482](https://github.com/getsentry/relay/pull/4482)) 
+- Set size limit for UserReport attachments so it gets properly reported as too large. ([#4482](https://github.com/getsentry/relay/pull/4482))
+- Fix a bug where scrubbed IP addresses were derived again on certain platforms. ([#4491](https://github.com/getsentry/relay/pull/4491))
+- Improve stripping of SQL comments during Insights query normalization. ([#4493](https://github.com/getsentry/relay/pull/4493))
 
 **Internal**:
 

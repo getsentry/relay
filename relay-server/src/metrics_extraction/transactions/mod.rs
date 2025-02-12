@@ -616,7 +616,7 @@ mod tests {
         };
 
         let extracted = extractor.extract(event.value().unwrap()).unwrap();
-        insta::assert_debug_snapshot!(event.value().unwrap().spans, @r###"
+        insta::assert_debug_snapshot!(event.value().unwrap().spans, @r#"
         [
             Span {
                 timestamp: Timestamp(
@@ -644,6 +644,7 @@ mod tests {
                 origin: ~,
                 profile_id: ~,
                 data: ~,
+                links: ~,
                 sentry_tags: ~,
                 received: ~,
                 measurements: ~,
@@ -652,7 +653,7 @@ mod tests {
                 other: {},
             },
         ]
-        "###);
+        "#);
 
         insta::assert_debug_snapshot!(extracted.project_metrics, @r###"
         [

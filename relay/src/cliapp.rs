@@ -44,6 +44,12 @@ pub fn make_app() -> Command {
                         .value_parser(["info", "warn", "error", "debug", "trace"]),
                 )
                 .arg(
+                    Arg::new("log_format")
+                        .long("log-format")
+                        .help("The relay log format")
+                        .value_parser(["auto", "pretty", "simplified", "json"]),
+                )
+                .arg(
                     Arg::new("secret_key")
                         .long("secret-key")
                         .short('s')

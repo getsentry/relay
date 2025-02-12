@@ -375,3 +375,19 @@ def test_relay_chain_normalizes_minidump_events(
 
     assert event["exception"]["values"] is not None
     assert event["type"] == "error"
+
+
+@pytest.mark.parametrize("relay_chain", ["relay->relay->sentry"], indirect=True)
+def test_ip_normalization_with_remove_remark(mini_sentry, relay_chain):
+    project_id = 42
+    relay = relay_chain(min_relay_version="25.01.0")
+
+    config = mini_sentry.add_basic_project_config(project_id)
+    config["config"]["piiConfig"]["applications"]["$user.ip_address"] = ["@ip:hash"]
+
+    relay.send_event(project_id, {"platform": "javascript"})
+
+    envelope = mini_sentry.captured_events.get(timeout=1)
+    event = envelope.get_event()
+    assert event["user"]["ip_address"] is None
+    assert event["user"]["id"] == "AE12FE3B5F129B5CC4CDD2B136B7B7947C4D2741"
