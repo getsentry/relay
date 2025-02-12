@@ -126,7 +126,9 @@
 <a href="#125" id="125">125</a>
 <a href="#126" id="126">126</a>
 <a href="#127" id="127">127</a>
-<a href="#128" id="128">128</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::atomic::{AtomicBool, Ordering};
+<a href="#128" id="128">128</a>
+<a href="#129" id="129">129</a>
+<a href="#130" id="130">130</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::atomic::{AtomicBool, Ordering};
 
 <span class="kw">use </span>relay_cogs::{CogsMeasurement, CogsRecorder, ResourceId};
 <span class="kw">use </span>relay_config::Config;
@@ -174,7 +176,8 @@
         <span class="macro">relay_statsd::metric!</span>(
             counter(RelayCounters::CogsUsage) += amount,
             resource_id = resource_id,
-            app_feature = measurement.feature.as_str()
+            app_feature = measurement.feature.as_str(),
+            category = measurement.category.unwrap_or(<span class="string">"default"</span>),
         );
     }
 }
@@ -247,6 +250,7 @@
                 resource: ResourceId::Relay,
                 feature: relay_cogs::AppFeature::Spans,
                 value: relay_cogs::Value::Time(Duration::from_secs(<span class="number">1</span>)),
+                category: <span class="prelude-val">None</span>,
             });
         }
 

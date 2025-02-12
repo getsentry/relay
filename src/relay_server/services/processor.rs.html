@@ -4196,7 +4196,34 @@
 <a href="#4195" id="4195">4195</a>
 <a href="#4196" id="4196">4196</a>
 <a href="#4197" id="4197">4197</a>
-<a href="#4198" id="4198">4198</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
+<a href="#4198" id="4198">4198</a>
+<a href="#4199" id="4199">4199</a>
+<a href="#4200" id="4200">4200</a>
+<a href="#4201" id="4201">4201</a>
+<a href="#4202" id="4202">4202</a>
+<a href="#4203" id="4203">4203</a>
+<a href="#4204" id="4204">4204</a>
+<a href="#4205" id="4205">4205</a>
+<a href="#4206" id="4206">4206</a>
+<a href="#4207" id="4207">4207</a>
+<a href="#4208" id="4208">4208</a>
+<a href="#4209" id="4209">4209</a>
+<a href="#4210" id="4210">4210</a>
+<a href="#4211" id="4211">4211</a>
+<a href="#4212" id="4212">4212</a>
+<a href="#4213" id="4213">4213</a>
+<a href="#4214" id="4214">4214</a>
+<a href="#4215" id="4215">4215</a>
+<a href="#4216" id="4216">4216</a>
+<a href="#4217" id="4217">4217</a>
+<a href="#4218" id="4218">4218</a>
+<a href="#4219" id="4219">4219</a>
+<a href="#4220" id="4220">4220</a>
+<a href="#4221" id="4221">4221</a>
+<a href="#4222" id="4222">4222</a>
+<a href="#4223" id="4223">4223</a>
+<a href="#4224" id="4224">4224</a>
+<a href="#4225" id="4225">4225</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::fmt::{Debug, Display};
@@ -5830,6 +5857,7 @@
     </span><span class="kw">fn </span>process_transactions(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         managed_envelope: <span class="kw-2">&amp;mut </span>TypedEnvelope&lt;TransactionGroup&gt;,
+        cogs: <span class="kw-2">&amp;mut </span>Token,
         config: Arc&lt;Config&gt;,
         project_id: ProjectId,
         project_info: Arc&lt;ProjectInfo&gt;,
@@ -5847,13 +5875,15 @@
 
         transaction::drop_invalid_items(managed_envelope, <span class="kw-2">&amp;</span>global_config);
 
-        <span class="comment">// We extract the main event from the envelope.
-        </span><span class="kw">let </span>extraction_result = event::extract(
-            managed_envelope,
-            <span class="kw-2">&amp;mut </span>metrics,
-            event_fully_normalized,
-            <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config,
-        )<span class="question-mark">?</span>;
+        <span class="macro">relay_cogs::with!</span>(cogs, <span class="string">"event_extract"</span>, {
+            <span class="comment">// We extract the main event from the envelope.
+            </span><span class="kw">let </span>extraction_result = event::extract(
+                managed_envelope,
+                <span class="kw-2">&amp;mut </span>metrics,
+                event_fully_normalized,
+                <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config,
+            )<span class="question-mark">?</span>;
+        });
 
         <span class="comment">// If metrics were extracted we mark that.
         </span><span class="kw">if let </span><span class="prelude-val">Some</span>(inner_event_metrics_extracted) = extraction_result.event_metrics_extracted {
@@ -5866,42 +5896,53 @@
         <span class="comment">// We take the main event out of the result.
         </span><span class="kw">let </span><span class="kw-2">mut </span>event = extraction_result.event;
 
-        <span class="kw">let </span>profile_id = profile::filter(
-            managed_envelope,
-            <span class="kw-2">&amp;</span>event,
-            config.clone(),
-            project_id,
-            project_info.clone(),
-        );
-        profile::transfer_id(<span class="kw-2">&amp;mut </span>event, profile_id);
+        <span class="macro">relay_cogs::with!</span>(cogs, <span class="string">"profile_filter"</span>, {
+            <span class="kw">let </span>profile_id = profile::filter(
+                managed_envelope,
+                <span class="kw-2">&amp;</span>event,
+                config.clone(),
+                project_id,
+                project_info.clone(),
+            );
+            profile::transfer_id(<span class="kw-2">&amp;mut </span>event, profile_id);
+        });
 
-        event::finalize(
-            managed_envelope,
-            <span class="kw-2">&amp;mut </span>event,
-            <span class="kw-2">&amp;mut </span>metrics,
-            <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config,
-        )<span class="question-mark">?</span>;
-        event_fully_normalized = <span class="self">self</span>.normalize_event(
-            managed_envelope,
-            <span class="kw-2">&amp;mut </span>event,
-            project_id,
-            project_info.clone(),
-            event_fully_normalized,
-        )<span class="question-mark">?</span>;
+        <span class="macro">relay_cogs::with!</span>(cogs, <span class="string">"event_finalize"</span>, {
+            event::finalize(
+                managed_envelope,
+                <span class="kw-2">&amp;mut </span>event,
+                <span class="kw-2">&amp;mut </span>metrics,
+                <span class="kw-2">&amp;</span><span class="self">self</span>.inner.config,
+            )<span class="question-mark">?</span>;
+        });
 
-        sampling_project_info = dynamic_sampling::validate_and_set_dsc(
-            managed_envelope,
-            <span class="kw-2">&amp;mut </span>event,
-            project_info.clone(),
-            sampling_project_info.clone(),
-        );
+        <span class="macro">relay_cogs::with!</span>(cogs, <span class="string">"event_normalize"</span>, {
+            event_fully_normalized = <span class="self">self</span>.normalize_event(
+                managed_envelope,
+                <span class="kw-2">&amp;mut </span>event,
+                project_id,
+                project_info.clone(),
+                event_fully_normalized,
+            )<span class="question-mark">?</span>;
+        });
 
-        <span class="kw">let </span>filter_run = event::filter(
-            managed_envelope,
-            <span class="kw-2">&amp;mut </span>event,
-            project_info.clone(),
-            <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current(),
-        )<span class="question-mark">?</span>;
+        <span class="macro">relay_cogs::with!</span>(cogs, <span class="string">"dynamic_sampling_dsc"</span>, {
+            sampling_project_info = dynamic_sampling::validate_and_set_dsc(
+                managed_envelope,
+                <span class="kw-2">&amp;mut </span>event,
+                project_info.clone(),
+                sampling_project_info.clone(),
+            );
+        });
+
+        <span class="macro">relay_cogs::with!</span>(cogs, <span class="string">"filter"</span>, {
+            <span class="kw">let </span>filter_run = event::filter(
+                managed_envelope,
+                <span class="kw-2">&amp;mut </span>event,
+                project_info.clone(),
+                <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current(),
+            )<span class="question-mark">?</span>;
+        });
 
         <span class="comment">// Always run dynamic sampling on processing Relays,
         // but delay decision until inbound filters have been fully processed.
@@ -5913,17 +5954,19 @@
             reservoir_counters,
         );
 
-        <span class="kw">let </span>sampling_result = <span class="kw">match </span>run_dynamic_sampling {
-            <span class="bool-val">true </span>=&gt; dynamic_sampling::run(
-                managed_envelope,
-                <span class="kw-2">&amp;mut </span>event,
-                config.clone(),
-                project_info.clone(),
-                sampling_project_info,
-                <span class="kw-2">&amp;</span>reservoir,
-            ),
-            <span class="bool-val">false </span>=&gt; SamplingResult::Pending,
-        };
+        <span class="macro">relay_cogs::with!</span>(cogs, <span class="string">"dynamic_sampling_run"</span>, {
+            <span class="kw">let </span>sampling_result = <span class="kw">match </span>run_dynamic_sampling {
+                <span class="bool-val">true </span>=&gt; dynamic_sampling::run(
+                    managed_envelope,
+                    <span class="kw-2">&amp;mut </span>event,
+                    config.clone(),
+                    project_info.clone(),
+                    sampling_project_info,
+                    <span class="kw-2">&amp;</span>reservoir,
+                ),
+                <span class="bool-val">false </span>=&gt; SamplingResult::Pending,
+            };
+        });
 
         <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
         </span><span class="kw">let </span>server_sample_rate = <span class="kw">match </span>sampling_result {
@@ -5971,6 +6014,8 @@
 
             <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(extracted_metrics));
         }
+
+        <span class="kw">let </span>_post_ds = cogs.start_category(<span class="string">"post_ds"</span>);
 
         <span class="comment">// Need to scrub the transaction before extracting spans.
         //
@@ -6302,8 +6347,10 @@
         <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(extracted_metrics))
     }
 
-    <span class="kw">fn </span>process_envelope(
+    <span class="attr">#[expect(clippy::too_many_arguments)]
+    </span><span class="kw">fn </span>process_envelope(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
+        cogs: <span class="kw-2">&amp;mut </span>Token,
         <span class="kw-2">mut </span>managed_envelope: ManagedEnvelope,
         project_id: ProjectId,
         project_info: Arc&lt;ProjectInfo&gt;,
@@ -6372,6 +6419,7 @@
             ProcessingGroup::Transaction =&gt; {
                 <span class="macro">run!</span>(
                     process_transactions,
+                    cogs,
                     <span class="self">self</span>.inner.config.clone(),
                     project_id,
                     project_info,
@@ -6455,6 +6503,7 @@
 
     <span class="kw">fn </span>process(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
+        cogs: <span class="kw-2">&amp;mut </span>Token,
         message: ProcessEnvelope,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;ProcessEnvelopeResponse, ProcessingError&gt; {
         <span class="kw">let </span>ProcessEnvelope {
@@ -6506,6 +6555,7 @@
             },
             || {
                 <span class="kw">match </span><span class="self">self</span>.process_envelope(
+                    cogs,
                     managed_envelope,
                     project_id,
                     project_info,
@@ -6552,14 +6602,14 @@
         )
     }
 
-    <span class="kw">fn </span>handle_process_envelope(<span class="kw-2">&amp;</span><span class="self">self</span>, message: ProcessEnvelope) {
+    <span class="kw">fn </span>handle_process_envelope(<span class="kw-2">&amp;</span><span class="self">self</span>, cogs: <span class="kw-2">&amp;mut </span>Token, message: ProcessEnvelope) {
         <span class="kw">let </span>project_key = message.envelope.envelope().meta().public_key();
         <span class="kw">let </span>wait_time = message.envelope.age();
         <span class="macro">metric!</span>(timer(RelayTimers::EnvelopeWaitTime) = wait_time);
 
         <span class="kw">let </span>group = message.envelope.group().variant();
         <span class="kw">let </span>result = <span class="macro">metric!</span>(timer(RelayTimers::EnvelopeProcessingTime), group = group, {
-            <span class="self">self</span>.process(message)
+            <span class="self">self</span>.process(cogs, message)
         });
         <span class="kw">match </span>result {
             <span class="prelude-val">Ok</span>(response) =&gt; {
@@ -7260,7 +7310,9 @@
             <span class="kw">let </span><span class="kw-2">mut </span>cogs = <span class="self">self</span>.inner.cogs.timed(ResourceId::Relay, feature_weights);
 
             <span class="kw">match </span>message {
-                EnvelopeProcessor::ProcessEnvelope(m) =&gt; <span class="self">self</span>.handle_process_envelope(<span class="kw-2">*</span>m),
+                EnvelopeProcessor::ProcessEnvelope(m) =&gt; {
+                    <span class="self">self</span>.handle_process_envelope(<span class="kw-2">&amp;mut </span>cogs, <span class="kw-2">*</span>m)
+                }
                 EnvelopeProcessor::ProcessProjectMetrics(m) =&gt; {
                     <span class="self">self</span>.handle_process_metrics(<span class="kw-2">&amp;mut </span>cogs, <span class="kw-2">*</span>m)
                 }
@@ -7995,7 +8047,7 @@
             reservoir_counters: ReservoirCounters::default(),
         };
 
-        <span class="kw">let </span>envelope_response = processor.process(message).unwrap();
+        <span class="kw">let </span>envelope_response = processor.process(<span class="kw-2">&amp;mut </span>Token::noop(), message).unwrap();
         <span class="kw">let </span>new_envelope = envelope_response.envelope.unwrap();
         <span class="kw">let </span>new_envelope = new_envelope.envelope();
 
@@ -8067,7 +8119,9 @@
         .unwrap();
 
         <span class="kw">let </span>processor = create_test_processor(config).<span class="kw">await</span>;
-        <span class="kw">let </span>response = processor.process(process_message).unwrap();
+        <span class="kw">let </span>response = processor
+            .process(<span class="kw-2">&amp;mut </span>Token::noop(), process_message)
+            .unwrap();
         <span class="kw">let </span>envelope = response.envelope.as_ref().unwrap().envelope();
         <span class="kw">let </span>event = envelope
             .get_item_by(|item| item.ty() == <span class="kw-2">&amp;</span>ItemType::Event)

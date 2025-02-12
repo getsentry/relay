@@ -601,7 +601,8 @@
 <a href="#600" id="600">600</a>
 <a href="#601" id="601">601</a>
 <a href="#602" id="602">602</a>
-<a href="#603" id="603">603</a></pre></div><pre class="rust"><code><span class="doccomment">//! Profiles related processor code.
+<a href="#603" id="603">603</a>
+<a href="#604" id="604">604</a></pre></div><pre class="rust"><code><span class="doccomment">//! Profiles related processor code.
 </span><span class="kw">use </span>relay_dynamic_config::{Feature, GlobalConfig};
 <span class="kw">use </span>std::net::IpAddr;
 <span class="kw">use </span>std::sync::Arc;
@@ -785,6 +786,7 @@
 
     <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span><span class="kw">use </span>insta::assert_debug_snapshot;
+    <span class="kw">use </span>relay_cogs::Token;
     <span class="attr">#[cfg(not(feature = <span class="string">"processing"</span>))]
     </span><span class="kw">use </span>relay_dynamic_config::Feature;
     <span class="kw">use </span>relay_event_schema::protocol::EventId;
@@ -906,7 +908,7 @@
             reservoir_counters: ReservoirCounters::default(),
         };
 
-        <span class="kw">let </span>envelope_response = processor.process(message).unwrap();
+        <span class="kw">let </span>envelope_response = processor.process(<span class="kw-2">&amp;mut </span>Token::noop(), message).unwrap();
         <span class="kw">let </span>ctx = envelope_response.envelope.unwrap();
         <span class="kw">let </span>new_envelope = ctx.envelope();
 
@@ -1037,7 +1039,7 @@
             reservoir_counters: ReservoirCounters::default(),
         };
 
-        <span class="kw">let </span>envelope_response = processor.process(message).unwrap();
+        <span class="kw">let </span>envelope_response = processor.process(<span class="kw-2">&amp;mut </span>Token::noop(), message).unwrap();
         <span class="kw">let </span>ctx = envelope_response.envelope.unwrap();
         <span class="kw">let </span>new_envelope = ctx.envelope();
 
@@ -1107,7 +1109,7 @@
             reservoir_counters: ReservoirCounters::default(),
         };
 
-        <span class="kw">let </span>envelope_response = processor.process(message).unwrap();
+        <span class="kw">let </span>envelope_response = processor.process(<span class="kw-2">&amp;mut </span>Token::noop(), message).unwrap();
         <span class="macro">assert!</span>(envelope_response.envelope.is_none());
     }
 
@@ -1179,7 +1181,7 @@
             reservoir_counters: ReservoirCounters::default(),
         };
 
-        <span class="kw">let </span>envelope_response = processor.process(message).unwrap();
+        <span class="kw">let </span>envelope_response = processor.process(<span class="kw-2">&amp;mut </span>Token::noop(), message).unwrap();
         <span class="kw">let </span>ctx = envelope_response.envelope.unwrap();
         <span class="kw">let </span>new_envelope = ctx.envelope();
 
