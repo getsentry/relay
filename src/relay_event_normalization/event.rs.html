@@ -4462,7 +4462,15 @@
 <a href="#4461" id="4461">4461</a>
 <a href="#4462" id="4462">4462</a>
 <a href="#4463" id="4463">4463</a>
-<a href="#4464" id="4464">4464</a></pre></div><pre class="rust"><code><span class="doccomment">//! Event normalization.
+<a href="#4464" id="4464">4464</a>
+<a href="#4465" id="4465">4465</a>
+<a href="#4466" id="4466">4466</a>
+<a href="#4467" id="4467">4467</a>
+<a href="#4468" id="4468">4468</a>
+<a href="#4469" id="4469">4469</a>
+<a href="#4470" id="4470">4470</a>
+<a href="#4471" id="4471">4471</a>
+<a href="#4472" id="4472">4472</a></pre></div><pre class="rust"><code><span class="doccomment">//! Event normalization.
 //!
 //! This module provides a function to normalize events.
 
@@ -4924,9 +4932,17 @@
         <span class="kw">let </span>user = user.value_mut().get_or_insert_with(User::default);
         <span class="comment">// auto is already handled above
         </span><span class="kw">if </span>user.ip_address.value().is_none() {
-            <span class="comment">// In an ideal world all SDKs would set {{auto}} explicitly.
-            </span><span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="string">"javascript"</span>) | <span class="prelude-val">Some</span>(<span class="string">"cocoa"</span>) | <span class="prelude-val">Some</span>(<span class="string">"objc"</span>) = platform {
-                user.ip_address = Annotated::new(client_ip.to_owned());
+            <span class="comment">// Only assume that empty means {{auto}} if there is no remark that the IP address has been removed.
+            </span><span class="kw">let </span>scrubbed_before = user
+                .ip_address
+                .meta()
+                .iter_remarks()
+                .any(|r| r.ty == RemarkType::Removed);
+            <span class="kw">if </span>!scrubbed_before {
+                <span class="comment">// In an ideal world all SDKs would set {{auto}} explicitly.
+                </span><span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="string">"javascript"</span>) | <span class="prelude-val">Some</span>(<span class="string">"cocoa"</span>) | <span class="prelude-val">Some</span>(<span class="string">"objc"</span>) = platform {
+                    user.ip_address = Annotated::new(client_ip.to_owned());
+                }
             }
         }
     }

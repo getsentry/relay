@@ -1936,7 +1936,10 @@
 <a href="#1935" id="1935">1935</a>
 <a href="#1936" id="1936">1936</a>
 <a href="#1937" id="1937">1937</a>
-<a href="#1938" id="1938">1938</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
+<a href="#1938" id="1938">1938</a>
+<a href="#1939" id="1939">1939</a>
+<a href="#1940" id="1940">1940</a>
+<a href="#1941" id="1941">1941</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
 <span class="kw">use </span>std::mem;
 <span class="kw">use </span>std::sync::OnceLock;
@@ -2165,6 +2168,10 @@
         // wiped out in renormalization anyway.
         </span><span class="kw">if </span>ip_was_valid &amp;&amp; !has_other_fields &amp;&amp; !ip_is_still_valid {
             user.id = mem::take(<span class="kw-2">&amp;mut </span>user.ip_address).map_value(|ip| ip.into_inner().into());
+            user.ip_address.meta_mut().add_remark(Remark::new(
+                RemarkType::Removed,
+                <span class="string">"pii:ip_address"</span>.to_string(),
+            ));
         }
 
         <span class="prelude-val">Ok</span>(())
@@ -2467,7 +2474,6 @@
             </span>insert_replacement_chunks(rule, <span class="kw-2">&amp;</span>search_string, <span class="kw-2">&amp;mut </span>rv);
         }
     }
-
     rv
 }
 
