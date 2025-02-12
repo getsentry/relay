@@ -2,10 +2,9 @@ use crate::http::StatusCode;
 use crate::service::ServiceState;
 use crate::services::internal_metrics::InternalMetricsMessageKind;
 use ahash::{HashMap, HashMapExt};
-use axum::extract::Path;
 
 /// Returns internal metrics data for relay.
-pub async fn handle(state: ServiceState, Path(content_type): Path<String>) -> (StatusCode, String) {
+pub async fn handle(state: ServiceState) -> (StatusCode, String) {
     let data = match state
         .internal_metrics()
         .send(InternalMetricsMessageKind::Check)
@@ -20,15 +19,11 @@ pub async fn handle(state: ServiceState, Path(content_type): Path<String>) -> (S
         }
     };
 
-    let mut tags: HashMap<&str, &str> = HashMap::new();
-    tags.insert("type", content_type.as_str());
-
-    match content_type.as_str() {
-        "prometheus" => (
-            StatusCode::OK,
-            serde_prometheus::to_string(&data, None, tags).unwrap(),
+    match serde_prometheus::to_string(&data, None, HashMap::new()) {
+        Ok(result) => (StatusCode::OK, result),
+        Err(_) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "Failed to collect internal metrics".to_string(),
         ),
-        "json" => (StatusCode::OK, serde_json::to_string(&data).unwrap()),
-        _ => (StatusCode::BAD_REQUEST, "invalid content type".to_string()),
     }
 }
