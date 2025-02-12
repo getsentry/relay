@@ -284,7 +284,13 @@
 <a href="#283" id="283">283</a>
 <a href="#284" id="284">284</a>
 <a href="#285" id="285">285</a>
-<a href="#286" id="286">286</a></pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::statsd::RelayTimers;
+<a href="#286" id="286">286</a>
+<a href="#287" id="287">287</a>
+<a href="#288" id="288">288</a>
+<a href="#289" id="289">289</a>
+<a href="#290" id="290">290</a>
+<a href="#291" id="291">291</a>
+<a href="#292" id="292">292</a></pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::statsd::RelayTimers;
 <span class="kw">use </span>axum::body::{Body, HttpBody};
 <span class="kw">use </span>axum::extract::MatchedPath;
 <span class="kw">use </span>axum::http::Request;
@@ -456,6 +462,11 @@
         }
     }
 
+    <span class="kw">fn </span>captures_match(captures: Vec&lt;String&gt;, expected: <span class="kw-2">&amp;</span>str) -&gt; bool {
+        <span class="kw">let </span>(head, tail) = expected.split_once(<span class="string">"|h"</span>).unwrap();
+        captures.len() == <span class="number">1 </span>&amp;&amp; captures[<span class="number">0</span>].starts_with(head) &amp;&amp; captures[<span class="number">0</span>].ends_with(tail)
+    }
+
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_empty_body() {
         <span class="kw">let </span>captures = with_capturing_test_client(|| {
@@ -468,10 +479,10 @@
 
             <span class="kw">let _ </span>= pinned.poll_frame(<span class="kw-2">&amp;mut </span>cx);
         });
-        <span class="macro">assert_eq!</span>(
+        <span class="macro">assert!</span>(captures_match(
             captures,
-            [<span class="string">"requests.body_read.duration:0|ms|#route:unknown,size:lt1KB,status:completed"</span>]
-        );
+            <span class="string">"requests.body_read.duration:0|h|#route:unknown,size:lt1KB,status:completed"
+        </span>));
     }
 
     <span class="attr">#[test]
@@ -487,10 +498,10 @@
             <span class="kw">let _ </span>= pinned.as_mut().poll_frame(<span class="kw-2">&amp;mut </span>cx);
             <span class="kw">let _ </span>= pinned.as_mut().poll_frame(<span class="kw-2">&amp;mut </span>cx);
         });
-        <span class="macro">assert_eq!</span>(
+        <span class="macro">assert!</span>(captures_match(
             captures,
-            [<span class="string">"requests.body_read.duration:0|ms|#route:unknown,size:lt1KB,status:completed"</span>]
-        );
+            <span class="string">"requests.body_read.duration:0|h|#route:unknown,size:lt1KB,status:completed"
+        </span>));
     }
 
     <span class="attr">#[test]
@@ -505,10 +516,11 @@
 
             <span class="kw">let _ </span>= pinned.poll_frame(<span class="kw-2">&amp;mut </span>cx);
         });
-        <span class="macro">assert_eq!</span>(
+
+        <span class="macro">assert!</span>(captures_match(
             captures,
-            [<span class="string">"requests.body_read.duration:0|ms|#route:unknown,size:lt1KB,status:dropped"</span>]
-        )
+            <span class="string">"requests.body_read.duration:0|h|#route:unknown,size:lt1KB,status:dropped"
+        </span>))
     }
 
     <span class="attr">#[test]
@@ -532,10 +544,10 @@
             <span class="kw">let </span>pinned = Pin::new(<span class="kw-2">&amp;mut </span>timed_body);
             <span class="kw">let _ </span>= pinned.poll_frame(<span class="kw-2">&amp;mut </span>cx);
         });
-        <span class="macro">assert_eq!</span>(
+        <span class="macro">assert!</span>(captures_match(
             captures,
-            [<span class="string">"requests.body_read.duration:0|ms|#route:unknown,size:lt1KB,status:failed"</span>]
-        )
+            <span class="string">"requests.body_read.duration:0|h|#route:unknown,size:lt1KB,status:failed"
+        </span>))
     }
 
     <span class="attr">#[test]
@@ -552,10 +564,10 @@
             <span class="kw">let </span><span class="kw-2">mut </span>pinned = Pin::new(<span class="kw-2">&amp;mut </span>timed_body);
             <span class="kw">while let </span>Poll::Ready(<span class="prelude-val">Some</span>(<span class="prelude-val">Ok</span>(<span class="kw">_</span>))) = pinned.as_mut().poll_frame(<span class="kw-2">&amp;mut </span>cx) {}
         });
-        <span class="macro">assert_eq!</span>(
+        <span class="macro">assert!</span>(captures_match(
             captures,
-            [<span class="string">"requests.body_read.duration:0|ms|#route:unknown,size:lt10KB,status:completed"</span>]
-        )
+            <span class="string">"requests.body_read.duration:0|h|#route:unknown,size:lt10KB,status:completed"
+        </span>))
     }
 
     <span class="attr">#[test]

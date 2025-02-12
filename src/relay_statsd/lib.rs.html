@@ -684,7 +684,35 @@
 <a href="#683" id="683">683</a>
 <a href="#684" id="684">684</a>
 <a href="#685" id="685">685</a>
-<a href="#686" id="686">686</a></pre></div><pre class="rust"><code><span class="doccomment">//! A high-level StatsD metric client built on cadence.
+<a href="#686" id="686">686</a>
+<a href="#687" id="687">687</a>
+<a href="#688" id="688">688</a>
+<a href="#689" id="689">689</a>
+<a href="#690" id="690">690</a>
+<a href="#691" id="691">691</a>
+<a href="#692" id="692">692</a>
+<a href="#693" id="693">693</a>
+<a href="#694" id="694">694</a>
+<a href="#695" id="695">695</a>
+<a href="#696" id="696">696</a>
+<a href="#697" id="697">697</a>
+<a href="#698" id="698">698</a>
+<a href="#699" id="699">699</a>
+<a href="#700" id="700">700</a>
+<a href="#701" id="701">701</a>
+<a href="#702" id="702">702</a>
+<a href="#703" id="703">703</a>
+<a href="#704" id="704">704</a>
+<a href="#705" id="705">705</a>
+<a href="#706" id="706">706</a>
+<a href="#707" id="707">707</a>
+<a href="#708" id="708">708</a>
+<a href="#709" id="709">709</a>
+<a href="#710" id="710">710</a>
+<a href="#711" id="711">711</a>
+<a href="#712" id="712">712</a>
+<a href="#713" id="713">713</a>
+<a href="#714" id="714">714</a></pre></div><pre class="rust"><code><span class="doccomment">//! A high-level StatsD metric client built on cadence.
 //!
 //! ## Defining Metrics
 //!
@@ -1290,7 +1318,9 @@
         <span class="macro-nonterminal">$crate::with_client</span>(|client| {
             <span class="kw">use </span><span class="macro-nonterminal">$crate::_pred</span>::<span class="kw-2">*</span>;
             client.send_metric(
-                client.time_with_tags(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$crate::TimerMetric::name</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$id</span>), <span class="macro-nonterminal">$value</span>)
+                <span class="comment">// NOTE: cadence histograms support Duration out of the box and converts it to nanos,
+                // but we want milliseconds for historical reasons.
+                </span>client.histogram_with_tags(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$crate::TimerMetric::name</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$id</span>), <span class="macro-nonterminal">$value</span>.as_nanos() <span class="kw">as </span>f64 / <span class="number">1e6</span>)
                     $(.with_tag(<span class="macro">stringify!</span>(<span class="macro-nonterminal">$k</span>), <span class="macro-nonterminal">$v</span>))*
             )
         })
@@ -1300,22 +1330,21 @@
     </span>(timer(<span class="macro-nonterminal">$id</span>:expr), $(<span class="macro-nonterminal">$k</span>:ident = <span class="macro-nonterminal">$v</span>:expr,)* <span class="macro-nonterminal">$block</span>:block) =&gt; {{
         <span class="kw">let </span>now = std::time::Instant::now();
         <span class="kw">let </span>rv = {<span class="macro-nonterminal">$block</span>};
-        <span class="macro-nonterminal">$crate::with_client</span>(|client| {
-            <span class="kw">use </span><span class="macro-nonterminal">$crate::_pred</span>::<span class="kw-2">*</span>;
-            client.send_metric(
-                client.time_with_tags(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$crate::TimerMetric::name</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$id</span>), now.elapsed())
-                    $(.with_tag(<span class="macro">stringify!</span>(<span class="macro-nonterminal">$k</span>), <span class="macro-nonterminal">$v</span>))*
-            )
-        });
+        <span class="macro-nonterminal">$</span><span class="macro">crate::metric!</span>(<span class="macro-nonterminal">timer</span>(<span class="macro-nonterminal">$id</span>) = now.elapsed() $(, <span class="macro-nonterminal">$k </span>= <span class="macro-nonterminal">$v</span>)<span class="kw-2">*</span>);
         rv
     }};
 }
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
+    <span class="kw">use </span>std::time::Duration;
+
     <span class="kw">use </span>cadence::{NopMetricSink, StatsdClient};
 
-    <span class="kw">use crate</span>::{set_client, with_capturing_test_client, with_client, GaugeMetric, MetricsClient};
+    <span class="kw">use crate</span>::{
+        set_client, with_capturing_test_client, with_client, GaugeMetric, MetricsClient,
+        TimerMetric,
+    };
 
     <span class="kw">enum </span>TestGauges {
         Foo,
@@ -1368,6 +1397,33 @@
 
         <span class="comment">// After setting the global client,the current client must change:
         </span><span class="macro">assert_ne!</span>(client1, client2);
+    }
+
+    <span class="kw">struct </span>TestTimer;
+
+    <span class="kw">impl </span>TimerMetric <span class="kw">for </span>TestTimer {
+        <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+            <span class="string">"timer"
+        </span>}
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>nanos_rounding_error() {
+        <span class="kw">let </span>one_day = Duration::from_secs(<span class="number">60 </span>* <span class="number">60 </span>* <span class="number">24</span>);
+        <span class="kw">let </span>captures = with_capturing_test_client(|| {
+            <span class="macro">metric!</span>(timer(TestTimer) = one_day + Duration::from_nanos(<span class="number">1</span>),);
+        });
+
+        <span class="comment">// for "short" durations, precision is preserved:
+        </span><span class="macro">assert_eq!</span>(captures, [<span class="string">"timer:86400000.000001|h"</span>]); <span class="comment">// h is for histogram, not hours
+
+        </span><span class="kw">let </span>one_year = Duration::from_secs(<span class="number">60 </span>* <span class="number">60 </span>* <span class="number">24 </span>* <span class="number">365</span>);
+        <span class="kw">let </span>captures = with_capturing_test_client(|| {
+            <span class="macro">metric!</span>(timer(TestTimer) = one_year + Duration::from_nanos(<span class="number">1</span>),);
+        });
+
+        <span class="comment">// for very long durations, precision is lost:
+        </span><span class="macro">assert_eq!</span>(captures, [<span class="string">"timer:31536000000|h"</span>]);
     }
 }
 </code></pre></div></section></main></body></html>
