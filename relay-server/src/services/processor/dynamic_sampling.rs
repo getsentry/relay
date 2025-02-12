@@ -249,6 +249,7 @@ mod tests {
     use bytes::Bytes;
     use relay_base_schema::events::EventType;
     use relay_base_schema::project::ProjectKey;
+    use relay_cogs::Token;
     use relay_dynamic_config::{MetricExtractionConfig, TransactionMetricsConfig};
     use relay_event_schema::protocol::{EventId, LenientString};
     use relay_protocol::RuleCondition;
@@ -313,7 +314,7 @@ mod tests {
             reservoir_counters: ReservoirCounters::default(),
         };
 
-        let envelope_response = processor.process(message).unwrap();
+        let envelope_response = processor.process(&mut Token::noop(), message).unwrap();
         let ctx = envelope_response.envelope.unwrap();
         ctx.envelope().clone()
     }

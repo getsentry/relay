@@ -12,3 +12,6 @@ autobenches = false
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+insta = { workspace = true }
