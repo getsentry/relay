@@ -108,6 +108,7 @@ pub async fn create_test_processor(config: Config) -> EnvelopeProcessorService {
     let (aggregator, _) = mock_service("aggregator", (), |&mut (), _| {});
     let (upstream_relay, _) = mock_service("upstream_relay", (), |&mut (), _| {});
     let (test_store, _) = mock_service("test_store", (), |&mut (), _| {});
+    let (internal_metrics, _) = mock_service("internal_metrics", (), |&mut (), _| {});
 
     #[cfg(feature = "processing")]
     let redis_pools = match config.redis() {
@@ -135,6 +136,7 @@ pub async fn create_test_processor(config: Config) -> EnvelopeProcessorService {
             #[cfg(feature = "processing")]
             store_forwarder: None,
             aggregator,
+            internal_metrics,
         },
         metric_outcomes,
     )
