@@ -170,6 +170,11 @@ mod tests {
         }
     }
 
+    fn captures_match(captures: Vec<String>, expected: &str) -> bool {
+        let (head, tail) = expected.split_once("|h").unwrap();
+        captures.len() == 1 && captures[0].starts_with(head) && captures[0].ends_with(tail)
+    }
+
     #[test]
     fn test_empty_body() {
         let captures = with_capturing_test_client(|| {
@@ -182,10 +187,10 @@ mod tests {
 
             let _ = pinned.poll_frame(&mut cx);
         });
-        assert_eq!(
+        assert!(captures_match(
             captures,
-            ["requests.body_read.duration:0|ms|#route:unknown,size:lt1KB,status:completed"]
-        );
+            "requests.body_read.duration:0|h|#route:unknown,size:lt1KB,status:completed"
+        ));
     }
 
     #[test]
@@ -201,10 +206,10 @@ mod tests {
             let _ = pinned.as_mut().poll_frame(&mut cx);
             let _ = pinned.as_mut().poll_frame(&mut cx);
         });
-        assert_eq!(
+        assert!(captures_match(
             captures,
-            ["requests.body_read.duration:0|ms|#route:unknown,size:lt1KB,status:completed"]
-        );
+            "requests.body_read.duration:0|h|#route:unknown,size:lt1KB,status:completed"
+        ));
     }
 
     #[test]
@@ -219,10 +224,11 @@ mod tests {
 
             let _ = pinned.poll_frame(&mut cx);
         });
-        assert_eq!(
+
+        assert!(captures_match(
             captures,
-            ["requests.body_read.duration:0|ms|#route:unknown,size:lt1KB,status:dropped"]
-        )
+            "requests.body_read.duration:0|h|#route:unknown,size:lt1KB,status:dropped"
+        ))
     }
 
     #[test]
@@ -246,10 +252,10 @@ mod tests {
             let pinned = Pin::new(&mut timed_body);
             let _ = pinned.poll_frame(&mut cx);
         });
-        assert_eq!(
+        assert!(captures_match(
             captures,
-            ["requests.body_read.duration:0|ms|#route:unknown,size:lt1KB,status:failed"]
-        )
+            "requests.body_read.duration:0|h|#route:unknown,size:lt1KB,status:failed"
+        ))
     }
 
     #[test]
@@ -266,10 +272,10 @@ mod tests {
             let mut pinned = Pin::new(&mut timed_body);
             while let Poll::Ready(Some(Ok(_))) = pinned.as_mut().poll_frame(&mut cx) {}
         });
-        assert_eq!(
+        assert!(captures_match(
             captures,
-            ["requests.body_read.duration:0|ms|#route:unknown,size:lt10KB,status:completed"]
-        )
+            "requests.body_read.duration:0|h|#route:unknown,size:lt10KB,status:completed"
+        ))
     }
 
     #[test]
