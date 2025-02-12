@@ -1632,6 +1632,7 @@ impl EnvelopeProcessorService {
     fn process_transactions(
         &self,
         managed_envelope: &mut TypedEnvelope<TransactionGroup>,
+        cogs: &mut Token,
         config: Arc<Config>,
         project_id: ProjectId,
         project_info: Arc<ProjectInfo>,
@@ -1649,13 +1650,15 @@ impl EnvelopeProcessorService {
 
         transaction::drop_invalid_items(managed_envelope, &global_config);
 
-        // We extract the main event from the envelope.
-        let extraction_result = event::extract(
-            managed_envelope,
-            &mut metrics,
-            event_fully_normalized,
-            &self.inner.config,
-        )?;
+        relay_cogs::with!(cogs, "event_extract", {
+            // We extract the main event from the envelope.
+            let extraction_result = event::extract(
+                managed_envelope,
+                &mut metrics,
+                event_fully_normalized,
+                &self.inner.config,
+            )?;
+        });
 
         // If metrics were extracted we mark that.
         if let Some(inner_event_metrics_extracted) = extraction_result.event_metrics_extracted {
@@ -1668,42 +1671,53 @@ impl EnvelopeProcessorService {
         // We take the main event out of the result.
         let mut event = extraction_result.event;
 
-        let profile_id = profile::filter(
-            managed_envelope,
-            &event,
-            config.clone(),
-            project_id,
-            project_info.clone(),
-        );
-        profile::transfer_id(&mut event, profile_id);
+        relay_cogs::with!(cogs, "profile_filter", {
+            let profile_id = profile::filter(
+                managed_envelope,
+                &event,
+                config.clone(),
+                project_id,
+                project_info.clone(),
+            );
+            profile::transfer_id(&mut event, profile_id);
+        });
 
-        event::finalize(
-            managed_envelope,
-            &mut event,
-            &mut metrics,
-            &self.inner.config,
-        )?;
-        event_fully_normalized = self.normalize_event(
-            managed_envelope,
-            &mut event,
-            project_id,
-            project_info.clone(),
-            event_fully_normalized,
-        )?;
+        relay_cogs::with!(cogs, "event_finalize", {
+            event::finalize(
+                managed_envelope,
+                &mut event,
+                &mut metrics,
+                &self.inner.config,
+            )?;
+        });
 
-        sampling_project_info = dynamic_sampling::validate_and_set_dsc(
-            managed_envelope,
-            &mut event,
-            project_info.clone(),
-            sampling_project_info.clone(),
-        );
+        relay_cogs::with!(cogs, "event_normalize", {
+            event_fully_normalized = self.normalize_event(
+                managed_envelope,
+                &mut event,
+                project_id,
+                project_info.clone(),
+                event_fully_normalized,
+            )?;
+        });
 
-        let filter_run = event::filter(
-            managed_envelope,
-            &mut event,
-            project_info.clone(),
-            &self.inner.global_config.current(),
-        )?;
+        relay_cogs::with!(cogs, "dynamic_sampling_dsc", {
+            sampling_project_info = dynamic_sampling::validate_and_set_dsc(
+                managed_envelope,
+                &mut event,
+                project_info.clone(),
+                sampling_project_info.clone(),
+            );
+        });
+
+        relay_cogs::with!(cogs, "filter", {
+            let filter_run = event::filter(
+                managed_envelope,
+                &mut event,
+                project_info.clone(),
+                &self.inner.global_config.current(),
+            )?;
+        });
 
         // Always run dynamic sampling on processing Relays,
         // but delay decision until inbound filters have been fully processed.
@@ -1715,17 +1729,19 @@ impl EnvelopeProcessorService {
             reservoir_counters,
         );
 
-        let sampling_result = match run_dynamic_sampling {
-            true => dynamic_sampling::run(
-                managed_envelope,
-                &mut event,
-                config.clone(),
-                project_info.clone(),
-                sampling_project_info,
-                &reservoir,
-            ),
-            false => SamplingResult::Pending,
-        };
+        relay_cogs::with!(cogs, "dynamic_sampling_run", {
+            let sampling_result = match run_dynamic_sampling {
+                true => dynamic_sampling::run(
+                    managed_envelope,
+                    &mut event,
+                    config.clone(),
+                    project_info.clone(),
+                    sampling_project_info,
+                    &reservoir,
+                ),
+                false => SamplingResult::Pending,
+            };
+        });
 
         #[cfg(feature = "processing")]
         let server_sample_rate = match sampling_result {
@@ -1773,6 +1789,8 @@ impl EnvelopeProcessorService {
 
             return Ok(Some(extracted_metrics));
         }
+
+        let _post_ds = cogs.start_category("post_ds");
 
         // Need to scrub the transaction before extracting spans.
         //
@@ -2104,8 +2122,10 @@ impl EnvelopeProcessorService {
         Ok(Some(extracted_metrics))
     }
 
+    #[expect(clippy::too_many_arguments)]
     fn process_envelope(
         &self,
+        cogs: &mut Token,
         mut managed_envelope: ManagedEnvelope,
         project_id: ProjectId,
         project_info: Arc<ProjectInfo>,
@@ -2174,6 +2194,7 @@ impl EnvelopeProcessorService {
             ProcessingGroup::Transaction => {
                 run!(
                     process_transactions,
+                    cogs,
                     self.inner.config.clone(),
                     project_id,
                     project_info,
@@ -2257,6 +2278,7 @@ impl EnvelopeProcessorService {
 
     fn process(
         &self,
+        cogs: &mut Token,
         message: ProcessEnvelope,
     ) -> Result<ProcessEnvelopeResponse, ProcessingError> {
         let ProcessEnvelope {
@@ -2308,6 +2330,7 @@ impl EnvelopeProcessorService {
             },
             || {
                 match self.process_envelope(
+                    cogs,
                     managed_envelope,
                     project_id,
                     project_info,
@@ -2354,14 +2377,14 @@ impl EnvelopeProcessorService {
         )
     }
 
-    fn handle_process_envelope(&self, message: ProcessEnvelope) {
+    fn handle_process_envelope(&self, cogs: &mut Token, message: ProcessEnvelope) {
         let project_key = message.envelope.envelope().meta().public_key();
         let wait_time = message.envelope.age();
         metric!(timer(RelayTimers::EnvelopeWaitTime) = wait_time);
 
         let group = message.envelope.group().variant();
         let result = metric!(timer(RelayTimers::EnvelopeProcessingTime), group = group, {
-            self.process(message)
+            self.process(cogs, message)
         });
         match result {
             Ok(response) => {
@@ -3062,7 +3085,9 @@ impl EnvelopeProcessorService {
             let mut cogs = self.inner.cogs.timed(ResourceId::Relay, feature_weights);
 
             match message {
-                EnvelopeProcessor::ProcessEnvelope(m) => self.handle_process_envelope(*m),
+                EnvelopeProcessor::ProcessEnvelope(m) => {
+                    self.handle_process_envelope(&mut cogs, *m)
+                }
                 EnvelopeProcessor::ProcessProjectMetrics(m) => {
                     self.handle_process_metrics(&mut cogs, *m)
                 }
@@ -3797,7 +3822,7 @@ mod tests {
             reservoir_counters: ReservoirCounters::default(),
         };
 
-        let envelope_response = processor.process(message).unwrap();
+        let envelope_response = processor.process(&mut Token::noop(), message).unwrap();
         let new_envelope = envelope_response.envelope.unwrap();
         let new_envelope = new_envelope.envelope();
 
@@ -3869,7 +3894,9 @@ mod tests {
         .unwrap();
 
         let processor = create_test_processor(config).await;
-        let response = processor.process(process_message).unwrap();
+        let response = processor
+            .process(&mut Token::noop(), process_message)
+            .unwrap();
         let envelope = response.envelope.as_ref().unwrap().envelope();
         let event = envelope
             .get_item_by(|item| item.ty() == &ItemType::Event)

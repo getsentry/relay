@@ -3513,6 +3513,9 @@ dependencies = [
 [[package]]
 name = "relay-cogs"
 version = "25.1.0"
+dependencies = [
+ "insta",
+]
 
 [[package]]
 name = "relay-common"
