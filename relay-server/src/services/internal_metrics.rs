@@ -3,12 +3,19 @@ use ahash::{HashMap, HashMapExt};
 use relay_system::{AsyncResponse, FromMessage, Interface, Sender, Service};
 use serde::Serialize;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{Duration, Instant};
 
 /// Service that tracks internal relay stats and exposes them.
 pub struct RelayMetricsService {
     memory_stat: MemoryStat,
     /// A single number value only for testing
-    value: AtomicU64,
+    spooled_envelopes: AtomicU64,
+
+    busy_time: u64,
+
+    processor_utilization: f64,
+
+    last_utilization_check: Instant,
 
     tags: HashMap<String, String>,
 }
@@ -17,7 +24,10 @@ impl RelayMetricsService {
     pub fn new(memory_stat: MemoryStat) -> Self {
         Self {
             memory_stat,
-            value: AtomicU64::new(3),
+            spooled_envelopes: AtomicU64::new(0),
+            busy_time: 0,
+            processor_utilization: 0.0,
+            last_utilization_check: Instant::now(),
             tags: HashMap::new(),
         }
     }
@@ -26,7 +36,7 @@ impl RelayMetricsService {
 impl Service for RelayMetricsService {
     type Interface = InternalMetricsMessage;
 
-    async fn run(self, mut rx: relay_system::Receiver<Self::Interface>) {
+    async fn run(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
         while let Some(message) = rx.recv().await {
             match message {
                 InternalMetricsMessage::Check(sender) => {
@@ -35,11 +45,32 @@ impl Service for RelayMetricsService {
                         ((memory.used as f64 / memory.total as f64) * 100.0) as u64;
                     sender.send(KedaMetricsData::new(
                         memory_percentage,
-                        self.value.load(Ordering::Relaxed),
+                        self.spooled_envelopes.load(Ordering::Acquire),
+                        self.processor_utilization,
                     ));
                 }
-                InternalMetricsMessage::Add => {
-                    self.value.fetch_sub(1, Ordering::AcqRel);
+                InternalMetricsMessage::EnvelopePush => {
+                    dbg!("PUSH received");
+                    self.spooled_envelopes.fetch_add(1, Ordering::Relaxed);
+                }
+                InternalMetricsMessage::EnvelopePop => {
+                    dbg!("POP received");
+                    self.spooled_envelopes.fetch_sub(1, Ordering::Relaxed);
+                }
+                InternalMetricsMessage::ProcessorBusyTime(busy_time) => {
+                    self.busy_time += busy_time.as_micros() as u64;
+                    let elapsed = self.last_utilization_check.elapsed();
+                    // if combined time is greater than 5 seconds then we reset it and calculate
+                    // the utilization
+                    if elapsed.as_secs() >= 5 {
+                        dbg!(self.busy_time);
+                        dbg!(elapsed.as_micros());
+                        self.processor_utilization =
+                            self.busy_time as f64 / elapsed.as_micros() as f64;
+                        dbg!(self.processor_utilization);
+                        self.busy_time = 0;
+                        self.last_utilization_check = Instant::now();
+                    }
                 }
             }
         }
@@ -51,11 +82,11 @@ impl Service for RelayMetricsService {
 pub enum KedaMetricsMessageKind {
     Check,
 
-    Add,
+    EnvelopePush,
 
-    InflightRequestsAdd,
+    EnvelopePop,
 
-    InflightRequestsSub,
+    ProcessorBusyTime(Duration),
 }
 
 /// Wrapper for internal messages that will either modify the value or return all stored values.
@@ -64,7 +95,11 @@ pub enum KedaMetricsMessageKind {
 pub enum InternalMetricsMessage {
     Check(Sender<KedaMetricsData>),
 
-    Add,
+    EnvelopePush,
+
+    EnvelopePop,
+
+    ProcessorBusyTime(Duration),
 }
 
 impl Interface for InternalMetricsMessage {}
@@ -75,7 +110,11 @@ impl FromMessage<KedaMetricsMessageKind> for InternalMetricsMessage {
     fn from_message(message: KedaMetricsMessageKind, sender: Sender<KedaMetricsData>) -> Self {
         match message {
             KedaMetricsMessageKind::Check => InternalMetricsMessage::Check(sender),
-            KedaMetricsMessageKind::Add => InternalMetricsMessage::Add,
+            KedaMetricsMessageKind::EnvelopePop => InternalMetricsMessage::EnvelopePop,
+            KedaMetricsMessageKind::EnvelopePush => InternalMetricsMessage::EnvelopePush,
+            KedaMetricsMessageKind::ProcessorBusyTime(busy_time) => {
+                InternalMetricsMessage::ProcessorBusyTime(busy_time)
+            }
         }
     }
 }
@@ -85,18 +124,17 @@ pub struct KedaMetricsData {
     /// Memory usage percentage as integer. e.g. 72
     memory_usage_percentage: u64,
 
-    value: u64,
+    spooled_envelopes: u64,
+
+    processor_utilization: f64,
 }
 
 impl KedaMetricsData {
-    pub fn new(memory_usage_percentage: u64, value: u64) -> Self {
+    pub fn new(memory_usage_percentage: u64, value: u64, processor_utilization: f64) -> Self {
         Self {
             memory_usage_percentage,
-            value,
+            spooled_envelopes: value,
+            processor_utilization,
         }
-    }
-
-    pub fn safe_for_shutdown(&self) -> bool {
-        self.value == 0
     }
 }

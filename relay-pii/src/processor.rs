@@ -227,6 +227,10 @@ impl Processor for PiiProcessor<'_> {
         // wiped out in renormalization anyway.
         if ip_was_valid && !has_other_fields && !ip_is_still_valid {
             user.id = mem::take(&mut user.ip_address).map_value(|ip| ip.into_inner().into());
+            user.ip_address.meta_mut().add_remark(Remark::new(
+                RemarkType::Removed,
+                "pii:ip_address".to_string(),
+            ));
         }
 
         Ok(())

@@ -23,12 +23,6 @@ pub async fn handle(state: ServiceState, Path(content_type): Path<String>) -> (S
         }
     };
 
-    if data.safe_for_shutdown() {
-        unsafe {
-            exit(0);
-        }
-    }
-
     let mut tags: HashMap<&str, &str> = HashMap::new();
     tags.insert("type", content_type.as_str());
 

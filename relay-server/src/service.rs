@@ -189,6 +189,8 @@ impl ServiceState {
         let outcome_aggregator =
             runner.start(OutcomeAggregator::new(&config, outcome_producer.clone()));
 
+        let internal_metrics = runner.start(RelayMetricsService::new(memory_stat.clone()));
+
         let (global_config, global_config_rx) =
             GlobalConfigService::new(config.clone(), upstream_relay.clone());
         let global_config_handle = global_config.handle();
@@ -259,6 +261,7 @@ impl ServiceState {
                     #[cfg(feature = "processing")]
                     store_forwarder: store.clone(),
                     aggregator: aggregator.clone(),
+                    internal_metrics: internal_metrics.clone(),
                 },
                 metric_outcomes.clone(),
             ),
@@ -273,6 +276,7 @@ impl ServiceState {
             project_cache_handle.clone(),
             processor.clone(),
             outcome_aggregator.clone(),
+            internal_metrics.clone(),
             test_store.clone(),
             &mut runner,
         );
@@ -297,8 +301,6 @@ impl ServiceState {
             config.clone(),
             upstream_relay.clone(),
         ));
-
-        let internal_metrics = runner.start(RelayMetricsService::new(memory_stat.clone()));
 
         let registry = Registry {
             processor,
