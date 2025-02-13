@@ -116,6 +116,14 @@ pub struct Breadcrumb {
     #[metastructure(skip_serialization = "null")]
     pub event_id: Annotated<EventId>,
 
+    /// The origin of the breadcrumb. _Optional_, defaults to `null`.
+    ///
+    /// A string representing the origin of the breadcrumb. This is typically used to identify the
+    /// source of the breadcrumb. For example hybrid SDKs can identify native breadcrumbs from
+    /// JS or Flutter.
+    #[metastructure(skip_serialization = "null")]
+    pub origin: Annotated<String>,
+
     /// Additional arbitrary fields for forwards compatibility.
     #[metastructure(additional_properties)]
     pub other: Object<Value>,
@@ -140,6 +148,7 @@ mod tests {
     "a": "b"
   },
   "event_id": "52df9022835246eeb317dbd739ccd059",
+  "origin": "myorigin",
   "c": "d"
 }"#;
 
@@ -153,6 +162,7 @@ mod tests {
     "a": "b"
   },
   "event_id": "52df9022835246eeb317dbd739ccd059",
+  "origin": "myorigin",
   "c": "d"
 }"#;
 
@@ -179,6 +189,7 @@ mod tests {
                 );
                 map
             },
+            origin: Annotated::new("myorigin".to_string()),
         });
 
         assert_eq!(breadcrumb, Annotated::from_json(input).unwrap());
