@@ -72,7 +72,7 @@ pub struct Registry {
     pub envelope_buffer: PartitionedEnvelopeBuffer,
 
     pub project_cache_handle: ProjectCacheHandle,
-    pub internal_metrics: Addr<KedaMetrics>,
+    pub keda: Addr<KedaMetrics>,
 }
 
 /// Constructs a Tokio [`relay_system::Runtime`] configured for running [services](relay_system::Service).
@@ -189,7 +189,7 @@ impl ServiceState {
         let outcome_aggregator =
             runner.start(OutcomeAggregator::new(&config, outcome_producer.clone()));
 
-        let internal_metrics = runner.start(KedaService::new(memory_stat.clone()));
+        let keda = runner.start(KedaService::new(memory_stat.clone()));
 
         let (global_config, global_config_rx) =
             GlobalConfigService::new(config.clone(), upstream_relay.clone());
@@ -311,7 +311,7 @@ impl ServiceState {
             project_cache_handle,
             upstream_relay,
             envelope_buffer,
-            internal_metrics,
+            keda,
         };
 
         let state = StateInner {
@@ -341,7 +341,7 @@ impl ServiceState {
     }
 
     pub fn keda(&self) -> &Addr<KedaMetrics> {
-        &self.inner.registry.internal_metrics
+        &self.inner.registry.keda
     }
 
     /// Returns the V2 envelope buffer, if present.
