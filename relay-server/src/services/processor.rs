@@ -64,7 +64,6 @@ use crate::utils::{
     WorkerGroup,
 };
 use relay_base_schema::organization::OrganizationId;
-use std::time::Instant;
 #[cfg(feature = "processing")]
 use {
     crate::services::store::{Store, StoreEnvelope},
@@ -79,6 +78,7 @@ use {
     relay_redis::{RedisPool, RedisPools},
     std::iter::Chain,
     std::slice::Iter,
+    std::time::Instant,
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
 };
 
