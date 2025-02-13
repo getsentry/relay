@@ -42,6 +42,6 @@ pub mod stats;
 pub mod test_store;
 pub mod upstream;
 
-pub mod internal_metrics;
+pub mod keda;
 #[cfg(feature = "processing")]
 pub mod store;

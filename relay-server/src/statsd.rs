@@ -42,8 +42,6 @@ pub enum RelayGauges {
     /// - `namespace`: the metric namespace.
     #[cfg(feature = "processing")]
     MetricDelayMax,
-    /// The envelope processor utilization as percentage.
-    EnvelopeProcessorUtilization,
 }
 
 impl GaugeMetric for RelayGauges {
@@ -65,7 +63,6 @@ impl GaugeMetric for RelayGauges {
             RelayGauges::ServerActiveConnections => "server.http.connections",
             #[cfg(feature = "processing")]
             RelayGauges::MetricDelayMax => "metrics.delay.max",
-            RelayGauges::EnvelopeProcessorUtilization => "processor.utilization",
         }
     }
 }

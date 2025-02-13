@@ -1,15 +1,11 @@
 use crate::http::StatusCode;
 use crate::service::ServiceState;
-use crate::services::internal_metrics::InternalMetricsMessageKind;
+use crate::services::keda::KedaMessageKind;
 use ahash::{HashMap, HashMapExt};
 
 /// Returns internal metrics data for relay.
 pub async fn handle(state: ServiceState) -> (StatusCode, String) {
-    let data = match state
-        .internal_metrics()
-        .send(InternalMetricsMessageKind::Check)
-        .await
-    {
+    let data = match state.keda().send(KedaMessageKind::Check).await {
         Ok(data) => data,
         Err(_) => {
             return (
