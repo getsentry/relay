@@ -116,7 +116,7 @@ pub struct Breadcrumb {
     #[metastructure(skip_serialization = "null")]
     pub event_id: Annotated<EventId>,
 
-    /// The origin of the breadcrumb. _Optional_, defaults to `null`.
+    /// The origin of the breadcrumb.
     ///
     /// A string representing the origin of the breadcrumb. This is typically used to identify the
     /// source of the breadcrumb. For example hybrid SDKs can identify native breadcrumbs from
