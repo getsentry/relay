@@ -121,7 +121,7 @@ pub struct Breadcrumb {
     /// A string representing the origin of the breadcrumb. This is typically used to identify the
     /// source of the breadcrumb. For example hybrid SDKs can identify native breadcrumbs from
     /// JS or Flutter.
-    #[metastructure(skip_serialization = "null")]
+    #[metastructure(skip_serialization = "empty")]
     pub origin: Annotated<String>,
 
     /// Additional arbitrary fields for forwards compatibility.
