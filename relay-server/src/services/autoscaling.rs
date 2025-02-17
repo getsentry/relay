@@ -3,19 +3,19 @@ use relay_system::{AsyncResponse, Controller, FromMessage, Interface, Sender, Se
 use serde::Serialize;
 
 /// Service that tracks internal relay metrics so that they can be exposed.
-pub struct KedaService {
+pub struct AutoscalingMetricService {
     memory_stat: MemoryStat,
     up: u8,
 }
 
-impl KedaService {
+impl AutoscalingMetricService {
     pub fn new(memory_stat: MemoryStat) -> Self {
         Self { memory_stat, up: 1 }
     }
 }
 
-impl Service for KedaService {
-    type Interface = KedaMetrics;
+impl Service for AutoscalingMetricService {
+    type Interface = AutoscalingMetrics;
 
     async fn run(mut self, mut rx: relay_system::Receiver<Self::Interface>) {
         let mut shutdown = Controller::shutdown_handle();
@@ -26,9 +26,9 @@ impl Service for KedaService {
                 },
                 Some(message) = rx.recv() => {
                     match message {
-                        KedaMetrics::Check(sender) => {
+                        AutoscalingMetrics::Check(sender) => {
                             let memory_usage = self.memory_stat.memory();
-                            sender.send(KedaData::new(memory_usage.used_percent(), self.up));
+                            sender.send(AutoscalingData::new(memory_usage.used_percent(), self.up));
                         }
                     }
                 }
@@ -38,36 +38,36 @@ impl Service for KedaService {
 }
 
 /// Supported operations within the internal metrics service.
-pub enum KedaMessageKind {
+pub enum AutoscalingMessageKind {
     /// Requests the current data from the service.
     Check,
 }
 
-/// This mirrors the same messages as [`KedaMessageKind`] but it can be augmented
+/// This mirrors the same messages as [`AutoscalingMessageKind`] but it can be augmented
 /// with additional data necessary for the service framework, for example a Sender.
-pub enum KedaMetrics {
-    Check(Sender<KedaData>),
+pub enum AutoscalingMetrics {
+    Check(Sender<AutoscalingData>),
 }
 
-impl Interface for KedaMetrics {}
+impl Interface for AutoscalingMetrics {}
 
-impl FromMessage<KedaMessageKind> for KedaMetrics {
-    type Response = AsyncResponse<KedaData>;
+impl FromMessage<AutoscalingMessageKind> for AutoscalingMetrics {
+    type Response = AsyncResponse<AutoscalingData>;
 
-    fn from_message(message: KedaMessageKind, sender: Sender<KedaData>) -> Self {
+    fn from_message(message: AutoscalingMessageKind, sender: Sender<AutoscalingData>) -> Self {
         match message {
-            KedaMessageKind::Check => KedaMetrics::Check(sender),
+            AutoscalingMessageKind::Check => AutoscalingMetrics::Check(sender),
         }
     }
 }
 
 #[derive(Debug, Serialize)]
-pub struct KedaData {
-    memory_usage: f32,
-    up: u8,
+pub struct AutoscalingData {
+    pub memory_usage: f32,
+    pub up: u8,
 }
 
-impl KedaData {
+impl AutoscalingData {
     pub fn new(memory_usage: f32, up: u8) -> Self {
         Self { memory_usage, up }
     }

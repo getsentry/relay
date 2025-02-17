@@ -3,13 +3,13 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::metrics::{MetricOutcomes, MetricStats};
+use crate::services::autoscaling::{AutoscalingMetricService, AutoscalingMetrics};
 use crate::services::buffer::{
     ObservableEnvelopeBuffer, PartitionedEnvelopeBuffer, ProjectKeyPair,
 };
 use crate::services::cogs::{CogsService, CogsServiceRecorder};
 use crate::services::global_config::{GlobalConfigManager, GlobalConfigService};
 use crate::services::health_check::{HealthCheck, HealthCheckService};
-use crate::services::keda::{KedaMetrics, KedaService};
 use crate::services::metrics::RouterService;
 use crate::services::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
 use crate::services::outcome_aggregator::OutcomeAggregator;
@@ -72,7 +72,7 @@ pub struct Registry {
     pub envelope_buffer: PartitionedEnvelopeBuffer,
 
     pub project_cache_handle: ProjectCacheHandle,
-    pub keda: Addr<KedaMetrics>,
+    pub keda: Addr<AutoscalingMetrics>,
 }
 
 /// Constructs a Tokio [`relay_system::Runtime`] configured for running [services](relay_system::Service).
@@ -189,7 +189,7 @@ impl ServiceState {
         let outcome_aggregator =
             runner.start(OutcomeAggregator::new(&config, outcome_producer.clone()));
 
-        let keda = runner.start(KedaService::new(memory_stat.clone()));
+        let keda = runner.start(AutoscalingMetricService::new(memory_stat.clone()));
 
         let (global_config, global_config_rx) =
             GlobalConfigService::new(config.clone(), upstream_relay.clone());
@@ -340,7 +340,7 @@ impl ServiceState {
         &self.inner.memory_checker
     }
 
-    pub fn keda(&self) -> &Addr<KedaMetrics> {
+    pub fn autoscaling(&self) -> &Addr<AutoscalingMetrics> {
         &self.inner.registry.keda
     }
 
