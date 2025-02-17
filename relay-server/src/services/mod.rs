@@ -42,5 +42,6 @@ pub mod stats;
 pub mod test_store;
 pub mod upstream;
 
+pub mod autoscaling;
 #[cfg(feature = "processing")]
 pub mod store;
