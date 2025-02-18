@@ -27,6 +27,7 @@ impl<F> Tasks<F> {
     /// Initializes a new [`Tasks`] collection for managing asynchronous tasks.
     ///
     /// This collection is used internally by [`Multiplexed`] to schedule task execution.
+    #[allow(clippy::type_complexity)]
     fn new(panic_handler: Option<Arc<dyn Fn(Box<dyn Any + Send>) + Send + Sync>>) -> Self {
         Self {
             futures: FuturesUnordered::new(),
@@ -119,6 +120,7 @@ where
     ///
     /// This multiplexer should be awaited until completion, at which point all submitted tasks
     /// will have been executed.
+    #[allow(clippy::type_complexity)]
     pub fn new(
         max_concurrency: usize,
         rx: S,

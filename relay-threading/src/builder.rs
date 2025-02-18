@@ -13,7 +13,9 @@ use crate::pool::{CustomSpawn, DefaultSpawn, ThreadSpawn};
 pub struct AsyncPoolBuilder<S = DefaultSpawn> {
     pub(crate) runtime: tokio::runtime::Handle,
     pub(crate) thread_name: Option<Box<dyn FnMut(usize) -> String>>,
+    #[allow(clippy::type_complexity)]
     pub(crate) thread_panic_handler: Option<Arc<dyn Fn(Box<dyn Any + Send>) + Send + Sync>>,
+    #[allow(clippy::type_complexity)]
     pub(crate) task_panic_handler: Option<Arc<dyn Fn(Box<dyn Any + Send>) + Send + Sync>>,
     pub(crate) spawn_handler: S,
     pub(crate) num_threads: usize,

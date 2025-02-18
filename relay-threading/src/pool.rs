@@ -89,6 +89,7 @@ pub struct Thread {
     max_concurrency: usize,
     name: Option<String>,
     runtime: tokio::runtime::Handle,
+    #[allow(clippy::type_complexity)]
     panic_handler: Option<Arc<dyn Fn(Box<dyn Any + Send>) + Send + Sync>>,
     task: BoxFuture<'static, ()>,
 }
@@ -353,6 +354,6 @@ mod tests {
         }
         .run();
 
-        assert_eq!(has_panicked.load(Ordering::SeqCst), true);
+        assert!(has_panicked.load(Ordering::SeqCst));
     }
 }
