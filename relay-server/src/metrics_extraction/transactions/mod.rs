@@ -638,6 +638,7 @@ mod tests {
                 ),
                 segment_id: ~,
                 is_segment: ~,
+                is_remote: ~,
                 status: ~,
                 description: "<OrganizationContext>",
                 tags: ~,
