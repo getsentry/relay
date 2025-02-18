@@ -185,16 +185,9 @@ make lint
 
 ### Debugging
 
-Developer builds do not include debug information by default. If you want to attach a
-debugger to your local Relay, add a custom profile to your local `$HOME/.cargo/config.toml`:
-
-```toml
-[profile.mydebug]
-inherits = "dev"
-debug = true
-```
-
-and run `cargo run --all-features --profile mydebug`.
+Developer builds do not include debug information by default. If you want to
+attach a debugger to your local Relay, you can use the provided `dev-debug`
+profile instead with `cargo run --all-features --profile dev-debug`.
 
 ### Python and C-ABI
 
