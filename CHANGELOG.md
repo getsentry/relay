@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 25.2.0
 
 - Allow log ingestion behind a flag, only for internal use currently. ([#4471](https://github.com/getsentry/relay/pull/4471))
 
@@ -16,12 +16,16 @@
 
 - Fix a bug where parsing large unsigned integers would fail incorrectly. ([#4472](https://github.com/getsentry/relay/pull/4472))
 - Set size limit for UserReport attachments so it gets properly reported as too large. ([#4482](https://github.com/getsentry/relay/pull/4482))
+- Fix a bug where scrubbed IP addresses were derived again on certain platforms. ([#4491](https://github.com/getsentry/relay/pull/4491))
 - Improve stripping of SQL comments during Insights query normalization. ([#4493](https://github.com/getsentry/relay/pull/4493))
 
 **Internal**:
 
 - Add data categories for LogItem and LogByte. ([#4455](https://github.com/getsentry/relay/pull/4455))
 - Add option to drop transaction attachments. ([#4466](https://github.com/getsentry/relay/pull/4466))
+- Add endpoint that exposes internally collected relay metrics. ([#4497](https://github.com/getsentry/relay/pull/4497))
+- Add sub-millisecond precision to internal timer metrics. ([#4495](https://github.com/getsentry/relay/pull/4495))
+- Partition spans by `trace_id` on the Kafka topic. ([#4503](https://github.com/getsentry/relay/pull/4503))
 
 ## 25.1.0
 

@@ -46,7 +46,8 @@ impl CogsService {
         relay_statsd::metric!(
             counter(RelayCounters::CogsUsage) += amount,
             resource_id = resource_id,
-            app_feature = measurement.feature.as_str()
+            app_feature = measurement.feature.as_str(),
+            category = measurement.category.unwrap_or("default"),
         );
     }
 }
@@ -119,6 +120,7 @@ mod tests {
                 resource: ResourceId::Relay,
                 feature: relay_cogs::AppFeature::Spans,
                 value: relay_cogs::Value::Time(Duration::from_secs(1)),
+                category: None,
             });
         }
 

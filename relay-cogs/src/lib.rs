@@ -63,17 +63,53 @@
     html_favicon_url = "https://raw.githubusercontent.com/getsentry/relay/master/artwork/relay-icon.png"
 )]
 
-use std::time::Duration;
-
 mod cogs;
+mod measurement;
 mod recorder;
 #[cfg(test)]
 mod test;
 
-pub use cogs::*;
-pub use recorder::*;
+pub(crate) mod time;
+
+pub use self::cogs::*;
+pub use self::recorder::*;
 #[cfg(test)]
-pub use test::*;
+pub use self::test::*;
+
+pub(crate) use self::measurement::*;
+
+/// Records a categorized measurement of the passed `body`, in `category` on `token`.
+///
+/// # Example:
+///
+/// ```
+/// # use relay_cogs::{AppFeature, Cogs, ResourceId};
+/// # struct Item;
+/// # fn do_something(_: &Item) -> bool { true };
+/// # fn do_something_else(_: &Item) -> bool { true };
+///
+/// fn process(cogs: &Cogs, item: &Item) {
+///     let mut token = cogs.timed(ResourceId::Relay, AppFeature::Transactions);
+///
+///     // The entire body is categorized as `processing`.
+///     relay_cogs::with!(token, "processing", {
+///         let success = do_something(&item);
+///     });
+///
+///     // Not categorized.
+///     if success {
+///         do_something_else(&item);
+///     }
+/// }
+/// ```
+#[macro_export]
+macro_rules! with {
+    ($token:expr, $category:expr, { $($body:tt)* }) => {
+        let token = $token.start_category($category);
+        $($body)*
+        drop(token);
+    };
+}
 
 /// Resource ID as tracked in COGS.
 ///
@@ -186,6 +222,10 @@ pub struct CogsMeasurement {
     pub resource: ResourceId,
     /// The measured app feature.
     pub feature: AppFeature,
+    /// Optional category for this measurement.
+    ///
+    /// A category further subdivides a measurement for a specific feature.
+    pub category: Option<&'static str>,
     /// The measurement value.
     pub value: Value,
 }
@@ -194,5 +234,5 @@ pub struct CogsMeasurement {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Value {
     /// A time measurement.
-    Time(Duration),
+    Time(std::time::Duration),
 }

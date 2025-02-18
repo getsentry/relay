@@ -604,7 +604,9 @@ macro_rules! metric {
         $crate::with_client(|client| {
             use $crate::_pred::*;
             client.send_metric(
-                client.time_with_tags(&$crate::TimerMetric::name(&$id), $value)
+                // NOTE: cadence histograms support Duration out of the box and converts it to nanos,
+                // but we want milliseconds for historical reasons.
+                client.histogram_with_tags(&$crate::TimerMetric::name(&$id), $value.as_nanos() as f64 / 1e6)
                     $(.with_tag(stringify!($k), $v))*
             )
         })
@@ -614,22 +616,21 @@ macro_rules! metric {
     (timer($id:expr), $($k:ident = $v:expr,)* $block:block) => {{
         let now = std::time::Instant::now();
         let rv = {$block};
-        $crate::with_client(|client| {
-            use $crate::_pred::*;
-            client.send_metric(
-                client.time_with_tags(&$crate::TimerMetric::name(&$id), now.elapsed())
-                    $(.with_tag(stringify!($k), $v))*
-            )
-        });
+        $crate::metric!(timer($id) = now.elapsed() $(, $k = $v)*);
         rv
     }};
 }
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use cadence::{NopMetricSink, StatsdClient};
 
-    use crate::{set_client, with_capturing_test_client, with_client, GaugeMetric, MetricsClient};
+    use crate::{
+        set_client, with_capturing_test_client, with_client, GaugeMetric, MetricsClient,
+        TimerMetric,
+    };
 
     enum TestGauges {
         Foo,
@@ -682,5 +683,32 @@ mod tests {
 
         // After setting the global client,the current client must change:
         assert_ne!(client1, client2);
+    }
+
+    struct TestTimer;
+
+    impl TimerMetric for TestTimer {
+        fn name(&self) -> &'static str {
+            "timer"
+        }
+    }
+
+    #[test]
+    fn nanos_rounding_error() {
+        let one_day = Duration::from_secs(60 * 60 * 24);
+        let captures = with_capturing_test_client(|| {
+            metric!(timer(TestTimer) = one_day + Duration::from_nanos(1),);
+        });
+
+        // for "short" durations, precision is preserved:
+        assert_eq!(captures, ["timer:86400000.000001|h"]); // h is for histogram, not hours
+
+        let one_year = Duration::from_secs(60 * 60 * 24 * 365);
+        let captures = with_capturing_test_client(|| {
+            metric!(timer(TestTimer) = one_year + Duration::from_nanos(1),);
+        });
+
+        // for very long durations, precision is lost:
+        assert_eq!(captures, ["timer:31536000000|h"]);
     }
 }
