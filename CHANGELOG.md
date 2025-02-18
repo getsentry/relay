@@ -26,6 +26,7 @@
 - Add endpoint that exposes internally collected relay metrics. ([#4497](https://github.com/getsentry/relay/pull/4497))
 - Add sub-millisecond precision to internal timer metrics. ([#4495](https://github.com/getsentry/relay/pull/4495))
 - Partition spans by `trace_id` on the Kafka topic. ([#4503](https://github.com/getsentry/relay/pull/4503))
+- Update mapping of OTLP spans to Sentry spans in the experimental OTL traces endpoint. ([#4505](https://github.com/getsentry/relay/pull/4505))
 
 ## 25.1.0
 
