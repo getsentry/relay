@@ -17,6 +17,14 @@ use tokio::time::MissedTickBehavior;
 use crate::statsd::SystemGauges;
 use crate::{spawn, TaskId};
 
+mod monitor;
+mod registry;
+mod set;
+mod utils;
+
+pub use self::registry::Registry as ServiceRegistry;
+pub use self::set::ServiceSet;
+
 /// Interval for recording backlog metrics on service channels.
 const BACKLOG_INTERVAL: Duration = Duration::from_secs(1);
 

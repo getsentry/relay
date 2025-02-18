@@ -294,15 +294,15 @@ pub fn run(config: Config) -> anyhow::Result<()> {
 
     // Creates the main runtime.
     let runtime = crate::service::create_runtime("main-rt", config.cpu_concurrency());
-    let runtime_metrics = runtime.metrics();
+    let handle = runtime.handle().clone();
 
     // Run the system and block until a shutdown signal is sent to this process. Inside, start a
     // web server and run all relevant services. See the `actors` module documentation for more
     // information on all services.
     runtime.block_on(async {
         Controller::start(config.shutdown_timeout());
-        let (state, mut runner) = ServiceState::start(runtime_metrics, config.clone()).await?;
-        runner.start(HttpServer::new(config, state.clone())?);
+        let state = ServiceState::start(&handle, config.clone()).await?;
+        handle.start(HttpServer::new(config, state.clone())?);
 
         tokio::select! {
             _ = runner.join() => {},

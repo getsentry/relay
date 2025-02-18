@@ -3,16 +3,15 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::runtime::metrics::TokioCallbackMetrics;
-use crate::RuntimeMetrics;
+use crate::{Addr, Receiver, RuntimeMetrics, Service, ServiceRegistry, TaskId};
 
 /// A Relay async runtime.
 ///
 /// This is a thin wrapper around a Tokio [`tokio::runtime::Runtime`],
 /// configured for Relay.
 pub struct Runtime {
-    name: &'static str,
     rt: tokio::runtime::Runtime,
-    cb_metrics: Arc<TokioCallbackMetrics>,
+    handle: Handle,
 }
 
 impl Runtime {
@@ -21,9 +20,8 @@ impl Runtime {
         Builder::new(name)
     }
 
-    /// Returns a new [`RuntimeMetrics`] handle for this runtime.
-    pub fn metrics(&self) -> RuntimeMetrics {
-        Arc::clone(&self.cb_metrics).into_metrics(self.name, self.rt.metrics())
+    pub fn handle(&self) -> &Handle {
+        &self.handle
     }
 
     /// Runs a future to completion on this runtime.
@@ -31,8 +29,53 @@ impl Runtime {
     /// See also: [`tokio::runtime::Runtime::block_on`].
     #[track_caller]
     pub fn block_on<F: Future>(&self, future: F) -> F::Output {
-        self.rt.block_on(future)
+        self.handle.block_on(future)
     }
+}
+
+#[derive(Clone)]
+pub struct Handle {
+    inner: Arc<HandleInner>,
+}
+
+impl Handle {
+    /// Returns a new [`RuntimeMetrics`] handle for this runtime.
+    pub fn metrics(&self) -> RuntimeMetrics {
+        Arc::clone(&self.inner.tokio_cb_metrics)
+            .into_metrics(self.inner.name, self.inner.tokio.metrics())
+    }
+
+    /// Starts a service and starts tracking its join handle, exposing an [`Addr`] for message passing.
+    pub fn start<S: Service>(&mut self, service: S) -> Addr<S::Interface> {
+        let (addr, rx) = crate::channel(S::name());
+        self.start_with(service, rx);
+        addr
+    }
+
+    /// Starts a service and starts tracking its join handle, given a predefined receiver.
+    pub fn start_with<S: Service>(&mut self, service: S, rx: Receiver<S::Interface>) {
+        self.inner.services.start_in(&self.inner.tokio, service, rx);
+    }
+
+    /// Returns a new unique [`ServiceSet`] to spawn services and await their termination.
+    pub fn service_set(&self) -> ServiceSet {
+        self.inner.services.new_set()
+    }
+
+    /// Runs a future to completion on this runtime.
+    ///
+    /// See also: [`tokio::runtime::Runtime::block_on`].
+    #[track_caller]
+    pub fn block_on<F: Future>(&self, future: F) -> F::Output {
+        self.inner.tokio.block_on(future)
+    }
+}
+
+struct HandleInner {
+    name: &'static str,
+    services: ServiceRegistry,
+    tokio: tokio::runtime::Handle,
+    tokio_cb_metrics: Arc<TokioCallbackMetrics>,
 }
 
 /// Configures a Relay [`Runtime`].
@@ -87,6 +130,7 @@ impl Builder {
 
         Runtime {
             name: self.name,
+            services: Arc::new(ServiceRegistry::new()),
             rt,
             cb_metrics,
         }

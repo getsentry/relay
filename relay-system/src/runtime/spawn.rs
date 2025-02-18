@@ -36,7 +36,24 @@ where
     tokio::spawn(Task::new(task_id, future))
 }
 
+/// Spawns a new asynchronous task in a specific runtime, returning a [`JoinHandle`] for it.
+///
+/// This is in instrumented spawn variant of Tokio's [`Handle::spawn`].
+#[allow(clippy::disallowed_methods)]
+pub fn spawn_in<F>(
+    handle: &tokio::runtime::Handle,
+    task_id: TaskId,
+    future: F,
+) -> JoinHandle<F::Output>
+where
+    F: Future + Send + 'static,
+    F::Output: Send + 'static,
+{
+    handle.spawn(Task::new(task_id, future))
+}
+
 /// An identifier for tasks spawned by [`spawn()`], used to log metrics.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TaskId {
     id: &'static str,
     file: Option<&'static str>,
