@@ -1261,6 +1261,8 @@ struct SpanKafkaMessage<'a> {
     exclusive_time_ms: f64,
     #[serde(default)]
     is_segment: bool,
+    #[serde(default)]
+    is_remote: bool,
 
     #[serde(default, skip_serializing_if = "none_or_empty_object")]
     data: Option<&'a RawValue>,
