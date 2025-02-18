@@ -26,13 +26,13 @@
 //!
 //! ```rust
 //! use relay_threading::{AsyncPoolBuilder, AsyncPool};
-//! use tokio::runtime::Handle;
+//! use tokio::runtime::Runtime;
 //!
-//! // Create a runtime handle (for example purposes, using the current runtime)
-//! let runtime_handle = Handle::current();
+//! // Create a runtime (for example purposes, create one inline)
+//! let runtime_handle = Runtime::new().unwrap();
 //!
 //! // Build an async pool with 4 threads and a max of 100 concurrent tasks per thread
-//! let pool: AsyncPool<_> = AsyncPoolBuilder::new(runtime_handle)
+//! let pool: AsyncPool<_> = AsyncPoolBuilder::new(runtime_handle.handle().clone())
 //!     .num_threads(4)
 //!     .max_concurrency(100)
 //!     .build()
