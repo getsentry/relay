@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 25.2.0
 
 - Allow log ingestion behind a flag, only for internal use currently. ([#4471](https://github.com/getsentry/relay/pull/4471))
 
