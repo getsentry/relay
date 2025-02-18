@@ -2,7 +2,7 @@ use relay_base_schema::project::ProjectKey;
 use relay_config::{Config, RelayMode};
 #[cfg(feature = "processing")]
 use relay_redis::RedisPools;
-use relay_system::{Addr, ServiceRunner};
+use relay_system::{Addr, ServiceSpawn, ServiceSpawnExt as _};
 use std::convert::Infallible;
 use std::sync::Arc;
 
@@ -30,15 +30,15 @@ pub struct ProjectSource {
 }
 
 impl ProjectSource {
-    /// Starts all project source services in the given `ServiceRunner`.
+    /// Starts all project source services in the given [`ServiceSpawn`].
     pub async fn start_in(
-        runner: &mut ServiceRunner,
+        services: &dyn ServiceSpawn,
         config: Arc<Config>,
         upstream_relay: Addr<UpstreamRelay>,
         #[cfg(feature = "processing")] _redis: Option<RedisPools>,
     ) -> Self {
-        let local_source = runner.start(LocalProjectSourceService::new(config.clone()));
-        let upstream_source = runner.start(UpstreamProjectSourceService::new(
+        let local_source = services.start(LocalProjectSourceService::new(config.clone()));
+        let upstream_source = services.start(UpstreamProjectSourceService::new(
             config.clone(),
             upstream_relay,
         ));

@@ -278,7 +278,7 @@ mod testutils;
 use std::sync::Arc;
 
 use relay_config::Config;
-use relay_system::Controller;
+use relay_system::{Controller, ServiceSpawnExt as _};
 
 use crate::service::ServiceState;
 use crate::services::server::HttpServer;
@@ -301,11 +301,14 @@ pub fn run(config: Config) -> anyhow::Result<()> {
     // information on all services.
     runtime.block_on(async {
         Controller::start(config.shutdown_timeout());
-        let state = ServiceState::start(&handle, config.clone()).await?;
-        handle.start(HttpServer::new(config, state.clone())?);
+
+        let mut services = handle.service_set();
+
+        let state = ServiceState::start(&handle, &services, config.clone()).await?;
+        services.start(HttpServer::new(config, state.clone())?);
 
         tokio::select! {
-            _ = runner.join() => {},
+            _ = services.join() => {},
             // NOTE: when every service implements a shutdown listener,
             // awaiting on `finished` becomes unnecessary: We can simply join() and guarantee
             // that every service finished its main task.

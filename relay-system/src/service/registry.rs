@@ -3,13 +3,13 @@ use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
-use tokio::sync::oneshot;
-
 use crate::service::monitor::{RawMetrics, ServiceMonitor};
 
-use crate::{Receiver, TaskId};
+use crate::service::status::{ServiceJoinHandle, ServiceJoinHandleNoError};
+use crate::{ServiceObj, TaskId};
 
-pub struct Registry {
+#[derive(Debug)]
+pub(crate) struct Registry {
     inner: Mutex<Inner>,
 }
 
@@ -22,14 +22,13 @@ impl Registry {
         }
     }
 
-    pub fn start_in<S: crate::Service>(
+    pub fn start_in(
         &self,
         handle: &tokio::runtime::Handle,
-        service: S,
-        rx: Receiver<S::Interface>,
-    ) {
+        service: ServiceObj,
+    ) -> ServiceJoinHandle {
         let mut inner = self.inner.lock().unwrap_or_else(PoisonError::into_inner);
-        inner.start_in(handle, service, rx);
+        inner.start_in(handle, service)
     }
 
     fn metrics(&self) -> BTreeMap<ServiceId, Metrics> {
@@ -38,18 +37,18 @@ impl Registry {
     }
 }
 
+#[derive(Debug)]
 struct Inner {
     services: BTreeMap<TaskId, ServiceGroup>,
 }
 
 impl Inner {
-    fn start_in<S: crate::Service>(
+    fn start_in(
         &mut self,
         handle: &tokio::runtime::Handle,
-        service: S,
-        rx: Receiver<S::Interface>,
-    ) {
-        let task_id = TaskId::for_service::<S>();
+        service: ServiceObj,
+    ) -> ServiceJoinHandle {
+        let task_id = TaskId::from(&service);
         let group = self.services.entry(task_id).or_default();
 
         let id = ServiceId {
@@ -58,14 +57,20 @@ impl Inner {
         };
         group.next_instance_id += 1;
 
-        let future = ServiceMonitor::wrap(id, service.run(rx));
+        let future = ServiceMonitor::wrap(id, service.future);
+        let metrics = Arc::clone(&future.metrics());
+
+        let jh = crate::runtime::spawn_in(handle, task_id, future);
+        let (sjh, sjhe) = crate::service::status::split(jh);
 
         let service = Service {
             instance_id: id.instance_id,
-            metrics: Arc::clone(&future.metrics()),
-            handle: crate::runtime::spawn_in(handle, task_id, future),
+            metrics,
+            handle: sjh,
         };
         group.instances.push(service);
+
+        sjhe
     }
 
     fn metrics(&self) -> impl Iterator<Item = (ServiceId, Metrics)> + '_ {
@@ -89,21 +94,23 @@ impl Inner {
     }
 }
 
+#[derive(Debug)]
 pub struct Metrics {
     pub poll_count: u64,
     pub total_poll_duration: Duration,
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 struct ServiceGroup {
     next_instance_id: u32,
     instances: Vec<Service>,
 }
 
+#[derive(Debug)]
 struct Service {
     instance_id: u32,
     metrics: Arc<RawMetrics>,
-    handle: tokio::task::JoinHandle<()>,
+    handle: ServiceJoinHandleNoError,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

@@ -11,9 +11,11 @@ use ahash::RandomState;
 use chrono::DateTime;
 use chrono::Utc;
 use relay_config::Config;
+use relay_system::Receiver;
+use relay_system::ServiceSpawn;
+use relay_system::ServiceSpawnExt as _;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 use relay_system::{Controller, Shutdown};
-use relay_system::{Receiver, ServiceRunner};
 use tokio::sync::watch;
 use tokio::time::{timeout, Instant};
 
@@ -99,7 +101,7 @@ impl PartitionedEnvelopeBuffer {
         envelope_processor: Addr<EnvelopeProcessor>,
         outcome_aggregator: Addr<TrackOutcome>,
         test_store: Addr<TestStore>,
-        runner: &mut ServiceRunner,
+        services: &dyn ServiceSpawn,
     ) -> Self {
         let mut envelope_buffers = Vec::with_capacity(partitions.get() as usize);
         for partition_id in 0..partitions.get() {
@@ -115,7 +117,7 @@ impl PartitionedEnvelopeBuffer {
                     test_store: test_store.clone(),
                 },
             )
-            .start_in(runner);
+            .start_in(services);
 
             envelope_buffers.push(envelope_buffer);
         }
@@ -236,10 +238,11 @@ impl EnvelopeBufferService {
     }
 
     /// Returns both the [`Addr`] to this service, and a reference to the capacity flag.
-    pub fn start_in(self, runner: &mut ServiceRunner) -> ObservableEnvelopeBuffer {
+    pub fn start_in(self, services: &dyn ServiceSpawn) -> ObservableEnvelopeBuffer {
         let has_capacity = self.has_capacity.clone();
 
-        let addr = runner.start(self);
+        let addr = services.start(self);
+
         ObservableEnvelopeBuffer { addr, has_capacity }
     }
 
@@ -662,6 +665,7 @@ mod tests {
     use relay_base_schema::project::ProjectKey;
     use relay_dynamic_config::GlobalConfig;
     use relay_quotas::DataCategory;
+    use relay_system::TokioServiceSpawn;
     use std::time::Duration;
     use tokio::sync::mpsc;
     use uuid::Uuid;
@@ -726,8 +730,7 @@ mod tests {
 
         service.has_capacity.store(false, Ordering::Relaxed);
 
-        let ObservableEnvelopeBuffer { has_capacity, .. } =
-            service.start_in(&mut ServiceRunner::new());
+        let ObservableEnvelopeBuffer { has_capacity, .. } = service.start_in(&TokioServiceSpawn);
         assert!(!has_capacity.load(Ordering::Relaxed));
 
         tokio::time::advance(Duration::from_millis(100)).await;
@@ -894,7 +897,6 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn test_partitioned_buffer() {
-        let mut runner = ServiceRunner::new();
         let (_global_tx, global_rx) = watch::channel(global_config::Status::Ready(Arc::new(
             GlobalConfig::default(),
         )));
@@ -930,8 +932,8 @@ mod tests {
         );
 
         // Start both services and create partitioned buffer
-        let observable1 = buffer1.start_in(&mut runner);
-        let observable2 = buffer2.start_in(&mut runner);
+        let observable1 = buffer1.start_in(&TokioServiceSpawn);
+        let observable2 = buffer2.start_in(&TokioServiceSpawn);
 
         let partitioned = PartitionedEnvelopeBuffer {
             buffers: Arc::new(vec![observable1, observable2]),

@@ -2,7 +2,7 @@ use futures::Future;
 use tokio::task::JoinHandle;
 
 use crate::statsd::SystemCounters;
-use crate::Service;
+use crate::{Service, ServiceObj};
 
 /// Spawns an instrumented task with an automatically generated [`TaskId`].
 ///
@@ -90,6 +90,16 @@ impl TaskId {
     }
 }
 
+impl From<&ServiceObj> for TaskId {
+    fn from(value: &ServiceObj) -> Self {
+        Self {
+            id: value.name(),
+            file: None,
+            line: None,
+        }
+    }
+}
+
 pin_project_lite::pin_project! {
     /// Wraps a future and emits related task metrics.
     struct Task<T> {
@@ -145,8 +155,8 @@ mod tests {
         #[cfg(not(windows))]
         assert_debug_snapshot!(captures, @r###"
         [
-            "runtime.task.spawn.created:1|c|#id:relay-system/src/runtime/spawn.rs:124,file:relay-system/src/runtime/spawn.rs,line:124",
-            "runtime.task.spawn.terminated:1|c|#id:relay-system/src/runtime/spawn.rs:124,file:relay-system/src/runtime/spawn.rs,line:124",
+            "runtime.task.spawn.created:1|c|#id:relay-system/src/runtime/spawn.rs:151,file:relay-system/src/runtime/spawn.rs,line:151",
+            "runtime.task.spawn.terminated:1|c|#id:relay-system/src/runtime/spawn.rs:151,file:relay-system/src/runtime/spawn.rs,line:151",
         ]
         "###);
         #[cfg(windows)]

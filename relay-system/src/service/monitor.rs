@@ -60,6 +60,7 @@ where
     }
 }
 
+#[derive(Debug)]
 pub struct RawMetrics {
     pub poll_count: AtomicU64,
     pub total_duration_ns: AtomicU64,

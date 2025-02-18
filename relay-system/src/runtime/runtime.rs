@@ -2,8 +2,11 @@ use std::future::Future;
 use std::sync::Arc;
 use std::time::Duration;
 
+use futures::stream::FuturesUnordered;
+use futures::StreamExt;
+
 use crate::runtime::metrics::TokioCallbackMetrics;
-use crate::{Addr, Receiver, RuntimeMetrics, Service, ServiceRegistry, TaskId};
+use crate::{RuntimeMetrics, ServiceJoinHandle, ServiceRegistry, ServiceSpawn};
 
 /// A Relay async runtime.
 ///
@@ -20,6 +23,9 @@ impl Runtime {
         Builder::new(name)
     }
 
+    /// Returns a [`Handle`] to this runtime.
+    ///
+    /// The [`Handle`] can be freely cloned and used to spawn services.
     pub fn handle(&self) -> &Handle {
         &self.handle
     }
@@ -29,11 +35,23 @@ impl Runtime {
     /// See also: [`tokio::runtime::Runtime::block_on`].
     #[track_caller]
     pub fn block_on<F: Future>(&self, future: F) -> F::Output {
-        self.handle.block_on(future)
+        self.rt.block_on(future)
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug)]
+struct HandleInner {
+    name: &'static str,
+    services: ServiceRegistry,
+    tokio: tokio::runtime::Handle,
+    tokio_cb_metrics: Arc<TokioCallbackMetrics>,
+}
+
+/// Handle to the [`Runtime`].
+///
+/// The handle is internally reference-counted and can be freely cloned.
+/// A handle can be obtained using the [`Runtime::handle`] method.
+#[derive(Debug, Clone)]
 pub struct Handle {
     inner: Arc<HandleInner>,
 }
@@ -45,37 +63,19 @@ impl Handle {
             .into_metrics(self.inner.name, self.inner.tokio.metrics())
     }
 
-    /// Starts a service and starts tracking its join handle, exposing an [`Addr`] for message passing.
-    pub fn start<S: Service>(&mut self, service: S) -> Addr<S::Interface> {
-        let (addr, rx) = crate::channel(S::name());
-        self.start_with(service, rx);
-        addr
-    }
-
-    /// Starts a service and starts tracking its join handle, given a predefined receiver.
-    pub fn start_with<S: Service>(&mut self, service: S, rx: Receiver<S::Interface>) {
-        self.inner.services.start_in(&self.inner.tokio, service, rx);
-    }
-
     /// Returns a new unique [`ServiceSet`] to spawn services and await their termination.
     pub fn service_set(&self) -> ServiceSet {
-        self.inner.services.new_set()
-    }
-
-    /// Runs a future to completion on this runtime.
-    ///
-    /// See also: [`tokio::runtime::Runtime::block_on`].
-    #[track_caller]
-    pub fn block_on<F: Future>(&self, future: F) -> F::Output {
-        self.inner.tokio.block_on(future)
+        ServiceSet {
+            handle: Arc::clone(&self.inner),
+            services: Default::default(),
+        }
     }
 }
 
-struct HandleInner {
-    name: &'static str,
-    services: ServiceRegistry,
-    tokio: tokio::runtime::Handle,
-    tokio_cb_metrics: Arc<TokioCallbackMetrics>,
+impl ServiceSpawn for Handle {
+    fn start_obj(&self, service: crate::ServiceObj) {
+        self.inner.services.start_in(&self.inner.tokio, service);
+    }
 }
 
 /// Configures a Relay [`Runtime`].
@@ -120,8 +120,8 @@ impl Builder {
 
     /// Creates the configured [`Runtime`].
     pub fn build(&mut self) -> Runtime {
-        let cb_metrics = Arc::new(TokioCallbackMetrics::default());
-        cb_metrics.register(&mut self.builder);
+        let tokio_cb_metrics = Arc::new(TokioCallbackMetrics::default());
+        tokio_cb_metrics.register(&mut self.builder);
 
         let rt = self
             .builder
@@ -129,10 +129,48 @@ impl Builder {
             .expect("creating the Tokio runtime should never fail");
 
         Runtime {
-            name: self.name,
-            services: Arc::new(ServiceRegistry::new()),
+            handle: Handle {
+                inner: Arc::new(HandleInner {
+                    name: self.name,
+                    services: ServiceRegistry::new(),
+                    tokio: rt.handle().clone(),
+                    tokio_cb_metrics,
+                }),
+            },
             rt,
-            cb_metrics,
         }
+    }
+}
+
+/// Spawns and keeps track of running services.
+///
+/// A [`ServiceSet`] can be awaited for the completion of all started services
+/// on this [`ServiceSet`].
+///
+/// Every service started on this [`ServiceSet`] is attached to the [`Handle`]
+/// this set was created from, using [`Handle::service_set`].
+pub struct ServiceSet {
+    handle: Arc<HandleInner>,
+    services: FuturesUnordered<ServiceJoinHandle>,
+}
+
+impl ServiceSet {
+    /// Awaits until all services have finished.
+    ///
+    /// Panics if one of the spawned services has panicked.
+    pub async fn join(&mut self) {
+        while let Some(res) = self.services.next().await {
+            if let Some(panic) = res.err().and_then(|e| e.into_panic()) {
+                // Re-trigger panic to terminate the process:
+                std::panic::resume_unwind(panic);
+            }
+        }
+    }
+}
+
+impl ServiceSpawn for ServiceSet {
+    fn start_obj(&self, service: crate::ServiceObj) {
+        let handle = self.handle.services.start_in(&self.handle.tokio, service);
+        self.services.push(handle);
     }
 }

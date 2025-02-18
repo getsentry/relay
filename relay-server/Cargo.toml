@@ -141,6 +141,7 @@ criterion = { workspace = true }
 http = { workspace = true }
 insta = { workspace = true }
 relay-protocol = { workspace = true, features = ["test"] }
+relay-system = { workspace = true, features = ["test"] }
 relay-test = { workspace = true }
 similar-asserts = { workspace = true }
 tempfile = { workspace = true }
