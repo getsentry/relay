@@ -12,10 +12,10 @@ use pin_project_lite::pin_project;
 use tokio::task::Unconstrained;
 
 pin_project! {
-    /// Manages a collection of asynchronous tasks that are executed concurrently.
+    /// Manages concurrent execution of asynchronous tasks.
     ///
-    /// This helper is designed for use within the [`Multiplexed`] executor to schedule and drive tasks
-    /// while respecting a set concurrency limit.
+    /// This internal structure collects and drives futures concurrently, invoking a panic handler (if provided)
+    /// when a task encounters a panic.
     struct Tasks<F> {
         #[pin]
         futures: FuturesUnordered<Unconstrained<CatchUnwind<AssertUnwindSafe<F>>>>,
@@ -24,9 +24,9 @@ pin_project! {
 }
 
 impl<F> Tasks<F> {
-    /// Initializes a new [`Tasks`] collection for managing asynchronous tasks.
+    /// Creates a new task manager.
     ///
-    /// This collection is used internally by [`Multiplexed`] to schedule task execution.
+    /// This internal constructor initializes a new collection for tracking asynchronous tasks.
     #[allow(clippy::type_complexity)]
     fn new(panic_handler: Option<Arc<dyn Fn(Box<dyn Any + Send>) + Send + Sync>>) -> Self {
         Self {
@@ -50,21 +50,16 @@ impl<F> Tasks<F>
 where
     F: Future<Output = ()>,
 {
-    /// Adds a new asynchronous task to the collection.
-    ///
-    /// Use this method to submit additional tasks for concurrent execution.
+    /// Adds a future to the collection for concurrent execution.
     fn push(&mut self, future: F) {
         let future = AssertUnwindSafe(future).catch_unwind();
         self.futures.push(tokio::task::unconstrained(future));
     }
 
-    /// Drives the scheduled tasks until one remains pending.
+    /// Drives the execution of collected tasks until a pending state is encountered.
     ///
-    /// This method advances the execution of managed tasks until it encounters a task
-    /// that is not immediately ready, ensuring that completed tasks are processed and the
-    /// multiplexer can schedule new ones.
-    ///
-    /// For any task that panics, the `panic_handler` callback will be called.
+    /// If a future panics and a panic handler is provided, the handler is invoked.
+    /// Otherwise, the panic is propagated.
     fn poll_tasks_until_pending(self: Pin<&mut Self>, cx: &mut Context<'_>) {
         let mut this = self.project();
 
@@ -98,12 +93,14 @@ where
 }
 
 pin_project! {
-    /// A task multiplexer that concurrently executes asynchronous tasks while limiting the maximum
-    /// number of tasks running simultaneously.
+    /// [`Multiplexed`] is a future that concurrently schedules asynchronous tasks from a stream while ensuring that
+    /// the number of concurrently executing tasks does not exceed a specified limit.
     ///
-    /// The [`Multiplexed`] executor retrieves tasks from a stream and schedules them according to the
-    /// specified concurrency limit. The multiplexer completes once all tasks have been executed and
-    /// no further tasks are available.
+    /// This multiplexer is primarily used by the [`AsyncPool`] to manage task execution on worker threads.
+    ///
+    /// # Panics
+    ///
+    /// If any task panics without a custom panic handler, the panic will propagate.
     pub struct Multiplexed<S, F> {
         max_concurrency: usize,
         #[pin]
@@ -112,14 +109,15 @@ pin_project! {
         tasks: Tasks<F>,
     }
 }
+
 impl<S, F> Multiplexed<S, F>
 where
     S: Stream<Item = F>,
 {
-    /// Constructs a new [`Multiplexed`] executor with a concurrency limit and a stream of tasks.
+    /// Creates a new [`Multiplexed`] instance with a defined concurrency limit and a stream of tasks.
     ///
-    /// This multiplexer should be awaited until completion, at which point all submitted tasks
-    /// will have been executed.
+    /// Tasks from the stream will be scheduled for execution concurrently, and an optional panic handler
+    /// can be provided to manage errors during task execution.
     #[allow(clippy::type_complexity)]
     pub fn new(
         max_concurrency: usize,
@@ -141,12 +139,10 @@ where
 {
     type Output = ();
 
-    /// Drives the execution of the multiplexer by advancing scheduled tasks and fetching new ones.
+    /// Polls the [`Multiplexed`] future to drive task execution.
     ///
-    /// This method polls the collection of tasks and retrieves additional tasks from the stream until
-    /// the concurrency limit is reached or no more tasks are available. It yields `Poll::Pending` when
-    /// there is ongoing work and returns `Poll::Ready(())` only once the task stream is exhausted
-    /// and no active tasks remain.
+    /// This method repeatedly schedules new tasks from the stream while enforcing the concurrency limit.
+    /// It completes when the stream is exhausted and no active tasks remain.
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut this = self.project();
 

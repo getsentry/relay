@@ -10,11 +10,10 @@ use futures::FutureExt;
 use crate::builder::AsyncPoolBuilder;
 use crate::multiplexing::Multiplexed;
 
-/// A thread-based asynchronous pool for executing futures concurrently.
+/// [`AsyncPool`] is a thread-based executor that runs asynchronous tasks on dedicated worker threads.
 ///
-/// [`AsyncPool`] enables scheduling asynchronous tasks that are executed across a set of dedicated threads.
-/// Each thread runs its own asynchronous executor executing tasks concurrently up to a configurable limit.
-/// This design isolates task execution to dedicated threads while remaining safe for scheduling from multiple threads.
+/// The pool collects tasks through a bounded channel and distributes them among threads, each of which runs its own
+/// Tokio executor. This design enables controlled concurrency and efficient use of system resources.
 #[derive(Debug)]
 pub struct AsyncPool<F> {
     tx: flume::Sender<F>,
@@ -24,10 +23,10 @@ impl<F> AsyncPool<F>
 where
     F: Future<Output = ()> + Send + 'static,
 {
-    /// Constructs a new [`AsyncPool`] using the configuration specified by [`AsyncPoolBuilder`].
+    /// Creates a new [`AsyncPool`] based on the configuration specified by [`AsyncPoolBuilder`].
     ///
-    /// This method creates the thread pool with the appropriate number of threads and configures each executor,
-    /// thus enabling efficient processing of asynchronous tasks.
+    /// This method initializes the dedicated worker threads and configures each executor with the defined
+    /// concurrency limits.
     pub fn new<S>(mut builder: AsyncPoolBuilder<S>) -> io::Result<Self>
     where
         S: ThreadSpawn,
@@ -62,9 +61,13 @@ impl<F> AsyncPool<F>
 where
     F: Future<Output = ()>,
 {
-    /// Schedules a future for asynchronous execution within the pool.
+    /// Schedules a future for execution within the [`AsyncPool`].
     ///
-    /// This method adds the given future to the pool's task queue where it will be executed by an available thread.
+    /// The task is added to the pool's internal queue to be executed by an available worker thread.
+    ///
+    /// # Panics
+    ///
+    /// This method panics if the internal task channel is unexpectedly closed.
     pub fn spawn(&self, future: F) {
         assert!(
             self.tx.send(future).is_ok(),
@@ -72,9 +75,13 @@ where
         );
     }
 
-    /// Schedules a future for asynchronous execution, awaiting until it is enqueued.
+    /// Asynchronously enqueues a future for execution within the [`AsyncPool`].
     ///
-    /// Use this asynchronous method when you need assurance that the task has been successfully queued.
+    /// This method awaits until the task is successfully added to the internal queue.
+    ///
+    /// # Panics
+    ///
+    /// This method panics if the internal task channel is unexpectedly closed.
     pub async fn spawn_async(&self, future: F) {
         assert!(
             self.tx.send_async(future).await.is_ok(),
@@ -83,7 +90,7 @@ where
     }
 }
 
-/// Represents a dedicated thread running asynchronous tasks within an [`AsyncPool`].
+/// [`Thread`] represents a dedicated worker thread within an [`AsyncPool`] that executes scheduled tasks.
 pub struct Thread {
     index: usize,
     max_concurrency: usize,
@@ -95,33 +102,36 @@ pub struct Thread {
 }
 
 impl Thread {
-    /// Returns the identifier assigned to this thread.
+    /// Returns the unique index assigned to this [`Thread`].
     ///
-    /// The identifier is useful for debugging or tracing task execution across threads.
+    /// The index can help identify the thread during debugging or logging.
     pub fn index(&self) -> usize {
         self.index
     }
 
-    /// Returns the maximum concurrency for this thread.
+    /// Returns the maximum number of concurrent tasks permitted on this [`Thread`].
     ///
-    /// The maximum concurrency determines how many futures will be polled concurrently by the
-    /// thread.
+    /// This reflects the concurrency limit configured via the [`AsyncPoolBuilder`].
     pub fn max_concurrency(&self) -> usize {
         self.max_concurrency
     }
 
-    /// Returns the name of this thread, if one was provided.
+    /// Returns the human-readable name of this [`Thread`], if one was set.
     ///
-    /// Thread names can aid in logging and debugging by providing a human-readable identifier.
+    /// Thread names can assist in monitoring and debugging the execution environment.
     pub fn name(&self) -> Option<&str> {
         self.name.as_deref()
     }
 }
 
 impl Thread {
-    /// Runs the [`Multiplexed`] future associated with this thread that executes incoming futures.
+    /// Runs the task multiplexer associated with this [`Thread`].
     ///
-    /// If there is a panic during execution, the `panic_handler` will be called.
+    /// This method drives the execution of tasks on the worker thread.
+    ///
+    /// # Panics
+    ///
+    /// Panics are either handled by the custom handler or propagated if no handler is specified.
     pub fn run(self) {
         let result =
             std::panic::catch_unwind(AssertUnwindSafe(|| self.runtime.block_on(self.task)));
@@ -141,18 +151,19 @@ impl Thread {
     }
 }
 
-/// A trait for customizing the spawning of threads in an [`AsyncPool`].
+/// [`ThreadSpawn`] defines how threads are spawned in an [`AsyncPool`].
 ///
-/// Implement [`ThreadSpawn`] to modify thread settings—such as the thread name or stack size—prior to creation,
-/// allowing the thread to be tailored for the requirements of your application.
+/// This trait allows customization of thread creation (for example, setting names or adjusting stack sizes)
+/// without altering the core functionality of the pool.
 pub trait ThreadSpawn {
     /// Spawns a new thread using the provided configuration.
     fn spawn(&mut self, thread: Thread) -> io::Result<()>;
 }
 
-/// A default implementation of [`ThreadSpawn`] that uses system defaults.
+/// [`DefaultSpawn`] is the default implementation of [`ThreadSpawn`] that delegates to the system's
+/// standard thread creation mechanism.
 ///
-/// [`DefaultSpawn`] does not alter thread settings and relies on the standard behavior of the operating system.
+/// It applies any provided thread name using the standard thread builder.
 #[derive(Clone)]
 pub struct DefaultSpawn;
 
@@ -168,14 +179,15 @@ impl ThreadSpawn for DefaultSpawn {
     }
 }
 
-/// A flexible [`ThreadSpawn`] implementation that uses a closure for dynamic thread configuration.
+/// [`CustomSpawn`] is an alternative implementation of [`ThreadSpawn`] that uses a user-supplied closure
+/// for custom thread configuration.
 ///
-/// Use [`CustomSpawn`] to provide custom settings for thread creation via a user-supplied closure.
+/// This allows for fine-grained control over thread properties, enabling application-specific setups.
 #[derive(Clone)]
 pub struct CustomSpawn<B>(B);
 
 impl<B> CustomSpawn<B> {
-    /// Creates a new instance of [`CustomSpawn`] with the provided configuration closure.
+    /// Creates a new instance of [`CustomSpawn`] with the specified configuration closure.
     pub fn new(spawn_handler: B) -> Self {
         CustomSpawn(spawn_handler)
     }

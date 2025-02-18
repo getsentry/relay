@@ -22,13 +22,6 @@
 //! backpressure - when workers are overwhelmed, task submission will block until capacity becomes
 //! available, preventing resource exhaustion.
 //!
-//! ## Modules
-//!
-//! - **builder**: Contains the [`AsyncPoolBuilder`] which configures and constructs an [`AsyncPool`].
-//! - **multiplexing**: Provides the [`Multiplexed`] future that manages and executes multiple asynchronous tasks concurrently.
-//! - **pool**: Implements the [`AsyncPool`] and related types, such as [`Thread`]. Together they encapsulate the logic
-//!   for scheduling tasks across multiple threads.
-//!
 //! ## Usage Example
 //!
 //! ```rust
@@ -55,11 +48,6 @@
 //!
 //! Both the async pool and its task multiplexer support custom panic handlers, allowing graceful
 //! recovery from panics in either thread execution or individual tasks.
-//!
-//! For more details on specific functionalities, refer to the documentation in the submodules:
-//! - [`builder`]
-//! - [`multiplexing`]
-//! - [`pool`]
 
 mod builder;
 mod multiplexing;

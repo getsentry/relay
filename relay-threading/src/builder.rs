@@ -6,10 +6,11 @@ use std::sync::Arc;
 use crate::pool::{AsyncPool, Thread};
 use crate::pool::{CustomSpawn, DefaultSpawn, ThreadSpawn};
 
-/// A builder for constructing an [`AsyncPool`] with custom configurations.
+/// [`AsyncPoolBuilder`] provides a flexible way to configure and build an [`AsyncPool`] for executing
+/// asynchronous tasks concurrently on dedicated threads.
 ///
-/// Use this builder to fine-tune the performance and threading behavior of your asynchronous
-/// task pool.
+/// This builder enables you to customize the number of threads, concurrency limits, thread naming,
+/// and panic handling strategies.
 pub struct AsyncPoolBuilder<S = DefaultSpawn> {
     pub(crate) runtime: tokio::runtime::Handle,
     pub(crate) thread_name: Option<Box<dyn FnMut(usize) -> String>>,
@@ -23,7 +24,9 @@ pub struct AsyncPoolBuilder<S = DefaultSpawn> {
 }
 
 impl AsyncPoolBuilder<DefaultSpawn> {
-    /// Creates a new [`AsyncPoolBuilder`] with default settings.
+    /// Initializes a new [`AsyncPoolBuilder`] with default settings.
+    ///
+    /// The builder is tied to the provided [`tokio::runtime::Handle`] and prepares to configure an [`AsyncPool`].
     pub fn new(runtime: tokio::runtime::Handle) -> AsyncPoolBuilder<DefaultSpawn> {
         AsyncPoolBuilder {
             runtime,
@@ -41,8 +44,10 @@ impl<S> AsyncPoolBuilder<S>
 where
     S: ThreadSpawn,
 {
-    /// Specifies a custom hook to generate the thread name given the thread index within the
-    /// [`AsyncPool`].
+    /// Specifies a custom naming convention for threads in the [`AsyncPool`].
+    ///
+    /// The provided closure receives the thread's index and returns a name,
+    /// which can be useful for debugging and logging.
     pub fn thread_name<F>(mut self, thread_name: F) -> Self
     where
         F: FnMut(usize) -> String + 'static,
@@ -51,11 +56,14 @@ where
         self
     }
 
-    /// Specifies a custom hook to handle the panic happening in one of the threads of the
-    /// [`AsyncPool`].
+    /// Sets a custom panic handler for threads in the [`AsyncPool`].
     ///
-    /// The `panic_handler` is called once for each panicking thread with the error caught in the
-    /// panicking as argument.
+    /// If a thread panics, the provided handler will be invoked so that you can perform
+    /// custom error handling or cleanup.
+    ///
+    /// # Panics
+    ///
+    /// In the absence of this handler, thread panics will propagate.
     pub fn thread_panic_handler<F>(mut self, panic_handler: F) -> Self
     where
         F: Fn(Box<dyn Any + Send>) + Send + Sync + 'static,
@@ -64,11 +72,14 @@ where
         self
     }
 
-    /// Specifies a custom hook to handle the panic happening in one of the tasks of the
-    /// [`AsyncPool`].
+    /// Sets a custom panic handler for tasks executed by the [`AsyncPool`].
     ///
-    /// The `panic_handler` is called once for each panicking task with the error caught in the
-    /// panicking as argument.
+    /// This handler is used to manage panics that occur during task execution, allowing for graceful
+    /// error handling.
+    ///
+    /// # Panics
+    ///
+    /// Without a handler, panics in tasks will propagate.
     pub fn task_panic_handler<F>(mut self, panic_handler: F) -> Self
     where
         F: Fn(Box<dyn Any + Send>) + Send + Sync + 'static,
@@ -77,7 +88,10 @@ where
         self
     }
 
-    /// Specifies a custom hook to dynamically adjust thread settings for the [`AsyncPool`].
+    /// Configures a custom thread spawning procedure for the [`AsyncPool`].
+    ///
+    /// This method allows you to adjust thread settings (e.g. naming, stack size) before thread creation,
+    /// making it possible to apply application-specific configurations.
     pub fn spawn_handler<F>(self, spawn_handler: F) -> AsyncPoolBuilder<CustomSpawn<F>>
     where
         F: FnMut(Thread) -> io::Result<()>,
@@ -93,21 +107,26 @@ where
         }
     }
 
-    /// Sets the number of executor threads for running tasks in the [`AsyncPool`].
+    /// Sets the number of worker threads for the [`AsyncPool`].
+    ///
+    /// This determines how many dedicated threads will be available for running tasks concurrently.
     pub fn num_threads(mut self, num_threads: usize) -> Self {
         self.num_threads = num_threads;
         self
     }
 
-    /// Adjusts the maximum number of concurrent tasks allowed per executor in the [`AsyncPool`].
+    /// Sets the maximum number of concurrent tasks per thread in the [`AsyncPool`].
     ///
-    /// The max concurrency determines how many futures can be polled simultaneously.
+    /// This controls how many futures can be polled simultaneously on each worker thread.
     pub fn max_concurrency(mut self, max_concurrency: usize) -> Self {
         self.max_concurrency = max_concurrency;
         self
     }
 
-    /// Finalizes the configuration and constructs an operational [`AsyncPool`] for executing tasks.
+    /// Constructs an [`AsyncPool`] based on the configured settings.
+    ///
+    /// Finalizing the builder sets up dedicated worker threads and configures the executor
+    /// to enforce the specified concurrency limits.
     pub fn build<F>(self) -> Result<AsyncPool<F>, io::Error>
     where
         F: Future<Output = ()> + Send + 'static,
