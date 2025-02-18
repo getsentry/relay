@@ -1431,7 +1431,8 @@
 <a href="#1430" id="1430">1430</a>
 <a href="#1431" id="1431">1431</a>
 <a href="#1432" id="1432">1432</a>
-<a href="#1433" id="1433">1433</a></pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
+<a href="#1433" id="1433">1433</a>
+<a href="#1434" id="1434">1434</a></pre></div><pre class="rust"><code><span class="doccomment">//! Contains the processing-only functionality.
 
 </span><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::sync::Arc;
@@ -1813,6 +1814,7 @@
             // as part of normalization once standalone spans reach wider adoption.
             </span><span class="kw">let </span><span class="kw-2">mut </span>new_span = inner_span.clone();
             new_span.is_segment = Annotated::new(<span class="bool-val">false</span>);
+            new_span.is_remote = Annotated::new(<span class="bool-val">false</span>);
             new_span.received = transaction_span.received.clone();
             new_span.segment_id = transaction_span.segment_id.clone();
             new_span.platform = transaction_span.platform.clone();

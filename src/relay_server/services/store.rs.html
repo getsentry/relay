@@ -1616,7 +1616,9 @@
 <a href="#1615" id="1615">1615</a>
 <a href="#1616" id="1616">1616</a>
 <a href="#1617" id="1617">1617</a>
-<a href="#1618" id="1618">1618</a></pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
+<a href="#1618" id="1618">1618</a>
+<a href="#1619" id="1619">1619</a>
+<a href="#1620" id="1620">1620</a></pre></div><pre class="rust"><code><span class="doccomment">//! This module contains the service that forwards events and attachments to the Sentry store.
 //! The service uses Kafka topics to forward data to Sentry
 
 </span><span class="kw">use </span>relay_base_schema::organization::OrganizationId;
@@ -2954,6 +2956,8 @@
     </span>exclusive_time_ms: f64,
     <span class="attr">#[serde(default)]
     </span>is_segment: bool,
+    <span class="attr">#[serde(default)]
+    </span>is_remote: bool,
 
     <span class="attr">#[serde(default, skip_serializing_if = <span class="string">"none_or_empty_object"</span>)]
     </span>data: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>RawValue&gt;,

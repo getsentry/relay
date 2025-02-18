@@ -1817,7 +1817,10 @@
 <a href="#1816" id="1816">1816</a>
 <a href="#1817" id="1817">1817</a>
 <a href="#1818" id="1818">1818</a>
-<a href="#1819" id="1819">1819</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::hash::Hash;
+<a href="#1819" id="1819">1819</a>
+<a href="#1820" id="1820">1820</a>
+<a href="#1821" id="1821">1821</a>
+<a href="#1822" id="1822">1822</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::hash::Hash;
 
 <span class="kw">use </span>relay_base_schema::metrics::MetricUnit;
 <span class="kw">use </span>relay_common::glob2::LazyGlob;
@@ -3528,6 +3531,7 @@
                 trace_id: ~,
                 segment_id: ~,
                 is_segment: ~,
+                is_remote: ~,
                 status: ~,
                 description: ~,
                 tags: ~,
@@ -3573,6 +3577,7 @@
                 trace_id: ~,
                 segment_id: ~,
                 is_segment: ~,
+                is_remote: ~,
                 status: ~,
                 description: ~,
                 tags: ~,
@@ -3618,6 +3623,7 @@
                 trace_id: ~,
                 segment_id: ~,
                 is_segment: ~,
+                is_remote: ~,
                 status: ~,
                 description: ~,
                 tags: ~,

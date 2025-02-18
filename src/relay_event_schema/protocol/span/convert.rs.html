@@ -268,7 +268,13 @@
 <a href="#267" id="267">267</a>
 <a href="#268" id="268">268</a>
 <a href="#269" id="269">269</a>
-<a href="#270" id="270">270</a></pre></div><pre class="rust"><code><span class="doccomment">//! This module defines bidirectional field mappings between spans and transactions.
+<a href="#270" id="270">270</a>
+<a href="#271" id="271">271</a>
+<a href="#272" id="272">272</a>
+<a href="#273" id="273">273</a>
+<a href="#274" id="274">274</a>
+<a href="#275" id="275">275</a>
+<a href="#276" id="276">276</a></pre></div><pre class="rust"><code><span class="doccomment">//! This module defines bidirectional field mappings between spans and transactions.
 
 </span><span class="kw">use </span><span class="kw">crate</span>::protocol::{BrowserContext, Event, ProfileContext, Span, SpanData, TraceContext};
 
@@ -320,6 +326,11 @@
             trace_id: trace.map(|c| c.trace_id.clone()).unwrap_or_default(),
             segment_id: trace.map(|c| c.span_id.clone()).unwrap_or_default(),
             is_segment: <span class="bool-val">true</span>.into(),
+            <span class="comment">// NB: Technically, this span may not be an actual remote span if this is a child
+            // transaction created within the same service as its parent. We still set `is_remote`
+            // as the best proxy to ensure this span will be detected as a segment by the spans
+            // pipeline.
+            </span>is_remote: <span class="bool-val">true</span>.into(),
             status: trace.map(|c| c.status.clone()).unwrap_or_default(),
             description: transaction.clone(),
             tags: tags.clone().map_value(|t| t.into()),
@@ -416,6 +427,7 @@
                 "fa90fdead5f74052",
             ),
             is_segment: true,
+            is_remote: true,
             status: Ok,
             description: "my 1st transaction",
             tags: ~,
