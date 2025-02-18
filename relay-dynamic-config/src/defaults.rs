@@ -1050,7 +1050,7 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                 },
                 MetricSpec {
                     category: DataCategory::Span,
-                    mri: "d:transactions/measurements.cls@ratio".into(),
+                    mri: "d:transactions/measurements.cls@none".into(),
                     field: Some("span.measurements.cls.value".into()),
                     condition: Some(is_allowed_browser.clone()),
                     tags: vec![
@@ -1128,7 +1128,7 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                 },
                 MetricSpec {
                     category: DataCategory::Span,
-                    mri: "d:transactions/measurements.lcp@ratio".into(),
+                    mri: "d:transactions/measurements.lcp@millisecond".into(),
                     field: Some("span.measurements.lcp.value".into()),
                     condition: Some(is_allowed_browser.clone()),
                     tags: vec![
