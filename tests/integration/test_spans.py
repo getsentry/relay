@@ -561,11 +561,11 @@ def test_span_ingestion(
             "data": {
                 "browser.name": "Chrome",
                 "client.address": "127.0.0.1",
+                "sentry.op": "db.query",
                 "user_agent.original": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
                 "Chrome/111.0.0.0 Safari/537.36",
             },
-            "description": "my 1st OTel span",
             "duration_ms": 500,
             "exclusive_time_ms": 500.0,
             "is_segment": True,
@@ -576,8 +576,7 @@ def test_span_ingestion(
             "segment_id": "a342abb1214ca181",
             "sentry_tags": {
                 "browser.name": "Chrome",
-                "category": "db",
-                "op": "db.query",
+                "op": "my 1st otel span",
                 "status": "unknown",
             },
             "span_id": "a342abb1214ca181",
@@ -649,7 +648,6 @@ def test_span_ingestion(
                 "client.address": "127.0.0.1",
                 "user_agent.original": "python-requests/2.32.2",
             },
-            "description": "my 2nd OTel span",
             "duration_ms": 500,
             "exclusive_time_ms": 500.0,
             "is_segment": True,
@@ -660,7 +658,7 @@ def test_span_ingestion(
             "segment_id": "d342abb1214ca182",
             "sentry_tags": {
                 "browser.name": "Python Requests",
-                "op": "default",
+                "op": "my 2nd otel span",
                 "status": "unknown",
             },
             "span_id": "d342abb1214ca182",
@@ -701,7 +699,6 @@ def test_span_ingestion(
                 "client.address": "127.0.0.1",
                 "user_agent.original": "python-requests/2.32.2",
             },
-            "description": "my 3rd protobuf OTel span",
             "duration_ms": 500,
             "exclusive_time_ms": 500.0,
             "is_segment": False,
@@ -712,7 +709,7 @@ def test_span_ingestion(
             "retention_days": 90,
             "sentry_tags": {
                 "browser.name": "Python Requests",
-                "op": "default",
+                "op": "my 3rd protobuf otel span",
                 "status": "unknown",
             },
             "span_id": "f0b809703e783d00",
