@@ -53,6 +53,18 @@ pub struct Span {
     #[metastructure(trim = false)]
     pub is_segment: Annotated<bool>,
 
+    /// Indicates whether a span's parent is remote.
+    ///
+    /// For OpenTelemetry spans, this is derived from span flags bits 8 and 9. See
+    /// `SPAN_FLAGS_CONTEXT_HAS_IS_REMOTE_MASK` and `SPAN_FLAGS_CONTEXT_IS_REMOTE_MASK`.
+    ///
+    /// The states are:
+    ///  - `empty`: unknown
+    ///  - `false`: is not remote
+    ///  - `true`: is remote
+    #[metastructure(trim = false)]
+    pub is_remote: Annotated<bool>,
+
     /// The status of a span.
     #[metastructure(trim = false)]
     pub status: Annotated<SpanStatus>,
