@@ -1,20 +1,26 @@
 //! # Relay Threading
 //!
-//! This module provides threading abstractions for Relay, offering a set of utilities for managing
-//! asynchronous work. It includes a thread-based asynchronous task pool, a flexible builder for
-//! configuring pool parameters (thread naming, panic handling, concurrency limits), and mechanisms for
-//! multiplexing tasks across dedicated threads with built-in panic recovery.
+//! This module provides a robust threading framework for Relay, designed to efficiently manage and execute
+//! asynchronous workloads. At its core is a thread-based asynchronous task pool that offers:
 //!
-//! ## Features
+//! - **Flexible Configuration**: Fine-tune thread counts, naming patterns, panic handling strategies,
+//!   and concurrency limits through a builder pattern.
+//! - **Task Multiplexing**: Distribute tasks across dedicated worker threads.
+//! - **Panic Recovery**: Built-in mechanisms to gracefully handle and recover from panics, both at the
+//!   thread and individual task level
+//! - **Tokio Integration**: Seamlessly integrates with Tokio runtime for async task execution
 //!
-//! - **AsyncPool**: A thread-based asynchronous pool for executing futures concurrently on dedicated threads.
-//! - **AsyncPoolBuilder**: A configurable builder to construct an [`AsyncPool`] with custom settings,
-//!   including thread naming, panic handlers (for both threads and tasks), custom spawn handlers, and
-//!   concurrency limits.
-//! - **Multiplexed Execution**: A task multiplexer that drives a collection of asynchronous tasks while
-//!   respecting a specified concurrency limit. It handles panics gracefully via an optional panic callback.
-//! - **Custom Thread Spawning**: Supports customized thread creation, allowing usage of system defaults or
-//!   custom configurations through a provided spawn handler.
+//! ## Concurrency Model
+//!
+//! The pool maintains a set of dedicated worker threads, each capable of executing multiple async tasks
+//! concurrently up to a configurable limit. This architecture ensures efficient resource utilization
+//! while preventing any single thread from becoming overwhelmed.
+//!
+//! The pool maintains a bounded queue with a capacity of twice the number of worker threads. This
+//! design allows new tasks to be queued while existing ones are being processed, ensuring smooth
+//! task handoff between producers and consumers. The bounded nature of the queue provides natural
+//! backpressure - when workers are overwhelmed, task submission will block until capacity becomes
+//! available, preventing resource exhaustion.
 //!
 //! ## Modules
 //!

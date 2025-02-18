@@ -192,10 +192,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::builder::AsyncPoolBuilder;
-    use crate::{AsyncPool, Thread};
-    use futures::future::BoxFuture;
-    use futures::FutureExt;
     use std::future::Future;
     use std::sync::atomic::AtomicBool;
     use std::sync::{
@@ -203,9 +199,15 @@ mod tests {
         Arc,
     };
     use std::time::{Duration, Instant};
+
+    use futures::future::BoxFuture;
+    use futures::FutureExt;
     use tokio::runtime::Runtime;
     use tokio::sync::Semaphore;
     use tokio::{runtime::Handle, time::sleep};
+
+    use crate::builder::AsyncPoolBuilder;
+    use crate::{AsyncPool, Thread};
 
     struct TestBarrier {
         semaphore: Arc<Semaphore>,

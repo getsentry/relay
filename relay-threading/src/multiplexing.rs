@@ -169,13 +169,15 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use futures::{future::BoxFuture, FutureExt};
     use std::sync::atomic::AtomicBool;
     use std::sync::{
         atomic::{AtomicUsize, Ordering},
         Arc, Mutex,
     };
+
+    use futures::{future::BoxFuture, FutureExt};
+
+    use super::*;
 
     fn future_with(block: impl FnOnce() + Send + 'static) -> BoxFuture<'static, ()> {
         let fut = async {
