@@ -899,6 +899,7 @@ dependencies = [
  "ciborium",
  "clap",
  "criterion-plot",
+ "futures",
  "is-terminal",
  "itertools 0.10.5",
  "num-traits",
@@ -911,6 +912,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "tinytemplate",
+ "tokio",
  "walkdir",
 ]
 
@@ -1369,6 +1371,7 @@ checksum = "da0e4dd2a88388a1f4ccc7c9ce104604dab68d9f408dc34cd45823d5a9069095"
 dependencies = [
  "futures-core",
  "futures-sink",
+ "nanorand",
  "spin",
 ]
 
@@ -2528,6 +2531,15 @@ dependencies = [
  "mime",
  "spin",
  "version_check",
+]
+
+[[package]]
+name = "nanorand"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a51313c5820b0b02bd422f4b44776fbf47961755c74ce64afc73bfad10226c3"
+dependencies = [
+ "getrandom",
 ]
 
 [[package]]
@@ -4076,6 +4088,17 @@ version = "25.2.0"
 dependencies = [
  "relay-log",
  "relay-system",
+ "tokio",
+]
+
+[[package]]
+name = "relay-threading"
+version = "25.1.0"
+dependencies = [
+ "criterion",
+ "flume",
+ "futures",
+ "pin-project-lite",
  "tokio",
 ]
 
