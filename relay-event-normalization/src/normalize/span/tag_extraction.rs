@@ -13,7 +13,7 @@ use relay_event_schema::protocol::{
     AppContext, BrowserContext, Event, Measurement, OsContext, ProfileContext, SentryTags, Span,
     Timestamp, TraceContext,
 };
-use relay_protocol::{Annotated, Value};
+use relay_protocol::{Annotated, Empty, Value};
 use sqlparser::ast::Visit;
 use sqlparser::ast::{ObjectName, Visitor};
 use url::Url;
@@ -510,14 +510,14 @@ pub fn extract_tags(
 
         span_tags.op = span_op.to_owned().into();
 
-        let category = span_op_to_category(&span_op);
-        if let Some(category) = category {
+        let category = category_for_span(span);
+        if let Some(ref category) = category {
             span_tags.category = category.to_owned().into();
         }
 
         let (scrubbed_description, parsed_sql) = scrub_span_description(span, span_allowed_hosts);
 
-        let action = match (category, span_op.as_str(), &scrubbed_description) {
+        let action = match (category.as_deref(), span_op.as_str(), &scrubbed_description) {
             (Some("http"), _, _) => span
                 .data
                 .value()
@@ -704,7 +704,7 @@ pub fn extract_tags(
             span_tags.description = truncated.into();
         }
 
-        if category == Some("ai") {
+        if category == Some("ai".to_owned()) {
             if let Some(ai_pipeline_name) = span
                 .data
                 .value()
@@ -1128,6 +1128,52 @@ fn extract_captured_substring<'a>(string: &'a str, pattern: &'a Lazy<Regex>) -> 
     None
 }
 
+fn category_for_span(span: &Span) -> Option<String> {
+    // Allow clients to explicitly set the category via attribute.
+    if let Some(Value::String(category)) = span
+        .data
+        .value()
+        .and_then(|v| v.other.get("sentry.category"))
+        .and_then(|c| c.value())
+    {
+        return Some(category.to_owned());
+    }
+
+    // If we're given an op, derive the category from that.
+    if let Some(unsanitized_span_op) = span.op.value() {
+        let span_op = unsanitized_span_op.to_lowercase();
+        if let Some(category) = span_op_to_category(&span_op) {
+            return Some(category.to_owned());
+        }
+    }
+
+    // Derive the category from the span's attributes.
+    let span_data = span.data.value()?;
+
+    fn value_is_set(value: &Annotated<Value>) -> bool {
+        value.value().is_some_and(|v| !v.is_empty())
+    }
+
+    if value_is_set(&span_data.db_system) {
+        Some("db".to_owned())
+    } else if value_is_set(&span_data.http_request_method) {
+        Some("http".to_owned())
+    } else if value_is_set(&span_data.ui_component_name) {
+        Some("ui".to_owned())
+    } else if value_is_set(&span_data.resource_render_blocking_status) {
+        Some("resource".to_owned())
+    } else if span_data
+        .other
+        .get("sentry.origin")
+        .and_then(|v| v.as_str())
+        .is_some_and(|v| v == "auto.ui.browser.metrics")
+    {
+        Some("browser".to_owned())
+    } else {
+        None
+    }
+}
+
 /// Returns the category of a span from its operation. The mapping is available in:
 /// <https://develop.sentry.dev/sdk/performance/span-operations/>
 fn span_op_to_category(op: &str) -> Option<&str> {
@@ -1173,8 +1219,8 @@ fn get_event_start_type(event: &Event) -> Option<&'static str> {
 #[cfg(test)]
 mod tests {
     use insta::assert_debug_snapshot;
-    use relay_event_schema::protocol::Request;
-    use relay_protocol::{get_value, Getter};
+    use relay_event_schema::protocol::{Request, SpanData};
+    use relay_protocol::{get_value, Getter, Object};
 
     use super::*;
     use crate::span::description::{scrub_queries, Mode};
@@ -2711,5 +2757,104 @@ LIMIT 1
 
         assert_eq!(get_value!(span.sentry_tags.thread_id!), "42",);
         assert_eq!(get_value!(span.sentry_tags.thread_name!), "main",);
+    }
+
+    #[test]
+    fn span_category_from_explicit_attribute_overrides_op() {
+        let span = Span {
+            op: "http".to_owned().into(),
+            data: SpanData {
+                other: Object::from([(
+                    "sentry.category".into(),
+                    Value::String("db".into()).into(),
+                )]),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        };
+        assert_eq!(category_for_span(&span), Some("db".into()));
+    }
+
+    #[test]
+    fn span_category_from_op_overrides_inference() {
+        let span = Span {
+            op: "app.start".to_owned().into(),
+            data: SpanData {
+                db_system: Value::String("postgresql".into()).into(),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        };
+        assert_eq!(category_for_span(&span), Some("app".into()));
+    }
+
+    #[test]
+    fn infers_db_category_from_attributes() {
+        let span = Span {
+            data: SpanData {
+                db_system: Value::String("postgresql".into()).into(),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        };
+        assert_eq!(category_for_span(&span), Some("db".into()));
+    }
+
+    #[test]
+    fn infers_http_category_from_attributes() {
+        let span = Span {
+            data: SpanData {
+                http_request_method: Value::String("POST".into()).into(),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        };
+        assert_eq!(category_for_span(&span), Some("http".into()));
+    }
+
+    #[test]
+    fn infers_ui_category_from_attributes() {
+        let span = Span {
+            data: SpanData {
+                ui_component_name: Value::String("MainComponent".into()).into(),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        };
+        assert_eq!(category_for_span(&span), Some("ui".into()));
+    }
+
+    #[test]
+    fn infers_resource_category_from_attributes() {
+        let span = Span {
+            data: SpanData {
+                resource_render_blocking_status: Value::String("true".into()).into(),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        };
+        assert_eq!(category_for_span(&span), Some("resource".into()));
+    }
+
+    #[test]
+    fn infers_browser_category_from_attributes() {
+        let span = Span {
+            data: SpanData {
+                other: Object::from([(
+                    "sentry.origin".into(),
+                    Value::String("auto.ui.browser.metrics".into()).into(),
+                )]),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        };
+        assert_eq!(category_for_span(&span), Some("browser".into()));
     }
 }
