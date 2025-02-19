@@ -10,14 +10,14 @@ license-file = "../LICENSE.md"
 publish = false
 
 [dependencies]
-flume = { workspace = true, default-features = false }
-futures = { workspace = true, default-features = false }
+flume = { workspace = true }
+futures = { workspace = true }
 tokio = { workspace = true }
 pin-project-lite = { workspace = true }
 
 [dev-dependencies]
 criterion = { workspace = true, features = ["async_tokio"] }
-futures = { workspace = true, default-features = false, features = ["executor"] }
+futures = { workspace = true, features = ["executor"] }
 tokio = { workspace = true, features = ["rt", "rt-multi-thread", "time", "sync", "macros"] }
 
 [[bench]]
