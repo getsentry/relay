@@ -117,7 +117,6 @@ where
     ///
     /// Tasks from the stream will be scheduled for execution concurrently, and an optional panic handler
     /// can be provided to manage errors during task execution.
-
     pub fn new(max_concurrency: usize, rx: S, panic_handler: Option<Arc<PanicHandler>>) -> Self {
         Self {
             max_concurrency,
