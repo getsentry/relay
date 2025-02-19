@@ -4,19 +4,21 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Threading code that is used by Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "25.1.0"
+version = "25.2.0"
 edition = "2021"
 license-file = "../LICENSE.md"
 publish = false
 
 [dependencies]
-flume = { workspace = true }
-futures = { workspace = true, features = ["executor"] }
-tokio = { workspace = true, features = ["rt", "rt-multi-thread", "time", "sync", "macros"] }
+flume = { workspace = true, default-features = false }
+futures = { workspace = true, default-features = false }
+tokio = { workspace = true }
 pin-project-lite = { workspace = true }
 
 [dev-dependencies]
 criterion = { workspace = true, features = ["async_tokio"] }
+futures = { workspace = true, default-features = false, features = ["executor"] }
+tokio = { workspace = true, features = ["rt", "rt-multi-thread", "time", "sync", "macros"] }
 
 [[bench]]
 name = "pool"

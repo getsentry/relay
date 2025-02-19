@@ -1,10 +1,10 @@
-use std::any::Any;
 use std::future::Future;
 use std::panic::AssertUnwindSafe;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
+use crate::PanicHandler;
 use futures::future::CatchUnwind;
 use futures::stream::{FusedStream, FuturesUnordered, Stream};
 use futures::FutureExt;
@@ -19,7 +19,7 @@ pin_project! {
     struct Tasks<F> {
         #[pin]
         futures: FuturesUnordered<Unconstrained<CatchUnwind<AssertUnwindSafe<F>>>>,
-        panic_handler: Option<Arc<dyn Fn(Box<dyn Any + Send>) + Send + Sync>>,
+        panic_handler: Option<Arc<PanicHandler>>,
     }
 }
 
@@ -27,8 +27,7 @@ impl<F> Tasks<F> {
     /// Creates a new task manager.
     ///
     /// This internal constructor initializes a new collection for tracking asynchronous tasks.
-    #[allow(clippy::type_complexity)]
-    fn new(panic_handler: Option<Arc<dyn Fn(Box<dyn Any + Send>) + Send + Sync>>) -> Self {
+    fn new(panic_handler: Option<Arc<PanicHandler>>) -> Self {
         Self {
             futures: FuturesUnordered::new(),
             panic_handler,
@@ -118,12 +117,8 @@ where
     ///
     /// Tasks from the stream will be scheduled for execution concurrently, and an optional panic handler
     /// can be provided to manage errors during task execution.
-    #[allow(clippy::type_complexity)]
-    pub fn new(
-        max_concurrency: usize,
-        rx: S,
-        panic_handler: Option<Arc<dyn Fn(Box<dyn Any + Send>) + Send + Sync>>,
-    ) -> Self {
+
+    pub fn new(max_concurrency: usize, rx: S, panic_handler: Option<Arc<PanicHandler>>) -> Self {
         Self {
             max_concurrency,
             rx,

@@ -6,6 +6,9 @@ use std::sync::Arc;
 use crate::pool::{AsyncPool, Thread};
 use crate::pool::{CustomSpawn, DefaultSpawn, ThreadSpawn};
 
+/// Type alias for a thread safe closure that is used for panic handling across the code.
+pub(crate) type PanicHandler = dyn Fn(Box<dyn Any + Send>) + Send + Sync;
+
 /// [`AsyncPoolBuilder`] provides a flexible way to configure and build an [`AsyncPool`] for executing
 /// asynchronous tasks concurrently on dedicated threads.
 ///
@@ -14,10 +17,8 @@ use crate::pool::{CustomSpawn, DefaultSpawn, ThreadSpawn};
 pub struct AsyncPoolBuilder<S = DefaultSpawn> {
     pub(crate) runtime: tokio::runtime::Handle,
     pub(crate) thread_name: Option<Box<dyn FnMut(usize) -> String>>,
-    #[allow(clippy::type_complexity)]
-    pub(crate) thread_panic_handler: Option<Arc<dyn Fn(Box<dyn Any + Send>) + Send + Sync>>,
-    #[allow(clippy::type_complexity)]
-    pub(crate) task_panic_handler: Option<Arc<dyn Fn(Box<dyn Any + Send>) + Send + Sync>>,
+    pub(crate) thread_panic_handler: Option<Arc<PanicHandler>>,
+    pub(crate) task_panic_handler: Option<Arc<PanicHandler>>,
     pub(crate) spawn_handler: S,
     pub(crate) num_threads: usize,
     pub(crate) max_concurrency: usize,

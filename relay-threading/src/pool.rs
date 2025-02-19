@@ -1,4 +1,3 @@
-use std::any::Any;
 use std::future::Future;
 use std::io;
 use std::panic::AssertUnwindSafe;
@@ -9,6 +8,7 @@ use futures::FutureExt;
 
 use crate::builder::AsyncPoolBuilder;
 use crate::multiplexing::Multiplexed;
+use crate::PanicHandler;
 
 /// [`AsyncPool`] is a thread-based executor that runs asynchronous tasks on dedicated worker threads.
 ///
@@ -67,11 +67,12 @@ where
     ///
     /// # Panics
     ///
-    /// This method panics if the internal task channel is unexpectedly closed.
+    /// This method panics if all receivers have been dropped which can happen when all threads of
+    /// the pool panicked.
     pub fn spawn(&self, future: F) {
         assert!(
             self.tx.send(future).is_ok(),
-            "receiver never exits before sender"
+            "failed to schedule task: all worker threads have terminated (either none were spawned or all have panicked)"
         );
     }
 
@@ -81,11 +82,12 @@ where
     ///
     /// # Panics
     ///
-    /// This method panics if the internal task channel is unexpectedly closed.
+    /// This method panics if all receivers have been dropped which can happen when all threads of
+    /// the pool panicked.
     pub async fn spawn_async(&self, future: F) {
         assert!(
             self.tx.send_async(future).await.is_ok(),
-            "receiver never exits before sender"
+            "failed to schedule task: all worker threads have terminated (either none were spawned or all have panicked)"
         );
     }
 }
@@ -96,8 +98,7 @@ pub struct Thread {
     max_concurrency: usize,
     name: Option<String>,
     runtime: tokio::runtime::Handle,
-    #[allow(clippy::type_complexity)]
-    panic_handler: Option<Arc<dyn Fn(Box<dyn Any + Send>) + Send + Sync>>,
+    panic_handler: Option<Arc<PanicHandler>>,
     task: BoxFuture<'static, ()>,
 }
 
@@ -206,6 +207,7 @@ where
 #[cfg(test)]
 mod tests {
     use std::future::Future;
+    use std::panic::AssertUnwindSafe;
     use std::sync::atomic::AtomicBool;
     use std::sync::{
         atomic::{AtomicUsize, Ordering},
@@ -367,5 +369,20 @@ mod tests {
         .run();
 
         assert!(has_panicked.load(Ordering::SeqCst));
+    }
+
+    #[tokio::test]
+    async fn test_spawn_panics_if_no_threads_are_available() {
+        let pool = AsyncPoolBuilder::new(Handle::current())
+            .num_threads(0)
+            .max_concurrency(1)
+            .build()
+            .unwrap();
+
+        let result = std::panic::catch_unwind(AssertUnwindSafe(|| {
+            pool.spawn(async move {});
+        }));
+
+        assert!(result.is_err());
     }
 }
