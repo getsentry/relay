@@ -14,10 +14,10 @@ struct HandleInner {
     tokio_cb_metrics: Arc<TokioCallbackMetrics>,
 }
 
-/// Handle to the [`Runtime`].
+/// Handle to the [`Runtime`](crate::Runtime).
 ///
 /// The handle is internally reference-counted and can be freely cloned.
-/// A handle can be obtained using the [`Runtime::handle`] method.
+/// A handle can be obtained using the [`Runtime::handle`](crate::Runtime::handle) method.
 #[derive(Debug, Clone)]
 pub struct Handle {
     inner: Arc<HandleInner>,

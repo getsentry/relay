@@ -3,16 +3,14 @@ use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, AtomicU8, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Poll};
-use std::time::{Duration, Instant};
-
-use crate::service::registry::ServiceId;
+use tokio::time::{Duration, Instant};
 
 /// Minimum interval when utilization is recalculated.
 const UTILIZATION_UPDATE_THRESHOLD: Duration = Duration::from_secs(5);
 
 pin_project_lite::pin_project! {
+    /// A service monitor tracks service metrics.
     pub struct ServiceMonitor<F> {
-        id: ServiceId,
         #[pin]
         inner: F,
 
@@ -24,9 +22,9 @@ pin_project_lite::pin_project! {
 }
 
 impl<F> ServiceMonitor<F> {
-    pub fn wrap(id: ServiceId, inner: F) -> Self {
+    /// Wraps a service future with a monitor.
+    pub fn wrap(inner: F) -> Self {
         Self {
-            id,
             inner,
             metrics: Arc::new(RawMetrics {
                 poll_count: AtomicU64::new(0),
@@ -38,6 +36,7 @@ impl<F> ServiceMonitor<F> {
         }
     }
 
+    /// Provides access to the raw metrics tracked in this monitor.
     pub fn metrics(&self) -> &Arc<RawMetrics> {
         &self.metrics
     }
@@ -87,9 +86,55 @@ where
     }
 }
 
+/// The raw metrics extracted from a [`ServiceMonitor`].
+///
+/// All access outside the [`ServiceMonitor`] must be *read* only.
 #[derive(Debug)]
 pub struct RawMetrics {
+    /// Amount of times the service was polled.
     pub poll_count: AtomicU64,
+    /// The total time the service spent in its poll function.
     pub total_duration_ns: AtomicU64,
+    /// Estimated utilization percentage `[0-100]`
     pub utilization: AtomicU8,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test(start_paused = true)]
+    async fn test_monitor() {
+        let mut monitor = ServiceMonitor::wrap(Box::pin(async {
+            loop {
+                tokio::time::advance(Duration::from_millis(500)).await;
+            }
+        }));
+        let metrics = Arc::clone(monitor.metrics());
+
+        assert_eq!(metrics.poll_count.load(Ordering::Relaxed), 0);
+        let _ = futures::poll!(&mut monitor);
+        assert_eq!(metrics.poll_count.load(Ordering::Relaxed), 1);
+        let _ = futures::poll!(&mut monitor);
+        assert_eq!(metrics.poll_count.load(Ordering::Relaxed), 2);
+        let _ = futures::poll!(&mut monitor);
+        assert_eq!(metrics.poll_count.load(Ordering::Relaxed), 3);
+
+        assert_eq!(metrics.utilization.load(Ordering::Relaxed), 0);
+        assert_eq!(
+            metrics.total_duration_ns.load(Ordering::Relaxed),
+            1500000000
+        );
+
+        // Advance time just enough to perfectly hit the update threshold.
+        tokio::time::advance(UTILIZATION_UPDATE_THRESHOLD - Duration::from_secs(2)).await;
+
+        let _ = futures::poll!(&mut monitor);
+        assert_eq!(metrics.poll_count.load(Ordering::Relaxed), 4);
+        assert_eq!(metrics.utilization.load(Ordering::Relaxed), 40);
+        assert_eq!(
+            metrics.total_duration_ns.load(Ordering::Relaxed),
+            2000000000
+        );
+    }
 }

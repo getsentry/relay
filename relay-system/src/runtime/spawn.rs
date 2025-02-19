@@ -38,7 +38,7 @@ where
 
 /// Spawns a new asynchronous task in a specific runtime, returning a [`JoinHandle`] for it.
 ///
-/// This is in instrumented spawn variant of Tokio's [`Handle::spawn`].
+/// This is in instrumented spawn variant of Tokio's [`Handle::spawn`](tokio::runtime::Handle::spawn).
 #[allow(clippy::disallowed_methods)]
 pub fn spawn_in<F>(
     handle: &tokio::runtime::Handle,
@@ -166,8 +166,8 @@ mod tests {
         #[cfg(windows)]
         assert_debug_snapshot!(captures, @r###"
         [
-            "runtime.task.spawn.created:1|c|#id:relay-system\\src\\runtime\\spawn.rs:124,file:relay-system\\src\\runtime\\spawn.rs,line:124",
-            "runtime.task.spawn.terminated:1|c|#id:relay-system\\src\\runtime\\spawn.rs:124,file:relay-system\\src\\runtime\\spawn.rs,line:124",
+            "runtime.task.spawn.created:1|c|#id:relay-system\\src\\runtime\\spawn.rs:155,file:relay-system\\src\\runtime\\spawn.rs,line:155",
+            "runtime.task.spawn.terminated:1|c|#id:relay-system\\src\\runtime\\spawn.rs:155,file:relay-system\\src\\runtime\\spawn.rs,line:155",
         ]
         "###);
     }

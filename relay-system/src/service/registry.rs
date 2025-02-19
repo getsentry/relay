@@ -12,7 +12,7 @@ use crate::{ServiceObj, TaskId};
 pub struct ServicesMetrics(BTreeMap<ServiceId, ServiceMetrics>);
 
 impl ServicesMetrics {
-    /// Returns an iterator of all service identifiers and their [`Metrics`].
+    /// Returns an iterator of all service identifiers and their [`ServiceMetrics`].
     pub fn iter(&self) -> impl Iterator<Item = (ServiceId, ServiceMetrics)> + '_ {
         self.0.iter().map(|(id, metrics)| (*id, *metrics))
     }
@@ -104,13 +104,16 @@ impl Inner {
         let task_id = TaskId::from(&service);
         let group = self.services.entry(task_id).or_default();
 
+        // Cleanup group, evicting all terminated services, while we're at it.
+        group.instances.retain(|s| !s.handle.is_finished());
+
         let id = ServiceId {
             task: task_id,
             instance_id: group.next_instance_id,
         };
         group.next_instance_id += 1;
 
-        let future = ServiceMonitor::wrap(id, service.future);
+        let future = ServiceMonitor::wrap(service.future);
         let metrics = Arc::clone(future.metrics());
 
         let jh = crate::runtime::spawn_in(handle, task_id, future);
@@ -158,6 +161,5 @@ struct ServiceGroup {
 struct Service {
     instance_id: u32,
     metrics: Arc<RawMetrics>,
-    #[expect(unused, reason = "not yet implemented")]
     handle: ServiceStatusJoinHandle,
 }
