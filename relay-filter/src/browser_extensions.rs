@@ -52,7 +52,7 @@ static EXTENSION_EXC_VALUES: Lazy<Regex> = Lazy::new(|| {
         # https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Errors/Property_access_denied
         # Usually caused by extensions that do stuff that isn't allowed
         Permission\sdenied\sto\saccess\sproperty\s|
-        # NextJS related
+        # Error from Google Search App https://issuetracker.google.com/issues/396043331
         Can't\sfind\svariable:\sgmo
     "#,
     )
