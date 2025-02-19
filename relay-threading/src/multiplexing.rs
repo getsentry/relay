@@ -149,15 +149,26 @@ where
         loop {
             this.tasks.as_mut().poll_tasks_until_pending(cx);
 
+            // If we can't get anymore tasks, and we don't have anything else to process, we report
+            // ready. Otherwise, if we have something to process, we report pending.
+            if this.tasks.is_empty() && this.rx.is_terminated() {
+                return Poll::Ready(());
+            } else if this.rx.is_terminated() {
+                return Poll::Pending;
+            }
+
+            // If we could accept tasks, but we don't have space we report pending.
             if this.tasks.len() >= *this.max_concurrency {
                 return Poll::Pending;
             }
 
+            // At this point, we are free to start driving another future.
             match this.rx.as_mut().poll_next(cx) {
                 Poll::Ready(Some(task)) => this.tasks.push(task),
                 // The stream is exhausted and there are no remaining tasks.
                 Poll::Ready(None) if this.tasks.is_empty() => return Poll::Ready(()),
-                // The stream is exhausted but tasks remain active.
+                // The stream is exhausted but tasks remain active. Now we need to make sure we
+                // stop polling the stream and just process tasks.
                 Poll::Ready(None) => return Poll::Pending,
                 Poll::Pending => return Poll::Pending,
             }
@@ -324,6 +335,30 @@ mod tests {
 
         // The order of completion is expected to be the same as the order of submission.
         assert_eq!(*entries.lock().unwrap(), (0..5).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn test_multiplexer_with_multiple_concurrency_and_less_multiple_futures() {
+        let entries = Arc::new(Mutex::new(Vec::new()));
+        let (tx, rx) = flume::bounded(10);
+
+        // We send 3 futures with a concurrency of 5, to make sure that if the stream returns
+        // `Poll::Ready(None)` the system will stop polling from the stream and continue driving
+        // the remaining futures.
+        for i in 0..3 {
+            let entries_clone = entries.clone();
+            tx.send(future_with(move || {
+                entries_clone.lock().unwrap().push(i);
+            }))
+            .unwrap();
+        }
+
+        drop(tx);
+
+        futures::executor::block_on(Multiplexed::new(5, rx.into_stream(), None));
+
+        // The order of completion is expected to be the same as the order of submission.
+        assert_eq!(*entries.lock().unwrap(), (0..3).collect::<Vec<_>>());
     }
 
     #[test]
