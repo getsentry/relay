@@ -1812,7 +1812,7 @@ mod tests {
         );
 
         for mri in [
-            "d:transactions/measurements.cls@ratio",
+            "d:transactions/measurements.cls@none",
             "d:transactions/measurements.score.cls@ratio",
             "d:transactions/measurements.score.total@ratio",
             "d:transactions/measurements.score.weight.cls@ratio",
@@ -1852,7 +1852,7 @@ mod tests {
         );
 
         for mri in [
-            "d:transactions/measurements.lcp@ratio",
+            "d:transactions/measurements.lcp@millisecond",
             "d:transactions/measurements.score.lcp@ratio",
             "d:transactions/measurements.score.total@ratio",
             "d:transactions/measurements.score.weight.lcp@ratio",
