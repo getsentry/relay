@@ -61,10 +61,6 @@ where
     ///
     /// If a thread panics, the provided handler will be invoked so that you can perform
     /// custom error handling or cleanup.
-    ///
-    /// # Panics
-    ///
-    /// In the absence of this handler, thread panics will propagate.
     pub fn thread_panic_handler<F>(mut self, panic_handler: F) -> Self
     where
         F: Fn(Box<dyn Any + Send>) + Send + Sync + 'static,
@@ -77,10 +73,6 @@ where
     ///
     /// This handler is used to manage panics that occur during task execution, allowing for graceful
     /// error handling.
-    ///
-    /// # Panics
-    ///
-    /// Without a handler, panics in tasks will propagate.
     pub fn task_panic_handler<F>(mut self, panic_handler: F) -> Self
     where
         F: Fn(Box<dyn Any + Send>) + Send + Sync + 'static,

@@ -59,6 +59,10 @@ where
     ///
     /// If a future panics and a panic handler is provided, the handler is invoked.
     /// Otherwise, the panic is propagated.
+    ///
+    /// # Panics
+    ///
+    /// Panics are either handled by the custom handler or propagated if no handler is specified.
     fn poll_tasks_until_pending(self: Pin<&mut Self>, cx: &mut Context<'_>) {
         let mut this = self.project();
 
@@ -96,10 +100,6 @@ pin_project! {
     /// the number of concurrently executing tasks does not exceed a specified limit.
     ///
     /// This multiplexer is primarily used by the [`AsyncPool`] to manage task execution on worker threads.
-    ///
-    /// # Panics
-    ///
-    /// If any task panics without a custom panic handler, the panic will propagate.
     pub struct Multiplexed<S, F> {
         max_concurrency: usize,
         #[pin]
