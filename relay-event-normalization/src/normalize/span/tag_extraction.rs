@@ -2762,7 +2762,7 @@ LIMIT 1
     #[test]
     fn span_category_from_explicit_attribute_overrides_op() {
         let span = Span {
-            op: "http".to_owned().into(),
+            op: "app.start".to_owned().into(),
             data: SpanData {
                 other: Object::from([(
                     "sentry.category".into(),
