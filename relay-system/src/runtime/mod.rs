@@ -1,3 +1,4 @@
+mod handle;
 mod metrics;
 #[expect(
     clippy::module_inception,
@@ -6,6 +7,7 @@ mod metrics;
 mod runtime;
 mod spawn;
 
+pub use self::handle::{Handle, ServiceSet};
 pub use self::metrics::RuntimeMetrics;
-pub use self::runtime::{Builder, Handle, Runtime, ServiceSet};
+pub use self::runtime::{Builder, Runtime};
 pub use self::spawn::{spawn, spawn_in, TaskId};

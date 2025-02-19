@@ -290,7 +290,7 @@ impl ServiceState {
 
         services.start(RelayStats::new(
             config.clone(),
-            handle.metrics(),
+            handle.clone(),
             upstream_relay.clone(),
             #[cfg(feature = "processing")]
             redis_pools.clone(),

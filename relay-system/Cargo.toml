@@ -28,3 +28,4 @@ pin-project-lite = { workspace = true }
 insta = { workspace = true }
 relay-statsd = { workspace = true, features = ["test"] }
 tokio = { workspace = true, features = ["test-util"] }
+futures =  { workspace = true, features = ["async-await"] }

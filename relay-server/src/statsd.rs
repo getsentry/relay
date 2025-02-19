@@ -42,6 +42,12 @@ pub enum RelayGauges {
     /// - `namespace`: the metric namespace.
     #[cfg(feature = "processing")]
     MetricDelayMax,
+    /// Estimated percentage [0-100] of how busy Relay's internal services are.
+    ///
+    /// This metric is tagged with:
+    /// - `service`: the service name.
+    /// - `instance_id`: a for the service name unique identifier for the running service
+    ServiceUtilization,
 }
 
 impl GaugeMetric for RelayGauges {
@@ -63,6 +69,7 @@ impl GaugeMetric for RelayGauges {
             RelayGauges::ServerActiveConnections => "server.http.connections",
             #[cfg(feature = "processing")]
             RelayGauges::MetricDelayMax => "metrics.delay.max",
+            RelayGauges::ServiceUtilization => "service.utilization",
         }
     }
 }

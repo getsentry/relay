@@ -79,6 +79,10 @@ impl TaskId {
         }
     }
 
+    pub(crate) fn id(&self) -> &'static str {
+        self.id
+    }
+
     fn emit_metric(&self, metric: SystemCounters) {
         let Self { id, file, line } = self;
         relay_statsd::metric!(
@@ -155,8 +159,8 @@ mod tests {
         #[cfg(not(windows))]
         assert_debug_snapshot!(captures, @r###"
         [
-            "runtime.task.spawn.created:1|c|#id:relay-system/src/runtime/spawn.rs:151,file:relay-system/src/runtime/spawn.rs,line:151",
-            "runtime.task.spawn.terminated:1|c|#id:relay-system/src/runtime/spawn.rs:151,file:relay-system/src/runtime/spawn.rs,line:151",
+            "runtime.task.spawn.created:1|c|#id:relay-system/src/runtime/spawn.rs:155,file:relay-system/src/runtime/spawn.rs,line:155",
+            "runtime.task.spawn.terminated:1|c|#id:relay-system/src/runtime/spawn.rs:155,file:relay-system/src/runtime/spawn.rs,line:155",
         ]
         "###);
         #[cfg(windows)]

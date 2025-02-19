@@ -20,7 +20,10 @@ mod registry;
 mod status;
 
 pub(crate) use self::registry::Registry as ServiceRegistry;
-pub use self::status::{ServiceJoinHandle, ServiceStatus};
+pub use self::registry::{ServiceId, ServiceMetrics, ServicesMetrics};
+pub use self::status::{
+    ServiceError, ServiceJoinHandle, ServiceStatusError, ServiceStatusJoinHandle,
+};
 
 /// Interval for recording backlog metrics on service channels.
 const BACKLOG_INTERVAL: Duration = Duration::from_secs(1);
@@ -1083,14 +1086,15 @@ impl ServiceObj {
     }
 }
 
-#[cfg(any(feature = "test"))]
+#[cfg(feature = "test")]
 /// A [`ServiceSpawn`] implementation which spawns a service on the current Tokio runtime.
 pub struct TokioServiceSpawn;
 
-#[cfg(any(feature = "test"))]
+#[cfg(feature = "test")]
 impl ServiceSpawn for TokioServiceSpawn {
+    #[track_caller]
     fn start_obj(&self, service: ServiceObj) {
-        tokio::task::spawn(service.future);
+        crate::spawn!(service.future);
     }
 }
 
