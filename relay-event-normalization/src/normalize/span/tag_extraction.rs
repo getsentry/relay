@@ -511,12 +511,8 @@ pub fn extract_tags(
         span_tags.op = span_op.to_owned().into();
 
         let category = category_for_span(span);
-        if let Some(ref category) = category {
-            span_tags.category = category.to_owned().into();
-        }
 
         let (scrubbed_description, parsed_sql) = scrub_span_description(span, span_allowed_hosts);
-
         let action = match (category.as_deref(), span_op.as_str(), &scrubbed_description) {
             (Some("http"), _, _) => span
                 .data
@@ -549,6 +545,23 @@ pub fn extract_tags(
             }
             _ => None,
         };
+
+        if category.as_deref() == Some("ai") {
+            if let Some(ai_pipeline_name) = span
+                .data
+                .value()
+                .and_then(|data| data.ai_pipeline_name.value())
+                .and_then(|val| val.as_str())
+            {
+                let mut ai_pipeline_group = format!("{:?}", md5::compute(ai_pipeline_name));
+                ai_pipeline_group.truncate(16);
+                span_tags.ai_pipeline_group = ai_pipeline_group.into();
+            }
+        }
+
+        if let Some(category) = category {
+            span_tags.category = category.into_owned().into();
+        }
 
         if let Some(act) = action {
             span_tags.action = act.into();
@@ -702,19 +715,6 @@ pub fn extract_tags(
             }
 
             span_tags.description = truncated.into();
-        }
-
-        if category == Some("ai".to_owned()) {
-            if let Some(ai_pipeline_name) = span
-                .data
-                .value()
-                .and_then(|data| data.ai_pipeline_name.value())
-                .and_then(|val| val.as_str())
-            {
-                let mut ai_pipeline_group = format!("{:?}", md5::compute(ai_pipeline_name));
-                ai_pipeline_group.truncate(16);
-                span_tags.ai_pipeline_group = ai_pipeline_group.into();
-            }
         }
 
         if span_op.starts_with("resource.") {
@@ -1128,7 +1128,7 @@ fn extract_captured_substring<'a>(string: &'a str, pattern: &'a Lazy<Regex>) -> 
     None
 }
 
-fn category_for_span(span: &Span) -> Option<String> {
+fn category_for_span(span: &Span) -> Option<Cow<'static, str>> {
     // Allow clients to explicitly set the category via attribute.
     if let Some(Value::String(category)) = span
         .data
@@ -1136,14 +1136,14 @@ fn category_for_span(span: &Span) -> Option<String> {
         .and_then(|v| v.other.get("sentry.category"))
         .and_then(|c| c.value())
     {
-        return Some(category.to_owned());
+        return Some(category.to_owned().into());
     }
 
     // If we're given an op, derive the category from that.
     if let Some(unsanitized_span_op) = span.op.value() {
         let span_op = unsanitized_span_op.to_lowercase();
         if let Some(category) = span_op_to_category(&span_op) {
-            return Some(category.to_owned());
+            return Some(category.to_owned().into());
         }
     }
 
@@ -1155,20 +1155,20 @@ fn category_for_span(span: &Span) -> Option<String> {
     }
 
     if value_is_set(&span_data.db_system) {
-        Some("db".to_owned())
+        Some("db".into())
     } else if value_is_set(&span_data.http_request_method) {
-        Some("http".to_owned())
+        Some("http".into())
     } else if value_is_set(&span_data.ui_component_name) {
-        Some("ui".to_owned())
+        Some("ui".into())
     } else if value_is_set(&span_data.resource_render_blocking_status) {
-        Some("resource".to_owned())
+        Some("resource".into())
     } else if span_data
         .other
         .get("sentry.origin")
         .and_then(|v| v.as_str())
         .is_some_and(|v| v == "auto.ui.browser.metrics")
     {
-        Some("browser".to_owned())
+        Some("browser".into())
     } else {
         None
     }
