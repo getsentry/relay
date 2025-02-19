@@ -51,7 +51,9 @@ static EXTENSION_EXC_VALUES: Lazy<Regex> = Lazy::new(|| {
         undefined\sis\snot\san\sobject\s\(evaluating\s'a.L'\)|
         # https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Errors/Property_access_denied
         # Usually caused by extensions that do stuff that isn't allowed
-        Permission\sdenied\sto\saccess\sproperty\s
+        Permission\sdenied\sto\saccess\sproperty\s|
+        # NextJS related
+        Can't\sfind\svariable:\sgmo
     "#,
     )
     .expect("Invalid browser extensions filter (Exec Vals) Regex")
@@ -274,6 +276,7 @@ mod tests {
             "undefined is not an object (evaluating 'a.L')",
             "Permission denied to access property \"correspondingUseElement\"",
             "Permission denied to access property \"document\"",
+            "Can't find variable: gmo",
         ];
 
         for exc_value in &exceptions {
