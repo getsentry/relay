@@ -925,9 +925,6 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                         Tag::with_key("messaging.operation.type")
                             .from_field("span.sentry_tags.messaging.operation.type")
                             .always(),
-                        Tag::with_key("messaging.system")
-                            .from_field("span.sentry_tags.messaging.system")
-                            .always(),
                     ],
                 },
             ],
@@ -953,9 +950,6 @@ pub fn hardcoded_span_metrics() -> Vec<(GroupKey, Vec<MetricSpec>, Vec<TagMappin
                             .when(is_queue_op.clone()),
                         Tag::with_key("messaging.operation.type")
                             .from_field("span.sentry_tags.messaging.operation.type")
-                            .when(is_queue_op.clone()),
-                        Tag::with_key("messaging.system")
-                            .from_field("span.sentry_tags.messaging.system")
                             .when(is_queue_op.clone()),
                         Tag::with_key("trace.status")
                             .from_field("span.sentry_tags.trace.status")

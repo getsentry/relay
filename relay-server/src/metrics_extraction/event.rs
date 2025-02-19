@@ -1166,7 +1166,9 @@ mod tests {
                         "messaging.message.receive.latency": 100,
                         "messaging.message.retry.count": 2,
                         "messaging.message.body.size": 1000,
-                        "messaging.message.id": "abc123"
+                        "messaging.message.id": "abc123",
+                        "messaging.operation.name": "publish",
+                        "messaging.operation.type": "create"
                     }
                 },
                 {
@@ -1182,7 +1184,9 @@ mod tests {
                         "messaging.message.receive.latency": 100,
                         "messaging.message.retry.count": 2,
                         "messaging.message.body.size": 1000,
-                        "messaging.message.id": "abc123"
+                        "messaging.message.id": "abc123",
+                        "messaging.operation.name": "publish",
+                        "messaging.operation.type": "create"
                     }
                 },
                 {
@@ -1198,7 +1202,9 @@ mod tests {
                         "messaging.message.receive.latency": 100,
                         "messaging.message.retry.count": 2,
                         "messaging.message.body.size": 1000,
-                        "messaging.message.id": "abc123"
+                        "messaging.message.id": "abc123",
+                        "messaging.operation.name": "publish",
+                        "messaging.operation.type": "create"
                     }
                 },
                 {
@@ -1214,7 +1220,9 @@ mod tests {
                         "messaging.message.receive.latency": 100,
                         "messaging.message.retry.count": 2,
                         "messaging.message.body.size": 1000,
-                        "messaging.message.id": "abc123"
+                        "messaging.message.id": "abc123",
+                        "messaging.operation.name": "publish",
+                        "messaging.operation.type": "create"
                     }
                 },
                 {
