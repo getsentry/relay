@@ -304,7 +304,10 @@
 <a href="#303" id="303">303</a>
 <a href="#304" id="304">304</a>
 <a href="#305" id="305">305</a>
-<a href="#306" id="306">306</a></pre></div><pre class="rust"><code><span class="doccomment">//! Implements filtering for events caused by problematic browsers extensions.
+<a href="#306" id="306">306</a>
+<a href="#307" id="307">307</a>
+<a href="#308" id="308">308</a>
+<a href="#309" id="309">309</a></pre></div><pre class="rust"><code><span class="doccomment">//! Implements filtering for events caused by problematic browsers extensions.
 
 </span><span class="kw">use </span>once_cell::sync::Lazy;
 <span class="kw">use </span>regex::Regex;
@@ -357,7 +360,9 @@
         undefined\sis\snot\san\sobject\s\(evaluating\s'a.L'\)|
         # https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Errors/Property_access_denied
         # Usually caused by extensions that do stuff that isn't allowed
-        Permission\sdenied\sto\saccess\sproperty\s
+        Permission\sdenied\sto\saccess\sproperty\s|
+        # Error from Google Search App https://issuetracker.google.com/issues/396043331
+        Can't\sfind\svariable:\sgmo
     "#</span>,
     )
     .expect(<span class="string">"Invalid browser extensions filter (Exec Vals) Regex"</span>)
@@ -580,6 +585,7 @@
             <span class="string">"undefined is not an object (evaluating 'a.L')"</span>,
             <span class="string">"Permission denied to access property \"correspondingUseElement\""</span>,
             <span class="string">"Permission denied to access property \"document\""</span>,
+            <span class="string">"Can't find variable: gmo"</span>,
         ];
 
         <span class="kw">for </span>exc_value <span class="kw">in </span><span class="kw-2">&amp;</span>exceptions {
