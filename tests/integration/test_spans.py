@@ -534,9 +534,10 @@ def test_span_ingestion(
                 key="sentry.exclusive_time_nano",
                 value=AnyValue(int_value=int(duration.total_seconds() * 1e9)),
             ),
+            # In order to test `category` sentry tag inference.
             KeyValue(
-                key="db.system",
-                value=AnyValue(string_value="postgresql"),
+                key="ui.component_name",
+                value=AnyValue(string_value="MyComponent"),
             ),
         ],
     )
@@ -703,6 +704,7 @@ def test_span_ingestion(
             "data": {
                 "browser.name": "Python Requests",
                 "client.address": "127.0.0.1",
+                "ui.component_name": "MyComponent",
                 "user_agent.original": "python-requests/2.32.2",
             },
             "description": "my 3rd protobuf OTel span",
@@ -716,8 +718,8 @@ def test_span_ingestion(
             "retention_days": 90,
             "sentry_tags": {
                 "browser.name": "Python Requests",
-                "category": "db",
-                "op": "db",
+                "category": "ui",
+                "op": "default",
                 "status": "unknown",
             },
             "span_id": "f0b809703e783d00",
