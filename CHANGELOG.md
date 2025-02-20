@@ -5,6 +5,7 @@
 **Features**:
 
 - Add new `relay-threading` crate with asynchronous thread pool. ([#4500](https://github.com/getsentry/relay/pull/4500))
+- Support span `category` inference from span attributes. ([#4509](https://github.com/getsentry/relay/pull/4509))
 
 ## 25.2.0
 

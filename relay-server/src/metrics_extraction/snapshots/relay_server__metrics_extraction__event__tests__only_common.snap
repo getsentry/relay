@@ -1,6 +1,6 @@
 ---
 source: relay-server/src/metrics_extraction/event.rs
-expression: metrics
+expression: metrics.project_metrics
 ---
 [
     Bucket {
@@ -8174,6 +8174,7 @@ expression: metrics
             ],
         ),
         tags: {
+            "span.category": "ui",
             "span.description": "my-component-name",
             "span.group": "e674f9eca1d88a4d",
             "span.op": "ui.interaction.click",
@@ -8223,6 +8224,7 @@ expression: metrics
             ],
         ),
         tags: {
+            "span.category": "ui",
             "span.description": "my-component-name",
             "span.group": "e674f9eca1d88a4d",
             "span.op": "ui.interaction.click",
