@@ -534,6 +534,10 @@ def test_span_ingestion(
                 key="sentry.exclusive_time_nano",
                 value=AnyValue(int_value=int(duration.total_seconds() * 1e9)),
             ),
+            KeyValue(
+                key="db.system",
+                value=AnyValue(string_value="postgresql"),
+            ),
         ],
     )
     scope_spans = ScopeSpans(spans=[protobuf_span])
@@ -712,6 +716,7 @@ def test_span_ingestion(
             "retention_days": 90,
             "sentry_tags": {
                 "browser.name": "Python Requests",
+                "category": "db",
                 "op": "default",
                 "status": "unknown",
             },
