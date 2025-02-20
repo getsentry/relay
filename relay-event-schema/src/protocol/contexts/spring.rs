@@ -56,6 +56,9 @@ mod test {
     "some",
     "profiles"
   ],
+  "unknown_key": [
+    123
+  ],
   "type": "spring"
 }"#;
 
@@ -63,9 +66,17 @@ mod test {
             Annotated::new("some".to_owned()),
             Annotated::new("profiles".to_owned()),
         ]);
+        let other = {
+            let mut map = Object::new();
+            map.insert(
+                "unknown_key".to_owned(),
+                Annotated::new(Value::Array(vec![Annotated::new(Value::I64(123))])),
+            );
+            map
+        };
         let context = Annotated::new(Context::Spring(Box::new(SpringContext {
             active_profiles,
-            other: Object::default(),
+            other,
         })));
 
         assert_eq!(context, Annotated::from_json(json).unwrap());
