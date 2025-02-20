@@ -402,7 +402,11 @@
 <a href="#401" id="401">401</a>
 <a href="#402" id="402">402</a>
 <a href="#403" id="403">403</a>
-<a href="#404" id="404">404</a></pre></div><pre class="rust"><code><span class="kw">mod </span>app;
+<a href="#404" id="404">404</a>
+<a href="#405" id="405">405</a>
+<a href="#406" id="406">406</a>
+<a href="#407" id="407">407</a>
+<a href="#408" id="408">408</a></pre></div><pre class="rust"><code><span class="kw">mod </span>app;
 <span class="kw">mod </span>browser;
 <span class="kw">mod </span>cloud_resource;
 <span class="kw">mod </span>device;
@@ -418,6 +422,7 @@
 <span class="kw">mod </span>reprocessing;
 <span class="kw">mod </span>response;
 <span class="kw">mod </span>runtime;
+<span class="kw">mod </span>spring;
 <span class="kw">mod </span>trace;
 <span class="kw">mod </span>user_report_v2;
 <span class="kw">pub use </span>app::<span class="kw-2">*</span>;
@@ -435,6 +440,7 @@
 <span class="kw">pub use </span>reprocessing::<span class="kw-2">*</span>;
 <span class="kw">pub use </span>response::<span class="kw-2">*</span>;
 <span class="kw">pub use </span>runtime::<span class="kw-2">*</span>;
+<span class="kw">pub use </span>spring::<span class="kw-2">*</span>;
 <span class="kw">pub use </span>trace::<span class="kw-2">*</span>;
 <span class="kw">pub use </span>user_report_v2::<span class="kw-2">*</span>;
 
@@ -494,6 +500,8 @@
     </span>Nel(Box&lt;NelContext&gt;),
     <span class="doccomment">/// Performance score information.
     </span>PerformanceScore(Box&lt;PerformanceScoreContext&gt;),
+    <span class="doccomment">/// Spring / Spring Boot information.
+    </span>Spring(Box&lt;SpringContext&gt;),
     <span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
     </span><span class="attr">#[metastructure(fallback_variant)]
     </span>Other(<span class="attr">#[metastructure(pii = <span class="string">"true"</span>)] </span>Object&lt;Value&gt;),
