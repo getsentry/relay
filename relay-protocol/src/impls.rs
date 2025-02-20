@@ -161,12 +161,12 @@ where
 {
     #[inline]
     fn is_empty(&self) -> bool {
-        self.as_ref().map_or(true, Empty::is_empty)
+        self.as_ref().is_none_or(Empty::is_empty)
     }
 
     #[inline]
     fn is_deep_empty(&self) -> bool {
-        self.as_ref().map_or(true, Empty::is_deep_empty)
+        self.as_ref().is_none_or(Empty::is_deep_empty)
     }
 }
 

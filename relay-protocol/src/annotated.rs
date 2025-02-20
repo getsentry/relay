@@ -235,8 +235,8 @@ where
         match behavior {
             SkipSerialization::Never => false,
             SkipSerialization::Null(_) => self.value().is_none(),
-            SkipSerialization::Empty(false) => self.value().map_or(true, Empty::is_empty),
-            SkipSerialization::Empty(true) => self.value().map_or(true, Empty::is_deep_empty),
+            SkipSerialization::Empty(false) => self.value().is_none_or(Empty::is_empty),
+            SkipSerialization::Empty(true) => self.value().is_none_or(Empty::is_deep_empty),
         }
     }
 }
