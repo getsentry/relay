@@ -2751,7 +2751,152 @@
 <a href="#2750" id="2750">2750</a>
 <a href="#2751" id="2751">2751</a>
 <a href="#2752" id="2752">2752</a>
-<a href="#2753" id="2753">2753</a></pre></div><pre class="rust"><code><span class="doccomment">//! Logic for persisting items into `span.sentry_tags` and `span.measurements` fields.
+<a href="#2753" id="2753">2753</a>
+<a href="#2754" id="2754">2754</a>
+<a href="#2755" id="2755">2755</a>
+<a href="#2756" id="2756">2756</a>
+<a href="#2757" id="2757">2757</a>
+<a href="#2758" id="2758">2758</a>
+<a href="#2759" id="2759">2759</a>
+<a href="#2760" id="2760">2760</a>
+<a href="#2761" id="2761">2761</a>
+<a href="#2762" id="2762">2762</a>
+<a href="#2763" id="2763">2763</a>
+<a href="#2764" id="2764">2764</a>
+<a href="#2765" id="2765">2765</a>
+<a href="#2766" id="2766">2766</a>
+<a href="#2767" id="2767">2767</a>
+<a href="#2768" id="2768">2768</a>
+<a href="#2769" id="2769">2769</a>
+<a href="#2770" id="2770">2770</a>
+<a href="#2771" id="2771">2771</a>
+<a href="#2772" id="2772">2772</a>
+<a href="#2773" id="2773">2773</a>
+<a href="#2774" id="2774">2774</a>
+<a href="#2775" id="2775">2775</a>
+<a href="#2776" id="2776">2776</a>
+<a href="#2777" id="2777">2777</a>
+<a href="#2778" id="2778">2778</a>
+<a href="#2779" id="2779">2779</a>
+<a href="#2780" id="2780">2780</a>
+<a href="#2781" id="2781">2781</a>
+<a href="#2782" id="2782">2782</a>
+<a href="#2783" id="2783">2783</a>
+<a href="#2784" id="2784">2784</a>
+<a href="#2785" id="2785">2785</a>
+<a href="#2786" id="2786">2786</a>
+<a href="#2787" id="2787">2787</a>
+<a href="#2788" id="2788">2788</a>
+<a href="#2789" id="2789">2789</a>
+<a href="#2790" id="2790">2790</a>
+<a href="#2791" id="2791">2791</a>
+<a href="#2792" id="2792">2792</a>
+<a href="#2793" id="2793">2793</a>
+<a href="#2794" id="2794">2794</a>
+<a href="#2795" id="2795">2795</a>
+<a href="#2796" id="2796">2796</a>
+<a href="#2797" id="2797">2797</a>
+<a href="#2798" id="2798">2798</a>
+<a href="#2799" id="2799">2799</a>
+<a href="#2800" id="2800">2800</a>
+<a href="#2801" id="2801">2801</a>
+<a href="#2802" id="2802">2802</a>
+<a href="#2803" id="2803">2803</a>
+<a href="#2804" id="2804">2804</a>
+<a href="#2805" id="2805">2805</a>
+<a href="#2806" id="2806">2806</a>
+<a href="#2807" id="2807">2807</a>
+<a href="#2808" id="2808">2808</a>
+<a href="#2809" id="2809">2809</a>
+<a href="#2810" id="2810">2810</a>
+<a href="#2811" id="2811">2811</a>
+<a href="#2812" id="2812">2812</a>
+<a href="#2813" id="2813">2813</a>
+<a href="#2814" id="2814">2814</a>
+<a href="#2815" id="2815">2815</a>
+<a href="#2816" id="2816">2816</a>
+<a href="#2817" id="2817">2817</a>
+<a href="#2818" id="2818">2818</a>
+<a href="#2819" id="2819">2819</a>
+<a href="#2820" id="2820">2820</a>
+<a href="#2821" id="2821">2821</a>
+<a href="#2822" id="2822">2822</a>
+<a href="#2823" id="2823">2823</a>
+<a href="#2824" id="2824">2824</a>
+<a href="#2825" id="2825">2825</a>
+<a href="#2826" id="2826">2826</a>
+<a href="#2827" id="2827">2827</a>
+<a href="#2828" id="2828">2828</a>
+<a href="#2829" id="2829">2829</a>
+<a href="#2830" id="2830">2830</a>
+<a href="#2831" id="2831">2831</a>
+<a href="#2832" id="2832">2832</a>
+<a href="#2833" id="2833">2833</a>
+<a href="#2834" id="2834">2834</a>
+<a href="#2835" id="2835">2835</a>
+<a href="#2836" id="2836">2836</a>
+<a href="#2837" id="2837">2837</a>
+<a href="#2838" id="2838">2838</a>
+<a href="#2839" id="2839">2839</a>
+<a href="#2840" id="2840">2840</a>
+<a href="#2841" id="2841">2841</a>
+<a href="#2842" id="2842">2842</a>
+<a href="#2843" id="2843">2843</a>
+<a href="#2844" id="2844">2844</a>
+<a href="#2845" id="2845">2845</a>
+<a href="#2846" id="2846">2846</a>
+<a href="#2847" id="2847">2847</a>
+<a href="#2848" id="2848">2848</a>
+<a href="#2849" id="2849">2849</a>
+<a href="#2850" id="2850">2850</a>
+<a href="#2851" id="2851">2851</a>
+<a href="#2852" id="2852">2852</a>
+<a href="#2853" id="2853">2853</a>
+<a href="#2854" id="2854">2854</a>
+<a href="#2855" id="2855">2855</a>
+<a href="#2856" id="2856">2856</a>
+<a href="#2857" id="2857">2857</a>
+<a href="#2858" id="2858">2858</a>
+<a href="#2859" id="2859">2859</a>
+<a href="#2860" id="2860">2860</a>
+<a href="#2861" id="2861">2861</a>
+<a href="#2862" id="2862">2862</a>
+<a href="#2863" id="2863">2863</a>
+<a href="#2864" id="2864">2864</a>
+<a href="#2865" id="2865">2865</a>
+<a href="#2866" id="2866">2866</a>
+<a href="#2867" id="2867">2867</a>
+<a href="#2868" id="2868">2868</a>
+<a href="#2869" id="2869">2869</a>
+<a href="#2870" id="2870">2870</a>
+<a href="#2871" id="2871">2871</a>
+<a href="#2872" id="2872">2872</a>
+<a href="#2873" id="2873">2873</a>
+<a href="#2874" id="2874">2874</a>
+<a href="#2875" id="2875">2875</a>
+<a href="#2876" id="2876">2876</a>
+<a href="#2877" id="2877">2877</a>
+<a href="#2878" id="2878">2878</a>
+<a href="#2879" id="2879">2879</a>
+<a href="#2880" id="2880">2880</a>
+<a href="#2881" id="2881">2881</a>
+<a href="#2882" id="2882">2882</a>
+<a href="#2883" id="2883">2883</a>
+<a href="#2884" id="2884">2884</a>
+<a href="#2885" id="2885">2885</a>
+<a href="#2886" id="2886">2886</a>
+<a href="#2887" id="2887">2887</a>
+<a href="#2888" id="2888">2888</a>
+<a href="#2889" id="2889">2889</a>
+<a href="#2890" id="2890">2890</a>
+<a href="#2891" id="2891">2891</a>
+<a href="#2892" id="2892">2892</a>
+<a href="#2893" id="2893">2893</a>
+<a href="#2894" id="2894">2894</a>
+<a href="#2895" id="2895">2895</a>
+<a href="#2896" id="2896">2896</a>
+<a href="#2897" id="2897">2897</a>
+<a href="#2898" id="2898">2898</a></pre></div><pre class="rust"><code><span class="doccomment">//! Logic for persisting items into `span.sentry_tags` and `span.measurements` fields.
 //! These are then used for metrics extraction.
 </span><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
@@ -2766,7 +2911,7 @@
     AppContext, BrowserContext, Event, Measurement, OsContext, ProfileContext, SentryTags, Span,
     Timestamp, TraceContext,
 };
-<span class="kw">use </span>relay_protocol::{Annotated, Value};
+<span class="kw">use </span>relay_protocol::{Annotated, Empty, Value};
 <span class="kw">use </span>sqlparser::ast::Visit;
 <span class="kw">use </span>sqlparser::ast::{ObjectName, Visitor};
 <span class="kw">use </span>url::Url;
@@ -3271,14 +3416,10 @@
 
         span_tags.op = span_op.to_owned().into();
 
-        <span class="kw">let </span>category = span_op_to_category(<span class="kw-2">&amp;</span>span_op);
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(category) = category {
-            span_tags.category = category.to_owned().into();
-        }
+        <span class="kw">let </span>category = category_for_span(span);
 
         <span class="kw">let </span>(scrubbed_description, parsed_sql) = scrub_span_description(span, span_allowed_hosts);
-
-        <span class="kw">let </span>action = <span class="kw">match </span>(category, span_op.as_str(), <span class="kw-2">&amp;</span>scrubbed_description) {
+        <span class="kw">let </span>action = <span class="kw">match </span>(category.as_deref(), span_op.as_str(), <span class="kw-2">&amp;</span>scrubbed_description) {
             (<span class="prelude-val">Some</span>(<span class="string">"http"</span>), <span class="kw">_</span>, <span class="kw">_</span>) =&gt; span
                 .data
                 .value()
@@ -3310,6 +3451,23 @@
             }
             <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
         };
+
+        <span class="kw">if </span>category.as_deref() == <span class="prelude-val">Some</span>(<span class="string">"ai"</span>) {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(ai_pipeline_name) = span
+                .data
+                .value()
+                .and_then(|data| data.ai_pipeline_name.value())
+                .and_then(|val| val.as_str())
+            {
+                <span class="kw">let </span><span class="kw-2">mut </span>ai_pipeline_group = <span class="macro">format!</span>(<span class="string">"{:?}"</span>, md5::compute(ai_pipeline_name));
+                ai_pipeline_group.truncate(<span class="number">16</span>);
+                span_tags.ai_pipeline_group = ai_pipeline_group.into();
+            }
+        }
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(category) = category {
+            span_tags.category = category.into_owned().into();
+        }
 
         <span class="kw">if let </span><span class="prelude-val">Some</span>(act) = action {
             span_tags.action = act.into();
@@ -3477,19 +3635,6 @@
             }
 
             span_tags.description = truncated.into();
-        }
-
-        <span class="kw">if </span>category == <span class="prelude-val">Some</span>(<span class="string">"ai"</span>) {
-            <span class="kw">if let </span><span class="prelude-val">Some</span>(ai_pipeline_name) = span
-                .data
-                .value()
-                .and_then(|data| data.ai_pipeline_name.value())
-                .and_then(|val| val.as_str())
-            {
-                <span class="kw">let </span><span class="kw-2">mut </span>ai_pipeline_group = <span class="macro">format!</span>(<span class="string">"{:?}"</span>, md5::compute(ai_pipeline_name));
-                ai_pipeline_group.truncate(<span class="number">16</span>);
-                span_tags.ai_pipeline_group = ai_pipeline_group.into();
-            }
         }
 
         <span class="kw">if </span>span_op.starts_with(<span class="string">"resource."</span>) {
@@ -3903,6 +4048,52 @@
     <span class="prelude-val">None
 </span>}
 
+<span class="kw">fn </span>category_for_span(span: <span class="kw-2">&amp;</span>Span) -&gt; <span class="prelude-ty">Option</span>&lt;Cow&lt;<span class="lifetime">'static</span>, str&gt;&gt; {
+    <span class="comment">// Allow clients to explicitly set the category via attribute.
+    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(Value::String(category)) = span
+        .data
+        .value()
+        .and_then(|v| v.other.get(<span class="string">"sentry.category"</span>))
+        .and_then(|c| c.value())
+    {
+        <span class="kw">return </span><span class="prelude-val">Some</span>(category.to_owned().into());
+    }
+
+    <span class="comment">// If we're given an op, derive the category from that.
+    </span><span class="kw">if let </span><span class="prelude-val">Some</span>(unsanitized_span_op) = span.op.value() {
+        <span class="kw">let </span>span_op = unsanitized_span_op.to_lowercase();
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(category) = span_op_to_category(<span class="kw-2">&amp;</span>span_op) {
+            <span class="kw">return </span><span class="prelude-val">Some</span>(category.to_owned().into());
+        }
+    }
+
+    <span class="comment">// Derive the category from the span's attributes.
+    </span><span class="kw">let </span>span_data = span.data.value()<span class="question-mark">?</span>;
+
+    <span class="kw">fn </span>value_is_set(value: <span class="kw-2">&amp;</span>Annotated&lt;Value&gt;) -&gt; bool {
+        value.value().is_some_and(|v| !v.is_empty())
+    }
+
+    <span class="kw">if </span>value_is_set(<span class="kw-2">&amp;</span>span_data.db_system) {
+        <span class="prelude-val">Some</span>(<span class="string">"db"</span>.into())
+    } <span class="kw">else if </span>value_is_set(<span class="kw-2">&amp;</span>span_data.http_request_method) {
+        <span class="prelude-val">Some</span>(<span class="string">"http"</span>.into())
+    } <span class="kw">else if </span>value_is_set(<span class="kw-2">&amp;</span>span_data.ui_component_name) {
+        <span class="prelude-val">Some</span>(<span class="string">"ui"</span>.into())
+    } <span class="kw">else if </span>value_is_set(<span class="kw-2">&amp;</span>span_data.resource_render_blocking_status) {
+        <span class="prelude-val">Some</span>(<span class="string">"resource"</span>.into())
+    } <span class="kw">else if </span>span_data
+        .other
+        .get(<span class="string">"sentry.origin"</span>)
+        .and_then(|v| v.as_str())
+        .is_some_and(|v| v == <span class="string">"auto.ui.browser.metrics"</span>)
+    {
+        <span class="prelude-val">Some</span>(<span class="string">"browser"</span>.into())
+    } <span class="kw">else </span>{
+        <span class="prelude-val">None
+    </span>}
+}
+
 <span class="doccomment">/// Returns the category of a span from its operation. The mapping is available in:
 /// &lt;https://develop.sentry.dev/sdk/performance/span-operations/&gt;
 </span><span class="kw">fn </span>span_op_to_category(op: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt; {
@@ -3948,8 +4139,8 @@
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span>insta::assert_debug_snapshot;
-    <span class="kw">use </span>relay_event_schema::protocol::Request;
-    <span class="kw">use </span>relay_protocol::{get_value, Getter};
+    <span class="kw">use </span>relay_event_schema::protocol::{Request, SpanData};
+    <span class="kw">use </span>relay_protocol::{get_value, Getter, Object};
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use </span><span class="kw">crate</span>::span::description::{scrub_queries, Mode};
@@ -5502,6 +5693,105 @@ LIMIT 1
 
         <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.sentry_tags.<span class="macro">thread_id!</span>), <span class="string">"42"</span>,);
         <span class="macro">assert_eq!</span>(<span class="macro">get_value!</span>(span.sentry_tags.<span class="macro">thread_name!</span>), <span class="string">"main"</span>,);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>span_category_from_explicit_attribute_overrides_op() {
+        <span class="kw">let </span>span = Span {
+            op: <span class="string">"app.start"</span>.to_owned().into(),
+            data: SpanData {
+                other: Object::from([(
+                    <span class="string">"sentry.category"</span>.into(),
+                    Value::String(<span class="string">"db"</span>.into()).into(),
+                )]),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        };
+        <span class="macro">assert_eq!</span>(category_for_span(<span class="kw-2">&amp;</span>span), <span class="prelude-val">Some</span>(<span class="string">"db"</span>.into()));
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>span_category_from_op_overrides_inference() {
+        <span class="kw">let </span>span = Span {
+            op: <span class="string">"app.start"</span>.to_owned().into(),
+            data: SpanData {
+                db_system: Value::String(<span class="string">"postgresql"</span>.into()).into(),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        };
+        <span class="macro">assert_eq!</span>(category_for_span(<span class="kw-2">&amp;</span>span), <span class="prelude-val">Some</span>(<span class="string">"app"</span>.into()));
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>infers_db_category_from_attributes() {
+        <span class="kw">let </span>span = Span {
+            data: SpanData {
+                db_system: Value::String(<span class="string">"postgresql"</span>.into()).into(),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        };
+        <span class="macro">assert_eq!</span>(category_for_span(<span class="kw-2">&amp;</span>span), <span class="prelude-val">Some</span>(<span class="string">"db"</span>.into()));
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>infers_http_category_from_attributes() {
+        <span class="kw">let </span>span = Span {
+            data: SpanData {
+                http_request_method: Value::String(<span class="string">"POST"</span>.into()).into(),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        };
+        <span class="macro">assert_eq!</span>(category_for_span(<span class="kw-2">&amp;</span>span), <span class="prelude-val">Some</span>(<span class="string">"http"</span>.into()));
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>infers_ui_category_from_attributes() {
+        <span class="kw">let </span>span = Span {
+            data: SpanData {
+                ui_component_name: Value::String(<span class="string">"MainComponent"</span>.into()).into(),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        };
+        <span class="macro">assert_eq!</span>(category_for_span(<span class="kw-2">&amp;</span>span), <span class="prelude-val">Some</span>(<span class="string">"ui"</span>.into()));
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>infers_resource_category_from_attributes() {
+        <span class="kw">let </span>span = Span {
+            data: SpanData {
+                resource_render_blocking_status: Value::String(<span class="string">"true"</span>.into()).into(),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        };
+        <span class="macro">assert_eq!</span>(category_for_span(<span class="kw-2">&amp;</span>span), <span class="prelude-val">Some</span>(<span class="string">"resource"</span>.into()));
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>infers_browser_category_from_attributes() {
+        <span class="kw">let </span>span = Span {
+            data: SpanData {
+                other: Object::from([(
+                    <span class="string">"sentry.origin"</span>.into(),
+                    Value::String(<span class="string">"auto.ui.browser.metrics"</span>.into()).into(),
+                )]),
+                ..Default::default()
+            }
+            .into(),
+            ..Default::default()
+        };
+        <span class="macro">assert_eq!</span>(category_for_span(<span class="kw-2">&amp;</span>span), <span class="prelude-val">Some</span>(<span class="string">"browser"</span>.into()));
     }
 }
 </code></pre></div></section></main></body></html>
