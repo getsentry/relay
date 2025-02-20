@@ -585,7 +585,7 @@ fn normalize(
     // for spans we derive it by default:
     if let Some(client_ip) = client_ip.as_ref() {
         let ip = span.data.value().and_then(|d| d.client_address.value());
-        if ip.map_or(true, |ip| ip.is_auto()) {
+        if ip.is_none_or(|ip| ip.is_auto()) {
             span.data
                 .get_or_insert_with(Default::default)
                 .client_address = Annotated::new(client_ip.clone());

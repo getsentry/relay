@@ -8,6 +8,12 @@ resolver = "2"
 # target folder, but we don't require stack traces in most cases.
 debug = false
 
+[profile.dev-debug]
+# A version of the dev profile with debug information enabled, for e.g. local
+# debugging.
+inherits = "dev"
+debug = true
+
 [profile.release]
 # In release, however, we do want full debug information to report
 # panic and error stack traces to Sentry.

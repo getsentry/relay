@@ -8844,6 +8844,8 @@ expression: metrics.project_metrics
         tags: {
             "environment": "fake_environment",
             "messaging.destination.name": "default",
+            "messaging.operation.name": "publish",
+            "messaging.operation.type": "create",
             "span.category": "queue",
             "span.op": "queue.task.celery",
             "trace.status": "ok",
@@ -8872,6 +8874,8 @@ expression: metrics.project_metrics
         tags: {
             "environment": "fake_environment",
             "messaging.destination.name": "default",
+            "messaging.operation.name": "publish",
+            "messaging.operation.type": "create",
             "span.category": "queue",
             "span.op": "queue.task.celery",
             "trace.status": "ok",
@@ -8898,6 +8902,8 @@ expression: metrics.project_metrics
         tags: {
             "environment": "fake_environment",
             "messaging.destination.name": "default",
+            "messaging.operation.name": "publish",
+            "messaging.operation.type": "create",
             "span.category": "queue",
             "span.op": "queue.task.celery",
             "trace.status": "ok",
@@ -8926,6 +8932,8 @@ expression: metrics.project_metrics
         tags: {
             "environment": "fake_environment",
             "messaging.destination.name": "default",
+            "messaging.operation.name": "publish",
+            "messaging.operation.type": "create",
             "span.category": "queue",
             "span.op": "queue.task.celery",
             "trace.status": "ok",
@@ -8956,6 +8964,8 @@ expression: metrics.project_metrics
         tags: {
             "environment": "fake_environment",
             "messaging.destination.name": "default",
+            "messaging.operation.name": "publish",
+            "messaging.operation.type": "create",
             "span.op": "queue.task.celery",
             "transaction": "gEt /api/:version/users/",
         },
@@ -8999,6 +9009,8 @@ expression: metrics.project_metrics
         tags: {
             "environment": "fake_environment",
             "messaging.destination.name": "default",
+            "messaging.operation.name": "publish",
+            "messaging.operation.type": "create",
             "span.category": "queue",
             "span.op": "queue.submit.celery",
             "trace.status": "ok",
@@ -9027,6 +9039,8 @@ expression: metrics.project_metrics
         tags: {
             "environment": "fake_environment",
             "messaging.destination.name": "default",
+            "messaging.operation.name": "publish",
+            "messaging.operation.type": "create",
             "span.category": "queue",
             "span.op": "queue.submit.celery",
             "trace.status": "ok",
@@ -9053,6 +9067,8 @@ expression: metrics.project_metrics
         tags: {
             "environment": "fake_environment",
             "messaging.destination.name": "default",
+            "messaging.operation.name": "publish",
+            "messaging.operation.type": "create",
             "span.category": "queue",
             "span.op": "queue.submit.celery",
             "trace.status": "ok",
@@ -9081,6 +9097,8 @@ expression: metrics.project_metrics
         tags: {
             "environment": "fake_environment",
             "messaging.destination.name": "default",
+            "messaging.operation.name": "publish",
+            "messaging.operation.type": "create",
             "span.category": "queue",
             "span.op": "queue.submit.celery",
             "trace.status": "ok",
@@ -9111,6 +9129,8 @@ expression: metrics.project_metrics
         tags: {
             "environment": "fake_environment",
             "messaging.destination.name": "default",
+            "messaging.operation.name": "publish",
+            "messaging.operation.type": "create",
             "span.op": "queue.submit.celery",
             "transaction": "gEt /api/:version/users/",
         },
@@ -9154,6 +9174,8 @@ expression: metrics.project_metrics
         tags: {
             "environment": "fake_environment",
             "messaging.destination.name": "default",
+            "messaging.operation.name": "publish",
+            "messaging.operation.type": "create",
             "span.category": "queue",
             "span.op": "queue.publish",
             "trace.status": "ok",
@@ -9182,6 +9204,8 @@ expression: metrics.project_metrics
         tags: {
             "environment": "fake_environment",
             "messaging.destination.name": "default",
+            "messaging.operation.name": "publish",
+            "messaging.operation.type": "create",
             "span.category": "queue",
             "span.op": "queue.publish",
             "trace.status": "ok",
@@ -9208,6 +9232,8 @@ expression: metrics.project_metrics
         tags: {
             "environment": "fake_environment",
             "messaging.destination.name": "default",
+            "messaging.operation.name": "publish",
+            "messaging.operation.type": "create",
             "span.category": "queue",
             "span.op": "queue.publish",
             "trace.status": "ok",
@@ -9236,6 +9262,8 @@ expression: metrics.project_metrics
         tags: {
             "environment": "fake_environment",
             "messaging.destination.name": "default",
+            "messaging.operation.name": "publish",
+            "messaging.operation.type": "create",
             "span.category": "queue",
             "span.op": "queue.publish",
             "trace.status": "ok",
@@ -9266,6 +9294,8 @@ expression: metrics.project_metrics
         tags: {
             "environment": "fake_environment",
             "messaging.destination.name": "default",
+            "messaging.operation.name": "publish",
+            "messaging.operation.type": "create",
             "span.op": "queue.publish",
             "transaction": "gEt /api/:version/users/",
         },
@@ -9309,6 +9339,8 @@ expression: metrics.project_metrics
         tags: {
             "environment": "fake_environment",
             "messaging.destination.name": "default",
+            "messaging.operation.name": "publish",
+            "messaging.operation.type": "create",
             "span.category": "queue",
             "span.op": "queue.process",
             "trace.status": "ok",
@@ -9337,6 +9369,8 @@ expression: metrics.project_metrics
         tags: {
             "environment": "fake_environment",
             "messaging.destination.name": "default",
+            "messaging.operation.name": "publish",
+            "messaging.operation.type": "create",
             "span.category": "queue",
             "span.op": "queue.process",
             "trace.status": "ok",
@@ -9363,6 +9397,8 @@ expression: metrics.project_metrics
         tags: {
             "environment": "fake_environment",
             "messaging.destination.name": "default",
+            "messaging.operation.name": "publish",
+            "messaging.operation.type": "create",
             "span.category": "queue",
             "span.op": "queue.process",
             "trace.status": "ok",
@@ -9391,6 +9427,8 @@ expression: metrics.project_metrics
         tags: {
             "environment": "fake_environment",
             "messaging.destination.name": "default",
+            "messaging.operation.name": "publish",
+            "messaging.operation.type": "create",
             "span.category": "queue",
             "span.op": "queue.process",
             "trace.status": "ok",
@@ -9421,6 +9459,8 @@ expression: metrics.project_metrics
         tags: {
             "environment": "fake_environment",
             "messaging.destination.name": "default",
+            "messaging.operation.name": "publish",
+            "messaging.operation.type": "create",
             "span.op": "queue.process",
             "transaction": "gEt /api/:version/users/",
         },

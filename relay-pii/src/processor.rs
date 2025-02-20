@@ -205,7 +205,7 @@ impl Processor for PiiProcessor<'_> {
         _meta: &mut Meta,
         state: &ProcessingState<'_>,
     ) -> ProcessingResult {
-        let ip_was_valid = user.ip_address.value().map_or(true, IpAddr::is_valid);
+        let ip_was_valid = user.ip_address.value().is_none_or(IpAddr::is_valid);
 
         // Recurse into the user and does PII processing on fields.
         user.process_child_values(self, state)?;
@@ -214,7 +214,7 @@ impl Processor for PiiProcessor<'_> {
             || user.username.value().is_some()
             || user.email.value().is_some();
 
-        let ip_is_still_valid = user.ip_address.value().map_or(true, IpAddr::is_valid);
+        let ip_is_still_valid = user.ip_address.value().is_none_or(IpAddr::is_valid);
 
         // If the IP address has become invalid as part of PII processing, we move it into the user
         // ID. That ensures people can do IP hashing and still have a correct users-affected count.

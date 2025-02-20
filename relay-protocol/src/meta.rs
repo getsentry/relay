@@ -583,7 +583,7 @@ impl Meta {
 
     /// Indicates whether this field has meta data attached.
     pub fn is_empty(&self) -> bool {
-        self.0.as_ref().map_or(true, |x| x.is_empty())
+        self.0.as_ref().is_none_or(|x| x.is_empty())
     }
 
     /// Merges this meta with another one.

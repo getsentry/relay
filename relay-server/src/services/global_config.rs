@@ -287,7 +287,7 @@ impl GlobalConfigService {
                 let mut success = false;
                 // Older relays won't send a global status, in that case, we will pretend like the
                 // default global config is an up to date one, because that was the old behaviour.
-                let is_ready = response.global_status.map_or(true, |stat| stat.is_ready());
+                let is_ready = response.global_status.is_none_or(|stat| stat.is_ready());
 
                 match response.global {
                     Some(mut global_config) if is_ready => {
