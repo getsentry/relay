@@ -24,7 +24,7 @@ def test_basic_autoscaling_endpoint(mini_sentry, relay):
     assert int(parsed["up"]) == 1
 
 
-def test_graceful_shutdown_with_sqlite_buffer_spooling_disabled(mini_sentry, relay):
+def test_sqlite_spooling_metrics(mini_sentry, relay):
     # Create a temporary directory for the sqlite db
     db_file_path = os.path.join(tempfile.mkdtemp(), "database.db")
 
@@ -51,4 +51,4 @@ def test_graceful_shutdown_with_sqlite_buffer_spooling_disabled(mini_sentry, rel
     body = parse_prometheus(response.text)
     assert int(body["item_count"]) == 200
     assert int(body["up"]) == 1
-    assert int(body["item_size"]) > 30000
+    assert int(body["total_size"]) > 30000

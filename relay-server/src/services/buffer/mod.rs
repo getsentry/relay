@@ -920,7 +920,7 @@ mod tests {
         );
 
         let addr = service.start_in(&mut runner);
-        tokio::time::sleep(Duration::from_millis(50)).await;
+        tokio::time::sleep(Duration::from_millis(200)).await;
         tokio::time::pause();
 
         assert_eq!(addr.metrics.item_count.load(Ordering::Relaxed), 0);
