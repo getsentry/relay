@@ -2713,7 +2713,45 @@
 <a href="#2712" id="2712">2712</a>
 <a href="#2713" id="2713">2713</a>
 <a href="#2714" id="2714">2714</a>
-<a href="#2715" id="2715">2715</a></pre></div><pre class="rust"><code><span class="doccomment">//! Logic for persisting items into `span.sentry_tags` and `span.measurements` fields.
+<a href="#2715" id="2715">2715</a>
+<a href="#2716" id="2716">2716</a>
+<a href="#2717" id="2717">2717</a>
+<a href="#2718" id="2718">2718</a>
+<a href="#2719" id="2719">2719</a>
+<a href="#2720" id="2720">2720</a>
+<a href="#2721" id="2721">2721</a>
+<a href="#2722" id="2722">2722</a>
+<a href="#2723" id="2723">2723</a>
+<a href="#2724" id="2724">2724</a>
+<a href="#2725" id="2725">2725</a>
+<a href="#2726" id="2726">2726</a>
+<a href="#2727" id="2727">2727</a>
+<a href="#2728" id="2728">2728</a>
+<a href="#2729" id="2729">2729</a>
+<a href="#2730" id="2730">2730</a>
+<a href="#2731" id="2731">2731</a>
+<a href="#2732" id="2732">2732</a>
+<a href="#2733" id="2733">2733</a>
+<a href="#2734" id="2734">2734</a>
+<a href="#2735" id="2735">2735</a>
+<a href="#2736" id="2736">2736</a>
+<a href="#2737" id="2737">2737</a>
+<a href="#2738" id="2738">2738</a>
+<a href="#2739" id="2739">2739</a>
+<a href="#2740" id="2740">2740</a>
+<a href="#2741" id="2741">2741</a>
+<a href="#2742" id="2742">2742</a>
+<a href="#2743" id="2743">2743</a>
+<a href="#2744" id="2744">2744</a>
+<a href="#2745" id="2745">2745</a>
+<a href="#2746" id="2746">2746</a>
+<a href="#2747" id="2747">2747</a>
+<a href="#2748" id="2748">2748</a>
+<a href="#2749" id="2749">2749</a>
+<a href="#2750" id="2750">2750</a>
+<a href="#2751" id="2751">2751</a>
+<a href="#2752" id="2752">2752</a>
+<a href="#2753" id="2753">2753</a></pre></div><pre class="rust"><code><span class="doccomment">//! Logic for persisting items into `span.sentry_tags` and `span.measurements` fields.
 //! These are then used for metrics extraction.
 </span><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeMap, BTreeSet};
@@ -3158,6 +3196,8 @@
 </span><span class="kw">struct </span>SegmentTags {
     messaging_destination_name: Annotated&lt;String&gt;,
     messaging_message_id: Annotated&lt;String&gt;,
+    messaging_operation_name: Annotated&lt;String&gt;,
+    messaging_operation_type: Annotated&lt;String&gt;,
 }
 
 <span class="kw">impl </span>SegmentTags {
@@ -3165,9 +3205,13 @@
         <span class="kw">let </span><span class="self">Self </span>{
             messaging_destination_name,
             messaging_message_id,
+            messaging_operation_name,
+            messaging_operation_type,
         } = <span class="self">self</span>.clone();
         tags.messaging_destination_name = messaging_destination_name;
         tags.messaging_message_id = messaging_message_id;
+        tags.messaging_operation_name = messaging_operation_name;
+        tags.messaging_operation_type = messaging_operation_type;
     }
 }
 
@@ -3181,6 +3225,8 @@
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(data) = trace_context.data.value() {
                     tags.messaging_destination_name = data.messaging_destination_name.clone();
                     tags.messaging_message_id = data.messaging_message_id.clone();
+                    tags.messaging_operation_name = data.messaging_operation_name.clone();
+                    tags.messaging_operation_type = data.messaging_operation_type.clone();
                 }
             }
         }
@@ -3391,6 +3437,20 @@
                 .and_then(|data| data.messaging_message_id.as_str())
             {
                 span_tags.messaging_message_id = message_id.to_owned().into();
+            }
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(operation_name) = span
+                .data
+                .value()
+                .and_then(|data| data.messaging_operation_name.as_str())
+            {
+                span_tags.messaging_operation_name = operation_name.to_owned().into();
+            }
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(operation_type) = span
+                .data
+                .value()
+                .and_then(|data| data.messaging_operation_type.as_str())
+            {
+                span_tags.messaging_operation_type = operation_type.to_owned().into();
             }
         }
 
@@ -4857,7 +4917,9 @@ LIMIT 1
                 "data": {
                     "messaging.destination.name": "default",
                     "messaging.message.id": "abc123",
-                    "messaging.message.body.size": 100
+                    "messaging.message.body.size": 100,
+                    "messaging.operation.name": "publish",
+                    "messaging.operation.type": "create"
                 }
             }
         "#</span>;
@@ -4874,6 +4936,14 @@ LIMIT 1
         <span class="macro">assert_eq!</span>(
             tags.messaging_message_id.value(),
             <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">"abc123"</span>.to_string())
+        );
+        <span class="macro">assert_eq!</span>(
+            tags.messaging_operation_name.value(),
+            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">"publish"</span>.to_string())
+        );
+        <span class="macro">assert_eq!</span>(
+            tags.messaging_operation_type.value(),
+            <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">"create"</span>.to_string())
         );
     }
 
@@ -4895,7 +4965,9 @@ LIMIT 1
                             "messaging.message.id": "abc123",
                             "messaging.message.receive.latency": 456,
                             "messaging.message.body.size": 100,
-                            "messaging.message.retry.count": 3
+                            "messaging.message.retry.count": 3,
+                            "messaging.operation.name": "publish",
+                            "messaging.operation.type": "create"
                         }
                     }
                 }
@@ -4915,6 +4987,8 @@ LIMIT 1
         <span class="kw">let </span>measurements = segment_span.value().unwrap().measurements.value().unwrap();
 
         <span class="macro">assert_eq!</span>(tags.messaging_destination_name.as_str(), <span class="prelude-val">Some</span>(<span class="string">"default"</span>));
+        <span class="macro">assert_eq!</span>(tags.messaging_operation_name.as_str(), <span class="prelude-val">Some</span>(<span class="string">"publish"</span>));
+        <span class="macro">assert_eq!</span>(tags.messaging_operation_type.as_str(), <span class="prelude-val">Some</span>(<span class="string">"create"</span>));
 
         <span class="macro">assert_eq!</span>(tags.messaging_message_id.as_str(), <span class="prelude-val">Some</span>(<span class="string">"abc123"</span>));
 
@@ -4960,7 +5034,9 @@ LIMIT 1
                             "messaging.message.id": "abc123",
                             "messaging.message.receive.latency": 456,
                             "messaging.message.body.size": 100,
-                            "messaging.message.retry.count": 3
+                            "messaging.message.retry.count": 3,
+                            "messaging.operation.name": "publish",
+                            "messaging.operation.type": "create"
                         }
                     }
                 },

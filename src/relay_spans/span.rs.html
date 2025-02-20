@@ -702,7 +702,9 @@
 <a href="#701" id="701">701</a>
 <a href="#702" id="702">702</a>
 <a href="#703" id="703">703</a>
-<a href="#704" id="704">704</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::str::FromStr;
+<a href="#704" id="704">704</a>
+<a href="#705" id="705">705</a>
+<a href="#706" id="706">706</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::str::FromStr;
 
 <span class="kw">use </span>chrono::{TimeZone, Utc};
 <span class="kw">use </span>opentelemetry_proto::tonic::common::v1::any_value::Value <span class="kw">as </span>OtelValue;
@@ -1345,6 +1347,8 @@
                 messaging_message_receive_latency: ~,
                 messaging_message_body_size: ~,
                 messaging_message_id: ~,
+                messaging_operation_name: ~,
+                messaging_operation_type: ~,
                 user_agent_original: ~,
                 url_full: ~,
                 client_address: ~,

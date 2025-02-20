@@ -274,7 +274,9 @@
 <a href="#273" id="273">273</a>
 <a href="#274" id="274">274</a>
 <a href="#275" id="275">275</a>
-<a href="#276" id="276">276</a></pre></div><pre class="rust"><code><span class="doccomment">//! This module defines bidirectional field mappings between spans and transactions.
+<a href="#276" id="276">276</a>
+<a href="#277" id="277">277</a>
+<a href="#278" id="278">278</a></pre></div><pre class="rust"><code><span class="doccomment">//! This module defines bidirectional field mappings between spans and transactions.
 
 </span><span class="kw">use </span><span class="kw">crate</span>::protocol::{BrowserContext, Event, ProfileContext, Span, SpanData, TraceContext};
 
@@ -496,6 +498,8 @@
                 messaging_message_receive_latency: ~,
                 messaging_message_body_size: ~,
                 messaging_message_id: ~,
+                messaging_operation_name: ~,
+                messaging_operation_type: ~,
                 user_agent_original: ~,
                 url_full: ~,
                 client_address: ~,

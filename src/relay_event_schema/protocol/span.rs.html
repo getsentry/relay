@@ -1223,7 +1223,25 @@
 <a href="#1222" id="1222">1222</a>
 <a href="#1223" id="1223">1223</a>
 <a href="#1224" id="1224">1224</a>
-<a href="#1225" id="1225">1225</a></pre></div><pre class="rust"><code><span class="kw">mod </span>convert;
+<a href="#1225" id="1225">1225</a>
+<a href="#1226" id="1226">1226</a>
+<a href="#1227" id="1227">1227</a>
+<a href="#1228" id="1228">1228</a>
+<a href="#1229" id="1229">1229</a>
+<a href="#1230" id="1230">1230</a>
+<a href="#1231" id="1231">1231</a>
+<a href="#1232" id="1232">1232</a>
+<a href="#1233" id="1233">1233</a>
+<a href="#1234" id="1234">1234</a>
+<a href="#1235" id="1235">1235</a>
+<a href="#1236" id="1236">1236</a>
+<a href="#1237" id="1237">1237</a>
+<a href="#1238" id="1238">1238</a>
+<a href="#1239" id="1239">1239</a>
+<a href="#1240" id="1240">1240</a>
+<a href="#1241" id="1241">1241</a>
+<a href="#1242" id="1242">1242</a>
+<a href="#1243" id="1243">1243</a></pre></div><pre class="rust"><code><span class="kw">mod </span>convert;
 
 <span class="kw">use </span>relay_protocol::{
     Annotated, Array, Empty, Error, FromValue, Getter, IntoValue, Object, Val, Value,
@@ -1495,6 +1513,10 @@
     </span><span class="kw">pub </span>messaging_destination_name: Annotated&lt;String&gt;,
     <span class="attr">#[metastructure(field = <span class="string">"messaging.message.id"</span>)]
     </span><span class="kw">pub </span>messaging_message_id: Annotated&lt;String&gt;,
+    <span class="attr">#[metastructure(field = <span class="string">"messaging.operation.name"</span>)]
+    </span><span class="kw">pub </span>messaging_operation_name: Annotated&lt;String&gt;,
+    <span class="attr">#[metastructure(field = <span class="string">"messaging.operation.type"</span>)]
+    </span><span class="kw">pub </span>messaging_operation_type: Annotated&lt;String&gt;,
     <span class="attr">#[metastructure(field = <span class="string">"thread.name"</span>)]
     </span><span class="kw">pub </span>thread_name: Annotated&lt;String&gt;,
     <span class="attr">#[metastructure(field = <span class="string">"thread.id"</span>)]
@@ -1530,6 +1552,8 @@
             <span class="string">"main_thread" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.main_thread,
             <span class="string">"messaging.destination.name" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.messaging_destination_name,
             <span class="string">"messaging.message.id" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.messaging_message_id,
+            <span class="string">"messaging.operation.name" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.messaging_operation_name,
+            <span class="string">"messaging.operation.type" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.messaging_operation_type,
             <span class="string">"mobile" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.mobile,
             <span class="string">"op" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.op,
             <span class="string">"os.name" </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.os_name,
@@ -1848,6 +1872,14 @@
     <span class="doccomment">/// Message ID
     </span><span class="attr">#[metastructure(field = <span class="string">"messaging.message.id"</span>)]
     </span><span class="kw">pub </span>messaging_message_id: Annotated&lt;String&gt;,
+
+    <span class="doccomment">/// Messaging Operation Name
+    </span><span class="attr">#[metastructure(field = <span class="string">"messaging.operation.name"</span>)]
+    </span><span class="kw">pub </span>messaging_operation_name: Annotated&lt;String&gt;,
+
+    <span class="doccomment">/// Messaging Operation Type
+    </span><span class="attr">#[metastructure(field = <span class="string">"messaging.operation.type"</span>)]
+    </span><span class="kw">pub </span>messaging_operation_type: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Value of the HTTP User-Agent header sent by the client.
     </span><span class="attr">#[metastructure(field = <span class="string">"user_agent.original"</span>)]
@@ -2259,6 +2291,8 @@
         "messaging.message.receive.latency": 40,
         "messaging.message.body.size": 100,
         "messaging.message.id": "abc123",
+        "messaging.operation.name": "publish",
+        "messaging.operation.type": "create",
         "user_agent.original": "Chrome",
         "url.full": "my_url.com",
         "client.address": "192.168.0.1"
@@ -2351,6 +2385,8 @@
                 100,
             ),
             messaging_message_id: "abc123",
+            messaging_operation_name: "publish",
+            messaging_operation_type: "create",
             user_agent_original: "Chrome",
             url_full: "my_url.com",
             client_address: IpAddr(
