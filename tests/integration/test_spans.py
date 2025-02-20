@@ -717,7 +717,7 @@ def test_span_ingestion(
             "sentry_tags": {
                 "browser.name": "Python Requests",
                 "category": "db",
-                "op": "default",
+                "op": "db",
                 "status": "unknown",
             },
             "span_id": "f0b809703e783d00",
