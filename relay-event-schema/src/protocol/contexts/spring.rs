@@ -50,7 +50,7 @@ mod test {
     use crate::protocol::Context;
 
     #[test]
-    fn test_deserializing_spring_context() {
+    fn test_spring_context_roundtrip() {
         let json = r#"{
   "active_profiles": [
     "some",
@@ -60,8 +60,8 @@ mod test {
 }"#;
 
         let active_profiles = Annotated::new(vec![
-            Annotated::new("some".to_string()),
-            Annotated::new("profiles".to_string()),
+            Annotated::new("some".to_owned()),
+            Annotated::new("profiles".to_owned()),
         ]);
         let context = Annotated::new(Context::Spring(Box::new(SpringContext {
             active_profiles,
