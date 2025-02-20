@@ -3,9 +3,6 @@ use std::collections::BTreeSet;
 use std::convert::Infallible;
 use std::error::Error;
 use std::mem;
-use std::sync::atomic::AtomicI64;
-use std::sync::atomic::Ordering as AtomicOrdering;
-use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
@@ -165,6 +162,24 @@ impl PolymorphicEnvelopeBuffer {
         }
     }
 
+    /// Returns the total number of envelopes that have been spooled since the startup. It does
+    /// not include the count that existed in a persistent spooler before.
+    pub fn item_count(&self) -> u64 {
+        match self {
+            Self::Sqlite(buffer) => buffer.total_count_lossy,
+            Self::InMemory(buffer) => buffer.total_count_lossy,
+        }
+    }
+
+    /// Returns the total number of bytes that the spooler storage uses or `None` if the number
+    /// cannot be reliably determined.
+    pub fn total_size(&self) -> Option<u64> {
+        match self {
+            Self::Sqlite(buffer) => buffer.stack_provider.total_size(),
+            Self::InMemory(buffer) => buffer.stack_provider.total_size(),
+        }
+    }
+
     /// Shuts down the [`PolymorphicEnvelopeBuffer`].
     pub async fn shutdown(&mut self) -> bool {
         // Currently, we want to flush the buffer only for disk, since the in memory implementation
@@ -228,7 +243,13 @@ struct EnvelopeBuffer<P: StackProvider> {
     /// count might not succeed if it takes more than a set timeout. For example, if we load the
     /// count of all envelopes from disk, and it takes more than the time we set, we will mark the
     /// initial count as 0 and just count incoming and outgoing envelopes from the buffer.
-    total_count: Arc<AtomicI64>,
+    total_count: i64,
+    /// The total count of envelopes that the buffer is working with ignoring envelopes that
+    /// were previously stored on disk.
+    ///
+    /// On startup this will always be 0 and will only count incoming envelopes. If a reliable
+    /// count of currently buffered envelopes is required, prefer this over `total_count`
+    total_count_lossy: u64,
     /// Whether the count initialization succeeded or not.
     ///
     /// This boolean is just used for tagging the metric that tracks the total count of envelopes
@@ -245,7 +266,8 @@ impl EnvelopeBuffer<MemoryStackProvider> {
             stacks_by_project: Default::default(),
             priority_queue: Default::default(),
             stack_provider: MemoryStackProvider::new(memory_checker),
-            total_count: Arc::new(AtomicI64::new(0)),
+            total_count: 0,
+            total_count_lossy: 0,
             total_count_initialized: false,
             partition_tag: partition_id.to_string(),
         }
@@ -260,7 +282,8 @@ impl EnvelopeBuffer<SqliteStackProvider> {
             stacks_by_project: Default::default(),
             priority_queue: Default::default(),
             stack_provider: SqliteStackProvider::new(partition_id, config).await?,
-            total_count: Arc::new(AtomicI64::new(0)),
+            total_count: 0,
+            total_count_lossy: 0,
             total_count_initialized: false,
             partition_tag: partition_id.to_string(),
         })
@@ -318,7 +341,8 @@ where
                 prio.received_at = received_at;
             });
 
-        self.total_count.fetch_add(1, AtomicOrdering::SeqCst);
+        self.total_count += 1;
+        self.total_count_lossy += 1;
         self.track_total_count();
 
         Ok(())
@@ -385,7 +409,8 @@ where
         // We are fine with the count going negative, since it represents that more data was popped,
         // than it was initially counted, meaning that we had a wrong total count from
         // initialization.
-        self.total_count.fetch_sub(1, AtomicOrdering::SeqCst);
+        self.total_count -= 1;
+        self.total_count_lossy = self.total_count_lossy.saturating_sub(1);
         self.track_total_count();
 
         Ok(Some(envelope))
@@ -529,8 +554,7 @@ where
         .await;
         match total_count {
             Ok(total_count) => {
-                self.total_count
-                    .store(total_count as i64, AtomicOrdering::SeqCst);
+                self.total_count = total_count as i64;
                 self.total_count_initialized = true;
             }
             Err(error) => {
@@ -546,7 +570,7 @@ where
 
     /// Emits a metric to track the total count of envelopes that are in the envelope buffer.
     fn track_total_count(&self) {
-        let total_count = self.total_count.load(AtomicOrdering::SeqCst) as f64;
+        let total_count = self.total_count as f64;
         let initialized = match self.total_count_initialized {
             true => "true",
             false => "false",

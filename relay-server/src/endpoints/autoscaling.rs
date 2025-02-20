@@ -1,6 +1,7 @@
 use crate::http::StatusCode;
 use crate::service::ServiceState;
 use crate::services::autoscaling::{AutoscalingData, AutoscalingMessageKind};
+use std::fmt::Display;
 
 /// Returns internal metrics data for relay.
 pub async fn handle(state: ServiceState) -> (StatusCode, String) {
@@ -23,15 +24,20 @@ pub async fn handle(state: ServiceState) -> (StatusCode, String) {
 
 /// Simple function to serialize a well-known format into a prometheus string.
 fn to_prometheus_string(data: &AutoscalingData) -> String {
-    let mut result = String::with_capacity(32);
-    result.push_str("memory_usage ");
-    result.push_str(&data.memory_usage.to_string());
-    result.push('\n');
-    result.push_str("up ");
-    result.push_str(&data.up.to_string());
-    result.push('\n');
+    let mut result = String::with_capacity(128);
 
+    append_data_row(&mut result, "memory_usage", data.memory_usage);
+    append_data_row(&mut result, "up", data.up);
+    append_data_row(&mut result, "item_count", data.item_count);
+    append_data_row(&mut result, "total_size", data.total_size);
     result
+}
+
+fn append_data_row(result: &mut String, label: &str, data: impl Display) {
+    result.push_str(label);
+    result.push(' ');
+    result.push_str(&data.to_string());
+    result.push('\n');
 }
 
 #[cfg(test)]
@@ -43,8 +49,13 @@ mod test {
         let data = AutoscalingData {
             memory_usage: 0.75,
             up: 1,
+            item_count: 10,
+            total_size: 30,
         };
         let result = super::to_prometheus_string(&data);
-        assert_eq!(result, "memory_usage 0.75\nup 1\n");
+        assert_eq!(
+            result,
+            "memory_usage 0.75\nup 1\nitem_count 10\ntotal_size 30\n"
+        );
     }
 }

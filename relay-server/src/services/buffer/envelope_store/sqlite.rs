@@ -383,10 +383,9 @@ impl SqliteEnvelopeStore {
             .journal_mode(SqliteJournalMode::Wal)
             .create_if_missing(true);
 
-        let db = SqlitePoolOptions::new()
-            .connect_with(options)
-            .await
-            .map_err(SqliteEnvelopeStoreError::SqlxSetupFailed)?;
+        let db = SqlitePoolOptions::new().connect_with(options).await;
+
+        let db = db.map_err(SqliteEnvelopeStoreError::SqlxSetupFailed)?;
 
         sqlx::migrate!("../migrations")
             .run(&db)
