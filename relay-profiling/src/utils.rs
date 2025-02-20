@@ -47,7 +47,7 @@ where
 }
 
 pub fn string_is_null_or_empty(s: &Option<String>) -> bool {
-    s.as_deref().map_or(true, |s| s.is_empty())
+    s.as_deref().is_none_or(|s| s.is_empty())
 }
 
 pub fn default_client_sdk(platform: &str) -> Option<ClientSdk> {
