@@ -3,7 +3,9 @@ use std::str::FromStr;
 use chrono::{TimeZone, Utc};
 use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
 
-use crate::otel_trace::{status::StatusCode as OtelStatusCode, Span as OtelSpan};
+use crate::otel_trace::{
+    status::StatusCode as OtelStatusCode, Span as OtelSpan, SpanFlags as OtelSpanFlags,
+};
 use crate::status_codes;
 use relay_event_schema::protocol::{
     EventId, Span as EventSpan, SpanData, SpanId, SpanStatus, Timestamp, TraceId,
@@ -71,6 +73,14 @@ fn otel_value_to_span_id(value: OtelValue) -> Option<String> {
     Some(hex::encode(decoded))
 }
 
+fn otel_flags_is_remote(value: u32) -> Option<bool> {
+    if value & OtelSpanFlags::ContextHasIsRemoteMask as u32 == 0 {
+        None
+    } else {
+        Some(value & OtelSpanFlags::ContextIsRemoteMask as u32 != 0)
+    }
+}
+
 /// Transform an OtelSpan to a Sentry span.
 pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
     let mut exclusive_time_ms = 0f64;
@@ -81,10 +91,11 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
         trace_id,
         span_id,
         parent_span_id,
+        flags,
         name,
+        kind,
         attributes,
         status,
-        kind,
         ..
     } = otel_span;
 
@@ -198,6 +209,7 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
         parent_span_id: parent_span_id.map(SpanId).into(),
         segment_id: segment_id.map(SpanId).into(),
         span_id: Annotated::new(SpanId(span_id)),
+        is_remote: Annotated::from(otel_flags_is_remote(flags)),
         profile_id: profile_id
             .as_deref()
             .and_then(|s| EventId::from_str(s).ok())
@@ -560,6 +572,7 @@ mod tests {
                 "fa90fdead5f74052",
             ),
             is_segment: ~,
+            is_remote: ~,
             status: Ok,
             description: ~,
             tags: ~,
@@ -628,6 +641,8 @@ mod tests {
                 messaging_message_receive_latency: ~,
                 messaging_message_body_size: ~,
                 messaging_message_id: ~,
+                messaging_operation_name: ~,
+                messaging_operation_type: ~,
                 user_agent_original: ~,
                 url_full: ~,
                 client_address: ~,
@@ -648,6 +663,36 @@ mod tests {
             other: {},
         }
         "#);
+    }
+
+    #[test]
+    fn parse_span_is_remote() {
+        let json = r#"{
+            "traceId": "89143b0763095bd9c9955e8175d1fb23",
+            "spanId": "e342abb1214ca181",
+            "parentSpanId": "0c7a7dea069bf5a6",
+            "startTimeUnixNano": "123000000000",
+            "endTimeUnixNano": "123500000000",
+            "flags": 768
+        }"#;
+        let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
+        let event_span: EventSpan = otel_to_sentry_span(otel_span);
+        assert_eq!(event_span.is_remote, Annotated::new(true));
+    }
+
+    #[test]
+    fn parse_span_is_not_remote() {
+        let json = r#"{
+            "traceId": "89143b0763095bd9c9955e8175d1fb23",
+            "spanId": "e342abb1214ca181",
+            "parentSpanId": "0c7a7dea069bf5a6",
+            "startTimeUnixNano": "123000000000",
+            "endTimeUnixNano": "123500000000",
+            "flags": 256
+        }"#;
+        let otel_span: OtelSpan = serde_json::from_str(json).unwrap();
+        let event_span: EventSpan = otel_to_sentry_span(otel_span);
+        assert_eq!(event_span.is_remote, Annotated::new(false));
     }
 
     #[test]

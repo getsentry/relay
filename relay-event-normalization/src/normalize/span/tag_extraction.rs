@@ -443,6 +443,8 @@ fn extract_segment_measurements(event: &Event) -> BTreeMap<String, Measurement> 
 struct SegmentTags {
     messaging_destination_name: Annotated<String>,
     messaging_message_id: Annotated<String>,
+    messaging_operation_name: Annotated<String>,
+    messaging_operation_type: Annotated<String>,
 }
 
 impl SegmentTags {
@@ -450,9 +452,13 @@ impl SegmentTags {
         let Self {
             messaging_destination_name,
             messaging_message_id,
+            messaging_operation_name,
+            messaging_operation_type,
         } = self.clone();
         tags.messaging_destination_name = messaging_destination_name;
         tags.messaging_message_id = messaging_message_id;
+        tags.messaging_operation_name = messaging_operation_name;
+        tags.messaging_operation_type = messaging_operation_type;
     }
 }
 
@@ -466,6 +472,8 @@ fn extract_segment_tags(event: &Event) -> SegmentTags {
                 if let Some(data) = trace_context.data.value() {
                     tags.messaging_destination_name = data.messaging_destination_name.clone();
                     tags.messaging_message_id = data.messaging_message_id.clone();
+                    tags.messaging_operation_name = data.messaging_operation_name.clone();
+                    tags.messaging_operation_type = data.messaging_operation_type.clone();
                 }
             }
         }
@@ -676,6 +684,20 @@ pub fn extract_tags(
                 .and_then(|data| data.messaging_message_id.as_str())
             {
                 span_tags.messaging_message_id = message_id.to_owned().into();
+            }
+            if let Some(operation_name) = span
+                .data
+                .value()
+                .and_then(|data| data.messaging_operation_name.as_str())
+            {
+                span_tags.messaging_operation_name = operation_name.to_owned().into();
+            }
+            if let Some(operation_type) = span
+                .data
+                .value()
+                .and_then(|data| data.messaging_operation_type.as_str())
+            {
+                span_tags.messaging_operation_type = operation_type.to_owned().into();
             }
         }
 
@@ -2142,7 +2164,9 @@ LIMIT 1
                 "data": {
                     "messaging.destination.name": "default",
                     "messaging.message.id": "abc123",
-                    "messaging.message.body.size": 100
+                    "messaging.message.body.size": 100,
+                    "messaging.operation.name": "publish",
+                    "messaging.operation.type": "create"
                 }
             }
         "#;
@@ -2159,6 +2183,14 @@ LIMIT 1
         assert_eq!(
             tags.messaging_message_id.value(),
             Some(&"abc123".to_string())
+        );
+        assert_eq!(
+            tags.messaging_operation_name.value(),
+            Some(&"publish".to_string())
+        );
+        assert_eq!(
+            tags.messaging_operation_type.value(),
+            Some(&"create".to_string())
         );
     }
 
@@ -2180,7 +2212,9 @@ LIMIT 1
                             "messaging.message.id": "abc123",
                             "messaging.message.receive.latency": 456,
                             "messaging.message.body.size": 100,
-                            "messaging.message.retry.count": 3
+                            "messaging.message.retry.count": 3,
+                            "messaging.operation.name": "publish",
+                            "messaging.operation.type": "create"
                         }
                     }
                 }
@@ -2200,6 +2234,8 @@ LIMIT 1
         let measurements = segment_span.value().unwrap().measurements.value().unwrap();
 
         assert_eq!(tags.messaging_destination_name.as_str(), Some("default"));
+        assert_eq!(tags.messaging_operation_name.as_str(), Some("publish"));
+        assert_eq!(tags.messaging_operation_type.as_str(), Some("create"));
 
         assert_eq!(tags.messaging_message_id.as_str(), Some("abc123"));
 
@@ -2245,7 +2281,9 @@ LIMIT 1
                             "messaging.message.id": "abc123",
                             "messaging.message.receive.latency": 456,
                             "messaging.message.body.size": 100,
-                            "messaging.message.retry.count": 3
+                            "messaging.message.retry.count": 3,
+                            "messaging.operation.name": "publish",
+                            "messaging.operation.type": "create"
                         }
                     }
                 },

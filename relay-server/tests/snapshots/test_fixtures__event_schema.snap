@@ -3520,6 +3520,20 @@ expression: "relay_event_schema::protocol::event_json_schema()"
                 "null"
               ]
             },
+            "messaging.operation.name": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "messaging.operation.type": {
+              "default": null,
+              "type": [
+                "string",
+                "null"
+              ]
+            },
             "messaging.message.body.size": {
               "description": " Message Body Size",
               "default": null

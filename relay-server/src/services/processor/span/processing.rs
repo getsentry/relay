@@ -380,6 +380,7 @@ pub fn extract_from_event(
             // as part of normalization once standalone spans reach wider adoption.
             let mut new_span = inner_span.clone();
             new_span.is_segment = Annotated::new(false);
+            new_span.is_remote = Annotated::new(false);
             new_span.received = transaction_span.received.clone();
             new_span.segment_id = transaction_span.segment_id.clone();
             new_span.platform = transaction_span.platform.clone();

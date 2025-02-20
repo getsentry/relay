@@ -8,6 +8,12 @@ resolver = "2"
 # target folder, but we don't require stack traces in most cases.
 debug = false
 
+[profile.dev-debug]
+# A version of the dev profile with debug information enabled, for e.g. local
+# debugging.
+inherits = "dev"
+debug = true
+
 [profile.release]
 # In release, however, we do want full debug information to report
 # panic and error stack traces to Sentry.
@@ -56,6 +62,7 @@ relay-server = { path = "relay-server" }
 relay-spans = { path = "relay-spans" }
 relay-statsd = { path = "relay-statsd" }
 relay-system = { path = "relay-system" }
+relay-threading = { path = "relay-threading" }
 relay-ua = { path = "relay-ua" }
 relay-test = { path = "relay-test" }
 relay-protocol-derive = { path = "relay-protocol-derive" }
@@ -98,6 +105,7 @@ enumset = "1.0.13"
 flate2 = "1.0.35"
 fnv = "1.0.7"
 futures = { version = "0.3", default-features = false, features = ["std"] }
+flume = { version = "0.11.1", default-features = false }
 globset = "0.4.15"
 hash32 = "0.3.1"
 hashbrown = "0.14.5"
