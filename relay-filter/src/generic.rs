@@ -20,7 +20,7 @@ pub fn are_generic_filters_supported(
     global_filters_version: Option<u16>,
     project_filters_version: u16,
 ) -> bool {
-    global_filters_version.map_or(true, |v| v <= MAX_SUPPORTED_VERSION)
+    global_filters_version.is_none_or(|v| v <= MAX_SUPPORTED_VERSION)
         && project_filters_version <= MAX_SUPPORTED_VERSION
 }
 
@@ -82,7 +82,7 @@ fn merge_generic_filters<'a>(
     let max_supported_version = MAX_SUPPORTED_VERSION;
 
     let is_supported = project.version <= max_supported_version
-        && global.map_or(true, |gf| gf.version <= max_supported_version);
+        && global.is_none_or(|gf| gf.version <= max_supported_version);
 
     is_supported
         .then(|| {

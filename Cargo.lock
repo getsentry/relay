@@ -899,6 +899,7 @@ dependencies = [
  "ciborium",
  "clap",
  "criterion-plot",
+ "futures",
  "is-terminal",
  "itertools 0.10.5",
  "num-traits",
@@ -911,6 +912,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "tinytemplate",
+ "tokio",
  "walkdir",
 ]
 
@@ -4076,6 +4078,17 @@ version = "25.2.0"
 dependencies = [
  "relay-log",
  "relay-system",
+ "tokio",
+]
+
+[[package]]
+name = "relay-threading"
+version = "25.2.0"
+dependencies = [
+ "criterion",
+ "flume",
+ "futures",
+ "pin-project-lite",
  "tokio",
 ]
 

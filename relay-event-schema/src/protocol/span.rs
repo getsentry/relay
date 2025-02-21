@@ -270,6 +270,10 @@ pub struct SentryTags {
     pub messaging_destination_name: Annotated<String>,
     #[metastructure(field = "messaging.message.id")]
     pub messaging_message_id: Annotated<String>,
+    #[metastructure(field = "messaging.operation.name")]
+    pub messaging_operation_name: Annotated<String>,
+    #[metastructure(field = "messaging.operation.type")]
+    pub messaging_operation_type: Annotated<String>,
     #[metastructure(field = "thread.name")]
     pub thread_name: Annotated<String>,
     #[metastructure(field = "thread.id")]
@@ -305,6 +309,8 @@ impl Getter for SentryTags {
             "main_thread" => &self.main_thread,
             "messaging.destination.name" => &self.messaging_destination_name,
             "messaging.message.id" => &self.messaging_message_id,
+            "messaging.operation.name" => &self.messaging_operation_name,
+            "messaging.operation.type" => &self.messaging_operation_type,
             "mobile" => &self.mobile,
             "op" => &self.op,
             "os.name" => &self.os_name,
@@ -623,6 +629,14 @@ pub struct SpanData {
     /// Message ID
     #[metastructure(field = "messaging.message.id")]
     pub messaging_message_id: Annotated<String>,
+
+    /// Messaging Operation Name
+    #[metastructure(field = "messaging.operation.name")]
+    pub messaging_operation_name: Annotated<String>,
+
+    /// Messaging Operation Type
+    #[metastructure(field = "messaging.operation.type")]
+    pub messaging_operation_type: Annotated<String>,
 
     /// Value of the HTTP User-Agent header sent by the client.
     #[metastructure(field = "user_agent.original")]
@@ -1034,6 +1048,8 @@ mod tests {
         "messaging.message.receive.latency": 40,
         "messaging.message.body.size": 100,
         "messaging.message.id": "abc123",
+        "messaging.operation.name": "publish",
+        "messaging.operation.type": "create",
         "user_agent.original": "Chrome",
         "url.full": "my_url.com",
         "client.address": "192.168.0.1"
@@ -1126,6 +1142,8 @@ mod tests {
                 100,
             ),
             messaging_message_id: "abc123",
+            messaging_operation_name: "publish",
+            messaging_operation_type: "create",
             user_agent_original: "Chrome",
             url_full: "my_url.com",
             client_address: IpAddr(

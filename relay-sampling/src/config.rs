@@ -223,7 +223,7 @@ impl TimeRange {
     /// If one of the limits isn't provided, the range is considered open in
     /// that limit. A time range open on both sides matches with any given time.
     pub fn contains(&self, time: DateTime<Utc>) -> bool {
-        self.start.map_or(true, |s| s <= time) && self.end.map_or(true, |e| time < e)
+        self.start.is_none_or(|s| s <= time) && self.end.is_none_or(|e| time < e)
     }
 }
 

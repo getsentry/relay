@@ -63,6 +63,7 @@
 //!  - [`relay-statsd`]: High-level StatsD metric client for internal measurements.
 //!  - [`relay-system`]: Foundational system components for Relay's services.
 //!  - [`relay-test`]: Helpers for testing the web server and services.
+//!  - [`relay-threading`]: Threading code that is used by Relay.
 //!  - [`relay-ua`]: User agent parser with built-in rules.
 //!
 //! # Tools
