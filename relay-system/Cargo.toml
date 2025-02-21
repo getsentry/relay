@@ -12,6 +12,9 @@ publish = false
 [lints]
 workspace = true
 
+[features]
+test = []
+
 [dependencies]
 futures = { workspace = true }
 once_cell = { workspace = true }
@@ -25,3 +28,4 @@ pin-project-lite = { workspace = true }
 insta = { workspace = true }
 relay-statsd = { workspace = true, features = ["test"] }
 tokio = { workspace = true, features = ["test-util"] }
+futures =  { workspace = true, features = ["async-await"] }

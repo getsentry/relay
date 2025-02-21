@@ -7,6 +7,10 @@
 - Add new `relay-threading` crate with asynchronous thread pool. ([#4500](https://github.com/getsentry/relay/pull/4500))
 - Support span `category` inference from span attributes. ([#4509](https://github.com/getsentry/relay/pull/4509))
 
+**Internal**:
+
+- Track an utilization metric for internal services. ([#4501](https://github.com/getsentry/relay/pull/4501))
+
 ## 25.2.0
 
 - Allow log ingestion behind a flag, only for internal use currently. ([#4471](https://github.com/getsentry/relay/pull/4471))
