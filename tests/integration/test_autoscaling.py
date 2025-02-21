@@ -52,3 +52,23 @@ def test_sqlite_spooling_metrics(mini_sentry, relay):
     assert int(body["item_count"]) == 200
     assert int(body["up"]) == 1
     assert int(body["total_size"]) > 30000
+
+
+def test_memory_spooling_metrics(mini_sentry, relay):
+    project_id = 42
+    mini_sentry.add_basic_project_config(project_id)
+
+    relay = relay(mini_sentry)
+
+    relay.send_signal(signal.SIGUSR1)
+    sleep(0.5)
+
+    for i in range(200):
+        relay.send_event(project_id)
+
+    response = relay.get("/api/relay/autoscaling/")
+    assert response.status_code == 200
+    body = parse_prometheus(response.text)
+    assert int(body["item_count"]) == 200
+    assert int(body["up"]) == 1
+    assert int(body["total_size"]) == 0

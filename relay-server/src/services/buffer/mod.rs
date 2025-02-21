@@ -155,8 +155,11 @@ impl PartitionedEnvelopeBuffer {
         self.buffers.iter().map(|buffer| buffer.item_count()).sum()
     }
 
-    pub fn item_size(&self) -> u64 {
-        self.buffers.iter().map(|buffer| buffer.disk_size()).sum()
+    pub fn total_storage_size(&self) -> u64 {
+        self.buffers
+            .iter()
+            .map(|buffer| buffer.storage_size())
+            .sum()
     }
 
     /// Builds a hasher with fixed seeds for consistent partitioning across Relay instances.
@@ -174,7 +177,7 @@ impl PartitionedEnvelopeBuffer {
 pub struct EnvelopeBufferMetrics {
     has_capacity: AtomicBool,
     item_count: AtomicU64,
-    item_size: AtomicU64,
+    storage_size: AtomicU64,
 }
 
 /// Contains the services [`Addr`] and a watch channel to observe its state.
@@ -204,8 +207,8 @@ impl ObservableEnvelopeBuffer {
         self.metrics.item_count.load(Ordering::Relaxed)
     }
 
-    pub fn disk_size(&self) -> u64 {
-        self.metrics.item_size.load(Ordering::Relaxed)
+    pub fn storage_size(&self) -> u64 {
+        self.metrics.storage_size.load(Ordering::Relaxed)
     }
 }
 
@@ -256,7 +259,7 @@ impl EnvelopeBufferService {
             metrics: Arc::new(EnvelopeBufferMetrics {
                 has_capacity: AtomicBool::new(true),
                 item_count: AtomicU64::new(0),
-                item_size: AtomicU64::new(0),
+                storage_size: AtomicU64::new(0),
             }),
             sleep: Duration::ZERO,
         }
@@ -551,7 +554,7 @@ impl EnvelopeBufferService {
             .has_capacity
             .store(buffer.has_capacity(), Ordering::Relaxed);
         self.metrics
-            .item_size
+            .storage_size
             .store(buffer.total_size().unwrap_or(0), Ordering::Relaxed);
         self.metrics
             .item_count

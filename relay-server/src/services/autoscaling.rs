@@ -36,7 +36,7 @@ impl Service for AutoscalingMetricService {
                             let memory_usage = self.memory_stat.memory();
                             sender.send(AutoscalingData::new(
                                 memory_usage.used_percent(),
-                                self.envelope_buffer.item_size(),
+                                self.envelope_buffer.total_storage_size(),
                                 self.envelope_buffer.item_count(),
                                 self.up
                             ));
