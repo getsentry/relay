@@ -934,7 +934,9 @@
 <a href="#933" id="933">933</a>
 <a href="#934" id="934">934</a>
 <a href="#935" id="935">935</a>
-<a href="#936" id="936">936</a></pre></div><pre class="rust"><code><span class="doccomment">//! Types for buffering envelopes.
+<a href="#936" id="936">936</a>
+<a href="#937" id="937">937</a>
+<a href="#938" id="938">938</a></pre></div><pre class="rust"><code><span class="doccomment">//! Types for buffering envelopes.
 
 </span><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::num::NonZeroU8;
@@ -1472,7 +1474,6 @@
         <span class="kw">let </span>services = <span class="self">self</span>.services.clone();
 
         <span class="kw">let </span>dequeue = Arc::&lt;AtomicBool&gt;::new(<span class="bool-val">true</span>.into());
-        <span class="kw">let </span>dequeue1 = dequeue.clone();
 
         <span class="kw">let </span><span class="kw-2">mut </span>buffer =
             PolymorphicEnvelopeBuffer::from_config(<span class="self">self</span>.partition_id, <span class="kw-2">&amp;</span>config, memory_checker)
@@ -1488,17 +1489,20 @@
         <span class="kw">let </span><span class="kw-2">mut </span>project_changes = <span class="self">self</span>.services.project_cache_handle.changes();
 
         <span class="attr">#[cfg(unix)]
-        </span><span class="macro">relay_system::spawn!</span>(<span class="kw">async move </span>{
-            <span class="kw">use </span>tokio::signal::unix::{signal, SignalKind};
-            <span class="kw">let </span><span class="prelude-val">Ok</span>(<span class="kw-2">mut </span>signal) = signal(SignalKind::user_defined1()) <span class="kw">else </span>{
-                <span class="kw">return</span>;
-            };
-            <span class="kw">while let </span><span class="prelude-val">Some</span>(()) = signal.recv().<span class="kw">await </span>{
-                <span class="kw">let </span>deq = !dequeue1.load(Ordering::Relaxed);
-                dequeue1.store(deq, Ordering::Relaxed);
-                <span class="macro">relay_log::info!</span>(<span class="string">"SIGUSR1 receive, dequeue={}"</span>, deq);
-            }
-        });
+        </span>{
+            <span class="kw">let </span>dequeue1 = dequeue.clone();
+            <span class="macro">relay_system::spawn!</span>(<span class="kw">async move </span>{
+                <span class="kw">use </span>tokio::signal::unix::{signal, SignalKind};
+                <span class="kw">let </span><span class="prelude-val">Ok</span>(<span class="kw-2">mut </span>signal) = signal(SignalKind::user_defined1()) <span class="kw">else </span>{
+                    <span class="kw">return</span>;
+                };
+                <span class="kw">while let </span><span class="prelude-val">Some</span>(()) = signal.recv().<span class="kw">await </span>{
+                    <span class="kw">let </span>deq = !dequeue1.load(Ordering::Relaxed);
+                    dequeue1.store(deq, Ordering::Relaxed);
+                    <span class="macro">relay_log::info!</span>(<span class="string">"SIGUSR1 receive, dequeue={}"</span>, deq);
+                }
+            });
+        }
 
         <span class="macro">relay_log::info!</span>(<span class="string">"EnvelopeBufferService {}: starting"</span>, <span class="self">self</span>.partition_id);
         <span class="kw">loop </span>{
