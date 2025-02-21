@@ -189,7 +189,7 @@
 <span class="kw">use </span>relay_config::{Config, RelayMode};
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">use </span>relay_redis::RedisPools;
-<span class="kw">use </span>relay_system::{Addr, ServiceRunner};
+<span class="kw">use </span>relay_system::{Addr, ServiceSpawn, ServiceSpawnExt <span class="kw">as _</span>};
 <span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::sync::Arc;
 
@@ -217,15 +217,15 @@
 }
 
 <span class="kw">impl </span>ProjectSource {
-    <span class="doccomment">/// Starts all project source services in the given `ServiceRunner`.
+    <span class="doccomment">/// Starts all project source services in the given [`ServiceSpawn`].
     </span><span class="kw">pub async fn </span>start_in(
-        runner: <span class="kw-2">&amp;mut </span>ServiceRunner,
+        services: <span class="kw-2">&amp;</span><span class="kw">dyn </span>ServiceSpawn,
         config: Arc&lt;Config&gt;,
         upstream_relay: Addr&lt;UpstreamRelay&gt;,
         <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)] </span>_redis: <span class="prelude-ty">Option</span>&lt;RedisPools&gt;,
     ) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span>local_source = runner.start(LocalProjectSourceService::new(config.clone()));
-        <span class="kw">let </span>upstream_source = runner.start(UpstreamProjectSourceService::new(
+        <span class="kw">let </span>local_source = services.start(LocalProjectSourceService::new(config.clone()));
+        <span class="kw">let </span>upstream_source = services.start(UpstreamProjectSourceService::new(
             config.clone(),
             upstream_relay,
         ));

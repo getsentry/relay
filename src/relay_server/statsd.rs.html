@@ -1028,7 +1028,14 @@
 <a href="#1027" id="1027">1027</a>
 <a href="#1028" id="1028">1028</a>
 <a href="#1029" id="1029">1029</a>
-<a href="#1030" id="1030">1030</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
+<a href="#1030" id="1030">1030</a>
+<a href="#1031" id="1031">1031</a>
+<a href="#1032" id="1032">1032</a>
+<a href="#1033" id="1033">1033</a>
+<a href="#1034" id="1034">1034</a>
+<a href="#1035" id="1035">1035</a>
+<a href="#1036" id="1036">1036</a>
+<a href="#1037" id="1037">1037</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 <span class="attr">#[cfg(doc)]
 </span><span class="kw">use </span>relay_system::RuntimeMetrics;
 
@@ -1072,6 +1079,12 @@
     /// - `namespace`: the metric namespace.
     </span><span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>MetricDelayMax,
+    <span class="doccomment">/// Estimated percentage [0-100] of how busy Relay's internal services are.
+    ///
+    /// This metric is tagged with:
+    /// - `service`: the service name.
+    /// - `instance_id`: a for the service name unique identifier for the running service
+    </span>ServiceUtilization,
 }
 
 <span class="kw">impl </span>GaugeMetric <span class="kw">for </span>RelayGauges {
@@ -1093,6 +1106,7 @@
             RelayGauges::ServerActiveConnections =&gt; <span class="string">"server.http.connections"</span>,
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>RelayGauges::MetricDelayMax =&gt; <span class="string">"metrics.delay.max"</span>,
+            RelayGauges::ServiceUtilization =&gt; <span class="string">"service.utilization"</span>,
         }
     }
 }

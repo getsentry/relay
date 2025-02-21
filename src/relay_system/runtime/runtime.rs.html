@@ -97,16 +97,15 @@
 <span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span><span class="kw">crate</span>::runtime::metrics::TokioCallbackMetrics;
-<span class="kw">use </span><span class="kw">crate</span>::RuntimeMetrics;
+<span class="kw">use </span><span class="kw">crate</span>::Handle;
 
 <span class="doccomment">/// A Relay async runtime.
 ///
 /// This is a thin wrapper around a Tokio [`tokio::runtime::Runtime`],
 /// configured for Relay.
 </span><span class="kw">pub struct </span>Runtime {
-    name: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
     rt: tokio::runtime::Runtime,
-    cb_metrics: Arc&lt;TokioCallbackMetrics&gt;,
+    handle: Handle,
 }
 
 <span class="kw">impl </span>Runtime {
@@ -115,9 +114,11 @@
         Builder::new(name)
     }
 
-    <span class="doccomment">/// Returns a new [`RuntimeMetrics`] handle for this runtime.
-    </span><span class="kw">pub fn </span>metrics(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; RuntimeMetrics {
-        Arc::clone(<span class="kw-2">&amp;</span><span class="self">self</span>.cb_metrics).into_metrics(<span class="self">self</span>.name, <span class="self">self</span>.rt.metrics())
+    <span class="doccomment">/// Returns a [`Handle`] to this runtime.
+    ///
+    /// The [`Handle`] can be freely cloned and used to spawn services.
+    </span><span class="kw">pub fn </span>handle(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Handle {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.handle
     }
 
     <span class="doccomment">/// Runs a future to completion on this runtime.
@@ -171,8 +172,8 @@
 
     <span class="doccomment">/// Creates the configured [`Runtime`].
     </span><span class="kw">pub fn </span>build(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Runtime {
-        <span class="kw">let </span>cb_metrics = Arc::new(TokioCallbackMetrics::default());
-        cb_metrics.register(<span class="kw-2">&amp;mut </span><span class="self">self</span>.builder);
+        <span class="kw">let </span>tokio_cb_metrics = Arc::new(TokioCallbackMetrics::default());
+        tokio_cb_metrics.register(<span class="kw-2">&amp;mut </span><span class="self">self</span>.builder);
 
         <span class="kw">let </span>rt = <span class="self">self
             </span>.builder
@@ -180,9 +181,8 @@
             .expect(<span class="string">"creating the Tokio runtime should never fail"</span>);
 
         Runtime {
-            name: <span class="self">self</span>.name,
+            handle: Handle::new(<span class="self">self</span>.name, rt.handle().clone(), tokio_cb_metrics),
             rt,
-            cb_metrics,
         }
     }
 }

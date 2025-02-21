@@ -321,7 +321,10 @@
 <a href="#320" id="320">320</a>
 <a href="#321" id="321">321</a>
 <a href="#322" id="322">322</a>
-<a href="#323" id="323">323</a></pre></div><pre class="rust"><code><span class="doccomment">//! The Sentry relay server application.
+<a href="#323" id="323">323</a>
+<a href="#324" id="324">324</a>
+<a href="#325" id="325">325</a>
+<a href="#326" id="326">326</a></pre></div><pre class="rust"><code><span class="doccomment">//! The Sentry relay server application.
 //!
 //! This module contains the [`run`] function which starts the relay server. It responds on
 //! multiple supported endpoints, serves queries to downstream relays and send received events to
@@ -601,7 +604,7 @@
 <span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span>relay_config::Config;
-<span class="kw">use </span>relay_system::Controller;
+<span class="kw">use </span>relay_system::{Controller, ServiceSpawnExt <span class="kw">as _</span>};
 
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 <span class="kw">use </span><span class="kw">crate</span>::services::server::HttpServer;
@@ -617,18 +620,21 @@
 
     <span class="comment">// Creates the main runtime.
     </span><span class="kw">let </span>runtime = <span class="kw">crate</span>::service::create_runtime(<span class="string">"main-rt"</span>, config.cpu_concurrency());
-    <span class="kw">let </span>runtime_metrics = runtime.metrics();
+    <span class="kw">let </span>handle = runtime.handle().clone();
 
     <span class="comment">// Run the system and block until a shutdown signal is sent to this process. Inside, start a
     // web server and run all relevant services. See the `actors` module documentation for more
     // information on all services.
     </span>runtime.block_on(<span class="kw">async </span>{
         Controller::start(config.shutdown_timeout());
-        <span class="kw">let </span>(state, <span class="kw-2">mut </span>runner) = ServiceState::start(runtime_metrics, config.clone()).<span class="kw">await</span><span class="question-mark">?</span>;
-        runner.start(HttpServer::new(config, state.clone())<span class="question-mark">?</span>);
+
+        <span class="kw">let </span><span class="kw-2">mut </span>services = handle.service_set();
+
+        <span class="kw">let </span>state = ServiceState::start(<span class="kw-2">&amp;</span>handle, <span class="kw-2">&amp;</span>services, config.clone()).<span class="kw">await</span><span class="question-mark">?</span>;
+        services.start(HttpServer::new(config, state.clone())<span class="question-mark">?</span>);
 
         <span class="macro">tokio::select!</span> {
-            <span class="kw">_ </span>= runner.join() =&gt; {},
+            <span class="kw">_ </span>= services.join() =&gt; {},
             <span class="comment">// NOTE: when every service implements a shutdown listener,
             // awaiting on `finished` becomes unnecessary: We can simply join() and guarantee
             // that every service finished its main task.

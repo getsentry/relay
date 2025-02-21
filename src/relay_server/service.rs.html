@@ -510,9 +510,7 @@
 <a href="#509" id="509">509</a>
 <a href="#510" id="510">510</a>
 <a href="#511" id="511">511</a>
-<a href="#512" id="512">512</a>
-<a href="#513" id="513">513</a>
-<a href="#514" id="514">514</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
+<a href="#512" id="512">512</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
@@ -553,7 +551,7 @@
 </span><span class="kw">use </span>relay_redis::AsyncRedisClient;
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">use </span>relay_redis::{PooledClient, RedisError, RedisPool, RedisPools, RedisScripts};
-<span class="kw">use </span>relay_system::{channel, Addr, Service, ServiceRunner};
+<span class="kw">use </span>relay_system::{channel, Addr, Service, ServiceSpawn, ServiceSpawnExt <span class="kw">as _</span>};
 
 <span class="doccomment">/// Indicates the type of failure of the server.
 </span><span class="attr">#[derive(Debug, thiserror::Error)]
@@ -664,12 +662,12 @@
 <span class="kw">impl </span>ServiceState {
     <span class="doccomment">/// Starts all services and returns addresses to all of them.
     </span><span class="kw">pub async fn </span>start(
-        rt_metrics: relay_system::RuntimeMetrics,
+        handle: <span class="kw-2">&amp;</span>relay_system::Handle,
+        services: <span class="kw-2">&amp;</span><span class="kw">dyn </span>ServiceSpawn,
         config: Arc&lt;Config&gt;,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(<span class="self">Self</span>, ServiceRunner)&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>runner = ServiceRunner::new();
-        <span class="kw">let </span>upstream_relay = runner.start(UpstreamRelayService::new(config.clone()));
-        <span class="kw">let </span>test_store = runner.start(TestStoreService::new(config.clone()));
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>&gt; {
+        <span class="kw">let </span>upstream_relay = services.start(UpstreamRelayService::new(config.clone()));
+        <span class="kw">let </span>test_store = services.start(TestStoreService::new(config.clone()));
 
         <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
         </span><span class="kw">let </span>redis_pools = <span class="kw">match </span>config.redis().filter(|<span class="kw">_</span>| config.processing_enabled()) {
@@ -695,15 +693,15 @@
         <span class="comment">// Create an address for the `EnvelopeProcessor`, which can be injected into the
         // other services.
         </span><span class="kw">let </span>(processor, processor_rx) = channel(EnvelopeProcessorService::name());
-        <span class="kw">let </span>outcome_producer = runner.start(OutcomeProducerService::create(
+        <span class="kw">let </span>outcome_producer = services.start(OutcomeProducerService::create(
             config.clone(),
             upstream_relay.clone(),
             processor.clone(),
         )<span class="question-mark">?</span>);
         <span class="kw">let </span>outcome_aggregator =
-            runner.start(OutcomeAggregator::new(<span class="kw-2">&amp;</span>config, outcome_producer.clone()));
+            services.start(OutcomeAggregator::new(<span class="kw-2">&amp;</span>config, outcome_producer.clone()));
 
-        <span class="kw">let </span>keda = runner.start(AutoscalingMetricService::new(memory_stat.clone()));
+        <span class="kw">let </span>keda = services.start(AutoscalingMetricService::new(memory_stat.clone()));
 
         <span class="kw">let </span>(global_config, global_config_rx) =
             GlobalConfigService::new(config.clone(), upstream_relay.clone());
@@ -711,10 +709,10 @@
         <span class="comment">// The global config service must start before dependant services are
         // started. Messages like subscription requests to the global config
         // service fail if the service is not running.
-        </span><span class="kw">let </span>global_config = runner.start(global_config);
+        </span><span class="kw">let </span>global_config = services.start(global_config);
 
         <span class="kw">let </span>project_source = ProjectSource::start_in(
-            <span class="kw-2">&amp;mut </span>runner,
+            services,
             Arc::clone(<span class="kw-2">&amp;</span>config),
             upstream_relay.clone(),
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
@@ -722,16 +720,17 @@
         )
         .<span class="kw">await</span>;
         <span class="kw">let </span>project_cache_handle =
-            ProjectCacheService::new(Arc::clone(<span class="kw-2">&amp;</span>config), project_source).start_in(<span class="kw-2">&amp;mut </span>runner);
+            ProjectCacheService::new(Arc::clone(<span class="kw-2">&amp;</span>config), project_source).start_in(services);
 
         <span class="kw">let </span>aggregator = RouterService::new(
+            handle.clone(),
             config.default_aggregator_config().clone(),
             config.secondary_aggregator_configs().clone(),
             <span class="prelude-val">Some</span>(processor.clone().recipient()),
             project_cache_handle.clone(),
         );
         <span class="kw">let </span>aggregator_handle = aggregator.handle();
-        <span class="kw">let </span>aggregator = runner.start(aggregator);
+        <span class="kw">let </span>aggregator = services.start(aggregator);
 
         <span class="kw">let </span>metric_stats = MetricStats::new(
             config.clone(),
@@ -752,14 +751,14 @@
                     outcome_aggregator.clone(),
                     metric_outcomes.clone(),
                 )
-                .map(|s| runner.start(s))
+                .map(|s| services.start(s))
             })
             .transpose()<span class="question-mark">?</span>;
 
         <span class="kw">let </span>cogs = CogsService::new(<span class="kw-2">&amp;</span>config);
-        <span class="kw">let </span>cogs = Cogs::new(CogsServiceRecorder::new(<span class="kw-2">&amp;</span>config, runner.start(cogs)));
+        <span class="kw">let </span>cogs = Cogs::new(CogsServiceRecorder::new(<span class="kw-2">&amp;</span>config, services.start(cogs)));
 
-        runner.start_with(
+        services.start_with(
             EnvelopeProcessorService::new(
                 create_processor_pool(<span class="kw-2">&amp;</span>config)<span class="question-mark">?</span>,
                 config.clone(),
@@ -790,10 +789,10 @@
             processor.clone(),
             outcome_aggregator.clone(),
             test_store.clone(),
-            <span class="kw-2">&amp;mut </span>runner,
+            services,
         );
 
-        <span class="kw">let </span>health_check = runner.start(HealthCheckService::new(
+        <span class="kw">let </span>health_check = services.start(HealthCheckService::new(
             config.clone(),
             MemoryChecker::new(memory_stat.clone(), config.clone()),
             aggregator_handle,
@@ -801,15 +800,15 @@
             envelope_buffer.clone(),
         ));
 
-        runner.start(RelayStats::new(
+        services.start(RelayStats::new(
             config.clone(),
-            rt_metrics,
+            handle.clone(),
             upstream_relay.clone(),
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>redis_pools.clone(),
         ));
 
-        <span class="kw">let </span>relay_cache = runner.start(RelayCacheService::new(
+        <span class="kw">let </span>relay_cache = services.start(RelayCacheService::new(
             config.clone(),
             upstream_relay.clone(),
         ));
@@ -834,12 +833,9 @@
             registry,
         };
 
-        <span class="prelude-val">Ok</span>((
-            ServiceState {
-                inner: Arc::new(state),
-            },
-            runner,
-        ))
+        <span class="prelude-val">Ok</span>(ServiceState {
+            inner: Arc::new(state),
+        })
     }
 
     <span class="doccomment">/// Returns a reference to the Relay configuration.

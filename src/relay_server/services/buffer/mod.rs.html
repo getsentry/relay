@@ -964,7 +964,9 @@
 <a href="#963" id="963">963</a>
 <a href="#964" id="964">964</a>
 <a href="#965" id="965">965</a>
-<a href="#966" id="966">966</a></pre></div><pre class="rust"><code><span class="doccomment">//! Types for buffering envelopes.
+<a href="#966" id="966">966</a>
+<a href="#967" id="967">967</a>
+<a href="#968" id="968">968</a></pre></div><pre class="rust"><code><span class="doccomment">//! Types for buffering envelopes.
 
 </span><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::num::NonZeroU8;
@@ -977,9 +979,11 @@
 <span class="kw">use </span>chrono::DateTime;
 <span class="kw">use </span>chrono::Utc;
 <span class="kw">use </span>relay_config::Config;
+<span class="kw">use </span>relay_system::Receiver;
+<span class="kw">use </span>relay_system::ServiceSpawn;
+<span class="kw">use </span>relay_system::ServiceSpawnExt <span class="kw">as _</span>;
 <span class="kw">use </span>relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 <span class="kw">use </span>relay_system::{Controller, Shutdown};
-<span class="kw">use </span>relay_system::{Receiver, ServiceRunner};
 <span class="kw">use </span>tokio::sync::watch;
 <span class="kw">use </span>tokio::time::{timeout, Instant};
 
@@ -1065,7 +1069,7 @@
         envelope_processor: Addr&lt;EnvelopeProcessor&gt;,
         outcome_aggregator: Addr&lt;TrackOutcome&gt;,
         test_store: Addr&lt;TestStore&gt;,
-        runner: <span class="kw-2">&amp;mut </span>ServiceRunner,
+        services: <span class="kw-2">&amp;</span><span class="kw">dyn </span>ServiceSpawn,
     ) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>envelope_buffers = Vec::with_capacity(partitions.get() <span class="kw">as </span>usize);
         <span class="kw">for </span>partition_id <span class="kw">in </span><span class="number">0</span>..partitions.get() {
@@ -1081,7 +1085,7 @@
                     test_store: test_store.clone(),
                 },
             )
-            .start_in(runner);
+            .start_in(services);
 
             envelope_buffers.push(envelope_buffer);
         }
@@ -1202,10 +1206,11 @@
     }
 
     <span class="doccomment">/// Returns both the [`Addr`] to this service, and a reference to the capacity flag.
-    </span><span class="kw">pub fn </span>start_in(<span class="self">self</span>, runner: <span class="kw-2">&amp;mut </span>ServiceRunner) -&gt; ObservableEnvelopeBuffer {
+    </span><span class="kw">pub fn </span>start_in(<span class="self">self</span>, services: <span class="kw-2">&amp;</span><span class="kw">dyn </span>ServiceSpawn) -&gt; ObservableEnvelopeBuffer {
         <span class="kw">let </span>has_capacity = <span class="self">self</span>.has_capacity.clone();
 
-        <span class="kw">let </span>addr = runner.start(<span class="self">self</span>);
+        <span class="kw">let </span>addr = services.start(<span class="self">self</span>);
+
         ObservableEnvelopeBuffer { addr, has_capacity }
     }
 
@@ -1628,6 +1633,7 @@
     <span class="kw">use </span>relay_base_schema::project::ProjectKey;
     <span class="kw">use </span>relay_dynamic_config::GlobalConfig;
     <span class="kw">use </span>relay_quotas::DataCategory;
+    <span class="kw">use </span>relay_system::TokioServiceSpawn;
     <span class="kw">use </span>std::time::Duration;
     <span class="kw">use </span>tokio::sync::mpsc;
     <span class="kw">use </span>uuid::Uuid;
@@ -1692,8 +1698,7 @@
 
         service.has_capacity.store(<span class="bool-val">false</span>, Ordering::Relaxed);
 
-        <span class="kw">let </span>ObservableEnvelopeBuffer { has_capacity, .. } =
-            service.start_in(<span class="kw-2">&amp;mut </span>ServiceRunner::new());
+        <span class="kw">let </span>ObservableEnvelopeBuffer { has_capacity, .. } = service.start_in(<span class="kw-2">&amp;</span>TokioServiceSpawn);
         <span class="macro">assert!</span>(!has_capacity.load(Ordering::Relaxed));
 
         tokio::time::advance(Duration::from_millis(<span class="number">100</span>)).<span class="kw">await</span>;
@@ -1860,7 +1865,6 @@
 
     <span class="attr">#[tokio::test(start_paused = <span class="bool-val">true</span>)]
     </span><span class="kw">async fn </span>test_partitioned_buffer() {
-        <span class="kw">let </span><span class="kw-2">mut </span>runner = ServiceRunner::new();
         <span class="kw">let </span>(_global_tx, global_rx) = watch::channel(global_config::Status::Ready(Arc::new(
             GlobalConfig::default(),
         )));
@@ -1896,8 +1900,8 @@
         );
 
         <span class="comment">// Start both services and create partitioned buffer
-        </span><span class="kw">let </span>observable1 = buffer1.start_in(<span class="kw-2">&amp;mut </span>runner);
-        <span class="kw">let </span>observable2 = buffer2.start_in(<span class="kw-2">&amp;mut </span>runner);
+        </span><span class="kw">let </span>observable1 = buffer1.start_in(<span class="kw-2">&amp;</span>TokioServiceSpawn);
+        <span class="kw">let </span>observable2 = buffer2.start_in(<span class="kw-2">&amp;</span>TokioServiceSpawn);
 
         <span class="kw">let </span>partitioned = PartitionedEnvelopeBuffer {
             buffers: Arc::new(<span class="macro">vec!</span>[observable1, observable2]),

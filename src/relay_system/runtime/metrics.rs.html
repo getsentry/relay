@@ -517,7 +517,7 @@
     </span><span class="kw">fn </span>test_metric_diff() {
         <span class="kw">let </span>rt = <span class="kw">crate</span>::Runtime::builder(<span class="string">"test"</span>).worker_threads(<span class="number">1</span>).build();
 
-        <span class="kw">let </span>metrics = rt.metrics();
+        <span class="kw">let </span>metrics = rt.handle().metrics();
 
         rt.block_on(<span class="kw">async move </span>{
             <span class="kw">let </span>tokio_metrics = tokio::runtime::Handle::current().metrics();

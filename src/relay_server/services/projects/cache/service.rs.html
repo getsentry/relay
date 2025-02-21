@@ -232,7 +232,7 @@
 <span class="kw">use </span>relay_base_schema::project::ProjectKey;
 <span class="kw">use </span>relay_config::Config;
 <span class="kw">use </span>relay_statsd::metric;
-<span class="kw">use </span>relay_system::{Service, ServiceRunner};
+<span class="kw">use </span>relay_system::{Service, ServiceSpawn, ServiceSpawnExt <span class="kw">as _</span>};
 <span class="kw">use </span>tokio::sync::broadcast;
 
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::cache::handle::ProjectCacheHandle;
@@ -318,7 +318,7 @@
     <span class="doccomment">/// Consumes and starts a [`ProjectCacheService`].
     ///
     /// Returns a [`ProjectCacheHandle`] to access the cache concurrently.
-    </span><span class="kw">pub fn </span>start_in(<span class="self">self</span>, runner: <span class="kw-2">&amp;mut </span>ServiceRunner) -&gt; ProjectCacheHandle {
+    </span><span class="kw">pub fn </span>start_in(<span class="self">self</span>, services: <span class="kw-2">&amp;</span><span class="kw">dyn </span>ServiceSpawn) -&gt; ProjectCacheHandle {
         <span class="kw">let </span>(addr, addr_rx) = relay_system::channel(<span class="self">Self</span>::name());
 
         <span class="kw">let </span>handle = ProjectCacheHandle {
@@ -328,7 +328,7 @@
             project_changes: <span class="self">self</span>.project_events_tx.clone(),
         };
 
-        runner.start_with(<span class="self">self</span>, addr_rx);
+        services.start_with(<span class="self">self</span>, addr_rx);
 
         handle
     }

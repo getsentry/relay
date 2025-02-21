@@ -178,7 +178,27 @@
 <a href="#177" id="177">177</a>
 <a href="#178" id="178">178</a>
 <a href="#179" id="179">179</a>
-<a href="#180" id="180">180</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
+<a href="#180" id="180">180</a>
+<a href="#181" id="181">181</a>
+<a href="#182" id="182">182</a>
+<a href="#183" id="183">183</a>
+<a href="#184" id="184">184</a>
+<a href="#185" id="185">185</a>
+<a href="#186" id="186">186</a>
+<a href="#187" id="187">187</a>
+<a href="#188" id="188">188</a>
+<a href="#189" id="189">189</a>
+<a href="#190" id="190">190</a>
+<a href="#191" id="191">191</a>
+<a href="#192" id="192">192</a>
+<a href="#193" id="193">193</a>
+<a href="#194" id="194">194</a>
+<a href="#195" id="195">195</a>
+<a href="#196" id="196">196</a>
+<a href="#197" id="197">197</a>
+<a href="#198" id="198">198</a>
+<a href="#199" id="199">199</a>
+<a href="#200" id="200">200</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 
 <span class="kw">use </span><span class="kw">crate</span>::services::upstream::{IsNetworkOutage, UpstreamRelay};
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayGauges, RuntimeCounters, RuntimeGauges};
@@ -188,7 +208,7 @@
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">use </span>relay_redis::{RedisPool, RedisPools, Stats};
 <span class="kw">use </span>relay_statsd::metric;
-<span class="kw">use </span>relay_system::{Addr, RuntimeMetrics, Service};
+<span class="kw">use </span>relay_system::{Addr, Handle, RuntimeMetrics, Service};
 <span class="kw">use </span>tokio::time::interval;
 
 <span class="doccomment">/// Relay Stats Service.
@@ -196,7 +216,8 @@
 /// Service which collects stats periodically and emits them via statsd.
 </span><span class="kw">pub struct </span>RelayStats {
     config: Arc&lt;Config&gt;,
-    runtime: RuntimeMetrics,
+    runtime: Handle,
+    rt_metrics: RuntimeMetrics,
     upstream_relay: Addr&lt;UpstreamRelay&gt;,
     <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>redis_pools: <span class="prelude-ty">Option</span>&lt;RedisPools&gt;,
@@ -205,88 +226,106 @@
 <span class="kw">impl </span>RelayStats {
     <span class="kw">pub fn </span>new(
         config: Arc&lt;Config&gt;,
-        runtime: RuntimeMetrics,
+        runtime: Handle,
         upstream_relay: Addr&lt;UpstreamRelay&gt;,
         <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)] </span>redis_pools: <span class="prelude-ty">Option</span>&lt;RedisPools&gt;,
     ) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             config,
             upstream_relay,
+            rt_metrics: runtime.metrics(),
             runtime,
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>redis_pools,
         }
     }
 
+    <span class="kw">async fn </span>service_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>) {
+        <span class="kw">for </span>(service, metrics) <span class="kw">in </span><span class="self">self</span>.runtime.current_services_metrics().iter() {
+            <span class="macro">metric!</span>(
+                gauge(RelayGauges::ServiceUtilization) = metrics.utilization <span class="kw">as </span>u64,
+                service = service.name(),
+                instance_id = <span class="kw-2">&amp;</span>service.instance_id().to_string(),
+            );
+        }
+    }
+
     <span class="kw">async fn </span>tokio_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>) {
-        <span class="macro">metric!</span>(gauge(RuntimeGauges::NumIdleThreads) = <span class="self">self</span>.runtime.num_idle_threads() <span class="kw">as </span>u64);
-        <span class="macro">metric!</span>(gauge(RuntimeGauges::NumAliveTasks) = <span class="self">self</span>.runtime.num_alive_tasks() <span class="kw">as </span>u64);
+        <span class="macro">metric!</span>(gauge(RuntimeGauges::NumIdleThreads) = <span class="self">self</span>.rt_metrics.num_idle_threads() <span class="kw">as </span>u64);
+        <span class="macro">metric!</span>(gauge(RuntimeGauges::NumAliveTasks) = <span class="self">self</span>.rt_metrics.num_alive_tasks() <span class="kw">as </span>u64);
         <span class="macro">metric!</span>(
-            gauge(RuntimeGauges::BlockingQueueDepth) = <span class="self">self</span>.runtime.blocking_queue_depth() <span class="kw">as </span>u64
+            gauge(RuntimeGauges::BlockingQueueDepth) =
+                <span class="self">self</span>.rt_metrics.blocking_queue_depth() <span class="kw">as </span>u64
         );
         <span class="macro">metric!</span>(
-            gauge(RuntimeGauges::NumBlockingThreads) = <span class="self">self</span>.runtime.num_blocking_threads() <span class="kw">as </span>u64
+            gauge(RuntimeGauges::NumBlockingThreads) =
+                <span class="self">self</span>.rt_metrics.num_blocking_threads() <span class="kw">as </span>u64
         );
         <span class="macro">metric!</span>(
             gauge(RuntimeGauges::NumIdleBlockingThreads) =
-                <span class="self">self</span>.runtime.num_idle_blocking_threads() <span class="kw">as </span>u64
+                <span class="self">self</span>.rt_metrics.num_idle_blocking_threads() <span class="kw">as </span>u64
         );
 
         <span class="macro">metric!</span>(
             counter(RuntimeCounters::BudgetForcedYieldCount) +=
-                <span class="self">self</span>.runtime.budget_forced_yield_count()
+                <span class="self">self</span>.rt_metrics.budget_forced_yield_count()
         );
 
-        <span class="macro">metric!</span>(gauge(RuntimeGauges::NumWorkers) = <span class="self">self</span>.runtime.num_workers() <span class="kw">as </span>u64);
-        <span class="kw">for </span>worker <span class="kw">in </span><span class="number">0</span>..<span class="self">self</span>.runtime.num_workers() {
+        <span class="macro">metric!</span>(gauge(RuntimeGauges::NumWorkers) = <span class="self">self</span>.rt_metrics.num_workers() <span class="kw">as </span>u64);
+        <span class="kw">for </span>worker <span class="kw">in </span><span class="number">0</span>..<span class="self">self</span>.rt_metrics.num_workers() {
             <span class="kw">let </span>worker_name = worker.to_string();
 
             <span class="macro">metric!</span>(
                 gauge(RuntimeGauges::WorkerLocalQueueDepth) =
-                    <span class="self">self</span>.runtime.worker_local_queue_depth(worker) <span class="kw">as </span>u64,
+                    <span class="self">self</span>.rt_metrics.worker_local_queue_depth(worker) <span class="kw">as </span>u64,
                 worker = <span class="kw-2">&amp;</span>worker_name,
             );
             <span class="macro">metric!</span>(
                 gauge(RuntimeGauges::WorkerMeanPollTime) =
-                    <span class="self">self</span>.runtime.worker_mean_poll_time(worker).as_secs_f64(),
+                    <span class="self">self</span>.rt_metrics.worker_mean_poll_time(worker).as_secs_f64(),
                 worker = <span class="kw-2">&amp;</span>worker_name,
             );
 
             <span class="macro">metric!</span>(
                 counter(RuntimeCounters::WorkerLocalScheduleCount) +=
-                    <span class="self">self</span>.runtime.worker_local_schedule_count(worker),
+                    <span class="self">self</span>.rt_metrics.worker_local_schedule_count(worker),
                 worker = <span class="kw-2">&amp;</span>worker_name,
             );
             <span class="macro">metric!</span>(
-                counter(RuntimeCounters::WorkerNoopCount) += <span class="self">self</span>.runtime.worker_noop_count(worker),
+                counter(RuntimeCounters::WorkerNoopCount) +=
+                    <span class="self">self</span>.rt_metrics.worker_noop_count(worker),
                 worker = <span class="kw-2">&amp;</span>worker_name,
             );
             <span class="macro">metric!</span>(
                 counter(RuntimeCounters::WorkerOverflowCount) +=
-                    <span class="self">self</span>.runtime.worker_overflow_count(worker),
+                    <span class="self">self</span>.rt_metrics.worker_overflow_count(worker),
                 worker = <span class="kw-2">&amp;</span>worker_name,
             );
             <span class="macro">metric!</span>(
-                counter(RuntimeCounters::WorkerParkCount) += <span class="self">self</span>.runtime.worker_park_count(worker),
+                counter(RuntimeCounters::WorkerParkCount) +=
+                    <span class="self">self</span>.rt_metrics.worker_park_count(worker),
                 worker = <span class="kw-2">&amp;</span>worker_name,
             );
             <span class="macro">metric!</span>(
-                counter(RuntimeCounters::WorkerPollCount) += <span class="self">self</span>.runtime.worker_poll_count(worker),
+                counter(RuntimeCounters::WorkerPollCount) +=
+                    <span class="self">self</span>.rt_metrics.worker_poll_count(worker),
                 worker = <span class="kw-2">&amp;</span>worker_name,
             );
             <span class="macro">metric!</span>(
                 counter(RuntimeCounters::WorkerStealCount) +=
-                    <span class="self">self</span>.runtime.worker_steal_count(worker),
+                    <span class="self">self</span>.rt_metrics.worker_steal_count(worker),
                 worker = <span class="kw-2">&amp;</span>worker_name,
             );
             <span class="macro">metric!</span>(
                 counter(RuntimeCounters::WorkerStealOperations) +=
-                    <span class="self">self</span>.runtime.worker_steal_operations(worker),
+                    <span class="self">self</span>.rt_metrics.worker_steal_operations(worker),
                 worker = <span class="kw-2">&amp;</span>worker_name,
             );
             <span class="macro">metric!</span>(
                 counter(RuntimeCounters::WorkerTotalBusyDuration) +=
-                    <span class="self">self</span>.runtime.worker_total_busy_duration(worker).as_millis() <span class="kw">as </span>u64,
+                    <span class="self">self</span>.rt_metrics
+                        .worker_total_busy_duration(worker)
+                        .as_millis() <span class="kw">as </span>u64,
                 worker = <span class="kw-2">&amp;</span>worker_name,
             );
         }
@@ -351,6 +390,7 @@
         <span class="kw">loop </span>{
             <span class="kw">let _ </span>= <span class="macro">tokio::join!</span>(
                 <span class="self">self</span>.upstream_status(),
+                <span class="self">self</span>.service_metrics(),
                 <span class="self">self</span>.tokio_metrics(),
                 <span class="self">self</span>.redis_pools(),
             );

@@ -354,7 +354,11 @@
 <a href="#353" id="353">353</a>
 <a href="#354" id="354">354</a>
 <a href="#355" id="355">355</a>
-<a href="#356" id="356">356</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::io;
+<a href="#356" id="356">356</a>
+<a href="#357" id="357">357</a>
+<a href="#358" id="358">358</a>
+<a href="#359" id="359">359</a>
+<a href="#360" id="360">360</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::io;
 <span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span>once_cell::sync::Lazy;
@@ -477,7 +481,10 @@
 /// ### Example
 ///
 /// ```
-/// use relay_system::{Controller, Service, ServiceRunner, Shutdown, ShutdownMode};
+/// # #[cfg(feature = "test")]
+/// use relay_system::{Controller, Service, ServiceSpawnExt, Shutdown, ShutdownMode, TokioServiceSpawn};
+/// # #[cfg(not(feature = "test"))]
+/// # use relay_system::{Controller, Service, ServiceSpawnExt, Shutdown, ShutdownMode};
 /// use std::time::Duration;
 ///
 /// struct MyService;
@@ -504,7 +511,8 @@
 ///
 ///     // Start all other services. Controller::shutdown_handle will use the same controller
 ///     // instance and receives the configured shutdown timeout.
-///     let addr = ServiceRunner::new().start(MyService);
+///     # #[cfg(feature = "test")]
+///     let addr = TokioServiceSpawn.start(MyService);
 ///
 ///     // By triggering a shutdown, all subscribed services will be notified. This happens
 ///     // automatically when a signal is sent to the process (e.g. SIGINT or SIGTERM).
