@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - release/**
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
 
 env:
   CARGO_TERM_COLOR: always
@@ -38,6 +40,38 @@ jobs:
         with:
           name: artifact-linux
           path: target/release/relay-Linux-x86_64*
+          if-no-files-found: 'error'
+          # since this artifact will be merged, compression is not necessary
+          compression-level: '0'
+
+  linux-aarch64:
+    name: Linux Aarch64
+    runs-on: ubuntu-22.04-arm
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Rust Toolchain
+        run: rustup toolchain install stable --profile minimal --no-self-update
+
+      - name: Build binary
+        run: |
+          make build-linux-release
+        env:
+          RELAY_FEATURES:
+
+      - name: Bundle Debug File
+        run: |
+          cd target/release/
+          zip relay-Linux-aarch64-debug.zip relay.debug
+          mv relay relay-Linux-aarch64
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: artifact-linux-aarch64
+          path: target/release/relay-Linux-aarch64*
           if-no-files-found: 'error'
           # since this artifact will be merged, compression is not necessary
           compression-level: '0'
