@@ -3,10 +3,11 @@ use std::sync::Arc;
 
 use crate::services::processor::LogGroup;
 use relay_config::Config;
-use relay_dynamic_config::Feature;
+use relay_dynamic_config::{Feature, GlobalConfig};
 
 use crate::services::processor::should_filter;
 use crate::services::projects::project::ProjectInfo;
+use crate::utils::sample;
 use crate::utils::{ItemAction, TypedEnvelope};
 
 #[cfg(feature = "processing")]
@@ -15,8 +16,7 @@ use {
     crate::envelope::{Item, ItemType},
     crate::services::outcome::{DiscardReason, Outcome},
     crate::services::processor::ProcessingError,
-    crate::utils::sample,
-    relay_dynamic_config::{GlobalConfig, ProjectConfig},
+    relay_dynamic_config::ProjectConfig,
     relay_event_schema::processor::{process_value, ProcessingState},
     relay_event_schema::protocol::OurLog,
     relay_ourlogs::OtelLog,
