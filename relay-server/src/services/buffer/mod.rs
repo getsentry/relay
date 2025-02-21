@@ -536,7 +536,6 @@ impl Service for EnvelopeBufferService {
         let services = self.services.clone();
 
         let dequeue = Arc::<AtomicBool>::new(true.into());
-        let dequeue1 = dequeue.clone();
 
         let mut buffer =
             PolymorphicEnvelopeBuffer::from_config(self.partition_id, &config, memory_checker)
@@ -552,17 +551,20 @@ impl Service for EnvelopeBufferService {
         let mut project_changes = self.services.project_cache_handle.changes();
 
         #[cfg(unix)]
-        relay_system::spawn!(async move {
-            use tokio::signal::unix::{signal, SignalKind};
-            let Ok(mut signal) = signal(SignalKind::user_defined1()) else {
-                return;
-            };
-            while let Some(()) = signal.recv().await {
-                let deq = !dequeue1.load(Ordering::Relaxed);
-                dequeue1.store(deq, Ordering::Relaxed);
-                relay_log::info!("SIGUSR1 receive, dequeue={}", deq);
-            }
-        });
+        {
+            let dequeue1 = dequeue.clone();
+            relay_system::spawn!(async move {
+                use tokio::signal::unix::{signal, SignalKind};
+                let Ok(mut signal) = signal(SignalKind::user_defined1()) else {
+                    return;
+                };
+                while let Some(()) = signal.recv().await {
+                    let deq = !dequeue1.load(Ordering::Relaxed);
+                    dequeue1.store(deq, Ordering::Relaxed);
+                    relay_log::info!("SIGUSR1 receive, dequeue={}", deq);
+                }
+            });
+        }
 
         relay_log::info!("EnvelopeBufferService {}: starting", self.partition_id);
         loop {
