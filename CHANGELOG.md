@@ -42,10 +42,6 @@
 
 ## 25.1.0
 
-**Features**:
-
-- Use a separate rate-limit enforcement category for replay-video envelope items. ([#4459](https://github.com/getsentry/relay/pull/4459))
-
 **Internal**:
 
 - Updates performance score calculation on spans and events to also store cdf values as measurements. ([#4438](https://github.com/getsentry/relay/pull/4438))
