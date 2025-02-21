@@ -62,14 +62,6 @@ pub enum EnvelopeBuffer {
     Push(Box<Envelope>),
 }
 
-impl EnvelopeBuffer {
-    fn name(&self) -> &'static str {
-        match &self {
-            EnvelopeBuffer::Push(_) => "push",
-        }
-    }
-}
-
 impl Interface for EnvelopeBuffer {}
 
 impl FromMessage<Self> for EnvelopeBuffer {
@@ -576,29 +568,13 @@ impl Service for EnvelopeBufferService {
         loop {
             let mut sleep = DEFAULT_SLEEP;
 
-            macro_rules! measure_busy {
-                ($input:expr, $block:block) => {
-                    let start = Instant::now();
-                    {
-                        $block
-                    }
-
-                    relay_statsd::metric!(
-                        counter(RelayCounters::BufferBusy) += start.elapsed().as_nanos() as u64,
-                        input = $input,
-                        partition_id = &partition_tag
-                    );
-                };
-            }
-
             tokio::select! {
                 // NOTE: we do not select a bias here.
                 // On the one hand, we might want to prioritize dequeuing over enqueuing
                 // so we do not exceed the buffer capacity by starving the dequeue.
                 // on the other hand, prioritizing old messages violates the LIFO design.
                 _ = self.ready_to_pop(&buffer, dequeue.load(Ordering::Relaxed)) => {
-                    measure_busy!("pop", {
-                        match Self::try_pop(&partition_tag, &config, &mut buffer, &services).await {
+                    match Self::try_pop(&partition_tag, &config, &mut buffer, &services).await {
                             Ok(new_sleep) => {
                                 sleep = new_sleep;
                             }
@@ -608,11 +584,10 @@ impl Service for EnvelopeBufferService {
                                 "failed to pop envelope"
                             );
                         }
-                    }});
+                    }
                 }
                 change = project_changes.recv() => {
-                    measure_busy!("project_change", {
-                        match change {
+                    match change {
                             Ok(ProjectChange::Ready(project_key)) => {
                                 buffer.mark_ready(&project_key, true);
                             },
@@ -623,27 +598,20 @@ impl Service for EnvelopeBufferService {
                         };
                         relay_statsd::metric!(counter(RelayCounters::BufferProjectChangedEvent) += 1, partition_id = &partition_tag);
                         sleep = Duration::ZERO;
-                    });
                 }
                 Some(message) = rx.recv() => {
-                    let message_name = message.name();
-                    measure_busy!(message_name, {
-                        Self::handle_message(&mut buffer, message).await;
+                    Self::handle_message(&mut buffer, message).await;
                         sleep = Duration::ZERO;
-                    });
                 }
                 shutdown = shutdown.notified() => {
-                    measure_busy!("shutdown", {
-                        // In case the shutdown was handled, we break out of the loop signaling that
+                    // In case the shutdown was handled, we break out of the loop signaling that
                         // there is no need to process anymore envelopes.
                         if Self::handle_shutdown(&mut buffer, shutdown).await {
                             break;
                         }
-                    });
                 }
                 Ok(()) = global_config_rx.changed() => {
                     sleep = Duration::ZERO;
-
                 }
                 else => break,
             }
