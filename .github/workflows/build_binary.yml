@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - release/**
-  pull_request:
-    types: [opened, synchronize, reopened, labeled]
 
 env:
   CARGO_TERM_COLOR: always
