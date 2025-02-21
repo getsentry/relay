@@ -934,39 +934,7 @@
 <a href="#933" id="933">933</a>
 <a href="#934" id="934">934</a>
 <a href="#935" id="935">935</a>
-<a href="#936" id="936">936</a>
-<a href="#937" id="937">937</a>
-<a href="#938" id="938">938</a>
-<a href="#939" id="939">939</a>
-<a href="#940" id="940">940</a>
-<a href="#941" id="941">941</a>
-<a href="#942" id="942">942</a>
-<a href="#943" id="943">943</a>
-<a href="#944" id="944">944</a>
-<a href="#945" id="945">945</a>
-<a href="#946" id="946">946</a>
-<a href="#947" id="947">947</a>
-<a href="#948" id="948">948</a>
-<a href="#949" id="949">949</a>
-<a href="#950" id="950">950</a>
-<a href="#951" id="951">951</a>
-<a href="#952" id="952">952</a>
-<a href="#953" id="953">953</a>
-<a href="#954" id="954">954</a>
-<a href="#955" id="955">955</a>
-<a href="#956" id="956">956</a>
-<a href="#957" id="957">957</a>
-<a href="#958" id="958">958</a>
-<a href="#959" id="959">959</a>
-<a href="#960" id="960">960</a>
-<a href="#961" id="961">961</a>
-<a href="#962" id="962">962</a>
-<a href="#963" id="963">963</a>
-<a href="#964" id="964">964</a>
-<a href="#965" id="965">965</a>
-<a href="#966" id="966">966</a>
-<a href="#967" id="967">967</a>
-<a href="#968" id="968">968</a></pre></div><pre class="rust"><code><span class="doccomment">//! Types for buffering envelopes.
+<a href="#936" id="936">936</a></pre></div><pre class="rust"><code><span class="doccomment">//! Types for buffering envelopes.
 
 </span><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::num::NonZeroU8;
@@ -1028,14 +996,6 @@
 </span><span class="kw">pub enum </span>EnvelopeBuffer {
     <span class="doccomment">/// A fresh envelope that gets pushed into the buffer by the request handler.
     </span>Push(Box&lt;Envelope&gt;),
-}
-
-<span class="kw">impl </span>EnvelopeBuffer {
-    <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
-        <span class="kw">match </span><span class="kw-2">&amp;</span><span class="self">self </span>{
-            EnvelopeBuffer::Push(<span class="kw">_</span>) =&gt; <span class="string">"push"</span>,
-        }
-    }
 }
 
 <span class="kw">impl </span>Interface <span class="kw">for </span>EnvelopeBuffer {}
@@ -1544,29 +1504,13 @@
         <span class="kw">loop </span>{
             <span class="kw">let </span><span class="kw-2">mut </span>sleep = DEFAULT_SLEEP;
 
-            <span class="macro">macro_rules!</span> measure_busy {
-                (<span class="macro-nonterminal">$input</span>:expr, <span class="macro-nonterminal">$block</span>:block) =&gt; {
-                    <span class="kw">let </span>start = Instant::now();
-                    {
-                        <span class="macro-nonterminal">$block
-                    </span>}
-
-                    <span class="macro">relay_statsd::metric!</span>(
-                        counter(RelayCounters::BufferBusy) += start.elapsed().as_nanos() <span class="kw">as </span>u64,
-                        input = <span class="macro-nonterminal">$input</span>,
-                        partition_id = <span class="kw-2">&amp;</span>partition_tag
-                    );
-                };
-            }
-
             <span class="macro">tokio::select!</span> {
                 <span class="comment">// NOTE: we do not select a bias here.
                 // On the one hand, we might want to prioritize dequeuing over enqueuing
                 // so we do not exceed the buffer capacity by starving the dequeue.
                 // on the other hand, prioritizing old messages violates the LIFO design.
                 </span><span class="kw">_ </span>= <span class="self">self</span>.ready_to_pop(<span class="kw-2">&amp;</span>buffer, dequeue.load(Ordering::Relaxed)) =&gt; {
-                    <span class="macro">measure_busy!</span>(<span class="string">"pop"</span>, {
-                        <span class="kw">match </span><span class="self">Self</span>::try_pop(<span class="kw-2">&amp;</span>partition_tag, <span class="kw-2">&amp;</span>config, <span class="kw-2">&amp;mut </span>buffer, <span class="kw-2">&amp;</span>services).<span class="kw">await </span>{
+                    <span class="kw">match </span><span class="self">Self</span>::try_pop(<span class="kw-2">&amp;</span>partition_tag, <span class="kw-2">&amp;</span>config, <span class="kw-2">&amp;mut </span>buffer, <span class="kw-2">&amp;</span>services).<span class="kw">await </span>{
                             <span class="prelude-val">Ok</span>(new_sleep) =&gt; {
                                 sleep = new_sleep;
                             }
@@ -1576,11 +1520,10 @@
                                 <span class="string">"failed to pop envelope"
                             </span>);
                         }
-                    }});
+                    }
                 }
                 change = project_changes.recv() =&gt; {
-                    <span class="macro">measure_busy!</span>(<span class="string">"project_change"</span>, {
-                        <span class="kw">match </span>change {
+                    <span class="kw">match </span>change {
                             <span class="prelude-val">Ok</span>(ProjectChange::Ready(project_key)) =&gt; {
                                 buffer.mark_ready(<span class="kw-2">&amp;</span>project_key, <span class="bool-val">true</span>);
                             },
@@ -1591,27 +1534,20 @@
                         };
                         <span class="macro">relay_statsd::metric!</span>(counter(RelayCounters::BufferProjectChangedEvent) += <span class="number">1</span>, partition_id = <span class="kw-2">&amp;</span>partition_tag);
                         sleep = Duration::ZERO;
-                    });
                 }
                 <span class="prelude-val">Some</span>(message) = rx.recv() =&gt; {
-                    <span class="kw">let </span>message_name = message.name();
-                    <span class="macro">measure_busy!</span>(message_name, {
-                        <span class="self">Self</span>::handle_message(<span class="kw-2">&amp;mut </span>buffer, message).<span class="kw">await</span>;
+                    <span class="self">Self</span>::handle_message(<span class="kw-2">&amp;mut </span>buffer, message).<span class="kw">await</span>;
                         sleep = Duration::ZERO;
-                    });
                 }
                 shutdown = shutdown.notified() =&gt; {
-                    <span class="macro">measure_busy!</span>(<span class="string">"shutdown"</span>, {
-                        <span class="comment">// In case the shutdown was handled, we break out of the loop signaling that
+                    <span class="comment">// In case the shutdown was handled, we break out of the loop signaling that
                         // there is no need to process anymore envelopes.
                         </span><span class="kw">if </span><span class="self">Self</span>::handle_shutdown(<span class="kw-2">&amp;mut </span>buffer, shutdown).<span class="kw">await </span>{
                             <span class="kw">break</span>;
                         }
-                    });
                 }
                 <span class="prelude-val">Ok</span>(()) = global_config_rx.changed() =&gt; {
                     sleep = Duration::ZERO;
-
                 }
                 <span class="kw">else </span>=&gt; <span class="kw">break</span>,
             }

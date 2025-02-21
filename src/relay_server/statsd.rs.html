@@ -1027,15 +1027,7 @@
 <a href="#1026" id="1026">1026</a>
 <a href="#1027" id="1027">1027</a>
 <a href="#1028" id="1028">1028</a>
-<a href="#1029" id="1029">1029</a>
-<a href="#1030" id="1030">1030</a>
-<a href="#1031" id="1031">1031</a>
-<a href="#1032" id="1032">1032</a>
-<a href="#1033" id="1033">1033</a>
-<a href="#1034" id="1034">1034</a>
-<a href="#1035" id="1035">1035</a>
-<a href="#1036" id="1036">1036</a>
-<a href="#1037" id="1037">1037</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
+<a href="#1029" id="1029">1029</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 <span class="attr">#[cfg(doc)]
 </span><span class="kw">use </span>relay_system::RuntimeMetrics;
 
@@ -1677,14 +1669,7 @@
     <span class="doccomment">/// Number of times one or more projects of an envelope were pending when trying to pop
     /// their envelope.
     </span>BufferProjectPending,
-    <span class="doccomment">/// Timing in nanoseconds for the time the buffer service spends handling input.
-    ///
-    /// This metric is tagged with:
-    /// - `input`: The type of input that the service is handling.
-    /// - `partition_id`: The ID of the buffer shard (0, 1, 2, ...)
-    </span>BufferBusy,
-    <span class="doccomment">///
-    /// Number of outcomes and reasons for rejected Envelopes.
+    <span class="doccomment">/// Number of outcomes and reasons for rejected Envelopes.
     ///
     /// This metric is tagged with:
     ///  - `outcome`: The basic cause for rejecting the event.
@@ -1890,7 +1875,6 @@
             RelayCounters::BufferUnspooledEnvelopes =&gt; <span class="string">"buffer.unspooled_envelopes"</span>,
             RelayCounters::BufferProjectChangedEvent =&gt; <span class="string">"buffer.project_changed_event"</span>,
             RelayCounters::BufferProjectPending =&gt; <span class="string">"buffer.project_pending"</span>,
-            RelayCounters::BufferBusy =&gt; <span class="string">"buffer.busy"</span>,
             RelayCounters::Outcomes =&gt; <span class="string">"events.outcomes"</span>,
             RelayCounters::ProjectStateRequest =&gt; <span class="string">"project_state.request"</span>,
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
