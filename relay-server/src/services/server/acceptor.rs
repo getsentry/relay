@@ -37,6 +37,8 @@ impl RelayAcceptor {
         {
             keepalive = keepalive.with_interval(timeout);
         }
+
+        let _retries = retries;
         #[cfg(not(any(
             target_os = "openbsd",
             target_os = "redox",
@@ -44,7 +46,7 @@ impl RelayAcceptor {
             target_os = "windows"
         )))]
         {
-            keepalive = keepalive.with_retries(retries);
+            keepalive = keepalive.with_retries(_retries);
         }
         self.tcp_keepalive = Some(keepalive);
 
