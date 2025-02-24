@@ -750,7 +750,7 @@ mod tests {
         service.metrics.has_capacity.store(false, Ordering::Relaxed);
 
         let ObservableEnvelopeBuffer { metrics, .. } = service.start_in(&TokioServiceSpawn);
-        assert!(!metrics.load(Ordering::Relaxed));
+        assert!(!metrics.has_capacity.load(Ordering::Relaxed));
 
         tokio::time::advance(Duration::from_millis(100)).await;
 
@@ -878,8 +878,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_sqlite_metrics() {
-        let mut runner = ServiceRunner::new();
-
         let EnvelopeBufferServiceResult {
             service,
             envelope_processor_rx: _envelope_processor_rx,
@@ -897,7 +895,7 @@ mod tests {
             global_config::Status::Pending,
         );
 
-        let addr = service.start_in(&mut runner);
+        let addr = service.start_in(&TokioServiceSpawn);
         tokio::time::sleep(Duration::from_millis(200)).await;
         tokio::time::pause();
 
