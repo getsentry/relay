@@ -4233,7 +4233,8 @@
 <a href="#4232" id="4232">4232</a>
 <a href="#4233" id="4233">4233</a>
 <a href="#4234" id="4234">4234</a>
-<a href="#4235" id="4235">4235</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
+<a href="#4235" id="4235">4235</a>
+<a href="#4236" id="4236">4236</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::fmt::{Debug, Display};
@@ -6291,6 +6292,7 @@
             managed_envelope,
             <span class="self">self</span>.inner.config.clone(),
             project_info.clone(),
+            <span class="kw-2">&amp;</span><span class="self">self</span>.inner.global_config.current(),
         );
         <span class="macro">if_processing!</span>(<span class="self">self</span>.inner.config, {
             <span class="self">self</span>.enforce_quotas(
