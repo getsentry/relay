@@ -115,13 +115,14 @@ fn scrub(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::envelope::Envelope;
+    use crate::envelope::{Envelope, ItemType};
     use crate::services::processor::ProcessingGroup;
     use crate::utils::ManagedEnvelope;
     use bytes::Bytes;
     use relay_dynamic_config::GlobalConfig;
     use relay_system::Addr;
 
+    #[test]
     fn params() -> (TypedEnvelope<LogGroup>, Arc<ProjectInfo>) {
         let bytes = Bytes::from(
             r#"{"dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"}
