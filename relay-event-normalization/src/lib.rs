@@ -17,6 +17,7 @@ mod normalize;
 mod regexes;
 mod remove_other;
 mod schema;
+mod sdk_version;
 mod stacktrace;
 mod statsd;
 mod timestamp;
@@ -26,7 +27,6 @@ mod validation;
 
 pub use validation::{validate_event, validate_span, EventValidationConfig};
 pub mod replay;
-mod sdk_version;
 
 pub use event::{
     normalize_event, normalize_measurements, normalize_performance_score, NormalizationConfig,
