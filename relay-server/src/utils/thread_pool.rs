@@ -83,7 +83,6 @@ impl ThreadPoolBuilder {
             })
             .spawn_handler(|thread| {
                 let mut b = thread::Builder::new();
-
                 if let Some(name) = thread.name() {
                     b = b.name(name.to_owned());
                 }

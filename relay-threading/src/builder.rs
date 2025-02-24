@@ -16,6 +16,7 @@ pub(crate) type PanicHandler = dyn Fn(Box<dyn Any + Send>) + Send + Sync;
 /// and panic handling strategies.
 pub struct AsyncPoolBuilder<S = DefaultSpawn> {
     pub(crate) runtime: tokio::runtime::Handle,
+    pub(crate) pool_name: Option<Arc<str>>,
     pub(crate) thread_name: Option<Box<dyn FnMut(usize) -> String>>,
     pub(crate) thread_panic_handler: Option<Arc<PanicHandler>>,
     pub(crate) task_panic_handler: Option<Arc<PanicHandler>>,
@@ -31,6 +32,7 @@ impl AsyncPoolBuilder<DefaultSpawn> {
     pub fn new(runtime: tokio::runtime::Handle) -> AsyncPoolBuilder<DefaultSpawn> {
         AsyncPoolBuilder {
             runtime,
+            pool_name: None,
             thread_name: None,
             thread_panic_handler: None,
             task_panic_handler: None,
@@ -45,6 +47,12 @@ impl<S> AsyncPoolBuilder<S>
 where
     S: ThreadSpawn,
 {
+    /// Specifies a custom name for this pool.
+    pub fn pool_name(mut self, pool_name: String) -> Self {
+        self.pool_name = Some(pool_name.into());
+        self
+    }
+
     /// Specifies a custom naming convention for threads in the [`AsyncPool`].
     ///
     /// The provided closure receives the thread's index and returns a name,
@@ -91,6 +99,7 @@ where
     {
         AsyncPoolBuilder {
             runtime: self.runtime,
+            pool_name: self.pool_name,
             thread_name: self.thread_name,
             thread_panic_handler: self.thread_panic_handler,
             task_panic_handler: self.task_panic_handler,
