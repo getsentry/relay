@@ -24,7 +24,7 @@ use crate::services::stats::RelayStats;
 use crate::services::store::{StoreService, StoreServicePool};
 use crate::services::test_store::{TestStore, TestStoreService};
 use crate::services::upstream::{UpstreamRelay, UpstreamRelayService};
-use crate::utils::{MemoryChecker, MemoryStat, ThreadKind};
+use crate::utils::{MemoryChecker, MemoryStat, ThreadKind, ThreadWorkloadType};
 #[cfg(feature = "processing")]
 use anyhow::Context;
 use anyhow::Result;
@@ -110,7 +110,7 @@ fn create_processor_pool(config: &Config) -> Result<EnvelopeProcessorServicePool
 
     let pool = crate::utils::ThreadPoolBuilder::new("processor", tokio::runtime::Handle::current())
         .num_threads(thread_count)
-        .max_concurrency(config.pool_tasks_concurrency())
+        .thread_workload_type(ThreadWorkloadType::WithIO)
         .thread_kind(ThreadKind::Worker)
         .build()?;
 
@@ -129,7 +129,7 @@ fn create_store_pool(config: &Config) -> Result<StoreServicePool> {
 
     let pool = crate::utils::ThreadPoolBuilder::new("store", tokio::runtime::Handle::current())
         .num_threads(thread_count)
-        .max_concurrency(config.pool_tasks_concurrency())
+        .thread_workload_type(ThreadWorkloadType::CpuBound)
         .build()?;
 
     Ok(pool)

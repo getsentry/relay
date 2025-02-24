@@ -5,6 +5,21 @@ use tokio::runtime::Handle;
 
 use relay_threading::{AsyncPool, AsyncPoolBuilder};
 
+/// The workload type that a thread executes.
+#[derive(Default, Debug, Clone, Copy)]
+pub enum ThreadWorkloadType {
+    /// The thread spends some of its time doing I/O together with CPU-bound work which in the
+    /// context of async, would lead to the future yielding with I/O is performed.
+    ///
+    /// This is the default since it's assumed that an async pool is used mostly because we want to
+    /// execute asynchronous work that comprises mainly of I/O.
+    #[default]
+    WithIO,
+    /// The thread spends all of its time doing CPU-bound work which in the context of async, would
+    /// lead to the future blocking the entire executor.
+    CpuBound,
+}
+
 /// A thread kind.
 ///
 /// The thread kind has an effect on how threads are prioritized and scheduled.
@@ -22,7 +37,7 @@ pub struct ThreadPoolBuilder {
     name: &'static str,
     runtime: Handle,
     num_threads: usize,
-    max_concurrency: usize,
+    workload_type: ThreadWorkloadType,
     kind: ThreadKind,
 }
 
@@ -33,7 +48,7 @@ impl ThreadPoolBuilder {
             name,
             runtime,
             num_threads: 0,
-            max_concurrency: 1,
+            workload_type: ThreadWorkloadType::CpuBound,
             kind: ThreadKind::Default,
         }
     }
@@ -46,11 +61,9 @@ impl ThreadPoolBuilder {
         self
     }
 
-    /// Sets the maximum number of concurrent tasks per thread.
-    ///
-    /// See also [`AsyncPoolBuilder::max_concurrency`].
-    pub fn max_concurrency(mut self, max_concurrency: usize) -> Self {
-        self.max_concurrency = max_concurrency;
+    /// Configures the [`ThreadWorkloadType`] for all threads spawned in the pool.
+    pub fn thread_workload_type(mut self, workload_type: ThreadWorkloadType) -> Self {
+        self.workload_type = workload_type;
         self
     }
 
@@ -65,9 +78,10 @@ impl ThreadPoolBuilder {
     where
         F: Future<Output = ()> + Send + 'static,
     {
+        let max_concurrency = self.max_concurrency();
         AsyncPoolBuilder::new(self.runtime)
             .num_threads(self.num_threads)
-            .max_concurrency(self.max_concurrency)
+            .max_concurrency(max_concurrency)
             .thread_name(move |id| format!("pool-{name}-{id}", name = self.name))
             // In case of panic in a task sent to the pool, we catch it to continue the remaining
             // work and just log an error.
@@ -95,6 +109,18 @@ impl ThreadPoolBuilder {
                 Ok(())
             })
             .build()
+    }
+
+    /// Computes the maximum concurrency of the async pool.
+    fn max_concurrency(&self) -> usize {
+        match self.workload_type {
+            // If the work in the pool has I/O, we want to be able to drive more tasks concurrently,
+            // so we do 10 tasks per thread (empirically determined).
+            ThreadWorkloadType::WithIO => 10,
+            // If the work in the pool is exclusively cpu bound, we want 1 task per thread since it
+            // won't yield being CPU-bound.
+            ThreadWorkloadType::CpuBound => 1,
+        }
     }
 }
 
@@ -134,117 +160,89 @@ fn set_current_thread_priority(_kind: ThreadKind) {
 
 #[cfg(test)]
 mod tests {
+    use crate::utils::{ThreadKind, ThreadPoolBuilder};
+    use futures::FutureExt;
+    use std::sync::atomic::{AtomicI32, Ordering};
+    use std::sync::Arc;
+    use tokio::runtime::Handle;
+    use tokio::sync::Barrier;
 
-    // #[test]
-    // fn test_thread_pool_num_threads() {
-    //     let pool = ThreadPoolBuilder::new("s").num_threads(3).build().unwrap();
-    //     assert_eq!(pool.current_num_threads(), 3);
-    // }
-    //
-    // #[test]
-    // fn test_thread_pool_runtime() {
-    //     let rt = tokio::runtime::Runtime::new().unwrap();
-    //
-    //     let pool = ThreadPoolBuilder::new("s")
-    //         .num_threads(1)
-    //         .runtime(rt.handle().clone())
-    //         .build()
-    //         .unwrap();
-    //
-    //     let has_runtime = pool.install(|| tokio::runtime::Handle::try_current().is_ok());
-    //     assert!(has_runtime);
-    // }
-    //
-    // #[test]
-    // fn test_thread_pool_no_runtime() {
-    //     let pool = ThreadPoolBuilder::new("s").num_threads(1).build().unwrap();
-    //
-    //     let has_runtime = pool.install(|| tokio::runtime::Handle::try_current().is_ok());
-    //     assert!(!has_runtime);
-    // }
-    //
-    // #[test]
-    // fn test_thread_pool_panic() {
-    //     let pool = ThreadPoolBuilder::new("s").num_threads(1).build().unwrap();
-    //     let barrier = Arc::new(Barrier::new(2));
-    //
-    //     pool.spawn({
-    //         let barrier = Arc::clone(&barrier);
-    //         move || {
-    //             barrier.wait();
-    //             panic!();
-    //         }
-    //     });
-    //     barrier.wait();
-    //
-    //     pool.spawn({
-    //         let barrier = Arc::clone(&barrier);
-    //         move || {
-    //             barrier.wait();
-    //         }
-    //     });
-    //     barrier.wait();
-    // }
-    //
-    // #[test]
-    // #[cfg(unix)]
-    // fn test_thread_pool_priority() {
-    //     fn get_current_priority() -> i32 {
-    //         unsafe { libc::getpriority(libc::PRIO_PROCESS, 0) }
-    //     }
-    //
-    //     let default_prio = get_current_priority();
-    //
-    //     {
-    //         let pool = ThreadPoolBuilder::new("s").num_threads(1).build().unwrap();
-    //         let prio = pool.install(get_current_priority);
-    //         // Default pool priority must match current priority.
-    //         assert_eq!(prio, default_prio);
-    //     }
-    //
-    //     {
-    //         let pool = ThreadPoolBuilder::new("s")
-    //             .num_threads(1)
-    //             .thread_kind(ThreadKind::Worker)
-    //             .build()
-    //             .unwrap();
-    //         let prio = pool.install(get_current_priority);
-    //         // Worker must be higher than the default priority (higher number = lower priority).
-    //         assert!(prio > default_prio);
-    //     }
-    // }
-    //
-    // #[test]
-    // fn test_worker_group_backpressure() {
-    //     let pool = ThreadPoolBuilder::new("s").num_threads(1).build().unwrap();
-    //     let workers = WorkerGroup::new(pool);
-    //
-    //     // Num Threads * 2 is the limit after backpressure kicks in
-    //     let barrier = Arc::new(Barrier::new(2));
-    //
-    //     let spawn = || {
-    //         let barrier = Arc::clone(&barrier);
-    //         workers
-    //             .spawn(move || {
-    //                 barrier.wait();
-    //             })
-    //             .now_or_never()
-    //             .is_some()
-    //     };
-    //
-    //     for _ in 0..15 {
-    //         // Pool should accept two immediately.
-    //         assert!(spawn());
-    //         assert!(spawn());
-    //         // Pool should reject because there are already 2 tasks active.
-    //         assert!(!spawn());
-    //
-    //         // Unblock the barrier
-    //         barrier.wait(); // first spawn
-    //         barrier.wait(); // second spawn
-    //
-    //         // wait a tiny bit to make sure the semaphore handle is dropped
-    //         thread::sleep(Duration::from_millis(50));
-    //     }
-    // }
+    #[tokio::test]
+    async fn test_thread_pool_panic() {
+        let pool = ThreadPoolBuilder::new("s", Handle::current())
+            .num_threads(1)
+            .build()
+            .unwrap();
+        let barrier = Arc::new(Barrier::new(2));
+
+        let barrier_clone = barrier.clone();
+        pool.spawn(
+            async move {
+                barrier_clone.wait().await;
+                panic!();
+            }
+            .boxed(),
+        );
+        barrier.wait().await;
+
+        let barrier_clone = barrier.clone();
+        pool.spawn(
+            async move {
+                barrier_clone.wait().await;
+            }
+            .boxed(),
+        );
+        barrier.wait().await;
+    }
+
+    #[tokio::test]
+    #[cfg(unix)]
+    async fn test_thread_pool_priority() {
+        fn get_current_priority() -> i32 {
+            unsafe { libc::getpriority(libc::PRIO_PROCESS, 0) }
+        }
+
+        let default_priority = get_current_priority();
+
+        {
+            let pool = ThreadPoolBuilder::new("s", Handle::current())
+                .num_threads(1)
+                .build()
+                .unwrap();
+
+            let barrier = Arc::new(Barrier::new(2));
+            let priority = Arc::new(AtomicI32::new(0));
+            let barrier_clone = barrier.clone();
+            let priority_clone = priority.clone();
+            pool.spawn(async move {
+                priority_clone.store(get_current_priority(), Ordering::SeqCst);
+                barrier_clone.wait().await;
+            });
+            barrier.wait().await;
+
+            // Default pool priority must match current priority.
+            assert_eq!(priority.load(Ordering::SeqCst), default_priority);
+        }
+
+        {
+            let pool = ThreadPoolBuilder::new("s", Handle::current())
+                .num_threads(1)
+                .thread_kind(ThreadKind::Worker)
+                .build()
+                .unwrap();
+
+            let barrier = Arc::new(Barrier::new(2));
+            let priority = Arc::new(AtomicI32::new(0));
+            let barrier_clone = barrier.clone();
+            let priority_clone = priority.clone();
+            pool.spawn(async move {
+                priority_clone.store(get_current_priority(), Ordering::SeqCst);
+                barrier_clone.wait().await;
+            });
+            barrier.wait().await;
+
+            // Worker must be higher than the default priority (higher number = lower priority).
+            assert!(priority.load(Ordering::SeqCst) > default_priority);
+        }
+    }
 }
