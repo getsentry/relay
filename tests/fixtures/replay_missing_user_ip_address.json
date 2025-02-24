@@ -30,7 +30,8 @@
     "user": {
         "id": "123",
         "username": "user",
-        "email": "user@site.com"
+        "email": "user@site.com",
+        "ip_address": "{{auto}}"
     },
     "request": {
         "url": null,

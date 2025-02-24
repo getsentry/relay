@@ -311,8 +311,10 @@ mod tests {
             None,
         );
 
-        let ipaddr = get_value!(replay.user!).ip_address.as_str();
-        assert_eq!(Some("127.0.0.1"), ipaddr);
+        assert_eq!(
+            Annotated::empty(),
+            replay.0.unwrap().user.0.unwrap().ip_address
+        );
     }
 
     #[test]

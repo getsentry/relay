@@ -454,8 +454,10 @@ mod tests {
             },
         );
 
-        let ip_addr = get_value!(event.user.ip_address!);
-        assert_eq!(ip_addr, &IpAddr("2.125.160.216".to_string()));
+        assert_eq!(
+            Annotated::empty(),
+            event.0.unwrap().user.0.unwrap().ip_address
+        );
     }
 
     #[test]
