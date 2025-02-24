@@ -2,6 +2,8 @@
 
 use std::sync::Arc;
 
+use opentelemetry_proto::tonic::common::v1::any_value::Value;
+use opentelemetry_proto::tonic::common::v1::{AnyValue, KeyValue};
 use prost::Message;
 use relay_dynamic_config::Feature;
 use relay_event_normalization::span::tag_extraction;
@@ -62,10 +64,43 @@ fn convert_traces_data(item: Item, managed_envelope: &mut TypedEnvelope<SpanGrou
             return;
         }
     };
-    for resource in traces_data.resource_spans {
-        for scope in resource.scope_spans {
-            for span in scope.spans {
-                // TODO: resources and scopes contain attributes, should denormalize into spans?
+    for resource_spans in traces_data.resource_spans {
+        for scope_spans in resource_spans.scope_spans {
+            for mut span in scope_spans.spans {
+                // Denormalize instrumentation scope and resource attributes into every span.
+                if let Some(ref scope) = scope_spans.scope {
+                    if !scope.name.is_empty() {
+                        span.attributes.push(KeyValue {
+                            key: "instrumentation.name".to_owned(),
+                            value: Some(AnyValue {
+                                value: Some(Value::StringValue(scope.name.clone())),
+                            }),
+                        })
+                    }
+                    if !scope.version.is_empty() {
+                        span.attributes.push(KeyValue {
+                            key: "instrumentation.version".to_owned(),
+                            value: Some(AnyValue {
+                                value: Some(Value::StringValue(scope.version.clone())),
+                            }),
+                        })
+                    }
+                    scope.attributes.iter().for_each(|a| {
+                        span.attributes.push(KeyValue {
+                            key: format!("instrumentation.{}", a.key),
+                            value: a.value.clone(),
+                        });
+                    });
+                }
+                if let Some(ref resource) = resource_spans.resource {
+                    resource.attributes.iter().for_each(|a| {
+                        span.attributes.push(KeyValue {
+                            key: format!("resource.{}", a.key),
+                            value: a.value.clone(),
+                        });
+                    });
+                }
+
                 let Ok(payload) = serde_json::to_vec(&span) else {
                     track_invalid(managed_envelope, DiscardReason::Internal);
                     continue;
@@ -118,4 +153,148 @@ pub fn extract_transaction_span(
     tag_extraction::extract_segment_span_tags(event, &mut spans);
 
     spans.into_iter().next().and_then(Annotated::into_value)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::envelope::{ContentType, Item, ItemType};
+    use crate::services::processor::span::convert_traces_data;
+    use crate::services::processor::ProcessingGroup;
+    use crate::utils::{ManagedEnvelope, TypedEnvelope};
+    use crate::Envelope;
+    use bytes::Bytes;
+    use opentelemetry_proto::tonic::common::v1::any_value::Value;
+    use opentelemetry_proto::tonic::common::v1::AnyValue;
+    use relay_spans::otel_trace::Span as OtelSpan;
+    use relay_system::Addr;
+
+    #[test]
+    fn attribute_denormalization() {
+        // Construct an OTLP trace payload with:
+        // - a resource with one attribute, containing:
+        // - an instrumentation scope with one attribute, containing:
+        // - a span with one attribute
+        let traces_data = r#"
+        {
+            "resourceSpans": [
+                {
+                    "resource": {
+                        "attributes": [
+                            {
+                                "key": "resource_key",
+                                "value": {
+                                    "stringValue": "resource_value"
+                                }
+                            }
+                        ]
+                    },
+                    "scopeSpans": [
+                        {
+                            "scope": {
+                                "name": "test_instrumentation",
+                                "version": "0.0.1",
+                                "attributes": [
+                                    {
+                                        "key": "scope_key",
+                                        "value": {
+                                            "stringValue": "scope_value"
+                                        }
+                                    }
+                                ]
+                            },
+                            "spans": [
+                                {
+                                    "attributes": [
+                                        {
+                                            "key": "span_key",
+                                            "value": {
+                                                "stringValue": "span_value"
+                                            }
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+        "#;
+
+        // Build an envelope containing the OTLP trace data.
+        let bytes =
+            Bytes::from(r#"{"dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"}"#);
+        let envelope = Envelope::parse_bytes(bytes).unwrap();
+        let (test_store, _) = Addr::custom();
+        let (outcome_aggregator, _) = Addr::custom();
+        let managed_envelope = ManagedEnvelope::new(
+            envelope,
+            outcome_aggregator,
+            test_store,
+            ProcessingGroup::Span,
+        );
+        let mut typed_envelope: TypedEnvelope<_> = managed_envelope.try_into().unwrap();
+        let mut item = Item::new(ItemType::OtelTracesData);
+        item.set_payload(ContentType::Json, traces_data);
+        typed_envelope.envelope_mut().add_item(item.clone());
+
+        // Convert the OTLP trace data into `OtelSpan` item(s).
+        convert_traces_data(item, &mut typed_envelope);
+
+        // Assert that the attributes from the resource and instrumentation
+        // scope were copied.
+        let item = typed_envelope
+            .envelope()
+            .items()
+            .find(|i| *i.ty() == ItemType::OtelSpan)
+            .expect("converted span missing from envelope");
+        let attributes = serde_json::from_slice::<OtelSpan>(&item.payload())
+            .expect("unable to deserialize otel span")
+            .attributes;
+        assert_eq!(
+            attributes.len(),
+            5,
+            "the instrumentation and resource attributes should be copied to the span"
+        );
+
+        // Assert that the scope's properties were copied.
+        assert_eq!(
+            attributes
+                .iter()
+                .find(|attr| attr.key == "instrumentation.name")
+                .and_then(|attr| attr.value.clone()),
+            Some(AnyValue {
+                value: Some(Value::StringValue("test_instrumentation".into()))
+            })
+        );
+        assert_eq!(
+            attributes
+                .iter()
+                .find(|attr| attr.key == "instrumentation.version")
+                .and_then(|attr| attr.value.clone()),
+            Some(AnyValue {
+                value: Some(Value::StringValue("0.0.1".into()))
+            })
+        );
+
+        // Assert that the copied keys were prefixed correctly.
+        assert_eq!(
+            attributes
+                .iter()
+                .find(|attr| attr.key == "resource.resource_key")
+                .and_then(|attr| attr.value.clone()),
+            Some(AnyValue {
+                value: Some(Value::StringValue("resource_value".into()))
+            })
+        );
+        assert_eq!(
+            attributes
+                .iter()
+                .find(|attr| attr.key == "instrumentation.scope_key")
+                .and_then(|attr| attr.value.clone()),
+            Some(AnyValue {
+                value: Some(Value::StringValue("scope_value".into()))
+            })
+        );
+    }
 }
