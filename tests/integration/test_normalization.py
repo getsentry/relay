@@ -398,10 +398,10 @@ def test_ip_normalization_with_remove_remark(mini_sentry, relay_chain):
     [
         ("javascript", "8.55", "127.0.0.1"),
         ("javascript", "9", None),
-        ("cocoa", "8.44", "127.0.0.1"),
-        ("cocoa", "8.45", None),
-        ("objc", "8.44", "127.0.0.1"),
-        ("objc", "8.45", None),
+        ("cocoa", "6.1.4", "127.0.0.1"),
+        ("cocoa", "6.2", None),
+        ("objc", "6.1.4", "127.0.0.1"),
+        ("objc", "6.2", None),
         ("random_sdk", None, None),
     ],
 )

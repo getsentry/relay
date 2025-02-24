@@ -2,7 +2,6 @@
 //!
 //! This module provides a function to normalize events.
 
-use std::cmp::Ordering;
 use std::collections::hash_map::DefaultHasher;
 
 use std::hash::{Hash, Hasher};
@@ -39,8 +38,8 @@ use crate::{
     RawUserAgentInfo, SpanDescriptionRule, TransactionNameConfig,
 };
 
-const JAVASCRIPT_VERSION: SdkVersion = SdkVersion::new(9, 0, 0);
-const COCOA_VERSION: SdkVersion = SdkVersion::new(6, 2, 0);
+const CUTOFF_JAVASCRIPT_VERSION: SdkVersion = SdkVersion::new(9, 0, 0);
+const CUTOFF_COCOA_VERSION: SdkVersion = SdkVersion::new(6, 2, 0);
 
 /// Configuration for [`normalize_event`].
 #[derive(Clone, Debug)]
@@ -480,18 +479,17 @@ pub fn normalize_ip_addresses(
                     if let Some(Ok(sdk_version)) = client_sdk
                         .0
                         .as_ref()
-                        .map(|sdk| sdk.version.0.as_ref())
-                        .flatten()
+                        .and_then(|sdk| sdk.version.0.as_ref())
                         .map(|s| SdkVersion::from_str(s.as_str()))
                     {
                         match platform {
                             Some("javascript") => {
-                                if sdk_version < JAVASCRIPT_VERSION {
+                                if sdk_version < CUTOFF_JAVASCRIPT_VERSION {
                                     user.ip_address = Annotated::new(client_ip.to_owned());
                                 }
                             }
                             Some("cocoa") | Some("objc") => {
-                                if sdk_version < COCOA_VERSION {
+                                if sdk_version < CUTOFF_COCOA_VERSION {
                                     user.ip_address = Annotated::new(client_ip.to_owned());
                                 }
                             }
@@ -1494,25 +1492,17 @@ struct SdkVersion {
     release_type: ReleaseType,
 }
 
-#[derive(Debug, PartialOrd, Eq, PartialEq)]
+/// Represents the release type which might be present in a version string,
+/// for example: 9.0.0-alpha.0.
+/// Release types are also comparable to each other, using the rules:
+/// alpha < beta < release.
+/// **NOTE**: The discriminants are explicitly set to keep the comparison rules
+///           even if the order is changed.
+#[derive(Debug, Eq, PartialEq, Ord, PartialOrd)]
 enum ReleaseType {
-    Alpha,
-    Beta,
-    Release,
-}
-
-impl Ord for ReleaseType {
-    fn cmp(&self, other: &Self) -> Ordering {
-        match (self, other) {
-            (ReleaseType::Release, ReleaseType::Release) => Ordering::Equal,
-            (ReleaseType::Alpha, ReleaseType::Alpha) => Ordering::Equal,
-            (ReleaseType::Beta, ReleaseType::Beta) => Ordering::Equal,
-            (ReleaseType::Release, _) => Ordering::Greater,
-            (_, ReleaseType::Release) => Ordering::Less,
-            (ReleaseType::Alpha, ReleaseType::Beta) => Ordering::Less,
-            (ReleaseType::Beta, ReleaseType::Alpha) => Ordering::Greater,
-        }
-    }
+    Alpha = 1,
+    Beta = 2,
+    Release = 3,
 }
 
 impl SdkVersion {
