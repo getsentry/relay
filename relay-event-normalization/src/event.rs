@@ -2,10 +2,12 @@
 //!
 //! This module provides a function to normalize events.
 
+use std::cmp::Ordering;
 use std::collections::hash_map::DefaultHasher;
 
 use std::hash::{Hash, Hasher};
 use std::mem;
+use std::num::ParseIntError;
 use std::sync::OnceLock;
 
 use itertools::Itertools;
@@ -36,6 +38,9 @@ use crate::{
     CombinedMeasurementsConfig, GeoIpLookup, MaxChars, ModelCosts, PerformanceScoreConfig,
     RawUserAgentInfo, SpanDescriptionRule, TransactionNameConfig,
 };
+
+const JAVASCRIPT_VERSION: SdkVersion = SdkVersion::new(9, 0, 0);
+const COCOA_VERSION: SdkVersion = SdkVersion::new(6, 2, 0);
 
 /// Configuration for [`normalize_event`].
 #[derive(Clone, Debug)]
@@ -260,6 +265,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
         &mut event.user,
         event.platform.as_str(),
         config.client_ip,
+        &event.client_sdk,
     );
 
     if let Some(geoip_lookup) = config.geoip_lookup {
@@ -412,6 +418,7 @@ pub fn normalize_ip_addresses(
     user: &mut Annotated<User>,
     platform: Option<&str>,
     client_ip: Option<&IpAddr>,
+    client_sdk: &Annotated<ClientSdkInfo>,
 ) {
     // NOTE: This is highly order dependent, in the sense that both the statements within this
     // function need to be executed in a certain order, and that other normalization code
@@ -467,9 +474,30 @@ pub fn normalize_ip_addresses(
                 .iter_remarks()
                 .any(|r| r.ty == RemarkType::Removed);
             if !scrubbed_before {
-                // In an ideal world all SDKs would set {{auto}} explicitly.
+                // We stop assuming that empty means {{auto}} for the affected platforms
+                // starting with the versions listed below.
                 if let Some("javascript") | Some("cocoa") | Some("objc") = platform {
-                    user.ip_address = Annotated::new(client_ip.to_owned());
+                    if let Some(Ok(sdk_version)) = client_sdk
+                        .0
+                        .as_ref()
+                        .map(|sdk| sdk.version.0.as_ref())
+                        .flatten()
+                        .map(|s| SdkVersion::from_str(s.as_str()))
+                    {
+                        match platform {
+                            Some("javascript") => {
+                                if sdk_version < JAVASCRIPT_VERSION {
+                                    user.ip_address = Annotated::new(client_ip.to_owned());
+                                }
+                            }
+                            Some("cocoa") | Some("objc") => {
+                                if sdk_version < COCOA_VERSION {
+                                    user.ip_address = Annotated::new(client_ip.to_owned());
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
                 }
             }
         }
@@ -1457,20 +1485,93 @@ fn normalize_app_start_measurements(measurements: &mut Measurements) {
     }
 }
 
+/// Represents a SDK version using the format "<major>.<minor>.<patch>".
+#[derive(Debug, PartialOrd, Eq, PartialEq, Ord)]
+struct SdkVersion {
+    major: usize,
+    minor: usize,
+    patch: usize,
+    release_type: ReleaseType,
+}
+
+#[derive(Debug, PartialOrd, Eq, PartialEq)]
+enum ReleaseType {
+    Alpha,
+    Beta,
+    Release,
+}
+
+impl Ord for ReleaseType {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match (self, other) {
+            (ReleaseType::Release, ReleaseType::Release) => Ordering::Equal,
+            (ReleaseType::Alpha, ReleaseType::Alpha) => Ordering::Equal,
+            (ReleaseType::Beta, ReleaseType::Beta) => Ordering::Equal,
+            (ReleaseType::Release, _) => Ordering::Greater,
+            (_, ReleaseType::Release) => Ordering::Less,
+            (ReleaseType::Alpha, ReleaseType::Beta) => Ordering::Less,
+            (ReleaseType::Beta, ReleaseType::Alpha) => Ordering::Greater,
+        }
+    }
+}
+
+impl SdkVersion {
+    pub const fn new(major: usize, minor: usize, patch: usize) -> Self {
+        Self {
+            major,
+            minor,
+            patch,
+            release_type: ReleaseType::Release,
+        }
+    }
+
+    /// Attempts to parse a version string and returning a [`ParseIntError`] if it contains any
+    /// non-numerical characters apart from dots.
+    /// If a version part is not provided, 0 will be assumed.
+    /// For example:
+    /// 1.2 -> 1.2.0
+    /// 1   -> 1.0.0
+    pub fn from_str(input: &str) -> Result<Self, ParseIntError> {
+        let mut split = input.split(".");
+        let major = split.next().map(str::parse).transpose()?.unwrap_or(0);
+        let minor = split.next().map(str::parse).transpose()?.unwrap_or(0);
+        let (patch, release_type) = if let Some(next) = split.next() {
+            match next.split_once("-") {
+                Some((patch, release_type)) => (
+                    patch.parse()?,
+                    if release_type.starts_with("alpha") {
+                        ReleaseType::Alpha
+                    } else {
+                        ReleaseType::Beta
+                    },
+                ),
+                None => (next.parse()?, ReleaseType::Release),
+            }
+        } else {
+            (0, ReleaseType::Release)
+        };
+        Ok(Self {
+            major,
+            minor,
+            patch,
+            release_type,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
     use std::collections::BTreeMap;
 
+    use super::*;
+    use crate::{ClientHints, MeasurementsConfig, ModelCost};
     use insta::assert_debug_snapshot;
     use itertools::Itertools;
     use relay_common::glob2::LazyGlob;
     use relay_event_schema::protocol::{Breadcrumb, Csp, DebugMeta, DeviceContext, Values};
     use relay_protocol::{get_value, SerializableAnnotated};
     use serde_json::json;
-
-    use super::*;
-    use crate::{ClientHints, MeasurementsConfig, ModelCost};
 
     const IOS_MOBILE_EVENT: &str = r#"
         {
@@ -4468,5 +4569,43 @@ mod tests {
           },
         }
         "#);
+    }
+
+    #[test]
+    pub fn test_version_compare() {
+        let main_version = SdkVersion::new(1, 2, 3);
+        let less = SdkVersion::new(1, 2, 1);
+        let greater = SdkVersion::new(2, 1, 1);
+        let equal = SdkVersion::new(1, 2, 3);
+        assert!(main_version > less);
+        assert!(main_version < greater);
+        assert_eq!(main_version, equal);
+    }
+
+    #[test]
+    pub fn test_version_string_compare() {
+        let main_version = SdkVersion::from_str("1.2.3").unwrap();
+        let less = SdkVersion::from_str("1.2.1").unwrap();
+        let greater = SdkVersion::from_str("2.1.1").unwrap();
+        let equal = SdkVersion::from_str("1.2.3").unwrap();
+        assert!(main_version > less);
+        assert!(main_version < greater);
+        assert_eq!(main_version, equal);
+    }
+
+    #[test]
+    pub fn test_release_type() {
+        let alpha = SdkVersion::from_str("9.0.0-alpha.2").unwrap();
+        let beta = SdkVersion::from_str("9.0.0-beta.2").unwrap();
+        let release = SdkVersion::from_str("9.0.0").unwrap();
+
+        assert!(alpha < beta);
+        assert!(beta < release);
+        assert!(alpha < release)
+    }
+
+    #[test]
+    pub fn test_version_string_parse_failed() {
+        assert!(SdkVersion::from_str("amd64").is_err());
     }
 }

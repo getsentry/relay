@@ -391,3 +391,54 @@ def test_ip_normalization_with_remove_remark(mini_sentry, relay_chain):
     event = envelope.get_event()
     assert event["user"]["ip_address"] is None
     assert event["user"]["id"] == "AE12FE3B5F129B5CC4CDD2B136B7B7947C4D2741"
+
+
+@pytest.mark.parametrize(
+    "platform, version, expected",
+    [
+        ("javascript", "8.55", "127.0.0.1"),
+        ("javascript", "9", None),
+        ("cocoa", "8.44", "127.0.0.1"),
+        ("cocoa", "8.45", None),
+        ("objc", "8.44", "127.0.0.1"),
+        ("objc", "8.45", None),
+        ("random_sdk", None, None),
+    ],
+)
+def test_empty_ip_not_auto(mini_sentry, relay, platform, version, expected):
+    project_id = 42
+    relay = relay(mini_sentry)
+
+    mini_sentry.add_basic_project_config(project_id)
+
+    relay.send_event(
+        project_id,
+        {
+            "platform": platform,
+            "sdk": {"version": version},
+            "user": {"ip_address": ""},
+        },
+    )
+
+    envelope = mini_sentry.captured_events.get(timeout=1)
+    event = envelope.get_event()
+    assert event["user"]["ip_address"] == expected
+
+
+@pytest.mark.parametrize(
+    "scrub_ip_addresses, expected", [(True, None), (False, "127.0.0.1")]
+)
+def test_ip_address_scrubbed(mini_sentry, relay, scrub_ip_addresses, expected):
+    project_id = 42
+    relay = relay(mini_sentry)
+
+    config = mini_sentry.add_basic_project_config(project_id)
+    config["config"].setdefault("datascrubbingSettings", {})[
+        "scrubIpAddresses"
+    ] = scrub_ip_addresses
+
+    relay.send_event(project_id, {"user": {"ip_address": "{{auto}}"}})
+
+    envelope = mini_sentry.captured_events.get(timeout=1)
+    event = envelope.get_event()
+    assert event["user"]["ip_address"] == expected
