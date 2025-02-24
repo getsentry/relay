@@ -13,13 +13,15 @@ use crate::services::health_check::{HealthCheck, HealthCheckService};
 use crate::services::metrics::RouterService;
 use crate::services::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
 use crate::services::outcome_aggregator::OutcomeAggregator;
-use crate::services::processor::{self, EnvelopeProcessor, EnvelopeProcessorService};
+use crate::services::processor::{
+    self, EnvelopeProcessor, EnvelopeProcessorService, EnvelopeProcessorServicePool,
+};
 use crate::services::projects::cache::{ProjectCacheHandle, ProjectCacheService};
 use crate::services::projects::source::ProjectSource;
 use crate::services::relays::{RelayCache, RelayCacheService};
 use crate::services::stats::RelayStats;
 #[cfg(feature = "processing")]
-use crate::services::store::StoreService;
+use crate::services::store::{StoreService, StoreServicePool};
 use crate::services::test_store::{TestStore, TestStoreService};
 use crate::services::upstream::{UpstreamRelay, UpstreamRelayService};
 use crate::utils::{MemoryChecker, MemoryStat, ThreadKind};
@@ -28,7 +30,6 @@ use anyhow::Context;
 use anyhow::Result;
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
-use rayon::ThreadPool;
 use relay_cogs::Cogs;
 use relay_config::Config;
 #[cfg(feature = "processing")]
@@ -97,7 +98,7 @@ pub fn create_runtime(name: &'static str, threads: usize) -> relay_system::Runti
         .build()
 }
 
-fn create_processor_pool(config: &Config) -> Result<ThreadPool> {
+fn create_processor_pool(config: &Config) -> Result<EnvelopeProcessorServicePool> {
     // Adjust thread count for small cpu counts to not have too many idle cores
     // and distribute workload better.
     let thread_count = match config.cpu_concurrency() {
@@ -107,17 +108,17 @@ fn create_processor_pool(config: &Config) -> Result<ThreadPool> {
     };
     relay_log::info!("starting {thread_count} envelope processing workers");
 
-    let pool = crate::utils::ThreadPoolBuilder::new("processor")
+    let pool = crate::utils::ThreadPoolBuilder::new("processor", tokio::runtime::Handle::current())
         .num_threads(thread_count)
+        .max_concurrency(config.pool_tasks_concurrency())
         .thread_kind(ThreadKind::Worker)
-        .runtime(tokio::runtime::Handle::current())
         .build()?;
 
     Ok(pool)
 }
 
 #[cfg(feature = "processing")]
-fn create_store_pool(config: &Config) -> Result<ThreadPool> {
+fn create_store_pool(config: &Config) -> Result<StoreServicePool> {
     // Spawn a store worker for every 12 threads in the processor pool.
     // This ratio was found empirically and may need adjustments in the future.
     //
@@ -126,9 +127,9 @@ fn create_store_pool(config: &Config) -> Result<ThreadPool> {
     let thread_count = config.cpu_concurrency().div_ceil(12);
     relay_log::info!("starting {thread_count} store workers");
 
-    let pool = crate::utils::ThreadPoolBuilder::new("store")
+    let pool = crate::utils::ThreadPoolBuilder::new("store", tokio::runtime::Handle::current())
         .num_threads(thread_count)
-        .runtime(tokio::runtime::Handle::current())
+        .max_concurrency(config.pool_tasks_concurrency())
         .build()?;
 
     Ok(pool)

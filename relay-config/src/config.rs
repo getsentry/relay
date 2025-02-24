@@ -638,6 +638,11 @@ pub struct Limits {
     /// The total number of threads spawned will roughly be `2 * max_thread_count`. Defaults to
     /// the number of logical CPU cores on the host.
     pub max_thread_count: usize,
+    /// The maximum number of concurrent tasks to be run for each asynchronous thread pool.
+    ///
+    /// For each thread of the asynchronous pool, up to `max_concurrency_per_pool` futures
+    /// (aka tasks) will be polled simultaneously.
+    pub max_concurrency_per_pool: usize,
     /// The maximum number of seconds a query is allowed to take across retries. Individual requests
     /// have lower timeouts. Defaults to 30 seconds.
     pub query_timeout: u64,
@@ -646,7 +651,7 @@ pub struct Limits {
     pub shutdown_timeout: u64,
     /// Server keep-alive timeout in seconds.
     ///
-    /// By default keep-alive is set to a 5 seconds.
+    /// By default, keep-alive is set to 5 seconds.
     pub keepalive_timeout: u64,
     /// Server idle timeout in seconds.
     ///
@@ -695,6 +700,7 @@ impl Default for Limits {
             max_replay_uncompressed_size: ByteSize::mebibytes(100),
             max_replay_message_size: ByteSize::mebibytes(15),
             max_thread_count: num_cpus::get(),
+            max_concurrency_per_pool: 1,
             query_timeout: 30,
             shutdown_timeout: 10,
             keepalive_timeout: 5,
@@ -2347,6 +2353,12 @@ impl Config {
     /// Returns the number of cores to use for thread pools.
     pub fn cpu_concurrency(&self) -> usize {
         self.values.limits.max_thread_count
+    }
+
+    /// Returns the number of tasks that will be polled simultaneously by each thread of the
+    /// asynchronous pool.
+    pub fn pool_tasks_concurrency(&self) -> usize {
+        self.values.limits.max_concurrency_per_pool
     }
 
     /// Returns the maximum size of a project config query.

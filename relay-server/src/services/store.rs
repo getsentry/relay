@@ -10,12 +10,15 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
+use futures::future::BoxFuture;
+use futures::FutureExt;
 use relay_base_schema::data_category::DataCategory;
 use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
 use relay_config::Config;
 use relay_event_schema::protocol::{EventId, VALID_PLATFORMS};
 
+use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 use relay_kafka::{ClientError, KafkaClient, KafkaTopic, Message};
 use relay_metrics::{
     Bucket, BucketView, BucketViewValue, BucketsView, ByNamespace, FiniteF64, GaugeValue,
@@ -24,12 +27,11 @@ use relay_metrics::{
 use relay_quotas::Scoping;
 use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
+use relay_threading::AsyncPool;
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
 use serde_json::Deserializer;
 use uuid::Uuid;
-
-use crate::envelope::{AttachmentType, Envelope, Item, ItemType};
 
 use crate::metrics::{ArrayEncoding, BucketEncoder, MetricOutcomes};
 use crate::service::ServiceError;
@@ -91,6 +93,9 @@ pub struct StoreMetrics {
     pub retention: u16,
 }
 
+/// The asynchronous thread pool used for scheduling storing tasks in the envelope store.
+pub type StoreServicePool = AsyncPool<BoxFuture<'static, ()>>;
+
 /// Service interface for the [`StoreEnvelope`] message.
 #[derive(Debug)]
 pub enum Store {
@@ -128,7 +133,7 @@ impl FromMessage<StoreMetrics> for Store {
 
 /// Service implementing the [`Store`] interface.
 pub struct StoreService {
-    workers: WorkerGroup,
+    pool: StoreServicePool,
     config: Arc<Config>,
     global_config: GlobalConfigHandle,
     outcome_aggregator: Addr<TrackOutcome>,
@@ -138,7 +143,7 @@ pub struct StoreService {
 
 impl StoreService {
     pub fn create(
-        pool: ThreadPool,
+        pool: StoreServicePool,
         config: Arc<Config>,
         global_config: GlobalConfigHandle,
         outcome_aggregator: Addr<TrackOutcome>,
@@ -146,7 +151,7 @@ impl StoreService {
     ) -> anyhow::Result<Self> {
         let producer = Producer::create(&config)?;
         Ok(Self {
-            workers: WorkerGroup::new(pool),
+            pool,
             config,
             global_config,
             outcome_aggregator,
@@ -1049,8 +1054,10 @@ impl Service for StoreService {
 
         while let Some(message) = rx.recv().await {
             let service = Arc::clone(&this);
-            this.workers
-                .spawn(move || service.handle_message(message))
+            // For now, we run each task synchronously, in the future we might explore how to make
+            // the store async.
+            this.pool
+                .spawn_async(async move { service.handle_message(message) }.boxed())
                 .await;
         }
 

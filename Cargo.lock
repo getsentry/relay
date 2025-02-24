@@ -4007,6 +4007,7 @@ dependencies = [
  "relay-statsd",
  "relay-system",
  "relay-test",
+ "relay-threading",
  "reqwest",
  "rmp-serde",
  "semver",
