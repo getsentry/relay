@@ -12,7 +12,7 @@ use crate::multiplexing::Multiplexed;
 use crate::PanicHandler;
 
 /// Default name of the pool.
-static DEFAULT_POOL_NAME: &str = "unnamed";
+const DEFAULT_POOL_NAME: &str = "unnamed";
 
 /// [`AsyncPool`] is a thread-based executor that runs asynchronous tasks on dedicated worker threads.
 ///
