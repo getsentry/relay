@@ -480,7 +480,7 @@ pub fn normalize_ip_addresses(
                         .0
                         .as_ref()
                         .and_then(|sdk| sdk.version.0.as_ref())
-                        .map(|s| SdkVersion::from_str(s.as_str()))
+                        .map(|s| SdkVersion::try_parse(s.as_str()))
                     {
                         match platform {
                             Some("javascript") => {

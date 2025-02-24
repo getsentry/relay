@@ -40,7 +40,7 @@ impl SdkVersion {
     /// For example:
     /// 1.2 -> 1.2.0
     /// 1   -> 1.0.0
-    pub fn from_str(input: &str) -> Result<Self, ParseIntError> {
+    pub fn try_parse(input: &str) -> Result<Self, ParseIntError> {
         let mut split = input.split(".");
         let major = split.next().map(str::parse).transpose()?.unwrap_or(0);
         let minor = split.next().map(str::parse).transpose()?.unwrap_or(0);
@@ -85,10 +85,10 @@ mod test {
 
     #[test]
     fn test_version_string_compare() {
-        let main_version = SdkVersion::from_str("1.2.3").unwrap();
-        let less = SdkVersion::from_str("1.2.1").unwrap();
-        let greater = SdkVersion::from_str("2.1.1").unwrap();
-        let equal = SdkVersion::from_str("1.2.3").unwrap();
+        let main_version = SdkVersion::try_parse("1.2.3").unwrap();
+        let less = SdkVersion::try_parse("1.2.1").unwrap();
+        let greater = SdkVersion::try_parse("2.1.1").unwrap();
+        let equal = SdkVersion::try_parse("1.2.3").unwrap();
         assert!(main_version > less);
         assert!(main_version < greater);
         assert_eq!(main_version, equal);
@@ -96,9 +96,9 @@ mod test {
 
     #[test]
     fn test_release_type() {
-        let alpha = SdkVersion::from_str("9.0.0-alpha.2").unwrap();
-        let beta = SdkVersion::from_str("9.0.0-beta.2").unwrap();
-        let release = SdkVersion::from_str("9.0.0").unwrap();
+        let alpha = SdkVersion::try_parse("9.0.0-alpha.2").unwrap();
+        let beta = SdkVersion::try_parse("9.0.0-beta.2").unwrap();
+        let release = SdkVersion::try_parse("9.0.0").unwrap();
 
         assert!(alpha < beta);
         assert!(beta < release);
@@ -107,6 +107,6 @@ mod test {
 
     #[test]
     fn test_version_string_parse_failed() {
-        assert!(SdkVersion::from_str("amd64").is_err());
+        assert!(SdkVersion::try_parse("amd64").is_err());
     }
 }

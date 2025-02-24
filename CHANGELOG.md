@@ -11,6 +11,7 @@
 
 - Track an utilization metric for internal services. ([#4501](https://github.com/getsentry/relay/pull/4501))
 - Add new `relay-threading` crate with asynchronous thread pool. ([#4500](https://github.com/getsentry/relay/pull/4500))
+- Do not convert empty ip address into `{{auto}}` for newer SDKs. ([#4519](https://github.com/getsentry/relay/pull/4519))
 
 ## 25.2.0
 
