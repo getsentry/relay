@@ -102,8 +102,8 @@ pin_project! {
     ///
     /// This multiplexer is primarily used by the [`AsyncPool`] to manage task execution on worker threads.
     pub struct Multiplexed<S, F> {
-        pool_name: Arc<str>,
-        thread_name: Arc<str>,
+        pool_name: &'static str,
+        thread_name: String,
         max_concurrency: usize,
         #[pin]
         rx: S,
@@ -121,8 +121,8 @@ where
     /// Tasks from the stream will be scheduled for execution concurrently, and an optional panic handler
     /// can be provided to manage errors during task execution.
     pub fn new(
-        pool_name: Arc<str>,
-        thread_name: Arc<str>,
+        pool_name: &'static str,
+        thread_name: String,
         max_concurrency: usize,
         rx: S,
         panic_handler: Option<Arc<PanicHandler>>,
@@ -214,7 +214,7 @@ mod tests {
     fn test_multiplexer_with_no_futures() {
         let (_, rx) = flume::bounded::<BoxFuture<'static, _>>(10);
         futures::executor::block_on(Multiplexed::new(
-            "my_pool".into(),
+            "my_pool",
             "my_thread".into(),
             1,
             rx.into_stream(),
@@ -242,7 +242,7 @@ mod tests {
             panic_handler_called_clone.store(true, Ordering::SeqCst);
         };
         futures::executor::block_on(Multiplexed::new(
-            "my_pool".into(),
+            "my_pool",
             "my_thread".into(),
             1,
             rx.into_stream(),
@@ -270,7 +270,7 @@ mod tests {
 
         let result = std::panic::catch_unwind(AssertUnwindSafe(|| {
             futures::executor::block_on(Multiplexed::new(
-                "my_pool".into(),
+                "my_pool",
                 "my_thread".into(),
                 1,
                 rx.into_stream(),
@@ -297,7 +297,7 @@ mod tests {
         drop(tx);
 
         futures::executor::block_on(Multiplexed::new(
-            "my_pool".into(),
+            "my_pool",
             "my_thread".into(),
             1,
             rx.into_stream(),
@@ -324,7 +324,7 @@ mod tests {
         drop(tx);
 
         futures::executor::block_on(Multiplexed::new(
-            "my_pool".into(),
+            "my_pool",
             "my_thread".into(),
             1,
             rx.into_stream(),
@@ -349,7 +349,7 @@ mod tests {
         drop(tx);
 
         futures::executor::block_on(Multiplexed::new(
-            "my_pool".into(),
+            "my_pool",
             "my_thread".into(),
             5,
             rx.into_stream(),
@@ -376,7 +376,7 @@ mod tests {
         drop(tx);
 
         futures::executor::block_on(Multiplexed::new(
-            "my_pool".into(),
+            "my_pool",
             "my_thread".into(),
             5,
             rx.into_stream(),
@@ -406,7 +406,7 @@ mod tests {
         drop(tx);
 
         futures::executor::block_on(Multiplexed::new(
-            "my_pool".into(),
+            "my_pool",
             "my_thread".into(),
             5,
             rx.into_stream(),
@@ -442,7 +442,7 @@ mod tests {
         drop(tx);
 
         futures::executor::block_on(Multiplexed::new(
-            "my_pool".into(),
+            "my_pool",
             "my_thread".into(),
             5,
             rx.into_stream(),

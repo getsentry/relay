@@ -1,7 +1,7 @@
 use std::future::Future;
 use std::io;
 use std::panic::AssertUnwindSafe;
-use std::sync::{Arc, LazyLock};
+use std::sync::Arc;
 
 use futures::future::BoxFuture;
 use futures::FutureExt;
@@ -12,7 +12,7 @@ use crate::multiplexing::Multiplexed;
 use crate::PanicHandler;
 
 /// Default name of the pool.
-static DEFAULT_POOL_NAME: LazyLock<Arc<str>> = LazyLock::new(|| Arc::from("unnamed"));
+static DEFAULT_POOL_NAME: &str = "unnamed";
 
 /// [`AsyncPool`] is a thread-based executor that runs asynchronous tasks on dedicated worker threads.
 ///
@@ -20,7 +20,7 @@ static DEFAULT_POOL_NAME: LazyLock<Arc<str>> = LazyLock::new(|| Arc::from("unnam
 /// Tokio executor. This design enables controlled concurrency and efficient use of system resources.
 #[derive(Debug)]
 pub struct AsyncPool<F> {
-    name: Arc<str>,
+    name: &'static str,
     tx: flume::Sender<F>,
 }
 
@@ -36,13 +36,12 @@ where
     where
         S: ThreadSpawn,
     {
-        let pool_name = builder.pool_name.unwrap_or(DEFAULT_POOL_NAME.clone());
+        let pool_name = builder.pool_name.unwrap_or(DEFAULT_POOL_NAME);
         let (tx, rx) = flume::bounded(builder.num_threads * 2);
 
         for thread_id in 0..builder.num_threads {
             let rx = rx.clone();
-            let thread_name: Option<Arc<str>> =
-                builder.thread_name.as_mut().map(|f| f(thread_id).into());
+            let thread_name: Option<String> = builder.thread_name.as_mut().map(|f| f(thread_id));
 
             let thread = Thread {
                 id: thread_id,
@@ -51,8 +50,8 @@ where
                 runtime: builder.runtime.clone(),
                 panic_handler: builder.thread_panic_handler.clone(),
                 task: Multiplexed::new(
-                    pool_name.clone(),
-                    thread_name.unwrap_or(format!("thread-{}", thread_id).into()),
+                    pool_name,
+                    thread_name.unwrap_or(format!("thread-{}", thread_id)),
                     builder.max_concurrency,
                     rx.into_stream(),
                     builder.task_panic_handler.clone(),
@@ -64,7 +63,7 @@ where
         }
 
         Ok(Self {
-            name: pool_name.clone(),
+            name: pool_name,
             tx,
         })
     }
@@ -123,7 +122,7 @@ where
 pub struct Thread {
     id: usize,
     max_concurrency: usize,
-    name: Option<Arc<str>>,
+    name: Option<String>,
     runtime: tokio::runtime::Handle,
     panic_handler: Option<Arc<PanicHandler>>,
     task: BoxFuture<'static, ()>,

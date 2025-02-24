@@ -66,9 +66,10 @@ impl ThreadPoolBuilder {
         F: Future<Output = ()> + Send + 'static,
     {
         AsyncPoolBuilder::new(self.runtime)
+            .pool_name(self.name)
+            .thread_name(move |id| format!("pool-{name}-{id}", name = self.name))
             .num_threads(self.num_threads)
             .max_concurrency(self.max_concurrency)
-            .thread_name(move |id| format!("pool-{name}-{id}", name = self.name))
             // In case of panic in a task sent to the pool, we catch it to continue the remaining
             // work and just log an error.
             .task_panic_handler(move |_panic| {
