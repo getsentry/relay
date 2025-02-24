@@ -166,8 +166,8 @@ impl PolymorphicEnvelopeBuffer {
     /// not include the count that existed in a persistent spooler before.
     pub fn item_count(&self) -> u64 {
         match self {
-            Self::Sqlite(buffer) => buffer.total_count_lossy,
-            Self::InMemory(buffer) => buffer.total_count_lossy,
+            Self::Sqlite(buffer) => buffer.tracked_count,
+            Self::InMemory(buffer) => buffer.tracked_count,
         }
     }
 
@@ -249,7 +249,7 @@ struct EnvelopeBuffer<P: StackProvider> {
     ///
     /// On startup this will always be 0 and will only count incoming envelopes. If a reliable
     /// count of currently buffered envelopes is required, prefer this over `total_count`
-    total_count_lossy: u64,
+    tracked_count: u64,
     /// Whether the count initialization succeeded or not.
     ///
     /// This boolean is just used for tagging the metric that tracks the total count of envelopes
@@ -267,7 +267,7 @@ impl EnvelopeBuffer<MemoryStackProvider> {
             priority_queue: Default::default(),
             stack_provider: MemoryStackProvider::new(memory_checker),
             total_count: 0,
-            total_count_lossy: 0,
+            tracked_count: 0,
             total_count_initialized: false,
             partition_tag: partition_id.to_string(),
         }
@@ -283,7 +283,7 @@ impl EnvelopeBuffer<SqliteStackProvider> {
             priority_queue: Default::default(),
             stack_provider: SqliteStackProvider::new(partition_id, config).await?,
             total_count: 0,
-            total_count_lossy: 0,
+            tracked_count: 0,
             total_count_initialized: false,
             partition_tag: partition_id.to_string(),
         })
@@ -342,7 +342,7 @@ where
             });
 
         self.total_count += 1;
-        self.total_count_lossy += 1;
+        self.tracked_count += 1;
         self.track_total_count();
 
         Ok(())
@@ -410,7 +410,7 @@ where
         // than it was initially counted, meaning that we had a wrong total count from
         // initialization.
         self.total_count -= 1;
-        self.total_count_lossy = self.total_count_lossy.saturating_sub(1);
+        self.tracked_count = self.tracked_count.saturating_sub(1);
         self.track_total_count();
 
         Ok(Some(envelope))
