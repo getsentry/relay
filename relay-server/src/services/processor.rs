@@ -2056,6 +2056,7 @@ impl EnvelopeProcessorService {
             managed_envelope,
             self.inner.config.clone(),
             project_info.clone(),
+            &self.inner.global_config.current(),
         );
         if_processing!(self.inner.config, {
             self.enforce_quotas(
