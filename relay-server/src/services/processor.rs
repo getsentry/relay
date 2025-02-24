@@ -2390,7 +2390,7 @@ impl EnvelopeProcessorService {
         match result {
             Ok(response) => {
                 if let Some(envelope) = response.envelope {
-                    self.handle_submit_envelope(SubmitEnvelope { envelope });
+                    self.handle_submit_envelope(cogs, SubmitEnvelope { envelope });
                 };
             }
             Err(error) => {
@@ -2505,7 +2505,9 @@ impl EnvelopeProcessorService {
         }
     }
 
-    fn handle_submit_envelope(&self, message: SubmitEnvelope) {
+    fn handle_submit_envelope(&self, cogs: &mut Token, message: SubmitEnvelope) {
+        let _submit = cogs.start_category("submit");
+
         let SubmitEnvelope { mut envelope } = message;
 
         #[cfg(feature = "processing")]
@@ -2566,7 +2568,7 @@ impl EnvelopeProcessorService {
         }
     }
 
-    fn handle_submit_client_reports(&self, message: SubmitClientReports) {
+    fn handle_submit_client_reports(&self, cogs: &mut Token, message: SubmitClientReports) {
         let SubmitClientReports {
             client_reports,
             scoping,
@@ -2588,9 +2590,12 @@ impl EnvelopeProcessorService {
             self.inner.addrs.test_store.clone(),
             ProcessingGroup::ClientReport,
         );
-        self.handle_submit_envelope(SubmitEnvelope {
-            envelope: envelope.into_processed(),
-        });
+        self.handle_submit_envelope(
+            cogs,
+            SubmitEnvelope {
+                envelope: envelope.into_processed(),
+            },
+        );
     }
 
     fn check_buckets(
@@ -2920,7 +2925,7 @@ impl EnvelopeProcessorService {
     /// Cardinality limiting and rate limiting run only in processing Relays as they both require
     /// access to the central Redis instance. Cached rate limits are applied in the project cache
     /// already.
-    fn encode_metrics_envelope(&self, message: FlushBuckets) {
+    fn encode_metrics_envelope(&self, cogs: &mut Token, message: FlushBuckets) {
         let FlushBuckets {
             partition_key,
             buckets,
@@ -2962,9 +2967,12 @@ impl EnvelopeProcessorService {
                     histogram(RelayHistograms::BucketsPerBatch) = batch.len() as u64
                 );
 
-                self.handle_submit_envelope(SubmitEnvelope {
-                    envelope: envelope.into_processed(),
-                });
+                self.handle_submit_envelope(
+                    cogs,
+                    SubmitEnvelope {
+                        envelope: envelope.into_processed(),
+                    },
+                );
                 num_batches += 1;
             }
 
@@ -3052,7 +3060,7 @@ impl EnvelopeProcessorService {
         self.send_global_partition(partition_key, &mut partition);
     }
 
-    fn handle_flush_buckets(&self, mut message: FlushBuckets) {
+    fn handle_flush_buckets(&self, cogs: &mut Token, mut message: FlushBuckets) {
         for (project_key, pb) in message.buckets.iter_mut() {
             let buckets = std::mem::take(&mut pb.buckets);
             pb.buckets =
@@ -3069,7 +3077,7 @@ impl EnvelopeProcessorService {
         if self.inner.config.http_global_metrics() {
             self.encode_metrics_global(message)
         } else {
-            self.encode_metrics_envelope(message)
+            self.encode_metrics_envelope(cogs, message)
         }
     }
 
@@ -3095,9 +3103,11 @@ impl EnvelopeProcessorService {
                 EnvelopeProcessor::ProcessBatchedMetrics(m) => {
                     self.handle_process_batched_metrics(&mut cogs, *m)
                 }
-                EnvelopeProcessor::FlushBuckets(m) => self.handle_flush_buckets(*m),
-                EnvelopeProcessor::SubmitEnvelope(m) => self.handle_submit_envelope(*m),
-                EnvelopeProcessor::SubmitClientReports(m) => self.handle_submit_client_reports(*m),
+                EnvelopeProcessor::FlushBuckets(m) => self.handle_flush_buckets(&mut cogs, *m),
+                EnvelopeProcessor::SubmitEnvelope(m) => self.handle_submit_envelope(&mut cogs, *m),
+                EnvelopeProcessor::SubmitClientReports(m) => {
+                    self.handle_submit_client_reports(&mut cogs, *m)
+                }
             }
         });
     }
