@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+**Features**:
+
+- Update release to include an aarch64 binary. ([#4514](https://github.com/getsentry/relay/pull/4514))
+- Support span `category` inference from span attributes. ([#4509](https://github.com/getsentry/relay/pull/4509))
+
+**Internal**:
+
+- Track an utilization metric for internal services. ([#4501](https://github.com/getsentry/relay/pull/4501))
+- Add new `relay-threading` crate with asynchronous thread pool. ([#4500](https://github.com/getsentry/relay/pull/4500))
+
+## 25.2.0
+
 - Allow log ingestion behind a flag, only for internal use currently. ([#4471](https://github.com/getsentry/relay/pull/4471))
 
 **Features**:
@@ -11,6 +23,7 @@
 - Add support for view hierarchy attachment scrubbing. ([#4452](https://github.com/getsentry/relay/pull/4452))
 - Allow configuration of Relay's log format via an environment variable. ([#4484](https://github.com/getsentry/relay/pull/4484))
 - Add span links to event schema. ([#4486](https://github.com/getsentry/relay/pull/4486))
+- Add Spring context to event schema. ([#4502](https://github.com/getsentry/relay/pull/4502))
 
 **Bug Fixes**:
 
@@ -25,6 +38,7 @@
 - Add option to drop transaction attachments. ([#4466](https://github.com/getsentry/relay/pull/4466))
 - Add endpoint that exposes internally collected relay metrics. ([#4497](https://github.com/getsentry/relay/pull/4497))
 - Add sub-millisecond precision to internal timer metrics. ([#4495](https://github.com/getsentry/relay/pull/4495))
+- Partition spans by `trace_id` on the Kafka topic. ([#4503](https://github.com/getsentry/relay/pull/4503))
 
 ## 25.1.0
 

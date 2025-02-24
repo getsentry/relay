@@ -3,16 +3,15 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::runtime::metrics::TokioCallbackMetrics;
-use crate::RuntimeMetrics;
+use crate::Handle;
 
 /// A Relay async runtime.
 ///
 /// This is a thin wrapper around a Tokio [`tokio::runtime::Runtime`],
 /// configured for Relay.
 pub struct Runtime {
-    name: &'static str,
     rt: tokio::runtime::Runtime,
-    cb_metrics: Arc<TokioCallbackMetrics>,
+    handle: Handle,
 }
 
 impl Runtime {
@@ -21,9 +20,11 @@ impl Runtime {
         Builder::new(name)
     }
 
-    /// Returns a new [`RuntimeMetrics`] handle for this runtime.
-    pub fn metrics(&self) -> RuntimeMetrics {
-        Arc::clone(&self.cb_metrics).into_metrics(self.name, self.rt.metrics())
+    /// Returns a [`Handle`] to this runtime.
+    ///
+    /// The [`Handle`] can be freely cloned and used to spawn services.
+    pub fn handle(&self) -> &Handle {
+        &self.handle
     }
 
     /// Runs a future to completion on this runtime.
@@ -77,8 +78,8 @@ impl Builder {
 
     /// Creates the configured [`Runtime`].
     pub fn build(&mut self) -> Runtime {
-        let cb_metrics = Arc::new(TokioCallbackMetrics::default());
-        cb_metrics.register(&mut self.builder);
+        let tokio_cb_metrics = Arc::new(TokioCallbackMetrics::default());
+        tokio_cb_metrics.register(&mut self.builder);
 
         let rt = self
             .builder
@@ -86,9 +87,8 @@ impl Builder {
             .expect("creating the Tokio runtime should never fail");
 
         Runtime {
-            name: self.name,
+            handle: Handle::new(self.name, rt.handle().clone(), tokio_cb_metrics),
             rt,
-            cb_metrics,
         }
     }
 }

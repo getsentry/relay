@@ -121,7 +121,10 @@ impl ShutdownHandle {
 /// ### Example
 ///
 /// ```
-/// use relay_system::{Controller, Service, ServiceRunner, Shutdown, ShutdownMode};
+/// # #[cfg(feature = "test")]
+/// use relay_system::{Controller, Service, ServiceSpawnExt, Shutdown, ShutdownMode, TokioServiceSpawn};
+/// # #[cfg(not(feature = "test"))]
+/// # use relay_system::{Controller, Service, ServiceSpawnExt, Shutdown, ShutdownMode};
 /// use std::time::Duration;
 ///
 /// struct MyService;
@@ -148,7 +151,8 @@ impl ShutdownHandle {
 ///
 ///     // Start all other services. Controller::shutdown_handle will use the same controller
 ///     // instance and receives the configured shutdown timeout.
-///     let addr = ServiceRunner::new().start(MyService);
+///     # #[cfg(feature = "test")]
+///     let addr = TokioServiceSpawn.start(MyService);
 ///
 ///     // By triggering a shutdown, all subscribed services will be notified. This happens
 ///     // automatically when a signal is sent to the process (e.g. SIGINT or SIGTERM).

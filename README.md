@@ -183,6 +183,12 @@ make format
 make lint
 ```
 
+### Debugging
+
+Developer builds do not include debug information by default. If you want to
+attach a debugger to your local Relay, you can use the provided `dev-debug`
+profile instead with `cargo run --all-features --profile dev-debug`.
+
 ### Python and C-ABI
 
 Potentially, new functionality also needs to be added to the Python package.

@@ -380,6 +380,7 @@ pub fn extract_from_event(
             // as part of normalization once standalone spans reach wider adoption.
             let mut new_span = inner_span.clone();
             new_span.is_segment = Annotated::new(false);
+            new_span.is_remote = Annotated::new(false);
             new_span.received = transaction_span.received.clone();
             new_span.segment_id = transaction_span.segment_id.clone();
             new_span.platform = transaction_span.platform.clone();
@@ -584,7 +585,7 @@ fn normalize(
     // for spans we derive it by default:
     if let Some(client_ip) = client_ip.as_ref() {
         let ip = span.data.value().and_then(|d| d.client_address.value());
-        if ip.map_or(true, |ip| ip.is_auto()) {
+        if ip.is_none_or(|ip| ip.is_auto()) {
             span.data
                 .get_or_insert_with(Default::default)
                 .client_address = Annotated::new(client_ip.clone());

@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Endpoints and services for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "25.1.0"
+version = "25.2.0"
 edition = "2021"
 build = "build.rs"
 license-file = "../LICENSE.md"
@@ -141,6 +141,7 @@ criterion = { workspace = true }
 http = { workspace = true }
 insta = { workspace = true }
 relay-protocol = { workspace = true, features = ["test"] }
+relay-system = { workspace = true, features = ["test"] }
 relay-test = { workspace = true }
 similar-asserts = { workspace = true }
 tempfile = { workspace = true }

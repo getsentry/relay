@@ -33,5 +33,7 @@ requireNames:
   - /^relay-Darwin-x86_64-dsym.zip$/
   - /^relay-Linux-x86_64$/
   - /^relay-Linux-x86_64-debug.zip$/
+  - /^relay-Linux-aarch64$/
+  - /^relay-Linux-aarch64-debug.zip$/
   - /^relay-Windows-x86_64-pdb.zip$/
   - /^relay-Windows-x86_64\.exe$/

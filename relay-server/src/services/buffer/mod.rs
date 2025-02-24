@@ -11,9 +11,11 @@ use ahash::RandomState;
 use chrono::DateTime;
 use chrono::Utc;
 use relay_config::Config;
+use relay_system::Receiver;
+use relay_system::ServiceSpawn;
+use relay_system::ServiceSpawnExt as _;
 use relay_system::{Addr, FromMessage, Interface, NoResponse, Service};
 use relay_system::{Controller, Shutdown};
-use relay_system::{Receiver, ServiceRunner};
 use tokio::sync::watch;
 use tokio::time::{timeout, Instant};
 
@@ -60,14 +62,6 @@ pub enum EnvelopeBuffer {
     Push(Box<Envelope>),
 }
 
-impl EnvelopeBuffer {
-    fn name(&self) -> &'static str {
-        match &self {
-            EnvelopeBuffer::Push(_) => "push",
-        }
-    }
-}
-
 impl Interface for EnvelopeBuffer {}
 
 impl FromMessage<Self> for EnvelopeBuffer {
@@ -99,7 +93,7 @@ impl PartitionedEnvelopeBuffer {
         envelope_processor: Addr<EnvelopeProcessor>,
         outcome_aggregator: Addr<TrackOutcome>,
         test_store: Addr<TestStore>,
-        runner: &mut ServiceRunner,
+        services: &dyn ServiceSpawn,
     ) -> Self {
         let mut envelope_buffers = Vec::with_capacity(partitions.get() as usize);
         for partition_id in 0..partitions.get() {
@@ -115,7 +109,7 @@ impl PartitionedEnvelopeBuffer {
                     test_store: test_store.clone(),
                 },
             )
-            .start_in(runner);
+            .start_in(services);
 
             envelope_buffers.push(envelope_buffer);
         }
@@ -265,11 +259,12 @@ impl EnvelopeBufferService {
         }
     }
 
-    /// Returns both the [`Addr`] to this service, and metrics.
-    pub fn start_in(self, runner: &mut ServiceRunner) -> ObservableEnvelopeBuffer {
+    /// Returns both the [`Addr`] to this service, and references to spooler metrics.
+    pub fn start_in(self, services: &dyn ServiceSpawn) -> ObservableEnvelopeBuffer {
         let metrics = self.metrics.clone();
 
-        let addr = runner.start(self);
+        let addr = services.start(self);
+
         ObservableEnvelopeBuffer { addr, metrics }
     }
 
@@ -578,7 +573,6 @@ impl Service for EnvelopeBufferService {
         let services = self.services.clone();
 
         let dequeue = Arc::<AtomicBool>::new(true.into());
-        let dequeue1 = dequeue.clone();
 
         let mut buffer =
             PolymorphicEnvelopeBuffer::from_config(self.partition_id, &config, memory_checker)
@@ -594,36 +588,24 @@ impl Service for EnvelopeBufferService {
         let mut project_changes = self.services.project_cache_handle.changes();
 
         #[cfg(unix)]
-        relay_system::spawn!(async move {
-            use tokio::signal::unix::{signal, SignalKind};
-            let Ok(mut signal) = signal(SignalKind::user_defined1()) else {
-                return;
-            };
-            while let Some(()) = signal.recv().await {
-                let deq = !dequeue1.load(Ordering::Relaxed);
-                dequeue1.store(deq, Ordering::Relaxed);
-                relay_log::info!("SIGUSR1 receive, dequeue={}", deq);
-            }
-        });
+        {
+            let dequeue1 = dequeue.clone();
+            relay_system::spawn!(async move {
+                use tokio::signal::unix::{signal, SignalKind};
+                let Ok(mut signal) = signal(SignalKind::user_defined1()) else {
+                    return;
+                };
+                while let Some(()) = signal.recv().await {
+                    let deq = !dequeue1.load(Ordering::Relaxed);
+                    dequeue1.store(deq, Ordering::Relaxed);
+                    relay_log::info!("SIGUSR1 receive, dequeue={}", deq);
+                }
+            });
+        }
 
         relay_log::info!("EnvelopeBufferService {}: starting", self.partition_id);
         loop {
             let mut sleep = DEFAULT_SLEEP;
-
-            macro_rules! measure_busy {
-                ($input:expr, $block:block) => {
-                    let start = Instant::now();
-                    {
-                        $block
-                    }
-
-                    relay_statsd::metric!(
-                        counter(RelayCounters::BufferBusy) += start.elapsed().as_nanos() as u64,
-                        input = $input,
-                        partition_id = &partition_tag
-                    );
-                };
-            }
 
             tokio::select! {
                 // NOTE: we do not select a bias here.
@@ -631,8 +613,7 @@ impl Service for EnvelopeBufferService {
                 // so we do not exceed the buffer capacity by starving the dequeue.
                 // on the other hand, prioritizing old messages violates the LIFO design.
                 _ = self.ready_to_pop(&buffer, dequeue.load(Ordering::Relaxed)) => {
-                    measure_busy!("pop", {
-                        match Self::try_pop(&partition_tag, &config, &mut buffer, &services).await {
+                    match Self::try_pop(&partition_tag, &config, &mut buffer, &services).await {
                             Ok(new_sleep) => {
                                 sleep = new_sleep;
                             }
@@ -642,11 +623,10 @@ impl Service for EnvelopeBufferService {
                                 "failed to pop envelope"
                             );
                         }
-                    }});
+                    }
                 }
                 change = project_changes.recv() => {
-                    measure_busy!("project_change", {
-                        match change {
+                    match change {
                             Ok(ProjectChange::Ready(project_key)) => {
                                 buffer.mark_ready(&project_key, true);
                             },
@@ -657,23 +637,17 @@ impl Service for EnvelopeBufferService {
                         };
                         relay_statsd::metric!(counter(RelayCounters::BufferProjectChangedEvent) += 1, partition_id = &partition_tag);
                         sleep = Duration::ZERO;
-                    });
                 }
                 Some(message) = rx.recv() => {
-                    let message_name = message.name();
-                    measure_busy!(message_name, {
-                        Self::handle_message(&mut buffer, message).await;
+                    Self::handle_message(&mut buffer, message).await;
                         sleep = Duration::ZERO;
-                    });
                 }
                 shutdown = shutdown.notified() => {
-                    measure_busy!("shutdown", {
-                        // In case the shutdown was handled, we break out of the loop signaling that
+                    // In case the shutdown was handled, we break out of the loop signaling that
                         // there is no need to process anymore envelopes.
                         if Self::handle_shutdown(&mut buffer, shutdown).await {
                             break;
                         }
-                    });
                 }
                 Ok(()) = global_config_rx.changed() => {
                     sleep = Duration::ZERO;
@@ -712,6 +686,7 @@ mod tests {
     use relay_base_schema::project::ProjectKey;
     use relay_dynamic_config::GlobalConfig;
     use relay_quotas::DataCategory;
+    use relay_system::TokioServiceSpawn;
     use std::time::Duration;
     use tokio::sync::mpsc;
     use uuid::Uuid;
@@ -774,8 +749,8 @@ mod tests {
 
         service.metrics.has_capacity.store(false, Ordering::Relaxed);
 
-        let ObservableEnvelopeBuffer { metrics, .. } = service.start_in(&mut ServiceRunner::new());
-        assert!(!metrics.has_capacity.load(Ordering::Relaxed));
+        let ObservableEnvelopeBuffer { metrics, .. } = service.start_in(&TokioServiceSpawn);
+        assert!(!metrics.load(Ordering::Relaxed));
 
         tokio::time::advance(Duration::from_millis(100)).await;
 
@@ -980,7 +955,6 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn test_partitioned_buffer() {
-        let mut runner = ServiceRunner::new();
         let (_global_tx, global_rx) = watch::channel(global_config::Status::Ready(Arc::new(
             GlobalConfig::default(),
         )));
@@ -1016,8 +990,8 @@ mod tests {
         );
 
         // Start both services and create partitioned buffer
-        let observable1 = buffer1.start_in(&mut runner);
-        let observable2 = buffer2.start_in(&mut runner);
+        let observable1 = buffer1.start_in(&TokioServiceSpawn);
+        let observable2 = buffer2.start_in(&TokioServiceSpawn);
 
         let partitioned = PartitionedEnvelopeBuffer {
             buffers: Arc::new(vec![observable1, observable2]),

@@ -242,7 +242,7 @@ mod tests {
     fn test_metric_diff() {
         let rt = crate::Runtime::builder("test").worker_threads(1).build();
 
-        let metrics = rt.metrics();
+        let metrics = rt.handle().metrics();
 
         rt.block_on(async move {
             let tokio_metrics = tokio::runtime::Handle::current().metrics();

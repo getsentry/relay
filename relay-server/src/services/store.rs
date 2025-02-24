@@ -1336,6 +1336,8 @@ struct SpanKafkaMessage<'a> {
     exclusive_time_ms: f64,
     #[serde(default)]
     is_segment: bool,
+    #[serde(default)]
+    is_remote: bool,
 
     #[serde(default, skip_serializing_if = "none_or_empty_object")]
     data: Option<&'a RawValue>,
@@ -1493,6 +1495,7 @@ impl Message for KafkaMessage<'_> {
             Self::AttachmentChunk(message) => message.event_id.0,
             Self::UserReport(message) => message.event_id.0,
             Self::ReplayEvent(message) => message.replay_id.0,
+            Self::Span { message, .. } => message.trace_id.0,
 
             // Monitor check-ins use the hinted UUID passed through from the Envelope.
             //
@@ -1502,13 +1505,10 @@ impl Message for KafkaMessage<'_> {
 
             // Random partitioning
             Self::Profile(_)
-            | Self::Span { .. }
             | Self::Log { .. }
             | Self::ReplayRecordingNotChunked(_)
-            | Self::ProfileChunk(_) => Uuid::nil(),
-
-            // TODO(ja): Determine a partitioning key
-            Self::Metric { .. } => Uuid::nil(),
+            | Self::ProfileChunk(_)
+            | Self::Metric { .. } => Uuid::nil(),
         };
 
         if uuid.is_nil() {
