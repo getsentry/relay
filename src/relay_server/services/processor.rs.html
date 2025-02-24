@@ -4223,7 +4223,17 @@
 <a href="#4222" id="4222">4222</a>
 <a href="#4223" id="4223">4223</a>
 <a href="#4224" id="4224">4224</a>
-<a href="#4225" id="4225">4225</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
+<a href="#4225" id="4225">4225</a>
+<a href="#4226" id="4226">4226</a>
+<a href="#4227" id="4227">4227</a>
+<a href="#4228" id="4228">4228</a>
+<a href="#4229" id="4229">4229</a>
+<a href="#4230" id="4230">4230</a>
+<a href="#4231" id="4231">4231</a>
+<a href="#4232" id="4232">4232</a>
+<a href="#4233" id="4233">4233</a>
+<a href="#4234" id="4234">4234</a>
+<a href="#4235" id="4235">4235</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::fmt::{Debug, Display};
@@ -6614,7 +6624,7 @@
         <span class="kw">match </span>result {
             <span class="prelude-val">Ok</span>(response) =&gt; {
                 <span class="kw">if let </span><span class="prelude-val">Some</span>(envelope) = response.envelope {
-                    <span class="self">self</span>.handle_submit_envelope(SubmitEnvelope { envelope });
+                    <span class="self">self</span>.handle_submit_envelope(cogs, SubmitEnvelope { envelope });
                 };
             }
             <span class="prelude-val">Err</span>(error) =&gt; {
@@ -6729,7 +6739,9 @@
         }
     }
 
-    <span class="kw">fn </span>handle_submit_envelope(<span class="kw-2">&amp;</span><span class="self">self</span>, message: SubmitEnvelope) {
+    <span class="kw">fn </span>handle_submit_envelope(<span class="kw-2">&amp;</span><span class="self">self</span>, cogs: <span class="kw-2">&amp;mut </span>Token, message: SubmitEnvelope) {
+        <span class="kw">let </span>_submit = cogs.start_category(<span class="string">"submit"</span>);
+
         <span class="kw">let </span>SubmitEnvelope { <span class="kw-2">mut </span>envelope } = message;
 
         <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
@@ -6790,7 +6802,7 @@
         }
     }
 
-    <span class="kw">fn </span>handle_submit_client_reports(<span class="kw-2">&amp;</span><span class="self">self</span>, message: SubmitClientReports) {
+    <span class="kw">fn </span>handle_submit_client_reports(<span class="kw-2">&amp;</span><span class="self">self</span>, cogs: <span class="kw-2">&amp;mut </span>Token, message: SubmitClientReports) {
         <span class="kw">let </span>SubmitClientReports {
             client_reports,
             scoping,
@@ -6812,9 +6824,12 @@
             <span class="self">self</span>.inner.addrs.test_store.clone(),
             ProcessingGroup::ClientReport,
         );
-        <span class="self">self</span>.handle_submit_envelope(SubmitEnvelope {
-            envelope: envelope.into_processed(),
-        });
+        <span class="self">self</span>.handle_submit_envelope(
+            cogs,
+            SubmitEnvelope {
+                envelope: envelope.into_processed(),
+            },
+        );
     }
 
     <span class="kw">fn </span>check_buckets(
@@ -7144,7 +7159,7 @@
     /// Cardinality limiting and rate limiting run only in processing Relays as they both require
     /// access to the central Redis instance. Cached rate limits are applied in the project cache
     /// already.
-    </span><span class="kw">fn </span>encode_metrics_envelope(<span class="kw-2">&amp;</span><span class="self">self</span>, message: FlushBuckets) {
+    </span><span class="kw">fn </span>encode_metrics_envelope(<span class="kw-2">&amp;</span><span class="self">self</span>, cogs: <span class="kw-2">&amp;mut </span>Token, message: FlushBuckets) {
         <span class="kw">let </span>FlushBuckets {
             partition_key,
             buckets,
@@ -7186,9 +7201,12 @@
                     histogram(RelayHistograms::BucketsPerBatch) = batch.len() <span class="kw">as </span>u64
                 );
 
-                <span class="self">self</span>.handle_submit_envelope(SubmitEnvelope {
-                    envelope: envelope.into_processed(),
-                });
+                <span class="self">self</span>.handle_submit_envelope(
+                    cogs,
+                    SubmitEnvelope {
+                        envelope: envelope.into_processed(),
+                    },
+                );
                 num_batches += <span class="number">1</span>;
             }
 
@@ -7276,7 +7294,7 @@
         <span class="self">self</span>.send_global_partition(partition_key, <span class="kw-2">&amp;mut </span>partition);
     }
 
-    <span class="kw">fn </span>handle_flush_buckets(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw-2">mut </span>message: FlushBuckets) {
+    <span class="kw">fn </span>handle_flush_buckets(<span class="kw-2">&amp;</span><span class="self">self</span>, cogs: <span class="kw-2">&amp;mut </span>Token, <span class="kw-2">mut </span>message: FlushBuckets) {
         <span class="kw">for </span>(project_key, pb) <span class="kw">in </span>message.buckets.iter_mut() {
             <span class="kw">let </span>buckets = std::mem::take(<span class="kw-2">&amp;mut </span>pb.buckets);
             pb.buckets =
@@ -7293,7 +7311,7 @@
         <span class="kw">if </span><span class="self">self</span>.inner.config.http_global_metrics() {
             <span class="self">self</span>.encode_metrics_global(message)
         } <span class="kw">else </span>{
-            <span class="self">self</span>.encode_metrics_envelope(message)
+            <span class="self">self</span>.encode_metrics_envelope(cogs, message)
         }
     }
 
@@ -7319,9 +7337,11 @@
                 EnvelopeProcessor::ProcessBatchedMetrics(m) =&gt; {
                     <span class="self">self</span>.handle_process_batched_metrics(<span class="kw-2">&amp;mut </span>cogs, <span class="kw-2">*</span>m)
                 }
-                EnvelopeProcessor::FlushBuckets(m) =&gt; <span class="self">self</span>.handle_flush_buckets(<span class="kw-2">*</span>m),
-                EnvelopeProcessor::SubmitEnvelope(m) =&gt; <span class="self">self</span>.handle_submit_envelope(<span class="kw-2">*</span>m),
-                EnvelopeProcessor::SubmitClientReports(m) =&gt; <span class="self">self</span>.handle_submit_client_reports(<span class="kw-2">*</span>m),
+                EnvelopeProcessor::FlushBuckets(m) =&gt; <span class="self">self</span>.handle_flush_buckets(<span class="kw-2">&amp;mut </span>cogs, <span class="kw-2">*</span>m),
+                EnvelopeProcessor::SubmitEnvelope(m) =&gt; <span class="self">self</span>.handle_submit_envelope(<span class="kw-2">&amp;mut </span>cogs, <span class="kw-2">*</span>m),
+                EnvelopeProcessor::SubmitClientReports(m) =&gt; {
+                    <span class="self">self</span>.handle_submit_client_reports(<span class="kw-2">&amp;mut </span>cogs, <span class="kw-2">*</span>m)
+                }
             }
         });
     }
