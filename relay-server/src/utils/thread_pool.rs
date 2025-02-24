@@ -5,21 +5,6 @@ use tokio::runtime::Handle;
 
 use relay_threading::{AsyncPool, AsyncPoolBuilder};
 
-/// The workload type that a thread executes.
-#[derive(Default, Debug, Clone, Copy)]
-pub enum ThreadWorkloadType {
-    /// The thread spends some of its time doing I/O together with CPU-bound work which in the
-    /// context of async, would lead to the future yielding with I/O is performed.
-    ///
-    /// This is the default since it's assumed that an async pool is used mostly because we want to
-    /// execute asynchronous work that comprises mainly of I/O.
-    #[default]
-    WithIO,
-    /// The thread spends all of its time doing CPU-bound work which in the context of async, would
-    /// lead to the future blocking the entire executor.
-    CpuBound,
-}
-
 /// A thread kind.
 ///
 /// The thread kind has an effect on how threads are prioritized and scheduled.
@@ -37,7 +22,7 @@ pub struct ThreadPoolBuilder {
     name: &'static str,
     runtime: Handle,
     num_threads: usize,
-    workload_type: ThreadWorkloadType,
+    max_concurrency: usize,
     kind: ThreadKind,
 }
 
@@ -48,7 +33,7 @@ impl ThreadPoolBuilder {
             name,
             runtime,
             num_threads: 0,
-            workload_type: ThreadWorkloadType::CpuBound,
+            max_concurrency: 1,
             kind: ThreadKind::Default,
         }
     }
@@ -61,9 +46,11 @@ impl ThreadPoolBuilder {
         self
     }
 
-    /// Configures the [`ThreadWorkloadType`] for all threads spawned in the pool.
-    pub fn thread_workload_type(mut self, workload_type: ThreadWorkloadType) -> Self {
-        self.workload_type = workload_type;
+    /// Sets the maximum number of tasks that can run concurrently per thread.
+    ///
+    /// See also [`AsyncPoolBuilder::max_concurrency`].
+    pub fn max_concurrency(mut self, max_concurrency: usize) -> Self {
+        self.max_concurrency = max_concurrency;
         self
     }
 
@@ -78,10 +65,9 @@ impl ThreadPoolBuilder {
     where
         F: Future<Output = ()> + Send + 'static,
     {
-        let max_concurrency = self.max_concurrency();
         AsyncPoolBuilder::new(self.runtime)
             .num_threads(self.num_threads)
-            .max_concurrency(max_concurrency)
+            .max_concurrency(self.max_concurrency)
             .thread_name(move |id| format!("pool-{name}-{id}", name = self.name))
             // In case of panic in a task sent to the pool, we catch it to continue the remaining
             // work and just log an error.
@@ -109,18 +95,6 @@ impl ThreadPoolBuilder {
                 Ok(())
             })
             .build()
-    }
-
-    /// Computes the maximum concurrency of the async pool.
-    fn max_concurrency(&self) -> usize {
-        match self.workload_type {
-            // If the work in the pool has I/O, we want to be able to drive more tasks concurrently,
-            // so we do 10 tasks per thread (empirically determined).
-            ThreadWorkloadType::WithIO => 10,
-            // If the work in the pool is exclusively cpu bound, we want 1 task per thread since it
-            // won't yield being CPU-bound.
-            ThreadWorkloadType::CpuBound => 1,
-        }
     }
 }
 
