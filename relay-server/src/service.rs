@@ -286,7 +286,7 @@ impl ServiceState {
             envelope_buffer.clone(),
         ));
 
-        let autoscaling = runner.start(AutoscalingMetricService::new(
+        let autoscaling = services.start(AutoscalingMetricService::new(
             memory_stat.clone(),
             envelope_buffer.clone(),
         ));
