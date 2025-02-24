@@ -157,7 +157,7 @@ impl Processor for TransactionsProcessor<'_> {
         // name is given, similar to how Sentry gives an "<unlabeled event>" title to error events.
         // SDKs should avoid sending empty transaction names, setting a more contextual default
         // value when possible.
-        if event.transaction.value().map_or(true, |s| s.is_empty()) {
+        if event.transaction.value().is_none_or(|s| s.is_empty()) {
             event
                 .transaction
                 .set_value(Some("<unlabeled transaction>".to_owned()))

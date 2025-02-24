@@ -694,6 +694,8 @@ mod tests {
                 messaging_message_receive_latency: ~,
                 messaging_message_body_size: ~,
                 messaging_message_id: ~,
+                messaging_operation_name: ~,
+                messaging_operation_type: ~,
                 user_agent_original: ~,
                 url_full: ~,
                 client_address: ~,

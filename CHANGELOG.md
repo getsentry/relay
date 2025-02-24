@@ -2,8 +2,15 @@
 
 ## Unreleased
 
+**Features**:
+
+- Update release to include an aarch64 binary. ([#4514](https://github.com/getsentry/relay/pull/4514))
+- Support span `category` inference from span attributes. ([#4509](https://github.com/getsentry/relay/pull/4509))
+
 **Internal**:
 
+- Track an utilization metric for internal services. ([#4501](https://github.com/getsentry/relay/pull/4501))
+- Add new `relay-threading` crate with asynchronous thread pool. ([#4500](https://github.com/getsentry/relay/pull/4500))
 - Update mapping of OTLP spans to Sentry spans in the experimental OTL traces endpoint. ([#4505](https://github.com/getsentry/relay/pull/4505))
 
 ## 25.2.0
@@ -17,6 +24,7 @@
 - Add support for view hierarchy attachment scrubbing. ([#4452](https://github.com/getsentry/relay/pull/4452))
 - Allow configuration of Relay's log format via an environment variable. ([#4484](https://github.com/getsentry/relay/pull/4484))
 - Add span links to event schema. ([#4486](https://github.com/getsentry/relay/pull/4486))
+- Add Spring context to event schema. ([#4502](https://github.com/getsentry/relay/pull/4502))
 
 **Bug Fixes**:
 

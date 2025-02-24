@@ -122,7 +122,7 @@ impl TryFrom<DatabaseEnvelope> for Box<Envelope> {
         debug_assert_eq!(envelope.meta().public_key(), own_key);
         debug_assert!(envelope
             .sampling_key()
-            .map_or(true, |key| key == sampling_key));
+            .is_none_or(|key| key == sampling_key));
 
         envelope.set_received_at(received_at);
 
