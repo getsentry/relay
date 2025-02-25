@@ -106,6 +106,12 @@ mod test {
     }
 
     #[test]
+    fn test_version_defaults_to_zero() {
+        let only_major = SdkVersion::try_parse("9").unwrap();
+        assert_eq!(only_major, SdkVersion::new(9, 0, 0))
+    }
+
+    #[test]
     fn test_version_string_parse_failed() {
         assert!(SdkVersion::try_parse("amd64").is_err());
     }

@@ -488,11 +488,17 @@ pub fn normalize_ip_addresses(
                                     user.ip_address = Annotated::new(client_ip.to_owned());
                                 }
                             }
-                            Some("cocoa") | Some("objc") => {
+                            Some("cocoa") => {
                                 if sdk_version < CUTOFF_COCOA_VERSION {
                                     user.ip_address = Annotated::new(client_ip.to_owned());
                                 }
                             }
+                            // The obj-c SDK is deprecated in favour of cocoa so we keep the
+                            // old behavior of empty == {{auto}}.
+                            // With the `scrubbed_before` check we made sure that we only
+                            // derive empty as {{auto}} if the empty string comes from the SDK
+                            // directly and is not the result of scrubbing.
+                            Some("objc") => user.ip_address = Annotated::new(client_ip.to_owned()),
                             _ => {}
                         }
                     }

@@ -401,8 +401,17 @@ def test_ip_normalization_with_remove_remark(mini_sentry, relay_chain):
         ("cocoa", "6.1.4", "127.0.0.1"),
         ("cocoa", "6.2", None),
         ("objc", "6.1.4", "127.0.0.1"),
-        ("objc", "6.2", None),
+        ("objc", "6.2", "127.0.0.1"),
         ("random_sdk", None, None),
+    ],
+    ids=[
+        "Javascript SDK version before cut-off",
+        "Javascript SDK version same to cut-off",
+        "Cocoa SDK version before cut-off",
+        "Cocoa SDK version same to cut-off",
+        "Obj-C SDK any version",
+        "Obj-C SDK with other version",
+        "random SDK string without any version",
     ],
 )
 def test_empty_ip_not_auto(mini_sentry, relay, platform, version, expected):
