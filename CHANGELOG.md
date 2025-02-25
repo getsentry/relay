@@ -12,6 +12,7 @@
 
 - Track an utilization metric for internal services. ([#4501](https://github.com/getsentry/relay/pull/4501))
 - Add new `relay-threading` crate with asynchronous thread pool. ([#4500](https://github.com/getsentry/relay/pull/4500))
+- Update mapping of OTLP spans to Sentry spans in the experimental OTL traces endpoint. ([#4505](https://github.com/getsentry/relay/pull/4505))
 
 ## 25.2.0
 
