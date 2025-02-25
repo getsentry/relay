@@ -42,7 +42,7 @@ use crate::{
 /// empty string to signal that the user IP address should be inferred.
 /// See: <https://github.com/getsentry/sentry-javascript/releases/tag/9.0.0>
 const CUTOFF_JAVASCRIPT_VERSION: SdkVersion = SdkVersion::new(9, 0, 0);
-/// This is the first Cocoa SDK version that  explicitly send `{{auto}}` instead of
+/// This is the first Cocoa SDK version that explicitly send `{{auto}}` instead of
 /// empty string to signal that the user IP address should be inferred.
 /// See: <https://github.com/getsentry/sentry-cocoa/releases/tag/6.2.0>
 const CUTOFF_COCOA_VERSION: SdkVersion = SdkVersion::new(6, 2, 0);
