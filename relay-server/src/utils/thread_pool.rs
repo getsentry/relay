@@ -77,12 +77,12 @@ impl ThreadPoolBuilder {
                     "task in pool {name} panicked, other tasks will continue execution",
                     name = self.name
                 );
-                // We want to propagate the panic to Relay since the failure of a thread is
-                std::process::exit(1);
             })
             // In case of panic in the thread, log it. After a panic in the thread, it will stop.
-            .thread_panic_handler(move |_panic| {
-                relay_log::error!("thread in pool {name} panicked", name = self.name)
+            .thread_panic_handler(move |panic| {
+                relay_log::error!("thread in pool {name} panicked", name = self.name);
+                // We want to propagate the panic to Relay since the failure of a thread is
+                std::panic::resume_unwind(panic);
             })
             .spawn_handler(|thread| {
                 let mut b = thread::Builder::new();
