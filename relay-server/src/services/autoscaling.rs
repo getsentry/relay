@@ -34,12 +34,12 @@ impl Service for AutoscalingMetricService {
                     match message {
                         AutoscalingMetrics::Check(sender) => {
                             let memory_usage = self.memory_stat.memory();
-                            sender.send(AutoscalingData::new(
-                                memory_usage.used_percent(),
-                                self.envelope_buffer.total_storage_size(),
-                                self.envelope_buffer.item_count(),
-                                self.up
-                            ));
+                            sender.send(AutoscalingData {
+                                memory_usage: memory_usage.used_percent(),
+                                up: self.up,
+                                total_size: self.envelope_buffer.total_storage_size(),
+                                item_count: self.envelope_buffer.item_count()
+                            });
                         }
                     }
                 }
@@ -78,15 +78,4 @@ pub struct AutoscalingData {
     pub up: u8,
     pub total_size: u64,
     pub item_count: u64,
-}
-
-impl AutoscalingData {
-    pub fn new(memory_usage: f32, disk_usage: u64, item_count: u64, up: u8) -> Self {
-        Self {
-            memory_usage,
-            total_size: disk_usage,
-            item_count,
-            up,
-        }
-    }
 }
