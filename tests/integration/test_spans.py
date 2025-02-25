@@ -1128,7 +1128,7 @@ def test_span_reject_invalid_timestamps(
 
     spans = spans_consumer.get_spans(timeout=10.0, n=1)
     assert len(spans) == 1
-    assert spans[0]["description"] == "span with valid timestamps"
+    assert spans[0]["sentry_tags"]["op"] == "span with valid timestamps"
 
 
 def test_span_ingestion_with_performance_scores(
