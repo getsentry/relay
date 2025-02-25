@@ -67,12 +67,7 @@ where
             tx,
         })
     }
-}
 
-impl<F> AsyncPool<F>
-where
-    F: Future<Output = ()>,
-{
     /// Schedules a future for execution within the [`AsyncPool`].
     ///
     /// The task is added to the pool's internal queue to be executed by an available worker thread.
