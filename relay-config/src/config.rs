@@ -638,9 +638,12 @@ pub struct Limits {
     /// The total number of threads spawned will roughly be `2 * max_thread_count`. Defaults to
     /// the number of logical CPU cores on the host.
     pub max_thread_count: usize,
-    /// The maximum number of tasks to execute within each thread of the asynchronous pool.
+    /// Controls the maximum concurrency of each worker thread.
     ///
-    /// Each thread will be able to drive concurrently at most `max_pool_concurrency` futures.
+    /// Increasing the concurrency, can lead to a better utilization of worker threads by
+    /// increasing the amount of I/O done concurrently.
+    //
+    /// Currently has no effect on defaults to `1`.
     pub max_pool_concurrency: usize,
     /// The maximum number of seconds a query is allowed to take across retries. Individual requests
     /// have lower timeouts. Defaults to 30 seconds.
@@ -2354,7 +2357,7 @@ impl Config {
         self.values.limits.max_thread_count
     }
 
-    /// Returns the number of tasks that can run concurrently.
+    /// Returns the number of tasks that can run concurrently in the worker pool.
     pub fn pool_concurrency(&self) -> usize {
         self.values.limits.max_pool_concurrency
     }

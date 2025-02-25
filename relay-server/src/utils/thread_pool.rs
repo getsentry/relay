@@ -76,7 +76,9 @@ impl ThreadPoolBuilder {
                 relay_log::error!(
                     "task in pool {name} panicked, other tasks will continue execution",
                     name = self.name
-                )
+                );
+                // We want to propagate the panic to Relay since the failure of a thread is
+                std::process::exit(1);
             })
             // In case of panic in the thread, log it. After a panic in the thread, it will stop.
             .thread_panic_handler(move |_panic| {

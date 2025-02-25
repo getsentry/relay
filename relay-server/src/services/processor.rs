@@ -3090,7 +3090,7 @@ impl EnvelopeProcessorService {
         self.inner.rate_limiter.is_some()
     }
 
-    async fn handle_message(&self, message: EnvelopeProcessor) {
+    fn handle_message(&self, message: EnvelopeProcessor) {
         let ty = message.variant();
         let feature_weights = self.feature_weights(&message);
 
@@ -3163,12 +3163,7 @@ impl Service for EnvelopeProcessorService {
             let service = self.clone();
             self.inner
                 .pool
-                .spawn_async(
-                    async move {
-                        service.handle_message(message).await;
-                    }
-                    .boxed(),
-                )
+                .spawn_async(async move { service.handle_message(message) }.boxed())
                 .await;
         }
     }
