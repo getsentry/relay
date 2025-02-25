@@ -48,7 +48,7 @@ impl FromStr for SdkVersion {
     type Err = SdkVersionParseError;
 
     /// Attempts to parse a version string and returning a [`SdkVersionParseError`] if it contains any
-    /// non-numerical characters apart from dots.
+    /// non-numerical characters apart from dots or the release type.
     /// If a version part is not provided, 0 will be assumed.
     /// For example:
     /// 1.2 -> 1.2.0
