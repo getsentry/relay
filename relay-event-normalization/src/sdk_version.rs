@@ -1,6 +1,15 @@
-use std::num::ParseIntError;
+use std::str::FromStr;
 
 const DEFAULT_VERSION_IF_EMPTY: usize = 0;
+
+#[derive(PartialEq, Eq, Debug, thiserror::Error)]
+pub enum SdkVersionParseError {
+    #[error("Version contains invalid non numeric parts")]
+    VersionNotNumeric,
+
+    #[error("Release type was neither 'alpha' nor 'beta'")]
+    ReleaseTypeInvalid,
+}
 
 /// Represents an SDK Version using the semvar versioning, meaning MAJOR.MINOR.PATCH.
 /// An optional release type can be specified, then it becomes
@@ -33,42 +42,59 @@ impl SdkVersion {
             release_type: ReleaseType::Release,
         }
     }
+}
 
-    /// Attempts to parse a version string and returning a [`ParseIntError`] if it contains any
+impl FromStr for SdkVersion {
+    type Err = SdkVersionParseError;
+
+    /// Attempts to parse a version string and returning a [`SdkVersionParseError`] if it contains any
     /// non-numerical characters apart from dots.
     /// If a version part is not provided, 0 will be assumed.
     /// For example:
     /// 1.2 -> 1.2.0
     /// 1   -> 1.0.0
-    pub fn try_parse(input: &str) -> Result<Self, ParseIntError> {
-        let mut split = input.split(".");
+    ///
+    /// Also supports the release types `alpha` and `beta`.
+    /// **NOTE**: If there is a release type specified that is neither `alpha` nor `beta`, it will
+    /// default to `beta`.
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut split = s.split(".");
         let major = split
             .next()
             .map(str::parse)
-            .transpose()?
+            .transpose()
+            .map_err(|_| SdkVersionParseError::VersionNotNumeric)?
             .unwrap_or(DEFAULT_VERSION_IF_EMPTY);
         let minor = split
             .next()
             .map(str::parse)
-            .transpose()?
+            .transpose()
+            .map_err(|_| SdkVersionParseError::VersionNotNumeric)?
             .unwrap_or(DEFAULT_VERSION_IF_EMPTY);
         let patch_segment = split.next();
         let release_version = split
             .next()
             .map(str::parse)
-            .transpose()?
+            .transpose()
+            .map_err(|_| SdkVersionParseError::VersionNotNumeric)?
             .unwrap_or(DEFAULT_VERSION_IF_EMPTY);
         let (patch, release_type) = if let Some(next) = patch_segment {
             match next.split_once("-") {
                 Some((patch, release_type)) => (
-                    patch.parse()?,
-                    if release_type == "alpha" {
-                        ReleaseType::Alpha(release_version)
-                    } else {
-                        ReleaseType::Beta(release_version)
+                    patch
+                        .parse()
+                        .map_err(|_| SdkVersionParseError::VersionNotNumeric)?,
+                    match release_type {
+                        "alpha" => ReleaseType::Alpha(release_version),
+                        "beta" => ReleaseType::Beta(release_version),
+                        _ => return Err(SdkVersionParseError::ReleaseTypeInvalid),
                     },
                 ),
-                None => (next.parse()?, ReleaseType::Release),
+                None => (
+                    next.parse()
+                        .map_err(|_| SdkVersionParseError::VersionNotNumeric)?,
+                    ReleaseType::Release,
+                ),
             }
         } else {
             (DEFAULT_VERSION_IF_EMPTY, ReleaseType::Release)
@@ -84,7 +110,7 @@ impl SdkVersion {
 
 #[cfg(test)]
 mod test {
-    use crate::sdk_version::SdkVersion;
+    use crate::sdk_version::{SdkVersion, SdkVersionParseError};
 
     #[test]
     fn test_version_compare() {
@@ -99,10 +125,10 @@ mod test {
 
     #[test]
     fn test_version_string_compare() {
-        let main_version = SdkVersion::try_parse("1.2.3").unwrap();
-        let less = SdkVersion::try_parse("1.2.1").unwrap();
-        let greater = SdkVersion::try_parse("2.1.1").unwrap();
-        let equal = SdkVersion::try_parse("1.2.3").unwrap();
+        let main_version: SdkVersion = "1.2.3".parse().unwrap();
+        let less = "1.2.1".parse().unwrap();
+        let greater = "2.1.1".parse().unwrap();
+        let equal = "1.2.3".parse().unwrap();
         assert!(main_version > less);
         assert!(main_version < greater);
         assert_eq!(main_version, equal);
@@ -110,9 +136,9 @@ mod test {
 
     #[test]
     fn test_release_type() {
-        let alpha = SdkVersion::try_parse("9.0.0-alpha.2").unwrap();
-        let beta = SdkVersion::try_parse("9.0.0-beta.2").unwrap();
-        let release = SdkVersion::try_parse("9.0.0").unwrap();
+        let alpha: SdkVersion = "9.0.0-alpha.2".parse().unwrap();
+        let beta = "9.0.0-beta.2".parse().unwrap();
+        let release = "9.0.0".parse().unwrap();
 
         assert!(alpha < beta);
         assert!(beta < release);
@@ -120,29 +146,40 @@ mod test {
     }
 
     #[test]
+    fn test_invalid_release_type() {
+        assert_eq!(
+            "9.0.0-foobar.3".parse::<SdkVersion>(),
+            Err(SdkVersionParseError::ReleaseTypeInvalid)
+        );
+    }
+
+    #[test]
     fn test_release_type_versions() {
-        let first_alpha = SdkVersion::try_parse("9.0.0-alpha.1").unwrap();
-        let second_alpha = SdkVersion::try_parse("9.0.0-alpha.2").unwrap();
+        let first_alpha: SdkVersion = "9.0.0-alpha.1".parse().unwrap();
+        let second_alpha = "9.0.0-alpha.2".parse().unwrap();
 
         assert!(first_alpha < second_alpha);
     }
 
     #[test]
     fn test_alpha_always_before_beta() {
-        let large_alpha = SdkVersion::try_parse("9.0.0-alpha.150").unwrap();
-        let small_beta = SdkVersion::try_parse("9.0.0-beta.0").unwrap();
+        let large_alpha: SdkVersion = "9.0.0-alpha.150".parse().unwrap();
+        let small_beta = "9.0.0-beta.0".parse().unwrap();
 
         assert!(large_alpha < small_beta);
     }
 
     #[test]
     fn test_version_defaults_to_zero() {
-        let only_major = SdkVersion::try_parse("9").unwrap();
+        let only_major: SdkVersion = "9".parse().unwrap();
         assert_eq!(only_major, SdkVersion::new(9, 0, 0))
     }
 
     #[test]
     fn test_version_string_parse_failed() {
-        assert!(SdkVersion::try_parse("amd64").is_err());
+        assert_eq!(
+            "amd64".parse::<SdkVersion>(),
+            Err(SdkVersionParseError::VersionNotNumeric)
+        );
     }
 }

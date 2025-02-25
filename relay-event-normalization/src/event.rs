@@ -486,7 +486,7 @@ pub fn normalize_ip_addresses(
                         .0
                         .as_ref()
                         .and_then(|sdk| sdk.version.0.as_ref())
-                        .map(|s| SdkVersion::try_parse(s.as_str()))
+                        .map(|sdk_version| sdk_version.as_str().parse::<SdkVersion>())
                     {
                         match platform {
                             Some("javascript") => {
