@@ -1,5 +1,7 @@
 use std::num::ParseIntError;
 
+const DEFAULT_VERSION_IF_EMPTY: usize = 0;
+
 /// Represents an SDK Version using the semvar versioning, meaning MAJOR.MINOR.PATCH.
 /// An optional release type can be specified, then it becomes
 /// MAJOR.MINOR.PATCH-(alpha|beta).RELEASE_VERSION
@@ -15,13 +17,11 @@ pub struct SdkVersion {
 /// for example: 9.0.0-alpha.0.
 /// Release types are also comparable to each other, using the rules:
 /// alpha < beta < release.
-/// **NOTE**: The discriminants are explicitly set to keep the comparison rules
-///           even if the order is changed.
 #[derive(Debug, Eq, PartialEq, Ord, PartialOrd)]
 enum ReleaseType {
-    Alpha = 1,
-    Beta = 2,
-    Release = 3,
+    Alpha(usize),
+    Beta(usize),
+    Release,
 }
 
 impl SdkVersion {
@@ -42,22 +42,36 @@ impl SdkVersion {
     /// 1   -> 1.0.0
     pub fn try_parse(input: &str) -> Result<Self, ParseIntError> {
         let mut split = input.split(".");
-        let major = split.next().map(str::parse).transpose()?.unwrap_or(0);
-        let minor = split.next().map(str::parse).transpose()?.unwrap_or(0);
-        let (patch, release_type) = if let Some(next) = split.next() {
+        let major = split
+            .next()
+            .map(str::parse)
+            .transpose()?
+            .unwrap_or(DEFAULT_VERSION_IF_EMPTY);
+        let minor = split
+            .next()
+            .map(str::parse)
+            .transpose()?
+            .unwrap_or(DEFAULT_VERSION_IF_EMPTY);
+        let patch_segment = split.next();
+        let release_version = split
+            .next()
+            .map(str::parse)
+            .transpose()?
+            .unwrap_or(DEFAULT_VERSION_IF_EMPTY);
+        let (patch, release_type) = if let Some(next) = patch_segment {
             match next.split_once("-") {
                 Some((patch, release_type)) => (
                     patch.parse()?,
-                    if release_type.starts_with("alpha") {
-                        ReleaseType::Alpha
+                    if release_type == "alpha" {
+                        ReleaseType::Alpha(release_version)
                     } else {
-                        ReleaseType::Beta
+                        ReleaseType::Beta(release_version)
                     },
                 ),
                 None => (next.parse()?, ReleaseType::Release),
             }
         } else {
-            (0, ReleaseType::Release)
+            (DEFAULT_VERSION_IF_EMPTY, ReleaseType::Release)
         };
         Ok(Self {
             major,
@@ -103,6 +117,22 @@ mod test {
         assert!(alpha < beta);
         assert!(beta < release);
         assert!(alpha < release)
+    }
+
+    #[test]
+    fn test_release_type_versions() {
+        let first_alpha = SdkVersion::try_parse("9.0.0-alpha.1").unwrap();
+        let second_alpha = SdkVersion::try_parse("9.0.0-alpha.2").unwrap();
+
+        assert!(first_alpha < second_alpha);
+    }
+
+    #[test]
+    fn test_alpha_always_before_beta() {
+        let large_alpha = SdkVersion::try_parse("9.0.0-alpha.150").unwrap();
+        let small_beta = SdkVersion::try_parse("9.0.0-beta.0").unwrap();
+
+        assert!(large_alpha < small_beta);
     }
 
     #[test]
