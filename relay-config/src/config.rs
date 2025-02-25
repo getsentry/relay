@@ -699,7 +699,7 @@ impl Default for Limits {
             max_replay_uncompressed_size: ByteSize::mebibytes(100),
             max_replay_message_size: ByteSize::mebibytes(15),
             max_thread_count: num_cpus::get(),
-            max_pool_concurrency: 0,
+            max_pool_concurrency: 1,
             query_timeout: 30,
             shutdown_timeout: 10,
             keepalive_timeout: 5,
