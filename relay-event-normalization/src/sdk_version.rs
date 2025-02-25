@@ -54,9 +54,7 @@ impl FromStr for SdkVersion {
     /// 1.2 -> 1.2.0
     /// 1   -> 1.0.0
     ///
-    /// Also supports the release types `alpha` and `beta`.
-    /// **NOTE**: If there is a release type specified that is neither `alpha` nor `beta`, it will
-    /// default to `beta`.
+    /// Also supports the release types `alpha` and `beta` in the form `1.2.3-beta.1`.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut split = s.split(".");
         let major = split
