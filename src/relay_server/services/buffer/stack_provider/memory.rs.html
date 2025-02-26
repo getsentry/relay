@@ -50,7 +50,12 @@
 <a href="#49" id="49">49</a>
 <a href="#50" id="50">50</a>
 <a href="#51" id="51">51</a>
-<a href="#52" id="52">52</a></pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::services::buffer::common::ProjectKeyPair;
+<a href="#52" id="52">52</a>
+<a href="#53" id="53">53</a>
+<a href="#54" id="54">54</a>
+<a href="#55" id="55">55</a>
+<a href="#56" id="56">56</a>
+<a href="#57" id="57">57</a></pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::services::buffer::common::ProjectKeyPair;
 <span class="kw">use </span><span class="kw">crate</span>::services::buffer::envelope_stack::memory::MemoryEnvelopeStack;
 <span class="kw">use </span><span class="kw">crate</span>::services::buffer::stack_provider::{
     InitializationState, StackCreationType, StackProvider,
@@ -89,6 +94,11 @@
     <span class="kw">async fn </span>store_total_count(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u64 {
         <span class="comment">// The memory implementation doesn't have a store, so the count is 0.
         </span><span class="number">0
+    </span>}
+
+    <span class="kw">fn </span>total_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;u64&gt; {
+        <span class="comment">// We can't reliably tell how much memory is used so just return None.
+        </span><span class="prelude-val">None
     </span>}
 
     <span class="kw">fn </span>stack_type&lt;<span class="lifetime">'a</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str {

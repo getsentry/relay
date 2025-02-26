@@ -510,7 +510,10 @@
 <a href="#509" id="509">509</a>
 <a href="#510" id="510">510</a>
 <a href="#511" id="511">511</a>
-<a href="#512" id="512">512</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
+<a href="#512" id="512">512</a>
+<a href="#513" id="513">513</a>
+<a href="#514" id="514">514</a>
+<a href="#515" id="515">515</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
@@ -584,7 +587,7 @@
     <span class="kw">pub </span>envelope_buffer: PartitionedEnvelopeBuffer,
 
     <span class="kw">pub </span>project_cache_handle: ProjectCacheHandle,
-    <span class="kw">pub </span>keda: Addr&lt;AutoscalingMetrics&gt;,
+    <span class="kw">pub </span>autoscaling: Addr&lt;AutoscalingMetrics&gt;,
 }
 
 <span class="doccomment">/// Constructs a Tokio [`relay_system::Runtime`] configured for running [services](relay_system::Service).
@@ -701,8 +704,6 @@
         <span class="kw">let </span>outcome_aggregator =
             services.start(OutcomeAggregator::new(<span class="kw-2">&amp;</span>config, outcome_producer.clone()));
 
-        <span class="kw">let </span>keda = services.start(AutoscalingMetricService::new(memory_stat.clone()));
-
         <span class="kw">let </span>(global_config, global_config_rx) =
             GlobalConfigService::new(config.clone(), upstream_relay.clone());
         <span class="kw">let </span>global_config_handle = global_config.handle();
@@ -800,6 +801,11 @@
             envelope_buffer.clone(),
         ));
 
+        <span class="kw">let </span>autoscaling = services.start(AutoscalingMetricService::new(
+            memory_stat.clone(),
+            envelope_buffer.clone(),
+        ));
+
         services.start(RelayStats::new(
             config.clone(),
             handle.clone(),
@@ -824,7 +830,7 @@
             project_cache_handle,
             upstream_relay,
             envelope_buffer,
-            keda,
+            autoscaling,
         };
 
         <span class="kw">let </span>state = StateInner {
@@ -851,7 +857,7 @@
     }
 
     <span class="kw">pub fn </span>autoscaling(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Addr&lt;AutoscalingMetrics&gt; {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.inner.registry.keda
+        <span class="kw-2">&amp;</span><span class="self">self</span>.inner.registry.autoscaling
     }
 
     <span class="doccomment">/// Returns the V2 envelope buffer, if present.

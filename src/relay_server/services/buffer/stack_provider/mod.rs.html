@@ -67,7 +67,11 @@
 <a href="#66" id="66">66</a>
 <a href="#67" id="67">67</a>
 <a href="#68" id="68">68</a>
-<a href="#69" id="69">69</a></pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::services::buffer::common::ProjectKeyPair;
+<a href="#69" id="69">69</a>
+<a href="#70" id="70">70</a>
+<a href="#71" id="71">71</a>
+<a href="#72" id="72">72</a>
+<a href="#73" id="73">73</a></pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::services::buffer::common::ProjectKeyPair;
 <span class="kw">use </span><span class="kw">crate</span>::EnvelopeStack;
 <span class="kw">use </span>hashbrown::HashSet;
 <span class="kw">use </span>std::future::Future;
@@ -126,6 +130,10 @@
 
     <span class="doccomment">/// Returns the total count of the store used by this [`StackProvider`].
     </span><span class="kw">fn </span>store_total_count(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Future&lt;Output = u64&gt;;
+
+    <span class="doccomment">/// Returns the number of bytes the storage occupies. Will return `None` if no
+    /// reliable information can be provided.
+    </span><span class="kw">fn </span>total_size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;u64&gt;;
 
     <span class="doccomment">/// Returns the string representation of the stack type offered by this [`StackProvider`].
     </span><span class="kw">fn </span>stack_type&lt;<span class="lifetime">'a</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'a </span>str;

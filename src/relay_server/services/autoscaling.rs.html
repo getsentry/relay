@@ -72,19 +72,32 @@
 <a href="#71" id="71">71</a>
 <a href="#72" id="72">72</a>
 <a href="#73" id="73">73</a>
-<a href="#74" id="74">74</a></pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::MemoryStat;
+<a href="#74" id="74">74</a>
+<a href="#75" id="75">75</a>
+<a href="#76" id="76">76</a>
+<a href="#77" id="77">77</a>
+<a href="#78" id="78">78</a>
+<a href="#79" id="79">79</a>
+<a href="#80" id="80">80</a>
+<a href="#81" id="81">81</a></pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::services::buffer::PartitionedEnvelopeBuffer;
+<span class="kw">use </span><span class="kw">crate</span>::MemoryStat;
 <span class="kw">use </span>relay_system::{AsyncResponse, Controller, FromMessage, Interface, Sender, Service};
 <span class="kw">use </span>serde::Serialize;
 
 <span class="doccomment">/// Service that tracks internal relay metrics so that they can be exposed.
 </span><span class="kw">pub struct </span>AutoscalingMetricService {
     memory_stat: MemoryStat,
+    envelope_buffer: PartitionedEnvelopeBuffer,
     up: u8,
 }
 
 <span class="kw">impl </span>AutoscalingMetricService {
-    <span class="kw">pub fn </span>new(memory_stat: MemoryStat) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ memory_stat, up: <span class="number">1 </span>}
+    <span class="kw">pub fn </span>new(memory_stat: MemoryStat, envelope_buffer: PartitionedEnvelopeBuffer) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            memory_stat,
+            envelope_buffer,
+            up: <span class="number">1</span>,
+        }
     }
 }
 
@@ -102,7 +115,12 @@
                     <span class="kw">match </span>message {
                         AutoscalingMetrics::Check(sender) =&gt; {
                             <span class="kw">let </span>memory_usage = <span class="self">self</span>.memory_stat.memory();
-                            sender.send(AutoscalingData::new(memory_usage.used_percent(), <span class="self">self</span>.up));
+                            sender.send(AutoscalingData {
+                                memory_usage: memory_usage.used_percent(),
+                                up: <span class="self">self</span>.up,
+                                total_size: <span class="self">self</span>.envelope_buffer.total_storage_size(),
+                                item_count: <span class="self">self</span>.envelope_buffer.item_count()
+                            });
                         }
                     }
                 }
@@ -139,11 +157,7 @@
 </span><span class="kw">pub struct </span>AutoscalingData {
     <span class="kw">pub </span>memory_usage: f32,
     <span class="kw">pub </span>up: u8,
-}
-
-<span class="kw">impl </span>AutoscalingData {
-    <span class="kw">pub fn </span>new(memory_usage: f32, up: u8) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{ memory_usage, up }
-    }
+    <span class="kw">pub </span>total_size: u64,
+    <span class="kw">pub </span>item_count: u64,
 }
 </code></pre></div></section></main></body></html>
