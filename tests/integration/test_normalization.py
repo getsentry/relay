@@ -395,7 +395,7 @@ def test_ip_normalization_with_remove_remark(mini_sentry, relay_chain):
 
 @pytest.mark.parametrize(
     "scrub_ip_addresses, user_id",
-    [(True, None), (False, "AE12FE3B5F129B5CC4CDD2B136B7B7947C4D2741")],
+    [(True, None), (False, "[ip]")],
 )
 def test_ip_not_extracted_with_setting(mini_sentry, relay, scrub_ip_addresses, user_id):
     project_id = 42
@@ -405,7 +405,7 @@ def test_ip_not_extracted_with_setting(mini_sentry, relay, scrub_ip_addresses, u
     config["config"].setdefault("datascrubbingSettings", {})[
         "scrubIpAddresses"
     ] = scrub_ip_addresses
-    config["config"]["piiConfig"]["applications"]["$user.ip_address"] = ["@ip:hash"]
+    config["config"]["piiConfig"]["applications"]["$user.ip_address"] = ["@ip"]
 
     relay.send_event(project_id, {"user": {"ip_address": "{{auto}}"}})
 
