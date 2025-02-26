@@ -4234,7 +4234,15 @@
 <a href="#4233" id="4233">4233</a>
 <a href="#4234" id="4234">4234</a>
 <a href="#4235" id="4235">4235</a>
-<a href="#4236" id="4236">4236</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
+<a href="#4236" id="4236">4236</a>
+<a href="#4237" id="4237">4237</a>
+<a href="#4238" id="4238">4238</a>
+<a href="#4239" id="4239">4239</a>
+<a href="#4240" id="4240">4240</a>
+<a href="#4241" id="4241">4241</a>
+<a href="#4242" id="4242">4242</a>
+<a href="#4243" id="4243">4243</a>
+<a href="#4244" id="4244">4244</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::fmt::{Debug, Display};
@@ -5649,7 +5657,15 @@
         };
 
         <span class="kw">let </span>request_meta = managed_envelope.envelope().meta();
-        <span class="kw">let </span>client_ipaddr = request_meta.client_addr().map(IpAddr::from);
+        <span class="kw">let </span>client_ipaddr = request_meta
+            .client_addr()
+            .filter(|<span class="kw">_</span>| {
+                !project_info
+                    .config
+                    .datascrubbing_settings
+                    .scrub_ip_addresses
+            })
+            .map(IpAddr::from);
 
         <span class="kw">let </span>transaction_aggregator_config = <span class="self">self
             </span>.inner
