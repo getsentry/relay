@@ -119,7 +119,7 @@ impl Inner {
         let jh = crate::runtime::spawn_in(handle, task_id, future);
         let (sjh, sjhe) = crate::service::status::split(jh);
 
-        let service = Service {
+        let service = ServiceInstance {
             instance_id: id.instance_id,
             metrics,
             handle: sjh,
@@ -151,15 +151,39 @@ impl Inner {
     }
 }
 
+/// Logical grouping for all service instances of the same service.
+///
+/// A single service can be started multiple times, each individual
+/// instance of a specific service is tracked in this group.
+///
+/// The group keeps track of a unique per service identifier,
+/// which stays unique for the duration of the runtime.
+///
+/// It also holds a list of all currently alive service instances.
 #[derive(Debug, Default)]
 struct ServiceGroup {
+    /// Next unique per-service id.
+    ///
+    /// The next instance started for this group will be assigned the id
+    /// and the id is incremented in preparation for the following instance.
     next_instance_id: u32,
-    instances: Vec<Service>,
+    /// All currently alive service instances or instances that have stopped
+    /// but are not yet remove from the list.
+    instances: Vec<ServiceInstance>,
 }
 
+/// Collection of metadata the registry tracks per service instance.
 #[derive(Debug)]
-struct Service {
+struct ServiceInstance {
+    /// The per service group unique id for this instance.
     instance_id: u32,
+    /// A raw handle for all metrics tracked for this instance.
+    ///
+    /// The handle gives raw access to all tracked metrics, these metrics
+    /// should be treated as **read-only**.
     metrics: Arc<RawMetrics>,
+    /// A handle to the service instance.
+    ///
+    /// The handle has information about the completion status of the service.
     handle: ServiceStatusJoinHandle,
 }
