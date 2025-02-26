@@ -27,6 +27,7 @@ use smallvec::SmallVec;
 use uuid::Uuid;
 
 use crate::normalize::request;
+use crate::sdk_version::SdkVersion;
 use crate::span::ai::normalize_ai_measurements;
 use crate::span::tag_extraction::extract_span_tags_from_event;
 use crate::utils::{self, get_event_user_tag, MAX_DURATION_MOBILE_MS};
@@ -36,6 +37,15 @@ use crate::{
     CombinedMeasurementsConfig, GeoIpLookup, MaxChars, ModelCosts, PerformanceScoreConfig,
     RawUserAgentInfo, SpanDescriptionRule, TransactionNameConfig,
 };
+
+/// This is the first Javascript SDK version that does explicitly send `{{auto}}` instead of
+/// empty string to signal that the user IP address should be inferred.
+/// See: <https://github.com/getsentry/sentry-javascript/releases/tag/9.0.0>
+const CUTOFF_JAVASCRIPT_VERSION: SdkVersion = SdkVersion::new(9, 0, 0);
+/// This is the first Cocoa SDK version that explicitly send `{{auto}}` instead of
+/// empty string to signal that the user IP address should be inferred.
+/// See: <https://github.com/getsentry/sentry-cocoa/releases/tag/6.2.0>
+const CUTOFF_COCOA_VERSION: SdkVersion = SdkVersion::new(6, 2, 0);
 
 /// Configuration for [`normalize_event`].
 #[derive(Clone, Debug)]
@@ -260,6 +270,7 @@ fn normalize(event: &mut Event, meta: &mut Meta, config: &NormalizationConfig) {
         &mut event.user,
         event.platform.as_str(),
         config.client_ip,
+        &event.client_sdk,
     );
 
     if let Some(geoip_lookup) = config.geoip_lookup {
@@ -412,6 +423,7 @@ pub fn normalize_ip_addresses(
     user: &mut Annotated<User>,
     platform: Option<&str>,
     client_ip: Option<&IpAddr>,
+    client_sdk: &Annotated<ClientSdkInfo>,
 ) {
     // NOTE: This is highly order dependent, in the sense that both the statements within this
     // function need to be executed in a certain order, and that other normalization code
@@ -467,9 +479,35 @@ pub fn normalize_ip_addresses(
                 .iter_remarks()
                 .any(|r| r.ty == RemarkType::Removed);
             if !scrubbed_before {
-                // In an ideal world all SDKs would set {{auto}} explicitly.
+                // We stop assuming that empty means {{auto}} for the affected platforms
+                // starting with the versions listed below.
                 if let Some("javascript") | Some("cocoa") | Some("objc") = platform {
-                    user.ip_address = Annotated::new(client_ip.to_owned());
+                    if let Some(Ok(sdk_version)) = client_sdk
+                        .0
+                        .as_ref()
+                        .and_then(|sdk| sdk.version.0.as_ref())
+                        .map(|sdk_version| sdk_version.as_str().parse::<SdkVersion>())
+                    {
+                        match platform {
+                            Some("javascript") => {
+                                if sdk_version < CUTOFF_JAVASCRIPT_VERSION {
+                                    user.ip_address = Annotated::new(client_ip.to_owned());
+                                }
+                            }
+                            Some("cocoa") => {
+                                if sdk_version < CUTOFF_COCOA_VERSION {
+                                    user.ip_address = Annotated::new(client_ip.to_owned());
+                                }
+                            }
+                            // The obj-c SDK is deprecated in favour of cocoa so we keep the
+                            // old behavior of empty == {{auto}}.
+                            // With the `scrubbed_before` check we made sure that we only
+                            // derive empty as {{auto}} if the empty string comes from the SDK
+                            // directly and is not the result of scrubbing.
+                            Some("objc") => user.ip_address = Annotated::new(client_ip.to_owned()),
+                            _ => {}
+                        }
+                    }
                 }
             }
         }
@@ -1462,15 +1500,14 @@ mod tests {
 
     use std::collections::BTreeMap;
 
+    use super::*;
+    use crate::{ClientHints, MeasurementsConfig, ModelCost};
     use insta::assert_debug_snapshot;
     use itertools::Itertools;
     use relay_common::glob2::LazyGlob;
     use relay_event_schema::protocol::{Breadcrumb, Csp, DebugMeta, DeviceContext, Values};
     use relay_protocol::{get_value, SerializableAnnotated};
     use serde_json::json;
-
-    use super::*;
-    use crate::{ClientHints, MeasurementsConfig, ModelCost};
 
     const IOS_MOBILE_EVENT: &str = r#"
         {

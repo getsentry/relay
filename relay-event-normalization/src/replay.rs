@@ -128,6 +128,7 @@ fn normalize_ip_address(replay: &mut Replay, ip_address: Option<StdIpAddr>) {
         &mut replay.user,
         replay.platform.as_str(),
         ip_address.map(|ip| IpAddr(ip.to_string())).as_ref(),
+        &replay.sdk,
     );
 }
 
@@ -310,8 +311,10 @@ mod tests {
             None,
         );
 
-        let ipaddr = get_value!(replay.user!).ip_address.as_str();
-        assert_eq!(Some("127.0.0.1"), ipaddr);
+        assert_eq!(
+            Annotated::empty(),
+            replay.0.unwrap().user.0.unwrap().ip_address
+        );
     }
 
     #[test]

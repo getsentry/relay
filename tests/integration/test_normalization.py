@@ -391,3 +391,95 @@ def test_ip_normalization_with_remove_remark(mini_sentry, relay_chain):
     event = envelope.get_event()
     assert event["user"]["ip_address"] is None
     assert event["user"]["id"] == "AE12FE3B5F129B5CC4CDD2B136B7B7947C4D2741"
+
+
+@pytest.mark.parametrize(
+    "platform, version, expected",
+    [
+        ("javascript", "8.55", "127.0.0.1"),
+        ("javascript", "9", None),
+        ("cocoa", "6.1.4", "127.0.0.1"),
+        ("cocoa", "6.2", None),
+        ("objc", "6.1.4", "127.0.0.1"),
+        ("objc", "6.2", "127.0.0.1"),
+        ("random_sdk", None, None),
+    ],
+    ids=[
+        "Javascript SDK version before cut-off",
+        "Javascript SDK version same to cut-off",
+        "Cocoa SDK version before cut-off",
+        "Cocoa SDK version same to cut-off",
+        "Obj-C SDK any version",
+        "Obj-C SDK with other version",
+        "random SDK string without any version",
+    ],
+)
+def test_empty_ip_not_auto(mini_sentry, relay, platform, version, expected):
+    project_id = 42
+    relay = relay(mini_sentry)
+
+    mini_sentry.add_basic_project_config(project_id)
+
+    relay.send_event(
+        project_id,
+        {
+            "platform": platform,
+            "sdk": {"version": version},
+            "user": {"ip_address": ""},
+        },
+    )
+
+    envelope = mini_sentry.captured_events.get(timeout=1)
+    event = envelope.get_event()
+    assert event["user"]["ip_address"] == expected
+
+
+@pytest.mark.parametrize(
+    "platform, version, expected",
+    [
+        ("javascript", "8.55", "89.128.74.91"),
+        ("javascript", "9", "89.128.74.91"),
+        ("cocoa", "6.1.4", "89.128.74.91"),
+        ("cocoa", "6.2", "89.128.74.91"),
+        ("objc", "6.1.4", "89.128.74.91"),
+        ("objc", "6.2", "89.128.74.91"),
+        ("random_sdk", None, "89.128.74.91"),
+    ],
+)
+def test_explicit_ip_version_cutoff(mini_sentry, relay, platform, version, expected):
+    project_id = 42
+    relay = relay(mini_sentry)
+
+    mini_sentry.add_basic_project_config(project_id)
+
+    relay.send_event(
+        project_id,
+        {
+            "platform": platform,
+            "sdk": {"version": version},
+            "user": {"ip_address": "89.128.74.91"},
+        },
+    )
+
+    envelope = mini_sentry.captured_events.get(timeout=1)
+    event = envelope.get_event()
+    assert event["user"]["ip_address"] == expected
+
+
+@pytest.mark.parametrize(
+    "scrub_ip_addresses, expected", [(True, None), (False, "127.0.0.1")]
+)
+def test_ip_address_scrubbed(mini_sentry, relay, scrub_ip_addresses, expected):
+    project_id = 42
+    relay = relay(mini_sentry)
+
+    config = mini_sentry.add_basic_project_config(project_id)
+    config["config"].setdefault("datascrubbingSettings", {})[
+        "scrubIpAddresses"
+    ] = scrub_ip_addresses
+
+    relay.send_event(project_id, {"user": {"ip_address": "{{auto}}"}})
+
+    envelope = mini_sentry.captured_events.get(timeout=1)
+    event = envelope.get_event()
+    assert event["user"]["ip_address"] == expected
