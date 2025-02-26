@@ -4,6 +4,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
+use crate::metrics::AsyncPoolGauges;
 use crate::PanicHandler;
 use futures::future::CatchUnwind;
 use futures::stream::{FusedStream, FuturesUnordered, Stream};
@@ -101,6 +102,7 @@ pin_project! {
     ///
     /// This multiplexer is primarily used by the [`AsyncPool`] to manage task execution on worker threads.
     pub struct Multiplexed<S, F> {
+        pool_name: &'static str,
         max_concurrency: usize,
         #[pin]
         rx: S,
@@ -117,8 +119,14 @@ where
     ///
     /// Tasks from the stream will be scheduled for execution concurrently, and an optional panic handler
     /// can be provided to manage errors during task execution.
-    pub fn new(max_concurrency: usize, rx: S, panic_handler: Option<Arc<PanicHandler>>) -> Self {
+    pub fn new(
+        pool_name: &'static str,
+        max_concurrency: usize,
+        rx: S,
+        panic_handler: Option<Arc<PanicHandler>>,
+    ) -> Self {
         Self {
+            pool_name,
             max_concurrency,
             rx,
             tasks: Tasks::new(panic_handler),
@@ -158,7 +166,14 @@ where
 
             // At this point, we are free to start driving another future.
             match this.rx.as_mut().poll_next(cx) {
-                Poll::Ready(Some(task)) => this.tasks.push(task),
+                Poll::Ready(Some(task)) => {
+                    this.tasks.push(task);
+                    // We report how many tasks are being concurrently polled in this future.
+                    relay_statsd::metric!(
+                        gauge(AsyncPoolGauges::AsyncPoolFuturesPerThread) = this.tasks.len() as u64,
+                        pool_name = &this.pool_name
+                    );
+                }
                 // The stream is exhausted and there are no remaining tasks.
                 Poll::Ready(None) if this.tasks.is_empty() => return Poll::Ready(()),
                 // The stream is exhausted but tasks remain active. Now we need to make sure we
@@ -195,7 +210,7 @@ mod tests {
     #[test]
     fn test_multiplexer_with_no_futures() {
         let (_, rx) = flume::bounded::<BoxFuture<'static, _>>(10);
-        futures::executor::block_on(Multiplexed::new(1, rx.into_stream(), None));
+        futures::executor::block_on(Multiplexed::new("my_pool", 1, rx.into_stream(), None));
     }
 
     #[test]
@@ -218,6 +233,7 @@ mod tests {
             panic_handler_called_clone.store(true, Ordering::SeqCst);
         };
         futures::executor::block_on(Multiplexed::new(
+            "my_pool",
             1,
             rx.into_stream(),
             Some(Arc::new(panic_handler)),
@@ -243,7 +259,7 @@ mod tests {
         drop(tx);
 
         let result = std::panic::catch_unwind(AssertUnwindSafe(|| {
-            futures::executor::block_on(Multiplexed::new(1, rx.into_stream(), None))
+            futures::executor::block_on(Multiplexed::new("my_pool", 1, rx.into_stream(), None))
         }));
 
         // The count is expected to have been incremented and the handler called.
@@ -264,7 +280,7 @@ mod tests {
 
         drop(tx);
 
-        futures::executor::block_on(Multiplexed::new(1, rx.into_stream(), None));
+        futures::executor::block_on(Multiplexed::new("my_pool", 1, rx.into_stream(), None));
 
         // The count is expected to have been incremented.
         assert_eq!(count.load(Ordering::SeqCst), 1);
@@ -285,7 +301,7 @@ mod tests {
 
         drop(tx);
 
-        futures::executor::block_on(Multiplexed::new(1, rx.into_stream(), None));
+        futures::executor::block_on(Multiplexed::new("my_pool", 1, rx.into_stream(), None));
 
         // The order of completion is expected to match the order of submission.
         assert_eq!(*entries.lock().unwrap(), (0..5).collect::<Vec<_>>());
@@ -304,7 +320,7 @@ mod tests {
 
         drop(tx);
 
-        futures::executor::block_on(Multiplexed::new(5, rx.into_stream(), None));
+        futures::executor::block_on(Multiplexed::new("my_pool", 5, rx.into_stream(), None));
 
         // The count is expected to have been incremented.
         assert_eq!(count.load(Ordering::SeqCst), 1);
@@ -325,7 +341,7 @@ mod tests {
 
         drop(tx);
 
-        futures::executor::block_on(Multiplexed::new(5, rx.into_stream(), None));
+        futures::executor::block_on(Multiplexed::new("my_pool", 5, rx.into_stream(), None));
 
         // The order of completion is expected to be the same as the order of submission.
         assert_eq!(*entries.lock().unwrap(), (0..5).collect::<Vec<_>>());
@@ -349,7 +365,7 @@ mod tests {
 
         drop(tx);
 
-        futures::executor::block_on(Multiplexed::new(5, rx.into_stream(), None));
+        futures::executor::block_on(Multiplexed::new("my_pool", 5, rx.into_stream(), None));
 
         // The order of completion is expected to be the same as the order of submission.
         assert_eq!(*entries.lock().unwrap(), (0..3).collect::<Vec<_>>());
@@ -379,7 +395,7 @@ mod tests {
 
         drop(tx);
 
-        futures::executor::block_on(Multiplexed::new(5, rx.into_stream(), None));
+        futures::executor::block_on(Multiplexed::new("my_pool", 5, rx.into_stream(), None));
 
         // The order of completion may vary; verify that all expected elements are present.
         let mut entries = entries.lock().unwrap();

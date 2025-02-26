@@ -1,9 +1,9 @@
-use std::sync::Arc;
-use std::thread;
+use std::future::Future;
+use std::{io, thread};
+
 use tokio::runtime::Handle;
 
-pub use rayon::{ThreadPool, ThreadPoolBuildError};
-use tokio::sync::Semaphore;
+use relay_threading::{AsyncPool, AsyncPoolBuilder};
 
 /// A thread kind.
 ///
@@ -17,30 +17,40 @@ pub enum ThreadKind {
     Worker,
 }
 
-/// Used to create a new [`ThreadPool`] thread pool.
+/// Used to create a new [`AsyncPool`] thread pool.
 pub struct ThreadPoolBuilder {
     name: &'static str,
-    runtime: Option<Handle>,
+    runtime: Handle,
     num_threads: usize,
+    max_concurrency: usize,
     kind: ThreadKind,
 }
 
 impl ThreadPoolBuilder {
     /// Creates a new named thread pool builder.
-    pub fn new(name: &'static str) -> Self {
+    pub fn new(name: &'static str, runtime: Handle) -> Self {
         Self {
             name,
-            runtime: None,
+            runtime,
             num_threads: 0,
+            max_concurrency: 1,
             kind: ThreadKind::Default,
         }
     }
 
     /// Sets the number of threads to be used in the rayon thread-pool.
     ///
-    /// See also [`rayon::ThreadPoolBuilder::num_threads`].
+    /// See also [`AsyncPoolBuilder::num_threads`].
     pub fn num_threads(mut self, num_threads: usize) -> Self {
         self.num_threads = num_threads;
+        self
+    }
+
+    /// Sets the maximum number of tasks that can run concurrently per thread.
+    ///
+    /// See also [`AsyncPoolBuilder::max_concurrency`].
+    pub fn max_concurrency(mut self, max_concurrency: usize) -> Self {
+        self.max_concurrency = max_concurrency;
         self
     }
 
@@ -50,90 +60,42 @@ impl ThreadPoolBuilder {
         self
     }
 
-    /// Sets the Tokio runtime which will be made available in the workers.
-    pub fn runtime(mut self, runtime: Handle) -> Self {
-        self.runtime = Some(runtime);
-        self
-    }
-
     /// Creates and returns the thread pool.
-    pub fn build(self) -> Result<ThreadPool, ThreadPoolBuildError> {
-        rayon::ThreadPoolBuilder::new()
-            .num_threads(self.num_threads)
+    pub fn build<F>(self) -> Result<AsyncPool<F>, io::Error>
+    where
+        F: Future<Output = ()> + Send + 'static,
+    {
+        AsyncPoolBuilder::new(self.runtime)
+            .pool_name(self.name)
             .thread_name(move |id| format!("pool-{name}-{id}", name = self.name))
-            // In case of panic, log that there was a panic but keep the thread alive and don't
-            // exist.
-            .panic_handler(move |_panic| {
-                relay_log::error!("thread in pool {name} paniced!", name = self.name)
+            .num_threads(self.num_threads)
+            .max_concurrency(self.max_concurrency)
+            // In case of panic in a task sent to the pool, we catch it to continue the remaining
+            // work and just log an error.
+            .task_panic_handler(move |_panic| {
+                relay_log::error!(
+                    "task in pool {name} panicked, other tasks will continue execution",
+                    name = self.name
+                );
+            })
+            // In case of panic in the thread, log it. After a panic in the thread, it will stop.
+            .thread_panic_handler(move |panic| {
+                relay_log::error!("thread in pool {name} panicked", name = self.name);
+                std::panic::resume_unwind(panic);
             })
             .spawn_handler(|thread| {
                 let mut b = thread::Builder::new();
                 if let Some(name) = thread.name() {
                     b = b.name(name.to_owned());
                 }
-                if let Some(stack_size) = thread.stack_size() {
-                    b = b.stack_size(stack_size);
-                }
-                let runtime = self.runtime.clone();
                 b.spawn(move || {
                     set_current_thread_priority(self.kind);
-                    let _guard = runtime.as_ref().map(|runtime| runtime.enter());
                     thread.run()
                 })?;
+
                 Ok(())
             })
             .build()
-    }
-}
-
-/// A [`WorkerGroup`] adds an async back-pressure mechanism to a [`ThreadPool`].
-pub struct WorkerGroup {
-    pool: ThreadPool,
-    semaphore: Arc<Semaphore>,
-}
-
-impl WorkerGroup {
-    /// Creates a new worker group from a thread pool.
-    pub fn new(pool: ThreadPool) -> Self {
-        // Use `current_num_threads() * 2` to guarantee all threads immediately have a new item to work on.
-        let semaphore = Arc::new(Semaphore::new(pool.current_num_threads() * 2));
-        Self { pool, semaphore }
-    }
-
-    /// Spawns an asynchronous task on the thread pool.
-    ///
-    /// If the thread pool is saturated the returned future is pending until
-    /// the thread pool has capacity to work on the task.
-    ///
-    /// # Examples:
-    ///
-    /// ```ignore
-    /// # async fn test(mut messages: tokio::sync::mpsc::Receiver<()>) {
-    /// # use relay_server::utils::{WorkerGroup, ThreadPoolBuilder};
-    /// # use std::thread;
-    /// # use std::time::Duration;
-    /// # let pool = ThreadPoolBuilder::new("test").num_threads(1).build().unwrap();
-    /// let workers = WorkerGroup::new(pool);
-    ///
-    /// while let Some(message) = messages.recv().await {
-    ///     workers.spawn(move || {
-    ///         thread::sleep(Duration::from_secs(1));
-    ///         println!("worked on message {message:?}")
-    ///     }).await;
-    /// }
-    /// # }
-    /// ```
-    pub async fn spawn(&self, op: impl FnOnce() + Send + 'static) {
-        let semaphore = Arc::clone(&self.semaphore);
-        let permit = semaphore
-            .acquire_owned()
-            .await
-            .expect("the semaphore is never closed");
-
-        self.pool.spawn(move || {
-            op();
-            drop(permit);
-        });
     }
 }
 
@@ -173,123 +135,89 @@ fn set_current_thread_priority(_kind: ThreadKind) {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Barrier;
-    use std::time::Duration;
-
+    use crate::utils::{ThreadKind, ThreadPoolBuilder};
     use futures::FutureExt;
+    use std::sync::atomic::{AtomicI32, Ordering};
+    use std::sync::Arc;
+    use tokio::runtime::Handle;
+    use tokio::sync::Barrier;
 
-    use super::*;
-
-    #[test]
-    fn test_thread_pool_num_threads() {
-        let pool = ThreadPoolBuilder::new("s").num_threads(3).build().unwrap();
-        assert_eq!(pool.current_num_threads(), 3);
-    }
-
-    #[test]
-    fn test_thread_pool_runtime() {
-        let rt = tokio::runtime::Runtime::new().unwrap();
-
-        let pool = ThreadPoolBuilder::new("s")
+    #[tokio::test]
+    async fn test_thread_pool_panic() {
+        let pool = ThreadPoolBuilder::new("s", Handle::current())
             .num_threads(1)
-            .runtime(rt.handle().clone())
             .build()
             .unwrap();
-
-        let has_runtime = pool.install(|| tokio::runtime::Handle::try_current().is_ok());
-        assert!(has_runtime);
-    }
-
-    #[test]
-    fn test_thread_pool_no_runtime() {
-        let pool = ThreadPoolBuilder::new("s").num_threads(1).build().unwrap();
-
-        let has_runtime = pool.install(|| tokio::runtime::Handle::try_current().is_ok());
-        assert!(!has_runtime);
-    }
-
-    #[test]
-    fn test_thread_pool_panic() {
-        let pool = ThreadPoolBuilder::new("s").num_threads(1).build().unwrap();
         let barrier = Arc::new(Barrier::new(2));
 
-        pool.spawn({
-            let barrier = Arc::clone(&barrier);
-            move || {
-                barrier.wait();
+        let barrier_clone = barrier.clone();
+        pool.spawn(
+            async move {
+                barrier_clone.wait().await;
                 panic!();
             }
-        });
-        barrier.wait();
+            .boxed(),
+        );
+        barrier.wait().await;
 
-        pool.spawn({
-            let barrier = Arc::clone(&barrier);
-            move || {
-                barrier.wait();
+        let barrier_clone = barrier.clone();
+        pool.spawn(
+            async move {
+                barrier_clone.wait().await;
             }
-        });
-        barrier.wait();
+            .boxed(),
+        );
+        barrier.wait().await;
     }
 
-    #[test]
+    #[tokio::test]
     #[cfg(unix)]
-    fn test_thread_pool_priority() {
+    async fn test_thread_pool_priority() {
         fn get_current_priority() -> i32 {
             unsafe { libc::getpriority(libc::PRIO_PROCESS, 0) }
         }
 
-        let default_prio = get_current_priority();
+        let default_priority = get_current_priority();
 
         {
-            let pool = ThreadPoolBuilder::new("s").num_threads(1).build().unwrap();
-            let prio = pool.install(get_current_priority);
+            let pool = ThreadPoolBuilder::new("s", Handle::current())
+                .num_threads(1)
+                .build()
+                .unwrap();
+
+            let barrier = Arc::new(Barrier::new(2));
+            let priority = Arc::new(AtomicI32::new(0));
+            let barrier_clone = barrier.clone();
+            let priority_clone = priority.clone();
+            pool.spawn(async move {
+                priority_clone.store(get_current_priority(), Ordering::SeqCst);
+                barrier_clone.wait().await;
+            });
+            barrier.wait().await;
+
             // Default pool priority must match current priority.
-            assert_eq!(prio, default_prio);
+            assert_eq!(priority.load(Ordering::SeqCst), default_priority);
         }
 
         {
-            let pool = ThreadPoolBuilder::new("s")
+            let pool = ThreadPoolBuilder::new("s", Handle::current())
                 .num_threads(1)
                 .thread_kind(ThreadKind::Worker)
                 .build()
                 .unwrap();
-            let prio = pool.install(get_current_priority);
+
+            let barrier = Arc::new(Barrier::new(2));
+            let priority = Arc::new(AtomicI32::new(0));
+            let barrier_clone = barrier.clone();
+            let priority_clone = priority.clone();
+            pool.spawn(async move {
+                priority_clone.store(get_current_priority(), Ordering::SeqCst);
+                barrier_clone.wait().await;
+            });
+            barrier.wait().await;
+
             // Worker must be higher than the default priority (higher number = lower priority).
-            assert!(prio > default_prio);
-        }
-    }
-
-    #[test]
-    fn test_worker_group_backpressure() {
-        let pool = ThreadPoolBuilder::new("s").num_threads(1).build().unwrap();
-        let workers = WorkerGroup::new(pool);
-
-        // Num Threads * 2 is the limit after backpressure kicks in
-        let barrier = Arc::new(Barrier::new(2));
-
-        let spawn = || {
-            let barrier = Arc::clone(&barrier);
-            workers
-                .spawn(move || {
-                    barrier.wait();
-                })
-                .now_or_never()
-                .is_some()
-        };
-
-        for _ in 0..15 {
-            // Pool should accept two immediately.
-            assert!(spawn());
-            assert!(spawn());
-            // Pool should reject because there are already 2 tasks active.
-            assert!(!spawn());
-
-            // Unblock the barrier
-            barrier.wait(); // first spawn
-            barrier.wait(); // second spawn
-
-            // wait a tiny bit to make sure the semaphore handle is dropped
-            thread::sleep(Duration::from_millis(50));
+            assert!(priority.load(Ordering::SeqCst) > default_priority);
         }
     }
 }

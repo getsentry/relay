@@ -4007,6 +4007,7 @@ dependencies = [
  "relay-statsd",
  "relay-system",
  "relay-test",
+ "relay-threading",
  "reqwest",
  "rmp-serde",
  "semver",
@@ -4089,6 +4090,7 @@ dependencies = [
  "flume",
  "futures",
  "pin-project-lite",
+ "relay-statsd",
  "tokio",
 ]
 

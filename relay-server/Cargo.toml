@@ -88,6 +88,7 @@ relay-sampling = { workspace = true }
 relay-spans = { workspace = true }
 relay-statsd = { workspace = true }
 relay-system = { workspace = true }
+relay-threading = { workspace = true }
 reqwest = { workspace = true, features = [
   "gzip",
   "hickory-dns",

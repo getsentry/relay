@@ -7,8 +7,12 @@ use futures::future::BoxFuture;
 use futures::FutureExt;
 
 use crate::builder::AsyncPoolBuilder;
+use crate::metrics::AsyncPoolGauges;
 use crate::multiplexing::Multiplexed;
 use crate::PanicHandler;
+
+/// Default name of the pool.
+const DEFAULT_POOL_NAME: &str = "unnamed";
 
 /// [`AsyncPool`] is a thread-based executor that runs asynchronous tasks on dedicated worker threads.
 ///
@@ -16,6 +20,7 @@ use crate::PanicHandler;
 /// Tokio executor. This design enables controlled concurrency and efficient use of system resources.
 #[derive(Debug)]
 pub struct AsyncPool<F> {
+    name: &'static str,
     tx: flume::Sender<F>,
 }
 
@@ -31,18 +36,21 @@ where
     where
         S: ThreadSpawn,
     {
+        let pool_name = builder.pool_name.unwrap_or(DEFAULT_POOL_NAME);
         let (tx, rx) = flume::bounded(builder.num_threads * 2);
 
-        for index in 0..builder.num_threads {
+        for thread_id in 0..builder.num_threads {
             let rx = rx.clone();
+            let thread_name: Option<String> = builder.thread_name.as_mut().map(|f| f(thread_id));
 
             let thread = Thread {
-                index,
+                id: thread_id,
                 max_concurrency: builder.max_concurrency,
-                name: builder.thread_name.as_mut().map(|f| f(index)),
+                name: thread_name.clone(),
                 runtime: builder.runtime.clone(),
                 panic_handler: builder.thread_panic_handler.clone(),
                 task: Multiplexed::new(
+                    pool_name,
                     builder.max_concurrency,
                     rx.into_stream(),
                     builder.task_panic_handler.clone(),
@@ -53,14 +61,12 @@ where
             builder.spawn_handler.spawn(thread)?;
         }
 
-        Ok(Self { tx })
+        Ok(Self {
+            name: pool_name,
+            tx,
+        })
     }
-}
 
-impl<F> AsyncPool<F>
-where
-    F: Future<Output = ()>,
-{
     /// Schedules a future for execution within the [`AsyncPool`].
     ///
     /// The task is added to the pool's internal queue to be executed by an available worker thread.
@@ -74,6 +80,8 @@ where
             self.tx.send(future).is_ok(),
             "failed to schedule task: all worker threads have terminated (either none were spawned or all have panicked)"
         );
+
+        self.track_queue_size()
     }
 
     /// Asynchronously enqueues a future for execution within the [`AsyncPool`].
@@ -89,12 +97,24 @@ where
             self.tx.send_async(future).await.is_ok(),
             "failed to schedule task: all worker threads have terminated (either none were spawned or all have panicked)"
         );
+
+        self.track_queue_size()
+    }
+
+    /// Tracks the amount of elements in the queue containing all futures to be scheduled.
+    fn track_queue_size(&self) {
+        // On each poll, we report how many items are in the queue containing futures to dispatch
+        // across all threads.
+        relay_statsd::metric!(
+            gauge(AsyncPoolGauges::AsyncPoolQueueSize) = self.tx.len() as u64,
+            pool_name = &self.name
+        );
     }
 }
 
 /// [`Thread`] represents a dedicated worker thread within an [`AsyncPool`] that executes scheduled tasks.
 pub struct Thread {
-    index: usize,
+    id: usize,
     max_concurrency: usize,
     name: Option<String>,
     runtime: tokio::runtime::Handle,
@@ -106,8 +126,8 @@ impl Thread {
     /// Returns the unique index assigned to this [`Thread`].
     ///
     /// The index can help identify the thread during debugging or logging.
-    pub fn index(&self) -> usize {
-        self.index
+    pub fn id(&self) -> usize {
+        self.id
     }
 
     /// Returns the maximum number of concurrent tasks permitted on this [`Thread`].
@@ -356,9 +376,9 @@ mod tests {
         };
 
         Thread {
-            index: 0,
+            id: 0,
             max_concurrency: 1,
-            name: Some("test-thread".to_owned()),
+            name: Some("test-thread".into()),
             runtime: runtime.handle().clone(),
             panic_handler: Some(Arc::new(panic_handler)),
             task: async move {

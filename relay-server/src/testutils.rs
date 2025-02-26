@@ -18,11 +18,11 @@ use crate::metrics::{MetricOutcomes, MetricStats};
 use crate::service::create_redis_pools;
 use crate::services::global_config::GlobalConfigHandle;
 use crate::services::outcome::TrackOutcome;
-use crate::services::processor::{self, EnvelopeProcessorService};
+use crate::services::processor::{self, EnvelopeProcessorService, EnvelopeProcessorServicePool};
 use crate::services::projects::cache::ProjectCacheHandle;
 use crate::services::projects::project::ProjectInfo;
 use crate::services::test_store::TestStore;
-use crate::utils::{ThreadPool, ThreadPoolBuilder};
+use crate::utils::ThreadPoolBuilder;
 
 pub fn state_with_rule_and_condition(
     sample_rate: Option<f64>,
@@ -174,10 +174,9 @@ pub fn processor_services() -> (Addr<TrackOutcome>, Addr<TestStore>) {
     (outcome_aggregator, test_store)
 }
 
-fn create_processor_pool() -> ThreadPool {
-    ThreadPoolBuilder::new("processor")
+fn create_processor_pool() -> EnvelopeProcessorServicePool {
+    ThreadPoolBuilder::new("processor", tokio::runtime::Handle::current())
         .num_threads(1)
-        .runtime(tokio::runtime::Handle::current())
         .build()
         .unwrap()
 }
