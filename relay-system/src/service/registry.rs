@@ -113,7 +113,11 @@ impl Inner {
         };
         group.next_instance_id += 1;
 
-        let future = ServiceMonitor::wrap(service.future);
+        // Services are allowed to process as much work as possible before yielding to other,
+        // lower priority tasks. We want to prioritize service backlogs over creating more work
+        // for these services.
+        let future = tokio::task::unconstrained(service.future);
+        let future = ServiceMonitor::wrap(future);
         let metrics = Arc::clone(future.metrics());
 
         let jh = crate::runtime::spawn_in(handle, task_id, future);
