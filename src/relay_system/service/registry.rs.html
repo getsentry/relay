@@ -187,7 +187,11 @@
 <a href="#186" id="186">186</a>
 <a href="#187" id="187">187</a>
 <a href="#188" id="188">188</a>
-<a href="#189" id="189">189</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
+<a href="#189" id="189">189</a>
+<a href="#190" id="190">190</a>
+<a href="#191" id="191">191</a>
+<a href="#192" id="192">192</a>
+<a href="#193" id="193">193</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::BTreeMap;
 <span class="kw">use </span>std::sync::atomic::Ordering;
 <span class="kw">use </span>std::sync::{Arc, Mutex, PoisonError};
 <span class="kw">use </span>std::time::Duration;
@@ -302,7 +306,11 @@
         };
         group.next_instance_id += <span class="number">1</span>;
 
-        <span class="kw">let </span>future = ServiceMonitor::wrap(service.future);
+        <span class="comment">// Services are allowed to process as much work as possible before yielding to other,
+        // lower priority tasks. We want to prioritize service backlogs over creating more work
+        // for these services.
+        </span><span class="kw">let </span>future = tokio::task::unconstrained(service.future);
+        <span class="kw">let </span>future = ServiceMonitor::wrap(future);
         <span class="kw">let </span>metrics = Arc::clone(future.metrics());
 
         <span class="kw">let </span>jh = <span class="kw">crate</span>::runtime::spawn_in(handle, task_id, future);
