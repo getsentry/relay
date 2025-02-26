@@ -254,7 +254,7 @@ mod tests {
             assert_eq!(tokio_metrics.worker_local_schedule_count(0), 0);
 
             // Increase local worker schedule count by awaiting a timer.
-            crate::spawn!(tokio::time::sleep(Duration::from_nanos(10)))
+            crate::spawn!(tokio::time::sleep(Duration::from_millis(1)))
                 .await
                 .unwrap();
 
@@ -262,7 +262,7 @@ mod tests {
             assert_eq!(tokio_metrics.worker_local_schedule_count(0), 1);
 
             // Increase it again.
-            crate::spawn!(tokio::time::sleep(Duration::from_nanos(10)))
+            crate::spawn!(tokio::time::sleep(Duration::from_millis(1)))
                 .await
                 .unwrap();
 
