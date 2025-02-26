@@ -529,7 +529,7 @@
             <span class="macro">assert_eq!</span>(tokio_metrics.worker_local_schedule_count(<span class="number">0</span>), <span class="number">0</span>);
 
             <span class="comment">// Increase local worker schedule count by awaiting a timer.
-            </span><span class="macro">crate::spawn!</span>(tokio::time::sleep(Duration::from_nanos(<span class="number">10</span>)))
+            </span><span class="macro">crate::spawn!</span>(tokio::time::sleep(Duration::from_millis(<span class="number">1</span>)))
                 .<span class="kw">await
                 </span>.unwrap();
 
@@ -537,7 +537,7 @@
             <span class="macro">assert_eq!</span>(tokio_metrics.worker_local_schedule_count(<span class="number">0</span>), <span class="number">1</span>);
 
             <span class="comment">// Increase it again.
-            </span><span class="macro">crate::spawn!</span>(tokio::time::sleep(Duration::from_nanos(<span class="number">10</span>)))
+            </span><span class="macro">crate::spawn!</span>(tokio::time::sleep(Duration::from_millis(<span class="number">1</span>)))
                 .<span class="kw">await
                 </span>.unwrap();
 
