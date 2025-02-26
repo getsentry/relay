@@ -2,7 +2,6 @@ import json
 
 import pytest
 
-from .fixtures.mini_sentry import mini_sentry
 from .test_unreal import load_dump_file
 import os
 from sentry_sdk.envelope import Envelope, Item, PayloadRef
