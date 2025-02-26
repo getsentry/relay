@@ -897,7 +897,6 @@ mod tests {
 
         let addr = service.start_in(&TokioServiceSpawn);
         tokio::time::sleep(Duration::from_millis(200)).await;
-        tokio::time::pause();
 
         assert_eq!(addr.metrics.item_count.load(Ordering::Relaxed), 0);
 
@@ -906,7 +905,7 @@ mod tests {
             addr.addr().send(EnvelopeBuffer::Push(envelope.clone()));
         }
 
-        tokio::time::sleep(Duration::from_millis(1000)).await;
+        tokio::time::sleep(Duration::from_millis(100)).await;
 
         assert_eq!(addr.metrics.item_count.load(Ordering::Relaxed), 10);
     }
