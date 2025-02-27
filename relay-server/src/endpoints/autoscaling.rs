@@ -34,9 +34,9 @@ fn to_prometheus_string(data: &AutoscalingData) -> String {
 }
 
 fn append_data_row(result: &mut String, label: &str, data: impl Display) {
+    // Metrics are automatically prefixed with "relay_"
+    result.push_str("relay_");
     result.push_str(label);
-    // Add tag to all metrics so that we can give the query more context
-    result.push_str(r#"{service="autoscaling"}"#);
     result.push(' ');
     result.push_str(&data.to_string());
     result.push('\n');
@@ -57,10 +57,10 @@ mod test {
         let result = super::to_prometheus_string(&data);
         assert_eq!(
             result,
-            r#"memory_usage{service="autoscaling"} 0.75
-up{service="autoscaling"} 1
-item_count{service="autoscaling"} 10
-total_size{service="autoscaling"} 30
+            r#"relay_memory_usage 0.75
+relay_up 1
+relay_item_count 10
+relay_total_size 30
 "#
         );
     }
