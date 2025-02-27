@@ -1,0 +1,28 @@
+name: Release GHCR Versioned Image
+
+on:
+  release:
+    types: [prereleased, released]
+  workflow_dispatch: # Should add a manual trigger to see if this works.
+    inputs:
+      version_tag:
+        description: "Version tag to use (defaults to sha if empty)"
+        required: false
+        type: string
+
+jobs:
+  release-ghcr-version-tag:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tag release version
+        run: |
+          docker pull ghcr.io/getsentry/sentry-cli:${{ github.sha }}
+          docker tag ghcr.io/getsentry/sentry-cli:${{ github.sha }} ghcr.io/getsentry/sentry-cli:${{ github.ref_name }}
+        #   docker push ghcr.io/getsentry/sentry-cli:${{ github.ref_name }}
