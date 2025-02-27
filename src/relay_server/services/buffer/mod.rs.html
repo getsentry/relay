@@ -1021,8 +1021,7 @@
 <a href="#1020" id="1020">1020</a>
 <a href="#1021" id="1021">1021</a>
 <a href="#1022" id="1022">1022</a>
-<a href="#1023" id="1023">1023</a>
-<a href="#1024" id="1024">1024</a></pre></div><pre class="rust"><code><span class="doccomment">//! Types for buffering envelopes.
+<a href="#1023" id="1023">1023</a></pre></div><pre class="rust"><code><span class="doccomment">//! Types for buffering envelopes.
 
 </span><span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::num::NonZeroU8;
@@ -1921,7 +1920,6 @@
 
         <span class="kw">let </span>addr = service.start_in(<span class="kw-2">&amp;</span>TokioServiceSpawn);
         tokio::time::sleep(Duration::from_millis(<span class="number">200</span>)).<span class="kw">await</span>;
-        tokio::time::pause();
 
         <span class="macro">assert_eq!</span>(addr.metrics.item_count.load(Ordering::Relaxed), <span class="number">0</span>);
 
@@ -1930,7 +1928,7 @@
             addr.addr().send(EnvelopeBuffer::Push(envelope.clone()));
         }
 
-        tokio::time::sleep(Duration::from_millis(<span class="number">1000</span>)).<span class="kw">await</span>;
+        tokio::time::sleep(Duration::from_millis(<span class="number">100</span>)).<span class="kw">await</span>;
 
         <span class="macro">assert_eq!</span>(addr.metrics.item_count.load(Ordering::Relaxed), <span class="number">10</span>);
     }
