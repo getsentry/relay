@@ -35,6 +35,8 @@ fn to_prometheus_string(data: &AutoscalingData) -> String {
 
 fn append_data_row(result: &mut String, label: &str, data: impl Display) {
     result.push_str(label);
+    // Add tag to all metrics so that we can give the query more context
+    result.push_str(r#"{service="autoscaling"}"#);
     result.push(' ');
     result.push_str(&data.to_string());
     result.push('\n');
@@ -55,7 +57,11 @@ mod test {
         let result = super::to_prometheus_string(&data);
         assert_eq!(
             result,
-            "memory_usage 0.75\nup 1\nitem_count 10\ntotal_size 30\n"
+            r#"memory_usage{service="autoscaling"} 0.75
+up{service="autoscaling"} 1
+item_count{service="autoscaling"} 10
+total_size{service="autoscaling"} 30
+"#
         );
     }
 }
