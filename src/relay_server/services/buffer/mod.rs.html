@@ -1928,7 +1928,7 @@
             addr.addr().send(EnvelopeBuffer::Push(envelope.clone()));
         }
 
-        tokio::time::sleep(Duration::from_millis(<span class="number">100</span>)).<span class="kw">await</span>;
+        tokio::time::sleep(Duration::from_millis(<span class="number">1100</span>)).<span class="kw">await</span>;
 
         <span class="macro">assert_eq!</span>(addr.metrics.item_count.load(Ordering::Relaxed), <span class="number">10</span>);
     }

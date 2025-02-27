@@ -59,7 +59,13 @@
 <a href="#58" id="58">58</a>
 <a href="#59" id="59">59</a>
 <a href="#60" id="60">60</a>
-<a href="#61" id="61">61</a></pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::http::StatusCode;
+<a href="#61" id="61">61</a>
+<a href="#62" id="62">62</a>
+<a href="#63" id="63">63</a>
+<a href="#64" id="64">64</a>
+<a href="#65" id="65">65</a>
+<a href="#66" id="66">66</a>
+<a href="#67" id="67">67</a></pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::http::StatusCode;
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 <span class="kw">use </span><span class="kw">crate</span>::services::autoscaling::{AutoscalingData, AutoscalingMessageKind};
 <span class="kw">use </span>std::fmt::Display;
@@ -89,12 +95,14 @@
 
     append_data_row(<span class="kw-2">&amp;mut </span>result, <span class="string">"memory_usage"</span>, data.memory_usage);
     append_data_row(<span class="kw-2">&amp;mut </span>result, <span class="string">"up"</span>, data.up);
-    append_data_row(<span class="kw-2">&amp;mut </span>result, <span class="string">"item_count"</span>, data.item_count);
-    append_data_row(<span class="kw-2">&amp;mut </span>result, <span class="string">"total_size"</span>, data.total_size);
+    append_data_row(<span class="kw-2">&amp;mut </span>result, <span class="string">"spool_item_count"</span>, data.item_count);
+    append_data_row(<span class="kw-2">&amp;mut </span>result, <span class="string">"spool_total_size"</span>, data.total_size);
     result
 }
 
 <span class="kw">fn </span>append_data_row(result: <span class="kw-2">&amp;mut </span>String, label: <span class="kw-2">&amp;</span>str, data: <span class="kw">impl </span>Display) {
+    <span class="comment">// Metrics are automatically prefixed with "relay_"
+    </span>result.push_str(<span class="string">"relay_"</span>);
     result.push_str(label);
     result.push(<span class="string">' '</span>);
     result.push_str(<span class="kw-2">&amp;</span>data.to_string());
@@ -116,7 +124,11 @@
         <span class="kw">let </span>result = <span class="kw">super</span>::to_prometheus_string(<span class="kw-2">&amp;</span>data);
         <span class="macro">assert_eq!</span>(
             result,
-            <span class="string">"memory_usage 0.75\nup 1\nitem_count 10\ntotal_size 30\n"
+            <span class="string">r#"relay_memory_usage 0.75
+relay_up 1
+relay_spool_item_count 10
+relay_spool_total_size 30
+"#
         </span>);
     }
 }
