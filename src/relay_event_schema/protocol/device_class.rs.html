@@ -184,7 +184,26 @@
 <a href="#183" id="183">183</a>
 <a href="#184" id="184">184</a>
 <a href="#185" id="185">185</a>
-<a href="#186" id="186">186</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
+<a href="#186" id="186">186</a>
+<a href="#187" id="187">187</a>
+<a href="#188" id="188">188</a>
+<a href="#189" id="189">189</a>
+<a href="#190" id="190">190</a>
+<a href="#191" id="191">191</a>
+<a href="#192" id="192">192</a>
+<a href="#193" id="193">193</a>
+<a href="#194" id="194">194</a>
+<a href="#195" id="195">195</a>
+<a href="#196" id="196">196</a>
+<a href="#197" id="197">197</a>
+<a href="#198" id="198">198</a>
+<a href="#199" id="199">199</a>
+<a href="#200" id="200">200</a>
+<a href="#201" id="201">201</a>
+<a href="#202" id="202">202</a>
+<a href="#203" id="203">203</a>
+<a href="#204" id="204">204</a>
+<a href="#205" id="205">205</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt;
 
 <span class="kw">use </span>relay_protocol::{Annotated, Empty, FromValue, IntoValue};
 
@@ -282,6 +301,15 @@
         <span class="string">"iPhone14,8" </span>=&gt; <span class="prelude-val">Some</span>(DeviceClass::HIGH),
         <span class="string">"iPhone15,2" </span>=&gt; <span class="prelude-val">Some</span>(DeviceClass::HIGH),
         <span class="string">"iPhone15,3" </span>=&gt; <span class="prelude-val">Some</span>(DeviceClass::HIGH),
+        <span class="string">"iPhone15,4" </span>=&gt; <span class="prelude-val">Some</span>(DeviceClass::HIGH),
+        <span class="string">"iPhone15,5" </span>=&gt; <span class="prelude-val">Some</span>(DeviceClass::HIGH),
+        <span class="string">"iPhone16,1" </span>=&gt; <span class="prelude-val">Some</span>(DeviceClass::HIGH),
+        <span class="string">"iPhone16,2" </span>=&gt; <span class="prelude-val">Some</span>(DeviceClass::HIGH),
+        <span class="string">"iPhone17,1" </span>=&gt; <span class="prelude-val">Some</span>(DeviceClass::HIGH),
+        <span class="string">"iPhone17,2" </span>=&gt; <span class="prelude-val">Some</span>(DeviceClass::HIGH),
+        <span class="string">"iPhone17,3" </span>=&gt; <span class="prelude-val">Some</span>(DeviceClass::HIGH),
+        <span class="string">"iPhone17,4" </span>=&gt; <span class="prelude-val">Some</span>(DeviceClass::HIGH),
+        <span class="string">"iPhone17,5" </span>=&gt; <span class="prelude-val">Some</span>(DeviceClass::HIGH),
 
         <span class="comment">// iPads
         </span><span class="string">"iPad1,1" </span>=&gt; <span class="prelude-val">Some</span>(DeviceClass::LOW),
@@ -366,6 +394,16 @@
         <span class="string">"iPad14,4" </span>=&gt; <span class="prelude-val">Some</span>(DeviceClass::HIGH),
         <span class="string">"iPad14,5" </span>=&gt; <span class="prelude-val">Some</span>(DeviceClass::HIGH),
         <span class="string">"iPad14,6" </span>=&gt; <span class="prelude-val">Some</span>(DeviceClass::HIGH),
+        <span class="string">"iPad14,8" </span>=&gt; <span class="prelude-val">Some</span>(DeviceClass::HIGH),
+        <span class="string">"iPad14,9" </span>=&gt; <span class="prelude-val">Some</span>(DeviceClass::HIGH),
+        <span class="string">"iPad14,10" </span>=&gt; <span class="prelude-val">Some</span>(DeviceClass::HIGH),
+        <span class="string">"iPad14,11" </span>=&gt; <span class="prelude-val">Some</span>(DeviceClass::HIGH),
+        <span class="string">"iPad16,1" </span>=&gt; <span class="prelude-val">Some</span>(DeviceClass::HIGH),
+        <span class="string">"iPad16,2" </span>=&gt; <span class="prelude-val">Some</span>(DeviceClass::HIGH),
+        <span class="string">"iPad16,3" </span>=&gt; <span class="prelude-val">Some</span>(DeviceClass::HIGH),
+        <span class="string">"iPad16,4" </span>=&gt; <span class="prelude-val">Some</span>(DeviceClass::HIGH),
+        <span class="string">"iPad16,5" </span>=&gt; <span class="prelude-val">Some</span>(DeviceClass::HIGH),
+        <span class="string">"iPad16,6" </span>=&gt; <span class="prelude-val">Some</span>(DeviceClass::HIGH),
 
         <span class="kw">_ </span>=&gt; <span class="prelude-val">None</span>,
     }
