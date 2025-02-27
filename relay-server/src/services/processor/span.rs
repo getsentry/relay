@@ -157,14 +157,13 @@ pub fn extract_transaction_span(
 
 #[cfg(test)]
 mod tests {
-    use crate::envelope::{ContentType, Item, ItemType};
-    use crate::services::processor::span::convert_traces_data;
+    use std::collections::BTreeMap;
+
+    use super::*;
     use crate::services::processor::ProcessingGroup;
     use crate::utils::{ManagedEnvelope, TypedEnvelope};
     use crate::Envelope;
     use bytes::Bytes;
-    use opentelemetry_proto::tonic::common::v1::any_value::Value;
-    use opentelemetry_proto::tonic::common::v1::AnyValue;
     use relay_spans::otel_trace::Span as OtelSpan;
     use relay_system::Addr;
 
@@ -250,51 +249,45 @@ mod tests {
             .expect("converted span missing from envelope");
         let attributes = serde_json::from_slice::<OtelSpan>(&item.payload())
             .expect("unable to deserialize otel span")
-            .attributes;
+            .attributes
+            .into_iter()
+            .map(|kv| (kv.key, kv.value.unwrap()))
+            .collect::<BTreeMap<_, _>>();
+        let attribute_value = |key: &str| -> String {
+            match attributes
+                .get(key)
+                .unwrap_or_else(|| panic!("attribute {} missing", key))
+                .to_owned()
+                .value
+            {
+                Some(Value::StringValue(str)) => str,
+                _ => panic!("attribute {} not a string", key),
+            }
+        };
         assert_eq!(
-            attributes.len(),
-            5,
-            "the instrumentation and resource attributes should be copied to the span"
-        );
-
-        // Assert that the scope's properties were copied.
-        assert_eq!(
-            attributes
-                .iter()
-                .find(|attr| attr.key == "instrumentation.name")
-                .and_then(|attr| attr.value.clone()),
-            Some(AnyValue {
-                value: Some(Value::StringValue("test_instrumentation".into()))
-            })
-        );
-        assert_eq!(
-            attributes
-                .iter()
-                .find(|attr| attr.key == "instrumentation.version")
-                .and_then(|attr| attr.value.clone()),
-            Some(AnyValue {
-                value: Some(Value::StringValue("0.0.1".into()))
-            })
-        );
-
-        // Assert that the copied keys were prefixed correctly.
-        assert_eq!(
-            attributes
-                .iter()
-                .find(|attr| attr.key == "resource.resource_key")
-                .and_then(|attr| attr.value.clone()),
-            Some(AnyValue {
-                value: Some(Value::StringValue("resource_value".into()))
-            })
+            attribute_value("span_key"),
+            "span_value".to_owned(),
+            "original span attribute should be present"
         );
         assert_eq!(
-            attributes
-                .iter()
-                .find(|attr| attr.key == "instrumentation.scope_key")
-                .and_then(|attr| attr.value.clone()),
-            Some(AnyValue {
-                value: Some(Value::StringValue("scope_value".into()))
-            })
+            attribute_value("instrumentation.name"),
+            "test_instrumentation".to_owned(),
+            "instrumentation name should be in attributes"
+        );
+        assert_eq!(
+            attribute_value("instrumentation.version"),
+            "0.0.1".to_owned(),
+            "instrumentation version should be in attributes"
+        );
+        assert_eq!(
+            attribute_value("resource.resource_key"),
+            "resource_value".to_owned(),
+            "resource attribute should be copied with prefix"
+        );
+        assert_eq!(
+            attribute_value("instrumentation.scope_key"),
+            "scope_value".to_owned(),
+            "instruementation scope attribute should be copied with prefix"
         );
     }
 }
