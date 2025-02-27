@@ -1,11 +1,23 @@
 name: Release GHCR Versioned Image
 
 on:
+  # https://stackoverflow.com/questions/59319281/github-action-different-between-release-created-and-published
+  # https://github.com/orgs/community/discussions/26281
+  # Not sure how one manages to get a [prereleased, released] working :confused:
   release:
     types: [prereleased, released]
+  # Add manual trigger for testing
+  workflow_dispatch:
+    inputs:
+      test_version:
+        description: "Test version tag (e.g., v1.2.3)"
+        required: true
+        type: string
 
 jobs:
+  # Original job that runs on release
   release-ghcr-version-tag:
+    if: github.event_name == 'release'
     runs-on: ubuntu-latest
     steps:
       - name: Log in to GitHub Container Registry
@@ -19,4 +31,22 @@ jobs:
         run: |
           docker buildx imagetools create --tag \
            ghcr.io/getsentry/relay:${{ github.ref_name }} \
+           ghcr.io/getsentry/relay:${{ github.sha }}
+
+  # Test job that runs on manual trigger
+  test-release-ghcr-version-tag:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tag release version
+        run: |
+          docker buildx imagetools create --tag \
+           ghcr.io/getsentry/relay:${{ inputs.test_version }} \
            ghcr.io/getsentry/relay:${{ github.sha }}
