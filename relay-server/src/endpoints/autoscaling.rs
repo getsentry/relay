@@ -28,12 +28,14 @@ fn to_prometheus_string(data: &AutoscalingData) -> String {
 
     append_data_row(&mut result, "memory_usage", data.memory_usage);
     append_data_row(&mut result, "up", data.up);
-    append_data_row(&mut result, "item_count", data.item_count);
-    append_data_row(&mut result, "total_size", data.total_size);
+    append_data_row(&mut result, "spool_item_count", data.item_count);
+    append_data_row(&mut result, "spool_total_size", data.total_size);
     result
 }
 
 fn append_data_row(result: &mut String, label: &str, data: impl Display) {
+    // Metrics are automatically prefixed with "relay_"
+    result.push_str("relay_");
     result.push_str(label);
     result.push(' ');
     result.push_str(&data.to_string());
@@ -55,7 +57,11 @@ mod test {
         let result = super::to_prometheus_string(&data);
         assert_eq!(
             result,
-            "memory_usage 0.75\nup 1\nitem_count 10\ntotal_size 30\n"
+            r#"relay_memory_usage 0.75
+relay_up 1
+relay_spool_item_count 10
+relay_spool_total_size 30
+"#
         );
     }
 }
