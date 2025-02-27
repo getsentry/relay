@@ -28,8 +28,8 @@ fn to_prometheus_string(data: &AutoscalingData) -> String {
 
     append_data_row(&mut result, "memory_usage", data.memory_usage);
     append_data_row(&mut result, "up", data.up);
-    append_data_row(&mut result, "item_count", data.item_count);
-    append_data_row(&mut result, "total_size", data.total_size);
+    append_data_row(&mut result, "spool_item_count", data.item_count);
+    append_data_row(&mut result, "spool_total_size", data.total_size);
     result
 }
 
@@ -59,8 +59,8 @@ mod test {
             result,
             r#"relay_memory_usage 0.75
 relay_up 1
-relay_item_count 10
-relay_total_size 30
+relay_spool_item_count 10
+relay_spool_total_size 30
 "#
         );
     }

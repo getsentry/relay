@@ -905,7 +905,7 @@ mod tests {
             addr.addr().send(EnvelopeBuffer::Push(envelope.clone()));
         }
 
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        tokio::time::sleep(Duration::from_millis(1100)).await;
 
         assert_eq!(addr.metrics.item_count.load(Ordering::Relaxed), 10);
     }

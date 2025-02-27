@@ -49,9 +49,9 @@ def test_sqlite_spooling_metrics(mini_sentry, relay):
     response = relay.get("/api/relay/autoscaling/")
     assert response.status_code == 200
     body = parse_prometheus(response.text)
-    assert int(body["relay_item_count"]) == 200
+    assert int(body["relay_spool_item_count"]) == 200
     assert int(body["relay_up"]) == 1
-    assert int(body["relay_total_size"]) > 30000
+    assert int(body["relay_spool_total_size"]) > 30000
 
 
 def test_memory_spooling_metrics(mini_sentry, relay):
@@ -69,6 +69,6 @@ def test_memory_spooling_metrics(mini_sentry, relay):
     response = relay.get("/api/relay/autoscaling/")
     assert response.status_code == 200
     body = parse_prometheus(response.text)
-    assert int(body["relay_item_count"]) == 200
+    assert int(body["relay_spool_item_count"]) == 200
     assert int(body["relay_up"]) == 1
-    assert int(body["relay_total_size"]) == 0
+    assert int(body["relay_spool_total_size"]) == 0
