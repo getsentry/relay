@@ -722,13 +722,14 @@ pub struct Routing {
 }
 
 /// Http content encoding for both incoming and outgoing web requests.
-#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum HttpEncoding {
     /// Identity function without no compression.
     ///
     /// This is the default encoding and does not require the presence of the `content-encoding`
     /// HTTP header.
+    #[default]
     Identity,
     /// Compression using a [zlib](https://en.wikipedia.org/wiki/Zlib) structure with
     /// [deflate](https://en.wikipedia.org/wiki/DEFLATE) encoding.
@@ -780,12 +781,6 @@ impl HttpEncoding {
     }
 }
 
-impl Default for HttpEncoding {
-    fn default() -> Self {
-        Self::Identity
-    }
-}
-
 /// Controls authentication with upstream.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
@@ -830,7 +825,7 @@ pub struct Http {
     pub project_failure_interval: u64,
     /// Content encoding to apply to upstream store requests.
     ///
-    /// By default, Relay applies `gzip` content encoding to compress upstream requests. Compression
+    /// By default, Relay applies `zstd` content encoding to compress upstream requests. Compression
     /// can be disabled to reduce CPU consumption, but at the expense of increased network traffic.
     ///
     /// This setting applies to all store requests of SDK data, including events, transactions,
@@ -842,6 +837,7 @@ pub struct Http {
     ///  - `deflate`: Compression using a zlib header with deflate encoding.
     ///  - `gzip` (default): Compression using gzip.
     ///  - `br`: Compression using the brotli algorithm.
+    ///  - `zstd`: Compression using the zstd algorithm.
     pub encoding: HttpEncoding,
     /// Submit metrics globally through a shared endpoint.
     ///
@@ -863,7 +859,7 @@ impl Default for Http {
             outage_grace_period: DEFAULT_NETWORK_OUTAGE_GRACE_PERIOD,
             retry_delay: default_retry_delay(),
             project_failure_interval: default_project_failure_interval(),
-            encoding: HttpEncoding::Gzip,
+            encoding: HttpEncoding::Zstd,
             global_metrics: false,
         }
     }
