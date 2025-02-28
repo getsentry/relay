@@ -1,6 +1,6 @@
 import datetime
 import copy
-import gzip
+import zstandard
 import json
 import os
 import re
@@ -318,9 +318,13 @@ def mini_sentry(request):  # noqa
     @app.route("/api/42/envelope/", methods=["POST"])
     def store_event():
         assert (
-            flask_request.headers.get("Content-Encoding", "") == "gzip"
+            flask_request.headers.get("Content-Encoding", "") == "zstd"
         ), "Relay should always compress store requests"
-        data = gzip.decompress(flask_request.data)
+
+        with zstandard.ZstdDecompressor().stream_reader(
+            flask_request.data
+        ) as decompressor:
+            data = decompressor.read()
 
         assert (
             flask_request.headers.get("Content-Type") == "application/x-sentry-envelope"
@@ -454,8 +458,11 @@ def mini_sentry(request):  # noqa
             abort(403, "relay not registered")
 
         encoding = flask_request.headers.get("Content-Encoding", "")
-        assert encoding == "gzip", "Relay should always compress store requests"
-        data = gzip.decompress(flask_request.data)
+        assert encoding == "zstd", "Relay should always compress store requests"
+        with zstandard.ZstdDecompressor().stream_reader(
+            flask_request.data
+        ) as decompressor:
+            data = decompressor.read()
 
         metrics_batch = json.loads(data)["buckets"]
         sentry.captured_metrics.put(metrics_batch)
