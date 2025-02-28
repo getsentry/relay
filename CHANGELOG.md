@@ -4,6 +4,7 @@
 
 **Features**:
 
+- Tag images with release version. ([#4532](https://github.com/getsentry/relay/pull/4532))
 - Switch default envelope compression from gzip to zstd. ([#4531](https://github.com/getsentry/relay/pull/4531))
 - Update release to include an aarch64 binary. ([#4514](https://github.com/getsentry/relay/pull/4514))
 - Support span `category` inference from span attributes. ([#4509](https://github.com/getsentry/relay/pull/4509))
