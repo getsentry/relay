@@ -4,6 +4,7 @@
 
 **Features**:
 
+- Tag images with release version. ([#4532](https://github.com/getsentry/relay/pull/4532))
 - Update release to include an aarch64 binary. ([#4514](https://github.com/getsentry/relay/pull/4514))
 - Support span `category` inference from span attributes. ([#4509](https://github.com/getsentry/relay/pull/4509))
 - Add option to control ourlogs ingestion. ([#4518](https://github.com/getsentry/relay/pull/4518))
