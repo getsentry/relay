@@ -2561,11 +2561,7 @@
 <a href="#2560" id="2560">2560</a>
 <a href="#2561" id="2561">2561</a>
 <a href="#2562" id="2562">2562</a>
-<a href="#2563" id="2563">2563</a>
-<a href="#2564" id="2564">2564</a>
-<a href="#2565" id="2565">2565</a>
-<a href="#2566" id="2566">2566</a>
-<a href="#2567" id="2567">2567</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
+<a href="#2563" id="2563">2563</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
 <span class="kw">use </span>std::net::{IpAddr, SocketAddr, ToSocketAddrs};
@@ -3289,13 +3285,14 @@
 }
 
 <span class="doccomment">/// Http content encoding for both incoming and outgoing web requests.
-</span><span class="attr">#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+</span><span class="attr">#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
 #[serde(rename_all = <span class="string">"lowercase"</span>)]
 </span><span class="kw">pub enum </span>HttpEncoding {
     <span class="doccomment">/// Identity function without no compression.
     ///
     /// This is the default encoding and does not require the presence of the `content-encoding`
     /// HTTP header.
+    </span><span class="attr">#[default]
     </span>Identity,
     <span class="doccomment">/// Compression using a [zlib](https://en.wikipedia.org/wiki/Zlib) structure with
     /// [deflate](https://en.wikipedia.org/wiki/DEFLATE) encoding.
@@ -3347,12 +3344,6 @@
     }
 }
 
-<span class="kw">impl </span>Default <span class="kw">for </span>HttpEncoding {
-    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::Identity
-    }
-}
-
 <span class="doccomment">/// Controls authentication with upstream.
 </span><span class="attr">#[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
@@ -3397,7 +3388,7 @@
     </span><span class="kw">pub </span>project_failure_interval: u64,
     <span class="doccomment">/// Content encoding to apply to upstream store requests.
     ///
-    /// By default, Relay applies `gzip` content encoding to compress upstream requests. Compression
+    /// By default, Relay applies `zstd` content encoding to compress upstream requests. Compression
     /// can be disabled to reduce CPU consumption, but at the expense of increased network traffic.
     ///
     /// This setting applies to all store requests of SDK data, including events, transactions,
@@ -3409,6 +3400,7 @@
     ///  - `deflate`: Compression using a zlib header with deflate encoding.
     ///  - `gzip` (default): Compression using gzip.
     ///  - `br`: Compression using the brotli algorithm.
+    ///  - `zstd`: Compression using the zstd algorithm.
     </span><span class="kw">pub </span>encoding: HttpEncoding,
     <span class="doccomment">/// Submit metrics globally through a shared endpoint.
     ///
@@ -3430,7 +3422,7 @@
             </span>outage_grace_period: DEFAULT_NETWORK_OUTAGE_GRACE_PERIOD,
             retry_delay: default_retry_delay(),
             project_failure_interval: default_project_failure_interval(),
-            encoding: HttpEncoding::Gzip,
+            encoding: HttpEncoding::Zstd,
             global_metrics: <span class="bool-val">false</span>,
         }
     }
