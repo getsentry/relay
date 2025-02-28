@@ -1,19 +1,11 @@
 name: Release GHCR Versioned Image
 
 on:
-  # https://stackoverflow.com/questions/59319281/github-action-different-between-release-created-and-published
-  # https://github.com/orgs/community/discussions/26281
-  # Not sure how one manages to get a [prereleased, released] working :confused:
-  #  If you want a workflow to run when stable and pre-releases publish, subscribe to published instead of released and prereleased. - https://docs.github.com/en/actions/writing-workflows/choosing-when-your-workflow-runs/events-that-trigger-workflows#release
   release:
     types: [prereleased, released]
-  # Trigger for testing
-  pull_request:
 
 jobs:
-  # Original job that runs on release
   release-ghcr-version-tag:
-    if: github.event_name == 'release'
     runs-on: ubuntu-latest
     steps:
       - name: Log in to GitHub Container Registry
@@ -28,21 +20,3 @@ jobs:
           docker buildx imagetools create --tag \
            ghcr.io/getsentry/relay:${{ github.ref_name }} \
            ghcr.io/getsentry/relay:${{ github.sha }}
-
-  # Test job that runs on PR
-  test-release-ghcr-version-tag:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Tag release version
-        run: |
-          docker buildx imagetools create --tag \
-           ghcr.io/getsentry/relay:25.2.0 \
-           ghcr.io/getsentry/relay:3a0d4fa7ee106589b8ac98f54865e449f5ba5d4e
