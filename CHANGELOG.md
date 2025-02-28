@@ -15,6 +15,7 @@
 - Track an utilization metric for internal services. ([#4501](https://github.com/getsentry/relay/pull/4501))
 - Add new `relay-threading` crate with asynchronous thread pool. ([#4500](https://github.com/getsentry/relay/pull/4500))
 - Expose additional metrics through the internal relay metric endpoint. ([#4511](https://github.com/getsentry/relay/pull/4511))
+- Write resource and instrumentation scope attributes as span attributes during OTLP ingestion. ([#4533](https://github.com/getsentry/relay/pull/4533))
 
 ## 25.2.0
 

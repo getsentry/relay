@@ -3974,6 +3974,7 @@ dependencies = [
  "minidump",
  "multer",
  "once_cell",
+ "opentelemetry-proto",
  "papaya",
  "pin-project-lite",
  "priority-queue",
