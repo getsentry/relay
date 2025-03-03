@@ -489,4 +489,26 @@ mod tests {
         // The future should successfully complete.
         assert!(futures::executor::block_on(future).is_ok());
     }
+
+    #[test]
+    fn test_multiplexer_emits_metrics() {
+        let (tx, rx) = flume::bounded::<BoxFuture<'static, _>>(10);
+        let metrics = mock_metrics(1);
+
+        tx.send(future_with(|| {})).unwrap();
+
+        drop(tx);
+
+        futures::executor::block_on(Multiplexed::new(
+            0,
+            "my_pool",
+            1,
+            rx.into_stream(),
+            None,
+            metrics.clone(),
+        ));
+
+        // We expect that the metrics are updated with the newly added future.
+        assert_eq!(metrics.thread_metrics(0).unwrap().polled_futures(), 1);
+    }
 }

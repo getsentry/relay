@@ -1,4 +1,3 @@
-use relay_statsd::GaugeMetric;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
