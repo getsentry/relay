@@ -2,29 +2,20 @@ use relay_statsd::GaugeMetric;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
-/// Gauge metrics emitted by the asynchronous pool.
-pub enum AsyncPoolGauges {
-    /// Number of futures queued up for execution in the asynchronous pool.
-    AsyncPoolQueueSize,
-    /// Number of futures being driven in each thread of the asynchronous pool.
-    AsyncPoolFuturesPerThread,
-}
-
-impl GaugeMetric for AsyncPoolGauges {
-    fn name(&self) -> &'static str {
-        match self {
-            Self::AsyncPoolQueueSize => "async_pool.queue_size",
-            Self::AsyncPoolFuturesPerThread => "async_pool.futures_per_thread",
-        }
-    }
-}
-
+/// Metrics for a single thread in an asynchronous pool.
+///
+/// This struct provides a way to track and query metrics specific to an individual thread, such as
+/// the number of futures it has polled. It is designed for safe concurrent access across threads.
 #[derive(Debug, Default)]
 pub struct ThreadMetrics {
     polled_futures: AtomicU64,
 }
 
 impl ThreadMetrics {
+    /// Returns the number of futures polled by the thread.
+    ///
+    /// This method provides a snapshot of the total futures processed by the thread at the time of
+    /// the call. It is useful for monitoring thread activity and workload distribution.
     pub fn polled_futures(&self) -> u64 {
         self.polled_futures.load(Ordering::SeqCst)
     }
@@ -42,35 +33,60 @@ impl Clone for ThreadMetrics {
     }
 }
 
+/// Inner state of asynchronous pool metrics.
+///
+/// This struct is not intended for direct use by end users. It is wrapped by [`AsyncPoolMetrics`]
+/// to provide a safe, ergonomic interface for tracking pool performance.
 #[derive(Debug)]
 pub struct Inner {
-    /// The number of futures we can poll within each thread times the number of threads.
-    ///
-    /// This value is used to compute the utilization metric, which should be as close as possible
-    /// to 100%, meaning all threads are busy to their maximum.
+    pool_name: &'static str,
     max_expected_futures: u64,
-    queued_futures: AtomicU64,
+    queue_size: AtomicU64,
     thread_metrics: Vec<ThreadMetrics>,
 }
 
+/// Metrics for an asynchronous pool.
+///
+/// This struct provides a high-level interface for monitoring the performance and utilization of
+/// an asynchronous pool. It tracks queued futures, per-thread activity, and overall utilization.
+///
+/// The metrics are stored in a thread-safe manner, allowing safe access from multiple threads.
+///
+/// Cloning this struct is inexpensive and shares the underlying data.
 #[derive(Debug, Clone)]
 pub struct AsyncPoolMetrics(Arc<Inner>);
 
 impl AsyncPoolMetrics {
-    pub(crate) fn new(num_threads: usize, max_concurrency: usize) -> Self {
+    pub(crate) fn new(pool_name: &'static str, num_threads: usize, max_concurrency: usize) -> Self {
         let inner = Inner {
+            pool_name,
             max_expected_futures: (num_threads * max_concurrency) as u64,
-            queued_futures: AtomicU64::new(0),
+            queue_size: AtomicU64::new(0),
             thread_metrics: vec![ThreadMetrics::default(); num_threads],
         };
 
         Self(Arc::new(inner))
     }
 
-    pub fn queued_futures(&self) -> u64 {
-        self.0.queued_futures.load(Ordering::SeqCst)
+    /// Returns the name of the pool that emits the metrics captured by the [`AsyncPoolMetrics`].
+    pub fn pool_name(&self) -> &'static str {
+        self.0.pool_name
     }
 
+    /// Returns the number of futures currently queued for execution.
+    ///
+    /// This method provides a snapshot of the pool's backlog, which can help identify whether the
+    /// pool is overloaded or underutilized. A high value may indicate that the pool needs more
+    /// threads or higher concurrency limits.
+    pub fn queue_size(&self) -> u64 {
+        self.0.queue_size.load(Ordering::SeqCst)
+    }
+
+    /// Returns the utilization of the pool as a fraction between 0.0 and 1.0.
+    ///
+    /// Utilization represents how close the pool is to its maximum capacity, based on the number
+    /// of futures being polled across all threads compared to the expected maximum. A value near
+    /// 1.0 indicates full utilization, while a value near 0.0 suggests idle resources.
     pub fn utilization(&self) -> f32 {
         let total_polled_futures: u64 = self
             .0
@@ -78,13 +94,11 @@ impl AsyncPoolMetrics {
             .iter()
             .map(|m| m.polled_futures())
             .sum();
-        total_polled_futures as f32 / self.0.max_expected_futures as f32
+        (total_polled_futures as f32 / self.0.max_expected_futures as f32).clamp(0.0, 1.0)
     }
 
     pub(crate) fn update_queued_futures(&self, queued_futures: u64) {
-        self.0
-            .queued_futures
-            .store(queued_futures, Ordering::SeqCst);
+        self.0.queue_size.store(queued_futures, Ordering::SeqCst);
     }
 
     pub(crate) fn thread_metrics(&self, thread_id: usize) -> Option<&ThreadMetrics> {

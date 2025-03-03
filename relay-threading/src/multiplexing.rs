@@ -4,7 +4,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use crate::metrics::{AsyncPoolGauges, AsyncPoolMetrics};
+use crate::metrics::AsyncPoolMetrics;
 use crate::PanicHandler;
 use futures::future::CatchUnwind;
 use futures::stream::{FusedStream, FuturesUnordered, Stream};
@@ -175,9 +175,9 @@ where
                 Poll::Ready(Some(task)) => {
                     this.tasks.push(task);
                     // We report how many tasks are being concurrently polled in this future.
-                    this.metrics
-                        .thread_metrics(*this.thread_id)
-                        .map(|m| m.update_polled_futures(this.tasks.len() as u64));
+                    if let Some(m) = this.metrics.thread_metrics(*this.thread_id) {
+                        m.update_polled_futures(this.tasks.len() as u64)
+                    }
                 }
                 // The stream is exhausted and there are no remaining tasks.
                 Poll::Ready(None) if this.tasks.is_empty() => return Poll::Ready(()),
@@ -213,7 +213,7 @@ mod tests {
     }
 
     fn mock_metrics(max_concurrency: usize) -> AsyncPoolMetrics {
-        AsyncPoolMetrics::new(1, max_concurrency)
+        AsyncPoolMetrics::new("my_pool", 1, max_concurrency)
     }
 
     #[test]

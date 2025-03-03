@@ -9,6 +9,7 @@ use relay_redis::AsyncRedisClient;
 use relay_redis::{RedisPool, RedisPools, Stats};
 use relay_statsd::metric;
 use relay_system::{Addr, Handle, RuntimeMetrics, Service};
+use relay_threading::AsyncPoolMetrics;
 use tokio::time::interval;
 
 /// Relay Stats Service.
@@ -21,6 +22,7 @@ pub struct RelayStats {
     upstream_relay: Addr<UpstreamRelay>,
     #[cfg(feature = "processing")]
     redis_pools: Option<RedisPools>,
+    async_pools_metrics: Vec<AsyncPoolMetrics>,
 }
 
 impl RelayStats {
@@ -29,6 +31,7 @@ impl RelayStats {
         runtime: Handle,
         upstream_relay: Addr<UpstreamRelay>,
         #[cfg(feature = "processing")] redis_pools: Option<RedisPools>,
+        async_pools_metrics: Vec<AsyncPoolMetrics>,
     ) -> Self {
         Self {
             config,
@@ -37,6 +40,7 @@ impl RelayStats {
             runtime,
             #[cfg(feature = "processing")]
             redis_pools,
+            async_pools_metrics,
         }
     }
 
@@ -177,6 +181,23 @@ impl RelayStats {
             Self::redis_pool(quotas, "quotas");
         }
     }
+
+    fn emit_async_pool_metrics(async_pool_metrics: &AsyncPoolMetrics) {
+        metric!(
+            gauge(RelayGauges::AsyncPoolQueueSize) = async_pool_metrics.queue_size(),
+            pool_name = async_pool_metrics.pool_name()
+        );
+        metric!(
+            gauge(RelayGauges::AsyncPoolUtilization) = async_pool_metrics.utilization(),
+            pool = async_pool_metrics.pool_name()
+        );
+    }
+
+    async fn async_pools_metrics(&self) {
+        for async_pool_metrics in self.async_pools_metrics.iter() {
+            Self::emit_async_pool_metrics(&async_pool_metrics);
+        }
+    }
 }
 
 impl Service for RelayStats {
@@ -193,6 +214,7 @@ impl Service for RelayStats {
                 self.service_metrics(),
                 self.tokio_metrics(),
                 self.redis_pools(),
+                self.async_pools_metrics()
             );
             ticker.tick().await;
         }

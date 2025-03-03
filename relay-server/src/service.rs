@@ -227,12 +227,19 @@ impl ServiceState {
 
         let metric_outcomes = MetricOutcomes::new(metric_stats, outcome_aggregator.clone());
 
+        // We create a vector containing all the pools that we want to track metrics of.
+        let mut async_pools_metrics = Vec::with_capacity(2);
+
+        #[cfg(feature = "processing")]
+        let store_pool = create_store_pool(&config)?;
+        #[cfg(feature = "processing")]
+        async_pools_metrics.push(store_pool.metrics());
         #[cfg(feature = "processing")]
         let store = config
             .processing_enabled()
             .then(|| {
                 StoreService::create(
-                    create_store_pool(&config)?,
+                    store_pool,
                     config.clone(),
                     global_config_handle.clone(),
                     outcome_aggregator.clone(),
@@ -245,9 +252,11 @@ impl ServiceState {
         let cogs = CogsService::new(&config);
         let cogs = Cogs::new(CogsServiceRecorder::new(&config, services.start(cogs)));
 
+        let processor_pool = create_processor_pool(&config)?;
+        async_pools_metrics.push(processor_pool.metrics());
         services.start_with(
             EnvelopeProcessorService::new(
-                create_processor_pool(&config)?,
+                processor_pool,
                 config.clone(),
                 global_config_handle,
                 project_cache_handle.clone(),
@@ -298,6 +307,7 @@ impl ServiceState {
             upstream_relay.clone(),
             #[cfg(feature = "processing")]
             redis_pools.clone(),
+            async_pools_metrics,
         ));
 
         let relay_cache = services.start(RelayCacheService::new(

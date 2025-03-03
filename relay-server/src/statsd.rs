@@ -4,6 +4,15 @@ use relay_system::RuntimeMetrics;
 
 /// Gauge metrics used by Relay
 pub enum RelayGauges {
+    /// Tracks the number of futures waiting to be executed in the pool's queue.
+    ///
+    /// Useful for understanding the backlog of work and identifying potential bottlenecks.
+    AsyncPoolQueueSize,
+    /// Tracks the utilization of the async pool.
+    ///
+    /// The utilization is a value between 0.0 and 1.0 which determines how busy is the pool
+    /// w.r.t. to its provisioned capacity.
+    AsyncPoolUtilization,
     /// The state of Relay with respect to the upstream connection.
     /// Possible values are `0` for normal operations and `1` for a network outage.
     NetworkOutage,
@@ -53,6 +62,8 @@ pub enum RelayGauges {
 impl GaugeMetric for RelayGauges {
     fn name(&self) -> &'static str {
         match self {
+            RelayGauges::AsyncPoolQueueSize => "async_pool.queue_size",
+            RelayGauges::AsyncPoolUtilization => "async_pool.utilization",
             RelayGauges::NetworkOutage => "upstream.network_outage",
             RelayGauges::BufferStackCount => "buffer.stack_count",
             RelayGauges::BufferDiskUsed => "buffer.disk_used",

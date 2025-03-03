@@ -7,7 +7,7 @@ use futures::future::BoxFuture;
 use futures::FutureExt;
 
 use crate::builder::AsyncPoolBuilder;
-use crate::metrics::{AsyncPoolGauges, AsyncPoolMetrics};
+use crate::metrics::AsyncPoolMetrics;
 use crate::multiplexing::Multiplexed;
 use crate::PanicHandler;
 
@@ -40,7 +40,8 @@ where
         let pool_name = builder.pool_name.unwrap_or(DEFAULT_POOL_NAME);
         let (tx, rx) = flume::bounded(builder.num_threads * 2);
 
-        let metrics = AsyncPoolMetrics::new(builder.num_threads, builder.max_concurrency);
+        let metrics =
+            AsyncPoolMetrics::new(pool_name, builder.num_threads, builder.max_concurrency);
 
         for thread_id in 0..builder.num_threads {
             let rx = rx.clone();
@@ -71,6 +72,11 @@ where
             tx,
             metrics,
         })
+    }
+
+    /// Returns the `name` of the [`AsyncPool`].
+    pub fn name(&self) -> &'static str {
+        self.name
     }
 
     /// Schedules a future for execution within the [`AsyncPool`].
