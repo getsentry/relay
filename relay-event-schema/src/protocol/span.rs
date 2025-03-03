@@ -677,6 +677,9 @@ pub struct SpanData {
     #[metastructure(field = "lcp.url")]
     pub lcp_url: Annotated<String>,
 
+    #[metastructure(field = "span.kind")]
+    pub span_kind: Annotated<String>,
+
     /// Other fields in `span.data`.
     #[metastructure(
         additional_properties,
