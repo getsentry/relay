@@ -96,6 +96,15 @@ fn model_to_class(model: &str) -> Option<DeviceClass> {
         "iPhone14,8" => Some(DeviceClass::HIGH),
         "iPhone15,2" => Some(DeviceClass::HIGH),
         "iPhone15,3" => Some(DeviceClass::HIGH),
+        "iPhone15,4" => Some(DeviceClass::HIGH),
+        "iPhone15,5" => Some(DeviceClass::HIGH),
+        "iPhone16,1" => Some(DeviceClass::HIGH),
+        "iPhone16,2" => Some(DeviceClass::HIGH),
+        "iPhone17,1" => Some(DeviceClass::HIGH),
+        "iPhone17,2" => Some(DeviceClass::HIGH),
+        "iPhone17,3" => Some(DeviceClass::HIGH),
+        "iPhone17,4" => Some(DeviceClass::HIGH),
+        "iPhone17,5" => Some(DeviceClass::HIGH),
 
         // iPads
         "iPad1,1" => Some(DeviceClass::LOW),
@@ -180,6 +189,16 @@ fn model_to_class(model: &str) -> Option<DeviceClass> {
         "iPad14,4" => Some(DeviceClass::HIGH),
         "iPad14,5" => Some(DeviceClass::HIGH),
         "iPad14,6" => Some(DeviceClass::HIGH),
+        "iPad14,8" => Some(DeviceClass::HIGH),
+        "iPad14,9" => Some(DeviceClass::HIGH),
+        "iPad14,10" => Some(DeviceClass::HIGH),
+        "iPad14,11" => Some(DeviceClass::HIGH),
+        "iPad16,1" => Some(DeviceClass::HIGH),
+        "iPad16,2" => Some(DeviceClass::HIGH),
+        "iPad16,3" => Some(DeviceClass::HIGH),
+        "iPad16,4" => Some(DeviceClass::HIGH),
+        "iPad16,5" => Some(DeviceClass::HIGH),
+        "iPad16,6" => Some(DeviceClass::HIGH),
 
         _ => None,
     }

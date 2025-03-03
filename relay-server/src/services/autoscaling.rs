@@ -1,3 +1,4 @@
+use crate::services::buffer::PartitionedEnvelopeBuffer;
 use crate::MemoryStat;
 use relay_system::{AsyncResponse, Controller, FromMessage, Interface, Sender, Service};
 use serde::Serialize;
@@ -5,12 +6,17 @@ use serde::Serialize;
 /// Service that tracks internal relay metrics so that they can be exposed.
 pub struct AutoscalingMetricService {
     memory_stat: MemoryStat,
+    envelope_buffer: PartitionedEnvelopeBuffer,
     up: u8,
 }
 
 impl AutoscalingMetricService {
-    pub fn new(memory_stat: MemoryStat) -> Self {
-        Self { memory_stat, up: 1 }
+    pub fn new(memory_stat: MemoryStat, envelope_buffer: PartitionedEnvelopeBuffer) -> Self {
+        Self {
+            memory_stat,
+            envelope_buffer,
+            up: 1,
+        }
     }
 }
 
@@ -28,7 +34,12 @@ impl Service for AutoscalingMetricService {
                     match message {
                         AutoscalingMetrics::Check(sender) => {
                             let memory_usage = self.memory_stat.memory();
-                            sender.send(AutoscalingData::new(memory_usage.used_percent(), self.up));
+                            sender.send(AutoscalingData {
+                                memory_usage: memory_usage.used_percent(),
+                                up: self.up,
+                                total_size: self.envelope_buffer.total_storage_size(),
+                                item_count: self.envelope_buffer.item_count()
+                            });
                         }
                     }
                 }
@@ -65,10 +76,6 @@ impl FromMessage<AutoscalingMessageKind> for AutoscalingMetrics {
 pub struct AutoscalingData {
     pub memory_usage: f32,
     pub up: u8,
-}
-
-impl AutoscalingData {
-    pub fn new(memory_usage: f32, up: u8) -> Self {
-        Self { memory_usage, up }
-    }
+    pub total_size: u64,
+    pub item_count: u64,
 }

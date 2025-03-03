@@ -56,6 +56,7 @@ mime = { workspace = true }
 minidump = { workspace = true, optional = true }
 multer = { workspace = true }
 once_cell = { workspace = true }
+opentelemetry-proto = { workspace = true }
 papaya = { workspace = true }
 pin-project-lite = { workspace = true }
 priority-queue = { workspace = true }

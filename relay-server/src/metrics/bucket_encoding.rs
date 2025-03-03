@@ -154,13 +154,10 @@ fn base64<T: Encodable>(data: T, buffer: &mut String) -> io::Result<ArrayEncodin
 }
 
 fn zstd<T: Encodable>(data: T, buffer: &mut String) -> io::Result<ArrayEncoding<T>> {
-    let mut writer = zstd::Encoder::new(
-        EncoderWriteAdapter(BASE64_NOPAD.new_encoder(buffer)),
-        zstd::DEFAULT_COMPRESSION_LEVEL,
-    )?;
-
+    // Use the fastest compression level, our main objective here is to get the best
+    // compression ratio for least amount of time spent.
+    let mut writer = zstd::Encoder::new(EncoderWriteAdapter(BASE64_NOPAD.new_encoder(buffer)), 1)?;
     data.write_to(&mut writer)?;
-
     writer.finish()?;
 
     Ok(ArrayEncoding::Dynamic(DynamicArrayEncoding::Zstd {

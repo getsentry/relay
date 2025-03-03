@@ -96,6 +96,10 @@ impl StackProvider for SqliteStackProvider {
             })
     }
 
+    fn total_size(&self) -> Option<u64> {
+        Some(self.envelope_store.usage())
+    }
+
     fn stack_type<'a>(&self) -> &'a str {
         "sqlite"
     }

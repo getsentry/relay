@@ -58,6 +58,9 @@ class Relay(SentryLike):
             self.process.kill()
             raise
 
+    def send_signal(self, signal):
+        self.process.send_signal(signal)
+
 
 @pytest.fixture
 def get_relay_binary():

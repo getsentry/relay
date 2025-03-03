@@ -73,7 +73,7 @@ pub struct Registry {
     pub envelope_buffer: PartitionedEnvelopeBuffer,
 
     pub project_cache_handle: ProjectCacheHandle,
-    pub keda: Addr<AutoscalingMetrics>,
+    pub autoscaling: Addr<AutoscalingMetrics>,
 }
 
 /// Constructs a Tokio [`relay_system::Runtime`] configured for running [services](relay_system::Service).
@@ -190,8 +190,6 @@ impl ServiceState {
         let outcome_aggregator =
             services.start(OutcomeAggregator::new(&config, outcome_producer.clone()));
 
-        let keda = services.start(AutoscalingMetricService::new(memory_stat.clone()));
-
         let (global_config, global_config_rx) =
             GlobalConfigService::new(config.clone(), upstream_relay.clone());
         let global_config_handle = global_config.handle();
@@ -289,6 +287,11 @@ impl ServiceState {
             envelope_buffer.clone(),
         ));
 
+        let autoscaling = services.start(AutoscalingMetricService::new(
+            memory_stat.clone(),
+            envelope_buffer.clone(),
+        ));
+
         services.start(RelayStats::new(
             config.clone(),
             handle.clone(),
@@ -313,7 +316,7 @@ impl ServiceState {
             project_cache_handle,
             upstream_relay,
             envelope_buffer,
-            keda,
+            autoscaling,
         };
 
         let state = StateInner {
@@ -340,7 +343,7 @@ impl ServiceState {
     }
 
     pub fn autoscaling(&self) -> &Addr<AutoscalingMetrics> {
-        &self.inner.registry.keda
+        &self.inner.registry.autoscaling
     }
 
     /// Returns the V2 envelope buffer, if present.

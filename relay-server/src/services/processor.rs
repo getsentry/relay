@@ -1418,7 +1418,15 @@ impl EnvelopeProcessorService {
         };
 
         let request_meta = managed_envelope.envelope().meta();
-        let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
+        let client_ipaddr = request_meta
+            .client_addr()
+            .filter(|_| {
+                !project_info
+                    .config
+                    .datascrubbing_settings
+                    .scrub_ip_addresses
+            })
+            .map(IpAddr::from);
 
         let transaction_aggregator_config = self
             .inner
@@ -2061,6 +2069,7 @@ impl EnvelopeProcessorService {
             managed_envelope,
             self.inner.config.clone(),
             project_info.clone(),
+            &self.inner.global_config.current(),
         );
         if_processing!(self.inner.config, {
             self.enforce_quotas(
