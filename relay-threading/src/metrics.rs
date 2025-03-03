@@ -7,6 +7,7 @@ use std::sync::Arc;
 /// the number of futures it has polled. It is designed for safe concurrent access across threads.
 #[derive(Debug, Default)]
 pub struct ThreadMetrics {
+    /// Number of futures that are currently being polled concurrently by the thread in the pool.
     polled_futures: AtomicU64,
 }
 
@@ -19,6 +20,7 @@ impl ThreadMetrics {
         self.polled_futures.load(Ordering::SeqCst)
     }
 
+    /// Updates the `polled_futures` value.
     pub(crate) fn update_polled_futures(&self, polled_futures: u64) {
         self.polled_futures.store(polled_futures, Ordering::SeqCst);
     }
@@ -38,9 +40,13 @@ impl Clone for ThreadMetrics {
 /// to provide a safe, ergonomic interface for tracking pool performance.
 #[derive(Debug)]
 pub struct Inner {
+    /// The name of the pool from which the metrics originate.
     pool_name: &'static str,
+    /// The maximum number of futures that are expected to run concurrently at any point in time.
     max_expected_futures: u64,
+    /// Number of futures waiting to be executed by one of the threads of the pool.
     queue_size: AtomicU64,
+    /// Vector containing all the metrics collected individually in each thread.
     thread_metrics: Vec<ThreadMetrics>,
 }
 
@@ -56,6 +62,7 @@ pub struct Inner {
 pub struct AsyncPoolMetrics(Arc<Inner>);
 
 impl AsyncPoolMetrics {
+    /// Create a new instance [`AsyncPoolMetrics`].
     pub(crate) fn new(pool_name: &'static str, num_threads: usize, max_concurrency: usize) -> Self {
         let inner = Inner {
             pool_name,
@@ -93,13 +100,18 @@ impl AsyncPoolMetrics {
             .iter()
             .map(|m| m.polled_futures())
             .sum();
+
         (total_polled_futures as f32 / self.0.max_expected_futures as f32).clamp(0.0, 1.0)
     }
 
+    /// Updates the `queued_futures` value.
     pub(crate) fn update_queued_futures(&self, queued_futures: u64) {
         self.0.queue_size.store(queued_futures, Ordering::SeqCst);
     }
 
+    /// Returns the [`ThreadMetrics`] of the given thread, identified by thread id.
+    ///
+    /// If no thread exists with that id, `None` will be returned.
     pub(crate) fn thread_metrics(&self, thread_id: usize) -> Option<&ThreadMetrics> {
         self.0.thread_metrics.get(thread_id)
     }
