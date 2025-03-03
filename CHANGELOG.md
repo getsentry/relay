@@ -18,6 +18,7 @@
 - Expose additional metrics through the internal relay metric endpoint. ([#4511](https://github.com/getsentry/relay/pull/4511))
 - Write resource and instrumentation scope attributes as span attributes during OTLP ingestion. ([#4533](https://github.com/getsentry/relay/pull/4533))
 - Adopt new `AsyncPool` for the `EnvelopeProcessorService` and `StoreService`. ([#4520](https://github.com/getsentry/relay/pull/4520))
+- Write OTLP span kind to a `span.kind` span attribute. ([#4540](https://github.com/getsentry/relay/pull/4540))
 
 ## 25.2.0
 
