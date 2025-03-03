@@ -234,7 +234,7 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
 }
 
 /// String representation of an incoming OTel span kind.
-/// See https://github.com/open-telemetry/opentelemetry-proto/blob/d7770822d70c7bd47a6891fc9faacc66fc4af3d3/opentelemetry/proto/trace/v1/trace.proto#L152-L178
+/// See <https://github.com/open-telemetry/opentelemetry-proto/blob/d7770822d70c7bd47a6891fc9faacc66fc4af3d3/opentelemetry/proto/trace/v1/trace.proto#L152-L178>
 fn kind_int_to_string(kind: i32) -> String {
     match kind.try_into() {
         Ok(SpanKind::Unspecified) | Ok(SpanKind::Internal) => "internal",
