@@ -644,6 +644,10 @@ fn normalize(
     );
     span.sentry_tags = Annotated::new(tags);
 
+    if span.description.value().is_empty() {
+        span.description = infer_span_description(span).into();
+    }
+
     normalize_performance_score(span, performance_score);
     if let Some(model_costs_config) = ai_model_costs {
         extract_ai_measurements(span, model_costs_config);
@@ -801,6 +805,19 @@ fn validate(span: &mut Annotated<Span>) -> Result<(), ValidationError> {
     }
 
     Ok(())
+}
+
+fn infer_span_description(span: &Span) -> Option<String> {
+    let category = span.sentry_tags.value().and_then(|v| v.category.value());
+
+    match category.map(|v| v.as_ref()) {
+        Some("db") => span.data.value().and_then(|v| {
+            v.db_statement
+                .value()
+                .map(|db_statement| db_statement.to_owned())
+        }),
+        _ => None,
+    }
 }
 
 #[cfg(test)]
@@ -1414,6 +1431,35 @@ mod tests {
                 }
               },
               "segment_id": "88457c3c28f4c0c6"
+        }"#,
+        )
+        .unwrap();
+
+        normalize(&mut span, normalize_config()).unwrap();
+
+        let data = get_value!(span.data!);
+
+        assert_eq!(data.exclusive_time, Annotated::empty());
+        assert_eq!(*get_value!(span.exclusive_time!), 128.0);
+
+        assert_eq!(data.profile_id, Annotated::empty());
+        assert_eq!(
+            get_value!(span.profile_id!),
+            &EventId("480ffcc911174ade9106b40ffbd822f5".parse().unwrap())
+        );
+    }
+
+    #[test]
+    fn infers_span_description() {
+        let mut span = Annotated::from_json(
+            r#"{
+            "start_timestamp": 0,
+            "timestamp": 1,
+            "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
+            "span_id": "922dda2462ea4ac2"
+            "sentry_tags": {
+                "category": "db"
+            }
         }"#,
         )
         .unwrap();
