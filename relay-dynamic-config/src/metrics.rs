@@ -9,7 +9,6 @@ use relay_base_schema::data_category::DataCategory;
 use relay_cardinality::CardinalityLimit;
 use relay_common::glob2::LazyGlob;
 use relay_common::impl_str_serde;
-use relay_pattern::{Patterns, TypedPatterns};
 use relay_protocol::RuleCondition;
 use serde::{Deserialize, Serialize};
 
@@ -29,18 +28,6 @@ impl Metrics {
     pub fn is_empty(&self) -> bool {
         self.cardinality_limits.is_empty()
     }
-}
-
-/// Configuration for removing tags matching the `tag` pattern on metrics whose name matches the `name` pattern.
-#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(default)]
-pub struct TagBlock {
-    /// Name of metric of which we want to remove certain tags.
-    #[serde(skip_serializing_if = "Patterns::is_empty")]
-    pub name: TypedPatterns,
-    /// Pattern to match keys of tags that we want to remove.
-    #[serde(skip_serializing_if = "Patterns::is_empty")]
-    pub tags: TypedPatterns,
 }
 
 /// Rule defining when a target tag should be set on a metric.

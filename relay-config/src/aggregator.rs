@@ -158,13 +158,13 @@ mod tests {
             "op": "or",
             "inner": [
                 {"op": "eq", "field": "namespace", "value": "spans"},
-                {"op": "eq", "field": "namespace", "value": "custom"}
+                {"op": "eq", "field": "namespace", "value": "sessions"}
             ]
         });
 
         let condition = serde_json::from_value::<Condition>(json).unwrap();
         assert!(condition.matches(Some(MetricNamespace::Spans)));
-        assert!(condition.matches(Some(MetricNamespace::Custom)));
+        assert!(condition.matches(Some(MetricNamespace::Sessions)));
         assert!(!condition.matches(Some(MetricNamespace::Transactions)));
     }
 }

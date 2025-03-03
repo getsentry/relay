@@ -147,17 +147,6 @@ pub struct Options {
     )]
     pub metric_bucket_dist_encodings: BucketEncodings,
 
-    /// Rollout rate for metric stats.
-    ///
-    /// Rate needs to be between `0.0` and `1.0`.
-    /// If set to `1.0` all organizations will have metric stats enabled.
-    #[serde(
-        rename = "relay.metric-stats.rollout-rate",
-        deserialize_with = "default_on_error",
-        skip_serializing_if = "is_default"
-    )]
-    pub metric_stats_rollout_rate: f32,
-
     /// Overall sampling of span extraction.
     ///
     /// This number represents the fraction of transactions for which
@@ -253,8 +242,6 @@ pub struct BucketEncodings {
     transactions: BucketEncoding,
     spans: BucketEncoding,
     profiles: BucketEncoding,
-    custom: BucketEncoding,
-    metric_stats: BucketEncoding,
 }
 
 impl BucketEncodings {
@@ -263,8 +250,6 @@ impl BucketEncodings {
         match namespace {
             MetricNamespace::Transactions => self.transactions,
             MetricNamespace::Spans => self.spans,
-            MetricNamespace::Custom => self.custom,
-            MetricNamespace::Stats => self.metric_stats,
             // Always force the legacy encoding for sessions,
             // sessions are not part of the generic metrics platform with different
             // consumer which are not (yet) updated to support the new data.
@@ -299,8 +284,6 @@ where
                 transactions: encoding,
                 spans: encoding,
                 profiles: encoding,
-                custom: encoding,
-                metric_stats: encoding,
             })
         }
 
@@ -506,8 +489,6 @@ mod tests {
                 transactions: BucketEncoding::Legacy,
                 spans: BucketEncoding::Legacy,
                 profiles: BucketEncoding::Legacy,
-                custom: BucketEncoding::Legacy,
-                metric_stats: BucketEncoding::Legacy,
             }
         );
         assert_eq!(
@@ -516,8 +497,6 @@ mod tests {
                 transactions: BucketEncoding::Zstd,
                 spans: BucketEncoding::Zstd,
                 profiles: BucketEncoding::Zstd,
-                custom: BucketEncoding::Zstd,
-                metric_stats: BucketEncoding::Zstd,
             }
         );
     }
@@ -528,8 +507,6 @@ mod tests {
             transactions: BucketEncoding::Base64,
             spans: BucketEncoding::Zstd,
             profiles: BucketEncoding::Base64,
-            custom: BucketEncoding::Zstd,
-            metric_stats: BucketEncoding::Base64,
         };
         let s = serde_json::to_string(&original).unwrap();
         let s = format!(

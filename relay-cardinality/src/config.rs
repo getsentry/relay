@@ -106,7 +106,7 @@ mod tests {
             },
             limit: 1337,
             scope: CardinalityScope::Organization,
-            namespace: Some(MetricNamespace::Custom),
+            namespace: Some(MetricNamespace::Sessions),
         };
 
         let j = serde_json::to_string(&limit).unwrap();
@@ -117,7 +117,7 @@ mod tests {
             "window":{"windowSeconds":3600,"granularitySeconds":200},
             "limit":1337,
             "scope":"organization",
-            "namespace":"custom"
+            "namespace":"sessions"
         }"#;
         assert_eq!(serde_json::from_str::<CardinalityLimit>(j).unwrap(), limit);
     }

@@ -501,7 +501,7 @@ def test_processing_quotas(
             assert event["logentry"]["formatted"] == f"otherkey{i}"
 
 
-@pytest.mark.parametrize("namespace", ["transactions", "custom"])
+@pytest.mark.parametrize("namespace", ["transactions", "spans"])
 def test_sends_metric_bucket_outcome(
     mini_sentry, relay_with_processing, outcomes_consumer, namespace
 ):
@@ -524,7 +524,6 @@ def test_sends_metric_bucket_outcome(
     projectconfig = mini_sentry.add_full_project_config(project_id)
     mini_sentry.add_dsn_key_to_project(project_id)
 
-    projectconfig["config"]["features"] = ["organizations:custom-metrics"]
     projectconfig["config"]["quotas"] = [
         {
             "scope": "organization",
@@ -534,7 +533,7 @@ def test_sends_metric_bucket_outcome(
     ]
 
     timestamp = int(datetime.now(tz=timezone.utc).timestamp())
-    metrics_payload = f"transactions/foo:42|c\nbar@second:17|c|T{timestamp}"
+    metrics_payload = f"transactions/foo:42|c\nbar@spans/second:17|c|T{timestamp}"
     relay.send_metrics(project_id, metrics_payload)
 
     outcome = outcomes_consumer.get_outcome(timeout=3)

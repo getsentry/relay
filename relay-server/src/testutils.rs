@@ -13,7 +13,7 @@ use relay_system::Addr;
 use relay_test::mock_service;
 
 use crate::envelope::{Envelope, Item, ItemType};
-use crate::metrics::{MetricOutcomes, MetricStats};
+use crate::metrics::MetricOutcomes;
 #[cfg(feature = "processing")]
 use crate::service::create_redis_pools;
 use crate::services::global_config::GlobalConfigHandle;
@@ -117,7 +117,7 @@ pub async fn create_test_processor(config: Config) -> EnvelopeProcessorService {
     .transpose()
     .unwrap();
 
-    let metric_outcomes = MetricOutcomes::new(MetricStats::test().0, outcome_aggregator.clone());
+    let metric_outcomes = MetricOutcomes::new(outcome_aggregator.clone());
 
     let config = Arc::new(config);
     EnvelopeProcessorService::new(
@@ -151,8 +151,7 @@ pub async fn create_test_processor_with_addrs(
     }
     .transpose()
     .unwrap();
-    let metric_outcomes =
-        MetricOutcomes::new(MetricStats::test().0, addrs.outcome_aggregator.clone());
+    let metric_outcomes = MetricOutcomes::new(addrs.outcome_aggregator.clone());
 
     let config = Arc::new(config);
     EnvelopeProcessorService::new(

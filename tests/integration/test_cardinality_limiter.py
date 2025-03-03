@@ -24,7 +24,6 @@ def metrics_by_namespace(metrics_consumer, count, timeout=None):
 
 def add_project_config(mini_sentry, project_id, cardinality_limits=None):
     project_config = mini_sentry.add_full_project_config(project_id)
-    project_config["config"]["features"] = ["organizations:custom-metrics"]
     project_config["config"]["metrics"] = {
         "cardinalityLimits": cardinality_limits or []
     }
@@ -42,14 +41,7 @@ def test_cardinality_limits(mini_sentry, relay_with_processing, metrics_consumer
             "limit": 1,
             "scope": "project",
             "namespace": "transactions",
-        },
-        {
-            "id": "custom",
-            "window": {"windowSeconds": 3600, "granularitySeconds": 600},
-            "limit": 2,
-            "scope": "project",
-            "namespace": "custom",
-        },
+        }
     ]
 
     add_project_config(mini_sentry, project_id, cardinality_limits)
@@ -59,15 +51,15 @@ def test_cardinality_limits(mini_sentry, relay_with_processing, metrics_consumer
             "transactions/foo@second:12|c",
             "transactions/bar@second:23|c",
             "sessions/foo@second:12|c",
-            "foo@second:12|c",
-            "bar@second:23|c",
-            "baz@second:17|c",
+            "spans/foo@second:12|c",
+            "spans/bar@second:23|c",
+            "spans/baz@second:17|c",
         ]
     )
     relay.send_metrics(project_id, metrics_payload)
 
     metrics = metrics_by_namespace(metrics_consumer, 4)
-    assert len(metrics["custom"]) == 2
+    assert len(metrics["spans"]) == 2
     assert len(metrics["sessions"]) == 1
     assert len(metrics["transactions"]) == 1
 
@@ -130,11 +122,11 @@ def test_cardinality_limits_passive_limit(
             "namespace": "transactions",
         },
         {
-            "id": "custom",
+            "id": "spans",
             "window": {"windowSeconds": 3600, "granularitySeconds": 600},
             "limit": 2,
             "scope": "project",
-            "namespace": "custom",
+            "namespace": "spans",
         },
     ]
 
@@ -147,15 +139,15 @@ def test_cardinality_limits_passive_limit(
             "transactions/baz@second:33|c",
             "transactions/lol@second:55|c",
             "sessions/foo@second:12|c",
-            "foo@second:12|c",
-            "bar@second:23|c",
-            "baz@second:17|c",
+            "spans/foo@second:12|c",
+            "spans/bar@second:23|c",
+            "spans/baz@second:17|c",
         ]
     )
     relay.send_metrics(project_id, metrics_payload)
 
     metrics = metrics_by_namespace(metrics_consumer, 6)
-    assert len(metrics["custom"]) == 2
+    assert len(metrics["spans"]) == 2
     assert len(metrics["sessions"]) == 1
     # The passive limit should be ignored, the non-passive limit still needs to be enforced.
     assert len(metrics["transactions"]) == 3
