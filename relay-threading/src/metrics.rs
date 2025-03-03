@@ -39,7 +39,7 @@ impl Clone for ThreadMetrics {
 /// This struct is not intended for direct use by end users. It is wrapped by [`AsyncPoolMetrics`]
 /// to provide a safe, ergonomic interface for tracking pool performance.
 #[derive(Debug)]
-pub struct Inner {
+struct Inner {
     /// The name of the pool from which the metrics originate.
     pool_name: &'static str,
     /// The maximum number of futures that are expected to run concurrently at any point in time.
