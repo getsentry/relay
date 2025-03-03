@@ -201,10 +201,7 @@
 <a href="#200" id="200">200</a>
 <a href="#201" id="201">201</a>
 <a href="#202" id="202">202</a>
-<a href="#203" id="203">203</a>
-<a href="#204" id="204">204</a>
-<a href="#205" id="205">205</a>
-<a href="#206" id="206">206</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::io;
+<a href="#203" id="203">203</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::io;
 
 <span class="kw">use </span>relay_dynamic_config::{BucketEncoding, GlobalConfig};
 <span class="kw">use </span>relay_metrics::{Bucket, BucketValue, FiniteF64, MetricNamespace, SetView};
@@ -360,13 +357,10 @@
 }
 
 <span class="kw">fn </span>zstd&lt;T: Encodable&gt;(data: T, buffer: <span class="kw-2">&amp;mut </span>String) -&gt; io::Result&lt;ArrayEncoding&lt;T&gt;&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>writer = zstd::Encoder::new(
-        EncoderWriteAdapter(BASE64_NOPAD.new_encoder(buffer)),
-        zstd::DEFAULT_COMPRESSION_LEVEL,
-    )<span class="question-mark">?</span>;
-
+    <span class="comment">// Use the fastest compression level, our main objective here is to get the best
+    // compression ratio for least amount of time spent.
+    </span><span class="kw">let </span><span class="kw-2">mut </span>writer = zstd::Encoder::new(EncoderWriteAdapter(BASE64_NOPAD.new_encoder(buffer)), <span class="number">1</span>)<span class="question-mark">?</span>;
     data.write_to(<span class="kw-2">&amp;mut </span>writer)<span class="question-mark">?</span>;
-
     writer.finish()<span class="question-mark">?</span>;
 
     <span class="prelude-val">Ok</span>(ArrayEncoding::Dynamic(DynamicArrayEncoding::Zstd {
