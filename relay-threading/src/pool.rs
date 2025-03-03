@@ -7,7 +7,7 @@ use futures::future::BoxFuture;
 use futures::FutureExt;
 
 use crate::builder::AsyncPoolBuilder;
-use crate::metrics::AsyncPoolGauges;
+use crate::metrics::{AsyncPoolGauges, AsyncPoolMetrics};
 use crate::multiplexing::Multiplexed;
 use crate::PanicHandler;
 
@@ -22,6 +22,7 @@ const DEFAULT_POOL_NAME: &str = "unnamed";
 pub struct AsyncPool<F> {
     name: &'static str,
     tx: flume::Sender<F>,
+    metrics: AsyncPoolMetrics,
 }
 
 impl<F> AsyncPool<F>
@@ -39,6 +40,8 @@ where
         let pool_name = builder.pool_name.unwrap_or(DEFAULT_POOL_NAME);
         let (tx, rx) = flume::bounded(builder.num_threads * 2);
 
+        let metrics = AsyncPoolMetrics::new(builder.num_threads, builder.max_concurrency);
+
         for thread_id in 0..builder.num_threads {
             let rx = rx.clone();
             let thread_name: Option<String> = builder.thread_name.as_mut().map(|f| f(thread_id));
@@ -50,10 +53,12 @@ where
                 runtime: builder.runtime.clone(),
                 panic_handler: builder.thread_panic_handler.clone(),
                 task: Multiplexed::new(
+                    thread_id,
                     pool_name,
                     builder.max_concurrency,
                     rx.into_stream(),
                     builder.task_panic_handler.clone(),
+                    metrics.clone(),
                 )
                 .boxed(),
             };
@@ -64,6 +69,7 @@ where
         Ok(Self {
             name: pool_name,
             tx,
+            metrics,
         })
     }
 
@@ -101,14 +107,16 @@ where
         self.track_queue_size()
     }
 
+    /// Returns the [`AsyncPoolMetrics`] that are updated by the pool.
+    pub fn metrics(&self) -> AsyncPoolMetrics {
+        self.metrics.clone()
+    }
+
     /// Tracks the amount of elements in the queue containing all futures to be scheduled.
     fn track_queue_size(&self) {
         // On each poll, we report how many items are in the queue containing futures to dispatch
         // across all threads.
-        relay_statsd::metric!(
-            gauge(AsyncPoolGauges::AsyncPoolQueueSize) = self.tx.len() as u64,
-            pool_name = &self.name
-        );
+        self.metrics.update_queued_futures(self.tx.len() as u64);
     }
 }
 
