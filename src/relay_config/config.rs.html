@@ -2561,7 +2561,20 @@
 <a href="#2560" id="2560">2560</a>
 <a href="#2561" id="2561">2561</a>
 <a href="#2562" id="2562">2562</a>
-<a href="#2563" id="2563">2563</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
+<a href="#2563" id="2563">2563</a>
+<a href="#2564" id="2564">2564</a>
+<a href="#2565" id="2565">2565</a>
+<a href="#2566" id="2566">2566</a>
+<a href="#2567" id="2567">2567</a>
+<a href="#2568" id="2568">2568</a>
+<a href="#2569" id="2569">2569</a>
+<a href="#2570" id="2570">2570</a>
+<a href="#2571" id="2571">2571</a>
+<a href="#2572" id="2572">2572</a>
+<a href="#2573" id="2573">2573</a>
+<a href="#2574" id="2574">2574</a>
+<a href="#2575" id="2575">2575</a>
+<a href="#2576" id="2576">2576</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::collections::{BTreeMap, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::io::Write;
 <span class="kw">use </span>std::net::{IpAddr, SocketAddr, ToSocketAddrs};
@@ -3201,6 +3214,13 @@
     /// The total number of threads spawned will roughly be `2 * max_thread_count`. Defaults to
     /// the number of logical CPU cores on the host.
     </span><span class="kw">pub </span>max_thread_count: usize,
+    <span class="doccomment">/// Controls the maximum concurrency of each worker thread.
+    ///
+    /// Increasing the concurrency, can lead to a better utilization of worker threads by
+    /// increasing the amount of I/O done concurrently.
+    </span><span class="comment">//
+    </span><span class="doccomment">/// Currently has no effect on defaults to `1`.
+    </span><span class="kw">pub </span>max_pool_concurrency: usize,
     <span class="doccomment">/// The maximum number of seconds a query is allowed to take across retries. Individual requests
     /// have lower timeouts. Defaults to 30 seconds.
     </span><span class="kw">pub </span>query_timeout: u64,
@@ -3209,7 +3229,7 @@
     </span><span class="kw">pub </span>shutdown_timeout: u64,
     <span class="doccomment">/// Server keep-alive timeout in seconds.
     ///
-    /// By default keep-alive is set to a 5 seconds.
+    /// By default, keep-alive is set to 5 seconds.
     </span><span class="kw">pub </span>keepalive_timeout: u64,
     <span class="doccomment">/// Server idle timeout in seconds.
     ///
@@ -3258,6 +3278,7 @@
             max_replay_uncompressed_size: ByteSize::mebibytes(<span class="number">100</span>),
             max_replay_message_size: ByteSize::mebibytes(<span class="number">15</span>),
             max_thread_count: num_cpus::get(),
+            max_pool_concurrency: <span class="number">1</span>,
             query_timeout: <span class="number">30</span>,
             shutdown_timeout: <span class="number">10</span>,
             keepalive_timeout: <span class="number">5</span>,
@@ -4906,6 +4927,11 @@
     <span class="doccomment">/// Returns the number of cores to use for thread pools.
     </span><span class="kw">pub fn </span>cpu_concurrency(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
         <span class="self">self</span>.values.limits.max_thread_count
+    }
+
+    <span class="doccomment">/// Returns the number of tasks that can run concurrently in the worker pool.
+    </span><span class="kw">pub fn </span>pool_concurrency(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
+        <span class="self">self</span>.values.limits.max_pool_concurrency
     }
 
     <span class="doccomment">/// Returns the maximum size of a project config query.

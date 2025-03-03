@@ -4242,7 +4242,12 @@
 <a href="#4241" id="4241">4241</a>
 <a href="#4242" id="4242">4242</a>
 <a href="#4243" id="4243">4243</a>
-<a href="#4244" id="4244">4244</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
+<a href="#4244" id="4244">4244</a>
+<a href="#4245" id="4245">4245</a>
+<a href="#4246" id="4246">4246</a>
+<a href="#4247" id="4247">4247</a>
+<a href="#4248" id="4248">4248</a>
+<a href="#4249" id="4249">4249</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::fmt::{Debug, Display};
@@ -4258,6 +4263,8 @@
 <span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>flate2::write::{GzEncoder, ZlibEncoder};
 <span class="kw">use </span>flate2::Compression;
+<span class="kw">use </span>futures::future::BoxFuture;
+<span class="kw">use </span>futures::FutureExt;
 <span class="kw">use </span>relay_base_schema::project::{ProjectId, ProjectKey};
 <span class="kw">use </span>relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId, Token};
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
@@ -4304,10 +4311,10 @@
 };
 <span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{
-    <span class="self">self</span>, InvalidProcessingGroupType, ManagedEnvelope, SamplingResult, ThreadPool, TypedEnvelope,
-    WorkerGroup,
+    <span class="self">self</span>, InvalidProcessingGroupType, ManagedEnvelope, SamplingResult, TypedEnvelope,
 };
 <span class="kw">use </span>relay_base_schema::organization::OrganizationId;
+<span class="kw">use </span>relay_threading::AsyncPool;
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
 </span><span class="kw">use </span>{
     <span class="kw">crate</span>::services::store::{Store, StoreEnvelope},
@@ -5322,6 +5329,9 @@
     }
 }
 
+<span class="doccomment">/// The asynchronous thread pool used for scheduling processing tasks in the processor.
+</span><span class="kw">pub type </span>EnvelopeProcessorServicePool = AsyncPool&lt;BoxFuture&lt;<span class="lifetime">'static</span>, ()&gt;&gt;;
+
 <span class="doccomment">/// Service implementing the [`EnvelopeProcessor`] interface.
 ///
 /// This service handles messages in a worker pool with configurable concurrency.
@@ -5354,7 +5364,7 @@
 }
 
 <span class="kw">struct </span>InnerProcessor {
-    workers: WorkerGroup,
+    pool: EnvelopeProcessorServicePool,
     config: Arc&lt;Config&gt;,
     global_config: GlobalConfigHandle,
     project_cache: ProjectCacheHandle,
@@ -5374,7 +5384,7 @@
     <span class="doccomment">/// Creates a multi-threaded envelope processor.
     </span><span class="attr">#[cfg_attr(feature = <span class="string">"processing"</span>, expect(clippy::too_many_arguments))]
     </span><span class="kw">pub fn </span>new(
-        pool: ThreadPool,
+        pool: EnvelopeProcessorServicePool,
         config: Arc&lt;Config&gt;,
         global_config: GlobalConfigHandle,
         project_cache: ProjectCacheHandle,
@@ -5404,7 +5414,7 @@
         };
 
         <span class="kw">let </span>inner = InnerProcessor {
-            workers: WorkerGroup::new(pool),
+            pool,
             global_config,
             project_cache,
             cogs,
@@ -7410,8 +7420,8 @@
         <span class="kw">while let </span><span class="prelude-val">Some</span>(message) = rx.recv().<span class="kw">await </span>{
             <span class="kw">let </span>service = <span class="self">self</span>.clone();
             <span class="self">self</span>.inner
-                .workers
-                .spawn(<span class="kw">move </span>|| service.handle_message(message))
+                .pool
+                .spawn_async(<span class="kw">async move </span>{ service.handle_message(message) }.boxed())
                 .<span class="kw">await</span>;
         }
     }

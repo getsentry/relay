@@ -127,7 +127,16 @@
 <a href="#126" id="126">126</a>
 <a href="#127" id="127">127</a>
 <a href="#128" id="128">128</a>
-<a href="#129" id="129">129</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::any::Any;
+<a href="#129" id="129">129</a>
+<a href="#130" id="130">130</a>
+<a href="#131" id="131">131</a>
+<a href="#132" id="132">132</a>
+<a href="#133" id="133">133</a>
+<a href="#134" id="134">134</a>
+<a href="#135" id="135">135</a>
+<a href="#136" id="136">136</a>
+<a href="#137" id="137">137</a>
+<a href="#138" id="138">138</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::any::Any;
 <span class="kw">use </span>std::future::Future;
 <span class="kw">use </span>std::io;
 <span class="kw">use </span>std::sync::Arc;
@@ -145,6 +154,7 @@
 /// and panic handling strategies.
 </span><span class="kw">pub struct </span>AsyncPoolBuilder&lt;S = DefaultSpawn&gt; {
     <span class="kw">pub</span>(<span class="kw">crate</span>) runtime: tokio::runtime::Handle,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) pool_name: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span><span class="lifetime">'static </span>str&gt;,
     <span class="kw">pub</span>(<span class="kw">crate</span>) thread_name: <span class="prelude-ty">Option</span>&lt;Box&lt;<span class="kw">dyn </span>FnMut(usize) -&gt; String&gt;&gt;,
     <span class="kw">pub</span>(<span class="kw">crate</span>) thread_panic_handler: <span class="prelude-ty">Option</span>&lt;Arc&lt;PanicHandler&gt;&gt;,
     <span class="kw">pub</span>(<span class="kw">crate</span>) task_panic_handler: <span class="prelude-ty">Option</span>&lt;Arc&lt;PanicHandler&gt;&gt;,
@@ -160,6 +170,7 @@
     </span><span class="kw">pub fn </span>new(runtime: tokio::runtime::Handle) -&gt; AsyncPoolBuilder&lt;DefaultSpawn&gt; {
         AsyncPoolBuilder {
             runtime,
+            pool_name: <span class="prelude-val">None</span>,
             thread_name: <span class="prelude-val">None</span>,
             thread_panic_handler: <span class="prelude-val">None</span>,
             task_panic_handler: <span class="prelude-val">None</span>,
@@ -174,6 +185,12 @@
 <span class="kw">where
     </span>S: ThreadSpawn,
 {
+    <span class="doccomment">/// Specifies a custom name for this pool.
+    </span><span class="kw">pub fn </span>pool_name(<span class="kw-2">mut </span><span class="self">self</span>, pool_name: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str) -&gt; <span class="self">Self </span>{
+        <span class="self">self</span>.pool_name = <span class="prelude-val">Some</span>(pool_name);
+        <span class="self">self
+    </span>}
+
     <span class="doccomment">/// Specifies a custom naming convention for threads in the [`AsyncPool`].
     ///
     /// The provided closure receives the thread's index and returns a name,
@@ -220,6 +237,7 @@
     {
         AsyncPoolBuilder {
             runtime: <span class="self">self</span>.runtime,
+            pool_name: <span class="self">self</span>.pool_name,
             thread_name: <span class="self">self</span>.thread_name,
             thread_panic_handler: <span class="self">self</span>.thread_panic_handler,
             task_panic_handler: <span class="self">self</span>.task_panic_handler,

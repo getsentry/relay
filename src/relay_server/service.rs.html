@@ -513,7 +513,8 @@
 <a href="#512" id="512">512</a>
 <a href="#513" id="513">513</a>
 <a href="#514" id="514">514</a>
-<a href="#515" id="515">515</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
+<a href="#515" id="515">515</a>
+<a href="#516" id="516">516</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
@@ -528,13 +529,15 @@
 <span class="kw">use </span><span class="kw">crate</span>::services::metrics::RouterService;
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
 <span class="kw">use </span><span class="kw">crate</span>::services::outcome_aggregator::OutcomeAggregator;
-<span class="kw">use </span><span class="kw">crate</span>::services::processor::{<span class="self">self</span>, EnvelopeProcessor, EnvelopeProcessorService};
+<span class="kw">use </span><span class="kw">crate</span>::services::processor::{
+    <span class="self">self</span>, EnvelopeProcessor, EnvelopeProcessorService, EnvelopeProcessorServicePool,
+};
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::cache::{ProjectCacheHandle, ProjectCacheService};
 <span class="kw">use </span><span class="kw">crate</span>::services::projects::source::ProjectSource;
 <span class="kw">use </span><span class="kw">crate</span>::services::relays::{RelayCache, RelayCacheService};
 <span class="kw">use </span><span class="kw">crate</span>::services::stats::RelayStats;
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-</span><span class="kw">use </span><span class="kw">crate</span>::services::store::StoreService;
+</span><span class="kw">use </span><span class="kw">crate</span>::services::store::{StoreService, StoreServicePool};
 <span class="kw">use </span><span class="kw">crate</span>::services::test_store::{TestStore, TestStoreService};
 <span class="kw">use </span><span class="kw">crate</span>::services::upstream::{UpstreamRelay, UpstreamRelayService};
 <span class="kw">use </span><span class="kw">crate</span>::utils::{MemoryChecker, MemoryStat, ThreadKind};
@@ -543,7 +546,6 @@
 <span class="kw">use </span>anyhow::Result;
 <span class="kw">use </span>axum::extract::FromRequestParts;
 <span class="kw">use </span>axum::http::request::Parts;
-<span class="kw">use </span>rayon::ThreadPool;
 <span class="kw">use </span>relay_cogs::Cogs;
 <span class="kw">use </span>relay_config::Config;
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
@@ -612,7 +614,7 @@
         .build()
 }
 
-<span class="kw">fn </span>create_processor_pool(config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="prelude-ty">Result</span>&lt;ThreadPool&gt; {
+<span class="kw">fn </span>create_processor_pool(config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="prelude-ty">Result</span>&lt;EnvelopeProcessorServicePool&gt; {
     <span class="comment">// Adjust thread count for small cpu counts to not have too many idle cores
     // and distribute workload better.
     </span><span class="kw">let </span>thread_count = <span class="kw">match </span>config.cpu_concurrency() {
@@ -622,17 +624,17 @@
     };
     <span class="macro">relay_log::info!</span>(<span class="string">"starting {thread_count} envelope processing workers"</span>);
 
-    <span class="kw">let </span>pool = <span class="kw">crate</span>::utils::ThreadPoolBuilder::new(<span class="string">"processor"</span>)
+    <span class="kw">let </span>pool = <span class="kw">crate</span>::utils::ThreadPoolBuilder::new(<span class="string">"processor"</span>, tokio::runtime::Handle::current())
         .num_threads(thread_count)
+        .max_concurrency(config.pool_concurrency())
         .thread_kind(ThreadKind::Worker)
-        .runtime(tokio::runtime::Handle::current())
         .build()<span class="question-mark">?</span>;
 
     <span class="prelude-val">Ok</span>(pool)
 }
 
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-</span><span class="kw">fn </span>create_store_pool(config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="prelude-ty">Result</span>&lt;ThreadPool&gt; {
+</span><span class="kw">fn </span>create_store_pool(config: <span class="kw-2">&amp;</span>Config) -&gt; <span class="prelude-ty">Result</span>&lt;StoreServicePool&gt; {
     <span class="comment">// Spawn a store worker for every 12 threads in the processor pool.
     // This ratio was found empirically and may need adjustments in the future.
     //
@@ -641,9 +643,9 @@
     </span><span class="kw">let </span>thread_count = config.cpu_concurrency().div_ceil(<span class="number">12</span>);
     <span class="macro">relay_log::info!</span>(<span class="string">"starting {thread_count} store workers"</span>);
 
-    <span class="kw">let </span>pool = <span class="kw">crate</span>::utils::ThreadPoolBuilder::new(<span class="string">"store"</span>)
+    <span class="kw">let </span>pool = <span class="kw">crate</span>::utils::ThreadPoolBuilder::new(<span class="string">"store"</span>, tokio::runtime::Handle::current())
         .num_threads(thread_count)
-        .runtime(tokio::runtime::Handle::current())
+        .max_concurrency(config.pool_concurrency())
         .build()<span class="question-mark">?</span>;
 
     <span class="prelude-val">Ok</span>(pool)
