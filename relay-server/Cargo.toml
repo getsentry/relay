@@ -56,6 +56,7 @@ mime = { workspace = true }
 minidump = { workspace = true, optional = true }
 multer = { workspace = true }
 once_cell = { workspace = true }
+opentelemetry-proto = { workspace = true }
 papaya = { workspace = true }
 pin-project-lite = { workspace = true }
 priority-queue = { workspace = true }
@@ -88,6 +89,7 @@ relay-sampling = { workspace = true }
 relay-spans = { workspace = true }
 relay-statsd = { workspace = true }
 relay-system = { workspace = true }
+relay-threading = { workspace = true }
 reqwest = { workspace = true, features = [
   "gzip",
   "hickory-dns",

@@ -10,10 +10,12 @@ license-file = "../LICENSE.md"
 publish = false
 
 [dependencies]
-flume = { workspace = true }
+flume = { workspace = true, features = ["async"] }
 futures = { workspace = true }
 tokio = { workspace = true }
 pin-project-lite = { workspace = true }
+
+relay-statsd = { workspace = true }
 
 [dev-dependencies]
 criterion = { workspace = true, features = ["async_tokio"] }
