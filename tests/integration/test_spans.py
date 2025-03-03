@@ -452,6 +452,7 @@ def make_otel_span(start, end):
                                 "name": "my 2nd OTel span",
                                 "startTimeUnixNano": str(int(start.timestamp() * 1e9)),
                                 "endTimeUnixNano": str(int(end.timestamp() * 1e9)),
+                                "kind": 4,
                                 "attributes": [
                                     {
                                         "key": "sentry.exclusive_time_nano",
@@ -529,6 +530,7 @@ def test_span_ingestion(
         name="my 3rd protobuf OTel span",
         start_time_unix_nano=int(start.timestamp() * 1e9),
         end_time_unix_nano=int(end.timestamp() * 1e9),
+        kind=5,
         attributes=[
             KeyValue(
                 key="sentry.exclusive_time_nano",
@@ -566,6 +568,7 @@ def test_span_ingestion(
             "data": {
                 "browser.name": "Chrome",
                 "client.address": "127.0.0.1",
+                "span.kind": "internal",
                 "user_agent.original": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
                 "Chrome/111.0.0.0 Safari/537.36",
@@ -652,6 +655,7 @@ def test_span_ingestion(
             "data": {
                 "browser.name": "Python Requests",
                 "client.address": "127.0.0.1",
+                "span.kind": "producer",
                 "user_agent.original": "python-requests/2.32.2",
             },
             "description": "my 2nd OTel span",
@@ -704,6 +708,7 @@ def test_span_ingestion(
             "data": {
                 "browser.name": "Python Requests",
                 "client.address": "127.0.0.1",
+                "span.kind": "consumer",
                 "ui.component_name": "MyComponent",
                 "user_agent.original": "python-requests/2.32.2",
             },
