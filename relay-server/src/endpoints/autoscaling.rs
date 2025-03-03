@@ -32,10 +32,7 @@ fn to_prometheus_string(data: &AutoscalingData) -> String {
     append_data_row(&mut result, "spool_item_count", data.item_count, &[]);
     append_data_row(&mut result, "spool_total_size", data.total_size, &[]);
     for utilization in &data.services_metrics {
-        // Service names contain the namespace they are declared in, e.g. foo::services::MyService.
-        // We are only interested in the actual service name.
-        // If it doesn't contain ':', we assume that a custom name has been defined.s
-        let service_name = utilization.0.split(":").last().unwrap_or(utilization.0);
+        let service_name = extract_service_name(utilization.0);
         append_data_row(
             &mut result,
             "utilization",
