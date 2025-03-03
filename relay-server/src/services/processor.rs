@@ -14,6 +14,8 @@ use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
+use futures::future::BoxFuture;
+use futures::FutureExt;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId, Token};
 use relay_common::time::UnixTimestamp;
@@ -60,10 +62,10 @@ use crate::services::upstream::{
 };
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
-    self, InvalidProcessingGroupType, ManagedEnvelope, SamplingResult, ThreadPool, TypedEnvelope,
-    WorkerGroup,
+    self, InvalidProcessingGroupType, ManagedEnvelope, SamplingResult, TypedEnvelope,
 };
 use relay_base_schema::organization::OrganizationId;
+use relay_threading::AsyncPool;
 #[cfg(feature = "processing")]
 use {
     crate::services::store::{Store, StoreEnvelope},
@@ -1078,6 +1080,9 @@ impl FromMessage<SubmitClientReports> for EnvelopeProcessor {
     }
 }
 
+/// The asynchronous thread pool used for scheduling processing tasks in the processor.
+pub type EnvelopeProcessorServicePool = AsyncPool<BoxFuture<'static, ()>>;
+
 /// Service implementing the [`EnvelopeProcessor`] interface.
 ///
 /// This service handles messages in a worker pool with configurable concurrency.
@@ -1110,7 +1115,7 @@ impl Default for Addrs {
 }
 
 struct InnerProcessor {
-    workers: WorkerGroup,
+    pool: EnvelopeProcessorServicePool,
     config: Arc<Config>,
     global_config: GlobalConfigHandle,
     project_cache: ProjectCacheHandle,
@@ -1130,7 +1135,7 @@ impl EnvelopeProcessorService {
     /// Creates a multi-threaded envelope processor.
     #[cfg_attr(feature = "processing", expect(clippy::too_many_arguments))]
     pub fn new(
-        pool: ThreadPool,
+        pool: EnvelopeProcessorServicePool,
         config: Arc<Config>,
         global_config: GlobalConfigHandle,
         project_cache: ProjectCacheHandle,
@@ -1160,7 +1165,7 @@ impl EnvelopeProcessorService {
         };
 
         let inner = InnerProcessor {
-            workers: WorkerGroup::new(pool),
+            pool,
             global_config,
             project_cache,
             cogs,
@@ -1413,7 +1418,15 @@ impl EnvelopeProcessorService {
         };
 
         let request_meta = managed_envelope.envelope().meta();
-        let client_ipaddr = request_meta.client_addr().map(IpAddr::from);
+        let client_ipaddr = request_meta
+            .client_addr()
+            .filter(|_| {
+                !project_info
+                    .config
+                    .datascrubbing_settings
+                    .scrub_ip_addresses
+            })
+            .map(IpAddr::from);
 
         let transaction_aggregator_config = self
             .inner
@@ -2056,6 +2069,7 @@ impl EnvelopeProcessorService {
             managed_envelope,
             self.inner.config.clone(),
             project_info.clone(),
+            &self.inner.global_config.current(),
         );
         if_processing!(self.inner.config, {
             self.enforce_quotas(
@@ -2389,7 +2403,7 @@ impl EnvelopeProcessorService {
         match result {
             Ok(response) => {
                 if let Some(envelope) = response.envelope {
-                    self.handle_submit_envelope(SubmitEnvelope { envelope });
+                    self.handle_submit_envelope(cogs, SubmitEnvelope { envelope });
                 };
             }
             Err(error) => {
@@ -2504,7 +2518,9 @@ impl EnvelopeProcessorService {
         }
     }
 
-    fn handle_submit_envelope(&self, message: SubmitEnvelope) {
+    fn handle_submit_envelope(&self, cogs: &mut Token, message: SubmitEnvelope) {
+        let _submit = cogs.start_category("submit");
+
         let SubmitEnvelope { mut envelope } = message;
 
         #[cfg(feature = "processing")]
@@ -2565,7 +2581,7 @@ impl EnvelopeProcessorService {
         }
     }
 
-    fn handle_submit_client_reports(&self, message: SubmitClientReports) {
+    fn handle_submit_client_reports(&self, cogs: &mut Token, message: SubmitClientReports) {
         let SubmitClientReports {
             client_reports,
             scoping,
@@ -2587,9 +2603,12 @@ impl EnvelopeProcessorService {
             self.inner.addrs.test_store.clone(),
             ProcessingGroup::ClientReport,
         );
-        self.handle_submit_envelope(SubmitEnvelope {
-            envelope: envelope.into_processed(),
-        });
+        self.handle_submit_envelope(
+            cogs,
+            SubmitEnvelope {
+                envelope: envelope.into_processed(),
+            },
+        );
     }
 
     fn check_buckets(
@@ -2919,7 +2938,7 @@ impl EnvelopeProcessorService {
     /// Cardinality limiting and rate limiting run only in processing Relays as they both require
     /// access to the central Redis instance. Cached rate limits are applied in the project cache
     /// already.
-    fn encode_metrics_envelope(&self, message: FlushBuckets) {
+    fn encode_metrics_envelope(&self, cogs: &mut Token, message: FlushBuckets) {
         let FlushBuckets {
             partition_key,
             buckets,
@@ -2961,9 +2980,12 @@ impl EnvelopeProcessorService {
                     histogram(RelayHistograms::BucketsPerBatch) = batch.len() as u64
                 );
 
-                self.handle_submit_envelope(SubmitEnvelope {
-                    envelope: envelope.into_processed(),
-                });
+                self.handle_submit_envelope(
+                    cogs,
+                    SubmitEnvelope {
+                        envelope: envelope.into_processed(),
+                    },
+                );
                 num_batches += 1;
             }
 
@@ -3051,7 +3073,7 @@ impl EnvelopeProcessorService {
         self.send_global_partition(partition_key, &mut partition);
     }
 
-    fn handle_flush_buckets(&self, mut message: FlushBuckets) {
+    fn handle_flush_buckets(&self, cogs: &mut Token, mut message: FlushBuckets) {
         for (project_key, pb) in message.buckets.iter_mut() {
             let buckets = std::mem::take(&mut pb.buckets);
             pb.buckets =
@@ -3068,7 +3090,7 @@ impl EnvelopeProcessorService {
         if self.inner.config.http_global_metrics() {
             self.encode_metrics_global(message)
         } else {
-            self.encode_metrics_envelope(message)
+            self.encode_metrics_envelope(cogs, message)
         }
     }
 
@@ -3094,9 +3116,11 @@ impl EnvelopeProcessorService {
                 EnvelopeProcessor::ProcessBatchedMetrics(m) => {
                     self.handle_process_batched_metrics(&mut cogs, *m)
                 }
-                EnvelopeProcessor::FlushBuckets(m) => self.handle_flush_buckets(*m),
-                EnvelopeProcessor::SubmitEnvelope(m) => self.handle_submit_envelope(*m),
-                EnvelopeProcessor::SubmitClientReports(m) => self.handle_submit_client_reports(*m),
+                EnvelopeProcessor::FlushBuckets(m) => self.handle_flush_buckets(&mut cogs, *m),
+                EnvelopeProcessor::SubmitEnvelope(m) => self.handle_submit_envelope(&mut cogs, *m),
+                EnvelopeProcessor::SubmitClientReports(m) => {
+                    self.handle_submit_client_reports(&mut cogs, *m)
+                }
             }
         });
     }
@@ -3147,8 +3171,8 @@ impl Service for EnvelopeProcessorService {
         while let Some(message) = rx.recv().await {
             let service = self.clone();
             self.inner
-                .workers
-                .spawn(move || service.handle_message(message))
+                .pool
+                .spawn_async(async move { service.handle_message(message) }.boxed())
                 .await;
         }
     }

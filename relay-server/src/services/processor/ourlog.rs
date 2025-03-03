@@ -3,10 +3,11 @@ use std::sync::Arc;
 
 use crate::services::processor::LogGroup;
 use relay_config::Config;
-use relay_dynamic_config::Feature;
+use relay_dynamic_config::{Feature, GlobalConfig};
 
 use crate::services::processor::should_filter;
 use crate::services::projects::project::ProjectInfo;
+use crate::utils::sample;
 use crate::utils::{ItemAction, TypedEnvelope};
 
 #[cfg(feature = "processing")]
@@ -28,10 +29,17 @@ pub fn filter(
     managed_envelope: &mut TypedEnvelope<LogGroup>,
     config: Arc<Config>,
     project_info: Arc<ProjectInfo>,
+    global_config: &GlobalConfig,
 ) {
     let logging_disabled = should_filter(&config, &project_info, Feature::OurLogsIngestion);
+    let logs_sampled = global_config
+        .options
+        .ourlogs_ingestion_sample_rate
+        .map(sample)
+        .unwrap_or(true);
+
     managed_envelope.retain_items(|_| {
-        if logging_disabled {
+        if logging_disabled || !logs_sampled {
             ItemAction::DropSilently
         } else {
             ItemAction::Keep
@@ -102,4 +110,99 @@ fn scrub(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::envelope::{Envelope, ItemType};
+    use crate::services::processor::ProcessingGroup;
+    use crate::utils::ManagedEnvelope;
+    use bytes::Bytes;
+    use relay_dynamic_config::GlobalConfig;
+
+    use relay_system::Addr;
+
+    fn params() -> (TypedEnvelope<LogGroup>, Arc<ProjectInfo>) {
+        let bytes = Bytes::from(
+            r#"{"dsn":"https://e12d836b15bb49d7bbf99e64295d995b:@sentry.io/42"}
+{"type":"otel_log"}
+{}
+"#,
+        );
+
+        let dummy_envelope = Envelope::parse_bytes(bytes).unwrap();
+        let mut project_info = ProjectInfo::default();
+        project_info
+            .config
+            .features
+            .0
+            .insert(Feature::OurLogsIngestion);
+        let project_info = Arc::new(project_info);
+
+        let managed_envelope = ManagedEnvelope::new(
+            dummy_envelope,
+            Addr::dummy(),
+            Addr::dummy(),
+            ProcessingGroup::Log,
+        );
+
+        let managed_envelope = managed_envelope.try_into().unwrap();
+
+        (managed_envelope, project_info)
+    }
+
+    #[test]
+    fn test_logs_sampled_default() {
+        let global_config = GlobalConfig::default();
+        let config = Arc::new(Config::default());
+        assert!(global_config
+            .options
+            .ourlogs_ingestion_sample_rate
+            .is_none());
+        let (mut managed_envelope, project_info) = params();
+        filter(&mut managed_envelope, config, project_info, &global_config);
+        assert!(
+            managed_envelope
+                .envelope()
+                .items()
+                .any(|item| item.ty() == &ItemType::OtelLog),
+            "{:?}",
+            managed_envelope.envelope()
+        );
+    }
+
+    #[test]
+    fn test_logs_sampled_explicit() {
+        let mut global_config = GlobalConfig::default();
+        global_config.options.ourlogs_ingestion_sample_rate = Some(1.0);
+        let config = Arc::new(Config::default());
+        let (mut managed_envelope, project_info) = params();
+        filter(&mut managed_envelope, config, project_info, &global_config);
+        assert!(
+            managed_envelope
+                .envelope()
+                .items()
+                .any(|item| item.ty() == &ItemType::OtelLog),
+            "{:?}",
+            managed_envelope.envelope()
+        );
+    }
+
+    #[test]
+    fn test_logs_sampled_dropped() {
+        let mut global_config = GlobalConfig::default();
+        global_config.options.ourlogs_ingestion_sample_rate = Some(0.0);
+        let config = Arc::new(Config::default());
+        let (mut managed_envelope, project_info) = params();
+        filter(&mut managed_envelope, config, project_info, &global_config);
+        assert!(
+            !managed_envelope
+                .envelope()
+                .items()
+                .any(|item| item.ty() == &ItemType::OtelLog),
+            "{:?}",
+            managed_envelope.envelope()
+        );
+    }
 }

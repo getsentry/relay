@@ -1,0 +1,27 @@
+[package]
+name = "relay-threading"
+authors = ["Sentry <oss@sentry.io>"]
+description = "Threading code that is used by Relay"
+homepage = "https://getsentry.github.io/relay/"
+repository = "https://github.com/getsentry/relay"
+version = "25.2.0"
+edition = "2021"
+license-file = "../LICENSE.md"
+publish = false
+
+[dependencies]
+flume = { workspace = true, features = ["async"] }
+futures = { workspace = true }
+tokio = { workspace = true }
+pin-project-lite = { workspace = true }
+
+relay-statsd = { workspace = true }
+
+[dev-dependencies]
+criterion = { workspace = true, features = ["async_tokio"] }
+futures = { workspace = true, features = ["executor"] }
+tokio = { workspace = true, features = ["rt", "rt-multi-thread", "time", "sync", "macros"] }
+
+[[bench]]
+name = "pool"
+harness = false

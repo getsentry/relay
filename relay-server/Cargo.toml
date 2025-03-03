@@ -4,7 +4,7 @@ authors = ["Sentry <oss@sentry.io>"]
 description = "Endpoints and services for Relay"
 homepage = "https://getsentry.github.io/relay/"
 repository = "https://github.com/getsentry/relay"
-version = "25.1.0"
+version = "25.2.0"
 edition = "2021"
 build = "build.rs"
 license-file = "../LICENSE.md"
@@ -56,6 +56,7 @@ mime = { workspace = true }
 minidump = { workspace = true, optional = true }
 multer = { workspace = true }
 once_cell = { workspace = true }
+opentelemetry-proto = { workspace = true }
 papaya = { workspace = true }
 pin-project-lite = { workspace = true }
 priority-queue = { workspace = true }
@@ -88,6 +89,7 @@ relay-sampling = { workspace = true }
 relay-spans = { workspace = true }
 relay-statsd = { workspace = true }
 relay-system = { workspace = true }
+relay-threading = { workspace = true }
 reqwest = { workspace = true, features = [
   "gzip",
   "hickory-dns",
@@ -141,6 +143,7 @@ criterion = { workspace = true }
 http = { workspace = true }
 insta = { workspace = true }
 relay-protocol = { workspace = true, features = ["test"] }
+relay-system = { workspace = true, features = ["test"] }
 relay-test = { workspace = true }
 similar-asserts = { workspace = true }
 tempfile = { workspace = true }

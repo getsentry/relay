@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+**Features**:
+
+- Switch default envelope compression from gzip to zstd. ([#4531](https://github.com/getsentry/relay/pull/4531))
+- Update release to include an aarch64 binary. ([#4514](https://github.com/getsentry/relay/pull/4514))
+- Support span `category` inference from span attributes. ([#4509](https://github.com/getsentry/relay/pull/4509))
+- Add option to control ourlogs ingestion. ([#4518](https://github.com/getsentry/relay/pull/4518))
+- Update Apple device model classes ([#4529](https://github.com/getsentry/relay/pull/4529))
+
+**Internal**:
+
+- Track an utilization metric for internal services. ([#4501](https://github.com/getsentry/relay/pull/4501))
+- Add new `relay-threading` crate with asynchronous thread pool. ([#4500](https://github.com/getsentry/relay/pull/4500))
+- Expose additional metrics through the internal relay metric endpoint. ([#4511](https://github.com/getsentry/relay/pull/4511))
+- Write resource and instrumentation scope attributes as span attributes during OTLP ingestion. ([#4533](https://github.com/getsentry/relay/pull/4533))
+- Adopt new `AsyncPool` for the `EnvelopeProcessorService` and `StoreService`. ([#4520](https://github.com/getsentry/relay/pull/4520))
+
+## 25.2.0
+
 - Allow log ingestion behind a flag, only for internal use currently. ([#4471](https://github.com/getsentry/relay/pull/4471))
 
 **Features**:
@@ -12,6 +30,7 @@
 - Allow configuration of Relay's log format via an environment variable. ([#4484](https://github.com/getsentry/relay/pull/4484))
 - Add span links to event schema. ([#4486](https://github.com/getsentry/relay/pull/4486))
 - Add `breadcrumb.origin` field to event schema. ([#4498](https://github.com/getsentry/relay/pull/4498))
+- Add Spring context to event schema. ([#4502](https://github.com/getsentry/relay/pull/4502))
 
 **Bug Fixes**:
 
@@ -24,7 +43,9 @@
 
 - Add data categories for LogItem and LogByte. ([#4455](https://github.com/getsentry/relay/pull/4455))
 - Add option to drop transaction attachments. ([#4466](https://github.com/getsentry/relay/pull/4466))
+- Add endpoint that exposes internally collected relay metrics. ([#4497](https://github.com/getsentry/relay/pull/4497))
 - Add sub-millisecond precision to internal timer metrics. ([#4495](https://github.com/getsentry/relay/pull/4495))
+- Partition spans by `trace_id` on the Kafka topic. ([#4503](https://github.com/getsentry/relay/pull/4503))
 
 ## 25.1.0
 

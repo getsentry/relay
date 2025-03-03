@@ -3,6 +3,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::metrics::{MetricOutcomes, MetricStats};
+use crate::services::autoscaling::{AutoscalingMetricService, AutoscalingMetrics};
 use crate::services::buffer::{
     ObservableEnvelopeBuffer, PartitionedEnvelopeBuffer, ProjectKeyPair,
 };
@@ -12,13 +13,15 @@ use crate::services::health_check::{HealthCheck, HealthCheckService};
 use crate::services::metrics::RouterService;
 use crate::services::outcome::{OutcomeProducer, OutcomeProducerService, TrackOutcome};
 use crate::services::outcome_aggregator::OutcomeAggregator;
-use crate::services::processor::{self, EnvelopeProcessor, EnvelopeProcessorService};
+use crate::services::processor::{
+    self, EnvelopeProcessor, EnvelopeProcessorService, EnvelopeProcessorServicePool,
+};
 use crate::services::projects::cache::{ProjectCacheHandle, ProjectCacheService};
 use crate::services::projects::source::ProjectSource;
 use crate::services::relays::{RelayCache, RelayCacheService};
 use crate::services::stats::RelayStats;
 #[cfg(feature = "processing")]
-use crate::services::store::StoreService;
+use crate::services::store::{StoreService, StoreServicePool};
 use crate::services::test_store::{TestStore, TestStoreService};
 use crate::services::upstream::{UpstreamRelay, UpstreamRelayService};
 use crate::utils::{MemoryChecker, MemoryStat, ThreadKind};
@@ -27,7 +30,6 @@ use anyhow::Context;
 use anyhow::Result;
 use axum::extract::FromRequestParts;
 use axum::http::request::Parts;
-use rayon::ThreadPool;
 use relay_cogs::Cogs;
 use relay_config::Config;
 #[cfg(feature = "processing")]
@@ -38,7 +40,7 @@ use relay_redis::redis::Script;
 use relay_redis::AsyncRedisClient;
 #[cfg(feature = "processing")]
 use relay_redis::{PooledClient, RedisError, RedisPool, RedisPools, RedisScripts};
-use relay_system::{channel, Addr, Service, ServiceRunner};
+use relay_system::{channel, Addr, Service, ServiceSpawn, ServiceSpawnExt as _};
 
 /// Indicates the type of failure of the server.
 #[derive(Debug, thiserror::Error)]
@@ -71,6 +73,7 @@ pub struct Registry {
     pub envelope_buffer: PartitionedEnvelopeBuffer,
 
     pub project_cache_handle: ProjectCacheHandle,
+    pub autoscaling: Addr<AutoscalingMetrics>,
 }
 
 /// Constructs a Tokio [`relay_system::Runtime`] configured for running [services](relay_system::Service).
@@ -95,7 +98,7 @@ pub fn create_runtime(name: &'static str, threads: usize) -> relay_system::Runti
         .build()
 }
 
-fn create_processor_pool(config: &Config) -> Result<ThreadPool> {
+fn create_processor_pool(config: &Config) -> Result<EnvelopeProcessorServicePool> {
     // Adjust thread count for small cpu counts to not have too many idle cores
     // and distribute workload better.
     let thread_count = match config.cpu_concurrency() {
@@ -105,17 +108,17 @@ fn create_processor_pool(config: &Config) -> Result<ThreadPool> {
     };
     relay_log::info!("starting {thread_count} envelope processing workers");
 
-    let pool = crate::utils::ThreadPoolBuilder::new("processor")
+    let pool = crate::utils::ThreadPoolBuilder::new("processor", tokio::runtime::Handle::current())
         .num_threads(thread_count)
+        .max_concurrency(config.pool_concurrency())
         .thread_kind(ThreadKind::Worker)
-        .runtime(tokio::runtime::Handle::current())
         .build()?;
 
     Ok(pool)
 }
 
 #[cfg(feature = "processing")]
-fn create_store_pool(config: &Config) -> Result<ThreadPool> {
+fn create_store_pool(config: &Config) -> Result<StoreServicePool> {
     // Spawn a store worker for every 12 threads in the processor pool.
     // This ratio was found empirically and may need adjustments in the future.
     //
@@ -124,9 +127,9 @@ fn create_store_pool(config: &Config) -> Result<ThreadPool> {
     let thread_count = config.cpu_concurrency().div_ceil(12);
     relay_log::info!("starting {thread_count} store workers");
 
-    let pool = crate::utils::ThreadPoolBuilder::new("store")
+    let pool = crate::utils::ThreadPoolBuilder::new("store", tokio::runtime::Handle::current())
         .num_threads(thread_count)
-        .runtime(tokio::runtime::Handle::current())
+        .max_concurrency(config.pool_concurrency())
         .build()?;
 
     Ok(pool)
@@ -148,12 +151,12 @@ pub struct ServiceState {
 impl ServiceState {
     /// Starts all services and returns addresses to all of them.
     pub async fn start(
-        rt_metrics: relay_system::RuntimeMetrics,
+        handle: &relay_system::Handle,
+        services: &dyn ServiceSpawn,
         config: Arc<Config>,
-    ) -> Result<(Self, ServiceRunner)> {
-        let mut runner = ServiceRunner::new();
-        let upstream_relay = runner.start(UpstreamRelayService::new(config.clone()));
-        let test_store = runner.start(TestStoreService::new(config.clone()));
+    ) -> Result<Self> {
+        let upstream_relay = services.start(UpstreamRelayService::new(config.clone()));
+        let test_store = services.start(TestStoreService::new(config.clone()));
 
         #[cfg(feature = "processing")]
         let redis_pools = match config.redis().filter(|_| config.processing_enabled()) {
@@ -179,13 +182,13 @@ impl ServiceState {
         // Create an address for the `EnvelopeProcessor`, which can be injected into the
         // other services.
         let (processor, processor_rx) = channel(EnvelopeProcessorService::name());
-        let outcome_producer = runner.start(OutcomeProducerService::create(
+        let outcome_producer = services.start(OutcomeProducerService::create(
             config.clone(),
             upstream_relay.clone(),
             processor.clone(),
         )?);
         let outcome_aggregator =
-            runner.start(OutcomeAggregator::new(&config, outcome_producer.clone()));
+            services.start(OutcomeAggregator::new(&config, outcome_producer.clone()));
 
         let (global_config, global_config_rx) =
             GlobalConfigService::new(config.clone(), upstream_relay.clone());
@@ -193,10 +196,10 @@ impl ServiceState {
         // The global config service must start before dependant services are
         // started. Messages like subscription requests to the global config
         // service fail if the service is not running.
-        let global_config = runner.start(global_config);
+        let global_config = services.start(global_config);
 
         let project_source = ProjectSource::start_in(
-            &mut runner,
+            services,
             Arc::clone(&config),
             upstream_relay.clone(),
             #[cfg(feature = "processing")]
@@ -204,16 +207,17 @@ impl ServiceState {
         )
         .await;
         let project_cache_handle =
-            ProjectCacheService::new(Arc::clone(&config), project_source).start_in(&mut runner);
+            ProjectCacheService::new(Arc::clone(&config), project_source).start_in(services);
 
         let aggregator = RouterService::new(
+            handle.clone(),
             config.default_aggregator_config().clone(),
             config.secondary_aggregator_configs().clone(),
             Some(processor.clone().recipient()),
             project_cache_handle.clone(),
         );
         let aggregator_handle = aggregator.handle();
-        let aggregator = runner.start(aggregator);
+        let aggregator = services.start(aggregator);
 
         let metric_stats = MetricStats::new(
             config.clone(),
@@ -234,14 +238,14 @@ impl ServiceState {
                     outcome_aggregator.clone(),
                     metric_outcomes.clone(),
                 )
-                .map(|s| runner.start(s))
+                .map(|s| services.start(s))
             })
             .transpose()?;
 
         let cogs = CogsService::new(&config);
-        let cogs = Cogs::new(CogsServiceRecorder::new(&config, runner.start(cogs)));
+        let cogs = Cogs::new(CogsServiceRecorder::new(&config, services.start(cogs)));
 
-        runner.start_with(
+        services.start_with(
             EnvelopeProcessorService::new(
                 create_processor_pool(&config)?,
                 config.clone(),
@@ -272,10 +276,10 @@ impl ServiceState {
             processor.clone(),
             outcome_aggregator.clone(),
             test_store.clone(),
-            &mut runner,
+            services,
         );
 
-        let health_check = runner.start(HealthCheckService::new(
+        let health_check = services.start(HealthCheckService::new(
             config.clone(),
             MemoryChecker::new(memory_stat.clone(), config.clone()),
             aggregator_handle,
@@ -283,15 +287,20 @@ impl ServiceState {
             envelope_buffer.clone(),
         ));
 
-        runner.start(RelayStats::new(
+        let autoscaling = services.start(AutoscalingMetricService::new(
+            memory_stat.clone(),
+            envelope_buffer.clone(),
+        ));
+
+        services.start(RelayStats::new(
             config.clone(),
-            rt_metrics,
+            handle.clone(),
             upstream_relay.clone(),
             #[cfg(feature = "processing")]
             redis_pools.clone(),
         ));
 
-        let relay_cache = runner.start(RelayCacheService::new(
+        let relay_cache = services.start(RelayCacheService::new(
             config.clone(),
             upstream_relay.clone(),
         ));
@@ -307,6 +316,7 @@ impl ServiceState {
             project_cache_handle,
             upstream_relay,
             envelope_buffer,
+            autoscaling,
         };
 
         let state = StateInner {
@@ -315,12 +325,9 @@ impl ServiceState {
             registry,
         };
 
-        Ok((
-            ServiceState {
-                inner: Arc::new(state),
-            },
-            runner,
-        ))
+        Ok(ServiceState {
+            inner: Arc::new(state),
+        })
     }
 
     /// Returns a reference to the Relay configuration.
@@ -333,6 +340,10 @@ impl ServiceState {
     /// thresholds set in the [`Config`].
     pub fn memory_checker(&self) -> &MemoryChecker {
         &self.inner.memory_checker
+    }
+
+    pub fn autoscaling(&self) -> &Addr<AutoscalingMetrics> {
+        &self.inner.registry.autoscaling
     }
 
     /// Returns the V2 envelope buffer, if present.

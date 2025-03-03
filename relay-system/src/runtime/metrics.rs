@@ -242,7 +242,7 @@ mod tests {
     fn test_metric_diff() {
         let rt = crate::Runtime::builder("test").worker_threads(1).build();
 
-        let metrics = rt.metrics();
+        let metrics = rt.handle().metrics();
 
         rt.block_on(async move {
             let tokio_metrics = tokio::runtime::Handle::current().metrics();
@@ -254,7 +254,7 @@ mod tests {
             assert_eq!(tokio_metrics.worker_local_schedule_count(0), 0);
 
             // Increase local worker schedule count by awaiting a timer.
-            crate::spawn!(tokio::time::sleep(Duration::from_nanos(10)))
+            crate::spawn!(tokio::time::sleep(Duration::from_millis(1)))
                 .await
                 .unwrap();
 
@@ -262,7 +262,7 @@ mod tests {
             assert_eq!(tokio_metrics.worker_local_schedule_count(0), 1);
 
             // Increase it again.
-            crate::spawn!(tokio::time::sleep(Duration::from_nanos(10)))
+            crate::spawn!(tokio::time::sleep(Duration::from_millis(1)))
                 .await
                 .unwrap();
 

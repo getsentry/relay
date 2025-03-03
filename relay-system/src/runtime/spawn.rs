@@ -2,7 +2,7 @@ use futures::Future;
 use tokio::task::JoinHandle;
 
 use crate::statsd::SystemCounters;
-use crate::Service;
+use crate::{Service, ServiceObj};
 
 /// Spawns an instrumented task with an automatically generated [`TaskId`].
 ///
@@ -36,7 +36,24 @@ where
     tokio::spawn(Task::new(task_id, future))
 }
 
+/// Spawns a new asynchronous task in a specific runtime, returning a [`JoinHandle`] for it.
+///
+/// This is in instrumented spawn variant of Tokio's [`Handle::spawn`](tokio::runtime::Handle::spawn).
+#[allow(clippy::disallowed_methods)]
+pub fn spawn_in<F>(
+    handle: &tokio::runtime::Handle,
+    task_id: TaskId,
+    future: F,
+) -> JoinHandle<F::Output>
+where
+    F: Future + Send + 'static,
+    F::Output: Send + 'static,
+{
+    handle.spawn(Task::new(task_id, future))
+}
+
 /// An identifier for tasks spawned by [`spawn()`], used to log metrics.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TaskId {
     id: &'static str,
     file: Option<&'static str>,
@@ -62,6 +79,10 @@ impl TaskId {
         }
     }
 
+    pub(crate) fn id(&self) -> &'static str {
+        self.id
+    }
+
     fn emit_metric(&self, metric: SystemCounters) {
         let Self { id, file, line } = self;
         relay_statsd::metric!(
@@ -70,6 +91,16 @@ impl TaskId {
             file = file.unwrap_or_default(),
             line = line.unwrap_or_default()
         );
+    }
+}
+
+impl From<&ServiceObj> for TaskId {
+    fn from(value: &ServiceObj) -> Self {
+        Self {
+            id: value.name(),
+            file: None,
+            line: None,
+        }
     }
 }
 
@@ -128,15 +159,15 @@ mod tests {
         #[cfg(not(windows))]
         assert_debug_snapshot!(captures, @r###"
         [
-            "runtime.task.spawn.created:1|c|#id:relay-system/src/runtime/spawn.rs:124,file:relay-system/src/runtime/spawn.rs,line:124",
-            "runtime.task.spawn.terminated:1|c|#id:relay-system/src/runtime/spawn.rs:124,file:relay-system/src/runtime/spawn.rs,line:124",
+            "runtime.task.spawn.created:1|c|#id:relay-system/src/runtime/spawn.rs:155,file:relay-system/src/runtime/spawn.rs,line:155",
+            "runtime.task.spawn.terminated:1|c|#id:relay-system/src/runtime/spawn.rs:155,file:relay-system/src/runtime/spawn.rs,line:155",
         ]
         "###);
         #[cfg(windows)]
         assert_debug_snapshot!(captures, @r###"
         [
-            "runtime.task.spawn.created:1|c|#id:relay-system\\src\\runtime\\spawn.rs:124,file:relay-system\\src\\runtime\\spawn.rs,line:124",
-            "runtime.task.spawn.terminated:1|c|#id:relay-system\\src\\runtime\\spawn.rs:124,file:relay-system\\src\\runtime\\spawn.rs,line:124",
+            "runtime.task.spawn.created:1|c|#id:relay-system\\src\\runtime\\spawn.rs:155,file:relay-system\\src\\runtime\\spawn.rs,line:155",
+            "runtime.task.spawn.terminated:1|c|#id:relay-system\\src\\runtime\\spawn.rs:155,file:relay-system\\src\\runtime\\spawn.rs,line:155",
         ]
         "###);
     }
