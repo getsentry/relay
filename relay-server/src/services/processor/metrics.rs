@@ -30,7 +30,6 @@ pub fn apply_project_info(
     project_info: &ProjectInfo,
     scoping: Scoping,
 ) -> Vec<Bucket> {
-    let mut denied_buckets = Vec::new();
     let mut disabled_namespace_buckets = Vec::new();
 
     buckets = buckets
@@ -41,16 +40,6 @@ pub fn apply_project_info(
                 disabled_namespace_buckets.push(bucket);
                 return None;
             };
-
-            if let ErrorBoundary::Ok(ref metric_config) = project_info.config.metrics {
-                if metric_config.denied_names.is_match(&bucket.name) {
-                    relay_log::trace!(mri = &*bucket.name, "dropping metrics due to block list");
-                    denied_buckets.push(bucket);
-                    return None;
-                }
-
-                remove_matching_bucket_tags(metric_config, &mut bucket);
-            }
 
             Some(bucket)
         })
@@ -64,14 +53,6 @@ pub fn apply_project_info(
         );
     }
 
-    if !denied_buckets.is_empty() {
-        metric_outcomes.track(
-            scoping,
-            &denied_buckets,
-            Outcome::Filtered(FilterStatKey::DeniedName),
-        );
-    }
-
     buckets
 }
 
@@ -80,20 +61,8 @@ fn is_metric_namespace_valid(state: &ProjectInfo, namespace: MetricNamespace) ->
         MetricNamespace::Sessions => true,
         MetricNamespace::Transactions => true,
         MetricNamespace::Spans => state.config.features.produces_spans(),
-        MetricNamespace::Custom => state.has_feature(Feature::CustomMetrics),
         MetricNamespace::Stats => true,
         MetricNamespace::Unsupported => false,
-    }
-}
-
-/// Removes tags based on user configured deny list.
-fn remove_matching_bucket_tags(metric_config: &Metrics, bucket: &mut Bucket) {
-    for tag_block in &metric_config.denied_tags {
-        if tag_block.name.is_match(&bucket.name) {
-            bucket
-                .tags
-                .retain(|tag_key, _| !tag_block.tags.is_match(tag_key));
-        }
     }
 }
 
@@ -134,75 +103,6 @@ mod tests {
         });
 
         serde_json::from_value(json).unwrap()
-    }
-
-    #[test]
-    fn test_remove_tags() {
-        let mut tags = BTreeMap::default();
-        tags.insert("foobazbar".to_owned(), "val".to_owned());
-        tags.insert("foobaz".to_owned(), "val".to_owned());
-        tags.insert("bazbar".to_owned(), "val".to_owned());
-
-        let mut bucket = get_test_bucket("foobar", tags);
-
-        let tag_block_pattern = "foobaz*";
-
-        let metric_config = Metrics {
-            denied_tags: vec![TagBlock {
-                name: "foobar".to_owned().into(),
-                tags: tag_block_pattern.to_owned().into(),
-            }],
-            ..Default::default()
-        };
-
-        remove_matching_bucket_tags(&metric_config, &mut bucket);
-
-        // the tag_block_pattern should match on two of the tags.
-        assert_eq!(bucket.tags.len(), 1);
-    }
-
-    #[test]
-    fn test_apply_project_info() {
-        let (outcome_aggregator, _) = Addr::custom();
-        let (metric_stats, mut metric_stats_rx) = MetricStats::test();
-        let metric_outcomes = MetricOutcomes::new(metric_stats, outcome_aggregator);
-
-        let project_info = ProjectInfo {
-            config: serde_json::from_value(serde_json::json!({
-                "metrics": { "deniedNames": ["*cpu_time*"] },
-                "features": ["organizations:custom-metrics"]
-            }))
-            .unwrap(),
-            ..Default::default()
-        };
-
-        let b1 = create_custom_bucket_with_name("cpu_time".into());
-        let b2 = create_custom_bucket_with_name("memory_usage".into());
-        let buckets = vec![b1.clone(), b2.clone()];
-
-        let buckets = apply_project_info(
-            buckets,
-            &metric_outcomes,
-            &project_info,
-            Scoping {
-                organization_id: OrganizationId::new(42),
-                project_id: ProjectId::new(43),
-                project_key: ProjectKey::parse("a94ae32be2584e0bbd7a4cbb95971fee").unwrap(),
-                key_id: Some(44),
-            },
-        );
-
-        // We assert that one metric passes all the pre-processing.
-        assert_eq!(&*buckets, &[b2]);
-
-        // We assert that one metric is emitted by metric stats.
-        let value = metric_stats_rx.blocking_recv().unwrap();
-        let Aggregator::MergeBuckets(merge_buckets) = value;
-        assert_eq!(merge_buckets.buckets.len(), 1);
-        assert_eq!(
-            merge_buckets.buckets[0].tags.get("mri").unwrap().as_str(),
-            &*b1.name
-        );
     }
 
     #[test]

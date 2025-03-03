@@ -61,78 +61,77 @@ def test_metric_stats_simple(
     project_id = 42
     project_config = mini_sentry.add_basic_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:custom-metrics",
         "organizations:metric-stats",
     ]
     project_config["config"]["metrics"] = {
         "cardinalityLimits": [
             {
-                "id": "custom-limit",
+                "id": "spans-limit",
                 "window": {"windowSeconds": 3600, "granularitySeconds": 600},
                 "report": True,
                 "limit": 100,
                 "scope": "name",
-                "namespace": "custom",
+                "namespace": "spans",
             }
         ]
     }
 
     relay.send_metrics(
-        project_id, "custom/foo:1337|d\ncustom/foo:12|d|#tag:value\ncustom/bar:42|s"
+        project_id, "spans/foo:1337|d\nspans/foo:12|d|#tag:value\nspans/bar:42|s"
     )
 
     metrics = metric_stats_by_mri(metrics_consumer, 7)
 
-    assert metrics.volume["d:custom/foo@none"]["org_id"] == 0
-    assert metrics.volume["d:custom/foo@none"]["project_id"] == project_id
-    assert metrics.volume["d:custom/foo@none"]["value"] == 2.0
-    assert metrics.volume["d:custom/foo@none"]["tags"] == {
-        "mri": "d:custom/foo@none",
+    assert metrics.volume["d:spans/foo@none"]["org_id"] == 0
+    assert metrics.volume["d:spans/foo@none"]["project_id"] == project_id
+    assert metrics.volume["d:spans/foo@none"]["value"] == 2.0
+    assert metrics.volume["d:spans/foo@none"]["tags"] == {
+        "mri": "d:spans/foo@none",
         "mri.type": "d",
-        "mri.namespace": "custom",
+        "mri.namespace": "spans",
         "outcome.id": "0",
     }
-    assert metrics.volume["s:custom/bar@none"]["org_id"] == 0
-    assert metrics.volume["s:custom/bar@none"]["project_id"] == project_id
-    assert metrics.volume["s:custom/bar@none"]["value"] == 1.0
-    assert metrics.volume["s:custom/bar@none"]["tags"] == {
-        "mri": "s:custom/bar@none",
+    assert metrics.volume["s:spans/bar@none"]["org_id"] == 0
+    assert metrics.volume["s:spans/bar@none"]["project_id"] == project_id
+    assert metrics.volume["s:spans/bar@none"]["value"] == 1.0
+    assert metrics.volume["s:spans/bar@none"]["tags"] == {
+        "mri": "s:spans/bar@none",
         "mri.type": "s",
-        "mri.namespace": "custom",
+        "mri.namespace": "spans",
         "outcome.id": "0",
     }
     assert len(metrics.volume) == 2
-    assert metrics.cardinality["d:custom/foo@none"]["org_id"] == 0
-    assert metrics.cardinality["d:custom/foo@none"]["project_id"] == project_id
-    assert metrics.cardinality["d:custom/foo@none"]["value"] == {
+    assert metrics.cardinality["d:spans/foo@none"]["org_id"] == 0
+    assert metrics.cardinality["d:spans/foo@none"]["project_id"] == project_id
+    assert metrics.cardinality["d:spans/foo@none"]["value"] == {
         "count": 1,
         "last": 2.0,
         "max": 2.0,
         "min": 2.0,
         "sum": 2.0,
     }
-    assert metrics.cardinality["d:custom/foo@none"]["tags"] == {
-        "mri": "d:custom/foo@none",
+    assert metrics.cardinality["d:spans/foo@none"]["tags"] == {
+        "mri": "d:spans/foo@none",
         "mri.type": "d",
-        "mri.namespace": "custom",
-        "cardinality.limit": "custom-limit",
+        "mri.namespace": "spans",
+        "cardinality.limit": "spans-limit",
         "cardinality.scope": "name",
         "cardinality.window": "3600",
     }
-    assert metrics.cardinality["s:custom/bar@none"]["org_id"] == 0
-    assert metrics.cardinality["s:custom/bar@none"]["project_id"] == project_id
-    assert metrics.cardinality["s:custom/bar@none"]["value"] == {
+    assert metrics.cardinality["s:spans/bar@none"]["org_id"] == 0
+    assert metrics.cardinality["s:spans/bar@none"]["project_id"] == project_id
+    assert metrics.cardinality["s:spans/bar@none"]["value"] == {
         "count": 1,
         "last": 1.0,
         "max": 1.0,
         "min": 1.0,
         "sum": 1.0,
     }
-    assert metrics.cardinality["s:custom/bar@none"]["tags"] == {
-        "mri": "s:custom/bar@none",
+    assert metrics.cardinality["s:spans/bar@none"]["tags"] == {
+        "mri": "s:spans/bar@none",
         "mri.type": "s",
-        "mri.namespace": "custom",
-        "cardinality.limit": "custom-limit",
+        "mri.namespace": "spans",
+        "cardinality.limit": "spans-limit",
         "cardinality.scope": "name",
         "cardinality.window": "3600",
     }
@@ -167,7 +166,6 @@ def test_metric_stats_with_limit_surpassed(
     project_id = 42
     project_config = mini_sentry.add_basic_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:custom-metrics",
         "organizations:metric-stats",
     ]
     project_config["config"]["metrics"] = {
@@ -178,7 +176,7 @@ def test_metric_stats_with_limit_surpassed(
                 "report": True,
                 "limit": 0,
                 "scope": "org",
-                "namespace": "custom",
+                "namespace": "spans",
             },
             {
                 "id": "name-limit",
@@ -186,43 +184,43 @@ def test_metric_stats_with_limit_surpassed(
                 "report": True,
                 "limit": 0,
                 "scope": "name",
-                "namespace": "custom",
+                "namespace": "spans",
             },
         ]
     }
 
     relay.send_metrics(
-        project_id, "custom/foo:1337|d\ncustom/baz:12|d|#tag:value\ncustom/bar:42|s"
+        project_id, "spans/foo:1337|d\nspans/baz:12|d|#tag:value\nspans/bar:42|s"
     )
 
     metrics = metric_stats_by_mri(metrics_consumer, 3)
-    assert metrics.volume["d:custom/foo@none"]["org_id"] == 0
-    assert metrics.volume["d:custom/foo@none"]["project_id"] == project_id
-    assert metrics.volume["d:custom/foo@none"]["value"] == 1.0
-    assert metrics.volume["d:custom/foo@none"]["tags"] == {
-        "mri": "d:custom/foo@none",
+    assert metrics.volume["d:spans/foo@none"]["org_id"] == 0
+    assert metrics.volume["d:spans/foo@none"]["project_id"] == project_id
+    assert metrics.volume["d:spans/foo@none"]["value"] == 1.0
+    assert metrics.volume["d:spans/foo@none"]["tags"] == {
+        "mri": "d:spans/foo@none",
         "mri.type": "d",
-        "mri.namespace": "custom",
+        "mri.namespace": "spans",
         "outcome.id": "6",
         "outcome.reason": "name-limit",
     }
-    assert metrics.volume["d:custom/baz@none"]["org_id"] == 0
-    assert metrics.volume["d:custom/baz@none"]["project_id"] == project_id
-    assert metrics.volume["d:custom/baz@none"]["value"] == 1.0
-    assert metrics.volume["d:custom/baz@none"]["tags"] == {
-        "mri": "d:custom/baz@none",
+    assert metrics.volume["d:spans/baz@none"]["org_id"] == 0
+    assert metrics.volume["d:spans/baz@none"]["project_id"] == project_id
+    assert metrics.volume["d:spans/baz@none"]["value"] == 1.0
+    assert metrics.volume["d:spans/baz@none"]["tags"] == {
+        "mri": "d:spans/baz@none",
         "mri.type": "d",
-        "mri.namespace": "custom",
+        "mri.namespace": "spans",
         "outcome.id": "6",
         "outcome.reason": "name-limit",
     }
-    assert metrics.volume["s:custom/bar@none"]["org_id"] == 0
-    assert metrics.volume["s:custom/bar@none"]["project_id"] == project_id
-    assert metrics.volume["s:custom/bar@none"]["value"] == 1.0
-    assert metrics.volume["s:custom/bar@none"]["tags"] == {
-        "mri": "s:custom/bar@none",
+    assert metrics.volume["s:spans/bar@none"]["org_id"] == 0
+    assert metrics.volume["s:spans/bar@none"]["project_id"] == project_id
+    assert metrics.volume["s:spans/bar@none"]["value"] == 1.0
+    assert metrics.volume["s:spans/bar@none"]["tags"] == {
+        "mri": "s:spans/bar@none",
         "mri.type": "s",
-        "mri.namespace": "custom",
+        "mri.namespace": "spans",
         "outcome.id": "6",
         "outcome.reason": "name-limit",
     }
@@ -246,18 +244,17 @@ def test_metric_stats_max_flush_bytes(
     project_id = 42
     project_config = mini_sentry.add_basic_project_config(project_id)
     project_config["config"]["features"] = [
-        "organizations:custom-metrics",
         "organizations:metric-stats",
     ]
 
     # Metric is big enough to be split into multiple smaller metrics when emitting to Kafka,
     # make sure the volume counted is still just 1.
     relay.send_metrics(
-        project_id, "custom/foo:1:2:3:4:5:6:7:8:9:10:11:12:13:14:15:16:17:18:19:20|d"
+        project_id, "spans/foo:1:2:3:4:5:6:7:8:9:10:11:12:13:14:15:16:17:18:19:20|d"
     )
 
     metrics = metric_stats_by_mri(metrics_consumer, 3)
-    assert metrics.volume["d:custom/foo@none"]["value"] == 1.0
+    assert metrics.volume["d:spans/foo@none"]["value"] == 1.0
     assert len(metrics.other) == 2
 
 
