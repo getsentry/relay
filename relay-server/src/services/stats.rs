@@ -195,7 +195,7 @@ impl RelayStats {
 
     async fn async_pools_metrics(&self) {
         for async_pool_metrics in self.async_pools_metrics.iter() {
-            Self::emit_async_pool_metrics(&async_pool_metrics);
+            Self::emit_async_pool_metrics(async_pool_metrics);
         }
     }
 }
