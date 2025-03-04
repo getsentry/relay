@@ -14,7 +14,7 @@ pub(crate) struct ThreadMetrics {
 /// Metrics for the asynchronous pool.
 #[derive(Debug)]
 pub struct AsyncPoolMetrics<'a> {
-    pub(crate) max_expected_futures: u64,
+    pub(crate) max_tasks: u64,
     pub(crate) queue_size: u64,
     pub(crate) threads_metrics: &'a [Arc<ThreadMetrics>],
 }
@@ -33,6 +33,6 @@ impl AsyncPoolMetrics<'_> {
             .map(|m| m.active_tasks.load(Ordering::Relaxed))
             .sum();
 
-        (total_polled_futures as f32 / self.max_expected_futures as f32).clamp(0.0, 1.0)
+        (total_polled_futures as f32 / self.max_tasks as f32).clamp(0.0, 1.0)
     }
 }

@@ -24,8 +24,8 @@ pub struct AsyncPool<F> {
     name: &'static str,
     /// Transmission containing all futures.
     tx: flume::Sender<F>,
-    /// The maximum number of futures that are expected to run concurrently at any point in time.
-    max_expected_futures: u64,
+    /// The maximum number of tasks that are expected to run concurrently at any point in time.
+    max_tasks: u64,
     /// Vector containing all the metrics collected individually in each thread.
     threads_metrics: Arc<Vec<Arc<ThreadMetrics>>>,
 }
@@ -39,7 +39,7 @@ impl<F> AsyncPool<F> {
     /// Returns the [`AsyncPoolMetrics`] that are updated by the pool.
     pub fn metrics(&self) -> AsyncPoolMetrics {
         AsyncPoolMetrics {
-            max_expected_futures: self.max_expected_futures,
+            max_tasks: self.max_tasks,
             queue_size: self.tx.len() as u64,
             threads_metrics: &self.threads_metrics,
         }
@@ -91,7 +91,7 @@ where
         Ok(Self {
             name: pool_name,
             tx,
-            max_expected_futures: (builder.num_threads * builder.max_concurrency) as u64,
+            max_tasks: (builder.num_threads * builder.max_concurrency) as u64,
             threads_metrics: Arc::new(threads_metrics),
         })
     }
@@ -132,7 +132,7 @@ impl<F> Clone for AsyncPool<F> {
         Self {
             name: self.name,
             tx: self.tx.clone(),
-            max_expected_futures: self.max_expected_futures,
+            max_tasks: self.max_tasks,
             threads_metrics: self.threads_metrics.clone(),
         }
     }
