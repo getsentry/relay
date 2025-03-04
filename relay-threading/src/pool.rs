@@ -38,11 +38,11 @@ impl<F> AsyncPool<F> {
 
     /// Returns the [`AsyncPoolMetrics`] that are updated by the pool.
     pub fn metrics(&self) -> AsyncPoolMetrics {
-        AsyncPoolMetrics::new(
-            self.max_expected_futures,
-            self.tx.len() as u64,
-            &self.threads_metrics,
-        )
+        AsyncPoolMetrics {
+            max_expected_futures: self.max_expected_futures,
+            queue_size: self.tx.len() as u64,
+            threads_metrics: &self.threads_metrics,
+        }
     }
 }
 
@@ -66,7 +66,7 @@ where
             let rx = rx.clone();
             let thread_name: Option<String> = builder.thread_name.as_mut().map(|f| f(thread_id));
 
-            let metrics = Arc::new(ThreadMetrics::new());
+            let metrics = Arc::new(ThreadMetrics::default());
             let thread = Thread {
                 id: thread_id,
                 max_concurrency: builder.max_concurrency,

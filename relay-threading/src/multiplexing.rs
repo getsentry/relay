@@ -1,6 +1,7 @@
 use std::future::Future;
 use std::panic::AssertUnwindSafe;
 use std::pin::Pin;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
@@ -172,7 +173,9 @@ where
                 Poll::Ready(Some(task)) => {
                     this.tasks.push(task);
                     // We report how many tasks are being concurrently polled in this future.
-                    this.metrics.update_polled_futures(this.tasks.len() as u64);
+                    this.metrics
+                        .active_tasks
+                        .store(this.tasks.len() as u64, Ordering::Relaxed);
                 }
                 // The stream is exhausted and there are no remaining tasks.
                 Poll::Ready(None) if this.tasks.is_empty() => return Poll::Ready(()),
@@ -208,7 +211,7 @@ mod tests {
     }
 
     fn mock_metrics() -> Arc<ThreadMetrics> {
-        Arc::new(ThreadMetrics::new())
+        Arc::new(ThreadMetrics::default())
     }
 
     #[test]
@@ -494,6 +497,6 @@ mod tests {
         ));
 
         // We expect that the metrics are updated with the newly added future.
-        assert_eq!(metrics.polled_futures(), 1);
+        assert_eq!(metrics.active_tasks.load(Ordering::Relaxed), 1);
     }
 }
