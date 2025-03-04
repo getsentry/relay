@@ -4,13 +4,13 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use crate::metrics::AsyncPoolMetrics;
-use crate::PanicHandler;
 use futures::future::CatchUnwind;
 use futures::stream::{FusedStream, FuturesUnordered, Stream};
 use futures::FutureExt;
 use pin_project_lite::pin_project;
 use tokio::task::Unconstrained;
+
+use crate::{PanicHandler, ThreadMetrics};
 
 pin_project! {
     /// Manages concurrent execution of asynchronous tasks.
@@ -109,7 +109,7 @@ pin_project! {
         rx: S,
         #[pin]
         tasks: Tasks<F>,
-        metrics: AsyncPoolMetrics
+        metrics: Arc<ThreadMetrics>
     }
 }
 
@@ -127,7 +127,7 @@ where
         max_concurrency: usize,
         rx: S,
         panic_handler: Option<Arc<PanicHandler>>,
-        metrics: AsyncPoolMetrics,
+        metrics: Arc<ThreadMetrics>,
     ) -> Self {
         Self {
             thread_id,
@@ -175,9 +175,7 @@ where
                 Poll::Ready(Some(task)) => {
                     this.tasks.push(task);
                     // We report how many tasks are being concurrently polled in this future.
-                    if let Some(m) = this.metrics.thread_metrics(*this.thread_id) {
-                        m.update_polled_futures(this.tasks.len() as u64)
-                    }
+                    this.metrics.update_polled_futures(this.tasks.len() as u64);
                 }
                 // The stream is exhausted and there are no remaining tasks.
                 Poll::Ready(None) if this.tasks.is_empty() => return Poll::Ready(()),
@@ -212,8 +210,8 @@ mod tests {
         fut.boxed()
     }
 
-    fn mock_metrics(max_concurrency: usize) -> AsyncPoolMetrics {
-        AsyncPoolMetrics::new("my_pool", 1, max_concurrency)
+    fn mock_metrics() -> Arc<ThreadMetrics> {
+        Arc::new(ThreadMetrics::new())
     }
 
     #[test]
@@ -225,7 +223,7 @@ mod tests {
             1,
             rx.into_stream(),
             None,
-            mock_metrics(1),
+            mock_metrics(),
         ));
     }
 
@@ -254,7 +252,7 @@ mod tests {
             1,
             rx.into_stream(),
             Some(Arc::new(panic_handler)),
-            mock_metrics(1),
+            mock_metrics(),
         ));
 
         // The count is expected to have been incremented and the handler called.
@@ -283,7 +281,7 @@ mod tests {
                 1,
                 rx.into_stream(),
                 None,
-                mock_metrics(1),
+                mock_metrics(),
             ))
         }));
 
@@ -311,7 +309,7 @@ mod tests {
             1,
             rx.into_stream(),
             None,
-            mock_metrics(1),
+            mock_metrics(),
         ));
 
         // The count is expected to have been incremented.
@@ -339,7 +337,7 @@ mod tests {
             1,
             rx.into_stream(),
             None,
-            mock_metrics(1),
+            mock_metrics(),
         ));
 
         // The order of completion is expected to match the order of submission.
@@ -365,7 +363,7 @@ mod tests {
             5,
             rx.into_stream(),
             None,
-            mock_metrics(5),
+            mock_metrics(),
         ));
 
         // The count is expected to have been incremented.
@@ -393,7 +391,7 @@ mod tests {
             5,
             rx.into_stream(),
             None,
-            mock_metrics(5),
+            mock_metrics(),
         ));
 
         // The order of completion is expected to be the same as the order of submission.
@@ -424,7 +422,7 @@ mod tests {
             5,
             rx.into_stream(),
             None,
-            mock_metrics(5),
+            mock_metrics(),
         ));
 
         // The order of completion is expected to be the same as the order of submission.
@@ -461,7 +459,7 @@ mod tests {
             5,
             rx.into_stream(),
             None,
-            mock_metrics(5),
+            mock_metrics(),
         ));
 
         // The order of completion may vary; verify that all expected elements are present.
@@ -493,7 +491,7 @@ mod tests {
     #[test]
     fn test_multiplexer_emits_metrics() {
         let (tx, rx) = flume::bounded::<BoxFuture<'static, _>>(10);
-        let metrics = mock_metrics(1);
+        let metrics = mock_metrics();
 
         tx.send(future_with(|| {})).unwrap();
 
@@ -509,6 +507,6 @@ mod tests {
         ));
 
         // We expect that the metrics are updated with the newly added future.
-        assert_eq!(metrics.thread_metrics(0).unwrap().polled_futures(), 1);
+        assert_eq!(metrics.polled_futures(), 1);
     }
 }

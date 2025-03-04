@@ -1,6 +1,7 @@
 use std::future::Future;
 use std::io;
 use std::panic::AssertUnwindSafe;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use futures::future::BoxFuture;
@@ -9,7 +10,7 @@ use futures::FutureExt;
 use crate::builder::AsyncPoolBuilder;
 use crate::metrics::AsyncPoolMetrics;
 use crate::multiplexing::Multiplexed;
-use crate::PanicHandler;
+use crate::{PanicHandler, ThreadMetrics};
 
 /// Default name of the pool.
 const DEFAULT_POOL_NAME: &str = "unnamed";
@@ -20,9 +21,16 @@ const DEFAULT_POOL_NAME: &str = "unnamed";
 /// Tokio executor. This design enables controlled concurrency and efficient use of system resources.
 #[derive(Debug)]
 pub struct AsyncPool<F> {
+    /// Name of the pool.
     name: &'static str,
+    /// Transmission containing all futures.
     tx: flume::Sender<F>,
-    metrics: AsyncPoolMetrics,
+    /// The maximum number of futures that are expected to run concurrently at any point in time.
+    max_expected_futures: u64,
+    /// Number of futures waiting to be executed by one of the threads of the pool.
+    queue_size: AtomicU64,
+    /// Vector containing all the metrics collected individually in each thread.
+    threads_metrics: Vec<Arc<ThreadMetrics>>,
 }
 
 impl<F> AsyncPool<F>
@@ -39,14 +47,13 @@ where
     {
         let pool_name = builder.pool_name.unwrap_or(DEFAULT_POOL_NAME);
         let (tx, rx) = flume::bounded(builder.num_threads * 2);
-
-        let metrics =
-            AsyncPoolMetrics::new(pool_name, builder.num_threads, builder.max_concurrency);
+        let mut threads_metrics = Vec::with_capacity(builder.num_threads);
 
         for thread_id in 0..builder.num_threads {
             let rx = rx.clone();
             let thread_name: Option<String> = builder.thread_name.as_mut().map(|f| f(thread_id));
 
+            let metrics = Arc::new(ThreadMetrics::new());
             let thread = Thread {
                 id: thread_id,
                 max_concurrency: builder.max_concurrency,
@@ -64,13 +71,17 @@ where
                 .boxed(),
             };
 
+            threads_metrics.push(metrics);
+
             builder.spawn_handler.spawn(thread)?;
         }
 
         Ok(Self {
             name: pool_name,
             tx,
-            metrics,
+            max_expected_futures: (builder.num_threads * builder.max_concurrency) as u64,
+            queue_size: AtomicU64::new(0),
+            threads_metrics,
         })
     }
 
@@ -115,14 +126,29 @@ where
 
     /// Returns the [`AsyncPoolMetrics`] that are updated by the pool.
     pub fn metrics(&self) -> AsyncPoolMetrics {
-        self.metrics.clone()
+        AsyncPoolMetrics {
+            queue_size: self.queue_size.load(Ordering::SeqCst),
+            utilization: self.utilization(),
+        }
     }
 
     /// Tracks the amount of elements in the queue containing all futures to be scheduled.
     fn track_queue_size(&self) {
         // On each poll, we report how many items are in the queue containing futures to dispatch
         // across all threads.
-        self.metrics.update_queued_futures(self.tx.len() as u64);
+        self.queue_size
+            .store(self.tx.len() as u64, Ordering::SeqCst);
+    }
+
+    /// Computes the utilization metric for this [`AsyncPool`].
+    fn utilization(&self) -> f32 {
+        let total_polled_futures: u64 = self
+            .threads_metrics
+            .iter()
+            .map(|m| m.polled_futures())
+            .sum();
+
+        (total_polled_futures as f32 / self.max_expected_futures as f32).clamp(0.0, 1.0)
     }
 }
 
