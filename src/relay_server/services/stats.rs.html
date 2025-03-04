@@ -198,18 +198,52 @@
 <a href="#197" id="197">197</a>
 <a href="#198" id="198">198</a>
 <a href="#199" id="199">199</a>
-<a href="#200" id="200">200</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
+<a href="#200" id="200">200</a>
+<a href="#201" id="201">201</a>
+<a href="#202" id="202">202</a>
+<a href="#203" id="203">203</a>
+<a href="#204" id="204">204</a>
+<a href="#205" id="205">205</a>
+<a href="#206" id="206">206</a>
+<a href="#207" id="207">207</a>
+<a href="#208" id="208">208</a>
+<a href="#209" id="209">209</a>
+<a href="#210" id="210">210</a>
+<a href="#211" id="211">211</a>
+<a href="#212" id="212">212</a>
+<a href="#213" id="213">213</a>
+<a href="#214" id="214">214</a>
+<a href="#215" id="215">215</a>
+<a href="#216" id="216">216</a>
+<a href="#217" id="217">217</a>
+<a href="#218" id="218">218</a>
+<a href="#219" id="219">219</a>
+<a href="#220" id="220">220</a>
+<a href="#221" id="221">221</a>
+<a href="#222" id="222">222</a>
+<a href="#223" id="223">223</a>
+<a href="#224" id="224">224</a>
+<a href="#225" id="225">225</a>
+<a href="#226" id="226">226</a>
+<a href="#227" id="227">227</a>
+<a href="#228" id="228">228</a>
+<a href="#229" id="229">229</a>
+<a href="#230" id="230">230</a>
+<a href="#231" id="231">231</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::sync::Arc;
 
-<span class="kw">use </span><span class="kw">crate</span>::services::upstream::{IsNetworkOutage, UpstreamRelay};
-<span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayGauges, RuntimeCounters, RuntimeGauges};
 <span class="kw">use </span>relay_config::{Config, RelayMode};
 <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-</span><span class="kw">use </span>relay_redis::AsyncRedisClient;
-<span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
-</span><span class="kw">use </span>relay_redis::{RedisPool, RedisPools, Stats};
+</span><span class="kw">use </span>relay_redis::{AsyncRedisClient, RedisPool, RedisPools, Stats};
 <span class="kw">use </span>relay_statsd::metric;
 <span class="kw">use </span>relay_system::{Addr, Handle, RuntimeMetrics, Service};
+<span class="kw">use </span>relay_threading::AsyncPool;
 <span class="kw">use </span>tokio::time::interval;
+
+<span class="kw">use </span><span class="kw">crate</span>::services::processor::EnvelopeProcessorServicePool;
+<span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+</span><span class="kw">use </span><span class="kw">crate</span>::services::store::StoreServicePool;
+<span class="kw">use </span><span class="kw">crate</span>::services::upstream::{IsNetworkOutage, UpstreamRelay};
+<span class="kw">use </span><span class="kw">crate</span>::statsd::{RelayGauges, RuntimeCounters, RuntimeGauges};
 
 <span class="doccomment">/// Relay Stats Service.
 ///
@@ -221,6 +255,9 @@
     upstream_relay: Addr&lt;UpstreamRelay&gt;,
     <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
     </span>redis_pools: <span class="prelude-ty">Option</span>&lt;RedisPools&gt;,
+    processor_pool: EnvelopeProcessorServicePool,
+    <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+    </span>store_pool: StoreServicePool,
 }
 
 <span class="kw">impl </span>RelayStats {
@@ -229,6 +266,8 @@
         runtime: Handle,
         upstream_relay: Addr&lt;UpstreamRelay&gt;,
         <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)] </span>redis_pools: <span class="prelude-ty">Option</span>&lt;RedisPools&gt;,
+        processor_pool: EnvelopeProcessorServicePool,
+        <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)] </span>store_pool: StoreServicePool,
     ) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             config,
@@ -237,6 +276,9 @@
             runtime,
             <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
             </span>redis_pools,
+            processor_pool,
+            <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+            </span>store_pool,
         }
     }
 
@@ -377,6 +419,25 @@
             <span class="self">Self</span>::redis_pool(quotas, <span class="string">"quotas"</span>);
         }
     }
+
+    <span class="kw">fn </span>emit_async_pool_metrics&lt;T&gt;(async_pool: <span class="kw-2">&amp;</span>AsyncPool&lt;T&gt;) {
+        <span class="kw">let </span>metrics = async_pool.metrics();
+
+        <span class="macro">metric!</span>(
+            gauge(RelayGauges::AsyncPoolQueueSize) = metrics.queue_size(),
+            pool_name = async_pool.name()
+        );
+        <span class="macro">metric!</span>(
+            gauge(RelayGauges::AsyncPoolUtilization) = metrics.utilization() <span class="kw">as </span>f64,
+            pool = async_pool.name()
+        );
+    }
+
+    <span class="kw">async fn </span>async_pools_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>) {
+        <span class="self">Self</span>::emit_async_pool_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>.processor_pool);
+        <span class="attr">#[cfg(feature = <span class="string">"processing"</span>)]
+        </span><span class="self">Self</span>::emit_async_pool_metrics(<span class="kw-2">&amp;</span><span class="self">self</span>.store_pool);
+    }
 }
 
 <span class="kw">impl </span>Service <span class="kw">for </span>RelayStats {
@@ -393,6 +454,7 @@
                 <span class="self">self</span>.service_metrics(),
                 <span class="self">self</span>.tokio_metrics(),
                 <span class="self">self</span>.redis_pools(),
+                <span class="self">self</span>.async_pools_metrics()
             );
             ticker.tick().<span class="kw">await</span>;
         }

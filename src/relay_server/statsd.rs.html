@@ -1027,12 +1027,32 @@
 <a href="#1026" id="1026">1026</a>
 <a href="#1027" id="1027">1027</a>
 <a href="#1028" id="1028">1028</a>
-<a href="#1029" id="1029">1029</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
+<a href="#1029" id="1029">1029</a>
+<a href="#1030" id="1030">1030</a>
+<a href="#1031" id="1031">1031</a>
+<a href="#1032" id="1032">1032</a>
+<a href="#1033" id="1033">1033</a>
+<a href="#1034" id="1034">1034</a>
+<a href="#1035" id="1035">1035</a>
+<a href="#1036" id="1036">1036</a>
+<a href="#1037" id="1037">1037</a>
+<a href="#1038" id="1038">1038</a>
+<a href="#1039" id="1039">1039</a>
+<a href="#1040" id="1040">1040</a></pre></div><pre class="rust"><code><span class="kw">use </span>relay_statsd::{CounterMetric, GaugeMetric, HistogramMetric, TimerMetric};
 <span class="attr">#[cfg(doc)]
 </span><span class="kw">use </span>relay_system::RuntimeMetrics;
 
 <span class="doccomment">/// Gauge metrics used by Relay
 </span><span class="kw">pub enum </span>RelayGauges {
+    <span class="doccomment">/// Tracks the number of futures waiting to be executed in the pool's queue.
+    ///
+    /// Useful for understanding the backlog of work and identifying potential bottlenecks.
+    </span>AsyncPoolQueueSize,
+    <span class="doccomment">/// Tracks the utilization of the async pool.
+    ///
+    /// The utilization is a value between 0.0 and 1.0 which determines how busy is the pool
+    /// w.r.t. to its provisioned capacity.
+    </span>AsyncPoolUtilization,
     <span class="doccomment">/// The state of Relay with respect to the upstream connection.
     /// Possible values are `0` for normal operations and `1` for a network outage.
     </span>NetworkOutage,
@@ -1082,6 +1102,8 @@
 <span class="kw">impl </span>GaugeMetric <span class="kw">for </span>RelayGauges {
     <span class="kw">fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
         <span class="kw">match </span><span class="self">self </span>{
+            RelayGauges::AsyncPoolQueueSize =&gt; <span class="string">"async_pool.queue_size"</span>,
+            RelayGauges::AsyncPoolUtilization =&gt; <span class="string">"async_pool.utilization"</span>,
             RelayGauges::NetworkOutage =&gt; <span class="string">"upstream.network_outage"</span>,
             RelayGauges::BufferStackCount =&gt; <span class="string">"buffer.stack_count"</span>,
             RelayGauges::BufferDiskUsed =&gt; <span class="string">"buffer.disk_used"</span>,

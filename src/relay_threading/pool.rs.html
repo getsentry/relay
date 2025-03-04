@@ -406,7 +406,33 @@
 <a href="#405" id="405">405</a>
 <a href="#406" id="406">406</a>
 <a href="#407" id="407">407</a>
-<a href="#408" id="408">408</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::future::Future;
+<a href="#408" id="408">408</a>
+<a href="#409" id="409">409</a>
+<a href="#410" id="410">410</a>
+<a href="#411" id="411">411</a>
+<a href="#412" id="412">412</a>
+<a href="#413" id="413">413</a>
+<a href="#414" id="414">414</a>
+<a href="#415" id="415">415</a>
+<a href="#416" id="416">416</a>
+<a href="#417" id="417">417</a>
+<a href="#418" id="418">418</a>
+<a href="#419" id="419">419</a>
+<a href="#420" id="420">420</a>
+<a href="#421" id="421">421</a>
+<a href="#422" id="422">422</a>
+<a href="#423" id="423">423</a>
+<a href="#424" id="424">424</a>
+<a href="#425" id="425">425</a>
+<a href="#426" id="426">426</a>
+<a href="#427" id="427">427</a>
+<a href="#428" id="428">428</a>
+<a href="#429" id="429">429</a>
+<a href="#430" id="430">430</a>
+<a href="#431" id="431">431</a>
+<a href="#432" id="432">432</a>
+<a href="#433" id="433">433</a>
+<a href="#434" id="434">434</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::future::Future;
 <span class="kw">use </span>std::io;
 <span class="kw">use </span>std::panic::AssertUnwindSafe;
 <span class="kw">use </span>std::sync::Arc;
@@ -415,9 +441,9 @@
 <span class="kw">use </span>futures::FutureExt;
 
 <span class="kw">use </span><span class="kw">crate</span>::builder::AsyncPoolBuilder;
-<span class="kw">use </span><span class="kw">crate</span>::metrics::AsyncPoolGauges;
+<span class="kw">use </span><span class="kw">crate</span>::metrics::AsyncPoolMetrics;
 <span class="kw">use </span><span class="kw">crate</span>::multiplexing::Multiplexed;
-<span class="kw">use </span><span class="kw">crate</span>::PanicHandler;
+<span class="kw">use crate</span>::{PanicHandler, ThreadMetrics};
 
 <span class="doccomment">/// Default name of the pool.
 </span><span class="kw">const </span>DEFAULT_POOL_NAME: <span class="kw-2">&amp;</span>str = <span class="string">"unnamed"</span>;
@@ -428,8 +454,30 @@
 /// Tokio executor. This design enables controlled concurrency and efficient use of system resources.
 </span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>AsyncPool&lt;F&gt; {
-    name: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
-    tx: flume::Sender&lt;F&gt;,
+    <span class="doccomment">/// Name of the pool.
+    </span>name: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
+    <span class="doccomment">/// Transmission containing all tasks.
+    </span>tx: flume::Sender&lt;F&gt;,
+    <span class="doccomment">/// The maximum number of tasks that are expected to run concurrently at any point in time.
+    </span>max_tasks: u64,
+    <span class="doccomment">/// Vector containing all the metrics collected individually in each thread.
+    </span>threads_metrics: Arc&lt;Vec&lt;Arc&lt;ThreadMetrics&gt;&gt;&gt;,
+}
+
+<span class="kw">impl</span>&lt;F&gt; AsyncPool&lt;F&gt; {
+    <span class="doccomment">/// Returns the `name` of the [`AsyncPool`].
+    </span><span class="kw">pub fn </span>name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str {
+        <span class="self">self</span>.name
+    }
+
+    <span class="doccomment">/// Returns the [`AsyncPoolMetrics`] that are updated by the pool.
+    </span><span class="kw">pub fn </span>metrics(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; AsyncPoolMetrics {
+        AsyncPoolMetrics {
+            max_tasks: <span class="self">self</span>.max_tasks,
+            queue_size: <span class="self">self</span>.tx.len() <span class="kw">as </span>u64,
+            threads_metrics: <span class="kw-2">&amp;</span><span class="self">self</span>.threads_metrics,
+        }
+    }
 }
 
 <span class="kw">impl</span>&lt;F&gt; AsyncPool&lt;F&gt;
@@ -446,11 +494,13 @@
     {
         <span class="kw">let </span>pool_name = builder.pool_name.unwrap_or(DEFAULT_POOL_NAME);
         <span class="kw">let </span>(tx, rx) = flume::bounded(builder.num_threads * <span class="number">2</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>threads_metrics = Vec::with_capacity(builder.num_threads);
 
         <span class="kw">for </span>thread_id <span class="kw">in </span><span class="number">0</span>..builder.num_threads {
             <span class="kw">let </span>rx = rx.clone();
             <span class="kw">let </span>thread_name: <span class="prelude-ty">Option</span>&lt;String&gt; = builder.thread_name.as_mut().map(|f| f(thread_id));
 
+            <span class="kw">let </span>metrics = Arc::new(ThreadMetrics::default());
             <span class="kw">let </span>thread = Thread {
                 id: thread_id,
                 max_concurrency: builder.max_concurrency,
@@ -462,9 +512,12 @@
                     builder.max_concurrency,
                     rx.into_stream(),
                     builder.task_panic_handler.clone(),
+                    metrics.clone(),
                 )
                 .boxed(),
             };
+
+            threads_metrics.push(metrics);
 
             builder.spawn_handler.spawn(thread)<span class="question-mark">?</span>;
         }
@@ -472,6 +525,8 @@
         <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
             name: pool_name,
             tx,
+            max_tasks: (builder.num_threads * builder.max_concurrency) <span class="kw">as </span>u64,
+            threads_metrics: Arc::new(threads_metrics),
         })
     }
 
@@ -488,8 +543,6 @@
             <span class="self">self</span>.tx.send(future).is_ok(),
             <span class="string">"failed to schedule task: all worker threads have terminated (either none were spawned or all have panicked)"
         </span>);
-
-        <span class="self">self</span>.track_queue_size()
     }
 
     <span class="doccomment">/// Asynchronously enqueues a future for execution within the [`AsyncPool`].
@@ -505,18 +558,17 @@
             <span class="self">self</span>.tx.send_async(future).<span class="kw">await</span>.is_ok(),
             <span class="string">"failed to schedule task: all worker threads have terminated (either none were spawned or all have panicked)"
         </span>);
-
-        <span class="self">self</span>.track_queue_size()
     }
+}
 
-    <span class="doccomment">/// Tracks the amount of elements in the queue containing all futures to be scheduled.
-    </span><span class="kw">fn </span>track_queue_size(<span class="kw-2">&amp;</span><span class="self">self</span>) {
-        <span class="comment">// On each poll, we report how many items are in the queue containing futures to dispatch
-        // across all threads.
-        </span><span class="macro">relay_statsd::metric!</span>(
-            gauge(AsyncPoolGauges::AsyncPoolQueueSize) = <span class="self">self</span>.tx.len() <span class="kw">as </span>u64,
-            pool_name = <span class="kw-2">&amp;</span><span class="self">self</span>.name
-        );
+<span class="kw">impl</span>&lt;F&gt; Clone <span class="kw">for </span>AsyncPool&lt;F&gt; {
+    <span class="kw">fn </span>clone(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            name: <span class="self">self</span>.name,
+            tx: <span class="self">self</span>.tx.clone(),
+            max_tasks: <span class="self">self</span>.max_tasks,
+            threads_metrics: <span class="self">self</span>.threads_metrics.clone(),
+        }
     }
 }
 
