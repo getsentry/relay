@@ -22,7 +22,7 @@ const DEFAULT_POOL_NAME: &str = "unnamed";
 pub struct AsyncPool<F> {
     /// Name of the pool.
     name: &'static str,
-    /// Transmission containing all futures.
+    /// Transmission containing all tasks.
     tx: flume::Sender<F>,
     /// The maximum number of tasks that are expected to run concurrently at any point in time.
     max_tasks: u64,

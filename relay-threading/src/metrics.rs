@@ -20,7 +20,7 @@ pub struct AsyncPoolMetrics<'a> {
 }
 
 impl AsyncPoolMetrics<'_> {
-    /// Returns the amount of futures in the pool's queue.
+    /// Returns the amount of tasks in the pool's queue.
     pub fn queue_size(&self) -> u64 {
         self.queue_size
     }
