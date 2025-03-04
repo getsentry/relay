@@ -61,7 +61,6 @@ where
                 runtime: builder.runtime.clone(),
                 panic_handler: builder.thread_panic_handler.clone(),
                 task: Multiplexed::new(
-                    thread_id,
                     pool_name,
                     builder.max_concurrency,
                     rx.into_stream(),
