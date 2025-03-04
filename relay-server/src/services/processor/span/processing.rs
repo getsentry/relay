@@ -809,7 +809,6 @@ fn validate(span: &mut Annotated<Span>) -> Result<(), ValidationError> {
 
 fn infer_span_description(span: &Span) -> Option<String> {
     let category = span.sentry_tags.value().and_then(|v| v.category.value());
-
     match category.map(|v| v.as_ref()) {
         Some("db") => span.data.value().and_then(|v| {
             v.db_statement
@@ -828,7 +827,7 @@ mod tests {
     use bytes::Bytes;
     use once_cell::sync::Lazy;
     use relay_event_schema::protocol::{
-        Context, ContextInner, EventId, SpanId, Timestamp, TraceContext, TraceId,
+        Context, ContextInner, EventId, SentryTags, SpanId, Timestamp, TraceContext, TraceId,
     };
     use relay_event_schema::protocol::{Contexts, Event, Span};
     use relay_protocol::get_value;
@@ -1450,13 +1449,17 @@ mod tests {
     }
 
     #[test]
-    fn infers_span_description() {
-        let mut span = Annotated::from_json(
+    fn infers_db_span_description() {
+        let mut span: Annotated<Span> = Annotated::from_json(
             r#"{
             "start_timestamp": 0,
             "timestamp": 1,
             "trace_id": "922dda2462ea4ac2b6a4b339bee90863",
-            "span_id": "922dda2462ea4ac2"
+            "span_id": "922dda2462ea4ac2",
+            "data": {
+                "db.query.text": "SELECT * FROM users WHERE id = 1",
+                "db.statement": "SELECT * FROM users WHERE id = 1"
+            },
             "sentry_tags": {
                 "category": "db"
             }
@@ -1464,17 +1467,34 @@ mod tests {
         )
         .unwrap();
 
+        span.value_mut().as_mut().unwrap().sentry_tags = SentryTags {
+            category: Some("db".to_string()).into(),
+            ..Default::default()
+        }
+        .into();
+
         normalize(&mut span, normalize_config()).unwrap();
 
-        let data = get_value!(span.data!);
+        // let mut span: Annotated<Span> = Span {
+        //     sentry_tags: SentryTags {
+        //         category: Some("db".to_string()).into(),
+        //         ..Default::default()
+        //     }.into(),
+        //     data: SpanData {
+        //         db_statement: Some("SELECT * FROM users WHERE id = 1".to_string()).into(),
+        //         ..Default::default()
+        //     }.into(),
+        //     start_timestamp: Timestamp::fro.into(),
+        //     timestamp: Timestamp(1).into(),
+        //     ..Default::default()
+        // }.into();
 
-        assert_eq!(data.exclusive_time, Annotated::empty());
-        assert_eq!(*get_value!(span.exclusive_time!), 128.0);
-
-        assert_eq!(data.profile_id, Annotated::empty());
+        // let description = get_value!(span.sentry_tags.user!);
+        // assert_eq!();
         assert_eq!(
-            get_value!(span.profile_id!),
-            &EventId("480ffcc911174ade9106b40ffbd822f5".parse().unwrap())
+            get_value!(span.description!).as_str(),
+            "SELECT * FROM users WHERE id = 1"
         );
+        // assert_eq!(get_value!(span.description!), "SELECT * FROM users WHERE id = 1");
     }
 }
