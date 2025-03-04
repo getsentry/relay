@@ -3180,7 +3180,7 @@ impl Service for EnvelopeProcessorService {
     }
 }
 
-/// Task that wraps the `handle_message` method of the [`EnvelopeBufferService`] as a future.
+/// Task that wraps the `handle_message` method of the [`EnvelopeProcessorService`] as a future.
 pub struct EnvelopeProcessorTask {
     service: EnvelopeProcessorService,
     message: Option<EnvelopeProcessor>,
