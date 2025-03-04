@@ -124,9 +124,7 @@ pub fn otel_to_sentry_span(otel_span: OtelSpan) -> EventSpan {
                 key if key.starts_with("db") => {
                     op = op.or(Some("db".to_string()));
                     if key == "db.statement" {
-                        if let Some(statement) = otel_value_to_string(value) {
-                            description = description.or(Some(statement));
-                        }
+                        description = description.or_else(|| otel_value_to_string(value));
                     }
                 }
                 "http.method" | "http.request.method" => {
