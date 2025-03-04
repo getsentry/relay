@@ -6,6 +6,7 @@ use std::future::Future;
 use std::io::Write;
 use std::pin::Pin;
 use std::sync::{Arc, Once};
+use std::task::Poll;
 use std::time::Duration;
 
 use anyhow::Context;
@@ -1081,7 +1082,7 @@ impl FromMessage<SubmitClientReports> for EnvelopeProcessor {
 }
 
 /// The asynchronous thread pool used for scheduling processing tasks in the processor.
-pub type EnvelopeProcessorServicePool = AsyncPool<BoxFuture<'static, ()>>;
+pub type EnvelopeProcessorServicePool = AsyncPool<HandleMessageFuture>;
 
 /// Service implementing the [`EnvelopeProcessor`] interface.
 ///
@@ -3172,9 +3173,30 @@ impl Service for EnvelopeProcessorService {
             let service = self.clone();
             self.inner
                 .pool
-                .spawn_async(async move { service.handle_message(message) }.boxed())
+                .spawn_async(HandleMessageFuture {
+                    service,
+                    message: Some(message),
+                })
                 .await;
         }
+    }
+}
+
+struct HandleMessageFuture {
+    service: EnvelopeProcessorService,
+    message: Option<EnvelopeProcessor>,
+}
+
+impl Future for HandleMessageFuture {
+    type Output = ();
+
+    fn poll(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+        // This future will not do anything if it were to be polled by the runtime again.
+        if let Some(message) = self.message.take() {
+            self.service.handle_message(message);
+        }
+
+        Poll::Ready(())
     }
 }
 
