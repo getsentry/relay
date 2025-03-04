@@ -184,12 +184,12 @@ impl RelayStats {
 
     fn emit_async_pool_metrics(async_pool_metrics: &AsyncPoolMetrics) {
         metric!(
-            gauge(RelayGauges::AsyncPoolQueueSize) = async_pool_metrics.queue_size(),
-            pool_name = async_pool_metrics.pool_name()
+            gauge(RelayGauges::AsyncPoolQueueSize) = async_pool_metrics.queue_size,
+            pool_name = async_pool_metrics.pool_name
         );
         metric!(
-            gauge(RelayGauges::AsyncPoolUtilization) = async_pool_metrics.utilization() as f64,
-            pool = async_pool_metrics.pool_name()
+            gauge(RelayGauges::AsyncPoolUtilization) = async_pool_metrics.utilization as f64,
+            pool = async_pool_metrics.pool_name
         );
     }
 

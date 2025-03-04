@@ -127,6 +127,7 @@ where
     /// Returns the [`AsyncPoolMetrics`] that are updated by the pool.
     pub fn metrics(&self) -> AsyncPoolMetrics {
         AsyncPoolMetrics {
+            pool_name: self.name,
             queue_size: self.queue_size.load(Ordering::SeqCst),
             utilization: self.utilization(),
         }

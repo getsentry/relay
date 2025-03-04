@@ -41,6 +41,7 @@ impl Clone for ThreadMetrics {
 /// Metrics for an asynchronous pool.
 #[derive(Debug)]
 pub struct AsyncPoolMetrics {
+    pub pool_name: &'static str,
     pub queue_size: u64,
     pub utilization: f32,
 }
