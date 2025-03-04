@@ -638,6 +638,13 @@ pub struct Limits {
     /// The total number of threads spawned will roughly be `2 * max_thread_count`. Defaults to
     /// the number of logical CPU cores on the host.
     pub max_thread_count: usize,
+    /// Controls the maximum concurrency of each worker thread.
+    ///
+    /// Increasing the concurrency, can lead to a better utilization of worker threads by
+    /// increasing the amount of I/O done concurrently.
+    //
+    /// Currently has no effect on defaults to `1`.
+    pub max_pool_concurrency: usize,
     /// The maximum number of seconds a query is allowed to take across retries. Individual requests
     /// have lower timeouts. Defaults to 30 seconds.
     pub query_timeout: u64,
@@ -646,7 +653,7 @@ pub struct Limits {
     pub shutdown_timeout: u64,
     /// Server keep-alive timeout in seconds.
     ///
-    /// By default keep-alive is set to a 5 seconds.
+    /// By default, keep-alive is set to 5 seconds.
     pub keepalive_timeout: u64,
     /// Server idle timeout in seconds.
     ///
@@ -695,6 +702,7 @@ impl Default for Limits {
             max_replay_uncompressed_size: ByteSize::mebibytes(100),
             max_replay_message_size: ByteSize::mebibytes(15),
             max_thread_count: num_cpus::get(),
+            max_pool_concurrency: 1,
             query_timeout: 30,
             shutdown_timeout: 10,
             keepalive_timeout: 5,
@@ -722,13 +730,14 @@ pub struct Routing {
 }
 
 /// Http content encoding for both incoming and outgoing web requests.
-#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum HttpEncoding {
     /// Identity function without no compression.
     ///
     /// This is the default encoding and does not require the presence of the `content-encoding`
     /// HTTP header.
+    #[default]
     Identity,
     /// Compression using a [zlib](https://en.wikipedia.org/wiki/Zlib) structure with
     /// [deflate](https://en.wikipedia.org/wiki/DEFLATE) encoding.
@@ -780,12 +789,6 @@ impl HttpEncoding {
     }
 }
 
-impl Default for HttpEncoding {
-    fn default() -> Self {
-        Self::Identity
-    }
-}
-
 /// Controls authentication with upstream.
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
@@ -830,7 +833,7 @@ pub struct Http {
     pub project_failure_interval: u64,
     /// Content encoding to apply to upstream store requests.
     ///
-    /// By default, Relay applies `gzip` content encoding to compress upstream requests. Compression
+    /// By default, Relay applies `zstd` content encoding to compress upstream requests. Compression
     /// can be disabled to reduce CPU consumption, but at the expense of increased network traffic.
     ///
     /// This setting applies to all store requests of SDK data, including events, transactions,
@@ -842,6 +845,7 @@ pub struct Http {
     ///  - `deflate`: Compression using a zlib header with deflate encoding.
     ///  - `gzip` (default): Compression using gzip.
     ///  - `br`: Compression using the brotli algorithm.
+    ///  - `zstd`: Compression using the zstd algorithm.
     pub encoding: HttpEncoding,
     /// Submit metrics globally through a shared endpoint.
     ///
@@ -863,7 +867,7 @@ impl Default for Http {
             outage_grace_period: DEFAULT_NETWORK_OUTAGE_GRACE_PERIOD,
             retry_delay: default_retry_delay(),
             project_failure_interval: default_project_failure_interval(),
-            encoding: HttpEncoding::Gzip,
+            encoding: HttpEncoding::Zstd,
             global_metrics: false,
         }
     }
@@ -2347,6 +2351,11 @@ impl Config {
     /// Returns the number of cores to use for thread pools.
     pub fn cpu_concurrency(&self) -> usize {
         self.values.limits.max_thread_count
+    }
+
+    /// Returns the number of tasks that can run concurrently in the worker pool.
+    pub fn pool_concurrency(&self) -> usize {
+        self.values.limits.max_pool_concurrency
     }
 
     /// Returns the maximum size of a project config query.

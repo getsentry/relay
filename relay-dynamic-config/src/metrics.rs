@@ -22,22 +22,12 @@ pub struct Metrics {
     /// List of cardinality limits to enforce for this project.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub cardinality_limits: Vec<CardinalityLimit>,
-    /// List of patterns for blocking metrics based on their name.
-    #[serde(skip_serializing_if = "Patterns::is_empty")]
-    pub denied_names: TypedPatterns,
-    /// Configuration for removing tags from a bucket.
-    ///
-    /// Note that removing tags does not drop the overall metric bucket.
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub denied_tags: Vec<TagBlock>,
 }
 
 impl Metrics {
     /// Returns `true` if there are no changes to the metrics config.
     pub fn is_empty(&self) -> bool {
         self.cardinality_limits.is_empty()
-            && self.denied_names.is_empty()
-            && self.denied_tags.is_empty()
     }
 }
 
@@ -687,14 +677,6 @@ mod tests {
         let m: Metrics = serde_json::from_str("{}").unwrap();
         assert!(m.is_empty());
         assert_eq!(m, Metrics::default());
-    }
-
-    #[test]
-    fn test_serialize_metrics_config_denied_names() {
-        let input_str = r#"{"deniedNames":["foo","bar"]}"#;
-        let deny_list: Metrics = serde_json::from_str(input_str).unwrap();
-        let back_to_str = serde_json::to_string(&deny_list).unwrap();
-        assert_eq!(input_str, back_to_str);
     }
 
     #[test]

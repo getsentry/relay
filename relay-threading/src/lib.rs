@@ -50,8 +50,10 @@
 //! recovery from panics in either thread execution or individual tasks.
 
 mod builder;
+mod metrics;
 mod multiplexing;
 mod pool;
 
 pub use self::builder::*;
+pub use self::metrics::*;
 pub use self::pool::*;

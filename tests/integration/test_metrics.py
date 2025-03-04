@@ -1912,42 +1912,6 @@ def test_missing_global_filters_enables_metric_extraction(
     assert metrics_consumer.get_metrics()
 
 
-def test_metrics_with_denied_names(
-    mini_sentry, relay_with_processing, metrics_consumer
-):
-    metrics_consumer = metrics_consumer()
-
-    mini_sentry.global_config["options"]["relay.metric-stats.rollout-rate"] = 1.0
-
-    project_id = 42
-    mini_sentry.add_full_project_config(project_id)
-    project_config = mini_sentry.project_configs[project_id]["config"]
-    project_config["features"] = ["organizations:custom-metrics"]
-    project_config["metrics"] = {
-        "deniedNames": ["d:custom/cpu_time*"],
-    }
-
-    relay = relay_with_processing(options=TEST_CONFIG)
-
-    relay.send_metrics(project_id, "custom/cpu_time@millisecond:10|d|#foo:bar")
-
-    metrics = metrics_by_name(metrics_consumer, 1)
-    volume_metric = metrics["c:metric_stats/volume@none"]
-    assert volume_metric["value"] == 1.0
-    assert volume_metric["tags"]["mri"] == "d:custom/cpu_time@millisecond"
-    assert volume_metric["tags"]["outcome.id"] == "1"
-    assert volume_metric["tags"]["outcome.reason"] == "denied-name"
-
-    relay.send_metrics(project_id, "custom/memory_usage@byte:10|d|#foo:bar")
-
-    metrics = metrics_by_name(metrics_consumer, 2)
-    volume_metric = metrics["c:metric_stats/volume@none"]
-    assert volume_metric["value"] == 1.0
-    assert volume_metric["tags"]["mri"] == "d:custom/memory_usage@byte"
-    assert volume_metric["tags"]["outcome.id"] == "0"
-    assert "d:custom/memory_usage@byte" in metrics
-
-
 @pytest.mark.parametrize("mode", ["default", "chain"])
 def test_metrics_received_at(
     mini_sentry, relay, relay_with_processing, relay_credentials, metrics_consumer, mode

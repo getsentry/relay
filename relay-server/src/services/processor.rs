@@ -6,6 +6,7 @@ use std::future::Future;
 use std::io::Write;
 use std::pin::Pin;
 use std::sync::{Arc, Once};
+use std::task::Poll;
 use std::time::Duration;
 
 use anyhow::Context;
@@ -60,10 +61,10 @@ use crate::services::upstream::{
 };
 use crate::statsd::{RelayCounters, RelayHistograms, RelayTimers};
 use crate::utils::{
-    self, InvalidProcessingGroupType, ManagedEnvelope, SamplingResult, ThreadPool, TypedEnvelope,
-    WorkerGroup,
+    self, InvalidProcessingGroupType, ManagedEnvelope, SamplingResult, TypedEnvelope,
 };
 use relay_base_schema::organization::OrganizationId;
+use relay_threading::AsyncPool;
 #[cfg(feature = "processing")]
 use {
     crate::services::store::{Store, StoreEnvelope},
@@ -1078,6 +1079,9 @@ impl FromMessage<SubmitClientReports> for EnvelopeProcessor {
     }
 }
 
+/// The asynchronous thread pool used for scheduling processing tasks in the processor.
+pub type EnvelopeProcessorServicePool = AsyncPool<EnvelopeProcessorTask>;
+
 /// Service implementing the [`EnvelopeProcessor`] interface.
 ///
 /// This service handles messages in a worker pool with configurable concurrency.
@@ -1110,7 +1114,7 @@ impl Default for Addrs {
 }
 
 struct InnerProcessor {
-    workers: WorkerGroup,
+    pool: EnvelopeProcessorServicePool,
     config: Arc<Config>,
     global_config: GlobalConfigHandle,
     project_cache: ProjectCacheHandle,
@@ -1130,7 +1134,7 @@ impl EnvelopeProcessorService {
     /// Creates a multi-threaded envelope processor.
     #[cfg_attr(feature = "processing", expect(clippy::too_many_arguments))]
     pub fn new(
-        pool: ThreadPool,
+        pool: EnvelopeProcessorServicePool,
         config: Arc<Config>,
         global_config: GlobalConfigHandle,
         project_cache: ProjectCacheHandle,
@@ -1160,7 +1164,7 @@ impl EnvelopeProcessorService {
         };
 
         let inner = InnerProcessor {
-            workers: WorkerGroup::new(pool),
+            pool,
             global_config,
             project_cache,
             cogs,
@@ -3166,10 +3170,32 @@ impl Service for EnvelopeProcessorService {
         while let Some(message) = rx.recv().await {
             let service = self.clone();
             self.inner
-                .workers
-                .spawn(move || service.handle_message(message))
+                .pool
+                .spawn_async(EnvelopeProcessorTask {
+                    service,
+                    message: Some(message),
+                })
                 .await;
         }
+    }
+}
+
+/// Task that wraps the `handle_message` method of the [`EnvelopeProcessorService`] as a future.
+pub struct EnvelopeProcessorTask {
+    service: EnvelopeProcessorService,
+    message: Option<EnvelopeProcessor>,
+}
+
+impl Future for EnvelopeProcessorTask {
+    type Output = ();
+
+    fn poll(mut self: Pin<&mut Self>, _cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+        // This future will not do anything if it were to be polled by the runtime again.
+        if let Some(message) = self.message.take() {
+            self.service.handle_message(message);
+        }
+
+        Poll::Ready(())
     }
 }
 
