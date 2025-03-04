@@ -2,7 +2,7 @@ use crate::http::StatusCode;
 use crate::service::ServiceState;
 use crate::services::autoscaling::{AutoscalingData, AutoscalingMessageKind};
 use std::fmt::Display;
-use std::fmt::Write as _;
+use std::fmt::Write;
 
 /// Returns internal metrics data for relay.
 pub async fn handle(state: ServiceState) -> (StatusCode, String) {
@@ -23,7 +23,7 @@ pub async fn handle(state: ServiceState) -> (StatusCode, String) {
     (StatusCode::OK, to_prometheus_string(&data))
 }
 
-/// Simple function to serialize a well-known format into a prometheus string.
+/// Serializes the autoscaling data into a prometheus string.
 fn to_prometheus_string(data: &AutoscalingData) -> String {
     let mut result = String::with_capacity(2048);
 
@@ -60,9 +60,10 @@ fn append_data_row(result: &mut String, label: &str, data: impl Display, tags: &
 }
 
 /// Extracts the concrete Service name from a string with a namespace,
-/// For example: `relay::services::MyService` -> `MyService`.
 /// In case there are no ':' because a custom name is used, then the full name is returned.
-/// For example: `aggregator_service` -> `aggregator_service`.
+/// For example:
+/// * `relay::services::MyService` -> `MyService`.
+/// * `aggregator_service` -> `aggregator_service`.
 fn extract_service_name(full_name: &str) -> &str {
     full_name
         .rsplit_once(':')
