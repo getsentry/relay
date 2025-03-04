@@ -1,4 +1,5 @@
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
 
 /// Metrics for a single thread in an asynchronous pool.
 ///
@@ -40,8 +41,38 @@ impl Clone for ThreadMetrics {
 
 /// Metrics for an asynchronous pool.
 #[derive(Debug)]
-pub struct AsyncPoolMetrics {
-    pub pool_name: &'static str,
-    pub queue_size: u64,
-    pub utilization: f32,
+pub struct AsyncPoolMetrics<'a> {
+    max_expected_futures: u64,
+    queue_size: u64,
+    threads_metrics: &'a Vec<Arc<ThreadMetrics>>,
+}
+
+impl<'a> AsyncPoolMetrics<'a> {
+    pub(crate) fn new(
+        max_expected_futures: u64,
+        queue_size: u64,
+        threads_metrics: &'a Vec<Arc<ThreadMetrics>>,
+    ) -> Self {
+        Self {
+            max_expected_futures,
+            queue_size,
+            threads_metrics,
+        }
+    }
+
+    /// Returns the amount of futures in the pool's queue.
+    pub fn queue_size(&self) -> u64 {
+        self.queue_size
+    }
+
+    /// Returns the utilization metric for the pool.
+    pub fn utilization(&self) -> f32 {
+        let total_polled_futures: u64 = self
+            .threads_metrics
+            .iter()
+            .map(|m| m.polled_futures())
+            .sum();
+
+        (total_polled_futures as f32 / self.max_expected_futures as f32).clamp(0.0, 1.0)
+    }
 }

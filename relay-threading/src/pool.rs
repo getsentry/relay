@@ -1,7 +1,6 @@
 use std::future::Future;
 use std::io;
 use std::panic::AssertUnwindSafe;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use futures::future::BoxFuture;
@@ -27,10 +26,24 @@ pub struct AsyncPool<F> {
     tx: flume::Sender<F>,
     /// The maximum number of futures that are expected to run concurrently at any point in time.
     max_expected_futures: u64,
-    /// Number of futures waiting to be executed by one of the threads of the pool.
-    queue_size: AtomicU64,
     /// Vector containing all the metrics collected individually in each thread.
-    threads_metrics: Vec<Arc<ThreadMetrics>>,
+    threads_metrics: Arc<Vec<Arc<ThreadMetrics>>>,
+}
+
+impl<F> AsyncPool<F> {
+    /// Returns the `name` of the [`AsyncPool`].
+    pub fn name(&self) -> &'static str {
+        self.name
+    }
+
+    /// Returns the [`AsyncPoolMetrics`] that are updated by the pool.
+    pub fn metrics(&self) -> AsyncPoolMetrics {
+        AsyncPoolMetrics::new(
+            self.max_expected_futures,
+            self.tx.len() as u64,
+            &self.threads_metrics,
+        )
+    }
 }
 
 impl<F> AsyncPool<F>
@@ -79,14 +92,8 @@ where
             name: pool_name,
             tx,
             max_expected_futures: (builder.num_threads * builder.max_concurrency) as u64,
-            queue_size: AtomicU64::new(0),
-            threads_metrics,
+            threads_metrics: Arc::new(threads_metrics),
         })
-    }
-
-    /// Returns the `name` of the [`AsyncPool`].
-    pub fn name(&self) -> &'static str {
-        self.name
     }
 
     /// Schedules a future for execution within the [`AsyncPool`].
@@ -102,8 +109,6 @@ where
             self.tx.send(future).is_ok(),
             "failed to schedule task: all worker threads have terminated (either none were spawned or all have panicked)"
         );
-
-        self.track_queue_size()
     }
 
     /// Asynchronously enqueues a future for execution within the [`AsyncPool`].
@@ -119,36 +124,17 @@ where
             self.tx.send_async(future).await.is_ok(),
             "failed to schedule task: all worker threads have terminated (either none were spawned or all have panicked)"
         );
-
-        self.track_queue_size()
     }
+}
 
-    /// Returns the [`AsyncPoolMetrics`] that are updated by the pool.
-    pub fn metrics(&self) -> AsyncPoolMetrics {
-        AsyncPoolMetrics {
-            pool_name: self.name,
-            queue_size: self.queue_size.load(Ordering::SeqCst),
-            utilization: self.utilization(),
+impl<F> Clone for AsyncPool<F> {
+    fn clone(&self) -> Self {
+        Self {
+            name: self.name,
+            tx: self.tx.clone(),
+            max_expected_futures: self.max_expected_futures,
+            threads_metrics: self.threads_metrics.clone(),
         }
-    }
-
-    /// Tracks the amount of elements in the queue containing all futures to be scheduled.
-    fn track_queue_size(&self) {
-        // On each poll, we report how many items are in the queue containing futures to dispatch
-        // across all threads.
-        self.queue_size
-            .store(self.tx.len() as u64, Ordering::SeqCst);
-    }
-
-    /// Computes the utilization metric for this [`AsyncPool`].
-    fn utilization(&self) -> f32 {
-        let total_polled_futures: u64 = self
-            .threads_metrics
-            .iter()
-            .map(|m| m.polled_futures())
-            .sum();
-
-        (total_polled_futures as f32 / self.max_expected_futures as f32).clamp(0.0, 1.0)
     }
 }
 

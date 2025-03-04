@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use crate::services::processor::EnvelopeProcessorServicePool;
+use crate::services::store::StoreServicePool;
 use crate::services::upstream::{IsNetworkOutage, UpstreamRelay};
 use crate::statsd::{RelayGauges, RuntimeCounters, RuntimeGauges};
 use relay_config::{Config, RelayMode};
@@ -9,7 +11,7 @@ use relay_redis::AsyncRedisClient;
 use relay_redis::{RedisPool, RedisPools, Stats};
 use relay_statsd::metric;
 use relay_system::{Addr, Handle, RuntimeMetrics, Service};
-use relay_threading::AsyncPoolMetrics;
+use relay_threading::AsyncPool;
 use tokio::time::interval;
 
 /// Relay Stats Service.
@@ -22,7 +24,8 @@ pub struct RelayStats {
     upstream_relay: Addr<UpstreamRelay>,
     #[cfg(feature = "processing")]
     redis_pools: Option<RedisPools>,
-    async_pools_metrics: Vec<AsyncPoolMetrics>,
+    processor_pool: EnvelopeProcessorServicePool,
+    store_pool: StoreServicePool,
 }
 
 impl RelayStats {
@@ -31,7 +34,8 @@ impl RelayStats {
         runtime: Handle,
         upstream_relay: Addr<UpstreamRelay>,
         #[cfg(feature = "processing")] redis_pools: Option<RedisPools>,
-        async_pools_metrics: Vec<AsyncPoolMetrics>,
+        processor_pool: EnvelopeProcessorServicePool,
+        #[cfg(feature = "processing")] store_pool: StoreServicePool,
     ) -> Self {
         Self {
             config,
@@ -40,7 +44,8 @@ impl RelayStats {
             runtime,
             #[cfg(feature = "processing")]
             redis_pools,
-            async_pools_metrics,
+            processor_pool,
+            store_pool,
         }
     }
 
@@ -182,21 +187,23 @@ impl RelayStats {
         }
     }
 
-    fn emit_async_pool_metrics(async_pool_metrics: &AsyncPoolMetrics) {
+    fn emit_async_pool_metrics<T>(async_pool: &AsyncPool<T>) {
+        let metrics = async_pool.metrics();
+
         metric!(
-            gauge(RelayGauges::AsyncPoolQueueSize) = async_pool_metrics.queue_size,
-            pool_name = async_pool_metrics.pool_name
+            gauge(RelayGauges::AsyncPoolQueueSize) = metrics.queue_size(),
+            pool_name = async_pool.name()
         );
         metric!(
-            gauge(RelayGauges::AsyncPoolUtilization) = async_pool_metrics.utilization as f64,
-            pool = async_pool_metrics.pool_name
+            gauge(RelayGauges::AsyncPoolUtilization) = metrics.utilization() as f64,
+            pool = async_pool.name()
         );
     }
 
     async fn async_pools_metrics(&self) {
-        for async_pool_metrics in self.async_pools_metrics.iter() {
-            Self::emit_async_pool_metrics(async_pool_metrics);
-        }
+        Self::emit_async_pool_metrics(&self.processor_pool);
+        #[cfg(feature = "processing")]
+        Self::emit_async_pool_metrics(&self.store_pool);
     }
 }
 
