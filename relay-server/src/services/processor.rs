@@ -1080,7 +1080,7 @@ impl FromMessage<SubmitClientReports> for EnvelopeProcessor {
 }
 
 /// The asynchronous thread pool used for scheduling processing tasks in the processor.
-pub type EnvelopeProcessorServicePool = AsyncPool<HandleMessageFuture>;
+pub type EnvelopeProcessorServicePool = AsyncPool<EnvelopeProcessorTask>;
 
 /// Service implementing the [`EnvelopeProcessor`] interface.
 ///
@@ -3171,7 +3171,7 @@ impl Service for EnvelopeProcessorService {
             let service = self.clone();
             self.inner
                 .pool
-                .spawn_async(HandleMessageFuture {
+                .spawn_async(EnvelopeProcessorTask {
                     service,
                     message: Some(message),
                 })
@@ -3180,12 +3180,13 @@ impl Service for EnvelopeProcessorService {
     }
 }
 
-pub struct HandleMessageFuture {
+/// Task that wraps the `handle_message` method of the [`EnvelopeBufferService`] as a future.
+pub struct EnvelopeProcessorTask {
     service: EnvelopeProcessorService,
     message: Option<EnvelopeProcessor>,
 }
 
-impl Future for HandleMessageFuture {
+impl Future for EnvelopeProcessorTask {
     type Output = ();
 
     fn poll(mut self: Pin<&mut Self>, _cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
