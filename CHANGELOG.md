@@ -19,6 +19,7 @@
 - Write resource and instrumentation scope attributes as span attributes during OTLP ingestion. ([#4533](https://github.com/getsentry/relay/pull/4533))
 - Remove unused capability to block metric names and tags. ([#4536](https://github.com/getsentry/relay/pull/4536))
 - Adopt new `AsyncPool` for the `EnvelopeProcessorService` and `StoreService`. ([#4520](https://github.com/getsentry/relay/pull/4520))
+- Update mapping of OTLP spans to Sentry spans in the experimental OTL traces endpoint. ([#4505](https://github.com/getsentry/relay/pull/4505))
 - Expose metrics for the `AsyncPool`. ([#4538](https://github.com/getsentry/relay/pull/4538))
 
 ## 25.2.0
