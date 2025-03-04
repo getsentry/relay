@@ -4,13 +4,13 @@ use relay_system::{AsyncResponse, Controller, FromMessage, Handle, Interface, Se
 
 /// Service that tracks internal relay metrics so that they can be exposed.
 pub struct AutoscalingMetricService {
-    /// For exposing internal memory usage or relay.
+    /// For exposing internal memory usage of relay.
     memory_stat: MemoryStat,
-    /// Reference to the spooler so query currently spooled items.
+    /// Reference to the spooler to get item count and total used size.
     envelope_buffer: PartitionedEnvelopeBuffer,
     /// Runtime handle to expose service utilization metrics.
     handle: Handle,
-    /// This will always report `1` unless the instance is in the process of being shutdown.
+    /// This will always report `1` unless the instance is shutting down.
     up: u8,
 }
 
