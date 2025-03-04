@@ -45,18 +45,18 @@ fn to_prometheus_string(data: &AutoscalingData) -> String {
 
 fn append_data_row(result: &mut String, label: &str, data: impl Display, tags: &[(&str, &str)]) {
     // Metrics are automatically prefixed with "relay_"
-    write!(result, "relay_{}", label).unwrap();
+    write!(result, "relay_{label}").unwrap();
     if !tags.is_empty() {
         result.push('{');
         for (idx, (key, value)) in tags.iter().enumerate() {
             if idx > 0 {
                 result.push_str(", ");
             }
-            write!(result, "{}=\"{}\"", key, value).unwrap();
+            write!(result, "{key}=\"{value}\"").unwrap();
         }
         result.push('}');
     }
-    writeln!(result, " {}", data).unwrap();
+    writeln!(result, " {data}").unwrap();
 }
 
 /// Extracts the concrete Service name from a string with a namespace,
