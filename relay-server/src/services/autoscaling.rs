@@ -1,20 +1,29 @@
 use crate::services::buffer::PartitionedEnvelopeBuffer;
 use crate::MemoryStat;
-use relay_system::{AsyncResponse, Controller, FromMessage, Interface, Sender, Service};
-use serde::Serialize;
+use relay_system::{AsyncResponse, Controller, FromMessage, Handle, Interface, Sender, Service};
 
 /// Service that tracks internal relay metrics so that they can be exposed.
 pub struct AutoscalingMetricService {
+    /// For exposing internal memory usage of relay.
     memory_stat: MemoryStat,
+    /// Reference to the spooler to get item count and total used size.
     envelope_buffer: PartitionedEnvelopeBuffer,
+    /// Runtime handle to expose service utilization metrics.
+    handle: Handle,
+    /// This will always report `1` unless the instance is shutting down.
     up: u8,
 }
 
 impl AutoscalingMetricService {
-    pub fn new(memory_stat: MemoryStat, envelope_buffer: PartitionedEnvelopeBuffer) -> Self {
+    pub fn new(
+        memory_stat: MemoryStat,
+        envelope_buffer: PartitionedEnvelopeBuffer,
+        handle: Handle,
+    ) -> Self {
         Self {
             memory_stat,
             envelope_buffer,
+            handle,
             up: 1,
         }
     }
@@ -34,11 +43,17 @@ impl Service for AutoscalingMetricService {
                     match message {
                         AutoscalingMetrics::Check(sender) => {
                             let memory_usage = self.memory_stat.memory();
+                            let metrics = self.handle
+                                .current_services_metrics()
+                                .iter()
+                                .map(|(id, metric)| ServiceUtilization(id.name(), metric.utilization))
+                                .collect();
                             sender.send(AutoscalingData {
                                 memory_usage: memory_usage.used_percent(),
                                 up: self.up,
                                 total_size: self.envelope_buffer.total_storage_size(),
-                                item_count: self.envelope_buffer.item_count()
+                                item_count: self.envelope_buffer.item_count(),
+                                services_metrics: metrics
                             });
                         }
                     }
@@ -72,10 +87,12 @@ impl FromMessage<AutoscalingMessageKind> for AutoscalingMetrics {
     }
 }
 
-#[derive(Debug, Serialize)]
 pub struct AutoscalingData {
     pub memory_usage: f32,
     pub up: u8,
     pub total_size: u64,
     pub item_count: u64,
+    pub services_metrics: Vec<ServiceUtilization>,
 }
+
+pub struct ServiceUtilization(pub &'static str, pub u8);

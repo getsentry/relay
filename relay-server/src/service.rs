@@ -293,6 +293,7 @@ impl ServiceState {
         let autoscaling = services.start(AutoscalingMetricService::new(
             memory_stat.clone(),
             envelope_buffer.clone(),
+            handle.clone(),
         ));
 
         services.start(RelayStats::new(
