@@ -4247,7 +4247,28 @@
 <a href="#4246" id="4246">4246</a>
 <a href="#4247" id="4247">4247</a>
 <a href="#4248" id="4248">4248</a>
-<a href="#4249" id="4249">4249</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
+<a href="#4249" id="4249">4249</a>
+<a href="#4250" id="4250">4250</a>
+<a href="#4251" id="4251">4251</a>
+<a href="#4252" id="4252">4252</a>
+<a href="#4253" id="4253">4253</a>
+<a href="#4254" id="4254">4254</a>
+<a href="#4255" id="4255">4255</a>
+<a href="#4256" id="4256">4256</a>
+<a href="#4257" id="4257">4257</a>
+<a href="#4258" id="4258">4258</a>
+<a href="#4259" id="4259">4259</a>
+<a href="#4260" id="4260">4260</a>
+<a href="#4261" id="4261">4261</a>
+<a href="#4262" id="4262">4262</a>
+<a href="#4263" id="4263">4263</a>
+<a href="#4264" id="4264">4264</a>
+<a href="#4265" id="4265">4265</a>
+<a href="#4266" id="4266">4266</a>
+<a href="#4267" id="4267">4267</a>
+<a href="#4268" id="4268">4268</a>
+<a href="#4269" id="4269">4269</a>
+<a href="#4270" id="4270">4270</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::borrow::Cow;
 <span class="kw">use </span>std::collections::{BTreeSet, HashMap};
 <span class="kw">use </span>std::error::Error;
 <span class="kw">use </span>std::fmt::{Debug, Display};
@@ -4255,6 +4276,7 @@
 <span class="kw">use </span>std::io::Write;
 <span class="kw">use </span>std::pin::Pin;
 <span class="kw">use </span>std::sync::{Arc, Once};
+<span class="kw">use </span>std::task::Poll;
 <span class="kw">use </span>std::time::Duration;
 
 <span class="kw">use </span>anyhow::Context;
@@ -4263,8 +4285,6 @@
 <span class="kw">use </span>chrono::{DateTime, Utc};
 <span class="kw">use </span>flate2::write::{GzEncoder, ZlibEncoder};
 <span class="kw">use </span>flate2::Compression;
-<span class="kw">use </span>futures::future::BoxFuture;
-<span class="kw">use </span>futures::FutureExt;
 <span class="kw">use </span>relay_base_schema::project::{ProjectId, ProjectKey};
 <span class="kw">use </span>relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId, Token};
 <span class="kw">use </span>relay_common::time::UnixTimestamp;
@@ -5330,7 +5350,7 @@
 }
 
 <span class="doccomment">/// The asynchronous thread pool used for scheduling processing tasks in the processor.
-</span><span class="kw">pub type </span>EnvelopeProcessorServicePool = AsyncPool&lt;BoxFuture&lt;<span class="lifetime">'static</span>, ()&gt;&gt;;
+</span><span class="kw">pub type </span>EnvelopeProcessorServicePool = AsyncPool&lt;EnvelopeProcessorTask&gt;;
 
 <span class="doccomment">/// Service implementing the [`EnvelopeProcessor`] interface.
 ///
@@ -7421,9 +7441,31 @@
             <span class="kw">let </span>service = <span class="self">self</span>.clone();
             <span class="self">self</span>.inner
                 .pool
-                .spawn_async(<span class="kw">async move </span>{ service.handle_message(message) }.boxed())
+                .spawn_async(EnvelopeProcessorTask {
+                    service,
+                    message: <span class="prelude-val">Some</span>(message),
+                })
                 .<span class="kw">await</span>;
         }
+    }
+}
+
+<span class="doccomment">/// Task that wraps the `handle_message` method of the [`EnvelopeProcessorService`] as a future.
+</span><span class="kw">pub struct </span>EnvelopeProcessorTask {
+    service: EnvelopeProcessorService,
+    message: <span class="prelude-ty">Option</span>&lt;EnvelopeProcessor&gt;,
+}
+
+<span class="kw">impl </span>Future <span class="kw">for </span>EnvelopeProcessorTask {
+    <span class="kw">type </span>Output = ();
+
+    <span class="kw">fn </span>poll(<span class="kw-2">mut </span><span class="self">self</span>: Pin&lt;<span class="kw-2">&amp;mut </span><span class="self">Self</span>&gt;, _cx: <span class="kw-2">&amp;mut </span>std::task::Context&lt;<span class="lifetime">'_</span>&gt;) -&gt; Poll&lt;<span class="self">Self</span>::Output&gt; {
+        <span class="comment">// This future will not do anything if it were to be polled by the runtime again.
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(message) = <span class="self">self</span>.message.take() {
+            <span class="self">self</span>.service.handle_message(message);
+        }
+
+        Poll::Ready(())
     }
 }
 
