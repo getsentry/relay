@@ -1,18 +1,18 @@
 use std::sync::Arc;
 
-use crate::services::processor::EnvelopeProcessorServicePool;
-use crate::services::store::StoreServicePool;
-use crate::services::upstream::{IsNetworkOutage, UpstreamRelay};
-use crate::statsd::{RelayGauges, RuntimeCounters, RuntimeGauges};
 use relay_config::{Config, RelayMode};
 #[cfg(feature = "processing")]
-use relay_redis::AsyncRedisClient;
-#[cfg(feature = "processing")]
-use relay_redis::{RedisPool, RedisPools, Stats};
+use relay_redis::{AsyncRedisClient, RedisPool, RedisPools, Stats};
 use relay_statsd::metric;
 use relay_system::{Addr, Handle, RuntimeMetrics, Service};
 use relay_threading::AsyncPool;
 use tokio::time::interval;
+
+use crate::services::processor::EnvelopeProcessorServicePool;
+#[cfg(feature = "processing")]
+use crate::services::store::StoreServicePool;
+use crate::services::upstream::{IsNetworkOutage, UpstreamRelay};
+use crate::statsd::{RelayGauges, RuntimeCounters, RuntimeGauges};
 
 /// Relay Stats Service.
 ///
@@ -25,6 +25,7 @@ pub struct RelayStats {
     #[cfg(feature = "processing")]
     redis_pools: Option<RedisPools>,
     processor_pool: EnvelopeProcessorServicePool,
+    #[cfg(feature = "processing")]
     store_pool: StoreServicePool,
 }
 
@@ -45,6 +46,7 @@ impl RelayStats {
             #[cfg(feature = "processing")]
             redis_pools,
             processor_pool,
+            #[cfg(feature = "processing")]
             store_pool,
         }
     }
