@@ -39,7 +39,7 @@ impl Clone for ThreadMetrics {
     }
 }
 
-/// Metrics for an asynchronous pool.
+/// Metrics for the asynchronous pool.
 #[derive(Debug)]
 pub struct AsyncPoolMetrics<'a> {
     max_expected_futures: u64,
@@ -48,6 +48,7 @@ pub struct AsyncPoolMetrics<'a> {
 }
 
 impl<'a> AsyncPoolMetrics<'a> {
+    /// Creates a new instance of [`AsyncPoolMetrics`].
     pub(crate) fn new(
         max_expected_futures: u64,
         queue_size: u64,
