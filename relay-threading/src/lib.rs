@@ -55,4 +55,5 @@ mod multiplexing;
 mod pool;
 
 pub use self::builder::*;
+pub use self::metrics::*;
 pub use self::pool::*;
