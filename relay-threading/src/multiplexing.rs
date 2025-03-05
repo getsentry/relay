@@ -153,6 +153,11 @@ where
         let mut this = self.project();
 
         loop {
+            // We report how many tasks are being concurrently polled in this future.
+            this.metrics
+                .active_tasks
+                .store(this.tasks.len() as u64, Ordering::Relaxed);
+
             this.tasks.as_mut().poll_tasks_until_pending(cx);
 
             // If we can't get anymore tasks, and we don't have anything else to process, we report
@@ -172,10 +177,6 @@ where
             match this.rx.as_mut().poll_next(cx) {
                 Poll::Ready(Some(task)) => {
                     this.tasks.push(task);
-                    // We report how many tasks are being concurrently polled in this future.
-                    this.metrics
-                        .active_tasks
-                        .store(this.tasks.len() as u64, Ordering::Relaxed);
                 }
                 // The stream is exhausted and there are no remaining tasks.
                 Poll::Ready(None) if this.tasks.is_empty() => return Poll::Ready(()),
