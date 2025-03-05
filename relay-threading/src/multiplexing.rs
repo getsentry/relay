@@ -153,12 +153,12 @@ where
         let mut this = self.project();
 
         loop {
+            this.tasks.as_mut().poll_tasks_until_pending(cx);
+
             // We report how many tasks are being concurrently polled in this future.
             this.metrics
                 .active_tasks
                 .store(this.tasks.len() as u64, Ordering::Relaxed);
-
-            this.tasks.as_mut().poll_tasks_until_pending(cx);
 
             // If we can't get anymore tasks, and we don't have anything else to process, we report
             // ready. Otherwise, if we have something to process, we report pending.
