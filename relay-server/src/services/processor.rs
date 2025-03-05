@@ -6,7 +6,6 @@ use std::future::Future;
 use std::io::Write;
 use std::pin::Pin;
 use std::sync::{Arc, Once};
-use std::task::Poll;
 use std::time::Duration;
 
 use anyhow::Context;
@@ -15,6 +14,8 @@ use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use flate2::write::{GzEncoder, ZlibEncoder};
 use flate2::Compression;
+use futures::future::BoxFuture;
+use futures::FutureExt;
 use relay_base_schema::project::{ProjectId, ProjectKey};
 use relay_cogs::{AppFeature, Cogs, FeatureWeights, ResourceId, Token};
 use relay_common::time::UnixTimestamp;
@@ -1080,7 +1081,7 @@ impl FromMessage<SubmitClientReports> for EnvelopeProcessor {
 }
 
 /// The asynchronous thread pool used for scheduling processing tasks in the processor.
-pub type EnvelopeProcessorServicePool = AsyncPool<EnvelopeProcessorTask>;
+pub type EnvelopeProcessorServicePool = AsyncPool<BoxFuture<'static, ()>>;
 
 /// Service implementing the [`EnvelopeProcessor`] interface.
 ///
@@ -3171,31 +3172,9 @@ impl Service for EnvelopeProcessorService {
             let service = self.clone();
             self.inner
                 .pool
-                .spawn_async(EnvelopeProcessorTask {
-                    service,
-                    message: Some(message),
-                })
+                .spawn_async(async move { service.handle_message(message) }.boxed())
                 .await;
         }
-    }
-}
-
-/// Task that wraps the `handle_message` method of the [`EnvelopeProcessorService`] as a future.
-pub struct EnvelopeProcessorTask {
-    service: EnvelopeProcessorService,
-    message: Option<EnvelopeProcessor>,
-}
-
-impl Future for EnvelopeProcessorTask {
-    type Output = ();
-
-    fn poll(mut self: Pin<&mut Self>, _cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
-        // This future will not do anything if it were to be polled by the runtime again.
-        if let Some(message) = self.message.take() {
-            self.service.handle_message(message);
-        }
-
-        Poll::Ready(())
     }
 }
 
