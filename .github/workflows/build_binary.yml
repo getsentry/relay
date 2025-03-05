@@ -12,18 +12,31 @@ env:
 jobs:
   linux:
     name: Linux
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
+    container:
+      # Use an older docker container to build the binary to guarantee glibc compatibility.
+      image: ubuntu:20.04
 
     steps:
+      - name: Install dependencies
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends git ca-certificates gcc libc6-dev curl make zip
+
       - uses: actions/checkout@v4
         with:
           submodules: recursive
 
+      - name: Add git safe directory exception
+        run: git config --global --add safe.directory "$(pwd)"
+
       - name: Install Rust Toolchain
-        run: rustup toolchain install stable --profile minimal --no-self-update
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --profile minimal --default-toolchain stable -y
 
       - name: Build binary
         run: |
+          . "$HOME/.cargo/env"
           make build-linux-release
         env:
           RELAY_FEATURES:
