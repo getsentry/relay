@@ -7,9 +7,9 @@ use futures::future::BoxFuture;
 use futures::FutureExt;
 
 use crate::builder::AsyncPoolBuilder;
-use crate::metrics::AsyncPoolGauges;
+use crate::metrics::AsyncPoolMetrics;
 use crate::multiplexing::Multiplexed;
-use crate::PanicHandler;
+use crate::{PanicHandler, ThreadMetrics};
 
 /// Default name of the pool.
 const DEFAULT_POOL_NAME: &str = "unnamed";
@@ -20,8 +20,30 @@ const DEFAULT_POOL_NAME: &str = "unnamed";
 /// Tokio executor. This design enables controlled concurrency and efficient use of system resources.
 #[derive(Debug)]
 pub struct AsyncPool<F> {
+    /// Name of the pool.
     name: &'static str,
+    /// Transmission containing all tasks.
     tx: flume::Sender<F>,
+    /// The maximum number of tasks that are expected to run concurrently at any point in time.
+    max_tasks: u64,
+    /// Vector containing all the metrics collected individually in each thread.
+    threads_metrics: Arc<Vec<Arc<ThreadMetrics>>>,
+}
+
+impl<F> AsyncPool<F> {
+    /// Returns the `name` of the [`AsyncPool`].
+    pub fn name(&self) -> &'static str {
+        self.name
+    }
+
+    /// Returns the [`AsyncPoolMetrics`] that are updated by the pool.
+    pub fn metrics(&self) -> AsyncPoolMetrics {
+        AsyncPoolMetrics {
+            max_tasks: self.max_tasks,
+            queue_size: self.tx.len() as u64,
+            threads_metrics: &self.threads_metrics,
+        }
+    }
 }
 
 impl<F> AsyncPool<F>
@@ -38,11 +60,13 @@ where
     {
         let pool_name = builder.pool_name.unwrap_or(DEFAULT_POOL_NAME);
         let (tx, rx) = flume::bounded(builder.num_threads * 2);
+        let mut threads_metrics = Vec::with_capacity(builder.num_threads);
 
         for thread_id in 0..builder.num_threads {
             let rx = rx.clone();
             let thread_name: Option<String> = builder.thread_name.as_mut().map(|f| f(thread_id));
 
+            let metrics = Arc::new(ThreadMetrics::default());
             let thread = Thread {
                 id: thread_id,
                 max_concurrency: builder.max_concurrency,
@@ -54,9 +78,12 @@ where
                     builder.max_concurrency,
                     rx.into_stream(),
                     builder.task_panic_handler.clone(),
+                    metrics.clone(),
                 )
                 .boxed(),
             };
+
+            threads_metrics.push(metrics);
 
             builder.spawn_handler.spawn(thread)?;
         }
@@ -64,6 +91,8 @@ where
         Ok(Self {
             name: pool_name,
             tx,
+            max_tasks: (builder.num_threads * builder.max_concurrency) as u64,
+            threads_metrics: Arc::new(threads_metrics),
         })
     }
 
@@ -80,8 +109,6 @@ where
             self.tx.send(future).is_ok(),
             "failed to schedule task: all worker threads have terminated (either none were spawned or all have panicked)"
         );
-
-        self.track_queue_size()
     }
 
     /// Asynchronously enqueues a future for execution within the [`AsyncPool`].
@@ -97,18 +124,17 @@ where
             self.tx.send_async(future).await.is_ok(),
             "failed to schedule task: all worker threads have terminated (either none were spawned or all have panicked)"
         );
-
-        self.track_queue_size()
     }
+}
 
-    /// Tracks the amount of elements in the queue containing all futures to be scheduled.
-    fn track_queue_size(&self) {
-        // On each poll, we report how many items are in the queue containing futures to dispatch
-        // across all threads.
-        relay_statsd::metric!(
-            gauge(AsyncPoolGauges::AsyncPoolQueueSize) = self.tx.len() as u64,
-            pool_name = &self.name
-        );
+impl<F> Clone for AsyncPool<F> {
+    fn clone(&self) -> Self {
+        Self {
+            name: self.name,
+            tx: self.tx.clone(),
+            max_tasks: self.max_tasks,
+            threads_metrics: self.threads_metrics.clone(),
+        }
     }
 }
 

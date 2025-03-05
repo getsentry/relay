@@ -1,16 +1,17 @@
 use std::future::Future;
 use std::panic::AssertUnwindSafe;
 use std::pin::Pin;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::task::{Context, Poll};
 
-use crate::metrics::AsyncPoolGauges;
-use crate::PanicHandler;
 use futures::future::CatchUnwind;
 use futures::stream::{FusedStream, FuturesUnordered, Stream};
 use futures::FutureExt;
 use pin_project_lite::pin_project;
 use tokio::task::Unconstrained;
+
+use crate::{PanicHandler, ThreadMetrics};
 
 pin_project! {
     /// Manages concurrent execution of asynchronous tasks.
@@ -108,6 +109,7 @@ pin_project! {
         rx: S,
         #[pin]
         tasks: Tasks<F>,
+        metrics: Arc<ThreadMetrics>
     }
 }
 
@@ -124,12 +126,14 @@ where
         max_concurrency: usize,
         rx: S,
         panic_handler: Option<Arc<PanicHandler>>,
+        metrics: Arc<ThreadMetrics>,
     ) -> Self {
         Self {
             pool_name,
             max_concurrency,
             rx,
             tasks: Tasks::new(panic_handler),
+            metrics,
         }
     }
 }
@@ -151,6 +155,11 @@ where
         loop {
             this.tasks.as_mut().poll_tasks_until_pending(cx);
 
+            // We report how many tasks are being concurrently polled in this future.
+            this.metrics
+                .active_tasks
+                .store(this.tasks.len() as u64, Ordering::Relaxed);
+
             // If we can't get anymore tasks, and we don't have anything else to process, we report
             // ready. Otherwise, if we have something to process, we report pending.
             if this.tasks.is_empty() && this.rx.is_terminated() {
@@ -168,11 +177,6 @@ where
             match this.rx.as_mut().poll_next(cx) {
                 Poll::Ready(Some(task)) => {
                     this.tasks.push(task);
-                    // We report how many tasks are being concurrently polled in this future.
-                    relay_statsd::metric!(
-                        gauge(AsyncPoolGauges::AsyncPoolFuturesPerThread) = this.tasks.len() as u64,
-                        pool_name = &this.pool_name
-                    );
                 }
                 // The stream is exhausted and there are no remaining tasks.
                 Poll::Ready(None) if this.tasks.is_empty() => return Poll::Ready(()),
@@ -187,13 +191,14 @@ where
 
 #[cfg(test)]
 mod tests {
+    use futures::{future::BoxFuture, FutureExt};
+    use std::future;
     use std::sync::atomic::AtomicBool;
     use std::sync::{
         atomic::{AtomicUsize, Ordering},
         Arc, Mutex,
     };
-
-    use futures::{future::BoxFuture, FutureExt};
+    use std::time::Duration;
 
     use super::*;
 
@@ -207,10 +212,20 @@ mod tests {
         fut.boxed()
     }
 
+    fn mock_metrics() -> Arc<ThreadMetrics> {
+        Arc::new(ThreadMetrics::default())
+    }
+
     #[test]
     fn test_multiplexer_with_no_futures() {
         let (_, rx) = flume::bounded::<BoxFuture<'static, _>>(10);
-        futures::executor::block_on(Multiplexed::new("my_pool", 1, rx.into_stream(), None));
+        futures::executor::block_on(Multiplexed::new(
+            "my_pool",
+            1,
+            rx.into_stream(),
+            None,
+            mock_metrics(),
+        ));
     }
 
     #[test]
@@ -237,6 +252,7 @@ mod tests {
             1,
             rx.into_stream(),
             Some(Arc::new(panic_handler)),
+            mock_metrics(),
         ));
 
         // The count is expected to have been incremented and the handler called.
@@ -259,7 +275,13 @@ mod tests {
         drop(tx);
 
         let result = std::panic::catch_unwind(AssertUnwindSafe(|| {
-            futures::executor::block_on(Multiplexed::new("my_pool", 1, rx.into_stream(), None))
+            futures::executor::block_on(Multiplexed::new(
+                "my_pool",
+                1,
+                rx.into_stream(),
+                None,
+                mock_metrics(),
+            ))
         }));
 
         // The count is expected to have been incremented and the handler called.
@@ -280,7 +302,13 @@ mod tests {
 
         drop(tx);
 
-        futures::executor::block_on(Multiplexed::new("my_pool", 1, rx.into_stream(), None));
+        futures::executor::block_on(Multiplexed::new(
+            "my_pool",
+            1,
+            rx.into_stream(),
+            None,
+            mock_metrics(),
+        ));
 
         // The count is expected to have been incremented.
         assert_eq!(count.load(Ordering::SeqCst), 1);
@@ -301,7 +329,13 @@ mod tests {
 
         drop(tx);
 
-        futures::executor::block_on(Multiplexed::new("my_pool", 1, rx.into_stream(), None));
+        futures::executor::block_on(Multiplexed::new(
+            "my_pool",
+            1,
+            rx.into_stream(),
+            None,
+            mock_metrics(),
+        ));
 
         // The order of completion is expected to match the order of submission.
         assert_eq!(*entries.lock().unwrap(), (0..5).collect::<Vec<_>>());
@@ -320,7 +354,13 @@ mod tests {
 
         drop(tx);
 
-        futures::executor::block_on(Multiplexed::new("my_pool", 5, rx.into_stream(), None));
+        futures::executor::block_on(Multiplexed::new(
+            "my_pool",
+            5,
+            rx.into_stream(),
+            None,
+            mock_metrics(),
+        ));
 
         // The count is expected to have been incremented.
         assert_eq!(count.load(Ordering::SeqCst), 1);
@@ -341,7 +381,13 @@ mod tests {
 
         drop(tx);
 
-        futures::executor::block_on(Multiplexed::new("my_pool", 5, rx.into_stream(), None));
+        futures::executor::block_on(Multiplexed::new(
+            "my_pool",
+            5,
+            rx.into_stream(),
+            None,
+            mock_metrics(),
+        ));
 
         // The order of completion is expected to be the same as the order of submission.
         assert_eq!(*entries.lock().unwrap(), (0..5).collect::<Vec<_>>());
@@ -365,7 +411,13 @@ mod tests {
 
         drop(tx);
 
-        futures::executor::block_on(Multiplexed::new("my_pool", 5, rx.into_stream(), None));
+        futures::executor::block_on(Multiplexed::new(
+            "my_pool",
+            5,
+            rx.into_stream(),
+            None,
+            mock_metrics(),
+        ));
 
         // The order of completion is expected to be the same as the order of submission.
         assert_eq!(*entries.lock().unwrap(), (0..3).collect::<Vec<_>>());
@@ -395,7 +447,13 @@ mod tests {
 
         drop(tx);
 
-        futures::executor::block_on(Multiplexed::new("my_pool", 5, rx.into_stream(), None));
+        futures::executor::block_on(Multiplexed::new(
+            "my_pool",
+            5,
+            rx.into_stream(),
+            None,
+            mock_metrics(),
+        ));
 
         // The order of completion may vary; verify that all expected elements are present.
         let mut entries = entries.lock().unwrap();
@@ -421,5 +479,32 @@ mod tests {
 
         // The future should successfully complete.
         assert!(futures::executor::block_on(future).is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_multiplexer_emits_metrics() {
+        let (tx, rx) = flume::bounded::<BoxFuture<'static, _>>(10);
+        let metrics = mock_metrics();
+
+        tx.send(future::pending().boxed()).unwrap();
+
+        drop(tx);
+
+        // We spawn the future, which will be indefinitely pending since it's never woken up.
+        #[allow(clippy::disallowed_methods)]
+        tokio::spawn(Multiplexed::new(
+            "my_pool",
+            1,
+            rx.into_stream(),
+            None,
+            metrics.clone(),
+        ));
+
+        // We sleep to let the pending be processed by the `Multiplexed` so that the metric is then
+        // correctly emitted.
+        tokio::time::sleep(Duration::from_millis(1)).await;
+
+        // We expect that now we have 1 active task, the one that is indefinitely pending.
+        assert_eq!(metrics.active_tasks.load(Ordering::Relaxed), 1);
     }
 }
