@@ -191,13 +191,14 @@ where
 
 #[cfg(test)]
 mod tests {
+    use futures::{future::BoxFuture, FutureExt};
+    use std::future;
     use std::sync::atomic::AtomicBool;
     use std::sync::{
         atomic::{AtomicUsize, Ordering},
         Arc, Mutex,
     };
-
-    use futures::{future::BoxFuture, FutureExt};
+    use std::time::Duration;
 
     use super::*;
 
@@ -480,16 +481,18 @@ mod tests {
         assert!(futures::executor::block_on(future).is_ok());
     }
 
-    #[test]
-    fn test_multiplexer_emits_metrics() {
+    #[tokio::test]
+    async fn test_multiplexer_emits_metrics() {
         let (tx, rx) = flume::bounded::<BoxFuture<'static, _>>(10);
         let metrics = mock_metrics();
 
-        tx.send(future_with(|| {})).unwrap();
+        tx.send(future::pending().boxed()).unwrap();
 
         drop(tx);
 
-        futures::executor::block_on(Multiplexed::new(
+        // We spawn the future, which will be indefinitely pending since it's never woken up.
+        #[allow(clippy::disallowed_methods)]
+        tokio::spawn(Multiplexed::new(
             "my_pool",
             1,
             rx.into_stream(),
@@ -497,7 +500,11 @@ mod tests {
             metrics.clone(),
         ));
 
-        // We expect that the metrics are updated with the newly added future.
+        // We sleep to let the pending be processed by the `Multiplexed` so that the metric is then
+        // correctly emitted.
+        tokio::time::sleep(Duration::from_millis(1)).await;
+
+        // We expect that now we have 1 active task, the one that is indefinitely pending.
         assert_eq!(metrics.active_tasks.load(Ordering::Relaxed), 1);
     }
 }
