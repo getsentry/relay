@@ -704,7 +704,62 @@
 <a href="#703" id="703">703</a>
 <a href="#704" id="704">704</a>
 <a href="#705" id="705">705</a>
-<a href="#706" id="706">706</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::str::FromStr;
+<a href="#706" id="706">706</a>
+<a href="#707" id="707">707</a>
+<a href="#708" id="708">708</a>
+<a href="#709" id="709">709</a>
+<a href="#710" id="710">710</a>
+<a href="#711" id="711">711</a>
+<a href="#712" id="712">712</a>
+<a href="#713" id="713">713</a>
+<a href="#714" id="714">714</a>
+<a href="#715" id="715">715</a>
+<a href="#716" id="716">716</a>
+<a href="#717" id="717">717</a>
+<a href="#718" id="718">718</a>
+<a href="#719" id="719">719</a>
+<a href="#720" id="720">720</a>
+<a href="#721" id="721">721</a>
+<a href="#722" id="722">722</a>
+<a href="#723" id="723">723</a>
+<a href="#724" id="724">724</a>
+<a href="#725" id="725">725</a>
+<a href="#726" id="726">726</a>
+<a href="#727" id="727">727</a>
+<a href="#728" id="728">728</a>
+<a href="#729" id="729">729</a>
+<a href="#730" id="730">730</a>
+<a href="#731" id="731">731</a>
+<a href="#732" id="732">732</a>
+<a href="#733" id="733">733</a>
+<a href="#734" id="734">734</a>
+<a href="#735" id="735">735</a>
+<a href="#736" id="736">736</a>
+<a href="#737" id="737">737</a>
+<a href="#738" id="738">738</a>
+<a href="#739" id="739">739</a>
+<a href="#740" id="740">740</a>
+<a href="#741" id="741">741</a>
+<a href="#742" id="742">742</a>
+<a href="#743" id="743">743</a>
+<a href="#744" id="744">744</a>
+<a href="#745" id="745">745</a>
+<a href="#746" id="746">746</a>
+<a href="#747" id="747">747</a>
+<a href="#748" id="748">748</a>
+<a href="#749" id="749">749</a>
+<a href="#750" id="750">750</a>
+<a href="#751" id="751">751</a>
+<a href="#752" id="752">752</a>
+<a href="#753" id="753">753</a>
+<a href="#754" id="754">754</a>
+<a href="#755" id="755">755</a>
+<a href="#756" id="756">756</a>
+<a href="#757" id="757">757</a>
+<a href="#758" id="758">758</a>
+<a href="#759" id="759">759</a>
+<a href="#760" id="760">760</a>
+<a href="#761" id="761">761</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::str::FromStr;
 
 <span class="kw">use </span>chrono::{TimeZone, Utc};
 <span class="kw">use </span>opentelemetry_proto::tonic::common::v1::any_value::Value <span class="kw">as </span>OtelValue;
@@ -812,8 +867,8 @@
         <span class="kw">_ </span>=&gt; <span class="prelude-val">Some</span>(hex::encode(parent_span_id)),
     };
 
-    <span class="kw">let </span><span class="kw-2">mut </span>op = <span class="prelude-val">None</span>;
-    <span class="kw">let </span><span class="kw-2">mut </span>description = <span class="kw">if </span>name.is_empty() { <span class="prelude-val">None </span>} <span class="kw">else </span>{ <span class="prelude-val">Some</span>(name) };
+    <span class="kw">let </span><span class="kw-2">mut </span>op = <span class="kw">if </span>name.is_empty() { <span class="prelude-val">None </span>} <span class="kw">else </span>{ <span class="prelude-val">Some</span>(name) };
+    <span class="kw">let </span><span class="kw-2">mut </span>description = <span class="prelude-val">None</span>;
     <span class="kw">let </span><span class="kw-2">mut </span>http_method = <span class="prelude-val">None</span>;
     <span class="kw">let </span><span class="kw-2">mut </span>http_route = <span class="prelude-val">None</span>;
     <span class="kw">let </span><span class="kw-2">mut </span>http_status_code = <span class="prelude-val">None</span>;
@@ -824,15 +879,13 @@
     <span class="kw">for </span>attribute <span class="kw">in </span>attributes.into_iter() {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(value) = attribute.value.and_then(|v| v.value) {
             <span class="kw">match </span>attribute.key.as_str() {
-                <span class="string">"sentry.op" </span>=&gt; {
-                    op = otel_value_to_string(value);
+                <span class="string">"sentry.description" </span>=&gt; {
+                    description = otel_value_to_string(value);
                 }
                 key <span class="kw">if </span>key.starts_with(<span class="string">"db"</span>) =&gt; {
                     op = op.or(<span class="prelude-val">Some</span>(<span class="string">"db"</span>.to_string()));
                     <span class="kw">if </span>key == <span class="string">"db.statement" </span>{
-                        <span class="kw">if let </span><span class="prelude-val">Some</span>(statement) = otel_value_to_string(value) {
-                            description = <span class="prelude-val">Some</span>(statement);
-                        }
+                        description = description.or_else(|| otel_value_to_string(value));
                     }
                 }
                 <span class="string">"http.method" </span>| <span class="string">"http.request.method" </span>=&gt; {
@@ -904,7 +957,7 @@
     }
 
     <span class="kw">if let </span>(<span class="prelude-val">Some</span>(http_method), <span class="prelude-val">Some</span>(http_route)) = (http_method, http_route) {
-        description = <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">"{http_method} {http_route}"</span>));
+        description = description.or(<span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">"{http_method} {http_route}"</span>)));
     }
 
     EventSpan {
@@ -1085,12 +1138,58 @@
         }"#</span>;
         <span class="kw">let </span>otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         <span class="kw">let </span>event_span: EventSpan = otel_to_sentry_span(otel_span);
-        <span class="macro">assert_eq!</span>(event_span.op, Annotated::new(<span class="string">"db"</span>.into()));
+        <span class="macro">assert_eq!</span>(event_span.op, Annotated::new(<span class="string">"database query"</span>.into()));
         <span class="macro">assert_eq!</span>(
             event_span.description,
             Annotated::new(
                 <span class="string">"SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s"</span>.into()
             )
+        );
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>parse_span_with_db_attributes_and_description() {
+        <span class="kw">let </span>json = <span class="string">r#"{
+            "traceId": "89143b0763095bd9c9955e8175d1fb23",
+            "spanId": "e342abb1214ca181",
+            "parentSpanId": "0c7a7dea069bf5a6",
+            "name": "database query",
+            "kind": 3,
+            "startTimeUnixNano": "1697620454980000000",
+            "endTimeUnixNano": "1697620454980078800",
+            "attributes": [
+                {
+                    "key" : "db.name",
+                    "value": {
+                        "stringValue": "database"
+                    }
+                },
+                {
+                    "key" : "db.type",
+                    "value": {
+                        "stringValue": "sql"
+                    }
+                },
+                {
+                    "key" : "db.statement",
+                    "value": {
+                        "stringValue": "SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s"
+                    }
+                },
+                {
+                    "key": "sentry.description",
+                    "value": {
+                        "stringValue": "index view query"
+                    }
+                }
+            ]
+        }"#</span>;
+        <span class="kw">let </span>otel_span: OtelSpan = serde_json::from_str(json).unwrap();
+        <span class="kw">let </span>event_span: EventSpan = otel_to_sentry_span(otel_span);
+        <span class="macro">assert_eq!</span>(event_span.op, Annotated::new(<span class="string">"database query"</span>.into()));
+        <span class="macro">assert_eq!</span>(
+            event_span.description,
+            Annotated::new(<span class="string">"index view query"</span>.into())
         );
     }
 
@@ -1121,7 +1220,7 @@
         }"#</span>;
         <span class="kw">let </span>otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         <span class="kw">let </span>event_span: EventSpan = otel_to_sentry_span(otel_span);
-        <span class="macro">assert_eq!</span>(event_span.op, Annotated::new(<span class="string">"http.client"</span>.into()));
+        <span class="macro">assert_eq!</span>(event_span.op, Annotated::new(<span class="string">"http client request"</span>.into()));
         <span class="macro">assert_eq!</span>(
             event_span.description,
             Annotated::new(<span class="string">"GET /api/search?q=foobar"</span>.into())
@@ -1137,12 +1236,19 @@
             "parentSpanId": "fa90fdead5f74051",
             "startTimeUnixNano": "123000000000",
             "endTimeUnixNano": "123500000000",
+            "name": "myname",
             "status": {"code": 0, "message": "foo"},
             "attributes": [
                 {
                     "key" : "browser.name",
                     "value": {
                         "stringValue": "Chrome"
+                    }
+                },
+                {
+                    "key" : "sentry.description",
+                    "value": {
+                        "stringValue": "mydescription"
                     }
                 },
                 {
@@ -1255,7 +1361,7 @@
         <span class="kw">let </span>otel_span: OtelSpan = serde_json::from_str(json).unwrap();
         <span class="kw">let </span>span_from_otel = otel_to_sentry_span(otel_span);
 
-        <span class="macro">insta::assert_debug_snapshot!</span>(span_from_otel, @<span class="string">r#"
+        <span class="macro">insta::assert_debug_snapshot!</span>(span_from_otel, @<span class="string">r###"
         Span {
             timestamp: Timestamp(
                 1970-01-01T00:02:03.500Z,
@@ -1264,7 +1370,7 @@
                 1970-01-01T00:02:03Z,
             ),
             exclusive_time: 500.0,
-            op: "myop",
+            op: "myname",
             span_id: SpanId(
                 "fa90fdead5f74052",
             ),
@@ -1280,7 +1386,7 @@
             is_segment: ~,
             is_remote: ~,
             status: Ok,
-            description: ~,
+            description: "mydescription",
             tags: ~,
             origin: ~,
             profile_id: EventId(
@@ -1358,7 +1464,11 @@
                 lcp_size: ~,
                 lcp_id: ~,
                 lcp_url: ~,
-                other: {},
+                other: {
+                    "sentry.op": String(
+                        "myop",
+                    ),
+                },
             },
             links: ~,
             sentry_tags: ~,
@@ -1368,7 +1478,7 @@
             was_transaction: ~,
             other: {},
         }
-        "#</span>);
+        "###</span>);
     }
 
     <span class="attr">#[test]
