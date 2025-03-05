@@ -59,7 +59,7 @@ where
         S: ThreadSpawn,
     {
         let pool_name = builder.pool_name.unwrap_or(DEFAULT_POOL_NAME);
-        let (tx, rx) = flume::bounded(builder.num_threads * 10);
+        let (tx, rx) = flume::bounded(builder.num_threads * 2);
         let mut threads_metrics = Vec::with_capacity(builder.num_threads);
 
         for thread_id in 0..builder.num_threads {
