@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+**Breaking Changes**:
+
+- With the EOL coming up for Ubuntu 20.04 LTS, all binaries are now built on Ubuntu 22.04 LTS. This increases the minimum required glibc version from 2.31 to 2.35. ([#4545](https://github.com/getsentry/relay/pull/4545))
+
+
 **Features**:
 
 - Tag images with release version. ([#4532](https://github.com/getsentry/relay/pull/4532))
