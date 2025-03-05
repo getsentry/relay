@@ -493,7 +493,7 @@
         </span>S: ThreadSpawn,
     {
         <span class="kw">let </span>pool_name = builder.pool_name.unwrap_or(DEFAULT_POOL_NAME);
-        <span class="kw">let </span>(tx, rx) = flume::bounded(builder.num_threads * <span class="number">10</span>);
+        <span class="kw">let </span>(tx, rx) = flume::bounded(builder.num_threads * <span class="number">2</span>);
         <span class="kw">let </span><span class="kw-2">mut </span>threads_metrics = Vec::with_capacity(builder.num_threads);
 
         <span class="kw">for </span>thread_id <span class="kw">in </span><span class="number">0</span>..builder.num_threads {
