@@ -172,7 +172,9 @@ impl ServiceState {
         // instances.
         #[cfg(feature = "processing")]
         if let Some(redis_pools) = &redis_pools {
-            initialize_redis_scripts_for_pools(redis_pools).context(ServiceError::Redis)?;
+            initialize_redis_scripts_for_pools(redis_pools)
+                .await
+                .context(ServiceError::Redis)?;
         }
 
         // We create an instance of `MemoryStat` which can be supplied composed with any arbitrary
@@ -435,12 +437,11 @@ fn create_redis_pool(redis_config: RedisConfigRef) -> Result<RedisPool, RedisErr
 pub async fn create_redis_pools(configs: RedisPoolConfigs<'_>) -> Result<RedisPools, RedisError> {
     match configs {
         RedisPoolConfigs::Unified(pool) => {
-            let project_configs = create_async_connection(&pool).await?;
-            let pool = create_redis_pool(pool)?;
+            let pool = create_async_connection(&pool).await?;
             Ok(RedisPools {
-                project_configs,
+                project_configs: pool.clone(),
                 cardinality: pool.clone(),
-                quotas: pool.clone(),
+                quotas: pool,
             })
         }
         RedisPoolConfigs::Individual {
@@ -449,8 +450,8 @@ pub async fn create_redis_pools(configs: RedisPoolConfigs<'_>) -> Result<RedisPo
             quotas,
         } => {
             let project_configs = create_async_connection(&project_configs).await?;
-            let cardinality = create_redis_pool(cardinality)?;
-            let quotas = create_redis_pool(quotas)?;
+            let cardinality = create_async_connection(&cardinality).await?;
+            let quotas = create_async_connection(&quotas).await?;
 
             Ok(RedisPools {
                 project_configs,
@@ -480,33 +481,31 @@ async fn create_async_connection(
 }
 
 #[cfg(feature = "processing")]
-fn initialize_redis_scripts_for_pools(redis_pools: &RedisPools) -> Result<(), RedisError> {
-    let cardinality = redis_pools.cardinality.client()?;
-    let quotas = redis_pools.quotas.client()?;
-
+async fn initialize_redis_scripts_for_pools(redis_pools: &RedisPools) -> Result<(), RedisError> {
     let scripts = RedisScripts::all();
 
-    let pools = [cardinality, quotas];
+    let pools = [&redis_pools.cardinality, &redis_pools.quotas];
     for pool in pools {
-        initialize_redis_scripts(pool, &scripts)?;
+        initialize_redis_scripts(pool, &scripts).await?;
     }
 
     Ok(())
 }
 
 #[cfg(feature = "processing")]
-fn initialize_redis_scripts(
-    mut pooled_client: PooledClient,
+async fn initialize_redis_scripts(
+    client: &AsyncRedisClient,
     scripts: &[&Script; 3],
 ) -> Result<(), RedisError> {
-    let mut connection = pooled_client.connection()?;
+    let mut connection = client.get_connection();
 
     for script in scripts {
         // We load on all instances without checking if the script is already in cache because of a
         // limitation in the connection implementation.
         script
             .prepare_invoke()
-            .load(&mut connection)
+            .load_async(&mut connection)
+            .await
             .map_err(RedisError::Redis)?;
     }
 

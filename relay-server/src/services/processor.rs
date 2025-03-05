@@ -65,6 +65,7 @@ use crate::utils::{
     self, InvalidProcessingGroupType, ManagedEnvelope, SamplingResult, TypedEnvelope,
 };
 use relay_base_schema::organization::OrganizationId;
+use relay_redis::AsyncRedisClient;
 use relay_threading::AsyncPool;
 #[cfg(feature = "processing")]
 use {
@@ -1121,7 +1122,7 @@ struct InnerProcessor {
     project_cache: ProjectCacheHandle,
     cogs: Cogs,
     #[cfg(feature = "processing")]
-    quotas_pool: Option<RedisPool>,
+    quotas_pool: Option<AsyncRedisClient>,
     addrs: Addrs,
     #[cfg(feature = "processing")]
     rate_limiter: Option<RedisRateLimiter>,
