@@ -84,6 +84,11 @@ pub enum DataCategory {
     /// and metric cardinality. Defined here so as not to clash with future
     /// categories.
     MetricSecond = 19,
+    /// Replay Video
+    ///
+    /// This is the data category for Session Replays produced via a video recording.
+    #[warn(deprecated)]
+    DoNotUseReplayVideo = 20,
     /// This is the data category for Uptime monitors.
     Uptime = 21,
     /// Counts the number of individual attachments, as opposed to the number of bytes in an attachment.
@@ -161,6 +166,7 @@ impl DataCategory {
             Self::Profile => "profile",
             Self::ProfileIndexed => "profile_indexed",
             Self::Replay => "replay",
+            Self::DoNotUseReplayVideo => "do_not_use_replay_video",
             Self::TransactionProcessed => "transaction_processed",
             Self::TransactionIndexed => "transaction_indexed",
             Self::Monitor => "monitor",
