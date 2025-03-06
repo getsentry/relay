@@ -10,6 +10,7 @@
 - Support span `category` inference from span attributes. ([#4509](https://github.com/getsentry/relay/pull/4509))
 - Add option to control ourlogs ingestion. ([#4518](https://github.com/getsentry/relay/pull/4518))
 - Update Apple device model classes ([#4529](https://github.com/getsentry/relay/pull/4529))
+- Remove separate quota and rate limit counting for replay videos ([#4554](https://github.com/getsentry/relay/pull/4554))
 
 **Internal**:
 
@@ -52,6 +53,10 @@
 - Partition spans by `trace_id` on the Kafka topic. ([#4503](https://github.com/getsentry/relay/pull/4503))
 
 ## 25.1.0
+
+**Features**:
+
+- Use a separate rate-limit enforcement category for replay-video envelope items. ([#4459](https://github.com/getsentry/relay/pull/4459))
 
 **Internal**:
 
