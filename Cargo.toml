@@ -124,6 +124,7 @@ json-forensics = "0.1.1"
 libc = "0.2.167"
 liblzma = "0.3.5"
 lru = "0.12.5"
+lz4_flex = "0.11.3"
 maxminddb = "0.24.0"
 memchr = "2.7.4"
 md5 = "0.7.0"
@@ -179,7 +180,7 @@ socket2 = "0.5.8"
 sqlparser = "0.44.0"
 sqlx = { version = "0.8.2", default-features = false }
 # See statsdproxy PR: https://github.com/getsentry/statsdproxy/pull/55
-statsdproxy = { git = "https://github.com/getsentry/statsdproxy", rev = "50155c5c5dc103fb1557e5ccde6b2cf6dfe82b9f", default-features = false}
+statsdproxy = { git = "https://github.com/getsentry/statsdproxy", rev = "50155c5c5dc103fb1557e5ccde6b2cf6dfe82b9f", default-features = false }
 symbolic-common = { version = "12.12.3", default-features = false }
 symbolic-unreal = { version = "12.12.3", default-features = false }
 syn = { version = "2.0.90" }

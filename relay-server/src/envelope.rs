@@ -415,6 +415,9 @@ pub enum AttachmentType {
     /// This attachment is processed by Relay immediately and never forwarded or persisted.
     Breadcrumbs,
 
+    // A prosperodump crash report (binary data)
+    Prosperodump,
+
     /// This is a binary attachment present in Unreal 4 events containing event context information.
     ///
     /// This can be deserialized using the `symbolic` crate see
@@ -452,6 +455,7 @@ impl fmt::Display for AttachmentType {
             AttachmentType::Minidump => write!(f, "event.minidump"),
             AttachmentType::AppleCrashReport => write!(f, "event.applecrashreport"),
             AttachmentType::EventPayload => write!(f, "event.payload"),
+            AttachmentType::Prosperodump => write!(f, "playstation.prosperodump"),
             AttachmentType::Breadcrumbs => write!(f, "event.breadcrumbs"),
             AttachmentType::UnrealContext => write!(f, "unreal.context"),
             AttachmentType::UnrealLogs => write!(f, "unreal.logs"),
@@ -935,6 +939,7 @@ impl Item {
                     AttachmentType::AppleCrashReport
                     | AttachmentType::Minidump
                     | AttachmentType::EventPayload
+                    | AttachmentType::Prosperodump
                     | AttachmentType::Breadcrumbs => true,
                     AttachmentType::Attachment
                     | AttachmentType::UnrealContext
