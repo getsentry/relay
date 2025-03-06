@@ -592,13 +592,35 @@ pub enum DiscardItemType {
 }
 
 impl DiscardItemType {
-    pub fn as_str(self) -> &'static str {
+    pub fn as_str(&self) -> &'static str {
         match self {
-            DiscardItemType::Event => "10",
-            DiscardItemType::Transaction => "20",
-            DiscardItemType::Security => "30",
-            DiscardItemType::Attachment => "40",
-            _ => "100",
+            Self::Unknown => "0",
+            Self::Event => "1",
+            Self::Transaction => "2",
+            Self::Security => "3",
+            Self::Attachment => "4",
+            Self::FormData => "5",
+            Self::RawSecurity => "6",
+            Self::Nel => "7",
+            Self::UnrealReport => "8",
+            Self::UserReport => "9",
+            Self::Session => "10",
+            Self::Sessions => "11",
+            Self::Statsd => "12",
+            Self::MetricBuckets => "13",
+            Self::ClientReport => "14",
+            Self::Profile => "15",
+            Self::ReplayEvent => "16",
+            Self::ReplayRecording => "17",
+            Self::ReplayVideo => "18",
+            Self::CheckIn => "19",
+            Self::OtelLog => "20",
+            Self::Log => "21",
+            Self::Span => "22",
+            Self::OtelSpan => "23",
+            Self::OtelTracesData => "24",
+            Self::UserReportV2 => "25",
+            Self::ProfileChunk => "26",
         }
     }
 }
