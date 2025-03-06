@@ -602,7 +602,7 @@ fn extract_attached_event(
     // Protect against blowing up during deserialization. Attachments can have a significantly
     // larger size than regular events and may cause significant processing delays.
     if item.len() > config.max_event_size() {
-        return Err(ProcessingError::PayloadTooLarge);
+        return Err(ProcessingError::PayloadTooLarge(item.ty().to_owned()));
     }
 
     let payload = item.payload();
@@ -625,7 +625,7 @@ fn parse_msgpack_breadcrumbs(
     // blowing up during deserialization. As approximation, we use the maximum event payload
     // size as bound, which is roughly in the right ballpark.
     if item.len() > config.max_event_size() {
-        return Err(ProcessingError::PayloadTooLarge);
+        return Err(ProcessingError::PayloadTooLarge(item.ty().to_owned()));
     }
 
     let payload = item.payload();
