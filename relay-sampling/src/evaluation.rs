@@ -6,6 +6,9 @@ use std::num::ParseIntError;
 use std::ops::ControlFlow;
 use std::sync::{Arc, Mutex};
 
+use crate::config::{RuleId, SamplingRule, SamplingValue};
+#[cfg(feature = "redis")]
+use crate::redis_sampling::{self, ReservoirRuleKey};
 use chrono::{DateTime, Utc};
 use rand::distributions::Uniform;
 use rand::Rng;
@@ -14,13 +17,9 @@ use rand_pcg::Pcg32;
 use relay_base_schema::organization::OrganizationId;
 use relay_protocol::Getter;
 #[cfg(feature = "redis")]
-use relay_redis::RedisPool;
+use relay_redis::AsyncRedisClient;
 use serde::Serialize;
 use uuid::Uuid;
-
-use crate::config::{RuleId, SamplingRule, SamplingValue};
-#[cfg(feature = "redis")]
-use crate::redis_sampling::{self, ReservoirRuleKey};
 
 /// Generates a pseudo random number by seeding the generator with the given id.
 ///
@@ -51,7 +50,7 @@ pub type ReservoirCounters = Arc<Mutex<BTreeMap<RuleId, i64>>>;
 pub struct ReservoirEvaluator<'a> {
     counters: ReservoirCounters,
     #[cfg(feature = "redis")]
-    org_id_and_redis_pool: Option<(OrganizationId, &'a RedisPool)>,
+    org_id_and_client: Option<(OrganizationId, &'a AsyncRedisClient)>,
     // Using PhantomData because the lifetimes are behind a feature flag.
     _phantom: std::marker::PhantomData<&'a ()>,
 }
@@ -62,7 +61,7 @@ impl ReservoirEvaluator<'_> {
         Self {
             counters,
             #[cfg(feature = "redis")]
-            org_id_and_redis_pool: None,
+            org_id_and_client: None,
             _phantom: std::marker::PhantomData,
         }
     }
@@ -73,17 +72,16 @@ impl ReservoirEvaluator<'_> {
     }
 
     #[cfg(feature = "redis")]
-    fn redis_incr(
+    async fn redis_incr(
         &self,
         key: &ReservoirRuleKey,
-        redis_pool: &RedisPool,
+        client: &AsyncRedisClient,
         rule_expiry: Option<&DateTime<Utc>>,
     ) -> anyhow::Result<i64> {
-        let mut redis_client = redis_pool.client()?;
-        let mut redis_connection = redis_client.connection()?;
+        let mut connection = client.get_connection();
 
-        let val = redis_sampling::increment_redis_reservoir_count(&mut redis_connection, key)?;
-        redis_sampling::set_redis_expiry(&mut redis_connection, key, rule_expiry)?;
+        let val = redis_sampling::increment_redis_reservoir_count(&mut connection, key).await?;
+        redis_sampling::set_redis_expiry(&mut connection, key, rule_expiry).await?;
 
         Ok(val)
     }
@@ -106,9 +104,14 @@ impl ReservoirEvaluator<'_> {
     }
 
     /// Evaluates a reservoir rule, returning `true` if it should be sampled.
-    pub fn evaluate(&self, rule: RuleId, limit: i64, _rule_expiry: Option<&DateTime<Utc>>) -> bool {
+    pub async fn evaluate(
+        &self,
+        rule: RuleId,
+        limit: i64,
+        _rule_expiry: Option<&DateTime<Utc>>,
+    ) -> bool {
         #[cfg(feature = "redis")]
-        if let Some((org_id, redis_pool)) = self.org_id_and_redis_pool {
+        if let Some((org_id, client)) = self.org_id_and_client {
             if let Ok(guard) = self.counters.lock() {
                 if *guard.get(&rule).unwrap_or(&0) > limit {
                     return false;
@@ -116,7 +119,7 @@ impl ReservoirEvaluator<'_> {
             }
 
             let key = ReservoirRuleKey::new(org_id, rule);
-            let redis_count = match self.redis_incr(&key, redis_pool, _rule_expiry) {
+            let redis_count = match self.redis_incr(&key, client, _rule_expiry).await {
                 Ok(redis_count) => redis_count,
                 Err(e) => {
                     relay_log::error!(error = &*e, "failed to increment reservoir rule");
@@ -143,8 +146,8 @@ impl<'a> ReservoirEvaluator<'a> {
     /// Sets the Redis pool and organization ID for the [`ReservoirEvaluator`].
     ///
     /// These values are needed to synchronize with Redis.
-    pub fn set_redis(&mut self, org_id: OrganizationId, redis_pool: &'a RedisPool) {
-        self.org_id_and_redis_pool = Some((org_id, redis_pool));
+    pub fn set_redis(&mut self, org_id: OrganizationId, client: &'a AsyncRedisClient) {
+        self.org_id_and_client = Some((org_id, client));
     }
 }
 
@@ -189,7 +192,7 @@ impl<'a> SamplingEvaluator<'a> {
     ///    - If this value is returned and there are no more rules to evaluate, it should be interpreted as "no match."
     ///
     /// - `ControlFlow::Break`: Indicates that one or more rules have successfully matched.
-    pub fn match_rules<'b, I, G>(
+    pub async fn match_rules<'b, I, G>(
         mut self,
         seed: Uuid,
         instance: &G,
@@ -204,7 +207,7 @@ impl<'a> SamplingEvaluator<'a> {
                 continue;
             };
 
-            if let Some(sample_rate) = self.try_compute_sample_rate(rule) {
+            if let Some(sample_rate) = self.try_compute_sample_rate(rule).await {
                 return ControlFlow::Break(SamplingMatch::new(sample_rate, seed, self.rule_ids));
             };
         }
@@ -219,7 +222,7 @@ impl<'a> SamplingEvaluator<'a> {
     /// - `None` if the sampling rule is invalid, expired, or if the final sample rate has not been
     ///   determined yet.
     /// - `Some` if the computed sample rate should be applied directly.
-    fn try_compute_sample_rate(&mut self, rule: &SamplingRule) -> Option<f64> {
+    async fn try_compute_sample_rate(&mut self, rule: &SamplingRule) -> Option<f64> {
         match rule.sampling_value {
             SamplingValue::Factor { value } => {
                 self.factor *= rule.apply_decaying_fn(value, self.now)?;
@@ -235,7 +238,10 @@ impl<'a> SamplingEvaluator<'a> {
             }
             SamplingValue::Reservoir { limit } => {
                 let reservoir = self.reservoir?;
-                if !reservoir.evaluate(rule.id, limit, rule.time_range.end.as_ref()) {
+                if !reservoir
+                    .evaluate(rule.id, limit, rule.time_range.end.as_ref())
+                    .await
+                {
                     return None;
                 }
 
@@ -421,12 +427,11 @@ mod tests {
     }
 
     /// Helper to extract the sampling match after evaluating rules.
-    fn get_sampling_match(rules: &[SamplingRule], instance: &impl Getter) -> SamplingMatch {
-        match SamplingEvaluator::new(Utc::now()).match_rules(
-            Uuid::default(),
-            instance,
-            rules.iter(),
-        ) {
+    async fn get_sampling_match(rules: &[SamplingRule], instance: &impl Getter) -> SamplingMatch {
+        match SamplingEvaluator::new(Utc::now())
+            .match_rules(Uuid::default(), instance, rules.iter())
+            .await
+        {
             ControlFlow::Break(sampling_match) => sampling_match,
             ControlFlow::Continue(_) => panic!("no match found"),
         }
@@ -437,9 +442,13 @@ mod tests {
     }
 
     /// Helper to check if certain rules are matched on.
-    fn matches_rule_ids(rule_ids: &[u32], rules: &[SamplingRule], instance: &impl Getter) -> bool {
+    async fn matches_rule_ids(
+        rule_ids: &[u32],
+        rules: &[SamplingRule],
+        instance: &impl Getter,
+    ) -> bool {
         let matched_rule_ids = MatchedRuleIds(rule_ids.iter().map(|num| RuleId(*num)).collect());
-        let sampling_match = get_sampling_match(rules, instance);
+        let sampling_match = get_sampling_match(rules, instance).await;
         matched_rule_ids == sampling_match.matched_rules
     }
 
@@ -485,23 +494,34 @@ mod tests {
         dsc
     }
 
-    #[test]
-    fn test_reservoir_evaluator_limit() {
+    async fn is_match(
+        now: DateTime<Utc>,
+        rule: &SamplingRule,
+        dsc: &DynamicSamplingContext,
+    ) -> bool {
+        SamplingEvaluator::new(now)
+            .match_rules(Uuid::default(), dsc, std::iter::once(rule))
+            .await
+            .is_break()
+    }
+
+    #[tokio::test]
+    async fn test_reservoir_evaluator_limit() {
         let evaluator = mock_reservoir_evaluator(vec![(1, 0)]);
 
         let rule = RuleId(1);
         let limit = 3;
 
-        assert!(evaluator.evaluate(rule, limit, None));
-        assert!(evaluator.evaluate(rule, limit, None));
-        assert!(evaluator.evaluate(rule, limit, None));
+        assert!(evaluator.evaluate(rule, limit, None).await);
+        assert!(evaluator.evaluate(rule, limit, None).await);
+        assert!(evaluator.evaluate(rule, limit, None).await);
         // After 3 samples we have reached the limit, and the following rules are not sampled.
-        assert!(!evaluator.evaluate(rule, limit, None));
-        assert!(!evaluator.evaluate(rule, limit, None));
+        assert!(!evaluator.evaluate(rule, limit, None).await);
+        assert!(!evaluator.evaluate(rule, limit, None).await);
     }
 
-    #[test]
-    fn test_sample_rate_compounding() {
+    #[tokio::test]
+    async fn test_sample_rate_compounding() {
         let rules = simple_sampling_rules(vec![
             (RuleCondition::all(), SamplingValue::Factor { value: 0.8 }),
             (RuleCondition::all(), SamplingValue::Factor { value: 0.5 }),
@@ -513,7 +533,7 @@ mod tests {
         let dsc = mocked_dsc_with_getter_values(vec![]);
 
         // 0.8 * 0.5 * 0.25 == 0.1
-        assert_eq!(get_sampling_match(&rules, &dsc).sample_rate(), 0.1);
+        assert_eq!(get_sampling_match(&rules, &dsc).await.sample_rate(), 0.1);
     }
 
     fn mocked_sampling_rule() -> SamplingRule {
@@ -553,8 +573,8 @@ mod tests {
     /// previous rule(s) will not be present in the matched rules output.
     /// After the limit has been reached, the reservoir rule is ignored
     /// and the output is the two other rules (id = 0, id = 2).
-    #[test]
-    fn test_reservoir_override() {
+    #[tokio::test]
+    async fn test_reservoir_override() {
         let dsc = mocked_dsc_with_getter_values(vec![]);
         let rules = simple_sampling_rules(vec![
             (RuleCondition::all(), SamplingValue::Factor { value: 0.5 }),
@@ -572,27 +592,36 @@ mod tests {
         let reservoir = mock_reservoir_evaluator(vec![]);
 
         let evaluator = SamplingEvaluator::new_with_reservoir(Utc::now(), &reservoir);
-        let matched_rules =
-            get_matched_rules(&evaluator.match_rules(Uuid::default(), &dsc, rules.iter()));
+        let matched_rules = get_matched_rules(
+            &evaluator
+                .match_rules(Uuid::default(), &dsc, rules.iter())
+                .await,
+        );
         // Reservoir rule overrides 0 and 2.
         assert_eq!(&matched_rules, &[1]);
 
         let evaluator = SamplingEvaluator::new_with_reservoir(Utc::now(), &reservoir);
-        let matched_rules =
-            get_matched_rules(&evaluator.match_rules(Uuid::default(), &dsc, rules.iter()));
+        let matched_rules = get_matched_rules(
+            &evaluator
+                .match_rules(Uuid::default(), &dsc, rules.iter())
+                .await,
+        );
         // Reservoir rule overrides 0 and 2.
         assert_eq!(&matched_rules, &[1]);
 
         let evaluator = SamplingEvaluator::new_with_reservoir(Utc::now(), &reservoir);
-        let matched_rules =
-            get_matched_rules(&evaluator.match_rules(Uuid::default(), &dsc, rules.iter()));
+        let matched_rules = get_matched_rules(
+            &evaluator
+                .match_rules(Uuid::default(), &dsc, rules.iter())
+                .await,
+        );
         // Reservoir rule reached its limit, rule 0 and 2 are now matched instead.
         assert_eq!(&matched_rules, &[0, 2]);
     }
 
     /// Checks that rules don't match if the time is outside the time range.
-    #[test]
-    fn test_expired_rules() {
+    #[tokio::test]
+    async fn test_expired_rules() {
         let rule = SamplingRule {
             condition: RuleCondition::all(),
             sampling_value: SamplingValue::SampleRate { value: 1.0 },
@@ -609,34 +638,27 @@ mod tests {
 
         // Baseline test.
         let within_timerange = Utc.with_ymd_and_hms(1970, 10, 11, 0, 0, 0).unwrap();
-        let res = SamplingEvaluator::new(within_timerange).match_rules(
-            Uuid::default(),
-            &dsc,
-            [rule.clone()].iter(),
-        );
-
+        let res = SamplingEvaluator::new(within_timerange)
+            .match_rules(Uuid::default(), &dsc, [rule.clone()].iter())
+            .await;
         assert!(evaluation_is_match(res));
 
         let before_timerange = Utc.with_ymd_and_hms(1969, 1, 1, 0, 0, 0).unwrap();
-        let res = SamplingEvaluator::new(before_timerange).match_rules(
-            Uuid::default(),
-            &dsc,
-            [rule.clone()].iter(),
-        );
+        let res = SamplingEvaluator::new(before_timerange)
+            .match_rules(Uuid::default(), &dsc, [rule.clone()].iter())
+            .await;
         assert!(!evaluation_is_match(res));
 
         let after_timerange = Utc.with_ymd_and_hms(1971, 1, 1, 0, 0, 0).unwrap();
-        let res = SamplingEvaluator::new(after_timerange).match_rules(
-            Uuid::default(),
-            &dsc,
-            [rule].iter(),
-        );
+        let res = SamplingEvaluator::new(after_timerange)
+            .match_rules(Uuid::default(), &dsc, [rule].iter())
+            .await;
         assert!(!evaluation_is_match(res));
     }
 
     /// Checks that `SamplingValueEvaluator` correctly matches the right rules.
-    #[test]
-    fn test_condition_matching() {
+    #[tokio::test]
+    async fn test_condition_matching() {
         let rules = simple_sampling_rules(vec![
             (
                 RuleCondition::glob("trace.transaction", "*healthcheck*"),
@@ -668,15 +690,15 @@ mod tests {
 
         // early return of first rule
         let dsc = mocked_dsc_with_getter_values(vec![("trace.transaction", "foohealthcheckbar")]);
-        assert!(matches_rule_ids(&[0], &rules, &dsc));
+        assert!(matches_rule_ids(&[0], &rules, &dsc).await);
 
         // early return of second rule
         let dsc = mocked_dsc_with_getter_values(vec![("trace.environment", "dev")]);
-        assert!(matches_rule_ids(&[1], &rules, &dsc));
+        assert!(matches_rule_ids(&[1], &rules, &dsc).await);
 
         // factor match third rule and early return sixth rule
         let dsc = mocked_dsc_with_getter_values(vec![("trace.transaction", "raboof")]);
-        assert!(matches_rule_ids(&[2, 5], &rules, &dsc));
+        assert!(matches_rule_ids(&[2, 5], &rules, &dsc).await);
 
         // factor match third rule and early return fourth rule
         let dsc = mocked_dsc_with_getter_values(vec![
@@ -684,7 +706,7 @@ mod tests {
             ("trace.release", "1.1.1"),
             ("trace.user.segment", "vip"),
         ]);
-        assert!(matches_rule_ids(&[2, 3], &rules, &dsc));
+        assert!(matches_rule_ids(&[2, 3], &rules, &dsc).await);
 
         // factor match third, fifth rule and early return sixth rule
         let dsc = mocked_dsc_with_getter_values(vec![
@@ -692,14 +714,14 @@ mod tests {
             ("trace.release", "1.1.1"),
             ("trace.environment", "prod"),
         ]);
-        assert!(matches_rule_ids(&[2, 4, 5], &rules, &dsc));
+        assert!(matches_rule_ids(&[2, 4, 5], &rules, &dsc).await);
 
         // factor match fifth and early return sixth rule
         let dsc = mocked_dsc_with_getter_values(vec![
             ("trace.release", "1.1.1"),
             ("trace.environment", "prod"),
         ]);
-        assert!(matches_rule_ids(&[4, 5], &rules, &dsc));
+        assert!(matches_rule_ids(&[4, 5], &rules, &dsc).await);
     }
 
     #[test]
@@ -747,12 +769,14 @@ mod tests {
         assert!(MatchedRuleIds::parse("a,b").is_err());
     }
 
-    #[test]
+    #[tokio::test]
     /// Tests that no match is done when there are no matching rules.
-    fn test_get_sampling_match_result_with_no_match() {
+    async fn test_get_sampling_match_result_with_no_match() {
         let dsc = mocked_dsc_with_getter_values(vec![]);
 
-        let res = SamplingEvaluator::new(Utc::now()).match_rules(Uuid::default(), &dsc, [].iter());
+        let res = SamplingEvaluator::new(Utc::now())
+            .match_rules(Uuid::default(), &dsc, [].iter())
+            .await;
 
         assert!(!evaluation_is_match(res));
     }
@@ -761,8 +785,8 @@ mod tests {
     /// time is out of bounds of the time range.
     /// When the `start` or `end` of the range is missing, it defaults to always include
     /// times before the `end` or after the `start`, respectively.
-    #[test]
-    fn test_sample_rate_valid_time_range() {
+    #[tokio::test]
+    async fn test_sample_rate_valid_time_range() {
         let dsc = mocked_dsc_with_getter_values(vec![]);
         let time_range = TimeRange {
             start: Some(Utc.with_ymd_and_hms(1970, 1, 1, 0, 0, 0).unwrap()),
@@ -782,54 +806,48 @@ mod tests {
             decaying_fn: DecayingFunction::Constant,
         };
 
-        let is_match = |now: DateTime<Utc>, rule: &SamplingRule| -> bool {
-            SamplingEvaluator::new(now)
-                .match_rules(Uuid::default(), &dsc, [rule.clone()].iter())
-                .is_break()
-        };
-
         // [start..end]
-        assert!(!is_match(before_time_range, &rule));
-        assert!(is_match(during_time_range, &rule));
-        assert!(!is_match(after_time_range, &rule));
+        assert!(!is_match(before_time_range, &rule, &dsc).await);
+        assert!(is_match(during_time_range, &rule, &dsc).await);
+        assert!(!is_match(after_time_range, &rule, &dsc).await);
 
         // [start..]
         let mut rule_without_end = rule.clone();
         rule_without_end.time_range.end = None;
-        assert!(!is_match(before_time_range, &rule_without_end));
-        assert!(is_match(during_time_range, &rule_without_end));
-        assert!(is_match(after_time_range, &rule_without_end));
+        assert!(!is_match(before_time_range, &rule_without_end, &dsc).await);
+        assert!(is_match(during_time_range, &rule_without_end, &dsc).await);
+        assert!(is_match(after_time_range, &rule_without_end, &dsc).await);
 
         // [..end]
         let mut rule_without_start = rule.clone();
         rule_without_start.time_range.start = None;
-        assert!(is_match(before_time_range, &rule_without_start));
-        assert!(is_match(during_time_range, &rule_without_start));
-        assert!(!is_match(after_time_range, &rule_without_start));
+        assert!(is_match(before_time_range, &rule_without_start, &dsc).await);
+        assert!(is_match(during_time_range, &rule_without_start, &dsc).await);
+        assert!(!is_match(after_time_range, &rule_without_start, &dsc).await);
 
         // [..]
         let mut rule_without_range = rule.clone();
         rule_without_range.time_range = TimeRange::default();
-        assert!(is_match(before_time_range, &rule_without_range));
-        assert!(is_match(during_time_range, &rule_without_range));
-        assert!(is_match(after_time_range, &rule_without_range));
+        assert!(is_match(before_time_range, &rule_without_range, &dsc).await);
+        assert!(is_match(during_time_range, &rule_without_range, &dsc).await);
+        assert!(is_match(after_time_range, &rule_without_range, &dsc).await);
     }
 
     /// Checks that `validate_match` yields the correct controlflow given the SamplingValue variant.
-    #[test]
-    fn test_validate_match() {
+    #[tokio::test]
+    async fn test_validate_match() {
         let mut rule = mocked_sampling_rule();
 
         let reservoir = ReservoirEvaluator::new(ReservoirCounters::default());
         let mut eval = SamplingEvaluator::new_with_reservoir(Utc::now(), &reservoir);
 
         rule.sampling_value = SamplingValue::SampleRate { value: 1.0 };
-        assert_eq!(eval.try_compute_sample_rate(&rule), Some(1.0));
+        assert_eq!(eval.try_compute_sample_rate(&rule).await, Some(1.0));
 
         rule.sampling_value = SamplingValue::Factor { value: 1.0 };
-        assert_eq!(eval.try_compute_sample_rate(&rule), None);
+        assert_eq!(eval.try_compute_sample_rate(&rule).await, None);
 
         rule.sampling_value = SamplingValue::Reservoir { limit: 1 };
-        assert_eq!(eval.try_compute_sample_rate(&rule), Some(1.0));
+        assert_eq!(eval.try_compute_sample_rate(&rule).await, Some(1.0));
     }
 }

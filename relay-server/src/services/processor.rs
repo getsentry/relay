@@ -2732,7 +2732,7 @@ impl EnvelopeProcessorService {
 
     /// Check and apply rate limits to metrics buckets for transactions and spans.
     #[cfg(feature = "processing")]
-    fn apply_other_rate_limits(&self, mut bucket_limiter: MetricsLimiter) -> Vec<Bucket> {
+    async fn apply_other_rate_limits(&self, mut bucket_limiter: MetricsLimiter) -> Vec<Bucket> {
         relay_log::trace!("handle_rate_limit_buckets");
 
         let scoping = *bucket_limiter.scoping();
@@ -2753,12 +2753,10 @@ impl EnvelopeProcessorService {
                 let mut is_limited = false;
 
                 if let Some(count) = count {
-                    match rate_limiter.is_rate_limited(
-                        quotas,
-                        scoping.item(category),
-                        count,
-                        over_accept_once,
-                    ) {
+                    match rate_limiter
+                        .is_rate_limited(quotas, scoping.item(category), count, over_accept_once)
+                        .await
+                    {
                         Ok(limits) => {
                             is_limited = limits.is_limited();
                             rate_limits.merge(limits)
@@ -2805,7 +2803,7 @@ impl EnvelopeProcessorService {
 
     /// Cardinality limits the passed buckets and returns a filtered vector of only accepted buckets.
     #[cfg(feature = "processing")]
-    fn cardinality_limit_buckets(
+    async fn cardinality_limit_buckets(
         &self,
         scoping: Scoping,
         limits: &[CardinalityLimit],
@@ -2827,7 +2825,10 @@ impl EnvelopeProcessorService {
             project_id: scoping.project_id,
         };
 
-        let limits = match limiter.check_cardinality_limits(scope, limits, buckets) {
+        let limits = match limiter
+            .check_cardinality_limits(scope, limits, buckets)
+            .await
+        {
             Ok(limits) => limits,
             Err((buckets, error)) => {
                 relay_log::error!(
@@ -2892,7 +2893,11 @@ impl EnvelopeProcessorService {
     ///  - rate limiting
     ///  - submit to `StoreForwarder`
     #[cfg(feature = "processing")]
-    fn encode_metrics_processing(&self, message: FlushBuckets, store_forwarder: &Addr<Store>) {
+    async fn encode_metrics_processing(
+        &self,
+        message: FlushBuckets,
+        store_forwarder: &Addr<Store>,
+    ) {
         use crate::constants::DEFAULT_EVENT_RETENTION;
         use crate::services::store::StoreMetrics;
 
@@ -2906,7 +2911,9 @@ impl EnvelopeProcessorService {
             let buckets = self.rate_limit_buckets(scoping, &project_info, buckets);
 
             let limits = project_info.get_cardinality_limits();
-            let buckets = self.cardinality_limit_buckets(scoping, limits, buckets);
+            let buckets = self
+                .cardinality_limit_buckets(scoping, limits, buckets)
+                .await;
 
             if buckets.is_empty() {
                 continue;
@@ -3204,7 +3211,7 @@ enum RateLimiter<'a> {
 
 #[cfg(feature = "processing")]
 impl RateLimiter<'_> {
-    fn enforce<Group>(
+    async fn enforce<Group>(
         &self,
         managed_envelope: &mut TypedEnvelope<Group>,
         event: Annotated<Event>,
@@ -3230,7 +3237,8 @@ impl RateLimiter<'_> {
             EnvelopeLimiter::new(CheckLimits::All, |item_scope, quantity| match self {
                 RateLimiter::Cached => Ok(rate_limits.check_with_quotas(quotas, item_scope)),
                 RateLimiter::Consistent(rl) => Ok::<_, ProcessingError>(
-                    rl.is_rate_limited(quotas, item_scope, quantity, false)?,
+                    rl.is_rate_limited(quotas, item_scope, quantity, false)
+                        .await?,
                 ),
             });
 

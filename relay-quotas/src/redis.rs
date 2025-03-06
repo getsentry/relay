@@ -208,7 +208,7 @@ impl RedisRateLimiter {
     /// limit has been reached or exceeded without incrementing it in the success case. This can be
     /// useful to check for required quotas in a different data category.
     pub async fn is_rate_limited<'a>(
-        &mut self,
+        &self,
         quotas: impl IntoIterator<Item = &'a Quota>,
         item_scoping: ItemScoping<'_>,
         quantity: usize,
