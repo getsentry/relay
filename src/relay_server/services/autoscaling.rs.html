@@ -79,23 +79,49 @@
 <a href="#78" id="78">78</a>
 <a href="#79" id="79">79</a>
 <a href="#80" id="80">80</a>
-<a href="#81" id="81">81</a></pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::services::buffer::PartitionedEnvelopeBuffer;
+<a href="#81" id="81">81</a>
+<a href="#82" id="82">82</a>
+<a href="#83" id="83">83</a>
+<a href="#84" id="84">84</a>
+<a href="#85" id="85">85</a>
+<a href="#86" id="86">86</a>
+<a href="#87" id="87">87</a>
+<a href="#88" id="88">88</a>
+<a href="#89" id="89">89</a>
+<a href="#90" id="90">90</a>
+<a href="#91" id="91">91</a>
+<a href="#92" id="92">92</a>
+<a href="#93" id="93">93</a>
+<a href="#94" id="94">94</a>
+<a href="#95" id="95">95</a>
+<a href="#96" id="96">96</a>
+<a href="#97" id="97">97</a>
+<a href="#98" id="98">98</a></pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::services::buffer::PartitionedEnvelopeBuffer;
 <span class="kw">use </span><span class="kw">crate</span>::MemoryStat;
-<span class="kw">use </span>relay_system::{AsyncResponse, Controller, FromMessage, Interface, Sender, Service};
-<span class="kw">use </span>serde::Serialize;
+<span class="kw">use </span>relay_system::{AsyncResponse, Controller, FromMessage, Handle, Interface, Sender, Service};
 
 <span class="doccomment">/// Service that tracks internal relay metrics so that they can be exposed.
 </span><span class="kw">pub struct </span>AutoscalingMetricService {
-    memory_stat: MemoryStat,
-    envelope_buffer: PartitionedEnvelopeBuffer,
-    up: u8,
+    <span class="doccomment">/// For exposing internal memory usage of relay.
+    </span>memory_stat: MemoryStat,
+    <span class="doccomment">/// Reference to the spooler to get item count and total used size.
+    </span>envelope_buffer: PartitionedEnvelopeBuffer,
+    <span class="doccomment">/// Runtime handle to expose service utilization metrics.
+    </span>handle: Handle,
+    <span class="doccomment">/// This will always report `1` unless the instance is shutting down.
+    </span>up: u8,
 }
 
 <span class="kw">impl </span>AutoscalingMetricService {
-    <span class="kw">pub fn </span>new(memory_stat: MemoryStat, envelope_buffer: PartitionedEnvelopeBuffer) -&gt; <span class="self">Self </span>{
+    <span class="kw">pub fn </span>new(
+        memory_stat: MemoryStat,
+        envelope_buffer: PartitionedEnvelopeBuffer,
+        handle: Handle,
+    ) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             memory_stat,
             envelope_buffer,
+            handle,
             up: <span class="number">1</span>,
         }
     }
@@ -115,11 +141,17 @@
                     <span class="kw">match </span>message {
                         AutoscalingMetrics::Check(sender) =&gt; {
                             <span class="kw">let </span>memory_usage = <span class="self">self</span>.memory_stat.memory();
+                            <span class="kw">let </span>metrics = <span class="self">self</span>.handle
+                                .current_services_metrics()
+                                .iter()
+                                .map(|(id, metric)| ServiceUtilization(id.name(), metric.utilization))
+                                .collect();
                             sender.send(AutoscalingData {
                                 memory_usage: memory_usage.used_percent(),
                                 up: <span class="self">self</span>.up,
                                 total_size: <span class="self">self</span>.envelope_buffer.total_storage_size(),
-                                item_count: <span class="self">self</span>.envelope_buffer.item_count()
+                                item_count: <span class="self">self</span>.envelope_buffer.item_count(),
+                                services_metrics: metrics
                             });
                         }
                     }
@@ -153,11 +185,13 @@
     }
 }
 
-<span class="attr">#[derive(Debug, Serialize)]
-</span><span class="kw">pub struct </span>AutoscalingData {
+<span class="kw">pub struct </span>AutoscalingData {
     <span class="kw">pub </span>memory_usage: f32,
     <span class="kw">pub </span>up: u8,
     <span class="kw">pub </span>total_size: u64,
     <span class="kw">pub </span>item_count: u64,
+    <span class="kw">pub </span>services_metrics: Vec&lt;ServiceUtilization&gt;,
 }
+
+<span class="kw">pub struct </span>ServiceUtilization(<span class="kw">pub </span><span class="kw-2">&amp;</span><span class="lifetime">'static </span>str, <span class="kw">pub </span>u8);
 </code></pre></div></section></main></body></html>

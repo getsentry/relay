@@ -65,10 +65,88 @@
 <a href="#64" id="64">64</a>
 <a href="#65" id="65">65</a>
 <a href="#66" id="66">66</a>
-<a href="#67" id="67">67</a></pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::http::StatusCode;
+<a href="#67" id="67">67</a>
+<a href="#68" id="68">68</a>
+<a href="#69" id="69">69</a>
+<a href="#70" id="70">70</a>
+<a href="#71" id="71">71</a>
+<a href="#72" id="72">72</a>
+<a href="#73" id="73">73</a>
+<a href="#74" id="74">74</a>
+<a href="#75" id="75">75</a>
+<a href="#76" id="76">76</a>
+<a href="#77" id="77">77</a>
+<a href="#78" id="78">78</a>
+<a href="#79" id="79">79</a>
+<a href="#80" id="80">80</a>
+<a href="#81" id="81">81</a>
+<a href="#82" id="82">82</a>
+<a href="#83" id="83">83</a>
+<a href="#84" id="84">84</a>
+<a href="#85" id="85">85</a>
+<a href="#86" id="86">86</a>
+<a href="#87" id="87">87</a>
+<a href="#88" id="88">88</a>
+<a href="#89" id="89">89</a>
+<a href="#90" id="90">90</a>
+<a href="#91" id="91">91</a>
+<a href="#92" id="92">92</a>
+<a href="#93" id="93">93</a>
+<a href="#94" id="94">94</a>
+<a href="#95" id="95">95</a>
+<a href="#96" id="96">96</a>
+<a href="#97" id="97">97</a>
+<a href="#98" id="98">98</a>
+<a href="#99" id="99">99</a>
+<a href="#100" id="100">100</a>
+<a href="#101" id="101">101</a>
+<a href="#102" id="102">102</a>
+<a href="#103" id="103">103</a>
+<a href="#104" id="104">104</a>
+<a href="#105" id="105">105</a>
+<a href="#106" id="106">106</a>
+<a href="#107" id="107">107</a>
+<a href="#108" id="108">108</a>
+<a href="#109" id="109">109</a>
+<a href="#110" id="110">110</a>
+<a href="#111" id="111">111</a>
+<a href="#112" id="112">112</a>
+<a href="#113" id="113">113</a>
+<a href="#114" id="114">114</a>
+<a href="#115" id="115">115</a>
+<a href="#116" id="116">116</a>
+<a href="#117" id="117">117</a>
+<a href="#118" id="118">118</a>
+<a href="#119" id="119">119</a>
+<a href="#120" id="120">120</a>
+<a href="#121" id="121">121</a>
+<a href="#122" id="122">122</a>
+<a href="#123" id="123">123</a>
+<a href="#124" id="124">124</a>
+<a href="#125" id="125">125</a>
+<a href="#126" id="126">126</a>
+<a href="#127" id="127">127</a>
+<a href="#128" id="128">128</a>
+<a href="#129" id="129">129</a>
+<a href="#130" id="130">130</a>
+<a href="#131" id="131">131</a>
+<a href="#132" id="132">132</a>
+<a href="#133" id="133">133</a>
+<a href="#134" id="134">134</a>
+<a href="#135" id="135">135</a>
+<a href="#136" id="136">136</a>
+<a href="#137" id="137">137</a>
+<a href="#138" id="138">138</a>
+<a href="#139" id="139">139</a>
+<a href="#140" id="140">140</a>
+<a href="#141" id="141">141</a>
+<a href="#142" id="142">142</a>
+<a href="#143" id="143">143</a>
+<a href="#144" id="144">144</a></pre></div><pre class="rust"><code><span class="kw">use </span><span class="kw">crate</span>::http::StatusCode;
 <span class="kw">use </span><span class="kw">crate</span>::service::ServiceState;
 <span class="kw">use </span><span class="kw">crate</span>::services::autoscaling::{AutoscalingData, AutoscalingMessageKind};
 <span class="kw">use </span>std::fmt::Display;
+<span class="kw">use </span>std::fmt::Write;
 
 <span class="doccomment">/// Returns internal metrics data for relay.
 </span><span class="kw">pub async fn </span>handle(state: ServiceState) -&gt; (StatusCode, String) {
@@ -89,29 +167,99 @@
     (StatusCode::OK, to_prometheus_string(<span class="kw-2">&amp;</span>data))
 }
 
-<span class="doccomment">/// Simple function to serialize a well-known format into a prometheus string.
+<span class="doccomment">/// Serializes the autoscaling data into a prometheus string.
 </span><span class="kw">fn </span>to_prometheus_string(data: <span class="kw-2">&amp;</span>AutoscalingData) -&gt; String {
-    <span class="kw">let </span><span class="kw-2">mut </span>result = String::with_capacity(<span class="number">128</span>);
+    <span class="kw">let </span><span class="kw-2">mut </span>result = String::with_capacity(<span class="number">2048</span>);
 
-    append_data_row(<span class="kw-2">&amp;mut </span>result, <span class="string">"memory_usage"</span>, data.memory_usage);
-    append_data_row(<span class="kw-2">&amp;mut </span>result, <span class="string">"up"</span>, data.up);
-    append_data_row(<span class="kw-2">&amp;mut </span>result, <span class="string">"spool_item_count"</span>, data.item_count);
-    append_data_row(<span class="kw-2">&amp;mut </span>result, <span class="string">"spool_total_size"</span>, data.total_size);
+    append_data_row(<span class="kw-2">&amp;mut </span>result, <span class="string">"memory_usage"</span>, data.memory_usage, <span class="kw-2">&amp;</span>[]);
+    append_data_row(<span class="kw-2">&amp;mut </span>result, <span class="string">"up"</span>, data.up, <span class="kw-2">&amp;</span>[]);
+    append_data_row(<span class="kw-2">&amp;mut </span>result, <span class="string">"spool_item_count"</span>, data.item_count, <span class="kw-2">&amp;</span>[]);
+    append_data_row(<span class="kw-2">&amp;mut </span>result, <span class="string">"spool_total_size"</span>, data.total_size, <span class="kw-2">&amp;</span>[]);
+    <span class="kw">for </span>utilization <span class="kw">in </span><span class="kw-2">&amp;</span>data.services_metrics {
+        <span class="kw">let </span>service_name = extract_service_name(utilization.<span class="number">0</span>);
+        append_data_row(
+            <span class="kw-2">&amp;mut </span>result,
+            <span class="string">"utilization"</span>,
+            utilization.<span class="number">1</span>,
+            <span class="kw-2">&amp;</span>[(<span class="string">"relay_service"</span>, service_name)],
+        );
+    }
     result
 }
 
-<span class="kw">fn </span>append_data_row(result: <span class="kw-2">&amp;mut </span>String, label: <span class="kw-2">&amp;</span>str, data: <span class="kw">impl </span>Display) {
+<span class="kw">fn </span>append_data_row(result: <span class="kw-2">&amp;mut </span>String, label: <span class="kw-2">&amp;</span>str, data: <span class="kw">impl </span>Display, tags: <span class="kw-2">&amp;</span>[(<span class="kw-2">&amp;</span>str, <span class="kw-2">&amp;</span>str)]) {
     <span class="comment">// Metrics are automatically prefixed with "relay_"
-    </span>result.push_str(<span class="string">"relay_"</span>);
-    result.push_str(label);
-    result.push(<span class="string">' '</span>);
-    result.push_str(<span class="kw-2">&amp;</span>data.to_string());
-    result.push(<span class="string">'\n'</span>);
+    </span><span class="macro">write!</span>(result, <span class="string">"relay_{label}"</span>).unwrap();
+    <span class="kw">if </span>!tags.is_empty() {
+        result.push(<span class="string">'{'</span>);
+        <span class="kw">for </span>(idx, (key, value)) <span class="kw">in </span>tags.iter().enumerate() {
+            <span class="kw">if </span>idx &gt; <span class="number">0 </span>{
+                result.push_str(<span class="string">", "</span>);
+            }
+            <span class="macro">write!</span>(result, <span class="string">"{key}=\"{value}\""</span>).unwrap();
+        }
+        result.push(<span class="string">'}'</span>);
+    }
+    <span class="macro">writeln!</span>(result, <span class="string">" {data}"</span>).unwrap();
+}
+
+<span class="doccomment">/// Extracts the concrete Service name from a string with a namespace,
+/// In case there are no ':' because a custom name is used, then the full name is returned.
+/// For example:
+/// * `relay::services::MyService` -&gt; `MyService`.
+/// * `aggregator_service` -&gt; `aggregator_service`.
+</span><span class="kw">fn </span>extract_service_name(full_name: <span class="kw-2">&amp;</span>str) -&gt; <span class="kw-2">&amp;</span>str {
+    full_name
+        .rsplit_once(<span class="string">':'</span>)
+        .map(|(<span class="kw">_</span>, s)| s)
+        .unwrap_or(full_name)
 }
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>test {
-    <span class="kw">use </span><span class="kw">crate</span>::services::autoscaling::AutoscalingData;
+    <span class="kw">use </span><span class="kw">crate</span>::endpoints::autoscaling::{append_data_row, extract_service_name};
+    <span class="kw">use </span><span class="kw">crate</span>::services::autoscaling::{AutoscalingData, ServiceUtilization};
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_extract_service_with_namespace() {
+        <span class="kw">let </span>service_name = extract_service_name(<span class="string">"relay::services::MyService"</span>);
+        <span class="macro">assert_eq!</span>(service_name, <span class="string">"MyService"</span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_extract_service_without_namespace() {
+        <span class="kw">let </span>service_name = extract_service_name(<span class="string">"custom_service"</span>);
+        <span class="macro">assert_eq!</span>(service_name, <span class="string">"custom_service"</span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_append_no_labels() {
+        <span class="kw">let </span><span class="kw-2">mut </span>result = String::new();
+        append_data_row(<span class="kw-2">&amp;mut </span>result, <span class="string">"example"</span>, <span class="number">200</span>, <span class="kw-2">&amp;</span>[]);
+        <span class="macro">assert_eq!</span>(result, <span class="string">"relay_example 200\n"</span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_append_single_label() {
+        <span class="kw">let </span><span class="kw-2">mut </span>result = String::new();
+        append_data_row(<span class="kw-2">&amp;mut </span>result, <span class="string">"example"</span>, <span class="number">200</span>, <span class="kw-2">&amp;</span>[(<span class="string">"key"</span>, <span class="string">"value"</span>)]);
+        <span class="macro">assert_eq!</span>(result, <span class="string">"relay_example{key=\"value\"} 200\n"</span>);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_append_multiple_labels() {
+        <span class="kw">let </span><span class="kw-2">mut </span>result = String::new();
+        append_data_row(
+            <span class="kw-2">&amp;mut </span>result,
+            <span class="string">"example"</span>,
+            <span class="number">200</span>,
+            <span class="kw-2">&amp;</span>[(<span class="string">"first_key"</span>, <span class="string">"first_value"</span>), (<span class="string">"second_key"</span>, <span class="string">"second_value"</span>)],
+        );
+        <span class="macro">assert_eq!</span>(
+            result,
+            <span class="string">"relay_example{first_key=\"first_value\", second_key=\"second_value\"} 200\n"
+        </span>);
+    }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_prometheus_serialize() {
@@ -120,6 +268,10 @@
             up: <span class="number">1</span>,
             item_count: <span class="number">10</span>,
             total_size: <span class="number">30</span>,
+            services_metrics: <span class="macro">vec!</span>[
+                ServiceUtilization(<span class="string">"test"</span>, <span class="number">10</span>),
+                ServiceUtilization(<span class="string">"envelope"</span>, <span class="number">50</span>),
+            ],
         };
         <span class="kw">let </span>result = <span class="kw">super</span>::to_prometheus_string(<span class="kw-2">&amp;</span>data);
         <span class="macro">assert_eq!</span>(
@@ -128,6 +280,8 @@
 relay_up 1
 relay_spool_item_count 10
 relay_spool_total_size 30
+relay_utilization{relay_service="test"} 10
+relay_utilization{relay_service="envelope"} 50
 "#
         </span>);
     }

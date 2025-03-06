@@ -520,7 +520,8 @@
 <a href="#519" id="519">519</a>
 <a href="#520" id="520">520</a>
 <a href="#521" id="521">521</a>
-<a href="#522" id="522">522</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
+<a href="#522" id="522">522</a>
+<a href="#523" id="523">523</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::convert::Infallible;
 <span class="kw">use </span>std::sync::Arc;
 <span class="kw">use </span>std::time::Duration;
 
@@ -815,6 +816,7 @@
         <span class="kw">let </span>autoscaling = services.start(AutoscalingMetricService::new(
             memory_stat.clone(),
             envelope_buffer.clone(),
+            handle.clone(),
         ));
 
         services.start(RelayStats::new(
