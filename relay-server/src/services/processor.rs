@@ -82,7 +82,6 @@ use {
     std::slice::Iter,
     std::time::Instant,
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
-    tokio::sync::Mutex,
 };
 
 mod attachment;
@@ -1125,7 +1124,7 @@ struct InnerProcessor {
     quotas_pool: Option<AsyncRedisClient>,
     addrs: Addrs,
     #[cfg(feature = "processing")]
-    rate_limiter: Option<Arc<Mutex<RedisRateLimiter>>>,
+    rate_limiter: Option<Arc<RedisRateLimiter>>,
     geoip_lookup: Option<GeoIpLookup>,
     #[cfg(feature = "processing")]
     cardinality_limiter: Option<CardinalityLimiter>,
@@ -1174,9 +1173,7 @@ impl EnvelopeProcessorService {
             quotas_pool: quotas.clone(),
             #[cfg(feature = "processing")]
             rate_limiter: quotas.map(|quotas| {
-                Arc::new(Mutex::new(
-                    RedisRateLimiter::new(quotas).max_limit(config.max_rate_limit()),
-                ))
+                Arc::new(RedisRateLimiter::new(quotas).max_limit(config.max_rate_limit()))
             }),
             addrs,
             geoip_lookup,
@@ -2711,8 +2708,6 @@ impl EnvelopeProcessorService {
             let item_scoping = scoping.metric_bucket(namespace);
 
             let limits = match rate_limiter
-                .lock()
-                .await
                 .is_rate_limited(quotas, item_scoping, quantity, false)
                 .await
             {
@@ -2777,8 +2772,6 @@ impl EnvelopeProcessorService {
 
                 if let Some(count) = count {
                     match rate_limiter
-                        .lock()
-                        .await
                         .is_rate_limited(quotas, scoping.item(category), count, over_accept_once)
                         .await
                     {
@@ -3242,7 +3235,7 @@ impl EnforcementResult {
 #[cfg(feature = "processing")]
 enum RateLimiter {
     Cached,
-    Consistent(Arc<Mutex<RedisRateLimiter>>),
+    Consistent(Arc<RedisRateLimiter>),
 }
 
 #[cfg(feature = "processing")]
@@ -3286,8 +3279,6 @@ impl RateLimiter {
                     match rate_limiter {
                         Some(rate_limiter) => Ok::<_, ProcessingError>(
                             rate_limiter
-                                .lock()
-                                .await
                                 .is_rate_limited(quotas, item_scope, quantity, false)
                                 .await?,
                         ),

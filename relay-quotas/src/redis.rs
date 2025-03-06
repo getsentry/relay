@@ -208,7 +208,7 @@ impl RedisRateLimiter {
     /// limit has been reached or exceeded without incrementing it in the success case. This can be
     /// useful to check for required quotas in a different data category.
     pub async fn is_rate_limited<'a>(
-        &mut self,
+        &self,
         quotas: impl IntoIterator<Item = &'a Quota>,
         item_scoping: ItemScoping<'_>,
         quantity: usize,
@@ -260,7 +260,7 @@ impl RedisRateLimiter {
 
         let rate_limited_global_quotas = self
             .global_limits
-            .filter_rate_limited(&mut self.client, &global_quotas, quantity)
+            .filter_rate_limited(&self.client, &global_quotas, quantity)
             .await
             .map_err(RateLimitingError::Redis)?;
 
@@ -421,7 +421,7 @@ mod tests {
             namespace: MetricNamespaceScoping::Some(MetricNamespace::Transactions),
         };
 
-        let mut rate_limiter = build_rate_limiter().await;
+        let rate_limiter = build_rate_limiter().await;
 
         // First confirm normal behaviour without namespace.
         for i in 0..10 {
@@ -486,7 +486,7 @@ mod tests {
             namespace: MetricNamespaceScoping::None,
         };
 
-        let mut rate_limiter = build_rate_limiter().await;
+        let rate_limiter = build_rate_limiter().await;
 
         for i in 0..10 {
             let rate_limits: Vec<RateLimit> = rate_limiter
@@ -537,7 +537,7 @@ mod tests {
             namespace: MetricNamespaceScoping::None,
         };
 
-        let mut rate_limiter = build_rate_limiter().await;
+        let rate_limiter = build_rate_limiter().await;
 
         for i in 0..10 {
             let rate_limits: Vec<RateLimit> = rate_limiter
@@ -588,7 +588,7 @@ mod tests {
             namespace: MetricNamespaceScoping::None,
         };
 
-        let mut rate_limiter = build_rate_limiter().await;
+        let rate_limiter = build_rate_limiter().await;
 
         // limit is 1, so first call not rate limited
         assert!(!rate_limiter
@@ -643,7 +643,7 @@ mod tests {
             namespace: MetricNamespaceScoping::None,
         };
 
-        let mut rate_limiter = build_rate_limiter().await;
+        let rate_limiter = build_rate_limiter().await;
 
         // limit is 2, so first call not rate limited
         let is_limited = rate_limiter
@@ -738,7 +738,7 @@ mod tests {
             namespace: MetricNamespaceScoping::None,
         };
 
-        let mut rate_limiter = build_rate_limiter().await;
+        let rate_limiter = build_rate_limiter().await;
 
         for i in 0..1 {
             let rate_limits: Vec<RateLimit> = rate_limiter
@@ -789,7 +789,7 @@ mod tests {
             namespace: MetricNamespaceScoping::None,
         };
 
-        let mut rate_limiter = build_rate_limiter().await;
+        let rate_limiter = build_rate_limiter().await;
 
         for i in 0..10 {
             let rate_limits: Vec<RateLimit> = rate_limiter

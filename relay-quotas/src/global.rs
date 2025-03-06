@@ -22,7 +22,7 @@ impl GlobalRateLimits {
     /// that None of the quotas hit the ratelimit.
     pub async fn filter_rate_limited<'a>(
         &self,
-        client: &mut AsyncRedisClient,
+        client: &AsyncRedisClient,
         quotas: &'a [RedisQuota<'a>],
         quantity: usize,
     ) -> Result<Vec<&'a RedisQuota<'a>>, RedisError> {
@@ -160,7 +160,7 @@ impl GlobalRateLimit {
     #[allow(clippy::needless_lifetimes)]
     pub async fn is_rate_limited<'a>(
         &mut self,
-        client: &mut AsyncRedisClient,
+        client: &AsyncRedisClient,
         quota: &RedisQuota<'a>,
         key: KeyRef<'_>,
         quantity: u64,
@@ -195,7 +195,7 @@ impl GlobalRateLimit {
     #[allow(clippy::needless_lifetimes)]
     async fn try_reserve<'a>(
         &mut self,
-        client: &mut AsyncRedisClient,
+        client: &AsyncRedisClient,
         quantity: u64,
         quota: &RedisQuota<'a>,
         redis_key: RedisKey,
