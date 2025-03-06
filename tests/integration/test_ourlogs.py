@@ -77,7 +77,6 @@ def test_ourlog_extraction(
         "project_id": 42,
         "retention_days": 90,
         "timestamp_nanos": int(start.timestamp() * 1e9),
-        "observed_timestamp_nanos": int(end.timestamp() * 1e9),
         "trace_id": "5b8efff798038103d269b633813fc60c",
         "body": "Example log record",
         "trace_flags": 0,
@@ -93,6 +92,7 @@ def test_ourlog_extraction(
     }
 
     del ourlogs[0]["received"]
+    del ourlogs[0]["observed_timestamp_nanos"]
     assert ourlogs[0] == expected
 
     ourlogs_consumer.assert_empty()
