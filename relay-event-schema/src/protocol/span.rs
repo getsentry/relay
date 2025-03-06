@@ -197,6 +197,7 @@ impl Getter for Span {
 
 /// Indexable fields added by sentry (server-side).
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+#[metastructure(trim = false)]
 pub struct SentryTags {
     pub release: Annotated<String>,
     #[metastructure(pii = "true")]
@@ -351,6 +352,7 @@ impl Getter for SentryTags {
 /// Besides arbitrary user data, this type also contains SDK-provided fields used by the
 /// product (see <https://develop.sentry.dev/sdk/performance/span-data-conventions/>).
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+#[metastructure(trim = false)]
 pub struct SpanData {
     /// Mobile app start variant.
     ///
@@ -750,6 +752,7 @@ impl Getter for SpanData {
 
 /// A link from a span to another span.
 #[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+#[metastructure(trim = false)]
 pub struct SpanLink {
     /// The trace id of the linked span
     #[metastructure(required = true, trim = false)]

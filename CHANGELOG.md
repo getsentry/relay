@@ -11,6 +11,10 @@
 - Add option to control ourlogs ingestion. ([#4518](https://github.com/getsentry/relay/pull/4518))
 - Update Apple device model classes ([#4529](https://github.com/getsentry/relay/pull/4529))
 
+**Bug Fixes**:
+
+- Prevent partial trims in indexed and queryable span data. ([#4557](https://github.com/getsentry/relay/pull/4557))
+
 **Internal**:
 
 - Track an utilization metric for internal services. ([#4501](https://github.com/getsentry/relay/pull/4501))
