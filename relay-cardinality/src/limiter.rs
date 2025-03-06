@@ -1,14 +1,14 @@
 //! Relay Cardinality Limiter
 
-use std::cmp::Reverse;
-use std::collections::BTreeMap;
-
 use hashbrown::{HashMap, HashSet};
 use relay_base_schema::metrics::{MetricName, MetricNamespace, MetricType};
 use relay_base_schema::organization::OrganizationId;
 use relay_base_schema::project::ProjectId;
 use relay_common::time::UnixTimestamp;
 use relay_statsd::metric;
+use std::cmp::Reverse;
+use std::collections::BTreeMap;
+use std::future::Future;
 
 use crate::statsd::CardinalityLimiterTimers;
 use crate::{CardinalityLimit, Error, Result};
@@ -78,13 +78,13 @@ pub trait Limiter {
     /// Verifies cardinality limits.
     ///
     /// Returns an iterator containing only accepted entries.
-    async fn check_cardinality_limits<'a, 'b, E, R>(
+    fn check_cardinality_limits<'a, 'b, E, R>(
         &self,
         scoping: Scoping,
         limits: &'a [CardinalityLimit],
         entries: E,
         reporter: &mut R,
-    ) -> Result<()>
+    ) -> impl Future<Output = Result<()>>
     where
         E: IntoIterator<Item = Entry<'b>>,
         R: Reporter<'a>;

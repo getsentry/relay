@@ -14,28 +14,32 @@ use relay_cardinality::{
     CardinalityLimit, CardinalityReport, CardinalityScope, RedisSetLimiter, RedisSetLimiterOptions,
     SlidingWindow,
 };
-use relay_redis::{redis, RedisConfigOptions, RedisPool};
+use relay_redis::{redis, AsyncRedisClient, RedisConfigOptions, RedisPool};
 
-fn build_redis() -> RedisPool {
+async fn build_redis_client() -> AsyncRedisClient {
     let url =
         std::env::var("RELAY_REDIS_URL").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
 
-    RedisPool::single(&url, RedisConfigOptions::default()).unwrap()
+    AsyncRedisClient::single(&url, &RedisConfigOptions::default())
+        .await
+        .unwrap()
 }
 
-fn build_limiter(redis: RedisPool, reset_redis: bool) -> RedisSetLimiter {
-    let mut client = redis.client().unwrap();
-    let mut connection = client.connection().unwrap();
+async fn build_limiter(client: AsyncRedisClient, reset_redis: bool) -> RedisSetLimiter {
+    let mut connection = client.get_connection();
 
     if reset_redis {
-        redis::cmd("FLUSHALL").exec(&mut connection).unwrap();
+        redis::cmd("FLUSHALL")
+            .exec_async(&mut connection)
+            .await
+            .unwrap();
     }
 
     RedisSetLimiter::new(
         RedisSetLimiterOptions {
             cache_vacuum_interval: Duration::from_secs(180),
         },
-        redis,
+        client,
     )
 }
 
@@ -94,9 +98,14 @@ impl Params {
     }
 
     #[inline(always)]
-    fn run<'a>(&self, limiter: &RedisSetLimiter, entries: impl IntoIterator<Item = Entry<'a>>) {
+    async fn run<'a>(
+        &self,
+        limiter: &RedisSetLimiter,
+        entries: impl IntoIterator<Item = Entry<'a>>,
+    ) {
         limiter
             .check_cardinality_limits(self.scoping, &self.limits, entries, &mut NoopReporter)
+            .await
             .unwrap();
     }
 
@@ -190,7 +199,7 @@ pub fn bench_simple(c: &mut Criterion) {
         Params::new(10_000, 50, 1_000, 1000),
     ];
 
-    let redis = build_redis();
+    let redis = build_redis_client();
 
     for (name, params) in [("Simple", simple), ("Names", names)] {
         let mut g = c.benchmark_group(name);
@@ -216,7 +225,7 @@ pub fn bench_simple(c: &mut Criterion) {
 }
 
 pub fn bench_big_set_small_queries(c: &mut Criterion) {
-    let redis = build_redis();
+    let redis = build_redis_client();
 
     let params = Params::new(10_000, 1000, 50, 0);
 
@@ -244,7 +253,7 @@ pub fn bench_big_set_small_queries(c: &mut Criterion) {
 }
 
 pub fn bench_high_cardinality(c: &mut Criterion) {
-    let redis = build_redis();
+    let redis = build_redis_client();
 
     let params = Params::new(10_000, 1000, 50, 0);
 
@@ -267,7 +276,7 @@ pub fn bench_high_cardinality(c: &mut Criterion) {
 }
 
 pub fn bench_cache_never_full(c: &mut Criterion) {
-    let redis = build_redis();
+    let redis = build_redis_client();
 
     let params = Params::new(10_000, 1_000, 50, 0);
 
@@ -294,7 +303,7 @@ pub fn bench_cache_never_full(c: &mut Criterion) {
 }
 
 pub fn bench_cache_worst_case(c: &mut Criterion) {
-    let redis = build_redis();
+    let redis = build_redis_client();
 
     let params = Params::new(10_000, 1000, 50, 0);
 
