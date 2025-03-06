@@ -1,7 +1,7 @@
 use crate::config::RuleId;
 use chrono::{DateTime, Utc};
 use relay_base_schema::organization::OrganizationId;
-use relay_redis::{AsyncRedisClient, AsyncRedisConnection};
+use relay_redis::AsyncRedisConnection;
 
 pub struct ReservoirRuleKey(String);
 

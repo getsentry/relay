@@ -77,9 +77,13 @@ impl<'a> Project<'a> {
         let current_limits = self.rate_limits().current_limits();
 
         let quotas = state.as_deref().map(|s| s.get_quotas()).unwrap_or(&[]);
-        let envelope_limiter = EnvelopeLimiter::new(CheckLimits::NonIndexed, |item_scoping, _| {
-            Ok(current_limits.check_with_quotas(quotas, item_scoping))
-        });
+        let current_limits_clone = current_limits.clone();
+        let envelope_limiter =
+            EnvelopeLimiter::new(CheckLimits::NonIndexed, move |item_scoping, _| {
+                let current_limits_clone = current_limits_clone.clone();
+
+                async move { Ok(current_limits_clone.check_with_quotas(quotas, item_scoping)) }
+            });
 
         let (mut enforcement, mut rate_limits) = envelope_limiter
             .compute(envelope.envelope_mut(), &scoping)
@@ -219,8 +223,8 @@ mod tests {
         RequestMeta::new(dsn)
     }
 
-    #[test]
-    fn test_track_nested_spans_outcomes() {
+    #[tokio::test]
+    async fn test_track_nested_spans_outcomes() {
         let config = Default::default();
         let project = create_project(
             &config,
@@ -284,7 +288,7 @@ mod tests {
             ProcessingGroup::Transaction,
         );
 
-        project.check_envelope(managed_envelope).unwrap();
+        project.check_envelope(managed_envelope).await.unwrap();
         drop(outcome_aggregator);
 
         let expected = [

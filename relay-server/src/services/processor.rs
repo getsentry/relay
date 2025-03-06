@@ -40,7 +40,6 @@ use relay_statsd::metric;
 use relay_system::{Addr, FromMessage, NoResponse, Service};
 use reqwest::header;
 use smallvec::{smallvec, SmallVec};
-use tokio::sync::Mutex;
 use zstd::stream::Encoder as ZstdEncoder;
 
 use crate::constants::DEFAULT_EVENT_RETENTION;
@@ -78,11 +77,12 @@ use {
     },
     relay_dynamic_config::{CardinalityLimiterMode, GlobalConfig, MetricExtractionGroups},
     relay_quotas::{Quota, RateLimitingError, RedisRateLimiter},
-    relay_redis::{AsyncRedisClient, RedisPool, RedisPools},
+    relay_redis::{AsyncRedisClient, RedisPools},
     std::iter::Chain,
     std::slice::Iter,
     std::time::Instant,
     symbolic_unreal::{Unreal4Error, Unreal4ErrorKind},
+    tokio::sync::Mutex,
 };
 
 mod attachment;
@@ -2346,13 +2346,13 @@ impl EnvelopeProcessorService {
             }
         };
 
-        let client = managed_envelope
+        let _client = managed_envelope
             .envelope()
             .meta()
             .client()
             .map(str::to_owned);
 
-        let user_agent = managed_envelope
+        let _user_agent = managed_envelope
             .envelope()
             .meta()
             .user_agent()
@@ -3210,7 +3210,12 @@ impl Service for EnvelopeProcessorService {
             let service = self.clone();
             self.inner
                 .pool
-                .spawn_async(async move { service.handle_message(message) }.boxed())
+                .spawn_async(
+                    async move {
+                        service.handle_message(message).await;
+                    }
+                    .boxed(),
+                )
                 .await;
         }
     }

@@ -28,6 +28,7 @@ relay-redis = { workspace = true }
 relay-statsd = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
+tokio = { workspace = true, features = ["sync"] }
 
 [dev-dependencies]
 criterion = { workspace = true }

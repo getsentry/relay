@@ -69,6 +69,7 @@ pub fn validate_and_set_dsc(
 }
 
 /// Computes the sampling decision on the incoming event
+#[allow(clippy::needless_lifetimes)]
 pub async fn run<'a, Group>(
     managed_envelope: &mut TypedEnvelope<Group>,
     event: &mut Annotated<Event>,
@@ -145,6 +146,7 @@ pub fn drop_unsampled_items(
 }
 
 /// Computes the sampling decision on the incoming envelope.
+#[allow(clippy::needless_lifetimes)]
 async fn compute_sampling_decision<'a>(
     processing_enabled: bool,
     reservoir: Option<&ReservoirEvaluator<'a>>,
@@ -315,7 +317,10 @@ mod tests {
             reservoir_counters: ReservoirCounters::default(),
         };
 
-        let envelope_response = processor.process(&mut Token::noop(), message).unwrap();
+        let envelope_response = processor
+            .process(&mut Token::noop(), message)
+            .await
+            .unwrap();
         let ctx = envelope_response.envelope.unwrap();
         ctx.envelope().clone()
     }

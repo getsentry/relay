@@ -39,7 +39,7 @@ use relay_redis::redis::Script;
 #[cfg(feature = "processing")]
 use relay_redis::AsyncRedisClient;
 #[cfg(feature = "processing")]
-use relay_redis::{PooledClient, RedisError, RedisPool, RedisPools, RedisScripts};
+use relay_redis::{RedisError, RedisPool, RedisPools, RedisScripts};
 use relay_system::{channel, Addr, Service, ServiceSpawn, ServiceSpawnExt as _};
 
 /// Indicates the type of failure of the server.

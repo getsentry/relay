@@ -1,6 +1,6 @@
 use relay_redis::{
     redis::{self, FromRedisValue, Script},
-    AsyncRedisConnection, Connection, RedisScripts,
+    AsyncRedisConnection, RedisScripts,
 };
 
 use crate::Result;
@@ -193,7 +193,7 @@ impl CardinalityScriptPipeline<'_> {
 
 #[cfg(test)]
 mod tests {
-    use relay_redis::{AsyncRedisClient, RedisConfigOptions, RedisPool};
+    use relay_redis::{AsyncRedisClient, RedisConfigOptions};
     use uuid::Uuid;
 
     use super::*;

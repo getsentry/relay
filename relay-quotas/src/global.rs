@@ -1,8 +1,7 @@
-use std::sync::{Mutex, PoisonError};
-
 use itertools::Itertools;
 use relay_base_schema::metrics::MetricNamespace;
 use relay_redis::{AsyncRedisClient, RedisError, RedisScripts};
+use tokio::sync::Mutex;
 
 use crate::RedisQuota;
 
@@ -27,7 +26,7 @@ impl GlobalRateLimits {
         quotas: &'a [RedisQuota<'a>],
         quantity: usize,
     ) -> Result<Vec<&'a RedisQuota<'a>>, RedisError> {
-        let mut guard = self.limits.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut guard = self.limits.lock().await;
 
         let mut ratelimited = vec![];
         let mut not_ratelimited = vec![];
@@ -158,6 +157,7 @@ impl GlobalRateLimit {
     }
 
     /// Returns `true` if quota should be ratelimited.
+    #[allow(clippy::needless_lifetimes)]
     pub async fn is_rate_limited<'a>(
         &mut self,
         client: &mut AsyncRedisClient,
@@ -192,6 +192,7 @@ impl GlobalRateLimit {
         Ok(self.budget < quantity)
     }
 
+    #[allow(clippy::needless_lifetimes)]
     async fn try_reserve<'a>(
         &mut self,
         client: &mut AsyncRedisClient,
