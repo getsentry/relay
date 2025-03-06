@@ -3509,6 +3509,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror",
+ "tokio",
  "uuid",
 ]
 
@@ -3889,6 +3890,7 @@ dependencies = [
  "serde_json",
  "smallvec",
  "thiserror",
+ "tokio",
  "uuid",
 ]
 
@@ -3937,6 +3939,7 @@ dependencies = [
  "serde",
  "serde_json",
  "similar-asserts",
+ "tokio",
  "uuid",
 ]
 

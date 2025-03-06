@@ -38,7 +38,7 @@ impl ThreadPoolBuilder {
         }
     }
 
-    /// Sets the number of threads to be used in the rayon thread-pool.
+    /// Sets the number of threads to be used in the pool.
     ///
     /// See also [`AsyncPoolBuilder::num_threads`].
     pub fn num_threads(mut self, num_threads: usize) -> Self {

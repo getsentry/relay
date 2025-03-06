@@ -371,18 +371,18 @@ impl RedisPool {
     }
 }
 
-/// The various [`RedisPool`]s used within Relay.
+/// The various Redis pools used within Relay.
 #[derive(Debug, Clone)]
 pub struct RedisPools {
     /// The pool used for project configurations
     pub project_configs: AsyncRedisClient,
     /// The pool used for cardinality limits.
-    pub cardinality: RedisPool,
+    pub cardinality: AsyncRedisClient,
     /// The pool used for rate limiting/quotas.
-    pub quotas: RedisPool,
+    pub quotas: AsyncRedisClient,
 }
 
-/// Stats about how the [`RedisPool`] is performing.
+/// Stats about how the Redis pool is performing.
 pub struct Stats {
     /// The number of connections currently being managed by the pool.
     pub connections: u32,
