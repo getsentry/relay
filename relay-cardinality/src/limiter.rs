@@ -78,7 +78,7 @@ pub trait Limiter {
     /// Verifies cardinality limits.
     ///
     /// Returns an iterator containing only accepted entries.
-    fn check_cardinality_limits<'a, 'b, E, R>(
+    async fn check_cardinality_limits<'a, 'b, E, R>(
         &self,
         scoping: Scoping,
         limits: &'a [CardinalityLimit],
@@ -154,7 +154,7 @@ impl<T: Limiter> CardinalityLimiter<T> {
     /// Checks cardinality limits of a list of buckets.
     ///
     /// Returns an iterator of all buckets that have been accepted.
-    pub fn check_cardinality_limits<'a, I: CardinalityItem>(
+    pub async fn check_cardinality_limits<'a, I: CardinalityItem>(
         &self,
         scoping: Scoping,
         limits: &'a [CardinalityLimit],
@@ -175,9 +175,10 @@ impl<T: Limiter> CardinalityLimiter<T> {
             });
 
             let mut rejections = DefaultReporter::default();
-            if let Err(err) =
-                self.limiter
-                    .check_cardinality_limits(scoping, limits, entries, &mut rejections)
+            if let Err(err) = self
+                .limiter
+                .check_cardinality_limits(scoping, limits, entries, &mut rejections)
+                .await
             {
                 return Err((items, err));
             }
@@ -400,8 +401,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_accepted() {
+    #[tokio::test]
+    async fn test_accepted() {
         // HACK: we need to make Windows happy.
         fn assert_eq(value: Vec<char>, expected_value: Vec<char>) {
             assert_eq!(value, expected_value)
@@ -472,12 +473,12 @@ mod tests {
         assert_eq(split.accepted, vec![]);
     }
 
-    #[test]
-    fn test_limiter_reject_all() {
+    #[tokio::test]
+    async fn test_limiter_reject_all() {
         struct RejectAllLimiter;
 
         impl Limiter for RejectAllLimiter {
-            fn check_cardinality_limits<'a, 'b, I, T>(
+            async fn check_cardinality_limits<'a, 'b, I, T>(
                 &self,
                 _scoping: Scoping,
                 limits: &'a [CardinalityLimit],
@@ -505,6 +506,7 @@ mod tests {
         let limits = build_limits();
         let result = limiter
             .check_cardinality_limits(build_scoping(), &limits, items.clone())
+            .await
             .unwrap();
 
         let expected_items = items
@@ -518,12 +520,12 @@ mod tests {
         assert!(split.accepted.is_empty());
     }
 
-    #[test]
-    fn test_limiter_accept_all() {
+    #[tokio::test]
+    async fn test_limiter_accept_all() {
         struct AcceptAllLimiter;
 
         impl Limiter for AcceptAllLimiter {
-            fn check_cardinality_limits<'a, 'b, I, T>(
+            async fn check_cardinality_limits<'a, 'b, I, T>(
                 &self,
                 _scoping: Scoping,
                 _limits: &'a [CardinalityLimit],
@@ -547,6 +549,7 @@ mod tests {
         let limits = build_limits();
         let result = limiter
             .check_cardinality_limits(build_scoping(), &limits, items.clone())
+            .await
             .unwrap();
 
         let split = result.into_split();
@@ -554,12 +557,12 @@ mod tests {
         assert_eq!(split.accepted, items);
     }
 
-    #[test]
-    fn test_limiter_accept_odd_reject_even() {
+    #[tokio::test]
+    async fn test_limiter_accept_odd_reject_even() {
         struct RejectEvenLimiter;
 
         impl Limiter for RejectEvenLimiter {
-            fn check_cardinality_limits<'a, 'b, I, T>(
+            async fn check_cardinality_limits<'a, 'b, I, T>(
                 &self,
                 scoping: Scoping,
                 limits: &'a [CardinalityLimit],
@@ -597,6 +600,7 @@ mod tests {
         let limits = build_limits();
         let split = limiter
             .check_cardinality_limits(build_scoping(), &limits, items)
+            .await
             .unwrap()
             .into_split();
 
@@ -619,12 +623,12 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_limiter_passive() {
+    #[tokio::test]
+    async fn test_limiter_passive() {
         struct RejectLimits;
 
         impl Limiter for RejectLimits {
-            fn check_cardinality_limits<'a, 'b, I, T>(
+            async fn check_cardinality_limits<'a, 'b, I, T>(
                 &self,
                 _scoping: Scoping,
                 limits: &'a [CardinalityLimit],
@@ -680,6 +684,7 @@ mod tests {
         ];
         let limited = limiter
             .check_cardinality_limits(build_scoping(), limits, items)
+            .await
             .unwrap();
 
         assert!(limited.has_rejections());
@@ -704,12 +709,12 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_cardinality_report() {
+    #[tokio::test]
+    async fn test_cardinality_report() {
         struct CreateReports;
 
         impl Limiter for CreateReports {
-            fn check_cardinality_limits<'a, 'b, I, T>(
+            async fn check_cardinality_limits<'a, 'b, I, T>(
                 &self,
                 scoping: Scoping,
                 limits: &'a [CardinalityLimit],
@@ -800,6 +805,7 @@ mod tests {
         let limiter = CardinalityLimiter::new(CreateReports);
         let limited = limiter
             .check_cardinality_limits(scoping, limits, items)
+            .await
             .unwrap();
 
         let reports = limited.cardinality_reports();

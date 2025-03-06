@@ -114,7 +114,7 @@ impl Limiter for RedisSetLimiter {
     {
         #[cfg(not(test))]
         let timestamp = UnixTimestamp::now();
-        // Allows to fast forward time in tests using a fixed offset.
+        // Allows to fast-forward time in tests using a fixed offset.
         #[cfg(test)]
         let timestamp = self.timestamp + self.time_offset;
 
@@ -157,10 +157,12 @@ impl Limiter for RedisSetLimiter {
                 continue;
             }
 
+            let id = &state.id().to_string();
+            let scopes = num_scopes_tag(&state);
             let results = metric!(
                 timer(CardinalityLimiterTimers::Redis),
-                id = state.id(),
-                scopes = num_scopes_tag(&state),
+                id = id,
+                scopes = scopes,
                 { self.check_limits(&mut connection, &mut state, timestamp) }
             )
             .await?;
@@ -398,7 +400,7 @@ mod tests {
             results
         }
 
-        fn test_limits<'a, I>(
+        async fn test_limits<'a, I>(
             &self,
             scoping: Scoping,
             limits: &'a [CardinalityLimit],
@@ -409,6 +411,7 @@ mod tests {
         {
             let mut reporter = TestReporter::default();
             self.check_cardinality_limits(scoping, limits, entries, &mut reporter)
+                .await
                 .unwrap();
             for reports in reporter.reports.values_mut() {
                 reports.sort();
@@ -456,18 +459,22 @@ mod tests {
         };
 
         // 6 items, limit is 5 -> 1 rejection.
-        let rejected = limiter.test_limits(scoping, &[limit.clone()], entries);
+        let rejected = limiter
+            .test_limits(scoping, &[limit.clone()], entries)
+            .await;
         assert_eq!(rejected.len(), 1);
 
         // We're at the limit but it should still accept already accepted elements, even with a
         // samller limit than previously accepted.
         limit.limit = 3;
-        let rejected2 = limiter.test_limits(scoping, &[limit.clone()], entries);
+        let rejected2 = limiter
+            .test_limits(scoping, &[limit.clone()], entries)
+            .await;
         assert_eq!(rejected2.entries, rejected.entries);
 
         // A higher limit should accept everthing
         limit.limit = 6;
-        let rejected3 = limiter.test_limits(scoping, &[limit], entries);
+        let rejected3 = limiter.test_limits(scoping, &[limit], entries).await;
         assert_eq!(rejected3.len(), 0);
     }
 
@@ -501,7 +508,9 @@ mod tests {
             namespace: Some(Custom),
         };
 
-        let rejected = limiter.test_limits(scoping, &[limit.clone()], entries);
+        let rejected = limiter
+            .test_limits(scoping, &[limit.clone()], entries)
+            .await;
         assert_eq!(rejected.len(), 2);
         assert!(rejected.contains_any([0, 1, 2]));
         assert!(rejected.contains_any([3, 4, 5]));
@@ -562,7 +571,9 @@ mod tests {
             namespace: Some(Custom),
         };
 
-        let rejected = limiter.test_limits(scoping, &[limit.clone()], entries);
+        let rejected = limiter
+            .test_limits(scoping, &[limit.clone()], entries)
+            .await;
         assert_eq!(rejected.len(), 2);
         assert!(rejected.contains_any([0, 1, 2]));
         assert!(rejected.contains_any([3, 4, 5]));
@@ -624,13 +635,25 @@ mod tests {
         let m = MetricName::from("a");
 
         let entries1 = [Entry::new(EntryId(0), Custom, &m, 0)];
-        assert!(limiter.test_limits(scoping1, limits, entries1).is_empty());
-        assert!(limiter.test_limits(scoping2, limits, entries1).is_empty());
+        assert!(limiter
+            .test_limits(scoping1, limits, entries1)
+            .await
+            .is_empty());
+        assert!(limiter
+            .test_limits(scoping2, limits, entries1)
+            .await
+            .is_empty());
 
         // Make sure `entries2` is not accepted.
         let entries2 = [Entry::new(EntryId(1), Custom, &m, 1)];
-        assert_eq!(limiter.test_limits(scoping1, limits, entries2).len(), 1);
-        assert_eq!(limiter.test_limits(scoping2, limits, entries2).len(), 1);
+        assert_eq!(
+            limiter.test_limits(scoping1, limits, entries2).await.len(),
+            1
+        );
+        assert_eq!(
+            limiter.test_limits(scoping2, limits, entries2).await.len(),
+            1
+        );
 
         let mut scoping1_accept = None;
         let mut scoping2_accept = None;
@@ -642,13 +665,19 @@ mod tests {
             limiter.time_offset = Duration::from_secs(offset);
 
             if scoping1_accept.is_none()
-                && limiter.test_limits(scoping1, limits, entries2).is_empty()
+                && limiter
+                    .test_limits(scoping1, limits, entries2)
+                    .await
+                    .is_empty()
             {
                 scoping1_accept = Some(offset as i64);
             }
 
             if scoping2_accept.is_none()
-                && limiter.test_limits(scoping2, limits, entries2).is_empty()
+                && limiter
+                    .test_limits(scoping2, limits, entries2)
+                    .await
+                    .is_empty()
             {
                 scoping2_accept = Some(offset as i64);
             }
@@ -690,13 +719,13 @@ mod tests {
         let entries = (0..50)
             .map(|i| Entry::new(EntryId(i as usize), Custom, &m, i))
             .collect::<Vec<_>>();
-        let rejected = limiter.test_limits(scoping, limits, entries);
+        let rejected = limiter.test_limits(scoping, limits, entries).await;
         assert_eq!(rejected.len(), 0);
 
         let entries = (100..150)
             .map(|i| Entry::new(EntryId(i as usize), Custom, &m, i))
             .collect::<Vec<_>>();
-        let rejected = limiter.test_limits(scoping, limits, entries);
+        let rejected = limiter.test_limits(scoping, limits, entries).await;
         assert_eq!(rejected.len(), 0);
     }
 
@@ -724,7 +753,7 @@ mod tests {
             .map(|i| Entry::new(EntryId(i as usize), Custom, &m, i))
             .collect::<Vec<_>>();
 
-        let rejected = limiter.test_limits(scoping, limits, entries);
+        let rejected = limiter.test_limits(scoping, limits, entries).await;
         assert_eq!(rejected.len(), 20_000);
     }
 
@@ -754,7 +783,7 @@ mod tests {
         let entries2 = [Entry::new(EntryId(1), Custom, &m1, 1)];
 
         // 1 item and limit is 1 -> No rejections.
-        let rejected = limiter.test_limits(scoping, limits, entries1);
+        let rejected = limiter.test_limits(scoping, limits, entries1).await;
         assert_eq!(rejected.len(), 0);
 
         for i in 0..(window.window_seconds / window.granularity_seconds) * 2 {
@@ -762,20 +791,20 @@ mod tests {
             limiter.time_offset = Duration::from_secs(i * window.granularity_seconds);
 
             // Should accept the already inserted item.
-            let rejected = limiter.test_limits(scoping, limits, entries1);
+            let rejected = limiter.test_limits(scoping, limits, entries1).await;
             assert_eq!(rejected.len(), 0);
             // Should reject the new item.
-            let rejected = limiter.test_limits(scoping, limits, entries2);
+            let rejected = limiter.test_limits(scoping, limits, entries2).await;
             assert_eq!(rejected.len(), 1);
         }
 
         // Fast forward time to a fresh window.
         limiter.time_offset = Duration::from_secs(1 + window.window_seconds * 3);
         // Accept the new element.
-        let rejected = limiter.test_limits(scoping, limits, entries2);
+        let rejected = limiter.test_limits(scoping, limits, entries2).await;
         assert_eq!(rejected.len(), 0);
         // Reject the old element now.
-        let rejected = limiter.test_limits(scoping, limits, entries1);
+        let rejected = limiter.test_limits(scoping, limits, entries1).await;
         assert_eq!(rejected.len(), 1);
     }
 
@@ -805,13 +834,13 @@ mod tests {
         let entries2 = [Entry::new(EntryId(0), Spans, &m1, 1)];
         let entries3 = [Entry::new(EntryId(0), Transactions, &m2, 2)];
 
-        let rejected = limiter.test_limits(scoping, limits, entries1);
+        let rejected = limiter.test_limits(scoping, limits, entries1).await;
         assert_eq!(rejected.len(), 0);
 
-        let rejected = limiter.test_limits(scoping, limits, entries2);
+        let rejected = limiter.test_limits(scoping, limits, entries2).await;
         assert_eq!(rejected.len(), 0);
 
-        let rejected = limiter.test_limits(scoping, limits, entries3);
+        let rejected = limiter.test_limits(scoping, limits, entries3).await;
         assert_eq!(rejected.len(), 1);
     }
 
@@ -889,7 +918,7 @@ mod tests {
 
         // Run multiple times to make sure caching does not interfere.
         for i in 0..3 {
-            let rejected = limiter.test_limits(scoping, limits, entries);
+            let rejected = limiter.test_limits(scoping, limits, entries).await;
 
             // 2 transactions + 1 span + 1 custom (4) accepted -> 2 (6-4) rejected.
             assert_eq!(rejected.len(), 2);
@@ -975,15 +1004,15 @@ mod tests {
         let entries2 = [Entry::new(EntryId(0), Custom, &m2, 1)];
 
         // Accept different entries for different scopes.
-        let rejected = limiter.test_limits(scoping1, limits, entries1);
+        let rejected = limiter.test_limits(scoping1, limits, entries1).await;
         assert_eq!(rejected.len(), 0);
-        let rejected = limiter.test_limits(scoping2, limits, entries2);
+        let rejected = limiter.test_limits(scoping2, limits, entries2).await;
         assert_eq!(rejected.len(), 0);
 
         // Make sure the other entry is not accepted.
-        let rejected = limiter.test_limits(scoping1, limits, entries2);
+        let rejected = limiter.test_limits(scoping1, limits, entries2).await;
         assert_eq!(rejected.len(), 1);
-        let rejected = limiter.test_limits(scoping2, limits, entries1);
+        let rejected = limiter.test_limits(scoping2, limits, entries1).await;
         assert_eq!(rejected.len(), 1);
     }
 
@@ -1013,7 +1042,7 @@ mod tests {
                     .map(|i| Entry::new(EntryId(i as usize), Custom, &m, i))
                     .collect::<Vec<_>>();
 
-                limiter.test_limits(scoping, limits, entries)
+                limiter.test_limits(scoping, limits, entries).await
             }};
         }
 
@@ -1112,7 +1141,7 @@ mod tests {
                     .map(|i| Entry::new(EntryId(i as usize), Custom, &m, i))
                     .collect::<Vec<_>>();
 
-                limiter.test_limits(scoping, limits, entries)
+                limiter.test_limits(scoping, limits, entries).await
             }};
         }
 
