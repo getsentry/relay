@@ -29,7 +29,6 @@ class DataCategory(IntEnum):
     PROFILE_DURATION = 17
     PROFILE_CHUNK = 18
     METRIC_SECOND = 19
-    REPLAY_VIDEO = 20
     UPTIME = 21
     ATTACHMENT_ITEM = 22
     LOG_ITEM = 23
