@@ -47,7 +47,7 @@ impl<'a> Project<'a> {
     ///  - Validate origins and public keys
     ///  - Quotas with a limit of `0`
     ///  - Cached rate limits
-    pub fn check_envelope(
+    pub async fn check_envelope(
         &self,
         mut envelope: ManagedEnvelope,
     ) -> Result<CheckedEnvelope, DiscardReason> {
@@ -81,8 +81,9 @@ impl<'a> Project<'a> {
             Ok(current_limits.check_with_quotas(quotas, item_scoping))
         });
 
-        let (mut enforcement, mut rate_limits) =
-            envelope_limiter.compute(envelope.envelope_mut(), &scoping)?;
+        let (mut enforcement, mut rate_limits) = envelope_limiter
+            .compute(envelope.envelope_mut(), &scoping)
+            .await?;
 
         let check_nested_spans = state
             .as_ref()
