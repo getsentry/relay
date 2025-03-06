@@ -1687,47 +1687,7 @@
 <a href="#1686" id="1686">1686</a>
 <a href="#1687" id="1687">1687</a>
 <a href="#1688" id="1688">1688</a>
-<a href="#1689" id="1689">1689</a>
-<a href="#1690" id="1690">1690</a>
-<a href="#1691" id="1691">1691</a>
-<a href="#1692" id="1692">1692</a>
-<a href="#1693" id="1693">1693</a>
-<a href="#1694" id="1694">1694</a>
-<a href="#1695" id="1695">1695</a>
-<a href="#1696" id="1696">1696</a>
-<a href="#1697" id="1697">1697</a>
-<a href="#1698" id="1698">1698</a>
-<a href="#1699" id="1699">1699</a>
-<a href="#1700" id="1700">1700</a>
-<a href="#1701" id="1701">1701</a>
-<a href="#1702" id="1702">1702</a>
-<a href="#1703" id="1703">1703</a>
-<a href="#1704" id="1704">1704</a>
-<a href="#1705" id="1705">1705</a>
-<a href="#1706" id="1706">1706</a>
-<a href="#1707" id="1707">1707</a>
-<a href="#1708" id="1708">1708</a>
-<a href="#1709" id="1709">1709</a>
-<a href="#1710" id="1710">1710</a>
-<a href="#1711" id="1711">1711</a>
-<a href="#1712" id="1712">1712</a>
-<a href="#1713" id="1713">1713</a>
-<a href="#1714" id="1714">1714</a>
-<a href="#1715" id="1715">1715</a>
-<a href="#1716" id="1716">1716</a>
-<a href="#1717" id="1717">1717</a>
-<a href="#1718" id="1718">1718</a>
-<a href="#1719" id="1719">1719</a>
-<a href="#1720" id="1720">1720</a>
-<a href="#1721" id="1721">1721</a>
-<a href="#1722" id="1722">1722</a>
-<a href="#1723" id="1723">1723</a>
-<a href="#1724" id="1724">1724</a>
-<a href="#1725" id="1725">1725</a>
-<a href="#1726" id="1726">1726</a>
-<a href="#1727" id="1727">1727</a>
-<a href="#1728" id="1728">1728</a>
-<a href="#1729" id="1729">1729</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt::{<span class="self">self</span>, Write};
+<a href="#1689" id="1689">1689</a></pre></div><pre class="rust"><code><span class="kw">use </span>std::fmt::{<span class="self">self</span>, Write};
 
 <span class="kw">use </span>relay_quotas::{
     DataCategories, DataCategory, ItemScoping, QuotaScope, RateLimit, RateLimitScope, RateLimits,
@@ -1892,9 +1852,6 @@
     <span class="doccomment">/// The number of replays.
     </span><span class="kw">pub </span>replay_quantity: usize,
 
-    <span class="doccomment">/// The number of replay videos.
-    </span><span class="kw">pub </span>replay_video_quantity: usize,
-
     <span class="doccomment">/// The number of monitor check-ins.
     </span><span class="kw">pub </span>monitor_quantity: usize,
 
@@ -1977,7 +1934,7 @@
             DataCategory::Session =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.session_quantity,
             DataCategory::Profile =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.profile_quantity,
             DataCategory::Replay =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.replay_quantity,
-            DataCategory::ReplayVideo =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.replay_video_quantity,
+            DataCategory::ReplayVideo =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.replay_quantity,
             DataCategory::Monitor =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.monitor_quantity,
             DataCategory::Span =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.span_quantity,
             DataCategory::LogItem =&gt; <span class="kw-2">&amp;mut </span><span class="self">self</span>.log_item_quantity,
@@ -2085,8 +2042,6 @@
     </span><span class="kw">pub </span>profiles_indexed: CategoryLimit,
     <span class="doccomment">/// The combined replay item rate limit.
     </span><span class="kw">pub </span>replays: CategoryLimit,
-    <span class="doccomment">/// The combined replay video item rate limit.
-    </span><span class="kw">pub </span>replay_videos: CategoryLimit,
     <span class="doccomment">/// The combined check-in item rate limit.
     </span><span class="kw">pub </span>check_ins: CategoryLimit,
     <span class="doccomment">/// The combined logs (our product logs) rate limit.
@@ -2133,7 +2088,6 @@
             </span>profiles,
             profiles_indexed,
             replays,
-            replay_videos,
             check_ins,
             log_items,
             log_bytes,
@@ -2151,7 +2105,6 @@
             profiles,
             profiles_indexed,
             replays,
-            replay_videos,
             check_ins,
             log_items,
             log_bytes,
@@ -2240,7 +2193,7 @@
             ItemType::Session =&gt; !<span class="self">self</span>.sessions.is_active(),
             ItemType::Profile =&gt; !<span class="self">self</span>.profiles_indexed.is_active(),
             ItemType::ReplayEvent =&gt; !<span class="self">self</span>.replays.is_active(),
-            ItemType::ReplayVideo =&gt; !<span class="self">self</span>.replay_videos.is_active(),
+            ItemType::ReplayVideo =&gt; !<span class="self">self</span>.replays.is_active(),
             ItemType::ReplayRecording =&gt; !<span class="self">self</span>.replays.is_active(),
             ItemType::CheckIn =&gt; !<span class="self">self</span>.check_ins.is_active(),
             ItemType::OtelLog | ItemType::Log =&gt; {
@@ -2532,21 +2485,6 @@
             enforcement.replays = CategoryLimit::new(
                 DataCategory::Replay,
                 summary.replay_quantity,
-                replay_limits.longest(),
-            );
-            rate_limits.merge(replay_limits);
-        }
-
-        <span class="comment">// Handle replay video.
-        // Remove: 2025-04-06
-        </span><span class="kw">if </span>summary.replay_video_quantity &gt; <span class="number">0 </span>{
-            <span class="kw">let </span>item_scoping = scoping.item(DataCategory::ReplayVideo);
-            <span class="kw">let </span>replay_limits = <span class="self">self
-                </span>.check
-                .apply(item_scoping, summary.replay_video_quantity)<span class="question-mark">?</span>;
-            enforcement.replay_videos = CategoryLimit::new(
-                DataCategory::ReplayVideo,
-                summary.replay_video_quantity,
                 replay_limits.longest(),
             );
             rate_limits.merge(replay_limits);
@@ -3065,34 +3003,16 @@
     <span class="doccomment">/// Limit replays.
     </span><span class="attr">#[test]
     </span><span class="kw">fn </span>test_enforce_limit_replays() {
-        <span class="kw">let </span><span class="kw-2">mut </span>envelope = <span class="macro">envelope!</span>[ReplayEvent, ReplayRecording];
+        <span class="kw">let </span><span class="kw-2">mut </span>envelope = <span class="macro">envelope!</span>[ReplayEvent, ReplayRecording, ReplayVideo];
 
         <span class="kw">let </span><span class="kw-2">mut </span>mock = MockLimiter::default().deny(DataCategory::Replay);
         <span class="kw">let </span>(enforcement, limits) = enforce_and_apply(<span class="kw-2">&amp;mut </span>mock, <span class="kw-2">&amp;mut </span>envelope, <span class="prelude-val">None</span>);
 
         <span class="macro">assert!</span>(limits.is_limited());
         <span class="macro">assert_eq!</span>(envelope.envelope().len(), <span class="number">0</span>);
-        mock.assert_call(DataCategory::Replay, <span class="number">2</span>);
+        mock.assert_call(DataCategory::Replay, <span class="number">3</span>);
 
-        <span class="macro">assert_eq!</span>(get_outcomes(enforcement), <span class="macro">vec!</span>[(DataCategory::Replay, <span class="number">2</span>),]);
-    }
-
-    <span class="doccomment">/// Limit replays.
-    </span><span class="attr">#[test]
-    </span><span class="kw">fn </span>test_enforce_limit_replay_video() {
-        <span class="kw">let </span><span class="kw-2">mut </span>envelope = <span class="macro">envelope!</span>[ReplayVideo];
-
-        <span class="kw">let </span><span class="kw-2">mut </span>mock = MockLimiter::default().deny(DataCategory::ReplayVideo);
-        <span class="kw">let </span>(enforcement, limits) = enforce_and_apply(<span class="kw-2">&amp;mut </span>mock, <span class="kw-2">&amp;mut </span>envelope, <span class="prelude-val">None</span>);
-
-        <span class="macro">assert!</span>(limits.is_limited());
-        <span class="macro">assert_eq!</span>(envelope.envelope().len(), <span class="number">0</span>);
-        mock.assert_call(DataCategory::ReplayVideo, <span class="number">1</span>);
-
-        <span class="macro">assert_eq!</span>(
-            get_outcomes(enforcement),
-            <span class="macro">vec!</span>[(DataCategory::ReplayVideo, <span class="number">1</span>),]
-        );
+        <span class="macro">assert_eq!</span>(get_outcomes(enforcement), <span class="macro">vec!</span>[(DataCategory::Replay, <span class="number">3</span>),]);
     }
 
     <span class="doccomment">/// Limit monitor checkins.

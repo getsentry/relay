@@ -2189,8 +2189,7 @@
 <a href="#2188" id="2188">2188</a>
 <a href="#2189" id="2189">2189</a>
 <a href="#2190" id="2190">2190</a>
-<a href="#2191" id="2191">2191</a>
-<a href="#2192" id="2192">2192</a></pre></div><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.
+<a href="#2191" id="2191">2191</a></pre></div><pre class="rust"><code><span class="doccomment">//! Implementation of event envelopes.
 //!
 //! Envelopes are containers for payloads related to Sentry events. Similar to multipart form data
 //! requests, each envelope has global headers and a set of items, such as the event payload, an
@@ -2904,10 +2903,9 @@
             ItemType::UserReport =&gt; <span class="macro">smallvec!</span>[],
             ItemType::UserReportV2 =&gt; <span class="macro">smallvec!</span>[(DataCategory::UserReportV2, <span class="number">1</span>)],
             ItemType::Profile =&gt; <span class="macro">smallvec!</span>[(DataCategory::Profile, <span class="number">1</span>)],
-            ItemType::ReplayEvent | ItemType::ReplayRecording =&gt; {
+            ItemType::ReplayEvent | ItemType::ReplayRecording | ItemType::ReplayVideo =&gt; {
                 <span class="macro">smallvec!</span>[(DataCategory::Replay, <span class="number">1</span>)]
             }
-            ItemType::ReplayVideo =&gt; <span class="macro">smallvec!</span>[(DataCategory::ReplayVideo, <span class="number">1</span>)],
             ItemType::ClientReport =&gt; <span class="macro">smallvec!</span>[],
             ItemType::CheckIn =&gt; <span class="macro">smallvec!</span>[(DataCategory::Monitor, <span class="number">1</span>)],
             ItemType::Span | ItemType::OtelSpan =&gt; <span class="macro">smallvec!</span>[(DataCategory::Span, <span class="number">1</span>)],
