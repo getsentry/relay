@@ -65,7 +65,6 @@ use crate::utils::{
     self, InvalidProcessingGroupType, ManagedEnvelope, SamplingResult, TypedEnvelope,
 };
 use relay_base_schema::organization::OrganizationId;
-use relay_redis::AsyncRedisClient;
 use relay_threading::AsyncPool;
 #[cfg(feature = "processing")]
 use {
@@ -78,7 +77,7 @@ use {
     },
     relay_dynamic_config::{CardinalityLimiterMode, GlobalConfig, MetricExtractionGroups},
     relay_quotas::{Quota, RateLimitingError, RedisRateLimiter},
-    relay_redis::{RedisPool, RedisPools},
+    relay_redis::{AsyncRedisClient, RedisPool, RedisPools},
     std::iter::Chain,
     std::slice::Iter,
     std::time::Instant,

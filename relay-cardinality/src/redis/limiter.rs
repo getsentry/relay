@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use relay_redis::{Connection, RedisPool};
+use relay_redis::{AsyncRedisClient, AsyncRedisConnection, Connection, RedisPool};
 use relay_statsd::metric;
 
 use crate::{
@@ -26,7 +26,7 @@ pub struct RedisSetLimiterOptions {
 
 /// Implementation uses Redis sets to keep track of cardinality.
 pub struct RedisSetLimiter {
-    redis: RedisPool,
+    redis: AsyncRedisClient,
     script: CardinalityScript,
     cache: Cache,
     #[cfg(test)]
@@ -38,7 +38,7 @@ pub struct RedisSetLimiter {
 /// A Redis based limiter using Redis sets to track cardinality and membership.
 impl RedisSetLimiter {
     /// Creates a new [`RedisSetLimiter`].
-    pub fn new(options: RedisSetLimiterOptions, redis: RedisPool) -> Self {
+    pub fn new(options: RedisSetLimiterOptions, redis: AsyncRedisClient) -> Self {
         Self {
             redis,
             script: CardinalityScript::load(),
@@ -53,9 +53,9 @@ impl RedisSetLimiter {
     /// Checks the limits for a specific scope.
     ///
     /// Returns an iterator over all entries which have been accepted.
-    fn check_limits(
+    async fn check_limits(
         &self,
-        connection: &mut Connection<'_>,
+        connection: &mut AsyncRedisConnection,
         state: &mut LimitState<'_>,
         timestamp: UnixTimestamp,
     ) -> Result<Vec<CheckedLimits>> {
@@ -82,7 +82,7 @@ impl RedisSetLimiter {
             id = state.id(),
         );
 
-        let results = pipeline.invoke(connection)?;
+        let results = pipeline.invoke(connection).await?;
 
         debug_assert_eq!(results.len(), scopes.len());
         scopes
@@ -101,7 +101,7 @@ impl RedisSetLimiter {
 }
 
 impl Limiter for RedisSetLimiter {
-    fn check_cardinality_limits<'a, 'b, E, R>(
+    async fn check_cardinality_limits<'a, 'b, E, R>(
         &self,
         scoping: Scoping,
         limits: &'a [CardinalityLimit],
@@ -150,8 +150,7 @@ impl Limiter for RedisSetLimiter {
         }
         drop(cache); // Give up the cache lock!
 
-        let mut client = self.redis.client()?;
-        let mut connection = client.connection()?;
+        let mut connection = self.redis.get_connection();
 
         for mut state in states {
             if state.is_empty() {
@@ -163,7 +162,8 @@ impl Limiter for RedisSetLimiter {
                 id = state.id(),
                 scopes = num_scopes_tag(&state),
                 { self.check_limits(&mut connection, &mut state, timestamp) }
-            )?;
+            )
+            .await?;
 
             for result in results {
                 reporter.report_cardinality(state.cardinality_limit(), result.to_report(timestamp));
@@ -272,7 +272,7 @@ mod tests {
 
     use super::*;
 
-    fn build_limiter() -> RedisSetLimiter {
+    async fn build_limiter() -> RedisSetLimiter {
         let url = std::env::var("RELAY_REDIS_URL")
             .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
 
@@ -280,7 +280,7 @@ mod tests {
             max_connections: 1,
             ..Default::default()
         };
-        let redis = RedisPool::single(&url, opts).unwrap();
+        let redis = AsyncRedisClient::single(&url, &opts).await.unwrap();
 
         RedisSetLimiter::new(
             RedisSetLimiterOptions {
@@ -347,18 +347,18 @@ mod tests {
 
     impl RedisSetLimiter {
         /// Remove all redis state for an organization.
-        fn flush(&self, scoping: Scoping) {
+        async fn flush(&self, scoping: Scoping) {
             let pattern = format!(
                 "{KEY_PREFIX}:{KEY_VERSION}:scope-{{{o}-*",
                 o = scoping.organization_id
             );
 
-            let mut client = self.redis.client().unwrap();
-            let mut connection = client.connection().unwrap();
+            let mut connection = self.redis.get_connection();
 
             let keys = redis::cmd("KEYS")
                 .arg(pattern)
-                .query::<Vec<String>>(&mut connection)
+                .query_async::<Vec<String>>(&mut connection)
+                .await
                 .unwrap();
 
             if !keys.is_empty() {
@@ -366,33 +366,36 @@ mod tests {
                 for key in keys {
                     del.arg(key);
                 }
-                del.query::<()>(&mut connection).unwrap();
+                del.query_async::<()>(&mut connection).await.unwrap();
             }
         }
 
-        fn redis_sets(&self, scoping: Scoping) -> Vec<(String, usize)> {
+        async fn redis_sets(&self, scoping: Scoping) -> Vec<(String, usize)> {
             let pattern = format!(
                 "{KEY_PREFIX}:{KEY_VERSION}:scope-{{{o}-*",
                 o = scoping.organization_id
             );
 
-            let mut client = self.redis.client().unwrap();
-            let mut connection = client.connection().unwrap();
+            let mut connection = self.redis.get_connection();
 
-            redis::cmd("KEYS")
+            let keys: Vec<String> = redis::cmd("KEYS")
                 .arg(pattern)
-                .query::<Vec<String>>(&mut connection)
-                .unwrap()
-                .into_iter()
-                .map(move |key| {
-                    let size = redis::cmd("SCARD")
-                        .arg(&key)
-                        .query::<usize>(&mut connection)
-                        .unwrap();
+                .query_async(&mut connection)
+                .await
+                .unwrap();
 
-                    (key, size)
-                })
-                .collect()
+            let mut results = Vec::with_capacity(keys.len());
+            for key in keys {
+                let size = redis::cmd("SCARD")
+                    .arg(&key)
+                    .query_async(&mut connection)
+                    .await
+                    .unwrap();
+
+                results.push((key, size));
+            }
+
+            results
         }
 
         fn test_limits<'a, I>(
@@ -418,9 +421,9 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_limiter_accept_previously_seen() {
-        let limiter = build_limiter();
+    #[tokio::test]
+    async fn test_limiter_accept_previously_seen() {
+        let limiter = build_limiter().await;
 
         let m0 = MetricName::from("a");
         let m1 = MetricName::from("b");
@@ -468,9 +471,9 @@ mod tests {
         assert_eq!(rejected3.len(), 0);
     }
 
-    #[test]
-    fn test_limiter_name_limit() {
-        let limiter = build_limiter();
+    #[tokio::test]
+    async fn test_limiter_name_limit() {
+        let limiter = build_limiter().await;
 
         let m0 = MetricName::from("a");
         let m1 = MetricName::from("b");
@@ -528,9 +531,9 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_limiter_type_limit() {
-        let limiter = build_limiter();
+    #[tokio::test]
+    async fn test_limiter_type_limit() {
+        let limiter = build_limiter().await;
 
         let m0 = MetricName::from("c:custom/foo@none");
         let m1 = MetricName::from("c:custom/bar@none");
@@ -589,9 +592,9 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_limiter_org_based_time_shift() {
-        let mut limiter = build_limiter();
+    #[tokio::test]
+    async fn test_limiter_org_based_time_shift() {
+        let mut limiter = build_limiter().await;
 
         let granularity_seconds = 10_000;
 
@@ -664,9 +667,9 @@ mod tests {
         assert_eq!(diff, expected);
     }
 
-    #[test]
-    fn test_limiter_small_within_limits() {
-        let limiter = build_limiter();
+    #[tokio::test]
+    async fn test_limiter_small_within_limits() {
+        let limiter = build_limiter().await;
         let scoping = new_scoping(&limiter);
 
         let limits = &[CardinalityLimit {
@@ -697,9 +700,9 @@ mod tests {
         assert_eq!(rejected.len(), 0);
     }
 
-    #[test]
-    fn test_limiter_big_limit() {
-        let limiter = build_limiter();
+    #[tokio::test]
+    async fn test_limiter_big_limit() {
+        let limiter = build_limiter().await;
 
         let scoping = new_scoping(&limiter);
         let limits = &[CardinalityLimit {
@@ -725,9 +728,9 @@ mod tests {
         assert_eq!(rejected.len(), 20_000);
     }
 
-    #[test]
-    fn test_limiter_sliding_window() {
-        let mut limiter = build_limiter();
+    #[tokio::test]
+    async fn test_limiter_sliding_window() {
+        let mut limiter = build_limiter().await;
 
         let scoping = new_scoping(&limiter);
         let window = SlidingWindow {
@@ -776,9 +779,9 @@ mod tests {
         assert_eq!(rejected.len(), 1);
     }
 
-    #[test]
-    fn test_limiter_no_namespace_limit_is_shared_limit() {
-        let limiter = build_limiter();
+    #[tokio::test]
+    async fn test_limiter_no_namespace_limit_is_shared_limit() {
+        let limiter = build_limiter().await;
         let scoping = new_scoping(&limiter);
 
         let limits = &[CardinalityLimit {
@@ -812,9 +815,9 @@ mod tests {
         assert_eq!(rejected.len(), 1);
     }
 
-    #[test]
-    fn test_limiter_multiple_limits() {
-        let limiter = build_limiter();
+    #[tokio::test]
+    async fn test_limiter_multiple_limits() {
+        let limiter = build_limiter().await;
         let scoping = new_scoping(&limiter);
 
         let limits = &[
@@ -943,9 +946,9 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_project_limit() {
-        let limiter = build_limiter();
+    #[tokio::test]
+    async fn test_project_limit() {
+        let limiter = build_limiter().await;
 
         let scoping1 = new_scoping(&limiter);
         let scoping2 = Scoping {
@@ -984,9 +987,9 @@ mod tests {
         assert_eq!(rejected.len(), 1);
     }
 
-    #[test]
-    fn test_limiter_sliding_window_full() {
-        let mut limiter = build_limiter();
+    #[tokio::test]
+    async fn test_limiter_sliding_window_full() {
+        let mut limiter = build_limiter().await;
         let scoping = new_scoping(&limiter);
 
         let window = SlidingWindow {
@@ -1069,7 +1072,7 @@ mod tests {
             }
         }
 
-        let mut sets = limiter.redis_sets(scoping);
+        let mut sets = limiter.redis_sets(scoping).await;
         sets.sort();
 
         let len = sets.len();
@@ -1083,9 +1086,9 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_limiter_sliding_window_perfect() {
-        let mut limiter = build_limiter();
+    #[tokio::test]
+    async fn test_limiter_sliding_window_perfect() {
+        let mut limiter = build_limiter().await;
         let scoping = new_scoping(&limiter);
 
         let window = SlidingWindow {

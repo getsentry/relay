@@ -1,6 +1,6 @@
 use relay_redis::{
     redis::{self, FromRedisValue, Script},
-    Connection, RedisScripts,
+    AsyncRedisConnection, Connection, RedisScripts,
 };
 
 use crate::Result;
@@ -113,10 +113,11 @@ impl CardinalityScript {
     }
 
     /// Makes sure the script is loaded in Redis.
-    fn load_redis(&self, con: &mut Connection) -> Result<()> {
+    async fn load_redis(&self, con: &mut AsyncRedisConnection) -> Result<()> {
         self.0
             .prepare_invoke()
-            .load(con)
+            .load_async(con)
+            .await
             .map_err(relay_redis::RedisError::Redis)?;
 
         Ok(())
@@ -170,14 +171,18 @@ impl CardinalityScriptPipeline<'_> {
     /// Invokes the entire pipeline and returns the results.
     ///
     /// Returns one result for each script invocation.
-    pub fn invoke(&self, con: &mut Connection<'_>) -> Result<Vec<CardinalityScriptResult>> {
-        match self.pipe.query(con) {
+    pub async fn invoke(
+        &self,
+        con: &mut AsyncRedisConnection,
+    ) -> Result<Vec<CardinalityScriptResult>> {
+        match self.pipe.query_async(con).await {
             Ok(result) => Ok(result),
             Err(err) if err.kind() == redis::ErrorKind::NoScriptError => {
                 relay_log::trace!("Redis script no loaded, loading it now");
-                self.script.load_redis(con)?;
+                self.script.load_redis(con).await?;
                 self.pipe
-                    .query(con)
+                    .query_async(con)
+                    .await
                     .map_err(relay_redis::RedisError::Redis)
                     .map_err(Into::into)
             }
@@ -188,15 +193,15 @@ impl CardinalityScriptPipeline<'_> {
 
 #[cfg(test)]
 mod tests {
-    use relay_redis::{RedisConfigOptions, RedisPool};
+    use relay_redis::{AsyncRedisClient, RedisConfigOptions, RedisPool};
     use uuid::Uuid;
 
     use super::*;
 
     impl CardinalityScript {
-        fn invoke_one(
+        async fn invoke_one(
             &self,
-            con: &mut Connection,
+            con: &mut AsyncRedisConnection,
             limit: u32,
             expire: u64,
             hashes: impl Iterator<Item = u32>,
@@ -205,14 +210,15 @@ mod tests {
             let mut results = self
                 .pipe()
                 .add_invocation(limit, expire, hashes, keys)
-                .invoke(con)?;
+                .invoke(con)
+                .await?;
 
             assert_eq!(results.len(), 1);
             Ok(results.pop().unwrap())
         }
     }
 
-    fn build_redis() -> RedisPool {
+    async fn build_redis_client() -> AsyncRedisClient {
         let url = std::env::var("RELAY_REDIS_URL")
             .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
 
@@ -220,7 +226,7 @@ mod tests {
             max_connections: 1,
             ..Default::default()
         };
-        RedisPool::single(&url, opts).unwrap()
+        AsyncRedisClient::single(&url, &opts).await.unwrap()
     }
 
     fn keys(prefix: Uuid, keys: &[&str]) -> impl Iterator<Item = String> {
@@ -230,27 +236,28 @@ mod tests {
             .into_iter()
     }
 
-    fn assert_ttls(connection: &mut Connection, prefix: Uuid) {
+    async fn assert_ttls(connection: &mut AsyncRedisConnection, prefix: Uuid) {
         let keys = redis::cmd("KEYS")
             .arg(format!("{prefix}-*"))
-            .query::<Vec<String>>(connection)
+            .query_async::<Vec<String>>(connection)
+            .await
             .unwrap();
 
         for key in keys {
             let ttl = redis::cmd("TTL")
                 .arg(&key)
-                .query::<i64>(connection)
+                .query_async::<i64>(connection)
+                .await
                 .unwrap();
 
             assert!(ttl >= 0, "Key {key} has no TTL");
         }
     }
 
-    #[test]
-    fn test_below_limit_perfect_cardinality_ttl() {
-        let redis = build_redis();
-        let mut client = redis.client().unwrap();
-        let mut connection = client.connection().unwrap();
+    #[tokio::test]
+    async fn test_below_limit_perfect_cardinality_ttl() {
+        let client = build_redis_client().await;
+        let mut connection = client.get_connection();
 
         let script = CardinalityScript::load();
 
@@ -260,38 +267,40 @@ mod tests {
 
         script
             .invoke_one(&mut connection, 50, 3600, 0..30, keys(prefix, k1))
+            .await
             .unwrap();
 
         script
             .invoke_one(&mut connection, 50, 3600, 0..30, keys(prefix, k2))
+            .await
             .unwrap();
 
-        assert_ttls(&mut connection, prefix);
+        assert_ttls(&mut connection, prefix).await;
     }
 
-    #[test]
-    fn test_load_script() {
-        let redis = build_redis();
-        let mut client = redis.client().unwrap();
-        let mut connection = client.connection().unwrap();
+    #[tokio::test]
+    async fn test_load_script() {
+        let client = build_redis_client().await;
+        let mut connection = client.get_connection();
 
         let script = CardinalityScript::load();
         let keys = keys(Uuid::new_v4(), &["a", "b", "c"]);
 
         redis::cmd("SCRIPT")
             .arg("FLUSH")
-            .exec(&mut connection)
+            .exec_async(&mut connection)
+            .await
             .unwrap();
         script
             .invoke_one(&mut connection, 50, 3600, 0..30, keys)
+            .await
             .unwrap();
     }
 
-    #[test]
-    fn test_multiple_calls_in_pipeline() {
-        let redis = build_redis();
-        let mut client = redis.client().unwrap();
-        let mut connection = client.connection().unwrap();
+    #[tokio::test]
+    async fn test_multiple_calls_in_pipeline() {
+        let client = build_redis_client().await;
+        let mut connection = client.get_connection();
 
         let script = CardinalityScript::load();
         let k2 = keys(Uuid::new_v4(), &["a", "b", "c"]);
@@ -302,6 +311,7 @@ mod tests {
             .add_invocation(50, 3600, 0..30, k1)
             .add_invocation(50, 3600, 0..30, k2)
             .invoke(&mut connection)
+            .await
             .unwrap();
 
         assert_eq!(results.len(), 2);
