@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::fmt::{self, Debug};
 
 use relay_common::time::UnixTimestamp;
@@ -164,7 +165,7 @@ impl std::ops::Deref for RedisQuota<'_> {
 ///
 /// Requires the `redis` feature.
 pub struct RedisRateLimiter {
-    client: AsyncRedisClient,
+    client: RefCell<AsyncRedisClient>,
     script: &'static Script,
     max_limit: Option<u64>,
     global_limits: GlobalRateLimits,
@@ -174,7 +175,7 @@ impl RedisRateLimiter {
     /// Creates a new `RedisRateLimiter` instance.
     pub fn new(client: AsyncRedisClient) -> Self {
         RedisRateLimiter {
-            client,
+            client: RefCell::new(client),
             script: RedisScripts::load_is_rate_limited(),
             max_limit: None,
             global_limits: GlobalRateLimits::default(),
@@ -260,7 +261,7 @@ impl RedisRateLimiter {
 
         let rate_limited_global_quotas = self
             .global_limits
-            .filter_rate_limited(&mut self.client, &global_quotas, quantity)
+            .filter_rate_limited(&mut self.client.borrow_mut(), &global_quotas, quantity)
             .await
             .map_err(RateLimitingError::Redis)?;
 
@@ -275,8 +276,9 @@ impl RedisRateLimiter {
             return Ok(rate_limits);
         }
 
+        let mut connection = self.client.borrow().get_connection();
         let rejections: Vec<bool> = invocation
-            .invoke_async(&mut self.client.get_connection())
+            .invoke_async(&mut connection)
             .await
             .map_err(RedisError::Redis)
             .map_err(RateLimitingError::Redis)?;
@@ -321,10 +323,11 @@ mod tests {
         let url = std::env::var("RELAY_REDIS_URL")
             .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_owned());
 
+        let client = AsyncRedisClient::single(&url, &RedisConfigOptions::default())
+            .await
+            .unwrap();
         RedisRateLimiter {
-            client: AsyncRedisClient::single(&url, &RedisConfigOptions::default())
-                .await
-                .unwrap(),
+            client: RefCell::new(client),
             script: RedisScripts::load_is_rate_limited(),
             max_limit: None,
             global_limits: GlobalRateLimits::default(),
@@ -909,7 +912,7 @@ mod tests {
             .unwrap();
 
         let rate_limiter = build_rate_limiter().await;
-        let mut conn = rate_limiter.client.get_connection();
+        let mut conn = rate_limiter.client.borrow().get_connection();
 
         // define a few keys with random seed such that they do not collide with repeated test runs
         let foo = format!("foo___{now}");

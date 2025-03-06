@@ -2671,7 +2671,7 @@ impl EnvelopeProcessorService {
     }
 
     #[cfg(feature = "processing")]
-    fn rate_limit_buckets(
+    async fn rate_limit_buckets(
         &self,
         scoping: Scoping,
         project_info: &ProjectInfo,
@@ -2692,7 +2692,10 @@ impl EnvelopeProcessorService {
         for (namespace, quantity) in namespaces {
             let item_scoping = scoping.metric_bucket(namespace);
 
-            let limits = match rate_limiter.is_rate_limited(quotas, item_scoping, quantity, false) {
+            let limits = match rate_limiter
+                .is_rate_limited(quotas, item_scoping, quantity, false)
+                .await
+            {
                 Ok(limits) => limits,
                 Err(err) => {
                     relay_log::error!(
@@ -2726,7 +2729,7 @@ impl EnvelopeProcessorService {
 
         match MetricsLimiter::create(buckets, project_info.config.quotas.clone(), scoping) {
             Err(buckets) => buckets,
-            Ok(bucket_limiter) => self.apply_other_rate_limits(bucket_limiter),
+            Ok(bucket_limiter) => self.apply_other_rate_limits(bucket_limiter).await,
         }
     }
 
@@ -2908,7 +2911,9 @@ impl EnvelopeProcessorService {
             ..
         } in message.buckets.into_values()
         {
-            let buckets = self.rate_limit_buckets(scoping, &project_info, buckets);
+            let buckets = self
+                .rate_limit_buckets(scoping, &project_info, buckets)
+                .await;
 
             let limits = project_info.get_cardinality_limits();
             let buckets = self
@@ -3080,7 +3085,7 @@ impl EnvelopeProcessorService {
         self.send_global_partition(partition_key, &mut partition);
     }
 
-    fn handle_flush_buckets(&self, cogs: &mut Token, mut message: FlushBuckets) {
+    async fn handle_flush_buckets(&self, cogs: &mut Token, mut message: FlushBuckets) {
         for (project_key, pb) in message.buckets.iter_mut() {
             let buckets = std::mem::take(&mut pb.buckets);
             pb.buckets =
@@ -3090,7 +3095,9 @@ impl EnvelopeProcessorService {
         #[cfg(feature = "processing")]
         if self.inner.config.processing_enabled() {
             if let Some(ref store_forwarder) = self.inner.addrs.store_forwarder {
-                return self.encode_metrics_processing(message, store_forwarder);
+                return self
+                    .encode_metrics_processing(message, store_forwarder)
+                    .await;
             }
         }
 
@@ -3234,12 +3241,14 @@ impl RateLimiter<'_> {
         // When invoking the rate limiter, capture if the event item has been rate limited to also
         // remove it from the processing state eventually.
         let mut envelope_limiter =
-            EnvelopeLimiter::new(CheckLimits::All, |item_scope, quantity| match self {
-                RateLimiter::Cached => Ok(rate_limits.check_with_quotas(quotas, item_scope)),
-                RateLimiter::Consistent(rl) => Ok::<_, ProcessingError>(
-                    rl.is_rate_limited(quotas, item_scope, quantity, false)
-                        .await?,
-                ),
+            EnvelopeLimiter::new(CheckLimits::All, |item_scope, quantity| async {
+                match self {
+                    RateLimiter::Cached => Ok(rate_limits.check_with_quotas(quotas, item_scope)),
+                    RateLimiter::Consistent(rl) => Ok::<_, ProcessingError>(
+                        rl.is_rate_limited(quotas, item_scope, quantity, false)
+                            .await?,
+                    ),
+                }
             });
 
         // Tell the envelope limiter about the event, since it has been removed from the Envelope at
@@ -3251,7 +3260,9 @@ impl RateLimiter<'_> {
         let scoping = managed_envelope.scoping();
         let (enforcement, rate_limits) =
             metric!(timer(RelayTimers::EventProcessingRateLimiting), {
-                envelope_limiter.compute(managed_envelope.envelope_mut(), &scoping)?
+                envelope_limiter
+                    .compute(managed_envelope.envelope_mut(), &scoping)
+                    .await?
             });
         let event_active = enforcement.is_event_active();
 
