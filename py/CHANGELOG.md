@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Remove unused capability to block metric names and tags. ([#4536](https://github.com/getsentry/relay/pull/4536))
+- Fully remove ReplayVideo data category ([#4560](https://github.com/getsentry/relay/pull/4560))
 
 ## 0.9.6
 
