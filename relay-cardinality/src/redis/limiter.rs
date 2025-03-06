@@ -109,8 +109,8 @@ impl Limiter for RedisSetLimiter {
         reporter: &mut R,
     ) -> Result<()>
     where
-        E: IntoIterator<Item = Entry<'b>>,
-        R: Reporter<'a>,
+        E: IntoIterator<Item = Entry<'b>> + Send,
+        R: Reporter<'a> + Send,
     {
         #[cfg(not(test))]
         let timestamp = UnixTimestamp::now();
@@ -410,7 +410,7 @@ mod tests {
             entries: I,
         ) -> TestReporter
         where
-            I: IntoIterator<Item = Entry<'a>>,
+            I: IntoIterator<Item = Entry<'a>> + Send,
         {
             let mut reporter = TestReporter::default();
             self.check_cardinality_limits(scoping, limits, entries, &mut reporter)

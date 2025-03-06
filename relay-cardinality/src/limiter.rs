@@ -50,7 +50,7 @@ pub struct CardinalityReport {
     pub metric_type: Option<MetricType>,
     /// Metric name for which the cardinality limit was applied.
     ///
-    /// Only available if the the limit was scoped to
+    /// Only available if the limit was scoped to
     /// [`CardinalityScope::Name`](crate::CardinalityScope::Name).
     pub metric_name: Option<MetricName>,
 
@@ -84,10 +84,10 @@ pub trait Limiter {
         limits: &'a [CardinalityLimit],
         entries: E,
         reporter: &mut R,
-    ) -> impl Future<Output = Result<()>>
+    ) -> impl Future<Output = Result<()>> + Send
     where
-        E: IntoIterator<Item = Entry<'b>>,
-        R: Reporter<'a>;
+        E: IntoIterator<Item = Entry<'b>> + Send,
+        R: Reporter<'a> + Send;
 }
 
 /// Unit of operation for the cardinality limiter.
@@ -165,14 +165,18 @@ impl<T: Limiter> CardinalityLimiter<T> {
         }
 
         metric!(timer(CardinalityLimiterTimers::CardinalityLimiter), {
-            let entries = items.iter().enumerate().filter_map(|(id, item)| {
-                Some(Entry::new(
-                    EntryId(id),
-                    item.namespace()?,
-                    item.name(),
-                    item.to_hash(),
-                ))
-            });
+            let entries = items
+                .iter()
+                .enumerate()
+                .filter_map(|(id, item)| {
+                    Some(Entry::new(
+                        EntryId(id),
+                        item.namespace()?,
+                        item.name(),
+                        item.to_hash(),
+                    ))
+                })
+                .collect::<Vec<_>>();
 
             let mut rejections = DefaultReporter::default();
             if let Err(err) = self
@@ -486,8 +490,8 @@ mod tests {
                 rejections: &mut T,
             ) -> Result<()>
             where
-                I: IntoIterator<Item = Entry<'b>>,
-                T: Reporter<'a>,
+                I: IntoIterator<Item = Entry<'b>> + Send,
+                T: Reporter<'a> + Send,
             {
                 for entry in entries {
                     rejections.reject(&limits[0], entry.id);
@@ -533,8 +537,8 @@ mod tests {
                 _reporter: &mut T,
             ) -> Result<()>
             where
-                I: IntoIterator<Item = Entry<'b>>,
-                T: Reporter<'a>,
+                I: IntoIterator<Item = Entry<'b>> + Send,
+                T: Reporter<'a> + Send,
             {
                 Ok(())
             }
@@ -636,8 +640,8 @@ mod tests {
                 reporter: &mut T,
             ) -> Result<()>
             where
-                I: IntoIterator<Item = Entry<'b>>,
-                T: Reporter<'a>,
+                I: IntoIterator<Item = Entry<'b>> + Send,
+                T: Reporter<'a> + Send,
             {
                 for entry in entries {
                     reporter.reject(&limits[entry.id.0 % limits.len()], entry.id);
@@ -722,8 +726,8 @@ mod tests {
                 reporter: &mut T,
             ) -> Result<()>
             where
-                I: IntoIterator<Item = Entry<'b>>,
-                T: Reporter<'a>,
+                I: IntoIterator<Item = Entry<'b>> + Send,
+                T: Reporter<'a> + Send,
             {
                 reporter.report_cardinality(
                     &limits[0],
