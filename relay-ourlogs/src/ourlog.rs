@@ -1,7 +1,7 @@
-use chrono::Utc;
 use opentelemetry_proto::tonic::common::v1::any_value::Value as OtelValue;
 
 use crate::OtelLog;
+use relay_common::time::UnixTimestamp;
 use relay_event_schema::protocol::{AttributeValue, OurLog, SpanId, TraceId};
 use relay_protocol::{Annotated, Object};
 
@@ -32,7 +32,7 @@ pub fn otel_to_sentry_log(otel_log: OtelLog) -> OurLog {
 
     // We ignore the passed observed time since Relay always acts as the collector in Sentry.
     // We may change this in the future with forwarding Relays.
-    let observed_time_unix_nano = Utc::now().timestamp_nanos_opt().unwrap_or(0) as u64;
+    let observed_time_unix_nano = UnixTimestamp::now().as_nanos();
 
     for attribute in attributes.into_iter() {
         if let Some(value) = attribute.value.and_then(|v| v.value) {
@@ -222,10 +222,10 @@ mod tests {
             "attributes": []
         }"#;
 
-        let before_test = Utc::now().timestamp_nanos_opt().unwrap_or(0) as u64;
+        let before_test = UnixTimestamp::now().as_nanos();
         let otel_log: OtelLog = serde_json::from_str(json_without_observed_time).unwrap();
         let our_log: OurLog = otel_to_sentry_log(otel_log);
-        let after_test = Utc::now().timestamp_nanos_opt().unwrap_or(0) as u64;
+        let after_test = UnixTimestamp::now().as_nanos();
 
         let observed_time = our_log.observed_timestamp_nanos.value().unwrap();
         assert!(*observed_time > 0);
@@ -248,10 +248,10 @@ mod tests {
             "attributes": []
         }"#;
 
-        let before_test = Utc::now().timestamp_nanos_opt().unwrap_or(0) as u64;
+        let before_test = UnixTimestamp::now().as_nanos();
         let otel_log: OtelLog = serde_json::from_str(json_with_observed_time).unwrap();
         let our_log: OurLog = otel_to_sentry_log(otel_log);
-        let after_test = Utc::now().timestamp_nanos_opt().unwrap_or(0) as u64;
+        let after_test = UnixTimestamp::now().as_nanos();
 
         let observed_time = our_log.observed_timestamp_nanos.value().unwrap();
         assert!(*observed_time > 0);

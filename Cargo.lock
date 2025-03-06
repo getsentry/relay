@@ -3772,6 +3772,7 @@ dependencies = [
  "insta",
  "once_cell",
  "opentelemetry-proto",
+ "relay-common",
  "relay-event-schema",
  "relay-protocol",
  "serde_json",
