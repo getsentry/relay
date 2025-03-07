@@ -12,6 +12,10 @@
 - Update Apple device model classes ([#4529](https://github.com/getsentry/relay/pull/4529))
 - Remove separate quota and rate limit counting for replay videos ([#4554](https://github.com/getsentry/relay/pull/4554))
 
+**Bug Fixes**:
+
+- Prevent partial trims in indexed and queryable span data. ([#4557](https://github.com/getsentry/relay/pull/4557))
+
 **Internal**:
 
 - Track an utilization metric for internal services. ([#4501](https://github.com/getsentry/relay/pull/4501))
