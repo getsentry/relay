@@ -111,7 +111,7 @@ impl UnixTimestamp {
 
     /// Returns the number of nanoseconds since the UNIX epoch start. Precision limited to seconds.
     pub fn as_nanos(self) -> u64 {
-        self.0 * 1_000_000_000
+        self.as_secs() * 1_000_000_000
     }
 
     /// Returns the timestamp as chrono datetime.
