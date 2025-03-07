@@ -198,7 +198,7 @@ impl RelayStats {
         );
         metric!(
             gauge(RelayGauges::AsyncPoolUtilization) = metrics.utilization() as f64,
-            pool = async_pool.name()
+            pool_name = async_pool.name()
         );
     }
 
