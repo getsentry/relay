@@ -7,14 +7,20 @@ pub enum RelayGauges {
     /// Tracks the number of futures waiting to be executed in the pool's queue.
     ///
     /// Useful for understanding the backlog of work and identifying potential bottlenecks.
+    ///
+    /// This metric is tagged with:
+    /// - `pool`: the name of the pool.
     AsyncPoolQueueSize,
     /// Tracks the utilization of the async pool.
     ///
-    /// The utilization is a value between 0.0 and 1.0 which determines how busy is the pool
+    /// The utilization is a value between 0.0 and 100.0 which determines how busy is the pool
     /// w.r.t. to its provisioned capacity.
+    ///
+    /// This metric is tagged with:
+    /// - `pool`: the name of the pool.
     AsyncPoolUtilization,
     /// The state of Relay with respect to the upstream connection.
-    /// Possible values are `0` for normal operations and `100` for a network outage.
+    /// Possible values are `0` for normal operations and `1` for a network outage.
     NetworkOutage,
     /// The number of individual stacks in the priority queue.
     ///
