@@ -559,7 +559,19 @@
 <a href="#558" id="558">558</a>
 <a href="#559" id="559">559</a>
 <a href="#560" id="560">560</a>
-<a href="#561" id="561">561</a></pre></div><pre class="rust"><code><span class="doccomment">//! Derive for visitor traits on the Event schema.
+<a href="#561" id="561">561</a>
+<a href="#562" id="562">562</a>
+<a href="#563" id="563">563</a>
+<a href="#564" id="564">564</a>
+<a href="#565" id="565">565</a>
+<a href="#566" id="566">566</a>
+<a href="#567" id="567">567</a>
+<a href="#568" id="568">568</a>
+<a href="#569" id="569">569</a>
+<a href="#570" id="570">570</a>
+<a href="#571" id="571">571</a>
+<a href="#572" id="572">572</a>
+<a href="#573" id="573">573</a></pre></div><pre class="rust"><code><span class="doccomment">//! Derive for visitor traits on the Event schema.
 //!
 //! This derive provides the `ProcessValue` trait. It must be used within the `relay-event-schema`
 //! crate.
@@ -605,7 +617,7 @@
             </span><span class="kw">let </span>bi = <span class="kw-2">&amp;</span>variant.bindings()[<span class="number">0</span>];
             <span class="kw">let </span>ident = <span class="kw-2">&amp;</span>bi.binding;
             <span class="kw">let </span>field_attrs = parse_field_attributes(<span class="number">0</span>, bi.ast(), <span class="kw-2">&amp;mut </span><span class="bool-val">true</span>)<span class="question-mark">?</span>;
-            <span class="kw">let </span>field_attrs_tokens = field_attrs.as_tokens(<span class="prelude-val">Some</span>(<span class="macro">quote!</span>(parent_attrs)));
+            <span class="kw">let </span>field_attrs_tokens = field_attrs.as_tokens(<span class="kw-2">&amp;</span>type_attrs, <span class="prelude-val">Some</span>(<span class="macro">quote!</span>(parent_attrs)));
 
             <span class="prelude-val">Ok</span>(<span class="macro">quote!</span> {
                 <span class="kw">let </span>parent_attrs = __state.attrs();
@@ -660,7 +672,7 @@
             <span class="kw">let </span>field_attrs_name = Ident::new(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"FIELD_ATTRS_{index}"</span>), Span::call_site());
             <span class="kw">let </span>field_name = field_attrs.field_name.clone();
 
-            <span class="kw">let </span>field_attrs_tokens = field_attrs.as_tokens(<span class="prelude-val">None</span>);
+            <span class="kw">let </span>field_attrs_tokens = field_attrs.as_tokens(<span class="kw-2">&amp;</span>type_attrs, <span class="prelude-val">None</span>);
 
             (<span class="macro">quote!</span> {
                 <span class="kw">static </span>#field_attrs_name: <span class="kw">crate</span>::processor::FieldAttrs = #field_attrs_tokens;
@@ -784,6 +796,11 @@
 </span><span class="kw">struct </span>TypeAttrs {
     process_func: <span class="prelude-ty">Option</span>&lt;String&gt;,
     value_type: Vec&lt;String&gt;,
+    <span class="doccomment">/// The default trim value for the container.
+    ///
+    /// If `trim` is specified on the container all fields of the container,
+    /// will default to this value for `trim`.
+    </span>trim: <span class="prelude-ty">Option</span>&lt;bool&gt;,
 }
 
 <span class="kw">impl </span>TypeAttrs {
@@ -818,6 +835,9 @@
             } <span class="kw">else if </span>ident == <span class="string">"value_type" </span>{
                 <span class="kw">let </span>s = meta.value()<span class="question-mark">?</span>.parse::&lt;LitStr&gt;()<span class="question-mark">?</span>;
                 rv.value_type.push(s.value());
+            } <span class="kw">else if </span>ident == <span class="string">"trim" </span>{
+                <span class="kw">let </span>s = meta.value()<span class="question-mark">?</span>.parse::&lt;LitBool&gt;()<span class="question-mark">?</span>;
+                rv.trim = <span class="prelude-val">Some</span>(s.value());
             } <span class="kw">else </span>{
                 <span class="comment">// Ignore other attributes used by `relay-protocol-derive`.
                 </span><span class="kw">if </span>!meta.input.peek(<span class="macro">syn::Token!</span>[,]) {
@@ -868,7 +888,11 @@
 }
 
 <span class="kw">impl </span>FieldAttrs {
-    <span class="kw">fn </span>as_tokens(<span class="kw-2">&amp;</span><span class="self">self</span>, inherit_from_field_attrs: <span class="prelude-ty">Option</span>&lt;TokenStream&gt;) -&gt; TokenStream {
+    <span class="kw">fn </span>as_tokens(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        type_attrs: <span class="kw-2">&amp;</span>TypeAttrs,
+        inherit_from_field_attrs: <span class="prelude-ty">Option</span>&lt;TokenStream&gt;,
+    ) -&gt; TokenStream {
         <span class="kw">let </span>field_name = <span class="kw-2">&amp;</span><span class="self">self</span>.field_name;
 
         <span class="kw">if </span><span class="self">self</span>.required.is_none() &amp;&amp; <span class="self">self</span>.nonempty.is_some() {
@@ -908,7 +932,7 @@
             <span class="macro">quote!</span>(<span class="kw">crate</span>::processor::Pii::False)
         };
 
-        <span class="kw">let </span>trim = <span class="kw">if let </span><span class="prelude-val">Some</span>(trim) = <span class="self">self</span>.trim {
+        <span class="kw">let </span>trim = <span class="kw">if let </span><span class="prelude-val">Some</span>(trim) = <span class="self">self</span>.trim.or(type_attrs.trim) {
             <span class="macro">quote!</span>(#trim)
         } <span class="kw">else if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>parent_attrs) = inherit_from_field_attrs {
             <span class="macro">quote!</span>(#parent_attrs.trim)

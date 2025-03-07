@@ -1235,13 +1235,7 @@
 <a href="#1234" id="1234">1234</a>
 <a href="#1235" id="1235">1235</a>
 <a href="#1236" id="1236">1236</a>
-<a href="#1237" id="1237">1237</a>
-<a href="#1238" id="1238">1238</a>
-<a href="#1239" id="1239">1239</a>
-<a href="#1240" id="1240">1240</a>
-<a href="#1241" id="1241">1241</a>
-<a href="#1242" id="1242">1242</a>
-<a href="#1243" id="1243">1243</a></pre></div><pre class="rust"><code><span class="kw">mod </span>convert;
+<a href="#1237" id="1237">1237</a></pre></div><pre class="rust"><code><span class="kw">mod </span>convert;
 
 <span class="kw">use </span>relay_protocol::{
     Annotated, Array, Empty, Error, FromValue, Getter, IntoValue, Object, Val, Value,
@@ -1254,46 +1248,42 @@
 };
 
 <span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
-#[metastructure(process_func = <span class="string">"process_span"</span>, value_type = <span class="string">"Span"</span>)]
+#[metastructure(process_func = <span class="string">"process_span"</span>, value_type = <span class="string">"Span"</span>, trim = <span class="bool-val">false</span>)]
 </span><span class="kw">pub struct </span>Span {
     <span class="doccomment">/// Timestamp when the span was ended.
-    </span><span class="attr">#[metastructure(required = <span class="bool-val">true</span>, trim = <span class="bool-val">false</span>)]
+    </span><span class="attr">#[metastructure(required = <span class="bool-val">true</span>)]
     </span><span class="kw">pub </span>timestamp: Annotated&lt;Timestamp&gt;,
 
     <span class="doccomment">/// Timestamp when the span started.
-    </span><span class="attr">#[metastructure(required = <span class="bool-val">true</span>, trim = <span class="bool-val">false</span>)]
+    </span><span class="attr">#[metastructure(required = <span class="bool-val">true</span>)]
     </span><span class="kw">pub </span>start_timestamp: Annotated&lt;Timestamp&gt;,
 
     <span class="doccomment">/// The amount of time in milliseconds spent in this span,
     /// excluding its immediate child spans.
-    </span><span class="attr">#[metastructure(trim = <span class="bool-val">false</span>)]
     </span><span class="kw">pub </span>exclusive_time: Annotated&lt;f64&gt;,
 
     <span class="doccomment">/// Span type (see `OperationType` docs).
-    </span><span class="attr">#[metastructure(max_chars = <span class="number">128</span>, trim = <span class="bool-val">false</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="number">128</span>)]
     </span><span class="kw">pub </span>op: Annotated&lt;OperationType&gt;,
 
     <span class="doccomment">/// The Span id.
-    </span><span class="attr">#[metastructure(required = <span class="bool-val">true</span>, trim = <span class="bool-val">false</span>)]
+    </span><span class="attr">#[metastructure(required = <span class="bool-val">true</span>)]
     </span><span class="kw">pub </span>span_id: Annotated&lt;SpanId&gt;,
 
     <span class="doccomment">/// The ID of the span enclosing this span.
-    </span><span class="attr">#[metastructure(trim = <span class="bool-val">false</span>)]
     </span><span class="kw">pub </span>parent_span_id: Annotated&lt;SpanId&gt;,
 
     <span class="doccomment">/// The ID of the trace the span belongs to.
-    </span><span class="attr">#[metastructure(required = <span class="bool-val">true</span>, trim = <span class="bool-val">false</span>)]
+    </span><span class="attr">#[metastructure(required = <span class="bool-val">true</span>)]
     </span><span class="kw">pub </span>trace_id: Annotated&lt;TraceId&gt;,
 
     <span class="doccomment">/// A unique identifier for a segment within a trace (8 byte hexadecimal string).
     ///
     /// For spans embedded in transactions, the `segment_id` is the `span_id` of the containing
     /// transaction.
-    </span><span class="attr">#[metastructure(trim = <span class="bool-val">false</span>)]
     </span><span class="kw">pub </span>segment_id: Annotated&lt;SpanId&gt;,
 
     <span class="doccomment">/// Whether or not the current span is the root of the segment.
-    </span><span class="attr">#[metastructure(trim = <span class="bool-val">false</span>)]
     </span><span class="kw">pub </span>is_segment: Annotated&lt;bool&gt;,
 
     <span class="doccomment">/// Indicates whether a span's parent is remote.
@@ -1305,66 +1295,61 @@
     ///  - `empty`: unknown
     ///  - `false`: is not remote
     ///  - `true`: is remote
-    </span><span class="attr">#[metastructure(trim = <span class="bool-val">false</span>)]
     </span><span class="kw">pub </span>is_remote: Annotated&lt;bool&gt;,
 
     <span class="doccomment">/// The status of a span.
-    </span><span class="attr">#[metastructure(trim = <span class="bool-val">false</span>)]
     </span><span class="kw">pub </span>status: Annotated&lt;SpanStatus&gt;,
 
     <span class="doccomment">/// Human readable description of a span (e.g. method URL).
-    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>, trim = <span class="bool-val">false</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>description: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Arbitrary tags on a span, like on the top-level event.
-    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>, trim = <span class="bool-val">false</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>tags: Annotated&lt;Object&lt;JsonLenientString&gt;&gt;,
 
     <span class="doccomment">/// The origin of the span indicates what created the span (see [OriginType] docs).
-    </span><span class="attr">#[metastructure(max_chars = <span class="number">128</span>, allow_chars = <span class="string">"a-zA-Z0-9_."</span>, trim = <span class="bool-val">false</span>)]
+    </span><span class="attr">#[metastructure(max_chars = <span class="number">128</span>, allow_chars = <span class="string">"a-zA-Z0-9_."</span>)]
     </span><span class="kw">pub </span>origin: Annotated&lt;OriginType&gt;,
 
     <span class="doccomment">/// ID of a profile that can be associated with the span.
-    </span><span class="attr">#[metastructure(trim = <span class="bool-val">false</span>)]
     </span><span class="kw">pub </span>profile_id: Annotated&lt;EventId&gt;,
 
     <span class="doccomment">/// Arbitrary additional data on a span.
     ///
     /// Besides arbitrary user data, this object also contains SDK-provided fields used by the
     /// product (see &lt;https://develop.sentry.dev/sdk/performance/span-data-conventions/&gt;).
-    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>, trim = <span class="bool-val">false</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"true"</span>)]
     </span><span class="kw">pub </span>data: Annotated&lt;SpanData&gt;,
 
     <span class="doccomment">/// Links from this span to other spans
-    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>, trim = <span class="bool-val">false</span>)]
+    </span><span class="attr">#[metastructure(pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>links: Annotated&lt;Array&lt;SpanLink&gt;&gt;,
 
     <span class="doccomment">/// Tags generated by Relay. These tags are a superset of the tags set on span metrics.
-    </span><span class="attr">#[metastructure(trim = <span class="bool-val">false</span>)]
     </span><span class="kw">pub </span>sentry_tags: Annotated&lt;SentryTags&gt;,
 
     <span class="doccomment">/// Timestamp when the span has been received by Sentry.
-    </span><span class="attr">#[metastructure(trim = <span class="bool-val">false</span>)]
     </span><span class="kw">pub </span>received: Annotated&lt;Timestamp&gt;,
 
     <span class="doccomment">/// Measurements which holds observed values such as web vitals.
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"empty"</span>, trim = <span class="bool-val">false</span>)]
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     #[metastructure(omit_from_schema)] </span><span class="comment">// we only document error events for now
     </span><span class="kw">pub </span>measurements: Annotated&lt;Measurements&gt;,
 
     <span class="doccomment">/// Platform identifier.
     ///
     /// See [`Event::platform`](`crate::protocol::Event::platform`).
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"empty"</span>, trim = <span class="bool-val">false</span>)]
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>platform: Annotated&lt;String&gt;,
 
     <span class="doccomment">/// Whether the span is a segment span that was converted from a transaction.
-    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"empty"</span>, trim = <span class="bool-val">false</span>)]
+    </span><span class="attr">#[metastructure(skip_serialization = <span class="string">"empty"</span>)]
     </span><span class="kw">pub </span>was_transaction: Annotated&lt;bool&gt;,
 
     <span class="comment">// TODO remove retain when the api stabilizes
     </span><span class="doccomment">/// Additional arbitrary fields for forwards compatibility.
-    </span><span class="attr">#[metastructure(additional_properties, retain = <span class="bool-val">true</span>, pii = <span class="string">"maybe"</span>, trim = <span class="bool-val">false</span>)]
+    </span><span class="attr">#[metastructure(additional_properties, retain = <span class="bool-val">true</span>, pii = <span class="string">"maybe"</span>)]
     </span><span class="kw">pub </span>other: Object&lt;Value&gt;,
 }
 
@@ -1440,6 +1425,7 @@
 
 <span class="doccomment">/// Indexable fields added by sentry (server-side).
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+#[metastructure(trim = <span class="bool-val">false</span>)]
 </span><span class="kw">pub struct </span>SentryTags {
     <span class="kw">pub </span>release: Annotated&lt;String&gt;,
     <span class="attr">#[metastructure(pii = <span class="string">"true"</span>)]
@@ -1594,6 +1580,7 @@
 /// Besides arbitrary user data, this type also contains SDK-provided fields used by the
 /// product (see &lt;https://develop.sentry.dev/sdk/performance/span-data-conventions/&gt;).
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+#[metastructure(trim = <span class="bool-val">false</span>)]
 </span><span class="kw">pub struct </span>SpanData {
     <span class="doccomment">/// Mobile app start variant.
     ///
@@ -1993,6 +1980,7 @@
 
 <span class="doccomment">/// A link from a span to another span.
 </span><span class="attr">#[derive(Clone, Debug, Default, PartialEq, Empty, FromValue, IntoValue, ProcessValue)]
+#[metastructure(trim = <span class="bool-val">false</span>)]
 </span><span class="kw">pub struct </span>SpanLink {
     <span class="doccomment">/// The trace id of the linked span
     </span><span class="attr">#[metastructure(required = <span class="bool-val">true</span>, trim = <span class="bool-val">false</span>)]
