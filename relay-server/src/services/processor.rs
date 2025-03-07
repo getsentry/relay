@@ -102,6 +102,9 @@ mod standalone;
 #[cfg(feature = "processing")]
 mod unreal;
 
+#[cfg(feature = "processing")]
+mod nnswitch;
+
 /// Creates the block only if used with `processing` feature.
 ///
 /// Provided code block will be executed only if the provided config has `processing_enabled` set.
@@ -527,6 +530,9 @@ pub enum ProcessingError {
 
     #[error("replay filtered with reason: {0:?}")]
     ReplayFiltered(FilterStatKey),
+
+    #[error("nintendo switch dying message has invalid format")]
+    InvalidNintendoDyingMessage,
 }
 
 impl ProcessingError {
@@ -546,6 +552,8 @@ impl ProcessingError {
             Self::InvalidTimestamp => Some(Outcome::Invalid(DiscardReason::Timestamp)),
             Self::DuplicateItem(_) => Some(Outcome::Invalid(DiscardReason::DuplicateItem)),
             Self::NoEventPayload => Some(Outcome::Invalid(DiscardReason::NoEventPayload)),
+            // TODO should we ignore this error and leave the attachment in the event?
+            Self::InvalidNintendoDyingMessage => None,
 
             // Processing-only outcomes (Sentry-internal Relays)
             #[cfg(feature = "processing")]
@@ -1552,6 +1560,7 @@ impl EnvelopeProcessorService {
 
         if_processing!(self.inner.config, {
             unreal::expand(managed_envelope, &self.inner.config)?;
+            nnswitch::expand(managed_envelope, &self.inner.config)?;
         });
 
         let extraction_result = event::extract(
@@ -1565,6 +1574,11 @@ impl EnvelopeProcessorService {
         if_processing!(self.inner.config, {
             if let Some(inner_event_fully_normalized) =
                 unreal::process(managed_envelope, &mut event)?
+            {
+                event_fully_normalized = inner_event_fully_normalized;
+            }
+            if let Some(inner_event_fully_normalized) =
+                nnswitch::process(managed_envelope, &mut event)?
             {
                 event_fully_normalized = inner_event_fully_normalized;
             }
