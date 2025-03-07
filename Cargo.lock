@@ -3980,7 +3980,6 @@ dependencies = [
  "priority-queue",
  "prost",
  "rand",
- "rayon",
  "regex",
  "relay-auth",
  "relay-base-schema",
