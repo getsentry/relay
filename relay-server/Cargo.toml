@@ -62,7 +62,6 @@ pin-project-lite = { workspace = true }
 priority-queue = { workspace = true }
 prost = { workspace = true }
 rand = { workspace = true }
-rayon = { workspace = true }
 regex = { workspace = true }
 relay-auth = { workspace = true }
 relay-base-schema = { workspace = true }
