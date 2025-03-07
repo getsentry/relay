@@ -186,7 +186,7 @@ impl CategoryUnit {
             | DataCategory::Error
             | DataCategory::Transaction
             | DataCategory::Replay
-            | DataCategory::ReplayVideo
+            | DataCategory::DoNotUseReplayVideo
             | DataCategory::Security
             | DataCategory::Profile
             | DataCategory::ProfileIndexed

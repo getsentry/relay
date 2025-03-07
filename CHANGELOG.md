@@ -11,6 +11,7 @@
 - Add option to control ourlogs ingestion. ([#4518](https://github.com/getsentry/relay/pull/4518))
 - Update Apple device model classes ([#4529](https://github.com/getsentry/relay/pull/4529))
 - Remove separate quota and rate limit counting for replay videos ([#4554](https://github.com/getsentry/relay/pull/4554))
+- Deprecate ReplayVideo data category ([#4560](https://github.com/getsentry/relay/pull/4560))
 
 **Bug Fixes**:
 
