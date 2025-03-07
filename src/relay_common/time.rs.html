@@ -284,7 +284,12 @@
 <a href="#283" id="283">283</a>
 <a href="#284" id="284">284</a>
 <a href="#285" id="285">285</a>
-<a href="#286" id="286">286</a></pre></div><pre class="rust"><code><span class="doccomment">//! Utilities to deal with date-time types. (DateTime, Instant, SystemTime, etc)
+<a href="#286" id="286">286</a>
+<a href="#287" id="287">287</a>
+<a href="#288" id="288">288</a>
+<a href="#289" id="289">289</a>
+<a href="#290" id="290">290</a>
+<a href="#291" id="291">291</a></pre></div><pre class="rust"><code><span class="doccomment">//! Utilities to deal with date-time types. (DateTime, Instant, SystemTime, etc)
 
 </span><span class="kw">use </span>std::fmt;
 <span class="kw">use </span>std::time::{Duration, Instant, SystemTime};
@@ -393,6 +398,11 @@
     <span class="doccomment">/// Returns the number of seconds since the UNIX epoch start.
     </span><span class="kw">pub fn </span>as_secs(<span class="self">self</span>) -&gt; u64 {
         <span class="self">self</span>.<span class="number">0
+    </span>}
+
+    <span class="doccomment">/// Returns the number of nanoseconds since the UNIX epoch start. Precision limited to seconds.
+    </span><span class="kw">pub fn </span>as_nanos(<span class="self">self</span>) -&gt; u64 {
+        <span class="self">self</span>.as_secs() * <span class="number">1_000_000_000
     </span>}
 
     <span class="doccomment">/// Returns the timestamp as chrono datetime.

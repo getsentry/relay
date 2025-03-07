@@ -202,9 +202,72 @@
 <a href="#201" id="201">201</a>
 <a href="#202" id="202">202</a>
 <a href="#203" id="203">203</a>
-<a href="#204" id="204">204</a></pre></div><pre class="rust"><code><span class="kw">use </span>opentelemetry_proto::tonic::common::v1::any_value::Value <span class="kw">as </span>OtelValue;
+<a href="#204" id="204">204</a>
+<a href="#205" id="205">205</a>
+<a href="#206" id="206">206</a>
+<a href="#207" id="207">207</a>
+<a href="#208" id="208">208</a>
+<a href="#209" id="209">209</a>
+<a href="#210" id="210">210</a>
+<a href="#211" id="211">211</a>
+<a href="#212" id="212">212</a>
+<a href="#213" id="213">213</a>
+<a href="#214" id="214">214</a>
+<a href="#215" id="215">215</a>
+<a href="#216" id="216">216</a>
+<a href="#217" id="217">217</a>
+<a href="#218" id="218">218</a>
+<a href="#219" id="219">219</a>
+<a href="#220" id="220">220</a>
+<a href="#221" id="221">221</a>
+<a href="#222" id="222">222</a>
+<a href="#223" id="223">223</a>
+<a href="#224" id="224">224</a>
+<a href="#225" id="225">225</a>
+<a href="#226" id="226">226</a>
+<a href="#227" id="227">227</a>
+<a href="#228" id="228">228</a>
+<a href="#229" id="229">229</a>
+<a href="#230" id="230">230</a>
+<a href="#231" id="231">231</a>
+<a href="#232" id="232">232</a>
+<a href="#233" id="233">233</a>
+<a href="#234" id="234">234</a>
+<a href="#235" id="235">235</a>
+<a href="#236" id="236">236</a>
+<a href="#237" id="237">237</a>
+<a href="#238" id="238">238</a>
+<a href="#239" id="239">239</a>
+<a href="#240" id="240">240</a>
+<a href="#241" id="241">241</a>
+<a href="#242" id="242">242</a>
+<a href="#243" id="243">243</a>
+<a href="#244" id="244">244</a>
+<a href="#245" id="245">245</a>
+<a href="#246" id="246">246</a>
+<a href="#247" id="247">247</a>
+<a href="#248" id="248">248</a>
+<a href="#249" id="249">249</a>
+<a href="#250" id="250">250</a>
+<a href="#251" id="251">251</a>
+<a href="#252" id="252">252</a>
+<a href="#253" id="253">253</a>
+<a href="#254" id="254">254</a>
+<a href="#255" id="255">255</a>
+<a href="#256" id="256">256</a>
+<a href="#257" id="257">257</a>
+<a href="#258" id="258">258</a>
+<a href="#259" id="259">259</a>
+<a href="#260" id="260">260</a>
+<a href="#261" id="261">261</a>
+<a href="#262" id="262">262</a>
+<a href="#263" id="263">263</a>
+<a href="#264" id="264">264</a>
+<a href="#265" id="265">265</a>
+<a href="#266" id="266">266</a></pre></div><pre class="rust"><code><span class="kw">use </span>opentelemetry_proto::tonic::common::v1::any_value::Value <span class="kw">as </span>OtelValue;
 
 <span class="kw">use </span><span class="kw">crate</span>::OtelLog;
+<span class="kw">use </span>relay_common::time::UnixTimestamp;
 <span class="kw">use </span>relay_event_schema::protocol::{AttributeValue, OurLog, SpanId, TraceId};
 <span class="kw">use </span>relay_protocol::{Annotated, Object};
 
@@ -232,6 +295,10 @@
         .unwrap_or_else(String::new);
 
     <span class="kw">let </span><span class="kw-2">mut </span>attribute_data = Object::new();
+
+    <span class="comment">// We ignore the passed observed time since Relay always acts as the collector in Sentry.
+    // We may change this in the future with forwarding Relays.
+    </span><span class="kw">let </span>observed_time_unix_nano = UnixTimestamp::now().as_nanos();
 
     <span class="kw">for </span>attribute <span class="kw">in </span>attributes.into_iter() {
         <span class="kw">if let </span><span class="prelude-val">Some</span>(value) = attribute.value.and_then(|v| v.value) {
@@ -262,7 +329,7 @@
 
     OurLog {
         timestamp_nanos: Annotated::new(otel_log.time_unix_nano),
-        observed_timestamp_nanos: Annotated::new(otel_log.observed_time_unix_nano),
+        observed_timestamp_nanos: Annotated::new(observed_time_unix_nano),
         trace_id: TraceId(trace_id).into(),
         span_id: Annotated::new(SpanId(span_id)),
         trace_flags: Annotated::new(<span class="number">0</span>),
@@ -403,6 +470,63 @@
         <span class="macro">assert_eq!</span>(
             <span class="macro">get_value!</span>(annotated_log.attributes[<span class="string">"db.statement"</span>]!).string_value(),
             <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">"SELECT \"table\".\"col\" FROM \"table\" WHERE \"table\".\"col\" = %s"</span>.into())
+        );
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>parse_log_without_observed_time() {
+        <span class="kw">let </span>json_without_observed_time = <span class="string">r#"{
+            "timeUnixNano": "1544712660300000000",
+            "observedTimeUnixNano": "0",
+            "severityNumber": 10,
+            "severityText": "Information",
+            "traceId": "5B8EFFF798038103D269B633813FC60C",
+            "spanId": "EEE19B7EC3C1B174",
+            "body": {
+                "stringValue": "Example log record"
+            },
+            "attributes": []
+        }"#</span>;
+
+        <span class="kw">let </span>before_test = UnixTimestamp::now().as_nanos();
+        <span class="kw">let </span>otel_log: OtelLog = serde_json::from_str(json_without_observed_time).unwrap();
+        <span class="kw">let </span>our_log: OurLog = otel_to_sentry_log(otel_log);
+        <span class="kw">let </span>after_test = UnixTimestamp::now().as_nanos();
+
+        <span class="kw">let </span>observed_time = our_log.observed_timestamp_nanos.value().unwrap();
+        <span class="macro">assert!</span>(<span class="kw-2">*</span>observed_time &gt; <span class="number">0</span>);
+        <span class="macro">assert!</span>(<span class="kw-2">*</span>observed_time &gt;= before_test);
+        <span class="macro">assert!</span>(<span class="kw-2">*</span>observed_time &lt;= after_test);
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>parse_log_ignores_observed_time() {
+        <span class="kw">let </span>json_with_observed_time = <span class="string">r#"{
+            "timeUnixNano": "1544712660300000000",
+            "observedTimeUnixNano": "1544712660300000000",
+            "severityNumber": 10,
+            "severityText": "Information",
+            "traceId": "5B8EFFF798038103D269B633813FC60C",
+            "spanId": "EEE19B7EC3C1B174",
+            "body": {
+                "stringValue": "Example log record"
+            },
+            "attributes": []
+        }"#</span>;
+
+        <span class="kw">let </span>before_test = UnixTimestamp::now().as_nanos();
+        <span class="kw">let </span>otel_log: OtelLog = serde_json::from_str(json_with_observed_time).unwrap();
+        <span class="kw">let </span>our_log: OurLog = otel_to_sentry_log(otel_log);
+        <span class="kw">let </span>after_test = UnixTimestamp::now().as_nanos();
+
+        <span class="kw">let </span>observed_time = our_log.observed_timestamp_nanos.value().unwrap();
+        <span class="macro">assert!</span>(<span class="kw-2">*</span>observed_time &gt; <span class="number">0</span>);
+        <span class="macro">assert!</span>(<span class="kw-2">*</span>observed_time &gt;= before_test);
+        <span class="macro">assert!</span>(<span class="kw-2">*</span>observed_time &lt;= after_test);
+
+        <span class="macro">assert_ne!</span>(
+            our_log.observed_timestamp_nanos,
+            Annotated::new(<span class="number">1544712660300000000</span>)
         );
     }
 }
